@@ -28,10 +28,11 @@ class RMSNorm(nn.Module):
   """RMS normalization."""
 
   epsilon: float = 1e-6
+  weight_dtype: Any = jnp.float32
   dtype: Any = jnp.float32
   weight_dtype: Any = jnp.float32
   kernel_axes: Tuple[str, ...] = ()
-  scale_init: Initializer = nn.initializers.ones
+  scale_init: Initializer = nn.initializers.ones # pax also ones init
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> jnp.ndarray:

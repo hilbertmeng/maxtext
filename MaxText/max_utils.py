@@ -28,6 +28,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
+import orbax.checkpoint as ocp
 
 
 import json
@@ -228,6 +229,7 @@ def maybe_initialize_jax_distributed_system(raw_keys):
   ) or raw_keys["hardware"] == "gpu_multiprocess":
     max_logging.log("Attempting to initialize the jax distributed system...")
     jax.distributed.initialize()
+    ocp.multihost.utils.initialize_runtime_to_distributed_ids()
     max_logging.log("Jax distributed system initialized!")
 
 
@@ -431,7 +433,7 @@ def init_initial_state(model, tx, config, is_training, key):
 
   Args: model, tx, config, is_training, key
   """
-  input_shape = (config.global_batch_size_to_load, config.max_target_length)
+  input_shape = (config.global_batch_size_to_load, config.max_target_length - 1)
   model_vars = model.init(
       {"params": key, "dropout": key, "aqt": key},
       jnp.ones(input_shape, dtype=jnp.int32),
@@ -442,16 +444,42 @@ def init_initial_state(model, tx, config, is_training, key):
   return init_decode_state(model.apply, model_vars)
 
 
-def load_decode_model_vars(model, config, rng, mesh):
-  state, _ = setup_decode_state(model, config, rng, mesh, None)
-  return state.params
-
 
 def setup_decode_state(model, config, rng, mesh, checkpoint_manager):
-  is_training = False
-  state, state_mesh_annotations, _ = setup_initial_state(
-      model, None, None, config, rng, mesh, checkpoint_manager, is_training
-  )
+  """Setup decode state by loading params from a checkpoint.
+  Args:
+    model: the flax model to initialize
+    config: config object
+    rng: jax.prng key
+    mesh: jax.devices() mesh
+    checkpoint_manager: Checkpoint manager
+
+  Returns:
+    state: state with decode params loaded from the checkpoint
+    state_mesh_annotations: the mesh annotations for the state
+  """
+  if not config.load_parameters_path:
+    # generate random params
+    max_logging.log(
+        "No decode checkpoint specified - generating random weights."
+    )
+    state, state_mesh_annotations, _ = setup_initial_state(
+      model, None, None, config, rng, mesh, checkpoint_manager, False
+      )
+  else:
+    # Load params from checkpoint
+    max_logging.log(f"Loading decode params from {config.load_parameters_path}")
+    unboxed_abstract_state, state_mesh_annotations, _ = (
+      get_abstract_state(model, None, config, rng, mesh, False)
+      )
+    with nn_partitioning.axis_rules(config.logical_axis_rules):
+      params = checkpointing.load_params_from_path(
+        config.load_parameters_path,
+        unboxed_abstract_state.params
+        )
+    state = init_decode_state(None, params)
+
+  state = unbox_logicallypartioned(state)
   return state, state_mesh_annotations
 
 
@@ -512,12 +540,13 @@ def setup_initial_state(
         unboxed_abstract_state,
         config.enable_single_replica_ckpt_restoring,
         config.dataset_type,
+        checkpoint_dir=config.checkpoint_dir, # lsp
     )
 
     if restored:
       if "iter" in restored and restored["iter"] is not None:
         data_iterator.local_iterator = restored["iter"]
-      state = restored["items"]
+      state = restored["state"] # lsp
     else:
       init_state_partial = functools.partial(
           init_initial_state, model, tx, config, is_training
@@ -804,3 +833,20 @@ def summarize_pytree_data(params, name="Params", raw=False):
         f"\tAvg size: {avg_param_size:.3f} bytes\n"
     )
   return num_params, total_param_size, avg_param_size
+
+
+def save_quantized_checkpoint_if_configured(config, params):
+  assert config.quantization, 'quantization must be configured'
+  if config.save_quantized_params_path:
+    checkpointing.save_params_to_path(config.save_quantized_params_path, params)
+  else:
+    "Skipping saving quantized checkpoint as save_quantized_params_path is null."
+
+
+def print_mem_stats(label:str):
+  print(f'\nMemstats: {label}:')
+  for d in jax.local_devices():
+    stats = d.memory_stats()
+    used = round(stats['bytes_in_use']/2**30, 2)
+    limit = round(stats['bytes_limit']/2**30, 2)
+    print(f"\tUsing (GB) {used} / {limit} ({used/limit:%}) on {d}")

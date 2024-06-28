@@ -33,6 +33,7 @@ import grain.python as grain
 import jax
 import numpy as np
 import orbax.checkpoint
+import orbax.checkpoint.experimental.emergency.checkpoint_manager as emergency_checkpoint_manager
 
 import checkpointing
 import max_utils
@@ -62,6 +63,7 @@ from cloud_tpu_diagnostics.configuration import stack_trace_configuration
 from layers import quantizations
 
 from ml_goodput_measurement import goodput
+from input_pipeline._pile_data_processing import record_file_and_step # lsp
 
 Transformer = models.Transformer
 EPS = 1e-8
@@ -94,7 +96,7 @@ def load_next_batch(train_iter, example_batch, config):
 
 def record_scalar_metrics(metrics, step_time_delta, per_device_tflops, lr):
   """Records scalar metrics to be written to tensorboard"""
-  metrics["scalar"].update({"perf/step_time_seconds": step_time_delta.total_seconds()})
+  metrics["scalar"].update({"perf/step_time_seconds": 1 / step_time_delta.total_seconds()}) # s/step -> step/s
   metrics["scalar"].update({"perf/per_device_tflops": per_device_tflops})
   metrics["scalar"].update({"perf/per_device_tflops_per_sec": per_device_tflops / step_time_delta.total_seconds()})
   metrics["scalar"].update({"learning/current_learning_rate": lr})
@@ -142,7 +144,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
     full_log = step % config.log_period == 0
 
     max_logging.log(
-        f"completed step: {step}, seconds: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
+        f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
         f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
         f"loss: {metrics['scalar']['learning/loss']:.3f}"
     )
@@ -154,6 +156,11 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
 
 def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_iterator=None):
   """Wrapper for saving checkpoint"""
+  if isinstance(checkpoint_manager, emergency_checkpoint_manager.CheckpointManager):
+    return checkpoint_manager.save(
+      step, args=orbax.checkpoint.args.PyTreeSave(state)
+  )
+
   if dataset_type == "grain":
     return checkpoint_manager.save(
         step,
@@ -162,6 +169,8 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
             iter=grain.PyGrainCheckpointSave(data_iterator.local_iterator),
         ),
     )
+  elif dataset_type == "pile":
+    return checkpoint_manager.save(step, {'state': state})
   else:
     return checkpoint_manager.save(
         step, args=orbax.checkpoint.args.Composite(items=orbax.checkpoint.args.PyTreeSave(item=state))
@@ -340,15 +349,7 @@ def setup_mesh_and_model(config):
 
   init_rng = random.PRNGKey(config.init_weights_seed)
   writer = max_utils.initialize_summary_writer(config)
-  logger = checkpointing.setup_checkpoint_logger(config)
-  checkpoint_manager = checkpointing.create_orbax_checkpoint_manager(
-      config.checkpoint_dir,
-      config.enable_checkpointing,
-      config.async_checkpointing,
-      config.checkpoint_period,
-      config.dataset_type,
-      logger,
-  )
+
   # Mesh definition
   devices_array = max_utils.create_device_mesh(config)
   mesh = Mesh(devices_array, config.mesh_axes)
@@ -358,6 +359,32 @@ def setup_mesh_and_model(config):
   model = Transformer(config, mesh, quant=quant)
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
   tx = optimizers.get_optimizer(config, learning_rate_schedule)
+
+  if config.enable_emergency_checkpoint:
+    abstract_state, _, _ = max_utils.get_abstract_state(
+      model, tx, config, init_rng, mesh, is_training=True
+    )
+    checkpoint_manager = (
+      checkpointing.create_orbax_emergency_checkpoint_manager(
+          config.local_checkpoint_directory,
+          config.checkpoint_dir,
+          mesh,
+          abstract_state,
+          config.local_checkpoint_period,
+          config.checkpoint_period,
+      )
+    )
+  else:
+    logger = checkpointing.setup_checkpoint_logger(config)
+    checkpoint_manager = checkpointing.create_orbax_checkpoint_manager(
+        config.checkpoint_dir,
+        config.enable_checkpointing,
+        config.async_checkpointing,
+        config.checkpoint_period,
+        config.dataset_type,
+        logger,
+    )
+
   return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx
 
 
@@ -450,6 +477,16 @@ def train_loop(config, state=None):
         static_argnums_eval,
         donate_argnums_eval,
     ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_annotations, model, config)
+  
+  # lsp
+  if isinstance(state, dict):
+    state = train_state.TrainState(
+      step=state['step'],
+      params=state['params'],
+      opt_state=state['opt_state'],
+      apply_fn=model.apply,
+      tx=None,
+    )
 
   num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
   max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
@@ -518,6 +555,7 @@ def train_loop(config, state=None):
 
     if checkpoint_manager is not None:
       if save_checkpoint(checkpoint_manager, int(step), state, config.dataset_type, data_iterator):
+        record_file_and_step(step, config, data_iterator) # lsp
         max_logging.log(f"saved a checkpoint at step {step}")
 
       # Upon preemption, exit when and only when all ongoing saves are complete.

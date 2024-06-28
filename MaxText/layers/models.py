@@ -199,6 +199,10 @@ class Decoder(nn.Module):
       from layers import simple_layer
 
       return simple_layer.SimpleDecoderLayer
+    elif self.config.decoder_block == "dcformer":
+      from layers import dcformer
+
+      return dcformer.DcformerDecoderLayer
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 

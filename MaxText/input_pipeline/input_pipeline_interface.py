@@ -27,6 +27,8 @@ from input_pipeline import _tfds_data_processing
 from input_pipeline import _grain_data_processing
 from input_pipeline import _tfds_data_processing_c4_mlperf
 from input_pipeline import _hf_data_processing
+from input_pipeline import _pile_data_processing
+
 import tokenizer
 import multihost_dataloading
 
@@ -214,6 +216,8 @@ def make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
       )
     elif config.dataset_type == "hf":
       return make_hf_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
+    elif config.dataset_type == "pile": # lsp
+      return _pile_data_processing.make_pile_train_iterator(config, mesh, add_bos, add_eos)
   else:
     return BadSyntheticDataIterator(config, mesh), None, get_tokenizer(config.tokenizer_path, add_bos, add_eos)
 
@@ -221,7 +225,7 @@ def make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
 def create_data_iterator_with_tokenizer(config, mesh, add_bos=True, add_eos=True):
   if config.dataset_type == "synthetic":
     return SyntheticDataIterator(config, mesh), None, get_tokenizer(config.tokenizer_path, add_bos, add_eos)
-  elif config.dataset_type in ("tfds", "grain", "c4_mlperf", "hf"):
+  elif config.dataset_type in ("tfds", "grain", "c4_mlperf", "hf", "pile"):
     return make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos)
   else:
     assert False, f"Unknown dataset_type {config.dataset_type}, dataset_type must be synthetic, tfds, grain, hf or c4_mlperf"
@@ -230,7 +234,7 @@ def create_data_iterator_with_tokenizer(config, mesh, add_bos=True, add_eos=True
 def get_shaped_batch(config):
   """Return the shape of the batch - this is what eval_shape would return for the
   output of create_data_iterator_with_tokenizer, but eval_shape doesn't work, see b/306901078."""
-  batch_shape = (config.global_batch_size_to_load, config.max_target_length)
+  batch_shape = (config.global_batch_size_to_load, config.max_target_length - 1)
   shaped_batch = {}
   shaped_batch["inputs"] = jax.ShapeDtypeStruct(batch_shape, jnp.int32)
   shaped_batch["inputs_position"] = jax.ShapeDtypeStruct(batch_shape, jnp.int32)

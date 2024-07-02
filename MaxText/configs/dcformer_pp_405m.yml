@@ -96,8 +96,8 @@ zero_loss: True # whether to compute id zero loss when train
 iter_file_nums: 2 # how many files every file batch
 static_proj: False # default false
 expansion_factor_real_data: -1 # if -1 then all hosts will load real data, else total_hosts//expansion_factor_real_data will pull data from GCS.
-per_device_batch_size: 64.0
-eval_per_device_batch_size: 16.0 # eval also use per_device_batch_size
+per_device_batch_size: 1.0
+eval_per_device_batch_size: 1.0 # eval also use per_device_batch_size
 eval_loop_num_batches: 648
 eval_interval: 13500  # the specific number of train step between eval_step
 qk_norm: True # 405m use true, but 2b8 model use false
@@ -203,7 +203,7 @@ num_slices: -1
 # Replace with your path given as argument in download_dataset.sh, e.g. "gs://my-maxtext-dataset/"
 # dataset_path: {'train': "gs://common_datasets_us-east5/"} # c4
 dataset_path: ''
-vocab_size: 50256 # powers of 2 for sharding
+vocab_size: 150264 # powers of 2 for sharding
 tokenizer_path: "assets/tokenizer.llama2"
 eval_split: 'val_with_eos'
 max_corpus_chars: 10_000_000

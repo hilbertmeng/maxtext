@@ -1,5 +1,7 @@
-jax>=0.4.30
-jaxlib>=0.4.30
+-f https://storage.googleapis.com/jax-releases/libtpu_releases.html 
+jax[tpu]>=0.4.30
+-f https://storage.googleapis.com/jax-releases/libtpu_releases.html 
+jaxlib[tpu]>=0.4.30
 orbax-checkpoint>=0.5.20
 absl-py
 array-record

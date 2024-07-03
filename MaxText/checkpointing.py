@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 """Create an Orbax CheckpointManager with specified (Async or not) Checkpointer."""
-
+import os
 from typing import Optional, Union
 from etils import epath
 import orbax.checkpoint
@@ -181,12 +181,15 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
   elif load_parameters_path:
     checkpoint_dir = epath.Path(load_parameters_path)
     max_logging.log(f"restoring params from {load_parameters_path=}")
+    load_step = os.path.basename(load_parameters_path)
+    try:
+      load_step = int(load_step)
+    except Exception as error:
+      error = f'Error: {error}, please check whether ‘load_parameters_path’ endswith step number'
+      raise ValueError(error)
+    params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
     ckptr = orbax.checkpoint.PyTreeCheckpointer()
-    if isinstance(abstract_unboxed_pre_state, dict):
-      params_shapedtype = abstract_unboxed_pre_state['params']
-    else:
-      params_shapedtype = abstract_unboxed_pre_state.params
-    state = checkpoint_manager.restore(2200, items={"state": params_shapedtype})
+    state = checkpoint_manager.restore(load_step, items={"state": params_shapedtype})
     restored = state['state']
     return None, restored
 

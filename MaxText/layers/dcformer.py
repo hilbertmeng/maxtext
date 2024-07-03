@@ -122,8 +122,6 @@ class DcformerDecoderLayer(nn.Module):
       kernel_init=NormalInitializer(0.006),
       )
 
-    if cfg.record_internal_nn_metrics:
-      self.sow('intermediates', 'lnx', lnx[0])
     attention_lnx = attention_layer(
             lnx,
             lnx,
@@ -131,9 +129,6 @@ class DcformerDecoderLayer(nn.Module):
             decoder_segment_ids=decoder_segment_ids,
             deterministic=deterministic,
             model_mode=model_mode)
-
-    if cfg.record_internal_nn_metrics:
-      self.sow('intermediates', 'attention_lnx', attention_lnx[0])
 
     print(f'attention_lnx: {attention_lnx.dtype}')
 
@@ -153,9 +148,6 @@ class DcformerDecoderLayer(nn.Module):
 
     hidden_states = nn.with_logical_constraint(hidden_states, ('activation_batch', 'activation_length', 'activation_embed'))
 
-
-    if cfg.record_internal_nn_metrics:
-      self.sow('intermediates', 'hidden_states', hidden_states[0])
     # MLP block.
     mlp_lnx = linears.MlpBlock(
         intermediate_dim=cfg.mlp_dim,
@@ -168,9 +160,6 @@ class DcformerDecoderLayer(nn.Module):
         quant=self.quant,
         kernel_init=NormalInitializer(0.006),
     )(hidden_states, deterministic=deterministic)
-
-    if cfg.record_internal_nn_metrics:
-      self.sow('intermediates', 'mlp_lnx', mlp_lnx[0])
 
     print(f'mlp_lnx: {mlp_lnx.dtype}')
 

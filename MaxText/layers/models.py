@@ -265,10 +265,6 @@ class Decoder(nn.Module):
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
-    if cfg.record_internal_nn_metrics:
-      self.sow("intermediates", "decoder_input_tokens", decoder_input_tokens[0])
-      self.sow("intermediates", "y", y[0])
-
     if cfg.use_untrainable_positional_embedding:
       y = PositionalEmbedding(cfg.base_emb_dim)(y, decoder_positions)
 
@@ -382,8 +378,6 @@ class Decoder(nn.Module):
     )(y)
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
 
-    self.sow("intermediates", "norm_output", y[0])
-
     # [batch, length, emb_dim] -> [batch, length, vocab_size]
     if cfg.logits_via_embedding: # false
       # Use the transpose of embedding matrix for logit transform.
@@ -403,7 +397,6 @@ class Decoder(nn.Module):
       )  # We do not quantize the logits matmul.
     logits = nn.with_logical_constraint(logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab"))
     logits = logits.astype(jnp.float32)
-    # self.sow("intermediates", "logits", logits[0])
     return logits
 
 

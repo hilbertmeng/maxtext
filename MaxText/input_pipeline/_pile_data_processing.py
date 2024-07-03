@@ -260,7 +260,7 @@ def extract_pythia_datapath(dataset_path, eval_split):  # lsp
 
 
 def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
-    # random.seed(9876)
+    random.seed(9876)
     client = storage.Client()
     #v3: us-east1-d -> common_datasets, v4: us-central2-b -> common_datasets_us-central2-b
     path = dataset_path.replace('gs://', '')
@@ -284,6 +284,7 @@ def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
     short_k = min(3 * len(train_long_files) // 14, len(train_short_files))
     selected_short_files = random.sample(train_short_files, k=short_k)
     train_files = selected_short_files + train_long_files
+    max_logging.log(f'selected_short_files: {selected_short_files} train_long_files: {train_long_files}')
     max_logging.log(f'selected_short_files: {len(selected_short_files)} train_long_files: {len(train_long_files)}')
     random.shuffle(train_files)
     valid_files = sorted(valid_files)

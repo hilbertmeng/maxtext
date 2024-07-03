@@ -990,6 +990,10 @@ class Attention(nn.Module):
       key = self.kv_projection(inputs_kv, proj_name='key')
       value = self.kv_projection(inputs_kv, proj_name='value')
 
+    self.sow('intermediates', 'query_proj', query[0])
+    self.sow('intermediates', 'key_proj', key[0])
+    self.sow('intermediates', 'value_proj', value[0])
+
     # lsp qk norm
     if self.config.qk_norm:
       query = RMSNorm(
@@ -1007,6 +1011,8 @@ class Attention(nn.Module):
         epsilon=self.config.normalization_layer_epsilon,
         )(key)
         
+      self.sow('intermediates', 'query_norm', query[0])
+      self.sow('intermediates', 'key_norm', key[0])
     # apply ROPE
     query = RotaryEmbedding(
         min_timescale=self.config.rope_min_timescale,
@@ -1014,6 +1020,10 @@ class Attention(nn.Module):
         embedding_dims=self.head_dim, name='query_rotary'
     )(inputs=query, position=inputs_positions)
     key = self.key_rotary(key, inputs_positions)
+
+
+    self.sow('intermediates', 'query_rotary1', query[0])
+    self.sow('intermediates', 'key_rotary1', key[0])
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     query = checkpoint_name(query, 'query_proj')
@@ -1051,6 +1061,8 @@ class Attention(nn.Module):
                                post_compose=self.config.post_compose)
 
     out = attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv)
+    self.sow('intermediates', 'attention_output', out[0])
+
     out = nn.with_logical_constraint(out, self.out_axis_names)
     # apply output projection,  output dim is set to the input dim.
     out = self.out_projection(inputs_q.shape[-1], out)

@@ -24,6 +24,7 @@ import datetime
 import os
 import sys
 import functools
+import pickle
 
 from typing import Sequence
 from absl import app
@@ -239,6 +240,8 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
   # Mask out paddings at the end of each example.
   xent = xent * (data["targets_segmentation"] != 0)
+  intermediate_outputs['losses'] = xent[0]
+  intermediate_outputs['logits'] = logits[0]
   total_loss = jnp.sum(xent)
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
@@ -283,10 +286,10 @@ def train_step(model, config, state, data, dropout_rng):
           "learning/param_norm": max_utils.l2norm_pytree(new_state.params),
       },
       "scalars": {},
+      "intermediate_outputs": intermediate_outputs,
   }
-
-  if config.record_internal_nn_metrics:
-    record_activation_metrics(metrics, intermediate_outputs, config)
+  # if config.record_internal_nn_metrics:
+  #   record_activation_metrics(metrics, intermediate_outputs, config)
 
   return new_state, metrics
 
@@ -549,6 +552,11 @@ def train_loop(config, state=None):
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
         state, metrics = p_train_step(state, example_batch, nextrng)
 
+    intermediate_outputs = metrics['intermediate_outputs']
+    pickle.dump(intermediate_outputs, open(f'debug_max_{state.step}.pkl', 'wb'))
+    if state.step == 3:
+      exit(0)
+      
     new_time = datetime.datetime.now()
     record_scalar_metrics(metrics, new_time - last_step_completion, per_device_tflops, learning_rate_schedule(step))
     last_step_completion = new_time

@@ -38,7 +38,7 @@ load_full_state_path: ""
 # If enable_checkpointing is true, an asynchronous checkpointer will be used if
 # async_checkpointing is true, else a synchronous one is used. If you have
 # problems with the checkpointer we recommend trying the synchronous one.
-enable_checkpointing: True
+enable_checkpointing: False
 async_checkpointing: True
 checkpoint_period: 1000
 enable_single_replica_ckpt_restoring: False
@@ -85,7 +85,7 @@ base_num_decoder_layers: 24
 # lsp pax
 window_size: [256, null] # null or list. ex: [256, null]
 num_layers_per_block: 2 # it must equal to widow_size list length, ex: window_size = [256, null], num_layers_per_block = 2
-query_chunk_size: 128 # null or int.
+query_chunk_size: 512 # null or int.
 max_target_length: 2049 # Maximum sequence length
 reset_for_eval: True # True will rest eval dataset
 epoch: 1
@@ -93,7 +93,7 @@ train_shuffle_buffer_size: null # null or int
 eval_shuffle_buffer_size: null # null or int
 training_num_batches_to_skip: null # skip data , null or int
 zero_loss: True # whether to compute id zero loss when train
-iter_file_nums: 2 # how many files every file batch
+iter_file_nums: 20 # how many files every file batch
 static_proj: False # default false
 expansion_factor_real_data: -1 # if -1 then all hosts will load real data, else total_hosts//expansion_factor_real_data will pull data from GCS.
 per_device_batch_size: 1.0
@@ -125,7 +125,7 @@ attention: 'dot_product' # Supported attention: dot_product, flash, cudnn_flash_
 # Combine matmuls for QKV and MLP
 fused_qkv: False
 fused_mlp: False
-record_internal_nn_metrics: 0
+record_internal_nn_metrics: 1
 
 # Output directory
 # Create a GCS bucket, e.g. my-maxtext-outputs and set this to "gs://my-maxtext-outputs/"
@@ -203,7 +203,7 @@ num_slices: -1
 # Replace with your path given as argument in download_dataset.sh, e.g. "gs://my-maxtext-dataset/"
 # dataset_path: {'train': "gs://common_datasets_us-east5/"} # c4
 dataset_path: ''
-vocab_size: 150264 # powers of 2 for sharding
+vocab_size: 152064 # powers of 2 for sharding
 tokenizer_path: "assets/tokenizer.llama2"
 eval_split: 'val_with_eos'
 max_corpus_chars: 10_000_000
@@ -222,7 +222,7 @@ log_period: 10 # Flushes Tensorboard
 # 2) Cosine decay from [learning_rate] to [learning_rate * cosine_learning_rate_final_fraction] from warmup to learning_rate_schedule_steps
 # 3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
 # The zero learning rate section can be used to more accurately measure the fully trained model's performance.
-learning_rate: 3.e-4
+learning_rate: 0.0
 cosine_learning_rate_final_fraction: 0.1
 warmup_steps_fraction: 0.01
 learning_rate_schedule_steps: 13500 # By default the length of the schedule is set to the number of steps.

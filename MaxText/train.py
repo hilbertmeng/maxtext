@@ -65,6 +65,7 @@ from layers import quantizations
 
 from ml_goodput_measurement import goodput
 from input_pipeline._pile_data_processing import record_file_and_step # lsp
+from flax.traverse_util import flatten_dict, unflatten_dict
 
 Transformer = models.Transformer
 EPS = 1e-8
@@ -187,8 +188,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
 
   if config.scan_layers:
-    metrics_dict = intermediate_outputs["intermediates"]["decoder"]["decoder"]
-
+    metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"] # decode -> layers
     for layer_num in range(config.num_decoder_layers):
       output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict["activation_fraction_zero"][0][
           layer_num
@@ -244,6 +244,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
   aux = {
+      "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
   }

@@ -34,3 +34,4 @@ transformers
 mlperf-logging@git+https://github.com/mlperf/logging.git
 google-jetstream
 jsonlines
+einops

@@ -214,6 +214,7 @@ class MlpBlock(nn.Module):
     # Iterate over specified MLP input activation functions.
     # e.g. ('relu',) or ('gelu', 'linear') for gated-gelu.
     activations = []
+    print(f'self.intermediate_dim: {self.intermediate_dim}')
     if cfg.fused_mlp:
       x = DenseGeneral(
           (len(self.activations), self.intermediate_dim),
@@ -229,7 +230,7 @@ class MlpBlock(nn.Module):
         y = _convert_to_activation_function(act_fn)(x[:, :, idx, ...])
         activations.append(y)
     else:
-      for idx, act_fn in enumerate(self.activations):
+      for idx, act_fn in enumerate(self.activations): # activations: ["silu", "linear"]# 说明wi_0是gate
         dense_name = "wi" if len(self.activations) == 1 else f"wi_{idx}"
         x = DenseGeneral(
             self.intermediate_dim,
@@ -252,6 +253,8 @@ class MlpBlock(nn.Module):
         x, deterministic=deterministic
     )  # Broadcast along length.
     x = nn.with_logical_constraint(x, (BATCH, "activation_length", "activation_mlp"))
+    print(f'inputs.shape[-1]: {inputs.shape[-1]}')
+
     output = DenseGeneral(
         inputs.shape[-1],
         dtype=self.dtype,

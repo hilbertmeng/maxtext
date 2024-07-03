@@ -238,6 +238,7 @@ class Decoder(nn.Module):
           nn.broadcast,
           nn.broadcast,
           nn.broadcast,
+          nn.broadcast,
       ),
       length=length,
       metadata_params={nn.PARTITION_NAME: metdata_axis_name},
@@ -347,12 +348,14 @@ class Decoder(nn.Module):
         )
     else:
       if cfg.scan_layers:
-        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
+        # lsp
+        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
             y,
             decoder_segment_ids,
             decoder_positions,
             deterministic,
             model_mode,
+            cfg.num_layers_per_block, # lsp
         )
       else:
         for lyr in range(cfg.num_decoder_layers):

@@ -26,6 +26,7 @@ import orbax.checkpoint.experimental.emergency.checkpoint_manager as emergency_c
 import jax
 import numpy as np
 import grain.python as grain
+from flax.traverse_util import flatten_dict, unflatten_dict
 
 import max_logging
 from multihost_dataloading import MultiHostDataLoadIterator
@@ -170,7 +171,6 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
   max_logging.log(f'job_dir: {job_dir}')
   meta_dict = data_iterator.meta_dict
   checkpoint_step = meta_dict.get('checkpoint_step', None)
-
   if load_full_state_path:
     checkpoint_dir = epath.Path(load_full_state_path)
     max_logging.log(f"restoring full state from {load_full_state_path=}")
@@ -182,15 +182,17 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     checkpoint_dir = epath.Path(load_parameters_path)
     max_logging.log(f"restoring params from {load_parameters_path=}")
     ckptr = orbax.checkpoint.PyTreeCheckpointer()
-    restore_args = orbax.checkpoint.checkpoint_utils.construct_restore_args(abstract_unboxed_pre_state.params)
-    restored = ckptr.restore(checkpoint_dir, item = {'params': abstract_unboxed_pre_state.params}, transforms={},
-                            restore_args = {'params': restore_args})
-    return None, restored['params']
+    if isinstance(abstract_unboxed_pre_state, dict):
+      params_shapedtype = abstract_unboxed_pre_state['params']
+    else:
+      params_shapedtype = abstract_unboxed_pre_state.params
+    state = checkpoint_manager.restore(2200, items={"state": params_shapedtype})
+    restored = state['state']
+    return None, restored
 
   elif checkpoint_step is not None:
     max_logging.log(f"restoring params from ’{job_dir}‘ checkpoint_step: {checkpoint_step}")
     checkpoint_dir = job_dir / str(checkpoint_step) / 'state'
-    max_logging.log(f"restoring full state from {load_full_state_path=}")
     ckptr = orbax.checkpoint.StandardCheckpointer()
     restored = ckptr.restore(checkpoint_dir, args=orbax.checkpoint.args.StandardRestore(abstract_unboxed_pre_state))
     return  {'state': restored}, None

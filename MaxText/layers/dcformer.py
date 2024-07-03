@@ -55,6 +55,8 @@ class DcformerDecoderLayer(nn.Module):
                num_layers_per_block=None,
                ):
     num_layers_per_block = 1 if num_layers_per_block is None else int(num_layers_per_block)
+    print(f'num_layers_per_block: {num_layers_per_block}')
+    print(f'window_size: {self.config.window_size}')
     window_size = self.config.window_size
     if window_size is None:
         window_size = [None]
@@ -65,6 +67,7 @@ class DcformerDecoderLayer(nn.Module):
         raise ValueError(f'Window size: ‘{window_size}’ type is error.....')
 
     for i in range(num_layers_per_block):
+        print(f'window_size[i]: {window_size[i]}')
         layer_output = self.sub_block(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, window_size[i], i)
         inputs = layer_output[0] if self.config.scan_layers else layer_output
 
@@ -93,7 +96,7 @@ class DcformerDecoderLayer(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
         )
     lnx = lnx_rms(inputs)
-    print(f'lnx: {lnx.dtype}')
+    print(f'lnx: {lnx.dtype} block_index: {block_index}')
 
     lnx = nn.with_logical_constraint(
         lnx, ('activation_batch', 'activation_length', 'activation_embed'))
@@ -137,7 +140,7 @@ class DcformerDecoderLayer(nn.Module):
     hidden_states = models.RMSNorm(
         weight_dtype=cfg.weight_dtype,
         dtype=cfg.dtype, 
-        name=f'sub.{block_index}.post_self_attention_layer_norm', kernel_axes=('embed',),
+        name=f'post_self_attention_layer_norm_{block_index}', kernel_axes=('embed',),
         epsilon=cfg.normalization_layer_epsilon,
         )(intermediate_inputs)
     print(f'hidden_states: {hidden_states.dtype}')
@@ -151,7 +154,7 @@ class DcformerDecoderLayer(nn.Module):
         intermediate_dropout_rate=cfg.dropout_rate,
         weight_dtype=cfg.weight_dtype,
         dtype=cfg.dtype,
-        name=f'sub.{block_index}.mlp',
+        name=f'mlp_{block_index}',
         config=cfg,
         quant=self.quant,
         kernel_init=NormalInitializer(0.006),

@@ -173,10 +173,16 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
   checkpoint_step = meta_dict.get('checkpoint_step', None)
   if load_full_state_path:
     checkpoint_dir = epath.Path(load_full_state_path)
-    max_logging.log(f"restoring full state from {load_full_state_path=}")
-    ckptr = orbax.checkpoint.StandardCheckpointer()
-    restored = ckptr.restore(checkpoint_dir, args=orbax.checkpoint.args.StandardRestore(abstract_unboxed_pre_state))
-    return  {'state': restored}, None
+    max_logging.log(f"restoring state from {load_full_state_path=}")
+    load_step = os.path.basename(load_full_state_path)
+    try:
+      load_step = int(load_step)
+    except Exception as error:
+      error = f'Error: {error}, please check whether ‘load_parameters_path’ endswith step number'
+      raise ValueError(error)
+    print(f'abstract_unboxed_pre_state: \n\n{abstract_unboxed_pre_state}\n\n')
+    state = checkpoint_manager.restore(load_step, items={"state": abstract_unboxed_pre_state})
+    return state, None
 
   elif load_parameters_path:
     checkpoint_dir = epath.Path(load_parameters_path)
@@ -188,10 +194,9 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
       error = f'Error: {error}, please check whether ‘load_parameters_path’ endswith step number'
       raise ValueError(error)
     params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
-    ckptr = orbax.checkpoint.PyTreeCheckpointer()
-    state = checkpoint_manager.restore(load_step, items={"state": params_shapedtype})
+    state = checkpoint_manager.restore(load_step, items={"state": {"params": params_shapedtype}})
     restored = state['state']
-    return None, restored
+    return None, restored['params']
 
   elif checkpoint_step is not None:
     max_logging.log(f"restoring params from ’{job_dir}‘ checkpoint_step: {checkpoint_step}")

@@ -78,6 +78,12 @@ def _canonicalize_tuple(x):
     return (x,)
 
 
+def _entroy(probs):
+  log_probs = jnp.log2(jnp.maximum(1.0e-30, probs))
+  mean_sum_plogp = jnp.mean(- jnp.sum(log_probs * probs, axis=-1))
+  return mean_sum_plogp
+
+
 class DenseGeneral(nn.Module):
   """A linear transformation with flexible axes.
 
@@ -197,12 +203,33 @@ class MlpBlock(nn.Module):
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
+  def fake_mgate(self, inputs):
+    gate_scores = DenseGeneral(
+            self.config.mgate_dim,
+            dtype=self.dtype,
+            weight_dtype=self.weight_dtype,
+            kernel_init=self.kernel_init,
+            kernel_axes=("embed", "mlp"),
+            name='mgate',
+            quant=self.quant,
+            use_bias=self.use_bias,
+        )(inputs)
+    gate_scores = jax.nn.softmax(gate_scores.astype(jnp.float32), axis=-1)
+    gate_scores = gate_scores.astype(self.dtype)
+    if self.config.record_internal_nn_metrics:
+      expert_to_token_score = gate_scores.mean(axis=(0,1))
+      sum_value = jnp.sum(expert_to_token_score, axis=-1)
+      expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)
+      self.sow('intermediates', 'expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: 5.45
+      self.sow('intermediates', 'token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
+    return gate_scores
+
   @nn.compact
   def __call__(self, inputs, decode: bool = False, deterministic: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
-    if self.use_pre_norm:
+    if self.use_pre_norm: # False
       inputs = self.get_norm_layer()(
           name="mlp_layer_norm",
           dtype=cfg.dtype,
@@ -211,6 +238,7 @@ class MlpBlock(nn.Module):
           epsilon=cfg.normalization_layer_epsilon,
       )(inputs)
 
+    gate_scores = self.fake_mgate(inputs) if cfg.mgate else None
     # Iterate over specified MLP input activation functions.
     # e.g. ('relu',) or ('gelu', 'linear') for gated-gelu.
     activations = []
@@ -253,7 +281,15 @@ class MlpBlock(nn.Module):
         x, deterministic=deterministic
     )  # Broadcast along length.
     x = nn.with_logical_constraint(x, (BATCH, "activation_length", "activation_mlp"))
-    print(f'inputs.shape[-1]: {inputs.shape[-1]}')
+    print(f'inputs.shape: {inputs.shape} xshape: {x.shape}')
+
+    if gate_scores is not None:
+      assert isinstance(cfg.mgate_dim, int)
+      print(f'gate_scores is not None and mgate_dim={cfg.mgate_dim}')
+      B, T, F = x.shape
+      x = x.reshape(B, T, cfg.mgate_dim, F // cfg.mgate_dim)
+      x = jnp.einsum('BTE,BTEM->BTEM', gate_scores, x)
+      x = x.reshape(B, T, F)
 
     output = DenseGeneral(
         inputs.shape[-1],

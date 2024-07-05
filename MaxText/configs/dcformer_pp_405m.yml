@@ -101,6 +101,8 @@ eval_per_device_batch_size: 1.0 # eval also use per_device_batch_size
 eval_loop_num_batches: 648
 eval_interval: 13500  # the specific number of train step between eval_step
 qk_norm: True # 405m use true, but 2b8 model use false
+mgate: False
+mgate_dim: 16
 
 pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS
@@ -222,7 +224,7 @@ log_period: 10 # Flushes Tensorboard
 # 2) Cosine decay from [learning_rate] to [learning_rate * cosine_learning_rate_final_fraction] from warmup to learning_rate_schedule_steps
 # 3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
 # The zero learning rate section can be used to more accurately measure the fully trained model's performance.
-learning_rate: 0.0
+learning_rate: 3.0e-4
 cosine_learning_rate_final_fraction: 0.1
 warmup_steps_fraction: 0.01
 learning_rate_schedule_steps: 13500 # By default the length of the schedule is set to the number of steps.

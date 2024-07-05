@@ -573,6 +573,7 @@ def train_loop(config, state=None):
     write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
 
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0:
+      eval_data_iterator.reset()
       assert eval_data_iterator
       cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0.}
       for edx in range(config.eval_loop_num_batches):
@@ -588,7 +589,6 @@ def train_loop(config, state=None):
           print(f'edx: {edx}, mean_eval_loss: {mean_eval_loss:.3f}')
         except Exception as e:
           print(f'error: {e} now start to reset eval dataloader')
-          eval_data_iterator.reset()
       
       eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
       max_logging.log(f"average loss after {step=}: {eval_loss=}, total_weights={cumulative_eval_metrics['total_weights']}")

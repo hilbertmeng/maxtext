@@ -239,6 +239,7 @@ class Decoder(nn.Module):
           nn.broadcast,
           nn.broadcast,
           nn.broadcast,
+          nn.broadcast,
       ),
       length=length,
       metadata_params={nn.PARTITION_NAME: metdata_axis_name},
@@ -260,6 +261,17 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     
+    if cfg.set_mask_by_eos:
+      # ======================================32k long context max window size set==================================================
+      eos_sum = (decoder_input_tokens == 151643).sum(1) 
+      eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
+      print(f'eos_sum: {eos_sum.shape}')
+      if cfg.record_internal_nn_metrics:
+        self.sow("intermediates", "eos_sum_mean", eos_sum.mean(), ) # 每个batch带有eos数据的比例
+        self.sow("intermediates", "eos_sum", eos_sum.sum(), ) # batch总的eos数量
+    else:
+      eos_sum = None
+
 
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
@@ -358,6 +370,7 @@ class Decoder(nn.Module):
             deterministic,
             model_mode,
             cfg.num_layers_per_block, # lsp
+            eos_sum, # lsp
         )
       else:
         for lyr in range(cfg.num_decoder_layers):

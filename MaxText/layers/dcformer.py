@@ -53,6 +53,7 @@ class DcformerDecoderLayer(nn.Module):
                deterministic,
                model_mode,
                num_layers_per_block=None,
+               eos_sum=None,
                ):
     num_layers_per_block = 1 if num_layers_per_block is None else int(num_layers_per_block)
     print(f'num_layers_per_block: {num_layers_per_block}')
@@ -67,8 +68,9 @@ class DcformerDecoderLayer(nn.Module):
         raise ValueError(f'Window size: ‘{window_size}’ type is error.....')
 
     for i in range(num_layers_per_block):
-        print(f'window_size[i]: {window_size[i]}')
-        layer_output = self.sub_block(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, window_size[i], i)
+        ws = inputs.shape[1] if window_size[i] is None else window_size[i]
+        print(f'window_size-{i}: {ws}')
+        layer_output = self.sub_block(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, ws, i, eos_sum)
         inputs = layer_output[0] if self.config.scan_layers else layer_output
 
     return layer_output
@@ -81,6 +83,7 @@ class DcformerDecoderLayer(nn.Module):
                model_mode,
                window_size,
                block_index,
+               eos_sum,
                ):
     cfg = self.config
     mesh = self.mesh
@@ -127,6 +130,7 @@ class DcformerDecoderLayer(nn.Module):
             lnx,
             decoder_positions,
             decoder_segment_ids=decoder_segment_ids,
+            eos_sum=eos_sum,
             deterministic=deterministic,
             model_mode=model_mode)
 

@@ -153,6 +153,7 @@ class PileDatasets():
         # 在这里进行shard的话，不同的pod在相同的batch_size时，拿到的数据不一致
         ds = ds.shard(self.num_infeed_hosts, process_index)
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE)
+        print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
         padded_shapes = {key: self.seq_len for key in self.task_features}
@@ -282,14 +283,14 @@ def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
             else:
                 train_short_files.append(path)
     # file size short：long = 1.5: 1, 为了保证short的token: long = 3: 7, 因此 short 取 (1 / 1.5) * (3 / 7) = 2 / 7
-    # k = len(train_short_files) // 1
     short_k = min(3 * len(train_long_files) // 14, len(train_short_files))
     selected_short_files = random.sample(train_short_files, k=short_k)
     train_files = selected_short_files + train_long_files
-    max_logging.log(f'selected_short_files: {selected_short_files} train_long_files: {train_long_files}')
     max_logging.log(f'selected_short_files: {len(selected_short_files)} train_long_files: {len(train_long_files)}')
     random.shuffle(train_files)
+    max_logging.log(f'first 10 train files: {train_files[:10]}')
     valid_files = sorted(valid_files)
+    max_logging.log(f'valid_files: {valid_files}')
     return train_files, valid_files
 
 

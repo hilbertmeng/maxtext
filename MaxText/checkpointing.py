@@ -46,6 +46,7 @@ def create_orbax_checkpoint_manager(
     save_interval_steps: int,
     dataset_type: Optional[str] = "tfds",
     orbax_logger: Optional[abstract_logger.AbstractLogger] = None,
+    max_to_keep: int = None,
 ):
   """Returns specified Orbax (async or not) CheckpointManager or None if checkpointing is disabled."""
   if not enable_checkpointing:
@@ -63,13 +64,13 @@ def create_orbax_checkpoint_manager(
             create=True,
             save_interval_steps=save_interval_steps,
             enable_async_checkpointing=use_async,
+            max_to_keep=max_to_keep, # lsp
         ),
         logger=orbax_logger
     )
   else:
     items = {
         "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=False)), # lsp
-        # "step": orbax.checkpoint.Checkpointer(orbax.checkpoint.ArrayCheckpointHandler()),
         }
     mngr = CheckpointManager(
         p,
@@ -170,7 +171,7 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
   job_dir = epath.Path(checkpoint_dir)
   max_logging.log(f'job_dir: {job_dir}')
   meta_dict = data_iterator.meta_dict
-  checkpoint_step = meta_dict.get('checkpoint_step', None)
+  checkpoint_step = meta_dict.get('checkpoint_step', None) # 如果存在meta dict则自动加载最新模型
   if load_full_state_path:
     checkpoint_dir = epath.Path(load_full_state_path)
     max_logging.log(f"restoring state from {load_full_state_path=}")

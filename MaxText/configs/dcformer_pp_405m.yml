@@ -42,6 +42,7 @@ enable_checkpointing: False
 async_checkpointing: True
 checkpoint_period: 1000
 enable_single_replica_ckpt_restoring: False
+max_to_keep: 3
 
 force_unroll: False # during generate_param_only_checkpoint should we unroll the loop?
 ############################### END CHECKPOINTING ##################################
@@ -89,7 +90,7 @@ query_chunk_size: 512 # null or int.
 max_target_length: 2049 # Maximum sequence length
 reset_for_eval: True # True will rest eval dataset
 epoch: 1
-train_shuffle_buffer_size: null # null or int
+train_shuffle_buffer_size: 200000 # null or int
 eval_shuffle_buffer_size: null # null or int
 training_num_batches_to_skip: null # skip data , null or int
 zero_loss: True # whether to compute id zero loss when train
@@ -103,6 +104,7 @@ eval_interval: 13500  # the specific number of train step between eval_step
 qk_norm: True # 405m use true, but 2b8 model use false
 mgate: False
 mgate_dim: 16
+set_mask_by_eos: True
 
 pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS

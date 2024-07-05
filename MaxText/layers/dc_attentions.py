@@ -107,7 +107,7 @@ def get_large_negative_number(dtype: jnp.dtype) -> JTensor:
     return jnp.asarray(-0.7 * dtype_max, dtype=dtype)
   
 
-def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp.bfloat16) -> JTensor:
+def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp.bfloat16, squeeze: bool = False) -> JTensor:
   """
   w: query chunk size
   window_size: window size
@@ -133,8 +133,10 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
   large_negative_number = get_large_negative_number(dtype)
   m = m.astype(dtype)
   m = jnp.where((m > 0.5), large_negative_number, m)
-  # bnts
-  return m[jnp.newaxis, jnp.newaxis, ...]
+  if squeeze:
+    return m
+  else:
+    return m[jnp.newaxis, jnp.newaxis, ...]
 
 
 def unbind(ary, n, axis=0):
@@ -471,14 +473,37 @@ class AttentionOp(nn.Module):
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       query_vec: Array = None,
       key_vec: Array = None,
+      eos_sum: int = None,
   ):
+    def update_mask(v, atten_mask):
+        # 当设置Windows大于4096时，自动根据数据中的eos数量，来决定Windows是否重置为4096
+        offset = 1 - 4096 - self.query_chunk_size
+        atten_mask = atten_mask.at[..., :offset].set(v)
+        return atten_mask
+
     self.check_attention_inputs(query, key, value)
 
     b, t, n, _ = query.shape
     h = value.shape[-1]
     s = key.shape[1]
-    # Attention mask compute
-    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.window_size, t, query.dtype)
+
+    if eos_sum is None:
+      print(f'eos_sum is None')
+       # Attention mask compute
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.window_size, t, query.dtype)
+    else:
+      print(f'eos_sum is not None')
+      if self.window_size < 32000:
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.window_size, t, query.dtype)
+      else:
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.window_size, t, query.dtype, squeeze=True)
+        attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
+        large_negative_number = get_large_negative_number(attn_mask.dtype)
+        eos_sum_mask = large_negative_number * eos_sum
+        attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
+        attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
+        attn_mask = attn_mask[:, jnp.newaxis, ...] # bts -> bnts
+    print(f'attn_mask: {attn_mask.shape} self.window_size: {self.window_size}')
 
     if hasattr(self, 'dyn_w_proj'):
         pre_proj_dw_args, post_proj_dw_args = self.dyn_w_proj(query_vec)
@@ -816,7 +841,7 @@ class AttentionOp(nn.Module):
 
   # lsp: atten call
   @nn.compact
-  def __call__(self, query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv):
+  def __call__(self, query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=None):
     attn_out = self.apply_attention(
                                 query=query,
                                 key=key,
@@ -825,6 +850,7 @@ class AttentionOp(nn.Module):
                                 model_mode=model_mode,
                                 query_vec=inputs_q,
                                 key_vec=inputs_kv,
+                                eos_sum=eos_sum,
                               )
     return attn_out
 
@@ -957,6 +983,7 @@ class Attention(nn.Module):
                inputs_kv: Array,
                inputs_positions: Array,
                decoder_segment_ids: Array | None = None,
+               eos_sum: Array | None = None,
                *,
                model_mode: str = common_types.MODEL_MODE_TRAIN,
                deterministic: bool = False):
@@ -1049,7 +1076,7 @@ class Attention(nn.Module):
                                pre_compose=self.config.pre_compose,
                                post_compose=self.config.post_compose)
 
-    out = attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv)
+    out = attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
     # apply output projection,  output dim is set to the input dim.

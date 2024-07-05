@@ -186,6 +186,9 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
 
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
+  # lsp
+  output_metrics["scalar"]["eos_sum"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum"]
+  output_metrics["scalar"]["eos_sum_mean"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum_mean"]
 
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"] # decode -> layers
@@ -235,6 +238,9 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
+  flat_intermediate = flatten_dict(intermediate_outputs)
+  # for k, v in flat_intermediate.items():
+  #   print(k)
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
@@ -383,6 +389,7 @@ def setup_mesh_and_model(config):
         config.checkpoint_period,
         config.dataset_type,
         logger,
+        max_to_keep=config.max_to_keep, # lsp
     )
 
   return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx
@@ -567,12 +574,22 @@ def train_loop(config, state=None):
 
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0:
       assert eval_data_iterator
-      cumulative_eval_metrics = {"total_loss": 0.0, "total_weights": 0.0}
-      for eval_batch in eval_data_iterator:
-        with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-          eval_metrics = p_eval_step(state, eval_batch, nextrng)
-        cumulative_eval_metrics["total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
-        cumulative_eval_metrics["total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
+      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0.}
+      for edx in range(config.eval_loop_num_batches):
+        try:
+          eval_batch = next(eval_data_iterator)
+          with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+            eval_metrics = p_eval_step(state, eval_batch, nextrng)
+            _eval_loss = float(eval_metrics['scalar']['evaluation/total_loss'])
+            _weight = float(eval_metrics['scalar']['evaluation/total_weights'])
+          cumulative_eval_metrics['total_loss'] += _eval_loss
+          cumulative_eval_metrics['total_weights'] += _weight
+          mean_eval_loss = _eval_loss / _weight
+          print(f'edx: {edx}, mean_eval_loss: {mean_eval_loss:.3f}')
+        except Exception as e:
+          print(f'error: {e} now start to reset eval dataloader')
+          eval_data_iterator.reset()
+      
       eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
       max_logging.log(f"average loss after {step=}: {eval_loss=}, total_weights={cumulative_eval_metrics['total_weights']}")
       if eval_loss <= config.target_eval_loss:

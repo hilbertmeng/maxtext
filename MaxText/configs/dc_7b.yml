@@ -213,7 +213,7 @@ vocab_size: 152064 # powers of 2 for sharding
 tokenizer_path: "assets/tokenizer.llama2"
 eval_split: 'val_with_eos'
 max_corpus_chars: 10_000_000
-dataset_type: pile
+dataset_type: novel
 
 # Setting for grain
 grain_worker_count: 4

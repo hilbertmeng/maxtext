@@ -325,9 +325,12 @@ def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
 def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
   train_name = f'{config.dataset_type}.train'
   eval_name = f'{config.dataset_type}.eval'
-
-  # train_pathes, eval_pathes = extract_pythia_datapath(config.dataset_path, config.eval_split)
-  train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
+  if config.dataset_type == 'pile':
+    train_pathes, eval_pathes = extract_pythia_datapath(config.dataset_path, config.eval_split)
+  elif config.dataset_type == 'novel':
+    train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
+  else:
+    raise ValueError(f'Unknow ‘config.datase_dtype’={config.datase_dtype}')
 
   num_local_devices = jax.local_device_count()
 

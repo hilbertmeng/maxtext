@@ -216,7 +216,7 @@ def make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
       )
     elif config.dataset_type == "hf":
       return make_hf_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
-    elif config.dataset_type == "pile": # lsp
+    elif config.dataset_type in ["pile", "novel"]: # lsp
       return _pile_data_processing.make_pile_train_iterator(config, mesh, add_bos, add_eos)
   else:
     return BadSyntheticDataIterator(config, mesh), None, get_tokenizer(config.tokenizer_path, add_bos, add_eos)

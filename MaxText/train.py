@@ -513,16 +513,16 @@ def train_loop(config, state=None):
         donate_argnums=donate_argnums_train,
     )
 
-    if eval_data_iterator:
-      p_eval_step = jax.jit(
-          functional_eval,
-          in_shardings=in_shard_eval,
-          out_shardings=out_shard_eval,
-          static_argnums=static_argnums_eval,
-          donate_argnums=donate_argnums_eval,
-      )
-    else:
-      p_eval_step = None
+  if eval_data_iterator:
+    p_eval_step = jax.jit(
+        functional_eval,
+        in_shardings=in_shard_eval,
+        out_shardings=out_shard_eval,
+        static_argnums=static_argnums_eval,
+        donate_argnums=donate_argnums_eval,
+    )
+  else:
+    p_eval_step = None
 
   local_metrics_file = open(config.metrics_file, "a", encoding="utf8") if config.metrics_file else None
   running_gcs_metrics = [] if config.gcs_metrics else None

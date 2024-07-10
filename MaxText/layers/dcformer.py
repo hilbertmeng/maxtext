@@ -184,10 +184,11 @@ class DcformerDecoderLayer(nn.Module):
     if cfg.record_internal_nn_metrics:
       self.sow('intermediates', 'activation_mean', jnp.mean(layer_output))
       self.sow('intermediates', 'activation_stdev', jnp.std(layer_output))
+      index = 4 if layer_output.shape[1] > 30000 else None  # size exceed int32 range, overflow
       self.sow(
           'intermediates',
           'activation_fraction_zero',
-          jnp.sum(layer_output == 0) / jnp.size(layer_output),
+          jnp.sum(layer_output[:index] == 0) / jnp.size(layer_output[:index]),
       )
 
     if cfg.scan_layers:

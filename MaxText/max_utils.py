@@ -599,7 +599,7 @@ def create_learning_rate_schedule(config):
       init_value=0.0, end_value=lr, transition_steps=warmup_steps
   )
   cos_schedule = make_cos_schedule(lr, cos_final_lr, cos_steps)
-  constant_schedule = optax.constant_schedule(0.0)
+  constant_schedule = optax.constant_schedule(cos_final_lr)  # lsp: cos end lr, 0.0 -> cos_final_lr
 
   pieces = [warmup_schedule, cos_schedule]
   boundaries = [

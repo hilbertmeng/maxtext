@@ -225,7 +225,7 @@ def make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
 def create_data_iterator_with_tokenizer(config, mesh, add_bos=True, add_eos=True):
   if config.dataset_type == "synthetic":
     return SyntheticDataIterator(config, mesh), None, get_tokenizer(config.tokenizer_path, add_bos, add_eos)
-  elif config.dataset_type in ("tfds", "grain", "c4_mlperf", "hf", "pile"):
+  elif config.dataset_type in ("tfds", "grain", "c4_mlperf", "hf", "pile", "novel"):
     return make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos)
   else:
     assert False, f"Unknown dataset_type {config.dataset_type}, dataset_type must be synthetic, tfds, grain, hf or c4_mlperf"

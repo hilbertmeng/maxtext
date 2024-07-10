@@ -67,8 +67,8 @@ def create_orbax_checkpoint_manager(config):
           max_to_keep=getattr(config, 'max_to_keep', None), # lsp
           save_on_steps=save_on_steps, # lsp
           create=True,
-          save_interval_steps=config.save_interval_steps,
-          enable_async_checkpointing=config.use_async,
+          save_interval_steps=config.checkpoint_period,
+          enable_async_checkpointing=config.async_checkpointing,
       )
   )
   max_logging.log("Checkpoint manager created!")

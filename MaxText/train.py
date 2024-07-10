@@ -171,7 +171,7 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
             iter=grain.PyGrainCheckpointSave(data_iterator.local_iterator),
         ),
     )
-  elif dataset_type == "pile":
+  elif dataset_type in ["pile", 'novel']: # lsp
     return checkpoint_manager.save(step, {'state': state})
   else:
     return checkpoint_manager.save(

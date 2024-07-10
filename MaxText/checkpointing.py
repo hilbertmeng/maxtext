@@ -39,49 +39,38 @@ PersistentCheckpointOptions = (
 )
 
 
-def create_orbax_checkpoint_manager(
-    checkpoint_dir: str,
-    enable_checkpointing: bool,
-    use_async: bool,
-    save_interval_steps: int,
-    dataset_type: Optional[str] = "tfds",
-    orbax_logger: Optional[abstract_logger.AbstractLogger] = None,
-    max_to_keep: int = None,
-):
+def create_orbax_checkpoint_manager(config):
   """Returns specified Orbax (async or not) CheckpointManager or None if checkpointing is disabled."""
-  if not enable_checkpointing:
+  if not config.enable_checkpointing:
     max_logging.log("Checkpointing disabled, not creating checkpoint manager.")
     return None
   max_logging.log("Creating checkpoint manager...")
-  p = epath.Path(checkpoint_dir)
- 
-  if dataset_type != 'pile':
-    item_names = ("items", "iter") if dataset_type == "grain" else ("items",)
-    mngr = CheckpointManager(
-        p,
-        item_names=item_names,
-        options=CheckpointManagerOptions(
-            create=True,
-            save_interval_steps=save_interval_steps,
-            enable_async_checkpointing=use_async,
-            max_to_keep=max_to_keep, # lsp
-        ),
-        logger=orbax_logger
-    )
+  p = epath.Path(config.checkpoint_dir)
+
+  if config.dataset_type=='c4-array_record':
+    item_names = ('state', 'iter')
   else:
-    items = {
+    item_names = ('state',)
+
+  items = {
         "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=False)), # lsp
-        }
-    mngr = CheckpointManager(
-        p,
-        items,
-        options=CheckpointManagerOptions(
-            create=True,
-            save_interval_steps=save_interval_steps,
-            enable_async_checkpointing=use_async,
-        ),
-        logger=orbax_logger
-    )
+    }
+  save_on_steps = getattr(config, 'save_on_steps', None)
+  if save_on_steps:
+    save_on_steps = list(range(*save_on_steps))
+  mngr = CheckpointManager(
+      p,
+      items,
+      # item_names = item_names,
+      options = CheckpointManagerOptions(
+          enable_background_delete=getattr(config, 'enable_background_delete', True), # lsp
+          max_to_keep=getattr(config, 'max_to_keep', None), # lsp
+          save_on_steps=save_on_steps, # lsp
+          create=True,
+          save_interval_steps=config.save_interval_steps,
+          enable_async_checkpointing=config.use_async,
+      )
+  )
   max_logging.log("Checkpoint manager created!")
   return mngr
 

@@ -381,16 +381,8 @@ def setup_mesh_and_model(config):
       )
     )
   else:
-    logger = checkpointing.setup_checkpoint_logger(config)
-    checkpoint_manager = checkpointing.create_orbax_checkpoint_manager(
-        config.checkpoint_dir,
-        config.enable_checkpointing,
-        config.async_checkpointing,
-        config.checkpoint_period,
-        config.dataset_type,
-        logger,
-        max_to_keep=config.max_to_keep, # lsp
-    )
+    # logger = checkpointing.setup_checkpoint_logger(config)
+    checkpoint_manager = checkpointing.create_orbax_checkpoint_manager(config)
 
   return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx
 

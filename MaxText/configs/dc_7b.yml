@@ -43,6 +43,8 @@ async_checkpointing: True
 checkpoint_period: 200
 enable_single_replica_ckpt_restoring: False
 max_to_keep: 3
+save_on_steps: [440000, 1000000, 500]
+enable_background_delete: True
 
 force_unroll: False # during generate_param_only_checkpoint should we unroll the loop?
 ############################### END CHECKPOINTING ##################################
@@ -86,12 +88,12 @@ base_num_decoder_layers: 48
 # lsp pax
 window_size: [256, 32768, 256, 256]
 num_layers_per_block: 4 # it must equal to widow_size list length, ex: window_size = [256, null], num_layers_per_block = 2
-query_chunk_size: 256 # null or int.
+query_chunk_size: 1024 # null or int.
 max_target_length: 32769 # Maximum sequence length
 reset_for_eval: True # True will rest eval dataset
 epoch: 1
 train_shuffle_buffer_size: 200000 # null or int
-eval_shuffle_buffer_size: 20000 # null or int
+eval_shuffle_buffer_size: 2000 # null or int
 training_num_batches_to_skip: null # skip data , null or int
 zero_loss: True # whether to compute id zero loss when train
 iter_file_nums: 20 # how many files every file batch
@@ -119,7 +121,7 @@ mlp_activations: ["silu", "linear"]
 dropout_rate: 0
 logits_via_embedding: False
 normalize_embedding_logits: True  # whether to normlize pre-softmax logits if logits_via_embedding is true
-logits_dot_in_fp32: True  # whether to use fp32 in logits_dense or shared_embedding dot product for stability
+logits_dot_in_fp32: False  # whether to use fp32 in logits_dense or shared_embedding dot product for stability
 
 # proj, minimal, minimal_offloaded, full, or none
 remat_policy: 'full'

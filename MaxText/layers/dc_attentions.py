@@ -206,11 +206,12 @@ class DynamicWeightProjection(nn.Module):
       self.dropout = nn.Dropout(self.dynamic_dropout_rate)
 
   def __call__(self, query_vec):
+    qkw_kernel = jnp.asarray(self.qkw, self.dtype) # lsp
     if self.n_splits == 2:
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
-      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, self.qkw), 2, axis=-2)
+      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
       w1 = self.dw1_norm(w1)
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
@@ -225,7 +226,7 @@ class DynamicWeightProjection(nn.Module):
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
-      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, self.qkw), 2, axis=-2)
+      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
       w1 = self.dw1_norm(w1)
       pre_qw1, pre_kw1, post_qw1, post_kw1 = unbind(w1, 4, axis=3) # BTG4IM->[BTGIM]*4
       pre_qw2, pre_kw2, post_qw2, post_kw2 = unbind(w2, 4, axis=3)

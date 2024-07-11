@@ -66,6 +66,7 @@ from layers import quantizations
 from ml_goodput_measurement import goodput
 from input_pipeline._pile_data_processing import record_file_and_step # lsp
 from flax.traverse_util import flatten_dict, unflatten_dict
+from flax.training import orbax_utils, train_state
 
 Transformer = models.Transformer
 EPS = 1e-8
@@ -476,17 +477,15 @@ def train_loop(config, state=None):
         static_argnums_eval,
         donate_argnums_eval,
     ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_annotations, model, config)
-  
   # lsp
   if isinstance(state, dict):
     state = train_state.TrainState(
       step=state['step'],
       params=state['params'],
-      opt_state=state['opt_state'],
+      opt_state=state.get('opt_state'),
       apply_fn=model.apply,
       tx=None,
     )
-
   num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
   max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
   per_device_tflops, _, _ = maxtext_utils.calculate_tflops_training_per_device(config)
@@ -505,15 +504,19 @@ def train_loop(config, state=None):
     p_eval_step = None
     print("Loaded compiled function!", flush=True)
   else:
-    p_train_step = jax.jit(
-        functional_train,
-        in_shardings=in_shard_train,
-        out_shardings=out_shard_train,
-        static_argnums=static_argnums_train,
-        donate_argnums=donate_argnums_train,
-    )
+    if config.only_eval:
+      p_train_step = None
+    else:
+      p_train_step = jax.jit(
+          functional_train,
+          in_shardings=in_shard_train,
+          out_shardings=out_shard_train,
+          static_argnums=static_argnums_train,
+          donate_argnums=donate_argnums_train,
+      )
 
   if eval_data_iterator:
+    print(f'eval_data_iterator is not None')
     p_eval_step = jax.jit(
         functional_eval,
         in_shardings=in_shard_eval,
@@ -536,14 +539,48 @@ def train_loop(config, state=None):
   example_batch = None
   last_step_completion = datetime.datetime.now()
   prof = profiler.Profiler(config)
+
+  def should_eval(step):
+    eval_loss = 10000.0
+    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
+      eval_data_iterator.reset()
+      assert eval_data_iterator
+      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0.}
+      for edx in range(config.eval_loop_num_batches):
+        try:
+          eval_batch = next(eval_data_iterator)
+          with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+            eval_metrics = p_eval_step(state, eval_batch, nextrng)
+            _eval_loss = float(eval_metrics['scalar']['evaluation/total_loss'])
+            _weight = float(eval_metrics['scalar']['evaluation/total_weights'])
+          cumulative_eval_metrics['total_loss'] += _eval_loss
+          cumulative_eval_metrics['total_weights'] += _weight
+          mean_eval_loss = _eval_loss / _weight
+          print(f'step: {edx}, mean_eval_loss: {mean_eval_loss:.3f}')
+        except Exception as e:
+          print(f'error: {e} now start to reset eval dataloader')
+      
+      eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
+      max_logging.log(f"average loss after {step=}: {eval_loss=}, total_weights={cumulative_eval_metrics['total_weights']}")
+      
+      if jax.process_index() == 0:
+        writer.add_scalar('learning/eval_loss', eval_loss, step)
+        max_logging.log(f"Write step {step} eval loss: {eval_loss} to tensorboard ")
+        writer.flush()
+
+      if config.only_eval:
+        max_logging.log(f"Current mode is only eval, so don't run train, now start exit......")
+        exit(0)
+    return eval_loss
+
   for step in np.arange(start_step, config.steps):
     if step == first_profiling_step:
       prof.activate()
-
+    nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
+    eval_loss = should_eval(step)
     with jax.profiler.StepTraceAnnotation("train", step_num=step):
       example_batch = load_next_batch(data_iterator, example_batch, config)
       check_example_batch(config, example_batch=example_batch)
-      nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
       record_goodput(recorder, config, step=step)
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
         state, metrics = p_train_step(state, example_batch, nextrng)
@@ -564,27 +601,7 @@ def train_loop(config, state=None):
 
     write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
 
-    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0:
-      eval_data_iterator.reset()
-      assert eval_data_iterator
-      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0.}
-      for edx in range(config.eval_loop_num_batches):
-        try:
-          eval_batch = next(eval_data_iterator)
-          with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-            eval_metrics = p_eval_step(state, eval_batch, nextrng)
-            _eval_loss = float(eval_metrics['scalar']['evaluation/total_loss'])
-            _weight = float(eval_metrics['scalar']['evaluation/total_weights'])
-          cumulative_eval_metrics['total_loss'] += _eval_loss
-          cumulative_eval_metrics['total_weights'] += _weight
-          mean_eval_loss = _eval_loss / _weight
-          print(f'edx: {edx}, mean_eval_loss: {mean_eval_loss:.3f}')
-        except Exception as e:
-          print(f'error: {e} now start to reset eval dataloader')
-      
-      eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
-      max_logging.log(f"average loss after {step=}: {eval_loss=}, total_weights={cumulative_eval_metrics['total_weights']}")
-      if eval_loss <= config.target_eval_loss:
+    if eval_loss <= config.target_eval_loss:
         max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
         prof.deactivate()
         break

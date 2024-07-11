@@ -148,6 +148,18 @@ def _replica_devices(device_array: np.ndarray, replica_axis_idx: int):
   return np.expand_dims(replica_result, axis=replica_axis_idx)
 
 
+def print_state_shape_device(state):
+  if not isinstance(state, dict):
+    state = state.params
+  elif hasattr(state, 'params'):
+    state = state.params
+  for k, v in flatten_dict(state).items():
+    k = '.'.join(k)
+    print(k, v.shape)
+  is_on_devices = v.devices() if hasattr(v, 'devices') else 'cpu'
+  print(f'is_on_devices: {is_on_devices}')
+  
+
 def load_state_if_possible(checkpoint_manager: CheckpointManager,
                            data_iterator: Union[MultiHostDataLoadIterator, None],
                            load_parameters_path: str,
@@ -161,6 +173,8 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
   max_logging.log(f'job_dir: {job_dir}')
   meta_dict = data_iterator.meta_dict
   checkpoint_step = meta_dict.get('checkpoint_step', None) # 如果存在meta dict则自动加载最新模型
+  print(f'abstract_unboxed_pre_state params: \n\n{abstract_unboxed_pre_state.params}\n\n')
+
   if load_full_state_path:
     checkpoint_dir = epath.Path(load_full_state_path)
     max_logging.log(f"restoring state from {load_full_state_path=}")
@@ -172,6 +186,7 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
       raise ValueError(error)
     print(f'abstract_unboxed_pre_state: \n\n{abstract_unboxed_pre_state}\n\n')
     state = checkpoint_manager.restore(load_step, items={"state": abstract_unboxed_pre_state})
+    print_state_shape_device(state['state'])
     return state, None
 
   elif load_parameters_path:
@@ -185,14 +200,17 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
       raise ValueError(error)
     params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
     state = checkpoint_manager.restore(load_step, items={"state": {"params": params_shapedtype}})
-    restored = state['state']
-    return None, restored['params']
+    print_state_shape_device(state['state'])
+    state['state']['step'] = np.array(load_step)
+    state['state']['opt_state'] = {}
+    return None, state['state']  # params: {'params'} 2
 
   elif checkpoint_step is not None:
     max_logging.log(f"restoring params from ’{job_dir}‘ checkpoint_step: {checkpoint_step}")
     checkpoint_dir = job_dir / str(checkpoint_step) / 'state'
     ckptr = orbax.checkpoint.StandardCheckpointer()
     restored = ckptr.restore(checkpoint_dir, args=orbax.checkpoint.args.StandardRestore(abstract_unboxed_pre_state))
+    print_state_shape_device(restored)
     return  {'state': restored}, None
     
   else:

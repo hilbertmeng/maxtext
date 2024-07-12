@@ -389,7 +389,7 @@ def create_device_mesh(config, devices=None):
       #       ici_parallelism,
       #       devices,
       #   )  # lsp: why?
-      mesh = np.array(devices).reshape(ici_parallelism)  # lsp，continous mesh
+      mesh = np.array(devices).reshape(ici_parallelism) # lsp，build continous mesh
 
   max_logging.log(f"Mesh: {mesh} Num_devices: {num_devices}, shape {mesh.shape} ")
 

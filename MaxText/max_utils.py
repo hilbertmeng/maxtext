@@ -385,12 +385,13 @@ def create_device_mesh(config, devices=None):
           allow_split_physical_axes=allow_split_physical_axes,
       )
     else:
-      mesh = mesh_utils.create_device_mesh(
-            ici_parallelism,
-            devices,
-        )
+      # mesh = mesh_utils.create_device_mesh(
+      #       ici_parallelism,
+      #       devices,
+      #   )  # lsp: why?
+      mesh = np.array(devices).reshape(ici_parallelism)  # lsp，continous mesh
 
-  max_logging.log(f"Num_devices: {num_devices}, shape {mesh.shape}")
+  max_logging.log(f"Mesh: {mesh} Num_devices: {num_devices}, shape {mesh.shape} ")
 
   return mesh
 
@@ -486,7 +487,7 @@ def setup_decode_state(model, config, rng, mesh, checkpoint_manager):
 def setup_training_state(
     model, data_iterator, tx, config, rng, mesh, checkpoint_manager
 ):
-  is_training = True
+  is_training = False if config.only_eval else True
   return setup_initial_state(
       model,
       data_iterator,

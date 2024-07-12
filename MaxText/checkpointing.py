@@ -172,7 +172,8 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
   job_dir = epath.Path(checkpoint_dir)
   max_logging.log(f'job_dir: {job_dir}')
   meta_dict = data_iterator.meta_dict
-  checkpoint_step = meta_dict.get('checkpoint_step', None) # 如果存在meta dict则自动加载最新模型
+  # 如果存在meta dict且load_full_state_path和load_parameters_path为空则自动加载最新模型
+  checkpoint_step = meta_dict.get('checkpoint_step', None)
   print(f'abstract_unboxed_pre_state params: \n\n{abstract_unboxed_pre_state.params}\n\n')
 
   if load_full_state_path:
@@ -201,8 +202,6 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
     state = checkpoint_manager.restore(load_step, items={"state": {"params": params_shapedtype}})
     print_state_shape_device(state['state'])
-    state['state']['step'] = np.array(load_step)
-    state['state']['opt_state'] = {}
     return None, state['state']  # params: {'params'} 2
 
   elif checkpoint_step is not None:

@@ -542,6 +542,7 @@ def setup_initial_state(
         config.enable_single_replica_ckpt_restoring,
         config.dataset_type,
         checkpoint_dir=config.checkpoint_dir, # lsp
+        only_eval=getattr(config, 'only_eval', False)
     )
 
     if restored:
@@ -549,6 +550,7 @@ def setup_initial_state(
         data_iterator.local_iterator = restored["iter"]
       state = restored["state"] # lsp
     else:
+      print(f'setup_initial_state is_training: {is_training}')
       init_state_partial = functools.partial(
           init_initial_state, model, tx, config, is_training
       )
@@ -558,6 +560,8 @@ def setup_initial_state(
           out_shardings=state_mesh_shardings,
       )(rng)
       if raw_params:  # If we loaded a partial state, we need to merge it.
+        if config.only_eval:
+          raw_params = raw_params['params']
         state = state.replace(params=raw_params)
 
   state = unbox_logicallypartioned(state)

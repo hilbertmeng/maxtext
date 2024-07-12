@@ -166,45 +166,51 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
                            enable_single_replica_ckpt_restoring: Optional[bool] = False,
                            dataset_type: Optional[str] = "tfds",
                            checkpoint_dir: Optional[str] = None,
+                           only_eval: bool = False,
                            ):
-  job_dir = epath.Path(checkpoint_dir)
-  max_logging.log(f'job_dir: {job_dir}')
-  meta_dict = data_iterator.meta_dict
-  # 如果存在meta dict且load_full_state_path和load_parameters_path为空则自动加载最新模型
-  checkpoint_step = meta_dict.get('checkpoint_step', None)
-  print(f'abstract_unboxed_pre_state params: \n\n{abstract_unboxed_pre_state.params}\n\n')
-
-  if load_full_state_path:
-    checkpoint_dir = epath.Path(load_full_state_path)
-    max_logging.log(f"restoring state from {load_full_state_path=}")
-    load_step = os.path.basename(load_full_state_path)
+  def extract_path_step(path):
+    checkpoint_step = os.path.basename(path)
     try:
-      load_step = int(load_step)
+      checkpoint_step = int(checkpoint_step)
     except Exception as error:
       error = f'Error: {error}, please check whether ‘load_parameters_path’ endswith step number'
       raise ValueError(error)
-    print(f'abstract_unboxed_pre_state: \n\n{abstract_unboxed_pre_state}\n\n')
-    state = checkpoint_manager.restore(load_step, items={"state": abstract_unboxed_pre_state})
+    return checkpoint_step
+    
+  checkpoint_dir = epath.Path(checkpoint_dir)
+  if load_full_state_path:
+    checkpoint_step = extract_path_step(load_full_state_path)
+  elif load_parameters_path:
+    checkpoint_step = extract_path_step(load_parameters_path)
+  else:
+    # 如果存在meta dict且load_full_state_path和load_parameters_path为空则自动加载最新模型
+    meta_dict = data_iterator.meta_dict
+    checkpoint_step = meta_dict.get('checkpoint_step', None)
+    
+  if checkpoint_step is None:
+    raise ValueError(f"checkpoint_step is None, please check args path whether right.....")
+
+  if only_eval:
+    load_full_state_path = None
+    load_parameters_path = checkpoint_dir / str(checkpoint_step)
+    max_logging.log(f'only eval mode, start to load parameters. load_parameters_path is ’{load_parameters_path}‘')
+
+  if load_full_state_path:
+    max_logging.log(f"restoring state from {load_full_state_path=}")
+    state = checkpoint_manager.restore(checkpoint_step, items={"state": abstract_unboxed_pre_state})
     print_state_shape_device(state['state'])
     return state, None
 
   elif load_parameters_path:
-    checkpoint_dir = epath.Path(load_parameters_path)
     max_logging.log(f"restoring params from {load_parameters_path=}")
-    load_step = os.path.basename(load_parameters_path)
-    try:
-      load_step = int(load_step)
-    except Exception as error:
-      error = f'Error: {error}, please check whether ‘load_parameters_path’ endswith step number'
-      raise ValueError(error)
     params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
-    state = checkpoint_manager.restore(load_step, items={"state": {"params": params_shapedtype}})
+    state = checkpoint_manager.restore(checkpoint_step, items={"state": {"params": params_shapedtype}})
     print_state_shape_device(state['state'])
     return None, state['state']  # params: {'params'} 2
 
   elif checkpoint_step is not None:
-    max_logging.log(f"restoring params from ’{job_dir}‘ checkpoint_step: {checkpoint_step}")
-    checkpoint_dir = job_dir / str(checkpoint_step) / 'state'
+    max_logging.log(f"restoring params from ’{checkpoint_dir}‘ checkpoint_step: {checkpoint_step}")
+    checkpoint_dir = checkpoint_dir / str(checkpoint_step) / 'state'
     ckptr = orbax.checkpoint.StandardCheckpointer()
     restored = ckptr.restore(checkpoint_dir, args=orbax.checkpoint.args.StandardRestore(abstract_unboxed_pre_state))
     print_state_shape_device(restored)

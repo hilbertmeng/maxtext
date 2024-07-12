@@ -55,20 +55,18 @@ def create_orbax_checkpoint_manager(config):
   items = {
         "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=False)), # lsp
     }
-  save_on_steps = getattr(config, 'save_on_steps', None)
-  if save_on_steps:
-    save_on_steps = list(range(*save_on_steps))
   mngr = CheckpointManager(
       p,
       items,
-      # item_names = item_names,
+      # item_names = item_names, # do not give with items on same time
       options = CheckpointManagerOptions(
           enable_background_delete=getattr(config, 'enable_background_delete', True), # lsp
           max_to_keep=getattr(config, 'max_to_keep', None), # lsp
-          save_on_steps=save_on_steps, # lsp
           create=True,
           save_interval_steps=config.checkpoint_period,
           enable_async_checkpointing=config.async_checkpointing,
+          # should_save_fn=checkpoint_should_save_fn,
+          keep_period=getattr(config, 'keep_period', 1000), # lsp: step / keep_period would not be deleted
       )
   )
   max_logging.log("Checkpoint manager created!")

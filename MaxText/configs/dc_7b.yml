@@ -43,7 +43,7 @@ async_checkpointing: True
 checkpoint_period: 50 # 20min
 enable_single_replica_ckpt_restoring: False
 max_to_keep: 3
-save_on_steps: [440000, 1000000, 500]
+keep_period: 500 # step / keep_period would not be deleted
 enable_background_delete: True
 
 force_unroll: False # during generate_param_only_checkpoint should we unroll the loop?
@@ -101,12 +101,13 @@ static_proj: False # default false
 expansion_factor_real_data: -1 # if -1 then all hosts will load real data, else total_hosts//expansion_factor_real_data will pull data from GCS.
 per_device_batch_size: 1.0
 eval_per_device_batch_size: 1.0 # eval also use per_device_batch_size
-eval_loop_num_batches: 82
+eval_loop_num_batches: 66
 eval_interval: 500  # the specific number of train step between eval_step
 qk_norm: True # 405m use true, but 2b8 model use false
 mgate: True
 mgate_dim: 44
 set_mask_by_eos: True
+only_eval: False
 
 pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS

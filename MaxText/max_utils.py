@@ -560,8 +560,8 @@ def setup_initial_state(
           out_shardings=state_mesh_shardings,
       )(rng)
       if raw_params:  # If we loaded a partial state, we need to merge it.
-        if config.only_eval:
-          raw_params = raw_params['params']
+        # if config.only_eval:
+        raw_params = raw_params['params']
         state = state.replace(params=raw_params)
 
   state = unbox_logicallypartioned(state)

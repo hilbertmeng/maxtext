@@ -25,6 +25,7 @@ import os
 import sys
 import functools
 import pickle
+import time
 
 from typing import Sequence
 from absl import app
@@ -289,6 +290,7 @@ def train_step(model, config, state, data, dropout_rng):
           "learning/grad_norm": max_utils.l2norm_pytree(grads),
           "learning/raw_grad_norm": max_utils.l2norm_pytree(raw_grads),
           "learning/param_norm": max_utils.l2norm_pytree(new_state.params),
+          "learning/train_batch_weights": aux['total_weights'],
       },
       "scalars": {},
   }
@@ -542,6 +544,7 @@ def train_loop(config, state=None):
 
   def should_eval(step):
     eval_loss = 10000.0
+    start_time = time.time()
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
       eval_data_iterator.reset()
       assert eval_data_iterator
@@ -556,7 +559,7 @@ def train_loop(config, state=None):
           cumulative_eval_metrics['total_loss'] += _eval_loss
           cumulative_eval_metrics['total_weights'] += _weight
           mean_eval_loss = _eval_loss / _weight
-          print(f'eval_step: {edx}, loss: {mean_eval_loss:.3f} weight: {_weight}')
+          print(f'eval_step: {edx}, loss: {mean_eval_loss:.3f} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
           print(f'error: {e} now start to reset eval dataloader')
       

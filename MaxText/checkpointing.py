@@ -178,18 +178,15 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     return checkpoint_step
     
   checkpoint_dir = epath.Path(checkpoint_dir)
+   # 如果存在meta dict且load_full_state_path和load_parameters_path为空则自动加载最新模型
+  meta_dict = data_iterator.meta_dict
+  checkpoint_step = meta_dict.get('checkpoint_step', None)
+    
   if load_full_state_path:
     checkpoint_step = extract_path_step(load_full_state_path)
   elif load_parameters_path:
     checkpoint_step = extract_path_step(load_parameters_path)
-  else:
-    # 如果存在meta dict且load_full_state_path和load_parameters_path为空则自动加载最新模型
-    meta_dict = data_iterator.meta_dict
-    checkpoint_step = meta_dict.get('checkpoint_step', None)
-    
-  if checkpoint_step is None:
-    raise ValueError(f"checkpoint_step is None, please check args path whether right.....")
-
+   
   if only_eval:
     load_full_state_path = None
     load_parameters_path = checkpoint_dir / str(checkpoint_step)

@@ -45,6 +45,8 @@ enable_single_replica_ckpt_restoring: False
 max_to_keep: 3
 keep_period: 500 # step / keep_period would not be deleted
 enable_background_delete: True
+load_ocdbt: False
+save_ocdbt: True
 
 force_unroll: False # during generate_param_only_checkpoint should we unroll the loop?
 ############################### END CHECKPOINTING ##################################

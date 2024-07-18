@@ -51,9 +51,9 @@ def create_orbax_checkpoint_manager(config):
     item_names = ('state', 'iter')
   else:
     item_names = ('state',)
-
+  load_ocdbt = getattr(config, 'load_ocdbt', False)
   items = {
-        "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=False)), # lsp
+        "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt)), # lsp
     }
   mngr = CheckpointManager(
       p,
@@ -146,6 +146,15 @@ def _replica_devices(device_array: np.ndarray, replica_axis_idx: int):
   return np.expand_dims(replica_result, axis=replica_axis_idx)
 
 
+def create_load_checkpoint_manager(checkpoint_dir, load_ocdbt):
+  options = orbax.checkpoint.CheckpointManagerOptions()
+  item = {
+      "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt))
+  }
+  ocdbt_max_mngr = orbax.checkpoint.CheckpointManager(checkpoint_dir, item, options)
+  return ocdbt_max_mngr
+  
+  
 def print_state_shape_device(state):
   if not isinstance(state, dict):
     state = state.params
@@ -167,7 +176,9 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
                            dataset_type: Optional[str] = "tfds",
                            checkpoint_dir: Optional[str] = None,
                            only_eval: bool = False,
+                           load_ocdbt: bool = False,
                            ):
+
   def extract_path_step(path):
     checkpoint_step = os.path.basename(path)
     try:
@@ -178,6 +189,9 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     return checkpoint_step
     
   checkpoint_dir = epath.Path(checkpoint_dir)
+
+  checkpoint_manager = create_load_checkpoint_manager(checkpoint_dir, load_ocdbt)
+
    # 如果存在meta dict且load_full_state_path和load_parameters_path为空则自动加载最新模型
   meta_dict = data_iterator.meta_dict
   checkpoint_step = meta_dict.get('checkpoint_step', None)
@@ -196,11 +210,14 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     max_logging.log(f"restoring state from {load_full_state_path=}")
     state = checkpoint_manager.restore(checkpoint_step, items={"state": abstract_unboxed_pre_state})
     print_state_shape_device(state['state'])
-    return state, None
+    return state['state'], None
 
   elif load_parameters_path:
     max_logging.log(f"restoring params from {load_parameters_path=}")
     params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
+    print(f'params_shapedtype: {params_shapedtype}')
+    # 最新版本orbax-checkpoint时，如果模型文件中存在_sharding，当_sharding的shard shape和当前的shard shape不一致时，会报错
+    # 有2种解决方案，1、基于当前的mesh shape重新写一个_sharding文件对其进行覆盖；2、手动删除原始_sharding文件
     state = checkpoint_manager.restore(checkpoint_step, items={"state": {"params": params_shapedtype}})
     print_state_shape_device(state['state'])
     return None, state['state']  # params: {'params'} 2

@@ -294,6 +294,29 @@ def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
     return train_files, valid_files
 
 
+def extract_v3p5_data_files(dataset_path):
+    client = storage.Client()
+    path = dataset_path.replace('gs://', '')
+    path_parts = path.split('/')
+    bucket_name = path_parts[0]
+    directory_path = '/'.join(path_parts[1:])
+    directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
+    # logging.info(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+    train_files, valid_files = [], []
+    for blob in client.list_blobs(bucket_name, prefix=directory_path):
+        path = f'gs://{os.path.join(bucket_name, blob.name)}'
+        if 'valid' in path:
+            valid_files.append(path)
+        else:
+            train_files.append(path)
+    train_files = sorted(train_files)
+    valid_files = sorted(valid_files)
+    max_logging.log(f'Train file: {len(train_files)},  test file: {len(valid_files)}')
+    max_logging.log(f'first 10 train files: {train_files[:10]}')
+    max_logging.log(f'valid_files: {valid_files}')
+    return train_files, valid_files
+
+
 def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
     if job_log_dir is None:
         return {}
@@ -329,6 +352,8 @@ def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
     train_pathes, eval_pathes = extract_pythia_datapath(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'novel':
     train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
+  elif config.dataset_type == 'pretrain_4k':
+    train_pathes, eval_pathes = extract_v3p5_data_files(config.dataset_path, config.eval_split)
   else:
     raise ValueError(f'Unknow ‘config.datase_dtype’={config.datase_dtype}')
 

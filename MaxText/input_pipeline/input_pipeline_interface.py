@@ -216,7 +216,7 @@ def make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
       )
     elif config.dataset_type == "hf":
       return make_hf_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
-    elif config.dataset_type in ["pile", "novel"]: # lsp
+    elif config.dataset_type in ["pile", "novel_4_32k", "pretrain_4k"]: # lsp
       return _pile_data_processing.make_pile_train_iterator(config, mesh, add_bos, add_eos)
   else:
     return BadSyntheticDataIterator(config, mesh), None, get_tokenizer(config.tokenizer_path, add_bos, add_eos)
@@ -225,7 +225,7 @@ def make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
 def create_data_iterator_with_tokenizer(config, mesh, add_bos=True, add_eos=True):
   if config.dataset_type == "synthetic":
     return SyntheticDataIterator(config, mesh), None, get_tokenizer(config.tokenizer_path, add_bos, add_eos)
-  elif config.dataset_type in ("tfds", "grain", "c4_mlperf", "hf", "pile", "novel"):
+  elif config.dataset_type in ("tfds", "grain", "c4_mlperf", "hf", "pile", "novel_4_32k", 'pretrain_4k'):
     return make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos)
   else:
     assert False, f"Unknown dataset_type {config.dataset_type}, dataset_type must be synthetic, tfds, grain, hf or c4_mlperf"

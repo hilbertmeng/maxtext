@@ -173,7 +173,7 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
             iter=grain.PyGrainCheckpointSave(data_iterator.local_iterator),
         ),
     )
-  elif dataset_type in ["pile", 'novel']: # lsp
+  elif dataset_type in ["pile", 'novel_4_32k', 'pretrain_4k']: # lsp
     return checkpoint_manager.save(step, {'state': state})
   else:
     return checkpoint_manager.save(
@@ -189,8 +189,11 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
   # lsp
-  output_metrics["scalar"]["eos_sum"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum"]
-  output_metrics["scalar"]["eos_sum_mean"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum_mean"]
+  if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
+    output_metrics["scalar"]["eos_sum"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum"]
+
+  if 'eos_sum_mean' in intermediate_outputs["intermediates"]["decoder"]:
+    output_metrics["scalar"]["eos_sum_mean"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum_mean"]
 
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"] # decode -> layers

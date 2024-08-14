@@ -309,8 +309,8 @@ def extract_v3p5_data_files(dataset_path, eval_split):
             valid_files.append(path)
         else:
             train_files.append(path)
-    train_files = sorted(train_files)
-    valid_files = sorted(valid_files)
+    # train_files = sorted(train_files)
+    # valid_files = sorted(valid_files)
     max_logging.log(f'Train file: {len(train_files)},  test file: {len(valid_files)}')
     max_logging.log(f'first 10 train files: {train_files[:10]}')
     max_logging.log(f'valid_files: {valid_files}')

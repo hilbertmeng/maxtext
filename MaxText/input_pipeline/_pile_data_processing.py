@@ -137,7 +137,7 @@ class PileDatasets():
         key = 'labels' if "labels" in data else 'input_ids'
         weights = data[key] >= 0 if self.zero_loss else data[key] > 0
         # label loss mask, origin bool type, but due the complie is int32
-        model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, :seq_len - 1], dtype=tf.int32) 
+        model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1:seq_len], dtype=tf.int32) 
         model_needed_inputs['inputs_segmentation'] = tf.ones_like(model_needed_inputs['inputs'])  # attention mask
         pos = tf.range(seq_len - 1)
         model_needed_inputs['inputs_position'] = model_needed_inputs['inputs_segmentation'] * pos
@@ -294,7 +294,7 @@ def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
     return train_files, valid_files
 
 
-def extract_v3p5_data_files(dataset_path):
+def extract_v3p5_data_files(dataset_path, eval_split):
     client = storage.Client()
     path = dataset_path.replace('gs://', '')
     path_parts = path.split('/')
@@ -305,7 +305,7 @@ def extract_v3p5_data_files(dataset_path):
     train_files, valid_files = [], []
     for blob in client.list_blobs(bucket_name, prefix=directory_path):
         path = f'gs://{os.path.join(bucket_name, blob.name)}'
-        if 'valid' in path:
+        if eval_split in path:
             valid_files.append(path)
         else:
             train_files.append(path)
@@ -350,7 +350,7 @@ def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
   eval_name = f'{config.dataset_type}.eval'
   if config.dataset_type == 'pile':
     train_pathes, eval_pathes = extract_pythia_datapath(config.dataset_path, config.eval_split)
-  elif config.dataset_type == 'novel':
+  elif config.dataset_type == 'novel_4_32k':
     train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'pretrain_4k':
     train_pathes, eval_pathes = extract_v3p5_data_files(config.dataset_path, config.eval_split)

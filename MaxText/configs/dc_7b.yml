@@ -97,7 +97,7 @@ epoch: 1
 train_shuffle_buffer_size: 200000 # null or int
 eval_shuffle_buffer_size: 2000 # null or int
 training_num_batches_to_skip: null # skip data , null or int
-zero_loss: True # whether to compute id zero loss when train
+zero_loss: False # whether to compute id zero loss when train
 iter_file_nums: 20 # how many files every file batch
 static_proj: False # default false
 expansion_factor_real_data: -1 # if -1 then all hosts will load real data, else total_hosts//expansion_factor_real_data will pull data from GCS.
@@ -108,7 +108,7 @@ eval_interval: 500  # the specific number of train step between eval_step
 qk_norm: True # 405m use true, but 2b8 model use false
 mgate: True
 mgate_dim: 44
-set_mask_by_eos: True
+set_mask_by_eos: False
 only_eval: False
 
 pre_compose: True # pax: PROJECT_LOGITS
@@ -214,9 +214,9 @@ num_slices: -1
 dataset_path: ''
 vocab_size: 152064 # powers of 2 for sharding
 tokenizer_path: "assets/tokenizer.llama2"
-eval_split: 'val_with_eos'
+eval_split: 'valid'
 max_corpus_chars: 10_000_000
-dataset_type: novel
+dataset_type: pretrain_4k
 
 # Setting for grain
 grain_worker_count: 4

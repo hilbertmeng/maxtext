@@ -42,7 +42,7 @@ enable_checkpointing: True
 async_checkpointing: True
 checkpoint_period: 50 # 20min
 enable_single_replica_ckpt_restoring: False
-max_to_keep: 3
+max_to_keep: 4
 keep_period: 500 # step / keep_period would not be deleted
 enable_background_delete: True
 load_ocdbt: False

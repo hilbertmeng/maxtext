@@ -51,9 +51,9 @@ def create_orbax_checkpoint_manager(config):
     item_names = ('state', 'iter')
   else:
     item_names = ('state',)
-  load_ocdbt = getattr(config, 'load_ocdbt', False)
+  save_ocdbt = getattr(config, 'save_ocdbt', False)
   items = {
-        "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt)), # lsp
+        "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=save_ocdbt)), # lsp
     }
   mngr = CheckpointManager(
       p,

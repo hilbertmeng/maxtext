@@ -125,6 +125,7 @@ router_z_loss: True
 expert_chunk_size: 1
 min_group_size: 1
 expert_capacity_factor: 2.0
+aux_loss_coef: 0.001
 
 mlp_activations: ["silu", "linear"]
 dropout_rate: 0

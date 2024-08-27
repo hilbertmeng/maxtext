@@ -151,19 +151,32 @@ class DcformerDecoderLayer(nn.Module):
     print(f'hidden_states: {hidden_states.dtype}')
 
     hidden_states = nn.with_logical_constraint(hidden_states, ('activation_batch', 'activation_length', 'activation_embed'))
+    
+    if cfg.num_experts <= 1:
+        # MLP block.
+        mlp_lnx = linears.MlpBlock(
+            intermediate_dim=cfg.mlp_dim,
+            activations=cfg.mlp_activations,
+            intermediate_dropout_rate=cfg.dropout_rate,
+            weight_dtype=cfg.weight_dtype,
+            dtype=cfg.dtype,
+            name=f'mlp_{block_index}',
+            config=cfg,
+            quant=self.quant,
+            kernel_init=NormalInitializer(0.006),
 
-    # MLP block.
-    mlp_lnx = linears.MlpBlock(
-        intermediate_dim=cfg.mlp_dim,
-        activations=cfg.mlp_activations,
-        intermediate_dropout_rate=cfg.dropout_rate,
-        weight_dtype=cfg.weight_dtype,
-        dtype=cfg.dtype,
-        name=f'mlp_{block_index}',
-        config=cfg,
-        quant=self.quant,
-        kernel_init=NormalInitializer(0.006),
-    )(hidden_states, deterministic=deterministic)
+        )(hidden_states, deterministic=deterministic)
+    else:
+        mlp_lnx, aux_loss = linears.DcMoeBlock(
+            config=cfg,
+            mesh=mesh,
+            kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
+            kernel_axes=('embed', 'mlp'),
+            weight_dtype=cfg.weight_dtype,
+            dtype=cfg.dtype,
+            name=f'mlp_{block_index}',
+        )(hidden_states, paddings=decoder_segment_ids)
+        
 
     print(f'mlp_lnx: {mlp_lnx.dtype}')
 

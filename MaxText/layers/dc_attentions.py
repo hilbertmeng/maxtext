@@ -470,7 +470,7 @@ class AttentionOp(nn.Module):
       query: Array, 
       key: Array,   
       value: Array, 
-      decoder_segment_ids: Array | None,
+      decoder_segment_ids: Array | None,  # attention mask
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       query_vec: Array = None,
       key_vec: Array = None,

@@ -30,6 +30,7 @@ import numpy as np
 from jax.ad_checkpoint import checkpoint_name
 from jax.experimental import shard_map
 import max_logging
+from flax import struct
 
 try:
   from jax.experimental.pallas.ops.tpu import megablox as mblx
@@ -558,19 +559,20 @@ def _top_k(array, k: int):
         return jax.lax.top_k(array, k)
 
 
+@struct.dataclass
+class AuxLossStruct:
+    value: Array
+    weight: Array
+
+
 class DcMoeBlock(nn.Module):
 
     config: Config
-    num_experts: int
-    num_experts_per_tok: int
     mesh: Mesh
     kernel_init: NdInitializer
     kernel_axes: Tuple[str, ...]
     weight_dtype: DType = jnp.float32
     dtype: DType = jnp.float32
-
-    def _split(self, x, specs):
-        return x
 
     def setup(self):
 
@@ -581,10 +583,11 @@ class DcMoeBlock(nn.Module):
         # The first axes is expert
         kernel_axes = (None, 'embed', 'mlp')
         wo_kernel_axes = (None, 'mlp', 'embed')
+        self.num_experts = self.config.num_experts
+        mlp_dim = self.config.base_mlp_dim // self.num_experts
         emb_dim = self.config.base_emb_dim
-        num_experts = self.config.num_experts
-        mlp_dim = self.config.base_mlp_dim // self.config.num_experts
 
+        self.num_experts_per_tok = self.config.num_experts_per_tok
         self.expert_capacity_factor = self.config.expert_capacity_factor
         self.min_group_size = self.config.min_group_size
         self.router_z_loss = self.config.router_z_loss
@@ -594,17 +597,17 @@ class DcMoeBlock(nn.Module):
         w0_kernel = self.param(
             'wi_0',
             nn.with_logical_partitioning(kernel_init, kernel_axes),
-            (num_experts, emb_dim, mlp_dim),
+            (self.num_experts, emb_dim, mlp_dim),
             self.weight_dtype,
             kernel_in_axis,
             kernel_out_axis,
           )
-        self.wi_gate_0 = jnp.asarray(w0_kernel, self.dtype)
+        self.wi_0 = jnp.asarray(w0_kernel, self.dtype)
         
         w1_kernel = self.param(
             'wi_1',
             nn.with_logical_partitioning(kernel_init, kernel_axes),
-            (num_experts, emb_dim, mlp_dim),
+            (self.num_experts, emb_dim, mlp_dim),
             self.weight_dtype,
             kernel_in_axis,
             kernel_out_axis,
@@ -614,7 +617,7 @@ class DcMoeBlock(nn.Module):
         wo_kernel = self.param(
             'wo',
             nn.with_logical_partitioning(kernel_init, wo_kernel_axes),
-            (num_experts, mlp_dim, emb_dim),
+            (self.num_experts, mlp_dim, emb_dim),
             self.weight_dtype,
             kernel_in_axis,
             kernel_out_axis,
@@ -625,20 +628,35 @@ class DcMoeBlock(nn.Module):
         # silu
         self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
 
+    @nn.compact
     def __call__(self, inputs, paddings, enable_dropout=True):
-        cfg = self.config
-        inputs = inputs.astype(cfg.dtype)
-        router_logits = DenseGeneral(
-                self.num_experts,
-                dtype=self.dtype,
-                weight_dtype=self.weight_dtype,
-                kernel_init=self.kernel_init,
-                kernel_axes=self.kernel_axes,
-                name="gate")(inputs)
-        # gse
-        router_probs = jax.nn.softmax(router_logits, axis=-1)
-        combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(router_probs, inputs, paddings)
+        inputs = inputs.astype(self.dtype)
+        combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings)
         return combined_outputs, aux_loss
+
+    @nn.nowrap
+    def add_aux_loss(self, name: str, value: Array, weight=None):
+        # Accumulate by summing aux_loss.
+        if weight is None:
+            weight = jnp.ones_like(value)
+
+        def reduce_fn(x, y):
+            assert isinstance(x, AuxLossStruct)
+            assert isinstance(y, AuxLossStruct)
+            return AuxLossStruct(value=x.value + y.value, weight=x.weight + y.weight)
+
+        self.sow(
+            'intermediates',
+            name,
+            AuxLossStruct(value, weight),
+            init_fn=lambda: AuxLossStruct(
+                0.0, 0.0
+            ), 
+            reduce_fn=reduce_fn,
+        )
+
+    def _split(self, x, specs):
+        return x
 
     def _call_experts(self, expert_inputs, expert_index, compute_n_expert):
         """
@@ -670,29 +688,39 @@ class DcMoeBlock(nn.Module):
         
         return expert_output
         
-    def _dispatch_and_combine_expert_outputs_openmoe(self, router_probs, inputs, paddings):
+    def _dispatch_and_combine_expert_outputs_openmoe(self, inputs, paddings):
+
         print(f'Enter openmoe top2 router.....')
-        topn = self.config.num_experts_per_tok
+        topn = self.num_experts_per_tok
         token_shape = inputs.shape[:-1]
         num_tokens = np.prod(token_shape)
         m_dim = inputs.shape[-1]
        
         num_groups = self.num_groups
         tokens_per_group = num_tokens // num_groups
-    
+
         print(f'expert_capacity_factor: {self.expert_capacity_factor}')
         expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
         max_group_size = float(inputs.shape[1]) * self.expert_capacity_factor
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
         print(f'expert_capacity: {expert_capacity}')
+       
         # gsm
         grouped_inputs = jnp.reshape(inputs, (num_groups, tokens_per_group, self.config.base_emb_dim))
-    
         # grouped_inputs = self._split(grouped_inputs, (('replica', 'data'), None, 'mdl'))
         token_inputs = jax.lax.convert_element_type(grouped_inputs, jnp.float32)
-        # gse
         print(f'token_inputs: {token_inputs.shape}')
+
+        router_logits = DenseGeneral(
+                self.num_experts,
+                dtype=self.dtype,
+                weight_dtype=self.weight_dtype,
+                kernel_init=self.kernel_init,
+                kernel_axes=self.kernel_axes,
+                name="gate")(token_inputs)
+        # gse
+        router_probs = jax.nn.softmax(router_logits, axis=-1)
         # g * s * top2
         expert_gate, expert_index = _top_k(router_probs, k=topn)
     
@@ -701,7 +729,8 @@ class DcMoeBlock(nn.Module):
             print(f'token_shape: {token_shape}')
             
             assert paddings.shape == token_shape
-            nonpaddings = 1.0 - paddings
+            # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
+            nonpaddings = paddings
             nonpaddings = jnp.reshape(nonpaddings, grouped_inputs.shape[:2])
             gate_mask = jnp.expand_dims(nonpaddings, axis=-1)
             expert_gate *= gate_mask
@@ -745,7 +774,7 @@ class DcMoeBlock(nn.Module):
         combined_outputs = None
         print(f'compute_n_expert: {compute_n_expert}')
         for expert_index in range(0, token_priority.shape[2], compute_n_expert):
-            print(f'expert_index: {expert_index}')
+            # print(f'expert_index: {expert_index}')
             _token_priority = token_priority[..., expert_index: expert_index+compute_n_expert]
             _router_probs = router_probs[..., expert_index: expert_index+compute_n_expert]
             # 专家概率mask： g * s * e * c
@@ -763,5 +792,8 @@ class DcMoeBlock(nn.Module):
             _combined_outputs = jnp.einsum('gec...,gsec->gs...', _expert_outputs, _combine_array)
             combined_outputs = _combined_outputs if combined_outputs is None else combined_outputs + _combined_outputs
             # print(f'combined_outputs-{expert_index}: {combined_outputs}')
-    
+
+        self.add_aux_loss("aux_loss", aux_loss)
+        # Return to batched shape.
+        combined_outputs = combined_outputs.reshape(*inputs.shape)
         return combined_outputs, aux_loss

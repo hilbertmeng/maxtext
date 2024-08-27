@@ -146,11 +146,11 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
         writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
 
     full_log = step % config.log_period == 0
-
     max_logging.log(
         f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
         f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-        f"loss: {metrics['scalar']['learning/loss']:.3f}"
+        f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+        f"aux_loss: {metrics['scalar']['learning/aux_loss']:.3f}"
     )
 
     if full_log and jax.process_index() == 0:
@@ -244,8 +244,14 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       mutable="intermediates",
   )
   flat_intermediate = flatten_dict(intermediate_outputs)
-  # for k, v in flat_intermediate.items():
-  #   print(k)
+
+  # ('intermediates', 'decoder', 'layers', 'mlp_0/1/2/3', 'aux_loss')
+  _aux_losses = jnp.array([(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k])
+  aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
+  aux_loss = aux_losses.sum() / aux_weights.sum() * config.aux_loss_coef
+
+  for k, v in flat_intermediate.items():
+    print(k)
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
@@ -258,8 +264,9 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
+      "aux_loss": aux_loss,
   }
-  return loss, aux
+  return loss + aux_loss, aux
 
 
 def train_step(model, config, state, data, dropout_rng):
@@ -289,7 +296,8 @@ def train_step(model, config, state, data, dropout_rng):
   new_state = state.apply_gradients(grads=grads)
   metrics = {
       "scalar": {
-          "learning/loss": loss,
+          "learning/loss": loss - aux['aux_loss'],
+          "learning/aux_loss": aux['aux_loss'] / config.aux_loss_coef,  # lsp
           "learning/grad_norm": max_utils.l2norm_pytree(grads),
           "learning/raw_grad_norm": max_utils.l2norm_pytree(raw_grads),
           "learning/param_norm": max_utils.l2norm_pytree(new_state.params),
@@ -590,7 +598,6 @@ def train_loop(config, state=None):
       record_goodput(recorder, config, step=step)
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
         state, metrics = p_train_step(state, example_batch, nextrng)
-
     new_time = datetime.datetime.now()
     record_scalar_metrics(metrics, new_time - last_step_completion, per_device_tflops, learning_rate_schedule(step))
     last_step_completion = new_time

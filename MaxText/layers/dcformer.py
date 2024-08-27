@@ -167,16 +167,36 @@ class DcformerDecoderLayer(nn.Module):
 
         )(hidden_states, deterministic=deterministic)
     else:
+        n_shared_experts = cfg.n_shared_experts if cfg.n_shared_experts else 0
+        num_unshared_experts = cfg.num_experts - n_shared_experts
+        moe_intermediate_dim = cfg.mlp_dim // cfg.num_experts
+        print(f'n_shared_experts: {n_shared_experts} num_unshared_experts: {num_unshared_experts} moe_intermediate_dim: {moe_intermediate_dim}')
+        assert cfg.mlp_dim % cfg.num_experts == 0, print(f'mlp_dim: {cfg.mlp_dim} is not divisible by num_experts: {cfg.num_experts}')
         mlp_lnx, aux_loss = linears.DcMoeBlock(
+            name=f'unshared_mlp_{block_index}',
             config=cfg,
             mesh=mesh,
             kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
             kernel_axes=('embed', 'mlp'),
             weight_dtype=cfg.weight_dtype,
             dtype=cfg.dtype,
-            name=f'mlp_{block_index}',
+            num_experts=num_unshared_experts,
+            intermediate_dim=moe_intermediate_dim,
         )(hidden_states, paddings=decoder_segment_ids)
-        
+        # lsp: shard expert
+        if n_shared_experts:
+            shared_mlp_lnx = linears.MlpBlock(
+                name=f'shared_mlp_{block_index}',
+                intermediate_dim=moe_intermediate_dim * n_shared_experts,
+                activations=cfg.mlp_activations,
+                intermediate_dropout_rate=cfg.dropout_rate,
+                weight_dtype=cfg.weight_dtype,
+                dtype=cfg.dtype,
+                config=cfg,
+                quant=self.quant,
+                kernel_init=NormalInitializer(0.006),
+            )(hidden_states, deterministic=deterministic)
+            mlp_lnx += shared_mlp_lnx
 
     print(f'mlp_lnx: {mlp_lnx.dtype}')
 

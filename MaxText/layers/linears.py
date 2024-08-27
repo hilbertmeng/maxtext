@@ -573,6 +573,8 @@ class DcMoeBlock(nn.Module):
     kernel_axes: Tuple[str, ...]
     weight_dtype: DType = jnp.float32
     dtype: DType = jnp.float32
+    num_experts: int = 0
+    intermediate_dim: int = 4096
 
     def setup(self):
 
@@ -583,9 +585,10 @@ class DcMoeBlock(nn.Module):
         # The first axes is expert
         kernel_axes = (None, 'embed', 'mlp')
         wo_kernel_axes = (None, 'mlp', 'embed')
-        self.num_experts = self.config.num_experts
-        mlp_dim = self.config.base_mlp_dim // self.num_experts
-        emb_dim = self.config.base_emb_dim
+       
+        # self.num_experts = self.config.num_experts - n_shared_experts
+        mlp_dim = self.intermediate_dim # moe dim
+        emb_dim = self.config.base_emb_dim  # model dim
 
         self.num_experts_per_tok = self.config.num_experts_per_tok
         self.expert_capacity_factor = self.config.expert_capacity_factor
@@ -698,6 +701,7 @@ class DcMoeBlock(nn.Module):
        
         num_groups = self.num_groups
         tokens_per_group = num_tokens // num_groups
+        assert num_tokens % num_groups == 0, print(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 
         print(f'expert_capacity_factor: {self.expert_capacity_factor}')
         expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)

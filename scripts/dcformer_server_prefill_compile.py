@@ -4,7 +4,9 @@ import json
 import random
 import time
 import argparse
+import math
 from datetime import datetime
+import pickle
 
 import torch
 import numpy as np
@@ -31,6 +33,7 @@ def load_model(config: dict, checkpoint_path: str, max_batch_size: int, max_seq_
     dcformer = DCFormer(config)
     _ = dcformer.to(device=device,dtype=torch.float16)
     print('match weight')
+    #w = torch.load(checkpoint_path, mmap=True)
     w = torch.load(checkpoint_path,map_location='cpu')
     dcformer = match_weight(dcformer, w)
     print('setup cache')
@@ -47,10 +50,12 @@ user_penalty_words = [' \n\n\n', '\n\n\n', '<|endoftext|>']
 user_penalty_word_ids = [14731, 1406, 151643]
 user_penalty_scale = 1.5
 def _penalty(input_ids:torch.LongTensor, scores: torch.FloatTensor, penalty: float) -> torch.FloatTensor:
+    # print(f'input_ids: {input_ids.dtype}')
     input_ids = input_ids.long()[..., -50:]
     score = torch.gather(scores, 1, input_ids)
     score = torch.where(score < 0, score * penalty, score / penalty)
     scores_processed = scores.scatter(1, input_ids, score)
+#    print(f'14731, 1406 score: {scores_processed[..., [14731, 1406]]}')
     scores_processed[..., user_penalty_word_ids] = scores_processed[..., user_penalty_word_ids] / user_penalty_scale
     return scores_processed
 
@@ -115,18 +120,50 @@ def _generate(decode_one_token, model, input_token, input_pos, generated_ids, **
     return next_token, token_p
 
 
-def generate(self, input_ids, decode_one_token, **kwargs):
+def prefill_decode(self, input_ids, input_pos, return_tensor):
+    logits = self.forward(input_ids, input_pos=input_pos, return_tensor=return_tensor)
+    return logits
+
+placeholder_ids = torch.zeros([1, 256], device='cuda:0').to(torch.int)
+placeholder_pos = torch.arange(256, device='cuda:0').to(torch.int)
+
+
+def generate(self, input_ids, decode_one_token, prefill_func, **kwargs):
     debug_ids = []
     num_tokens_to_generate = kwargs.get('num_tokens_to_generate', 50)
     stop_id = kwargs.get('stop_id', 151643)
     batch_size, seq_length = input_ids.shape
-    input_pos = torch.arange(seq_length, device=self.device)
     # 151646:<|extra_0|>作为惩罚id，不能用0，0表示!
     generated_ids = torch.tensor([151646], device=self.device, dtype=torch.int).repeat(
                                                     self.max_batch_size, seq_length + num_tokens_to_generate)
     generated_ids[:, :seq_length] = input_ids.to(self.device).to(torch.int)
-    logits = self.forward(input_ids, input_pos=input_pos, return_tensor=True)
-    last_logit = logits[:, -1]
+    pad = kwargs.get('pad', 0)
+    prefill_compiled = kwargs.get('prefill_compile', False)
+    if pad:
+        prefill_length = input_ids.shape[1]
+        prefill_chunk_size = 256
+        chunks = math.ceil(prefill_length / prefill_chunk_size)
+        prefill_pad_length = 256 * chunks - prefill_length
+        input_ids = torch.nn.functional.pad(input_ids, pad=[0, prefill_pad_length])
+        input_pos = torch.arange(seq_length + prefill_pad_length, device=self.device)
+        print(f'prefill_length: {prefill_length} prefill_chunk_size: {prefill_chunk_size} chunks: {chunks} prefill_pad_length: {prefill_pad_length}')
+        for c in range(chunks):
+            placeholder_ids[:] = input_ids[:, c * prefill_chunk_size: (c + 1) * prefill_chunk_size]
+            print(f'placeholder_ids: {placeholder_ids.shape}')
+            placeholder_pos[:] = input_pos[c * prefill_chunk_size: (c + 1) * prefill_chunk_size]
+            print(f'placeholder_pos: {placeholder_pos.shape}')
+            if not prefill_compiled:
+                logits = self.forward(placeholder_ids, input_pos=placeholder_pos, return_tensor=True)
+            else:
+                logits = prefill_func(self, placeholder_ids, input_pos=placeholder_pos, return_tensor=True)
+        print(f'logits: {logits.shape}')
+        last_logit = logits[:, -prefill_pad_length - 1]
+    else:
+        input_pos = torch.arange(seq_length, device=self.device)
+        logits = self.forward(input_ids, input_pos=input_pos,return_tensor=True)
+        last_logit = logits[:, -1]
+    #pickle.dump(logits.cpu(), open(f'logits_pad_{pad}', 'wb'))
+    #pickle.dump(logits.cpu(), open(f'last_logits_pad_{pad}', 'wb'))
     sample = kwargs.get('sample', False)
     if sample:
         _next_token, token_p = _sample(generated_ids, last_logit, **kwargs)
@@ -141,7 +178,7 @@ def generate(self, input_ids, decode_one_token, **kwargs):
     next_token[ :batch_size] = _next_token
     generated_ids[:, seq_length] = _next_token
     input_pos = torch.tensor([seq_length], device=self.device)
-    for _ in range(1, num_tokens_to_generate):
+    for inx in range(1, num_tokens_to_generate):
         next_token, token_p = _generate(decode_one_token, self, next_token.clone(), input_pos, generated_ids, **kwargs)
         debug_ids.append([next_token.view(-1).item(), token_p.view(-1).item()])
         if next_token.item() == stop_id : break
@@ -169,20 +206,22 @@ def predict():
     set_random_seed(seed)
     print(f'data:\n{data}')
     prompt = data['prompt']
-    # temperature = data.get('temperature', 1.0)
-    # penalty = data.get('penalty', 1.0)
-    # top_p = data.get('top_p', 0.95)
-    # top_k = data.get('top_k', 30)
-    # num_tokens_to_generate = data.get('num_tokens_to_generate', 10)
-    complie = data.get('complie', False)
+    generate_compile = data.get('generate_compile', False)
+    prefill_compile = data.get('prefill_compile', False)
     start_id = data.get('start_id', 151646) # extra_0
-    forward_func = compiled_decode_one_token if complie else decode_one_token
-
+    forward_func = compiled_decode_one_token if generate_compile else decode_one_token
+    prefill_func = compiled_prefill_func if prefill_compile else prefill_decode
     input_ids = tokenizer.encode(prompt, return_tensors='pt')
+    print(f'original input_ids: {input_ids.shape}')
+    num_tokens_to_generate = data.get('generate_compile', 50)
+    exceed_len = max_seq_length - input_ids.shape[1] - num_tokens_to_generate - 1
+    if exceed_len > -1:
+        exceed_len = None
+    input_ids = input_ids[ :exceed_len]
     input_ids = torch.cat([torch.tensor([[start_id]]), input_ids], dim=-1)
-    print(f'input_ids: {input_ids.shape}')
+    print(f'split input_ids: {input_ids.shape}')
     with torch.no_grad():
-        generated_ids = generate(dcformer, input_ids.to(device), forward_func, **data)
+        generated_ids = generate(dcformer, input_ids.to(device), forward_func, prefill_func, **data)
         text = tokenizer.decode(generated_ids[0])
     take = f'{time.time() - start:.3f}'
     print(f'take: {take}s')
@@ -194,11 +233,12 @@ def predict():
 
 if __name__ == '__main__':
     # python server.py --checkpoint_path /home/lishengping/mengqy/data/PileDCSlimLlama7B4Kx4x256x1v5p_checkpoint_00440000.torch.bin
-    # curl -X POST http://127.0.0.1:5000/predict -H "Content-Type: application/json" -d "{\"seed\": 42, \"prompt\": \"怎么做西红柿鸡蛋?\n\", \"temperature\": 0.6, \"penalty\": 1.1, \"sample\": true, \"num_tokens_to_generate\": 100, \"top_p\": 0.85, \"top_k\": 20, \"complie\": true}"
+    # curl -X POST http://127.0.0.1:5000/predict -H "Content-Type: application/json" -d "{\"seed\": 42, \"prompt\": \"怎么做西红柿鸡蛋?\n\", \"temperature\": 0.6, \"penalty\": 1.1, \"sample\": true, \"num_tokens_to_generate\": 100, \"top_p\": 0.85, \"top_k\": 20, \"compile\": true}"
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint_path', type=str, default=None, help='Directory to restore model')
     parser.add_argument('--device_id', type=int, default=0, help='cuda device index or id')
     parser.add_argument('--port', type=int, default=5000, help='server api port')
+    parser.add_argument('--pre_compile_prefill', action='store_true', default=False, help='whether to pre compile prefill forward function.')
 
     args = parser.parse_args()
 
@@ -224,8 +264,11 @@ if __name__ == '__main__':
                 }
     # model init
     dcformer = load_model(model_config, checkpoint_path, max_batch_size, max_seq_length)
+
     checkpoint_dir = os.path.dirname(checkpoint_path)
     tokenizer_path = os.path.join(checkpoint_dir, 'tokenizer')
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=True, trust_remote_code=True)
     compiled_decode_one_token = torch.compile(decode_one_token, mode="reduce-overhead", fullgraph=True)
+    compiled_prefill_func = torch.compile(prefill_decode, mode="reduce-overhead", fullgraph=True, dynamic=True)
+
     app.run(host='0.0.0.0', port=args.port)

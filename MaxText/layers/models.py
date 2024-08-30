@@ -440,6 +440,8 @@ class Transformer(nn.Module):
 
     self.decoder = Decoder(config=cfg, shared_embedding=self.shared_embedding, mesh=mesh, quant=self.quant)
 
+    assert cfg.base_emb_dim == cfg.head_dim * cfg.base_num_query_heads
+
   def __call__(
       self,
       decoder_input_tokens,

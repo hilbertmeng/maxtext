@@ -106,7 +106,7 @@ eval_per_device_batch_size: 1.0 # eval also use per_device_batch_size
 eval_loop_num_batches: 66
 eval_interval: 500  # the specific number of train step between eval_step
 qk_norm: True # 405m use true, but 2b8 model use false
-mgate: True
+mgate: False # it's False when moe train
 mgate_dim: 44
 set_mask_by_eos: False
 only_eval: False

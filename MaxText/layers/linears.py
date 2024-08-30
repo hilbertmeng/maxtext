@@ -649,7 +649,7 @@ class DcMoeBlock(nn.Module):
             return AuxLossStruct(value=x.value + y.value, weight=x.weight + y.weight)
 
         self.sow(
-            'intermediates',
+            'intermediates',  # 会在最后的结果中返回
             name,
             AuxLossStruct(value, weight),
             init_fn=lambda: AuxLossStruct(
@@ -743,9 +743,9 @@ class DcMoeBlock(nn.Module):
             expert_index += jnp.repeat(gate_mask - 1., topn, axis=-1)
             router_probs *= gate_mask
     
-        aux_loss = _load_balancing_loss(router_probs, expert_index)
+        aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
         # lsp
-        if self.router_z_loss:
+        if self.router_z_loss:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上
             # <=> torch.logsumexp(logits, dim = -1)
             router_z_loss = jnp.log(jnp.sum(jnp.exp(router_logits), axis=-1))
             router_z_loss = jnp.square(router_z_loss)            

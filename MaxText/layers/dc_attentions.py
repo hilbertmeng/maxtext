@@ -1023,14 +1023,14 @@ class Attention(nn.Module):
         weight_dtype=self.config.weight_dtype,
         dtype=self.config.dtype,
         name=f'q_norm',
-        kernel_axes=('embed',),
+        kernel_axes=('norm',),
         epsilon=self.config.normalization_layer_epsilon,
         )(query)
       key = RMSNorm(
         weight_dtype=self.config.weight_dtype,
         dtype=self.config.dtype,
         name=f'k_norm',
-        kernel_axes=('embed',),
+        kernel_axes=('norm',),
         epsilon=self.config.normalization_layer_epsilon,
         )(key)
         

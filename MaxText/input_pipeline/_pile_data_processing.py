@@ -370,7 +370,7 @@ def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
   # load_full_state_path
   print(f'meta_dict: {meta_dict}')
 
-  task_features = ['input_ids']
+  task_features = config.task_features
   train_dataloader = PileDatasets(
                             mesh=mesh,
                             name=train_name, 

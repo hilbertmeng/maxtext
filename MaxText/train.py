@@ -601,7 +601,7 @@ def train_loop(config, state=None):
 
           mean_eval_loss = _eval_loss / _weight
 
-          print(f'eval_step: {edx} loss: {mean_eval_loss:.3f} aux_loss: {_aux_loss} accuracy: {_accuracy} weight: {_weight} take: {time.time() - start_time:.3f}s')
+          print(f'eval_step: {edx} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
           print(f'error: {e} now start to reset eval dataloader')
       

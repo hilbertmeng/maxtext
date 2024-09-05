@@ -139,7 +139,8 @@ class DecoderLayer(nn.Module):
     if cfg.record_internal_nn_metrics:
       self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
       self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
-      index = 4 if layer_output.shape[1] > 30000 else None  # size exceed int32 range, overflow
+      # index = 4 if layer_output.shape[1] > 30000 else None  # size exceed int32 range, overflow
+      index = 4
       self.sow(
           'intermediates',
           'activation_fraction_zero',

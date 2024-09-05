@@ -335,12 +335,16 @@ def eval_step(model, config, state, data, dropout_rng):
   """eval_step no backprop and new state compared with train_step."""
   eval_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=False)
   loss, aux = eval_loss_fn(state.params)
-  total_loss = aux["total_loss"]
-  total_weights = aux["total_weights"]
   metrics = {
-      "scalar": {"evaluation/loss": loss, "evaluation/total_loss": total_loss, "evaluation/total_weights": total_weights}
+      "scalar": 
+      {
+      "evaluation/loss": loss, 
+      "evaluation/total_loss": aux["total_loss"], 
+      "evaluation/total_weights": aux["total_weights"],
+      "evaluation/aux_loss": aux["aux_loss"],
+      "evaluation/accuracy": aux["accuracy"],
+      }
   }
-
   return metrics
 
 
@@ -576,10 +580,10 @@ def train_loop(config, state=None):
   def should_eval(step):
     eval_loss = 10000.0
     start_time = time.time()
-    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
+    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval or config.eval_start_step:
       eval_data_iterator.reset()
       assert eval_data_iterator
-      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0.}
+      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0., "aux_loss": 0., "accuracy": 0.}
       for edx in range(config.eval_loop_num_batches):
         try:
           eval_batch = next(eval_data_iterator)
@@ -587,15 +591,24 @@ def train_loop(config, state=None):
             eval_metrics = p_eval_step(state, eval_batch, nextrng)
             _eval_loss = float(eval_metrics['scalar']['evaluation/total_loss'])
             _weight = float(eval_metrics['scalar']['evaluation/total_weights'])
+            _accuracy = float(eval_metrics['scalar']['evaluation/accuracy'])
+            _aux_loss = float(eval_metrics['scalar']['evaluation/aux_loss'])
+
           cumulative_eval_metrics['total_loss'] += _eval_loss
           cumulative_eval_metrics['total_weights'] += _weight
+          cumulative_eval_metrics['aux_loss'] += _aux_loss
+          cumulative_eval_metrics['accuracy'] += _accuracy
+
           mean_eval_loss = _eval_loss / _weight
-          print(f'eval_step: {edx}, loss: {mean_eval_loss:.3f} weight: {_weight} take: {time.time() - start_time:.3f}s')
+
+          print(f'eval_step: {edx} loss: {mean_eval_loss:.3f} aux_loss: {_aux_loss} accuracy: {_accuracy} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
           print(f'error: {e} now start to reset eval dataloader')
       
       eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
-      max_logging.log(f"average loss after {step=}: {eval_loss=}, total_weights={cumulative_eval_metrics['total_weights']}")
+      aux_loss = cumulative_eval_metrics["aux_loss"] / (edx + 1)
+      accuracy = cumulative_eval_metrics["accuracy"] /  (edx + 1)
+      max_logging.log(f"average loss after {step=}, eval_loss={eval_loss:.4f}, aux_loss={aux_loss:.4f}, accuracy={accuracy:.4f}, total_weights={cumulative_eval_metrics['total_weights']}")
       
       if jax.process_index() == 0:
         writer.add_scalar('learning/eval_loss', eval_loss, step)

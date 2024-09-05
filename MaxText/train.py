@@ -150,7 +150,8 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
         f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
         f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
         f"loss: {metrics['scalar']['learning/loss']:.3f}, "
-        f"aux_loss: {metrics['scalar']['learning/aux_loss']:.3f}"
+        f"aux_loss: {metrics['scalar']['learning/aux_loss']:.3f}, "
+        f"accuracy: {metrics['scalar']['learning/accuracy']:.4f}"
     )
 
     if full_log and jax.process_index() == 0:
@@ -211,6 +212,17 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = layer["activation_stdev"][0]
 
 
+def compute_accuracy(logits, targets, masks):
+  batch_weights = jnp.maximum(jnp.sum(masks, axis=-1), 1e-10)
+  correct = jnp.where(
+        masks > 0.0,
+        jnp.argmax(logits, axis=-1) == targets,
+        jnp.array(False)
+    )
+  accuracy = jnp.mean(jnp.sum(correct, axis=-1) / batch_weights)
+  return accuracy
+
+
 def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   """loss_fn for both train and eval.
 
@@ -243,6 +255,8 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
+  accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"])
+  
   flat_intermediate = flatten_dict(intermediate_outputs)
 
   # ('intermediates', 'decoder', 'layers', 'mlp_0/1/2/3', 'aux_loss')
@@ -269,6 +283,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "total_loss": total_loss,
       "total_weights": total_weights,
       "aux_loss": aux_loss,
+      "accuracy": accuracy, 
   }
   return loss + aux_loss, aux
 
@@ -302,6 +317,7 @@ def train_step(model, config, state, data, dropout_rng):
       "scalar": {
           "learning/loss": loss - aux['aux_loss'],
           "learning/aux_loss": aux['aux_loss'] / config.aux_loss_coef,  # lsp
+          "learning/accuracy": aux['accuracy'],
           "learning/grad_norm": max_utils.l2norm_pytree(grads),
           "learning/raw_grad_norm": max_utils.l2norm_pytree(raw_grads),
           "learning/param_norm": max_utils.l2norm_pytree(new_state.params),

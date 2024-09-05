@@ -577,10 +577,10 @@ def train_loop(config, state=None):
   last_step_completion = datetime.datetime.now()
   prof = profiler.Profiler(config)
 
-  def should_eval(step):
+  def should_eval(step, eval_start_step):
     eval_loss = 10000.0
     start_time = time.time()
-    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval or config.eval_start_step:
+    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval or eval_start_step:
       eval_data_iterator.reset()
       assert eval_data_iterator
       cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0., "aux_loss": 0., "accuracy": 0.}
@@ -612,19 +612,21 @@ def train_loop(config, state=None):
       
       if jax.process_index() == 0:
         writer.add_scalar('learning/eval_loss', eval_loss, step)
-        max_logging.log(f"Write step {step} eval loss: {eval_loss} to tensorboard ")
+        writer.add_scalar('learning/eval_accuracy', accuracy, step)
+        max_logging.log(f"Write step {step} eval loss: {eval_loss:4f} accuracy: {accuracy:.4f} to tensorboard ")
         writer.flush()
 
       if config.only_eval:
         max_logging.log(f"Current mode is only eval, so don't run train, now start exit......")
         exit(0)
-    return eval_loss
+    return eval_loss, False
 
+  eval_start_step = config.eval_start_step
   for step in np.arange(start_step, config.steps):
     if step == first_profiling_step:
       prof.activate()
     nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
-    eval_loss = should_eval(step)
+    eval_loss, eval_start_step = should_eval(step, eval_start_step=eval_start_step)
     with jax.profiler.StepTraceAnnotation("train", step_num=step):
       example_batch = load_next_batch(data_iterator, example_batch, config)
       check_example_batch(config, example_batch=example_batch)

@@ -101,16 +101,17 @@ zero_loss: True # whether to compute id zero loss when train
 iter_file_nums: 20 # how many files every file batch
 static_proj: False # default false
 expansion_factor_real_data: -1 # if -1 then all hosts will load real data, else total_hosts//expansion_factor_real_data will pull data from GCS.
-per_device_batch_size: 16.0
-eval_per_device_batch_size: 16.0 # eval also use per_device_batch_size
-eval_loop_num_batches: 32
-eval_interval: 500  # the specific number of train step between eval_step
+per_device_batch_size: 8.0
+eval_per_device_batch_size: 8.0 # eval also use per_device_batch_size
+eval_loop_num_batches: 63
+eval_interval: 100  # the specific number of train step between eval_step
 qk_norm: True # 405m use true, but 2b8 model use false
 mgate: True # it's False when moe train
 mgate_dim: 44
 set_mask_by_eos: False
 only_eval: False
 task_features: ['input_ids', 'labels'] # 数据的keys
+eval_start_step: True
 
 pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS

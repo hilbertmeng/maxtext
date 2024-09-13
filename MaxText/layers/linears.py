@@ -593,7 +593,9 @@ class DcMoeBlock(nn.Module):
         self.num_experts_per_tok = self.config.num_experts_per_tok
         self.expert_capacity_factor = self.config.expert_capacity_factor
         self.min_group_size = self.config.min_group_size
-        self.router_z_loss = self.config.router_z_loss
+        self.router_z_loss_coef = self.config.router_z_loss_coef
+        self.aux_loss_coef = self.config.aux_loss_coef
+
         self.expert_chunk_size = self.config.expert_chunk_size
         self.num_groups = self.config.num_groups
 
@@ -742,15 +744,24 @@ class DcMoeBlock(nn.Module):
             expert_index *= (2 * gate_mask - 1.)
             expert_index += jnp.repeat(gate_mask - 1., topn, axis=-1)
             router_probs *= gate_mask
-    
-        aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
+
+        if self.aux_loss_coef is not None:
+            aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
+            aux_loss *= self.aux_loss_coef
+        else:
+            aux_loss = 0.0
+        
         # lsp
-        if self.router_z_loss:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上
+        if self.router_z_loss_coef is not None:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上
             # <=> torch.logsumexp(logits, dim = -1)
             router_z_loss = jnp.log(jnp.sum(jnp.exp(router_logits), axis=-1))
             router_z_loss = jnp.square(router_z_loss)            
-            router_z_loss = router_z_loss.mean()
-            aux_loss += router_z_loss
+            router_z_loss = self.router_z_loss_coef * router_z_loss.mean()
+        else:
+          router_z_loss = 0.0
+
+        aux_loss += router_z_loss
+
         # g * 2 * s
         expert_index = jnp.swapaxes(expert_index, 1, 2)
         # g * 2s

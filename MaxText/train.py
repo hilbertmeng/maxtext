@@ -261,12 +261,9 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
 
   # ('intermediates', 'decoder', 'layers', 'mlp_0/1/2/3', 'aux_loss')
   _aux_losses = [(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k]
-  if _aux_losses:
-    _aux_losses = jnp.array(_aux_losses)
-    aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
-    aux_loss = aux_losses.sum() / aux_weights.sum() * config.aux_loss_coef
-  else:
-    aux_loss = 0
+  _aux_losses = jnp.array(_aux_losses)
+  aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
+  aux_loss = aux_losses.sum() / aux_weights.sum()
 
   for k, v in flat_intermediate.items():
     print(k)
@@ -316,7 +313,7 @@ def train_step(model, config, state, data, dropout_rng):
   metrics = {
       "scalar": {
           "learning/loss": loss - aux['aux_loss'],
-          "learning/aux_loss": aux['aux_loss'] / config.aux_loss_coef,  # lsp
+          "learning/aux_loss": aux['aux_loss'],  # lsp
           "learning/accuracy": aux['accuracy'],
           "learning/grad_norm": max_utils.l2norm_pytree(grads),
           "learning/raw_grad_norm": max_utils.l2norm_pytree(raw_grads),

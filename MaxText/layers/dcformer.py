@@ -157,7 +157,7 @@ class DcformerDecoderLayer(nn.Module):
         mlp_lnx = linears.MlpBlock(
             intermediate_dim=cfg.mlp_dim,
             activations=cfg.mlp_activations,
-            intermediate_dropout_rate=cfg.dropout_rate,
+            intermediate_dropout_rate=cfg.intermediate_dropout_rate,
             weight_dtype=cfg.weight_dtype,
             dtype=cfg.dtype,
             name=f'mlp_{block_index}',
@@ -182,14 +182,14 @@ class DcformerDecoderLayer(nn.Module):
             dtype=cfg.dtype,
             num_experts=num_unshared_experts,
             intermediate_dim=moe_intermediate_dim,
-        )(hidden_states, paddings=decoder_segment_ids)
+        )(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
         # lsp: shard expert
         if n_shared_experts:
             shared_mlp_lnx = linears.MlpBlock(
                 name=f'shared_mlp_{block_index}',
                 intermediate_dim=moe_intermediate_dim * n_shared_experts,
                 activations=cfg.mlp_activations,
-                intermediate_dropout_rate=cfg.dropout_rate,
+                intermediate_dropout_rate=cfg.intermediate_dropout_rate,
                 weight_dtype=cfg.weight_dtype,
                 dtype=cfg.dtype,
                 config=cfg,

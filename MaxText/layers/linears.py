@@ -575,6 +575,7 @@ class DcMoeBlock(nn.Module):
     dtype: DType = jnp.float32
     num_experts: int = 0
     intermediate_dim: int = 4096
+    intermediate_dropout_rate: float = 0.1
 
     def setup(self):
 
@@ -634,9 +635,9 @@ class DcMoeBlock(nn.Module):
         self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
 
     @nn.compact
-    def __call__(self, inputs, paddings, enable_dropout=True):
+    def __call__(self, inputs, paddings, deterministic=False):
         inputs = inputs.astype(self.dtype)
-        combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings)
+        combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
         return combined_outputs, aux_loss
 
     @nn.nowrap
@@ -663,7 +664,7 @@ class DcMoeBlock(nn.Module):
     def _split(self, x, specs):
         return x
 
-    def _call_experts(self, expert_inputs, expert_index, compute_n_expert):
+    def _call_experts(self, expert_inputs, expert_index, compute_n_expert, deterministic=False):
         """
         expert_inputs: gecm
         """
@@ -687,13 +688,16 @@ class DcMoeBlock(nn.Module):
             hidden = jnp.einsum("gecm,emh->gech", expert_inputs, theta_wi)
             hidden = self._split(hidden, (('replica', 'data'), None, None, 'mdl'))
             hidden = self.activation(hidden)
+        #  Broadcast along length.
+        print(f'self.intermediate_dropout_rate: {self.intermediate_dropout_rate}')
+        hidden = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
 
         expert_output = jnp.einsum("gech,ehm->gecm", hidden, theta_wo)
         expert_output = self._split(expert_output, (('replica', 'data'), None, None, 'mdl'))
         
         return expert_output
         
-    def _dispatch_and_combine_expert_outputs_openmoe(self, inputs, paddings):
+    def _dispatch_and_combine_expert_outputs_openmoe(self, inputs, paddings, deterministic=False):
 
         print(f'Enter openmoe top2 router.....')
         topn = self.num_experts_per_tok
@@ -803,7 +807,7 @@ class DcMoeBlock(nn.Module):
             # gecm
             # print(f'_expert_inputs: {_expert_inputs.shape}')
             # g * e * c * m
-            _expert_outputs = self._call_experts(_expert_inputs, expert_index, compute_n_expert)
+            _expert_outputs = self._call_experts(_expert_inputs, expert_index, compute_n_expert, deterministic=deterministic)
             _combined_outputs = jnp.einsum('gec...,gsec->gs...', _expert_outputs, _combine_array)
             combined_outputs = _combined_outputs if combined_outputs is None else combined_outputs + _combined_outputs
             # print(f'combined_outputs-{expert_index}: {combined_outputs}')

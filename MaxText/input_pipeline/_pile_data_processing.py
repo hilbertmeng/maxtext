@@ -319,7 +319,7 @@ def extract_v3p5_data_files(dataset_path, eval_split):
     return train_files, valid_files
 
 
-def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
+def extract_train_skip_step(job_log_dir, task_name, step, only_eval=False):  # lsp
     if job_log_dir is None:
         return {}
     model_dir = job_log_dir / "checkpoints"
@@ -338,7 +338,7 @@ def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
 
     if jax.process_index() == 0:
         mode = 'train_break_steps' if not only_eval else 'eval_metric_steps'
-        back_meta_dict_dir = job_log_dir / mode
+        back_meta_dict_dir = job_log_dir / task_name / mode
         if 'gs:' not in str(back_meta_dict_dir):
           os.makedirs(back_meta_dict_dir, exist_ok=True)
         back_meta_dict_path = back_meta_dict_dir /f'{meta_dict.get("checkpoint_step", None)}.json'
@@ -366,7 +366,7 @@ def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
     only_eval = config.only_eval
   except:
     only_eval = False
-  meta_dict = extract_train_skip_step(job_dir, step=config.training_num_batches_to_skip, only_eval=only_eval)
+  meta_dict = extract_train_skip_step(job_dir, config.task_name,  step=config.training_num_batches_to_skip, only_eval=only_eval)
   # load_full_state_path
   print(f'meta_dict: {meta_dict}')
 

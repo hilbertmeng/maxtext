@@ -288,9 +288,9 @@ class _HyperParameters:
     run_name = raw_keys["run_name"]
     base_output_directory = raw_keys["base_output_directory"]
     if run_name:
-      raw_keys["tensorboard_dir"] = os.path.join(base_output_directory, run_name, "tensorboard", "")
-      raw_keys["checkpoint_dir"] = os.path.join(base_output_directory, run_name, "checkpoints", "")
-      raw_keys["metrics_dir"] = os.path.join(base_output_directory, run_name, "metrics", "")
+      raw_keys["tensorboard_dir"] = os.path.join(base_output_directory, run_name, "tensorboards", raw_keys['task_name'])
+      raw_keys["checkpoint_dir"] = os.path.join(base_output_directory, run_name, "checkpoints", raw_keys['task_name'])
+      raw_keys["metrics_dir"] = os.path.join(base_output_directory, run_name, "metrics", raw_keys['task_name'])
 
     if raw_keys["learning_rate_schedule_steps"] == -1:
       raw_keys["learning_rate_schedule_steps"] = raw_keys["steps"]

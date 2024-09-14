@@ -166,6 +166,7 @@ class DcformerDecoderLayer(nn.Module):
             kernel_init=NormalInitializer(0.006),
 
         )(hidden_states, deterministic=deterministic)
+        mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
     else:
         n_shared_experts = cfg.n_shared_experts if cfg.n_shared_experts else 0
         num_unshared_experts = cfg.num_experts - n_shared_experts
@@ -198,10 +199,11 @@ class DcformerDecoderLayer(nn.Module):
                 quant=self.quant,
                 kernel_init=NormalInitializer(0.006),
             )(hidden_states, deterministic=deterministic)
-            print(f'shared_mlp_lnx: {shared_mlp_lnx.shape} mlp_residual_dropout_rate: {cfg.mlp_residual_dropout_rate}')
-            shared_mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(shared_mlp_lnx, deterministic=deterministic)
+            print(f'shared_mlp_lnx: {shared_mlp_lnx.shape} mlp_residual_dropout_rate: {cfg.mlp_residual_dropout_rate} deterministic: {deterministic}')
+            # shared_mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(shared_mlp_lnx, deterministic=deterministic)
             mlp_lnx += shared_mlp_lnx
 
+    # mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
     print(f'mlp_lnx: {mlp_lnx.dtype}')
 
     mlp_lnx = nn.with_logical_constraint(

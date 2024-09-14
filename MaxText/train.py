@@ -260,10 +260,13 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   flat_intermediate = flatten_dict(intermediate_outputs)
 
   # ('intermediates', 'decoder', 'layers', 'mlp_0/1/2/3', 'aux_loss')
-  _aux_losses = [(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k]
-  _aux_losses = jnp.array(_aux_losses)
-  aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
-  aux_loss = aux_losses.sum() / aux_weights.sum()
+  if config.num_experts > 1:
+    _aux_losses = [(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k]
+    _aux_losses = jnp.array(_aux_losses)
+    aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
+    aux_loss = aux_losses.sum() / aux_weights.sum()
+  else:
+    aux_loss = 0
 
   for k, v in flat_intermediate.items():
     print(k)

@@ -728,7 +728,7 @@ class DcMoeBlock(nn.Module):
                 weight_dtype=self.weight_dtype,
                 kernel_init=self.kernel_init,
                 kernel_axes=self.kernel_axes,
-                name="gate")(token_inputs)
+                name="mgate")(token_inputs)
         # gse
         router_probs = jax.nn.softmax(router_logits, axis=-1)
         # g * s * top2

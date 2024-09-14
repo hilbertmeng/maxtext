@@ -285,12 +285,16 @@ class _HyperParameters:
     """Transformations between the config data and configs used at runtime"""
     if raw_keys["run_name"] == "":
       raw_keys["run_name"] = os.environ.get("JOBSET_NAME")  # using XPK default
-    run_name = raw_keys["run_name"]
+    run_name = raw_keys["run_name"].rstrip('/')
     base_output_directory = raw_keys["base_output_directory"]
     if run_name:
-      raw_keys["tensorboard_dir"] = os.path.join(base_output_directory, run_name, "tensorboards", raw_keys['task_name'])
-      raw_keys["checkpoint_dir"] = os.path.join(base_output_directory, run_name, "checkpoints", raw_keys['task_name'])
-      raw_keys["metrics_dir"] = os.path.join(base_output_directory, run_name, "metrics", raw_keys['task_name'])
+      if raw_keys.get('tensorboard_dir'):
+        # tensorboard save dir, it is different from metrics and checkpoints
+        raw_keys["tensorboard_dir"] = os.path.join(raw_keys['tensorboard_dir'], os.path.basename(run_name)) 
+      else:
+        raw_keys["tensorboard_dir"] = os.path.join(base_output_directory, run_name, "tensorboards")
+      raw_keys["checkpoint_dir"] = os.path.join(base_output_directory, run_name, "checkpoints")
+      raw_keys["metrics_dir"] = os.path.join(base_output_directory, run_name, "metrics")
 
     if raw_keys["learning_rate_schedule_steps"] == -1:
       raw_keys["learning_rate_schedule_steps"] = raw_keys["steps"]

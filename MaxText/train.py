@@ -245,7 +245,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   if is_train:
     for k, v in data.items():
       data[k] = v[: config.global_batch_size_to_train_on, :]
-
+  print(f'enable_dropout0000: {config.enable_dropout}')
   logits, intermediate_outputs = model.apply(
       params,
       data["inputs"],
@@ -581,6 +581,7 @@ def train_loop(config, state=None):
     eval_loss = 10000.0
     start_time = time.time()
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval or eval_start_step:
+      if eval_data_iterator is None: return eval_loss, False
       eval_data_iterator.reset()
       assert eval_data_iterator
       cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0., "aux_loss": 0., "accuracy": 0.}

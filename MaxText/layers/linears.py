@@ -689,7 +689,7 @@ class DcMoeBlock(nn.Module):
             hidden = self._split(hidden, (('replica', 'data'), None, None, 'mdl'))
             hidden = self.activation(hidden)
         #  Broadcast along length.
-        print(f'self.intermediate_dropout_rate: {self.intermediate_dropout_rate}')
+        print(f'self.intermediate_dropout_rate: {self.intermediate_dropout_rate} deterministic: {deterministic}')
         hidden = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
 
         expert_output = jnp.einsum("gech,ehm->gecm", hidden, theta_wo)

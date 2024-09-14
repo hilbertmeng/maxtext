@@ -458,12 +458,12 @@ class Transformer(nn.Module):
           f"During autoregressive decoding we assume the tokens are in the active sequence"
           f" which is always {common_types.DECODING_ACTIVE_SEQUENCE_INDICATOR}."
       )
-
+    print(f'enable_dropout: {enable_dropout}')
     logits = self.decoder(
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,
         decoder_segment_ids=decoder_segment_ids,
-        deterministic=not enable_dropout,
+        deterministic=not enable_dropout,  # deterministic为true时，禁用dropout，否则开启
         model_mode=model_mode,
     )
     return logits

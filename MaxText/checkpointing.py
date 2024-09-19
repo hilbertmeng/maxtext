@@ -219,7 +219,11 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     print(f'params_shapedtype: {params_shapedtype}')
     # 最新版本orbax-checkpoint时，如果模型文件中存在_sharding，当_sharding的shard shape和当前的shard shape不一致时，会报错
     # 有2种解决方案，1、基于当前的mesh shape重新写一个_sharding文件对其进行覆盖；2、手动删除原始_sharding文件
-    state = checkpoint_manager.restore(checkpoint_step, items={"state": {"params": params_shapedtype}})
+    item = {
+      "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt))
+  }
+    state = checkpoint_manager.restore(checkpoint_step, items=item)
+    # state = checkpoint_manager.restore(checkpoint_step, items={"state": {"params": params_shapedtype}})
     # state = checkpoint_manager.restore(checkpoint_step, items={"state": params_shapedtype})
     print_state_shape_device(state['state'])
     if 'params' not in state['state']['params']:

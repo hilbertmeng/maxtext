@@ -157,13 +157,19 @@ def create_load_checkpoint_manager(checkpoint_dir, load_ocdbt):
   
   
 def print_state_shape_device(state):
+
+  if hasattr(state, 'opt_state') or 'opt_state' in state:
+    print(f'Exist opt state.......')
+
   if not isinstance(state, dict):
     state = state.params
   elif hasattr(state, 'params'):
     state = state.params
   for k, v in flatten_dict(state).items():
     k = '.'.join(k)
-    print(k, v.shape, v.dtype, type(v))
+    print('params:', k, v.shape, v.dtype, type(v))
+  print('=========================================')
+
   is_on_devices = v.devices() if hasattr(v, 'devices') else 'cpu'
   print(f'is_on_devices: {is_on_devices}')
   
@@ -196,6 +202,7 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
    # 如果存在meta dict且load_full_state_path和load_parameters_path为空则自动加载最新模型
   meta_dict = data_iterator.meta_dict
   checkpoint_step = meta_dict.get('checkpoint_step', None)
+  # checkpoint_step = 448800
     
   if load_full_state_path:
     checkpoint_step = extract_path_step(load_full_state_path)
@@ -211,29 +218,34 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     max_logging.log(f"restoring state from {load_full_state_path=}")
     state = checkpoint_manager.restore(checkpoint_step, items={"state": abstract_unboxed_pre_state})
     print_state_shape_device(state['state'])
-    return state['state'], None
+    return state, None
 
   elif load_parameters_path:
     max_logging.log(f"restoring params from {load_parameters_path=}")
     params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
     print(f'params_shapedtype: {params_shapedtype}')
-    # 最新版本orbax-checkpoint时，如果模型文件中存在_sharding，当_sharding的shard shape和当前的shard shape不一致时，会报错
-    # 有2种解决方案，1、基于当前的mesh shape重新写一个_sharding文件对其进行覆盖；2、手动删除原始_sharding文件
+    load_parameters_path = epath.Path(load_parameters_path)
+ 
+     # 如果不存在_sharding文件，可以传入params_shapedtype作为sharding方式，这种方式比直接读取_sharding的方式更快点
+    # 第一种：基于人工构造的sharding方式进行加载
+    # ckptr = orbax.checkpoint.PyTreeCheckpointer()
+    # restore_args = orbax.checkpoint.checkpoint_utils.construct_restore_args({"params": params_shapedtype})
+    # params = ckptr.restore(
+    #     load_parameters_path / 'state', item={"params": params_shapedtype}, transforms={}, restore_args=restore_args
+    # )
+    # # 第二种：基于模型的_sharding文件进行加载
     item = {
       "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt))
-  }
-    state = checkpoint_manager.restore(checkpoint_step, items=item)
-    # state = checkpoint_manager.restore(checkpoint_step, items={"state": {"params": params_shapedtype}})
-    # state = checkpoint_manager.restore(checkpoint_step, items={"state": params_shapedtype})
-    print_state_shape_device(state['state'])
+      }
+    state = checkpoint_manager.restore(checkpoint_step, items=item) # 如果存在_sharding文件，这样可以直接按照_sharding文件进行shard
     if 'params' not in state['state']['params']:
       params = {'params': state['state']}
     else:
       params = state['state']
-    params = jax.tree_util.tree_map(lambda x: jnp.array(x).astype(jnp.bfloat16) if isinstance(x, np.ndarray) else x, params)
-    print('After convert to jax numpy:\n\n')
-    for k, v in flatten_dict(params).items():
-      print(k, v.shape, v.dtype, type(v)) 
+    # ckptr = orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler())
+    # params = ckptr.restore(load_parameters_path / 'state', args=orbax.checkpoint.args.PyTreeRestore(restore_args=restore_args))
+
+    print_state_shape_device(params)
     return None, params  # params: {'params'} 2
 
   elif checkpoint_step is not None:

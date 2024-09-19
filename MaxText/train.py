@@ -523,6 +523,8 @@ def train_loop(config, state=None):
       apply_fn=model.apply,
       tx=None,
     )
+  for k, v in flatten_dict(state.params).items():
+    print(k, v.shape)
   num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
   max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
   per_device_tflops, _, _ = maxtext_utils.calculate_tflops_training_per_device(config)
@@ -544,6 +546,7 @@ def train_loop(config, state=None):
     if config.only_eval:
       p_train_step = None
     else:
+      print(f'in_shard_train: {in_shard_train}')
       p_train_step = jax.jit(
           functional_train,
           in_shardings=in_shard_train,

@@ -608,6 +608,7 @@ class DcMoeBlock(nn.Module):
             kernel_in_axis,
             kernel_out_axis,
           )
+        print(f'w0_kernel: {w0_kernel}')
         self.wi_0 = jnp.asarray(w0_kernel, self.dtype)
         
         w1_kernel = self.param(

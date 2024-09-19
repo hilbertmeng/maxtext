@@ -173,19 +173,23 @@ class DcformerDecoderLayer(nn.Module):
         moe_intermediate_dim = cfg.mlp_dim // cfg.num_experts
         print(f'n_shared_experts: {n_shared_experts} num_unshared_experts: {num_unshared_experts} moe_intermediate_dim: {moe_intermediate_dim}')
         assert cfg.mlp_dim % cfg.num_experts == 0, print(f'mlp_dim: {cfg.mlp_dim} is not divisible by num_experts: {cfg.num_experts}')
-        mlp_lnx, aux_loss = linears.DcMoeBlock(
-            name=f'unshared_mlp_{block_index}',
-            config=cfg,
-            mesh=mesh,
-            kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
-            kernel_axes=('embed', 'mlp'),
-            weight_dtype=cfg.weight_dtype,
-            dtype=cfg.dtype,
-            num_experts=num_unshared_experts,
-            intermediate_dim=moe_intermediate_dim,
-            intermediate_dropout_rate = cfg.intermediate_dropout_rate,
-        )(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
-        mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
+
+        mlp_lnx, shared_mlp_lnx = None, None
+        if block_index % 2 == 0:
+            print(f'Add moe layer: {block_index}')
+            mlp_lnx, aux_loss = linears.DcMoeBlock(
+                name=f'unshared_mlp_{block_index}',
+                config=cfg,
+                mesh=mesh,
+                kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
+                kernel_axes=('embed', 'mlp'),
+                weight_dtype=cfg.weight_dtype,
+                dtype=cfg.dtype,
+                num_experts=num_unshared_experts,
+                intermediate_dim=moe_intermediate_dim,
+                intermediate_dropout_rate = cfg.intermediate_dropout_rate,
+            )(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
+            mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
         # lsp: shard expert
         if n_shared_experts:
             shared_mlp_lnx = linears.MlpBlock(
@@ -201,8 +205,8 @@ class DcformerDecoderLayer(nn.Module):
             )(hidden_states, deterministic=deterministic)
             print(f'shared_mlp_lnx: {shared_mlp_lnx.shape} mlp_residual_dropout_rate: {cfg.mlp_residual_dropout_rate} deterministic: {deterministic}')
             # shared_mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(shared_mlp_lnx, deterministic=deterministic)
-            mlp_lnx += shared_mlp_lnx
-
+        assert shared_mlp_lnx is not None or mlp_lnx is not None, print('mlp_lnx and shared_mlp_lnx alse are None......')
+        mlp_lnx = shared_mlp_lnx if mlp_lnx is None else mlp_lnx + shared_mlp_lnx
     # mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
     print(f'mlp_lnx: {mlp_lnx.dtype}')
 

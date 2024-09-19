@@ -17,7 +17,6 @@
 run_name: ""
 
 model_name: "default" # override config settings to match a specific model. other than the override, nothing should use this!
-task_name: ''
 normalization_layer_epsilon: 1.e-05
 
 ################################## CHECKPOINTING ##################################
@@ -113,6 +112,7 @@ set_mask_by_eos: False
 only_eval: False
 task_features: ['input_ids'] # 数据的keys
 eval_start_step: False
+tensorboard_dir: "gs://llm_base_models_us-east5/maxtext_tensorboard_dir/"
 
 pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS
@@ -126,7 +126,7 @@ num_experts: 45
 n_shared_experts: 1
 num_experts_per_tok: 2
 ## note: num_tokens % num_groups == 0,  num_tokens = batch_size * length
-num_groups: 128  # suggest set 2 * total batch size
+num_groups: 2048  # suggest set 2 * total batch size
 expert_chunk_size: 1  # suggest 1
 min_group_size: 1
 expert_capacity_factor: 1.25
@@ -134,8 +134,10 @@ aux_loss_coef: 0.01
 router_z_loss_coef: 0.0001
 
 mlp_activations: ["silu", "linear"]
-dropout_rate: 0  # attention drop out
-intermediate_dropout_rate: 0.1  # mlp drop out
+dropout_rate: 0  # attention or mlp x + residual drop out
+intermediate_dropout_rate: 0  # mlp intermediate drop out
+mlp_residual_dropout_rate: 0.1 # mlp dense/moe only residual dropout
+
 logits_via_embedding: False
 normalize_embedding_logits: True  # whether to normlize pre-softmax logits if logits_via_embedding is true
 logits_dot_in_fp32: False  # whether to use fp32 in logits_dense or shared_embedding dot product for stability
@@ -148,7 +150,7 @@ attention: 'dot_product' # Supported attention: dot_product, flash, cudnn_flash_
 # Combine matmuls for QKV and MLP
 fused_qkv: False
 fused_mlp: False
-record_internal_nn_metrics: 0
+record_internal_nn_metrics: 1
 
 # Output directory
 # Create a GCS bucket, e.g. my-maxtext-outputs and set this to "gs://my-maxtext-outputs/"
@@ -299,7 +301,7 @@ use_untrainable_positional_embedding: False
 trainable_position_size: -1  # enable gpt3 position embedding with a positive trainable_position_size
 # Rope parameters
 rope_min_timescale: 1
-rope_max_timescale: 500_000
+rope_max_timescale: 10_000
 
 # Ahead of time Compilation (aka AOT)
 # Only set these arguments if you are running train_compile or loading a compiled train step.

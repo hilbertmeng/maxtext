@@ -25,6 +25,7 @@ from orbax.checkpoint.checkpoint_manager import CheckpointManager, CheckpointMan
 import orbax.checkpoint.experimental.emergency.checkpoint_manager as emergency_checkpoint_manager
 import jax
 import numpy as np
+import jax.numpy as jnp
 import grain.python as grain
 from flax.traverse_util import flatten_dict, unflatten_dict
 
@@ -162,7 +163,7 @@ def print_state_shape_device(state):
     state = state.params
   for k, v in flatten_dict(state).items():
     k = '.'.join(k)
-    print(k, v.shape)
+    print(k, v.shape, v.dtype, type(v))
   is_on_devices = v.devices() if hasattr(v, 'devices') else 'cpu'
   print(f'is_on_devices: {is_on_devices}')
   
@@ -219,8 +220,17 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     # 最新版本orbax-checkpoint时，如果模型文件中存在_sharding，当_sharding的shard shape和当前的shard shape不一致时，会报错
     # 有2种解决方案，1、基于当前的mesh shape重新写一个_sharding文件对其进行覆盖；2、手动删除原始_sharding文件
     state = checkpoint_manager.restore(checkpoint_step, items={"state": {"params": params_shapedtype}})
+    # state = checkpoint_manager.restore(checkpoint_step, items={"state": params_shapedtype})
     print_state_shape_device(state['state'])
-    return None, state['state']  # params: {'params'} 2
+    if 'params' not in state['state']['params']:
+      params = {'params': state['state']}
+    else:
+      params = state['state']
+    params = jax.tree_util.tree_map(lambda x: jnp.array(x).astype(jnp.bfloat16) if isinstance(x, np.ndarray) else x, params)
+    print('After convert to jax numpy:\n\n')
+    for k, v in flatten_dict(params).items():
+      print(k, v.shape, v.dtype, type(v)) 
+    return None, params  # params: {'params'} 2
 
   elif checkpoint_step is not None:
     max_logging.log(f"restoring params from ’{checkpoint_dir}‘ checkpoint_step: {checkpoint_step}")

@@ -237,7 +237,8 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     item = {
       "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt))
       }
-    state = checkpoint_manager.restore(checkpoint_step, items=item) # 如果存在_sharding文件，这样可以直接按照_sharding文件进行shard
+    # 如果存在_sharding文件，这样可以直接按照_sharding文件进行shard, _sharding文件包含的模型参数名称可以大于需要加载的模型参数
+    state = checkpoint_manager.restore(checkpoint_step, items=item) 
     if 'params' not in state['state']['params']:
       params = {'params': state['state']}
     else:

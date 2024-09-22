@@ -189,7 +189,10 @@ class DcformerDecoderLayer(nn.Module):
                 intermediate_dim=moe_intermediate_dim,
                 intermediate_dropout_rate = cfg.intermediate_dropout_rate,
             )(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
-            mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
+            # mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
+            # mlp_lnx *= 1e-9
+            # mlp_lnx = None
+            mlp_lnx /= 60
         # lsp: shard expert
         if n_shared_experts:
             shared_mlp_lnx = linears.MlpBlock(
@@ -205,8 +208,13 @@ class DcformerDecoderLayer(nn.Module):
             )(hidden_states, deterministic=deterministic)
             print(f'shared_mlp_lnx: {shared_mlp_lnx.shape} mlp_residual_dropout_rate: {cfg.mlp_residual_dropout_rate} deterministic: {deterministic}')
             # shared_mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(shared_mlp_lnx, deterministic=deterministic)
+            shared_mlp_lnx /= 60
+            
         assert shared_mlp_lnx is not None or mlp_lnx is not None, print('mlp_lnx and shared_mlp_lnx alse are None......')
-        mlp_lnx = shared_mlp_lnx if mlp_lnx is None else mlp_lnx + shared_mlp_lnx
+        print(f'in shared expert mlp_lnx: {mlp_lnx}')
+        mlp_lnx = shared_mlp_lnx  if mlp_lnx is None else (mlp_lnx + shared_mlp_lnx) / 1
+
+
     # mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
     print(f'mlp_lnx: {mlp_lnx.dtype}')
 

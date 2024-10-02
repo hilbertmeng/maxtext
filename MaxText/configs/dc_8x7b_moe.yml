@@ -90,7 +90,7 @@ base_num_decoder_layers: 48
 # lsp pax
 window_size: [256, 32768, 256, 256]
 num_layers_per_block: 4 # it must equal to widow_size list length, ex: window_size = [256, null], num_layers_per_block = 2
-query_chunk_size: 256 # null or int.
+query_chunk_size: 512 # null or int.  moe 512 速度最快
 max_target_length: 4097 # Maximum sequence length
 reset_for_eval: True # True will rest eval dataset
 epoch: 1

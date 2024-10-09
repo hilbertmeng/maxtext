@@ -338,7 +338,7 @@ def eval_step(model, config, state, data, dropout_rng):
   metrics = {
       "scalar": 
       {
-      "evaluation/loss": loss, 
+      "evaluation/loss": loss - aux['aux_loss'],  # lsp
       "evaluation/total_loss": aux["total_loss"], 
       "evaluation/total_weights": aux["total_weights"],
       "evaluation/aux_loss": aux["aux_loss"],

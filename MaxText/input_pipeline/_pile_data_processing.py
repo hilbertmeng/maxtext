@@ -319,6 +319,38 @@ def extract_v3p5_data_files(dataset_path, eval_split):
     return train_files, valid_files
 
 
+def extract_role_play_instruct_data(dataset_paths, eval_split):
+    random.seed(9876)
+    client = storage.Client()
+    total_train_files, total_valid_files = [], []
+    for dataset_path in dataset_paths:
+        path = dataset_path.replace('gs://', '')
+        path_parts = path.split('/')
+        bucket_name = path_parts[0]
+        directory_path = '/'.join(path_parts[1:])
+        directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
+        # logging.info(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+        train_files, valid_files = [], []
+        for blob in client.list_blobs(bucket_name, prefix=directory_path):
+            path = f'gs://{os.path.join(bucket_name, blob.name)}'
+            if eval_split in path:
+                valid_files.append(path)
+            else:
+                train_files.append(path)
+         # 中文小说取0.3
+        if 'zh_data_Qwen' in dataset_path:
+            train_files = random.sample(train_files, k=int(len(train_files) * 0.3))
+
+        total_train_files.extend(train_files)
+        total_valid_files.extend(valid_files)
+   
+    random.shuffle(total_train_files)
+    max_logging.log(f'Total train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
+    max_logging.log(f'First 10 train files: {total_train_files[:20]}')
+    max_logging.log(f'Total valid files: {total_valid_files}')
+    return total_train_files, total_valid_files
+
+
 def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
     if job_log_dir is None:
         return {}
@@ -356,6 +388,8 @@ def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
     train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'pretrain_4k':
     train_pathes, eval_pathes = extract_v3p5_data_files(config.dataset_path, config.eval_split)
+  elif config.dataset_type == 'instruct':
+     train_pathes, eval_pathes = extract_role_play_instruct_data(config.dataset_path, config.eval_split)
   else:
     raise ValueError(f'Unknow ‘config.datase_dtype’={config.datase_dtype}')
 

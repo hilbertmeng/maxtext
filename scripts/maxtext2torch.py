@@ -63,6 +63,10 @@ def load_model(read_dir):
     while 'params' in w:
         w = w['params']
     flat_w = {'.'.join(k): np.array(v) for k, v in flatten_dict(w).items()}
+    try:
+        back_metadata_path.rename(metadata_path)
+    except:
+        pass
     return flat_w
 
 
@@ -112,6 +116,7 @@ def update_weight_from_maxtext(model, w, vocab_size=50304, num_blocks=2, model_d
     return model
 
 
+# 8B模型大约需要80G内存
 # read_dir = f'gs://llm_base_models_us-central2/dcformer/maxtext/410m/qknorm0511_scale/checkpoints/6000/default'
 if __name__ == '__main__':
     '''
@@ -139,5 +144,6 @@ if __name__ == '__main__':
 
     # convert maxtext model weight to pytorch model weight
     model = update_weight_from_maxtext(model, weights, vocab_size=152064, num_blocks=4, model_dim=4096, num_heads=32)
+    model = model.half()
     model.save_pretrained("dcformer_medium_pytorch", safe_serialization=False)
     print('converted')

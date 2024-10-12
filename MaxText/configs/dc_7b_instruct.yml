@@ -110,7 +110,7 @@ mgate: True # it's False when moe train
 mgate_dim: 44
 set_mask_by_eos: False
 only_eval: False
-task_features: ['input_ids', 'lables'] # 数据的keys
+task_features: ['input_ids', 'labels'] # 数据的keys
 eval_start_step: False
 tensorboard_dir: "gs://llm_base_models_us-east5/maxtext_tensorboard_dir/"
 

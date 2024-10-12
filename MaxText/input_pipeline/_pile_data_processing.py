@@ -322,6 +322,10 @@ def extract_v3p5_data_files(dataset_path, eval_split):
 def extract_role_play_instruct_data(dataset_paths, eval_split):
     random.seed(9876)
     client = storage.Client()
+    print(f'dataset_paths0: {dataset_paths}')
+    dataset_paths = dataset_paths.split('@')
+    print(f'dataset_paths1: {dataset_paths}')
+    print(f'Dataset from {len(dataset_paths)} source')
     total_train_files, total_valid_files = [], []
     for dataset_path in dataset_paths:
         path = dataset_path.replace('gs://', '')
@@ -329,7 +333,6 @@ def extract_role_play_instruct_data(dataset_paths, eval_split):
         bucket_name = path_parts[0]
         directory_path = '/'.join(path_parts[1:])
         directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
-        # logging.info(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
         train_files, valid_files = [], []
         for blob in client.list_blobs(bucket_name, prefix=directory_path):
             path = f'gs://{os.path.join(bucket_name, blob.name)}'
@@ -340,6 +343,9 @@ def extract_role_play_instruct_data(dataset_paths, eval_split):
          # 中文小说取0.3
         if 'zh_data_Qwen' in dataset_path:
             train_files = random.sample(train_files, k=int(len(train_files) * 0.3))
+        # 英文小说取0.15
+        elif 'en_data_Qwen' in dataset_path:
+            train_files = random.sample(train_files, k=int(len(train_files) * 0.15))
 
         total_train_files.extend(train_files)
         total_valid_files.extend(valid_files)

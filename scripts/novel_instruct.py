@@ -211,10 +211,12 @@ class DataProcessor:
         self.user = self.tokenizer.encode('user:\n')
         self.assistant = self.tokenizer.encode('\n\nassistant:\n')
 
-        self.book_input_ids = [BOS_ID] + self.user
-        self.book_masks = [0] * len(self.book_input_ids)
+        self.pad_id = -100
 
-        self.segment_num = {'zh': 4, 'en': 0} # 每本书取前多少条数据作为一次迭代
+        self.book_input_ids = [BOS_ID] + self.user
+        self.book_masks = [self.pad_id] * len(self.book_input_ids)
+
+        self.segment_num = {'zh': 2, 'en': 0} # 每本书取前多少条数据作为一次迭代
         self.last_n_lines = deque(maxlen=3)
 
         self.prompt_ids = defaultdict(list)
@@ -274,14 +276,14 @@ class DataProcessor:
         else:
             input_ids = [BOS_ID] + self.user + prompt_id + fir_input_ids[1+len(self.user): ] + self.assistant + sec_input_ids
         
-        masks = (len(prompt_id) + len(fir_input_ids) + len(self.assistant)) * [0]  + sec_mask_ids  # Assistant之后才计算loss
+        masks = (len(prompt_id) + len(fir_input_ids) + len(self.assistant)) * [self.pad_id]  + sec_mask_ids  # Assistant之后才计算loss
 
         input_ids = input_ids[: self.max_seq_len]
         masks = masks[: self.max_seq_len]
 
         assert len(input_ids) == len(masks)
 
-        masks[1] = 0  # lsp: bos id 后的第一个token不计算loss
+        masks[1] = self.pad_id  # lsp: bos id 后的第一个token不计算loss
         feature = {
             "input_ids": self._int64_feature(input_ids),
             "labels": self._int64_feature(masks),
@@ -291,7 +293,7 @@ class DataProcessor:
         self.write_line += 1
         # 每次都从bos开始
         self.book_input_ids = [BOS_ID] + self.user
-        self.book_masks = [0] * len(self.book_input_ids)
+        self.book_masks = [self.pad_id] * len(self.book_input_ids)
 
     def process_book(self, path, start_index=0):
         with epath.Path(path).open('r') as fr:
@@ -325,7 +327,7 @@ class DataProcessor:
                 _n = 1
                 ids = self.convert_line_to_ids(line)
                 if (self.data_type == 'zh' and match_chapter(line)) or (self.data_type == 'en' and match_en_chapter(line)) :
-                    masks = len(ids) * [0]
+                    masks = len(ids) * [self.pad_id]
                 else:
                     masks = len(ids) * [1]
                     
@@ -349,7 +351,7 @@ class DataProcessor:
             if index == len(lines) - 1:
                 # 换书之后清空
                 self.book_input_ids = [BOS_ID] + self.user
-                self.book_masks = [0] * len(self.book_input_ids)
+                self.book_masks = [self.pad_id] * len(self.book_input_ids)
                 self.run_book_index.pop(path) # 结束后，删除该书
             
 
@@ -490,7 +492,8 @@ TPU_NAME=llm-jax-v4-256-0; ZONE=us-central2-b; WORKERS=200; HOST_NUM=5; DATA_TYP
 TPU_NAME=llm-jax-v3-128-10; ZONE=us-east1-d; WORKERS=180; HOST_NUM=4; DATA_TYPE='en'
 ZONE=us-east5-a; WORKERS=10; HOST_NUM=1; DATA_TYPE='en'
 
-TPU_NAME=llm-jax-v5p-256-10	; ZONE=europe-west4-b; WORKERS=80; HOST_NUM=1; DATA_TYPE='en'
+TPU_NAME=llm-jax-v5p-64-10	; ZONE=europe-west4-b; WORKERS=100; HOST_NUM=1; DATA_TYPE='en'
+TPU_NAME=llm-jax-v5p-64-10; ZONE=us-east5-a; WORKERS=100; HOST_NUM=1; DATA_TYPE='en'
 
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="/home/lishengping/miniconda3/bin/pip install tiktoken" --project=ntpu-413714
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="sudo rm -r /home/lishengping/tokenizer; gsutil cp -r gs://llm_base_models_us-east5/qwen/tokenizer /home/lishengping/" --project=ntpu-413714
@@ -498,7 +501,7 @@ SCRIPT=/Users/lishengping/codes/jax_projects/maxtext/scripts/novel_instruct.py
 gcloud compute tpus tpu-vm scp $SCRIPT $TPU_NAME:/home/lishengping/processed.py  --zone=$ZONE  --worker=all  --project=ntpu-413714
 
 TPU_NAME=llm-jax-v3-128-10; ZONE=us-east1-d; WORKERS=30; HOST_NUM=1; DATA_TYPE='en'
-gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=0 --command="killall processed.py;/home/lishengping/miniconda3/bin/python processed.py $WORKERS $HOST_NUM $DATA_TYPE| tee $DATA_TYPE_processed.log"
+gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=2 --command="killall processed.py;/home/lishengping/miniconda3/bin/python processed.py $WORKERS $HOST_NUM $DATA_TYPE| tee $DATA_TYPE_processed.log"
 
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="sudo rm -r /home/lishengping/tokenizer; gsutil cp -r gs://llm_base_models_us-east5/qwen/tokenizer /home/lishengping/" --project=ntpu-413714
 '''

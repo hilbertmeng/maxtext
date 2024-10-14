@@ -148,6 +148,11 @@ class PileDatasets():
         tf.random.set_seed(self.seed)
         ds = tf.data.Dataset.from_tensor_slices(fname)
         ds = ds.apply(tf.data.TFRecordDataset)
+
+        if self.shuffle_buffer_size is not None:
+            tf.random.set_seed(self.seed)
+            ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
+
         # shard host data
         process_index = jax.process_index()
         # 在这里进行shard的话，不同的pod在相同的batch_size时，拿到的数据不一致
@@ -155,7 +160,9 @@ class PileDatasets():
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE)
         print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
+            tf.random.set_seed(self.seed - 1)
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
+
         padded_shapes = {key: self.seq_len for key in self.task_features}
         padding_values = {key: 0 if key == 'input_ids' else -100 for key in self.task_features}
         ds = ds.padded_batch(
@@ -164,6 +171,10 @@ class PileDatasets():
             padding_values=padding_values,
             drop_remainder=True,
         )
+        if self.shuffle_buffer_size is not None:
+            # batch化之后继续进行shuffle，让batch之间shuffle更加彻底
+            tf.random.set_seed(self.seed - 2)
+            ds = ds.shuffle(buffer_size=20 * self.shuffle_buffer_size // self.batch_size)
         # lsp: batch之后进行shard。如果不进行shuffle，在batch化之前shard也行
         # ds = ds.shard(self.num_infeed_hosts, process_index)
         ds = ds.map(self.convert)
@@ -340,16 +351,17 @@ def extract_role_play_instruct_data(dataset_paths, eval_split):
                 valid_files.append(path)
             else:
                 train_files.append(path)
-         # 中文小说取0.3
+         # 中文小说总共15万 取0.3
         if 'zh_data_Qwen' in dataset_path:
             train_files = random.sample(train_files, k=int(len(train_files) * 0.3))
-        # 英文小说取0.15
+        # 英文小说总共45万 取0.1
         elif 'en_data_Qwen' in dataset_path:
-            train_files = random.sample(train_files, k=int(len(train_files) * 0.15))
+            train_files = random.sample(train_files, k=int(len(train_files) * 0.1))
 
         total_train_files.extend(train_files)
         total_valid_files.extend(valid_files)
-   
+    random.shuffle(total_train_files)
+    random.seed(9875) # 文件多次shuffle，让文件之间shuffle更彻底
     random.shuffle(total_train_files)
     max_logging.log(f'Total train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
     max_logging.log(f'First 10 train files: {total_train_files[:20]}')

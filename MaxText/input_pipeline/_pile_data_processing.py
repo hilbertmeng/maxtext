@@ -354,9 +354,17 @@ def extract_role_play_instruct_data(dataset_paths, eval_split):
          # 中文小说总共15万 取0.3
         if 'zh_data_Qwen' in dataset_path:
             train_files = random.sample(train_files, k=int(len(train_files) * 0.3))
+            if not valid_files:
+                valid_files = train_files[ :3]
+            train_files = train_files[3: ]
         # 英文小说总共45万 取0.1
         elif 'en_data_Qwen' in dataset_path:
             train_files = random.sample(train_files, k=int(len(train_files) * 0.1))
+            if not valid_files:
+                valid_files = train_files[ :1]
+            train_files = train_files[1: ]
+        
+        max_logging.log(f'dataset_path: {dataset_path} train nums: {len(train_files)} valid nums: {len(valid_files)} valid files: {valid_files}')
 
         total_train_files.extend(train_files)
         total_valid_files.extend(valid_files)

@@ -126,7 +126,7 @@ class PileDatasets():
             t = example[name]
             if t.dtype == tf.int64:
                 t = tf.cast(t, dtype=tf.int32)
-            example[name] = tf.sparse.to_dense(t, default_value=0)[ :self.seq_len]
+            example[name] = tf.sparse.to_dense(t, default_value=0)[1:self.seq_len + 1] # 去掉start id
         return example
 
     def convert(self, data):
@@ -148,11 +148,6 @@ class PileDatasets():
         tf.random.set_seed(self.seed)
         ds = tf.data.Dataset.from_tensor_slices(fname)
         ds = ds.apply(tf.data.TFRecordDataset)
-
-        if self.shuffle_buffer_size is not None:
-            tf.random.set_seed(self.seed)
-            ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
-
         # shard host data
         process_index = jax.process_index()
         # 在这里进行shard的话，不同的pod在相同的batch_size时，拿到的数据不一致
@@ -171,10 +166,10 @@ class PileDatasets():
             padding_values=padding_values,
             drop_remainder=True,
         )
-        if self.shuffle_buffer_size is not None:
-            # batch化之后继续进行shuffle，让batch之间shuffle更加彻底
-            tf.random.set_seed(self.seed - 2)
-            ds = ds.shuffle(buffer_size=20 * self.shuffle_buffer_size // self.batch_size)
+        # if self.shuffle_buffer_size is not None:
+        #     # batch化之后继续进行shuffle，让batch之间shuffle更加彻底
+        #     tf.random.set_seed(self.seed - 2)
+        #     ds = ds.shuffle(buffer_size=self.shuffle_buffer_size // self.batch_size)
         # lsp: batch之后进行shard。如果不进行shuffle，在batch化之前shard也行
         # ds = ds.shard(self.num_infeed_hosts, process_index)
         ds = ds.map(self.convert)

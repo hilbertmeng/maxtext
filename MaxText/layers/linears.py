@@ -582,7 +582,7 @@ class DcMoeBlock(nn.Module):
         kernel_in_axis = np.arange(1)
         kernel_out_axis = np.arange(1, 2)
         kernel_init = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
-
+        # self.kernel_init = kernel_init
         # The first axes is expert
         kernel_axes = (None, 'embed', 'mlp')
         wo_kernel_axes = (None, 'mlp', 'embed')
@@ -634,6 +634,15 @@ class DcMoeBlock(nn.Module):
         self._is_ffn1_gated = True if self.config.mlp_activations[0] != 'linear' else False
         # silu
         self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
+        inner_gate_kernel = self.param(
+            'mgate',
+            nn.with_logical_partitioning(kernel_init, kernel_axes),
+            (self.num_experts, emb_dim, self.config.mgate_dim),
+            self.weight_dtype,
+            kernel_in_axis,
+            kernel_out_axis,
+          )
+        self.inner_gate = jnp.asarray(inner_gate_kernel, self.dtype)
 
     @nn.compact
     def __call__(self, inputs, paddings, deterministic=False):
@@ -669,7 +678,11 @@ class DcMoeBlock(nn.Module):
         """
         expert_inputs: gecm
         """
+      
         theta_wi, theta_wo = self.wi_0[expert_index: expert_index + compute_n_expert], self.wo_0[expert_index: expert_index + compute_n_expert]
+        inner_gate = self.inner_gate[expert_index: expert_index + compute_n_expert]
+        print(f'inner_gate: {inner_gate.shape} theta_wi: {theta_wi.shape}')
+
         if self._is_ffn1_gated:
             theta_wi_gated = self.wi_gate_0[expert_index: expert_index + compute_n_expert]
 
@@ -692,6 +705,20 @@ class DcMoeBlock(nn.Module):
         #  Broadcast along length.
         print(f'self.intermediate_dropout_rate: {self.intermediate_dropout_rate} deterministic: {deterministic}')
         hidden = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
+        # expert_inputs: gecm,  mgatew: meh  -> 
+        if self.config.mgate:
+          assert isinstance(self.config.mgate_dim, int)
+
+          mgate_scores = jnp.einsum('gecm,emi->geci', expert_inputs, inner_gate)
+          print(f'mgate is True and mgate_dim={self.config.mgate_dim}')
+
+          mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
+          mgate_scores = mgate_scores.astype(self.dtype)
+
+          G, E, C, H = hidden.shape
+          x = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
+          x = jnp.einsum('geci,gecif->gecif', mgate_scores, x)
+          hidden = x.reshape(G, E, C, H)
 
         expert_output = jnp.einsum("gech,ehm->gecm", hidden, theta_wo)
         expert_output = self._split(expert_output, (('replica', 'data'), None, None, 'mdl'))
@@ -729,7 +756,7 @@ class DcMoeBlock(nn.Module):
                 weight_dtype=self.weight_dtype,
                 kernel_init=self.kernel_init,
                 kernel_axes=self.kernel_axes,
-                name="mgate")(token_inputs)
+                name="router_gate")(token_inputs)
         # gse
         router_probs = jax.nn.softmax(router_logits, axis=-1)
         # g * s * top2

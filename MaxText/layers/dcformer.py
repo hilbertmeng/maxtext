@@ -192,7 +192,7 @@ class DcformerDecoderLayer(nn.Module):
             # mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
             # mlp_lnx *= 1e-9
             # mlp_lnx = None
-            mlp_lnx /= 2 if cfg.mgate else cfg.num_experts
+            mlp_lnx /= 1 if cfg.mgate else cfg.num_experts
 
         # lsp: shard expert
         if n_shared_experts:
@@ -209,7 +209,7 @@ class DcformerDecoderLayer(nn.Module):
             )(hidden_states, deterministic=deterministic)
             print(f'shared_mlp_lnx: {shared_mlp_lnx.shape} mlp_residual_dropout_rate: {cfg.mlp_residual_dropout_rate} deterministic: {deterministic}')
             # shared_mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(shared_mlp_lnx, deterministic=deterministic)
-            shared_mlp_lnx /= 2 if cfg.mgate else cfg.num_experts
+            shared_mlp_lnx /= 1 if cfg.mgate else cfg.num_experts
 
         assert shared_mlp_lnx is not None or mlp_lnx is not None, print('mlp_lnx and shared_mlp_lnx alse are None......')
         print(f'in shared expert mlp_lnx: {mlp_lnx}')

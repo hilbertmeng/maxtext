@@ -126,7 +126,7 @@ class PileDatasets():
             t = example[name]
             if t.dtype == tf.int64:
                 t = tf.cast(t, dtype=tf.int32)
-            example[name] = tf.sparse.to_dense(t, default_value=0)[1:self.seq_len + 1] # 去掉start id
+            example[name] = tf.sparse.to_dense(t, default_value=0)[:self.seq_len] # 去掉start id
         return example
 
     def convert(self, data):

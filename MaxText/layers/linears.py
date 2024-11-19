@@ -773,9 +773,11 @@ class DcMoeBlock(nn.Module):
           expert_to_token_score = router_probs.mean(axis=(0, 1))
           sum_value = jnp.sum(expert_to_token_score, axis=-1)
           expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)  # 归一化
-          self.sow('intermediates', 'expert_to_token_score', _entroy(expert_to_token_score)) 
+          e2t_entroy = _entroy(expert_to_token_score)
+          self.sow('intermediates', 'expert_to_token_score', e2t_entroy)
+          t2e_entroy = _entroy(router_probs)
            # token选择专家，熵越小越好 max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
-          self.sow('intermediates', 'token_to_expert_score', _entroy(router_probs))
+          self.sow('intermediates', 'token_to_expert_score', t2e_entroy)
 
         # g * s * top2
         expert_gate, expert_index = _top_k(router_probs, k=topn)
@@ -802,7 +804,7 @@ class DcMoeBlock(nn.Module):
             aux_loss = 0.0
         
         # lsp
-        if self.router_z_loss_coef is not None:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上
+        if self.router_z_loss_coef is not None:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上  防止过大的logits
             # <=> torch.logsumexp(logits, dim = -1)
             router_z_loss = jnp.log(jnp.sum(jnp.exp(router_logits), axis=-1))
             router_z_loss = jnp.square(router_z_loss)            
@@ -810,7 +812,7 @@ class DcMoeBlock(nn.Module):
         else:
           router_z_loss = 0.0
 
-        aux_loss += router_z_loss
+        aux_loss = aux_loss + router_z_loss + self.router_z_loss_coef * t2e_entroy
 
         # g * 2 * s
         expert_index = jnp.swapaxes(expert_index, 1, 2)

@@ -199,11 +199,20 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"] # decode -> layers
     for layer_num in range(config.num_decoder_layers):
-      output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict["activation_fraction_zero"][0][
-          layer_num
-      ]
+      output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict["activation_fraction_zero"][0][layer_num]
       output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = metrics_dict["activation_mean"][0][layer_num]
       output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = metrics_dict["activation_stdev"][0][layer_num]
+
+      if config.num_experts > 1:
+        main_layer_num = layer_num // config.num_layers_per_block
+        sub_layer_num = layer_num % config.num_layers_per_block
+        if sub_layer_num % 2 == 0:
+          mlp_key = 'unshared_mlp'
+          output_metrics["scalar"][f"token_to_expert_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["token_to_expert_score"][0][main_layer_num]
+          output_metrics["scalar"][f"expert_to_token_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["expert_to_token_score"][0][main_layer_num]
+        else:
+          mlp_key = 'mlp'
+        
   else:
     for layer_num in range(config.num_decoder_layers):
       layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]

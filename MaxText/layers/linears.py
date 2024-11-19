@@ -572,7 +572,7 @@ class DcMoeBlock(nn.Module):
     kernel_init: NdInitializer
     kernel_axes: Tuple[str, ...]
     weight_dtype: DType = jnp.float32
-    dtype: DType = jnp.float32
+    dtype: DType = jnp.bfloat16
     num_experts: int = 0
     intermediate_dim: int = 4096
     intermediate_dropout_rate: float = 0.1
@@ -763,7 +763,20 @@ class DcMoeBlock(nn.Module):
                 kernel_axes=self.kernel_axes,
                 name=self.router_name)(token_inputs)
         # gse
-        router_probs = jax.nn.softmax(router_logits, axis=-1)
+        router_probs = jax.nn.softmax(router_logits.astype(jnp.float32), axis=-1)
+        router_probs = router_probs.astype(self.dtype) # ble
+
+      
+        if self.config.record_internal_nn_metrics:
+          # 专家选择token， 越均匀（大）越好。表示专家选择token的概率比较均匀，熵值大，不确定性高。 
+          # max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
+          expert_to_token_score = router_probs.mean(axis=(0, 1))
+          sum_value = jnp.sum(expert_to_token_score, axis=-1)
+          expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)  # 归一化
+          self.sow('intermediates', 'expert_to_token_score', _entroy(expert_to_token_score)) 
+           # token选择专家，熵越小越好 max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
+          self.sow('intermediates', 'token_to_expert_score', _entroy(router_probs))
+
         # g * s * top2
         expert_gate, expert_index = _top_k(router_probs, k=topn)
     

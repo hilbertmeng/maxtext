@@ -122,6 +122,8 @@ if __name__ == '__main__':
     '''
     run command:
     python maxtext2torch.py --model_path  gs://bucket/dcformer/checkpoints/6000/default
+    or
+    python maxtext2torch.py --model_path  gs://bucket/dcformer/checkpoints/6000/state
     '''
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", required=True) # model directory, such as cloud path(gs://bucket/dcformer/checkpoints) or local path(./dcformer/checkpoints)
@@ -137,7 +139,7 @@ if __name__ == '__main__':
     from configuration_dcformer import DCFormerConfig
     from modeling_dcformer import DCFormer
     # DCFormer-Medium
-    config = {"vocab_size": 152064,"n_layer": 48, "n_head":32, "dim": 4096, "use_qk_norm": True, "window_type": "LGLL", "window_size": 256, "rope_base":500000, "intermediate_size": 5632, 'mgate': True}
+    config = {"prefill_pad": True, "vocab_size": 152064,"n_layer": 48, "n_head":32, "dim": 4096, "use_qk_norm": True, "window_type": "LGLL", "window_size": 256, "rope_base":500000, "intermediate_size": 5632, 'mgate': True}
     config = DCFormerConfig(**config)
     model = DCFormer(config)
     print('init dcformer done')

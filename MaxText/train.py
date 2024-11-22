@@ -206,12 +206,12 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       if config.num_experts > 1:
         main_layer_num = layer_num // config.num_layers_per_block
         sub_layer_num = layer_num % config.num_layers_per_block
-        if sub_layer_num % 2 == 0:
-          mlp_key = 'unshared_mlp'
-          output_metrics["scalar"][f"token_to_expert_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["token_to_expert_score"][0][main_layer_num]
-          output_metrics["scalar"][f"expert_to_token_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["expert_to_token_score"][0][main_layer_num]
-        else:
-          mlp_key = 'mlp'
+        # if sub_layer_num % 2 == 0:
+        #   mlp_key = 'unshared_mlp'
+        #   output_metrics["scalar"][f"token_to_expert_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["token_to_expert_score"][0][main_layer_num]
+        #   output_metrics["scalar"][f"expert_to_token_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["expert_to_token_score"][0][main_layer_num]
+        # else:
+        #   mlp_key = 'mlp'
         
   else:
     for layer_num in range(config.num_decoder_layers):
@@ -269,13 +269,18 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   flat_intermediate = flatten_dict(intermediate_outputs)
 
   # ('intermediates', 'decoder', 'layers', 'mlp_0/1/2/3', 'aux_loss')
-  if config.num_experts > 1:
-    _aux_losses = [(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k]
-    _aux_losses = jnp.array(_aux_losses)
-    aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
-    aux_loss = aux_losses.sum() / aux_weights.sum()
-  else:
-    aux_loss = 0
+  # if config.num_experts > 1:
+  #   if not config.megablox:
+  #     _aux_losses = [(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k]
+  #     _aux_losses = jnp.array(_aux_losses)
+  #     aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
+  #     aux_loss = aux_losses.sum() / aux_weights.sum()
+  #   else:
+  #     aux_loss = 0
+  # else:
+  #   aux_loss = 0
+
+ 
 
   for k, v in flat_intermediate.items():
     print(k)
@@ -287,14 +292,22 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   total_loss = jnp.sum(xent)
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
+
+  moe_lb_loss = 0.0
+  if config.num_experts > 1:
+    nested_key = ("intermediates", "decoder", "layers", "moe_lb_loss")
+    total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+    moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
+    loss += moe_lb_loss
+
   aux = {
       "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
-      "aux_loss": aux_loss,
+      "aux_loss": moe_lb_loss,
       "accuracy": accuracy, 
   }
-  return loss + aux_loss, aux
+  return loss + moe_lb_loss, aux
 
 
 def train_step(model, config, state, data, dropout_rng):

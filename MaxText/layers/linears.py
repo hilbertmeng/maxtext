@@ -152,7 +152,7 @@ class DenseGeneral(nn.Module):
           kernel_out_axis,
       )
     kernel = jnp.asarray(kernel, self.dtype)
-    print(f'name: {self.name} kernel_in_axis: {kernel_in_axis} kernel_out_axis: {kernel_out_axis} kernel: {kernel.shape} inputs: {inputs.shape}')
+    # print(f'name: {self.name} kernel_in_axis: {kernel_in_axis} kernel_out_axis: {kernel_out_axis} kernel: {kernel.shape} inputs: {inputs.shape}')
 
     contract_ind = tuple(range(0, len(axis)))
     output = compute_dot_general(inputs, kernel, axis, contract_ind)

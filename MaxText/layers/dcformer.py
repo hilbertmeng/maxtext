@@ -176,36 +176,39 @@ class DcformerDecoderLayer(nn.Module):
         # assert cfg.mlp_dim % cfg.num_experts == 0, print(f'mlp_dim: {cfg.mlp_dim} is not divisible by num_experts: {cfg.num_experts}')
 
         mlp_lnx, shared_mlp_lnx = None, None
-        if cfg.moe_type == 'mistral':
-            mlp_lnx, aux_loss = linears.MoeBlock(
-                                    config=cfg,
-                                    num_experts=cfg.num_experts,
-                                    num_experts_per_tok=cfg.num_experts_per_tok,
-                                    mesh=mesh,
-                                    kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
-                                    kernel_axes=('embed', 'mlp'),
-                                    weight_dtype=cfg.weight_dtype,
-                                    dtype=cfg.dtype,
-                                    )(hidden_states)
-        else:
-            # if block_index % 2 == 0:
-            print(f'Add moe layer: {block_index}')
-            mlp_lnx, aux_loss = linears.DcMoeBlock(
-                name=f'unshared_mlp_{block_index}',
-                config=cfg,
-                mesh=mesh,
-                kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
-                kernel_axes=('embed', 'mlp'),
-                weight_dtype=cfg.weight_dtype,
-                dtype=cfg.dtype,
-                num_experts=num_unshared_experts,
-                intermediate_dim=moe_intermediate_dim, # moe_intermediate_dim
-                intermediate_dropout_rate = cfg.intermediate_dropout_rate,
-            )(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
-        # mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
-        # mlp_lnx *= 1e-9
-        # mlp_lnx = None
-        mlp_lnx /= 1 if cfg.mgate else cfg.num_experts
+
+        if block_index % 2 == 0:
+
+            if cfg.moe_type == 'mistral':
+                mlp_lnx, aux_loss = linears.MoeBlock(
+                                        name=f'unshared_mlp_{block_index}',
+                                        config=cfg,
+                                        num_experts=cfg.num_experts,
+                                        num_experts_per_tok=cfg.num_experts_per_tok,
+                                        mesh=mesh,
+                                        kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
+                                        kernel_axes=('embed', 'mlp'),
+                                        weight_dtype=cfg.weight_dtype,
+                                        dtype=cfg.dtype,
+                                        )(hidden_states)
+            else:
+                print(f'Add moe layer: {block_index}')
+                mlp_lnx, aux_loss = linears.DcMoeBlock(
+                    name=f'unshared_mlp_{block_index}',
+                    config=cfg,
+                    mesh=mesh,
+                    kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
+                    kernel_axes=('embed', 'mlp'),
+                    weight_dtype=cfg.weight_dtype,
+                    dtype=cfg.dtype,
+                    num_experts=num_unshared_experts,
+                    intermediate_dim=moe_intermediate_dim, # moe_intermediate_dim
+                    intermediate_dropout_rate = cfg.intermediate_dropout_rate,
+                )(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
+                # mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)
+                # mlp_lnx *= 1e-9
+                # mlp_lnx = None
+                mlp_lnx /= 1 if cfg.mgate else cfg.num_experts
 
         # lsp: shard expert
         if n_shared_experts:
@@ -224,8 +227,8 @@ class DcformerDecoderLayer(nn.Module):
             # shared_mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(shared_mlp_lnx, deterministic=deterministic)
             shared_mlp_lnx /= 1 if cfg.mgate else cfg.num_experts
 
-        assert shared_mlp_lnx is not None or mlp_lnx is not None, print('mlp_lnx and shared_mlp_lnx alse are None......')
-        print(f'in shared expert mlp_lnx: {mlp_lnx}')
+        # assert shared_mlp_lnx is not None or mlp_lnx is not None, print('mlp_lnx and shared_mlp_lnx alse are None......')
+        # print(f'in shared expert mlp_lnx: {mlp_lnx}')
         mlp_lnx = shared_mlp_lnx  if mlp_lnx is None else (mlp_lnx + shared_mlp_lnx) / 2
 
     # mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(mlp_lnx, deterministic=deterministic)

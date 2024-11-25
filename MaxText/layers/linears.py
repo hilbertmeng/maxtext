@@ -152,6 +152,7 @@ class DenseGeneral(nn.Module):
           kernel_out_axis,
       )
     kernel = jnp.asarray(kernel, self.dtype)
+    print(f'name: {self.name} kernel_in_axis: {kernel_in_axis} kernel_out_axis: {kernel_out_axis} kernel: {kernel.shape} inputs: {inputs.shape}')
 
     contract_ind = tuple(range(0, len(axis)))
     output = compute_dot_general(inputs, kernel, axis, contract_ind)
@@ -541,6 +542,7 @@ class MoeBlock(nn.Module):
 
   # See Switch Transformer (https://arxiv.org/abs/2101.03961) for more details.
   def load_balance_loss(self, top_k_indices, logits):
+    print(f'aux_loss_coef: {self.config.aux_loss_coef}')
     expert_mask = jax.nn.one_hot(top_k_indices, num_classes=self.num_experts, dtype=jnp.int32)
     summed_expert_mask = jnp.sum(expert_mask, axis=2)
     # Get fraction of tokens dispatched to each expert
@@ -582,6 +584,7 @@ class MoeBlock(nn.Module):
     matmul_precision = lax.Precision(self.config.matmul_precision)
 
     if self.config.expert_capacity_factor > 0:
+      print(f'expert_capacity_factor: {self.config.expert_capacity_factor}')
       # token dropping if needed
       dispatch_mask, combine_mask = self.generate_masks(top_k_indices, softmax_probs)
       mask_axes = ("activation_batch", "activation_length", None, None)
@@ -675,7 +678,7 @@ class MoeBlock(nn.Module):
         quant=self.quant,
         kernel_init=self.kernel_init,
         kernel_axes=self.kernel_axes,
-        name="gate",
+        name="router_gate",
         matmul_precision=self.config.matmul_precision,
     )(inputs)
 
@@ -833,20 +836,20 @@ class DcMoeBlock(nn.Module):
         # silu
         self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
 
-        if self.config.mgate:
-            inner_gate_kernel = self.param(
-              'mgate',
-              nn.with_logical_partitioning(kernel_init, kernel_axes),
-              (self.num_experts, emb_dim, self.config.mgate_dim),
-              self.weight_dtype,
-              kernel_in_axis,
-              kernel_out_axis,
-            )
-            self.inner_gate = jnp.asarray(inner_gate_kernel, self.dtype)
-            self.router_name = "router_gate"
-        else:
-            self.inner_gate = None
-            self.router_name = "mgate"
+        # if self.config.mgate:
+        #     inner_gate_kernel = self.param(
+        #       'mgate',
+        #       nn.with_logical_partitioning(kernel_init, kernel_axes),
+        #       (self.num_experts, emb_dim, self.config.mgate_dim),
+        #       self.weight_dtype,
+        #       kernel_in_axis,
+        #       kernel_out_axis,
+        #     )
+        #     self.inner_gate = jnp.asarray(inner_gate_kernel, self.dtype)
+        #     self.router_name = "router_gate"
+        # else:
+        self.inner_gate = None
+        self.router_name = "mgate"
            
     @nn.compact
     def __call__(self, inputs, paddings, deterministic=False):
@@ -908,20 +911,20 @@ class DcMoeBlock(nn.Module):
         print(f'self.intermediate_dropout_rate: {self.intermediate_dropout_rate} deterministic: {deterministic}')
         hidden = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
         # expert_inputs: gecm,  mgatew: meh  -> 
-        if self.config.mgate:
-          assert isinstance(self.config.mgate_dim, int)
+        # if self.config.mgate:
+        #   assert isinstance(self.config.mgate_dim, int)
 
-          inner_gate = self.inner_gate[expert_index: expert_index + compute_n_expert]
-          mgate_scores = jnp.einsum('gecm,emi->geci', expert_inputs, inner_gate)
-          print(f'mgate is True and mgate_dim={self.config.mgate_dim}')
+        #   inner_gate = self.inner_gate[expert_index: expert_index + compute_n_expert]
+        #   mgate_scores = jnp.einsum('gecm,emi->geci', expert_inputs, inner_gate)
+        #   print(f'mgate is True and mgate_dim={self.config.mgate_dim}')
 
-          mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
-          mgate_scores = mgate_scores.astype(self.dtype)
+        #   mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
+        #   mgate_scores = mgate_scores.astype(self.dtype)
 
-          G, E, C, H = hidden.shape
-          x = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
-          x = jnp.einsum('geci,gecif->gecif', mgate_scores, x)
-          hidden = x.reshape(G, E, C, H)
+        #   G, E, C, H = hidden.shape
+        #   x = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
+        #   x = jnp.einsum('geci,gecif->gecif', mgate_scores, x)
+        #   hidden = x.reshape(G, E, C, H)
 
         expert_output = jnp.einsum("gech,ehm->gecm", hidden, theta_wo)
         expert_output = self._split(expert_output, (('replica', 'data'), None, None, 'mdl'))
@@ -1010,7 +1013,8 @@ class DcMoeBlock(nn.Module):
         else:
           router_z_loss = 0.0
 
-        aux_loss = aux_loss + router_z_loss + self.router_z_loss_coef * t2e_entroy
+        # aux_loss = aux_loss + router_z_loss + self.router_z_loss_coef * t2e_entroy
+        aux_loss = aux_loss + router_z_loss
 
         # g * 2 * s
         expert_index = jnp.swapaxes(expert_index, 1, 2)

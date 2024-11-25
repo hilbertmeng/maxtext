@@ -203,15 +203,15 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = metrics_dict["activation_mean"][0][layer_num]
       output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = metrics_dict["activation_stdev"][0][layer_num]
 
-      if config.num_experts > 1:
+      if config.num_experts > 1 and config.moe_type != 'mistral':
         main_layer_num = layer_num // config.num_layers_per_block
         sub_layer_num = layer_num % config.num_layers_per_block
-        # if sub_layer_num % 2 == 0:
-        #   mlp_key = 'unshared_mlp'
-        #   output_metrics["scalar"][f"token_to_expert_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["token_to_expert_score"][0][main_layer_num]
-        #   output_metrics["scalar"][f"expert_to_token_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["expert_to_token_score"][0][main_layer_num]
-        # else:
-        #   mlp_key = 'mlp'
+        if sub_layer_num % 2 == 0:
+          mlp_key = 'unshared_mlp'
+          output_metrics["scalar"][f"token_to_expert_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["token_to_expert_score"][0][main_layer_num]
+          output_metrics["scalar"][f"expert_to_token_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["expert_to_token_score"][0][main_layer_num]
+        else:
+          mlp_key = 'mlp'
         
   else:
     for layer_num in range(config.num_decoder_layers):
@@ -265,22 +265,16 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       mutable="intermediates",
   )
   accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"])
-  
   flat_intermediate = flatten_dict(intermediate_outputs)
 
   # ('intermediates', 'decoder', 'layers', 'mlp_0/1/2/3', 'aux_loss')
-  # if config.num_experts > 1:
-  #   if not config.megablox:
-  #     _aux_losses = [(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k]
-  #     _aux_losses = jnp.array(_aux_losses)
-  #     aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
-  #     aux_loss = aux_losses.sum() / aux_weights.sum()
-  #   else:
-  #     aux_loss = 0
-  # else:
-  #   aux_loss = 0
-
- 
+  if config.num_experts > 1 and config.moe_type != 'mistral':
+      _aux_losses = [(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k]
+      _aux_losses = jnp.array(_aux_losses)
+      aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
+      aux_loss = aux_losses.sum() / aux_weights.sum()
+  else:
+    aux_loss = 0
 
   for k, v in flat_intermediate.items():
     print(k)

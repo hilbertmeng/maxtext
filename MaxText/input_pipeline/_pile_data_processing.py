@@ -155,7 +155,6 @@ class PileDatasets():
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE)
         print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
-            tf.random.set_seed(self.seed - 1)
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
 
         padded_shapes = {key: self.seq_len for key in self.task_features}
@@ -166,10 +165,9 @@ class PileDatasets():
             padding_values=padding_values,
             drop_remainder=True,
         )
-        # if self.shuffle_buffer_size is not None:
-        #     # batch化之后继续进行shuffle，让batch之间shuffle更加彻底
-        #     tf.random.set_seed(self.seed - 2)
-        #     ds = ds.shuffle(buffer_size=self.shuffle_buffer_size // self.batch_size)
+        if self.shuffle_buffer_size is not None:
+            # batch化之后继续进行shuffle，让batch之间shuffle更加彻底
+            ds = ds.shuffle(buffer_size=self.shuffle_buffer_size // self.batch_size)
         # lsp: batch之后进行shard。如果不进行shuffle，在batch化之前shard也行
         # ds = ds.shard(self.num_infeed_hosts, process_index)
         ds = ds.map(self.convert)

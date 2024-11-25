@@ -152,7 +152,7 @@ class DcformerDecoderLayer(nn.Module):
 
     hidden_states = nn.with_logical_constraint(hidden_states, ('activation_batch', 'activation_length', 'activation_embed'))
     
-    aux_loss =None
+    aux_loss = None
     if cfg.num_experts <= 1:
         # MLP block.
         mlp_lnx = linears.MlpBlock(
@@ -191,6 +191,8 @@ class DcformerDecoderLayer(nn.Module):
                                         weight_dtype=cfg.weight_dtype,
                                         dtype=cfg.dtype,
                                         )(hidden_states)
+                mlp_lnx /= cfg.num_experts
+
             else:
                 print(f'Add moe layer: {block_index}')
                 mlp_lnx, aux_loss = linears.DcMoeBlock(
@@ -248,6 +250,7 @@ class DcformerDecoderLayer(nn.Module):
         ('activation_batch', 'activation_length', 'activation_embed'),
     )
     if cfg.num_experts > 1 and aux_loss is not None:
+      print(f'return moe_lb_loss...')
       self.sow("intermediates", "moe_lb_loss", aux_loss)
 
     if cfg.record_internal_nn_metrics:

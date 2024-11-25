@@ -85,7 +85,7 @@ global_parameter_scale: 1
 base_emb_dim: 4096
 base_num_query_heads: 32
 base_num_kv_heads: 32
-base_mlp_dim: 253440  # 5632 * 45
+base_mlp_dim: 5632
 base_num_decoder_layers: 48
 # lsp pax
 window_size: [256, 32768, 256, 256]

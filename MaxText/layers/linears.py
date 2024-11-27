@@ -995,7 +995,7 @@ class DcMoeBlock(nn.Module):
 
       
         if self.config.record_internal_nn_metrics:
-            record_gate(self, 'router_gate', router_probs, axis=(0, 1, 2))
+            record_gate(self, 'router_gate', router_probs, axis=(0, 1))
 
         # g * s * top2
         expert_gate, expert_index = _top_k(router_probs, k=topn)

@@ -203,13 +203,24 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = metrics_dict["activation_mean"][0][layer_num]
       output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = metrics_dict["activation_stdev"][0][layer_num]
 
-      if config.num_experts > 1 and config.moe_type != 'mistral':
-        main_layer_num = layer_num // config.num_layers_per_block
-        sub_layer_num = layer_num % config.num_layers_per_block
+      main_layer_num = layer_num // config.num_layers_per_block
+      sub_layer_num = layer_num % config.num_layers_per_block
+    
+      if config.mgate:
+        mlp_key = 'mlp'
+        output_metrics["scalar"][f"mgate/token_to_expert_score_down/{mlp_key}_layer_{layer_num:03d}"] = \
+                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["mgate/token_to_expert_score"][0][main_layer_num]
+        output_metrics["scalar"][f"mgate/expert_to_token_score_up/{mlp_key}_layer_{layer_num:03d}"] =  \
+                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["mgate/expert_to_token_score"][0][main_layer_num]
+
+      if config.num_experts > 1:
+      
         if sub_layer_num % 2 == 0:
           mlp_key = 'unshared_mlp'
-          output_metrics["scalar"][f"token_to_expert_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["token_to_expert_score"][0][main_layer_num]
-          output_metrics["scalar"][f"expert_to_token_score/{mlp_key}_layer_{layer_num:03d}"] = metrics_dict[f"{mlp_key}_{sub_layer_num}"]["expert_to_token_score"][0][main_layer_num]
+          output_metrics["scalar"][f"router_gate/token_to_expert_score_down/{mlp_key}_layer_{layer_num:03d}"] = \
+                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["router_gate/token_to_expert_score"][0][main_layer_num]
+          output_metrics["scalar"][f"router_gate/expert_to_token_score_up/{mlp_key}_layer_{layer_num:03d}"] =  \
+                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["router_gate/expert_to_token_score"][0][main_layer_num]
         else:
           mlp_key = 'mlp'
         

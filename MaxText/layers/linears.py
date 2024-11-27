@@ -225,8 +225,8 @@ class MlpBlock(nn.Module):
       expert_to_token_score = gate_scores.mean(axis=(0,1))
       sum_value = jnp.sum(expert_to_token_score, axis=-1)
       expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)
-      self.sow('intermediates', 'expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: 5.45
-      self.sow('intermediates', 'token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
+      self.sow('intermediates', 'mgate/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: 5.45
+      self.sow('intermediates', 'mgate/token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
     return gate_scores
 
   @nn.compact
@@ -682,6 +682,19 @@ class MoeBlock(nn.Module):
         matmul_precision=self.config.matmul_precision,
     )(inputs)
 
+    if self.config.record_internal_nn_metrics:
+          router_probs = jax.nn.softmax(gate_logits.astype(jnp.float32), axis=-1)
+          # 专家选择token， 越均匀（大）越好。表示专家选择token的概率比较均匀，熵值大，不确定性高。 
+          # max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
+          expert_to_token_score = router_probs.mean(axis=(0, 1))
+          sum_value = jnp.sum(expert_to_token_score, axis=-1)
+          expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)  # 归一化
+          e2t_entroy = _entroy(expert_to_token_score)
+          self.sow('intermediates', 'router_gate/expert_to_token_score', e2t_entroy)
+          t2e_entroy = _entroy(router_probs)
+           # token选择专家，熵越小越好 max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
+          self.sow('intermediates', 'router_gate/token_to_expert_score', t2e_entroy)
+
     w0_kernel, w1_kernel, wo_kernel = self.generate_kernels(cfg.num_experts, cfg.emb_dim, cfg.mlp_dim)
 
     if cfg.megablox:
@@ -836,20 +849,20 @@ class DcMoeBlock(nn.Module):
         # silu
         self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
 
-        # if self.config.mgate:
-        #     inner_gate_kernel = self.param(
-        #       'mgate',
-        #       nn.with_logical_partitioning(kernel_init, kernel_axes),
-        #       (self.num_experts, emb_dim, self.config.mgate_dim),
-        #       self.weight_dtype,
-        #       kernel_in_axis,
-        #       kernel_out_axis,
-        #     )
-        #     self.inner_gate = jnp.asarray(inner_gate_kernel, self.dtype)
-        #     self.router_name = "router_gate"
-        # else:
-        self.inner_gate = None
-        self.router_name = "mgate"
+        if self.config.mgate:
+          inner_gate_kernel = self.param(
+            'mgate',
+            nn.with_logical_partitioning(kernel_init, kernel_axes),
+            (self.num_experts, emb_dim, self.config.mgate_dim),
+            self.weight_dtype,
+            kernel_in_axis,
+            kernel_out_axis,
+          )
+          self.inner_gate = jnp.asarray(inner_gate_kernel, self.dtype)
+          self.router_name = "router_gate"
+        else:
+          self.inner_gate = None
+          self.router_name = "router_gate"
            
     @nn.compact
     def __call__(self, inputs, paddings, deterministic=False):

@@ -1006,6 +1006,15 @@ class DcMoeBlock(nn.Module):
 
         # g * s * top2
         expert_gate, expert_index = _top_k(router_probs, k=topn)
+
+        if self.config.record_internal_nn_metrics:
+          expert_index_record = expert_index.reshape(-1, topn)
+          for i in range(self.config.num_experts):
+            top1 = (expert_index_record[:, 0] == i).sum()
+            top2 = (expert_index_record[:, 1] == i).sum()
+            self.sow('intermediates', f'top1/selected_expert_{i}_token_nums', top1)
+            self.sow('intermediates', f'top2/selected_expert_{i}_token_nums', top2)
+
     
         if paddings is not None:
             print(f'paddings: {paddings.shape}')

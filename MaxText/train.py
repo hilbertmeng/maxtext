@@ -221,6 +221,13 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
           output_metrics["scalar"][f"router_gate/expert_to_token_score_up/{mlp_key}_layer_{layer_num:03d}"] =  \
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["router_gate/expert_to_token_score"][0][main_layer_num]
 
+          for i in range(config.num_experts):
+            output_metrics["scalar"][f"top1/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] = \
+                  metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top1/selected_expert_{i}_token_nums"][0][main_layer_num]
+            output_metrics["scalar"][f"top2/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] =  \
+                  metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top2/selected_expert_{i}_token_nums"][0][main_layer_num]
+
+
           if config.mgate:
             output_metrics["scalar"][f"unshared_mgate/token_to_expert_score_down/{mlp_key}_layer_{layer_num:03d}"] = \
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["mgate/token_to_expert_score"][0][main_layer_num]

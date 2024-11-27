@@ -170,6 +170,14 @@ class DenseGeneral(nn.Module):
     return output
 
 
+def record_gate(self, key, gate_scores, axis=(0, 1)):
+    expert_to_token_score = gate_scores.mean(axis=axis)
+    sum_value = jnp.sum(expert_to_token_score, axis=-1)
+    expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)
+    self.sow('intermediates', f'{key}/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: 5.45
+    self.sow('intermediates', f'{key}/token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
+
+
 class MlpBlock(nn.Module):
   """Transformer MLP / feed-forward block.
 
@@ -222,11 +230,7 @@ class MlpBlock(nn.Module):
     gate_scores = jax.nn.softmax(gate_scores.astype(jnp.float32), axis=-1)
     gate_scores = gate_scores.astype(self.dtype)
     if self.config.record_internal_nn_metrics:
-      expert_to_token_score = gate_scores.mean(axis=(0,1))
-      sum_value = jnp.sum(expert_to_token_score, axis=-1)
-      expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)
-      self.sow('intermediates', 'mgate/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: 5.45
-      self.sow('intermediates', 'mgate/token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
+      record_gate(self, 'mgate', gate_scores)
     return gate_scores
 
   @nn.compact
@@ -400,13 +404,15 @@ class MoeBlock(nn.Module):
     inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
     weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
     weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
+
     flatten_selected_experts = jnp.ravel(selected_experts) # 按行展开, 默认 order='C' order='F'的话是按列展开
     sorted_selected_experts = jnp.argsort(flatten_selected_experts)
+    print(f'sorted_selected_experts: {sorted_selected_experts.shape}')
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok
     # sort inputs for number of selected experts
     sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
-    return sorted_inputs, sorted_selected_experts, weights, group_size
+    return sorted_inputs, sorted_selected_experts, weights, group_size, selected_experts
 
   def unpermute(self, intermediate, sorted_selected_experts, weights):
     """Unpermute tokens to original order and combine weights."""
@@ -461,11 +467,14 @@ class MoeBlock(nn.Module):
             (nn.logical_to_mesh_axes((None, None, "mlp"))),
             (nn.logical_to_mesh_axes((None, "mlp", None))),
         ),
-        out_specs=(nn.logical_to_mesh_axes(("activation_batch", None, "activation_embed"))),
+        out_specs=(nn.logical_to_mesh_axes(("activation_batch", None, "activation_embed")), 
+                  nn.logical_to_mesh_axes(("activation_batch", None, "activation_embed")),
+                  nn.logical_to_mesh_axes(("activation_batch", None, "activation_embed")),
+                  ),
         check_rep=False,
     )
     def wrapper(x, logits, w0, w1, wo):
-      x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
+      x, sorted_selected_experts, weights, group_sizes, selected_experts = self.permute(x, logits)
       layer_w0 = gmm(x, w0, group_sizes)
       layer_w0 = checkpoint_name(layer_w0, "mlpwi_0")
       layer_w1 = gmm(x, w1, group_sizes)
@@ -478,7 +487,7 @@ class MoeBlock(nn.Module):
       if tensor_parallelism > 1:
         intermediate_output = jax.lax.psum_scatter(intermediate_output, "tensor", scatter_dimension=1, tiled=True)
       output = self.unpermute(intermediate_output, sorted_selected_experts, weights)
-      return output, None
+      return output, selected_experts, weights
 
     return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
 
@@ -683,30 +692,30 @@ class MoeBlock(nn.Module):
     )(inputs)
 
     if self.config.record_internal_nn_metrics:
-          router_probs = jax.nn.softmax(gate_logits.astype(jnp.float32), axis=-1)
-          # 专家选择token， 越均匀（大）越好。表示专家选择token的概率比较均匀，熵值大，不确定性高。 
-          # max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
-          expert_to_token_score = router_probs.mean(axis=(0, 1))
-          sum_value = jnp.sum(expert_to_token_score, axis=-1)
-          expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)  # 归一化
-          e2t_entroy = _entroy(expert_to_token_score)
-          self.sow('intermediates', 'router_gate/expert_to_token_score', e2t_entroy)
-          t2e_entroy = _entroy(router_probs)
-           # token选择专家，熵越小越好 max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
-          self.sow('intermediates', 'router_gate/token_to_expert_score', t2e_entroy)
+      router_probs = jax.nn.softmax(gate_logits.astype(jnp.float32), axis=-1)
+      record_gate(self, 'router_gate', router_probs)
 
     w0_kernel, w1_kernel, wo_kernel = self.generate_kernels(cfg.num_experts, cfg.emb_dim, cfg.mlp_dim)
 
     if cfg.megablox:
       max_logging.log("Running MoE megablox implementation.")
-      return self.megablox(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
+      output, selected_experts, weights = self.megablox(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
+      if self.config.record_internal_nn_metrics and jax.process_index() == 0: # lsp
+        print(f'router weights: {weights.shape} selected_experts: {selected_experts.shape}')
+        record_gate(self, 'router_gate', weights)
+        expert_index_record = selected_experts.reshape(-1, self.num_experts_per_tok)
+        for i in range(self.config.num_experts):
+          top1 = (expert_index_record[:, 0] == i).sum()
+          top2 = (expert_index_record[:, 1] == i).sum()
+          top = top1 + top2
+          self.sow('intermediates', f'top1/selected_expert_{i}_token_nums', top1)
+          self.sow('intermediates', f'top2/selected_expert_{i}_token_nums', top2)
+          self.sow('intermediates', f'top/selected_expert_{i}_token_nums', top)
+      return output, None
     else:
       max_logging.log("Running MoE matmul implementation.")
       return self.dense_matmul(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
 
-
-
-Array = jnp.ndarray
 
 def _take_along_axis(array: Array, indices: Array, axis: int) -> Array:
     if array.ndim != indices.ndim:
@@ -936,14 +945,7 @@ class DcMoeBlock(nn.Module):
           mgate_scores = mgate_scores.astype(self.dtype)
 
           if self.config.record_internal_nn_metrics:
-            expert_to_token_score = mgate_scores.mean(axis=(0, 1, 2)) # 专家维度平均下
-            sum_value = jnp.sum(expert_to_token_score, axis=-1)
-            expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)  # 归一化
-            e2t_entroy = _entroy(expert_to_token_score)
-            self.sow('intermediates', 'mgate/expert_to_token_score', e2t_entroy)
-            t2e_entroy = _entroy(mgate_scores)
-            # token选择专家，熵越小越好 max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
-            self.sow('intermediates', 'mgate/token_to_expert_score', t2e_entroy)
+            record_gate(self, 'mgate', mgate_scores, axis=(0, 1, 2))
 
           G, E, C, H = hidden.shape
           x = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
@@ -993,16 +995,7 @@ class DcMoeBlock(nn.Module):
 
       
         if self.config.record_internal_nn_metrics:
-          # 专家选择token， 越均匀（大）越好。表示专家选择token的概率比较均匀，熵值大，不确定性高。 
-          # max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
-          expert_to_token_score = router_probs.mean(axis=(0, 1))
-          sum_value = jnp.sum(expert_to_token_score, axis=-1)
-          expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)  # 归一化
-          e2t_entroy = _entroy(expert_to_token_score)
-          self.sow('intermediates', 'router_gate/expert_to_token_score', e2t_entroy)
-          t2e_entroy = _entroy(router_probs)
-           # token选择专家，熵越小越好 max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
-          self.sow('intermediates', 'router_gate/token_to_expert_score', t2e_entroy)
+            record_gate(self, 'router_gate', router_probs, axis=(0, 1, 2))
 
         # g * s * top2
         expert_gate, expert_index = _top_k(router_probs, k=topn)
@@ -1047,7 +1040,6 @@ class DcMoeBlock(nn.Module):
         else:
           router_z_loss = 0.0
 
-        # aux_loss = aux_loss + router_z_loss + self.router_z_loss_coef * t2e_entroy
         aux_loss = aux_loss + router_z_loss
 
         # g * 2 * s

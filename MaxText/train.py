@@ -229,7 +229,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
             output_metrics["scalar"][f"expert_top/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] =  \
                   metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top/selected_expert_{i}_token_nums"][0][main_layer_num]
 
-          if config.mgate:
+          if config.mgate and config.moe_type != 'mistral':
             output_metrics["scalar"][f"unshared_mgate/token_to_expert_score_down/{mlp_key}_layer_{layer_num:03d}"] = \
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["mgate/token_to_expert_score"][0][main_layer_num]
             output_metrics["scalar"][f"unshared_mgate/expert_to_token_score_up/{mlp_key}_layer_{layer_num:03d}"] =  \

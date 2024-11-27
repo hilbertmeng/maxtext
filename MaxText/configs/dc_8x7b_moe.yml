@@ -117,6 +117,9 @@ matmul_precision: "default"
 megablox: True
 moe_type: 'mistral'
 activations_in_float32: False
+insert_moe_divisor: 1
+unshared_mlp_scale: 1
+shared_mlp_scale: 1
 
 pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS
@@ -140,7 +143,8 @@ router_z_loss_coef: 0.01
 mlp_activations: ["silu", "linear"]
 dropout_rate: 0  # attention or mlp x + residual drop out
 intermediate_dropout_rate: 0  # mlp intermediate drop out
-mlp_residual_dropout_rate: 0.1 # mlp dense/moe only residual dropout
+mlp_residual_dropout_rate: 0 # mlp dense/moe only residual dropout
+unshared_mlp_dropout_rate: 0
 
 logits_via_embedding: False
 normalize_embedding_logits: True  # whether to normlize pre-softmax logits if logits_via_embedding is true

@@ -924,20 +924,31 @@ class DcMoeBlock(nn.Module):
         print(f'self.intermediate_dropout_rate: {self.intermediate_dropout_rate} deterministic: {deterministic}')
         hidden = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
         # expert_inputs: gecm,  mgatew: meh  -> 
-        # if self.config.mgate:
-        #   assert isinstance(self.config.mgate_dim, int)
+        if self.config.mgate:
+          assert isinstance(self.config.mgate_dim, int)
 
-        #   inner_gate = self.inner_gate[expert_index: expert_index + compute_n_expert]
-        #   mgate_scores = jnp.einsum('gecm,emi->geci', expert_inputs, inner_gate)
-        #   print(f'mgate is True and mgate_dim={self.config.mgate_dim}')
+          inner_gate = self.inner_gate[expert_index: expert_index + compute_n_expert]
+          # x = jnp.einsum('BTE,BTEM->BTEM', gate_scores, x)  # 这里是多个专家一起计算mgate分数
+          mgate_scores = jnp.einsum('gecm,emi->geci', expert_inputs, inner_gate)
+          print(f'mgate is True  mgate_scores: {mgate_scores.shape}')
 
-        #   mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
-        #   mgate_scores = mgate_scores.astype(self.dtype)
+          mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
+          mgate_scores = mgate_scores.astype(self.dtype)
 
-        #   G, E, C, H = hidden.shape
-        #   x = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
-        #   x = jnp.einsum('geci,gecif->gecif', mgate_scores, x)
-        #   hidden = x.reshape(G, E, C, H)
+          if self.config.record_internal_nn_metrics:
+            expert_to_token_score = mgate_scores.mean(axis=(0, 1, 2)) # 专家维度平均下
+            sum_value = jnp.sum(expert_to_token_score, axis=-1)
+            expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)  # 归一化
+            e2t_entroy = _entroy(expert_to_token_score)
+            self.sow('intermediates', 'mgate/expert_to_token_score', e2t_entroy)
+            t2e_entroy = _entroy(mgate_scores)
+            # token选择专家，熵越小越好 max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
+            self.sow('intermediates', 'mgate/token_to_expert_score', t2e_entroy)
+
+          G, E, C, H = hidden.shape
+          x = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
+          x = jnp.einsum('geci,gecif->gecif', mgate_scores, x)
+          hidden = x.reshape(G, E, C, H)
 
         expert_output = jnp.einsum("gech,ehm->gecm", hidden, theta_wo)
         expert_output = self._split(expert_output, (('replica', 'data'), None, None, 'mdl'))
@@ -988,10 +999,10 @@ class DcMoeBlock(nn.Module):
           sum_value = jnp.sum(expert_to_token_score, axis=-1)
           expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)  # 归一化
           e2t_entroy = _entroy(expert_to_token_score)
-          self.sow('intermediates', 'expert_to_token_score', e2t_entroy)
+          self.sow('intermediates', 'router_gate/expert_to_token_score', e2t_entroy)
           t2e_entroy = _entroy(router_probs)
            # token选择专家，熵越小越好 max: log2(router_probs.shape[-1]) 即 log2(num_experts), min: log2(1) = 0.
-          self.sow('intermediates', 'token_to_expert_score', t2e_entroy)
+          self.sow('intermediates', 'router_gate/token_to_expert_score', t2e_entroy)
 
         # g * s * top2
         expert_gate, expert_index = _top_k(router_probs, k=topn)

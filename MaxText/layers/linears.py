@@ -1012,10 +1012,11 @@ class DcMoeBlock(nn.Module):
           for i in range(self.config.num_experts):
             top1 = (expert_index_record[:, 0] == i).sum()
             top2 = (expert_index_record[:, 1] == i).sum()
+            top = top1 + top2
             self.sow('intermediates', f'top1/selected_expert_{i}_token_nums', top1)
             self.sow('intermediates', f'top2/selected_expert_{i}_token_nums', top2)
+            self.sow('intermediates', f'top/selected_expert_{i}_token_nums', top)
 
-    
         if paddings is not None:
             print(f'paddings: {paddings.shape}')
             print(f'token_shape: {token_shape}')

@@ -697,7 +697,7 @@ class MoeBlock(nn.Module):
     )(inputs)
 
     if self.config.record_internal_nn_metrics:
-      l2norm = jnp.linalg.norm(gate_logits, ord=2)
+      l2norm = jnp.linalg.norm(gate_logits.reshape(-1, gate_logits.shape[-1]), ord=2, axis=(0, 1))
       self.sow('intermediates', 'router_gate/l2norm', l2norm)
       router_probs = jax.nn.softmax(gate_logits.astype(jnp.float32), axis=-1)
       record_gate(self, 'router_gate', router_probs)
@@ -707,7 +707,7 @@ class MoeBlock(nn.Module):
     if cfg.megablox:
       max_logging.log("Running MoE megablox implementation.")
       output, selected_experts, weights = self.megablox(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
-      if self.config.record_internal_nn_metrics and jax.process_index() == 0: # lsp
+      if self.config.record_internal_nn_metrics: # lsp
         print(f'router weights: {weights.shape} selected_experts: {selected_experts.shape}')
         record_gate(self, 'router_gate', weights)
         expert_index_record = selected_experts.reshape(-1, self.num_experts_per_tok)
@@ -1002,7 +1002,7 @@ class DcMoeBlock(nn.Module):
         router_probs = router_probs.astype(self.dtype) # ble
 
         if self.config.record_internal_nn_metrics:
-          l2norm = jnp.linalg.norm(gate_logits, ord=2)
+          l2norm = jnp.linalg.norm(router_logits.reshape(-1, router_logits.shape[-1]), ord=2, axis=(0, 1))
           self.sow('intermediates', 'router_gate/l2norm', l2norm)
           record_gate(self, 'router_gate', router_probs, axis=(0, 1))
 

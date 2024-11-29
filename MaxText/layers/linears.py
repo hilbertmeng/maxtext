@@ -37,6 +37,7 @@ try:
 except ImportError:
   max_logging.log("JAX megablox is available for TPU only.")
   pass
+import max_utils
 
 Array = common_types.Array
 Config = common_types.Config
@@ -314,6 +315,10 @@ class MlpBlock(nn.Module):
     output = checkpoint_name(output, "mlpwo")
     return output
 
+
+# def record_norm(self, x):
+#   # l2norm = max_utils.l2norm_pytree(x)
+#   l2norm = jnp.linalg.norm(x, ord=2)
 
 class MoeBlock(nn.Module):
   """Mixture of Experts (MoE) block.
@@ -692,6 +697,8 @@ class MoeBlock(nn.Module):
     )(inputs)
 
     if self.config.record_internal_nn_metrics:
+      l2norm = jnp.linalg.norm(gate_logits, ord=2)
+      self.sow('intermediates', 'router_gate/l2norm', l2norm)
       router_probs = jax.nn.softmax(gate_logits.astype(jnp.float32), axis=-1)
       record_gate(self, 'router_gate', router_probs)
 
@@ -989,13 +996,15 @@ class DcMoeBlock(nn.Module):
                 kernel_init=self.kernel_init,
                 kernel_axes=self.kernel_axes,
                 name=self.router_name)(token_inputs)
+        
         # gse
         router_probs = jax.nn.softmax(router_logits.astype(jnp.float32), axis=-1)
         router_probs = router_probs.astype(self.dtype) # ble
 
-      
         if self.config.record_internal_nn_metrics:
-            record_gate(self, 'router_gate', router_probs, axis=(0, 1))
+          l2norm = jnp.linalg.norm(gate_logits, ord=2)
+          self.sow('intermediates', 'router_gate/l2norm', l2norm)
+          record_gate(self, 'router_gate', router_probs, axis=(0, 1))
 
         # g * s * top2
         expert_gate, expert_index = _top_k(router_probs, k=topn)

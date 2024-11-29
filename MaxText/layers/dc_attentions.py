@@ -147,7 +147,7 @@ class DynamicWeightProjection(nn.Module):
   weight_dtype: Optional[Dtype] = jnp.float32
   dtype: Optional[Dtype] = None
   precision: PrecisionLike = None
-  n_splits: int = None
+  n_splits: int = None  # 可以理解为pre_w1, pre_w2, post_w1, post_w2
   num_heads: int = 0
   num_groups: int = 1
   input_dim: int = None
@@ -170,8 +170,10 @@ class DynamicWeightProjection(nn.Module):
     )
 
     if self.dynamic_w_init is not None:
+      # dynamic_hidden_dim： 2
       dynamic_hidden_dim = self.num_heads_per_group // self.dynamic_squeeze_ratio \
         if self.dynamic_squeeze_ratio is not None else 2
+      # '12x4096x1x4x128'
       self.dw1 = DenseGeneral(
                         features=(self.num_groups, self.n_splits, self.dynamic_w_hidden_dim),  
                         quant=self.quant,  # 0.00014
@@ -179,8 +181,9 @@ class DynamicWeightProjection(nn.Module):
                         kernel_axes=('embed', None, 'heads', 'mlp'),
                         **kwargs)
       self.dw_hidden_activation = nn.gelu
+      # self.dynamic_w_hidden_dim: num_heads_per_group * I * 2 = 32 * 2 * 2 = 128
       G, K, M = self.num_groups, self.dynamic_w_hidden_dim, self.num_heads_per_group
-      I = dynamic_hidden_dim * 2
+      I = dynamic_hidden_dim * 2  # 2 * 2
       shape = [G, self.n_splits, K, I, M]
       kernel_init_shard = nn.with_logical_partitioning(NormalInitializer(self.dynamic_w_init), (None, 'data', 'fsdp', None, 'tensor'))
       self.qkw = self.param('qkw',kernel_init_shard, shape, self.weight_dtype)
@@ -211,6 +214,7 @@ class DynamicWeightProjection(nn.Module):
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
+      # C: n_split,  K -> M
       w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
       w1 = self.dw1_norm(w1)
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
@@ -226,6 +230,7 @@ class DynamicWeightProjection(nn.Module):
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
+      # dw_hidden: b * t * 1 * n_split * 128  qkw_kernel: 1 * n_split * 128 * I(4) * 128
       w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
       w1 = self.dw1_norm(w1)
       pre_qw1, pre_kw1, post_qw1, post_kw1 = unbind(w1, 4, axis=3) # BTG4IM->[BTGIM]*4
@@ -328,17 +333,17 @@ class CrossHeadProjection(nn.Module):
           hidden = self.activation(hidden)
         ret += jnp.einsum(exp, hidden, self.w2) if not self.left_mul else jnp.einsum(exp, self.w2, ret)
 
-    if qw1 is not None:
-      hidden_sym = 'I'; hidden_label = inputs_label.replace('M', 'I')
+    if qw1 is not None: # BTGIM
+      hidden_sym = 'I'; hidden_label = inputs_label.replace('M', 'I')  # 'BGITS'
       for sym, (w1, w2) in zip(['T', 'S'], [(qw1, qw2), (kw1, kw2)]):
         dw_label = f'B{sym}G{hidden_sym}M' if w1.shape[-1] == self.num_heads_per_group \
-          else f'B{sym}GM{hidden_sym}'
-        dynamic_hidden_dim = w1.shape[dw_label.index(hidden_sym)]
-        eqn1 = f'{inputs_label},{dw_label}->{hidden_label}' # 'BGMTS,BTGMI->BGITS'
-        eqn2 = f'{hidden_label},{dw_label}->{inputs_label}' # 'BGITS,BTGMI->BGMTS'
+          else f'B{sym}GM{hidden_sym}'  # BTGIM
+        dynamic_hidden_dim = w1.shape[dw_label.index(hidden_sym)] # 2
+        eqn1 = f'{inputs_label},{dw_label}->{hidden_label}' # 'BGMTS,BTGMI->BGITS'  lsp: 'BGMTS,BTGIM->BGITS'
+        eqn2 = f'{hidden_label},{dw_label}->{inputs_label}' # 'BGITS,BTGMI->BGMTS'  lsp: 'BGITS,BTGIM->BGITS'
         if sym == 'T' and self.query_wise or sym == 'S' and self.key_wise:
           # dynamic_hidden_dim: I -> 2 lsp here
-          if self.loop_over_dynamic_hd and dynamic_hidden_dim <= 2:
+          if self.loop_over_dynamic_hd and dynamic_hidden_dim <= 2:  # 循环算
             for i in range(dynamic_hidden_dim):
               if dw_label[-1] == hidden_sym:
                 hidden = jnp.einsum(eqn1.replace(hidden_sym, ''), inputs, w1[..., i])
@@ -346,22 +351,29 @@ class CrossHeadProjection(nn.Module):
               else:
                 # lsp
                 assert dw_label[-2] == hidden_sym, dw_label
+                # 'BGMTS,BTGM->BGTS' # head融合 1次
                 hidden = jnp.einsum(eqn1.replace(hidden_sym, ''), inputs, w1[..., i, :])
+                # 'BGTS,BTGM->BGTS' # # head融合 2次
                 out = jnp.einsum(eqn2.replace(hidden_sym, ''), hidden, w2[..., i, :])
               ret = ret + out
-          else:
+          else: # 整块算
+            # 'BGMTS,BTGIM->BGITS'
             hidden = jnp.einsum(eqn1, inputs, w1)
+            # 'BGITS,BTGIM->BGITS'
             if self.decompose_dynamic_w:
               out = jnp.einsum(eqn2, hidden, w2)
-              ret = ret + out
+              # ret = ret + out
+              ret = ret + out.sum(2) # I那个维度加和
             else:
-              ret = ret + hidden
+              # ret = ret + hidden
+              ret = ret + hidden.sum(2) # I那个维度加和
 
-    if qdd is not None:
+    if qdd is not None:  # 对logits做二次修改
       for sym, dd in zip(['T', 'S'], [qdd, kdd]):
         dd_label = f'B{sym}GM'
         if sym == 'T' and self.query_wise or sym == 'S' and self.key_wise or \
               not self.query_wise and not self.key_wise:
+          # 'BGMTS', B(T/S)GM
           dout = jnp.einsum(f'{inputs_label},{dd_label}->{inputs_label}', inputs, dd)
           ret = ret + dout
     return jnp.reshape(ret, shape)  # BGMTS->BNTS

@@ -752,9 +752,9 @@ def _take_along_axis(array: Array, indices: Array, axis: int) -> Array:
                 array,
                 one_hot_indices,
                 precision=jax.lax.Precision.HIGHEST)
-        return jax.lax.convert_element_type(result, array.dtype)
+        return jax.lax.convert_element_type(result, array.dtype), one_hot_indices.max(2)
     else:
-        return jnp.take_along_axis(array, indices, axis=axis)
+        return jnp.take_along_axis(array, indices, axis=axis), None
         
 def _favor_one_hot_slices() -> bool:
   return jax.default_backend() == 'tpu' or jax.devices()[0].platform == 'tpu'
@@ -784,10 +784,10 @@ def _load_balancing_loss(router_probs: Array, expert_indices: Array) -> float:
 def _top_k(array, k: int):
     if _favor_one_hot_slices():
         top_k_indices = jax.lax.top_k(array, k)[-1]
-        top_k_values = _take_along_axis(array, top_k_indices, axis=-1)
-        return top_k_values, top_k_indices
+        top_k_values, one_hot_indices = _take_along_axis(array, top_k_indices, axis=-1)
+        return top_k_values, top_k_indices, one_hot_indices
     else:
-        return jax.lax.top_k(array, k)
+        return jax.lax.top_k(array, k), None
 
 
 @struct.dataclass
@@ -1007,7 +1007,9 @@ class DcMoeBlock(nn.Module):
           record_gate(self, 'router_gate', router_probs, axis=(0, 1))
 
         # g * s * top2
-        expert_gate, expert_index = _top_k(router_probs, k=topn)
+        expert_gate, expert_index, one_hot_indices = _top_k(router_probs, k=topn)
+
+          
 
         if self.config.record_internal_nn_metrics:
           expert_index_record = expert_index.reshape(-1, topn)
@@ -1028,11 +1030,22 @@ class DcMoeBlock(nn.Module):
             nonpaddings = paddings
             nonpaddings = jnp.reshape(nonpaddings, grouped_inputs.shape[:2])
             gate_mask = jnp.expand_dims(nonpaddings, axis=-1)
-            expert_gate *= gate_mask
+            # expert_gate *= gate_mask
     
-            expert_index *= (2 * gate_mask - 1.)
+            expert_index *= (2 * gate_mask - 1.) # lsp:将被mask的专家的所以变为负值，这样在之后转为one hot形式的时候就不会考虑
             expert_index += jnp.repeat(gate_mask - 1., topn, axis=-1)
-            router_probs *= gate_mask
+            router_probs *= gate_mask # ble
+
+        
+        if one_hot_indices is not None and self.config.sfm_after_topn:
+          print(f'one_hot_indices is not None and sfm_after_topn is {self.config.sfm_after_topn}')
+          router_probs *= one_hot_indices
+          router_probs /= router_probs.sum(-1, keepdims=True)
+
+          if self.config.record_internal_nn_metrics:
+            
+            record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
+            self.sow('intermediates', f'sfm_after_topn_sum', router_probs.sum()) # 熵越小越好
 
         if self.aux_loss_coef is not None:
             aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
@@ -1058,14 +1071,30 @@ class DcMoeBlock(nn.Module):
         # g * 2s * e, expert_index 负值的地方忽略了?
         expert_mask = jax.nn.one_hot(expert_index, self.num_experts, dtype=jnp.int32)
     
-        # g * 2s * e
+        # g * 2s * e 
         token_priority = jnp.cumsum(expert_mask, axis=1) * expert_mask - 1.0
         # g * 2 * s * e
         token_priority = token_priority.reshape(num_groups, topn, -1, self.num_experts)
-        # g * s * 2 * e
+        # g * s * 2 * e   ls: 每个token选择了2个专家，专家对应的位置的值表示当前编号专家选择的token数量
         token_priority = jnp.swapaxes(token_priority, 1, 2)
-        # g * s *  e
-        token_priority = jnp.max(token_priority, axis=2)
+        '''token_priority
+        lsp: 每个专家选择的token对应在原始token的位置索引, 类似于
+          # e=4的例子
+          Array([[[-1.,  0.,  1., -1.],
+                  [ 0., -1., -1.,  1.],
+                  [-1.,  1., -1.,  2.],
+                  [-1.,  2.,  2., -1.],
+                  [ 2., -1.,  0., -1.],
+                  [ 3., -1., -1.,  0.],
+                  [ 1.,  3., -1., -1.],
+                  [-1., -1., -1., -1.]]], dtype=float32
+                  )
+          也可以这么理解，每个token选择了2个专家，被选中的专家的位置处是对应的token索引。
+                  '''
+        # 在topn那一维度选择max：就是提取当前专家选择了当前token的数量，因为1个专家只能被一个token选择一次，
+        # 因此topn这一维度肯定只有一个是正数，这样原来，得到的矩阵就是：如果当前专家选择了当前token，这个token被选中了多少次，如果没有选择当前专家，那么就是一个负数
+        # 此外，e这个维度，肯定只有topn个正数。如果取 1 * 1 * 1那么这个值不一定正数, 意味着没选中这个专家
+        token_priority = jnp.max(token_priority, axis=2) 
         # g * s *  e
         token_priority = self._split(token_priority, (('replica', 'data'), None, None))
     
@@ -1081,9 +1110,9 @@ class DcMoeBlock(nn.Module):
             # print(f'expert_index: {expert_index}')
             _token_priority = token_priority[..., expert_index: expert_index+compute_n_expert]
             _router_probs = router_probs[..., expert_index: expert_index+compute_n_expert]
-            # 专家概率mask： g * s * e * c
+            # lsp： g * s * e * c  # 如果当前token选择了当前专家后，当前token被选中的总次数的one hot体现
             _dispatch_mask = jax.nn.one_hot(_token_priority, expert_capacity, dtype=jnp.bool_)
-            # gsec
+            # 把token选择专家的概率赋值到one_hot矩阵上
             _combine_array = jnp.einsum('...se,...sec->...sec', _router_probs, _dispatch_mask)
             _combine_array = jax.lax.convert_element_type(_combine_array, self.dtype)
             # 专家的输入mask：gsm x gsec -> gecm

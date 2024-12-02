@@ -224,6 +224,15 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
           output_metrics["scalar"][f"router_gate/l2norm/{mlp_key}_layer_{layer_num:03d}"] = \
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["router_gate/l2norm"][0][main_layer_num]
 
+          if config.sfm_after_topn:
+            output_metrics["scalar"][f"sfm_after_topn/token_to_expert_score_down/{mlp_key}_layer_{layer_num:03d}"] = \
+                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn/token_to_expert_score"][0][main_layer_num]
+            output_metrics["scalar"][f"sfm_after_topn/expert_to_token_score_up/{mlp_key}_layer_{layer_num:03d}"] =  \
+                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn/expert_to_token_score"][0][main_layer_num]
+            output_metrics["scalar"][f"sfm_after_topn_sum/{mlp_key}_layer_{layer_num:03d}"] =  \
+                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn_sum"][0][main_layer_num]
+
+
           for i in range(config.num_experts):
             output_metrics["scalar"][f"expert_top1/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] = \
                   metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top1/selected_expert_{i}_token_nums"][0][main_layer_num]
@@ -340,10 +349,11 @@ def compute_params_norm(params):
   flat_param_norms = flatten_dict(param_norms)
   scalar_vales = {}
   for k, v in flat_param_norms.items():
-    newk = '/'.join(k)
+    k = '/'.join(k)
     for params_fir_dir in params_fir_dirs:
-      if params_fir_dir in newk:
-        newk = newk.replace('params', f'params-{params_fir_dir}')
+      if params_fir_dir in k:
+        newk = k.replace('params', f'params-{params_fir_dir}')
+        break
     scalar_vales[newk] = v
   return scalar_vales
 

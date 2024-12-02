@@ -139,6 +139,7 @@ min_group_size: 1
 expert_capacity_factor: 1.25
 aux_loss_coef: 0.01
 router_z_loss_coef: 0.01
+sfm_after_topn: False
 
 mlp_activations: ["silu", "linear"]
 dropout_rate: 0  # attention or mlp x + residual drop out

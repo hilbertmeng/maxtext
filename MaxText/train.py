@@ -124,12 +124,13 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
   if _buffered_metrics is not None:
     if _buffered_step is None:
       raise ValueError(f"When writing metrics, {_buffered_step=} was none")
+    # lsp: 写metrics到bucket
     write_metrics_to_tensorboard(writer, _buffered_metrics, _buffered_step, config)
 
-    if config.metrics_file:
+    if config.metrics_file: # metrics_file: ''
       max_utils.write_metrics_locally(_buffered_metrics, _buffered_step, config, local_metrics_file)
 
-    if config.gcs_metrics and jax.process_index() == 0:
+    if config.gcs_metrics and jax.process_index() == 0: # gcs_metrics: False
       running_gcs_metrics = max_utils.write_metrics_for_gcs(_buffered_metrics, _buffered_step, config, running_gcs_metrics)
 
   _buffered_step = step
@@ -330,6 +331,26 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   return loss + moe_lb_loss, aux
 
 
+def compute_params_norm(params):
+  def param_norm(param):
+      return jnp.sqrt(jnp.sum(jnp.square(param)))
+  # 记录每个参数的norm
+  param_norms = jax.tree_util.tree_map(param_norm, params)
+  flat_param_norms = flatten_dict(param_norms)
+  scalar_vales = {}
+  for k, v in flat_param_norms.items():
+    newk = '/'.join(k)
+    if 'attention' in newk:
+      newk = newk.replace('params', 'params-attention')
+    elif 'mlp' in newk:
+      newk = newk.replace('params', 'params-mlp')
+    else:
+      newk = newk.replace('params', 'params-other')
+
+    scalar_vales[newk] = v
+  return scalar_vales
+
+
 def train_step(model, config, state, data, dropout_rng):
   """
 
@@ -355,8 +376,8 @@ def train_step(model, config, state, data, dropout_rng):
   else:
     grads = raw_grads
   new_state = state.apply_gradients(grads=grads)
-  metrics = {
-      "scalar": {
+  
+  scalar_values = {
           "learning/loss": loss - aux['aux_loss'],
           "learning/aux_loss": aux['aux_loss'],  # lsp
           "learning/accuracy": aux['accuracy'],
@@ -364,7 +385,13 @@ def train_step(model, config, state, data, dropout_rng):
           "learning/raw_grad_norm": max_utils.l2norm_pytree(raw_grads),
           "learning/param_norm": max_utils.l2norm_pytree(new_state.params),
           "learning/train_batch_weights": aux['total_weights'],
-      },
+      }
+
+  params_scalar_values = compute_params_norm(new_state.params)
+  scalar_values.update(params_scalar_values)
+
+  metrics = {
+      "scalar": scalar_values,
       "scalars": {},
   }
   if config.record_internal_nn_metrics:

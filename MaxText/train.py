@@ -331,6 +331,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   return loss + moe_lb_loss, aux
 
 
+params_fir_dirs = ['norm', 'scale', 'attention', 'mlp']
 def compute_params_norm(params):
   def param_norm(param):
       return jnp.sqrt(jnp.sum(jnp.square(param)))
@@ -340,13 +341,9 @@ def compute_params_norm(params):
   scalar_vales = {}
   for k, v in flat_param_norms.items():
     newk = '/'.join(k)
-    if 'attention' in newk:
-      newk = newk.replace('params', 'params-attention')
-    elif 'mlp' in newk:
-      newk = newk.replace('params', 'params-mlp')
-    else:
-      newk = newk.replace('params', 'params-other')
-
+    for params_fir_dir in params_fir_dirs:
+      if params_fir_dir in newk:
+        newk = newk.replace('params', f'params-{params_fir_dir}')
     scalar_vales[newk] = v
   return scalar_vales
 

@@ -978,7 +978,7 @@ class DcMoeBlock(nn.Module):
 
         print(f'expert_capacity_factor: {self.expert_capacity_factor}')
         expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
-        max_group_size = float(inputs.shape[1]) * self.expert_capacity_factor
+        max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
         print(f'expert_capacity: {expert_capacity}')
@@ -1114,8 +1114,9 @@ class DcMoeBlock(nn.Module):
             _dispatch_mask = jax.nn.one_hot(_token_priority, expert_capacity, dtype=jnp.bool_)
             # 把token选择专家的概率赋值到one_hot矩阵上
             _combine_array = jnp.einsum('...se,...sec->...sec', _router_probs, _dispatch_mask)
+
             _combine_array = jax.lax.convert_element_type(_combine_array, self.dtype)
-            # 专家的输入mask：gsm x gsec -> gecm
+            # 专家的输入mask：gsm x gsec -> gecm，  _dispatch_mask可以将多出容量之外的toke进行丢弃
             _expert_inputs = jnp.einsum('gs...,gsec->gec...', token_inputs, _dispatch_mask)
             _expert_inputs = jax.lax.convert_element_type(_expert_inputs, self.dtype)
             # gecm
@@ -1123,6 +1124,7 @@ class DcMoeBlock(nn.Module):
             # g * e * c * m
             _expert_outputs = self._call_experts(_expert_inputs, expert_index, compute_n_expert, deterministic=deterministic)
             _combined_outputs = jnp.einsum('gec...,gsec->gs...', _expert_outputs, _combine_array)
+
             combined_outputs = _combined_outputs if combined_outputs is None else combined_outputs + _combined_outputs
             # print(f'combined_outputs-{expert_index}: {combined_outputs}')
 

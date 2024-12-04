@@ -169,6 +169,10 @@ class DcformerDecoderLayer(nn.Module):
         shared_mlp_lnx = nn.Dropout(rate=cfg.mlp_residual_dropout_rate, broadcast_dims=(-2,))(shared_mlp_lnx, deterministic=deterministic)
         shared_mlp_lnx /= cfg.shared_mlp_scale
 
+        if cfg.record_internal_nn_metrics:
+            shared_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(shared_mlp_lnx)))
+            self.sow('intermediates', 'shared_mlp_l2norm', shared_mlp_l2norm)
+
     if cfg.num_experts >= 1 and block_index % cfg.insert_moe_divisor == 0:
         if cfg.moe_type == 'mistral':
             unshared_mlp_lnx, aux_loss = linears.MoeBlock(
@@ -199,6 +203,10 @@ class DcformerDecoderLayer(nn.Module):
         
         unshared_mlp_lnx = nn.Dropout(rate=cfg.unshared_mlp_dropout_rate, broadcast_dims=(-2,))(unshared_mlp_lnx, deterministic=deterministic)
         unshared_mlp_lnx /= cfg.unshared_mlp_scale
+
+        if cfg.record_internal_nn_metrics:
+            unshared_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(unshared_mlp_lnx)))
+            self.sow('intermediates', 'unshared_mlp_l2norm', unshared_mlp_l2norm)
 
     if shared_mlp_lnx is None:
         print(f'shared_mlp_lnx is None')

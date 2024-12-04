@@ -204,6 +204,12 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = metrics_dict["activation_mean"][0][layer_num]
       output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = metrics_dict["activation_stdev"][0][layer_num]
 
+      if config.n_shared_experts > 0:
+        output_metrics["scalar"][f"shared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["shared_mlp_l2norm"][0][layer_num]
+
+      if config.num_experts > 0:
+        output_metrics["scalar"][f"unshared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["unshared_mlp_l2norm"][0][layer_num]
+
       main_layer_num = layer_num // config.num_layers_per_block
       sub_layer_num = layer_num % config.num_layers_per_block
     

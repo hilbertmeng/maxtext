@@ -830,6 +830,7 @@ class DcMoeBlock(nn.Module):
         self.expert_chunk_size = self.config.expert_chunk_size
         self.num_groups = self.config.num_groups
 
+        # lsp：务必注意wi_0是需要过激活函数的，在这里称之为gate，小心别和dense的mlp搞反了
         w0_kernel = self.param(
             'wi_0',
             nn.with_logical_partitioning(kernel_init, kernel_axes),
@@ -838,8 +839,7 @@ class DcMoeBlock(nn.Module):
             kernel_in_axis,
             kernel_out_axis,
           )
-        print(f'w0_kernel: {w0_kernel}')
-        self.wi_0 = jnp.asarray(w0_kernel, self.dtype)
+        self.wi_gate_0 = jnp.asarray(w0_kernel, self.dtype)
         
         w1_kernel = self.param(
             'wi_1',
@@ -849,8 +849,8 @@ class DcMoeBlock(nn.Module):
             kernel_in_axis,
             kernel_out_axis,
           )
-        self.wi_gate_0 = jnp.asarray(w1_kernel, self.dtype)
-        
+        self.wi_0 = jnp.asarray(w1_kernel, self.dtype)
+
         wo_kernel = self.param(
             'wo',
             nn.with_logical_partitioning(kernel_init, wo_kernel_axes),
@@ -1008,8 +1008,6 @@ class DcMoeBlock(nn.Module):
 
         # g * s * top2
         expert_gate, expert_index, one_hot_indices = _top_k(router_probs, k=topn)
-
-          
 
         if self.config.record_internal_nn_metrics:
           expert_index_record = expert_index.reshape(-1, topn)

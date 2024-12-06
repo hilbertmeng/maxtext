@@ -230,7 +230,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
           output_metrics["scalar"][f"router_gate/l2norm/{mlp_key}_layer_{layer_num:03d}"] = \
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["router_gate/l2norm"][0][main_layer_num]
 
-          if config.sfm_after_topn:
+          if config.sfm_after_topn and config.moe_type != 'mistral':
             output_metrics["scalar"][f"sfm_after_topn/token_to_expert_score_down/{mlp_key}_layer_{layer_num:03d}"] = \
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn/token_to_expert_score"][0][main_layer_num]
             output_metrics["scalar"][f"sfm_after_topn/expert_to_token_score_up/{mlp_key}_layer_{layer_num:03d}"] =  \

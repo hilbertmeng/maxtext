@@ -399,6 +399,20 @@ class MoeBlock(nn.Module):
           kernel_out_axis,
       )
     wo_kernel = jnp.asarray(wo_kernel, self.dtype)
+
+    if self.config.mgate:
+      kernel_axes = (None, 'embed', 'mlp')
+      inner_gate = self.param(
+        'mgate',
+        nn.with_logical_partitioning(kernel_init, kernel_axes),
+        (self.num_experts, emb_dim, self.config.mgate_dim),
+        self.weight_dtype,
+        kernel_in_axis,
+        kernel_out_axis,
+      )
+    else:
+      inner_gate = None
+
     return w0_kernel, w1_kernel, wo_kernel
 
   def permute(self, inputs, gate_logits):
@@ -438,8 +452,24 @@ class MoeBlock(nn.Module):
       )
     return output.reshape(-1, self.config.max_target_length - 1, self.config.emb_dim // tensor_parallelism).astype(self.dtype)
 
+  # def fake_make(self, expert_inputs, hidden, inner_gate):
+  #   if inner_gate is not None:
+  #     assert isinstance(self.config.mgate_dim, int)
+  #     # x = jnp.einsum('BTE,BTEM->BTEM', gate_scores, x)  # 这里是多个专家一起计算mgate分数
+  #     mgate_scores = jnp.einsum('gecm,emi->geci', expert_inputs, inner_gate)
+  #     print(f'megablox mgate is True  mgate_scores: {mgate_scores.shape}')
+  #     mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
+  #     mgate_scores = mgate_scores.astype(self.dtype)
+  #     if self.config.record_internal_nn_metrics:
+  #       record_gate(self, 'mgate', mgate_scores, axis=(0, 1, 2))
+  #     G, E, C, H = hidden.shape
+  #     x = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
+  #     x = jnp.einsum('geci,gecif->gecif', mgate_scores, x)
+  #     hidden = x.reshape(G, E, C, H)
+  #   return hidden
+
   def megablox(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
-    tile_size = (512, 1024, 1024)
+    tile_size = (512, 1024, 1024) # 矩阵的小方块大小
 
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape
@@ -478,14 +508,18 @@ class MoeBlock(nn.Module):
                   ),
         check_rep=False,
     )
-    def wrapper(x, logits, w0, w1, wo):
-      x, sorted_selected_experts, weights, group_sizes, selected_experts = self.permute(x, logits)
+    def wrapper(inp, logits, w0, w1, wo):
+      x, sorted_selected_experts, weights, group_sizes, selected_experts = self.permute(inp, logits)
       layer_w0 = gmm(x, w0, group_sizes)
       layer_w0 = checkpoint_name(layer_w0, "mlpwi_0")
       layer_w1 = gmm(x, w1, group_sizes)
-      layer_w1 = checkpoint_name(layer_w0, "mlpwi_1")
+      # layer_w1 = checkpoint_name(layer_w0, "mlpwi_1")
+      layer_w1 = checkpoint_name(layer_w1, "mlpwi_1")
       layer_act = _convert_to_activation_function(self.config.mlp_activations[0])(layer_w0)
-      intermediate_layer = jnp.multiply(layer_act, layer_w1)
+      intermediate_layer = jnp.multiply(layer_act, layer_w1) # 
+      # inp: (4, 4096, 4096) intermediate_layer: (32768, 5632) inner_gate: (8, 4096, 44)
+      print(f'inp: {inp.shape} intermediate_layer: {intermediate_layer.shape}')
+      # intermediate_layer = self.fake_make(inp, intermediate_layer, inner_gate) # lsp
       intermediate_output = gmm(intermediate_layer, wo, group_sizes)
       intermediate_output = checkpoint_name(intermediate_output, "mlpwo")
       tensor_parallelism = self.config.ici_tensor_parallelism * self.config.dcn_tensor_parallelism

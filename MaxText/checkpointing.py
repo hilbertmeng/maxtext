@@ -223,26 +223,26 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
   elif load_parameters_path:
     max_logging.log(f"restoring params from {load_parameters_path=}")
     params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
-    print(f'params_shapedtype: {params_shapedtype}')
     load_parameters_path = epath.Path(load_parameters_path)
- 
      # 如果不存在_sharding文件，可以传入params_shapedtype作为sharding方式，这种方式比直接读取_sharding的方式更快点
     # 第一种：基于人工构造的sharding方式进行加载
-    # ckptr = orbax.checkpoint.PyTreeCheckpointer()
-    # restore_args = orbax.checkpoint.checkpoint_utils.construct_restore_args({"params": params_shapedtype})
+    ckptr = orbax.checkpoint.PyTreeCheckpointer()
+    restore_args = orbax.checkpoint.checkpoint_utils.construct_restore_args({"params": params_shapedtype})
+    # print(f'restore_args: {restore_args}')
     # params = ckptr.restore(
     #     load_parameters_path / 'state', item={"params": params_shapedtype}, transforms={}, restore_args=restore_args
     # )
+    params = ckptr.restore(load_parameters_path / 'state', restore_args=restore_args)
     # # 第二种：基于模型的_sharding文件进行加载
-    item = {
-      "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt))
-      }
-    # 如果存在_sharding文件，这样可以直接按照_sharding文件进行shard, _sharding文件包含的模型参数名称可以大于需要加载的模型参数
-    state = checkpoint_manager.restore(checkpoint_step, items=item) 
-    if 'params' not in state['state']['params']:
-      params = {'params': state['state']}
-    else:
-      params = state['state']
+    # item = {
+    #   "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt))
+    #   }
+    # # 如果存在_sharding文件，这样可以直接按照_sharding文件进行shard, _sharding文件包含的模型参数名称可以大于需要加载的模型参数
+    # state = checkpoint_manager.restore(checkpoint_step, items=item) 
+    # if 'params' not in state['state']['params']:
+    #   params = {'params': state['state']}
+    # else:
+    #   params = state['state']
     # ckptr = orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler())
     # params = ckptr.restore(load_parameters_path / 'state', args=orbax.checkpoint.args.PyTreeRestore(restore_args=restore_args))
 

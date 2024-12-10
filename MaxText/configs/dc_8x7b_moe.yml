@@ -40,7 +40,7 @@ load_full_state_path: ""
 # problems with the checkpointer we recommend trying the synchronous one.
 enable_checkpointing: True
 async_checkpointing: True
-checkpoint_period: 200 # 20min
+checkpoint_period: 250 # 20min
 enable_single_replica_ckpt_restoring: False
 max_to_keep: 4
 keep_period: 1000 # step / keep_period would not be deleted
@@ -88,7 +88,7 @@ base_num_kv_heads: 32
 base_mlp_dim: 5632
 base_num_decoder_layers: 48
 # lsp pax
-window_size: [256, 32768, 256, 256]
+window_size: [256, 4096, 256, 256]
 num_layers_per_block: 4 # it must equal to widow_size list length, ex: window_size = [256, null], num_layers_per_block = 2
 query_chunk_size: 512 # null or int.  moe 512 速度最快
 max_target_length: 4097 # Maximum sequence length
@@ -262,8 +262,8 @@ log_period: 10 # Flushes Tensorboard
 # 3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
 # The zero learning rate section can be used to more accurately measure the fully trained model's performance.
 learning_rate: 1.0e-4
-cosine_learning_rate_final_fraction: 1.0  # if set 1, equal to constant, else cosein curve
-warmup_steps_fraction: 0.005 # warmup steps = warmup_steps_fraction * learning_rate_schedule_steps
+cosine_learning_rate_final_fraction: 0.1  # if set 1, equal to constant, else cosein curve
+warmup_steps_fraction: 0.0005 # warmup steps = warmup_steps_fraction * learning_rate_schedule_steps
 learning_rate_schedule_steps: 200000 
 # However you may choose a longer schedule (learning_rate_schedule_steps > steps), in which case the training will end before
 # dropping fully down. Or you may choose a shorter schedule, where the unspecified steps will have a learning rate of 0.

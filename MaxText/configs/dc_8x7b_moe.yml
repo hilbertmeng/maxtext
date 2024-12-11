@@ -138,8 +138,8 @@ num_groups: 2048  # suggest set 2 * total batch size
 expert_chunk_size: 1  # suggest 1
 min_group_size: 1
 expert_capacity_factor: 1.25
-aux_loss_coef: 0.01
-router_z_loss_coef: 0.01
+aux_loss_coef: 0.005
+router_z_loss_coef: 0.005
 sfm_after_topn: False
 
 mlp_activations: ["silu", "linear"]

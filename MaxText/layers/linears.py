@@ -481,10 +481,29 @@ class MoeBlock(nn.Module):
 
       inputs = inputs.astype(self.dtype)
       kernel = kernel.astype(self.dtype)
+      # 180224(44 * 4096) * 4096
+      # chunks = 11
+      # l0 = inputs.shape[0]
+      # c0 = l0 // chunks
+      # l1 = kernel.shape[0]
+      # c1 = l1 // chunks
+      # l2 = group_sizes.shape[0]
+      # c2 = l2 // chunks
+      # output = []
+      # for i in range(chunks):
+      #   _inputs = inputs[i * c0: (i+1) * c0]
+      #   _kernel = kernel[i * c1: (i+1) * c1]
+      #   _group_sizes = group_sizes[i * c2: (i+1) * c2]
+        # _output = mblx.gmm(
+        #     lhs=_inputs, rhs=_kernel, group_sizes=_group_sizes, preferred_element_type=jnp.bfloat16, tiling=tile_size
+        # )
+      #   print(f'_output: {_output.shape}')
+      #   output.append(_output)
+      # output = jnp.concatenate(output, axis=0)
       output = mblx.gmm(
-          lhs=inputs, rhs=kernel, group_sizes=group_sizes, preferred_element_type=jnp.bfloat16, tiling=tile_size
-      )
-
+            lhs=inputs, rhs=kernel, group_sizes=group_sizes, preferred_element_type=jnp.bfloat16, tiling=tile_size
+        )
+      print(f'output11: {output.shape}')
       if hs_shape[0] % pad_length:
         output = output[: hs_shape[0]]
       return output
@@ -750,6 +769,7 @@ class MoeBlock(nn.Module):
       for inx in range(chunks):
         _inputs = inputs[:, inx * chunk_size: (inx + 1) * chunk_size]
         _gate_logits = gate_logits[:, inx * chunk_size: (inx + 1) * chunk_size]
+        # w0_kernel, w1_kernel: edf    wo_kernel: efd
         _output, _selected_experts, _weights = self.megablox(_inputs, _gate_logits, w0_kernel, w1_kernel, wo_kernel)
         print(f'_inputs: {_inputs.shape} _gate_logits: {_gate_logits.shape} _output: {_output.shape} _selected_experts: {_selected_experts.shape} _weights: {_weights.shape}')
         output.append(_output)
@@ -1030,7 +1050,8 @@ class DcMoeBlock(nn.Module):
         assert num_tokens % num_groups == 0, print(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 
         print(f'expert_capacity_factor: {self.expert_capacity_factor}')
-        expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
+        # expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
+        expert_capacity = int(self.expert_capacity_factor * tokens_per_group * topn / self.num_experts)
         max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
@@ -1064,12 +1085,12 @@ class DcMoeBlock(nn.Module):
 
         if self.config.record_internal_nn_metrics:
           expert_index_record = expert_index.reshape(-1, topn)
-          for i in range(self.config.num_experts):
-            top1 = (expert_index_record[:, 0] == i).sum()
-            top2 = (expert_index_record[:, 1] == i).sum()
-            top = top1 + top2
-            self.sow('intermediates', f'top1/selected_expert_{i}_token_nums', top1)
-            self.sow('intermediates', f'top2/selected_expert_{i}_token_nums', top2)
+          for i in range(0, self.config.num_experts, 4):
+            top = 0
+            for j in range(2):
+              _top = (expert_index_record[:, 0] == i).sum()
+              top += _top
+              self.sow('intermediates', f'top{j}/selected_expert_{i}_token_nums', _top)
             self.sow('intermediates', f'top/selected_expert_{i}_token_nums', top)
 
         if paddings is not None:
@@ -1093,9 +1114,9 @@ class DcMoeBlock(nn.Module):
           router_probs *= one_hot_indices
           router_probs /= router_probs.sum(-1, keepdims=True)
 
-          # if self.config.record_internal_nn_metrics:
-          #   record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
-          #   self.sow('intermediates', f'sfm_after_topn_sum', router_probs.sum()) # 熵越小越好
+          if self.config.record_internal_nn_metrics:
+            record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
+            # self.sow('intermediates', f'sfm_after_topn_sum', router_probs.sum()) # 熵越小越好
 
         if self.aux_loss_coef is not None:
             aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配

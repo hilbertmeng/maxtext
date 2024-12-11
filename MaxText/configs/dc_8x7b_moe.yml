@@ -115,6 +115,7 @@ eval_start_step: False
 tensorboard_dir: "gs://llm_base_models_us-east5/maxtext_tensorboard_dir/"
 matmul_precision: "default"
 megablox: True
+megablox_chunks: 1
 moe_type: 'mistral'
 activations_in_float32: False
 insert_moe_divisor: 1

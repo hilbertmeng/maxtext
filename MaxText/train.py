@@ -200,9 +200,9 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"] # decode -> layers
     for layer_num in range(config.num_decoder_layers):
-      output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict["activation_fraction_zero"][0][layer_num]
-      output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = metrics_dict["activation_mean"][0][layer_num]
-      output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = metrics_dict["activation_stdev"][0][layer_num]
+      # output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict["activation_fraction_zero"][0][layer_num]
+      # output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = metrics_dict["activation_mean"][0][layer_num]
+      # output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = metrics_dict["activation_stdev"][0][layer_num]
 
       if config.n_shared_experts > 0:
         output_metrics["scalar"][f"shared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["shared_mlp_l2norm"][0][layer_num]
@@ -235,17 +235,15 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn/token_to_expert_score"][0][main_layer_num]
             output_metrics["scalar"][f"sfm_after_topn/expert_to_token_score_up/{mlp_key}_layer_{layer_num:03d}"] =  \
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn/expert_to_token_score"][0][main_layer_num]
-            output_metrics["scalar"][f"sfm_after_topn_sum/{mlp_key}_layer_{layer_num:03d}"] =  \
-                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn_sum"][0][main_layer_num]
+            # output_metrics["scalar"][f"sfm_after_topn_sum/{mlp_key}_layer_{layer_num:03d}"] =  \
+            #     metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn_sum"][0][main_layer_num]
 
-
-          for i in range(config.num_experts):
-            output_metrics["scalar"][f"expert_top1/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] = \
-                  metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top1/selected_expert_{i}_token_nums"][0][main_layer_num]
-            output_metrics["scalar"][f"expert_top2/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] =  \
-                  metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top2/selected_expert_{i}_token_nums"][0][main_layer_num]
+          for i in range(0, config.num_experts, 4):
+            for j in range(2):
+              output_metrics["scalar"][f"expert_top{j}/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] = \
+                    metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top{j}/selected_expert_{i}_token_nums"][0][main_layer_num]
             output_metrics["scalar"][f"expert_top/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] =  \
-                  metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top/selected_expert_{i}_token_nums"][0][main_layer_num]
+                    metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top/selected_expert_{i}_token_nums"][0][main_layer_num]
 
           if config.mgate and config.moe_type != 'mistral':
             output_metrics["scalar"][f"unshared_mgate/token_to_expert_score_down/{mlp_key}_layer_{layer_num:03d}"] = \

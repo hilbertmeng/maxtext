@@ -450,7 +450,7 @@ class MoeBlock(nn.Module):
           reshaped_weights.astype(jnp.float32),
           precision=matmul_precision,
       )
-    return output.reshape(-1, self.config.max_target_length - 1, self.config.emb_dim // tensor_parallelism).astype(self.dtype)
+    return output.reshape(-1, (self.config.max_target_length - 1) // self.config.megablox_chunks, self.config.emb_dim // tensor_parallelism).astype(self.dtype)
 
   # def fake_make(self, expert_inputs, hidden, inner_gate):
   #   if inner_gate is not None:
@@ -518,13 +518,16 @@ class MoeBlock(nn.Module):
       layer_act = _convert_to_activation_function(self.config.mlp_activations[0])(layer_w0)
       intermediate_layer = jnp.multiply(layer_act, layer_w1) # 
       # inp: (4, 4096, 4096) intermediate_layer: (32768, 5632) inner_gate: (8, 4096, 44)
-      print(f'inp: {inp.shape} intermediate_layer: {intermediate_layer.shape}')
-      # intermediate_layer = self.fake_make(inp, intermediate_layer, inner_gate) # lsp
+      # inp: (4, 4096, 4096) intermediate_layer: (180224, 1024) group_sizes: (44,)
+      print(f'inp: {inp.shape} intermediate_layer: {intermediate_layer.shape} group_sizes: {group_sizes.shape}')
+      # x: (180224, 4096) w0: (44, 4096, 1024) w1: (44, 4096, 1024) wo: (44, 1024, 4096)
+      print(f'x: {x.shape} w0: {w0.shape} w1: {w1.shape} wo: {wo.shape}')
       intermediate_output = gmm(intermediate_layer, wo, group_sizes)
       intermediate_output = checkpoint_name(intermediate_output, "mlpwo")
       tensor_parallelism = self.config.ici_tensor_parallelism * self.config.dcn_tensor_parallelism
       if tensor_parallelism > 1:
         intermediate_output = jax.lax.psum_scatter(intermediate_output, "tensor", scatter_dimension=1, tiled=True)
+      # intermediate_output: (180224, 4096)
       output = self.unpermute(intermediate_output, sorted_selected_experts, weights)
       return output, selected_experts, weights
 
@@ -740,17 +743,28 @@ class MoeBlock(nn.Module):
 
     if cfg.megablox:
       max_logging.log("Running MoE megablox implementation.")
-      output, selected_experts, weights = self.megablox(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
+      # inputs: b * l * d
+      output, selected_experts, weights = [], [], []
+      chunks = cfg.megablox_chunks
+      chunk_size = inputs.shape[1] // chunks
+      for inx in range(chunks):
+        _inputs = inputs[:, inx * chunk_size: (inx + 1) * chunk_size]
+        _gate_logits = gate_logits[:, inx * chunk_size: (inx + 1) * chunk_size]
+        _output, _selected_experts, _weights = self.megablox(_inputs, _gate_logits, w0_kernel, w1_kernel, wo_kernel)
+        print(f'_inputs: {_inputs.shape} _gate_logits: {_gate_logits.shape} _output: {_output.shape} _selected_experts: {_selected_experts.shape} _weights: {_weights.shape}')
+        output.append(_output)
+      output = jnp.concatenate(output, axis=1)
+
       if self.config.record_internal_nn_metrics: # lsp
         print(f'router weights: {weights.shape} selected_experts: {selected_experts.shape}')
         record_gate(self, 'router_gate', weights)
         expert_index_record = selected_experts.reshape(-1, self.num_experts_per_tok)
-        for i in range(self.config.num_experts):
-          top1 = (expert_index_record[:, 0] == i).sum()
-          top2 = (expert_index_record[:, 1] == i).sum()
-          top = top1 + top2
-          self.sow('intermediates', f'top1/selected_expert_{i}_token_nums', top1)
-          self.sow('intermediates', f'top2/selected_expert_{i}_token_nums', top2)
+        for i in range(0, self.config.num_experts, 4): # 只记录1/4的专家
+          top = 0
+          for j in range(2): # 只取top2记录
+            _top = (expert_index_record[:, j] == i).sum()
+            top += _top
+            self.sow('intermediates', f'top{j}/selected_expert_{i}_token_nums', _top)
           self.sow('intermediates', f'top/selected_expert_{i}_token_nums', top)
       return output, None
     else:
@@ -1074,10 +1088,9 @@ class DcMoeBlock(nn.Module):
           router_probs *= one_hot_indices
           router_probs /= router_probs.sum(-1, keepdims=True)
 
-          if self.config.record_internal_nn_metrics:
-            
-            record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
-            self.sow('intermediates', f'sfm_after_topn_sum', router_probs.sum()) # 熵越小越好
+          # if self.config.record_internal_nn_metrics:
+          #   record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
+          #   self.sow('intermediates', f'sfm_after_topn_sum', router_probs.sum()) # 熵越小越好
 
         if self.aux_loss_coef is not None:
             aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配

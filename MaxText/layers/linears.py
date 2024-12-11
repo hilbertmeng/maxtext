@@ -753,7 +753,12 @@ class MoeBlock(nn.Module):
         _output, _selected_experts, _weights = self.megablox(_inputs, _gate_logits, w0_kernel, w1_kernel, wo_kernel)
         print(f'_inputs: {_inputs.shape} _gate_logits: {_gate_logits.shape} _output: {_output.shape} _selected_experts: {_selected_experts.shape} _weights: {_weights.shape}')
         output.append(_output)
+        selected_experts.append(_selected_experts)
+        weights.append(_weights)
+
       output = jnp.concatenate(output, axis=1)
+      selected_experts = jnp.concatenate(selected_experts, axis=1)
+      weights = jnp.concatenate(weights, axis=1)
 
       if self.config.record_internal_nn_metrics: # lsp
         print(f'router weights: {weights.shape} selected_experts: {selected_experts.shape}')

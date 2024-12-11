@@ -571,12 +571,17 @@ class AttentionOp(nn.Module):
       key = key.astype(jnp.float32)
     # bnts
     attn_weights = self.qk_product(query, key)
+    attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
     # 5 demonsion
     pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
     post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
 
+    print(f'attn_weights0: {attn_weights.dtype}')
     if self.pre_compose:
       attn_weights = self.pre_proj(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
+
+    attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
+    print(f'attn_weights1: {attn_weights.dtype}')
 
     # apply attention mask
     if attn_mask is not None:
@@ -585,15 +590,18 @@ class AttentionOp(nn.Module):
           attn_weights = attn_weights.astype(jnp.float32)
     # normalize the attention weights
     probs = jax.nn.softmax(attn_weights).astype(self.dtype)
+    probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
 
     if self.post_compose:
       probs = self.post_proj(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
 
+    probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
     # Casting softmaxt computation for float32 for model stability.
-    probs = probs.astype(value.dtype)
+    probs = probs.astype(self.dtype)
     if attn_mask is not None:
       probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
     output = jnp.einsum('bnts,bsnh->btnh', probs, value)
+    probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
     return output
 
   def qk_product(self, query: Array, key: Array) -> Array:

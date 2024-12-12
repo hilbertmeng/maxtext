@@ -377,9 +377,51 @@ def train_step(model, config, state, data, dropout_rng):
     rng2: A new rng key that can be used in future calls.
 
   """
-  train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)
-  grad_fn = jax.value_and_grad(train_loss_fn, has_aux=True)
-  (loss, aux), raw_grads = grad_fn(state.params)
+
+
+  if config.gradient_accumulation_steps > 1:
+
+    def accumulate_gradient(acc_grad_and_loss, data):
+      # argnums用于指定那个参数有梯度
+      grad_func = jax.value_and_grad(loss_fn, argnums=4, has_aux=True)
+      # loss_fn返回的第一个参数必须是loss，且以这个loss作为梯度反传
+      (_, aux), cur_batch_gradient = grad_func(model, config, data, dropout_rng, state.params, is_train=True)
+      acc_grad_and_loss["loss"] += aux["total_loss"]
+      acc_grad_and_loss["aux_loss"] += aux["aux_loss"] / config.gradient_accumulation_steps
+      acc_grad_and_loss["accuracy"] += aux["accuracy"] / config.gradient_accumulation_steps
+      # 计算每个参数的梯度 * weights，这里相当于多乘了一个weights，之后要除回去
+      acc_grad_and_loss["grad"] = jax.tree_util.tree_map(
+          lambda x, y: x * aux["total_weights"] + y, cur_batch_gradient, acc_grad_and_loss["grad"]
+      )
+      acc_grad_and_loss["total_weights"] += aux["total_weights"]
+      return acc_grad_and_loss, aux
+
+    def reshape_to_microbatch_accumulations(batch_arr):
+      """Reshape global batch to microbatches, assuming batch axis is leading."""
+      microbatches = config.gradient_accumulation_steps
+      microbatch_shape = (microbatches, batch_arr.shape[0] // microbatches) + batch_arr.shape[1:]
+      return jnp.reshape(batch_arr, microbatch_shape)
+    # reshape之后多一个维度
+    data = jax.tree_util.tree_map(reshape_to_microbatch_accumulations, data)
+    init_grad = jax.tree_util.tree_map(jnp.zeros_like, state.params)
+    init_grad_and_loss = {"loss": 0.0, "accuracy": 0.0, "grad": init_grad, "total_weights": 0, "aux_loss": 0.0}
+    # 默认按行scan， init_grad_and_loss将结果保存下来
+    grad_and_loss, aux = jax.lax.scan(
+        accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
+    )
+    # 无aux_loss得loss
+    loss =  grad_and_loss["loss"] / grad_and_loss["total_weights"]
+    raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
+    aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
+    aux['aux_loss'] = acc_grad_and_loss["aux_loss"]
+    aux['accuracy'] = acc_grad_and_loss["accuracy"]
+
+  else:
+    train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)
+    grad_fn = jax.value_and_grad(train_loss_fn, has_aux=True)
+    (loss, aux), raw_grads = grad_fn(state.params)
+
+
   intermediate_outputs = aux["intermediate_outputs"]
 
   if config.gradient_clipping_threshold > 0:

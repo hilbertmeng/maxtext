@@ -121,6 +121,7 @@ activations_in_float32: False
 insert_moe_divisor: 1
 unshared_mlp_scale: 1
 shared_mlp_scale: 1
+gradient_accumulation_steps: 1
 
 pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS

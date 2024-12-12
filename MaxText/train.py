@@ -385,8 +385,8 @@ def train_step(model, config, state, data, dropout_rng):
       # loss_fn返回的第一个参数必须是loss，且以这个loss作为梯度反传
       (_, aux), cur_batch_gradient = grad_func(model, config, data, dropout_rng, state.params, is_train=True)
       acc_grad_and_loss["loss"] += aux["total_loss"]
-      acc_grad_and_loss["aux_loss"] += aux["aux_loss"] / config.gradient_accumulation_steps
-      acc_grad_and_loss["accuracy"] += aux["accuracy"] / config.gradient_accumulation_steps
+      acc_grad_and_loss["aux_loss"] += aux["aux_loss"]
+      acc_grad_and_loss["accuracy"] += aux["accuracy"]
       # 计算每个参数的梯度 * weights，这里相当于多乘了一个weights，之后要除回去
       acc_grad_and_loss["grad"] = jax.tree_util.tree_map(
           lambda x, y: x * aux["total_weights"] + y, cur_batch_gradient, acc_grad_and_loss["grad"]
@@ -410,9 +410,9 @@ def train_step(model, config, state, data, dropout_rng):
     # 无aux_loss得loss
     loss =  grad_and_loss["loss"] / grad_and_loss["total_weights"]
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
-    aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
-    aux['aux_loss'] = grad_and_loss["aux_loss"]
-    aux['accuracy'] = grad_and_loss["accuracy"]
+    aux = jax.tree.map(lambda x: jnp.sum(x, axis=0), aux)
+    aux['aux_loss'] = grad_and_loss["aux_loss"] / config.gradient_accumulation_steps
+    aux['accuracy'] = grad_and_loss["accuracy"] / config.gradient_accumulation_steps
 
   else:
     train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)

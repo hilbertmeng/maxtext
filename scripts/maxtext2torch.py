@@ -50,7 +50,7 @@ def load_model(read_dir):
     devices = np.asarray(jax.devices()).reshape([1] * len(mesh_axes))
     mesh = jax.sharding.Mesh(devices, mesh_axes)
     sharding = jax.sharding.NamedSharding(mesh, PS()) # Sharding is None because we use cpu to load weights
-    weight_dtype = np.float16 # set restore weights dtype, np.float32 or np.float16
+    weight_dtype = np.float32 # set restore weights dtype, np.float32 or np.float16
     restore_args = {}
     for k, v in flatten_dict(structure).items():
         restore_args[k] =  ocp.ArrayRestoreArgs(restore_type=jax.Array, dtype=weight_dtype, sharding=sharding)
@@ -70,7 +70,7 @@ def load_model(read_dir):
     return flat_w
 
 
-def update_weight_from_maxtext(model, w, vocab_size=50304, num_blocks=2, model_dim=1024, num_heads=16):
+def update_weight_from_maxtext(model, w, vocab_size=50304, num_blocks=2, model_dim=1024, num_heads=16, dtype=torch.bfloat16):
     map_dict={'w1': 'wi_0', 'w3': 'wi_1', 'w2': 'wo', 'weight': 'w', 'dd': 'dd.kernel', 'dw1': 'dw1.kernel', 'mg': 'mgate'} # 'pre_proj': 'pre_proj', 'post_proj': 'post_proj'
     N, E, H, D = vocab_size, model_dim, num_heads, model_dim // num_heads
     N, E, H, D = vocab_size, model_dim, num_heads, 128
@@ -110,7 +110,8 @@ def update_weight_from_maxtext(model, w, vocab_size=50304, num_blocks=2, model_d
                 v = w[f'decoder.layers.post_self_attention_layer_norm_{sub_layer}.scale'][:,_layer]
             elif 'attention_norm' in k: # attention layernorm
                 v = w[f'decoder.layers.pre_self_attention_layer_norm_{sub_layer}.scale'][:,_layer]
-        state_dict[k] = torch.tensor(v)
+        print(v.shape, v.dtype)
+        state_dict[k] = torch.tensor(v, dtype=dtype)
         #print(k, v.shape, v.max(), v.min(), v.mean(), v.std())
     model.load_state_dict(state_dict, strict=False)
     return model
@@ -139,13 +140,13 @@ if __name__ == '__main__':
     from configuration_dcformer import DCFormerConfig
     from modeling_dcformer import DCFormer
     # DCFormer-Medium
-    config = {"prefill_pad": True, "vocab_size": 152064,"n_layer": 48, "n_head":32, "dim": 4096, "use_qk_norm": True, "window_type": "LGLL", "window_size": 256, "rope_base":500000, "intermediate_size": 5632, 'mgate': True}
+    config = {"torch_dtype": "bfloat16", "prefill_pad": True, "vocab_size": 152064,"n_layer": 48, "n_head":32, "dim": 4096, "use_qk_norm": True, "window_type": "LGLL", "window_size": 256, "rope_base":500000, "intermediate_size": 5632, 'mgate': True}
     config = DCFormerConfig(**config)
     model = DCFormer(config)
     print('init dcformer done')
-
     # convert maxtext model weight to pytorch model weight
-    model = update_weight_from_maxtext(model, weights, vocab_size=152064, num_blocks=4, model_dim=4096, num_heads=32)
-    model = model.half()
+    model = update_weight_from_maxtext(model, weights, vocab_size=152064, num_blocks=4, model_dim=4096, num_heads=32, dtype=config.torch_dtype)
+    # model = model.half()
+    model = model.bfloat16()
     model.save_pretrained("dcformer_medium_pytorch", safe_serialization=False)
     print('converted')

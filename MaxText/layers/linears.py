@@ -481,7 +481,7 @@ class MoeBlock(nn.Module):
 
       inputs = inputs.astype(self.dtype)
       kernel = kernel.astype(self.dtype)
-      # 180224(44 * 4096) * 4096
+      # 180224(44 * 4096) * 4096， 这里面进行chunk编译太慢了，且容易出问题
       # chunks = 11
       # l0 = inputs.shape[0]
       # c0 = l0 // chunks
@@ -762,20 +762,17 @@ class MoeBlock(nn.Module):
 
     if cfg.megablox:
       max_logging.log("Running MoE megablox implementation.")
-      # inputs: b * l * d
+      # inputs: b * l * d _gate_logits: ble, _output: bld  _selected_experts: bl(top)  _weights: bl(top) w0_kernel, w1_kernel: edf    wo_kernel: efd
       output, selected_experts, weights = [], [], []
       chunks = cfg.megablox_chunks
       chunk_size = inputs.shape[1] // chunks
       for inx in range(chunks):
         _inputs = inputs[:, inx * chunk_size: (inx + 1) * chunk_size]
         _gate_logits = gate_logits[:, inx * chunk_size: (inx + 1) * chunk_size]
-        # w0_kernel, w1_kernel: edf    wo_kernel: efd
         _output, _selected_experts, _weights = self.megablox(_inputs, _gate_logits, w0_kernel, w1_kernel, wo_kernel)
-        print(f'_inputs: {_inputs.shape} _gate_logits: {_gate_logits.shape} _output: {_output.shape} _selected_experts: {_selected_experts.shape} _weights: {_weights.shape}')
         output.append(_output)
         selected_experts.append(_selected_experts)
         weights.append(_weights)
-
       output = jnp.concatenate(output, axis=1)
       selected_experts = jnp.concatenate(selected_experts, axis=1)
       weights = jnp.concatenate(weights, axis=1)

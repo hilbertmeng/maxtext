@@ -235,11 +235,9 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn/token_to_expert_score"][0][main_layer_num]
             output_metrics["scalar"][f"sfm_after_topn/expert_to_token_score_up/{mlp_key}_layer_{layer_num:03d}"] =  \
                 metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn/expert_to_token_score"][0][main_layer_num]
-            # output_metrics["scalar"][f"sfm_after_topn_sum/{mlp_key}_layer_{layer_num:03d}"] =  \
-            #     metrics_dict[f"{mlp_key}_{sub_layer_num}"]["sfm_after_topn_sum"][0][main_layer_num]
 
-          for i in range(0, config.num_experts, 4):
-            for j in range(2):
+          for i in range(0, config.num_experts, 4): # 只记录1/4专家状态
+            for j in range(2): # 每个专家只记录top2的选择情况
               output_metrics["scalar"][f"expert_top{j}/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] = \
                     metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top{j}/selected_expert_{i}_token_nums"][0][main_layer_num]
             output_metrics["scalar"][f"expert_top/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] =  \
@@ -413,8 +411,8 @@ def train_step(model, config, state, data, dropout_rng):
     loss =  grad_and_loss["loss"] / grad_and_loss["total_weights"]
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
     aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
-    aux['aux_loss'] = acc_grad_and_loss["aux_loss"]
-    aux['accuracy'] = acc_grad_and_loss["accuracy"]
+    aux['aux_loss'] = grad_and_loss["aux_loss"]
+    aux['accuracy'] = grad_and_loss["accuracy"]
 
   else:
     train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)

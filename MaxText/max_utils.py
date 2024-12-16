@@ -585,7 +585,7 @@ def create_learning_rate_schedule(config):
   """
   if config.use_noam_schedule:
     return create_noam_learning_rate_schedule(config)
-    
+
   def make_cos_schedule(init_lr, final_lr, len_steps):
     def schedule(step):
       pct = (step) / len_steps
@@ -624,37 +624,43 @@ def create_learning_rate_schedule(config):
 
 
 def create_noam_learning_rate_schedule(config):
-  # 通过这个scale，可以让设置的学习率为顶峰学习率
-  scale = 640 * config.learning_rate * config.base_emb_dim ** -0.5
+  # noam开始下降的步数
   noam_down_lr_step = getattr(config, 'noam_down_lr_step', -1)
-  def make_noam_schedule():
+  # warmup steps
+  noam_warmup_steps = config.warmup_steps_fraction * config.learning_rate_schedule_steps
+  print(f'noam_warmup_steps: {noam_warmup_steps}')
+
+  def make_noam_schedule(noam_warmup_steps):
+    # 通过这个scale，可以让设置的学习率为顶峰学习率
+    scale = config.learning_rate / (noam_warmup_steps  * noam_warmup_steps ** -1.5)
     def schedule(step_num):
       step_num = jnp.maximum(step_num, 1)  # 防止 step_num 为 0
       lr = scale * jnp.minimum(
             step_num ** -0.5,
-            step_num * config.warmup_steps ** -1.5
+            step_num * noam_warmup_steps ** -1.5
         )
       return lr 
     return schedule
+  noam_schedule = make_noam_schedule(noam_warmup_steps)
 
-  noam_schedule = make_noam_schedule()
   pieces = [noam_schedule]
   boundaries = [config.learning_rate_schedule_steps]
 
   if noam_down_lr_step >= 0:
-    assert noam_down_lr_step > config.learning_rate_schedule_steps,  \
-    print(f'noam down lr step={noam_down_lr_step} must gt noam end lr step: {config.learning_rate_schedule_steps}')
-    noam_down_lr_ratio = getattr(config, 'noam_down_lr_ratio', 0.1)
+    assert noam_down_lr_step <= config.learning_rate_schedule_steps,  \
+    print(f'noam down lr step={noam_down_lr_step} must lt noam end lr step: {config.learning_rate_schedule_steps}')
     down_start_lr = noam_schedule(noam_down_lr_step)
-    down_end_lr = down_start_lr * noam_down_lr_ratio
-    print(f'noam down_start_lr: {down_start_lr} down_end_lr: {down_end_lr} transition_begin: {noam_down_lr_step} transition_steps: {transition_steps}')
-    linear_schedule = optax.linear_schedule(
-                                            init_value=down_start_lr, 
+    down_end_lr = getattr(config, 'noam_down_end_lr', down_start_lr * 0.1)
+    assert down_end_lr <= down_start_lr, print(f'down_end_lr={down_end_lr} must lt down_start_lr={down_start_lr}')
+    noam_transition_steps = getattr(config, 'noam_transition_steps', 1500)  
+    print(f'noam down_start_lr: {down_start_lr} down_end_lr: {down_end_lr}   \
+    transition_begin: {noam_down_lr_step} noam_transition_steps: {noam_transition_steps}')
+    linear_schedule = optax.linear_schedule(init_value=down_start_lr, 
                                             end_value=down_end_lr, 
-                                            transition_steps=1500, # 4 * 10**6 * 1500 = 6 * 10**9 = 6B
-                                            transition_begin=noam_down_lr_step)
-    pieces = pieces.append(linear_schedule)
-    boundaries.append(noam_down_lr_step)
+                                            transition_steps=noam_transition_steps, # 下降的总步数
+                                            transition_begin=0) # 立马开始下降
+    pieces.append(linear_schedule)
+    boundaries = [noam_down_lr_step, noam_down_lr_step + noam_transition_steps]
 
   return optax.join_schedules(pieces, boundaries)
 

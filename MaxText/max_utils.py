@@ -583,7 +583,9 @@ def create_learning_rate_schedule(config):
   3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
   The zero learning rate section can be used to more accurately measure the fully trained model's performance.
   """
-
+  if config.use_noam_schedule:
+    return create_noam_learning_rate_schedule(config)
+    
   def make_cos_schedule(init_lr, final_lr, len_steps):
     def schedule(step):
       pct = (step) / len_steps

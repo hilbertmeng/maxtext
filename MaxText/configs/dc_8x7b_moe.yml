@@ -270,6 +270,7 @@ learning_rate_schedule_steps: 200000
 # However you may choose a longer schedule (learning_rate_schedule_steps > steps), in which case the training will end before
 # dropping fully down. Or you may choose a shorter schedule, where the unspecified steps will have a learning rate of 0.
 steps: 10000000 # Total steps, default 10000000, 如果之后想快速降低学习率到0，则将learning_rate_schedule_steps设置为当前开始的步数，steps设置为最后实际训练的步数.
+noam_down_lr_step: -1
 
 max_prefill_predict_length: 64 # Maximum length for the prefill when doing autoregression
 prompt: "I love to" # Prompt for language model sampling.

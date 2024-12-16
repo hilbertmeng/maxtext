@@ -428,8 +428,9 @@ class MoeBlock(nn.Module):
     sorted_selected_experts = jnp.argsort(flatten_selected_experts)
     print(f'sorted_selected_experts: {sorted_selected_experts.shape}')
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok
-    # sort inputs for number of selected experts
+    # sort inputs for number of selected experts lsp: 将每个token的向量根据选择专家的索引从0~end排序
     sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
+    # group_size记录了每个专家选择的token数量
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
     return sorted_inputs, sorted_selected_experts, weights, group_size, selected_experts
 
@@ -482,21 +483,21 @@ class MoeBlock(nn.Module):
       inputs = inputs.astype(self.dtype)
       kernel = kernel.astype(self.dtype)
       # 180224(44 * 4096) * 4096， 这里面进行chunk编译太慢了，且容易出问题
-      # chunks = 11
-      # l0 = inputs.shape[0]
-      # c0 = l0 // chunks
+      # chunks = 4
       # l1 = kernel.shape[0]
       # c1 = l1 // chunks
       # l2 = group_sizes.shape[0]
       # c2 = l2 // chunks
       # output = []
       # for i in range(chunks):
-      #   _inputs = inputs[i * c0: (i+1) * c0]
       #   _kernel = kernel[i * c1: (i+1) * c1]
       #   _group_sizes = group_sizes[i * c2: (i+1) * c2]
-        # _output = mblx.gmm(
-        #     lhs=_inputs, rhs=_kernel, group_sizes=_group_sizes, preferred_element_type=jnp.bfloat16, tiling=tile_size
-        # )
+      #   s0 = group_sizes[: i * c2].sum()
+      #   s1 = group_sizes[: (i+1) * c2].sum()
+      #   _inputs = inputs[s0: s1]
+      #   _output = mblx.gmm(
+      #       lhs=_inputs, rhs=_kernel, group_sizes=_group_sizes, preferred_element_type=jnp.bfloat16, tiling=tile_size
+      #   )
       #   print(f'_output: {_output.shape}')
       #   output.append(_output)
       # output = jnp.concatenate(output, axis=0)

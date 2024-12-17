@@ -1068,20 +1068,27 @@ class DcMoeBlock(nn.Module):
                 kernel_init=self.kernel_init,
                 kernel_axes=self.kernel_axes,
                 name=self.router_name)(token_inputs)
-        
-        # gse
-        router_probs = jax.nn.softmax(router_logits.astype(jnp.float32), axis=-1)
+
+        _, expert_index, one_hot_indices = _top_k(router_logits, k=topn)
+
+        if self.config.sfm_after_topn:
+          assert one_hot_indices is not None
+          print(f'one_hot_indices is not None and sfm_after_topn is {self.config.sfm_after_topn}')
+          router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
+          _router_logits = router_logits + router_mask
+          router_probs = jax.nn.softmax(_router_logits.astype(jnp.float32), axis=-1)
+          # router_probs /= router_probs.sum(-1, keepdims=True)
+        else:
+            # gse
+          router_probs = jax.nn.softmax(router_logits.astype(jnp.float32), axis=-1)
         router_probs = router_probs.astype(self.dtype) # ble
 
         if self.config.record_internal_nn_metrics:
           l2norm = jnp.linalg.norm(router_logits.reshape(-1, router_logits.shape[-1]), ord=2, axis=(0, 1))
           self.sow('intermediates', 'router_gate/l2norm', l2norm)
-          record_gate(self, 'router_gate', router_probs, axis=(0, 1))
+          record_gate(self, 'router_gate', router_logits, axis=(0, 1))
+          record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
 
-        # g * s * top2
-        expert_gate, expert_index, one_hot_indices = _top_k(router_probs, k=topn)
-
-        if self.config.record_internal_nn_metrics:
           expert_index_record = expert_index.reshape(-1, topn)
           for i in range(0, self.config.num_experts, 4):
             top = 0
@@ -1090,47 +1097,32 @@ class DcMoeBlock(nn.Module):
               top += _top
               self.sow('intermediates', f'top{j}/selected_expert_{i}_token_nums', _top)
             self.sow('intermediates', f'top/selected_expert_{i}_token_nums', top)
-
-        if paddings is not None:
-            print(f'paddings: {paddings.shape}')
-            print(f'token_shape: {token_shape}')
-            
-            assert paddings.shape == token_shape
-            # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
-            nonpaddings = paddings
-            nonpaddings = jnp.reshape(nonpaddings, grouped_inputs.shape[:2])
-            gate_mask = jnp.expand_dims(nonpaddings, axis=-1)
-            # expert_gate *= gate_mask
-    
-            expert_index *= (2 * gate_mask - 1.) # lsp:将被mask的专家的所以变为负值，这样在之后转为one hot形式的时候就不会考虑
-            expert_index += jnp.repeat(gate_mask - 1., topn, axis=-1)
-            router_probs *= gate_mask # ble
-
         
-        if one_hot_indices is not None and self.config.sfm_after_topn:
-          print(f'one_hot_indices is not None and sfm_after_topn is {self.config.sfm_after_topn}')
-          router_probs *= one_hot_indices
-          router_probs /= router_probs.sum(-1, keepdims=True)
+        # 有padding的时候放开, 一般预训练没有pad
+        # if paddings is not None:
+        #     print(f'paddings: {paddings.shape}')
+        #     print(f'token_shape: {token_shape}')
+            
+        #     assert paddings.shape == token_shape
+        #     # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
+        #     nonpaddings = paddings
+        #     nonpaddings = jnp.reshape(nonpaddings, grouped_inputs.shape[:2])
+        #     gate_mask = jnp.expand_dims(nonpaddings, axis=-1)
+        #     # expert_gate *= gate_mask
+    
+        #     expert_index *= (2 * gate_mask - 1.) # lsp:将被mask的专家的所以变为负值，这样在之后转为one hot形式的时候就不会考虑
+        #     expert_index += jnp.repeat(gate_mask - 1., topn, axis=-1)
+        #     router_probs *= gate_mask # ble
 
-          if self.config.record_internal_nn_metrics:
-            record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
-            # self.sow('intermediates', f'sfm_after_topn_sum', router_probs.sum()) # 熵越小越好
-
+        aux_loss, router_z_loss = 0.0, 0.0
         if self.aux_loss_coef is not None:
             aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
             aux_loss *= self.aux_loss_coef
-        else:
-            aux_loss = 0.0
-        
-        # lsp
         if self.router_z_loss_coef is not None:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上  防止过大的logits
             # <=> torch.logsumexp(logits, dim = -1)
             router_z_loss = jnp.log(jnp.sum(jnp.exp(router_logits), axis=-1))
             router_z_loss = jnp.square(router_z_loss)            
             router_z_loss = self.router_z_loss_coef * router_z_loss.mean()
-        else:
-          router_z_loss = 0.0
-
         aux_loss = aux_loss + router_z_loss
 
         # g * 2 * s
@@ -1139,7 +1131,6 @@ class DcMoeBlock(nn.Module):
         expert_index = expert_index.reshape(num_groups, -1)
         # g * 2s * e, expert_index 负值的地方忽略了?
         expert_mask = jax.nn.one_hot(expert_index, self.num_experts, dtype=jnp.int32)
-    
         # g * 2s * e 
         token_priority = jnp.cumsum(expert_mask, axis=1) * expert_mask - 1.0
         # g * 2 * s * e

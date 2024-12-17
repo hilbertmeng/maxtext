@@ -339,7 +339,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "aux_loss": moe_lb_loss,
       "accuracy": accuracy, 
   }
-  return loss + moe_lb_loss, aux
+  return loss, aux
 
 
 params_fir_dirs = ['norm', 'scale', 'attention', 'mlp']
@@ -375,8 +375,6 @@ def train_step(model, config, state, data, dropout_rng):
     rng2: A new rng key that can be used in future calls.
 
   """
-
-
   if config.gradient_accumulation_steps > 1:
 
     def accumulate_gradient(acc_grad_and_loss, data):
@@ -413,12 +411,10 @@ def train_step(model, config, state, data, dropout_rng):
     aux = jax.tree.map(lambda x: jnp.sum(x, axis=0), aux)
     aux['aux_loss'] = grad_and_loss["aux_loss"] / config.gradient_accumulation_steps
     aux['accuracy'] = grad_and_loss["accuracy"] / config.gradient_accumulation_steps
-
   else:
     train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)
     grad_fn = jax.value_and_grad(train_loss_fn, has_aux=True)
     (loss, aux), raw_grads = grad_fn(state.params)
-
 
   intermediate_outputs = aux["intermediate_outputs"]
 

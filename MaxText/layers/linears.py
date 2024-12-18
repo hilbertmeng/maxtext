@@ -153,7 +153,7 @@ class DenseGeneral(nn.Module):
           kernel_out_axis,
       )
     kernel = jnp.asarray(kernel, self.dtype)
-    # print(f'name: {self.name} kernel_in_axis: {kernel_in_axis} kernel_out_axis: {kernel_out_axis} kernel: {kernel.shape} inputs: {inputs.shape}')
+    # max_logging.log(f'name: {self.name} kernel_in_axis: {kernel_in_axis} kernel_out_axis: {kernel_out_axis} kernel: {kernel.shape} inputs: {inputs.shape}')
 
     contract_ind = tuple(range(0, len(axis)))
     output = compute_dot_general(inputs, kernel, axis, contract_ind)
@@ -252,7 +252,7 @@ class MlpBlock(nn.Module):
     # Iterate over specified MLP input activation functions.
     # e.g. ('relu',) or ('gelu', 'linear') for gated-gelu.
     activations = []
-    print(f'self.intermediate_dim: {self.intermediate_dim}')
+    max_logging.log(f'self.intermediate_dim: {self.intermediate_dim}')
     if cfg.fused_mlp:
       x = DenseGeneral(
           (len(self.activations), self.intermediate_dim),
@@ -291,11 +291,11 @@ class MlpBlock(nn.Module):
         x, deterministic=deterministic
     )  # Broadcast along length.
     x = nn.with_logical_constraint(x, (BATCH, "activation_length", "activation_mlp"))
-    print(f'inputs.shape: {inputs.shape} xshape: {x.shape}')
+    max_logging.log(f'inputs.shape: {inputs.shape} xshape: {x.shape}')
 
     if gate_scores is not None:
       assert isinstance(cfg.mgate_dim, int)
-      print(f'gate_scores is not None and mgate_dim={cfg.mgate_dim}')
+      max_logging.log(f'gate_scores is not None and mgate_dim={cfg.mgate_dim}')
       B, T, F = x.shape
       x = x.reshape(B, T, cfg.mgate_dim, F // cfg.mgate_dim)
       x = jnp.einsum('BTE,BTEM->BTEM', gate_scores, x)
@@ -426,7 +426,7 @@ class MoeBlock(nn.Module):
 
     flatten_selected_experts = jnp.ravel(selected_experts) # 按行展开, 默认 order='C' order='F'的话是按列展开
     sorted_selected_experts = jnp.argsort(flatten_selected_experts)
-    print(f'sorted_selected_experts: {sorted_selected_experts.shape}')
+    max_logging.log(f'sorted_selected_experts: {sorted_selected_experts.shape}')
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok
     # sort inputs for number of selected experts lsp: 将每个token的向量根据选择专家的索引从0~end排序
     sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
@@ -458,7 +458,7 @@ class MoeBlock(nn.Module):
   #     assert isinstance(self.config.mgate_dim, int)
   #     # x = jnp.einsum('BTE,BTEM->BTEM', gate_scores, x)  # 这里是多个专家一起计算mgate分数
   #     mgate_scores = jnp.einsum('gecm,emi->geci', expert_inputs, inner_gate)
-  #     print(f'megablox mgate is True  mgate_scores: {mgate_scores.shape}')
+  #     max_logging.log(f'megablox mgate is True  mgate_scores: {mgate_scores.shape}')
   #     mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
   #     mgate_scores = mgate_scores.astype(self.dtype)
   #     if self.config.record_internal_nn_metrics:
@@ -498,13 +498,13 @@ class MoeBlock(nn.Module):
       #   _output = mblx.gmm(
       #       lhs=_inputs, rhs=_kernel, group_sizes=_group_sizes, preferred_element_type=jnp.bfloat16, tiling=tile_size
       #   )
-      #   print(f'_output: {_output.shape}')
+      #   max_logging.log(f'_output: {_output.shape}')
       #   output.append(_output)
       # output = jnp.concatenate(output, axis=0)
       output = mblx.gmm(
             lhs=inputs, rhs=kernel, group_sizes=group_sizes, preferred_element_type=jnp.bfloat16, tiling=tile_size
         )
-      print(f'output11: {output.shape}')
+      max_logging.log(f'output11: {output.shape}')
       if hs_shape[0] % pad_length:
         output = output[: hs_shape[0]]
       return output
@@ -539,9 +539,9 @@ class MoeBlock(nn.Module):
       intermediate_layer = jnp.multiply(layer_act, layer_w1) # 
       # inp: (4, 4096, 4096) intermediate_layer: (32768, 5632) inner_gate: (8, 4096, 44)
       # inp: (4, 4096, 4096) intermediate_layer: (180224, 1024) group_sizes: (44,)
-      print(f'inp: {inp.shape} intermediate_layer: {intermediate_layer.shape} group_sizes: {group_sizes.shape}')
+      max_logging.log(f'inp: {inp.shape} intermediate_layer: {intermediate_layer.shape} group_sizes: {group_sizes.shape}')
       # x: (180224, 4096) w0: (44, 4096, 1024) w1: (44, 4096, 1024) wo: (44, 1024, 4096)
-      print(f'x: {x.shape} w0: {w0.shape} w1: {w1.shape} wo: {wo.shape}')
+      max_logging.log(f'x: {x.shape} w0: {w0.shape} w1: {w1.shape} wo: {wo.shape}')
       intermediate_output = gmm(intermediate_layer, wo, group_sizes)
       intermediate_output = checkpoint_name(intermediate_output, "mlpwo")
       tensor_parallelism = self.config.ici_tensor_parallelism * self.config.dcn_tensor_parallelism
@@ -613,7 +613,7 @@ class MoeBlock(nn.Module):
 
   # See Switch Transformer (https://arxiv.org/abs/2101.03961) for more details.
   def load_balance_loss(self, top_k_indices, logits):
-    print(f'aux_loss_coef: {self.config.aux_loss_coef}')
+    max_logging.log(f'aux_loss_coef: {self.config.aux_loss_coef}')
     expert_mask = jax.nn.one_hot(top_k_indices, num_classes=self.num_experts, dtype=jnp.int32)
     summed_expert_mask = jnp.sum(expert_mask, axis=2)
     # Get fraction of tokens dispatched to each expert
@@ -655,7 +655,7 @@ class MoeBlock(nn.Module):
     matmul_precision = lax.Precision(self.config.matmul_precision)
 
     if self.config.expert_capacity_factor > 0:
-      print(f'expert_capacity_factor: {self.config.expert_capacity_factor}')
+      max_logging.log(f'expert_capacity_factor: {self.config.expert_capacity_factor}')
       # token dropping if needed
       dispatch_mask, combine_mask = self.generate_masks(top_k_indices, softmax_probs)
       mask_axes = ("activation_batch", "activation_length", None, None)
@@ -779,7 +779,7 @@ class MoeBlock(nn.Module):
       weights = jnp.concatenate(weights, axis=1)
 
       if self.config.record_internal_nn_metrics: # lsp
-        print(f'router weights: {weights.shape} selected_experts: {selected_experts.shape}')
+        max_logging.log(f'router weights: {weights.shape} selected_experts: {selected_experts.shape}')
         record_gate(self, 'router_gate', weights)
         expert_index_record = selected_experts.reshape(-1, self.num_experts_per_tok)
         for i in range(0, self.config.num_experts, 4): # 只记录1/4的专家
@@ -997,7 +997,7 @@ class DcMoeBlock(nn.Module):
         expert_inputs = self._split(expert_inputs, (('replica', 'data'), None, None,'mdl'))
 
         if self._is_ffn1_gated:
-            print(f'expert_inputs: {expert_inputs.shape} theta_wi: {theta_wi.shape}')
+            max_logging.log(f'expert_inputs: {expert_inputs.shape} theta_wi: {theta_wi.shape}')
             hidden0 = jnp.einsum("gecm,emh->gech", expert_inputs, theta_wi)
             hidden1 = jnp.einsum("gecm,emh->gech", expert_inputs, theta_wi_gated)
             hidden1 = self.activation(hidden1)
@@ -1008,7 +1008,7 @@ class DcMoeBlock(nn.Module):
             hidden = self._split(hidden, (('replica', 'data'), None, None, 'mdl'))
             hidden = self.activation(hidden)
         #  Broadcast along length.
-        print(f'self.intermediate_dropout_rate: {self.intermediate_dropout_rate} deterministic: {deterministic}')
+        max_logging.log(f'self.intermediate_dropout_rate: {self.intermediate_dropout_rate} deterministic: {deterministic}')
         hidden = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
         # expert_inputs: gecm,  mgatew: meh  -> 
         if self.config.mgate:
@@ -1017,7 +1017,7 @@ class DcMoeBlock(nn.Module):
           inner_gate = self.inner_gate[expert_index: expert_index + compute_n_expert]
           # x = jnp.einsum('BTE,BTEM->BTEM', gate_scores, x)  # 这里是多个专家一起计算mgate分数
           mgate_scores = jnp.einsum('gecm,emi->geci', expert_inputs, inner_gate)
-          print(f'mgate is True  mgate_scores: {mgate_scores.shape}')
+          max_logging.log(f'mgate is True  mgate_scores: {mgate_scores.shape}')
 
           mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
           mgate_scores = mgate_scores.astype(self.dtype)
@@ -1037,7 +1037,7 @@ class DcMoeBlock(nn.Module):
         
     def _dispatch_and_combine_expert_outputs_openmoe(self, inputs, paddings, deterministic=False):
 
-        print(f'Enter openmoe top2 router.....')
+        max_logging.log(f'Enter openmoe top2 router.....')
         topn = self.num_experts_per_tok
         token_shape = inputs.shape[:-1]
         num_tokens = np.prod(token_shape)
@@ -1045,21 +1045,21 @@ class DcMoeBlock(nn.Module):
        
         num_groups = self.num_groups
         tokens_per_group = num_tokens // num_groups
-        assert num_tokens % num_groups == 0, print(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
+        assert num_tokens % num_groups == 0, max_logging.log(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 
-        print(f'expert_capacity_factor: {self.expert_capacity_factor}')
+        max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')
         # expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
         expert_capacity = int(self.expert_capacity_factor * tokens_per_group * topn / self.num_experts)
         max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
-        print(f'expert_capacity: {expert_capacity}')
+        max_logging.log(f'expert_capacity: {expert_capacity}')
        
         # gsm
         grouped_inputs = jnp.reshape(inputs, (num_groups, tokens_per_group, self.config.base_emb_dim))
         # grouped_inputs = self._split(grouped_inputs, (('replica', 'data'), None, 'mdl'))
         token_inputs = jax.lax.convert_element_type(grouped_inputs, jnp.float32)
-        print(f'token_inputs: {token_inputs.shape}')
+        max_logging.log(f'token_inputs: {token_inputs.shape}')
 
         router_logits = DenseGeneral(
                 self.num_experts,
@@ -1073,7 +1073,7 @@ class DcMoeBlock(nn.Module):
 
         if self.config.sfm_after_topn:
           assert one_hot_indices is not None
-          print(f'one_hot_indices is not None and sfm_after_topn is {self.config.sfm_after_topn}')
+          max_logging.log(f'one_hot_indices is not None and sfm_after_topn is {self.config.sfm_after_topn}')
           router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
           _router_logits = router_logits + router_mask
           router_probs = jax.nn.softmax(_router_logits.astype(jnp.float32), axis=-1)
@@ -1100,8 +1100,8 @@ class DcMoeBlock(nn.Module):
         
         # 有padding的时候放开, 一般预训练没有pad
         # if paddings is not None:
-        #     print(f'paddings: {paddings.shape}')
-        #     print(f'token_shape: {token_shape}')
+        #     max_logging.log(f'paddings: {paddings.shape}')
+        #     max_logging.log(f'token_shape: {token_shape}')
             
         #     assert paddings.shape == token_shape
         #     # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
@@ -1165,9 +1165,9 @@ class DcMoeBlock(nn.Module):
             assert self.num_experts % self.expert_chunk_size == 0
     
         combined_outputs = None
-        print(f'compute_n_expert: {compute_n_expert}')
+        max_logging.log(f'compute_n_expert: {compute_n_expert}')
         for expert_index in range(0, token_priority.shape[2], compute_n_expert):
-            # print(f'expert_index: {expert_index}')
+            # max_logging.log(f'expert_index: {expert_index}')
             _token_priority = token_priority[..., expert_index: expert_index+compute_n_expert]
             _router_probs = router_probs[..., expert_index: expert_index+compute_n_expert]
             # lsp： g * s * e * c  # 如果当前token选择了当前专家后，当前token被选中的总次数的one hot体现
@@ -1180,13 +1180,13 @@ class DcMoeBlock(nn.Module):
             _expert_inputs = jnp.einsum('gs...,gsec->gec...', token_inputs, _dispatch_mask)
             _expert_inputs = jax.lax.convert_element_type(_expert_inputs, self.dtype)
             # gecm
-            # print(f'_expert_inputs: {_expert_inputs.shape}')
+            # max_logging.log(f'_expert_inputs: {_expert_inputs.shape}')
             # g * e * c * m
             _expert_outputs = self._call_experts(_expert_inputs, expert_index, compute_n_expert, deterministic=deterministic)
             _combined_outputs = jnp.einsum('gec...,gsec->gs...', _expert_outputs, _combine_array)
 
             combined_outputs = _combined_outputs if combined_outputs is None else combined_outputs + _combined_outputs
-            # print(f'combined_outputs-{expert_index}: {combined_outputs}')
+            # max_logging.log(f'combined_outputs-{expert_index}: {combined_outputs}')
 
         self.add_aux_loss("aux_loss", aux_loss)
         # Return to batched shape.

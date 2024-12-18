@@ -65,7 +65,7 @@ class PileDatasets():
             self.init_meta()
         else:
             if self.meta_dict["file_in_data"] != 0:
-                assert self.meta_dict["iter_file_nums"] == self.iter_file_nums, print(
+                assert self.meta_dict["iter_file_nums"] == self.iter_file_nums, max_logging.log(
                     f'iter_file_nums in meta_dict is not equal to cur args. => {self.meta_dict["iter_file_nums"]}≠'
                     f" {self.iter_file_nums}"
                 )
@@ -153,7 +153,7 @@ class PileDatasets():
         # 在这里进行shard的话，不同的pod在相同的batch_size时，拿到的数据不一致
         ds = ds.shard(self.num_infeed_hosts, process_index)
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE)
-        print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
+        max_logging.log(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
 
@@ -210,11 +210,11 @@ def record_file_and_step(step, config, train_input):  # lsp
     meta_dict = train_input.meta_dict
     meta_dict['checkpoint_step'] = int(step)
 
-    print(f'save_newest_path: {save_newest_path}')
-    print(f'save_path: {save_path}')
-    print(f'meta_dict: {meta_dict}')
+    max_logging.log(f'save_newest_path: {save_newest_path}')
+    max_logging.log(f'save_path: {save_path}')
+    max_logging.log(f'meta_dict: {meta_dict}')
     for k, v in meta_dict.items():
-      print(k, type(v))
+      max_logging.log(k, type(v))
 
     # __import__('ipdb').set_trace()
     if jax.process_index() == 0:
@@ -225,7 +225,7 @@ def record_file_and_step(step, config, train_input):  # lsp
         with save_path.open('w') as f2:
             json.dump(meta_dict, f2)
       except Exception as error:
-        print(f'Write meta dict error: {error}')
+        max_logging.log(f'Write meta dict error: {error}')
 
     max_logging.log(f'Save skip_file_and_step successful... file_in_data: {meta_dict["file_in_data"]} || step_in_file: {meta_dict["step_in_file"]}')  # XD
 
@@ -326,10 +326,10 @@ def extract_v3p5_data_files(dataset_path, eval_split):
 def extract_role_play_instruct_data(dataset_paths, eval_split):
     random.seed(9876)
     client = storage.Client()
-    print(f'dataset_paths0: {dataset_paths}')
+    max_logging.log(f'dataset_paths0: {dataset_paths}')
     dataset_paths = dataset_paths.split('@')
-    print(f'dataset_paths1: {dataset_paths}')
-    print(f'Dataset from {len(dataset_paths)} source')
+    max_logging.log(f'dataset_paths1: {dataset_paths}')
+    max_logging.log(f'Dataset from {len(dataset_paths)} source')
     total_train_files, total_valid_files = [], []
     for dataset_path in dataset_paths:
         path = dataset_path.replace('gs://', '')
@@ -426,7 +426,7 @@ def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
     only_eval = False
   meta_dict = extract_train_skip_step(job_dir,  step=config.training_num_batches_to_skip, only_eval=only_eval)
   # load_full_state_path
-  print(f'meta_dict: {meta_dict}')
+  max_logging.log(f'meta_dict: {meta_dict}')
 
   task_features = config.task_features
   train_dataloader = PileDatasets(

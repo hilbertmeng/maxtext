@@ -292,7 +292,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   if is_train:
     for k, v in data.items():
       data[k] = v[: config.global_batch_size_to_train_on, :]
-  print(f'enable_dropout0000: {config.enable_dropout}')
+  max_logging.log(f'enable_dropout0000: {config.enable_dropout}')
   logits, intermediate_outputs = model.apply(
       params,
       data["inputs"],
@@ -315,7 +315,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     aux_loss = 0
 
   for k, v in flat_intermediate.items():
-    print(k)
+    max_logging.log(k)
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
@@ -640,7 +640,7 @@ def train_loop(config, state=None):
       tx=None,
     )
   for k, v in flatten_dict(state.params).items():
-    print(k, v.shape)
+    max_logging.log(k, v.shape)
   num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
   max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
   per_device_tflops, _, _ = maxtext_utils.calculate_tflops_training_per_device(config)
@@ -652,17 +652,17 @@ def train_loop(config, state=None):
 
   # Define the compilation of functional_train, either by loading the compiled version or wrapping a new one in a jit
   if config.compiled_trainstep_file != "":
-    print("Loading the compiled function...", flush=True)
+    max_logging.log("Loading the compiled function...", flush=True)
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
     p_train_step = maxtext_utils.load_compiled(config, functional_train, state)
     # TODO: p_eval_step is not yet supported in load_compiled
     p_eval_step = None
-    print("Loaded compiled function!", flush=True)
+    max_logging.log("Loaded compiled function!", flush=True)
   else:
     if config.only_eval:
       p_train_step = None
     else:
-      print(f'in_shard_train: {in_shard_train}')
+      max_logging.log(f'in_shard_train: {in_shard_train}')
       p_train_step = jax.jit(
           functional_train,
           in_shardings=in_shard_train,
@@ -672,7 +672,7 @@ def train_loop(config, state=None):
       )
 
   if eval_data_iterator:
-    print(f'eval_data_iterator is not None')
+    max_logging.log(f'eval_data_iterator is not None')
     p_eval_step = jax.jit(
         functional_eval,
         in_shardings=in_shard_eval,
@@ -721,9 +721,9 @@ def train_loop(config, state=None):
 
           mean_eval_loss = _eval_loss / _weight
 
-          print(f'eval_step: {edx} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} weight: {_weight} take: {time.time() - start_time:.3f}s')
+          max_logging.log(f'eval_step: {edx} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
-          print(f'error: {e} now start to reset eval dataloader')
+          max_logging.log(f'error: {e} now start to reset eval dataloader')
       
       eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
       aux_loss = cumulative_eval_metrics["aux_loss"] / (edx + 1)

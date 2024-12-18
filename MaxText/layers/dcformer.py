@@ -56,20 +56,20 @@ class DcformerDecoderLayer(nn.Module):
                eos_sum=None,
                ):
     num_layers_per_block = 1 if num_layers_per_block is None else int(num_layers_per_block)
-    print(f'num_layers_per_block: {num_layers_per_block}')
-    print(f'window_size: {self.config.window_size}')
+    max_logging.log(f'num_layers_per_block: {num_layers_per_block}')
+    max_logging.log(f'window_size: {self.config.window_size}')
     window_size = self.config.window_size
     if window_size is None:
         window_size = [None]
     elif isinstance(window_size, list):
         for size in window_size:
-            assert isinstance(size, int) or size is None, print(f'window_size value error: {size}')
+            assert isinstance(size, int) or size is None, max_logging.log(f'window_size value error: {size}')
     else:
         raise ValueError(f'Window size: ‘{window_size}’ type is error.....')
 
     for i in range(num_layers_per_block):
         ws = inputs.shape[1] if window_size[i] is None else window_size[i]
-        print(f'window_size-{i}: {ws}')
+        max_logging.log(f'window_size-{i}: {ws}')
         layer_output = self.sub_block(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, ws, i, eos_sum)
         inputs = layer_output[0] if self.config.scan_layers else layer_output
 
@@ -99,12 +99,12 @@ class DcformerDecoderLayer(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
         )
     lnx = lnx_rms(inputs)
-    print(f'lnx: {lnx.dtype} block_index: {block_index}')
+    max_logging.log(f'lnx: {lnx.dtype} block_index: {block_index}')
 
     lnx = nn.with_logical_constraint(
         lnx, ('activation_batch', 'activation_length', 'activation_embed'))
 
-    assert cfg.attention == 'dot_product', print(f'Now dcformer model only support ’dot_product‘ method to compute attention')
+    assert cfg.attention == 'dot_product', max_logging.log(f'Now dcformer model only support ’dot_product‘ method to compute attention')
     # Self-attention block
     attention_layer = Attention(
       config = cfg,
@@ -134,7 +134,7 @@ class DcformerDecoderLayer(nn.Module):
             deterministic=deterministic,
             model_mode=model_mode)
 
-    print(f'attention_lnx: {attention_lnx.dtype}')
+    max_logging.log(f'attention_lnx: {attention_lnx.dtype}')
 
     attention_lnx = nn.with_logical_constraint(
         attention_lnx,
@@ -148,11 +148,11 @@ class DcformerDecoderLayer(nn.Module):
         name=f'post_self_attention_layer_norm_{block_index}', kernel_axes=('embed',),
         epsilon=cfg.normalization_layer_epsilon,
         )(intermediate_inputs)
-    print(f'hidden_states: {hidden_states.dtype}')
+    max_logging.log(f'hidden_states: {hidden_states.dtype}')
     hidden_states = nn.with_logical_constraint(hidden_states, ('activation_batch', 'activation_length', 'activation_embed'))
 
     shared_mlp_lnx, unshared_mlp_lnx, aux_loss = None, None, None
-    print(f'num_experts: {cfg.num_experts} n_shared_experts: {cfg.n_shared_experts}')
+    max_logging.log(f'num_experts: {cfg.num_experts} n_shared_experts: {cfg.n_shared_experts}')
     if cfg.n_shared_experts:
         shared_mlp_lnx = linears.MlpBlock(
             intermediate_dim=cfg.mlp_dim,
@@ -187,7 +187,7 @@ class DcformerDecoderLayer(nn.Module):
                                     dtype=cfg.dtype,
                                     )(hidden_states)
         else:
-            print(f'Add moe layer: {block_index}')
+            max_logging.log(f'Add moe layer: {block_index}')
             unshared_mlp_lnx, aux_loss = linears.DcMoeBlock(
                 name=f'unshared_mlp_{block_index}',
                 config=cfg,
@@ -209,14 +209,14 @@ class DcformerDecoderLayer(nn.Module):
             self.sow('intermediates', 'unshared_mlp_l2norm', unshared_mlp_l2norm)
 
     if shared_mlp_lnx is None:
-        print(f'shared_mlp_lnx is None')
+        max_logging.log(f'shared_mlp_lnx is None')
         mlp_lnx = unshared_mlp_lnx
     elif unshared_mlp_lnx is None:
-        print(f'unshared_mlp_lnx is None')
+        max_logging.log(f'unshared_mlp_lnx is None')
         mlp_lnx = shared_mlp_lnx
     else:
         mlp_lnx = (shared_mlp_lnx + unshared_mlp_lnx) / 2
-    print(f'mlp_lnx: {mlp_lnx.dtype} shape: {mlp_lnx.shape}')
+    max_logging.log(f'mlp_lnx: {mlp_lnx.dtype} shape: {mlp_lnx.shape}')
 
     mlp_lnx = nn.with_logical_constraint(
         mlp_lnx, ('activation_batch', 'activation_length', 'activation_embed')
@@ -232,7 +232,7 @@ class DcformerDecoderLayer(nn.Module):
         ('activation_batch', 'activation_length', 'activation_embed'),
     )
     if cfg.num_experts > 0 and aux_loss is not None:
-      print(f'return moe_lb_loss...')
+      max_logging.log(f'return moe_lb_loss...')
       self.sow("intermediates", "moe_lb_loss", aux_loss)
 
     if cfg.record_internal_nn_metrics:

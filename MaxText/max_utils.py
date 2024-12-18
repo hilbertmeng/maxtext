@@ -552,7 +552,7 @@ def setup_initial_state(
         data_iterator.local_iterator = restored["iter"]
       state = restored["state"] # lsp
     else:
-      print(f'setup_initial_state is_training: {is_training}')
+      max_logging.log(f'setup_initial_state is_training: {is_training}')
       init_state_partial = functools.partial(
           init_initial_state, model, tx, config, is_training
       )
@@ -628,7 +628,7 @@ def create_noam_learning_rate_schedule(config):
   noam_down_lr_step = getattr(config, 'noam_down_lr_step', -1)
   # warmup steps
   noam_warmup_steps = config.warmup_steps_fraction * config.learning_rate_schedule_steps
-  print(f'noam_warmup_steps: {noam_warmup_steps}')
+  max_logging.log(f'noam_warmup_steps: {noam_warmup_steps}')
 
   def make_noam_schedule(noam_warmup_steps):
     # 通过这个scale，可以让设置的学习率为顶峰学习率
@@ -648,12 +648,12 @@ def create_noam_learning_rate_schedule(config):
 
   if noam_down_lr_step >= 0:
     assert noam_down_lr_step <= config.learning_rate_schedule_steps,  \
-    print(f'noam down lr step={noam_down_lr_step} must lt noam end lr step: {config.learning_rate_schedule_steps}')
+    max_logging.log(f'noam down lr step={noam_down_lr_step} must lt noam end lr step: {config.learning_rate_schedule_steps}')
     down_start_lr = noam_schedule(noam_down_lr_step)
     down_end_lr = getattr(config, 'noam_down_end_lr', down_start_lr * 0.1)
-    assert down_end_lr <= down_start_lr, print(f'down_end_lr={down_end_lr} must lt down_start_lr={down_start_lr}')
+    assert down_end_lr <= down_start_lr, max_logging.log(f'down_end_lr={down_end_lr} must lt down_start_lr={down_start_lr}')
     noam_transition_steps = getattr(config, 'noam_transition_steps', 1500)  
-    print(f'noam down_start_lr: {down_start_lr} down_end_lr: {down_end_lr}   \
+    max_logging.log(f'noam down_start_lr: {down_start_lr} down_end_lr: {down_end_lr}   \
     transition_begin: {noam_down_lr_step} noam_transition_steps: {noam_transition_steps}')
     linear_schedule = optax.linear_schedule(init_value=down_start_lr, 
                                             end_value=down_end_lr, 
@@ -828,15 +828,15 @@ def get_kv_cache_annotations(model, config, rng, mesh):
 
 
 def print_pytree_shape(print_str, ptree):
-  print("\n")
-  print(print_str)
-  print(jax.tree_util.tree_map(lambda x: x.shape, ptree))
+  max_logging.log("\n")
+  max_logging.log(print_str)
+  max_logging.log(jax.tree_util.tree_map(lambda x: x.shape, ptree))
 
 
 def print_model_vars(print_str, model_vars):
   for k in model_vars:
-    print(f"{print_str} key{k}:")
-    print(f"\t {model_vars[k]}")
+    max_logging.log(f"{print_str} key{k}:")
+    max_logging.log(f"\t {model_vars[k]}")
 
 
 def get_project():
@@ -870,14 +870,14 @@ def summarize_pytree_data(params, name="Params", raw=False):
   if not raw:
     num_params_in_billions = num_params / 1e9
     total_param_size_in_gb = total_param_size / 1e9
-    print(
+    max_logging.log(
         f"{name} stats: \n"
         f"\tTotal number of params: {num_params_in_billions:.3f} billion \n"
         f"\tTotal memory usage: {total_param_size_in_gb:.3f} GB \n"
         f"\tAvg size: {avg_param_size:.3f} bytes\n"
     )
   else:
-    print(
+    max_logging.log(
         f"{name} stats: \n"
         f"\tTotal number of params: {num_params:.3f} \n"
         f"\tTotal memory usage: {total_param_size:.3f} bytes \n"
@@ -895,9 +895,9 @@ def save_quantized_checkpoint_if_configured(config, params):
 
 
 def print_mem_stats(label:str):
-  print(f'\nMemstats: {label}:')
+  max_logging.log(f'\nMemstats: {label}:')
   for d in jax.local_devices():
     stats = d.memory_stats()
     used = round(stats['bytes_in_use']/2**30, 2)
     limit = round(stats['bytes_limit']/2**30, 2)
-    print(f"\tUsing (GB) {used} / {limit} ({used/limit:%}) on {d}")
+    max_logging.log(f"\tUsing (GB) {used} / {limit} ({used/limit:%}) on {d}")

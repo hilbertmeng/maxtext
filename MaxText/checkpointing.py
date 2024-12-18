@@ -159,7 +159,7 @@ def create_load_checkpoint_manager(checkpoint_dir, load_ocdbt):
 def print_state_shape_device(state):
 
   if hasattr(state, 'opt_state') or 'opt_state' in state:
-    print(f'Exist opt state.......')
+    max_logging.log(f'Exist opt state.......')
 
   if not isinstance(state, dict):
     state = state.params
@@ -167,11 +167,11 @@ def print_state_shape_device(state):
     state = state.params
   for k, v in flatten_dict(state).items():
     k = '.'.join(k)
-    print('params:', k, v.shape, v.dtype, type(v))
-  print('=========================================')
+    max_logging.log('params:', k, v.shape, v.dtype, type(v))
+  max_logging.log('=========================================')
 
   is_on_devices = v.devices() if hasattr(v, 'devices') else 'cpu'
-  print(f'is_on_devices: {is_on_devices}')
+  max_logging.log(f'is_on_devices: {is_on_devices}')
   
 
 def load_state_if_possible(checkpoint_manager: CheckpointManager,
@@ -228,7 +228,7 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     # 第一种：基于人工构造的sharding方式进行加载
     ckptr = orbax.checkpoint.PyTreeCheckpointer()
     restore_args = orbax.checkpoint.checkpoint_utils.construct_restore_args({"params": params_shapedtype})
-    # print(f'restore_args: {restore_args}')
+    # max_logging.log(f'restore_args: {restore_args}')
     # params = ckptr.restore(
     #     load_parameters_path / 'state', item={"params": params_shapedtype}, transforms={}, restore_args=restore_args
     # )
@@ -325,4 +325,4 @@ def save_params_to_path(checkpoint_dir, params):
     save_args=save_args,
     force=True
     )
-  print(f"Quantized params checkpoint saved at: {checkpoint_dir}")
+  max_logging.log(f"Quantized params checkpoint saved at: {checkpoint_dir}")

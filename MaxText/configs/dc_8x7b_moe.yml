@@ -142,6 +142,7 @@ expert_capacity_factor: 1.25
 aux_loss_coef: 0.005
 router_z_loss_coef: 0.005
 sfm_after_topn: False
+gate_noise_coef: 0.0
 
 mlp_activations: ["silu", "linear"]
 dropout_rate: 0  # attention or mlp x + residual drop out

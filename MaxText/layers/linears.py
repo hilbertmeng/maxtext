@@ -316,9 +316,22 @@ class MlpBlock(nn.Module):
     return output
 
 
-# def record_norm(self, x):
-#   # l2norm = max_utils.l2norm_pytree(x)
-#   l2norm = jnp.linalg.norm(x, ord=2)
+def log(t, eps = 1e-20):
+    return jnp.log(t.clip(min = eps))
+    
+
+def gumbel_noise(inputs, seed=9876, minval=0, maxval=1):
+    noise = jax.random.uniform(jax.random.PRNGKey(seed), minval=minval, maxval=maxval, shape=inputs.shape,  dtype=inputs.dtype)
+    return -log(-log(noise))
+
+# import torch
+# def log(t, eps = 1e-20):
+#     return torch.log(t.clamp(min = eps))
+    
+# def gumbel_noise(t):
+#     noise = torch.zeros_like(t).uniform_(0, 1)
+#     return noise
+#     return -log(-log(noise))
 
 class MoeBlock(nn.Module):
   """Mixture of Experts (MoE) block.
@@ -753,6 +766,11 @@ class MoeBlock(nn.Module):
         matmul_precision=self.config.matmul_precision,
     )(inputs)
 
+    if self.config.gate_noise_coef > 0.0:
+        max_logging.log(f'megablox gate_noise_coef: {self.config.gate_noise_coef}')
+        noise = gumbel_noise(gate_logits, seed=self.config.init_weights_seed)
+        gate_logits += noise * self.config.gate_noise_coef
+
     if self.config.record_internal_nn_metrics:
       l2norm = jnp.linalg.norm(gate_logits.reshape(-1, gate_logits.shape[-1]), ord=2, axis=(0, 1))
       self.sow('intermediates', 'router_gate/l2norm', l2norm)
@@ -1068,6 +1086,11 @@ class DcMoeBlock(nn.Module):
                 kernel_init=self.kernel_init,
                 kernel_axes=self.kernel_axes,
                 name=self.router_name)(token_inputs)
+
+        if self.config.gate_noise_coef > 0.0:
+          max_logging.log(f'gate_noise_coef: {self.config.gate_noise_coef}')
+          noise = gumbel_noise(router_logits, seed=self.config.init_weights_seed)
+          router_logits += noise * self.config.gate_noise_coef
 
         _, expert_index, one_hot_indices = _top_k(router_logits, k=topn)
 

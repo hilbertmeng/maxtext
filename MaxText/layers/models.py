@@ -267,7 +267,6 @@ class Decoder(nn.Module):
       # ======================================32k long context max window size set==================================================
       eos_sum = (decoder_input_tokens == 151643).sum(1) 
       eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
-      max_logging.log(f'eos_sum: {eos_sum.shape}')
       if cfg.record_internal_nn_metrics:
         self.sow("intermediates", "eos_sum_mean", eos_sum.mean(), ) # 每个batch带有eos数据的比例
         self.sow("intermediates", "eos_sum", eos_sum.sum(), ) # batch总的eos数量
@@ -458,7 +457,6 @@ class Transformer(nn.Module):
           f"During autoregressive decoding we assume the tokens are in the active sequence"
           f" which is always {common_types.DECODING_ACTIVE_SEQUENCE_INDICATOR}."
       )
-    max_logging.log(f'enable_dropout: {enable_dropout}')
     logits = self.decoder(
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,

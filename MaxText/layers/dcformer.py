@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+import max_logging
 
 import jax
 from flax import linen as nn

@@ -56,8 +56,6 @@ class DcformerDecoderLayer(nn.Module):
                eos_sum=None,
                ):
     num_layers_per_block = 1 if num_layers_per_block is None else int(num_layers_per_block)
-    max_logging.log(f'num_layers_per_block: {num_layers_per_block}')
-    max_logging.log(f'window_size: {self.config.window_size}')
     window_size = self.config.window_size
     if window_size is None:
         window_size = [None]
@@ -99,7 +97,6 @@ class DcformerDecoderLayer(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
         )
     lnx = lnx_rms(inputs)
-    max_logging.log(f'lnx: {lnx.dtype} block_index: {block_index}')
 
     lnx = nn.with_logical_constraint(
         lnx, ('activation_batch', 'activation_length', 'activation_embed'))
@@ -134,8 +131,6 @@ class DcformerDecoderLayer(nn.Module):
             deterministic=deterministic,
             model_mode=model_mode)
 
-    max_logging.log(f'attention_lnx: {attention_lnx.dtype}')
-
     attention_lnx = nn.with_logical_constraint(
         attention_lnx,
         ('activation_batch', 'activation_length', 'activation_embed'))
@@ -148,7 +143,6 @@ class DcformerDecoderLayer(nn.Module):
         name=f'post_self_attention_layer_norm_{block_index}', kernel_axes=('embed',),
         epsilon=cfg.normalization_layer_epsilon,
         )(intermediate_inputs)
-    max_logging.log(f'hidden_states: {hidden_states.dtype}')
     hidden_states = nn.with_logical_constraint(hidden_states, ('activation_batch', 'activation_length', 'activation_embed'))
 
     shared_mlp_lnx, unshared_mlp_lnx, aux_loss = None, None, None

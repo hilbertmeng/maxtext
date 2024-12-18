@@ -576,12 +576,12 @@ class AttentionOp(nn.Module):
     pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
     post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
 
-    max_logging.log(f'attn_weights0: {attn_weights.dtype}')
+    # max_logging.log(f'qk_product attn_weights: {attn_weights.dtype}')
     if self.pre_compose:
       attn_weights = self.pre_proj(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
 
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
-    max_logging.log(f'attn_weights1: {attn_weights.dtype}')
+    # max_logging.log(f'precompose attn_weights: {attn_weights.dtype}')
 
     # apply attention mask
     if attn_mask is not None:

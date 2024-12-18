@@ -501,11 +501,9 @@ class AttentionOp(nn.Module):
     s = key.shape[1]
 
     if eos_sum is None:
-      max_logging.log(f'eos_sum is None')
        # Attention mask compute
       attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.window_size, t, query.dtype)
     else:
-      max_logging.log(f'eos_sum is not None')
       if self.window_size < 32000:
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.window_size, t, query.dtype)
       else:
@@ -516,7 +514,6 @@ class AttentionOp(nn.Module):
         attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
         attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
         attn_mask = attn_mask[:, jnp.newaxis, ...] # bts -> bnts
-    max_logging.log(f'attn_mask: {attn_mask.shape} self.window_size: {self.window_size}')
 
     if hasattr(self, 'dyn_w_proj'):
         pre_proj_dw_args, post_proj_dw_args = self.dyn_w_proj(query_vec)
@@ -576,13 +573,10 @@ class AttentionOp(nn.Module):
     pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
     post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
 
-    # max_logging.log(f'qk_product attn_weights: {attn_weights.dtype}')
     if self.pre_compose:
       attn_weights = self.pre_proj(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
 
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
-    # max_logging.log(f'precompose attn_weights: {attn_weights.dtype}')
-
     # apply attention mask
     if attn_mask is not None:
       attn_weights = apply_mask_to_logits(attn_weights, attn_mask)

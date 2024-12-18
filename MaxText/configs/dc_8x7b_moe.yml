@@ -95,7 +95,7 @@ max_target_length: 4097 # Maximum sequence length
 reset_for_eval: True # True will rest eval dataset
 epoch: 1
 train_shuffle_buffer_size: 200000 # null or int
-eval_shuffle_buffer_size: 2000 # null or int
+eval_shuffle_buffer_size: null # null or int
 training_num_batches_to_skip: null # skip data , null or int
 zero_loss: True # whether to compute id zero loss when train
 iter_file_nums: 20 # how many files every file batch
@@ -103,7 +103,7 @@ static_proj: False # default false
 expansion_factor_real_data: -1 # if -1 then all hosts will load real data, else total_hosts//expansion_factor_real_data will pull data from GCS.
 per_device_batch_size: 8.0
 eval_per_device_batch_size: 8.0 # eval also use per_device_batch_size
-eval_loop_num_batches: 66
+eval_loop_num_batches: 82
 eval_interval: 500  # the specific number of train step between eval_step
 qk_norm: True # 405m use true, but 2b8 model use false
 mgate: False # it's False when moe train

@@ -230,16 +230,16 @@ class DcformerDecoderLayer(nn.Module):
       max_logging.log(f'return moe_lb_loss...')
       self.sow("intermediates", "moe_lb_loss", aux_loss)
 
-    if cfg.record_internal_nn_metrics:
-      self.sow('intermediates', 'activation_mean', jnp.mean(layer_output))
-      self.sow('intermediates', 'activation_stdev', jnp.std(layer_output))
-    #   index = 4 if layer_output.shape[1] > 30000 else None  # size exceed int32 range, overflow
-      index = 4  # 取4条数据，不然多了会溢出
-      self.sow(
-          'intermediates',
-          'activation_fraction_zero',
-          jnp.sum(layer_output[:index] == 0) / jnp.size(layer_output[:index]),
-      )
+    # if cfg.record_internal_nn_metrics:
+    #   self.sow('intermediates', 'activation_mean', jnp.mean(layer_output))
+    #   self.sow('intermediates', 'activation_stdev', jnp.std(layer_output))
+    # #   index = 4 if layer_output.shape[1] > 30000 else None  # size exceed int32 range, overflow
+    #   index = 4  # 取4条数据，不然多了会溢出
+    #   self.sow(
+    #       'intermediates',
+    #       'activation_fraction_zero',
+    #       jnp.sum(layer_output[:index] == 0) / jnp.size(layer_output[:index]),
+    #   )
 
     if cfg.scan_layers:
       return layer_output, None

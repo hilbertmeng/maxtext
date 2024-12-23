@@ -22,6 +22,7 @@ from typing import Any, Callable, Optional
 from flax import linen as nn
 import functools
 import jax
+import numpy as np
 import jax.numpy as jnp
 import common_types
 from layers import attentions
@@ -29,7 +30,9 @@ from layers import embeddings
 from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
+from layers import initializers
 
+nd_dense_init = initializers.nd_dense_init
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
@@ -136,16 +139,16 @@ class DecoderLayer(nn.Module):
         ("activation_batch", "activation_length", "activation_embed"),
     )
 
-    if cfg.record_internal_nn_metrics:
-      self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
-      self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
-      # index = 4 if layer_output.shape[1] > 30000 else None  # size exceed int32 range, overflow
-      index = 4
-      self.sow(
-          'intermediates',
-          'activation_fraction_zero',
-          jnp.sum(layer_output[:index] == 0) / jnp.size(layer_output[:index]),
-      )
+    # if cfg.record_internal_nn_metrics:
+    #   self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
+    #   self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
+    #   # index = 4 if layer_output.shape[1] > 30000 else None  # size exceed int32 range, overflow
+    #   index = 4
+    #   self.sow(
+    #       'intermediates',
+    #       'activation_fraction_zero',
+    #       jnp.sum(layer_output[:index] == 0) / jnp.size(layer_output[:index]),
+    #   )
 
     return layer_output, None if cfg.scan_layers else layer_output
 
@@ -400,6 +403,25 @@ class Decoder(nn.Module):
         # Correctly normalize pre-softmax logits for this shared case.
         logits = logits / jnp.sqrt(y.shape[-1])
     else:
+      # lsp, DenseGeneral -> self.param, 便于chunk
+      # kernel_in_axis = np.arange(1)
+      # kernel_out_axis = np.arange(1, 2)
+      # kernel_init_shard = nn.with_logical_partitioning(nd_dense_init(1.0, "fan_in", "truncated_normal"), ('embed', 'vocab'))
+      # dense_shape = (cfg.base_emb_dim, cfg.vocab_size)
+      # logits_dense = self.param('logits_dense.kernel', 
+      #                             kernel_init_shard, 
+      #                             dense_shape, 
+      #                             cfg.weight_dtype,
+      #                             kernel_in_axis,
+      #                             kernel_out_axis)
+      # logits_dense_kernel = jnp.asarray(logits_dense, jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype)
+      # chunks = 4
+      # vdim = cfg.vocab_size // chunks
+      # logits = []
+      # for i in range(chunks):
+      #   _logits = jnp.einsum('bld,dv->blv', y, logits_dense_kernel[:, i*vdim: (i+1)*vdim])
+      #   logits.append(_logits)
+      # logits = jnp.concatenate(logits, axis=-1)
       logits = linears.DenseGeneral(
           cfg.vocab_size,
           weight_dtype=cfg.weight_dtype,

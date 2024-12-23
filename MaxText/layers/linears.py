@@ -230,8 +230,8 @@ class MlpBlock(nn.Module):
         )(inputs)
     gate_scores = jax.nn.softmax(gate_scores.astype(jnp.float32), axis=-1)
     gate_scores = gate_scores.astype(self.dtype)
-    if self.config.record_internal_nn_metrics:
-      record_gate(self, 'mgate', gate_scores)
+    # if self.config.record_internal_nn_metrics:
+    #   record_gate(self, 'mgate', gate_scores)
     return gate_scores
 
   @nn.compact
@@ -324,14 +324,6 @@ def gumbel_noise(inputs, seed=9876, minval=0, maxval=1):
     noise = jax.random.uniform(jax.random.PRNGKey(seed), minval=minval, maxval=maxval, shape=inputs.shape,  dtype=inputs.dtype)
     return -log(-log(noise))
 
-# import torch
-# def log(t, eps = 1e-20):
-#     return torch.log(t.clamp(min = eps))
-    
-# def gumbel_noise(t):
-#     noise = torch.zeros_like(t).uniform_(0, 1)
-#     return noise
-#     return -log(-log(noise))
 
 class MoeBlock(nn.Module):
   """Mixture of Experts (MoE) block.
@@ -774,9 +766,8 @@ class MoeBlock(nn.Module):
     if self.config.record_internal_nn_metrics:
       l2norm = jnp.linalg.norm(gate_logits.reshape(-1, gate_logits.shape[-1]), ord=2, axis=(0, 1))
       self.sow('intermediates', 'router_gate/l2norm', l2norm)
-      router_probs = jax.nn.softmax(gate_logits.astype(jnp.float32), axis=-1)
-      record_gate(self, 'router_gate', router_probs)
-
+      # router_probs = jax.nn.softmax(gate_logits.astype(jnp.float32), axis=-1)
+      # record_gate(self, 'router_gate', router_probs)
     w0_kernel, w1_kernel, wo_kernel = self.generate_kernels(cfg.num_experts, cfg.emb_dim, cfg.mlp_dim)
 
     if cfg.megablox:
@@ -796,17 +787,17 @@ class MoeBlock(nn.Module):
       selected_experts = jnp.concatenate(selected_experts, axis=1)
       weights = jnp.concatenate(weights, axis=1)
 
-      if self.config.record_internal_nn_metrics: # lsp
-        max_logging.log(f'router weights: {weights.shape} selected_experts: {selected_experts.shape}')
-        record_gate(self, 'router_gate', weights)
-        expert_index_record = selected_experts.reshape(-1, self.num_experts_per_tok)
-        for i in range(0, self.config.num_experts, 4): # 只记录1/4的专家
-          top = 0
-          for j in range(2): # 只取top2记录
-            _top = (expert_index_record[:, j] == i).sum()
-            top += _top
-            self.sow('intermediates', f'top{j}/selected_expert_{i}_token_nums', _top)
-          self.sow('intermediates', f'top/selected_expert_{i}_token_nums', top)
+      # if self.config.record_internal_nn_metrics: # lsp
+      #   max_logging.log(f'router weights: {weights.shape} selected_experts: {selected_experts.shape}')
+      #   record_gate(self, 'router_gate', weights)
+      #   expert_index_record = selected_experts.reshape(-1, self.num_experts_per_tok)
+      #   for i in range(0, self.config.num_experts, 4): # 只记录1/4的专家
+      #     top = 0
+      #     for j in range(2): # 只取top2记录
+      #       _top = (expert_index_record[:, j] == i).sum()
+      #       top += _top
+      #       self.sow('intermediates', f'top{j}/selected_expert_{i}_token_nums', _top)
+      #     self.sow('intermediates', f'top/selected_expert_{i}_token_nums', top)
       return output, None
     else:
       max_logging.log("Running MoE matmul implementation.")
@@ -903,9 +894,9 @@ class DcMoeBlock(nn.Module):
         kernel_init = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
         # self.kernel_init = kernel_init
         # The first axes is expert
-        kernel_axes = (None, 'embed', 'mlp')
-        wo_kernel_axes = (None, 'mlp', 'embed')
-       
+        kernel_axes = ("exp", "embed_no_exp", "mlp")
+        wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
+  
         # self.num_experts = self.config.num_experts - n_shared_experts
         mlp_dim = self.intermediate_dim # moe dim
         emb_dim = self.config.base_emb_dim  # model dim
@@ -1040,8 +1031,8 @@ class DcMoeBlock(nn.Module):
           mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
           mgate_scores = mgate_scores.astype(self.dtype)
 
-          if self.config.record_internal_nn_metrics:
-            record_gate(self, 'mgate', mgate_scores, axis=(0, 1, 2))
+          # if self.config.record_internal_nn_metrics:
+          #   record_gate(self, 'mgate', mgate_scores, axis=(0, 1, 2))
 
           G, E, C, H = hidden.shape
           x = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
@@ -1067,7 +1058,7 @@ class DcMoeBlock(nn.Module):
 
         max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')
         # expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
-        expert_capacity = int(self.expert_capacity_factor * tokens_per_group * topn / self.num_experts)
+        expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
         max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
@@ -1109,16 +1100,15 @@ class DcMoeBlock(nn.Module):
         if self.config.record_internal_nn_metrics:
           l2norm = jnp.linalg.norm(router_logits.reshape(-1, router_logits.shape[-1]), ord=2, axis=(0, 1))
           self.sow('intermediates', 'router_gate/l2norm', l2norm)
-          record_gate(self, 'router_gate', router_logits, axis=(0, 1))
-          record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
-
+          # record_gate(self, 'router_gate', router_logits, axis=(0, 1))
+          # record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
           expert_index_record = expert_index.reshape(-1, topn)
-          for i in range(0, self.config.num_experts, 4):
+          for i in range(0, self.config.num_experts, 3):
             top = 0
             for j in range(2):
               _top = (expert_index_record[:, 0] == i).sum()
               top += _top
-              self.sow('intermediates', f'top{j}/selected_expert_{i}_token_nums', _top)
+              # self.sow('intermediates', f'top{j}/selected_expert_{i}_token_nums', _top)
             self.sow('intermediates', f'top/selected_expert_{i}_token_nums', top)
         
         # 有padding的时候放开, 一般预训练没有pad
@@ -1186,7 +1176,7 @@ class DcMoeBlock(nn.Module):
         else:
             compute_n_expert = self.num_experts // self.expert_chunk_size
             assert self.num_experts % self.expert_chunk_size == 0
-    
+
         combined_outputs = None
         max_logging.log(f'compute_n_expert: {compute_n_expert}')
         for expert_index in range(0, token_priority.shape[2], compute_n_expert):

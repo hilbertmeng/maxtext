@@ -410,11 +410,26 @@ class AttentionOp(nn.Module):
     I = 2
     num_heads_per_group = self.num_query_heads // self.num_groups
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
-    if self.is_cross_attention:
-      for name in ['q_dyn_w_proj', 'k_dyn_w_proj']:
-        setattr(self, name, DynamicWeightProjection(
+    print(f'AttentionOp: self.pre_compose: {self.pre_compose} self.post_compose: {self.post_compose}')
+    if self.pre_compose or self.post_compose:
+      if self.is_cross_attention:
+        for name in ['q_dyn_w_proj', 'k_dyn_w_proj']:
+          setattr(self, name, DynamicWeightProjection(
+            num_heads=self.num_query_heads, num_groups=self.num_groups,
+            input_dim=self.num_query_heads * self.head_dim, n_splits=2,
+            dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
+            dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
+            dynamic_squeeze_ratio=num_heads_per_group // I,
+            dynamic_w_hidden_dim=dynamic_w_hidden_dim,
+            dtype=self.dtype, weight_dtype=self.weight_dtype, precision=self.precision,
+            deterministic=self.deterministic,
+            dynamic_dropout_rate=self.dynamic_dropout_rate,
+            quant=self.quant,
+          ))
+      else:
+        self.dyn_w_proj = DynamicWeightProjection(
           num_heads=self.num_query_heads, num_groups=self.num_groups,
-          input_dim=self.num_query_heads * self.head_dim, n_splits=2,
+          input_dim=self.num_query_heads * self.head_dim, n_splits=4,
           dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
           dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
           dynamic_squeeze_ratio=num_heads_per_group // I,
@@ -423,22 +438,8 @@ class AttentionOp(nn.Module):
           deterministic=self.deterministic,
           dynamic_dropout_rate=self.dynamic_dropout_rate,
           quant=self.quant,
-        ))
-    else:
-      self.dyn_w_proj = DynamicWeightProjection(
-        num_heads=self.num_query_heads, num_groups=self.num_groups,
-        input_dim=self.num_query_heads * self.head_dim, n_splits=4,
-        dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
-        dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
-        dynamic_squeeze_ratio=num_heads_per_group // I,
-        dynamic_w_hidden_dim=dynamic_w_hidden_dim,
-        dtype=self.dtype, weight_dtype=self.weight_dtype, precision=self.precision,
-        deterministic=self.deterministic,
-        dynamic_dropout_rate=self.dynamic_dropout_rate,
-        quant=self.quant,
-      )
+        )
 
-    if self.pre_compose:
       self.pre_proj = CrossHeadProjection(
                                   dtype=self.dtype, 
                                   weight_dtype=self.weight_dtype, 
@@ -450,7 +451,7 @@ class AttentionOp(nn.Module):
                                   key_input_dim=input_dim,
                                   dynamic_w_hidden_dim=dynamic_w_hidden_dim,
         )
-    if self.post_compose:
+
       self.post_proj = CrossHeadProjection(
                                   dtype=self.dtype, 
                                   weight_dtype=self.weight_dtype, 
@@ -514,14 +515,17 @@ class AttentionOp(nn.Module):
         attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
         attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
         attn_mask = attn_mask[:, jnp.newaxis, ...] # bts -> bnts
-
-    if hasattr(self, 'dyn_w_proj'):
-        pre_proj_dw_args, post_proj_dw_args = self.dyn_w_proj(query_vec)
+    
+    if self.pre_compose or self.post_compose:
+      if hasattr(self, 'dyn_w_proj'):
+          pre_proj_dw_args, post_proj_dw_args = self.dyn_w_proj(query_vec)
+      else:
+          if hasattr(self, 'dyn_w_pre_proj'):
+            pre_proj_dw_args = self.dyn_w_pre_proj(query_vec)
+          if hasattr(self, 'dyn_w_post_proj'):
+            post_proj_dw_args = self.dyn_w_post_proj(key_vec)
     else:
-        if hasattr(self, 'dyn_w_pre_proj'):
-          pre_proj_dw_args = self.dyn_w_pre_proj(query_vec)
-        if hasattr(self, 'dyn_w_post_proj'):
-          post_proj_dw_args = self.dyn_w_post_proj(key_vec)
+      pre_proj_dw_args, post_proj_dw_args = (None, ) * 6, (None, ) * 6
 
     if self.query_chunk_size is None:
       encoded = self._apply_attention_dot(query, key, value, attn_mask,  
@@ -569,11 +573,11 @@ class AttentionOp(nn.Module):
     # bnts
     attn_weights = self.qk_product(query, key)
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
-    # 5 demonsion
-    pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
-    post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
-
+   
     if self.pre_compose:
+      print(f'_apply_attention_dot-pre_compose: {self.pre_compose}')
+       # 5 demonsion
+      pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
       attn_weights = self.pre_proj(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
 
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
@@ -587,6 +591,8 @@ class AttentionOp(nn.Module):
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
 
     if self.post_compose:
+      print(f'_apply_attention_dot:post_compose: {self.post_compose}')
+      post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
       probs = self.post_proj(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
 
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
@@ -1070,6 +1076,8 @@ class Attention(nn.Module):
 
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
+    print(f'self.config.pre_compose: {self.config.pre_compose}')
+    print(f'self.config.post_compose: {self.config.post_compose}')
 
     attention_op = AttentionOp(mesh=self.mesh,
                                attention_kernel=self.attention_kernel,

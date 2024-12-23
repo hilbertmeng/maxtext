@@ -136,6 +136,8 @@ class PileDatasets():
         model_needed_inputs['targets'] = data["input_ids"][:, 1: seq_len]
         key = 'labels' if "labels" in data else 'input_ids'
         weights = data[key] >= 0 if self.zero_loss else data[key] > 0
+        # print(f'key: {key}')
+        # print(f'weights: {weights.sum()}')
         # label loss mask, origin bool type, but due the complie is int32
         model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1:seq_len], dtype=tf.int32) 
         model_needed_inputs['inputs_segmentation'] = tf.ones_like(model_needed_inputs['inputs'])  # attention mask

@@ -201,7 +201,7 @@ class DcformerDecoderLayer(nn.Module):
 
         if cfg.record_internal_nn_metrics:
             unshared_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(unshared_mlp_lnx)))
-            self.sow('intermediates', 'unshared_mlp_l2norm', unshared_mlp_l2norm)
+            self.sow('intermediates', 'unshared_mlp/l2norm', unshared_mlp_l2norm)
 
     if shared_mlp_lnx is None:
         max_logging.log(f'shared_mlp_lnx is None')

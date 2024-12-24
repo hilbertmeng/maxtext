@@ -410,7 +410,6 @@ class AttentionOp(nn.Module):
     I = 2
     num_heads_per_group = self.num_query_heads // self.num_groups
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
-    print(f'AttentionOp: self.pre_compose: {self.pre_compose} self.post_compose: {self.post_compose}')
     if self.pre_compose or self.post_compose:
       if self.is_cross_attention:
         for name in ['q_dyn_w_proj', 'k_dyn_w_proj']:
@@ -575,7 +574,6 @@ class AttentionOp(nn.Module):
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
    
     if self.pre_compose:
-      print(f'_apply_attention_dot-pre_compose: {self.pre_compose}')
        # 5 demonsion
       pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
       attn_weights = self.pre_proj(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
@@ -591,7 +589,6 @@ class AttentionOp(nn.Module):
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
 
     if self.post_compose:
-      print(f'_apply_attention_dot:post_compose: {self.post_compose}')
       post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
       probs = self.post_proj(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
 
@@ -1076,8 +1073,6 @@ class Attention(nn.Module):
 
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
-    print(f'self.config.pre_compose: {self.config.pre_compose}')
-    print(f'self.config.post_compose: {self.config.post_compose}')
 
     attention_op = AttentionOp(mesh=self.mesh,
                                attention_kernel=self.attention_kernel,

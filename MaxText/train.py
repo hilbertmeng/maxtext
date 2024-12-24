@@ -187,32 +187,44 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
 # Top-level Functions
 # -----------------------------------------------------------------------------
 
-
+# 如果记录这个比较多，会占用不少的显存，且增加编译时间
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
-  # lsp
+
   if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
     output_metrics["scalar"]["eos_sum"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum"]
-
   if 'eos_sum_mean' in intermediate_outputs["intermediates"]["decoder"]:
     output_metrics["scalar"]["eos_sum_mean"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum_mean"]
 
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"] # decode -> layers
-    for layer_num in [0, 24, 47]:
+    for layer_num in range(0, config.base_num_decoder_layers, 1):
       if config.n_shared_experts > 0:
         output_metrics["scalar"][f"shared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["shared_mlp_l2norm"][0][layer_num]
-      main_layer_num = layer_num // config.num_layers_per_block
-      sub_layer_num = layer_num % config.num_layers_per_block
-      if config.num_experts >= 1:
-        output_metrics["scalar"][f"unshared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["unshared_mlp_l2norm"][0][layer_num]
-        if sub_layer_num % config.insert_moe_divisor == 0:
-          mlp_key = 'unshared_mlp'
-          output_metrics["scalar"][f"router_gate/l2norm/{mlp_key}_layer_{layer_num:03d}"] = \
-                metrics_dict[f"{mlp_key}_{sub_layer_num}"]["router_gate/l2norm"][0][main_layer_num]
-          for i in range(0, config.num_experts, 3): # 只记录1/3专家状态
-            output_metrics["scalar"][f"expert_top/selected_expert_{i}_token_nums/{mlp_key}_layer_{layer_num:03d}"] =  \
-                    metrics_dict[f"{mlp_key}_{sub_layer_num}"][f"top/selected_expert_{i}_token_nums"][0][main_layer_num]
+      main_layer_num = layer_num // config.num_layers_per_block # [0, ..., 11]
+      sub_layer_num = layer_num % config.num_layers_per_block # 0,1,2,3
+      sub_layer_num_values = metrics_dict[f"unshared_mlp_{sub_layer_num}"]
+
+      if config.num_experts >= 1 and sub_layer_num % config.insert_moe_divisor == 0:
+        temp_dict = {
+          f"unshared_mlp_output/l2norm/layer_{layer_num:03d}": metrics_dict["unshared_mlp/l2norm"][0][layer_num],
+          f"router_logits/l2norm/unshared_mlp_layer_{layer_num:03d}": sub_layer_num_values["router_logits/l2norm"][0][main_layer_num],
+          f"router_logits/token_to_expert_score_up/unshared_mlp_layer_{layer_num:03d}":
+                           sub_layer_num_values["router_logits/token_to_expert_score"][0][main_layer_num],
+          f"router_logits/expert_to_token_score_down/unshared_mlp_layer_{layer_num:03d}":
+                           sub_layer_num_values["router_logits/expert_to_token_score"][0][main_layer_num],
+          f"sfm_after_topn/token_to_expert_score_up/unshared_mlp_layer_{layer_num:03d}":
+                           sub_layer_num_values["sfm_after_topn/token_to_expert_score"][0][main_layer_num],
+          f"sfm_after_topn/expert_to_token_score_down/unshared_mlp_layer_{layer_num:03d}":
+                           sub_layer_num_values["sfm_after_topn/expert_to_token_score"][0][main_layer_num],
+        }
+        output_metrics["scalar"].update(temp_dict)
+
+        temp_dict = {f"expert_top/selected_expert_{i}_token_nums/unshared_mlp_layer_{layer_num:03d}": 
+                sub_layer_num_values[f"top/selected_expert_token_nums"][0][main_layer_num][i] 
+                for i in range(0, config.num_experts, 1)}
+        output_metrics["scalar"].update(temp_dict)
+      
   else:
     for layer_num in range(config.num_decoder_layers):
       layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]
@@ -294,12 +306,16 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
     loss += moe_lb_loss
 
+  nested_key = ('intermediates', 'decoder', 'layers', 'unshared_mlp_0', 'router_gate/l2norm')
+  router_gate_norm = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+  router_gate_norm = jnp.array(router_gate_norm).squeeze()
   aux = {
       "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
       "aux_loss": moe_lb_loss,
       "accuracy": accuracy, 
+      "router_gate_norm": router_gate_norm
   }
   return loss, aux
 
@@ -396,13 +412,15 @@ def train_step(model, config, state, data, dropout_rng):
           "learning/train_batch_weights": aux['total_weights'],
       }
 
-  # params_scalar_values = compute_params_norm(new_state.params)
-  # scalar_values.update(params_scalar_values)
+  params_scalar_values = compute_params_norm(new_state.params)
+  scalar_values.update(params_scalar_values)
 
   metrics = {
       "scalar": scalar_values,
       "scalars": {},
+      # "aux": intermediate_outputs
   }
+  # intermediate_outputs = jax.tree_map(lambda x: jax.device_put(x, device=jax.devices("cpu")[0]), intermediate_outputs)
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
 
@@ -624,7 +642,7 @@ def train_loop(config, state=None):
     if config.only_eval:
       p_train_step = None
     else:
-      max_logging.log(f'in_shard_train: {in_shard_train}')
+      # max_logging.log(f'in_shard_train: {in_shard_train}')
       p_train_step = jax.jit(
           functional_train,
           in_shardings=in_shard_train,

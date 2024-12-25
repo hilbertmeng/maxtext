@@ -26,6 +26,7 @@ import sys
 import functools
 import pickle
 import time
+from collections import defaultdict
 
 from typing import Sequence
 from absl import app
@@ -313,7 +314,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "total_weights": total_weights,
       "aux_loss": moe_lb_loss,
       "accuracy": accuracy, 
-      "correct": correct
+      "correct": jnp.mean(correct)
   }
   return loss, aux
 
@@ -681,7 +682,8 @@ def train_loop(config, state=None):
       if eval_data_iterator is None: return eval_loss, False
       eval_data_iterator.reset()
       assert eval_data_iterator
-      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0., "total_correct": 0, "aux_loss": 0., "accuracy": 0.}
+      cumulative_eval_metrics = defaultdict(int)
+      count = 0
       for edx in range(config.eval_loop_num_batches):
         try:
           eval_batch = next(eval_data_iterator)
@@ -702,18 +704,20 @@ def train_loop(config, state=None):
 
           mean_eval_loss = _eval_loss / _weight
           cumulative_eval_metrics['total_batch_loss'] += mean_eval_loss
-
-          max_logging.log(f'eval_step: {edx} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} weight: {_weight} take: {time.time() - start_time:.3f}s')
+          count += 1
+          max_logging.log(f'eval_step: {count} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
           max_logging.log(f'error: {e} now start to reset eval dataloader')
+      aux_loss = cumulative_eval_metrics['aux_loss'] / count
       # token mean loss
       eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
       accuracy = cumulative_eval_metrics['total_correct'] / cumulative_eval_metrics['total_weights']
       # batch token mean loss
-      batch_eval_loss = cumulative_eval_metrics["total_batch_loss"] / (edx + 1)
+      batch_eval_loss = cumulative_eval_metrics["total_batch_loss"] / count
       # batch acc
-      batch_accuracy = cumulative_eval_metrics["accuracy"] /  (edx + 1)
-      max_logging.log(f"average loss after {step=}, eval_loss={eval_loss:.4f}, aux_loss={aux_loss:.4f}, accuracy={accuracy:.4f}, total_weights={cumulative_eval_metrics['total_weights']}")
+      batch_accuracy = cumulative_eval_metrics["accuracy"] / count
+      max_logging.log(f"average loss after {step=}, eval_loss={eval_loss:.4f}, aux_loss={aux_loss:.4f}, accuracy={accuracy:.4f}, \
+      batch_eval_loss={batch_eval_loss:.4f}, batch_accuracy={batch_accuracy:.4f} total_weights={cumulative_eval_metrics['total_weights']}")
       
       if jax.process_index() == 0:
         writer.add_scalar('learning/eval_loss', eval_loss, step)

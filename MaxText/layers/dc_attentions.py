@@ -254,7 +254,6 @@ class CrossHeadProjection(nn.Module):
   num_groups: int = 0
   relative_scale: float = 0.1
   static_proj: bool = True
-  loop_over_dynamic_hd: bool = True
   query_wise: bool = True
   key_wise: bool = True
   input_activation_cls: Optional[str] = None
@@ -265,6 +264,8 @@ class CrossHeadProjection(nn.Module):
   query_input_dim: int = None # medium: 1024
   key_input_dim: int = None # medium: 1024
   dynamic_w_hidden_dim: int = None # medium: 64
+  loop_over_dynamic_hd: bool = True
+  decompose_dynamic_w: bool = True
 
   def setup(self) -> None:
     self.num_heads_per_group = self.num_heads // self.num_groups
@@ -338,9 +339,9 @@ class CrossHeadProjection(nn.Module):
       for sym, (w1, w2) in zip(['T', 'S'], [(qw1, qw2), (kw1, kw2)]):
         dw_label = f'B{sym}G{hidden_sym}M' if w1.shape[-1] == self.num_heads_per_group \
           else f'B{sym}GM{hidden_sym}'  # BTGIM
-        dynamic_hidden_dim = w1.shape[dw_label.index(hidden_sym)] # 2
+        dynamic_hidden_dim = w1.shape[dw_label.index(hidden_sym)] # 2, 就是w1的I的值
         eqn1 = f'{inputs_label},{dw_label}->{hidden_label}' # 'BGMTS,BTGMI->BGITS'  lsp: 'BGMTS,BTGIM->BGITS'
-        eqn2 = f'{hidden_label},{dw_label}->{inputs_label}' # 'BGITS,BTGMI->BGMTS'  lsp: 'BGITS,BTGIM->BGITS'
+        eqn2 = f'{hidden_label},{dw_label}->{inputs_label}' # 'BGITS,BTGMI->BGMTS'  lsp: 'BGITS,BTGIM->BGMTS'
         if sym == 'T' and self.query_wise or sym == 'S' and self.key_wise:
           # dynamic_hidden_dim: I -> 2 lsp here
           if self.loop_over_dynamic_hd and dynamic_hidden_dim <= 2:  # 循环算
@@ -359,14 +360,12 @@ class CrossHeadProjection(nn.Module):
           else: # 整块算
             # 'BGMTS,BTGIM->BGITS'
             hidden = jnp.einsum(eqn1, inputs, w1)
-            # 'BGITS,BTGIM->BGITS'
-            if self.decompose_dynamic_w:
+            if self.decompose_dynamic_w:  # true
+              # 'BGITS,BTGIM->BGMTS'  -> out: BGMTS , ret: BGNTS, M == N
               out = jnp.einsum(eqn2, hidden, w2)
-              # ret = ret + out
-              ret = ret + out.sum(2) # I那个维度加和
+              ret = ret + out
             else:
-              # ret = ret + hidden
-              ret = ret + hidden.sum(2) # I那个维度加和
+              ret = ret + hidden
 
     if qdd is not None:  # 对logits做二次修改
       for sym, dd in zip(['T', 'S'], [qdd, kdd]):
@@ -404,6 +403,7 @@ class AttentionOp(nn.Module):
   static_proj: bool = True
   pre_compose: bool = True
   post_compose: bool = True
+  loop_over_dynamic_hd: bool = True
 
   def setup(self):
     input_dim = self.num_query_heads * self.head_dim
@@ -449,6 +449,7 @@ class AttentionOp(nn.Module):
                                   query_input_dim=input_dim,
                                   key_input_dim=input_dim,
                                   dynamic_w_hidden_dim=dynamic_w_hidden_dim,
+                                  loop_over_dynamic_hd=self.loop_over_dynamic_hd
         )
 
       self.post_proj = CrossHeadProjection(
@@ -461,6 +462,7 @@ class AttentionOp(nn.Module):
                                   query_input_dim=input_dim,
                                   key_input_dim=input_dim,
                                   dynamic_w_hidden_dim=dynamic_w_hidden_dim,
+                                  loop_over_dynamic_hd=self.loop_over_dynamic_hd
         )
 
   def check_attention_inputs(
@@ -535,6 +537,7 @@ class AttentionOp(nn.Module):
       w = self.query_chunk_size
       assert t % w == 0, f'{t} % {w} != 0'
       encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
+      # encoded = nn.with_logical_constraint(encoded, ('activation_batch', 'activation_length',  'heads', None),)
       for i in range(t // w):
         start, stop = i * w, (i + 1) * w
         kv_start = max(0, stop - w - self.window_size) if self.window_size is not None else 0
@@ -1092,7 +1095,8 @@ class Attention(nn.Module):
                                deterministic=deterministic,
                                static_proj=self.config.static_proj,
                                pre_compose=self.config.pre_compose,
-                               post_compose=self.config.post_compose)
+                               post_compose=self.config.post_compose,
+                               loop_over_dynamic_hd=self.config.loop_over_dynamic_hd)
 
     out = attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
 

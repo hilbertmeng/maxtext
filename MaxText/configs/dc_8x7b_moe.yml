@@ -127,7 +127,7 @@ pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS
 query_wise: True # pax: TGT_DEPENDENT
 key_wise: True # pax: SRC_DEPENDENT
-  
+loop_over_dynamic_hd: True
 head_dim: 128
 # mixture of experts (moe)
 

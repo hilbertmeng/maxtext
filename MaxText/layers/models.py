@@ -415,13 +415,13 @@ class Decoder(nn.Module):
       #                             kernel_in_axis,
       #                             kernel_out_axis)
       # logits_dense_kernel = jnp.asarray(logits_dense, jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype)
-      # chunks = 4
+      # chunks = 1
       # vdim = cfg.vocab_size // chunks
-      # logits = []
+      # logits = jnp.zeros((*y.shape[ :2], cfg.vocab_size), dtype=y.dtype)
+      # # logits = nn.with_logical_constraint(logits, ('activation_batch', 'activation_length',  'mlp'),)
       # for i in range(chunks):
       #   _logits = jnp.einsum('bld,dv->blv', y, logits_dense_kernel[:, i*vdim: (i+1)*vdim])
-      #   logits.append(_logits)
-      # logits = jnp.concatenate(logits, axis=-1)
+      #   logits = logits.at[..., i*vdim: (i+1)*vdim].set(_logits)
       logits = linears.DenseGeneral(
           cfg.vocab_size,
           weight_dtype=cfg.weight_dtype,

@@ -202,6 +202,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
     for layer_num in range(0, config.base_num_decoder_layers, 1):
       if config.n_shared_experts > 0:
         output_metrics["scalar"][f"shared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["shared_mlp_l2norm"][0][layer_num]
+      # moe metrics
       if config.num_experts >= 1 and sub_layer_num % config.insert_moe_divisor == 0:
         main_layer_num = layer_num // config.num_layers_per_block # [0, ..., 11]
         sub_layer_num = layer_num % config.num_layers_per_block # 0,1,2,3
@@ -704,8 +705,8 @@ def train_loop(config, state=None):
           mean_eval_loss = _eval_loss / _weight
           cumulative_eval_metrics['total_batch_loss'] += mean_eval_loss
           count += 1
-          max_logging.log(f'eval_step: {count} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} _correct: \
-          {_correct} weight: {_weight} take: {time.time() - start_time:.3f}s')
+          max_logging.log(f'eval_step: {count} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} \
+          correct: {_correct} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
           max_logging.log(f'error: {e} now start to reset eval dataloader')
       aux_loss = cumulative_eval_metrics['aux_loss'] / count
@@ -716,7 +717,7 @@ def train_loop(config, state=None):
       batch_eval_loss = cumulative_eval_metrics["total_batch_loss"] / count
       # batch acc
       batch_accuracy = cumulative_eval_metrics["accuracy"] / count
-      max_logging.log(f"average loss after {step=}, eval_loss={eval_loss:.4f}, aux_loss={aux_loss:.4f}, accuracy={accuracy:.4f}, \
+      max_logging.log(f"average loss after {step=}, eval_loss={eval_loss:.4f}, aux_loss={aux_loss:.4f}, accuracy={accuracy:.4f},\
       batch_eval_loss={batch_eval_loss:.4f}, batch_accuracy={batch_accuracy:.4f} total_weights={cumulative_eval_metrics['total_weights']}")
       
       if jax.process_index() == 0:

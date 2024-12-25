@@ -240,8 +240,9 @@ def compute_accuracy(logits, targets, masks):
         jnp.argmax(logits, axis=-1) == targets,
         jnp.array(False)
     )
-  accuracy = jnp.mean(jnp.sum(correct, axis=-1) / batch_weights)
-  return accuracy
+  correct = jnp.sum(correct, axis=-1)
+  accuracy = jnp.mean(correct / batch_weights)
+  return correct, accuracy
 
 
 def loss_fn(model, config, data, dropout_rng, params, is_train=True):
@@ -276,7 +277,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
-  accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"])
+  correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"])
   flat_intermediate = flatten_dict(intermediate_outputs)
 
   # ('intermediates', 'decoder', 'layers', 'mlp_0/1/2/3', 'aux_loss')
@@ -306,16 +307,13 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
     loss += moe_lb_loss
 
-  nested_key = ('intermediates', 'decoder', 'layers', 'unshared_mlp_0', 'router_gate/l2norm')
-  router_gate_norm = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
-  router_gate_norm = jnp.array(router_gate_norm).squeeze()
   aux = {
       "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
       "aux_loss": moe_lb_loss,
       "accuracy": accuracy, 
-      "router_gate_norm": router_gate_norm
+      "correct": correct
   }
   return loss, aux
 
@@ -360,7 +358,7 @@ def train_step(model, config, state, data, dropout_rng):
       grad_func = jax.value_and_grad(loss_fn, argnums=4, has_aux=True)
       # loss_fn返回的第一个参数必须是loss，且以这个loss作为梯度反传
       (_, aux), cur_batch_gradient = grad_func(model, config, data, dropout_rng, state.params, is_train=True)
-      acc_grad_and_loss["loss"] += aux["total_loss"]
+      acc_grad_and_loss["total_loss"] += aux["total_loss"]
       acc_grad_and_loss["aux_loss"] += aux["aux_loss"]
       acc_grad_and_loss["accuracy"] += aux["accuracy"]
       # 计算每个参数的梯度 * weights，这里相当于多乘了一个weights，之后要除回去
@@ -383,8 +381,6 @@ def train_step(model, config, state, data, dropout_rng):
     grad_and_loss, aux = jax.lax.scan(
         accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
     )
-    # 无aux_loss得loss
-    loss =  grad_and_loss["loss"] / grad_and_loss["total_weights"]
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
     aux = jax.tree.map(lambda x: jnp.sum(x, axis=0), aux)
     aux['aux_loss'] = grad_and_loss["aux_loss"] / config.gradient_accumulation_steps
@@ -403,7 +399,7 @@ def train_step(model, config, state, data, dropout_rng):
   new_state = state.apply_gradients(grads=grads)
   
   scalar_values = {
-          "learning/loss": loss - aux['aux_loss'],
+          "learning/loss": aux['total_loss'] / aux['total_weights'],
           "learning/aux_loss": aux['aux_loss'],  # lsp
           "learning/accuracy": aux['accuracy'],
           "learning/grad_norm": max_utils.l2norm_pytree(grads),
@@ -431,14 +427,16 @@ def eval_step(model, config, state, data, dropout_rng):
   """eval_step no backprop and new state compared with train_step."""
   eval_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=False)
   loss, aux = eval_loss_fn(state.params)
+
   metrics = {
       "scalar": 
       {
-      "evaluation/loss": loss - aux['aux_loss'],  # lsp
+      "evaluation/loss": aux["total_loss"] / aux["total_weights"],  # lsp: batch token mean loss
       "evaluation/total_loss": aux["total_loss"], 
       "evaluation/total_weights": aux["total_weights"],
       "evaluation/aux_loss": aux["aux_loss"],
       "evaluation/accuracy": aux["accuracy"],
+      "evaluation/correct": aux["correct"],
       }
   }
   return metrics
@@ -683,7 +681,7 @@ def train_loop(config, state=None):
       if eval_data_iterator is None: return eval_loss, False
       eval_data_iterator.reset()
       assert eval_data_iterator
-      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0., "aux_loss": 0., "accuracy": 0.}
+      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0., "total_correct": 0, "aux_loss": 0., "accuracy": 0.}
       for edx in range(config.eval_loop_num_batches):
         try:
           eval_batch = next(eval_data_iterator)
@@ -691,28 +689,37 @@ def train_loop(config, state=None):
             eval_metrics = p_eval_step(state, eval_batch, nextrng)
             _eval_loss = float(eval_metrics['scalar']['evaluation/total_loss'])
             _weight = float(eval_metrics['scalar']['evaluation/total_weights'])
+            _correct = float(eval_metrics['scalar']['evaluation/correct'])
             _accuracy = float(eval_metrics['scalar']['evaluation/accuracy'])
             _aux_loss = float(eval_metrics['scalar']['evaluation/aux_loss'])
 
           cumulative_eval_metrics['total_loss'] += _eval_loss
           cumulative_eval_metrics['total_weights'] += _weight
+          cumulative_eval_metrics['total_correct'] += _correct
+
           cumulative_eval_metrics['aux_loss'] += _aux_loss
-          cumulative_eval_metrics['accuracy'] += _accuracy
+          cumulative_eval_metrics['accuracy'] += _accuracy # batch acc
 
           mean_eval_loss = _eval_loss / _weight
+          cumulative_eval_metrics['total_batch_loss'] += mean_eval_loss
 
           max_logging.log(f'eval_step: {edx} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
           max_logging.log(f'error: {e} now start to reset eval dataloader')
-      
+      # token mean loss
       eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
-      aux_loss = cumulative_eval_metrics["aux_loss"] / (edx + 1)
-      accuracy = cumulative_eval_metrics["accuracy"] /  (edx + 1)
+      accuracy = cumulative_eval_metrics['total_correct'] / cumulative_eval_metrics['total_weights']
+      # batch token mean loss
+      batch_eval_loss = cumulative_eval_metrics["total_batch_loss"] / (edx + 1)
+      # batch acc
+      batch_accuracy = cumulative_eval_metrics["accuracy"] /  (edx + 1)
       max_logging.log(f"average loss after {step=}, eval_loss={eval_loss:.4f}, aux_loss={aux_loss:.4f}, accuracy={accuracy:.4f}, total_weights={cumulative_eval_metrics['total_weights']}")
       
       if jax.process_index() == 0:
         writer.add_scalar('learning/eval_loss', eval_loss, step)
         writer.add_scalar('learning/eval_accuracy', accuracy, step)
+        writer.add_scalar('learning/batch_eval_loss', batch_eval_loss, step)
+        writer.add_scalar('learning/batch_eval_accuracy', batch_accuracy, step)
         max_logging.log(f"Write step {step} eval loss: {eval_loss:4f} accuracy: {accuracy:.4f} to tensorboard ")
         writer.flush()
 

@@ -202,11 +202,10 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
     for layer_num in range(0, config.base_num_decoder_layers, 1):
       if config.n_shared_experts > 0:
         output_metrics["scalar"][f"shared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["shared_mlp_l2norm"][0][layer_num]
-      main_layer_num = layer_num // config.num_layers_per_block # [0, ..., 11]
-      sub_layer_num = layer_num % config.num_layers_per_block # 0,1,2,3
-      sub_layer_num_values = metrics_dict[f"unshared_mlp_{sub_layer_num}"]
-
       if config.num_experts >= 1 and sub_layer_num % config.insert_moe_divisor == 0:
+        main_layer_num = layer_num // config.num_layers_per_block # [0, ..., 11]
+        sub_layer_num = layer_num % config.num_layers_per_block # 0,1,2,3
+        sub_layer_num_values = metrics_dict[f"unshared_mlp_{sub_layer_num}"]
         temp_dict = {
           f"unshared_mlp_output/l2norm/layer_{layer_num:03d}": metrics_dict["unshared_mlp/l2norm"][0][layer_num],
           f"router_logits/l2norm/unshared_mlp_layer_{layer_num:03d}": sub_layer_num_values["router_logits/l2norm"][0][main_layer_num],
@@ -314,7 +313,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "total_weights": total_weights,
       "aux_loss": moe_lb_loss,
       "accuracy": accuracy, 
-      "correct": jnp.mean(correct)
+      "correct": jnp.sum(correct)
   }
   return loss, aux
 
@@ -705,7 +704,8 @@ def train_loop(config, state=None):
           mean_eval_loss = _eval_loss / _weight
           cumulative_eval_metrics['total_batch_loss'] += mean_eval_loss
           count += 1
-          max_logging.log(f'eval_step: {count} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} weight: {_weight} take: {time.time() - start_time:.3f}s')
+          max_logging.log(f'eval_step: {count} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} _correct: \
+          {_correct} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
           max_logging.log(f'error: {e} now start to reset eval dataloader')
       aux_loss = cumulative_eval_metrics['aux_loss'] / count

@@ -1108,20 +1108,20 @@ class DcMoeBlock(nn.Module):
           self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
         
         # 有padding的时候放开, 一般预训练没有pad
-        # if paddings is not None:
-        #     max_logging.log(f'paddings: {paddings.shape}')
-        #     max_logging.log(f'token_shape: {token_shape}')
+        if paddings is not None:
+            max_logging.log(f'paddings: {paddings.shape}')
+            max_logging.log(f'token_shape: {token_shape}')
             
-        #     assert paddings.shape == token_shape
-        #     # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
-        #     nonpaddings = paddings
-        #     nonpaddings = jnp.reshape(nonpaddings, grouped_inputs.shape[:2])
-        #     gate_mask = jnp.expand_dims(nonpaddings, axis=-1)
-        #     # expert_gate *= gate_mask
+            assert paddings.shape == token_shape
+            # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
+            nonpaddings = paddings
+            nonpaddings = jnp.reshape(nonpaddings, grouped_inputs.shape[:2])
+            gate_mask = jnp.expand_dims(nonpaddings, axis=-1)
+            # expert_gate *= gate_mask
     
-        #     expert_index *= (2 * gate_mask - 1.) # lsp:将被mask的专家的所以变为负值，这样在之后转为one hot形式的时候就不会考虑
-        #     expert_index += jnp.repeat(gate_mask - 1., topn, axis=-1)
-        #     router_probs *= gate_mask # ble
+            expert_index *= (2 * gate_mask - 1.) # lsp:将被mask的专家的所以变为负值，这样在之后转为one hot形式的时候就不会考虑
+            expert_index += jnp.repeat(gate_mask - 1., topn, axis=-1)
+            router_probs *= gate_mask # ble
 
         aux_loss, router_z_loss = 0.0, 0.0
         if self.aux_loss_coef is not None:

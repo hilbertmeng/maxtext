@@ -203,9 +203,9 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       if config.n_shared_experts > 0:
         output_metrics["scalar"][f"shared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["shared_mlp_l2norm"][0][layer_num]
       # moe metrics
+      sub_layer_num = layer_num % config.num_layers_per_block # 0,1,2,3
       if config.num_experts >= 1 and sub_layer_num % config.insert_moe_divisor == 0:
         main_layer_num = layer_num // config.num_layers_per_block # [0, ..., 11]
-        sub_layer_num = layer_num % config.num_layers_per_block # 0,1,2,3
         sub_layer_num_values = metrics_dict[f"unshared_mlp_{sub_layer_num}"]
         temp_dict = {
           f"unshared_mlp_output/l2norm/layer_{layer_num:03d}": metrics_dict["unshared_mlp/l2norm"][0][layer_num],

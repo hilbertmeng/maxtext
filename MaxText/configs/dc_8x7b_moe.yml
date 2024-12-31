@@ -94,7 +94,7 @@ query_chunk_size: 512 # null or int.  moe 512 速度最快
 max_target_length: 4097 # Maximum sequence length
 reset_for_eval: True # True will rest eval dataset
 epoch: 1
-train_shuffle_buffer_size: null # null or int
+train_shuffle_buffer_size: 200000 # null or int
 eval_shuffle_buffer_size: null # null or int
 training_num_batches_to_skip: null # skip data , null or int
 zero_loss: True # whether to compute id zero loss when train

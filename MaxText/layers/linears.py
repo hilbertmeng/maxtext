@@ -764,7 +764,7 @@ class MoeBlock(nn.Module):
         gate_logits += noise * self.config.gate_noise_coef
 
     if self.config.record_internal_nn_metrics:
-      l2norm = jnp.linalg.norm(gate_logits.reshape(-1, gate_logits.shape[-1]), ord=2, axis=(0, 1))
+      l2norm = jnp.sqrt(jnp.sum(jnp.square(gate_logits)))
       self.sow('intermediates', 'router_gate/l2norm', l2norm)
       # router_probs = jax.nn.softmax(gate_logits.astype(jnp.float32), axis=-1)
       # record_gate(self, 'router_gate', router_probs)

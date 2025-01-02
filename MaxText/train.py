@@ -218,6 +218,10 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                            sub_layer_num_values["sfm_after_topn/token_to_expert_score"][0][main_layer_num],
           f"sfm_after_topn/expert_to_token_score_down/unshared_mlp_layer_{layer_num:03d}":
                            sub_layer_num_values["sfm_after_topn/expert_to_token_score"][0][main_layer_num],
+          f"router_logits/noise_before_{layer_num:03d}/max": sub_layer_num_values["router_logits/noise_before/max"][0][main_layer_num],
+          f"router_logits/noise_before_{layer_num:03d}/min": sub_layer_num_values["router_logits/noise_before/min"][0][main_layer_num],
+          f"router_logits/noise_after_{layer_num:03d}/max": sub_layer_num_values["router_logits/noise_after/max"][0][main_layer_num],
+          f"router_logits/noise_after_{layer_num:03d}/min": sub_layer_num_values["router_logits/noise_after/min"][0][main_layer_num],
         }
         output_metrics["scalar"].update(temp_dict)
 

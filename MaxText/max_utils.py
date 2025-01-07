@@ -107,6 +107,7 @@ def initialize_summary_writer(config):
 
 def close_summary_writer(summary_writer):
   if jax.process_index() == 0:
+    summary_writer.flush()
     summary_writer.close()
 
 

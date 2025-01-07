@@ -148,14 +148,13 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
         writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
 
     full_log = step % config.log_period == 0
-    max_logging.log(
-        f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
-        f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-        f"loss: {metrics['scalar']['learning/loss']:.3f}, "
-        f"aux_loss: {metrics['scalar']['learning/aux_loss']:.3f}, "
-        f"accuracy: {metrics['scalar']['learning/accuracy']:.4f}"
-    )
-
+    # max_logging.log(
+    #     f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
+    #     f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
+    #     f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+    #     f"aux_loss: {metrics['scalar']['learning/aux_loss']:.3f}, "
+    #     f"accuracy: {metrics['scalar']['learning/accuracy']:.4f}"
+    # )
     if full_log and jax.process_index() == 0:
       max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
       writer.flush()
@@ -218,10 +217,10 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                            sub_layer_num_values["sfm_after_topn/token_to_expert_score"][0][main_layer_num],
           f"sfm_after_topn/expert_to_token_score_down/unshared_mlp_layer_{layer_num:03d}":
                            sub_layer_num_values["sfm_after_topn/expert_to_token_score"][0][main_layer_num],
-          f"router_logits/noise_before_{layer_num:03d}/max": sub_layer_num_values["router_logits/noise_before/max"][0][main_layer_num],
-          f"router_logits/noise_before_{layer_num:03d}/min": sub_layer_num_values["router_logits/noise_before/min"][0][main_layer_num],
-          f"router_logits/noise_after_{layer_num:03d}/max": sub_layer_num_values["router_logits/noise_after/max"][0][main_layer_num],
-          f"router_logits/noise_after_{layer_num:03d}/min": sub_layer_num_values["router_logits/noise_after/min"][0][main_layer_num],
+          # f"router_logits/noise_before_{layer_num:03d}/max": sub_layer_num_values["router_logits/noise_before/max"][0][main_layer_num],
+          # f"router_logits/noise_before_{layer_num:03d}/min": sub_layer_num_values["router_logits/noise_before/min"][0][main_layer_num],
+          # f"router_logits/noise_after_{layer_num:03d}/max": sub_layer_num_values["router_logits/noise_after/max"][0][main_layer_num],
+          # f"router_logits/noise_after_{layer_num:03d}/min": sub_layer_num_values["router_logits/noise_after/min"][0][main_layer_num],
         }
         output_metrics["scalar"].update(temp_dict)
 
@@ -762,8 +761,17 @@ def train_loop(config, state=None):
       if checkpoint_manager.reached_preemption(step):
         checkpoint_manager.wait_until_finished()
         sys.exit()
-
-    write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
+    # 每步打印
+    max_logging.log(
+        f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
+        f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
+        f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+        f"aux_loss: {metrics['scalar']['learning/aux_loss']:.3f}, "
+        f"accuracy: {metrics['scalar']['learning/accuracy']:.4f}"
+    )
+    if step % 5 == 0:
+      # 每隔5步进行写入，每隔log_period进行flush
+      write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
 
     if eval_loss <= config.target_eval_loss:
         max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
@@ -775,6 +783,7 @@ def train_loop(config, state=None):
 
   if checkpoint_manager is not None:
     checkpoint_manager.wait_until_finished()
+
   write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, config.steps - 1, config)  # final step metrics
   max_utils.close_summary_writer(writer)
   record_goodput(recorder, config, job_end=True)

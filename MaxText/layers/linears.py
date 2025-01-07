@@ -1090,6 +1090,12 @@ class DcMoeBlock(nn.Module):
             self.sow('intermediates', 'router_logits/noiso_after/min', router_logits.min())
 
         _, expert_index, one_hot_indices = _top_k(router_logits, k=topn)
+        # NVIDIA：Upcycling Large Language Models into Mixture of Experts做法：
+        # router_logits: b s * e -> b * s * G * e,  11组，每组8个专家，G11T11 one_hot_indices
+        # one_hot_indices: b * s * top * e -> b * s * G * top * e , reshape -> b * s * (G * top) * e
+        # expert_index: b s top -> b s G top,
+        # 如果按照之前不分组的做法的话，router_logits  reshape：b s * (G e)
+        # expert_index + range(0, 88, 8)
 
         if self.config.sfm_after_topn:
           assert one_hot_indices is not None
@@ -1111,7 +1117,13 @@ class DcMoeBlock(nn.Module):
           l2norm = jnp.sqrt(jnp.sum(jnp.square(router_logits)))
           self.sow('intermediates', 'router_logits/l2norm', l2norm)
           record_gate(self, 'router_logits', router_logits, axis=(0, 1))
-          record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1))
+          # 解释：
+          # expert2token： router_probs = [[0.] * 6 + [0.5, 0.5]], 极端均匀选择2个专家，熵最大，为1.0，
+          # router_probs = [[0.] * 6 + [1.0, 0.0]]，极端不均匀选择2个专家，熵最大，为0.0。
+          # token2expert： router_probs = [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125], 每个专家极端均匀选择token，熵最大，为3.0，
+          # router_probs = [0] * 7 + [1.0, 0.]，每个专家极端不均匀选择token，熵最大，为0.0。
+          record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1)) 
+          # top2, expert2token: E=8, max: 3, min:0.5
           top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, 1)])
           self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
         

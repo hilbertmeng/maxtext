@@ -1076,18 +1076,18 @@ class DcMoeBlock(nn.Module):
                 kernel_axes=self.kernel_axes,
                 name=self.router_name)(token_inputs)
 
-        if self.config.record_internal_nn_metrics:
-          self.sow('intermediates', 'router_logits/noiso_before/max', router_logits.max())
-          self.sow('intermediates', 'router_logits/noiso_before/min', router_logits.min())
+        # if self.config.record_internal_nn_metrics:
+        #   self.sow('intermediates', 'router_logits/noiso_before/max', router_logits.max())
+        #   self.sow('intermediates', 'router_logits/noiso_before/min', router_logits.min())
 
         if self.config.gate_noise_coef > 0.0:
           max_logging.log(f'gate_noise_coef: {self.config.gate_noise_coef}')
           noise = gumbel_noise(router_logits, seed=self.config.init_weights_seed)
           router_logits += noise * self.config.gate_noise_coef
 
-          if self.config.record_internal_nn_metrics:
-            self.sow('intermediates', 'router_logits/noiso_after/max', router_logits.max())
-            self.sow('intermediates', 'router_logits/noiso_after/min', router_logits.min())
+          # if self.config.record_internal_nn_metrics:
+          #   self.sow('intermediates', 'router_logits/noiso_after/max', router_logits.max())
+          #   self.sow('intermediates', 'router_logits/noiso_after/min', router_logits.min())
 
         _, expert_index, one_hot_indices = _top_k(router_logits, k=topn)
         # NVIDIA：Upcycling Large Language Models into Mixture of Experts做法：

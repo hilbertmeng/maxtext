@@ -160,6 +160,16 @@ def _lists_to_tuples(l: list[Any]) -> Union[tuple[Any], list[Any]]:
   return tuple(_lists_to_tuples(x) for x in l) if isinstance(l, list) else l
 
 
+def my_vars(cls): return {k: v for k, v in vars(cls).items() if not k.startswith('__')} # XD
+def cls_attr2dict(cls):  # XD
+  d = {}
+  for c in cls.mro():
+    for k, v in my_vars(c).items():
+      if k not in d:
+        d[k] = v
+  return d
+
+
 class _HyperParameters:
   # pylint: disable=missing-class-docstring
   def _validate_env_variables(self, raw_data_from_yaml: dict[str, Any]):
@@ -221,8 +231,12 @@ class _HyperParameters:
 
   def _load_config(self, config_name: str) -> dict[str, Any]:
     """Loads the YAML config from a file with a given name."""
-    with open(config_name, "r", encoding="utf-8") as yaml_file:
-      raw_data_from_yaml = yaml.safe_load(yaml_file)
+    if not os.path.exist(config_name):  # XD
+      import exp
+      raw_data_from_yaml = cls_attr2dict(getattr(exp, config_name))
+    else:
+      with open(config_name, "r", encoding="utf-8") as yaml_file:
+        raw_data_from_yaml = yaml.safe_load(yaml_file)
 
     # Load data from parent config. Note that inheritance has override
     # semantics, and the path is relative to the current config.

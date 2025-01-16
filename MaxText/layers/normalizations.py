@@ -41,6 +41,7 @@ class RMSNorm(nn.Module):
     features = x.shape[-1]
     mean2 = jnp.mean(lax.square(x), axis=-1, keepdims=True)
     y = jnp.asarray(x * lax.rsqrt(mean2 + self.epsilon), self.dtype)
+    if self.scale_init is None: return y  # XD
     scale = self.param(
         "scale",
         nn.with_logical_partitioning(self.scale_init, self.kernel_axes),

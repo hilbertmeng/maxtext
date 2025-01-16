@@ -28,6 +28,8 @@ from layers import linears
 from layers import normalizations
 from layers import models
 from layers import quantizations
+from layers import initializers  # XD
+from linears import _convert_to_activation_function  # XD
 
 import common_types
 from typing import Optional
@@ -52,6 +54,8 @@ Embed = embeddings.Embed
 Attention = attentions.Attention
 RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
+nd_dense_init = initializers.nd_dense_init  # XD
+DenseGeneral = linears.DenseGeneral  # XD
 
 # -----------------------------------------
 # The Decoder Layer specific for Llama2
@@ -65,6 +69,54 @@ class LlamaDecoderLayer(nn.Module):
   mesh: Mesh
   quant: Optional[Quant] = None
 
+  def setup(self) -> None:  # XD
+    cfg = self.config
+    if not getattr(cfg, 'dense_conn', False): return
+
+    self.dense_norm = models.RMSNorm(
+      dtype=cfg.dtype,
+      weight_dtype=cfg.weight_dtype,
+      name="dense_norm",
+      kernel_axes=("norm",),
+      epsilon=cfg.normalization_layer_epsilon,
+    )
+    
+    factor = 1
+    i = int(self.name.split('_')[-1])  # name=f"layers_{i}"
+    C = 1 if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1 else len(cfg.dynamic_dense_type)
+    dw_shape = (C, ((i + 1) * factor + 1))
+    dynamic_dense_inter_dim = int(math.prod(dw_shape) * cfg.dynamic_dense_hidden_expand)
+    if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1:
+      dynamic_dense_inter_dim *= len(cfg.dynamic_dense_type)
+    if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
+      # assert dynamic_dense_inter_dim < 128
+      dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 +1) * 64
+
+    kwargs = dict(
+      dtype=self.dtype,
+      weight_dtype=self.weight_dtype,
+      quant=self.quant,
+    )
+    self.dense_proj1 = DenseGeneral(
+      dynamic_dense_inter_dim,
+      kernel_init=nd_dense_init(1.0, "fan_in", "normal"),
+      kernel_axes=('embed', 'kv'),
+      use_bias=False,
+      name='dynamic_dense_conn1',
+      **kwargs
+    )
+    self.dense_activation = _convert_to_activation_function(cfg.dynamic_dense_act_cls)
+    init_v = [0] * ((i + 1) * factor) + [1]  # dense_bias_init_method == 'current_only'
+    self.dense_proj2 = DenseGeneral(
+      dw_shape,
+      kernel_init=nn.initializers.constant(0),
+      kernel_axes=('kv', None),
+      use_bias=True,
+      bias_init=nn.initializers.constant(init_v), # jnp.full support array and broadcasting
+      name='dynamic_dense_conn2',
+      **kwargs
+    )
+    
   @nn.compact
   def __call__(
       self,
@@ -77,18 +129,39 @@ class LlamaDecoderLayer(nn.Module):
     cfg = self.config
     mesh = self.mesh
 
-    inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
+    def norm(inputs, name_suffix=''):  # XD
+        lnx_rms = models.RMSNorm(
+            dtype=cfg.dtype,
+            weight_dtype=cfg.weight_dtype,
+            name='_'.join(["pre_self_attention_layer_norm", name_suffix]),
+            kernel_axes=("norm",),
+            epsilon=cfg.normalization_layer_epsilon,
+        )
+        lnx = lnx_rms(inputs)
+        return nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
 
-    lnx_rms = models.RMSNorm(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="pre_self_attention_layer_norm",
-        kernel_axes=("norm",),
-        epsilon=cfg.normalization_layer_epsilon,
-    )
-    lnx = lnx_rms(inputs)
+    if getattr(cfg, 'dynamic_dense_type', None) is not None: # XD
+      assert cfg.dynamic_dense_type == 'qkvm', cfg.dynamic_dense_type
+      assert isinstance(inputs, (tuple, list)) and len(inputs) == 4
+      inputs = [nn.with_logical_constraint(i, ("activation_batch", "activation_length", "activation_embed")) for i in inputs]
+      lnx_q, *lnx_kv = [norm(inp, name_suffix)[-1] for inp, name_suffix in zip(inputs[:3], 'qkv')]
+      inputs = inputs[-1]
+    else:
+      inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
+      lnx_q = lnx_kv = norm(inputs)
 
-    lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
+    # inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
+
+    # lnx_rms = models.RMSNorm(
+    #     dtype=cfg.dtype,
+    #     weight_dtype=cfg.weight_dtype,
+    #     name="pre_self_attention_layer_norm",
+    #     kernel_axes=("norm",),
+    #     epsilon=cfg.normalization_layer_epsilon,
+    # )
+    # lnx = lnx_rms(inputs)
+
+    # lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
 
     # Self-attention block
     attention_layer = Attention(
@@ -114,8 +187,8 @@ class LlamaDecoderLayer(nn.Module):
     )
 
     attention_lnx = attention_layer(
-        lnx,
-        lnx,
+        lnx_q, # XD lnx,
+        lnx_kv, # XD lnx,
         decoder_positions,
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
@@ -157,6 +230,11 @@ class LlamaDecoderLayer(nn.Module):
         ("activation_batch", "activation_length", "activation_embed"),
     )
 
+    if getattr(cfg, 'dynamic_dense_type', None) is not None: # XD
+      x_out_normed = self.dense_norm(layer_output)
+      dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
+      dyn_dense_w = self.dense_proj2(dense_w_inner)
+
     if cfg.record_internal_nn_metrics:
       self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
       self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
@@ -169,4 +247,4 @@ class LlamaDecoderLayer(nn.Module):
     if cfg.scan_layers:
       return layer_output, None
     else:
-      return layer_output
+      return layer_output if getattr(cfg, 'dynamic_dense_type', None) is None else (layer_output, dyn_dense_w)  # XD

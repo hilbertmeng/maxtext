@@ -115,7 +115,8 @@ ds = ds.map(_parse_function, num_parallel_calls=tf.data.AUTOTUNE)
 tf.random.set_seed(9875)
 ds = ds.shuffle(buffer_size=shuffle_buffer_size)
 padded_shapes = {key: seq_len for key in task_features}
-padding_values = {key: pad_id for key in task_features}
+padding_values = {key: 0 if key == 'input_ids' else -100 for key in task_features}
+# padding_values = {key: pad_id for key in task_features}
 ds = ds.padded_batch(
     batch_size=np.prod(batch_size),
     padded_shapes=padded_shapes,

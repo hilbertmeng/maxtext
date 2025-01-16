@@ -737,11 +737,12 @@ def train_loop(config, state=None):
     return eval_loss, False
 
   eval_start_step = config.eval_start_step
+  count = 0
   for step in np.arange(start_step, config.steps):
-
-    # if (step + 1) % config.tensorboard_file_period == 0: # 每隔10000步新建一个tensorboard文件，不然如果tensorboard文件过大，写入会很慢
-    #   max_utils.close_summary_writer(writer)
-    #   writer = max_utils.initialize_summary_writer(config)
+    count += 1
+    if count % 10000 == 0: # 每隔10000步新建一个tensorboard文件，不然如果tensorboard文件过大，写入会很慢
+      max_utils.close_summary_writer(writer)
+      writer = max_utils.initialize_summary_writer(config)
 
     if step == first_profiling_step:
       prof.activate()

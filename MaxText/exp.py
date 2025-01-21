@@ -10,7 +10,9 @@ class Llama:
     steps: 10000000
     log_period: 10 # Flushes Tensorboard
 
-    max_target_length = 2048
+    max_target_length = 2049
+    
+    # dataset_type = 'pile'
     
 
 class LlamaMedium(Llama):
@@ -43,6 +45,11 @@ class MUDDLlama(Llama):
     dynamic_dense_fix_last_layer = True
     dynamic_dense_hidden_expand = 1
     dynamic_dense_hidden_round = False
+    scan_layers = False
+    ddw_gen_pattern='q,k,v,m'
+    ddw_gen_chunk_size=None
+    mudd_prenorm=True
+    mudd_postnorm=True
 
 class MUDDLlamaMedium(MUDDLlama, LlamaMedium):
     pass

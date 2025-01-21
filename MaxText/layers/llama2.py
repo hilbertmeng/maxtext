@@ -20,6 +20,7 @@ limitations under the License.
 
 from flax import linen as nn
 from jax.sharding import Mesh
+import numpy as np
 import jax.numpy as jnp
 # from jax.experimental.pallas.ops.tpu import flash_attention
 from layers import attentions
@@ -29,10 +30,11 @@ from layers import normalizations
 from layers import models
 from layers import quantizations
 from layers import initializers  # XD
-from linears import _convert_to_activation_function  # XD
 
 import common_types
 from typing import Optional
+
+import max_logging
 
 Array = common_types.Array
 Config = common_types.Config
@@ -56,7 +58,7 @@ RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 nd_dense_init = initializers.nd_dense_init  # XD
 DenseGeneral = linears.DenseGeneral  # XD
-
+contant_dense_init = initializers.contant_dense_init  # lsp
 # -----------------------------------------
 # The Decoder Layer specific for Llama2
 # -----------------------------------------
@@ -73,19 +75,24 @@ class LlamaDecoderLayer(nn.Module):
     cfg = self.config
     if not getattr(cfg, 'dense_conn', False): return
 
-    self.dense_norm = models.RMSNorm(
-      dtype=cfg.dtype,
-      weight_dtype=cfg.weight_dtype,
-      name="dense_norm",
-      kernel_axes=("norm",),
-      epsilon=cfg.normalization_layer_epsilon,
-    )
+    norm_kwargs = {
+                "dtype": cfg.dtype,
+                "weight_dtype": cfg.weight_dtype,
+                "name": "dense_norm",
+                "kernel_axes": ("norm",),
+                "epsilon": cfg.normalization_layer_epsilon,
+                }
+    if not getattr(cfg, 'mudd_prenorm', False):
+        max_logging.log(f'mudd_prenorm is False')
+        norm_kwargs['scale_init'] = None
+
+    self.dense_norm = models.RMSNorm(**norm_kwargs)
     
     factor = 1
     i = int(self.name.split('_')[-1])  # name=f"layers_{i}"
     C = 1 if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1 else len(cfg.dynamic_dense_type)
     dw_shape = (C, ((i + 1) * factor + 1))
-    dynamic_dense_inter_dim = int(math.prod(dw_shape) * cfg.dynamic_dense_hidden_expand)
+    dynamic_dense_inter_dim = int(np.prod(dw_shape) * cfg.dynamic_dense_hidden_expand)
     if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1:
       dynamic_dense_inter_dim *= len(cfg.dynamic_dense_type)
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
@@ -93,8 +100,8 @@ class LlamaDecoderLayer(nn.Module):
       dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 +1) * 64
 
     kwargs = dict(
-      dtype=self.dtype,
-      weight_dtype=self.weight_dtype,
+      dtype=cfg.dtype,
+      weight_dtype=cfg.weight_dtype,
       quant=self.quant,
     )
     self.dense_proj1 = DenseGeneral(
@@ -105,17 +112,29 @@ class LlamaDecoderLayer(nn.Module):
       name='dynamic_dense_conn1',
       **kwargs
     )
-    self.dense_activation = _convert_to_activation_function(cfg.dynamic_dense_act_cls)
-    init_v = [0] * ((i + 1) * factor) + [1]  # dense_bias_init_method == 'current_only'
-    self.dense_proj2 = DenseGeneral(
-      dw_shape,
-      kernel_init=nn.initializers.constant(0),
-      kernel_axes=('kv', None),
-      use_bias=True,
-      bias_init=nn.initializers.constant(init_v), # jnp.full support array and broadcasting
-      name='dynamic_dense_conn2',
-      **kwargs
-    )
+    self.dense_activation = linears._convert_to_activation_function(cfg.dynamic_dense_act_cls)
+    
+    # init_v = [0] * ((i + 1) * factor) + [1]  # dense_bias_init_method == 'current_only'
+    # self.dense_proj2 = DenseGeneral(
+    #   dw_shape,
+    #   kernel_init=nn.initializers.constant(0),
+    #   kernel_axes=('kv', None),
+    #   use_bias=True,
+    #   bias_init=nn.initializers.constant(init_v), # jnp.full support array and broadcasting
+    #   name='dynamic_dense_conn2',
+    #   **kwargs
+    # )
+    self.dense_proj2 = DenseGeneral(dw_shape, 
+                                    kernel_init=contant_dense_init(0.0), 
+                                    kernel_axes=('kv', None), 
+                                    use_bias=False, 
+                                    name='dynamic_dense_conn2', 
+                                    **kwargs)
+    self.dense2_bias_init_value = 0.0
+    init_v = jnp.array([0] * ((i + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype) # dense_bias_init_method == 'current_only'
+    init_v = init_v[None].repeat(C, 0)
+    self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
+
     
   @nn.compact
   def __call__(
@@ -139,13 +158,12 @@ class LlamaDecoderLayer(nn.Module):
         )
         lnx = lnx_rms(inputs)
         return nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
-
     if getattr(cfg, 'dynamic_dense_type', None) is not None: # XD
       assert cfg.dynamic_dense_type == 'qkvm', cfg.dynamic_dense_type
-      assert isinstance(inputs, (tuple, list)) and len(inputs) == 4
+      assert isinstance(inputs, (tuple, list, Array)) and len(inputs) == 4 # lsp: Array also support, but C dimenson must be in 0.
       inputs = [nn.with_logical_constraint(i, ("activation_batch", "activation_length", "activation_embed")) for i in inputs]
-      lnx_q, *lnx_kv = [norm(inp, name_suffix)[-1] for inp, name_suffix in zip(inputs[:3], 'qkv')]
-      inputs = inputs[-1]
+      lnx_q, *lnx_kv = [norm(inp, name_suffix) for inp, name_suffix in zip(inputs[:3], 'qkv')]
+      inputs = inputs[-1] # m: bld
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
       lnx_q = lnx_kv = norm(inputs)
@@ -231,9 +249,12 @@ class LlamaDecoderLayer(nn.Module):
     )
 
     if getattr(cfg, 'dynamic_dense_type', None) is not None: # XD
+    #   dense_w_inner = self.dense_activation(self.dense_proj1(nn.RMSNorm(use_scale=use_scale)(layer_output)))
       x_out_normed = self.dense_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
-      dyn_dense_w = self.dense_proj2(dense_w_inner)
+      dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
+      dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias
+
 
     if cfg.record_internal_nn_metrics:
       self.sow("intermediates", "activation_mean", jnp.mean(layer_output))

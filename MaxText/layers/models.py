@@ -31,6 +31,7 @@ from layers import embeddings
 from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
+import max_logging
 
 Array = common_types.Array
 Config = common_types.Config
@@ -174,14 +175,15 @@ def wsum(w: jnp.ndarray, # CBTL1
          hids: list[jnp.ndarray], # list of BTD
          seq_chunk_size: int = None
          ) -> jnp.ndarray:  # CBTD
-  C, B, T, L, _ = w.shape; D = hids[0].shape[-1]
+  C, B, T, L, _ = w.shape
+  D = hids[0].shape[-1]
   out = jnp.zeros((C, B, T, D), dtype=hids[0].dtype)
   seq_chunk_size = seq_chunk_size or T
   assert T % seq_chunk_size == 0
   for chunk_i in range(T // seq_chunk_size):
     sli = slice(chunk_i * seq_chunk_size, (chunk_i + 1) * seq_chunk_size)
-    for l in range(L):
-      out[:, :, sli, :] += w[:, :, sli, l, :] * hids[l][:, sli, :]  # CBt1*BtD->CBtD)
+    for l in range(L): # 每层
+      out = out.at[:, :, sli, :].set(out[:, :, sli, :] + w[:, :, sli, l, :] * hids[l][:, sli, :])  # CBt1*BtD->CBtD)
   return out
 
 class Decoder(nn.Module):
@@ -317,7 +319,12 @@ class Decoder(nn.Module):
           name="position_embedder",
           config=cfg,
       )(decoder_positions)
-    if cfg.dense_conn: y, hids = [y] * len(cfg.dynamic_dense_type), [y]  # XD
+
+    if cfg.dense_conn: 
+      if cfg.mudd_prenorm:
+        y = nn.RMSNorm(name='mudd_prenorm')(y)
+
+      y, hids = [y] * len(cfg.dynamic_dense_type), [y]  # XD
 
     BlockLayer = self.get_decoder_layer()
 
@@ -403,6 +410,7 @@ class Decoder(nn.Module):
         )
       else:
         for lyr in range(cfg.num_decoder_layers):
+         
           y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant)(
               y,
               decoder_segment_ids,
@@ -413,21 +421,33 @@ class Decoder(nn.Module):
           if getattr(cfg, 'dense_conn', False):  # XD
             i = lyr  # to be compatible with pax code
             y, dyn_dense_w = y  # unpack tuple
-            hids.append(y)
-            C = 1 if cfg.dynamic_dense_fix_last_layer and i==cfg.num_decoder_layers-1 else len(cfg.dynamic_dense_type)
+            if cfg.mudd_prenorm:
+              hids.append(nn.RMSNorm(name=f'mudd_prenorm_{lyr}')(y))
+            else:
+              hids.append(y)
+            C = 1 if cfg.dynamic_dense_fix_last_layer and i == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
             dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
             # dense_w = jnp.asarray(getattr(self, f'dense_conn_{i}'), self.dtype)
             # dyn_dense_w = dyn_dense_w + dense_w[:, None, None, :, None]  # dynamic + static; CBTL1 + C11L1 -> CBTL1
             factor = 1
             hid_idxs = list(range((i+1) * factor + 1)) # L+1
             # y = tuple([sum([dyn_dense_w[cidx,:,:,j] * hids[j] for j in hid_idxs]) for cidx in range(C)])
-            if self.ddw_gen_pattern == 'q,k,v,m':
-              y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, self.ddw_gen_chunk_size) for cidx in range(C)])
-            elif self.ddw_gen_pattern == 'qkvm':
-              y = tuple(wsum(dyn_dense_w, hids, self.ddw_gen_chunk_size))
-            elif self.ddw_gen_pattern == 'qk,vm':
-              y = tuple(wsum(dyn_dense_w[:2], hids, self.ddw_gen_chunk_size)) + \
-                tuple(wsum(dyn_dense_w[2:], hids, self.ddw_gen_chunk_size))
+            if cfg.ddw_gen_pattern == 'q,k,v,m':
+              if cfg.mudd_postnorm:
+                max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is True....')
+                y = tuple([y + (nn.RMSNorm(name=f'mudd_postnorm_{lyr}', scale_init=jax.nn.initializers.constant(0.001))(
+                                          sum([dyn_dense_w[cidx,:,:,j] * hids[j] for j in hid_idxs])) 
+                                        if cidx == C - 1 else 
+                                        sum([dyn_dense_w[cidx,:,:,j] * hids[j] for j in hid_idxs])) for cidx in range(C)])
+              else:
+                y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)]) # (btl, btl, btl, btl)
+            elif cfg.ddw_gen_pattern == 'qkvm':
+              y = wsum(dyn_dense_w, hids, cfg.ddw_gen_chunk_size) # cbtl
+            elif cfg.ddw_gen_pattern == 'qk,vm':
+              yqk = wsum(dyn_dense_w[ :2], hids, cfg.ddw_gen_chunk_size) # cbtl
+              yvm = wsum(dyn_dense_w[2: ], hids, cfg.ddw_gen_chunk_size) # cbtl
+              y = jnp.concatenate([yqk, yvm], axis=0)
+            
         if getattr(cfg, 'dense_conn', False):  # XD
           y = y[0] # if cfg.dynamic_dense_fix_last_layer else x_out[1]
 

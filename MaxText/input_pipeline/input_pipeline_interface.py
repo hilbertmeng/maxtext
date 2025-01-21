@@ -194,6 +194,7 @@ def get_process_loading_real_data(config, mesh):
   devices_indices_map = sharding.devices_indices_map((config.global_batch_size_to_load, config.max_target_length))
   batch_cutoff = config.global_batch_size_to_train_on
   process_loading_real_data = set()
+  # __import__('ipdb').set_trace()
   for p, indices in devices_indices_map.items():
     if indices[0].stop <= batch_cutoff:
       process_loading_real_data.add(p.process_index)
@@ -201,25 +202,27 @@ def get_process_loading_real_data(config, mesh):
 
 
 def make_mixed_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos):
-  process_indices = get_process_loading_real_data(config, mesh)
-  if config.expansion_factor_real_data != -1:  # assert number of hosts loading real data
-    assert len(process_indices) == jax.process_count() // config.expansion_factor_real_data
-  if jax.process_index() in process_indices:
-    if config.dataset_type == "tfds":
-      return make_c4_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
-    elif config.dataset_type == "grain":
-      return make_grain_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
-    elif config.dataset_type == "c4_mlperf":
-      print("Overwrite both add_bos and add_eos to False")
-      return make_c4_mlperf_train_iterator_and_tokenizer(
-          config, mesh, add_bos=False, add_eos=False, process_indices=process_indices
-      )
-    elif config.dataset_type == "hf":
-      return make_hf_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
-    elif config.dataset_type in ["pile", "novel_4_32k", "pretrain_4k"]: # lsp
+  # process_indices = get_process_loading_real_data(config, mesh)
+  # if config.expansion_factor_real_data != -1:  # assert number of hosts loading real data
+  #   assert len(process_indices) == jax.process_count() // config.expansion_factor_real_data
+  # if jax.process_index() in process_indices:
+  #   if config.dataset_type == "tfds":
+  #     return make_c4_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
+  #   elif config.dataset_type == "grain":
+  #     return make_grain_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
+  #   elif config.dataset_type == "c4_mlperf":
+  #     print("Overwrite both add_bos and add_eos to False")
+  #     return make_c4_mlperf_train_iterator_and_tokenizer(
+  #         config, mesh, add_bos=False, add_eos=False, process_indices=process_indices
+  #     )
+  #   elif config.dataset_type == "hf":
+  #     return make_hf_train_iterator_and_tokenizer(config, mesh, add_bos, add_eos, process_indices)
+  if config.dataset_type in ["pile", "novel_4_32k", "pretrain_4k"]: # lsp
       return _pile_data_processing.make_pile_train_iterator(config, mesh, add_bos, add_eos)
   else:
-    return BadSyntheticDataIterator(config, mesh), None, get_tokenizer(config.tokenizer_path, add_bos, add_eos)
+    raise ValueError(f'Unkown data type: {config.dataset_type}')
+  # else:
+  #   return BadSyntheticDataIterator(config, mesh), None, get_tokenizer(config.tokenizer_path, add_bos, add_eos)
 
 
 def create_data_iterator_with_tokenizer(config, mesh, add_bos=True, add_eos=True):

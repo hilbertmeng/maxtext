@@ -115,26 +115,26 @@ def validate_data_input(keys):
     )
     assert keys['dataset_name'] != "", "dataset_name can't be empty when dataset_type=tfds"
 
-def validate_model_name(s: str) -> bool:
-  """Validate provided model name."""
-  # currently supported models
-  valid_model_names = (
-      "default",
-      "llama2-7b",
-      "llama2-13b",
-      "llama2-70b",
-      "llama3-8b",
-      "mistral-7b",
-      "mixtral-8x7b",
-      "gemma-7b",
-      "gemma-2b",
-      "gpt3-175b",
-      "gpt3-22b",
-      "gpt3-6b",
-      "gpt3-52k",
-  )
-  if s not in valid_model_names:
-    raise ValueError("Invalid model name was passed. Valid options ", valid_model_names)
+# def validate_model_name(s: str) -> bool:
+#   """Validate provided model name."""
+#   # currently supported models
+#   valid_model_names = (
+#       "default",
+#       "llama2-7b",
+#       "llama2-13b",
+#       "llama2-70b",
+#       "llama3-8b",
+#       "mistral-7b",
+#       "mixtral-8x7b",
+#       "gemma-7b",
+#       "gemma-2b",
+#       "gpt3-175b",
+#       "gpt3-22b",
+#       "gpt3-6b",
+#       "gpt3-52k",
+#   )
+#   if s not in valid_model_names:
+#     raise ValueError("Invalid model name was passed. Valid options ", valid_model_names)
 
 
 def validate_no_keys_overwritten_twice(keys1: list[str], keys2: list[str]):
@@ -188,7 +188,7 @@ class _HyperParameters:
 
   def _update_from_env_and_command_line(self, raw_keys, raw_data_from_yaml, argv, **kwargs) -> list[str]:
     """Update model config from environment and command line"""
-    raw_data_from_cmd_line = self._load_kwargs(argv, **kwargs)
+    raw_data_from_cmd_line = self._load_kwargs(argv, **kwargs) # 命令行参数
     updated_keys = []
 
     for k in raw_data_from_cmd_line:
@@ -231,12 +231,8 @@ class _HyperParameters:
 
   def _load_config(self, config_name: str) -> dict[str, Any]:
     """Loads the YAML config from a file with a given name."""
-    if not os.path.exist(config_name):  # XD
-      import exp
-      raw_data_from_yaml = cls_attr2dict(getattr(exp, config_name))
-    else:
-      with open(config_name, "r", encoding="utf-8") as yaml_file:
-        raw_data_from_yaml = yaml.safe_load(yaml_file)
+    with open(config_name, "r", encoding="utf-8") as yaml_file:
+      raw_data_from_yaml = yaml.safe_load(yaml_file)
 
     # Load data from parent config. Note that inheritance has override
     # semantics, and the path is relative to the current config.
@@ -258,17 +254,16 @@ class _HyperParameters:
 
   def __init__(self, argv: list[str], **kwargs):
     config_name: str = argv[1]
-    raw_data_from_yaml = self._load_config(config_name)
-
+    raw_data_from_yaml = self._load_config(config_name) # 配置文件参数
     self._validate_env_variables(raw_data_from_yaml)
-
+    # 参数优先级：命令行>模型类>配置文件
+    keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_data_from_yaml, config_name) # 将模型类中参数更新到参数字典中
+    max_logging.log(f"Updating keys from model: {keys_from_model}\n")
+    # # 将命令行中参数更新到参数字典中
     raw_keys = OrderedDict()
     keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv, **kwargs)
     max_logging.log(f"Updating keys from env and command line: {keys_from_env_and_command_line}")
-    keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_keys, config_name)
-    max_logging.log(f"Updating keys from model: {keys_from_model}")
-    validate_no_keys_overwritten_twice(keys_from_env_and_command_line, keys_from_model)
-
+    # validate_no_keys_overwritten_twice(keys_from_env_and_command_line, keys_from_model)
     # We initialize the jax distributed system here because it must be done before device backend is initialized.
     max_utils.maybe_initialize_jax_distributed_system(raw_keys)
 
@@ -372,21 +367,27 @@ class _HyperParameters:
   @staticmethod
   def update_model_vars(base_config_path, raw_keys, config_name: str):
     """Update model config variables"""
-    validate_model_name(raw_keys["model_name"])
+    # validate_model_name(raw_keys["model_name"])
     max_logging.log(f"Running Model: {raw_keys['model_name']}")
 
     updated_keys = []
     if raw_keys["model_name"] != "default":
-      model_name = raw_keys["model_name"]
-      # First look at the model configs next to the base_config_path, and
-      # fallback to the python codebase if the config cannot be found.
-      file_path = os.path.join(os.path.dirname(base_config_path), f"models/{model_name}.yml")
-      if not os.path.isfile(file_path):
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(dir_path, f"configs/models/{model_name}.yml")
-      with open(file_path, "r", encoding="utf-8") as file:
-        model_vars = yaml.safe_load(file)
-        updated_keys = list(model_vars.keys())
+      # lsp ========= 
+      # model_name = raw_keys["model_name"]
+      # # First look at the model configs next to the base_config_path, and
+      # # fallback to the python codebase if the config cannot be found.
+      # file_path = os.path.join(os.path.dirname(base_config_path), f"models/{model_name}.yml")
+      # if not os.path.isfile(file_path):
+      #   dir_path = os.path.dirname(os.path.realpath(__file__))
+      #   file_path = os.path.join(dir_path, f"configs/models/{model_name}.yml")
+      # with open(file_path, "r", encoding="utf-8") as file:
+      #   model_vars = yaml.safe_load(file)
+      #   updated_keys = list(model_vars.keys())
+      # lsp =========利用base.yml的model_name来控制更新model的其他参数
+      import exp
+      model_vars = cls_attr2dict(getattr(exp, raw_keys["model_name"]))
+      updated_keys = list(model_vars.keys())
+      max_logging.log(f"Updated Model vars:\n{model_vars}\n\n")
       raw_keys = validate_and_update_keys(raw_keys, model_vars, config_name)
     return updated_keys
 
@@ -402,15 +403,16 @@ def validate_and_update_keys(raw_keys, model_keys, config_name: str):
 
   # Currently, Megablox only supports data parallelism
   validate_megablox_parallelism(raw_keys)
-
+  # lsp
   for k in model_keys:
-    max_logging.log(f"{k}: {model_keys[k]}")
+    # max_logging.log(f"{k}: {model_keys[k]}")
     if k not in raw_keys:
-      raise ValueError(f"Key {k} does not exist in config {config_name}.")
+      max_logging.log(f'New key: ‘{k}’ be found in model {raw_keys["model_name"]}')
     elif not isinstance(raw_keys[k], type(model_keys[k])):
       raise ValueError(f"Type of key:{k} does not match with {type(model_keys[k])}")
     else:
-      raw_keys[k] = model_keys[k]
+      max_logging.log(f'Old key ‘{k}’ be update by {raw_keys["model_name"]}')
+    raw_keys[k] = model_keys[k]
   return raw_keys
 
 
@@ -502,9 +504,11 @@ class HyperParameters:  # pylint: disable=missing-class-docstring
   def __init__(self):
     pass
 
+  # 允许获取不存在的属性
   def __getattr__(self, attr):
     if attr not in _config.keys:
-      raise ValueError(f"Requested key {attr}, not in config")
+      return None
+    #   raise ValueError(f"Requested key {attr}, not in config")
     return _config.keys[attr]
 
   def __setattr__(self, attr, value):

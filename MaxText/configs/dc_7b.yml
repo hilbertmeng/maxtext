@@ -17,7 +17,7 @@
 run_name: ""
 
 model_name: "MUDDLlama" # override config settings to match a specific model. other than the override, nothing should use this!
-normalization_layer_epsilon: 1.e-05
+normalization_layer_epsilon: 1.e-06
 megablox: False
 
 ################################## CHECKPOINTING ##################################

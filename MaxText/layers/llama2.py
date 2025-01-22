@@ -54,7 +54,6 @@ KV_HEAD_DIM = common_types.KV_HEAD_DIM
 
 Embed = embeddings.Embed
 Attention = attentions.Attention
-RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 nd_dense_init = initializers.nd_dense_init  # XD
 DenseGeneral = linears.DenseGeneral  # XD
@@ -74,19 +73,17 @@ class LlamaDecoderLayer(nn.Module):
   def setup(self) -> None:  # XD
     cfg = self.config
     if not getattr(cfg, 'dense_conn', False): return
-
     norm_kwargs = {
                 "dtype": cfg.dtype,
                 "weight_dtype": cfg.weight_dtype,
-                "name": "dense_norm",
-                "kernel_axes": ("norm",),
+                "name": "pre_dp1_norm",
                 "epsilon": cfg.normalization_layer_epsilon,
                 }
     if not getattr(cfg, 'mudd_prenorm', False):
         max_logging.log(f'mudd_prenorm is False')
-        norm_kwargs['scale_init'] = None
+        norm_kwargs['scale_init'] = None # it means use scale is false
 
-    self.dense_norm = models.RMSNorm(**norm_kwargs)
+    self.pre_dp1_norm = models.get_rmsnorm(**norm_kwargs)
     
     factor = 1
     i = int(self.name.split('_')[-1])  # name=f"layers_{i}"
@@ -149,17 +146,11 @@ class LlamaDecoderLayer(nn.Module):
     mesh = self.mesh
 
     def norm(inputs, name_suffix=''):  # XD
-        lnx_rms = models.RMSNorm(
-            dtype=cfg.dtype,
-            weight_dtype=cfg.weight_dtype,
-            name='_'.join(["pre_self_attention_layer_norm", name_suffix]),
-            kernel_axes=("norm",),
-            epsilon=cfg.normalization_layer_epsilon,
-        )
-        lnx = lnx_rms(inputs)
+        name = '_'.join(["pre_self_attention_layer_norm", name_suffix])
+        lnx = models.get_rmsnorm(name=name, cfg=cfg)(inputs)
         return nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
-    if getattr(cfg, 'dynamic_dense_type', None) is not None: # XD
-      assert cfg.dynamic_dense_type == 'qkvm', cfg.dynamic_dense_type
+    max_logging.log(f'dynamic_dense_type: {cfg.dynamic_dense_type}')
+    if cfg.dynamic_dense_type == 'qkvm': # XD lsp: false is not None, so this can support fasle and none, ''
       assert isinstance(inputs, (tuple, list, Array)) and len(inputs) == 4 # lsp: Array also support, but C dimenson must be in 0.
       inputs = [nn.with_logical_constraint(i, ("activation_batch", "activation_length", "activation_embed")) for i in inputs]
       lnx_q, *lnx_kv = [norm(inp, name_suffix) for inp, name_suffix in zip(inputs[:3], 'qkv')]
@@ -167,19 +158,6 @@ class LlamaDecoderLayer(nn.Module):
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
       lnx_q = lnx_kv = norm(inputs)
-
-    # inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
-
-    # lnx_rms = models.RMSNorm(
-    #     dtype=cfg.dtype,
-    #     weight_dtype=cfg.weight_dtype,
-    #     name="pre_self_attention_layer_norm",
-    #     kernel_axes=("norm",),
-    #     epsilon=cfg.normalization_layer_epsilon,
-    # )
-    # lnx = lnx_rms(inputs)
-
-    # lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
 
     # Self-attention block
     attention_layer = Attention(
@@ -217,13 +195,7 @@ class LlamaDecoderLayer(nn.Module):
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
-    hidden_states = models.RMSNorm(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="post_self_attention_layer_norm",
-        kernel_axes=("norm",),
-        epsilon=cfg.normalization_layer_epsilon,
-    )(intermediate_inputs)
+    hidden_states = models.get_rmsnorm(name="post_self_attention_layer_norm", cfg=cfg)(intermediate_inputs)
     hidden_states = nn.with_logical_constraint(hidden_states, ("activation_batch", "activation_length", "activation_embed"))
 
     # MLP block.
@@ -248,13 +220,12 @@ class LlamaDecoderLayer(nn.Module):
         ("activation_batch", "activation_length", "activation_embed"),
     )
 
-    if getattr(cfg, 'dynamic_dense_type', None) is not None: # XD
+    if cfg.dynamic_dense_type == 'qkvm': # XD lsp
     #   dense_w_inner = self.dense_activation(self.dense_proj1(nn.RMSNorm(use_scale=use_scale)(layer_output)))
-      x_out_normed = self.dense_norm(layer_output)
+      x_out_normed = self.pre_dp1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
       dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias
-
 
     if cfg.record_internal_nn_metrics:
       self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
@@ -268,4 +239,4 @@ class LlamaDecoderLayer(nn.Module):
     if cfg.scan_layers:
       return layer_output, None
     else:
-      return layer_output if getattr(cfg, 'dynamic_dense_type', None) is None else (layer_output, dyn_dense_w)  # XD
+      return layer_output if cfg.dynamic_dense_type != 'qkvm' else (layer_output, dyn_dense_w)  # XD , lsp

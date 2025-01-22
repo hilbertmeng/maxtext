@@ -186,15 +186,14 @@ class _HyperParameters:
     args_dict.update(kwargs)
     return args_dict
 
-  def _update_from_env_and_command_line(self, raw_keys, raw_data_from_yaml, argv, **kwargs) -> list[str]:
+  def _update_from_env_and_command_line(self, raw_keys, raw_data_from_yaml, raw_data_from_cmd_line, **kwargs) -> list[str]:
     """Update model config from environment and command line"""
-    raw_data_from_cmd_line = self._load_kwargs(argv, **kwargs) # 命令行参数
+    # raw_data_from_cmd_line = self._load_kwargs(argv, **kwargs) # 命令行参数
     updated_keys = []
-
-    for k in raw_data_from_cmd_line:
-      if k not in raw_data_from_yaml:
-        raise ValueError(f"Key {k} was passed at the command line but isn't in config.")
-
+    # lsp： 允许参数不在config yml或者class中
+    # for k in raw_data_from_cmd_line:
+    #   if k not in raw_data_from_yaml:
+    #     raise ValueError(f"Key {k} was passed at the command line but isn't in config.")
     for k in raw_data_from_yaml:
       if k in raw_data_from_cmd_line and yaml_key_to_env_key(k) in os.environ:
         raise ValueError(f"You are passing overrides by both CLI and ENV for `{k}`. This isn't allowed.")
@@ -255,13 +254,16 @@ class _HyperParameters:
   def __init__(self, argv: list[str], **kwargs):
     config_name: str = argv[1]
     raw_data_from_yaml = self._load_config(config_name) # 配置文件参数
+    raw_data_from_cmd_line = self._load_kwargs(argv, **kwargs) # 命令行参数
+    model_name = raw_data_from_cmd_line['model_name'] # 首先从命令行获取到model name，这个model name优先级最高
+    raw_data_from_yaml['model_name'] = model_name # 命令行的model name 覆盖yml文件的model name参数
     self._validate_env_variables(raw_data_from_yaml)
     # 参数优先级：命令行>模型类>配置文件
     keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_data_from_yaml, config_name) # 将模型类中参数更新到参数字典中
     max_logging.log(f"Updating keys from model: {keys_from_model}\n")
     # # 将命令行中参数更新到参数字典中
     raw_keys = OrderedDict()
-    keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv, **kwargs)
+    keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, raw_data_from_cmd_line, **kwargs)
     max_logging.log(f"Updating keys from env and command line: {keys_from_env_and_command_line}")
     # validate_no_keys_overwritten_twice(keys_from_env_and_command_line, keys_from_model)
     # We initialize the jax distributed system here because it must be done before device backend is initialized.

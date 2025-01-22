@@ -492,6 +492,9 @@ def train_loop(config, state=None):
       tx=None,
     )
   num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
+  for k, v in flatten_dict(state.params).items():
+    k = '.'.join(k)
+    print(k, v.shape)
   max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
   per_device_tflops, _, _ = maxtext_utils.calculate_tflops_training_per_device(config)
 

@@ -111,6 +111,7 @@ mgate: True
 mgate_dim: 44
 set_mask_by_eos: False
 only_eval: False
+gradient_accumulation_steps: 1
 
 pre_compose: True # pax: PROJECT_LOGITS
 post_compose: True # pax: PROJECT_PROBS

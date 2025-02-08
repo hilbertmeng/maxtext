@@ -416,6 +416,7 @@ class AttentionOp(nn.Module):
     s = key.shape[1]
     attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.window_size, t, query.dtype)
     w = self.query_chunk_size
+    if w is None: w = t
     assert t % w == 0, f'{t} % {w} != 0'
     encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
     for i in range(t // w):

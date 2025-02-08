@@ -51,7 +51,13 @@ def string_to_bool(s: str) -> bool:
 
 
 _yaml_types_to_parser = {str: str, int: int, float: float, bool: string_to_bool}
-
+# _yaml_types_to_parser = {
+#     str: str,
+#     int: int,
+#     float: float,
+#     bool: string_to_bool,
+#     type(None): lambda x: None,  # 增加对 NoneType 的支持
+# }
 
 def validate_compute_axis_order(s: str) -> None:
   valid_compute_axis_order = ("0,1,2,3", "0,2,1,3")
@@ -207,6 +213,10 @@ class _HyperParameters:
         new_proposal = raw_data_from_cmd_line[k]
       else:
         new_proposal = os.environ.get(yaml_key_to_env_key(k))
+
+      if new_proposal is None or new_proposal == 'None':
+        raw_keys[k] = None
+        continue
 
       if (not isinstance(new_proposal, type(raw_data_from_yaml[k]))) and (
           type(raw_data_from_yaml[k]) not in _yaml_types_to_parser

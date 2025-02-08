@@ -199,6 +199,18 @@ def get_rmsnorm(name, cfg=None, **kwargs):
                     kernel_axes=("norm",),
                     scale_init=scale_init) # use scale default is true.
 
+
+def l2norm(x):
+  return jnp.sqrt(jnp.sum(jnp.square(x)))
+
+# def l2norm(x):
+#   """L2 norm of a pytree of arrays."""
+#   return jnp.sqrt(
+#       jax.tree_util.tree_reduce(
+#           lambda x, y: x + jnp.sum(jnp.square(y)), x, initializer=0.0
+#       )
+#   )
+
 class Decoder(nn.Module):
   """A stack of decoder layers as a part of an encoder-decoder architecture."""
 
@@ -427,6 +439,15 @@ class Decoder(nn.Module):
             max_logging.log(f'dense_conn is true')
             i = lyr  # to be compatible with pax code
             y, dyn_dense_w = y  # unpack tuple
+            max_logging.log(f'dyn_dense_w dtype: {dyn_dense_w.dtype}')
+            
+            if self.config.record_internal_nn_metrics:
+              self.sow('intermediates', f'dyn_dense_w/max/layer_{lyr}', jnp.max(dyn_dense_w))
+              self.sow('intermediates', f'dyn_dense_w/mean/layer_{lyr}', jnp.mean(dyn_dense_w))
+              self.sow('intermediates', f'dyn_dense_w/min/layer_{lyr}', jnp.min(dyn_dense_w))
+              self.sow('intermediates', f'dyn_dense_w/norm/layer_{lyr}', l2norm(dyn_dense_w))
+              self.sow('intermediates', f'dyn_dense_w/std/layer_{lyr}', jnp.std(dyn_dense_w))
+              self.sow('intermediates', f'layer_output/norm/layer_{lyr}', l2norm(y))
 
             if cfg.mudd_prenorm:
               y = self.get_norm_layer(name=f"mudd_prenorm_{lyr}", cfg=cfg)(y)

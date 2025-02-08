@@ -76,14 +76,14 @@ class LlamaDecoderLayer(nn.Module):
     norm_kwargs = {
                 "dtype": cfg.dtype,
                 "weight_dtype": cfg.weight_dtype,
-                "name": "pre_dp1_norm",
+                "name": "pre_dense_proj1_norm",
                 "epsilon": cfg.normalization_layer_epsilon,
                 }
     if not getattr(cfg, 'mudd_prenorm', False):
         max_logging.log(f'mudd_prenorm is False')
         norm_kwargs['scale_init'] = None # it means use scale is false
 
-    self.pre_dp1_norm = models.get_rmsnorm(**norm_kwargs)
+    self.pre_dense_proj1_norm = models.get_rmsnorm(**norm_kwargs)
     
     factor = 1
     i = int(self.name.split('_')[-1])  # name=f"layers_{i}"
@@ -219,22 +219,23 @@ class LlamaDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_length", "activation_embed"),
     )
+    # __import__('ipdb').set_trace()
 
     if cfg.dynamic_dense_type == 'qkvm': # XD lsp
     #   dense_w_inner = self.dense_activation(self.dense_proj1(nn.RMSNorm(use_scale=use_scale)(layer_output)))
-      x_out_normed = self.pre_dp1_norm(layer_output)
+      x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
-      dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias
+      dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype) # dense_proj2_bias初始化出来时fp32
 
-    if cfg.record_internal_nn_metrics:
-      self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
-      self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
-      self.sow(
-          "intermediates",
-          "activation_fraction_zero",
-          jnp.sum(layer_output == 0) / jnp.size(layer_output),
-      )
+    # if cfg.record_internal_nn_metrics:
+    #   self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
+    #   self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
+    #   self.sow(
+    #       "intermediates",
+    #       "activation_fraction_zero",
+    #       jnp.sum(layer_output == 0) / jnp.size(layer_output),
+    #   )
 
     if cfg.scan_layers:
       return layer_output, None

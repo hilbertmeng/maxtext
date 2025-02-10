@@ -8,7 +8,7 @@ class Llama:
     # TODO = flash attention
 
     steps = 10000000
-    log_period = 10 # Flushes Tensorboard
+    log_period = 25 # Flushes Tensorboard
 
     max_target_length = 2049
     mgate = False # lsp
@@ -16,7 +16,6 @@ class Llama:
     # dataset_type = 'pile'
     scan_layers = True
     
-
 class LlamaMedium(Llama):
     base_emb_dim = 1024
     base_num_query_heads = 16
@@ -40,7 +39,8 @@ class Llama7B(Llama):
     base_num_decoder_layers = 32
     head_dim = 128
 
-class MUDDLlama(LlamaMedium):
+class MUDDLlamaMedium(LlamaMedium):
+    # model params
     dense_conn = True # dense_proj1 and dense_proj2
     dynamic_dense_type = 'qkvm'
     dynamic_dense_act_cls = 'relu'
@@ -52,6 +52,23 @@ class MUDDLlama(LlamaMedium):
     ddw_gen_chunk_size = None
     mudd_prenorm = True
     mudd_postnorm = True
-
-class MUDDLlamaMedium(MUDDLlama, LlamaMedium):
+    # opt
+    learning_rate_schedule_steps = 13500
+    warmup_steps_fraction = 0.01
+    cosine_learning_rate_final_fraction = 0.1
+    adam_b1 = 0.9
+    adam_b2 = 0.95
+    adam_eps = 1.0e-8
+    adam_weight_decay = 0.1
+    # model save
+    checkpoint_period = 500
+    keep_period = 1000
+    # others
     model_name = 'MUDDLlamaMedium'
+    learning_rate = 3e-4
+    per_device_batch_size = 32 # v5p-16, core 8, total batch size = 8 * 32 = 256
+    eval_interval = 13500
+    normalization_layer_epsilon = 1.0e-6
+    train_shuffle_buffer_size = None
+    eval_shuffle_buffer_size = None
+    eval_loop_num_batches = 162

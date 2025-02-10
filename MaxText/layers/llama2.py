@@ -146,14 +146,14 @@ class LlamaDecoderLayer(nn.Module):
     mesh = self.mesh
 
     def norm(inputs, name_suffix=''):  # XD
-        name = '_'.join(["pre_self_attention_layer_norm", name_suffix])
+        name = 'pre_self_attention_layer_norm' + name_suffix
         lnx = models.get_rmsnorm(name=name, cfg=cfg)(inputs)
         return nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
     max_logging.log(f'dynamic_dense_type: {cfg.dynamic_dense_type}')
-    if cfg.dynamic_dense_type == 'qkvm': # XD lsp: false is not None, so this can support fasle and none, ''
+    if cfg.dynamic_dense_type == 'qkvm': # XD
       assert isinstance(inputs, (tuple, list, Array)) and len(inputs) == 4 # lsp: Array also support, but C dimenson must be in 0.
       inputs = [nn.with_logical_constraint(i, ("activation_batch", "activation_length", "activation_embed")) for i in inputs]
-      lnx_q, *lnx_kv = [norm(inp, name_suffix) for inp, name_suffix in zip(inputs[:3], 'qkv')]
+      lnx_q, *lnx_kv = [norm(inp, f'_{name_suffix}') for inp, name_suffix in zip(inputs[:3], 'qkv')]
       inputs = inputs[-1] # m: bld
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
@@ -219,7 +219,6 @@ class LlamaDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_length", "activation_embed"),
     )
-    # __import__('ipdb').set_trace()
 
     if cfg.dynamic_dense_type == 'qkvm': # XD lsp
     #   dense_w_inner = self.dense_activation(self.dense_proj1(nn.RMSNorm(use_scale=use_scale)(layer_output)))

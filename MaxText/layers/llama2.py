@@ -89,7 +89,9 @@ class LlamaDecoderLayer(nn.Module):
     i = int(self.name.split('_')[-1])  # name=f"layers_{i}"
     C = 1 if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1 else len(cfg.dynamic_dense_type)
     dw_shape = (C, ((i + 1) * factor + 1))
-    dynamic_dense_inter_dim = int(np.prod(dw_shape) * cfg.dynamic_dense_hidden_expand)
+    max_logging.log(f'dynamic_dense_hidden_expand-{i}: {cfg.dynamic_dense_hidden_expand[i]}')
+
+    dynamic_dense_inter_dim = int(np.prod(dw_shape) * cfg.dynamic_dense_hidden_expand[i]) # lsp
     if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1:
       dynamic_dense_inter_dim *= len(cfg.dynamic_dense_type)
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
@@ -111,16 +113,6 @@ class LlamaDecoderLayer(nn.Module):
     )
     self.dense_activation = linears._convert_to_activation_function(cfg.dynamic_dense_act_cls)
     
-    # init_v = [0] * ((i + 1) * factor) + [1]  # dense_bias_init_method == 'current_only'
-    # self.dense_proj2 = DenseGeneral(
-    #   dw_shape,
-    #   kernel_init=nn.initializers.constant(0),
-    #   kernel_axes=('kv', None),
-    #   use_bias=True,
-    #   bias_init=nn.initializers.constant(init_v), # jnp.full support array and broadcasting
-    #   name='dynamic_dense_conn2',
-    #   **kwargs
-    # )
     self.dense_proj2 = DenseGeneral(dw_shape, 
                                     kernel_init=contant_dense_init(0.0), 
                                     kernel_axes=('kv', None), 
@@ -132,7 +124,12 @@ class LlamaDecoderLayer(nn.Module):
     init_v = init_v[None].repeat(C, 0)
     self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
-    
+    if cfg.dynamic_mlp_dim:
+      self.updated_mlp_dim = round(cfg.mlp_dim * (i / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
+    else:
+      self.updated_mlp_dim = cfg.mlp_dim
+    max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}')
+
   @nn.compact
   def __call__(
       self,
@@ -198,9 +195,10 @@ class LlamaDecoderLayer(nn.Module):
     hidden_states = models.get_rmsnorm(name="post_self_attention_layer_norm", cfg=cfg)(intermediate_inputs)
     hidden_states = nn.with_logical_constraint(hidden_states, ("activation_batch", "activation_length", "activation_embed"))
 
+
     # MLP block.
     mlp_lnx = linears.MlpBlock(
-        intermediate_dim=cfg.mlp_dim,
+        intermediate_dim=self.updated_mlp_dim, # lsp
         activations=cfg.mlp_activations,
         intermediate_dropout_rate=cfg.dropout_rate,
         dtype=cfg.dtype,

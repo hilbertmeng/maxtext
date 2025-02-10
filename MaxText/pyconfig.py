@@ -420,6 +420,8 @@ def validate_and_update_keys(raw_keys, model_keys, config_name: str):
     # max_logging.log(f"{k}: {model_keys[k]}")
     if k not in raw_keys:
       max_logging.log(f'New key: ‘{k}’ be found in model {raw_keys["model_name"]}')
+    elif model_keys[k] is None or model_keys[k] == 'None':
+      pass
     elif not isinstance(raw_keys[k], type(model_keys[k])):
       raise ValueError(f"Type of key:{k} does not match with {type(model_keys[k])}")
     else:

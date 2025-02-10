@@ -40,18 +40,22 @@ class Llama7B(Llama):
     head_dim = 128
 
 class MUDDLlamaMedium(LlamaMedium):
+    
     # model params
+    base_num_decoder_layers = 24
+
     dense_conn = True # dense_proj1 and dense_proj2
     dynamic_dense_type = 'qkvm'
-    dynamic_dense_act_cls = 'relu'
+    dynamic_dense_act_cls = 'gelu'
     dynamic_dense_fix_last_layer = True
-    dynamic_dense_hidden_expand = 1
-    dynamic_dense_hidden_round = False
+    dynamic_dense_hidden_expand = [1] * (base_num_decoder_layers - 1) + [4] # last layer is 4
+    dynamic_dense_hidden_round = True
     scan_layers = False
     ddw_gen_pattern = 'q,k,v,m'
     ddw_gen_chunk_size = None
     mudd_prenorm = True
     mudd_postnorm = True
+    dynamic_mlp_dim = True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)] 
     # opt
     learning_rate_schedule_steps = 13500
     warmup_steps_fraction = 0.01
@@ -66,9 +70,11 @@ class MUDDLlamaMedium(LlamaMedium):
     # others
     model_name = 'MUDDLlamaMedium'
     learning_rate = 3e-4
-    per_device_batch_size = 32 # v5p-16, core 8, total batch size = 8 * 32 = 256
+    per_device_batch_size = 32.0 # float, v5p-16, core 8, total batch size = 8 * 32 = 256
     eval_interval = 13500
     normalization_layer_epsilon = 1.0e-6
     train_shuffle_buffer_size = None
     eval_shuffle_buffer_size = None
     eval_loop_num_batches = 162
+    iter_file_nums = 2
+    dataset_type = 'pile'

@@ -311,10 +311,11 @@ def compute_params_norm(params):
   scalar_vales = {}
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
-    for params_fir_dir in params_fir_dirs:
-      if params_fir_dir in k:
-        newk = k.replace('params', f'params-{params_fir_dir}')
-        break
+    newk = k.replace('params', 'total_params')
+    # for params_fir_dir in params_fir_dirs:
+    #   if params_fir_dir in k:
+    #     newk = k.replace('params', f'params-{params_fir_dir}')
+    #     break
     scalar_vales[newk] = v
   return scalar_vales
 

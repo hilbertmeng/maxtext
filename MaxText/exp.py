@@ -15,6 +15,7 @@ class Llama:
     attention = 'dot_product'
     # dataset_type = 'pile'
     scan_layers = True
+    rope_max_timescale = 10000
     
 class LlamaMedium(Llama):
     base_emb_dim = 1024

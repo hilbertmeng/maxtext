@@ -87,16 +87,16 @@ class LlamaDecoderLayer(nn.Module):
     
     factor = 1
     i = int(self.name.split('_')[-1])  # name=f"layers_{i}"
-    C = 1 if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1 else len(cfg.dynamic_dense_type)
+    C = 1 if cfg.dynamic_dense_fix_last_layer and i == cfg.num_decoder_layers-1 else len(cfg.dynamic_dense_type)
     dw_shape = (C, ((i + 1) * factor + 1))
     max_logging.log(f'dynamic_dense_hidden_expand-{i}: {cfg.dynamic_dense_hidden_expand[i]}')
 
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * cfg.dynamic_dense_hidden_expand[i]) # lsp
-    if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1:
-      dynamic_dense_inter_dim *= len(cfg.dynamic_dense_type)
+    # if cfg.dynamic_dense_fix_last_layer and i== cfg.num_decoder_layers-1:
+    #   dynamic_dense_inter_dim *= len(cfg.dynamic_dense_type)
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
       # assert dynamic_dense_inter_dim < 128
-      dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 +1) * 64
+      dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
 
     kwargs = dict(
       dtype=cfg.dtype,
@@ -198,7 +198,7 @@ class LlamaDecoderLayer(nn.Module):
 
     # MLP block.
     mlp_lnx = linears.MlpBlock(
-        intermediate_dim=self.updated_mlp_dim, # lsp
+        intermediate_dim=self.updated_mlp_dim if cfg.dynamic_mlp_dim else cfg.mlp_dim,  # lsp
         activations=cfg.mlp_activations,
         intermediate_dropout_rate=cfg.dropout_rate,
         dtype=cfg.dtype,

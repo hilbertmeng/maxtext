@@ -41,10 +41,10 @@ load_full_state_path: ""
 # problems with the checkpointer we recommend trying the synchronous one.
 enable_checkpointing: True
 async_checkpointing: True
-checkpoint_period: 50 # 20min
+checkpoint_period: 250
 enable_single_replica_ckpt_restoring: False
 max_to_keep: 4
-keep_period: 500 # step / keep_period would not be deleted
+keep_period: 1000 # step / keep_period would not be deleted
 enable_background_delete: True
 load_ocdbt: True
 save_ocdbt: True
@@ -77,7 +77,7 @@ kv_quant_axis: "heads_and_dkv"
 # Shard the range finding operation for quantization. By default this is set to number of slices.
 quantization_local_shard_count: -1
 
-decoder_block: "dcformer" # which style of DecoderBlock to use.
+decoder_block: "llama2" # which style of DecoderBlock to use.
 # Global parameter scale needs to be a power of 2. If you want finer grained control of the model sizes
 # then you should explicitly set base_embed_dim, base_num_query_heads, base_num_kv_heads,
 # base_mlp_dim, base_num_decoder_layers and/or head_dim.
@@ -89,14 +89,14 @@ base_num_kv_heads: 32
 base_mlp_dim: 5632
 base_num_decoder_layers: 48
 # lsp pax
-window_size: [256, 32768, 256, 256]
-num_layers_per_block: 4 # it must equal to widow_size list length, ex: window_size = [256, null], num_layers_per_block = 2
+window_size: null
+num_layers_per_block: 1 # it must equal to widow_size list length, ex: window_size = [256, null], num_layers_per_block = 2
 query_chunk_size: 512 # null or int.
-max_target_length: 32769 # Maximum sequence length
+max_target_length: 4097 # Maximum sequence length
 reset_for_eval: True # True will rest eval dataset
 epoch: 1
-train_shuffle_buffer_size: 200000 # null or int
-eval_shuffle_buffer_size: 2000 # null or int
+train_shuffle_buffer_size: null # null or int
+eval_shuffle_buffer_size: null # null or int
 training_num_batches_to_skip: null # skip data , null or int
 zero_loss: False # whether to compute id zero loss when train
 iter_file_nums: 20 # how many files every file batch
@@ -106,17 +106,17 @@ per_device_batch_size: 1.0
 eval_per_device_batch_size: 1.0 # eval also use per_device_batch_size
 eval_loop_num_batches: 66
 eval_interval: 500  # the specific number of train step between eval_step
-qk_norm: True # 405m use true, but 2b8 model use false
-mgate: True
+qk_norm: False # 405m use true, but 2b8 model use false
+mgate: False
 mgate_dim: 44
 set_mask_by_eos: False
 only_eval: False
 gradient_accumulation_steps: 1
 
-pre_compose: True # pax: PROJECT_LOGITS
-post_compose: True # pax: PROJECT_PROBS
-query_wise: True # pax: TGT_DEPENDENT
-key_wise: True # pax: SRC_DEPENDENT
+pre_compose: False # pax: PROJECT_LOGITS
+post_compose: False # pax: PROJECT_PROBS
+query_wise: False # pax: TGT_DEPENDENT
+key_wise: False # pax: SRC_DEPENDENT
   
 head_dim: 128
 # mixture of experts (moe)

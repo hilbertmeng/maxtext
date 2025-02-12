@@ -120,7 +120,11 @@ class LlamaDecoderLayer(nn.Module):
                                     use_bias=False, 
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
-    self.dense2_bias_init_value = 0.0
+    if config.mudd_prenorm and config.mudd_postnorm:
+      self.dense2_bias_init_value = 0.0
+    else:
+      self.dense2_bias_init_value = 1.0
+
     init_v = jnp.array([0] * ((i + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype) # dense_bias_init_method == 'current_only'
     init_v = init_v[None].repeat(C, 0)
     self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)

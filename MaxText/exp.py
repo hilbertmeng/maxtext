@@ -40,7 +40,7 @@ class Llama7B(Llama):
     base_num_decoder_layers = 32
     head_dim = 128
 
-class MUDDLlamaMedium(LlamaMedium):
+class MUDDLlama2Medium(LlamaMedium):
     
     # model params
     base_num_decoder_layers = 24
@@ -69,7 +69,7 @@ class MUDDLlamaMedium(LlamaMedium):
     checkpoint_period = 500
     keep_period = 1000
     # others
-    model_name = 'MUDDLlamaMedium'
+    model_name = 'MUDDLlama2Medium'
     learning_rate = 3e-4
     per_device_batch_size = 32.0 # float, v5p-16, core 8, total batch size = 8 * 32 = 256
     eval_per_device_batch_size = 32.0

@@ -58,6 +58,7 @@ Quant = quantizations.AqtQuantization
 nd_dense_init = initializers.nd_dense_init  # XD
 DenseGeneral = linears.DenseGeneral  # XD
 contant_dense_init = initializers.contant_dense_init  # lsp
+NormalInitializer = initializers.nd_dense_init_normal # lsp
 # -----------------------------------------
 # The Decoder Layer specific for Llama2
 # -----------------------------------------
@@ -171,6 +172,9 @@ class LlamaDecoderLayer(nn.Module):
         dropout_rate=cfg.dropout_rate,
         name="self_attention",
         quant=self.quant,
+        kernel_init=NormalInitializer(0.006), # lsp
+        float32_qk_product = False,  # computes logits in float32 for stability.
+        float32_logits = True,
         quantize_kvcache=cfg.quantize_kvcache,
         prefill_cache_axis_order=tuple([int(i) for i in cfg.prefill_cache_axis_order.split(",")]),
         ar_cache_axis_order=tuple([int(i) for i in cfg.ar_cache_axis_order.split(",")]),
@@ -206,6 +210,7 @@ class LlamaDecoderLayer(nn.Module):
         name="mlp",
         config=cfg,
         quant=self.quant,
+        kernel_init=NormalInitializer(0.006),  # lsp
     )(hidden_states, deterministic=deterministic)
     mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_length", "activation_embed"))
 

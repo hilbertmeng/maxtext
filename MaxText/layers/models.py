@@ -33,6 +33,8 @@ from layers import normalizations, quantizations
 from layers import pipeline
 import max_logging
 
+
+NormalInitializer = initializers.nd_dense_init_normal
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
@@ -47,7 +49,6 @@ Quant = quantizations.AqtQuantization
 # ------------------------------------------------------------------------------
 # The network: Decoder & Transformer Definitions
 # ------------------------------------------------------------------------------
-
 
 class DecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
@@ -493,11 +494,10 @@ class Decoder(nn.Module):
           cfg.vocab_size,
           weight_dtype=cfg.weight_dtype,
           dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+          kernel_init=NormalInitializer(0.006), # lsp
           kernel_axes=("embed", "vocab"),
           name="logits_dense",
-      )(
-          y
-      )  # We do not quantize the logits matmul.
+      )(y)  # We do not quantize the logits matmul.
     logits = nn.with_logical_constraint(logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab"))
     logits = logits.astype(jnp.float32)
     return logits
@@ -522,7 +522,7 @@ class Transformer(nn.Module):
         features=cfg.emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=nn.initializers.normal(stddev=0.06), # 1.0 -> 0.02 -> 0.006
+        embedding_init=NormalInitializer(0.006), # lsp
         name="token_embedder",
         config=cfg,
     )

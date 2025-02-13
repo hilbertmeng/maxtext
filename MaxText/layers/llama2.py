@@ -98,6 +98,8 @@ class LlamaDecoderLayer(nn.Module):
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
       # assert dynamic_dense_inter_dim < 128
       dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
+    
+    self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
 
     kwargs = dict(
       dtype=cfg.dtype,
@@ -232,6 +234,10 @@ class LlamaDecoderLayer(nn.Module):
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
+      if cfg.dynamic_dense_scale_dw:
+        max_logging.log(f'dynamic_dense_scale_dw: {cfg.dynamic_dense_scale_dw}')
+        dyn_dense_kernel_out /= jnp.sqrt(self.dynamic_dense_inter_dim)
+
       dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype) # dense_proj2_bias初始化出来时fp32
 
     # if cfg.record_internal_nn_metrics:

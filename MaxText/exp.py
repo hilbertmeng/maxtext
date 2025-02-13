@@ -82,6 +82,7 @@ class MUDDLlama2Medium(LlamaMedium):
     dataset_type = 'pile'
     vocab_size = 50432
     enable_checkpointing = True
+    dynamic_dense_scale_dw = False
 
 class Llama2Medium(LlamaMedium):
     

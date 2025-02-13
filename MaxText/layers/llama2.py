@@ -120,7 +120,7 @@ class LlamaDecoderLayer(nn.Module):
                                     use_bias=False, 
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
-    if config.mudd_prenorm and config.mudd_postnorm:
+    if cfg.mudd_prenorm and cfg.mudd_postnorm:
       self.dense2_bias_init_value = 0.0
     else:
       self.dense2_bias_init_value = 1.0

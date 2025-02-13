@@ -345,6 +345,8 @@ class Decoder(nn.Module):
       if cfg.mudd_prenorm:
         assert cfg.ddw_gen_pattern == 'q,k,v,m', max_logging.log(f'Error: ddw_gen_pattern must be ‘q,k,v,m’ when mudd_prenorm is true.')
         y_normed = self.get_norm_layer(name="mudd_prenorm", cfg=cfg)(y)
+      else:
+        y_normed = y
       y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]  # XD
 
     BlockLayer = self.get_decoder_layer()
@@ -452,6 +454,8 @@ class Decoder(nn.Module):
 
             if cfg.mudd_prenorm:
               y_normed = self.get_norm_layer(name=f"mudd_prenorm_{lyr}", cfg=cfg)(y)
+            else:
+              y_normed = y
             hids.append(y_normed)
 
             C = 1 if cfg.dynamic_dense_fix_last_layer and i == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)

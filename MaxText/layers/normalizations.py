@@ -30,14 +30,13 @@ class RMSNorm(nn.Module):
   epsilon: float = 1e-6
   weight_dtype: Any = jnp.float32
   dtype: Any = jnp.float32
-  weight_dtype: Any = jnp.float32
   kernel_axes: Tuple[str, ...] = ()
   scale_init: Initializer = nn.initializers.ones # pax also ones init
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jnp.ndarray, x_dtype=jnp.float32) -> jnp.ndarray:
     """Applies layer normalization on the input."""
-    x = jnp.asarray(x, jnp.float32)
+    x = jnp.asarray(x, x_dtype) # lsp
     features = x.shape[-1]
     mean2 = jnp.mean(lax.square(x), axis=-1, keepdims=True)
     y = jnp.asarray(x * lax.rsqrt(mean2 + self.epsilon), self.dtype)

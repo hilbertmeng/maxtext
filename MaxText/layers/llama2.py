@@ -231,7 +231,7 @@ class LlamaDecoderLayer(nn.Module):
 
     if cfg.dynamic_dense_type == 'qkvm': # XD lsp
     #   dense_w_inner = self.dense_activation(self.dense_proj1(nn.RMSNorm(use_scale=use_scale)(layer_output)))
-      x_out_normed = self.pre_dense_proj1_norm(layer_output)
+      x_out_normed = self.pre_dense_proj1_norm(layer_output, x_dtype=jnp.bfloat16)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
       if cfg.dynamic_dense_scale_dw:

@@ -32,13 +32,6 @@ class LlamaMedium(Llama):
 
     per_device_batch_size = 8.0  # for ICI_MESH_SHAPE = [1, 32, 1]
 
-class Llama7B(Llama):
-    base_emb_dim = 4096
-    base_num_query_heads = 32
-    base_num_kv_heads = 32
-    base_mlp_dim = 11008
-    base_num_decoder_layers = 32
-    head_dim = 128
 
 class MUDDLlama2Medium(LlamaMedium):
     
@@ -116,3 +109,16 @@ class Llama2Medium(LlamaMedium):
     dataset_type = 'pile'
     vocab_size = 50432
     enable_checkpointing = True
+
+
+class Llama7B(Llama2Medium):
+    base_emb_dim = 4096
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 11008
+    base_num_decoder_layers = 32
+    head_dim = 128
+    model_name = 'Llama2_7B'
+    per_device_batch_size = 8.0 # float, v5p-16, core 8, total batch size = 8 * 32 = 256
+    eval_per_device_batch_size = 8.0
+    enable_checkpointing = False

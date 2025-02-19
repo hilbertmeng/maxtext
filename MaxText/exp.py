@@ -118,7 +118,34 @@ class Llama7B(Llama2Medium):
     base_mlp_dim = 11008
     base_num_decoder_layers = 32
     head_dim = 128
-    model_name = 'Llama2_7B'
+    model_name = 'Llama7B'
     per_device_batch_size = 8.0 # float, v5p-16, core 8, total batch size = 8 * 32 = 256
     eval_per_device_batch_size = 8.0
     enable_checkpointing = False
+
+
+class Llama13B(Llama2Medium):
+    base_emb_dim = 5120
+    base_num_query_heads = 40
+    base_num_kv_heads = 40
+    base_mlp_dim = 13824
+    base_num_decoder_layers = 40
+    head_dim = 128
+    model_name = 'Llama13B'
+    per_device_batch_size = 8.0 # float, v5p-16, core 8, total batch size = 8 * 32 = 256
+    eval_per_device_batch_size = 8.0
+    enable_checkpointing = False
+
+
+class Llama33B(Llama2Medium):
+    base_emb_dim = 6656
+    base_num_query_heads = 52
+    base_num_kv_heads = 52
+    base_mlp_dim = 17920
+    base_num_decoder_layers = 60
+    head_dim = 128
+    model_name = 'Llama13B'
+    per_device_batch_size = 8.0 # float, v5p-16, core 8, total batch size = 8 * 32 = 256
+    eval_per_device_batch_size = 8.0
+    enable_checkpointing = False
+

@@ -22,9 +22,9 @@ import jax
 
 import optax
 import jax.numpy as jnp
+from typing import List
 
-
-def get_optimizer(config, learning_rate_schedule):
+def get_optimizer(config, learning_rate_schedule, wd_tree=None):
   """create optimizer"""
   if config.opt_type == "adamw":
     # Create AdamW Optimizer following Llama2's training details, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
@@ -44,6 +44,7 @@ def get_optimizer(config, learning_rate_schedule):
         epsilon=config.adam_eps,
         epsilon_root=config.adam_eps_root,
         weight_decay=config.adam_weight_decay,
+        wd_tree=wd_tree,
     )
   else:
     raise ValueError(f"{config.opt_type=} is not a supported.")
@@ -55,7 +56,8 @@ def adam_pax(
     beta2: float,
     epsilon: float,
     epsilon_root: float,
-    weight_decay: float,
+    weight_decay: float,  # Todo: weight_decay set： scale 不 decay
+    wd_tree=None,
 ) -> optax.GradientTransformation:
   """Standard Adam optimizer that supports weight decay.
 
@@ -76,7 +78,6 @@ def adam_pax(
   Returns:
     A `optax.GradientTransformation`.
   """
-
   def init_fn(params):
     mu = jax.tree_util.tree_map(jnp.zeros_like, params)  # First moment
     nu = jax.tree_util.tree_map(jnp.zeros_like, params)  # Second moment
@@ -137,7 +138,10 @@ def adam_pax(
     updates = jax.tree_util.tree_map(lambda mu, nu: mu / (jnp.sqrt(nu + epsilon_root) + epsilon), mu, nu)
 
     if weight_decay > 0:
-      updates = jax.tree_util.tree_map(lambda x, v: x + weight_decay * v, updates, params)
+      if wd_tree is None:
+        updates = jax.tree_util.tree_map(lambda x, v: x + weight_decay * v, updates, params)
+      else: # lsp
+        updates = jax.tree_util.tree_map(lambda x, v, wd: x + wd * v, updates, params, wd_tree)
 
     step_size = -1.0 * learning_rate_fn(count)
     # Finally, fold in step size.

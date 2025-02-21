@@ -27,6 +27,7 @@ import functools
 import pickle
 import time
 from collections import defaultdict
+import re
 
 from typing import Sequence
 from absl import app
@@ -42,7 +43,6 @@ import checkpointing
 import max_utils
 import maxtext_utils
 import max_logging
-import optimizers
 import profiler
 import pyconfig
 # pylint: disable-next=unused-import
@@ -452,6 +452,15 @@ def check_example_batch(config, example_batch):
     err, _ = jax.jit(jittable_f)(example_batch['inputs'][: config.global_batch_size_to_train_on, :])
     err.throw()
 
+
+def model_init(model, key):
+  params = model.init(
+      {"params": key, "dropout": key, "aqt": key},
+      jnp.ones(input_shape, dtype=jnp.int32),
+      jnp.ones(input_shape, dtype=jnp.int32),
+  )
+  return params
+  
 def setup_mesh_and_model(config):
   """Set up the mesh and the model for training
 
@@ -479,8 +488,12 @@ def setup_mesh_and_model(config):
   # Model and Optimizer definition
   quant = quantizations.configure_quantization(config)
   model = Transformer(config, mesh, quant=quant)
+  params_shape = jax.eval_shape(functools.partial(model_init, model), init_rng)
+
+  max_logging.log(f'params_shape: {params_shape}')
+
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
-  tx = optimizers.get_optimizer(config, learning_rate_schedule)
+  # tx = optimizers.get_optimizer(config, learning_rate_schedule)
 
   if config.enable_emergency_checkpoint:
     abstract_state, _, _ = max_utils.get_abstract_state(
@@ -500,7 +513,7 @@ def setup_mesh_and_model(config):
     # logger = checkpointing.setup_checkpoint_logger(config)
     checkpoint_manager = checkpointing.create_orbax_checkpoint_manager(config)
 
-  return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx
+  return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule
 
 
 def setup_train_loop(config):
@@ -522,11 +535,11 @@ def setup_train_loop(config):
     data_iterator:
     state: the initialized train state
   """
-  init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx = setup_mesh_and_model(config)
+  init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule = setup_mesh_and_model(config) # lsp: remove tx
   data_iterator, eval_data_iterator, _ = create_data_iterator_with_tokenizer(config, mesh)
-
+  # init state1
   state, state_mesh_annotations, data_iterator = max_utils.setup_training_state(
-      model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager
+      model, data_iterator, config, init_rng, mesh, checkpoint_manager  # lsp: remove tx
   )
 
   if config.using_pipeline_parallelism:

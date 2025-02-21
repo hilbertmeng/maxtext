@@ -109,6 +109,7 @@ class Llama2Medium(LlamaMedium):
     dataset_type = 'pile'
     vocab_size = 50432
     enable_checkpointing = True
+    wd_mults = [('.*/scale', 1.0)]
 
 
 class Llama7B(Llama2Medium):

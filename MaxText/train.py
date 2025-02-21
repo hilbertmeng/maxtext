@@ -69,6 +69,8 @@ from ml_goodput_measurement import goodput
 from input_pipeline._pile_data_processing import record_file_and_step # lsp
 from flax.traverse_util import flatten_dict, unflatten_dict
 from flax.training import orbax_utils, train_state
+import optimizers
+
 
 Transformer = models.Transformer
 EPS = 1e-8
@@ -453,7 +455,8 @@ def check_example_batch(config, example_batch):
     err.throw()
 
 
-def model_init(model, key):
+def model_init(model, config, key):
+  input_shape = (config.global_batch_size_to_load, config.max_target_length - 1)
   params = model.init(
       {"params": key, "dropout": key, "aqt": key},
       jnp.ones(input_shape, dtype=jnp.int32),
@@ -461,6 +464,25 @@ def model_init(model, key):
   )
   return params
   
+
+def get_wd_tree(config, params):
+  '''example:
+  config.wd_mults = [(".*/scale$", 0.001), (".*/attention$", 0.1)]
+  '''
+  if not config.wd_mults: return None
+  assert isinstance(config.wd_mults, list)
+  wd_tree = {}
+  for name in flatten_dict(params):
+      name_str = '/'.join(name)
+      wd = config.adam_weight_decay
+      for pat, user_wd in config.wd_mults:
+          if re.findall(pat, name_str):
+            wd = user_wd
+      wd_tree[name] = wd
+  wd_tree = unflatten_dict(wd_tree)
+  return wd_tree
+
+
 def setup_mesh_and_model(config):
   """Set up the mesh and the model for training
 
@@ -488,12 +510,16 @@ def setup_mesh_and_model(config):
   # Model and Optimizer definition
   quant = quantizations.configure_quantization(config)
   model = Transformer(config, mesh, quant=quant)
-  params_shape = jax.eval_shape(functools.partial(model_init, model), init_rng)
-
-  max_logging.log(f'params_shape: {params_shape}')
-
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
-  # tx = optimizers.get_optimizer(config, learning_rate_schedule)
+  # lsp: add rule param weight decay
+  if config.wd_mults:
+    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
+    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
+    wd_tree = get_wd_tree(config=config, params=params_shape)
+  else:
+    wd_tree = None
+  max_logging.log(f'wd_tree: {wd_tree}')
+  tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
 
   if config.enable_emergency_checkpoint:
     abstract_state, _, _ = max_utils.get_abstract_state(
@@ -513,7 +539,7 @@ def setup_mesh_and_model(config):
     # logger = checkpointing.setup_checkpoint_logger(config)
     checkpoint_manager = checkpointing.create_orbax_checkpoint_manager(config)
 
-  return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule
+  return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx
 
 
 def setup_train_loop(config):
@@ -535,11 +561,11 @@ def setup_train_loop(config):
     data_iterator:
     state: the initialized train state
   """
-  init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule = setup_mesh_and_model(config) # lsp: remove tx
+  init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx = setup_mesh_and_model(config)
   data_iterator, eval_data_iterator, _ = create_data_iterator_with_tokenizer(config, mesh)
   # init state1
   state, state_mesh_annotations, data_iterator = max_utils.setup_training_state(
-      model, data_iterator, config, init_rng, mesh, checkpoint_manager  # lsp: remove tx
+      model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager
   )
 
   if config.using_pipeline_parallelism:

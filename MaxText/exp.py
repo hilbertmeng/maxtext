@@ -16,6 +16,7 @@ class Llama:
     # dataset_type = 'pile'
     scan_layers = True
     rope_max_timescale = 10000
+    wd_mults = None
     
 class LlamaMedium(Llama):
     base_emb_dim = 1024
@@ -76,6 +77,8 @@ class MUDDLlama2Medium(LlamaMedium):
     vocab_size = 50432
     enable_checkpointing = True
     dynamic_dense_scale_dw = False
+    wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0)]  # 0.表示不进行decay
+
 
 class Llama2Medium(LlamaMedium):
     
@@ -109,7 +112,7 @@ class Llama2Medium(LlamaMedium):
     dataset_type = 'pile'
     vocab_size = 50432
     enable_checkpointing = True
-    wd_mults = [('.*/scale', 1.0)]
+    wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0)]  # 0.表示不进行decay
 
 
 class Llama7B(Llama2Medium):

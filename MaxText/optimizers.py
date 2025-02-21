@@ -28,6 +28,8 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None):
   """create optimizer"""
   if config.opt_type == "adamw":
     # Create AdamW Optimizer following Llama2's training details, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
+    # lsp: add weight_decay mask
+    mask = jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, wd_tree) if wd_tree else None
     return optax.adamw(
         learning_rate_schedule,
         b1=config.adam_b1,
@@ -35,6 +37,7 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None):
         eps=config.adam_eps,
         eps_root=config.adam_eps_root,
         weight_decay=config.adam_weight_decay,
+        mask=mask,
     )
   elif config.opt_type == "adam_pax":
     return adam_pax(
@@ -44,7 +47,7 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None):
         epsilon=config.adam_eps,
         epsilon_root=config.adam_eps_root,
         weight_decay=config.adam_weight_decay,
-        wd_tree=wd_tree,
+        wd_tree=wd_tree, # lsp
     )
   else:
     raise ValueError(f"{config.opt_type=} is not a supported.")
@@ -56,8 +59,8 @@ def adam_pax(
     beta2: float,
     epsilon: float,
     epsilon_root: float,
-    weight_decay: float,  # Todo: weight_decay set： scale 不 decay
-    wd_tree=None,
+    weight_decay: float,
+    wd_tree=None,  # lsp
 ) -> optax.GradientTransformation:
   """Standard Adam optimizer that supports weight decay.
 

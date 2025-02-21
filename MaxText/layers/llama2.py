@@ -240,15 +240,6 @@ class LlamaDecoderLayer(nn.Module):
 
       dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype) # dense_proj2_bias初始化出来时fp32
 
-    # if cfg.record_internal_nn_metrics:
-    #   self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
-    #   self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
-    #   self.sow(
-    #       "intermediates",
-    #       "activation_fraction_zero",
-    #       jnp.sum(layer_output == 0) / jnp.size(layer_output),
-    #   )
-
     if cfg.scan_layers:
       return layer_output, None
     else:

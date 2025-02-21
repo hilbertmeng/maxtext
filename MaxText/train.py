@@ -27,10 +27,7 @@ import functools
 import pickle
 import time
 from collections import defaultdict
-<<<<<<< HEAD
-=======
 import re
->>>>>>> xd/dev
 
 from typing import Sequence
 from absl import app

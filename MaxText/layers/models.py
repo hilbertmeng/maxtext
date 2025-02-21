@@ -260,7 +260,9 @@ class Decoder(nn.Module):
     elif self.config.decoder_block == "dcformer":
       from layers import dcformer
 
-      return dcformer.DcformerDecoderLayer
+    elif self.config.decoder_block == "fusion":
+      from layers import fusion_decoder
+      return fusion_decoder.FusionDecoderLayer
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
@@ -279,7 +281,7 @@ class Decoder(nn.Module):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
-    args_length = 6 if cfg.decoder_block == 'dcformer' else 4
+    args_length = 6 if cfg.decoder_block == 'fusion' else 4
     scan_fn = nn.scan(
       decoder_layer,
       variable_axes={
@@ -422,12 +424,11 @@ class Decoder(nn.Module):
         )
     else:
       if cfg.scan_layers:
-        # lsp
-        num_layers_per_block = 1
+        assert not cfg.dense_conn
+        num_layers_per_block = cfg.num_layers_per_block
         args = (y, decoder_segment_ids, decoder_positions, deterministic, model_mode, )
-        if cfg.decoder_block == 'dcformer':
-          args += (cfg.num_layers_per_block, eos_sum, )
-          num_layers_per_block = cfg.num_layers_per_block
+        if cfg.decoder_block == 'fusion':
+          args += (num_layers_per_block, eos_sum, )
         y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // num_layers_per_block, "layers", mesh)(*args)
       else:
         for lyr in range(cfg.num_decoder_layers):
@@ -495,25 +496,6 @@ class Decoder(nn.Module):
         # Correctly normalize pre-softmax logits for this shared case.
         logits = logits / jnp.sqrt(y.shape[-1])
     else:
-      # lsp, DenseGeneral -> self.param, 便于chunk
-      # kernel_in_axis = np.arange(1)
-      # kernel_out_axis = np.arange(1, 2)
-      # kernel_init_shard = nn.with_logical_partitioning(nd_dense_init(1.0, "fan_in", "truncated_normal"), ('embed', 'vocab'))
-      # dense_shape = (cfg.base_emb_dim, cfg.vocab_size)
-      # logits_dense = self.param('logits_dense.kernel', 
-      #                             kernel_init_shard, 
-      #                             dense_shape, 
-      #                             cfg.weight_dtype,
-      #                             kernel_in_axis,
-      #                             kernel_out_axis)
-      # logits_dense_kernel = jnp.asarray(logits_dense, jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype)
-      # chunks = 1
-      # vdim = cfg.vocab_size // chunks
-      # logits = jnp.zeros((*y.shape[ :2], cfg.vocab_size), dtype=y.dtype)
-      # # logits = nn.with_logical_constraint(logits, ('activation_batch', 'activation_length',  'mlp'),)
-      # for i in range(chunks):
-      #   _logits = jnp.einsum('bld,dv->blv', y, logits_dense_kernel[:, i*vdim: (i+1)*vdim])
-      #   logits = logits.at[..., i*vdim: (i+1)*vdim].set(_logits)
       logits = linears.DenseGeneral(
           cfg.vocab_size,
           weight_dtype=cfg.weight_dtype,

@@ -48,9 +48,12 @@ if [[ $tpu_suffix == *v3* ]]; then
 #  zone='europe-west4-a'
 elif [[ $tpu_suffix == *v4* ]]; then
   zone="us-central2-b"
-else
-#   zone="us-west4-a"
-  zone='us-east5-a'
+
+elif [[ $tpu_suffix == *v6e* ]]; then
+  zone='europe-west4-a'
+else  
+  zone="europe-west4-b"
+ # zone='us-east5-a'
 fi
 echo "Zone: $zone"
 

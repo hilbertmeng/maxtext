@@ -26,6 +26,7 @@ import sys
 import functools
 import pickle
 import time
+from collections import defaultdict
 
 from typing import Sequence
 from absl import app
@@ -124,12 +125,13 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
   if _buffered_metrics is not None:
     if _buffered_step is None:
       raise ValueError(f"When writing metrics, {_buffered_step=} was none")
+    # lsp: 写metrics到bucket
     write_metrics_to_tensorboard(writer, _buffered_metrics, _buffered_step, config)
 
-    if config.metrics_file:
+    if config.metrics_file: # metrics_file: ''
       max_utils.write_metrics_locally(_buffered_metrics, _buffered_step, config, local_metrics_file)
 
-    if config.gcs_metrics and jax.process_index() == 0:
+    if config.gcs_metrics and jax.process_index() == 0: # gcs_metrics: False
       running_gcs_metrics = max_utils.write_metrics_for_gcs(_buffered_metrics, _buffered_step, config, running_gcs_metrics)
 
   _buffered_step = step
@@ -146,13 +148,13 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
         writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
 
     full_log = step % config.log_period == 0
-
-    max_logging.log(
-        f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
-        f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-        f"loss: {metrics['scalar']['learning/loss']:.3f}"
-    )
-
+    # max_logging.log(
+    #     f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
+    #     f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
+    #     f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+    #     f"aux_loss: {metrics['scalar']['learning/aux_loss']:.3f}, "
+    #     f"accuracy: {metrics['scalar']['learning/accuracy']:.4f}"
+    # )
     if full_log and jax.process_index() == 0:
       max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
       writer.flush()
@@ -173,7 +175,7 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
             iter=grain.PyGrainCheckpointSave(data_iterator.local_iterator),
         ),
     )
-  elif dataset_type in ["pile", 'novel_4_32k', 'pretrain_4k']: # lsp
+  elif dataset_type in ["pile", 'novel_4_32k', 'pretrain_4k', 'instruct']: # lsp
     return checkpoint_manager.save(step, {'state': state})
   else:
     return checkpoint_manager.save(
@@ -185,30 +187,66 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
 # Top-level Functions
 # -----------------------------------------------------------------------------
 
-
+# 如果记录这个比较多，会占用不少的显存，且增加编译时间
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
-  # lsp
+
   if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
     output_metrics["scalar"]["eos_sum"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum"]
-
   if 'eos_sum_mean' in intermediate_outputs["intermediates"]["decoder"]:
     output_metrics["scalar"]["eos_sum_mean"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum_mean"]
 
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"] # decode -> layers
-    for layer_num in range(config.num_decoder_layers):
-      output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict["activation_fraction_zero"][0][
-          layer_num
-      ]
-      output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = metrics_dict["activation_mean"][0][layer_num]
-      output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = metrics_dict["activation_stdev"][0][layer_num]
+    for layer_num in range(0, config.base_num_decoder_layers, 1):
+      if config.n_shared_experts > 0:
+        output_metrics["scalar"][f"shared_mlp_l2norm/layer_{layer_num:03d}"] = metrics_dict["shared_mlp_l2norm"][0][layer_num]
+      # moe metrics
+      sub_layer_num = layer_num % config.num_layers_per_block # 0,1,2,3
+      if config.num_experts >= 1 and sub_layer_num % config.insert_moe_divisor == 0:
+        main_layer_num = layer_num // config.num_layers_per_block # [0, ..., 11]
+        sub_layer_num_values = metrics_dict[f"unshared_mlp_{sub_layer_num}"]
+        temp_dict = {
+          f"unshared_mlp_output/l2norm/layer_{layer_num:03d}": metrics_dict["unshared_mlp/l2norm"][0][layer_num],
+          f"router_logits/l2norm/unshared_mlp_layer_{layer_num:03d}": sub_layer_num_values["router_logits/l2norm"][0][main_layer_num],
+          f"router_logits/token_to_expert_score_up/unshared_mlp_layer_{layer_num:03d}":
+                           sub_layer_num_values["router_logits/token_to_expert_score"][0][main_layer_num],
+          f"router_logits/expert_to_token_score_down/unshared_mlp_layer_{layer_num:03d}":
+                           sub_layer_num_values["router_logits/expert_to_token_score"][0][main_layer_num],
+          f"sfm_after_topn/token_to_expert_score_up/unshared_mlp_layer_{layer_num:03d}":
+                           sub_layer_num_values["sfm_after_topn/token_to_expert_score"][0][main_layer_num],
+          f"sfm_after_topn/expert_to_token_score_down/unshared_mlp_layer_{layer_num:03d}":
+                           sub_layer_num_values["sfm_after_topn/expert_to_token_score"][0][main_layer_num],
+          # f"router_logits/noise_before_{layer_num:03d}/max": sub_layer_num_values["router_logits/noise_before/max"][0][main_layer_num],
+          # f"router_logits/noise_before_{layer_num:03d}/min": sub_layer_num_values["router_logits/noise_before/min"][0][main_layer_num],
+          # f"router_logits/noise_after_{layer_num:03d}/max": sub_layer_num_values["router_logits/noise_after/max"][0][main_layer_num],
+          # f"router_logits/noise_after_{layer_num:03d}/min": sub_layer_num_values["router_logits/noise_after/min"][0][main_layer_num],
+        }
+        output_metrics["scalar"].update(temp_dict)
+
+        temp_dict = {f"expert_top/selected_expert_{i}_token_nums/unshared_mlp_layer_{layer_num:03d}": 
+                sub_layer_num_values[f"top/selected_expert_token_nums"][0][main_layer_num][i] 
+                for i in range(0, config.num_experts, 1)}
+        output_metrics["scalar"].update(temp_dict)
+      
   else:
     for layer_num in range(config.num_decoder_layers):
       layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]
       output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = layer["activation_fraction_zero"][0]
       output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = layer["activation_mean"][0]
       output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = layer["activation_stdev"][0]
+
+
+def compute_accuracy(logits, targets, masks):
+  batch_weights = jnp.maximum(jnp.sum(masks, axis=-1), 1e-10)
+  correct = jnp.where(
+        masks > 0.0,
+        jnp.argmax(logits, axis=-1) == targets,
+        jnp.array(False)
+    )
+  correct = jnp.sum(correct, axis=-1)
+  accuracy = jnp.mean(correct / batch_weights)
+  return correct, accuracy
 
 
 def loss_fn(model, config, data, dropout_rng, params, is_train=True):
@@ -233,7 +271,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   if is_train:
     for k, v in data.items():
       data[k] = v[: config.global_batch_size_to_train_on, :]
-
+  max_logging.log(f'enable_dropout0000: {config.enable_dropout}')
   logits, intermediate_outputs = model.apply(
       params,
       data["inputs"],
@@ -243,9 +281,20 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
+  correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"])
   flat_intermediate = flatten_dict(intermediate_outputs)
-  # for k, v in flat_intermediate.items():
-  #   print(k)
+
+  # ('intermediates', 'decoder', 'layers', 'mlp_0/1/2/3', 'aux_loss')
+  if config.num_experts > 1 and config.moe_type != 'mistral':
+      _aux_losses = [(v.value, v.weight) for k, v in flat_intermediate.items() if 'aux_loss' in k]
+      _aux_losses = jnp.array(_aux_losses)
+      aux_losses, aux_weights = _aux_losses[:, 0], _aux_losses[:, 1]
+      aux_loss = aux_losses.sum() / aux_weights.sum()
+  else:
+    aux_loss = 0
+
+  for k, v in flat_intermediate.items():
+    max_logging.log(k)
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
@@ -254,12 +303,41 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   total_loss = jnp.sum(xent)
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
+
+  moe_lb_loss = 0.0
+  if config.num_experts > 1:
+    nested_key = ("intermediates", "decoder", "layers", "moe_lb_loss")
+    total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+    moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
+    loss += moe_lb_loss
+
   aux = {
       "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
+      "aux_loss": moe_lb_loss,
+      "accuracy": accuracy, 
+      "correct": jnp.sum(correct)
   }
   return loss, aux
+
+
+params_fir_dirs = ['norm', 'scale', 'attention', 'mlp']
+def compute_params_norm(params):
+  def param_norm(param):
+      return jnp.sqrt(jnp.sum(jnp.square(param)))
+  # 记录每个参数的norm
+  param_norms = jax.tree_util.tree_map(param_norm, params)
+  flat_param_norms = flatten_dict(param_norms)
+  scalar_vales = {}
+  for k, v in flat_param_norms.items():
+    k = '/'.join(k)
+    for params_fir_dir in params_fir_dirs:
+      if params_fir_dir in k:
+        newk = k.replace('params', f'params-{params_fir_dir}')
+        break
+    scalar_vales[newk] = v
+  return scalar_vales
 
 
 def train_step(model, config, state, data, dropout_rng):
@@ -277,9 +355,45 @@ def train_step(model, config, state, data, dropout_rng):
     rng2: A new rng key that can be used in future calls.
 
   """
-  train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)
-  grad_fn = jax.value_and_grad(train_loss_fn, has_aux=True)
-  (loss, aux), raw_grads = grad_fn(state.params)
+  if config.gradient_accumulation_steps > 1:
+
+    def accumulate_gradient(acc_grad_and_loss, data):
+      # argnums用于指定那个参数有梯度
+      grad_func = jax.value_and_grad(loss_fn, argnums=4, has_aux=True)
+      # loss_fn返回的第一个参数必须是loss，且以这个loss作为梯度反传
+      (_, aux), cur_batch_gradient = grad_func(model, config, data, dropout_rng, state.params, is_train=True)
+      acc_grad_and_loss["total_loss"] += aux["total_loss"]
+      acc_grad_and_loss["aux_loss"] += aux["aux_loss"]
+      acc_grad_and_loss["accuracy"] += aux["accuracy"]
+      # 计算每个参数的梯度 * weights，这里相当于多乘了一个weights，之后要除回去
+      acc_grad_and_loss["grad"] = jax.tree_util.tree_map(
+          lambda x, y: x * aux["total_weights"] + y, cur_batch_gradient, acc_grad_and_loss["grad"]
+      )
+      acc_grad_and_loss["total_weights"] += aux["total_weights"]
+      return acc_grad_and_loss, aux
+
+    def reshape_to_microbatch_accumulations(batch_arr):
+      """Reshape global batch to microbatches, assuming batch axis is leading."""
+      microbatches = config.gradient_accumulation_steps
+      microbatch_shape = (microbatches, batch_arr.shape[0] // microbatches) + batch_arr.shape[1:]
+      return jnp.reshape(batch_arr, microbatch_shape)
+    # reshape之后多一个维度
+    data = jax.tree_util.tree_map(reshape_to_microbatch_accumulations, data)
+    init_grad = jax.tree_util.tree_map(jnp.zeros_like, state.params)
+    init_grad_and_loss = {"loss": 0.0, "accuracy": 0.0, "grad": init_grad, "total_weights": 0, "aux_loss": 0.0}
+    # 默认按行scan， init_grad_and_loss将结果保存下来
+    grad_and_loss, aux = jax.lax.scan(
+        accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
+    )
+    raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
+    aux = jax.tree.map(lambda x: jnp.sum(x, axis=0), aux)
+    aux['aux_loss'] = grad_and_loss["aux_loss"] / config.gradient_accumulation_steps
+    aux['accuracy'] = grad_and_loss["accuracy"] / config.gradient_accumulation_steps
+  else:
+    train_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=True)
+    grad_fn = jax.value_and_grad(train_loss_fn, has_aux=True)
+    (loss, aux), raw_grads = grad_fn(state.params)
+
   intermediate_outputs = aux["intermediate_outputs"]
 
   if config.gradient_clipping_threshold > 0:
@@ -287,16 +401,26 @@ def train_step(model, config, state, data, dropout_rng):
   else:
     grads = raw_grads
   new_state = state.apply_gradients(grads=grads)
-  metrics = {
-      "scalar": {
-          "learning/loss": loss,
+  
+  scalar_values = {
+          "learning/loss": aux['total_loss'] / aux['total_weights'],
+          "learning/aux_loss": aux['aux_loss'],  # lsp
+          "learning/accuracy": aux['accuracy'],
           "learning/grad_norm": max_utils.l2norm_pytree(grads),
           "learning/raw_grad_norm": max_utils.l2norm_pytree(raw_grads),
           "learning/param_norm": max_utils.l2norm_pytree(new_state.params),
           "learning/train_batch_weights": aux['total_weights'],
-      },
+      }
+
+  params_scalar_values = compute_params_norm(new_state.params)
+  scalar_values.update(params_scalar_values)
+
+  metrics = {
+      "scalar": scalar_values,
       "scalars": {},
+      # "aux": intermediate_outputs
   }
+  # intermediate_outputs = jax.tree_map(lambda x: jax.device_put(x, device=jax.devices("cpu")[0]), intermediate_outputs)
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
 
@@ -307,12 +431,18 @@ def eval_step(model, config, state, data, dropout_rng):
   """eval_step no backprop and new state compared with train_step."""
   eval_loss_fn = functools.partial(loss_fn, model, config, data, dropout_rng, is_train=False)
   loss, aux = eval_loss_fn(state.params)
-  total_loss = aux["total_loss"]
-  total_weights = aux["total_weights"]
-  metrics = {
-      "scalar": {"evaluation/loss": loss, "evaluation/total_loss": total_loss, "evaluation/total_weights": total_weights}
-  }
 
+  metrics = {
+      "scalar": 
+      {
+      "evaluation/loss": aux["total_loss"] / aux["total_weights"],  # lsp: batch token mean loss
+      "evaluation/total_loss": aux["total_loss"], 
+      "evaluation/total_weights": aux["total_weights"],
+      "evaluation/aux_loss": aux["aux_loss"],
+      "evaluation/accuracy": aux["accuracy"],
+      "evaluation/correct": aux["correct"],
+      }
+  }
   return metrics
 
 
@@ -491,6 +621,8 @@ def train_loop(config, state=None):
       apply_fn=model.apply,
       tx=None,
     )
+  for k, v in flatten_dict(state.params).items():
+    print(k, v.shape)
   num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
   max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
   per_device_tflops, _, _ = maxtext_utils.calculate_tflops_training_per_device(config)
@@ -502,16 +634,17 @@ def train_loop(config, state=None):
 
   # Define the compilation of functional_train, either by loading the compiled version or wrapping a new one in a jit
   if config.compiled_trainstep_file != "":
-    print("Loading the compiled function...", flush=True)
+    max_logging.log("Loading the compiled function...", flush=True)
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
     p_train_step = maxtext_utils.load_compiled(config, functional_train, state)
     # TODO: p_eval_step is not yet supported in load_compiled
     p_eval_step = None
-    print("Loaded compiled function!", flush=True)
+    max_logging.log("Loaded compiled function!", flush=True)
   else:
     if config.only_eval:
       p_train_step = None
     else:
+      # max_logging.log(f'in_shard_train: {in_shard_train}')
       p_train_step = jax.jit(
           functional_train,
           in_shardings=in_shard_train,
@@ -521,7 +654,7 @@ def train_loop(config, state=None):
       )
 
   if eval_data_iterator:
-    print(f'eval_data_iterator is not None')
+    max_logging.log(f'eval_data_iterator is not None')
     p_eval_step = jax.jit(
         functional_eval,
         in_shardings=in_shard_eval,
@@ -545,13 +678,15 @@ def train_loop(config, state=None):
   last_step_completion = datetime.datetime.now()
   prof = profiler.Profiler(config)
 
-  def should_eval(step):
+  def should_eval(step, eval_start_step):
     eval_loss = 10000.0
     start_time = time.time()
-    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
+    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval or eval_start_step:
+      if eval_data_iterator is None: return eval_loss, False
       eval_data_iterator.reset()
       assert eval_data_iterator
-      cumulative_eval_metrics = {"total_loss": 0., "total_weights": 0.}
+      cumulative_eval_metrics = defaultdict(int)
+      count = 0
       for edx in range(config.eval_loop_num_batches):
         try:
           eval_batch = next(eval_data_iterator)
@@ -559,38 +694,66 @@ def train_loop(config, state=None):
             eval_metrics = p_eval_step(state, eval_batch, nextrng)
             _eval_loss = float(eval_metrics['scalar']['evaluation/total_loss'])
             _weight = float(eval_metrics['scalar']['evaluation/total_weights'])
+            _correct = float(eval_metrics['scalar']['evaluation/correct'])
+            _accuracy = float(eval_metrics['scalar']['evaluation/accuracy'])
+            _aux_loss = float(eval_metrics['scalar']['evaluation/aux_loss'])
+
           cumulative_eval_metrics['total_loss'] += _eval_loss
           cumulative_eval_metrics['total_weights'] += _weight
+          cumulative_eval_metrics['total_correct'] += _correct
+
+          cumulative_eval_metrics['aux_loss'] += _aux_loss
+          cumulative_eval_metrics['accuracy'] += _accuracy # batch acc
+
           mean_eval_loss = _eval_loss / _weight
-          print(f'eval_step: {edx}, loss: {mean_eval_loss:.3f} weight: {_weight} take: {time.time() - start_time:.3f}s')
+          cumulative_eval_metrics['total_batch_loss'] += mean_eval_loss
+          count += 1
+          max_logging.log(f'eval_step: {count} loss: {mean_eval_loss:.4f} aux_loss: {_aux_loss:.4f} accuracy: {_accuracy:.4f} \
+          correct: {_correct} weight: {_weight} take: {time.time() - start_time:.3f}s')
         except Exception as e:
-          print(f'error: {e} now start to reset eval dataloader')
-      
+          max_logging.log(f'error: {e} now start to reset eval dataloader')
+      aux_loss = cumulative_eval_metrics['aux_loss'] / count
+      # token mean loss
       eval_loss = cumulative_eval_metrics["total_loss"] / (cumulative_eval_metrics["total_weights"] + EPS)
-      max_logging.log(f"average loss after {step=}: {eval_loss=}, total_weights={cumulative_eval_metrics['total_weights']}")
+      accuracy = cumulative_eval_metrics['total_correct'] / cumulative_eval_metrics['total_weights']
+      # batch token mean loss
+      batch_eval_loss = cumulative_eval_metrics["total_batch_loss"] / count
+      # batch acc
+      batch_accuracy = cumulative_eval_metrics["accuracy"] / count
+      max_logging.log(f"average loss after {step=}, eval_loss={eval_loss:.4f}, aux_loss={aux_loss:.4f}, accuracy={accuracy:.4f},\
+      batch_eval_loss={batch_eval_loss:.4f}, batch_accuracy={batch_accuracy:.4f} total_weights={cumulative_eval_metrics['total_weights']}")
       
       if jax.process_index() == 0:
         writer.add_scalar('learning/eval_loss', eval_loss, step)
-        max_logging.log(f"Write step {step} eval loss: {eval_loss} to tensorboard ")
+        writer.add_scalar('learning/eval_accuracy', accuracy, step)
+        writer.add_scalar('learning/batch_eval_loss', batch_eval_loss, step)
+        writer.add_scalar('learning/batch_eval_accuracy', batch_accuracy, step)
+        max_logging.log(f"Write step {step} eval loss: {eval_loss:4f} accuracy: {accuracy:.4f} to tensorboard ")
         writer.flush()
 
       if config.only_eval:
         max_logging.log(f"Current mode is only eval, so don't run train, now start exit......")
         exit(0)
-    return eval_loss
+    return eval_loss, False
 
+  eval_start_step = config.eval_start_step
+  count = 0
   for step in np.arange(start_step, config.steps):
+    count += 1
+    if count % 10000 == 0: # 每隔10000步新建一个tensorboard文件，不然如果tensorboard文件过大，写入会很慢
+      max_utils.close_summary_writer(writer)
+      writer = max_utils.initialize_summary_writer(config)
+
     if step == first_profiling_step:
       prof.activate()
     nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
-    eval_loss = should_eval(step)
+    eval_loss, eval_start_step = should_eval(step, eval_start_step=eval_start_step)
     with jax.profiler.StepTraceAnnotation("train", step_num=step):
       example_batch = load_next_batch(data_iterator, example_batch, config)
       check_example_batch(config, example_batch=example_batch)
       record_goodput(recorder, config, step=step)
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
         state, metrics = p_train_step(state, example_batch, nextrng)
-
     new_time = datetime.datetime.now()
     record_scalar_metrics(metrics, new_time - last_step_completion, per_device_tflops, learning_rate_schedule(step))
     last_step_completion = new_time
@@ -604,8 +767,17 @@ def train_loop(config, state=None):
       if checkpoint_manager.reached_preemption(step):
         checkpoint_manager.wait_until_finished()
         sys.exit()
-
-    write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
+    # 每步打印
+    max_logging.log(
+        f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
+        f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
+        f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+        f"aux_loss: {metrics['scalar']['learning/aux_loss']:.3f}, "
+        f"accuracy: {metrics['scalar']['learning/accuracy']:.4f}"
+    )
+    if step % 5 == 0:
+      # 每隔5步进行写入，每隔log_period进行flush
+      write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
 
     if eval_loss <= config.target_eval_loss:
         max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
@@ -617,6 +789,7 @@ def train_loop(config, state=None):
 
   if checkpoint_manager is not None:
     checkpoint_manager.wait_until_finished()
+
   write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, config.steps - 1, config)  # final step metrics
   max_utils.close_summary_writer(writer)
   record_goodput(recorder, config, job_end=True)

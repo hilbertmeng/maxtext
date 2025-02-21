@@ -25,6 +25,7 @@ from orbax.checkpoint.checkpoint_manager import CheckpointManager, CheckpointMan
 import orbax.checkpoint.experimental.emergency.checkpoint_manager as emergency_checkpoint_manager
 import jax
 import numpy as np
+import jax.numpy as jnp
 import grain.python as grain
 from flax.traverse_util import flatten_dict, unflatten_dict
 
@@ -42,18 +43,18 @@ PersistentCheckpointOptions = (
 def create_orbax_checkpoint_manager(config):
   """Returns specified Orbax (async or not) CheckpointManager or None if checkpointing is disabled."""
   if not config.enable_checkpointing:
-    max_logging.log("Checkpointing disabled, not creating checkpoint manager.")
+    print("Checkpointing disabled, not creating checkpoint manager.")
     return None
-  max_logging.log("Creating checkpoint manager...")
+  print("Creating checkpoint manager...")
   p = epath.Path(config.checkpoint_dir)
 
   if config.dataset_type=='c4-array_record':
     item_names = ('state', 'iter')
   else:
     item_names = ('state',)
-  load_ocdbt = getattr(config, 'load_ocdbt', False)
+  save_ocdbt = getattr(config, 'save_ocdbt', False)
   items = {
-        "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt)), # lsp
+        "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=save_ocdbt)), # lsp
     }
   mngr = CheckpointManager(
       p,
@@ -69,7 +70,7 @@ def create_orbax_checkpoint_manager(config):
           keep_period=getattr(config, 'keep_period', 1000), # lsp: step / keep_period would not be deleted
       )
   )
-  max_logging.log("Checkpoint manager created!")
+  print("Checkpoint manager created!")
   return mngr
 
 
@@ -82,7 +83,7 @@ def create_orbax_emergency_checkpoint_manager(
     persistent_save_interval_steps: int,
 ):
   """Returns an emergency checkpoint."""
-  max_logging.log("Creating emergency checkpoint manager...")
+  print("Creating emergency checkpoint manager...")
 
   local_registry = type_handlers.create_type_handler_registry(
       (
@@ -116,7 +117,7 @@ def create_orbax_emergency_checkpoint_manager(
       local_state_handler=local_checkpoint_handler,
   )
 
-  max_logging.log("Emergency checkpoint manager created!")
+  print("Emergency checkpoint manager created!")
   return emergency_mngr
 
 
@@ -156,13 +157,19 @@ def create_load_checkpoint_manager(checkpoint_dir, load_ocdbt):
   
   
 def print_state_shape_device(state):
+
+  if hasattr(state, 'opt_state') or 'opt_state' in state:
+    print(f'Exist opt state.......')
+
   if not isinstance(state, dict):
     state = state.params
   elif hasattr(state, 'params'):
     state = state.params
   for k, v in flatten_dict(state).items():
     k = '.'.join(k)
-    print(k, v.shape)
+    print('params:', k, v.shape, v.dtype, type(v))
+  print('=========================================')
+
   is_on_devices = v.devices() if hasattr(v, 'devices') else 'cpu'
   print(f'is_on_devices: {is_on_devices}')
   
@@ -195,6 +202,7 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
    # 如果存在meta dict且load_full_state_path和load_parameters_path为空则自动加载最新模型
   meta_dict = data_iterator.meta_dict
   checkpoint_step = meta_dict.get('checkpoint_step', None)
+  # checkpoint_step = 448800
     
   if load_full_state_path:
     checkpoint_step = extract_path_step(load_full_state_path)
@@ -204,26 +212,45 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
   if only_eval:
     load_full_state_path = None
     load_parameters_path = checkpoint_dir / str(checkpoint_step)
-    max_logging.log(f'only eval mode, start to load parameters. load_parameters_path is ’{load_parameters_path}‘')
+    print(f'only eval mode, start to load parameters. load_parameters_path is ’{load_parameters_path}‘')
 
   if load_full_state_path:
-    max_logging.log(f"restoring state from {load_full_state_path=}")
+    print(f"restoring state from {load_full_state_path=}")
     state = checkpoint_manager.restore(checkpoint_step, items={"state": abstract_unboxed_pre_state})
     print_state_shape_device(state['state'])
-    return state['state'], None
+    return state, None
 
   elif load_parameters_path:
-    max_logging.log(f"restoring params from {load_parameters_path=}")
+    print(f"restoring params from {load_parameters_path=}")
     params_shapedtype = abstract_unboxed_pre_state['params'] if isinstance(abstract_unboxed_pre_state, dict) else abstract_unboxed_pre_state.params
-    print(f'params_shapedtype: {params_shapedtype}')
-    # 最新版本orbax-checkpoint时，如果模型文件中存在_sharding，当_sharding的shard shape和当前的shard shape不一致时，会报错
-    # 有2种解决方案，1、基于当前的mesh shape重新写一个_sharding文件对其进行覆盖；2、手动删除原始_sharding文件
-    state = checkpoint_manager.restore(checkpoint_step, items={"state": {"params": params_shapedtype}})
-    print_state_shape_device(state['state'])
-    return None, state['state']  # params: {'params'} 2
+    load_parameters_path = epath.Path(load_parameters_path)
+     # 如果不存在_sharding文件，可以传入params_shapedtype作为sharding方式，这种方式比直接读取_sharding的方式更快点
+    # 第一种：基于人工构造的sharding方式进行加载
+    ckptr = orbax.checkpoint.PyTreeCheckpointer()
+    restore_args = orbax.checkpoint.checkpoint_utils.construct_restore_args({"params": params_shapedtype})
+    # print(f'restore_args: {restore_args}')
+    # params = ckptr.restore(
+    #     load_parameters_path / 'state', item={"params": params_shapedtype}, transforms={}, restore_args=restore_args
+    # )
+    params = ckptr.restore(load_parameters_path / 'state', restore_args=restore_args)
+    # # 第二种：基于模型的_sharding文件进行加载
+    # item = {
+    #   "state": orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler(use_ocdbt=load_ocdbt))
+    #   }
+    # # 如果存在_sharding文件，这样可以直接按照_sharding文件进行shard, _sharding文件包含的模型参数名称可以大于需要加载的模型参数
+    # state = checkpoint_manager.restore(checkpoint_step, items=item) 
+    # if 'params' not in state['state']['params']:
+    #   params = {'params': state['state']}
+    # else:
+    #   params = state['state']
+    # ckptr = orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler())
+    # params = ckptr.restore(load_parameters_path / 'state', args=orbax.checkpoint.args.PyTreeRestore(restore_args=restore_args))
+
+    print_state_shape_device(params)
+    return None, params  # params: {'params'} 2
 
   elif checkpoint_step is not None:
-    max_logging.log(f"restoring params from ’{checkpoint_dir}‘ checkpoint_step: {checkpoint_step}")
+    print(f"restoring params from ’{checkpoint_dir}‘ checkpoint_step: {checkpoint_step}")
     checkpoint_dir = checkpoint_dir / str(checkpoint_step) / 'state'
     ckptr = orbax.checkpoint.StandardCheckpointer()
     restored = ckptr.restore(checkpoint_dir, args=orbax.checkpoint.args.StandardRestore(abstract_unboxed_pre_state))
@@ -231,7 +258,7 @@ def load_state_if_possible(checkpoint_manager: CheckpointManager,
     return  {'state': restored}, None
     
   else:
-    max_logging.log("No existing checkpoints found, not restoring checkpoint.")
+    print("No existing checkpoints found, not restoring checkpoint.")
     return None, None
 
 
@@ -244,25 +271,25 @@ def setup_checkpoint_logger(config) -> composite_logger.CompositeLogger | None:
   """
   orbax_cloud_logger = None
   orbax_standard_logger = None
-  max_logging.log("Setting up checkpoint logger...")
+  print("Setting up checkpoint logger...")
   if config.enable_checkpoint_cloud_logger:
     logger_name = f"checkpoint_{config.run_name}"
     options = cloud_logger.CloudLoggerOptions(
         job_name=config.run_name, logger_name=logger_name
     )
     orbax_cloud_logger = cloud_logger.CloudLogger(options=options)
-    max_logging.log("Successfully set up checkpoint cloud logger.")
+    print("Successfully set up checkpoint cloud logger.")
 
   if config.enable_checkpoint_standard_logger:
     orbax_standard_logger = standard_logger.StandardLogger()
-    max_logging.log("Successfully set up checkpoint standard logger.")
+    print("Successfully set up checkpoint standard logger.")
 
   orbax_logger = None
   if orbax_cloud_logger is not None and orbax_standard_logger is not None:
     orbax_logger = composite_logger.CompositeLogger(
         orbax_cloud_logger, orbax_standard_logger
     )
-    max_logging.log("Successfully set up checkpoint composite logger.")
+    print("Successfully set up checkpoint composite logger.")
 
   return orbax_logger
 
@@ -270,7 +297,7 @@ def setup_checkpoint_logger(config) -> composite_logger.CompositeLogger | None:
 def load_params_from_path(load_parameters_from_path, abstract_unboxed_params):
   """Load decode params from checkpoint at specified path."""
   assert load_parameters_from_path, "load_parameters_from_path is not defined."
-  max_logging.log(f"restoring params from {load_parameters_from_path}")
+  print(f"restoring params from {load_parameters_from_path}")
   ckpt = epath.Path(load_parameters_from_path)
   ckptr = orbax.checkpoint.PyTreeCheckpointer()
   # This is a memory optimization. We don't want to restore the entire checkpoint - only the params.

@@ -71,7 +71,7 @@ class PileDatasets():
                 )
             self.step_in_file = self.meta_dict.get('step_in_file')  # XD fix
 
-        max_logging.log(f'meta_dict: {self.meta_dict}')
+        print(f'meta_dict: {self.meta_dict}')
         self.seed = self.meta_dict['seed']
         self.dataset = self.load_tfrecord_dataset(fnames=self.path)
         self._peek = None
@@ -126,7 +126,7 @@ class PileDatasets():
             t = example[name]
             if t.dtype == tf.int64:
                 t = tf.cast(t, dtype=tf.int32)
-            example[name] = tf.sparse.to_dense(t, default_value=0)[ :self.seq_len]
+            example[name] = tf.sparse.to_dense(t, default_value=0)[:self.seq_len] # 去掉start id
         return example
 
     def convert(self, data):
@@ -136,6 +136,8 @@ class PileDatasets():
         model_needed_inputs['targets'] = data["input_ids"][:, 1: seq_len]
         key = 'labels' if "labels" in data else 'input_ids'
         weights = data[key] >= 0 if self.zero_loss else data[key] > 0
+        # print(f'key: {key}')
+        # print(f'weights: {weights.sum()}')
         # label loss mask, origin bool type, but due the complie is int32
         model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1:seq_len], dtype=tf.int32) 
         model_needed_inputs['inputs_segmentation'] = tf.ones_like(model_needed_inputs['inputs'])  # attention mask
@@ -156,14 +158,18 @@ class PileDatasets():
         print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
+
         padded_shapes = {key: self.seq_len for key in self.task_features}
-        padding_values = {key: self.pad_id for key in self.task_features}
+        padding_values = {key: 0 if key == 'input_ids' else -100 for key in self.task_features}
         ds = ds.padded_batch(
             batch_size=np.prod(self.batch_size),
             padded_shapes=padded_shapes,
             padding_values=padding_values,
             drop_remainder=True,
         )
+        if self.shuffle_buffer_size is not None:
+            # batch化之后继续进行shuffle，让batch之间shuffle更加彻底
+            ds = ds.shuffle(buffer_size=self.shuffle_buffer_size // self.batch_size)
         # lsp: batch之后进行shard。如果不进行shuffle，在batch化之前shard也行
         # ds = ds.shard(self.num_infeed_hosts, process_index)
         ds = ds.map(self.convert)
@@ -180,7 +186,7 @@ class PileDatasets():
         repeat_fnames = fnames * self.repeat
         N = math.ceil(len(repeat_fnames) / self.iter_file_nums)
         file_in_data = self.meta_dict["file_in_data"]
-        max_logging.log(f'file_in_data: {file_in_data} N: {N}')
+        print(f'file_in_data: {file_in_data} N: {N}')
         for n in range(file_in_data, N, 1):
             fname = repeat_fnames[n * self.iter_file_nums : (n + 1) * self.iter_file_nums]
             self.meta_dict["cur_files"] = fname
@@ -223,7 +229,7 @@ def record_file_and_step(step, config, train_input):  # lsp
       except Exception as error:
         print(f'Write meta dict error: {error}')
 
-    max_logging.log(f'Save skip_file_and_step successful... file_in_data: {meta_dict["file_in_data"]} || step_in_file: {meta_dict["step_in_file"]}')  # XD
+    print(f'Save skip_file_and_step successful... file_in_data: {meta_dict["file_in_data"]} || step_in_file: {meta_dict["step_in_file"]}')  # XD
 
 
 def extract_pythia_datapath(dataset_path, eval_split):  # lsp
@@ -235,7 +241,7 @@ def extract_pythia_datapath(dataset_path, eval_split):  # lsp
     bucket_name = path_parts[0]
     directory_path = '/'.join(path_parts[1:])
     directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
-    max_logging.log(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+    print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
     step_map_path = {}
     eval_pathes = []
     rerank = 0
@@ -249,7 +255,7 @@ def extract_pythia_datapath(dataset_path, eval_split):  # lsp
         path = f'gs://{os.path.join(bucket_name, blob.name)}'
 
         if eval_split in path:
-            max_logging.log(f'eval path: {path}')
+            print(f'eval path: {path}')
             eval_pathes.append(path)
             continue
         step_map_path[step] = path
@@ -258,7 +264,7 @@ def extract_pythia_datapath(dataset_path, eval_split):  # lsp
     steps, pathes = zip(*sorted_step_path)
     if not isinstance(pathes, list):
         pathes = list(pathes)
-    max_logging.log(f'pathes: {len(pathes)} eval_pathes: {len(eval_pathes)}')
+    print(f'pathes: {len(pathes)} eval_pathes: {len(eval_pathes)}')
     return pathes, eval_pathes
 
 
@@ -286,22 +292,23 @@ def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
     short_k = min(3 * len(train_long_files) // 14, len(train_short_files))
     selected_short_files = random.sample(train_short_files, k=short_k)
     train_files = selected_short_files + train_long_files
-    max_logging.log(f'selected_short_files: {len(selected_short_files)} train_long_files: {len(train_long_files)}')
+    print(f'selected_short_files: {len(selected_short_files)} train_long_files: {len(train_long_files)}')
     random.shuffle(train_files)
-    max_logging.log(f'first 10 train files: {train_files[:10]}')
+    print(f'first 10 train files: {train_files[:10]}')
     valid_files = sorted(valid_files)
-    max_logging.log(f'valid_files: {valid_files}')
+    print(f'valid_files: {valid_files}')
     return train_files, valid_files
 
 
 def extract_v3p5_data_files(dataset_path, eval_split):
+    random.seed(9876)
     client = storage.Client()
     path = dataset_path.replace('gs://', '')
     path_parts = path.split('/')
     bucket_name = path_parts[0]
     directory_path = '/'.join(path_parts[1:])
     directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
-    # logging.info(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+    print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
     train_files, valid_files = [], []
     for blob in client.list_blobs(bucket_name, prefix=directory_path):
         path = f'gs://{os.path.join(bucket_name, blob.name)}'
@@ -311,10 +318,63 @@ def extract_v3p5_data_files(dataset_path, eval_split):
             train_files.append(path)
     # train_files = sorted(train_files)
     # valid_files = sorted(valid_files)
-    max_logging.log(f'Train file: {len(train_files)},  test file: {len(valid_files)}')
-    max_logging.log(f'first 10 train files: {train_files[:10]}')
-    max_logging.log(f'valid_files: {valid_files}')
+    random.shuffle(train_files)
+    print(f'Train file: {len(train_files)},  test file: {len(valid_files)}')
+    print(f'first 10 train files: {train_files[:10]}')
+    print(f'valid_files: {valid_files}')
     return train_files, valid_files
+
+
+def extract_role_play_instruct_data(dataset_paths, eval_split):
+    random.seed(9876)
+    client = storage.Client()
+    print(f'dataset_paths0: {dataset_paths}')
+    dataset_paths = dataset_paths.split('@')
+    print(f'dataset_paths1: {dataset_paths}')
+    print(f'Dataset from {len(dataset_paths)} source')
+    total_train_files, total_valid_files = [], []
+    for dataset_path in dataset_paths:
+        path = dataset_path.replace('gs://', '')
+        path_parts = path.split('/')
+        bucket_name = path_parts[0]
+        directory_path = '/'.join(path_parts[1:])
+        directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
+        train_files, valid_files = [], []
+        for blob in client.list_blobs(bucket_name, prefix=directory_path):
+            path = f'gs://{os.path.join(bucket_name, blob.name)}'
+            if eval_split in path:
+                valid_files.append(path)
+            else:
+                train_files.append(path)
+         # 中文小说总共15万 取0.3
+        if 'zh_data_Qwen' in dataset_path:
+            train_files = random.sample(train_files, k=int(len(train_files) * 0.15))
+            if not valid_files:
+                valid_files = train_files[ :2]
+            train_files = train_files[2: ]
+        # 英文小说总共45万 取0.1
+        elif 'en_data_Qwen' in dataset_path:
+            train_files = random.sample(train_files, k=int(len(train_files) * 0.05))
+            if not valid_files:
+                valid_files = train_files[ :1]
+            train_files = train_files[1: ]
+
+        elif 'processed_general_1016_v2' in dataset_path:
+            if not valid_files:
+                valid_files = train_files[ :1]
+            train_files = train_files[1: ]
+        
+        print(f'dataset_path: {dataset_path} train nums: {len(train_files)} valid nums: {len(valid_files)} valid files: {valid_files}')
+
+        total_train_files.extend(train_files)
+        total_valid_files.extend(valid_files)
+    random.shuffle(total_train_files)
+    random.seed(9875) # 文件多次shuffle，让文件之间shuffle更彻底
+    random.shuffle(total_train_files)
+    print(f'Total train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
+    print(f'First 10 train files: {total_train_files[:20]}')
+    print(f'Total valid files: {total_valid_files}')
+    return total_train_files, total_valid_files
 
 
 def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
@@ -325,13 +385,13 @@ def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
         skip_file_and_step_path = model_dir / str(step) / SKIP_STEP_NAME
     else:
         skip_file_and_step_path = model_dir / SKIP_STEP_NAME
-    max_logging.log(f"model_dir: {model_dir}")
+    print(f"model_dir: {model_dir}")
     try:
         with skip_file_and_step_path.open('r') as f:
             meta_dict = json.load(f)
-        max_logging.log(f"Load skip_file_and_step_path: ’{skip_file_and_step_path}‘ Finished.......")
+        print(f"Load skip_file_and_step_path: ’{skip_file_and_step_path}‘ Finished.......")
     except:
-        max_logging.log(f"skip_file_and_step_path: ’{skip_file_and_step_path}‘ is not existed.......")
+        print(f"skip_file_and_step_path: ’{skip_file_and_step_path}‘ is not existed.......")
         meta_dict = {}
 
     if jax.process_index() == 0:
@@ -354,6 +414,8 @@ def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
     train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'pretrain_4k':
     train_pathes, eval_pathes = extract_v3p5_data_files(config.dataset_path, config.eval_split)
+  elif config.dataset_type == 'instruct':
+     train_pathes, eval_pathes = extract_role_play_instruct_data(config.dataset_path, config.eval_split)
   else:
     raise ValueError(f'Unknow ‘config.datase_dtype’={config.datase_dtype}')
 
@@ -364,11 +426,11 @@ def make_pile_train_iterator(config, mesh, add_bos, add_eos):  # lsp
     only_eval = config.only_eval
   except:
     only_eval = False
-  meta_dict = extract_train_skip_step(job_dir, step=config.training_num_batches_to_skip, only_eval=only_eval)
+  meta_dict = extract_train_skip_step(job_dir,  step=config.training_num_batches_to_skip, only_eval=only_eval)
   # load_full_state_path
   print(f'meta_dict: {meta_dict}')
 
-  task_features = ['input_ids']
+  task_features = config.task_features
   train_dataloader = PileDatasets(
                             mesh=mesh,
                             name=train_name, 

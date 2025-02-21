@@ -25,14 +25,17 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 import common_types
+from einops import rearrange  # XD
+from layers import initializers # XD
 from layers import attentions
 from layers import embeddings
 from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
-from layers import initializers
+import max_logging
 
-nd_dense_init = initializers.nd_dense_init
+
+NormalInitializer = initializers.nd_dense_init_normal
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
@@ -41,14 +44,12 @@ ScanIn = common_types.ScanIn
 
 Embed = embeddings.Embed
 Attention = attentions.Attention
-RMSNorm = normalizations.RMSNorm
 PositionalEmbedding = embeddings.PositionalEmbedding
 Quant = quantizations.AqtQuantization
 
 # ------------------------------------------------------------------------------
 # The network: Decoder & Transformer Definitions
 # ------------------------------------------------------------------------------
-
 
 class DecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
@@ -72,13 +73,7 @@ class DecoderLayer(nn.Module):
     inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
 
     # inputs: embedded inputs to the decoder with shape [batch, length, emb_dim]
-    lnx = RMSNorm(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="pre_self_attention_norm",
-        epsilon=cfg.normalization_layer_epsilon,
-        kernel_axes=("norm",),
-    )(inputs)
+    lnx = get_rmsnorm(name="pre_self_attention_norm", cfg=cfg)(inputs)
     lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
 
     attention_layer = Attention(
@@ -172,6 +167,53 @@ class SequentialBlockDecoderLayers(nn.Module):
         )
     return inputs
 
+
+def wsum(w: jnp.ndarray, # CBTL1
+         hids: list[jnp.ndarray], # list of BTD
+         seq_chunk_size: int = None
+         ) -> jnp.ndarray:  # CBTD
+  C, B, T, L, _ = w.shape
+  D = hids[0].shape[-1]
+  out = jnp.zeros((C, B, T, D), dtype=hids[0].dtype)
+  seq_chunk_size = seq_chunk_size or T
+  assert T % seq_chunk_size == 0
+  for chunk_i in range(T // seq_chunk_size):
+    sli = slice(chunk_i * seq_chunk_size, (chunk_i + 1) * seq_chunk_size)
+    for l in range(L): # 每层
+      out = out.at[:, :, sli, :].set(out[:, :, sli, :] + w[:, :, sli, l, :] * hids[l][:, sli, :])  # CBt1*BtD->CBtD)
+  return out
+
+
+def get_rmsnorm(name, cfg=None, **kwargs):
+  if cfg is None:
+    dtype = kwargs.get('dtype', jnp.bfloat16)
+    weight_dtype = kwargs.get('weight_dtype', jnp.float32)
+    epsilon = kwargs.get('normalization_layer_epsilon', 1.e-6)
+  else:
+    dtype = getattr(cfg, 'dtype', jnp.bfloat16)
+    weight_dtype = getattr(cfg, 'weight_dtype', jnp.float32)
+    epsilon = getattr(cfg, 'normalization_layer_epsilon', 1.e-6)
+  scale_init = kwargs['scale_init'] if 'scale_init' in kwargs else nn.initializers.ones
+  max_logging.log(f'\nnorm name: {name} dtype: {dtype} weight_dtype: {weight_dtype} epsilon: {epsilon} scale_init: {scale_init}\n')
+  return normalizations.RMSNorm(name=name,
+                    dtype=dtype,
+                    weight_dtype=weight_dtype,
+                    epsilon=epsilon,
+                    kernel_axes=("norm",),
+                    scale_init=scale_init) # use scale default is true.
+
+
+def l2norm(x):
+  return jnp.sqrt(jnp.sum(jnp.square(x)))
+
+# def l2norm(x):
+#   """L2 norm of a pytree of arrays."""
+#   return jnp.sqrt(
+#       jax.tree_util.tree_reduce(
+#           lambda x, y: x + jnp.sum(jnp.square(y)), x, initializer=0.0
+#       )
+#   )
+
 class Decoder(nn.Module):
   """A stack of decoder layers as a part of an encoder-decoder architecture."""
 
@@ -179,6 +221,17 @@ class Decoder(nn.Module):
   shared_embedding: nn.Module
   mesh: Mesh
   quant: Optional[Quant] = None
+
+  # def setup(self) -> None:  # XD
+  #   cfg = self.config
+  #   if getattr(cfg, 'dense_conn', False):
+  #     factor = 1
+  #     for i in range(cfg.num_decoder_layers):
+  #       C = 1 if cfg.dynamic_dense_fix_last_layer and i==cfg.num_decoder_layers-1 else len(cfg.dynamic_dense_type)        
+  #       init_v = [0] * ((i+1) * factor) + [1]  # dense_bias_init_method == 'current_only'
+  #       dense_w = self.param(f'dense_conn_{i}', jax.nn.initializers.constant(init_v), # jnp.full support array and broadcasting
+  #                            [C, len(init_v)], self.weight_dtype)  # (None, None), i.e. fully replicated, no sharding
+  #       setattr(self, f'dense_conn_{i}', dense_w)
 
   def get_decoder_layer(self):
     if self.config.decoder_block == "default":
@@ -211,9 +264,10 @@ class Decoder(nn.Module):
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
-  def get_norm_layer(self):
+  def get_norm_layer(self, name, cfg=None, **kwargs):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "dcformer"):
-      return RMSNorm
+      return get_rmsnorm(name=name, cfg=cfg, **kwargs)
+
     elif self.config.decoder_block == "gpt3":
       from layers import gpt3
 
@@ -225,6 +279,7 @@ class Decoder(nn.Module):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
+    args_length = 6 if cfg.decoder_block == 'dcformer' else 4
     scan_fn = nn.scan(
       decoder_layer,
       variable_axes={
@@ -238,14 +293,7 @@ class Decoder(nn.Module):
           "params": True,
           "dropout": cfg.enable_dropout,
       },
-      in_axes=(
-          nn.broadcast,
-          nn.broadcast,
-          nn.broadcast,
-          nn.broadcast,
-          nn.broadcast,
-          nn.broadcast,
-      ),
+      in_axes=(nn.broadcast, ) * args_length,
       length=length,
       metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
@@ -293,6 +341,14 @@ class Decoder(nn.Module):
           name="position_embedder",
           config=cfg,
       )(decoder_positions)
+
+    if cfg.dense_conn: 
+      if cfg.mudd_prenorm:
+        assert cfg.ddw_gen_pattern == 'q,k,v,m', max_logging.log(f'Error: ddw_gen_pattern must be ‘q,k,v,m’ when mudd_prenorm is true.')
+        y_normed = self.get_norm_layer(name="mudd_prenorm", cfg=cfg)(y)
+      else:
+        y_normed = y
+      y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]  # XD
 
     BlockLayer = self.get_decoder_layer()
 
@@ -367,17 +423,15 @@ class Decoder(nn.Module):
     else:
       if cfg.scan_layers:
         # lsp
-        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
-            y,
-            decoder_segment_ids,
-            decoder_positions,
-            deterministic,
-            model_mode,
-            cfg.num_layers_per_block, # lsp
-            eos_sum, # lsp
-        )
+        num_layers_per_block = 1
+        args = (y, decoder_segment_ids, decoder_positions, deterministic, model_mode, )
+        if cfg.decoder_block == 'dcformer':
+          args += (cfg.num_layers_per_block, eos_sum, )
+          num_layers_per_block = cfg.num_layers_per_block
+        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // num_layers_per_block, "layers", mesh)(*args)
       else:
         for lyr in range(cfg.num_decoder_layers):
+         
           y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant)(
               y,
               decoder_segment_ids,
@@ -385,14 +439,52 @@ class Decoder(nn.Module):
               deterministic,
               model_mode,
           )
+          if getattr(cfg, 'dense_conn', False):  # XD
+            max_logging.log(f'dense_conn is true')
+            i = lyr  # to be compatible with pax code
+            y, dyn_dense_w = y  # unpack tuple
+            max_logging.log(f'dyn_dense_w dtype: {dyn_dense_w.dtype}')
+            
+            if self.config.record_internal_nn_metrics:
+              self.sow('intermediates', f'dyn_dense_w/max/layer_{lyr}', jnp.max(dyn_dense_w))
+              self.sow('intermediates', f'dyn_dense_w/mean/layer_{lyr}', jnp.mean(dyn_dense_w))
+              self.sow('intermediates', f'dyn_dense_w/min/layer_{lyr}', jnp.min(dyn_dense_w))
+              self.sow('intermediates', f'dyn_dense_w/norm/layer_{lyr}', l2norm(dyn_dense_w))
+              self.sow('intermediates', f'dyn_dense_w/std/layer_{lyr}', jnp.std(dyn_dense_w))
+              self.sow('intermediates', f'layer_output/norm/layer_{lyr}', l2norm(y))
 
-    y = self.get_norm_layer()(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="decoder_norm",
-        epsilon=cfg.normalization_layer_epsilon,
-        kernel_axes=("norm",),
-    )(y)
+            if cfg.mudd_prenorm:
+              y_normed = self.get_norm_layer(name=f"mudd_prenorm_{lyr}", cfg=cfg)(y)
+            else:
+              y_normed = y
+            hids.append(y_normed)
+
+            C = 1 if cfg.dynamic_dense_fix_last_layer and i == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
+            dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
+            factor = 1
+            hid_idxs = list(range((i+1) * factor + 1)) # L+1
+            if cfg.ddw_gen_pattern == 'q,k,v,m':
+              max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is {cfg.mudd_postnorm}....')
+              if cfg.mudd_postnorm:
+                post_norm = self.get_norm_layer(name=f"mudd_postnorm_{lyr}", cfg=cfg, scale_init=jax.nn.initializers.constant(0.001))
+                y = tuple([y + (post_norm(
+                    wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
+                                          ) if cidx == C - 1 else 
+                    wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
+                                ) for cidx in range(C)])
+              else:
+                y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)]) # (btl, btl, btl, btl)
+            elif cfg.ddw_gen_pattern == 'qkvm':
+              y = wsum(dyn_dense_w, hids, cfg.ddw_gen_chunk_size) # cbtl
+            elif cfg.ddw_gen_pattern == 'qk,vm':
+              yqk = wsum(dyn_dense_w[ :2], hids, cfg.ddw_gen_chunk_size) # cbtl
+              yvm = wsum(dyn_dense_w[2: ], hids, cfg.ddw_gen_chunk_size) # cbtl
+              y = jnp.concatenate([yqk, yvm], axis=0)
+            
+        if getattr(cfg, 'dense_conn', False):  # XD
+          y = y[0] # if cfg.dynamic_dense_fix_last_layer else x_out[1]
+
+    y = self.get_norm_layer(name="decoder_norm", cfg=cfg)(y)
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
 
     # [batch, length, emb_dim] -> [batch, length, vocab_size]
@@ -426,11 +518,10 @@ class Decoder(nn.Module):
           cfg.vocab_size,
           weight_dtype=cfg.weight_dtype,
           dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+          kernel_init=NormalInitializer(0.006), # lsp
           kernel_axes=("embed", "vocab"),
           name="logits_dense",
-      )(
-          y
-      )  # We do not quantize the logits matmul.
+      )(y)  # We do not quantize the logits matmul.
     logits = nn.with_logical_constraint(logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab"))
     logits = logits.astype(jnp.float32)
     return logits
@@ -455,7 +546,7 @@ class Transformer(nn.Module):
         features=cfg.emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=nn.initializers.normal(stddev=1.0),
+        embedding_init=NormalInitializer(0.006), # lsp
         name="token_embedder",
         config=cfg,
     )
@@ -470,7 +561,7 @@ class Transformer(nn.Module):
       decoder_positions,
       decoder_segment_ids=None,
       enable_dropout=True,
-      model_mode=common_types.MODEL_MODE_TRAIN,
+      model_mode=common_types.MODEL_MODE_TRAIN,  # model.apply，没有传，用的是默认值'train'
   ):
     """Applies Transformer decoder-branch on encoded-input and target."""
 

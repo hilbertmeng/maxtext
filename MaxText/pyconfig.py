@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+# XD add test from vscode
 # pytype: skip-file
 # pylint: disable=missing-module-docstring, bare-except, consider-using-generator, missing-function-docstring
 from collections import OrderedDict
@@ -49,14 +50,14 @@ def string_to_bool(s: str) -> bool:
   raise ValueError(f"Can't convert {s} to bool")
 
 
-# _yaml_types_to_parser = {str: str, int: int, float: float, bool: string_to_bool}
-_yaml_types_to_parser = {
-    str: str,
-    int: int,
-    float: float,
-    bool: string_to_bool,
-    type(None): lambda x: None,  # 增加对 NoneType 的支持
-}
+_yaml_types_to_parser = {str: str, int: int, float: float, bool: string_to_bool}
+# _yaml_types_to_parser = {
+#     str: str,
+#     int: int,
+#     float: float,
+#     bool: string_to_bool,
+#     type(None): lambda x: None,  # 增加对 NoneType 的支持
+# }
 
 def validate_compute_axis_order(s: str) -> None:
   valid_compute_axis_order = ("0,1,2,3", "0,2,1,3")
@@ -71,7 +72,7 @@ def validate_kv_quant_axis(s: str, quantize_kvcache: bool) -> None:
     raise ValueError("kv_quant_axis can not be '' when quantize_kvcache is True")
 
 def validate_attention_type(s: str) -> None:
-  valid_attention_types = ("autoselected", "dot_product", "flash", "cudnn_flash_te")
+  valid_attention_types = ("autoselected", "dot_product", "flash", "cudnn_flash_te", 'dot_product_qchunk')
   if s not in valid_attention_types:  # currently supported attention
     raise ValueError("Invalid attention type was passed. Valid options ", valid_attention_types)
 
@@ -120,26 +121,26 @@ def validate_data_input(keys):
     )
     assert keys['dataset_name'] != "", "dataset_name can't be empty when dataset_type=tfds"
 
-def validate_model_name(s: str) -> bool:
-  """Validate provided model name."""
-  # currently supported models
-  valid_model_names = (
-      "default",
-      "llama2-7b",
-      "llama2-13b",
-      "llama2-70b",
-      "llama3-8b",
-      "mistral-7b",
-      "mixtral-8x7b",
-      "gemma-7b",
-      "gemma-2b",
-      "gpt3-175b",
-      "gpt3-22b",
-      "gpt3-6b",
-      "gpt3-52k",
-  )
-  if s not in valid_model_names:
-    raise ValueError("Invalid model name was passed. Valid options ", valid_model_names)
+# def validate_model_name(s: str) -> bool:
+#   """Validate provided model name."""
+#   # currently supported models
+#   valid_model_names = (
+#       "default",
+#       "llama2-7b",
+#       "llama2-13b",
+#       "llama2-70b",
+#       "llama3-8b",
+#       "mistral-7b",
+#       "mixtral-8x7b",
+#       "gemma-7b",
+#       "gemma-2b",
+#       "gpt3-175b",
+#       "gpt3-22b",
+#       "gpt3-6b",
+#       "gpt3-52k",
+#   )
+#   if s not in valid_model_names:
+#     raise ValueError("Invalid model name was passed. Valid options ", valid_model_names)
 
 
 def validate_no_keys_overwritten_twice(keys1: list[str], keys2: list[str]):
@@ -165,6 +166,16 @@ def _lists_to_tuples(l: list[Any]) -> Union[tuple[Any], list[Any]]:
   return tuple(_lists_to_tuples(x) for x in l) if isinstance(l, list) else l
 
 
+def my_vars(cls): return {k: v for k, v in vars(cls).items() if not k.startswith('__')} # XD
+def cls_attr2dict(cls):  # XD
+  d = {}
+  for c in cls.mro():
+    for k, v in my_vars(c).items():
+      if k not in d:
+        d[k] = v
+  return d
+
+
 class _HyperParameters:
   # pylint: disable=missing-class-docstring
   def _validate_env_variables(self, raw_data_from_yaml: dict[str, Any]):
@@ -181,15 +192,14 @@ class _HyperParameters:
     args_dict.update(kwargs)
     return args_dict
 
-  def _update_from_env_and_command_line(self, raw_keys, raw_data_from_yaml, argv, **kwargs) -> list[str]:
+  def _update_from_env_and_command_line(self, raw_keys, raw_data_from_yaml, raw_data_from_cmd_line, **kwargs) -> list[str]:
     """Update model config from environment and command line"""
-    raw_data_from_cmd_line = self._load_kwargs(argv, **kwargs)
+    # raw_data_from_cmd_line = self._load_kwargs(argv, **kwargs) # 命令行参数
     updated_keys = []
-
-    for k in raw_data_from_cmd_line:
-      if k not in raw_data_from_yaml:
-        raise ValueError(f"Key {k} was passed at the command line but isn't in config.")
-
+    # lsp： 允许参数不在config yml或者class中
+    # for k in raw_data_from_cmd_line:
+    #   if k not in raw_data_from_yaml:
+    #     raise ValueError(f"Key {k} was passed at the command line but isn't in config.")
     for k in raw_data_from_yaml:
       if k in raw_data_from_cmd_line and yaml_key_to_env_key(k) in os.environ:
         raise ValueError(f"You are passing overrides by both CLI and ENV for `{k}`. This isn't allowed.")
@@ -203,6 +213,10 @@ class _HyperParameters:
         new_proposal = raw_data_from_cmd_line[k]
       else:
         new_proposal = os.environ.get(yaml_key_to_env_key(k))
+
+      if new_proposal is None or new_proposal == 'None':
+        raw_keys[k] = None
+        continue
 
       if (not isinstance(new_proposal, type(raw_data_from_yaml[k]))) and (
           type(raw_data_from_yaml[k]) not in _yaml_types_to_parser
@@ -249,17 +263,19 @@ class _HyperParameters:
 
   def __init__(self, argv: list[str], **kwargs):
     config_name: str = argv[1]
-    raw_data_from_yaml = self._load_config(config_name)
-
+    raw_data_from_yaml = self._load_config(config_name) # 配置文件参数
+    raw_data_from_cmd_line = self._load_kwargs(argv, **kwargs) # 命令行参数
+    model_name = raw_data_from_cmd_line['model_name'] # 首先从命令行获取到model name，这个model name优先级最高
+    raw_data_from_yaml['model_name'] = model_name # 命令行的model name 覆盖yml文件的model name参数
     self._validate_env_variables(raw_data_from_yaml)
-
+    # 参数优先级：命令行>模型类>配置文件
+    keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_data_from_yaml, config_name) # 将模型类中参数更新到参数字典中
+    max_logging.log(f"Updating keys from model: {keys_from_model}\n")
+    # # 将命令行中参数更新到参数字典中
     raw_keys = OrderedDict()
-    keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv, **kwargs)
+    keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, raw_data_from_cmd_line, **kwargs)
     max_logging.log(f"Updating keys from env and command line: {keys_from_env_and_command_line}")
-    keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_keys, config_name)
-    max_logging.log(f"Updating keys from model: {keys_from_model}")
-    validate_no_keys_overwritten_twice(keys_from_env_and_command_line, keys_from_model)
-
+    # validate_no_keys_overwritten_twice(keys_from_env_and_command_line, keys_from_model)
     # We initialize the jax distributed system here because it must be done before device backend is initialized.
     max_utils.maybe_initialize_jax_distributed_system(raw_keys)
 
@@ -367,21 +383,27 @@ class _HyperParameters:
   @staticmethod
   def update_model_vars(base_config_path, raw_keys, config_name: str):
     """Update model config variables"""
-    validate_model_name(raw_keys["model_name"])
+    # validate_model_name(raw_keys["model_name"])
     max_logging.log(f"Running Model: {raw_keys['model_name']}")
 
     updated_keys = []
     if raw_keys["model_name"] != "default":
-      model_name = raw_keys["model_name"]
-      # First look at the model configs next to the base_config_path, and
-      # fallback to the python codebase if the config cannot be found.
-      file_path = os.path.join(os.path.dirname(base_config_path), f"models/{model_name}.yml")
-      if not os.path.isfile(file_path):
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(dir_path, f"configs/models/{model_name}.yml")
-      with open(file_path, "r", encoding="utf-8") as file:
-        model_vars = yaml.safe_load(file)
-        updated_keys = list(model_vars.keys())
+      # lsp ========= 
+      # model_name = raw_keys["model_name"]
+      # # First look at the model configs next to the base_config_path, and
+      # # fallback to the python codebase if the config cannot be found.
+      # file_path = os.path.join(os.path.dirname(base_config_path), f"models/{model_name}.yml")
+      # if not os.path.isfile(file_path):
+      #   dir_path = os.path.dirname(os.path.realpath(__file__))
+      #   file_path = os.path.join(dir_path, f"configs/models/{model_name}.yml")
+      # with open(file_path, "r", encoding="utf-8") as file:
+      #   model_vars = yaml.safe_load(file)
+      #   updated_keys = list(model_vars.keys())
+      # lsp =========利用base.yml的model_name来控制更新model的其他参数
+      import exp
+      model_vars = cls_attr2dict(getattr(exp, raw_keys["model_name"]))
+      updated_keys = list(model_vars.keys())
+      max_logging.log(f"Updated Model vars:\n{model_vars}\n\n")
       raw_keys = validate_and_update_keys(raw_keys, model_vars, config_name)
     return updated_keys
 
@@ -397,15 +419,18 @@ def validate_and_update_keys(raw_keys, model_keys, config_name: str):
 
   # Currently, Megablox only supports data parallelism
   validate_megablox_parallelism(raw_keys)
-
+  # lsp
   for k in model_keys:
-    max_logging.log(f"{k}: {model_keys[k]}")
+    # max_logging.log(f"{k}: {model_keys[k]}")
     if k not in raw_keys:
-      raise ValueError(f"Key {k} does not exist in config {config_name}.")
+      max_logging.log(f'New key: ‘{k}’ be found in model {raw_keys["model_name"]}')
+    elif model_keys[k] is None or model_keys[k] == 'None':
+      pass
     elif not isinstance(raw_keys[k], type(model_keys[k])):
       raise ValueError(f"Type of key:{k} does not match with {type(model_keys[k])}")
     else:
-      raw_keys[k] = model_keys[k]
+      max_logging.log(f'Old key ‘{k}’ be update by {raw_keys["model_name"]}')
+    raw_keys[k] = model_keys[k]
   return raw_keys
 
 
@@ -472,7 +497,7 @@ def get_num_slices(raw_keys):
   else:
     devices = jax.devices()
     try:
-      return 1 + max([d.slice_index for d in devices])
+      return 1 + max([d.slice_index for d in devices]) # single slice no slice_index attr
     except:
       return 1
 
@@ -497,9 +522,11 @@ class HyperParameters:  # pylint: disable=missing-class-docstring
   def __init__(self):
     pass
 
+  # 允许获取不存在的属性
   def __getattr__(self, attr):
     if attr not in _config.keys:
-      raise ValueError(f"Requested key {attr}, not in config")
+      return None
+    #   raise ValueError(f"Requested key {attr}, not in config")
     return _config.keys[attr]
 
   def __setattr__(self, attr, value):

@@ -27,6 +27,10 @@ import functools
 import pickle
 import time
 from collections import defaultdict
+<<<<<<< HEAD
+=======
+import re
+>>>>>>> xd/dev
 
 from typing import Sequence
 from absl import app
@@ -42,7 +46,6 @@ import checkpointing
 import max_utils
 import maxtext_utils
 import max_logging
-import optimizers
 import profiler
 import pyconfig
 # pylint: disable-next=unused-import
@@ -69,6 +72,8 @@ from ml_goodput_measurement import goodput
 from input_pipeline._pile_data_processing import record_file_and_step # lsp
 from flax.traverse_util import flatten_dict, unflatten_dict
 from flax.training import orbax_utils, train_state
+import optimizers
+
 
 Transformer = models.Transformer
 EPS = 1e-8
@@ -143,7 +148,8 @@ def write_metrics_to_tensorboard(writer, metrics, step, config):
   with jax.spmd_mode("allow_all"):
     if jax.process_index() == 0:
       for metric_name in metrics.get("scalar", []):
-        writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name]), step)
+        # fp32 write to tensorboard
+        writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name], dtype=np.float32), step)
       for metric_name in metrics.get("scalars", []):
         writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
 
@@ -186,11 +192,10 @@ def save_checkpoint(checkpoint_manager, step, state, dataset_type="c4", data_ite
 # -----------------------------------------------------------------------------
 # Top-level Functions
 # -----------------------------------------------------------------------------
-
-# 如果记录这个比较多，会占用不少的显存，且增加编译时间
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
-
+  if 'intermediates' not in intermediate_outputs: return
+  # lsp
   if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
     output_metrics["scalar"]["eos_sum"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum"]
   if 'eos_sum_mean' in intermediate_outputs["intermediates"]["decoder"]:
@@ -231,10 +236,25 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       
   else:
     for layer_num in range(config.num_decoder_layers):
-      layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]
-      output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = layer["activation_fraction_zero"][0]
-      output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = layer["activation_mean"][0]
-      output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = layer["activation_stdev"][0]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/max/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/mean/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/min/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/min/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/std/layer_{layer_num}"]
+
+      output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/norm/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"layer_output/norm/layer_{layer_num}"]
+
+
+def compute_accuracy(logits, targets, masks):
+  batch_weights = jnp.maximum(jnp.sum(masks, axis=-1), 1e-10)
+  correct = jnp.where(
+        masks > 0.0,
+        jnp.argmax(logits, axis=-1) == targets,
+        jnp.array(False)
+    )
+  correct = jnp.sum(correct, axis=-1)
+  accuracy = jnp.mean(correct / batch_weights)
+  return correct, accuracy
 
 
 def compute_accuracy(logits, targets, masks):
@@ -332,10 +352,7 @@ def compute_params_norm(params):
   scalar_vales = {}
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
-    for params_fir_dir in params_fir_dirs:
-      if params_fir_dir in k:
-        newk = k.replace('params', f'params-{params_fir_dir}')
-        break
+    newk = k.replace('params', 'total_params')
     scalar_vales[newk] = v
   return scalar_vales
 
@@ -472,6 +489,35 @@ def check_example_batch(config, example_batch):
     err, _ = jax.jit(jittable_f)(example_batch['inputs'][: config.global_batch_size_to_train_on, :])
     err.throw()
 
+
+def model_init(model, config, key):
+  input_shape = (config.global_batch_size_to_load, config.max_target_length - 1)
+  params = model.init(
+      {"params": key, "dropout": key, "aqt": key},
+      jnp.ones(input_shape, dtype=jnp.int32),
+      jnp.ones(input_shape, dtype=jnp.int32),
+  )
+  return params
+  
+
+def get_wd_tree(config, params):
+  '''example:
+  config.wd_mults = [(".*/scale$", 0.001), (".*/attention$", 0.1)]
+  '''
+  if not config.wd_mults: return None
+  assert isinstance(config.wd_mults, list)
+  wd_tree = {}
+  for name in flatten_dict(params):
+      name_str = '/'.join(name)
+      wd = config.adam_weight_decay
+      for pat, user_wd in config.wd_mults:
+          if re.findall(pat, name_str):
+            wd = user_wd
+      wd_tree[name] = wd
+  wd_tree = unflatten_dict(wd_tree)
+  return wd_tree
+
+
 def setup_mesh_and_model(config):
   """Set up the mesh and the model for training
 
@@ -500,7 +546,15 @@ def setup_mesh_and_model(config):
   quant = quantizations.configure_quantization(config)
   model = Transformer(config, mesh, quant=quant)
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
-  tx = optimizers.get_optimizer(config, learning_rate_schedule)
+  # lsp: add rule param weight decay
+  if config.wd_mults:
+    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
+    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
+    wd_tree = get_wd_tree(config=config, params=params_shape)
+  else:
+    wd_tree = None
+  max_logging.log(f'wd_tree: {wd_tree}')
+  tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
 
   if config.enable_emergency_checkpoint:
     abstract_state, _, _ = max_utils.get_abstract_state(
@@ -544,7 +598,7 @@ def setup_train_loop(config):
   """
   init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx = setup_mesh_and_model(config)
   data_iterator, eval_data_iterator, _ = create_data_iterator_with_tokenizer(config, mesh)
-
+  # init state1
   state, state_mesh_annotations, data_iterator = max_utils.setup_training_state(
       model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager
   )
@@ -740,7 +794,7 @@ def train_loop(config, state=None):
   count = 0
   for step in np.arange(start_step, config.steps):
     count += 1
-    if count % 10000 == 0: # 每隔10000步新建一个tensorboard文件，不然如果tensorboard文件过大，写入会很慢
+    if count % 5000 == 0: # 每隔5000步新建一个tensorboard文件，不然如果tensorboard文件过大，写入会很慢
       max_utils.close_summary_writer(writer)
       writer = max_utils.initialize_summary_writer(config)
 

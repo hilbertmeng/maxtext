@@ -26,6 +26,7 @@ import jax
 import jax.numpy as jnp
 from jax.tree_util import tree_flatten_with_path, tree_unflatten
 from typing import Tuple, Sequence
+import max_logging
 
 MAX_INT8 = 127.5
 
@@ -109,6 +110,7 @@ def _get_quant_config(config):
   if not config.quantization or config.quantization == "":
     return None
   elif config.quantization == "int8":
+    max_logging.log(f'config.quantization_local_shard_count: {config.quantization_local_shard_count}')
     if config.quantization_local_shard_count == 0:
       drhs_bits = None
       drhs_accumulator_dtype = None

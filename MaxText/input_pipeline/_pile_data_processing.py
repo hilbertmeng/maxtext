@@ -260,11 +260,14 @@ def extract_pythia_datapath(dataset_path, eval_split):  # lsp
             continue
         step_map_path[step] = path
 
+    if not eval_pathes:
+        eval_pathes = ['gs://common_datasets_europe-west4/pythia_model_test/pile_test/val_with_eos.tfrecord']
+        
     sorted_step_path = sorted(step_map_path.items(), key=lambda x: x[0])
     steps, pathes = zip(*sorted_step_path)
     if not isinstance(pathes, list):
         pathes = list(pathes)
-    print(f'pathes: {len(pathes)} eval_pathes: {len(eval_pathes)}')
+    max_logging.log(f'pathes: {len(pathes)} eval_pathes: {eval_pathes}')
     return pathes, eval_pathes
 
 

@@ -125,6 +125,7 @@ class DenseGeneral(nn.Module):
       dot_general = lax.dot_general
       matmul_precision = lax.Precision(self.matmul_precision)
       if self.quant:
+        max_logging.log(f'name: {self.name},  quant is True....')
         dot_general_cls = self.quant.dot_general_cls(mesh_axes=self.kernel_axes)
         dot_general = dot_general_cls()
         return dot_general(inputs, kernel, ((axis, contract_ind), ((), ())), precision=None)

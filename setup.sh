@@ -72,7 +72,7 @@ if [[ $DEVICE == "tpu" ]]; then
             # Install custom libtpu
             echo "Installing libtpu.so from $LIBTPU_GCS_PATH to $libtpu_path"
             # Install required dependency
-            pip3 install -U crcmod
+            /home/lishengping/miniconda3/bin/pip3 install -U crcmod
             # Copy libtpu.so from GCS path
             gsutil cp "$LIBTPU_GCS_PATH" "$libtpu_path"
             exit 0
@@ -102,8 +102,8 @@ if [[ "$MODE" == "pinned" ]]; then
     exit 1
   fi
   echo "Installing pinned jax, jaxlib for NVIDIA gpu."
-  pip3 install "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html -c constraints_gpu.txt
-  pip3 install "transformer-engine==1.5.0+297459b" \
+  /home/lishengping/miniconda3/bin/pip3 install "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html -c constraints_gpu.txt
+  /home/lishengping/miniconda3/bin/pip3 install "transformer-engine==1.5.0+297459b" \
     --extra-index-url https://us-python.pkg.dev/gce-ai-infra/maxtext-build-support-packages/simple/ \
     -c constraints_gpu.txt
 elif [[ "$MODE" == "stable" || ! -v MODE ]]; then
@@ -112,17 +112,17 @@ elif [[ "$MODE" == "stable" || ! -v MODE ]]; then
         echo "Installing stable jax, jaxlib for tpu"
         if [[ -n "$JAX_VERSION" ]]; then
             echo "Installing stable jax, jaxlib, libtpu version ${JAX_VERSION}"
-            pip3 install jax[tpu]==${JAX_VERSION} -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+            /home/lishengping/miniconda3/bin/pip3 install jax[tpu]==${JAX_VERSION} -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
         else
             echo "Installing stable jax, jaxlib, libtpu for tpu"
-            pip3 install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+            /home/lishengping/miniconda3/bin/pip3 install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
         fi
 
         if [[ -n "$LIBTPU_GCS_PATH" ]]; then
             # Install custom libtpu
             echo "Installing libtpu.so from $LIBTPU_GCS_PATH to $libtpu_path"
             # Install required dependency
-            pip3 install -U crcmod
+            /home/lishengping/miniconda3/bin/pip3 install -U crcmod
             # Copy libtpu.so from GCS path
             gsutil cp "$LIBTPU_GCS_PATH" "$libtpu_path"
         fi
@@ -130,7 +130,7 @@ elif [[ "$MODE" == "stable" || ! -v MODE ]]; then
             # Install custom libtpu
             echo "Installing libtpu.so from $LIBTPU_GCS_PATH to $libtpu_path"
             # Install required dependency
-            pip3 install -U crcmod
+            /home/lishengping/miniconda3/bin/pip3 install -U crcmod
             # Copy libtpu.so from GCS path
             gsutil cp "$LIBTPU_GCS_PATH" "$libtpu_path"
         fi
@@ -138,12 +138,12 @@ elif [[ "$MODE" == "stable" || ! -v MODE ]]; then
         echo "Installing stable jax, jaxlib for NVIDIA gpu"
         if [[ -n "$JAX_VERSION" ]]; then
             echo "Installing stable jax, jaxlib ${JAX_VERSION}"
-            pip3 install -U "jax[cuda12_pip]==${JAX_VERSION}" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+            /home/lishengping/miniconda3/bin/pip3 install -U "jax[cuda12_pip]==${JAX_VERSION}" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         else
             echo "Installing stable jax, jaxlib, libtpu for NVIDIA gpu"
-            pip3 install "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+            /home/lishengping/miniconda3/bin/pip3 install "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
         fi
-        pip3 install "transformer-engine==1.5.0+297459b" \
+        /home/lishengping/miniconda3/bin/pip3 install "transformer-engine==1.5.0+297459b" \
           --extra-index-url https://us-python.pkg.dev/gce-ai-infra/maxtext-build-support-packages/simple/
     fi
 elif [[ $MODE == "nightly" ]]; then
@@ -151,36 +151,36 @@ elif [[ $MODE == "nightly" ]]; then
     if [[ $DEVICE == "gpu" ]]; then
         echo "Installing jax-nightly, jaxlib-nightly"
         # Install jax-nightly
-        pip3 install --pre -U jax -f https://storage.googleapis.com/jax-releases/jax_nightly_releases.html
+        /home/lishengping/miniconda3/bin/pip3 install --pre -U jax -f https://storage.googleapis.com/jax-releases/jax_nightly_releases.html
         # Install jaxlib-nightly
-        pip3 install -U --pre jaxlib -f https://storage.googleapis.com/jax-releases/jaxlib_nightly_cuda12_releases.html
+        /home/lishengping/miniconda3/bin/pip3 install -U --pre jaxlib -f https://storage.googleapis.com/jax-releases/jaxlib_nightly_cuda12_releases.html
         # Install prebuilt Transformer Engine for GPU builds.
-        pip3 install "transformer-engine==1.5.0+297459b" \
+        /home/lishengping/miniconda3/bin/pip3 install "transformer-engine==1.5.0+297459b" \
           --extra-index-url https://us-python.pkg.dev/gce-ai-infra/maxtext-build-support-packages/simple/
     elif [[ $DEVICE == "tpu" ]]; then
         echo "Installing jax-nightly, jaxlib-nightly"
         # Install jax-nightly
-        pip3 install --pre -U jax -f https://storage.googleapis.com/jax-releases/jax_nightly_releases.html
+        /home/lishengping/miniconda3/bin/pip3 install --pre -U jax -f https://storage.googleapis.com/jax-releases/jax_nightly_releases.html
         # Install jaxlib-nightly
-        pip3 install --pre -U jaxlib -f https://storage.googleapis.com/jax-releases/jaxlib_nightly_releases.html
+        /home/lishengping/miniconda3/bin/pip3 install --pre -U jaxlib -f https://storage.googleapis.com/jax-releases/jaxlib_nightly_releases.html
 
         if [[ -n "$LIBTPU_GCS_PATH" ]]; then
             # Install custom libtpu
             echo "Installing libtpu.so from $LIBTPU_GCS_PATH to $libtpu_path"
             # Install required dependency
-            pip3 install -U crcmod
+            /home/lishengping/miniconda3/bin/pip3 install -U crcmod
             # Copy libtpu.so from GCS path
             gsutil cp "$LIBTPU_GCS_PATH" "$libtpu_path"
         else
             # Install libtpu-nightly
             echo "Installing libtpu-nightly"
-            pip3 install libtpu-nightly -f https://storage.googleapis.com/jax-releases/libtpu_releases.html -U --pre
+            /home/lishengping/miniconda3/bin/pip3 install libtpu-nightly -f https://storage.googleapis.com/jax-releases/libtpu_releases.html -U --pre
         fi
         echo "Installing nightly tensorboard plugin profile"
-        pip3 install tbp-nightly --upgrade
+        /home/lishengping/miniconda3/bin/pip3 install tbp-nightly --upgrade
     fi
     echo "Installing nightly tensorboard plugin profile"
-    pip3 install tbp-nightly --upgrade
+    /home/lishengping/miniconda3/bin/pip3 install tbp-nightly --upgrade
 else
     echo -e "\n\nError: You can only set MODE to [stable,nightly,libtpu-only].\n\n"
     exit 1
@@ -189,8 +189,8 @@ fi
 # Install dependencies from requirements.txt
 cd $run_name_folder_path && pip install --upgrade pip
 if [[ "$MODE" == "pinned" ]]; then
-    pip3 install -U -r requirements.txt -c constraints_gpu.txt
+    /home/lishengping/miniconda3/bin/pip3 install -U -r requirements.txt -c constraints_gpu.txt
 else
-    pip3 install -U -r requirements.txt
+    /home/lishengping/miniconda3/bin/pip3 install -U -r requirements.txt
 fi
 [ -d ".git" ] && pre-commit install

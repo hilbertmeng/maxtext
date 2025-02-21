@@ -39,6 +39,7 @@ Config = common_types.Config
 DType = common_types.DType
 Mesh = common_types.Mesh
 PRNGKey = common_types.PRNGKey
+JTensor = jnp.ndarray
 
 DenseGeneral = linears.DenseGeneral
 RotaryEmbedding = embeddings.RotaryEmbedding
@@ -72,6 +73,49 @@ dynamic_vector_slice_in_dim = jax.vmap(lax.dynamic_slice_in_dim, in_axes=(None, 
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
+
+def get_large_negative_number(dtype: jnp.dtype) -> JTensor:
+    """Returns a large negative value for the given dtype."""
+    # -0.7 is a float64 in Jax. Explicit cast output to target dtype.
+    if jnp.issubdtype(dtype, jnp.inexact):
+      dtype_max = jnp.finfo(dtype).max
+    elif jnp.issubdtype(dtype, jnp.integer):
+      dtype_max = jnp.iinfo(dtype).max
+    else:
+      raise ValueError('Unsupported dtype for inputs.')
+    return jnp.asarray(-0.7 * dtype_max, dtype=dtype)
+
+
+def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp.bfloat16, squeeze: bool = False) -> JTensor:
+  """
+  w: query chunk size
+  window_size: window size
+  length: query length that before split
+  dtype: query dtype
+  """
+  if w is None:
+    w = length
+  if window_size is None:
+    offset = length - w
+  else:
+    offset = min(window_size, length - w)
+  x = jnp.ones([w, w + offset])
+  m1 = jnp.triu(x, k=offset + 1)
+  if window_size is not None:
+    if window_size < length - w:
+        m2 = jnp.tril(x, k=0)
+    else:
+        m2 = jnp.tril(x, k=length - window_size - w)
+    m = m1 + m2
+  else:
+    m = m1
+  large_negative_number = get_large_negative_number(dtype)
+  m = m.astype(dtype)
+  m = jnp.where((m > 0.5), large_negative_number, m)
+  if squeeze:
+    return m
+  else:
+    return m[jnp.newaxis, jnp.newaxis, ...]
 
 
 def validate_compute_axis_order(s: AxisIdxes) -> None:
@@ -131,6 +175,8 @@ class AttentionOp(nn.Module):
   quant: Optional[Quant] = None
   quantize_kvcache: bool = False
   kv_quant_axis: str = "heads_and_dkv"
+  query_chunk_size: int = 128
+  window_size: int = None
 
   def check_attention_inputs(self, query: Array, key: Array, value: Array) -> None:
     """Check attention inputs."""
@@ -176,12 +222,15 @@ class AttentionOp(nn.Module):
   def apply_attention(self, query: Array, key: Array, value: Array, decoder_segment_ids: Array | None, model_mode: str):
     self.check_attention_inputs(query, key, value)
     length = query.shape[-3]
-    if (
+    if self.attention_kernel == "dot_product_qchunk":
+      return self.apply_attention_dot_qchunk(query, key, value, decoder_segment_ids, model_mode)
+    elif (
         self.attention_kernel == "dot_product"
         or (self.attention_kernel == "autoselected" and model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE)
         or (self.attention_kernel == "autoselected" and length < 128)
     ):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
+      
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
       if model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
         raise ValueError(
@@ -351,6 +400,89 @@ class AttentionOp(nn.Module):
     if attn_mask is not None:
       attn_weights = apply_mask_to_logits(attn_weights, attn_mask)
     return self.compute_local_attention(attn_weights, value, q_seq_len, model_mode)
+
+  def apply_attention_dot_qchunk(
+      self,
+      query: Array,
+      key: Array,
+      value: Array,
+      decoder_segment_ids: Array | None,
+      model_mode: str = common_types.MODEL_MODE_TRAIN,
+  ):
+    self.check_attention_inputs(query, key, value)
+
+    b, t, n, _ = query.shape
+    h = value.shape[-1]
+    s = key.shape[1]
+    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.window_size, t, query.dtype)
+    w = self.query_chunk_size
+    if w is None: w = t
+    assert t % w == 0, f'{t} % {w} != 0'
+    encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
+    for i in range(t // w):
+      start, stop = i * w, (i + 1) * w
+      kv_start = max(0, stop - w - self.window_size) if self.window_size is not None else 0
+      _query = query[:, start : stop]
+      _key, _value = key[:, kv_start : stop], value[:, kv_start : stop]
+      _attn_mask = attn_mask[..., -_key.shape[1]:]
+      def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+        return (qw1[:, start : stop] if qw1 is not None else None,
+          qw2[:, start : stop] if qw2 is not None else None,
+          kw1[:, kv_start : stop] if kw1 is not None else None,
+          kw2[:, kv_start : stop] if kw2 is not None else None,
+          qdd[:, start : stop] if qdd is not None else None,
+          kdd[:, kv_start : stop] if kdd is not None else None)
+      _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask)
+      encoded = encoded.at[:, start : stop].set(_encoded)
+    return encoded, None, None
+
+  def _apply_attention_dot(
+      self,
+      query: Array, 
+      key: Array,   
+      value: Array, 
+      attn_mask: Array | None,
+  ):
+    """Apply Attention."""
+    # Casting qk_product and softmaxt computation for float32 for model stability. query: btnh
+    if self.float32_qk_product:
+      query = query.astype(jnp.float32)
+      key = key.astype(jnp.float32)
+    # bnts
+    attn_weights = self.qk_product_qchunk(query, key)
+    # apply attention mask
+    if attn_mask is not None:
+      attn_weights = apply_mask_to_logits(attn_weights, attn_mask)
+    if self.float32_logits:
+      attn_weights = attn_weights.astype(jnp.float32)
+    # normalize the attention weights
+    probs = jax.nn.softmax(attn_weights).astype(self.dtype)
+
+    # Casting softmaxt computation for float32 for model stability.
+    probs = probs.astype(value.dtype)
+    if attn_mask is not None:
+      probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
+    output = jnp.einsum('bnts,bsnh->btnh', probs, value)
+    return output
+
+  def qk_product_qchunk(self, query: Array, key: Array) -> Array:
+    """Query-Key product.
+
+    Args:
+      query: Query projection, in shape of [b, t, n, d], where b: batch size, t:
+        query length, n: number of heads, d: project dimension.
+      key: Key projection in shape of [b, s, n_kv, d] for where s: key length, n_kv is
+        kv heads (sometimes k). The number of group for query is n // n_kv (sometimes g).
+
+    Returns:
+      results in shape [b, n_kv, n // n_kv,  t, s].
+    """
+    b, t, n, d = query.shape  
+    n_kv = key.shape[-2]
+    assert n_kv == self.num_kv_heads
+    # normal: b t n d
+    result = jnp.einsum('btnd,bsnd->bnts', query, key)
+    return result
 
   def qk_product(self, query: Array, key: Array, q_seq_len: int, model_mode: str) -> Array:
     """Query-Key product.
@@ -869,16 +1001,16 @@ class Attention(nn.Module):
     # NOTE: T5 does not explicitly rescale the attention logits by
     #       1/sqrt(depth_kq)!  This is folded into the initializers of the
     #       linear transformations, which is equivalent under Adafactor.
-    depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
+    # depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
 
-    def query_init(*args):
-      # pylint: disable=no-value-for-parameter
-      return self.kernel_init(*args) / depth_scaling
+    # def query_init(*args):
+    #   # pylint: disable=no-value-for-parameter
+    #   return self.kernel_init(*args) / depth_scaling
 
     query_proj = DenseGeneral(
         features=(self.num_query_heads, self.head_dim),
         axis=-1,
-        kernel_init=query_init,
+        kernel_init=self.kernel_init,
         kernel_axes=("embed", "heads", "kv"),
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
@@ -990,6 +1122,12 @@ class Attention(nn.Module):
     # apply projection.
     if self.config.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
+    if self.config.dynamic_dense_type is not None and 'kv' in self.config.dynamic_dense_type: # XD
+      assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
+      inputs_k, inputs_v = inputs_kv
+      query = self.query_projection(inputs_q)
+      key = self.kv_projection(inputs_k, proj_name="key")
+      value = self.kv_projection(inputs_v, proj_name="value")
     else:
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")
@@ -1007,6 +1145,9 @@ class Attention(nn.Module):
     key = checkpoint_name(key, "key_proj")
     value = nn.with_logical_constraint(value, self.value_axis_names)
     value = checkpoint_name(value, "value_proj")
+
+    depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
+    query /= depth_scaling
 
     attention_op = AttentionOp(
         mesh=self.mesh,
@@ -1026,6 +1167,7 @@ class Attention(nn.Module):
         compute_axis_order=self.compute_axis_order,
         reshape_q=self.reshape_q,
         kv_quant_axis=self.kv_quant_axis,
+        query_chunk_size=self.config.query_chunk_size,
     )
 
     out = attention_op(query, key, value, decoder_segment_ids, model_mode)

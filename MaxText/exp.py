@@ -91,6 +91,7 @@ class DCMUDDLlama2Medium(MUDDLlama2Medium):
     post_compose = True
     attention = 'dot_product'
 
+
 class Llama2Medium(LlamaMedium):
     
     # model params
@@ -125,6 +126,13 @@ class Llama2Medium(LlamaMedium):
     enable_checkpointing = True
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0)]  # 0.表示不进行decay
 
+class DCLlama2Medium(LlamaMedium):
+    window_size = [256, None, 256, 256]
+    num_layers_per_block = 4
+    pre_compose = True
+    post_compose = True
+    attention = 'dot_product'
+    vocab_size = 50432
 
 class Llama7B(Llama2Medium):
     base_emb_dim = 4096

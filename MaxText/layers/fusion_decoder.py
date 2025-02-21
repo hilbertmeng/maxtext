@@ -163,11 +163,11 @@ class FusionDecoderLayer(nn.Module):
     if cfg.dynamic_dense_type == 'qkvm': # XD
       assert isinstance(inputs, (tuple, list, Array)) and len(inputs) == 4 # lsp: Array also support, but C dimenson must be in 0.
       inputs = [nn.with_logical_constraint(i, ("activation_batch", "activation_length", "activation_embed")) for i in inputs]
-      lnx_q, *lnx_kv = [norm(inp, f'_{name_suffix}') for inp, name_suffix in zip(inputs[:3], 'qkv')]
+      lnx_q, *lnx_kv = [norm(inp, f'_{name_suffix}_{block_index}') for inp, name_suffix in zip(inputs[:3], 'qkv')]
       inputs = inputs[-1] # m: bld
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
-      lnx_q = lnx_kv = norm(inputs)
+      lnx_q = lnx_kv = norm(inputs, name_suffix=f'_{block_index}')
 
     if cfg.pre_compose or cfg.post_compose:
         assert cfg.attention == 'dot_product', max_logging.log(f'Now dcformer model only support ’dot_product‘ method to compute attention')

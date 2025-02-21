@@ -267,7 +267,7 @@ class Decoder(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   def get_norm_layer(self, name, cfg=None, **kwargs):
-    if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "dcformer"):
+    if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "dcformer", "fusion"):
       return get_rmsnorm(name=name, cfg=cfg, **kwargs)
 
     elif self.config.decoder_block == "gpt3":
@@ -325,7 +325,6 @@ class Decoder(nn.Module):
         self.sow("intermediates", "eos_sum", eos_sum.sum(), ) # batch总的eos数量
     else:
       eos_sum = None
-
 
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)

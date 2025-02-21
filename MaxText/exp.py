@@ -17,6 +17,11 @@ class Llama:
     scan_layers = True
     rope_max_timescale = 10000
     wd_mults = None
+    pre_compose = False
+    post_compose = False
+    dense_conn = False
+    num_layers_per_block = 1
+    window_size = None
     
 class LlamaMedium(Llama):
     base_emb_dim = 1024
@@ -79,6 +84,12 @@ class MUDDLlama2Medium(LlamaMedium):
     dynamic_dense_scale_dw = False
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0)]  # 0.表示不进行decay
 
+class DCMUDDLlama2Medium(MUDDLlama2Medium):
+    window_size = [256, None, 256, 256]
+    num_layers_per_block = 4
+    pre_compose = True
+    post_compose = True
+    attention = 'dot_product'
 
 class Llama2Medium(LlamaMedium):
     

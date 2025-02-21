@@ -143,7 +143,7 @@ class RotaryEmbedding(nn.Module):
       a jax.Array of shape [B, S, N, H] which includes the inputs together with
       the rotary position embedding incorporated in it.
     """
-    max_logging.log(f'inputs: {inputs.shape}')
+    max_logging.log(f'Rotary inputs: {inputs.shape}')
     assert position is not None
     if len(inputs.shape) != 4:
       raise ValueError("Input is assumed to be a rank 4 tensor of shape" "[batch, sequence, heads, dims].")

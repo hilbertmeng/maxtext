@@ -6,6 +6,7 @@ import jax
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
+import numpy as np
 
 from layers import dc_attentions, attentions
 from layers import embeddings
@@ -15,6 +16,7 @@ from layers import models
 from layers import initializers
 import tensorflow as tf
 
+
 if os.environ["HARDWARE"] == "gpu":
     Quant = None
 else:
@@ -22,6 +24,15 @@ else:
     Quant = quantizations.AqtQuantization
 
 import common_types
+
+
+Embed = embeddings.Embed
+Attention = attentions.Attention
+Quant = quantizations.AqtQuantization
+nd_dense_init = initializers.nd_dense_init  # XD
+DenseGeneral = linears.DenseGeneral  # XD
+contant_dense_init = initializers.contant_dense_init  # lsp
+NormalInitializer = initializers.nd_dense_init_normal # lsp
 
 
 Array = common_types.Array
@@ -64,7 +75,7 @@ class FusionDecoderLayer(nn.Module):
     layer_inx = int(self.name.split('_')[-1])  # name=f"layers_{i}"
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     dw_shape = (C, ((layer_inx + 1) * factor + 1))
-    max_logging.log(f'dynamic_dense_hidden_expand-{i}: {cfg.dynamic_dense_hidden_expand[i]}')
+    max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {cfg.dynamic_dense_hidden_expand[layer_inx]}')
 
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * cfg.dynamic_dense_hidden_expand[layer_inx]) # lsp
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
@@ -89,7 +100,7 @@ class FusionDecoderLayer(nn.Module):
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
     self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
-    init_v = jnp.array([0] * ((i + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype) # dense_bias_init_method == 'current_only'
+    init_v = jnp.array([0] * ((layer_inx + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype) # dense_bias_init_method == 'current_only'
     init_v = init_v[None].repeat(C, 0)
     self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
@@ -118,9 +129,9 @@ class FusionDecoderLayer(nn.Module):
             assert isinstance(size, int) or size is None, max_logging.log(f'window_size value error: {size}')
     else:
         raise ValueError(f'Window size: ‘{window_size}’ type is error.....')
-
+    input_len = inputs[0].shape[1] if isinstance(inputs, (list, tuple)) else inputs.shape[1]
     for layer_inx in range(num_layers_per_block):
-        ws = inputs.shape[1] if window_size[i] is None else window_size[i]
+        ws = input_len if window_size[layer_inx] is None else window_size[layer_inx]
         max_logging.log(f'window_size-{layer_inx}: {ws}')
         layer_output = self.sub_block(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, ws, layer_inx, eos_sum)
         inputs = layer_output[0] if self.config.scan_layers else layer_output
@@ -193,7 +204,7 @@ class FusionDecoderLayer(nn.Module):
                         dtype=cfg.dtype,
                         weight_dtype=cfg.weight_dtype,
                         dropout_rate=cfg.dropout_rate,
-                        name="self_attention",
+                        name=f"self_attention_{block_index}",
                         quant=self.quant,
                         kernel_init=NormalInitializer(0.006), # lsp
                         float32_qk_product = False,  # computes logits in float32 for stability.

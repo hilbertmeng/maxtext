@@ -232,14 +232,14 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"].update(temp_dict)
       
   else:
-    for layer_num in range(config.num_decoder_layers):
-      output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/max/layer_{layer_num}"]
-      output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/mean/layer_{layer_num}"]
-      output_metrics["scalar"][f"mudd/dyn_dense_w/min/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/min/layer_{layer_num}"]
-      output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/std/layer_{layer_num}"]
-
-      output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/norm/layer_{layer_num}"]
-      output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"layer_output/norm/layer_{layer_num}"]
+    if config.dense_conn:
+      for layer_num in range(config.num_decoder_layers):
+        output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/max/layer_{layer_num}"]
+        output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/mean/layer_{layer_num}"]
+        output_metrics["scalar"][f"mudd/dyn_dense_w/min/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/min/layer_{layer_num}"]
+        output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/std/layer_{layer_num}"]
+        output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"dyn_dense_w/norm/layer_{layer_num}"]
+        output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = intermediate_outputs["intermediates"]["decoder"][f"layer_output/norm/layer_{layer_num}"]
 
 
 def compute_accuracy(logits, targets, masks):

@@ -92,7 +92,7 @@ base_num_decoder_layers: 48
 # lsp pax
 window_size: [256, 4096, 256, 256]
 num_layers_per_block: 4 # it must equal to widow_size list length, ex: window_size = [256, null], num_layers_per_block = 2
-query_chunk_size: 256 # null or int.  moe 512 速度最快
+query_chunk_size: 512 # null or int.  moe 512 速度最快
 max_target_length: 4097 # Maximum sequence length
 reset_for_eval: True # True will rest eval dataset
 epoch: 1
@@ -123,8 +123,8 @@ unshared_mlp_scale: 1
 shared_mlp_scale: 1
 gradient_accumulation_steps: 1
 
-pre_compose: True # pax: PROJECT_LOGITS
-post_compose: True # pax: PROJECT_PROBS
+pre_compose: False # pax: PROJECT_LOGITS
+post_compose: False # pax: PROJECT_PROBS
 query_wise: True # pax: TGT_DEPENDENT
 key_wise: True # pax: SRC_DEPENDENT
 loop_over_dynamic_hd: True
@@ -256,7 +256,7 @@ dataset_type: pretrain_4k
 grain_worker_count: 4
 
 # Training loop
-log_period: 10 # Flushes Tensorboard
+log_period: 25 # Flushes Tensorboard
 
 # We take inspiration from Llama2's learning rate (LR) schedule, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
 # Learning rate schedule has either two or three parts:

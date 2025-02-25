@@ -277,11 +277,10 @@ class Decoder(nn.Module):
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
-  def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh):
+  def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh, args_length):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
-    args_length = 6 if cfg.decoder_block == 'fusion' else 4
     scan_fn = nn.scan(
       decoder_layer,
       variable_axes={
@@ -422,23 +421,32 @@ class Decoder(nn.Module):
             model_mode,
         )
     else:
+      num_layers_per_block = cfg.num_layers_per_block
       if cfg.scan_layers:
         assert not cfg.dense_conn
-        num_layers_per_block = cfg.num_layers_per_block
         args = (y, decoder_segment_ids, decoder_positions, deterministic, model_mode, )
         if cfg.decoder_block == 'fusion':
-          args += (num_layers_per_block, eos_sum, )
-        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // num_layers_per_block, "layers", mesh)(*args)
+          args += (num_layers_per_block, eos_sum, cfg.window_size, )
+        args_length = len(args) - 1
+        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // num_layers_per_block, "layers", mesh, args_length)(*args)
       else:
-        for lyr in range(cfg.num_decoder_layers):
-         
-          y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant)(
-              y,
-              decoder_segment_ids,
-              decoder_positions,
-              deterministic,
-              model_mode,
-          )
+        # assert num_layers_per_block == 1
+        window_size = cfg.window_size
+        n_layers = cfg.num_decoder_layers // num_layers_per_block
+        if isinstance(window_size, list):
+          if len(window_size) == num_layers_per_block:
+            ws = [window_size] * n_layers
+          else:
+            ws = n_layers * [window_size * num_layers_per_block]
+        else:
+          ws = [[window_size] * num_layers_per_block] * n_layers
+        max_logging.log(f'scan is False, all layers window size: {ws}')
+
+        for lyr in range(n_layers):
+          args = (y, decoder_segment_ids, decoder_positions, deterministic, model_mode, )
+          if cfg.decoder_block == 'fusion':
+            args += (num_layers_per_block, eos_sum, ws[lyr], )
+          y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant)(*args)
           if getattr(cfg, 'dense_conn', False):  # XD
             max_logging.log(f'dense_conn is true')
             i = lyr  # to be compatible with pax code

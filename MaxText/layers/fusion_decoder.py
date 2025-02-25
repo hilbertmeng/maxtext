@@ -75,9 +75,11 @@ class FusionDecoderLayer(nn.Module):
     layer_inx = int(self.name.split('_')[-1])  # name=f"layers_{i}"
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     dw_shape = (C, ((layer_inx + 1) * factor + 1))
-    max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {cfg.dynamic_dense_hidden_expand[layer_inx]}')
 
-    dynamic_dense_inter_dim = int(np.prod(dw_shape) * cfg.dynamic_dense_hidden_expand[layer_inx]) # lsp
+    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 else 1
+    max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {dynamic_dense_hidden_expand}')
+    dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
+
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
       dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
@@ -119,11 +121,11 @@ class FusionDecoderLayer(nn.Module):
                model_mode,
                num_layers_per_block=None,
                eos_sum=None,
+               window_size=None,
                ):
     num_layers_per_block = 1 if num_layers_per_block is None else int(num_layers_per_block)
-    window_size = self.config.window_size
-    if window_size is None:
-        window_size = [None]
+    if window_size is None or isinstance(window_size, int):
+        window_size = [window_size]
     elif isinstance(window_size, list):
         for size in window_size:
             assert isinstance(size, int) or size is None, max_logging.log(f'window_size value error: {size}')
@@ -159,8 +161,8 @@ class FusionDecoderLayer(nn.Module):
         lnx = models.get_rmsnorm(name=name, cfg=cfg)(inputs)
         return nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
     max_logging.log(f'dynamic_dense_type: {cfg.dynamic_dense_type}')
-
-    if cfg.dynamic_dense_type == 'qkvm': # XD
+\
+    if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
       assert isinstance(inputs, (tuple, list, Array)) and len(inputs) == 4 # lsp: Array also support, but C dimenson must be in 0.
       inputs = [nn.with_logical_constraint(i, ("activation_batch", "activation_length", "activation_embed")) for i in inputs]
       lnx_q, *lnx_kv = [norm(inp, f'_{name_suffix}_{block_index}') for inp, name_suffix in zip(inputs[:3], 'qkv')]
@@ -172,6 +174,7 @@ class FusionDecoderLayer(nn.Module):
     if cfg.pre_compose or cfg.post_compose:
         assert cfg.attention == 'dot_product', max_logging.log(f'Now dcformer model only support ’dot_product‘ method to compute attention')
         # Self-attention block
+        max_logging.log(f'Dc attentions......')
         attention_layer = dc_attentions.Attention(
                         config = cfg,
                         num_query_heads=cfg.num_query_heads,
@@ -191,6 +194,7 @@ class FusionDecoderLayer(nn.Module):
                         kernel_init=NormalInitializer(0.006),
                         )
     else:
+        max_logging.log(f'No Dc attentions......')
         # Self-attention block
         attention_layer = attentions.Attention(
                         config=cfg,
@@ -235,7 +239,7 @@ class FusionDecoderLayer(nn.Module):
     max_logging.log(f'num_experts: {cfg.num_experts} n_shared_experts: {cfg.n_shared_experts}')
     if cfg.n_shared_experts:
         shared_mlp_lnx = linears.MlpBlock(
-            intermediate_dim=self.updated_mlp_dim if cfg.dynamic_mlp_dim else cfg.mlp_dim,  # lsp
+            intermediate_dim=self.updated_mlp_dim if cfg.dynamic_mlp_dim and cfg.dense_conn else cfg.mlp_dim,
             activations=cfg.mlp_activations,
             intermediate_dropout_rate=cfg.intermediate_dropout_rate,
             weight_dtype=cfg.weight_dtype,
@@ -315,8 +319,8 @@ class FusionDecoderLayer(nn.Module):
       max_logging.log(f'return moe_lb_loss...')
       self.sow("intermediates", "moe_lb_loss", aux_loss)
 
-    if cfg.dynamic_dense_type == 'qkvm':
-      x_out_normed = self.pre_dense_proj1_norm(layer_output, x_dtype=jnp.bfloat16)
+    if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
+      x_out_normed = self.pre_dense_proj1_norm(layer_output, x_dtype=jnp.float32)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
       if cfg.dynamic_dense_scale_dw:
@@ -327,7 +331,7 @@ class FusionDecoderLayer(nn.Module):
     if cfg.scan_layers:
       assert cfg.dynamic_dense_type != 'qkvm'
       return layer_output, None
-    elif cfg.dynamic_dense_type == 'qkvm':
+    elif cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
       assert not cfg.scan_layers
       return  layer_output, dyn_dense_w
     else:

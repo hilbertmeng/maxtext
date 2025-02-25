@@ -222,14 +222,13 @@ class AttentionOp(nn.Module):
   def apply_attention(self, query: Array, key: Array, value: Array, decoder_segment_ids: Array | None, model_mode: str):
     self.check_attention_inputs(query, key, value)
     length = query.shape[-3]
-    if self.attention_kernel == "dot_product_qchunk":
-      return self.apply_attention_dot_qchunk(query, key, value, decoder_segment_ids, model_mode)
-    elif (
+    if (
         self.attention_kernel == "dot_product"
         or (self.attention_kernel == "autoselected" and model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE)
         or (self.attention_kernel == "autoselected" and length < 128)
     ):
-      return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
+      return self.apply_attention_dot_qchunk(query, key, value, decoder_segment_ids, model_mode)
+      # return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
       
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
       if model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:

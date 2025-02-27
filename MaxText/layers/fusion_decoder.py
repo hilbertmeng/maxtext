@@ -161,7 +161,7 @@ class FusionDecoderLayer(nn.Module):
         lnx = models.get_rmsnorm(name=name, cfg=cfg)(inputs)
         return nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
     max_logging.log(f'dynamic_dense_type: {cfg.dynamic_dense_type}')
-\
+
     if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
       assert isinstance(inputs, (tuple, list, Array)) and len(inputs) == 4 # lsp: Array also support, but C dimenson must be in 0.
       inputs = [nn.with_logical_constraint(i, ("activation_batch", "activation_length", "activation_embed")) for i in inputs]

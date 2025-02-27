@@ -21,6 +21,7 @@ from pathlib import Path
 import tensorflow as tf
 import tensorflow_text as tftxt
 import max_logging
+import transformers
 import tiktoken
 from tiktoken.load import load_tiktoken_bpe
 
@@ -50,28 +51,23 @@ class TikTokenTokenizer:
     mergeable_ranks = load_tiktoken_bpe(model_path)
     num_base_tokens = len(mergeable_ranks)
     special_tokens = [
-      "<|begin_of_text|>",
-      "<|end_of_text|>",
-      "<|reserved_special_token_0|>",
-      "<|reserved_special_token_1|>",
-      "<|reserved_special_token_2|>",
-      "<|reserved_special_token_3|>",
-      "<|start_header_id|>",
-      "<|end_header_id|>",
-      "<|reserved_special_token_4|>",
-      "<|eot_id|>",  # end of turn
-    ] + [
-      f"<|reserved_special_token_{i}|>"
-      for i in range(5, self.num_reserved_special_tokens - 5)
-    ]
-    self.special_tokens = {
-      token: num_base_tokens + i for i, token in enumerate(special_tokens)
-    }
+        "<|begin_of_text|>",
+        "<|end_of_text|>",
+        "<|reserved_special_token_0|>",
+        "<|reserved_special_token_1|>",
+        "<|reserved_special_token_2|>",
+        "<|reserved_special_token_3|>",
+        "<|start_header_id|>",
+        "<|end_header_id|>",
+        "<|reserved_special_token_4|>",
+        "<|eot_id|>",  # end of turn
+    ] + [f"<|reserved_special_token_{i}|>" for i in range(5, self.num_reserved_special_tokens - 5)]
+    self.special_tokens = {token: num_base_tokens + i for i, token in enumerate(special_tokens)}
     self.model = tiktoken.Encoding(
-      name=Path(model_path).name,
-      pat_str=self.pat_str,
-      mergeable_ranks=mergeable_ranks,
-      special_tokens=self.special_tokens,
+        name=Path(model_path).name,
+        pat_str=self.pat_str,
+        mergeable_ranks=mergeable_ranks,
+        special_tokens=self.special_tokens,
     )
     self.eos = add_eos
     self.bos = add_bos
@@ -86,9 +82,7 @@ class TikTokenTokenizer:
         self.special_tokens["<|end_of_text|>"],
         self.special_tokens["<|eot_id|>"],
     }
-    max_logging.log(
-        f"#words: {self.n_words} - BOS ID: {self.bos_id} - EOS ID: {self.eos_id}"
-    )
+    max_logging.log(f"#words: {self.n_words} - BOS ID: {self.bos_id} - EOS ID: {self.eos_id}")
 
   def encode(
       self,
@@ -130,20 +124,20 @@ class TikTokenTokenizer:
     MAX_NO_WHITESPACES_CHARS = 25_000
 
     substrs = (
-      substr
-      for i in range(0, len(s), TIKTOKEN_MAX_ENCODE_CHARS)
-      for substr in self._split_whitespaces_or_nonwhitespaces(
-        s[i : i + TIKTOKEN_MAX_ENCODE_CHARS], MAX_NO_WHITESPACES_CHARS
-      )
+        substr
+        for i in range(0, len(s), TIKTOKEN_MAX_ENCODE_CHARS)
+        for substr in self._split_whitespaces_or_nonwhitespaces(
+            s[i : i + TIKTOKEN_MAX_ENCODE_CHARS], MAX_NO_WHITESPACES_CHARS
+        )
     )
     t: List[int] = []
     for substr in substrs:
       t.extend(
-        self.model.encode(
-          substr,
-          allowed_special=set(allowed_special),
-          disallowed_special=disallowed_special,
-        )
+          self.model.encode(
+              substr,
+              allowed_special=set(allowed_special),
+              disallowed_special=disallowed_special,
+          )
       )
     if self.bos:
       t.insert(0, self.bos_id)
@@ -165,9 +159,7 @@ class TikTokenTokenizer:
     return self.model.decode(t)
 
   @staticmethod
-  def _split_whitespaces_or_nonwhitespaces(
-      s: str, max_consecutive_slice_len: int
-  ):
+  def _split_whitespaces_or_nonwhitespaces(s: str, max_consecutive_slice_len: int):
     """
     Splits the string `s` so that each substring contains no more than `max_consecutive_slice_len`
     consecutive whitespaces or consecutive non-whitespaces.
@@ -195,6 +187,7 @@ class SentencePieceTokenizer:
   """
   Tokenizing and encoding/decoding text using the Sentencepiece tokenizer.
   """
+
   def __init__(self, model_path: str, add_bos: bool, add_eos: bool):
     max_logging.log(f"Tokenizer path: {model_path}")
     with tf.io.gfile.GFile(model_path, "rb") as model_fp:
@@ -207,25 +200,54 @@ class SentencePieceTokenizer:
   def decode(self, t: Sequence[int]) -> str:
     return self.sp_tokenizer.detokenize(t)
 
-def build_tokenizer(tokenizer_path, add_bos, add_eos):
+
+class HFTokenizer:
+  """
+  Tokenizing using huggingface tokenizer
+  """
+
+  def __init__(self, model_path: str, add_bos: bool, add_eos: bool, hf_access_token: str):
+    max_logging.log(f"Loading HF tokenizer: {model_path}")
+    self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_path,
+        add_bos_token=add_bos,
+        add_eos_token=add_eos,
+        token=hf_access_token,
+    )
+
+  def encode(self, s: str) -> List[int]:
+    return self.tokenizer.encode(s)
+
+  def decode(self, t: Sequence[int]) -> str:
+    return self.tokenizer.decode(t)
+
+
+def build_tokenizer(tokenizer_path, tokenizer_type, add_bos, add_eos, hf_access_token):
   """Loads the tokenizer at `tokenizer_path`"""
   max_logging.log(f"Tokenizer path: {tokenizer_path}")
-  if "tiktoken" in tokenizer_path:
+  if tokenizer_type == "tiktoken":
+    assert "tiktoken" in tokenizer_path, f"Invalid tokenizer type: {tokenizer_type} chosen for {tokenizer_path}"
     return TikTokenTokenizer(tokenizer_path, add_bos, add_eos)
-  else:
+  elif tokenizer_type == "huggingface":
+    return HFTokenizer(tokenizer_path, add_bos, add_eos, hf_access_token)
+  elif tokenizer_type == "sentencepiece":
     return SentencePieceTokenizer(tokenizer_path, add_bos, add_eos)
+  else:
+    raise ValueError(f"Invalid tokenizer_type:{tokenizer_type} chosen in config")
 
 
 def TokenizeOp(tokenizer, features: Features, data_keys: Iterable[str] = ("inputs", "targets")) -> Features:
   """Op for tokenization"""
+
   def _process_string(string_tensor):
     # Extract string value and decode it if necessary
-    string_value = string_tensor.numpy().decode('utf-8')
+    string_value = string_tensor.numpy().decode("utf-8")
     # encode and extract the tokenized integers
     modified_string = tokenizer.encode(string_value)
     return [modified_string]
+
   for k in data_keys:
-    if isinstance(tokenizer, TikTokenTokenizer):
+    if isinstance(tokenizer, (TikTokenTokenizer, HFTokenizer)):
       features[k] = tf.py_function(_process_string, [features[k]], Tout=[tf.int32])[0]
     elif isinstance(tokenizer, SentencePieceTokenizer):
       features[k] = tokenizer.encode(features[k])

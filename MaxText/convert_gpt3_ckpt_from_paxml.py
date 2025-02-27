@@ -89,8 +89,7 @@ def convert(paxml_ckpt_path, maxtext_model_name, base_output_directory, run_name
       "checkpoint_period=1",
       "async_checkpointing=false",
   ]
-  pyconfig.initialize(base_args)
-  cfg = pyconfig.config
+  cfg = pyconfig.initialize(base_args)
   init_rng, _ = random.split(random.PRNGKey(cfg.init_weights_seed), 2)
   devices_array = max_utils.create_device_mesh(cfg)
   mesh = Mesh(devices_array, cfg.mesh_axes)
@@ -107,7 +106,7 @@ def convert(paxml_ckpt_path, maxtext_model_name, base_output_directory, run_name
       cfg.checkpoint_period,
   )
 
-  state, _, _ = max_utils.setup_training_state(model, None, tx, cfg, init_rng, mesh, checkpoint_manager)
+  state, _, _, _ = max_utils.setup_training_state(model, None, tx, cfg, init_rng, mesh, checkpoint_manager)
   max_logging.log("start")
   check_memory()
 

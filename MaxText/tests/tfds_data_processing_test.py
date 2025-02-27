@@ -34,7 +34,7 @@ class TfdsDataProcessingTest(unittest.TestCase):
 
   def setUp(self):
     super().setUp()
-    pyconfig.initialize(
+    config = pyconfig.initialize(
         [sys.argv[0], "configs/base.yml"],
         per_device_batch_size=1,
         run_name="test",
@@ -45,38 +45,36 @@ class TfdsDataProcessingTest(unittest.TestCase):
         dataset_path="gs://maxtext-dataset/",
         tokenizer_path="../assets/tokenizer",
         enable_checkpointing=False,
+        eval_interval=10,
     )
-    os.environ["TFDS_DATA_DIR"] = pyconfig.config.dataset_path
-    self.config = pyconfig.config
+    os.environ["TFDS_DATA_DIR"] = config.dataset_path
+    self.config = config
     self.mesh_shape_1d = (len(jax.devices()),)
     self.mesh = Mesh(mesh_utils.create_device_mesh(self.mesh_shape_1d), self.config.mesh_axes)
+    self.process_indices = input_pipeline_interface.get_process_loading_real_data(
+        self.config.data_sharding,
+        self.config.global_batch_size_to_load,
+        self.config.global_batch_size_to_train_on,
+        self.config.max_target_length,
+        self.mesh,
+    )
     self.read_config = tfds.ReadConfig(
         shuffle_seed=self.config.data_shuffle_seed,
     )
     self.read_config.add_tfds_id = True
-
-    self.train_ds, self.eval_ds = self._get_datasets()
-    self.train_iter, self.eval_iter, self.predict_iter = self._get_preprocessed_datasets()
+    self.train_ds = self._get_datasets()
+    self.train_iter = _tfds_data_processing.make_tfds_train_iterator(self.config, self.mesh, self.process_indices)
+    self.eval_iter = _tfds_data_processing.make_tfds_eval_iterator(self.config, self.mesh, self.process_indices)
 
   def _get_datasets(self):
-    print("Sharding dataset in ", jax.process_count(), " shards")
-    process_indices = input_pipeline_interface.get_process_loading_real_data(self.config, self.mesh)
-    train_ds, eval_ds = _tfds_data_processing.get_datasets(
-        config=self.config,
-        dataloading_host_index=process_indices.index(jax.process_index()),
-        dataloading_host_count=len(process_indices),
-        read_config=self.read_config,
+    ds_builder = tfds.builder(self.config.dataset_name)
+    self.read_config.input_context = tf.distribute.InputContext(
+        input_pipeline_id=jax.process_index(),
+        num_input_pipelines=jax.process_count(),
     )
-    return train_ds, eval_ds
+    ds = ds_builder.as_dataset(split="train", read_config=self.read_config, shuffle_files=self.config.enable_data_shuffling)
 
-  def _get_preprocessed_datasets(self):
-    mesh_shape_1d = (len(jax.devices()),)
-    mesh = Mesh(mesh_utils.create_device_mesh(mesh_shape_1d), self.config.mesh_axes)
-    sp_tokenizer = input_pipeline_interface.get_tokenizer(self.config.tokenizer_path, add_bos = True, add_eos = False)
-    train_iter, eval_iter, test_iter = _tfds_data_processing.preprocess_dataset(
-        self.config, mesh, self.train_ds, self.eval_ds, sp_tokenizer
-    )
-    return train_iter, eval_iter, test_iter
+    return ds
 
   def test_train_ds(self):
     expected_shape = [jax.device_count(), self.config.max_target_length]
@@ -95,33 +93,11 @@ class TfdsDataProcessingTest(unittest.TestCase):
         },
     )
 
-  def test_eval_ds(self):
-    expected_shape = [jax.device_count(), self.config.max_target_length]
-    batch = next(self.eval_iter)
-    self.assertEqual(
-        {k: list(v.shape) for k, v in batch.items()},
-        {
-            "inputs": expected_shape,
-            "targets": expected_shape,
-        },
-    )
-
-  def test_predict_ds(self):
-    expected_shape = [jax.device_count(), self.config.max_target_length]
-    batch = next(self.predict_iter)
-    self.assertEqual(
-        {k: list(v.shape) for k, v in batch.items()},
-        {
-            "inputs": expected_shape,
-            "targets": expected_shape,
-        },
-    )
-
   def test_ds_determinism(self):
     train_ds1 = self.train_ds.batch(64)
     train_ds1 = next(train_ds1.as_numpy_iterator())
     # reset the dataset loading
-    train_ds, _ = self._get_datasets()
+    train_ds = self._get_datasets()
     train_ds = train_ds.batch(64)
     train_ds2 = next(train_ds.as_numpy_iterator())
 
@@ -129,9 +105,8 @@ class TfdsDataProcessingTest(unittest.TestCase):
 
   def test_batch_determinism(self):
     batch1 = next(self.train_iter)
-    self.train_ds, _ = self._get_datasets()
-    train_iter2, _, _ = self._get_preprocessed_datasets()
-    batch2 = next(train_iter2)
+    train_iter = _tfds_data_processing.make_tfds_train_iterator(self.config, self.mesh, self.process_indices)
+    batch2 = next(train_iter)
     self.assertTrue(tf.reduce_all(tf.equal(batch1["inputs"], batch2["inputs"])))
     self.assertTrue(tf.reduce_all(tf.equal(batch1["targets"], batch2["targets"])))
     self.assertTrue(tf.reduce_all(tf.equal(batch1["inputs_segmentation"], batch2["inputs_segmentation"])))

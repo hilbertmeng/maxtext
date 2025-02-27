@@ -48,7 +48,7 @@ gcloud auth login
 
 * Run this command to configure docker to use docker-credential-gcloud for GCR registries:
 ```
-gcloud auth configure-docker
+gcloud auth configure-docker us-docker.pkg.dev
 ```
 
 * Test the installation by running
@@ -78,6 +78,36 @@ after which log out and log back in to the machine.
     # Default will pick stable versions of dependencies
     bash docker_build_dependency_image.sh
     ```
+
+    #### Build Maxtext Docker Image with JAX Stable Stack (Preview)
+    We're excited to announce the preview of building Maxtext Docker images using the JAX Stable Stack base image, available for both TPUs and GPUs. This provides a more reliable and consistent build environment.
+
+    ###### What is JAX Stable Stack?
+    JAX Stable Stack provides a consistent environment for Maxtext by bundling JAX with core packages like `orbax`, `flax`, and `optax`, along with Google Cloud utilities and other essential tools. These libraries are tested to ensure compatibility, providing a stable foundation for building and running Maxtext and eliminating potential conflicts due to incompatible package versions.
+
+    ###### How to Use It
+    Use the `docker_build_dependency_image.sh` script to build your Maxtext Docker image with JAX Stable Stack. Set MODE to `stable_stack` and specify the desired `BASEIMAGE`. The `DEVICE` variable determines whether to build for TPUs or GPUs.
+
+    ###### For TPUs:
+    
+    ```
+    # Example: bash docker_build_dependency_image.sh DEVICE=tpu MODE=stable_stack BASEIMAGE=us-docker.pkg.dev/cloud-tpu-images/jax-stable-stack/tpu:jax0.4.37-rev1
+    bash docker_build_dependency_image.sh DEVICE=tpu MODE=stable_stack BASEIMAGE={{JAX_STABLE_STACK_TPU_BASEIMAGE}}
+    ```
+
+    You can find a list of available JAX Stable Stack base images [here](https://us-docker.pkg.dev/cloud-tpu-images/jax-stable-stack/tpu).
+
+    ###### [New] For GPUs:
+
+    ```
+    # Example bash docker_build_dependency_image.sh DEVICE=gpu MODE=stable_stack BASEIMAGE=us-central1-docker.pkg.dev/deeplearning-images/jax-stable-stack/gpu:jax0.4.37-cuda_dl24.10-rev1
+    bash docker_build_dependency_image.sh MODE=stable_stack BASEIMAGE={{JAX_STABLE_STACK_BASEIMAGE}}
+    ```
+
+    You can find a list of available JAX Stable Stack base images [here](us-central1-docker.pkg.dev/deeplearning-images/jax-stable-stack/gpu).
+
+    **Important Note:** The JAX Stable Stack is currently in the experimental phase. We encourage you to try it out and provide feedback.
+
 3. After building the dependency image `maxtext_base_image`, xpk can handle updates to the working directory when running `xpk workload create` and using `--base-docker-image`.
 
     See details on docker images in xpk here: https://github.com/google/xpk/blob/main/README.md#how-to-add-docker-images-to-a-xpk-workload

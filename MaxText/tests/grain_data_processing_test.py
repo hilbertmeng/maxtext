@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-
 import subprocess
 import sys
 import jax
@@ -41,7 +40,7 @@ class GrainDataProcessingTest(unittest.TestCase):
 
   def setUp(self):
     super().setUp()
-    pyconfig.initialize(
+    self.config = pyconfig.initialize(
         [sys.argv[0], "configs/base.yml"],
         per_device_batch_size=1,
         run_name="test",
@@ -50,31 +49,24 @@ class GrainDataProcessingTest(unittest.TestCase):
         data_sharding=["data"],
         base_output_directory="gs://max-experiments/",
         dataset_type="grain",
-        grain_data_files="/tmp/gcsfuse/array-record/c4/en/3.0.1/c4-train.array_record*",
+        grain_train_files="/tmp/gcsfuse/array-record/c4/en/3.0.1/c4-train.array_record*",
         tokenizer_path="../assets/tokenizer",
         enable_checkpointing=False,
     )
-    self.config = pyconfig.config
     self.mesh_shape_1d = (len(jax.devices()),)
     self.mesh = Mesh(mesh_utils.create_device_mesh(self.mesh_shape_1d), self.config.mesh_axes)
-    self.train_ds = self._get_datasets()
-    self.train_iter = self._get_preprocessed_datasets()
-
-  def _get_datasets(self):
-    print("Sharding dataset in ", jax.process_count(), " shards")
-    train_ds, _ = _grain_data_processing.get_datasets(config=self.config)
-    return train_ds
-
-  def _get_preprocessed_datasets(self):
-    process_indices = input_pipeline_interface.get_process_loading_real_data(self.config, self.mesh)
-    train_iter, _, _ = _grain_data_processing.preprocess_dataset(
-        self.config,
-        dataloading_host_index=process_indices.index(jax.process_index()),
-        dataloading_host_count=len(process_indices),
-        global_mesh=self.mesh,
-        dataset=self.train_ds
+    self.process_indices = input_pipeline_interface.get_process_loading_real_data(
+        self.config.data_sharding,
+        self.config.global_batch_size_to_load,
+        self.config.global_batch_size_to_train_on,
+        self.config.max_target_length,
+        self.mesh,
     )
-    return train_iter
+    self.train_iter = _grain_data_processing.make_grain_train_iterator(self.config, self.mesh, self.process_indices)
+
+  # def _get_train_iterator(self):
+  #   train_iter, _ = _grain_data_processing.make_grain_iterator(self.config, self.mesh, self.process_indices)
+  #   return train_iter
 
   def test_train_ds(self):
     expected_shape = [jax.device_count(), self.config.max_target_length]
@@ -95,8 +87,7 @@ class GrainDataProcessingTest(unittest.TestCase):
 
   def test_batch_determinism(self):
     batch1 = next(self.train_iter)
-    self.train_ds = self._get_datasets()
-    train_iter = self._get_preprocessed_datasets()
+    train_iter = _grain_data_processing.make_grain_train_iterator(self.config, self.mesh, self.process_indices)
     batch2 = next(train_iter)
     self.assertTrue((batch1["inputs"] == batch2["inputs"]).all())
     self.assertTrue((batch1["targets"] == batch2["targets"]).all())

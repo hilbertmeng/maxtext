@@ -69,7 +69,7 @@ def checkpoint_loop(config, state=None):
     if jax.process_index() == 0:
       max_logging.log(f"STANDALONE CHECKPOINTER : Checkpoint restored in : {checkpoint_load_end - checkpoint_load_start}")
   else:  # Checkpoint was unavailable, state needs to be initialized
-    state, _, _ = max_utils.setup_training_state(model, None, tx, config, init_rng, mesh, checkpoint_manager)
+    state, _, _, _ = max_utils.setup_training_state(model, None, tx, config, init_rng, mesh, checkpoint_manager)
   state = add_entropy_to_checkpoint(state)
 
   start_step = get_first_step(state)  # this is the start_step for training
@@ -78,7 +78,7 @@ def checkpoint_loop(config, state=None):
       start_time = datetime.datetime.now()
       # A barrier to sync all hosts before starting to save checkpoint
       jax.experimental.multihost_utils.sync_global_devices("Barrier before save")
-      if save_checkpoint(checkpoint_manager, step, state):
+      if save_checkpoint(checkpoint_manager, int(step), state):
         checkpoint_manager.wait_until_finished()
         end_time = datetime.datetime.now()
         if jax.process_index() == 0:
@@ -106,8 +106,7 @@ def add_entropy_to_checkpoint(state):
 def main(argv: Sequence[str]) -> None:
   jax.config.update("jax_cpu_enable_gloo_collectives", True)
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
-  pyconfig.initialize(argv)
-  config = pyconfig.config
+  config = pyconfig.initialize(argv)
   validate_train_config(config)
   print(f"Found {jax.device_count()} devices.")
   print(f"Found {jax.process_count()} processes.")

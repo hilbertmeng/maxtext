@@ -45,7 +45,7 @@ def data_load_loop(config, state=None):
   first_end = datetime.datetime.now()
   time_to_load_first_batch = first_end - start
   if jax.process_index() == 0:
-    max_logging.log(f"STANDALONE DATALOADER : First step completed in {time_to_load_first_batch} seconds, on host 0")
+    max_logging.log(f"STANDALONE DATALOADER : First step completed in {time_to_load_first_batch.seconds} seconds, on host 0")
 
   for _ in np.arange(start_step + 1, config.steps):
     example_batch = load_next_batch(data_iterator, example_batch, config)
@@ -53,20 +53,19 @@ def data_load_loop(config, state=None):
   jax.block_until_ready(example_batch)  # wait until the last batch is read
   end = datetime.datetime.now()
   if jax.process_index() == 0:
-    max_logging.log(f"STANDALONE DATALOADER : {config.steps} batches loaded in {end-start} seconds, on host 0")
+    max_logging.log(f"STANDALONE DATALOADER : {config.steps} batches loaded in {(end-start).seconds} seconds, on host 0")
   return state
 
 
 def main(argv: Sequence[str]) -> None:
   jax.config.update("jax_cpu_enable_gloo_collectives", True)
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
-  pyconfig.initialize(argv)
-  config = pyconfig.config
+  config = pyconfig.initialize(argv)
   validate_train_config(config)
   max_logging.log(f"Found {jax.device_count()} devices.")
   max_logging.log(f"Found {jax.process_count()} processes.")
   max_logging.log(f"Found {jax.devices()} devices.")
-  if config.dataset_type == 'tfds':
+  if config.dataset_type in ("tfds", "c4_mlperf"):
     os.environ["TFDS_DATA_DIR"] = config.dataset_path
   data_load_loop(config)
 

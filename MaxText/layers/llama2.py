@@ -22,6 +22,7 @@ from flax import linen as nn
 from jax.sharding import Mesh
 import numpy as np
 import jax.numpy as jnp
+from jax.ad_checkpoint import checkpoint_name
 # from jax.experimental.pallas.ops.tpu import flash_attention
 from layers import attentions
 from layers import embeddings
@@ -177,16 +178,18 @@ class LlamaDecoderLayer(nn.Module):
         weight_dtype=cfg.weight_dtype,
         dropout_rate=cfg.dropout_rate,
         name="self_attention",
+        float32_qk_product=cfg.float32_qk_product,
+        float32_logits=cfg.float32_logits,
         quant=self.quant,
         kernel_init=NormalInitializer(0.006), # lsp
-        float32_qk_product = False,  # computes logits in float32 for stability.
-        float32_logits = True,
         quantize_kvcache=cfg.quantize_kvcache,
+        kv_quant=quantizations.configure_kv_quant(cfg),
         prefill_cache_axis_order=tuple([int(i) for i in cfg.prefill_cache_axis_order.split(",")]),
         ar_cache_axis_order=tuple([int(i) for i in cfg.ar_cache_axis_order.split(",")]),
         compute_axis_order=tuple([int(i) for i in cfg.compute_axis_order.split(",")]),
         reshape_q=cfg.reshape_q,
-        kv_quant_axis=cfg.kv_quant_axis,
+        use_ragged_attention=cfg.use_ragged_attention,
+        ragged_block_size=cfg.ragged_block_size,
     )
 
     attention_lnx = attention_layer(
@@ -198,7 +201,9 @@ class LlamaDecoderLayer(nn.Module):
         model_mode=model_mode,
     )
 
-    attention_lnx = nn.with_logical_constraint(attention_lnx, ("activation_batch", "activation_length", "activation_embed"))
+    attention_lnx = nn.with_logical_constraint(
+        attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
+    )
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
@@ -218,7 +223,7 @@ class LlamaDecoderLayer(nn.Module):
         quant=self.quant,
         kernel_init=NormalInitializer(0.006),  # lsp
     )(hidden_states, deterministic=deterministic)
-    mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_length", "activation_embed"))
+    mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     layer_output = mlp_lnx + intermediate_inputs
 
@@ -226,7 +231,7 @@ class LlamaDecoderLayer(nn.Module):
 
     layer_output = nn.with_logical_constraint(
         layer_output,
-        ("activation_batch", "activation_length", "activation_embed"),
+        ("activation_batch", "activation_norm_length", "activation_embed"),
     )
 
     if cfg.dynamic_dense_type == 'qkvm': # XD lsp

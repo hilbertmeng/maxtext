@@ -11,7 +11,7 @@ if [ -f "restored_metrics.txt" ]; then
     echo "removed existing restored_metrics.txt"
 fi
 
-RUN_NAME=${1}-${4}-$(date +%Y-%m-%d-%H-%M)
+RUN_NAME=${1}-${4}
 OUTPUT_PATH=${2}
 DATASET_PATH=${3}
 COLLECT_STACK_TRACE=${4}
@@ -20,6 +20,7 @@ ATTENTION=${6}
 if [ -z "${6}" ]; then
     ATTENTION='autoselected'
 fi
+ASYNC_CHECKPOINTING=${7:-true}
 eval_metrics=checkpoint_save_restore
 model_params=" base_emb_dim=384 base_num_query_heads=8 base_num_kv_heads=8 base_mlp_dim=192 base_num_decoder_layers=8 head_dim=128"
 CMD_DATA=""
@@ -31,19 +32,19 @@ then
     echo "Mounting $DATASET_PATH to /tmp/gcsfuse/"
     bash setup_gcsfuse.sh DATASET_GCS_BUCKET=$DATASET_PATH MOUNT_PATH=/tmp/gcsfuse/
     DATASET_PATH=/tmp/gcsfuse/
-    CMD_DATA=" grain_worker_count=0 dataset_type=grain grain_data_files=/tmp/gcsfuse/array-record/c4/en/3.0.1/c4-train.array_record*"
+    CMD_DATA=" grain_worker_count=0 dataset_type=grain grain_train_files=/tmp/gcsfuse/array-record/c4/en/3.0.1/c4-train.array_record*"
 fi
 
 #Train
 CMD1="python3 MaxText/train.py MaxText/configs/base.yml run_name=$RUN_NAME steps=5 max_target_length=128 per_device_batch_size=1\
     metrics_file=saved_metrics.txt checkpoint_period=3 base_output_directory=$OUTPUT_PATH dataset_path=$DATASET_PATH\
-    async_checkpointing=false collect_stack_trace=$COLLECT_STACK_TRACE attention=$ATTENTION"
+    async_checkpointing=$ASYNC_CHECKPOINTING collect_stack_trace=$COLLECT_STACK_TRACE attention=$ATTENTION"
 CMD1+=$model_params
 CMD1+=$CMD_DATA
 
 CMD2="python3 MaxText/train.py MaxText/configs/base.yml run_name=$RUN_NAME steps=5 max_target_length=128 per_device_batch_size=1\
     metrics_file=restored_metrics.txt base_output_directory=$OUTPUT_PATH dataset_path=$DATASET_PATH\
-    async_checkpointing=false collect_stack_trace=$COLLECT_STACK_TRACE attention=$ATTENTION"
+    async_checkpointing=$ASYNC_CHECKPOINTING collect_stack_trace=$COLLECT_STACK_TRACE attention=$ATTENTION"
 CMD2+=$model_params
 CMD2+=$CMD_DATA
 

@@ -30,12 +30,12 @@ from input_pipeline import input_pipeline_interface
 
 OVERWRITE_WITH_GRADIENT = "_overwrite_with_gradient"
 
-def get_functional_train_with_signature(train_step, mesh, state_mesh_annotations, model, config):
+
+def get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, model, config):
   """Get the shardings (both state and data) for train_step"""
-  functional_train = get_functional_train_step(train_step, model, config)
+  functional_train = get_functional_train_step(train_step, model, config, state_mesh_shardings)
   functional_train.__name__ = "train_step"
   data_pspec = P(*config.data_sharding)
-  state_mesh_shardings = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), state_mesh_annotations)
   data_sharding = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), data_pspec)
   in_shardings = (state_mesh_shardings, data_sharding, None)  # State, batch, rng
   out_shardings = (state_mesh_shardings, None)  # State, metrics
@@ -44,16 +44,15 @@ def get_functional_train_with_signature(train_step, mesh, state_mesh_annotations
   return functional_train, in_shardings, out_shardings, static_argnums, donate_argnums
 
 
-def get_functional_train_step(train_step, model, config):
-  return functools.partial(train_step, model, config)
+def get_functional_train_step(train_step, model, config, state_mesh_shardings):
+  return functools.partial(train_step, model, config, state_mesh_shardings)
 
 
-def get_functional_eval_with_signature(eval_step, mesh, state_mesh_annotations, model, config):
+def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config):
   """Get the shardings (both state and data) for eval_step"""
   functional_eval = get_functional_eval_step(eval_step, model, config)
   functional_eval.__name__ = "eval_step"
   data_pspec = P(*config.data_sharding)
-  state_mesh_shardings = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), state_mesh_annotations)
   data_sharding = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), data_pspec)
   in_shardings = (state_mesh_shardings, data_sharding, None)  # State, batch, rng
   out_shardings = None  # metrics
@@ -93,50 +92,166 @@ def load_compiled(config, partial_train, state):
   return p_train_step
 
 
-def calculate_tflops_training_per_device(config, log=True):
-  """Calculate training TFLOP"""
-  ffn1_flops = (
-      2
+def calculate_tokens_training_per_device(config):
+  """Calculate training Tokens per device"""
+  return config.max_target_length * config.per_device_batch_size * config.gradient_accumulation_steps
+
+
+def calculate_gemma2_tflops_training_per_device(config, total_ffn_flops, qkv_flops, projection_flops, embedding_flops):
+  """
+  Calculate training TFLOP for Gemma2 as in Gemma2 we combine [local_attention, global_attention] into one decoder
+  layer and we use sliding window attention in local_attention
+  """
+  attention_flops = (
+      # global attention
+      4 * config.per_device_batch_size * config.max_target_length**2 * config.num_query_heads * config.head_dim
+      +
+      # local attention
+      4
       * config.per_device_batch_size
       * config.max_target_length
-      * config.mlp_dim
-      * config.emb_dim
-      * len(config.mlp_activations)
-  )
-  ffn2_flops = 2 * config.per_device_batch_size * config.max_target_length * config.mlp_dim * config.emb_dim
-  total_ffn_flops = ffn1_flops + ffn2_flops
-
-  if config.num_experts > 1:
-    # MoE: brute force implementation
-    gate_flops = 2 * config.per_device_batch_size * config.max_target_length * config.emb_dim * config.num_experts
-    total_ffn_flops = gate_flops + config.num_experts_per_tok * total_ffn_flops
-
-  qkv_flops = (
-      2
-      * config.per_device_batch_size
-      * config.max_target_length
-      * config.emb_dim
-      * (config.num_query_heads + 2 * config.num_kv_heads)
+      * min(config.sliding_window_size, config.max_target_length)
+      * config.num_query_heads
       * config.head_dim
   )
-  attention_flops = (
-      4 * config.per_device_batch_size * config.max_target_length**2 * config.num_query_heads * config.head_dim
+  attention_tflops = attention_flops * config.num_decoder_layers * 3 / 10**12
+
+  # multiply num_decoder_layers by 2 because we combine [local_attention, global_attention] into one decoder layer
+  learnable_weight_tflops = (
+      ((total_ffn_flops + qkv_flops + projection_flops) * config.num_decoder_layers * 2 + embedding_flops) * 3 / 10**12
   )
-  projection_flops = (
-      2 * config.per_device_batch_size * config.max_target_length * config.emb_dim * config.num_query_heads * config.head_dim
+
+  return attention_tflops, learnable_weight_tflops
+
+
+def calculate_mla_tflops_per_device(config):
+  """Calculate Multi-Head Latent Attention TFLOP"""
+  batch_len = config.per_device_batch_size * config.max_target_length
+  qk_head_dim_sum = config.qk_nope_head_dim + config.qk_rope_head_dim
+  # calculate mla query projection
+  if config.q_lora_rank == 0:
+    q_flops = 2 * batch_len * config.emb_dim * config.num_query_heads * qk_head_dim_sum
+  else:
+    # calculate query down and up flops
+    q_flops = (
+        2 * batch_len * (config.emb_dim * config.q_lora_rank + config.q_lora_rank * config.num_query_heads * qk_head_dim_sum)
+    )
+  # calculate mla kv projection with down and up flops
+  kv_flops = (
+      2
+      * batch_len
+      * (
+          config.emb_dim * (config.kv_lora_rank + config.qk_rope_head_dim)
+          + config.kv_lora_rank * config.num_query_heads * (config.qk_nope_head_dim + config.v_head_dim)
+      )
   )
+  qkv_flops = q_flops + kv_flops
+
+  attention_flops = 2 * batch_len * config.max_target_length * config.num_query_heads * (qk_head_dim_sum + config.v_head_dim)
+  projection_flops = 2 * batch_len * config.emb_dim * config.num_query_heads * config.v_head_dim
+  return qkv_flops, attention_flops, projection_flops
+
+
+def calculate_ffn_mamtul_tflops_per_device(config, mlp_dim):
+  """Helper function to calculate matmul TFLOP in ffn based on MLP dimension.
+
+  Applies to:
+    - Dense FFN layers (mlp_dim = config.mlp_dim).
+    - MoE FFN layers (mlp_dim = config.moe_mlp_dim),
+      need to scale by shared_experts or num_experts_per_tok.
+  """
+  ffn1_flops = (
+      2 * config.per_device_batch_size * config.max_target_length * mlp_dim * config.emb_dim * len(config.mlp_activations)
+  )
+  ffn2_flops = 2 * config.per_device_batch_size * config.max_target_length * mlp_dim * config.emb_dim
+  return ffn1_flops + ffn2_flops
+
+
+def calculate_deepseek_ffn_tflops_per_device(config):
+  """Helper function to calculate DeepSeek-style ffn TFLOP"""
+  gate_flops = 2 * config.per_device_batch_size * config.max_target_length * config.emb_dim * config.num_experts
+  # Due to the mixed decoder layers, the flops is multiplied by num of layers for both dense and moe
+  dense_ffn_flops = calculate_ffn_mamtul_tflops_per_device(config, config.mlp_dim) * config.first_num_dense_layers
+  shared_experts_flops = calculate_ffn_mamtul_tflops_per_device(config, config.moe_mlp_dim) * config.shared_experts
+  routed_experts_flops = calculate_ffn_mamtul_tflops_per_device(config, config.moe_mlp_dim) * config.num_experts_per_tok
+  moe_layers = config.num_decoder_layers - config.first_num_dense_layers
+  moe_ffn_flops = (gate_flops + shared_experts_flops + routed_experts_flops) * moe_layers
+  total_ffn_flops = dense_ffn_flops + moe_ffn_flops
+  return total_ffn_flops
+
+
+def calculate_tflops_training_per_device(config, log=True):
+  """Calculate training TFLOP"""
+  # MLP flops
+  if config.num_experts > 1:
+    # calculation based on dropless implementation
+    if config.decoder_block == "deepseek":
+      total_ffn_flops = calculate_deepseek_ffn_tflops_per_device(config)
+    else:
+      gate_flops = 2 * config.per_device_batch_size * config.max_target_length * config.emb_dim * config.num_experts
+      total_ffn_flops = (
+          gate_flops + calculate_ffn_mamtul_tflops_per_device(config, config.mlp_dim) * config.num_experts_per_tok
+      )
+  else:
+    total_ffn_flops = calculate_ffn_mamtul_tflops_per_device(config, config.mlp_dim)
+
+  # Attention flops
+  if config.attention_type == "mla":
+    qkv_flops, attention_flops, projection_flops = calculate_mla_tflops_per_device(config)
+  else:
+    qkv_flops = (
+        2
+        * config.per_device_batch_size
+        * config.max_target_length
+        * config.emb_dim
+        * (config.num_query_heads + 2 * config.num_kv_heads)
+        * config.head_dim
+    )
+    attention_flops = (
+        4 * config.per_device_batch_size * config.max_target_length**2 * config.num_query_heads * config.head_dim
+    )
+    projection_flops = (
+        2
+        * config.per_device_batch_size
+        * config.max_target_length
+        * config.emb_dim
+        * config.num_query_heads
+        * config.head_dim
+    )
+
+  # Embedding flops
   embedding_flops = 2 * config.per_device_batch_size * config.max_target_length * config.emb_dim * config.vocab_size
 
-  # multiply by 3 for both feed forward and back proporgation flops
-  learnable_weight_tflops = (
-      ((total_ffn_flops + qkv_flops + projection_flops) * config.num_decoder_layers + embedding_flops) * 3 / 10**12
-  )
-  # megatron tflops calculation does not account for causality in attention
-  attention_tflops = (
-      attention_flops * config.num_decoder_layers * 3 / 10**12
-  )
+  # Combine flops with number of decoder layers
+  if config.decoder_block == "gemma2":
+    attention_tflops, learnable_weight_tflops = calculate_gemma2_tflops_training_per_device(
+        config, total_ffn_flops, qkv_flops, projection_flops, embedding_flops
+    )
+  elif config.decoder_block == "deepseek":
+    learnable_weight_tflops = (
+        (total_ffn_flops + (qkv_flops + projection_flops) * config.num_decoder_layers + embedding_flops) * 3 / 10**12
+    )
+    attention_tflops = attention_flops * config.num_decoder_layers * 3 / 10**12
+  else:
+    # multiply by 3 for both feed forward and back propagation flops
+    learnable_weight_tflops = (
+        ((total_ffn_flops + qkv_flops + projection_flops) * config.num_decoder_layers + embedding_flops) * 3 / 10**12
+    )
+    # megatron tflops calculation does not account for causality in attention
+    attention_tflops = attention_flops * config.num_decoder_layers * 3 / 10**12
 
-  total_tflops = learnable_weight_tflops + attention_tflops
+  learnable_weight_tflops = learnable_weight_tflops * config.gradient_accumulation_steps
+  attention_tflops = attention_tflops * config.gradient_accumulation_steps
+
+  # DPO includes one additional forward pass per gradient accumulation step
+  if config.use_dpo:
+    reference_model_tflops = learnable_weight_tflops / 3  # additional forward pass
+    reference_model_attention_tflops = attention_tflops / 3
+    attention_tflops = attention_tflops + reference_model_attention_tflops
+  else:
+    reference_model_tflops = 0
+
+  total_tflops = learnable_weight_tflops + attention_tflops + reference_model_tflops
 
   if log:
     print(
@@ -176,7 +291,7 @@ def calculate_prefill_tflops_per_device(num_model_parameters, prefill_length, co
   return total_tflops, learnable_weight_tflops, causal_attention_tflops
 
 
-def assert_params_sufficiently_sharded(params, mesh, tolerance=0.02):
+def assert_params_sufficiently_sharded(params, mesh, tolerance):
   """Checks whether most params are sharded across sharding axis.
 
   This function determines whether the majority of parameters  are distributed
@@ -194,17 +309,20 @@ def assert_params_sufficiently_sharded(params, mesh, tolerance=0.02):
   """
   total_num_params = max_utils.calculate_num_params_from_pytree(params)
   product_num_devices_for_weight_sharding = 1
-  for axis in ["fsdp", "fsdp_transpose", "sequence", "tensor", "stage"]:
+  for axis in ["fsdp", "fsdp_transpose", "sequence", "tensor", "tensor_transpose", "tensor_sequence", "stage", "expert"]:
     product_num_devices_for_weight_sharding *= mesh.shape[axis]
   total_num_params_per_chip = max_utils.calculate_total_params_per_chip(params)
   perfectly_sharded_params_per_chip = total_num_params / product_num_devices_for_weight_sharding
   assert total_num_params_per_chip >= perfectly_sharded_params_per_chip, (
       "Number of parameters per chip must not be less than in the ideal sharded "
-      "scenario across `fsdp`, `fsdp_transpose`,`sequence`, `tensor` axes."
+      "scenario across `fsdp`, `fsdp_transpose`,`sequence`, `tensor`, `tensor_transpose`, `tensor_sequence`, `expert` axes."
   )
-  assert total_num_params_per_chip / perfectly_sharded_params_per_chip - 1 < tolerance, (
-      f"Number of unsharded parameters exceeds tolerance {tolerance * 100}% " "of total parameters."
+  unsharded_param_perc = total_num_params_per_chip / perfectly_sharded_params_per_chip - 1
+  assert unsharded_param_perc < tolerance, (
+      f"Number of unsharded parameters exceeds tolerance {tolerance * 100}% "
+      f"of total parameters with a value of {unsharded_param_perc}%."
   )
+
 
 def apply_gradient_clipping(raw_grads, state, clipping_threshold):
   """Applies gradient clipping to raw gradients, with special handing for FLAX fp8 stats.
@@ -222,8 +340,8 @@ def apply_gradient_clipping(raw_grads, state, clipping_threshold):
     # Scales + Amax History for Delayed Tensor Scaling SHOULD NOT be clipped or affect clipping
     fp8_stats = raw_grads.pop(OVERWRITE_WITH_GRADIENT)
     grads, _ = gradient_clip_transformation.update(raw_grads, state, None)
-    grads[OVERWRITE_WITH_GRADIENT] = fp8_stats # pytype: disable=unsupported-operands
-    raw_grads[OVERWRITE_WITH_GRADIENT] = fp8_stats # pytype: disable=unsupported-operands
+    grads[OVERWRITE_WITH_GRADIENT] = fp8_stats  # pytype: disable=unsupported-operands
+    raw_grads[OVERWRITE_WITH_GRADIENT] = fp8_stats  # pytype: disable=unsupported-operands
   else:
     grads, _ = gradient_clip_transformation.update(raw_grads, state, None)
 

@@ -47,12 +47,14 @@ BATCH = common_types.BATCH
 LENGTH = common_types.LENGTH
 HEAD = common_types.HEAD
 D_KV = common_types.D_KV
+EMBED = common_types.EMBED
 
 DenseGeneral = linears.DenseGeneral
 NdInitializer = initializers.NdInitializer
 Initializer = initializers.Initializer
 nd_dense_init = initializers.nd_dense_init
 Quant = quantizations.AqtQuantization
+KVQuant = quantizations.KVQuant
 
 
 # -----------------------------------------
@@ -66,7 +68,7 @@ class Gpt3LayerNorm(nn.Module):
   epsilon: float = 1e-6
   dtype: Any = jnp.float32
   weight_dtype: Any = jnp.float32
-  kernel_axes: Tuple[str, ...] = ()
+  kernel_axes: Tuple[Optional[str], ...] = ()
   scale_init: Initializer = nn.initializers.zeros
   use_bias: bool = True
   reductions_in_fp32: bool = False
@@ -144,8 +146,10 @@ class Gpt3MultiHeadAttention(nn.Module):
   float32_logits: bool = True  # cast logits in float32 for stability.
   fused_qkv: bool = True
   quant: Optional[Quant] = None
+  kv_quant: Optional[KVQuant] = None
   use_bias: bool = True
 
+  input_axis_names: AxisNames = (BATCH, LENGTH, EMBED)
   query_axis_names: AxisNames = (BATCH, LENGTH, HEAD, D_KV)
   key_axis_names: AxisNames = (BATCH, LENGTH, HEAD, D_KV)
   value_axis_names: AxisNames = (BATCH, LENGTH, HEAD, D_KV)
@@ -164,6 +168,7 @@ class Gpt3MultiHeadAttention(nn.Module):
         name=proj_name,
         quant=self.quant,
         use_bias=self.use_bias,
+        matmul_precision=self.config.matmul_precision,
     )(inputs)
     qkv_proj = checkpoint_name(qkv_proj, "qkv_proj")
     query, key, value = qkv_proj[:, :, 0, ...], qkv_proj[:, :, 1, ...], qkv_proj[:, :, 2, ...]
@@ -181,6 +186,7 @@ class Gpt3MultiHeadAttention(nn.Module):
         name=proj_name,
         quant=self.quant,
         use_bias=self.use_bias,
+        matmul_precision=self.config.matmul_precision,
     )(inputs)
     return proj
 
@@ -196,6 +202,7 @@ class Gpt3MultiHeadAttention(nn.Module):
         name="out",
         quant=self.quant,
         use_bias=self.use_bias,
+        matmul_precision=self.config.matmul_precision,
     )(out)
     return out_proj
 
@@ -208,6 +215,7 @@ class Gpt3MultiHeadAttention(nn.Module):
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
   ):
+    inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     if self.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
@@ -227,13 +235,14 @@ class Gpt3MultiHeadAttention(nn.Module):
     value = checkpoint_name(value, "value_proj")
 
     attention_op = AttentionOp(
+        config=self.config,
         mesh=self.mesh,
         attention_kernel=self.attention_kernel,
         max_target_length=self.max_target_length,
         float32_qk_product=self.float32_qk_product,
         float32_logits=self.float32_logits,
         quant=self.quant,
-        quantize_kvcache=self.config.quantize_kvcache,
+        kv_quant=self.kv_quant,
         num_query_heads=self.num_heads,
         num_kv_heads=self.num_heads,
         dtype=self.dtype,
@@ -273,8 +282,8 @@ class Gpt3DecoderLayer(nn.Module):
     cfg = self.config
     mesh = self.mesh
 
-    inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
-
+    inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
+    inputs = checkpoint_name(inputs, "decoder_layer_input")
     lnx_layer_norm = Gpt3LayerNorm(
         dtype=cfg.dtype,
         name="pre_self_attention_norm",
@@ -285,7 +294,7 @@ class Gpt3DecoderLayer(nn.Module):
     )
     lnx = lnx_layer_norm(inputs)
 
-    lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
+    lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     # Self-attention block
     assert (
@@ -303,16 +312,21 @@ class Gpt3DecoderLayer(nn.Module):
         mesh=mesh,
         dropout_rate=cfg.dropout_rate,
         name="self_attention",
+        float32_qk_product=cfg.float32_qk_product,
+        float32_logits=cfg.float32_logits,
         fused_qkv=cfg.fused_qkv,
         use_bias=True,
         quant=self.quant,
+        kv_quant=quantizations.configure_kv_quant(cfg),
     )
 
     attention_lnx = attention_layer(
         lnx, decoder_segment_ids=decoder_segment_ids, model_mode=model_mode, deterministic=deterministic
     )
 
-    attention_lnx = nn.with_logical_constraint(attention_lnx, ("activation_batch", "activation_length", "activation_embed"))
+    attention_lnx = nn.with_logical_constraint(
+        attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
+    )
     attention_lnx += inputs
 
     # MLP block.
@@ -328,7 +342,7 @@ class Gpt3DecoderLayer(nn.Module):
         config=cfg,
         quant=self.quant,
     )(attention_lnx, deterministic=deterministic)
-    mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_length", "activation_embed"))
+    mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     layer_output = attention_lnx + mlp_lnx
 
@@ -336,7 +350,7 @@ class Gpt3DecoderLayer(nn.Module):
 
     layer_output = nn.with_logical_constraint(
         layer_output,
-        ("activation_batch", "activation_length", "activation_embed"),
+        ("activation_batch", "activation_norm_length", "activation_embed"),
     )
 
     if cfg.record_internal_nn_metrics:

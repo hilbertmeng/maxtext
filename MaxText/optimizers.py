@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-# pylint: disable=bare-except, consider-using-generator, ungrouped-imports
+# pylint: disable=bare-except, consider-using-generator, ungrouped-imports, too-many-positional-arguments
 """Utils that are only interesting to MaxText. """
 
 import jax
@@ -49,6 +49,8 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None):
         weight_decay=config.adam_weight_decay,
         wd_tree=wd_tree, # lsp
     )
+  elif config.opt_type == "sgd":
+    return optax.sgd(learning_rate_schedule)
   else:
     raise ValueError(f"{config.opt_type=} is not a supported.")
 

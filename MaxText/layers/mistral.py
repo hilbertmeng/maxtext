@@ -24,6 +24,7 @@ from layers import quantizations
 from layers import linears
 from layers import initializers
 import jax
+from jax.ad_checkpoint import checkpoint_name
 from jax.sharding import Mesh
 from flax import linen as nn
 import jax.numpy as jnp
@@ -69,8 +70,8 @@ class MistralDecoderLayer(nn.Module):
     cfg = self.config
     mesh = self.mesh
 
-    inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
-
+    inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
+    inputs = checkpoint_name(inputs, "decoder_layer_input")
     lnx_rms = models.RMSNorm(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
@@ -80,7 +81,7 @@ class MistralDecoderLayer(nn.Module):
     )
     lnx = lnx_rms(inputs)
 
-    lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
+    lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     # Self-attention block
     attention_layer = Attention(
@@ -96,8 +97,10 @@ class MistralDecoderLayer(nn.Module):
         weight_dtype=cfg.weight_dtype,
         dropout_rate=cfg.dropout_rate,
         name="self_attention",
+        float32_qk_product=cfg.float32_qk_product,
+        float32_logits=cfg.float32_logits,
         quant=self.quant,
-        quantize_kvcache=cfg.quantize_kvcache,
+        kv_quant=quantizations.configure_kv_quant(cfg),
     )
 
     attention_lnx = attention_layer(
@@ -109,7 +112,9 @@ class MistralDecoderLayer(nn.Module):
         model_mode=model_mode,
     )
 
-    attention_lnx = nn.with_logical_constraint(attention_lnx, ("activation_batch", "activation_length", "activation_embed"))
+    attention_lnx = nn.with_logical_constraint(
+        attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
+    )
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
@@ -120,55 +125,25 @@ class MistralDecoderLayer(nn.Module):
         kernel_axes=("norm",),
         epsilon=cfg.normalization_layer_epsilon,
     )(intermediate_inputs)
-    hidden_states = nn.with_logical_constraint(hidden_states, ("activation_batch", "activation_length", "activation_embed"))
+    hidden_states = nn.with_logical_constraint(
+        hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
+    )
 
+    load_balance_loss = None
     if cfg.num_experts > 1:
-      # TODO(ranran): remove for loop implementation after adding expert parallelism
-      if cfg.moe_matmul:
-        mlp_lnx = linears.MoeBlock(
-            config=cfg,
-            num_experts=cfg.num_experts,
-            num_experts_per_tok=cfg.num_experts_per_tok,
-            mesh=mesh,
-            kernel_init=initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
-            kernel_axes=('embed', 'mlp'),
-            dtype=cfg.dtype,
-            weight_dtype=cfg.weight_dtype,
-        )(hidden_states)
-        mlp_lnx = nn.with_logical_constraint(
-            mlp_lnx, ('activation_batch', 'activation_length', 'activation_embed')
-        )
-      else:
-        max_logging.log("Running MoE for loop implementation.")
-        gate_logits = linears.DenseGeneral(
-            cfg.num_experts,
-            weight_dtype=cfg.weight_dtype,
-            dtype=cfg.dtype,
-            kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),
-            kernel_axes=("embed", "mlp"),
-            name="gate",
-            quant=self.quant,
-        )(hidden_states)
-        weights, selected_experts = jax.lax.top_k(gate_logits, cfg.num_experts_per_tok)
-        weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1)
-        mlp_lnx = jnp.zeros_like(hidden_states)
-        weights = weights.astype(cfg.dtype)
-        mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_length", "activation_embed"))
-
-        for k in range(cfg.num_experts):
-            weights_exp = jnp.sum(jnp.multiply(selected_experts == k, weights), axis=-1)
-            mlp_lnx_exp = linears.MlpBlock(
-                intermediate_dim=cfg.mlp_dim,
-                activations=cfg.mlp_activations,
-                intermediate_dropout_rate=cfg.dropout_rate,
-                dtype=cfg.dtype,
-                weight_dtype=cfg.weight_dtype,
-                name=f"mlp_{k}",
-                config=cfg,
-            )(hidden_states, deterministic=deterministic)
-            mlp_lnx_exp = nn.with_logical_constraint(mlp_lnx_exp, ("activation_batch", "activation_length", "activation_embed"))
-            mlp_lnx_exp = weights_exp[:, :, None] * mlp_lnx_exp
-            mlp_lnx += mlp_lnx_exp
+      mlp_lnx, load_balance_loss = linears.MoeBlock(
+          config=cfg,
+          num_experts=cfg.num_experts,
+          num_experts_per_tok=cfg.num_experts_per_tok,
+          mesh=mesh,
+          kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),
+          kernel_axes=("embed", None),
+          intermediate_dim=cfg.mlp_dim,
+          dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype,
+          quant=self.quant,
+      )(hidden_states)
+      mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
     else:
       mlp_lnx = linears.MlpBlock(
           intermediate_dim=cfg.mlp_dim,
@@ -178,16 +153,20 @@ class MistralDecoderLayer(nn.Module):
           weight_dtype=cfg.weight_dtype,
           name="mlp",
           config=cfg,
+          quant=self.quant,
       )(hidden_states, deterministic=deterministic)
-      mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_length", "activation_embed"))
+      mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     layer_output = mlp_lnx + intermediate_inputs
     layer_output = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(layer_output, deterministic=deterministic)
 
     layer_output = nn.with_logical_constraint(
         layer_output,
-        ("activation_batch", "activation_length", "activation_embed"),
+        ("activation_batch", "activation_norm_length", "activation_embed"),
     )
+
+    if cfg.num_experts > 1 and load_balance_loss is not None:
+      self.sow("intermediates", "moe_lb_loss", load_balance_loss)
 
     if cfg.record_internal_nn_metrics:
       self.sow("intermediates", "activation_mean", jnp.mean(layer_output))

@@ -18,25 +18,27 @@ import pyconfig
 import pytest
 import unittest
 from absl.testing import absltest
-from inference_microbenchmark import main as inference_microbenchmark_main
+from inference_microbenchmark import run_benchmarks
 
 
 class Inference_Microbenchmark(unittest.TestCase):
 
-  @pytest.mark.tpu
+  @pytest.mark.tpu_only
   def test(self):
-    pyconfig.initialize([
-        None,
-        "configs/tpu_smoke_test.yml",
-        "tokenizer_path=../assets/tokenizer.llama2",
-        "ici_autoregressive_parallelism=-1",
-        "ici_fsdp_parallelism=1",
-        "max_prefill_predict_length=1024",
-        "max_target_length=2048",
-        "scan_layers=false",
-        "weight_dtype=bfloat16",
-    ])
-    inference_microbenchmark_main(pyconfig.config)
+    config = pyconfig.initialize(
+        [
+            None,
+            "configs/tpu_smoke_test.yml",
+            "tokenizer_path=../assets/tokenizer.llama2",
+            "ici_autoregressive_parallelism=-1",
+            "ici_fsdp_parallelism=1",
+            "max_prefill_predict_length=1024",
+            "max_target_length=2048",
+            "scan_layers=false",
+            "weight_dtype=bfloat16",
+        ]
+    )
+    run_benchmarks(config)
 
 
 if __name__ == "__main__":

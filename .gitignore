@@ -139,3 +139,6 @@ dmypy.json
 *.whl
 .vscode/*
 # scripts/
+
+# Intellij IDEA setting folder
+.idea

@@ -397,6 +397,8 @@ class _HyperParameters:
       if os.path.isfile(tokenizer_path):
         raw_keys["tokenizer_path"] = tokenizer_path
 
+    _update_exp_config(keys_from_env_and_command_line, raw_keys) # lsp
+
     self.keys = raw_keys
     keys = [k for k in raw_keys]  # pylint: disable=unnecessary-comprehension
     keys.sort()
@@ -888,6 +890,32 @@ def initialize(argv, **kwargs):
   config = HyperParameters(_config)
   return config
 
+
+def cls_attr2dict(cls):
+
+  def my_vars(cls): 
+    return {k: v for k, v in vars(cls).items() if not k.startswith('__')}
+
+  d = {}
+  for c in cls.mro():
+    for k, v in my_vars(c).items():
+      if k not in d:
+        d[k] = v
+  return d
+
+
+def _update_exp_config(cmd_vars, raw_keys):
+  max_logging.log(f"Updated exp model vars:\n")
+  import exp
+  model_name = getattr(exp, raw_keys["exp_class"], None)
+  if not model_name: return raw_keys
+  model_vars = cls_attr2dict(model_name)
+  for k, v in model_vars.items():
+    if k in cmd_vars:
+      continue
+    max_logging.log(f"[EXP]{k}:{v}")
+    raw_keys[k] = v
+  
 
 if __name__ == "__main__":
   main_config = initialize(sys.argv)

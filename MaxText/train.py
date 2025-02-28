@@ -71,11 +71,23 @@ from layers import quantizations
 from ml_goodput_measurement import goodput
 from ml_goodput_measurement import monitoring
 
+from flax.traverse_util import flatten_dict, unflatten_dict
+
 # pylint: disable=too-many-positional-arguments
 
 Transformer = models.Transformer
 EPS = 1e-8
 _DEFAULT_OCDBT_TARGET_DATA_FILE_SIZE = 2 * 1024**3
+
+
+def print_tree_struct(name, tree, shape=False): # lsp
+  max_logging.log(f'{name} struct follow:')
+  for k, v in flatten_dict(tree).items():
+    k = '.'.join(k)
+    if shape:
+      max_logging.log(f'{k}: {v.shape}')
+    else:
+      max_logging.log(f'{k}')
 
 
 def validate_train_config(config):
@@ -264,7 +276,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
 
   if config.scan_layers:
-    metrics_dict = intermediate_outputs["intermediates"]["decoder"]["decoder"]
+    metrics_dict = intermediate_outputs["intermediates"]["decoder"]['layers'] # lsp
 
     for layer_num in range(config.num_decoder_layers):
       output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict["activation_fraction_zero"][0][
@@ -529,6 +541,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)
     (loss, aux), raw_grads = grad_func(model, config, data, dropout_rng, state.params, *extra_dpo_args, is_train=True)
   intermediate_outputs = aux["intermediate_outputs"]
+  print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
 
@@ -818,6 +831,7 @@ def train_loop(config, state=None):
     ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config)
 
   num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
+  print_tree_struct(name='params', tree=state.params, shape=True) # lsp
   max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
   per_device_tflops, _, _ = maxtext_utils.calculate_tflops_training_per_device(config)
   per_device_tokens = maxtext_utils.calculate_tokens_training_per_device(config)

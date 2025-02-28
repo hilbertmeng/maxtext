@@ -52,3 +52,11 @@ def contant_dense_init(value):
     return fn(key, shape, dtype)
 
   return init_fn
+
+
+def nd_dense_init_normal(scale):
+  def init_fn(key, shape, dtype, in_axis=None, out_axis=None):
+    fn = nn.initializers.normal(scale)
+    return fn(key, shape, dtype)
+
+  return init_fn

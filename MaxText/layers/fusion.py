@@ -30,6 +30,7 @@ from layers import normalizations
 from layers import models
 from layers import quantizations
 from layers import mudd
+from layers import initializers
 import max_logging
 
 import common_types
@@ -125,6 +126,7 @@ class FusionDecoderLayer(nn.Module):
         reshape_q=cfg.reshape_q,
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
+        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
     )
 
     attention_lnx = attention_layer(
@@ -163,6 +165,7 @@ class FusionDecoderLayer(nn.Module):
         name="mlp",
         config=cfg,
         quant=self.quant,
+        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
     )(hidden_states, deterministic=deterministic)
     mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 

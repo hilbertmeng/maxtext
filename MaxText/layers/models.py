@@ -31,6 +31,7 @@ from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
 from layers import mudd
+from layers import initializers
 
 Array = common_types.Array
 Config = common_types.Config
@@ -520,6 +521,7 @@ class Decoder(nn.Module):
           kernel_axes=("embed", "vocab"),
           name="logits_dense",
           matmul_precision=self.config.matmul_precision,
+          kernel_init=initializers.nd_dense_init_normal(0.006), #lsp
       )(
           y
       )  # We do not quantize the logits matmul.
@@ -551,7 +553,7 @@ class Transformer(nn.Module):
         features=cfg.emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=nn.initializers.normal(stddev=1.0),
+        embedding_init=initializers.nd_dense_init_normal(0.006), # lsp
         name="token_embedder",
         config=cfg,
     )

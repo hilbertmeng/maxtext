@@ -14,6 +14,7 @@ class Common:
     record_internal_nn_metrics = 1
     scan_layers = True
     remat_policy = 'full'
+    normalization_layer_epsilon = 1e-6
 
 class Optimizer:
     learning_rate_schedule_steps = 13500

@@ -42,3 +42,13 @@ def nd_dense_init(scale, mode, distribution):
     return fn(key, shape, dtype)
 
   return init_fn
+
+
+def contant_dense_init(value):
+  """Initializer with in_axis, out_axis set at call time."""
+
+  def init_fn(key, shape, dtype, in_axis, out_axis):
+    fn = jax.nn.initializers.constant(value)
+    return fn(key, shape, dtype)
+
+  return init_fn

@@ -905,16 +905,21 @@ def cls_attr2dict(cls):
 
 
 def _update_exp_config(cmd_vars, raw_keys):
-  max_logging.log(f"Updated exp model vars:\n")
+  max_logging.log(f"\n\nUpdated exp model vars:")
   import exp
   model_name = getattr(exp, raw_keys["exp_class"], None)
   if not model_name: return raw_keys
   model_vars = cls_attr2dict(model_name)
-  for k, v in model_vars.items():
+
+  keys = list(model_vars.keys())
+  keys.sort()
+  for k in keys:
     if k in cmd_vars:
       continue
-    max_logging.log(f"[EXP]{k}:{v}")
+    v = model_vars[k]
+    max_logging.log(f"[EXP] {k}:{v}")
     raw_keys[k] = v
+  max_logging.log('\n\n')
   
 
 if __name__ == "__main__":

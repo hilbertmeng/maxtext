@@ -1331,6 +1331,12 @@ class Attention(nn.Module):
     # apply projection.
     if self.config.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
+    elif self.config.dynamic_dense_type is not None and 'kv' in self.config.dynamic_dense_type: # XD
+        assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
+        inputs_k, inputs_v = inputs_kv
+        query = self.query_projection(inputs_q)
+        key = self.kv_projection(inputs_k, proj_name="key")
+        value = self.kv_projection(inputs_v, proj_name="value")
     else:
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")

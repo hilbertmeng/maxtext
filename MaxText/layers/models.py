@@ -30,6 +30,7 @@ from layers import embeddings
 from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
+from layers import mudd
 
 Array = common_types.Array
 Config = common_types.Config
@@ -183,7 +184,7 @@ class Decoder(nn.Module):
   def setup(self):
     """Initialize decoder layer."""
     self.decoder_layer = self.get_decoder_layers()
-    self.norm_layer = self.get_norm_layer()
+    # self.norm_layer = self.get_norm_layer()
     if self.config.using_pipeline_parallelism:
       pipeline_stage_module = self.get_pipeline_stage_module(self.decoder_layer[0])
       remat_policy = self.get_remat_policy()
@@ -309,11 +310,16 @@ class Decoder(nn.Module):
       from layers import simple_layer
 
       return [simple_layer.SimpleMlpDecoderLayer]
+
+    elif self.config.decoder_block == "fusion": # lsp
+      from layers import fusion
+
+      return [fusion.FusionDecoderLayer]
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
-  def get_norm_layer(self):
-    if self.config.decoder_block in ("default", "llama2", "mistral", "deepseek", "gemma", "gemma2", "simple", "simple_mlp"):
+  def get_norm_layer(self): # lsp
+    if self.config.decoder_block in ("default", "llama2", "mistral", "deepseek", "gemma", "gemma2", "simple", "simple_mlp", "fusion"):
       return RMSNorm
     elif self.config.decoder_block == "gpt3":
       from layers import gpt3
@@ -402,6 +408,16 @@ class Decoder(nn.Module):
           config=cfg,
       )(decoder_positions)
 
+    if cfg.dense_conn: # lsp
+      if cfg.mudd_prenorm:
+        assert cfg.ddw_gen_pattern == 'q,k,v,m', max_logging.log(f'Error: ddw_gen_pattern must be ‘q,k,v,m’ when mudd_prenorm is true.')
+        y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y)
+      else:
+        y_normed = y
+      y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
+    else:
+      hids = []
+
     policy = self.get_remat_policy()
     RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, policy)
 
@@ -473,6 +489,9 @@ class Decoder(nn.Module):
                 deterministic,
                 model_mode,
             )
+            y, hids = mudd.Compose(cfg, mesh, self.quant, lyr)(y, hids) # lsp
+            
+          if cfg.dense_conn: y = y[0]
 
     y = self.get_norm_layer()(
         dtype=cfg.dtype,
@@ -504,6 +523,7 @@ class Decoder(nn.Module):
       )(
           y
       )  # We do not quantize the logits matmul.
+    print(f'logits: {logits.shape}')
     logits = nn.with_logical_constraint(
         logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
     )

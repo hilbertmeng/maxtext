@@ -152,7 +152,7 @@ num_layers_per_pipeline_stage: 1
 # The number of repeats will be set to num_decoder_layers / (num_pipeline_stages * num_layers_per_pipeline_stage)
 num_pipeline_repeats: -1
 # num_pipeline_microbatches must be a multiple of the number of pipeline stages. By default it is set to the number of stages.
-# Note the microbatch_size is given by global_batch_size / num_pipeline_microbatches, where global_batch_size = per_device_batch_size * num_devices
+# Note the microbatch_size is given by global_batch_size / num_pipeline_microbatches, where global_batch_size: per_device_batch_size * num_devices
 num_pipeline_microbatches: -1
 pipeline_delay_activation_forwarding: False # This delays the activation forwarding one loop iteration simplifying XLA's task of overlapping since
 # the communication and compute in each iteration are now independent. However this comes at the cost of doubling the pipeline bubble,
@@ -591,8 +591,23 @@ sa_q_layout: "HEAD_DIM_MINOR"
 sa_k_layout: "HEAD_DIM_MINOR"
 sa_v_layout: "HEAD_DIM_MINOR"
 
-# self add
+# dc
 exp_class: 'Llama2Medium'
 pre_compose: False
 post_compose: False
 qk_norm: False
+query_chunk_size: 512
+
+# mudd
+dense_conn: False
+dynamic_dense_type: 'qkvm'
+dynamic_dense_act_cls: 'gelu'
+dynamic_dense_fix_last_layer: True
+dynamic_dense_hidden_round: True
+ddw_gen_pattern: 'q,k,v,m'
+ddw_gen_chunk_size: None
+mudd_prenorm: False
+mudd_postnorm: False
+dynamic_mlp_dim: True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
+dynamic_dense_scale_dw: False
+debug: False

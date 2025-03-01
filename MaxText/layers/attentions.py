@@ -1165,14 +1165,14 @@ class Attention(nn.Module):
     #       linear transformations, which is equivalent under Adafactor.
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
 
-    def query_init(*args):
-      # pylint: disable=no-value-for-parameter
-      return self.kernel_init(*args) / depth_scaling
+    # def query_init(*args):
+    #   # pylint: disable=no-value-for-parameter
+    #   return self.kernel_init(*args) / depth_scaling
 
     query_proj = DenseGeneral(
         features=(self.num_query_heads, self.head_dim),
         axis=-1,
-        kernel_init=query_init,
+        kernel_init=self.kernel_init, # lsp
         kernel_axes=("embed", "q_heads", "kv"),
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
@@ -1334,7 +1334,7 @@ class Attention(nn.Module):
     # apply projection.
     if self.config.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
-    elif self.config.dynamic_dense_type is not None and 'kv' in self.config.dynamic_dense_type: # XD
+    elif self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm':
         assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
         inputs_k, inputs_v = inputs_kv
         query = self.query_projection(inputs_q)
@@ -1346,7 +1346,7 @@ class Attention(nn.Module):
       value = self.kv_projection(inputs_kv, proj_name="value")
 
     query, key = dc.QKNorm(self.config)(query, key) # lsp
-    print(f'query00: {query.shape}')
+
     # apply ROPE
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
     key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
@@ -1364,8 +1364,11 @@ class Attention(nn.Module):
     value = checkpoint_name(value, "value_proj")
 
     assert not self.config.quantize_kvcache or self.kv_quant
-    
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv) # lsp
+
+     # lsp
+    depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
+    query /= depth_scaling
+    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv)
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 

@@ -32,6 +32,7 @@ from layers import normalizations, quantizations
 from layers import pipeline
 from layers import mudd
 from layers import initializers
+import max_logging
 
 Array = common_types.Array
 Config = common_types.Config
@@ -314,8 +315,6 @@ class Decoder(nn.Module):
 
     elif self.config.decoder_block == "fusion": # lsp
       from layers import fusion
-      if self.config.pre_compose or self.config.post_compose:
-        return [fusion.DcDecoderLayer]
       return [fusion.FusionDecoderLayer]
 
     else:
@@ -457,7 +456,7 @@ class Decoder(nn.Module):
           )
         else:
           RemattedBlockLayer = RemattedBlockLayers[0]
-          y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
+          y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
               y,
               decoder_segment_ids,
               decoder_positions,
@@ -483,10 +482,12 @@ class Decoder(nn.Module):
                 model_mode,
             )
         else:
-          sliding_window_size = cfg.sliding_window_size
+          n = cfg.num_decoder_layers // cfg.num_layers_per_block
+          sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
+          max_logging.log(f'sliding_window_sizes: {sliding_window_sizes}', debug=cfg.debug)
           for lyr in range(cfg.num_decoder_layers):
             RemattedBlockLayer = RemattedBlockLayers[0]
-            y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_size)(
+            y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_sizes[lyr])(
                 y,
                 decoder_segment_ids,
                 decoder_positions,
@@ -495,8 +496,6 @@ class Decoder(nn.Module):
             )
             y, hids = mudd.Compose(cfg, mesh, self.quant, lyr)(y, hids) # lsp
             
-          if cfg.dense_conn: y = y[0]
-
     y = self.get_norm_layer()(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
@@ -528,7 +527,7 @@ class Decoder(nn.Module):
       )(
           y
       )  # We do not quantize the logits matmul.
-    print(f'logits: {logits.shape}')
+    max_logging.log(f'logits: {logits.shape}', debug=cfg.debug)
     logits = nn.with_logical_constraint(
         logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
     )

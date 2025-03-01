@@ -29,7 +29,7 @@ import accelerator_to_spec_map
 import max_logging
 import max_utils
 import omegaconf
-
+from etils import epath
 OmegaConf = omegaconf.OmegaConf
 
 # pylint: disable=line-too-long
@@ -383,6 +383,8 @@ class _HyperParameters:
     if raw_keys["jax_cache_dir"]:
       compilation_cache.set_cache_dir(os.path.expanduser(raw_keys["jax_cache_dir"]))
 
+    _update_exp_config(keys_from_env_and_command_line, raw_keys) # lsp must define in before user_init, because some vars would be changed in user_init.
+
     _HyperParameters.user_init(raw_keys)
     if raw_keys["dataset_type"] == "c4_mlperf" and raw_keys["model_name"] == "gpt3-175b":
       _HyperParameters.configure_gpt3_task(raw_keys)
@@ -397,8 +399,6 @@ class _HyperParameters:
       if os.path.isfile(tokenizer_path):
         raw_keys["tokenizer_path"] = tokenizer_path
 
-    _update_exp_config(keys_from_env_and_command_line, raw_keys) # lsp
-
     self.keys = raw_keys
     keys = [k for k in raw_keys]  # pylint: disable=unnecessary-comprehension
     keys.sort()
@@ -407,7 +407,14 @@ class _HyperParameters:
       for k in keys:
         if k != "hf_access_token":
           max_logging.log(f"Config param {k}: {raw_keys[k]}")
-
+    # lsp
+    config_path = epath.Path(os.path.join(raw_keys["base_output_directory"], raw_keys["run_name"], "config.txt"))
+    max_logging.log(f'config_path: {config_path}')
+    with config_path.open('w') as f:
+      for k in keys:
+        s = f'{k}: {raw_keys[k]}\n'
+        f.write(s)
+        
   @staticmethod
   def user_init(raw_keys):
     """Transformations between the config data and configs used at runtime"""
@@ -871,12 +878,11 @@ class HyperParameters:
   def __init__(self, config):
     object.__setattr__(self, "_config", config)
 
+  # 允许获取不存在的属性
   def __getattr__(self, attr):
-    try:
-      # Attempt to perform the normal lookup
-      return object.__getattribute__(self, "_config").keys[attr]
-    except AttributeError as exc:
-      raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attr}'") from exc
+    if attr not in self._config.keys:
+      return None
+    return self._config.keys[attr]
 
   def __setattr__(self, attr, value):
     raise ValueError("Reinitialization of config is not allowed")

@@ -12,6 +12,7 @@ from layers import linears
 import max_logging
 from layers import quantizations 
 from einops import rearrange
+import max_logging
 
 Quant = quantizations.AqtQuantization
 
@@ -66,7 +67,7 @@ class Mlp(nn.Module):
                 "epsilon": cfg.normalization_layer_epsilon,
                 }
     if not getattr(cfg, 'mudd_prenorm', False):
-        max_logging.log(f'mudd_prenorm is False')
+        max_logging.log(f'mudd_prenorm is False', debug=self.config.debug)
         norm_kwargs['scale_init'] = None # it means use scale is false
     self.pre_dense_proj1_norm = normalizations.get_rmsnorm(**norm_kwargs)
     
@@ -76,7 +77,7 @@ class Mlp(nn.Module):
     dw_shape = (C, ((layer_inx + 1) * factor + 1))
 
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 else 1
-    max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {dynamic_dense_hidden_expand}')
+    max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {dynamic_dense_hidden_expand}', debug=self.config.debug)
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
 
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
@@ -108,7 +109,7 @@ class Mlp(nn.Module):
       self.updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
       self.updated_mlp_dim = cfg.mlp_dim
-    max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}')
+    max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
 
   @nn.compact
   def __call__(
@@ -117,14 +118,13 @@ class Mlp(nn.Module):
   ):
     cfg = self.config
     mesh = self.mesh
-    if not cfg.dense_conn: return layer_output
     dyn_dense_w = None
-    if cfg.dynamic_dense_type == 'qkvm':
+    if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
       if cfg.dynamic_dense_scale_dw:
-        max_logging.log(f'dynamic_dense_scale_dw: {cfg.dynamic_dense_scale_dw}')
+        max_logging.log(f'dynamic_dense_scale_dw: {cfg.dynamic_dense_scale_dw}', debug=self.config.debug)
         dyn_dense_kernel_out /= jnp.sqrt(self.dynamic_dense_inter_dim)
       dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)
     return dyn_dense_w
@@ -144,20 +144,20 @@ class Compose(nn.Module):
   ):
     y, dyn_dense_w = layer_output
     if dyn_dense_w is None: 
-      return y
-
+      max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
+      return y, hids
     cfg = self.config
-    max_logging.log(f'Compose history hidden states.')
+    max_logging.log(f'Compose history hidden states.', debug=self.config.debug)
     layer_inx = self.layer_inx
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
-    print(f'dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}')
+    max_logging.log(f'Compose dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}', debug=self.config.debug)
     dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
     factor = 1
     hid_idxs = list(range((layer_inx + 1) * factor + 1)) # L+1
     if cfg.ddw_gen_pattern == 'q,k,v,m':
-      max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is {cfg.mudd_postnorm}....')
+      max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is {cfg.mudd_postnorm}....', debug=self.config.debug)
       if cfg.mudd_postnorm:
         post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=jax.nn.initializers.constant(0.001))
         y = tuple([y + (post_norm(
@@ -168,4 +168,7 @@ class Compose(nn.Module):
       else:
         # (btl, btl, btl, btl)
         y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
+    if layer_inx == cfg.num_decoder_layers - 1:
+      del hids
+      return y[0], []
     return y, hids

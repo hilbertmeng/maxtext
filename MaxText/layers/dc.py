@@ -31,6 +31,7 @@ class QKNorm(nn.Module):
   @nn.compact
   def __call__(self, query, key):
     if self.config.qk_norm:
+      max_logging.log('qk norm is True', debug=self.config.debug)
       query = RMSNorm(
         weight_dtype=self.config.weight_dtype,
         dtype=self.config.dtype,

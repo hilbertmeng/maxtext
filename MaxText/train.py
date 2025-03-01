@@ -123,7 +123,7 @@ def load_next_batch(train_iter, example_batch, config):
 
 def record_scalar_metrics(metrics, step_time_delta, per_device_tflops, lr, per_device_tokens):
   """Records scalar metrics to be written to tensorboard"""
-  metrics["scalar"].update({"perf/step_time_seconds": step_time_delta.total_seconds()})
+  metrics["scalar"].update({"perf/step_time_seconds": round(1 / step_time_delta.total_seconds(), 3)}) # lsp
   metrics["scalar"].update({"perf/per_device_tflops": per_device_tflops})
   metrics["scalar"].update({"perf/per_device_tflops_per_sec": per_device_tflops / step_time_delta.total_seconds()})
   metrics["scalar"].update({"perf/per_device_tokens": per_device_tokens})
@@ -186,13 +186,13 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
       full_log = step % config.log_period == 0
 
       max_logging.log(
-          f"completed step: {step}, seconds: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
+          f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
           f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-          f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
+          # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
           f"total_weights: {metrics['scalar']['learning/total_weights']}, "
-          f"loss: {metrics['scalar']['learning/loss']:.3f}"
+          f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+          f"lr: {metrics['scalar']['learning/current_learning_rate']:.7f}"
       )
-
       if full_log and jax.process_index() == 0:
         max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
         writer.flush()
@@ -270,23 +270,20 @@ def save_checkpoint(
 # -----------------------------------------------------------------------------
 # Top-level Functions
 # -----------------------------------------------------------------------------
-
-
+# lsp
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
 
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]['layers'] # lsp
-
-    for layer_num in range(config.num_decoder_layers):
-      output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict["activation_fraction_zero"][0][
-          layer_num
-      ]
-      output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = metrics_dict["activation_mean"][0][layer_num]
-      output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = metrics_dict["activation_stdev"][0][layer_num]
+    for sub in range(config.num_layers_per_block):
+      for layer_num in range(config.num_decoder_layers // config.num_layers_per_block):
+        output_metrics["scalar"][f"sub_{sub}/activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict[f'sub_{sub}']["activation_fraction_zero"][0][layer_num]
+        output_metrics["scalar"][f"sub_{sub}/activ_mean/layer_{layer_num:03d}"] = metrics_dict[f'sub_{sub}']["activation_mean"][0][layer_num]
+        output_metrics["scalar"][f"sub_{sub}/activ_stdev/layer_{layer_num:03d}"] = metrics_dict[f'sub_{sub}']["activation_stdev"][0][layer_num]
   else:
     for layer_num in range(config.num_decoder_layers):
-      layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]
+      layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]
       output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = layer["activation_fraction_zero"][0]
       output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = layer["activation_mean"][0]
       output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = layer["activation_stdev"][0]
@@ -541,7 +538,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)
     (loss, aux), raw_grads = grad_func(model, config, data, dropout_rng, state.params, *extra_dpo_args, is_train=True)
   intermediate_outputs = aux["intermediate_outputs"]
-  print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
+  if config.debug:
+    print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
 

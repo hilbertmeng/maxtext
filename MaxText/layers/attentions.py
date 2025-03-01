@@ -34,7 +34,7 @@ from layers import embeddings
 from layers import initializers
 from layers import linears
 from layers import quantizations
-
+from layers import dc
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -1024,7 +1024,7 @@ class AttentionOp(nn.Module):
     return attn_out
 
   @nn.compact
-  def __call__(self, query, key, value, decoder_segment_ids, model_mode):
+  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args): # lsp
     prefill_kv_cache, ar_kv_cache = self.kv_cache(
         key, value, decoder_segment_ids, model_mode, use_ragged_attention=self.use_ragged_attention
     )
@@ -1129,7 +1129,10 @@ class Attention(nn.Module):
   reshape_q: bool = False
 
   def setup(self):
-    self.attention_op = AttentionOp(
+    if self.config.pre_compose or self.config.post_compose:
+      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size)
+    else:
+      self.attention_op = AttentionOp(
         config=self.config,
         mesh=self.mesh,
         attention_kernel=self.attention_kernel,
@@ -1342,6 +1345,8 @@ class Attention(nn.Module):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
+    query, key = dc.QKNorm(self.config)(query, key) # lsp
+    print(f'query00: {query.shape}')
     # apply ROPE
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
     key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
@@ -1359,8 +1364,8 @@ class Attention(nn.Module):
     value = checkpoint_name(value, "value_proj")
 
     assert not self.config.quantize_kvcache or self.kv_quant
-
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode)
+    
+    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv) # lsp
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 

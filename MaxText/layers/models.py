@@ -314,8 +314,10 @@ class Decoder(nn.Module):
 
     elif self.config.decoder_block == "fusion": # lsp
       from layers import fusion
-
+      if self.config.pre_compose or self.config.post_compose:
+        return [fusion.DcDecoderLayer]
       return [fusion.FusionDecoderLayer]
+
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
@@ -481,9 +483,10 @@ class Decoder(nn.Module):
                 model_mode,
             )
         else:
+          sliding_window_size = cfg.sliding_window_size
           for lyr in range(cfg.num_decoder_layers):
             RemattedBlockLayer = RemattedBlockLayers[0]
-            y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant)(
+            y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_size)(
                 y,
                 decoder_segment_ids,
                 decoder_positions,

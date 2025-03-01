@@ -15,6 +15,7 @@ class Common:
     scan_layers = True
     remat_policy = 'full'
     normalization_layer_epsilon = 1e-6
+    query_chunk_size = None
 
 class Optimizer:
     learning_rate_schedule_steps = 13500
@@ -39,15 +40,15 @@ class PileDataset:
     eval_split='val_with_eos'
 
 class GWindow:
-    window_size = None
+    sliding_window_size = None
     num_layers_per_block = 1
 
 class LGWindow:
-    window_size = [256, None]
+    sliding_window_size = [256, None]
     num_layers_per_block = 2
 
 class LGLLWindow:
-    window_size = [256, None, 256, 256]
+    sliding_window_size = [256, None, 256, 256]
     num_layers_per_block = 4
     
 class Mudd:
@@ -70,6 +71,7 @@ class DC:
     loop_over_dynamic_hd = True
     query_wise = True
     key_wise = True
+    static_proj = False
  
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     base_emb_dim = 1024

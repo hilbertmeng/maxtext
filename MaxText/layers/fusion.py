@@ -34,7 +34,7 @@ from layers import initializers
 import max_logging
 
 import common_types
-from typing import Optional
+from typing import Optional, Any
 
 Array = common_types.Array
 Config = common_types.Config
@@ -57,8 +57,9 @@ Attention = attentions.Attention
 RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 
+
 # -----------------------------------------
-# The Decoder Layer specific for Llama2
+# The Decoder Layer specific for llama2
 # -----------------------------------------
 class FusionDecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
@@ -66,9 +67,12 @@ class FusionDecoderLayer(nn.Module):
   config: models.Config
   mesh: Mesh
   quant: Optional[Quant] = None
+  sliding_window_size: int|None = None # lsp
+  layer_inx: int|None = None # lsp
 
   def setup(self):
-    layer_inx = int(self.name.split('_')[-1]) 
+    
+    layer_inx = int(self.name.split('_')[-1]) if self.layer_inx is None else self.layer_inx
     max_logging.log(f'mudd layer_inx: {layer_inx}')
     self.mudd_mlp = mudd.Mlp(self.config, self.mesh, self.quant, layer_inx)
     self.mudd_qkvnorm = mudd.Norm(self.config, self.mesh, self.quant)
@@ -127,6 +131,7 @@ class FusionDecoderLayer(nn.Module):
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
         kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        sliding_window_size=self.sliding_window_size,
     )
 
     attention_lnx = attention_layer(
@@ -188,8 +193,37 @@ class FusionDecoderLayer(nn.Module):
       )
 
     dyn_dense_w = self.mudd_mlp(layer_output) # lsp
+    return layer_output, dyn_dense_w
 
-    if cfg.scan_layers:
-      return layer_output, None
+
+class DcDecoderLayer(nn.Module):
+  """Transformer decoder layer that attends to the encoder."""
+
+  config: Any
+  mesh: Mesh
+  quant: Optional[Quant] = None
+  sliding_window_size: list|int|None = None # lsp
+
+  def setup(self):
+    layer_inx = int(self.name.split('_')[-1]) 
+    max_logging.log(f'dc layer_inx: {layer_inx}')
+    if not isinstance(self.sliding_window_size, (list, tuple)):
+        sliding_window_size = [self.sliding_window_size]
     else:
-      return layer_output, dyn_dense_w
+        sliding_window_size = self.sliding_window_size
+    print(f'sliding_window_size22: {sliding_window_size}')
+
+    self.dc_layers = [FusionDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx * len(sliding_window_size) + i) for i, sws in enumerate(sliding_window_size)]
+
+  @nn.compact
+  def __call__(
+      self,
+      inputs,
+      decoder_segment_ids,
+      decoder_positions,
+      deterministic,
+      model_mode,
+  ):
+    for layer in self.dc_layers:
+        inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
+    return inputs, dyn_dense_w

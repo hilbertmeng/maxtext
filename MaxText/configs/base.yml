@@ -591,4 +591,8 @@ sa_q_layout: "HEAD_DIM_MINOR"
 sa_k_layout: "HEAD_DIM_MINOR"
 sa_v_layout: "HEAD_DIM_MINOR"
 
+# self add
 exp_class: 'Llama2Medium'
+pre_compose: False
+post_compose: False
+qk_norm: False

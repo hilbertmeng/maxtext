@@ -152,6 +152,7 @@ class Compose(nn.Module):
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
+    print(f'dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}')
     dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
     factor = 1
     hid_idxs = list(range((layer_inx + 1) * factor + 1)) # L+1

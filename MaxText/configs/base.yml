@@ -611,3 +611,7 @@ mudd_postnorm: False
 dynamic_mlp_dim: True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
 dynamic_dense_scale_dw: False
 debug: False
+
+# other
+epoch: 1
+task_features: ['input_ids']

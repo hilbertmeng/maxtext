@@ -26,6 +26,7 @@ from input_pipeline._tfds_data_processing import make_tfds_train_iterator, make_
 from input_pipeline._grain_data_processing import make_grain_train_iterator, make_grain_eval_iterator
 from input_pipeline._tfds_data_processing_c4_mlperf import make_c4_mlperf_train_iterator, make_c4_mlperf_eval_iterator
 from input_pipeline._hf_data_processing import make_hf_train_iterator, make_hf_eval_iterator
+from input_pipeline._pile_data_processing import make_pile_train_iterator
 import multihost_dataloading
 
 
@@ -184,6 +185,8 @@ def create_data_iterator(config, mesh):
   elif config.dataset_type == "c4_mlperf":
     train_iterator_fn = functools.partial(make_c4_mlperf_train_iterator, config, mesh, process_indices_train)
     eval_iterator_fn = functools.partial(make_c4_mlperf_eval_iterator, config, mesh, process_indices_eval)
+  elif config.dataset_type in ["pile", "novel_4_32k", "pretrain_4k", "instruct"]: # lsp
+      train_iterator_fn, eval_iterator_fn = make_pile_train_iterator(config, mesh)
   else:
     assert False, f"Unknown dataset_type {config.dataset_type}, dataset_type must be synthetic, tfds, grain, hf or c4_mlperf"
   return make_mixed_iterator(config, mesh, process_indices_train, process_indices_eval, train_iterator_fn, eval_iterator_fn)

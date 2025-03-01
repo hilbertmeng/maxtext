@@ -923,7 +923,7 @@ def _update_exp_config(cmd_vars, raw_keys):
     if k in cmd_vars:
       continue
     v = model_vars[k]
-    max_logging.log(f"[EXP] {k}:{v}")
+    max_logging.log(f"[EXP] {k}: {v}")
     raw_keys[k] = v
   max_logging.log('\n\n')
   

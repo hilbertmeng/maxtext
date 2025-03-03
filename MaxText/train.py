@@ -26,6 +26,7 @@ import sys
 import functools
 import time
 import queue
+import re
 
 from typing import Sequence
 from absl import app
@@ -88,6 +89,34 @@ def print_tree_struct(name, tree, shape=False): # lsp
       max_logging.log(f'{k}: {v.shape}')
     else:
       max_logging.log(f'{k}')
+
+
+def get_wd_tree(config, params):
+  '''example:
+  config.wd_mults = [(".*/scale$", 0.001), (".*/attention$", 0.1)]
+  '''
+  if not config.wd_mults: return None
+  assert isinstance(config.wd_mults, list)
+  wd_tree = {}
+  for name in flatten_dict(params):
+      name_str = '/'.join(name)
+      wd = config.adam_weight_decay
+      for pat, user_wd in config.wd_mults:
+          if re.findall(pat, name_str):
+            wd = user_wd
+      wd_tree[name] = wd
+  wd_tree = unflatten_dict(wd_tree)
+  return wd_tree
+
+
+def model_init(model, config, key):
+  input_shape = (config.global_batch_size_to_load, config.max_target_length)
+  params = model.init(
+      {"params": key, "dropout": key, "aqt": key},
+      jnp.ones(input_shape, dtype=jnp.int32),
+      jnp.ones(input_shape, dtype=jnp.int32),
+  )
+  return params
 
 
 def validate_train_config(config):
@@ -688,7 +717,16 @@ def setup_mesh_and_model(config):
   quant = quantizations.configure_quantization(config)
   model = Transformer(config, mesh, quant=quant)
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
-  tx = optimizers.get_optimizer(config, learning_rate_schedule)
+
+   # lsp: add rule param weight decay
+  if config.wd_mults:
+    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
+    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
+    wd_tree = get_wd_tree(config=config, params=params_shape)
+  else:
+    wd_tree = None
+
+  tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
   logger = checkpointing.setup_checkpoint_logger(config)
   if config.enable_emergency_checkpoint:
     if config.use_replicator_service:

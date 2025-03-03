@@ -608,7 +608,7 @@ ddw_gen_pattern: 'q,k,v,m'
 ddw_gen_chunk_size: None
 mudd_prenorm: False
 mudd_postnorm: False
-dynamic_mlp_dim: True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
+dynamic_mlp_dim: False # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
 dynamic_dense_scale_dw: False
 debug: False
 
@@ -622,3 +622,5 @@ expert_chunk_size: null
 router_z_loss_coef: 0.01
 gate_noise_coef: 0.5
 sfm_after_topn: True
+keep_period: 1000 # step / keep_period would not be deleted
+max_to_keep: 4 # max save checkpoint nums nearby

@@ -238,7 +238,10 @@ class AttentionOp(nn.Module):
     ):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
     elif self.attention_kernel == "dot_product_chunk": # lsp: dc, llama, mudd etc. expecially when head_dim < 128, can't use flash to accelerate
-      return accelerator.QChunk(self.config)(query, key, value, decoder_segment_ids, model_mode)
+      return accelerator.QChunk(config=self.config, 
+                                sliding_window_size=self.sliding_window_size)(
+                                                    query, key, value, decoder_segment_ids, model_mode
+                                                    )
 
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
       if isinstance(key, KVTensor):

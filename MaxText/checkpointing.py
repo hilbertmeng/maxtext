@@ -50,6 +50,7 @@ def create_orbax_checkpoint_manager(
     orbax_logger: Optional[abstract_logger.AbstractLogger] = None,
     use_ocdbt: bool = True,
     use_zarr3: bool = True,
+    config = None,
 ):
   """Returns specified Orbax (async or not) CheckpointManager or None if checkpointing is disabled."""
   if not enable_checkpointing:
@@ -76,6 +77,8 @@ def create_orbax_checkpoint_manager(
           create=True,
           save_interval_steps=save_interval_steps,
           enable_async_checkpointing=use_async,
+          max_to_keep=config.max_to_keep, # lsp: max save checkpoint nums nearby
+          keep_period=config.keep_period, # lsp: step / keep_period would not be deleted
       ),
       logger=orbax_logger,
   )

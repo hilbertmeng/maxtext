@@ -276,17 +276,18 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
 
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]['layers'] # lsp
-    for sub in range(config.num_layers_per_block):
-      for layer_num in range(config.num_decoder_layers // config.num_layers_per_block):
-        output_metrics["scalar"][f"sub_{sub}/activ_fraction_zero/layer_{layer_num:03d}"] = metrics_dict[f'sub_{sub}']["activation_fraction_zero"][0][layer_num]
-        output_metrics["scalar"][f"sub_{sub}/activ_mean/layer_{layer_num:03d}"] = metrics_dict[f'sub_{sub}']["activation_mean"][0][layer_num]
-        output_metrics["scalar"][f"sub_{sub}/activ_stdev/layer_{layer_num:03d}"] = metrics_dict[f'sub_{sub}']["activation_stdev"][0][layer_num]
+    # for sub in range(config.num_layers_per_block):
+    #   for layer_num in range(config.num_decoder_layers // config.num_layers_per_block):
+    #     pass
   else:
     for layer_num in range(config.num_decoder_layers):
-      layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]
-      output_metrics["scalar"][f"activ_fraction_zero/layer_{layer_num:03d}"] = layer["activation_fraction_zero"][0]
-      output_metrics["scalar"][f"activ_mean/layer_{layer_num:03d}"] = layer["activation_mean"][0]
-      output_metrics["scalar"][f"activ_stdev/layer_{layer_num:03d}"] = layer["activation_stdev"][0]
+      layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/mean/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/min/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/min/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/std/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/norm/layer_{layer_num}"]
+      output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
 
 
 def _split_dpo_state(state):
@@ -472,6 +473,20 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   return loss, aux
 
 
+params_fir_dirs = ['norm', 'scale', 'attention', 'mlp']
+def compute_params_norm(params): # lsp
+  def param_norm(param):
+      return jnp.sqrt(jnp.sum(jnp.square(param)))
+  # 记录每个参数的norm
+  param_norms = jax.tree_util.tree_map(param_norm, params)
+  flat_param_norms = flatten_dict(param_norms)
+  scalar_vales = {}
+  for k, v in flat_param_norms.items():
+    k = '/'.join(k)
+    newk = k.replace('params', 'total_params')
+    scalar_vales[newk] = v
+  return scalar_vales
+
 def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   """
 
@@ -561,6 +576,10 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/moe_lb_loss": moe_lb_loss,
       "learning/total_weights": total_weights,
   }
+  # lsp
+  params_scalar_values = compute_params_norm(new_state.params)
+  scalar_metrics.update(params_scalar_values)
+
   if not config.optimizer_memory_host_offload:
     scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
     scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
@@ -700,6 +719,7 @@ def setup_mesh_and_model(config):
         logger,
         use_ocdbt,
         use_zarr3,
+        config, # lsp
     )
 
   return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx
@@ -935,6 +955,7 @@ def train_loop(config, state=None):
 
     if config.eval_interval > 0 and step > start_step and (step + 1) % config.eval_interval == 0:
       assert eval_data_iterator
+      print(f'eval_data_iterator: {eval_data_iterator} ')
       cumulative_eval_metrics = {
           "scalar": {
               "eval/total_loss": 0.0,
@@ -946,8 +967,19 @@ def train_loop(config, state=None):
       eval_dpo_reward_accuracy = 0.0
       eval_step_count = 0
       # pylint: disable=not-callable
-      for eval_batch in eval_data_iterator:
+      eval_start_time = time.time()
+      
+      eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
+      for i in range(eval_steps):
+        try:
+          eval_batch = next(eval_data_iterator)
+        except:
+          pstr = 'Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.'
+          max_logging.log(pstr)
+          eval_data_iterator.reset()
+          break
         if config.eval_steps > 0 and eval_step_count >= config.eval_steps:
+          eval_batch = next(eval_data_iterator) # lsp
           break
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
           eval_metrics = p_eval_step(state, eval_batch, nextrng)
@@ -955,8 +987,13 @@ def train_loop(config, state=None):
         cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
         cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
         eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
-        max_logging.log(f"Completed eval step {eval_step_count}")
+        # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
         eval_step_count += 1
+
+        total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"]) # lsp
+        per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
+        max_logging.log(f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s')
+
       eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
           cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS
       )

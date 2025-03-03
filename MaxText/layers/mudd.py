@@ -17,6 +17,10 @@ import max_logging
 Quant = quantizations.AqtQuantization
 
 
+def l2norm(x):
+  return jnp.sqrt(jnp.sum(jnp.square(x)))
+
+
 def wsum(w: jnp.ndarray, # CBTL1
          hids: list[jnp.ndarray], # list of BTD
          seq_chunk_size: int = None
@@ -140,9 +144,19 @@ class Compose(nn.Module):
     if dyn_dense_w is None: 
       max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
       return y, hids
-    cfg = self.config
+      
     max_logging.log(f'Compose history hidden states.', debug=self.config.debug)
     layer_inx = self.layer_inx
+    cfg = self.config
+
+    if self.config.record_internal_nn_metrics:
+        self.sow('intermediates', f'dyn_dense_w/max/layer_{layer_inx}', jnp.max(dyn_dense_w))
+        self.sow('intermediates', f'dyn_dense_w/mean/layer_{layer_inx}', jnp.mean(dyn_dense_w))
+        self.sow('intermediates', f'dyn_dense_w/min/layer_{layer_inx}', jnp.min(dyn_dense_w))
+        self.sow('intermediates', f'dyn_dense_w/norm/layer_{layer_inx}', l2norm(dyn_dense_w))
+        self.sow('intermediates', f'dyn_dense_w/std/layer_{layer_inx}', jnp.std(dyn_dense_w))
+        self.sow('intermediates', f'layer_output/norm/layer_{layer_inx}', l2norm(y))
+
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)

@@ -275,7 +275,10 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
 
   if config.scan_layers:
-    metrics_dict = intermediate_outputs["intermediates"]["decoder"]['layers'] # lsp
+    if 'intermediates' in intermediate_outputs:
+      metrics_dict = intermediate_outputs["intermediates"]["decoder"]['layers'] # lsp
+    else:
+      metrics_dict = {}
     # for sub in range(config.num_layers_per_block):
     #   for layer_num in range(config.num_decoder_layers // config.num_layers_per_block):
     #     pass

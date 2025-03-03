@@ -105,12 +105,6 @@ class Mlp(nn.Module):
     init_v = init_v[None].repeat(C, 0)
     self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
-    if cfg.dynamic_mlp_dim:
-      self.updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
-    else:
-      self.updated_mlp_dim = cfg.mlp_dim
-    max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
-
   @nn.compact
   def __call__(
       self,

@@ -1,4 +1,6 @@
 class Common:
+    data_shuffle_seed = 9876
+    init_weights_seed = 9876
     load_parameters_path = ""
     load_full_state_path = ""
     enable_checkpointing = True
@@ -15,7 +17,7 @@ class Common:
     scan_layers = True
     remat_policy = 'full'
     normalization_layer_epsilon = 1e-6
-    query_chunk_size = None
+    query_chunk_size = 512
 
 class Optimizer:
     learning_rate_schedule_steps = 13500

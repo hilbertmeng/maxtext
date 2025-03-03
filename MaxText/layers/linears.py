@@ -282,6 +282,7 @@ class MlpBlock(nn.Module):
               name='mgate',
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
+    print(f'wo inputs: {inputs.shape} x: {x.shape}')
     output = DenseGeneral(
         inputs.shape[-1],
         dtype=self.dtype,
@@ -873,7 +874,7 @@ class Mgate(nn.Module):
   @nn.compact
   def __call__(self,layer_inputs, hidden, expert_index=0, compute_n_expert=1, unsqueeze=False):
 
-    if self.config.mgate_dim < 2: return x
+    if self.config.mgate_dim < 2: return hidden
 
     print(f'mgate layer_inputs: {layer_inputs.shape} hidden: {hidden.shape} expert_index: {expert_index} compute_n_expert: {compute_n_expert}')
     if unsqueeze:

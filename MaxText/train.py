@@ -191,7 +191,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
           # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
           f"total_weights: {metrics['scalar']['learning/total_weights']}, "
           f"loss: {metrics['scalar']['learning/loss']:.3f}, "
-          f"lr: {metrics['scalar']['learning/current_learning_rate']:.7f}"
+          f"lr: {metrics['scalar']['learning/current_learning_rate'] * 10**5:.3f}e-5"
       )
       if full_log and jax.process_index() == 0:
         max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")

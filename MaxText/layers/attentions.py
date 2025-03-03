@@ -35,6 +35,7 @@ from layers import initializers
 from layers import linears
 from layers import quantizations
 from layers import dc
+from layers import accelerator
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -236,6 +237,9 @@ class AttentionOp(nn.Module):
         or (self.attention_kernel == "autoselected" and length < 128)
     ):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
+    elif self.attention_kernel == "dot_product_chunk": # lsp: dc, llama, mudd etc. expecially when head_dim < 128, can't use flash to accelerate
+      return accelerator.QChunk(self.config)(query, key, value, decoder_segment_ids, model_mode)
+
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
       if isinstance(key, KVTensor):
         key = key.dequant()
@@ -1345,7 +1349,7 @@ class Attention(nn.Module):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
-    query, key = dc.QKNorm(self.config)(query, key) # lsp
+    query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
 
     # apply ROPE
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")

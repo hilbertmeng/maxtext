@@ -75,6 +75,13 @@ class SubDecoderLayer(nn.Module):
     self.mudd_mlp = mudd.Mlp(self.config, self.mesh, self.quant, self.layer_inx)
     self.mudd_qkvnorm = mudd.Norm(self.config, self.mesh, self.quant)
 
+    if self.config.dynamic_mlp_dim:
+      self.updated_mlp_dim = round(self.config.mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / 128) * 128 
+    else:
+      self.updated_mlp_dim = self.config.mlp_dim
+    max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
+
+
   @nn.compact
   def __call__(
       self,
@@ -162,7 +169,7 @@ class SubDecoderLayer(nn.Module):
     if cfg.shared_experts == 1:
       # MLP block.
       mlp_lnx = linears.MlpBlock(
-          intermediate_dim=cfg.mlp_dim,
+          intermediate_dim=self.updated_mlp_dim, # lsp
           activations=cfg.mlp_activations,
           intermediate_dropout_rate=cfg.dropout_rate,
           dtype=cfg.dtype,
@@ -193,6 +200,7 @@ class SubDecoderLayer(nn.Module):
         weight_dtype=cfg.weight_dtype,
         dtype=cfg.dtype,
         quant=self.quant,
+        name='moe'
         )(hidden_states, paddings=decoder_segment_ids)
       max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
         

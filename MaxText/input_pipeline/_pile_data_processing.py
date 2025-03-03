@@ -159,7 +159,7 @@ class PileDatasets():
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
 
-        padded_shapes = {key: self.seq_len for key in self.task_features}
+        padded_shapes = {key: self.seq_len + 1 for key in self.task_features}
         padding_values = {key: 0 if key == 'input_ids' else -100 for key in self.task_features}
         ds = ds.padded_batch(
             batch_size=np.prod(self.batch_size),

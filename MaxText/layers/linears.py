@@ -1067,26 +1067,26 @@ class OpenMoeBlock(nn.Module):
         combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
         return combined_outputs, aux_loss
 
-    @nn.nowrap
-    def add_aux_loss(self, name: str, value: Array, weight=None):
-        # Accumulate by summing aux_loss.
-        if weight is None:
-            weight = jnp.ones_like(value)
+    # @nn.nowrap
+    # def add_aux_loss(self, name: str, value: Array, weight=None):
+    #     # Accumulate by summing aux_loss.
+    #     if weight is None:
+    #         weight = jnp.ones_like(value)
 
-        def reduce_fn(x, y):
-            assert isinstance(x, AuxLossStruct)
-            assert isinstance(y, AuxLossStruct)
-            return AuxLossStruct(value=x.value + y.value, weight=x.weight + y.weight)
+    #     def reduce_fn(x, y):
+    #         assert isinstance(x, AuxLossStruct)
+    #         assert isinstance(y, AuxLossStruct)
+    #         return AuxLossStruct(value=x.value + y.value, weight=x.weight + y.weight)
 
-        self.sow(
-            'intermediates',  # 会在最后的结果中返回
-            name,
-            AuxLossStruct(value, weight),
-            init_fn=lambda: AuxLossStruct(
-                0.0, 0.0
-            ), 
-            reduce_fn=reduce_fn,
-        )
+    #     self.sow(
+    #         'intermediates',  # 会在最后的结果中返回
+    #         name,
+    #         AuxLossStruct(value, weight),
+    #         init_fn=lambda: AuxLossStruct(
+    #             0.0, 0.0
+    #         ), 
+    #         reduce_fn=reduce_fn,
+    #     )
 
     def _call_experts(self, expert_inputs, expert_index, compute_n_expert, deterministic=False):
         """
@@ -1318,7 +1318,6 @@ class OpenMoeBlock(nn.Module):
             combined_outputs = _combined_outputs if combined_outputs is None else combined_outputs + _combined_outputs
             # max_logging.log(f'combined_outputs-{expert_index}: {combined_outputs}')
 
-        self.add_aux_loss("aux_loss", aux_loss)
         # Return to batched shape.
         combined_outputs = combined_outputs.reshape(*inputs.shape)
         return combined_outputs, aux_loss

@@ -157,22 +157,60 @@ class SubDecoderLayer(nn.Module):
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
+    
+    mlp_lnx = None
+    if cfg.shared_experts == 1:
+      # MLP block.
+      mlp_lnx = linears.MlpBlock(
+          intermediate_dim=cfg.mlp_dim,
+          activations=cfg.mlp_activations,
+          intermediate_dropout_rate=cfg.dropout_rate,
+          dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype,
+          name="mlp",
+          config=cfg,
+          quant=self.quant,
+          kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+      )(hidden_states, deterministic=deterministic)
+      mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
-    # MLP block.
-    mlp_lnx = linears.MlpBlock(
-        intermediate_dim=cfg.mlp_dim,
-        activations=cfg.mlp_activations,
-        intermediate_dropout_rate=cfg.dropout_rate,
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="mlp",
+    # lsp: moe
+    moe_lnx = None
+    load_balance_loss = None
+    if cfg.num_experts > 1:
+      if cfg.moe_type == 'openmoe':
+        moe_layer = linears.OpenMoeBlock
+      else:
+        moe_layer = linears.MoeBlock
+      moe_lnx, load_balance_loss = moe_layer(
         config=cfg,
+        num_experts=cfg.num_experts,
+        num_experts_per_tok=cfg.num_experts_per_tok,
+        mesh=mesh,
+        kernel_init=initializers.nd_dense_init_normal(0.006),
+        kernel_axes=("embed", None),
+        intermediate_dim=cfg.mlp_dim,
+        weight_dtype=cfg.weight_dtype,
+        dtype=cfg.dtype,
         quant=self.quant,
-        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-    )(hidden_states, deterministic=deterministic)
-    mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+        )(hidden_states, paddings=decoder_segment_ids)
+      max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
+        
+      if load_balance_loss is not None:
+        self.sow("intermediates", "moe_lb_loss", load_balance_loss)
+      moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
-    layer_output = mlp_lnx + intermediate_inputs
+    if mlp_lnx is not None and moe_lnx is not None:
+      max_logging.log('mlp_lnx is not None and moe_lnx is not None.', debug=cfg.debug)
+      layer_output = mlp_lnx + intermediate_inputs + moe_lnx
+    elif mlp_lnx is not None and moe_lnx is None:
+      max_logging.log('mlp_lnx is not None and moe_lnx is None.', debug=cfg.debug)
+      layer_output = mlp_lnx + intermediate_inputs
+    elif mlp_lnx is None and moe_lnx is not None:
+      max_logging.log('mlp_lnx is None and moe_lnx is not None.', debug=cfg.debug)
+      layer_output = intermediate_inputs + moe_lnx
+    else:
+      raise ValueError("Both mlp_lnx and moe_lnx is None, it's not allowed.")
 
     layer_output = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(layer_output, deterministic=deterministic)
 

@@ -272,6 +272,16 @@ class MlpBlock(nn.Module):
         x, deterministic=deterministic
     )  # Broadcast along length.
     x = nn.with_logical_constraint(x, ("activation_batch", "activation_length", "activation_mlp"))
+
+    # lsp mgate
+    x = Mgate(config=self.config,
+              kernel_init=self.kernel_init,
+              weight_dtype=self.weight_dtype,
+              dtype=self.dtype,
+              quant=self.quant,
+              name='mgate',
+            )(layer_inputs=inputs, hidden=x, unsqueeze=True)
+
     output = DenseGeneral(
         inputs.shape[-1],
         dtype=self.dtype,
@@ -754,7 +764,7 @@ class MoeBlock(nn.Module):
     return w0_kernel, w1_kernel, wo_kernel
 
   @nn.compact
-  def __call__(self, inputs):
+  def __call__(self, inputs, padding=None): # lsp
     cfg = self.config
     inputs = inputs.astype(cfg.dtype)
     gate_logits = DenseGeneral(
@@ -832,3 +842,483 @@ class DeepSeekMoeBlock(nn.Module):
     )(inputs)
 
     return routed_experts + shared_experts
+
+
+# ==================================================Add Mgate、OpenMoe code==========================================================
+class Mgate(nn.Module):
+  config: Config
+  kernel_init: NdInitializer
+  weight_dtype: DType = jnp.float32
+  dtype: DType = jnp.float32
+  quant: Optional[Quant] = None
+
+  def setup(self):
+    if self.config.mgate_dim < 2: return
+    kernel_in_axis = np.arange(1)
+    kernel_out_axis = np.arange(1, 2)
+    # kernel_init = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
+    kernel_axes = ("exp", "embed_no_exp", "mlp")
+    
+    num_experts = 1 if self.config.num_experts <= 1 else self.config.num_experts
+    mgate_kernel = self.param(
+                      'kernel',
+                      nn.with_logical_partitioning(self.kernel_init, kernel_axes),
+                      (num_experts, self.config.emb_dim, self.config.mgate_dim),
+                      self.weight_dtype,
+                      kernel_in_axis,
+                      kernel_out_axis,
+                      )
+    self.kernel = jnp.asarray(mgate_kernel, self.dtype)
+    
+  @nn.compact
+  def __call__(self,layer_inputs, hidden, expert_index=0, compute_n_expert=1, unsqueeze=False):
+
+    if self.config.mgate_dim < 2: return x
+
+    print(f'mgate layer_inputs: {layer_inputs.shape} hidden: {hidden.shape} expert_index: {expert_index} compute_n_expert: {compute_n_expert}')
+    if unsqueeze:
+      layer_inputs = layer_inputs[:, None] # add a dimension when not moe 
+      hidden = hidden[:, None] # add a dimension when not moe 
+
+    inner_gate = self.kernel[expert_index: expert_index + compute_n_expert]
+    # x = jnp.einsum('BTE,BTEM->BTEM', gate_scores, x)  # 这里是多个专家一起计算mgate分数
+    mgate_scores = jnp.einsum('gecm,emi->geci', layer_inputs, inner_gate)
+    # mgate_scores = nn.with_logical_constraint(mgate_scores, ("activation_batch", "exp", "activation_length", None))
+    max_logging.log(f'mgate is True  mgate_scores: {mgate_scores.shape}')
+    mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
+    mgate_scores = mgate_scores.astype(self.dtype)
+    # if self.config.record_internal_nn_metrics:
+    #   record_gate(self, 'mgate', mgate_scores, axis=(0, 1, 2))
+    G, E, C, H = hidden.shape
+    hidden = hidden.reshape(G, E, C, self.config.mgate_dim, H // self.config.mgate_dim)
+    # hidden = nn.with_logical_constraint(hidden, ("activation_batch", "exp", "activation_length", None, "tensor"))
+    hidden = jnp.einsum('geci,gecif->gecif', mgate_scores, hidden)
+    
+    hidden = hidden.reshape(G, C, H) if unsqueeze else hidden.reshape(G, E, C, H)
+    # hidden = nn.with_logical_constraint(hidden, ("activation_batch", "exp", "activation_length", "tensor"))
+    return hidden
+
+def _take_along_axis(array: Array, indices: Array, axis: int) -> Array:
+    if array.ndim != indices.ndim:
+        raise ValueError(
+            'indices and array must have the same number of dimensions; '
+            f'{indices.ndim} vs. {array.ndim}.')
+
+    if (axis != -1 and axis != array.ndim - 1 and  # Not last dimension
+        axis != 1 and axis != -array.ndim + 1):  # Not second dimension
+        raise ValueError(
+            'Only slices along the second or last dimension are supported; '
+            f'array.ndim = {array.ndim}, while axis = {axis}.')
+
+    if _favor_one_hot_slices():
+        one_hot_length = array.shape[axis]
+        one_hot_indices = jax.nn.one_hot(indices, one_hot_length, axis=axis)
+
+        if axis == -1 or array.ndim == 1:
+            result = jnp.einsum(
+                '...s,...is->...i',
+                array,
+                one_hot_indices,
+                precision=jax.lax.Precision.HIGHEST)
+        else:
+            result = jnp.einsum(
+                'ns...,nis...->ni...',
+                array,
+                one_hot_indices,
+                precision=jax.lax.Precision.HIGHEST)
+        return jax.lax.convert_element_type(result, array.dtype), one_hot_indices.max(2)
+    else:
+        return jnp.take_along_axis(array, indices, axis=axis), None
+        
+def _favor_one_hot_slices() -> bool:
+  return jax.default_backend() == 'tpu' or jax.devices()[0].platform == 'tpu'
+
+
+def _load_balancing_loss(router_probs: Array, expert_indices: Array) -> float:
+  num_experts = router_probs.shape[-1]
+  # Shape: [num_groups, tokens_per_group, num_selected_experts, num_experts].
+  expert_mask = jax.nn.one_hot(expert_indices, num_experts, dtype=jnp.int32)
+  # For a given token, determine if it was routed to a given expert.
+  # Shape: [num_groups, tokens_per_group, num_experts]
+  expert_mask = jnp.max(expert_mask, axis=-2)
+
+  tokens_per_group_and_expert = jnp.mean(
+      expert_mask, dtype=jnp.float32, axis=-2)
+  router_prob_per_group_and_expert = jnp.mean(
+      router_probs, dtype=jnp.float32, axis=-2)
+  return (
+      jnp.mean(  # pytype: disable=bad-return-type  # jnp-type
+          tokens_per_group_and_expert * router_prob_per_group_and_expert,
+          dtype=jnp.float32,
+      )
+      * num_experts**2
+  )
+
+
+def _top_k(array, k: int):
+    if _favor_one_hot_slices():
+        top_k_indices = jax.lax.top_k(array, k)[-1]
+        top_k_values, one_hot_indices = _take_along_axis(array, top_k_indices, axis=-1)
+        return top_k_values, top_k_indices, one_hot_indices
+    else:
+        return jax.lax.top_k(array, k), None
+
+
+@flax.struct.dataclass
+class AuxLossStruct:
+    value: Array
+    weight: Array
+
+
+def log(t, eps = 1e-20):
+    return jnp.log(t.clip(min = eps))
+    
+
+def gumbel_noise(inputs, seed=9876, minval=0, maxval=1):
+    noise = jax.random.uniform(jax.random.PRNGKey(seed), minval=minval, maxval=maxval, shape=inputs.shape,  dtype=inputs.dtype)
+    return -log(-log(noise))
+
+
+def _entroy(probs):
+  log_probs = jnp.log2(jnp.maximum(1.0e-30, probs))
+  mean_sum_plogp = jnp.mean(- jnp.sum(log_probs * probs, axis=-1))
+  return mean_sum_plogp
+
+
+def record_gate(self, key, gate_scores, axis=(0, 1)):
+    expert_to_token_score = gate_scores.mean(axis=axis)
+    sum_value = jnp.sum(expert_to_token_score, axis=-1)
+    expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)
+    self.sow('intermediates', f'{key}/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: 5.45
+    self.sow('intermediates', f'{key}/token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
+
+
+class OpenMoeBlock(nn.Module):
+    config: Config
+    num_experts: int
+    num_experts_per_tok: int
+    mesh: Mesh
+    kernel_init: NdInitializer
+    kernel_axes: Tuple[str, ...]
+    intermediate_dim: int = 4096
+    weight_dtype: DType = jnp.float32
+    dtype: DType = jnp.bfloat16
+    quant: Optional[Quant] = None
+
+    def setup(self):
+
+        kernel_in_axis = np.arange(1)
+        kernel_out_axis = np.arange(1, 2)
+        kernel_init = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
+        # self.kernel_init = kernel_init
+        # The first axes is expert
+        kernel_axes = ("exp", "embed_no_exp", "mlp")
+        wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
+  
+        # self.num_experts = self.config.num_experts - shared_experts
+        mlp_dim = self.intermediate_dim # moe dim
+        emb_dim = self.config.base_emb_dim  # model dim
+
+        self.expert_capacity_factor = self.config.expert_capacity_factor
+        self.min_group_size = 1.0
+        self.router_z_loss_coef = self.config.router_z_loss_coef
+        self.aux_loss_coef = self.config.load_balance_loss_weight
+
+        self.expert_chunk_size = self.config.expert_chunk_size
+
+        # lsp：务必注意wi_0是需要过激活函数的，在这里称之为gate，小心别和dense的mlp搞反了
+        w0_kernel = self.param(
+            'wi_0',
+            nn.with_logical_partitioning(kernel_init, kernel_axes),
+            (self.num_experts, emb_dim, mlp_dim),
+            self.weight_dtype,
+            kernel_in_axis,
+            kernel_out_axis,
+          )
+        self.wi_gate_0 = jnp.asarray(w0_kernel, self.dtype)
+        
+        w1_kernel = self.param(
+            'wi_1',
+            nn.with_logical_partitioning(kernel_init, kernel_axes),
+            (self.num_experts, emb_dim, mlp_dim),
+            self.weight_dtype,
+            kernel_in_axis,
+            kernel_out_axis,
+          )
+        self.wi_0 = jnp.asarray(w1_kernel, self.dtype)
+
+        wo_kernel = self.param(
+            'wo',
+            nn.with_logical_partitioning(kernel_init, wo_kernel_axes),
+            (self.num_experts, mlp_dim, emb_dim),
+            self.weight_dtype,
+            kernel_in_axis,
+            kernel_out_axis,
+          )
+        self.wo_0 = jnp.asarray(wo_kernel, self.dtype)
+
+        self._is_ffn1_gated = True if self.config.mlp_activations[0] != 'linear' else False
+        # silu
+        self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
+
+    @nn.compact
+    def __call__(self, inputs, paddings, deterministic=False):
+        inputs = inputs.astype(self.dtype)
+        combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
+        return combined_outputs, aux_loss
+
+    @nn.nowrap
+    def add_aux_loss(self, name: str, value: Array, weight=None):
+        # Accumulate by summing aux_loss.
+        if weight is None:
+            weight = jnp.ones_like(value)
+
+        def reduce_fn(x, y):
+            assert isinstance(x, AuxLossStruct)
+            assert isinstance(y, AuxLossStruct)
+            return AuxLossStruct(value=x.value + y.value, weight=x.weight + y.weight)
+
+        self.sow(
+            'intermediates',  # 会在最后的结果中返回
+            name,
+            AuxLossStruct(value, weight),
+            init_fn=lambda: AuxLossStruct(
+                0.0, 0.0
+            ), 
+            reduce_fn=reduce_fn,
+        )
+
+    def _call_experts(self, expert_inputs, expert_index, compute_n_expert, deterministic=False):
+        """
+        expert_inputs: gecm
+        """
+      
+        theta_wi, theta_wo = self.wi_0[expert_index: expert_index + compute_n_expert], self.wo_0[expert_index: expert_index + compute_n_expert]
+
+        if self._is_ffn1_gated:
+            theta_wi_gated = self.wi_gate_0[expert_index: expert_index + compute_n_expert]
+
+        num_groups, num_experts, capacity, *hidden_dims = expert_inputs.shape
+        assert num_experts == theta_wi.shape[0]
+       
+        # expert_inputs = nn.with_logical_constraint(expert_inputs, ("activation_batch", "exp", "activation_length", "tensor"))
+
+        if self._is_ffn1_gated:
+            max_logging.log(f'expert_inputs: {expert_inputs.shape} theta_wi: {theta_wi.shape}')
+            hidden0 = jnp.einsum("gecm,emh->gech", expert_inputs, theta_wi)
+            hidden1 = jnp.einsum("gecm,emh->gech", expert_inputs, theta_wi_gated)
+            hidden1 = self.activation(hidden1)
+            hidden = hidden1 * hidden0
+            # hidden = nn.with_logical_constraint(hidden, ("activation_batch", "exp", "activation_length", "tensor"))
+        else:
+            hidden = jnp.einsum("gecm,emh->gech", expert_inputs, theta_wi)
+            hidden = self.activation(hidden)
+        #  Broadcast along length.
+        hidden = nn.Dropout(rate=self.config.dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
+
+        # expert_inputs: gecm,  mgatew: meh  -> 
+        mgate_layer = Mgate(config=self.config,
+              kernel_init=self.kernel_init,
+              weight_dtype=self.weight_dtype,
+              dtype=self.dtype,
+              quant=self.quant,
+              name='mgate',
+            )
+        hidden = mgate_layer(layer_inputs=expert_inputs, 
+                            hidden=hidden, 
+                            expert_index=expert_index, 
+                            compute_n_expert=compute_n_expert)
+
+        hidden = jnp.einsum("gech,ehm->gecm", hidden, theta_wo)
+        # hidden = nn.with_logical_constraint(hidden, ("activation_batch", "exp", "activation_length", "tensor"))
+        
+        return hidden
+        
+    def _dispatch_and_combine_expert_outputs_openmoe(self, inputs, paddings, deterministic=False):
+
+        max_logging.log(f'Enter openmoe top2 router.....')
+        topn = self.num_experts_per_tok
+        token_shape = inputs.shape[:-1]
+        num_tokens = np.prod(token_shape)
+        m_dim = inputs.shape[-1]
+       
+        num_groups = inputs.shape[0]
+        tokens_per_group = num_tokens // num_groups
+        assert num_tokens % num_groups == 0, max_logging.log(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
+
+        max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')
+        # expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
+        expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
+        max_group_size = int(inputs.shape[1])
+        expert_capacity = min(expert_capacity, max_group_size)
+        expert_capacity = max(expert_capacity, self.min_group_size)
+        max_logging.log(f'expert_capacity: {expert_capacity}')
+       
+        # gsm
+        grouped_inputs = jnp.reshape(inputs, (num_groups, tokens_per_group, self.config.base_emb_dim))
+        token_inputs = jax.lax.convert_element_type(grouped_inputs, jnp.float32)
+        max_logging.log(f'token_inputs: {token_inputs.shape}')
+
+        router_logits = DenseGeneral(
+                self.num_experts,
+                dtype=self.dtype,
+                weight_dtype=self.weight_dtype,
+                kernel_init=self.kernel_init,
+                kernel_axes=self.kernel_axes,
+                name='gate')(token_inputs)
+
+        # if self.config.record_internal_nn_metrics:
+        #   self.sow('intermediates', 'router_logits/noiso_before/max', router_logits.max())
+        #   self.sow('intermediates', 'router_logits/noiso_before/min', router_logits.min())
+
+        if self.config.gate_noise_coef > 0.0:
+          max_logging.log(f'gate_noise_coef: {self.config.gate_noise_coef}')
+          noise = gumbel_noise(router_logits, seed=self.config.init_weights_seed)
+          router_logits += noise * self.config.gate_noise_coef
+
+          # if self.config.record_internal_nn_metrics:
+          #   self.sow('intermediates', 'router_logits/noiso_after/max', router_logits.max())
+          #   self.sow('intermediates', 'router_logits/noiso_after/min', router_logits.min())
+
+        _, expert_index, one_hot_indices = _top_k(router_logits, k=topn)
+        # NVIDIA：Upcycling Large Language Models into Mixture of Experts做法：
+        # router_logits: b s * e -> b * s * G * e,  11组，每组8个专家，G11T11 one_hot_indices
+        # one_hot_indices: b * s * top * e -> b * s * G * top * e , reshape -> b * s * (G * top) * e
+        # expert_index: b s top -> b s G top,
+        # 如果按照之前不分组的做法的话，router_logits  reshape：b s * (G e)
+        # expert_index + range(0, 88, 8)
+
+        if self.config.sfm_after_topn:
+          assert one_hot_indices is not None
+          max_logging.log(f'one_hot_indices is not None and sfm_after_topn is {self.config.sfm_after_topn}')
+          router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
+          _router_logits = router_logits + router_mask
+          router_probs = jax.nn.softmax(_router_logits.astype(jnp.float32), axis=-1)
+          # router_probs /= router_probs.sum(-1, keepdims=True)
+        else:
+            # gse
+          router_probs = jax.nn.softmax(router_logits.astype(jnp.float32), axis=-1)
+        router_probs = router_probs.astype(self.dtype) # ble
+
+        # router_probs = nn.with_logical_constraint(router_probs, ("activation_batch", "activation_length", "exp"))
+
+        if self.config.record_internal_nn_metrics:
+          # lsp note: slowly
+          # l2norm = jnp.linalg.norm(router_logits.reshape(-1, router_logits.shape[-1]), ord=2, axis=(0, 1))
+          l2norm = jnp.sqrt(jnp.sum(jnp.square(router_logits)))
+          self.sow('intermediates', 'router_logits/l2norm', l2norm)
+          record_gate(self, 'router_logits', router_logits, axis=(0, 1))
+          # 解释：
+          # expert2token： router_probs = [[0.] * 6 + [0.5, 0.5]], 极端均匀选择2个专家，熵最大，为1.0，
+          # router_probs = [[0.] * 6 + [1.0, 0.0]]，极端不均匀选择2个专家，熵最大，为0.0。
+          # token2expert： router_probs = [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125], 每个专家极端均匀选择token，熵最大，为3.0，
+          # router_probs = [0] * 7 + [1.0, 0.]，每个专家极端不均匀选择token，熵最大，为0.0。
+          record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1)) 
+          # top2, expert2token: E=8, max: 3, min:0.5
+          top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, 1)])
+          self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
+        
+        # 有padding的时候放开, 一般预训练没有pad
+        if paddings is not None:
+            max_logging.log(f'paddings: {paddings.shape}')
+            max_logging.log(f'token_shape: {token_shape}')
+            
+            assert paddings.shape == token_shape
+            # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
+            nonpaddings = paddings
+            nonpaddings = jnp.reshape(nonpaddings, grouped_inputs.shape[:2])
+            gate_mask = jnp.expand_dims(nonpaddings, axis=-1)
+            # expert_gate *= gate_mask
+    
+            expert_index *= (2 * gate_mask - 1.) # lsp:将被mask的专家的所以变为负值，这样在之后转为one hot形式的时候就不会考虑
+            expert_index += jnp.repeat(gate_mask - 1., topn, axis=-1)
+            router_probs *= gate_mask # ble
+
+        aux_loss, router_z_loss = 0.0, 0.0
+        if self.aux_loss_coef is not None:
+            aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
+            aux_loss *= self.aux_loss_coef
+        if self.router_z_loss_coef is not None:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上  防止过大的logits
+            # <=> torch.logsumexp(logits, dim = -1)
+            router_z_loss = jnp.log(jnp.sum(jnp.exp(router_logits), axis=-1))
+            router_z_loss = jnp.square(router_z_loss)            
+            router_z_loss = self.router_z_loss_coef * router_z_loss.mean()
+        aux_loss = aux_loss + router_z_loss
+
+        # expert_index = nn.with_logical_constraint(expert_index, ("activation_batch", "activation_length",  None))
+        # g * 2 * s
+        expert_index = jnp.swapaxes(expert_index, 1, 2)
+        # g * 2s
+        expert_index = expert_index.reshape(num_groups, -1)
+        # expert_index = nn.with_logical_constraint(expert_index, ("activation_batch", "activation_length"))
+
+        # g * 2s * e, expert_index 负值的地方忽略了?
+        expert_mask = jax.nn.one_hot(expert_index, self.num_experts, dtype=jnp.int32)
+        # expert_mask = nn.with_logical_constraint(expert_mask, ("activation_batch", "activation_length", "exp"))
+        # g * 2s * e 
+        token_priority = jnp.cumsum(expert_mask, axis=1) * expert_mask - 1.0
+        # g * 2 * s * e
+        token_priority = token_priority.reshape(num_groups, topn, -1, self.num_experts)
+        # g * s * 2 * e   ls: 每个token选择了2个专家，专家对应的位置的值表示当前编号专家选择的token数量
+        token_priority = jnp.swapaxes(token_priority, 1, 2)
+
+        '''token_priority
+        lsp: 每个专家选择的token对应在原始token的位置索引, 类似于
+          # e=4的例子
+          Array([[[-1.,  0.,  1., -1.],
+                  [ 0., -1., -1.,  1.],
+                  [-1.,  1., -1.,  2.],
+                  [-1.,  2.,  2., -1.],
+                  [ 2., -1.,  0., -1.],
+                  [ 3., -1., -1.,  0.],
+                  [ 1.,  3., -1., -1.],
+                  [-1., -1., -1., -1.]]], dtype=float32
+                  )
+          也可以这么理解，每个token选择了2个专家，被选中的专家的位置处是对应的token索引。
+                  '''
+        # 在topn那一维度选择max：就是提取当前专家选择了当前token的数量，因为1个专家只能被一个token选择一次，
+        # 因此topn这一维度肯定只有一个是正数，这样原来，得到的矩阵就是：如果当前专家选择了当前token，这个token被选中了多少次，如果没有选择当前专家，那么就是一个负数
+        # 此外，e这个维度，肯定只有topn个正数。如果取 1 * 1 * 1那么这个值不一定正数, 意味着没选中这个专家
+        token_priority = jnp.max(token_priority, axis=2) 
+        # g * s *  e
+        # token_priority = nn.with_logical_constraint(token_priority, ("activation_batch", "activation_length", "exp"))
+    
+        if self.expert_chunk_size is None:
+            compute_n_expert = self.num_experts
+        else:
+            compute_n_expert = self.num_experts // self.expert_chunk_size
+            assert self.num_experts % self.expert_chunk_size == 0
+
+        combined_outputs = None
+        max_logging.log(f'compute_n_expert: {compute_n_expert}')
+        for expert_index in range(0, token_priority.shape[2], compute_n_expert):
+            # max_logging.log(f'expert_index: {expert_index}')
+            _token_priority = token_priority[..., expert_index: expert_index+compute_n_expert]
+            _router_probs = router_probs[..., expert_index: expert_index+compute_n_expert]
+            # lsp： g * s * e * c  # 如果当前token选择了当前专家后，当前token被选中的总次数的one hot体现
+            _dispatch_mask = jax.nn.one_hot(_token_priority, expert_capacity, dtype=jnp.bool_)
+            # _dispatch_mask = nn.with_logical_constraint(_dispatch_mask, ("activation_batch", "activation_length", "exp", None))
+
+            # 把token选择专家的概率赋值到one_hot矩阵上
+            _combine_array = jnp.einsum('...se,...sec->...sec', _router_probs, _dispatch_mask)
+            _combine_array = jax.lax.convert_element_type(_combine_array, self.dtype)
+            # _combine_array = nn.with_logical_constraint(_combine_array, ("activation_batch", "activation_length", "exp", None))
+
+            # 专家的输入mask：gsm x gsec -> gecm，  _dispatch_mask可以将多出容量之外的toke进行丢弃
+            _expert_inputs = jnp.einsum('gs...,gsec->gec...', token_inputs, _dispatch_mask)
+            _expert_inputs = jax.lax.convert_element_type(_expert_inputs, self.dtype)
+            # gecm
+            # max_logging.log(f'_expert_inputs: {_expert_inputs.shape}')
+            # g * e * c * m
+            _expert_outputs = self._call_experts(_expert_inputs, expert_index, compute_n_expert, deterministic=deterministic)
+            # _expert_outputs = nn.with_logical_constraint(_expert_outputs, ("activation_batch", "exp", "activation_length", None))
+
+            _combined_outputs = jnp.einsum('gec...,gsec->gs...', _expert_outputs, _combine_array)
+
+            combined_outputs = _combined_outputs if combined_outputs is None else combined_outputs + _combined_outputs
+            # max_logging.log(f'combined_outputs-{expert_index}: {combined_outputs}')
+
+        self.add_aux_loss("aux_loss", aux_loss)
+        # Return to batched shape.
+        combined_outputs = combined_outputs.reshape(*inputs.shape)
+        return combined_outputs, aux_loss

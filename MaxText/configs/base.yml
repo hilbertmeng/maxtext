@@ -615,3 +615,10 @@ debug: False
 # other
 epoch: 1
 task_features: ['input_ids']
+mgate_dim: 22
+moe_type: 'openmoe'
+expert_capacity_factor: 1.5
+expert_chunk_size: null
+router_z_loss_coef: 0.01
+gate_noise_coef: 0.5
+sfm_after_topn: True

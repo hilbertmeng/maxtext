@@ -624,3 +624,6 @@ gate_noise_coef: 0.5
 sfm_after_topn: True
 keep_period: 1000 # step / keep_period would not be deleted
 max_to_keep: 4 # max save checkpoint nums nearby
+only_eval: False
+static_proj: False
+eval_model_step: -1 # evaluate certain step checkpoint, if -1, auto select latest step.

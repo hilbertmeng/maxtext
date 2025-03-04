@@ -767,7 +767,7 @@ def setup_decode_state(model, config, rng, mesh, checkpoint_manager):
 
 
 def setup_training_state(model, data_iterator, tx, config, rng, mesh, checkpoint_manager):
-  is_training = True
+  is_training = True if not config.only_eval else False # lsp
   return setup_initial_state(
       model,
       data_iterator,
@@ -821,6 +821,7 @@ def setup_initial_state(
         unboxed_abstract_state,
         config.enable_single_replica_ckpt_restoring,
         config.dataset_type,
+        config=config, # lsp
     )
 
     if restored:

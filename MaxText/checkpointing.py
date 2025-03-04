@@ -180,6 +180,7 @@ def load_state_if_possible(
     enable_single_replica_ckpt_restoring: Optional[bool] = False,
     dataset_type: Optional[str] = "tfds",
     step: int = -1,  # -1 means latest
+    config = False, # lsp
 ):
   """Loads TrainState as possible from the inputs.
 
@@ -206,7 +207,15 @@ def load_state_if_possible(
     max_logging.log("checkpoint manager exists so trying to load this run's existing checkpoint")
 
     # step = checkpoint_manager.latest_step() if step < 0 else step
+
     step = data_iterator.meta_dict.get('checkpoint_step') # lsp
+    if config.only_eval:
+      if not load_parameters_from_path:
+        if config.eval_model_step >= 0:
+          step = config.eval_model_step
+        load_parameters_from_path = epath.Path(config.checkpoint_dir) / str(step) / 'items'
+      step = None
+      print(f'Only eval mode, load_parameters_from_path: {load_parameters_from_path} step: {step}')
 
     if step is not None:
       max_logging.log(f"restoring from this run's directory step {step}")

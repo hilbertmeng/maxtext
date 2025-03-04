@@ -29,6 +29,7 @@ class Optimizer:
     adam_weight_decay = 0.1
     learning_rate = 3e-4
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0)]  # 0.表示不进行decay
+    opt_type = 'adam_pax'
 
 class PileDataset:
     vocab_size = 50432

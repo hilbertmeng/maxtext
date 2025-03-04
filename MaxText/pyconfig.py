@@ -408,8 +408,12 @@ class _HyperParameters:
         if k != "hf_access_token":
           max_logging.log(f"Config param {k}: {raw_keys[k]}")
     # lsp
-    config_path = epath.Path(os.path.join(raw_keys["base_output_directory"], raw_keys["run_name"], "config.txt"))
-    max_logging.log(f'config_path: {config_path}')
+    config_name = 'train.config.txt' if not raw_keys['only_eval'] else 'only_eval.config.txt'
+    config_path = epath.Path(os.path.join(raw_keys["base_output_directory"], raw_keys["run_name"], config_name))
+    if config_path.exists():
+      max_logging.log(f'config_path: {config_path} has existed!!!, it would be overwrited......')
+    else:
+      max_logging.log(f'config_path: {config_path} do not existed, now start to create.....')
     with config_path.open('w') as f:
       for k in keys:
         s = f'{k}: {raw_keys[k]}\n'

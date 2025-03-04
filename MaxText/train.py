@@ -910,7 +910,10 @@ def train_loop(config, state=None):
     p_eval_step = None
     print("Loaded compiled function!", flush=True)
   else:
-    p_train_step = jax.jit(
+    if config.only_eval:
+      p_train_step = None
+    else:
+      p_train_step = jax.jit(
         functional_train,
         in_shardings=in_shard_train,
         out_shardings=out_shard_train,
@@ -952,51 +955,52 @@ def train_loop(config, state=None):
       gcp_workload_monitor.start_performance_reporting_thread(performance_metric_queue)
 
   for step in np.arange(start_step, config.steps):
-    if step == first_profiling_step or prof.should_activate_periodic_profile(step):
-      optional_postfix = f"step_{step}" if config.profile_periodically_period > 0 else ""
-      prof.activate(blocking_object=state, optional_postfix=optional_postfix)
+    if not config.only_eval: # lsp
+      if step == first_profiling_step or prof.should_activate_periodic_profile(step):
+        optional_postfix = f"step_{step}" if config.profile_periodically_period > 0 else ""
+        prof.activate(blocking_object=state, optional_postfix=optional_postfix)
 
-    with jax.profiler.StepTraceAnnotation("train", step_num=step):
-      record_goodput(recorder, config, recorder.record_data_loading_start_time if recorder else None)
-      example_batch = load_next_batch(data_iterator, example_batch, config)
-      record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
-      check_example_batch(config, example_batch=example_batch)
-      # pylint: disable=not-callable
-      nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
-      record_goodput(recorder, config, recorder.record_step_start_time if recorder else None, step)
-      with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-        state, metrics = p_train_step(state, example_batch, nextrng)
+      with jax.profiler.StepTraceAnnotation("train", step_num=step):
+        record_goodput(recorder, config, recorder.record_data_loading_start_time if recorder else None)
+        example_batch = load_next_batch(data_iterator, example_batch, config)
+        record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
+        check_example_batch(config, example_batch=example_batch)
+        # pylint: disable=not-callable
+        nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
+        record_goodput(recorder, config, recorder.record_step_start_time if recorder else None, step)
+        with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+          state, metrics = p_train_step(state, example_batch, nextrng)
 
-    step_time_delta = datetime.datetime.now() - last_step_completion
-    last_step_completion = datetime.datetime.now()
-    record_scalar_metrics(metrics, step_time_delta, per_device_tflops, learning_rate_schedule(step), per_device_tokens)
-    if performance_metric_queue:
-      performance_metric_queue.put(step_time_delta.total_seconds())
+      step_time_delta = datetime.datetime.now() - last_step_completion
+      last_step_completion = datetime.datetime.now()
+      record_scalar_metrics(metrics, step_time_delta, per_device_tflops, learning_rate_schedule(step), per_device_tokens)
+      if performance_metric_queue:
+        performance_metric_queue.put(step_time_delta.total_seconds())
 
-    if checkpoint_manager is not None:
-      state_to_save = state if not config.use_dpo else _split_dpo_state(state)[0]
-      if save_checkpoint(checkpoint_manager, int(step), state_to_save, config.dataset_type, data_iterator, config):
-        checkpointing.print_save_message(step, config.async_checkpointing)
-        record_file_and_step(step, config, data_iterator) # lsp
+      if checkpoint_manager is not None:
+        state_to_save = state if not config.use_dpo else _split_dpo_state(state)[0]
+        if save_checkpoint(checkpoint_manager, int(step), state_to_save, config.dataset_type, data_iterator, config):
+          checkpointing.print_save_message(step, config.async_checkpointing)
+          record_file_and_step(step, config, data_iterator) # lsp
 
-      # Upon preemption, exit when and only when all ongoing saves are complete.
-      if checkpoint_manager.reached_preemption(step):
-        checkpoint_manager.wait_until_finished()
-        sys.exit()
+        # Upon preemption, exit when and only when all ongoing saves are complete.
+        if checkpoint_manager.reached_preemption(step):
+          checkpoint_manager.wait_until_finished()
+          sys.exit()
 
-    write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
+      write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
 
-    if config.dump_hlo and step == start_step:
-      jax.block_until_ready(state)  # Ensure compilation has finished.
-      max_utils.upload_dump(
-          config.dump_hlo_local_dir,
-          config.dump_hlo_gcs_dir,
-          module_name=config.dump_hlo_module_name,
-          delete_local_after=config.dump_hlo_delete_local_after,
-          all_host_upload=config.dump_hlo_upload_all,
-      )
+      if config.dump_hlo and step == start_step:
+        jax.block_until_ready(state)  # Ensure compilation has finished.
+        max_utils.upload_dump(
+            config.dump_hlo_local_dir,
+            config.dump_hlo_gcs_dir,
+            module_name=config.dump_hlo_module_name,
+            delete_local_after=config.dump_hlo_delete_local_after,
+            all_host_upload=config.dump_hlo_upload_all,
+        )
 
-    if config.eval_interval > 0 and step > start_step and (step + 1) % config.eval_interval == 0:
+    if config.eval_interval > 0 and step > start_step and (step + 1) % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
       print(f'eval_data_iterator: {eval_data_iterator} ')
       cumulative_eval_metrics = {
@@ -1011,7 +1015,6 @@ def train_loop(config, state=None):
       eval_step_count = 0
       # pylint: disable=not-callable
       eval_start_time = time.time()
-      
       eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
       for i in range(eval_steps):
         try:
@@ -1025,6 +1028,8 @@ def train_loop(config, state=None):
           eval_batch = next(eval_data_iterator) # lsp
           break
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+          if config.only_eval: # lsp
+            nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
           eval_metrics = p_eval_step(state, eval_batch, nextrng)
         cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
         cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
@@ -1057,6 +1062,8 @@ def train_loop(config, state=None):
         max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
         prof.deactivate()
         break
+
+      if config.only_eval: exit(0)  # lsp
 
     if step == last_profiling_step or prof.should_deactivate_periodic_profile(step):
       prof.deactivate(blocking_object=state)

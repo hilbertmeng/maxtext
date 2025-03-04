@@ -73,7 +73,7 @@ from ml_goodput_measurement import goodput
 from ml_goodput_measurement import monitoring
 
 from flax.traverse_util import flatten_dict, unflatten_dict
-
+from input_pipeline._pile_data_processing import record_file_and_step
 # pylint: disable=too-many-positional-arguments
 
 Transformer = models.Transformer
@@ -977,6 +977,7 @@ def train_loop(config, state=None):
       state_to_save = state if not config.use_dpo else _split_dpo_state(state)[0]
       if save_checkpoint(checkpoint_manager, int(step), state_to_save, config.dataset_type, data_iterator, config):
         checkpointing.print_save_message(step, config.async_checkpointing)
+        record_file_and_step(step, config, data_iterator) # lsp
 
       # Upon preemption, exit when and only when all ongoing saves are complete.
       if checkpoint_manager.reached_preemption(step):

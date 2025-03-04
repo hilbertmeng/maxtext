@@ -382,7 +382,7 @@ def extract_role_play_instruct_data(dataset_paths, eval_split):
 def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
     if job_log_dir is None:
         return {}
-    model_dir = job_log_dir / "checkpoints"
+    model_dir = job_log_dir
     if step is not None:
         skip_file_and_step_path = model_dir / str(step) / SKIP_STEP_NAME
     else:
@@ -423,7 +423,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
 
   num_local_devices = jax.local_device_count()
 
-  job_dir = epath.Path(config.run_name)
+  job_dir = epath.Path(config.checkpoint_dir)
   try:
     only_eval = config.only_eval
   except:

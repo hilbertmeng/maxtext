@@ -205,7 +205,9 @@ def load_state_if_possible(
   if checkpoint_manager is not None:
     max_logging.log("checkpoint manager exists so trying to load this run's existing checkpoint")
 
-    step = checkpoint_manager.latest_step() if step < 0 else step
+    # step = checkpoint_manager.latest_step() if step < 0 else step
+    step = data_iterator.meta_dict.get('checkpoint_step') # lsp
+
     if step is not None:
       max_logging.log(f"restoring from this run's directory step {step}")
 

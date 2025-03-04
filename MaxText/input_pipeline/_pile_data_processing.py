@@ -379,10 +379,9 @@ def extract_role_play_instruct_data(dataset_paths, eval_split):
     return total_train_files, total_valid_files
 
 
-def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
-    if job_log_dir is None:
+def extract_train_skip_step(model_dir, step, only_eval=False):  # lsp
+    if model_dir is None:
         return {}
-    model_dir = job_log_dir
     if step is not None:
         skip_file_and_step_path = model_dir / str(step) / SKIP_STEP_NAME
     else:
@@ -398,7 +397,7 @@ def extract_train_skip_step(job_log_dir, step, only_eval=False):  # lsp
 
     if jax.process_index() == 0:
         mode = 'train_break_steps' if not only_eval else 'eval_metric_steps'
-        back_meta_dict_dir = job_log_dir / mode
+        back_meta_dict_dir = epath.Path(os.path.dirname(model_dir)) / mode # lsp
         if 'gs:' not in str(back_meta_dict_dir):
           os.makedirs(back_meta_dict_dir, exist_ok=True)
         back_meta_dict_path = back_meta_dict_dir /f'{meta_dict.get("checkpoint_step", None)}.json'

@@ -207,7 +207,6 @@ def load_state_if_possible(
     max_logging.log("checkpoint manager exists so trying to load this run's existing checkpoint")
 
     # step = checkpoint_manager.latest_step() if step < 0 else step
-
     step = data_iterator.meta_dict.get('checkpoint_step') # lsp
     if config.only_eval:
       if not load_parameters_from_path:

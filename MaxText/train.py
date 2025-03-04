@@ -72,6 +72,8 @@ from layers import quantizations
 from ml_goodput_measurement import goodput
 from ml_goodput_measurement import monitoring
 
+import json
+from etils import epath
 from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
 # pylint: disable=too-many-positional-arguments
@@ -117,6 +119,28 @@ def model_init(model, config, key):
       jnp.ones(input_shape, dtype=jnp.int32),
   )
   return params
+
+
+def compute_accuracy(logits, targets, masks):
+  batch_weights = jnp.maximum(jnp.sum(masks, axis=-1), 1e-10)
+  correct = jnp.where(
+        masks > 0.0,
+        jnp.argmax(logits, axis=-1) == targets,
+        jnp.array(False)
+    )
+  correct = jnp.sum(correct, axis=-1)
+  accuracy = jnp.mean(correct / batch_weights)
+  return correct, accuracy
+
+
+def save_eval_result(config, step, cumulative_eval_metrics):
+  # lsp: save eval result
+  eval_result_path = epath.Path(os.path.join(config.base_output_directory, confg.run_name, f'eval_results_{step}.json'))
+  with eval_result_path.open('w') as f:
+    write_str = json.dumps(cumulative_eval_metrics)
+    f.write(json.dumps(write_str, ensure_ascii=False))
+  print(f'Save eval result to `{eval_result_path}` finished.')
+  if config.only_eval: exit(0)  # lsp
 
 
 def validate_train_config(config):
@@ -219,7 +243,8 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
           f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
           # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
           f"total_weights: {metrics['scalar']['learning/total_weights']}, "
-          f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+          f"loss: {metrics['scalar']['learning/loss']:.5f}, "
+          f"accuracy: {metrics['scalar']['learning/accuracy']:.5f}, "
           f"lr: {metrics['scalar']['learning/current_learning_rate'] * 10**5:.3f}e-5"
       )
       if full_log and jax.process_index() == 0:
@@ -482,6 +507,8 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
+  correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
+
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
@@ -502,6 +529,8 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "total_loss": total_loss,
       "total_weights": total_weights,
       "moe_lb_loss": moe_lb_loss,
+      "accuracy": accuracy, # lsp
+      "correct": jnp.sum(correct), # lsp
   }
   return loss, aux
 
@@ -555,6 +584,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
           lambda x, y: x * aux["total_weights"] + y, cur_batch_gradient, acc_grad_and_loss["grad"]
       )
       acc_grad_and_loss["total_weights"] += aux["total_weights"]
+      acc_grad_and_loss["accuracy"] += aux["accuracy"] # lsp
       return acc_grad_and_loss, aux
 
     def reshape_to_microbatch_accumulations(batch_arr):
@@ -565,7 +595,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
     data = jax.tree_util.tree_map(reshape_to_microbatch_accumulations, data)
     init_grad = jax.tree_util.tree_map(jnp.zeros_like, state.params)
-    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0}
+    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, "accuracy": 0.0} # lsp
 
     grad_and_loss, aux = jax.lax.scan(
         accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
@@ -576,6 +606,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     )
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
     aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
+    aux['accuracy'] = grad_and_loss["accuracy"] / config.gradient_accumulation_steps # lsp
   else:
     if config.optimizer_memory_host_offload:
       cast_params = jax.device_put(state.params, max_utils.with_memory_kind(state_mesh_shardings.params, "device"))
@@ -608,6 +639,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/loss": loss,
       "learning/moe_lb_loss": moe_lb_loss,
       "learning/total_weights": total_weights,
+      "learning/accuracy": aux['accuracy'], # lsp
   }
   # lsp
   params_scalar_values = compute_params_norm(new_state.params)
@@ -653,6 +685,8 @@ def eval_step(model, config, state, data, dropout_rng):
           "evaluation/total_loss": total_loss,
           "evaluation/total_weights": total_weights,
           "evaluation/moe_lb_loss": moe_lb_loss,
+          "evaluation/accuracy": aux["accuracy"], # lsp
+          "evaluation/correct": aux["correct"], # lsp
       },
   }
   if config.use_dpo:
@@ -1009,6 +1043,7 @@ def train_loop(config, state=None):
               "eval/total_weights": 0.0,
               "eval/avg_loss": 0.0,
               "eval/moe_lb_loss": 0.0,
+              "eval/accuracy": 0.0, # lsp
           }
       }
       eval_dpo_reward_accuracy = 0.0
@@ -1016,6 +1051,7 @@ def train_loop(config, state=None):
       # pylint: disable=not-callable
       eval_start_time = time.time()
       eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
+      correct, accuracy, mean_b_loss = 0, 0, 0 # lsp
       for i in range(eval_steps):
         try:
           eval_batch = next(eval_data_iterator)
@@ -1034,13 +1070,21 @@ def train_loop(config, state=None):
         cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
         cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
         cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
+        # lsp
+        _correct = float(eval_metrics['scalar']['evaluation/correct'])
+        _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
+        _mean_b_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
+        correct += _correct
+        accuracy += _accuracy
+        mean_b_loss += _mean_b_loss
+        
         eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
         # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
         eval_step_count += 1
 
-        total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"]) # lsp
+        total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
         per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
-        max_logging.log(f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s')
+        max_logging.log(f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy:.5f} total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s')
 
       eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
           cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS
@@ -1049,6 +1093,14 @@ def train_loop(config, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_moe_lb_loss"] = (
           cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / eval_step_count
       )
+      # lsp: batch mean loss, token/batch mean acc
+      cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
+      cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / cumulative_eval_metrics["scalar"]["eval/total_weights"] 
+      cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
+      
+      step = checkpoint_manager.latest_step() if config.eval_model_step == -1 else config.eval_model_step
+      save_eval_result(config, step, cumulative_eval_metrics) # lsp
+
       if config.use_dpo:
         cumulative_eval_metrics["scalar"]["eval/dpo_reward_accuracy"] = eval_dpo_reward_accuracy / eval_step_count
       write_metrics(
@@ -1056,14 +1108,14 @@ def train_loop(config, state=None):
       )
       max_logging.log(
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=},"
+          f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']:.5f}," # lsp
           f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
       )
+      
       if eval_loss <= config.target_eval_loss:
         max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
         prof.deactivate()
         break
-
-      if config.only_eval: exit(0)  # lsp
 
     if step == last_profiling_step or prof.should_deactivate_periodic_profile(step):
       prof.deactivate(blocking_object=state)

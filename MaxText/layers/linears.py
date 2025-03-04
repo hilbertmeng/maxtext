@@ -282,7 +282,6 @@ class MlpBlock(nn.Module):
               name='mgate',
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
-    print(f'wo inputs: {inputs.shape} x: {x.shape}')
     output = DenseGeneral(
         inputs.shape[-1],
         dtype=self.dtype,

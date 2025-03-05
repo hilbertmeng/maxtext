@@ -229,11 +229,13 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
 def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True):
   """Writes metrics to tensorboard"""
   with jax.spmd_mode("allow_all"):
-    if jax.process_index() == 0:
+    if jax.process_index() == 0 and step % config.upload_loss_tb_period == 0: # lsp
       for metric_name in metrics.get("scalar", []):
+        if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, 'mudd' in metric_name]): # lsp
+          continue
         writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name]), step)
-      for metric_name in metrics.get("scalars", []):
-        writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
+      # for metric_name in metrics.get("scalars", []):
+      #   writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
 
     if is_training:
       full_log = step % config.log_period == 0
@@ -1021,7 +1023,6 @@ def train_loop(config, state=None):
         if checkpoint_manager.reached_preemption(step):
           checkpoint_manager.wait_until_finished()
           sys.exit()
-
       write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
      
       if config.dump_hlo and step == start_step:

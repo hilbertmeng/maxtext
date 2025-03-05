@@ -18,7 +18,7 @@ class Common:
     remat_policy = 'full'
     normalization_layer_epsilon = 1e-6
     query_chunk_size = 512
-    tensorboard_dir = None # tensorboard dir, final path is tensorboard_dir + run_name
+    tensorboard_dir = '' # tensorboard dir, final path is tensorboard_dir + run_name
 
 class Optimizer:
     learning_rate_schedule_steps = 13500

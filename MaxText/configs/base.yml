@@ -378,7 +378,7 @@ grain_worker_count: 1
 
 # Training loop
 steps: 150_001 # If set to -1 then will inherit value from learning_rate_schedule_steps
-log_period: 100 # Flushes Tensorboard
+log_period: 25 # Flushes Tensorboard
 
 jax_distributed_initialization_timeout: 300 # This is the default timeout in https://github.com/jax-ml/jax/blob/main/jax/_src/distributed.py
 # Note there are two separate initializations - the jax coordination service (aka jax.distributed.initialize) and the backend (e.g. PjRT), the timeout above refers
@@ -627,4 +627,6 @@ max_to_keep: 4 # max save checkpoint nums nearby
 only_eval: False
 static_proj: False
 eval_model_step: -1 # evaluate certain step checkpoint, if -1, auto select latest step.
-tensorboard_dir: null
+tensorboard_dir: ''
+upload_param_act_tb_period: 25 # upload param, activation to tensorboard interval steps
+upload_loss_tb_period: 5 # # upload loss,acc,lr etc. to tensorboard interval steps

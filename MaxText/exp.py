@@ -12,9 +12,6 @@ class Common:
     enable_single_replica_ckpt_restoring = False
     max_to_keep = 4
     keep_period = 1000 # step / keep_period would not be deleted
-    enable_background_delet = True
-    load_ocdbt = True
-    save_ocdb = True
     eval_interval = 13500
     record_internal_nn_metrics = 1
     scan_layers = True

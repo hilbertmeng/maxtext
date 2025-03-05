@@ -33,14 +33,14 @@ class Optimizer:
 
 class PileDataset:
     vocab_size = 50432
-    max_target_length = 2049
+    max_target_length = 2048
     train_shuffle_buffer_size = None
     eval_shuffle_buffer_size = None
     eval_loop_num_batches = 162
     iter_file_nums = 2
     dataset_type = 'pile'
     zero_loss = False
-    eval_split='val_with_eos'
+    # eval_split='val_with_eos'
 
 class GWindow:
     sliding_window_size = None

@@ -1,4 +1,7 @@
 class Common:
+    enable_goodput_recording = False # true is slower then false, decend 15%
+    profiler = '' # '' or xplane.   nsys isn't supported
+    profiler_steps = 5
     data_shuffle_seed = 9876
     init_weights_seed = 9876
     load_parameters_path = ""
@@ -18,6 +21,7 @@ class Common:
     remat_policy = 'full'
     normalization_layer_epsilon = 1e-6
     query_chunk_size = 512
+    tensorboard_dir = None # tensorboard dir, final path is tensorboard_dir + run_name
 
 class Optimizer:
     learning_rate_schedule_steps = 13500

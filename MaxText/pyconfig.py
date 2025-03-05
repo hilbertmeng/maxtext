@@ -426,8 +426,9 @@ class _HyperParameters:
       raw_keys["run_name"] = os.environ.get("JOBSET_NAME")  # using XPK default
     run_name = raw_keys["run_name"]
     base_output_directory = raw_keys["base_output_directory"]
-    if run_name:
-      raw_keys["tensorboard_dir"] = os.path.join(base_output_directory, run_name, "tensorboard", "")
+    if run_name: 
+      raw_keys["tensorboard_dir"] = os.path.join(base_output_directory, run_name, "tensorboard", "") \
+                                    if not raw_keys["tensorboard_dir"] else os.path.join(raw_keys["tensorboard_dir"], run_name)
       raw_keys["checkpoint_dir"] = os.path.join(base_output_directory, run_name, "checkpoints", "")
       raw_keys["metrics_dir"] = os.path.join(base_output_directory, run_name, "metrics", "")
 

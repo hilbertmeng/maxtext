@@ -243,9 +243,9 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
           f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
           # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
           f"total_weights: {metrics['scalar']['learning/total_weights']}, "
-          f"loss: {metrics['scalar']['learning/loss']:.5f}, "
-          f"accuracy: {metrics['scalar']['learning/accuracy']:.5f}, "
-          f"lr: {metrics['scalar']['learning/current_learning_rate'] * 10**5:.3f}e-5"
+          f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+          f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}, "
+          f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
       )
       if full_log and jax.process_index() == 0:
         max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
@@ -1023,7 +1023,7 @@ def train_loop(config, state=None):
           sys.exit()
 
       write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
-
+     
       if config.dump_hlo and step == start_step:
         jax.block_until_ready(state)  # Ensure compilation has finished.
         max_utils.upload_dump(
@@ -1033,7 +1033,6 @@ def train_loop(config, state=None):
             delete_local_after=config.dump_hlo_delete_local_after,
             all_host_upload=config.dump_hlo_upload_all,
         )
-
     if config.eval_interval > 0 and step > start_step and (step + 1) % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
       print(f'eval_data_iterator: {eval_data_iterator} ')
@@ -1084,7 +1083,10 @@ def train_loop(config, state=None):
 
         total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
         per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
-        max_logging.log(f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy:.5f} total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s')
+        max_logging.log(
+          f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e5:.3f}, '
+          f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
+          )
 
       eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
           cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS
@@ -1098,7 +1100,7 @@ def train_loop(config, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / cumulative_eval_metrics["scalar"]["eval/total_weights"] 
       cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
       
-      step = checkpoint_manager.latest_step() if config.eval_model_step == -1 else config.eval_model_step
+      step = checkpoint_manager.latest_step() if config.eval_model_step == -1 and checkpoint_manager is not None else config.eval_model_step
       save_eval_result(config, step, cumulative_eval_metrics) # lsp
 
       if config.use_dpo:

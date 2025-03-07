@@ -135,7 +135,7 @@ def compute_accuracy(logits, targets, masks):
 
 def save_eval_result(config, step, cumulative_eval_metrics):
   # lsp: save eval result
-  eval_result_path = epath.Path(os.path.join(config.base_output_directory, confg.run_name, f'eval_results_{step}.json'))
+  eval_result_path = epath.Path(os.path.join(config.base_output_directory, config.run_name, f'eval_results_{step}.json'))
   with eval_result_path.open('w') as f:
     write_str = json.dumps(cumulative_eval_metrics)
     f.write(json.dumps(write_str, ensure_ascii=False))
@@ -1085,7 +1085,7 @@ def train_loop(config, state=None):
         total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
         per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
         max_logging.log(
-          f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e5:.3f}, '
+          f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}, '
           f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
           )
 
@@ -1102,8 +1102,6 @@ def train_loop(config, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
       
       step = checkpoint_manager.latest_step() if config.eval_model_step == -1 and checkpoint_manager is not None else config.eval_model_step
-      save_eval_result(config, step, cumulative_eval_metrics) # lsp
-
       if config.use_dpo:
         cumulative_eval_metrics["scalar"]["eval/dpo_reward_accuracy"] = eval_dpo_reward_accuracy / eval_step_count
       write_metrics(
@@ -1111,9 +1109,10 @@ def train_loop(config, state=None):
       )
       max_logging.log(
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=},"
-          f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']:.5f}," # lsp
+          f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
           f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
       )
+      save_eval_result(config, step, cumulative_eval_metrics) # lsp
       
       if eval_loss <= config.target_eval_loss:
         max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")

@@ -1,5 +1,6 @@
 class Common:
     enable_goodput_recording = False # true is slower then false, decend 15%
+    monitor_goodput = False
     monitor_step_time_deviation = False
     profiler = '' # '' or xplane.   nsys isn't supported
     profiler_steps = 5

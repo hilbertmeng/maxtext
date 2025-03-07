@@ -231,7 +231,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
   with jax.spmd_mode("allow_all"):
     if jax.process_index() == 0 and step % config.upload_loss_tb_period == 0: # lsp
       for metric_name in metrics.get("scalar", []):
-        if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, 'mudd' in metric_name]): # lsp
+        if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
           continue
         writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name]), step)
       # for metric_name in metrics.get("scalars", []):
@@ -537,19 +537,23 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   return loss, aux
 
 
-params_fir_dirs = ['norm', 'scale', 'attention', 'mlp']
-def compute_params_norm(params): # lsp
-  def param_norm(param):
-      return jnp.sqrt(jnp.sum(jnp.square(param)))
-  # 记录每个参数的norm
-  param_norms = jax.tree_util.tree_map(param_norm, params)
-  flat_param_norms = flatten_dict(param_norms)
+def compute_params_norm(params, config): # lsp
+  flat_param_norms = flatten_dict(params)
   scalar_vales = {}
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
     newk = k.replace('params', 'total_params')
-    scalar_vales[newk] = v
+    if config.scan_layers and 'layers' in k:
+      axis = list(range(v.ndim))
+      axis.pop(config.param_scan_axis)
+      normv = jnp.sqrt(jnp.sum(jnp.square(v), axis=axis))
+      for lyr in range(normv.shape[0]):
+        newkj = newk.replace('layers', f'layers_{lyr}')
+        scalar_vales[newkj] = normv[lyr]
+    else:
+      scalar_vales[newk] = jnp.sqrt(jnp.sum(jnp.square(v)))
   return scalar_vales
+
 
 def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   """
@@ -644,7 +648,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/accuracy": aux['accuracy'], # lsp
   }
   # lsp
-  params_scalar_values = compute_params_norm(new_state.params)
+  params_scalar_values = compute_params_norm(new_state.params, config=config)
   scalar_metrics.update(params_scalar_values)
 
   if not config.optimizer_memory_host_offload:

@@ -469,18 +469,18 @@ class Decoder(nn.Module):
           dense_layer = RemattedBlockLayers[0]
           moe_layer = RemattedBlockLayers[1]
           num_moe_layers = cfg.num_decoder_layers - cfg.first_num_dense_layers
-
           layers = [dense_layer, moe_layer]
           layer_prefix = ["dense_layers", "moe_layers"]
           num_layers = [cfg.first_num_dense_layers, num_moe_layers]
           for index in range(len(layers)):
-            y = layers[index](config=cfg, mesh=mesh, name=f"{layer_prefix[index]}_{index}", quant=self.quant)(
-                y,
-                decoder_segment_ids,
-                decoder_positions,
-                deterministic,
-                model_mode,
-            )
+              for index_j in range(num_layers[index]):
+                        y = layers[index](config=cfg, mesh=mesh, name=f"{layer_prefix[index]}_{index_j}", quant=self.quant)(
+                            y,
+                            decoder_segment_ids,
+                            decoder_positions,
+                            deterministic,
+                            model_mode,
+                        )
         else:
           n = cfg.num_decoder_layers // cfg.num_layers_per_block
           sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]

@@ -99,6 +99,9 @@ class Llama2XL(Llama2Medium):
     learning_rate = 2e-4
     learning_rate_schedule_steps = 50000
 
+class MuddLlama2XL(Mudd, Llama2XL):
+    pass
+
 class MuddLlama2Medium(Mudd, Llama2Medium):
     model_name = 'MuddLlama2Medium'
 

@@ -153,15 +153,6 @@ class CommonMoe:
     num_experts_per_tok = 2
     shared_experts = 0
 
-class DSMedium(MLA, DSMoe, Llama2Medium):
-    base_emb_dim = 1024
-    base_num_query_heads = 16
-    base_num_kv_heads = 16
-    base_num_decoder_layers = 24
-    first_num_dense_layers = 20
-    base_mlp_dim = 2816
-    decoder_block = "deepseek"
-
 class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     moe_type = 'open'
 
@@ -172,3 +163,4 @@ class Llama2MediumDSMoe(DSMoe, Llama2Medium):
     moe_type = 'deepseek'
     decoder_block = "deepseek"
     first_num_dense_layers = 1
+    attention_type = 'global'

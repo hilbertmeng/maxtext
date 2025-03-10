@@ -63,32 +63,52 @@ def self_attention_with_norm(inputs, cfg, mesh, quant, decoder_segment_ids, deco
   )
   lnx = lnx_rms(inputs)
   lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
-
-  attention_layer = attentions.MLA(
-      config=cfg,
-      num_query_heads=cfg.num_query_heads,
-      num_kv_heads=cfg.num_kv_heads,
-      head_dim=cfg.head_dim,
-      max_target_length=cfg.max_target_length,
-      max_prefill_predict_length=cfg.max_prefill_predict_length,
-      attention_kernel=cfg.attention,
-      mesh=mesh,
-      dtype=cfg.dtype,
-      weight_dtype=cfg.weight_dtype,
-      dropout_rate=cfg.dropout_rate,
-      name="self_attention",
-      quant=quant,
-      kv_quant=quantizations.configure_kv_quant(cfg),
-      q_lora_rank=cfg.q_lora_rank,
-      kv_lora_rank=cfg.kv_lora_rank,
-      qk_nope_head_dim=cfg.qk_nope_head_dim,
-      qk_rope_head_dim=cfg.qk_rope_head_dim,
-      v_head_dim=cfg.v_head_dim,
-      max_seq_len=cfg.max_target_length,
-      original_seq_len=cfg.original_seq_len,
-      mscale=cfg.mscale,
-      rope_factor=cfg.rope_factor,
-  )
+  kwargs = {
+        "config": cfg,
+        "num_query_heads": cfg.num_query_heads,
+        "num_kv_heads": cfg.num_kv_heads,
+        "head_dim": cfg.head_dim,
+        "max_target_length": cfg.max_target_length,
+        "max_prefill_predict_length": cfg.max_prefill_predict_length,
+        "attention_kernel": cfg.attention,
+        "mesh": mesh,
+        "dtype": cfg.dtype,
+        "weight_dtype": cfg.weight_dtype,
+        "dropout_rate": cfg.dropout_rate,
+        "name": "self_attention",
+        "quant": quant,
+        "kv_quant": quantizations.configure_kv_quant(cfg),
+        }
+  if cfg.attend_dtype == 'mla':
+    attention_block = attentions.MLA
+    extra_kwargs = {
+        "q_lora_rank": cfg.q_lora_rank,
+        "kv_lora_rank": cfg.kv_lora_rank,
+        "qk_nope_head_dim": cfg.qk_nope_head_dim,
+        "qk_rope_head_dim": cfg.qk_rope_head_dim,
+        "v_head_dim": cfg.v_head_dim,
+        "max_seq_len": cfg.max_target_length,
+        "original_seq_len": cfg.original_seq_len,
+        "mscale": cfg.mscale,
+        "rope_factor": cfg.rope_factor
+        }
+  else:
+    attention_block = attentions.Attention
+    extra_kwargs = {
+        "float32_qk_product": cfg.float32_qk_product,
+        "float32_logits": cfg.float32_logits,
+        "prefill_cache_axis_order": tuple([int(i) for i in cfg.prefill_cache_axis_order.split(",")]),
+        "ar_cache_axis_order": tuple([int(i) for i in cfg.ar_cache_axis_order.split(",")]),
+        "compute_axis_order": tuple([int(i) for i in cfg.compute_axis_order.split(",")]),
+        "reshape_q": cfg.reshape_q,
+        "use_ragged_attention": cfg.use_ragged_attention,
+        "ragged_block_size": cfg.ragged_block_size,
+        # "kernel_init": initializers.nd_dense_init_normal(0.006),
+        'kernel_init': initializers.nd_dense_init(1.0, "fan_in", "normal"),
+        "sliding_window_size": cfg.sliding_window_size,
+        }
+  kwargs.update(extra_kwargs)
+  attention_layer = attention_block(**kwargs)
 
   attention_lnx = attention_layer(
       lnx,
@@ -166,6 +186,8 @@ class DeepSeekDenseLayer(nn.Module):
         name="mlp",
         config=cfg,
         quant=self.quant,
+        # kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
     )(hidden_states, deterministic=deterministic)
     mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
@@ -208,7 +230,8 @@ class DeepSeekMoELayer(nn.Module):
     mlp_lnx, _ = linears.DeepSeekMoeBlock(  # lsp
         config=cfg,
         mesh=self.mesh,
-        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),
+        # kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
         kernel_axes=("embed", None),
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,

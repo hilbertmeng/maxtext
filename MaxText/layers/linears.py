@@ -822,7 +822,7 @@ class DeepSeekMoeBlock(nn.Module):
         num_experts=cfg.num_experts,
         num_experts_per_tok=cfg.num_experts_per_tok,
         mesh=self.mesh,
-        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),
+        kernel_init=self.kernel_init,  # lsp
         kernel_axes=("embed", None),
         intermediate_dim=cfg.moe_mlp_dim,
         dtype=cfg.dtype,
@@ -839,6 +839,7 @@ class DeepSeekMoeBlock(nn.Module):
         name=f"shared_experts",
         config=cfg,
         quant=self.quant,
+        kernel_init=self.kernel_init,  # lsp
     )(inputs)
 
     return routed_experts + shared_experts, None  # lsp

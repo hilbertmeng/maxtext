@@ -103,8 +103,8 @@ def self_attention_with_norm(inputs, cfg, mesh, quant, decoder_segment_ids, deco
         "reshape_q": cfg.reshape_q,
         "use_ragged_attention": cfg.use_ragged_attention,
         "ragged_block_size": cfg.ragged_block_size,
-        # "kernel_init": initializers.nd_dense_init_normal(0.006),
-        'kernel_init': initializers.nd_dense_init(1.0, "fan_in", "normal"),
+        "kernel_init": initializers.nd_dense_init_normal(0.006),
+        # 'kernel_init': initializers.nd_dense_init(1.0, "fan_in", "normal"),
         "sliding_window_size": cfg.sliding_window_size,
         }
   kwargs.update(extra_kwargs)
@@ -186,8 +186,8 @@ class DeepSeekDenseLayer(nn.Module):
         name="mlp",
         config=cfg,
         quant=self.quant,
-        # kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
+        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        # kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
     )(hidden_states, deterministic=deterministic)
     mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
@@ -230,8 +230,8 @@ class DeepSeekMoELayer(nn.Module):
     mlp_lnx, _ = linears.DeepSeekMoeBlock(  # lsp
         config=cfg,
         mesh=self.mesh,
-        # kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
+        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        # kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
         kernel_axes=("embed", None),
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,

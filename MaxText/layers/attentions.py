@@ -239,9 +239,10 @@ class AttentionOp(nn.Module):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
     elif self.attention_kernel == "dot_product_chunk": # lsp: dc, llama, mudd etc. expecially when head_dim < 128, can't use flash to accelerate
       return accelerator.QChunk(config=self.config, 
-                                sliding_window_size=self.sliding_window_size)(
-                                                    query, key, value, decoder_segment_ids, model_mode
-                                                    )
+                                sliding_window_size=self.sliding_window_size,
+                                kv_quant=self.kv_quant)(
+                                query, key, value, decoder_segment_ids, model_mode
+                                )
 
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
       if isinstance(key, KVTensor):
@@ -495,6 +496,7 @@ class AttentionOp(nn.Module):
 
     q_seq_len = query.shape[1]
     attn_weights = self.qk_product(query, key, q_seq_len, model_mode)
+    print(f'attn_weights: {attn_weights.shape}')
 
     if self.attn_logits_soft_cap:
       attn_weights = jnp.tanh(attn_weights / self.attn_logits_soft_cap)
@@ -1496,7 +1498,7 @@ class MLA(Attention):
     )
 
     # Set softmax scaling.
-    self.softmax_scale = self.qk_head_dim**-0.5
+    self.softmax_scale = self.qk_head_dim**0.5 # lsp, -0.5 -> 0.5
     if self.max_seq_len > self.original_seq_len:
       mscale = 0.1 * self.mscale * jnp.log(self.rope_factor) + 1.0
       self.softmax_scale = self.softmax_scale * mscale * mscale

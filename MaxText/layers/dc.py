@@ -24,7 +24,7 @@ RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 DEFAULT_MASK_VALUE = -0.7 * float(jnp.finfo(jnp.dtype("float32")).max)
 NormalInitializer = initializers.nd_dense_init_normal
-
+KV_Quant = quantizations.KVQuant
 
 def unbind(ary, n, axis=0):
   return [jnp.squeeze(a, axis=axis) for a in jnp.split(ary, n, axis=axis)]
@@ -294,6 +294,7 @@ class AttentionOp(nn.Module):
   config: Any
   quant: Optional[Quant] = None
   sliding_window_size: int|None = None
+  kv_quant: Optional[KV_Quant] = None
 
   def setup(self):
     cfg = self.config
@@ -397,7 +398,7 @@ class AttentionOp(nn.Module):
     else:
         pre_proj_dw_args, post_proj_dw_args = (None, ) * 6, (None, ) * 6
 
-    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size)(query, key, value, decoder_segment_ids, model_mode, 
+    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, self.kv_quant)(query, key, value, decoder_segment_ids, model_mode, 
                             pre_proj_dw_args, post_proj_dw_args, 
                             pre_proj_layer=self.pre_proj,
                             post_proj_layer=self.post_proj,

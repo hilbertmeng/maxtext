@@ -429,7 +429,8 @@ class MoeBlock(nn.Module):
     return output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
 
   def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
-    tile_size = (512, 1024, 1024)  # (m, k, n)
+    # tile_size = (512, 1024, 1024)  # (m, k, n)
+    tile_size = (512, 512, 512)  # (m, k, n)
 
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape

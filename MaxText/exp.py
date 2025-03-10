@@ -91,9 +91,21 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
 
+class Llama2XL(Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5504
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+
 class MuddLlama2Medium(Mudd, Llama2Medium):
     model_name = 'MuddLlama2Medium'
 
+class MuddLlama2MediumG4(Mudd, Llama2Medium):
+    base_mlp_dim = 2816 + 512
+    base_num_kv_heads = 4
+    
 class DCLlama2Medium(DC, LGWindow, Llama2Medium):
     qk_norm = True
     model_name = 'DCLlama2Medium'

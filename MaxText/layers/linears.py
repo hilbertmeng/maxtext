@@ -764,7 +764,7 @@ class MoeBlock(nn.Module):
     return w0_kernel, w1_kernel, wo_kernel
 
   @nn.compact
-  def __call__(self, inputs, padding=None): # lsp
+  def __call__(self, inputs, paddings=None): # lsp
     cfg = self.config
     inputs = inputs.astype(cfg.dtype)
     gate_logits = DenseGeneral(
@@ -815,7 +815,7 @@ class DeepSeekMoeBlock(nn.Module):
   quant: Optional[Quant] = None
 
   @nn.compact
-  def __call__(self, inputs):
+  def __call__(self, inputs, paddings=None): # lsp
     cfg = self.config
     routed_experts, _ = MoeBlock(
         config=cfg,
@@ -841,7 +841,7 @@ class DeepSeekMoeBlock(nn.Module):
         quant=self.quant,
     )(inputs)
 
-    return routed_experts + shared_experts
+    return routed_experts + shared_experts, None  # lsp
 
 
 # ==================================================Add Mgate、OpenMoe code==========================================================

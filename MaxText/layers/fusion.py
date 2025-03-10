@@ -185,23 +185,30 @@ class SubDecoderLayer(nn.Module):
     moe_lnx = None
     load_balance_loss = None
     if cfg.num_experts > 1:
-      if cfg.moe_type == 'openmoe':
+      kwargs = {
+        'config': cfg,
+        'mesh': mesh,
+        'kernel_init': initializers.nd_dense_init_normal(0.006),
+        'kernel_axes': ("embed", None),
+        'dtype': cfg.dtype,
+        'weight_dtype': cfg.weight_dtype,
+        'quant': self.quant,
+        'name': 'moe'
+      }
+      extra_kwargs = {
+        'num_experts': cfg.num_experts,
+        'num_experts_per_tok': cfg.num_experts_per_tok,
+        'intermediate_dim': cfg.mlp_dim,
+        }
+      if cfg.moe_type == 'open':
         moe_layer = linears.OpenMoeBlock
+        kwargs.update(extra_kwargs)
+      elif cfg.moe_type == 'deepseek':
+        moe_layer = linears.DeepSeekMoeBlock
       else:
+        kwargs.update(extra_kwargs)
         moe_layer = linears.MoeBlock
-      moe_lnx, load_balance_loss = moe_layer(
-        config=cfg,
-        num_experts=cfg.num_experts,
-        num_experts_per_tok=cfg.num_experts_per_tok,
-        mesh=mesh,
-        kernel_init=initializers.nd_dense_init_normal(0.006),
-        kernel_axes=("embed", None),
-        intermediate_dim=cfg.mlp_dim,
-        weight_dtype=cfg.weight_dtype,
-        dtype=cfg.dtype,
-        quant=self.quant,
-        name='moe'
-        )(hidden_states, paddings=decoder_segment_ids)
+      moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids)
       max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
         
       if load_balance_loss is not None:

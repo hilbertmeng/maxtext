@@ -129,4 +129,46 @@ class Llama33B(Llama2Medium):
     head_dim = 128
     model_name = 'Llama33B'
 
+class MLA:
+    attention_type = "mla"
+    q_lora_rank = 192
+    kv_lora_rank = 64
+    qk_nope_head_dim = 80
+    qk_rope_head_dim = 48
+    v_head_dim = 128
+    rope_type = "yarn"
+    mscale = 1.0
 
+class DSMoe:
+    base_moe_mlp_dim = 256
+    num_experts = 88
+    num_experts_per_tok = 10
+    shared_experts = 1
+    routed_scaling_factor = 2.5
+    routed_score_func = 'sigmoid'
+    routed_bias = True
+
+class CommonMoe:
+    num_experts = 8
+    num_experts_per_tok = 2
+    shared_experts = 0
+
+class DSMedium(MLA, DSMoe, Llama2Medium):
+    base_emb_dim = 1024
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_num_decoder_layers = 24
+    first_num_dense_layers = 20
+    base_mlp_dim = 2816
+    decoder_block = "deepseek"
+
+class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
+    moe_type = 'open'
+
+class Llama2MediumMistralMoe(CommonMoe, Llama2Medium):
+    moe_type = 'mistral'
+
+class Llama2MediumDSMoe(DSMoe, Llama2Medium):
+    moe_type = 'deepseek'
+    decoder_block = "deepseek"
+    first_num_dense_layers = 1

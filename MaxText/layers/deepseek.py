@@ -119,7 +119,7 @@ def self_attention_with_norm(inputs, cfg, mesh, quant, decoder_segment_ids, deco
 
 
 def post_process(cfg, layer_output, sow):
-  if cfg.record_internal_nn_metrics:
+  if 0 and cfg.record_internal_nn_metrics:
     sow("intermediates", "activation_mean", jnp.mean(layer_output))
     sow("intermediates", "activation_stdev", jnp.std(layer_output))
     sow(
@@ -200,12 +200,12 @@ class DeepSeekMoELayer(nn.Module):
     cfg = self.config
     inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
     inputs = checkpoint_name(inputs, "decoder_layer_input")
-
+    
     hidden_states, intermediate_inputs = self_attention_with_norm(
         inputs, self.config, self.mesh, self.quant, decoder_segment_ids, decoder_positions, deterministic, model_mode
     )
 
-    mlp_lnx = linears.DeepSeekMoeBlock(
+    mlp_lnx, _ = linears.DeepSeekMoeBlock(  # lsp
         config=cfg,
         mesh=self.mesh,
         kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),

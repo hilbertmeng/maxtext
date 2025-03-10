@@ -1454,7 +1454,8 @@ class MLA(Attention):
           features=(self.num_query_heads, self.qk_head_dim),
           axis=-1,
           kernel_init=self.kernel_init,
-          kernel_axes=("q_lora", "q_heads", "kv"),
+          # kernel_axes=("q_lora", "q_heads", "kv"),
+          kernel_axes=("q_lora", "q_heads", "embed"), # lsp
           dtype=self.dtype,
           weight_dtype=self.weight_dtype,
           name="wq_b",
@@ -1485,7 +1486,8 @@ class MLA(Attention):
         features=(self.num_query_heads, (self.qk_nope_head_dim + self.v_head_dim)),
         axis=-1,
         kernel_init=self.kernel_init,
-        kernel_axes=("kv_lora", "kv_heads", "kv_head_dim"),
+        # kernel_axes=("kv_lora", "kv_heads", "kv_head_dim"),
+        kernel_axes=("kv_lora", "kv_heads", "embed"), # lsp
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         name="wkv_b",

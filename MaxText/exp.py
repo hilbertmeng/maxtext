@@ -98,6 +98,7 @@ class Llama2XL(Llama2Medium):
     base_mlp_dim = 5504
     learning_rate = 2e-4
     learning_rate_schedule_steps = 50000
+    eval_interval = 5000
 
 class MuddLlama2XL(Mudd, Llama2XL):
     pass
@@ -159,9 +160,9 @@ class DSMoe:
     num_experts = 88
     num_experts_per_tok = 10
     shared_experts = 1
-    routed_scaling_factor = 2.5
+    routed_scaling_factor = 1.0 # 16b模型为1.0
     routed_score_func = 'sigmoid'
-    routed_bias = True
+    routed_bias = False # 16b的为False
 
 class CommonMoe:
     num_experts = 8

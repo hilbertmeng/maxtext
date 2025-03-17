@@ -386,6 +386,7 @@ class MoeBlock(nn.Module):
     https://github.com/deepseek-ai/DeepSeek-V3/blob/2f7b80eecebf3d1c84da5a0d465f6639ea175012/inference/model.py#L592-L594
     """
     if self.config.routed_score_func == "sigmoid":
+      weights = nn.sigmoid(weights) # lsp
       weights /= weights.sum(-1, keepdims=True)
     weights *= self.config.routed_scaling_factor
     return weights
@@ -747,6 +748,9 @@ class MoeBlock(nn.Module):
             weights,
         ).astype(self.dtype)
       return output, None
+
+  def loop_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
+    pass
 
   def retrieve_quantized_weight(
       self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel

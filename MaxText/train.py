@@ -639,16 +639,15 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
             jax.tree_util.tree_map(lambda x: x.with_memory_kind(kind="device"), state_mesh_shardings.opt_state),
         )
     )
-  new_state = state.apply_gradients(grads=grads)
 
+  new_state = state.apply_gradients(grads=grads)
   scalar_metrics = {
       "learning/loss": loss,
       "learning/moe_lb_loss": moe_lb_loss,
       "learning/total_weights": total_weights,
       "learning/accuracy": aux['accuracy'], # lsp
   }
-  # lsp
-  params_scalar_values = compute_params_norm(new_state.params, config=config)
+  params_scalar_values = compute_params_norm(new_state.params, config=config) 
   scalar_metrics.update(params_scalar_values)
 
   if not config.optimizer_memory_host_offload:
@@ -993,6 +992,11 @@ def train_loop(config, state=None):
     if config.report_performance_metric_for_gcp_monitoring:
       performance_metric_queue = queue.Queue()
       gcp_workload_monitor.start_performance_reporting_thread(performance_metric_queue)
+      
+   # 记录参数开始的状态
+  params_scalar_values = compute_params_norm(state.params, config=config)
+  for k, v in params_scalar_values.items():
+    writer.add_scalar(k, np.array(v), start_step)
 
   for step in np.arange(start_step, config.steps):
     if not config.only_eval: # lsp

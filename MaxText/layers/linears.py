@@ -1200,7 +1200,7 @@ class OpenMoeBlock(nn.Module):
             # router_probs = [0] * 7 + [1.0, 0.]，每个专家极端不均匀选择token，熵最大，为0.0。
           record_gate(self, 'router_probs', router_probs, axis=(0, 1)) 
           # top2, expert2token: E=8, max: 3, min:0.5
-          top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, 1)])
+          top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, self.num_experts // 8)])
           self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
         
         # 有padding的时候放开, 一般预训练没有pad

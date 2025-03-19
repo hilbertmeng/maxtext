@@ -323,15 +323,6 @@ def save_checkpoint(
         ),
     )
 
-# intermediate_outputs struct follow:
-# intermediates.decoder.layers.sub_0.moe.router_logits/expert_to_token_score
-# intermediates.decoder.layers.sub_0.moe.router_logits/l2norm
-# intermediates.decoder.layers.sub_0.moe.router_logits/token_to_expert_score
-# intermediates.decoder.layers.sub_0.moe.router_probs/expert_to_token_score
-# intermediates.decoder.layers.sub_0.moe.router_probs/token_to_expert_score
-# intermediates.decoder.layers.sub_0.moe.top/selected_expert_token_nums
-# intermediates.decoder.layers.sub_0.moe_lb_loss
-# intermediates.decoder.layers.sub_0.moe_mlp_l2norm/l2norm
 # # -----------------------------------------------------------------------------
 # Top-level Functions
 # -----------------------------------------------------------------------------
@@ -349,11 +340,11 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
           f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0][layer_num],
           f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0][layer_num],
           f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0][layer_num],
-          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0][layer_num],
+          f"moe/router_probs/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/token_to_expert_score"][0][layer_num],
         }
         output_metrics["scalar"].update(temp_dict)
         step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
-        temp_dict = {f"moe/selected_expert_{i}_token_nums/layer_{layer_num:03d}": 
+        temp_dict = {f"moe/layer_{layer_num:03d}/selected_expert_{i}_token_nums": 
                 metrics_dict['moe'][f"top/selected_expert_token_nums"][0][layer_num][i] 
                 for i in range(0, config.num_experts, step_len)}
         output_metrics["scalar"].update(temp_dict)
@@ -385,7 +376,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         }
         output_metrics["scalar"].update(temp_dict)
         step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
-        temp_dict = {f"moe/selected_expert_{i}_token_nums/layer_{layer_num:03d}": 
+        temp_dict = {f"moe/layer_{layer_num:03d}/selected_expert_{i}_token_nums": 
                 metrics_dict['moe'][f"top/selected_expert_token_nums"][0][i] 
                 for i in range(0, config.num_experts, step_len)}
         output_metrics["scalar"].update(temp_dict)

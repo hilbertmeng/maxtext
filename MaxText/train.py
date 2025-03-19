@@ -246,6 +246,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
           # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
           f"total_weights: {metrics['scalar']['learning/total_weights']}, "
           f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+          f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}, "
           f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}, "
           f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
       )
@@ -322,8 +323,16 @@ def save_checkpoint(
         ),
     )
 
-
-# -----------------------------------------------------------------------------
+# intermediate_outputs struct follow:
+# intermediates.decoder.layers.sub_0.moe.router_logits/expert_to_token_score
+# intermediates.decoder.layers.sub_0.moe.router_logits/l2norm
+# intermediates.decoder.layers.sub_0.moe.router_logits/token_to_expert_score
+# intermediates.decoder.layers.sub_0.moe.router_probs/expert_to_token_score
+# intermediates.decoder.layers.sub_0.moe.router_probs/token_to_expert_score
+# intermediates.decoder.layers.sub_0.moe.top/selected_expert_token_nums
+# intermediates.decoder.layers.sub_0.moe_lb_loss
+# intermediates.decoder.layers.sub_0.moe_mlp_l2norm/l2norm
+# # -----------------------------------------------------------------------------
 # Top-level Functions
 # -----------------------------------------------------------------------------
 # lsp
@@ -331,13 +340,27 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
 
   if config.scan_layers:
-    if 'intermediates' in intermediate_outputs:
-      metrics_dict = intermediate_outputs["intermediates"]["decoder"]['layers'] # lsp
-    else:
-      metrics_dict = {}
-    # for sub in range(config.num_layers_per_block):
-    #   for layer_num in range(config.num_decoder_layers // config.num_layers_per_block):
-    #     pass
+    metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
+    for layer_num in range(0, config.base_num_decoder_layers, 8): # 每8层记录一下
+      if config.num_experts >= 1:
+        temp_dict = {
+          f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0][layer_num],
+          f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0][layer_num],
+          f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0][layer_num],
+          f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0][layer_num],
+          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0][layer_num],
+          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0][layer_num],
+        }
+        output_metrics["scalar"].update(temp_dict)
+        step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
+        temp_dict = {f"moe/selected_expert_{i}_token_nums/layer_{layer_num:03d}": 
+                metrics_dict['moe'][f"top/selected_expert_token_nums"][0][layer_num][i] 
+                for i in range(0, config.num_experts, step_len)}
+        output_metrics["scalar"].update(temp_dict)
+
+      if config.shared_experts > 0:
+        output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
+
   else:
     for layer_num in range(config.num_decoder_layers):
       if config.dense_conn:
@@ -348,6 +371,27 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/std/layer_{layer_num}"]
         output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/norm/layer_{layer_num}"]
         output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
+
+      metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
+
+      if config.num_experts >= 1:
+        temp_dict = {
+          f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0],
+          f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0],
+          f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0],
+          f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0],
+          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0],
+          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0],
+        }
+        output_metrics["scalar"].update(temp_dict)
+        step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
+        temp_dict = {f"moe/selected_expert_{i}_token_nums/layer_{layer_num:03d}": 
+                metrics_dict['moe'][f"top/selected_expert_token_nums"][0][i] 
+                for i in range(0, config.num_experts, step_len)}
+        output_metrics["scalar"].update(temp_dict)
+
+      if config.shared_experts > 0:
+        output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0]
 
 
 def _split_dpo_state(state):
@@ -522,7 +566,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   # get moe load balance loss
   moe_lb_loss = 0.0
   if config.num_experts > 1:
-    nested_key = ("intermediates", "decoder", "layers", "moe_lb_loss")
+    nested_key = ("intermediates", "decoder", "layers", "sub_0", "moe_lb_loss") # lsp
     total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
     moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
     loss += moe_lb_loss

@@ -1073,27 +1073,6 @@ class OpenMoeBlock(nn.Module):
         combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
         return combined_outputs, aux_loss
 
-    # @nn.nowrap
-    # def add_aux_loss(self, name: str, value: Array, weight=None):
-    #     # Accumulate by summing aux_loss.
-    #     if weight is None:
-    #         weight = jnp.ones_like(value)
-
-    #     def reduce_fn(x, y):
-    #         assert isinstance(x, AuxLossStruct)
-    #         assert isinstance(y, AuxLossStruct)
-    #         return AuxLossStruct(value=x.value + y.value, weight=x.weight + y.weight)
-
-    #     self.sow(
-    #         'intermediates',  # 会在最后的结果中返回
-    #         name,
-    #         AuxLossStruct(value, weight),
-    #         init_fn=lambda: AuxLossStruct(
-    #             0.0, 0.0
-    #         ), 
-    #         reduce_fn=reduce_fn,
-    #     )
-
     def _call_experts(self, expert_inputs, expert_index, compute_n_expert, deterministic=False):
         """
         expert_inputs: gecm
@@ -1210,16 +1189,16 @@ class OpenMoeBlock(nn.Module):
 
         if self.config.record_internal_nn_metrics:
           # lsp note: slowly
-          # l2norm = jnp.linalg.norm(router_logits.reshape(-1, router_logits.shape[-1]), ord=2, axis=(0, 1))
+            # l2norm = jnp.linalg.norm(router_logits.reshape(-1, router_logits.shape[-1]), ord=2, axis=(0, 1))
           l2norm = jnp.sqrt(jnp.sum(jnp.square(router_logits)))
           self.sow('intermediates', 'router_logits/l2norm', l2norm)
           record_gate(self, 'router_logits', router_logits, axis=(0, 1))
-          # 解释：
-          # expert2token： router_probs = [[0.] * 6 + [0.5, 0.5]], 极端均匀选择2个专家，熵最大，为1.0，
-          # router_probs = [[0.] * 6 + [1.0, 0.0]]，极端不均匀选择2个专家，熵最大，为0.0。
-          # token2expert： router_probs = [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125], 每个专家极端均匀选择token，熵最大，为3.0，
-          # router_probs = [0] * 7 + [1.0, 0.]，每个专家极端不均匀选择token，熵最大，为0.0。
-          record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1)) 
+            # 解释：
+            # expert2token： router_probs = [[0.] * 6 + [0.5, 0.5]], 极端均匀选择2个专家，熵最大，为1.0，
+            # router_probs = [[0.] * 6 + [1.0, 0.0]]，极端不均匀选择2个专家，熵最大，为0.0。
+            # token2expert： router_probs = [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125], 每个专家极端均匀选择token，熵最大，为3.0，
+            # router_probs = [0] * 7 + [1.0, 0.]，每个专家极端不均匀选择token，熵最大，为0.0。
+          record_gate(self, 'router_probs', router_probs, axis=(0, 1)) 
           # top2, expert2token: E=8, max: 3, min:0.5
           top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, 1)])
           self.sow('intermediates', f'top/selected_expert_token_nums', top_values)

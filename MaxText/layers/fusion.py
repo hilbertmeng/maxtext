@@ -181,6 +181,10 @@ class SubDecoderLayer(nn.Module):
       )(hidden_states, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
+      if cfg.record_internal_nn_metrics:
+            mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))
+            self.sow('intermediates', 'mlp_lnx/l2norm', mlp_l2norm)
+
     # lsp: moe
     moe_lnx = None
     load_balance_loss = None
@@ -210,6 +214,10 @@ class SubDecoderLayer(nn.Module):
         moe_layer = linears.MoeBlock
       moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids)
       max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
+
+      if cfg.record_internal_nn_metrics: # lsp
+            moe_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(moe_lnx)))
+            self.sow('intermediates', 'moe_lnx/l2norm', moe_mlp_l2norm)
         
       if load_balance_loss is not None:
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)

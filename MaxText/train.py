@@ -338,10 +338,10 @@ def save_checkpoint(
 # lsp
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
-
+  l_step_len = confg.base_num_decoder_layers // 8
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
-    for layer_num in range(0, config.base_num_decoder_layers, 8): # 每8层记录一下
+    for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下
       if config.num_experts >= 1:
         temp_dict = {
           f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0][layer_num],
@@ -362,7 +362,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
   else:
-    for layer_num in range(config.num_decoder_layers):
+    for layer_num in range(config.num_decoder_layers, l_step_len):
       if config.dense_conn:
         layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
         output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]

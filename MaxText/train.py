@@ -338,7 +338,7 @@ def save_checkpoint(
 # lsp
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
-  l_step_len = confg.base_num_decoder_layers // 8
+  l_step_len = config.base_num_decoder_layers // 8
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
     for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下

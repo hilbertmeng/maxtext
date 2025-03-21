@@ -209,6 +209,8 @@ class SubDecoderLayer(nn.Module):
         kwargs.update(extra_kwargs)
       elif cfg.moe_type == 'deepseek':
         moe_layer = linears.DeepSeekMoeBlock
+      elif cfg.moe_type == 'ol': # todo: have bug
+        moe_layer = linears.JaxQwenSparseMoeBlock
       else:
         kwargs.update(extra_kwargs)
         moe_layer = linears.MoeBlock

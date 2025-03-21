@@ -1306,3 +1306,130 @@ class OpenMoeBlock(nn.Module):
         # Return to batched shape.
         combined_outputs = combined_outputs.reshape(*inputs.shape)
         return combined_outputs, aux_loss
+
+
+class JaxQwenBlockSparseTop2MLP(nn.Module):
+  config: Config
+  kernel_init: NdInitializer
+  
+  def setup(self):
+      config = self.config
+      self.weight_dtype = config.weight_dtype
+      self.dtype = config.dtype
+  
+      kernel_in_axis = np.arange(1)
+      kernel_out_axis = np.arange(1, 2)
+      
+      kernel_axes=("embed", "mlp"),
+      gate_proj_kernel = self.param(
+                    'gate_proj',
+                    nn.with_logical_partitioning(self.kernel_init, kernel_axes),
+                    (config.emb_dim, config.mlp_dim),
+                    self.weight_dtype,
+                    kernel_in_axis,
+                    kernel_out_axis,
+                    )
+      self.gate_proj = jnp.asarray(gate_proj_kernel, self.dtype)
+
+      kernel_axes=("embed", "mlp"),
+      up_proj_kernel = self.param(
+                    'up_proj',
+                    nn.with_logical_partitioning(self.kernel_init, kernel_axes),
+                    (config.emb_dim, config.mlp_dim),
+                    self.weight_dtype,
+                    kernel_in_axis,
+                    kernel_out_axis,
+                    )
+      self.up_proj = jnp.asarray(up_proj_kernel, self.dtype)
+
+      kernel_axes=("mlp", "embed"),
+      down_proj_kernel = self.param(
+                    'down_proj',
+                    nn.with_logical_partitioning(self.kernel_init, kernel_axes),
+                    (config.mlp_dim, config.emb_dim),
+                    self.weight_dtype,
+                    kernel_in_axis,
+                    kernel_out_axis,
+                    )
+      self.down_proj = jnp.asarray(down_proj_kernel, self.dtype)
+
+  def __call__(self, hidden_states):
+      w0_state = jnp.einsum('td,df->tf', hidden_states, self.gate_proj)
+      w1_states = jnp.einsum('td,df->tf', hidden_states, self.up_proj)
+      current_hidden_states = nn.silu(w0_state) * w1_states
+      current_hidden_states = jnp.einsum('tf,fd->td', current_hidden_states, self.down_proj)
+      return current_hidden_states
+
+
+class JaxQwenSparseMoeBlock(nn.Module):
+    config: Config
+    mesh: Mesh
+    kernel_init: NdInitializer
+    kernel_axes: Tuple[str, ...]
+    weight_dtype: DType = jnp.float32
+    dtype: DType = jnp.bfloat16
+    quant: Optional[Quant] = None
+
+    def setup(self):
+        config = self.config
+        self.hidden_dim = config.emb_dim
+        self.num_experts = config.num_experts
+        self.top_k = config.num_experts_per_tok
+        kernel_in_axis = np.arange(1)
+        kernel_out_axis = np.arange(1, 2)
+
+        kernel_axes=("embed", "mlp"),
+        gate_proj_kernel = self.param(
+                      'gate',
+                      nn.with_logical_partitioning(self.kernel_init, kernel_axes),
+                      (self.hidden_dim, self.num_experts),
+                      self.weight_dtype,
+                      kernel_in_axis,
+                      kernel_out_axis,
+                      )
+        self.gate = jnp.asarray(gate_proj_kernel, self.dtype)
+        self.experts = [JaxQwenBlockSparseTop2MLP(config, self.kernel_init) for _ in range(self.num_experts)]
+
+        self.router_z_loss_coef = self.config.router_z_loss_coef
+        self.aux_loss_coef = self.config.load_balance_loss_weight
+
+    def __call__(self, hidden_states, paddings, deterministic=False):
+        batch_size, sequence_length, hidden_dim = hidden_states.shape
+        hidden_states = hidden_states.reshape(-1, hidden_dim)
+        # router_logits: (batch * sequence_length, n_experts)
+        router_logits = jnp.einsum('td,de->te', hidden_states, self.gate)
+        routing_weights = nn.softmax(router_logits, axis=1)
+
+        aux_loss, router_z_loss = 0.0, 0.0
+        # if self.aux_loss_coef is not None:
+        #     aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
+        #     aux_loss *= self.aux_loss_coef
+        # if self.router_z_loss_coef is not None:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上  防止过大的logits
+        #     # <=> torch.logsumexp(logits, dim = -1)
+        #     router_z_loss = jnp.log(jnp.sum(jnp.exp(router_logits), axis=-1))
+        #     router_z_loss = jnp.square(router_z_loss)            
+        #     router_z_loss = self.router_z_loss_coef * router_z_loss.mean()
+        # aux_loss = aux_loss + router_z_loss
+
+        routing_weights, selected_experts = jax.lax.top_k(routing_weights, self.top_k)
+        routing_weights /= jnp.sum(routing_weights, axis=-1, keepdims=True)
+        # we cast back to the input dtype
+        routing_weights = jnp.asarray(routing_weights, hidden_states.dtype)
+        final_hidden_states = jnp.zeros(
+        (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype
+        )
+        expert_mask = nn.one_hot(selected_experts, num_classes=self.num_experts).transpose(2, 1, 0)
+        # __import__('ipdb').set_trace()
+        for expert_idx in range(self.num_experts):
+            expert_layer = self.experts[expert_idx]
+            idx, top_x = jnp.where(expert_mask[expert_idx]) # 动态的。不可编译
+            if top_x.shape[0] == 0:
+                continue
+            # in torch it is faster to index using lists than torch tensors
+            top_x_list = top_x.tolist()
+            idx_list = idx.tolist()
+            current_state = hidden_states[None, top_x_list].reshape(-1, hidden_dim)
+            current_hidden_states = expert_layer(current_state) * routing_weights[top_x_list, idx_list, None]
+            final_hidden_states = final_hidden_states.at[top_x].add(current_hidden_states.astype(self.dtype))
+        final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
+        return final_hidden_states, aux_loss

@@ -170,7 +170,34 @@ class CommonMoe:
     shared_experts = 0
 
 class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
+    num_experts = 16
     moe_type = 'open'
+    sfm_after_topn = True
+    router_z_loss_coef = 0.001
+    load_balance_loss_weight = 0.001
+    gate_noise_coef = 0.5
+    expert_capacity_factor = 1.5
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 256.0
+    base_mlp_dim = 1408
+
+class Llama2MediumOLMoe(CommonMoe, Llama2Medium):
+    moe_type = 'open'
+    num_experts = 88
+    num_experts_per_tok = 11
+    shared_experts = 0
+    # base_mlp_dim = 352
+    base_mlp_dim = 256
+
+    sfm_after_topn = False
+    wd_mults = None
+    router_z_loss_coef = 0.001
+    load_balance_loss_weight = 0.001 # 过大会影响性能
+    gate_noise_coef = 0.5
+    expert_capacity_factor = 1.5
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 256.0
+    sparse_matmul = False
 
 class Llama2MediumMistralMoe(CommonMoe, Llama2Medium):
     moe_type = 'mistral'

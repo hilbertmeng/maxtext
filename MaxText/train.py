@@ -229,7 +229,7 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
 def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True):
   """Writes metrics to tensorboard"""
   with jax.spmd_mode("allow_all"):
-    if jax.process_index() == 0 and step % config.upload_loss_tb_period == 0: # lsp
+    if jax.process_index() == 0 and step % config.upload_loss_tb_period == 0 or not is_training: # lsp
       for metric_name in metrics.get("scalar", []):
         if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
           continue
@@ -333,7 +333,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
     for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下
-      if config.num_experts >= 1:
+      if config.num_experts >= 1 and config.moe_type == 'open':
         temp_dict = {
           f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0][layer_num],
           f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0][layer_num],
@@ -677,7 +677,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   new_state = state.apply_gradients(grads=grads)
   scalar_metrics = {
-      "learning/loss": loss,
+      "learning/loss": loss - moe_lb_loss, # lsp: remove moe_lb_loss
       "learning/moe_lb_loss": moe_lb_loss,
       "learning/total_weights": total_weights,
       "learning/accuracy": aux['accuracy'], # lsp

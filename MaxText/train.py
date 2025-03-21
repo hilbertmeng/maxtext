@@ -1031,7 +1031,8 @@ def train_loop(config, state=None):
    # 记录参数开始的状态
   params_scalar_values = compute_params_norm(state.params, config=config)
   for k, v in params_scalar_values.items():
-    writer.add_scalar(k, np.array(v), start_step)
+    # lsp: 初始状态的步数就用初始步往前减，不然会被覆盖
+    writer.add_scalar(k, np.array(v), start_step - config.upload_param_act_tb_period)
 
   for step in np.arange(start_step, config.steps):
     if not config.only_eval: # lsp

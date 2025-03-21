@@ -1067,6 +1067,15 @@ class OpenMoeBlock(nn.Module):
         # silu
         self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
 
+        # expert_inputs: gecm,  mgatew: meh  -> 
+        self.mgate_layer = Mgate(config=self.config,
+              kernel_init=self.kernel_init,
+              weight_dtype=self.weight_dtype,
+              dtype=self.dtype,
+              quant=self.quant,
+              name='mgate',
+            )
+
     @nn.compact
     def __call__(self, inputs, paddings, deterministic=False):
         inputs = inputs.astype(self.dtype)
@@ -1101,15 +1110,7 @@ class OpenMoeBlock(nn.Module):
         #  Broadcast along length.
         hidden = nn.Dropout(rate=self.config.dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
 
-        # expert_inputs: gecm,  mgatew: meh  -> 
-        mgate_layer = Mgate(config=self.config,
-              kernel_init=self.kernel_init,
-              weight_dtype=self.weight_dtype,
-              dtype=self.dtype,
-              quant=self.quant,
-              name='mgate',
-            )
-        hidden = mgate_layer(layer_inputs=expert_inputs, 
+        hidden = self.mgate_layer(layer_inputs=expert_inputs, 
                             hidden=hidden, 
                             expert_index=expert_index, 
                             compute_n_expert=compute_n_expert)
@@ -1132,8 +1133,9 @@ class OpenMoeBlock(nn.Module):
         assert num_tokens % num_groups == 0, max_logging.log(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 
         max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')
-        # expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
-        expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
+        # expert_capacity =  math.ceil(self.expert_capacity_factor * tokens_per_group / self.num_experts)
+        # 应该是这么算的
+        expert_capacity = math.ceil(self.expert_capacity_factor * tokens_per_group * self.num_experts_per_tok / self.num_experts)
         max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)

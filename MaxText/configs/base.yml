@@ -618,7 +618,7 @@ task_features: ['input_ids']
 mgate_dim: 0
 moe_type: 'openmoe'
 expert_capacity_factor: 1.5
-expert_chunk_size: null
+expert_chunk_size: 8
 router_z_loss_coef: 0.01
 gate_noise_coef: 0.5
 sfm_after_topn: True

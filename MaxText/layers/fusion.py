@@ -136,6 +136,7 @@ class SubDecoderLayer(nn.Module):
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
         kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
         sliding_window_size=self.sliding_window_size,
     )
 
@@ -178,6 +179,7 @@ class SubDecoderLayer(nn.Module):
           config=cfg,
           quant=self.quant,
           kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+          # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) # lsp
       )(hidden_states, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
@@ -193,6 +195,7 @@ class SubDecoderLayer(nn.Module):
         'config': cfg,
         'mesh': mesh,
         'kernel_init': initializers.nd_dense_init_normal(0.006),
+        # 'kernel_init': initializers.nd_dense_init_normal(0.02),
         'kernel_axes': ("embed", None),
         'dtype': cfg.dtype,
         'weight_dtype': cfg.weight_dtype,

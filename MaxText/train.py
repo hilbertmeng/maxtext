@@ -682,7 +682,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/total_weights": total_weights,
       "learning/accuracy": aux['accuracy'], # lsp
   }
-  params_scalar_values = compute_params_norm(new_state.params, config=config) 
+  # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
+  params_scalar_values = compute_params_norm(state.params, config=config)
   scalar_metrics.update(params_scalar_values)
 
   if not config.optimizer_memory_host_offload:
@@ -1028,12 +1029,6 @@ def train_loop(config, state=None):
       performance_metric_queue = queue.Queue()
       gcp_workload_monitor.start_performance_reporting_thread(performance_metric_queue)
       
-   # 记录参数开始的状态
-  params_scalar_values = compute_params_norm(state.params, config=config)
-  for k, v in params_scalar_values.items():
-    # lsp: 初始状态的步数就用初始步往前减，不然会被覆盖
-    writer.add_scalar(k, np.array(v), start_step - config.upload_param_act_tb_period)
-
   for step in np.arange(start_step, config.steps):
     if not config.only_eval: # lsp
       if step == first_profiling_step or prof.should_activate_periodic_profile(step):

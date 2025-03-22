@@ -557,8 +557,17 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   # get moe load balance loss
   moe_lb_loss = 0.0
   if config.num_experts > 1:
-    nested_key = ("intermediates", "decoder", "layers", "sub_0", "moe_lb_loss") # lsp
-    total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+    if config.scan_layers:
+      nested_key = ("intermediates", "decoder", "layers", "sub_0", "moe_lb_loss") # lsp
+      total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+    else:
+      total_moe_lb_loss = []
+      for i in range(config.num_decoder_layers):
+        if i not in config.insert_moe_indexes: continue
+        nested_key = ("intermediates", "decoder", f"layers_{i}", "sub_0", "moe_lb_loss") # lsp
+        layer_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+        total_moe_lb_loss.append(layer_moe_lb_loss)
+
     moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
     loss += moe_lb_loss
   aux = {

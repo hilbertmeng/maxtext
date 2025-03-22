@@ -182,6 +182,9 @@ class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     base_mlp_dim = 1408
     expert_chunk_size = None
 
+class Llama2MediumOpenMoeS1L2(Llama2MediumOpenMoe, Llama2Medium):
+    insert_moe_indexes = list(range(1, 24, 2)) # 哪些层插入moe
+
 class Llama2MediumOLMoe(CommonMoe, Llama2Medium):
     num_experts = 64
     num_experts_per_tok = 8

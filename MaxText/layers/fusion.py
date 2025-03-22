@@ -217,7 +217,7 @@ class SubDecoderLayer(nn.Module):
       else:
         kwargs.update(extra_kwargs)
         moe_layer = linears.MoeBlock
-      moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids)
+      moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
       max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
 
       if cfg.record_internal_nn_metrics: # lsp

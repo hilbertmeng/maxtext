@@ -1158,7 +1158,7 @@ class OpenMoeBlock(nn.Module):
         #   self.sow('intermediates', 'router_logits/noiso_before/max', router_logits.max())
         #   self.sow('intermediates', 'router_logits/noiso_before/min', router_logits.min())
 
-        if self.config.gate_noise_coef > 0.0:
+        if self.config.gate_noise_coef > 0.0 and not deterministic: # lsp: use when train, also is deterministic=False
           max_logging.log(f'gate_noise_coef: {self.config.gate_noise_coef}')
           noise = gumbel_noise(router_logits, seed=self.config.init_weights_seed)
           router_logits += noise * self.config.gate_noise_coef

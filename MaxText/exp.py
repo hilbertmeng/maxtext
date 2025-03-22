@@ -168,6 +168,7 @@ class CommonMoe:
     num_experts = 8
     num_experts_per_tok = 2
     shared_experts = 0
+    
 
 class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     num_experts = 16
@@ -181,6 +182,7 @@ class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     eval_per_device_batch_size = 256.0
     base_mlp_dim = 1408
     expert_chunk_size = None
+    insert_moe_indexes = list(range(0, 24, 1))
 
 class Llama2MediumOpenMoeS1L2(Llama2MediumOpenMoe, Llama2Medium):
     insert_moe_indexes = list(range(1, 24, 2)) # 哪些层插入moe

@@ -167,7 +167,7 @@ class SubDecoderLayer(nn.Module):
     )
     
     mlp_lnx = None
-    if cfg.shared_experts == 1 and self.layer_inx not in cfg.insert_moe_indexes:
+    if cfg.shared_experts == 1 and (cfg.scan_layers or self.layer_inx not in cfg.insert_moe_indexes):
       max_logging.log(f'into mlp layer, layer_inx is {self.layer_inx}', debug=cfg.debug)
       # MLP block.
       mlp_lnx = linears.MlpBlock(
@@ -191,7 +191,7 @@ class SubDecoderLayer(nn.Module):
     # lsp: moe
     moe_lnx = None
     load_balance_loss = 0.0
-    if cfg.num_experts > 1 and self.layer_inx in cfg.insert_moe_indexes:
+    if cfg.num_experts > 1 and (cfg.scan_layers or self.layer_inx in cfg.insert_moe_indexes):
       max_logging.log(f'into moe layer, layer_inx is {self.layer_inx}', debug=cfg.debug)
       kwargs = {
         'config': cfg,

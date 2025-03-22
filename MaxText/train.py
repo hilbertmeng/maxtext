@@ -349,7 +349,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                 for i in range(0, config.num_experts, step_len)}
         output_metrics["scalar"].update(temp_dict)
 
-      if config.shared_experts > 0:
+      if config.shared_experts > 0 and layer_num not in config.insert_moe_indexes:
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
   else:
@@ -381,7 +381,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                 for i in range(0, config.num_experts, step_len)}
         output_metrics["scalar"].update(temp_dict)
 
-      if config.shared_experts > 0:
+      if config.shared_experts > 0 and layer_num not in config.insert_moe_indexes:
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0]
 
 

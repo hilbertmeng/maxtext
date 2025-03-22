@@ -931,6 +931,8 @@ def _update_exp_config(cmd_vars, raw_keys):
     max_logging.log(f"[EXP] {k}: {v}")
     raw_keys[k] = v
   max_logging.log('\n\n')
+  if raw_keys['scan_layers'] and raw_keys['insert_moe_indexes'] and raw_keys['num_experts'] > 1:
+    assert len(raw_keys['insert_moe_indexes']) == raw_keys['num_decoder_layers']
   
 
 if __name__ == "__main__":

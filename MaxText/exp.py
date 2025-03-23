@@ -21,6 +21,7 @@ class Common:
     normalization_layer_epsilon = 1e-6
     query_chunk_size = 512
     tensorboard_dir = '' # tensorboard dir, final path is tensorboard_dir + run_name
+    insert_moe_indexes = []
 
 class Optimizer:
     learning_rate_schedule_steps = 13500
@@ -168,7 +169,7 @@ class CommonMoe:
     num_experts = 8
     num_experts_per_tok = 2
     shared_experts = 0
-    
+    insert_moe_indexes = []
 
 class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     num_experts = 16

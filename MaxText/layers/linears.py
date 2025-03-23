@@ -1133,8 +1133,8 @@ class OpenMoeBlock(nn.Module):
         assert num_tokens % num_groups == 0, max_logging.log(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 
         max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')
-        # expert_capacity =  math.ceil(self.expert_capacity_factor * tokens_per_group / self.num_experts)
-        # 应该是这么算的
+        # lsp： 因为在这里的实现是num_experts_per_tok合在一起计算的，因此，每个专家的容量应该是需要 * num_experts_per_tok
+        # num_experts_per_tok分开算的可以看https://github.com/lucidrains/st-moe-pytorch/blob/d94e65d8a1f50eb5b41efa5317b0d1b17c9dbfad/st_moe_pytorch/st_moe_pytorch.py#L485。这里的容量计算就不需要 * num_experts_per_tok
         expert_capacity = math.ceil(self.expert_capacity_factor * tokens_per_group * self.num_experts_per_tok / self.num_experts)
         max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)

@@ -206,23 +206,14 @@ class Llama2LargeOpenMoe(CommonMoe, Llama2Large):
     eval_per_device_batch_size = 256.0
     base_mlp_dim = 2048
 
-class MuddLlama2MediumOpenMoe(Mudd, CommonMoe, Llama2Medium):
-    num_experts = 16
-    moe_type = 'open'
-    sfm_after_topn = True
-    router_z_loss_coef = 0.001
-    load_balance_loss_weight = 0.001
-    gate_noise_coef = 0.5
-    expert_capacity_factor = 1.5
-    per_device_batch_size = 64.0
-    eval_per_device_batch_size = 256.0
-    base_mlp_dim = 1408
-    expert_chunk_size = None
-    insert_moe_indexes = list(range(0, 24, 1))
+class MuddLlama2MediumOpenMoe(Mudd, Llama2MediumOpenMoe):
+    dynamic_mlp_dim = False
+
+class MuddLlama2LargeOpenMoe(Mudd, Llama2LargeOpenMoe):
     dynamic_mlp_dim = False
 
 class Llama2MediumOpenMoeS1L2(Llama2MediumOpenMoe, Llama2Medium):
-    insert_moe_indexes = list(range(1, 24, 2)) # 哪些层插入moe
+    insert_moe_indexes = list(range(1, 24, 2)) # 隔层插入moe
 
 class Llama2MediumOLMoe(CommonMoe, Llama2Medium):
     num_experts = 64

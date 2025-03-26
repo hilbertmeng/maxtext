@@ -97,8 +97,10 @@ class Llama2Large(Llama2Medium):
     base_emb_dim = 1536
     base_num_query_heads = 24
     base_num_kv_heads = 24
-    base_mlp_dim = 4224
-    learning_rate_schedule_steps = 27000
+    base_mlp_dim = 4096
+    learning_rate_schedule_steps = 29000
+    learning_rate = 2.5e-4
+    eval_interval = 14500
 
 class Llama2XL(Llama2Medium):
     base_emb_dim = 2048
@@ -177,7 +179,8 @@ class CommonMoe:
     num_experts = 8
     num_experts_per_tok = 2
     shared_experts = 0
-    insert_moe_indexes = []
+    insert_moe_indexes = list(range(0, 24, 1))
+    expert_chunk_size = None
 
 class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     num_experts = 16
@@ -190,8 +193,18 @@ class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     per_device_batch_size = 64.0
     eval_per_device_batch_size = 256.0
     base_mlp_dim = 1408
-    expert_chunk_size = None
-    insert_moe_indexes = list(range(0, 24, 1))
+
+class Llama2LargeOpenMoe(CommonMoe, Llama2Large):
+    num_experts = 16
+    moe_type = 'open'
+    sfm_after_topn = True
+    router_z_loss_coef = 0.001
+    load_balance_loss_weight = 0.001
+    gate_noise_coef = 0.5
+    expert_capacity_factor = 1.5
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 256.0
+    base_mlp_dim = 2048
 
 class MuddLlama2MediumOpenMoe(Mudd, CommonMoe, Llama2Medium):
     num_experts = 16

@@ -92,6 +92,14 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
 
+class Llama2Large(Llama2Medium):
+    model_name = 'Llama2Large'
+    base_emb_dim = 1536
+    base_num_query_heads = 24
+    base_num_kv_heads = 24
+    base_mlp_dim = 4224
+    learning_rate_schedule_steps = 27000
+
 class Llama2XL(Llama2Medium):
     base_emb_dim = 2048
     base_num_query_heads = 32
@@ -184,6 +192,21 @@ class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     base_mlp_dim = 1408
     expert_chunk_size = None
     insert_moe_indexes = list(range(0, 24, 1))
+
+class MuddLlama2MediumOpenMoe(Mudd, CommonMoe, Llama2Medium):
+    num_experts = 16
+    moe_type = 'open'
+    sfm_after_topn = True
+    router_z_loss_coef = 0.001
+    load_balance_loss_weight = 0.001
+    gate_noise_coef = 0.5
+    expert_capacity_factor = 1.5
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 256.0
+    base_mlp_dim = 1408
+    expert_chunk_size = None
+    insert_moe_indexes = list(range(0, 24, 1))
+    dynamic_mlp_dim = False
 
 class Llama2MediumOpenMoeS1L2(Llama2MediumOpenMoe, Llama2Medium):
     insert_moe_indexes = list(range(1, 24, 2)) # 哪些层插入moe

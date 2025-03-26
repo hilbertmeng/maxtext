@@ -197,7 +197,7 @@ class SubDecoderLayer(nn.Module):
         'config': cfg,
         'mesh': mesh,
         'kernel_init': initializers.nd_dense_init_normal(0.006),
-        # 'kernel_init': initializers.nd_dense_init_normal(0.02),
+        # 'kernel_init': initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
         'kernel_axes': ("embed", None),
         'dtype': cfg.dtype,
         'weight_dtype': cfg.weight_dtype,

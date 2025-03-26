@@ -207,7 +207,7 @@ class SubDecoderLayer(nn.Module):
       extra_kwargs = {
         'num_experts': cfg.num_experts,
         'num_experts_per_tok': cfg.num_experts_per_tok,
-        'intermediate_dim': cfg.mlp_dim,
+        'intermediate_dim': self.updated_mlp_dim, # lsp
         }
       if cfg.moe_type == 'open':
         moe_layer = linears.OpenMoeBlock

@@ -1091,7 +1091,6 @@ def train_loop(config, state=None):
               "eval/total_weights": 0.0,
               "eval/avg_loss": 0.0,
               "eval/moe_lb_loss": 0.0,
-              "eval/accuracy": 0.0, # lsp
           }
       }
       eval_dpo_reward_accuracy = 0.0

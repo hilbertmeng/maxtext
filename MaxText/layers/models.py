@@ -33,6 +33,7 @@ from layers import pipeline
 from layers import mudd
 from layers import initializers
 import max_logging
+import maxtext_utils
 
 Array = common_types.Array
 Config = common_types.Config
@@ -199,6 +200,8 @@ class Decoder(nn.Module):
     if cfg.remat_policy != "none":
       if cfg.remat_policy == "minimal":
         policy = jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims
+      elif cfg.remat_policy == "save_nothing":
+        policy = jax.checkpoint_policies.nothing_saveable
       elif cfg.remat_policy == "save_dot_with_context_except_mlp":
         policy = jax.checkpoint_policies.save_only_these_names(
             "query_proj",
@@ -321,6 +324,12 @@ class Decoder(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   def get_norm_layer(self): # lsp
+    if self.config.norm_type == 'layernorm':
+      from layers import gpt3
+      return gpt3.Gpt3LayerNorm
+    elif self.config.norm_type == 'rmsnorm':
+      return RMSNorm
+
     if self.config.decoder_block in ("default", "llama2", "mistral", "deepseek", "gemma", "gemma2", "simple", "simple_mlp", "fusion"):
       return RMSNorm
     elif self.config.decoder_block == "gpt3":
@@ -416,7 +425,10 @@ class Decoder(nn.Module):
         y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y)
       else:
         y_normed = y
-      y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
+      if cfg.mudd_in_layer:
+        y, hids = y, [y_normed]
+      else:
+        y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
     else:
       hids = []
 
@@ -493,8 +505,14 @@ class Decoder(nn.Module):
                 decoder_positions,
                 deterministic,
                 model_mode,
+                hids=hids,
             )
-            y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
+            if self.config.mudd_in_layer:
+                y, hids = y
+            if self.config.record_internal_nn_metrics:
+              self.sow('intermediates', f'hidden_states_layer_{lyr}', maxtext_utils.l2norm(y[0])) # layer_out, dyn_dense_w = y
+            if not self.config.mudd_in_layer:
+              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
             
     y = self.get_norm_layer()(
         dtype=cfg.dtype,

@@ -231,7 +231,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
   with jax.spmd_mode("allow_all"):
     if jax.process_index() == 0 and step % config.upload_loss_tb_period == 0: # lsp
       for metric_name in metrics.get("scalar", []):
-        if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
+        if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, 'total_grads' in metric_name, 'mudd' in metric_name, 'intermediates' in metric_name]): # lsp
           continue
         writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name]), step)
       # for metric_name in metrics.get("scalars", []):
@@ -340,6 +340,16 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
     #     pass
   else:
     for layer_num in range(config.num_decoder_layers):
+      output_metrics["scalar"][f"intermediates/hidden_states_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"hidden_states_layer_{layer_num}"][0]
+      output_metrics["scalar"][f"intermediates/attn_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["attn_out"][0]
+      output_metrics["scalar"][f"intermediates/mlp_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["mlp_out"][0]
+      if config.sigmoid_attention:
+        output_metrics["scalar"][f"intermediates/q_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["q_norm_stat"][0]
+        output_metrics["scalar"][f"intermediates/k_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["k_norm_stat"][0]      
+        output_metrics["scalar"][f"intermediates/attn_logits_max_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["attn_logits_max"][0]
+        output_metrics["scalar"][f"intermediates/attn_logits_min_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["attn_logits_min"][0]
+        output_metrics["scalar"][f"intermediates/attn_logits_mean_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["attn_logits_mean"][0]
+
       if config.dense_conn:
         layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
         output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]
@@ -348,7 +358,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/std/layer_{layer_num}"]
         output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/norm/layer_{layer_num}"]
         output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
-
+      
 
 def _split_dpo_state(state):
   reference_params = state.params["reference_params"]
@@ -509,7 +519,10 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
-  correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
+  if config.record_internal_nn_metrics:
+    correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
+  else:
+    correct, accuracy = np.array([0]), 0
 
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
@@ -537,12 +550,12 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   return loss, aux
 
 
-def compute_params_norm(params, config): # lsp
+def compute_params_norm(params, config, parent_key='total_params'): # lsp
   flat_param_norms = flatten_dict(params)
   scalar_vales = {}
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
-    newk = k.replace('params', 'total_params')
+    newk = k.replace('params', parent_key)
     if config.scan_layers and 'layers' in k:
       axis = list(range(v.ndim))
       axis.pop(config.param_scan_axis)
@@ -650,6 +663,9 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   # lsp
   params_scalar_values = compute_params_norm(new_state.params, config=config)
   scalar_metrics.update(params_scalar_values)
+  if config.record_raw_grad_per_param:
+    grads_scalar_values = compute_params_norm(raw_grads, config=config, parent_key='total_grads')
+    scalar_metrics.update(grads_scalar_values)
 
   if not config.optimizer_memory_host_offload:
     scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)

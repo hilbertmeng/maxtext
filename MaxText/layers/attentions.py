@@ -36,6 +36,10 @@ from layers import linears
 from layers import quantizations
 from layers import dc
 from layers import accelerator
+from layers import normalizations
+from layers import kv_shift
+
+import maxtext_utils
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -1031,7 +1035,7 @@ class AttentionOp(nn.Module):
     return attn_out
 
   @nn.compact
-  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args): # lsp
+  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args, input_q=None, input_kv=None, hidden_states=None): # lsp
     prefill_kv_cache, ar_kv_cache = self.kv_cache(
         key, value, decoder_segment_ids, model_mode, use_ragged_attention=self.use_ragged_attention
     )
@@ -1134,6 +1138,11 @@ class Attention(nn.Module):
   ar_cache_axis_order: AxisIdxes = (1, 2, 0, 3)
   compute_axis_order: AxisIdxes = (0, 1, 2, 3)
   reshape_q: bool = False
+  layer_inx: int = 0
+  use_kv_shift: bool = False
+  use_alibi: bool = False
+  use_postnorm: bool = False
+  
 
   def setup(self):
     if self.config.pre_compose or self.config.post_compose:
@@ -1163,6 +1172,19 @@ class Attention(nn.Module):
         use_ragged_attention=self.use_ragged_attention,
         ragged_block_size=self.ragged_block_size,
     )
+    if self.use_kv_shift:
+      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant)
+    
+    cfg = self.config
+    if self.use_postnorm:
+      norm_kwargs = {
+                  "dtype": cfg.dtype,
+                  "weight_dtype": cfg.weight_dtype,
+                  "name": "post_norm",
+                  "epsilon": cfg.normalization_layer_epsilon,
+                  }
+      self.post_norm = normalizations.get_rmsnorm(**norm_kwargs)
+
 
   def query_projection(self, inputs_q: Array) -> Array:
     """Query projection."""
@@ -1176,8 +1198,9 @@ class Attention(nn.Module):
     #   # pylint: disable=no-value-for-parameter
     #   return self.kernel_init(*args) / depth_scaling
 
+    head_dim = self.config.qk_head_dim if self.config.qk_head_dim else self.head_dim
     query_proj = DenseGeneral(
-        features=(self.num_query_heads, self.head_dim),
+        features=(self.num_query_heads, head_dim),
         axis=-1,
         kernel_init=self.kernel_init, # lsp
         kernel_axes=("embed", "q_heads", "kv"),
@@ -1185,6 +1208,7 @@ class Attention(nn.Module):
         weight_dtype=self.weight_dtype,
         name="query",
         quant=self.quant,
+        use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
     )(inputs_q)
     return query_proj
@@ -1208,8 +1232,14 @@ class Attention(nn.Module):
 
     kernel_axes = ("embed", "kv_heads", "kv_head_dim")
 
+    head_dim = self.head_dim
+    if proj_name == 'key' and self.config.qk_head_dim:
+      head_dim = self.config.qk_head_dim 
+    elif proj_name == 'value' and self.config.vo_head_dim:
+      head_dim = self.config.vo_head_dim
+
     kv_proj = DenseGeneral(
-        features=(self.num_kv_heads, self.head_dim),
+        features=(self.num_kv_heads, head_dim),
         axis=-1,
         kernel_init=self.kernel_init,
         kernel_axes=kernel_axes,
@@ -1217,6 +1247,7 @@ class Attention(nn.Module):
         weight_dtype=self.weight_dtype,
         name=proj_name,
         quant=self.quant,
+        use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
     )(inputs_kv)
     return kv_proj
@@ -1233,6 +1264,7 @@ class Attention(nn.Module):
         weight_dtype=self.weight_dtype,
         name=proj_name,
         quant=self.quant,
+        use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
     )(inputs)
     qkv_proj = checkpoint_name(qkv_proj, "qkv_proj")
@@ -1249,6 +1281,7 @@ class Attention(nn.Module):
         weight_dtype=self.weight_dtype,
         name="out",
         quant=self.quant,
+        use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
     )(out)
     return out_proj
@@ -1268,7 +1301,9 @@ class Attention(nn.Module):
       # For MLA attention RoPE is applied to only `self.qk_rope_head_dim` portion the heads.
       rope_embedding_dims = self.qk_rope_head_dim
     else:
-      rope_embedding_dims = self.head_dim
+      rope_embedding_dims = self.config.qk_head_dim if self.config.qk_head_dim else self.head_dim
+
+    rope_embedding_dims = int(rope_embedding_dims * self.config.rope_ratio)
 
     rope_type = self.config.rope_type.lower()
     if self.config.model_name.startswith("llama3.1") or rope_type.startswith("llama3.1"):
@@ -1299,7 +1334,10 @@ class Attention(nn.Module):
           fprop_dtype=self.dtype,
           name=name,
       )
-    inputs = rotary_embedding(inputs, inputs_positions)
+    if self.config.rope_ratio == 1:
+      inputs = rotary_embedding(inputs, inputs_positions)
+    else:
+      inputs = jnp.concatenate([rotary_embedding(inputs[...,:rope_embedding_dims], inputs_positions), inputs[..., rope_embedding_dims:]], axis=-1)
     return inputs
 
   @nn.compact
@@ -1312,6 +1350,7 @@ class Attention(nn.Module):
       *,
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
+      hidden_states=None,
   ):
     """Applies Attention on the input data.
 
@@ -1352,11 +1391,16 @@ class Attention(nn.Module):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
+    if self.use_kv_shift:
+      key, value = self.kv_shift(inputs_q, key, value)
+
     query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
 
     # apply ROPE
-    query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
-    key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+    if not self.use_alibi:
+      query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
+      key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+
 
     if model_mode == common_types.MODEL_MODE_PREFILL:
       query = nn.with_logical_constraint(query, self.prefill_query_axis_names)
@@ -1375,12 +1419,31 @@ class Attention(nn.Module):
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
+
+    if self.config.record_internal_nn_metrics:
+      if self.config.sigmoid_attention:
+        self.sow('intermediates', 'q_norm_stat', maxtext_utils.l2norm(query))
+        self.sow('intermediates', 'k_norm_stat', maxtext_utils.l2norm(key))
+        attn_logits = jnp.tril(jnp.einsum('B T N D, B S N D -> B N T S', query, key) - 7.62)
+        self.sow('intermediates', 'attn_logits_max', attn_logits.max())
+        self.sow('intermediates', 'attn_logits_min', -1 * (-attn_logits).max())
+        self.sow('intermediates', 'attn_logits_mean', attn_logits.mean())
+
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv)
+
+    if self.use_postnorm:
+      b, t, n, d = out.shape
+      out = jnp.reshape(out,(b,t,n*d))
+      out = self.post_norm(out) # BTNd -> BT(Nd)-> BTNd
+      out = jnp.reshape(out,(b,t,n,d))
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 
     # apply output projection,  output dim is set to the input dim.
     out = self.out_projection(inputs_q.shape[-1], out)
+
+    # if self.use_postnorm: # hybrid norm
+    #   out = self.post_norm(out) 
     out = checkpoint_name(out, "out_proj")
     return out
 
@@ -1454,7 +1517,8 @@ class MLA(Attention):
           features=(self.num_query_heads, self.qk_head_dim),
           axis=-1,
           kernel_init=self.kernel_init,
-          kernel_axes=("q_lora", "q_heads", "kv"),
+          kernel_axes=("q_lora", "q_heads", "embed"), # TODO: fix sharding 
+          # kernel_axes=("q_lora", "q_heads", "kv"),
           dtype=self.dtype,
           weight_dtype=self.weight_dtype,
           name="wq_b",
@@ -1463,7 +1527,39 @@ class MLA(Attention):
       )
 
     # KV LoRA path.
-    self.wkv_a = DenseGeneral(
+    if self.config.mla_k_hidnrom:
+      self.k_hidnorm = RMSNorm(
+        dtype=self.config.dtype,
+        weight_dtype=self.config.weight_dtype,
+        name="k_hidnorm",
+        epsilon=self.config.normalization_layer_epsilon,
+        kernel_axes=("norm",),
+    )
+    if (self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm') or self.config.mla_k_hidnrom:
+      self.wkv_a_k = DenseGeneral(
+          features=self.qk_rope_head_dim,
+          axis=-1,
+          kernel_init=self.kernel_init,
+          kernel_axes=("embed", "kv_lora"),
+          dtype=self.dtype,
+          weight_dtype=self.weight_dtype,
+          name="wkv_a_k",
+          quant=self.quant,
+          matmul_precision=self.config.matmul_precision,
+      )
+      self.wkv_a_v = DenseGeneral(
+          features=self.kv_lora_rank,
+          axis=-1,
+          kernel_init=self.kernel_init,
+          kernel_axes=("embed", "kv_lora"),
+          dtype=self.dtype,
+          weight_dtype=self.weight_dtype,
+          name="wkv_a_v",
+          quant=self.quant,
+          matmul_precision=self.config.matmul_precision,
+      )
+    else:
+      self.wkv_a = DenseGeneral(
         features=self.kv_lora_rank + self.qk_rope_head_dim,
         axis=-1,
         kernel_init=self.kernel_init,
@@ -1473,19 +1569,21 @@ class MLA(Attention):
         name="wkv_a",
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
-    )
+      )
     self.kv_norm = RMSNorm(
         dtype=self.config.dtype,
         weight_dtype=self.config.weight_dtype,
         name="kv_norm",
         epsilon=self.config.normalization_layer_epsilon,
         kernel_axes=("norm",),
+        scale_init=nn.initializers.ones if self.config.mla_kv_norm_learnable else None,
     )
     self.wkv_b = DenseGeneral(
         features=(self.num_query_heads, (self.qk_nope_head_dim + self.v_head_dim)),
         axis=-1,
         kernel_init=self.kernel_init,
-        kernel_axes=("kv_lora", "kv_heads", "kv_head_dim"),
+        kernel_axes=("kv_lora", "kv_heads", "embed"), # TODO: fix sharding 
+        # kernel_axes=("kv_lora", "kv_heads", "kv_head_dim"),
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         name="wkv_b",
@@ -1494,7 +1592,7 @@ class MLA(Attention):
     )
 
     # Set softmax scaling.
-    self.softmax_scale = self.qk_head_dim**-0.5
+    self.softmax_scale = self.qk_head_dim**0.5
     if self.max_seq_len > self.original_seq_len:
       mscale = 0.1 * self.mscale * jnp.log(self.rope_factor) + 1.0
       self.softmax_scale = self.softmax_scale * mscale * mscale
@@ -1516,10 +1614,18 @@ class MLA(Attention):
     # DeepSeek v3 was doing it in attention score computation.
     return jnp.concatenate([q_nope, q_pe], axis=-1) / self.softmax_scale
 
-  def mla_kv_projection(self, inputs: Array, inputs_positions: Array) -> Tuple[Array, Array]:
+  def mla_kv_projection(self, inputs: Array, inputs_positions: Array, hidden_states=None) -> Tuple[Array, Array]:
     """MLA key/value projection with integrated rotary embedding."""
-    low_rank = self.wkv_a(inputs)
-    low_rank_main, low_rank_rope = jnp.split(low_rank, [self.kv_lora_rank], axis=-1)
+    if isinstance(inputs, (list, tuple)):
+      inputs_k, inputs_v = inputs
+      low_rank_rope = self.wkv_a_k(inputs_k)
+      low_rank_main = self.wkv_a_v(inputs_v)
+    elif self.config.mla_k_hidnrom:
+      low_rank_rope = self.wkv_a_k(self.k_hidnorm(hidden_states))
+      low_rank_main = self.wkv_a_v(inputs)
+    else:
+      low_rank = self.wkv_a(inputs)
+      low_rank_main, low_rank_rope = jnp.split(low_rank, [self.kv_lora_rank], axis=-1)
     low_rank_main = self.kv_norm(low_rank_main)
     # Note: cache `low_rank_main` and `low_rank_rope` for inference.
     kv_out = self.wkv_b(low_rank_main)
@@ -1535,6 +1641,20 @@ class MLA(Attention):
     key = jnp.concatenate([key_nope, key_rope], axis=-1)
     return key, value
 
+  def out_projection(self, output_dim: int, out: Array) -> Array:
+    out_proj = DenseGeneral(
+        features=output_dim,
+        axis=(-2, -1),
+        kernel_init=initializers.contant_dense_init(0.0) if self.config.mla_out_zero_init else self.kernel_init,
+        kernel_axes=("heads", "kv", "embed"),
+        dtype=self.dtype,
+        weight_dtype=self.weight_dtype,
+        name="out",
+        quant=self.quant,
+        matmul_precision=self.config.matmul_precision,
+    )(out)
+    return out_proj
+
   @nn.compact
   def __call__(
       self,
@@ -1545,6 +1665,7 @@ class MLA(Attention):
       *,
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
+      hidden_states=None,
   ) -> Array:
     """Forward pass for MLA, reusing `AttentionOp` for the actual attention.
 
@@ -1564,7 +1685,11 @@ class MLA(Attention):
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
     query = self.mla_query_projection(inputs_q, inputs_positions)
-    key, value = self.mla_kv_projection(inputs_kv, inputs_positions)
+    key, value = self.mla_kv_projection(inputs_kv, inputs_positions, hidden_states=hidden_states)
+
+    if self.config.record_internal_nn_metrics:
+      self.sow('intermediates', 'q_norm_stat', maxtext_utils.l2norm(query))
+      self.sow('intermediates', 'k_norm_stat', maxtext_utils.l2norm(key))
 
     if model_mode == common_types.MODEL_MODE_PREFILL:
       query = nn.with_logical_constraint(query, self.prefill_query_axis_names)
@@ -1579,7 +1704,7 @@ class MLA(Attention):
     key = checkpoint_name(key, "key_proj")
     value = checkpoint_name(value, "value_proj")
 
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode)
+    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, input_q=inputs_q, input_kv=inputs_kv)
     out = nn.with_logical_constraint(out, self.out_axis_names)
     out = self.out_projection(inputs_q.shape[-1], out)
     return out

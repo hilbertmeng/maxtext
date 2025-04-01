@@ -134,16 +134,23 @@ class Compose(nn.Module):
   quant: Optional[Quant] = None
   layer_inx: int = None
   
+  def setup(self):
+      if self.config.mudd_in_layer:
+          self.mudd_mlp = Mlp(self.config, self.mesh, self.quant, self.layer_inx)
+
   @nn.compact
   def __call__(
       self,
       layer_output,
       hids,
   ):
-    y, dyn_dense_w = layer_output
-    if dyn_dense_w is None: 
-      max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
-      return y, hids
+    if self.config.mudd_in_layer:
+        y, dyn_dense_w = layer_output, self.mudd_mlp(layer_output)
+    else:     
+        y, dyn_dense_w = layer_output
+        if dyn_dense_w is None: 
+          max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
+          return y, hids
 
     max_logging.log(f'Compose history hidden states.', debug=self.config.debug)
     layer_inx = self.layer_inx

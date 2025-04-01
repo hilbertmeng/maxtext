@@ -217,6 +217,8 @@ kv_lora_rank: 512
 qk_nope_head_dim: 128
 qk_rope_head_dim: 64
 v_head_dim: 128
+mla_kv_norm_learnable: True
+mla_out_zero_init: False
 
 # Combine matmuls for QKV and MLP
 fused_qkv: False
@@ -298,6 +300,7 @@ logical_axis_rules: [
                       ['cache_kv', []],
                       ['cache_sequence', []],
                       ['exp', 'expert'],
+                      ['kv_lora', []],
                     ]
 # Axes used for DCN must be earlier in this list than ICI, see (b/339009148) for details
 data_sharding: [['data', 'stage', 'fsdp', 'fsdp_transpose', 'sequence', 'tensor', 'tensor_transpose', 'tensor_sequence', 'expert', 'autoregressive']]
@@ -611,6 +614,15 @@ mudd_postnorm: False
 dynamic_mlp_dim: False # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
 dynamic_dense_scale_dw: False
 debug: False
+
+# sigmoid attn
+sigmoid_bias: 0
+
+# pythia
+use_bias: False
+norm_type: 'rmsnorm' # or 'layernorm'
+rope_ratio: 1
+attn_ffn_parallel: False
 
 # other
 epoch: 1

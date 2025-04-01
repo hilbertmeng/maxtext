@@ -248,6 +248,7 @@ class CrossHeadProjection(nn.Module):
     if qw1 is not None: # BTGIM
       hidden_sym = 'I'; hidden_label = inputs_label.replace('M', 'I')  # 'BGITS'
       for sym, (w1, w2) in zip(['T', 'S'], [(qw1, qw2), (kw1, kw2)]):
+        if w1 is None: continue
         dw_label = f'B{sym}G{hidden_sym}M' if w1.shape[-1] == self.num_heads_per_group \
           else f'B{sym}GM{hidden_sym}'  # BTGIM
         dynamic_hidden_dim = w1.shape[dw_label.index(hidden_sym)] # 2, 就是w1的I的值
@@ -280,6 +281,7 @@ class CrossHeadProjection(nn.Module):
 
     if qdd is not None:  # 对logits做二次修改
       for sym, dd in zip(['T', 'S'], [qdd, kdd]):
+        if dd is None: continue
         dd_label = f'B{sym}GM'
         if sym == 'T' and self.query_wise or sym == 'S' and self.key_wise or \
               not self.query_wise and not self.key_wise:
@@ -313,13 +315,14 @@ class AttentionOp(nn.Module):
     self.float32_qk_product = cfg.float32_qk_product
     self.pre_compose = cfg.pre_compose
     self.post_compose = cfg.post_compose
+    self.seperate_qk_dw_proj = cfg.seperate_qk_dw_proj
 
     input_dim = self.num_query_heads * self.head_dim
     I = 2
     num_heads_per_group = self.num_query_heads // self.num_groups
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
     if cfg.pre_compose or cfg.post_compose:
-      if self.is_cross_attention:
+      if self.is_cross_attention or self.seperate_qk_dw_proj:
         for name in ['q_dyn_w_proj', 'k_dyn_w_proj']:
           setattr(self, name, DynamicWeightProjection(
             num_heads=self.num_query_heads, num_groups=self.num_groups,
@@ -389,6 +392,18 @@ class AttentionOp(nn.Module):
     if cfg.pre_compose or cfg.post_compose:
         if hasattr(self, 'dyn_w_proj'):
             pre_proj_dw_args, post_proj_dw_args = self.dyn_w_proj(input_q)
+        elif self.seperate_qk_dw_proj and hasattr(self, 'q_dyn_w_proj') and hasattr(self, 'k_dyn_w_proj'):
+          if self.config.query_wise:
+            pre_q_dw_args, post_q_dw_args = self.q_dyn_w_proj(input_q)
+          else:
+            pre_q_dw_args, post_q_dw_args = (None, ) * 3, (None, ) * 3
+          if self.config.key_wise:
+            _key_vec = input_kv[0] if isinstance(input_kv, (tuple, list)) and len(input_kv) == 2 else input_kv
+            pre_k_dw_args, post_k_dw_args = self.k_dyn_w_proj(_key_vec)
+          else:
+            pre_k_dw_args, post_k_dw_args = (None, ) * 3, (None, ) * 3
+          pre_proj_dw_args = pre_q_dw_args[:2] + pre_k_dw_args[:2] + pre_q_dw_args[2:] + pre_k_dw_args[2:]
+          post_proj_dw_args = post_q_dw_args[:2] + post_k_dw_args[:2] + post_q_dw_args[2:] + post_k_dw_args[2:]
         else:
             if hasattr(self, 'dyn_w_pre_proj'):
                 pre_proj_dw_args = self.dyn_w_pre_proj(input_q)

@@ -33,6 +33,9 @@ from layers import mudd
 from layers import initializers
 import max_logging
 
+from layers.gpt3 import Gpt3LayerNorm
+
+import maxtext_utils
 import common_types
 from typing import Optional, Any
 
@@ -93,17 +96,22 @@ class SubDecoderLayer(nn.Module):
   ):
     cfg = self.config
     mesh = self.mesh
+
+    norm_class = models.RMSNorm if self.config.norm_type == 'rmsnorm' else Gpt3LayerNorm
+    raw_inputs = inputs
+
     if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm': # lsp
       lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
       inputs = inputs[3]
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
-      lnx_rms = models.RMSNorm(
+      lnx_rms = norm_class(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
         name="pre_self_attention_layer_norm",
-        kernel_axes=("norm",),
+        # kernel_axes=("norm",),
+        kernel_axes=("embed",),
         epsilon=cfg.normalization_layer_epsilon,
     )
       lnx = lnx_rms(inputs)
@@ -112,31 +120,54 @@ class SubDecoderLayer(nn.Module):
 
     max_logging.log(f'Attention inputs: {inputs.shape}', debug=self.config.debug)
     # Self-attention block
-    attention_layer = Attention(
-        config=cfg,
-        num_query_heads=cfg.num_query_heads,
-        num_kv_heads=cfg.num_kv_heads,
-        head_dim=cfg.head_dim,
-        max_target_length=cfg.max_target_length,
-        max_prefill_predict_length=cfg.max_prefill_predict_length,
-        attention_kernel=cfg.attention,
-        mesh=mesh,
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        dropout_rate=cfg.dropout_rate,
-        name="self_attention",
-        float32_qk_product=cfg.float32_qk_product,
-        float32_logits=cfg.float32_logits,
-        quant=self.quant,
-        kv_quant=quantizations.configure_kv_quant(cfg),
-        prefill_cache_axis_order=tuple([int(i) for i in cfg.prefill_cache_axis_order.split(",")]),
-        ar_cache_axis_order=tuple([int(i) for i in cfg.ar_cache_axis_order.split(",")]),
-        compute_axis_order=tuple([int(i) for i in cfg.compute_axis_order.split(",")]),
-        reshape_q=cfg.reshape_q,
-        use_ragged_attention=cfg.use_ragged_attention,
-        ragged_block_size=cfg.ragged_block_size,
-        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-        sliding_window_size=self.sliding_window_size,
+
+    if cfg.attention_type == 'mla':
+      attention_class = attentions.MLA
+      mla_kwargs = dict(
+        q_lora_rank=cfg.q_lora_rank,
+        kv_lora_rank=cfg.kv_lora_rank,
+        qk_nope_head_dim=cfg.qk_nope_head_dim,
+        qk_rope_head_dim=cfg.qk_rope_head_dim,
+        v_head_dim=cfg.v_head_dim,
+        max_seq_len=cfg.max_target_length,
+        original_seq_len=cfg.original_seq_len,
+        mscale=cfg.mscale,
+        rope_factor=cfg.rope_factor,
+        )
+    else:
+      attention_class = Attention
+      mla_kwargs = {}
+
+    attention_layer = attention_class(
+      config=cfg,
+      num_query_heads=cfg.num_query_heads,
+      num_kv_heads=cfg.num_kv_heads,
+      head_dim=cfg.head_dim,
+      max_target_length=cfg.max_target_length,
+      max_prefill_predict_length=cfg.max_prefill_predict_length,
+      attention_kernel=cfg.attention,
+      mesh=mesh,
+      dtype=cfg.dtype,
+      weight_dtype=cfg.weight_dtype,
+      dropout_rate=cfg.dropout_rate,
+      name="self_attention",
+      float32_qk_product=cfg.float32_qk_product,
+      float32_logits=cfg.float32_logits,
+      quant=self.quant,
+      kv_quant=quantizations.configure_kv_quant(cfg),
+      prefill_cache_axis_order=tuple([int(i) for i in cfg.prefill_cache_axis_order.split(",")]),
+      ar_cache_axis_order=tuple([int(i) for i in cfg.ar_cache_axis_order.split(",")]),
+      compute_axis_order=tuple([int(i) for i in cfg.compute_axis_order.split(",")]),
+      reshape_q=cfg.reshape_q,
+      use_ragged_attention=cfg.use_ragged_attention,
+      ragged_block_size=cfg.ragged_block_size,
+      kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+      sliding_window_size=self.sliding_window_size,
+      layer_inx=self.layer_inx,
+      use_kv_shift=cfg.use_kv_shift,
+      use_alibi=cfg.use_alibi,
+      use_postnorm=cfg.use_postnorm,
+      **mla_kwargs,
     )
 
     attention_lnx = attention_layer(
@@ -146,21 +177,33 @@ class SubDecoderLayer(nn.Module):
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
         model_mode=model_mode,
+        hidden_states=inputs,
     )
+
+    if self.config.record_internal_nn_metrics:
+      self.sow('intermediates', 'attn_out', maxtext_utils.l2norm(attention_lnx))
 
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
     )
     intermediate_inputs = inputs + attention_lnx
 
+    if self.config.attn_ffn_parallel:
+      if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm':
+        mlp_inputs = raw_inputs[3]
+      else:
+        mlp_inputs = raw_inputs
+    else:
+      mlp_inputs = intermediate_inputs
     # Fully Connected
-    hidden_states = models.RMSNorm(
+    hidden_states = norm_class(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
         name="post_self_attention_layer_norm",
-        kernel_axes=("norm",),
+        # kernel_axes=("norm",),
+        kernel_axes=("embed",),
         epsilon=cfg.normalization_layer_epsilon,
-    )(intermediate_inputs)
+    )(mlp_inputs)
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
@@ -177,6 +220,7 @@ class SubDecoderLayer(nn.Module):
           name="mlp",
           config=cfg,
           quant=self.quant,
+          use_bias=cfg.use_bias,
           kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
       )(hidden_states, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
@@ -220,6 +264,9 @@ class SubDecoderLayer(nn.Module):
     else:
       raise ValueError("Both mlp_lnx and moe_lnx is None, it's not allowed.")
 
+    if self.config.record_internal_nn_metrics:
+      self.sow('intermediates', 'mlp_out', maxtext_utils.l2norm(mlp_lnx))
+
     layer_output = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(layer_output, deterministic=deterministic)
 
     layer_output = nn.with_logical_constraint(
@@ -236,7 +283,7 @@ class SubDecoderLayer(nn.Module):
           jnp.sum(layer_output == 0) / jnp.size(layer_output),
       )
 
-    dyn_dense_w = self.mudd_mlp(layer_output) # lsp
+    dyn_dense_w = self.mudd_mlp(layer_output) if not self.config.mudd_in_layer else None# lsp
     return layer_output, dyn_dense_w
 
 
@@ -258,7 +305,7 @@ class FusionDecoderLayer(nn.Module):
 
     if len(sliding_window_size) != 1:
         assert not self.config.dense_conn
-
+    self.layer_inx = layer_inx
     self.subs = [SubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}') for i, sws in enumerate(sliding_window_size)]
 
   @nn.compact
@@ -269,7 +316,19 @@ class FusionDecoderLayer(nn.Module):
       decoder_positions,
       deterministic,
       model_mode,
+      hids=None,
   ):
+    if self.config.mudd_in_layer:
+        if self.layer_inx == 0: # first layer
+            inputs = [inputs] * len(self.config.dynamic_dense_type)
+        else:
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
+
     for layer in self.subs:
         inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
+    
+    if self.config.mudd_in_layer:
+        if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
+        return inputs, hids
     return inputs, dyn_dense_w

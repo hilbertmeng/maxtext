@@ -22,6 +22,7 @@ import optax
 import max_utils
 from jax.sharding import PartitionSpec as P
 from jax.experimental.serialize_executable import deserialize_and_load
+import jax.numpy as jnp
 
 
 import pickle
@@ -30,6 +31,9 @@ from input_pipeline import input_pipeline_interface
 
 OVERWRITE_WITH_GRADIENT = "_overwrite_with_gradient"
 
+
+def l2norm(x, axis=-1):
+  return jnp.sqrt(jnp.sum(jnp.square(x), axis=axis)).mean()
 
 def get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, model, config):
   """Get the shardings (both state and data) for train_step"""

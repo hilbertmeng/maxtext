@@ -21,6 +21,7 @@ from flax import linen as nn
 import jax
 from jax import lax
 import jax.numpy as jnp
+import numpy as np
 from layers import initializers
 
 Config = Any
@@ -433,3 +434,24 @@ class PositionalEmbedding(nn.Module):
     # signal = jnp.pad(signal, [[0, jnp.mod(self.embedding_dims, 2)]])
     position_embedding = signal.astype(jnp.float32)
     return input_embedding + position_embedding
+
+# https://github.com/ofirpress/attention_with_linear_biases/blob/master/fairseq/models/transformer.py#L742
+def get_alibi_mask(n_heads, maxpos, mode='default'):
+  def get_slopes(n):
+    def get_slopes_power_of_2(n):
+        start = (2**(-2**-(math.log2(n)-3)))
+        ratio = start
+        return [start*ratio**i for i in range(n)]
+
+    if math.log2(n).is_integer():
+        return get_slopes_power_of_2(n)                   #In the paper, we only train models that have 2^a heads for some a. This function has
+    else:                                                 #some good properties that only occur when the input is a power of 2. To maintain that even
+        closest_power_of_2 = 2**math.floor(math.log2(n))  #when the number of heads is not a power of 2, we use this workaround. 
+        return get_slopes_power_of_2(closest_power_of_2) + get_slopes(2*closest_power_of_2)[0::2][:n-closest_power_of_2]
+  slopes = np.array(get_slopes(n_heads))
+  if mode == 'default':
+    mask = slopes[None,:,None,None] * np.arange(maxpos)[None, None,None,:] # BNTS
+    mask = jnp.repeat(mask, maxpos, axis=-2)
+  elif mode == 'sigmoid_attention':
+    mask = slopes[None,:,None,None] * np.tril(np.arange(maxpos)[None,:] - np.arange(maxpos)[:, None])[None,None] # top-right triangle mask is wrong but will be replaced by causal mask
+  return mask

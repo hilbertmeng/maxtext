@@ -163,6 +163,7 @@ class DenseGeneral(nn.Module):
       bias = self.param(
           "bias",
           nn.with_logical_partitioning(bias_init, bias_axes),
+          # nn.with_logical_partitioning(bias_init, ('embed',)), # shard bias for pythia 
           bias_shape,
           self.weight_dtype,
       )
@@ -267,6 +268,7 @@ class MlpBlock(nn.Module):
 
     # Take elementwise product of above intermediate activations.
     x = functools.reduce(operator.mul, activations).astype(self.dtype)
+    # x = (activations[0] * activations[1]).astype(self.dtype)
     # Apply dropout and final dense output projection.
     x = nn.Dropout(rate=self.intermediate_dropout_rate, broadcast_dims=(-2,))(
         x, deterministic=deterministic

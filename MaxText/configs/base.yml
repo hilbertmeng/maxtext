@@ -622,6 +622,7 @@ expert_chunk_size: 8
 router_z_loss_coef: 0.01
 gate_noise_coef: 0.5
 sfm_after_topn: True
+num_groups: 1
 keep_period: 1000 # step / keep_period would not be deleted
 max_to_keep: 4 # max save checkpoint nums nearby
 only_eval: False

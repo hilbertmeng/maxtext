@@ -993,11 +993,11 @@ def _entroy(probs):
 
 def record_gate(self, key, gate_scores, axis=(0, 1)):
     expert_to_token_score = gate_scores.mean(axis=axis)
-    expert_to_per_token_score = gate_scores.mean(axis=1)
+    expert_to_seq_token_score = gate_scores.mean(axis=1)
     sum_value = jnp.sum(expert_to_token_score, axis=-1)
     expert_to_token_score = expert_to_token_score / (sum_value + 1e-6) # batch数据中，专家选择的token
-    expert_to_per_token_score = expert_to_per_token_score / (sum_value + 1e-6) # 每条数据中，专家选择的token
-    self.sow('intermediates', f'{key}/expert_to_per_token_score', _entroy(expert_to_per_token_score)) # 熵越大越好 max: log(B*E)
+    expert_to_seq_token_score = expert_to_seq_token_score / (sum_value + 1e-6) # seq数据中，专家选择的token
+    self.sow('intermediates', f'{key}/expert_to_seq_token_score', _entroy(expert_to_seq_token_score)) # 熵越大越好 max: log(B*E)
     self.sow('intermediates', f'{key}/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: logE
     self.sow('intermediates', f'{key}/token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
 
@@ -1131,7 +1131,9 @@ class OpenMoeBlock(nn.Module):
         num_tokens = np.prod(token_shape)
         m_dim = inputs.shape[-1]
        
-        num_groups = inputs.shape[0]
+        # num_groups = inputs.shape[0]
+        num_groups = self.config.num_groups # lsp
+
         tokens_per_group = num_tokens // num_groups
         assert num_tokens % num_groups == 0, max_logging.log(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 

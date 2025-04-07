@@ -993,9 +993,12 @@ def _entroy(probs):
 
 def record_gate(self, key, gate_scores, axis=(0, 1)):
     expert_to_token_score = gate_scores.mean(axis=axis)
+    expert_to_per_token_score = gate_scores.mean(axis=1)
     sum_value = jnp.sum(expert_to_token_score, axis=-1)
-    expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)
-    self.sow('intermediates', f'{key}/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: 5.45
+    expert_to_token_score = expert_to_token_score / (sum_value + 1e-6) # batch数据中，专家选择的token
+    expert_to_per_token_score = expert_to_per_token_score / (sum_value + 1e-6) # 每条数据中，专家选择的token
+    self.sow('intermediates', f'{key}/expert_to_per_token_score', _entroy(expert_to_per_token_score)) # 熵越大越好 max: log(B*E)
+    self.sow('intermediates', f'{key}/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: logE
     self.sow('intermediates', f'{key}/token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
 
 

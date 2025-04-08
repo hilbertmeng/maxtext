@@ -1173,7 +1173,7 @@ class Attention(nn.Module):
         ragged_block_size=self.ragged_block_size,
     )
     if self.use_kv_shift:
-      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant)
+      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
     
     cfg = self.config
     if self.use_postnorm:
@@ -1392,7 +1392,8 @@ class Attention(nn.Module):
       value = self.kv_projection(inputs_kv, proj_name="value")
 
     if self.use_kv_shift:
-      key, value = self.kv_shift(inputs_q, key, value)
+      inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
+      query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v, inputs_m=hidden_states)
 
     query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
 
@@ -1429,7 +1430,7 @@ class Attention(nn.Module):
         self.sow('intermediates', 'attn_logits_min', -1 * (-attn_logits).max())
         self.sow('intermediates', 'attn_logits_mean', attn_logits.mean())
 
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv)
+    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, hidden_states=hidden_states)
 
     if self.use_postnorm:
       b, t, n, d = out.shape

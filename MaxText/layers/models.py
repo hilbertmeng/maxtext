@@ -32,6 +32,9 @@ from layers import normalizations, quantizations
 from layers import pipeline
 from layers import mudd
 from layers import initializers
+from layers.dynamic_temperature import DynamicTemperature
+from layers.kv_shift import Hiddenshift
+
 import max_logging
 import maxtext_utils
 
@@ -194,6 +197,12 @@ class Decoder(nn.Module):
       self.pipeline_module = pipeline.Pipeline(
           config=self.config, mesh=self.mesh, layers=pipeline_stage_module, remat_policy=remat_policy
       )
+
+    if self.config.shift_last_hidden:
+      self.hidden_shift = Hiddenshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=initializers.nd_dense_init_normal(0.006))
+  
+    if self.config.use_dynamic_temp: 
+       self.dynamic_temp = DynamicTemperature(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=initializers.nd_dense_init_normal(0.006))
 
   def get_remat_policy(self):
     cfg = self.config
@@ -513,7 +522,11 @@ class Decoder(nn.Module):
               self.sow('intermediates', f'hidden_states_layer_{lyr}', maxtext_utils.l2norm(y[0])) # layer_out, dyn_dense_w = y
             if not self.config.mudd_in_layer:
               y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
-            
+
+    if self.config.shift_last_hidden:
+      y = self.hidden_shift(y)
+
+    last_hid = y         
     y = self.get_norm_layer()(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
@@ -521,6 +534,10 @@ class Decoder(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
         kernel_axes=("norm",),
     )(y)
+
+    if self.config.use_dynamic_temp: 
+      y = self.dynamic_temp(last_hid, y)
+
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
 
     # [batch, length, emb_dim] -> [batch, length, vocab_size]

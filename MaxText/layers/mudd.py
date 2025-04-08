@@ -11,6 +11,7 @@ from layers import normalizations
 from layers import linears
 import max_logging
 from layers import quantizations 
+from layers.kv_shift import shift_1d
 from einops import rearrange
 import max_logging
 
@@ -60,6 +61,7 @@ class Mlp(nn.Module):
   mesh: Mesh
   quant: Optional[Quant] = None
   layer_inx: int = None
+  use_bias: bool = True
 
   def setup(self):
     cfg = self.config
@@ -104,10 +106,11 @@ class Mlp(nn.Module):
                                     use_bias=False, 
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
-    self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
-    init_v = jnp.array([0] * ((layer_inx + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
-    init_v = init_v[None].repeat(C, 0)
-    self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
+    if self.use_bias:
+      self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
+      init_v = jnp.array([0] * ((layer_inx + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
+      init_v = init_v[None].repeat(C, 0)
+      self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
   @nn.compact
   def __call__(
@@ -124,7 +127,10 @@ class Mlp(nn.Module):
       if cfg.dynamic_dense_scale_dw:
         max_logging.log(f'dynamic_dense_scale_dw: {cfg.dynamic_dense_scale_dw}', debug=self.config.debug)
         dyn_dense_kernel_out /= jnp.sqrt(self.dynamic_dense_inter_dim)
-      dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)
+      if self.use_bias:
+        dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)
+      else:
+        dyn_dense_w = dyn_dense_kernel_out
     return dyn_dense_w
 
 
@@ -137,6 +143,8 @@ class Compose(nn.Module):
   def setup(self):
       if self.config.mudd_in_layer:
           self.mudd_mlp = Mlp(self.config, self.mesh, self.quant, self.layer_inx)
+          if self.config.mudd_shift:
+              self.shift_mlp = Mlp(self.config, self.mesh, self.quant, self.layer_inx, use_bias=False)
 
   @nn.compact
   def __call__(
@@ -146,6 +154,8 @@ class Compose(nn.Module):
   ):
     if self.config.mudd_in_layer:
         y, dyn_dense_w = layer_output, self.mudd_mlp(layer_output)
+        if self.config.mudd_shift:
+            shift_dw = self.shift_mlp(layer_output)
     else:     
         y, dyn_dense_w = layer_output
         if dyn_dense_w is None: 
@@ -184,7 +194,10 @@ class Compose(nn.Module):
                         ) for cidx in range(C)])
       else:
         # (btl, btl, btl, btl)
-        y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
+        if self.config.mudd_shift:
+          y = tuple([sum([ hids[lidx] * dyn_dense_w[cidx,:,:,lidx] + shift_dw[:, :, cidx, lidx:lidx+1] * shift_1d(hids[lidx], offset=1, axis=1)  for lidx in range(len(hids))]) for cidx in range(C) ])
+        else:
+          y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
     if layer_inx == cfg.num_decoder_layers - 1:
       del hids
       return y[0], []

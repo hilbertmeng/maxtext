@@ -79,6 +79,12 @@ class DC:
     key_wise = True
     static_proj = False
 
+class KVshift:
+    use_kv_shift = True
+    kv_shift_flash = True
+    kv_shift_mlp = True
+    kv_shift_hidden_way = 'kv'
+
 class Trace:
     profiler = 'xplane'
     scan_layers = False
@@ -108,6 +114,12 @@ class Llama2MediumBase(Llama2Medium):
     attention='dot_product_chunk'
     query_chunk_size=512
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+
+class Llama2MediumBaseDynamicTemp(Llama2MediumBase):
+    use_dynamic_temp = True
+
+class Llama2MediumBaseDynamicTempDTanhA0p001(Llama2MediumBaseDynamicTemp):
+    dynamic_temp_tanh = True
 
 class Llama2MediumBaseAlibi(Llama2MediumBase):
     use_alibi = True
@@ -195,11 +207,25 @@ class Llama2MediumBaseSaveDebugNothingTraceRecord0(Llama2MediumBaseSaveNothingTr
 class Llama2MediumBaseMinimalTraceRecord0(Llama2MediumBaseSaveNothingTrace):
     remat_policy = 'minimal'
 
+class Llama2MediumBaseHiddenshiftLast(Llama2MediumBase):
+    shift_last_hidden = True
+
 class Llama2MediumBaseKVshift(Llama2MediumBase):
     use_kv_shift = True
 
 class Llama2MediumBaseKVshiftFlashEdge(Llama2MediumBaseKVshift):
     kv_shift_flash = True
+
+class Llama2MediumBaseQKVshift(Llama2MediumBase):
+    use_kv_shift = True
+    kv_shift_flash = True
+    use_q_shift = True
+
+class Llama2MediumBaseKVshiftMlp(Llama2MediumBaseKVshift):
+    kv_shift_flash = True
+    kv_shift_mlp = True
+    record_internal_nn_metrics = False
+    scan_layers = False
 
 class MLAMediumBase(Llama2MediumBase):
     """
@@ -250,6 +276,11 @@ class MuddLlama2Medium(Mudd, Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
 
+class MuddLlama2MediumHiddenShift(MuddLlama2Medium):
+    mudd_shift = True
+    mudd_in_layer = True
+    record_internal_nn_metrics = False
+
 class MuddLlama2MediumTrace(MuddLlama2Medium):
     scan_layers = False
     profiler = 'xplane'
@@ -259,6 +290,10 @@ class MuddLlama2MediumInnerRecord0Trace(MuddLlama2MediumTrace):
     record_internal_nn_metrics = False
     remat_policy = 'save_nothing'
 
+class MuddLlama2MediumInnerRecord0TraceL19(MuddLlama2MediumInnerRecord0Trace):
+    base_num_decoder_layers = 19
+
+
 class MuddLlama2MediumSaveNothingTrace(MuddLlama2MediumTrace):
     remat_policy = 'save_nothing'
 
@@ -266,21 +301,51 @@ class MuddLlama2MediumSaveNothingTrace(MuddLlama2MediumTrace):
 class MuddLlama2MediumKVshift(MuddLlama2Medium):
     use_kv_shift = True
     kv_shift_flash = True
+    record_internal_nn_metrics = False
 
+class MuddLlama2MediumKVshiftKVway(MuddLlama2MediumKVshift):
+    kv_shift_hidden_way = 'kv'
+
+class MuddLlama2MediumKVshiftMway(MuddLlama2MediumKVshift):
+    kv_shift_hidden_way = 'm'  
 
 class DCLlama2Medium(DC, LGWindow, Llama2Medium):
     qk_norm = True
     model_name = 'DCLlama2Medium'
     scan_layers = False
 
-class DCLlama2MediumSW(DCLlama2Medium):
+class DCLlama2MediumSWDebug(Trace, DCLlama2Medium):
     static_proj = True
-    scan_layers = False
     key_wise = False
     query_wise = False
     attention='dot_product_chunk'
-    query_chunk_size=128
+    # query_chunk_size=128
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+    # scan_layers = False
+
+    scan_layers = True
+    enable_checkpointing = False
+    query_chunk_size = 2048
+    record_internal_nn_metrics = False
+    seperate_qk_dw_proj = True
+    # per_device_batch_size = 16.0
+
+
+class DCLlama2MediumSWQWKWNoQKNorm(DCLlama2Medium):
+    static_proj = True
+    qk_norm = False
+    scan_layers = False
+    query_chunk_size=128
+    attention='dot_product_chunk'
+    tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+
+class DCLlama2MediumSWQWNoQKNorm(DCLlama2MediumSWQWKWNoQKNorm):
+    static_proj = True
+    key_wise = False
+    seperate_qk_dw_proj = True
+
+class DCLlama2MediumQWKWNoQKNorm(DCLlama2MediumSWQWKWNoQKNorm):
+    static_proj = False    
 
 class DCLlama2MediumStaticWQW(DCLlama2Medium): # SWQW, QWKW
     model_name = "DCLlama2MediumStaticWQW"
@@ -329,6 +394,37 @@ class DCLlama2MediumQWKWTrace(DCLlama2MediumQWKW):
 class DCMuddLlama2Medium(Mudd, DCLlama2Medium):
     model_name = 'DCMuddLlama2Medium'
 
+class DCMuddLlamaMediumQWKWKVshift(Mudd, KVshift, DCLlama2Medium):
+    seperate_qk_dw_proj = True
+    attention='dot_product_chunk'
+    query_chunk_size=128
+    record_internal_nn_metrics = False
+    tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+
+class DCMuddLlamaMediumQWKWKVshiftShareAllDwMway(DCMuddLlamaMediumQWKWKVshift):
+    seperate_qk_dw_proj = False
+    dc_share_all_dw_hidden = True
+    dc_hidden_way = 'm'
+    use_dc_prenorm = True
+    sharding_tolerance = 0.05
+
+class DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid(DCMuddLlamaMediumQWKWKVshift):
+    seperate_qk_dw_proj = True
+    dc_share_prepost_dw_hidden = True
+    dc_hidden_way = 'qk'
+    sharding_tolerance = 0.05
+
+class DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHidDw2Zeroinit(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid):
+    dc_dw2_zero_init = True
+
+class DCMuddLlamaMediumQWKWKVshiftDw2Zeroinit(DCMuddLlamaMediumQWKWKVshift):
+    dc_dw2_zero_init = True
+
+class DCMuddLlamaMediumQWKVshiftSharePrePostDwHid(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid):
+    key_wise = False
+
+class DCMuddLlamaMediumQWKWKVshiftDT(DCMuddLlamaMediumQWKWKVshift):
+    use_dynamic_temp = True
 
 class LlamaLarge(Llama2Medium):
     base_emb_dim = 1536

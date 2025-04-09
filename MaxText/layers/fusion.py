@@ -212,6 +212,9 @@ class SubDecoderLayer(nn.Module):
       if cfg.moe_type == 'open':
         moe_layer = linears.OpenMoeBlock
         kwargs.update(extra_kwargs)
+      elif cfg.moe_type == 'open_v2':
+        moe_layer = linears.OpenMoeBlockV2
+        kwargs.update(extra_kwargs)
       elif cfg.moe_type == 'deepseek':
         moe_layer = linears.DeepSeekMoeBlock
       elif cfg.moe_type == 'ol': # todo: have bug

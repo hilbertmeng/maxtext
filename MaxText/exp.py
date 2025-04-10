@@ -232,6 +232,9 @@ class Llama2MediumOLMoe(CommonMoe, Llama2Medium):
 class Llama2MediumMistralMoe(CommonMoe, Llama2Medium):
     moe_type = 'mistral'
 
+class MuddLlama2LargeMistralMoe(MuddLlama2LargeOpenMoe):
+    moe_type = 'mistral'
+
 class Llama2MediumDSMoe(DSMoe, Llama2Medium):
     moe_type = 'deepseek'
     decoder_block = "deepseek"

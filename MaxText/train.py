@@ -367,12 +367,12 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
 
       metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
 
-      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:
+      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes and 'open' in config.moe_type:
         temp_dict = {
           f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0],
           f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0],
           f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0],
-          f"moe/router_logits/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_seq_token_score"][0][layer_num],
+          f"moe/router_logits/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_seq_token_score"][0],
           f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0],
           f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0],
           f"moe/router_probs/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_seq_token_score"][0],

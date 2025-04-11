@@ -22,6 +22,7 @@ class Common:
     query_chunk_size = 512
     tensorboard_dir = '' # tensorboard dir, final path is tensorboard_dir + run_name
     insert_moe_indexes = []
+    training_num_batches_to_skip = None
 
 class Optimizer:
     learning_rate_schedule_steps = 13500

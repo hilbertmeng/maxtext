@@ -333,7 +333,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
     for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下
-      if config.num_experts >= 1 and config.moe_type == 'open' and layer_num in config.insert_moe_indexes:
+      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:
         temp_dict = {
           f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0][layer_num],
           f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0][layer_num],
@@ -367,7 +367,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
 
       metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
 
-      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes and 'open' in config.moe_type:
+      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:
         temp_dict = {
           f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0],
           f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0],

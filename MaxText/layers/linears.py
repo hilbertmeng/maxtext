@@ -398,10 +398,12 @@ class MoeBlock(nn.Module):
     inputs_shape = inputs.shape
     inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
     weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
+
     if self.config.decoder_block == "deepseek":
       weights = self.deepseek_scale_weights(weights)
     else:
       weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
+
     flatten_selected_experts = jnp.ravel(selected_experts)
     sorted_selected_experts = jnp.argsort(flatten_selected_experts)
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok
@@ -430,6 +432,16 @@ class MoeBlock(nn.Module):
     return output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
 
   def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
+
+    if self.config.record_internal_nn_metrics: # lsp
+      weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok) # permute func can't record
+      l2norm = jnp.sqrt(jnp.sum(jnp.square(gate_logits)))
+      self.sow('intermediates', 'router_logits/l2norm', l2norm)
+      record_gate(self, 'router_logits', gate_logits, axis=(0, 1))
+      top_values = jnp.array([(selected_experts == i).sum() for i in jnp.arange(0, self.num_experts, self.num_experts // 8)])
+      self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
+      record_gate(self, 'router_probs', weights, axis=(0, 1)) 
+
     # tile_size = (512, 1024, 1024)  # (m, k, n)
     tile_size = (512, 512, 512)  # (m, k, n)
 

@@ -229,7 +229,10 @@ class Llama2MediumOLMoe(CommonMoe, Llama2Medium):
     base_mlp_dim = 352
     qk_norm = False
 
-class Llama2MediumMistralMoe(CommonMoe, Llama2Medium):
+class Llama2MediumMistralMoe(Llama2MediumOpenMoe):
+    moe_type = 'mistral'
+
+class Llama2LargeMistralMoe(Llama2LargeOpenMoe):
     moe_type = 'mistral'
 
 class MuddLlama2MeduimMistralMoe(MuddLlama2MediumOpenMoe):

@@ -433,14 +433,24 @@ class MoeBlock(nn.Module):
 
   def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
 
+    aux_loss, router_z_loss = 0.0, 0.0
+    if self.config.load_balance_loss_weight is not None or self.config.record_internal_nn_metrics:
+      _, expert_index, one_hot_indices = _top_k(gate_logits, k=self.num_experts_per_tok)
+      assert one_hot_indices is not None
+      router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
+      _gate_logits = gate_logits + router_mask
+      router_probs = jax.nn.softmax(_gate_logits.astype(jnp.float32), axis=-1)
+      aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
+      aux_loss *= self.config.load_balance_loss_weight
+
     if self.config.record_internal_nn_metrics: # lsp
-      weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok) # permute func can't record
+      # weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok) # permute func can't record
       l2norm = jnp.sqrt(jnp.sum(jnp.square(gate_logits)))
       self.sow('intermediates', 'router_logits/l2norm', l2norm)
       record_gate(self, 'router_logits', gate_logits, axis=(0, 1))
-      top_values = jnp.array([(selected_experts == i).sum() for i in jnp.arange(0, self.num_experts, self.num_experts // 8)])
+      top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, self.num_experts // 8)])
       self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
-      record_gate(self, 'router_probs', weights, axis=(0, 1)) 
+      record_gate(self, 'router_probs', router_probs, axis=(0, 1))
 
     # tile_size = (512, 1024, 1024)  # (m, k, n)
     tile_size = (512, 512, 512)  # (m, k, n)
@@ -528,7 +538,7 @@ class MoeBlock(nn.Module):
       )
       return output, None
 
-    return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
+    return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)[0], aux_loss # lsp: add aux_loss
 
   def reshape_and_update_weights(self, weights, indices):
     # input of weights & indices: (batch_size, seq_len, num_experts_per_tok)

@@ -68,7 +68,8 @@ class KVshift(nn.Module):
                 "weight_dtype": cfg.weight_dtype,
                 "epsilon": cfg.normalization_layer_epsilon,
                 }
-    self.kv_shift_norm = normalizations.get_rmsnorm(name="kv_shift_knorm", **norm_kwargs)
+    if not self.config.kv_shift_skip_knorm:
+      self.kv_shift_norm = normalizations.get_rmsnorm(name="kv_shift_knorm", **norm_kwargs)
     self.kv_shift_prenorm = normalizations.get_rmsnorm(name="kv_shift_prenorm", **norm_kwargs)
     
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
@@ -109,8 +110,8 @@ class KVshift(nn.Module):
                                       name='kv_shift_proj_down',
                                       **kwargs)
     else:
-      if self.kv_shift_hidden_way == 'kv':
-        for mode in ['k', 'v']:
+      if self.kv_shift_hidden_way in ['kv', 'qkv']:
+        for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
                                       (cfg.num_kv_heads, 1),
                                       kernel_init=initializers.contant_dense_init(0.0),
@@ -153,10 +154,14 @@ class KVshift(nn.Module):
           kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))
           vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))
       elif self.kv_shift_hidden_way == 'qkv':
-        assert self.kv_shift_mlp
-        qg = jax.nn.sigmoid(self.dw_down_proj_q(jax.nn.gelu(self.dw_up_proj_q(inputs_q))))
-        kg = jax.nn.sigmoid(self.dw_down_proj_k(jax.nn.gelu(self.dw_up_proj_k(inputs_k))))
-        vg = jax.nn.sigmoid(self.dw_down_proj_v(jax.nn.gelu(self.dw_up_proj_v(inputs_v))))
+        if self.kv_shift_mlp:
+          qg = jax.nn.sigmoid(self.dw_down_proj_q(jax.nn.gelu(self.dw_up_proj_q(inputs_q))))
+          kg = jax.nn.sigmoid(self.dw_down_proj_k(jax.nn.gelu(self.dw_up_proj_k(inputs_k))))
+          vg = jax.nn.sigmoid(self.dw_down_proj_v(jax.nn.gelu(self.dw_up_proj_v(inputs_v))))
+        else:
+          qg = jax.nn.sigmoid(self.dw_proj_q(inputs_q))
+          kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))
+          vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))
       else:
         if self.kv_shift_mlp:
           dw = jax.nn.sigmoid(self.dw_down_proj(jax.nn.gelu(self.dw_up_proj(inputs)))) # B(T-1)D, DN2->B(T-1)N2
@@ -182,7 +187,8 @@ class KVshift(nn.Module):
       query = query * qg + (1-qg) * shift_1d(query, offset=1, axis=1)
 
     # post_norm on key only 
-    key = self.kv_shift_norm(key)
+    if not self.config.kv_shift_skip_knorm:
+      key = self.kv_shift_norm(key)
 
     return query, key, value    
 

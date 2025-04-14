@@ -34,6 +34,7 @@ class PileDatasets():
                 num_batches_to_skip: Optional[int] = None,
                 only_eval: bool = False,
                 zero_loss: bool = True,
+                pad_bos: bool = False,
                 ):
         self.mesh = mesh
         self.name = name
@@ -54,6 +55,7 @@ class PileDatasets():
         self.only_eval = only_eval
         self.zero_loss = zero_loss
         self.batch_padding_size = 0
+        self.pad_bos = pad_bos
         self.__post_init__()
         
     def __post_init__(self):
@@ -132,8 +134,14 @@ class PileDatasets():
     def convert(self, data):
         seq_len = self.seq_len
         model_needed_inputs = {}
-        model_needed_inputs['inputs'] = data["input_ids"][:, : seq_len]
-        model_needed_inputs['targets'] = data["input_ids"][:, 1: seq_len + 1]
+        if self.pad_bos:
+            bos_token_id = 0 
+            bos_tokens = tf.zeros((data["input_ids"].shape[0], 1), dtype=data["input_ids"].dtype) + bos_token_id
+            model_needed_inputs['inputs'] = tf.concat([bos_tokens, data["input_ids"][:, : seq_len-1]], 1)
+            model_needed_inputs['targets'] = data["input_ids"][:, : seq_len]
+        else:
+            model_needed_inputs['inputs'] = data["input_ids"][:, : seq_len]
+            model_needed_inputs['targets'] = data["input_ids"][:, 1: seq_len + 1]
         key = 'labels' if "labels" in data else 'input_ids'
         weights = data[key] >= 0 if self.zero_loss else data[key] > 0
         # print(f'key: {key}')
@@ -447,6 +455,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             only_eval=False,
                             zero_loss=config.zero_loss,
                             iter_file_nums=config.iter_file_nums,
+                            pad_bos=config.pad_bos,
                             )
   eval_dataloader = None
   if eval_pathes:
@@ -465,6 +474,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             only_eval=False,
                             zero_loss=config.zero_loss,
                             iter_file_nums=config.iter_file_nums,
+                            pad_bos=config.pad_bos,
                             )
   def train_dataloader_fn():
     return train_dataloader

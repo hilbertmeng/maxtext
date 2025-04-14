@@ -416,7 +416,8 @@ class AttentionOp(nn.Module):
         query_input_dim=input_dim,
         key_input_dim=input_dim,
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
-        loop_over_dynamic_hd=self.loop_over_dynamic_hd
+        loop_over_dynamic_hd=self.loop_over_dynamic_hd,
+        squeeze_ratio=self.config.sw_squeeze_ratio,
         )
 
       self.post_proj = CrossHeadProjection(
@@ -431,7 +432,8 @@ class AttentionOp(nn.Module):
         query_wise=cfg.query_wise,
         key_wise=cfg.key_wise,
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
-        loop_over_dynamic_hd=self.loop_over_dynamic_hd
+        loop_over_dynamic_hd=self.loop_over_dynamic_hd,
+        squeeze_ratio=self.config.sw_squeeze_ratio,
         )
 
   @nn.compact

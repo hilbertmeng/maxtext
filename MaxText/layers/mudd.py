@@ -80,7 +80,13 @@ class Mlp(nn.Module):
     factor = 1
     layer_inx = self.layer_inx
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
-    dw_shape = (C, ((layer_inx + 1) * factor + 1))
+    if self.config.mudd_num_heads is not None:
+      # init ov vectors 
+      N = cfg.mudd_num_heads or 1
+      self.ov_vectors = self.param('ov_vectors', nn.with_logical_partitioning(initializers.constant_init(1), (None,None,"embed",)), (C, N, cfg.base_emb_dim,), cfg.weight_dtype)
+      dw_shape = (C, N, ((layer_inx + 1) * factor + 1))
+    else:
+      dw_shape = (C, ((layer_inx + 1) * factor + 1))
 
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 else 1
     max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {dynamic_dense_hidden_expand}', debug=self.config.debug)
@@ -131,7 +137,11 @@ class Mlp(nn.Module):
         dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)
       else:
         dyn_dense_w = dyn_dense_kernel_out
-    return dyn_dense_w
+
+    if self.config.mudd_num_heads is not None:
+      return (dyn_dense_w, self.ov_vectors)
+    else:
+      return dyn_dense_w
 
 
 class Compose(nn.Module):
@@ -162,6 +172,10 @@ class Compose(nn.Module):
           max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
           return y, hids
 
+    if self.config.mudd_num_heads is not None:
+        dyn_dense_w, ov_vectors = dyn_dense_w
+
+
     max_logging.log(f'Compose history hidden states.', debug=self.config.debug)
     layer_inx = self.layer_inx
     cfg = self.config
@@ -180,7 +194,11 @@ class Compose(nn.Module):
     hids.append(y_normed)
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     max_logging.log(f'Compose dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}', debug=self.config.debug)
-    dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
+    if self.config.mudd_num_heads is not None:
+      # jnp.einsum('BTCNL,CND->CBTLD')
+      dyn_dense_w = rearrange(dyn_dense_w, 'B T C N L -> C B T N L 1', C=C)
+    else:
+      dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
     factor = 1
     hid_idxs = list(range((layer_inx + 1) * factor + 1)) # L+1
     if cfg.ddw_gen_pattern == 'q,k,v,m':
@@ -197,7 +215,13 @@ class Compose(nn.Module):
         if self.config.mudd_shift:
           y = tuple([sum([ hids[lidx] * dyn_dense_w[cidx,:,:,lidx] + shift_dw[:, :, cidx, lidx:lidx+1] * shift_1d(hids[lidx], offset=1, axis=1)  for lidx in range(len(hids))]) for cidx in range(C) ])
         else:
-          y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
+          if self.config.mudd_num_heads is not None:
+            N = ov_vectors.shape[1]
+            # dw: BTCNL,CND->CBTLD ; CBTLD, LBTD -> CBTD
+            # y = tuple([sum([ hids[lidx] * sum([dyn_dense_w[cidx,:,:,nidx,lidx] * ov_vectors[None,None, cidx, nidx] for nidx in range(ov_vectors.shape[1])]) for lidx in range(len(hids))]) for cidx in range(C) ])
+            y = tuple([sum([ hids[lidx] * jnp.einsum('BTN,ND->BTD', dyn_dense_w[cidx,:,:,:,lidx,0], ov_vectors[cidx]/N) for lidx in range(len(hids))]) for cidx in range(C) ])
+          else:
+            y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
     if layer_inx == cfg.num_decoder_layers - 1:
       del hids
       return y[0], []

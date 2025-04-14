@@ -36,7 +36,7 @@ def get_large_negative_number(dtype: jnp.dtype) -> Array:
     return jnp.asarray(-0.7 * dtype_max, dtype=dtype)
 
 
-def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp.bfloat16, squeeze: bool = False) -> Array:
+def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp.bfloat16, squeeze: bool = False, unmask_bos: bool = False) -> Array:
   """
   w: query chunk size
   window_size: window size
@@ -45,6 +45,9 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
   """
   if w is None:
     w = length
+  if unmask_bos and w == length:
+    if window_size is not None:
+      window_size = window_size - 1 # spare one token for bos
   if window_size is None:
     offset = length - w
   else:
@@ -59,6 +62,8 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
     m = m1 + m2
   else:
     m = m1
+  if unmask_bos and w == length: # unmask the first token when query_chunk_size == seq_len
+    m = m.at[:, 0].set(0) 
   large_negative_number = get_large_negative_number(dtype)
   m = m.astype(dtype)
   m = jnp.where((m > 0.5), large_negative_number, m)
@@ -194,7 +199,7 @@ class QChunk(nn.Module):
     b, t, n, _ = query.shape
     h = value.shape[-1]
     s = key.shape[1]
-    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype)
+    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, unmask_bos=self.config.unmask_bos)
 
     if self.query_chunk_size is None:
         encoded = self._apply_attention_dot(

@@ -85,6 +85,22 @@ class KVshift:
     kv_shift_mlp = True
     kv_shift_hidden_way = 'kv'
 
+class SpeedTest:
+    enable_checkpointing = False 
+    record_internal_nn_metrics = False    
+
+class DreamMini(Mudd, KVshift, DC, LGLLWindow):
+    attention='dot_product_chunk'
+    # dc config: QW + SW + QKnorm
+    qk_norm = True
+    seperate_qk_dw_proj = True # generate qw from query-way hidden state
+    dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
+    static_proj = True # use SW
+    key_wise = False # No KW
+    # kv shift config: linear + No Knorm 
+    kv_shift_mlp = False # linear KVshift
+    kv_shift_skip_knorm = True # remove knorm, duplicated when using qknorm 
+
 class Trace:
     profiler = 'xplane'
     scan_layers = False
@@ -96,6 +112,7 @@ class TrainXL:
     learning_rate_schedule_steps = 50000
     warmup_steps_fraction = 0.01
     cosine_learning_rate_final_fraction = 0.1
+    eval_interval = 50000
 
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     base_emb_dim = 1024
@@ -114,6 +131,10 @@ class Llama2MediumBase(Llama2Medium):
     attention='dot_product_chunk'
     query_chunk_size=512
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+
+class Llama2MediumBaseTest(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
 
 class Llama2MediumBaseDynamicTemp(Llama2MediumBase):
     use_dynamic_temp = True
@@ -276,6 +297,14 @@ class MuddLlama2Medium(Mudd, Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
 
+class MuddLlama2MediumHead4(MuddLlama2Medium):
+    mudd_num_heads = 4
+    sharding_tolerance = 0.05
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    mudd_in_layer = True
+    record_internal_nn_metrics = False
+
+
 class MuddLlama2MediumHiddenShift(MuddLlama2Medium):
     mudd_shift = True
     mudd_in_layer = True
@@ -302,6 +331,10 @@ class MuddLlama2MediumKVshift(MuddLlama2Medium):
     use_kv_shift = True
     kv_shift_flash = True
     record_internal_nn_metrics = False
+
+class MuddLlama2MediumQKVshift(MuddLlama2MediumKVshift):
+    use_q_shift = True
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
 class MuddLlama2MediumKVshiftKVway(MuddLlama2MediumKVshift):
     kv_shift_hidden_way = 'kv'
@@ -347,6 +380,21 @@ class DCLlama2MediumSWQWNoQKNorm(DCLlama2MediumSWQWKWNoQKNorm):
 class DCLlama2MediumQWKWNoQKNorm(DCLlama2MediumSWQWKWNoQKNorm):
     static_proj = False    
 
+class DCLlama2MediumQWKWNoQKNormPadBosLGLL(LGLLWindow, DCLlama2Medium):
+    pad_bos = True
+    qk_norm = False
+    scan_layers = False
+    query_chunk_size=128
+    attention='dot_product_chunk'
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class DCLlama2MediumQWKWNoQKNormPadBosLGLLQC2048(DCLlama2MediumQWKWNoQKNormPadBosLGLL):
+    query_chunk_size = 2048
+
+class DCLlama2MediumQWKWNoQKNormPadBosLGLLUnmaskBos(DCLlama2MediumQWKWNoQKNormPadBosLGLL):
+    unmask_bos = True
+    query_chunk_size = 2048
+
 class DCLlama2MediumStaticWQW(DCLlama2Medium): # SWQW, QWKW
     model_name = "DCLlama2MediumStaticWQW"
     static_proj = True
@@ -376,6 +424,10 @@ class DCLlama2MediumQWKWKVshift(DCLlama2MediumQWKW):
     use_kv_shift = True
     kv_shift_flash = True
 
+class DCLlama2MediumQWKWQKVshift(DCLlama2MediumQWKWKVshift):
+    use_q_shift = True
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
 class DCLlama2MediumQWKWChunkScan(DCLlama2MediumQWKW):
     chunk_scan = True
 
@@ -401,6 +453,11 @@ class DCMuddLlamaMediumQWKWKVshift(Mudd, KVshift, DCLlama2Medium):
     record_internal_nn_metrics = False
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
 
+class DCMuddLlamaMediumQWKWQKVshift(DCMuddLlamaMediumQWKWKVshift):
+    use_q_shift = True
+    kv_shift_hidden_way = 'qkv'
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
 class DCMuddLlamaMediumQWKWKVshiftShareAllDwMway(DCMuddLlamaMediumQWKWKVshift):
     seperate_qk_dw_proj = False
     dc_share_all_dw_hidden = True
@@ -422,6 +479,12 @@ class DCMuddLlamaMediumQWKWKVshiftDw2Zeroinit(DCMuddLlamaMediumQWKWKVshift):
 
 class DCMuddLlamaMediumQWKVshiftSharePrePostDwHid(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid):
     key_wise = False
+
+class DCMuddLlamaMediumQWSWKVshiftSharePrePostDwHid(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid):
+    key_wise = False
+    static_proj = True
+    query_chunk_size=2048
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
 class DCMuddLlamaMediumQWKWKVshiftDT(DCMuddLlamaMediumQWKWKVshift):
     use_dynamic_temp = True
@@ -485,6 +548,26 @@ class LlamaLargeSNTrace(Trace, LlamaLarge):
 
 class MuddLlamaLargeInnerSNTrace(Mudd, LlamaLargeSNTrace):
     mudd_in_layer = True # train speed: 0.367
+
+class DreamMiniMediumDebug(DreamMini, Llama2Medium):
+    query_chunk_size = 128
+    sw_squeeze_ratio = 8
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
+    query_chunk_size = 128
+    per_device_batch_size = 16.0 # 256 for v5p-32
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class DreamMiniXLSpeedTest(SpeedTest, DreamMiniXL):
+    query_chunk_size = 256
+
+class DreamMiniXLQWKWSpeedTest(SpeedTest, DreamMiniXL): # 
+    key_wise = True
+    static_proj = False
+
+class DreamMiniXLQWSpeedTest(SpeedTest, DreamMiniXL): # 
+    static_proj = False
 
 class LlamaXLSNTrace(Trace, TrainXL, LlamaXL):
     remat_policy = 'save_nothing' # train speed

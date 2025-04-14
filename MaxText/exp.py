@@ -183,6 +183,15 @@ class CommonMoe:
     insert_moe_indexes = list(range(0, 24, 1))
     expert_chunk_size = None
 
+class DroplessMoe:
+    gate_noise_coef = 0.0
+    load_balance_loss_weight = 0.0
+    sfm_after_topn = True
+    router_z_loss_coef = 0.0
+    megablox = True
+    sparse_matmul = True
+    expert_capacity_factor = 0.0
+    
 class Llama2MediumOpenMoe(CommonMoe, Llama2Medium):
     num_experts = 16
     moe_type = 'open'
@@ -230,16 +239,16 @@ class Llama2MediumOLMoe(CommonMoe, Llama2Medium):
     base_mlp_dim = 352
     qk_norm = False
 
-class Llama2MediumMistralMoe(Llama2MediumOpenMoe):
+class Llama2MediumMistralMoe(DroplessMoe, Llama2MediumOpenMoe):
     moe_type = 'mistral'
 
-class Llama2LargeMistralMoe(Llama2LargeOpenMoe):
+class Llama2LargeMistralMoe(DroplessMoe, Llama2LargeOpenMoe):
     moe_type = 'mistral'
 
-class MuddLlama2MeduimMistralMoe(MuddLlama2MediumOpenMoe):
+class MuddLlama2MeduimMistralMoe(DroplessMoe, MuddLlama2MediumOpenMoe):
     moe_type = 'mistral'
 
-class MuddLlama2LargeMistralMoe(MuddLlama2LargeOpenMoe):
+class MuddLlama2LargeMistralMoe(DroplessMoe, MuddLlama2LargeOpenMoe):
     moe_type = 'mistral'
 
 class Llama2MediumDSMoe(DSMoe, Llama2Medium):

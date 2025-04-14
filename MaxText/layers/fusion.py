@@ -209,19 +209,21 @@ class SubDecoderLayer(nn.Module):
         'num_experts_per_tok': cfg.num_experts_per_tok,
         'intermediate_dim': self.updated_mlp_dim, # lsp
         }
-      if cfg.moe_type == 'open':
+      if cfg.moe_type == 'open': # with capacity and noise and balance loss
         moe_layer = linears.OpenMoeBlock
         kwargs.update(extra_kwargs)
-      elif cfg.moe_type == 'open_v2':
+      elif cfg.moe_type == 'open_v2': # slowly, maybe have bug
         moe_layer = linears.OpenMoeBlockV2
         kwargs.update(extra_kwargs)
-      elif cfg.moe_type == 'deepseek':
+      elif cfg.moe_type == 'deepseek': # model performance bad
         moe_layer = linears.DeepSeekMoeBlock
-      elif cfg.moe_type == 'ol': # todo: have bug
+      elif cfg.moe_type == 'ol': # todo: don't run, can't compile
         moe_layer = linears.JaxQwenSparseMoeBlock
-      else:
+      elif cfg.moe_type == 'dropless': # no capacity and nosie, maybe have balance loss, bug no imporve with balance loss 0.01
         kwargs.update(extra_kwargs)
         moe_layer = linears.MoeBlock
+      else:
+        raise ValueError(f'Unknow moe type: {cfg.moe_type}, it must be in [open, deepseek, ol, dropless]')
       moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
       max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
 

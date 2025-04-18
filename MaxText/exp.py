@@ -246,7 +246,7 @@ class Llama2MediumMistralMoe(DroplessMoe, Llama2MediumOpenMoe):
 class Llama2LargeMistralMoe(DroplessMoe, Llama2LargeOpenMoe):
     pass
 
-class MuddLlama2MeduimMistralMoe(DroplessMoe, MuddLlama2MediumOpenMoe):
+class MuddLlama2MediumMistralMoe(DroplessMoe, MuddLlama2MediumOpenMoe):
     pass
 
 class MuddLlama2LargeMistralMoe(DroplessMoe, MuddLlama2LargeOpenMoe):

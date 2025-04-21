@@ -205,7 +205,7 @@ param_scan_axis: 1
 # The attention_type parameter determines the variants of attention, e.g. global or local_sliding
 attention: 'autoselected' # Supported attention: autoselected, dot_product, flash, cudnn_flash_te
 attention_type: 'global' # Supported attention_type: global, local_sliding, mla
-sliding_window_size: 0
+sliding_window_size: null
 attn_logits_soft_cap: 0.0
 final_logits_soft_cap: 0.0
 use_post_attn_norm: False
@@ -633,3 +633,4 @@ upload_param_act_tb_period: 25 # upload param, activation to tensorboard interva
 upload_loss_tb_period: 5 # # upload loss,acc,lr etc. to tensorboard interval steps
 training_num_batches_to_skip: 0
 key_wise: True
+num_layers_per_block: 1

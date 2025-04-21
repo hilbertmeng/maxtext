@@ -23,6 +23,7 @@ class Common:
     tensorboard_dir = '' # tensorboard dir, final path is tensorboard_dir + run_name
     insert_moe_indexes = []
     training_num_batches_to_skip = None
+    num_layers_per_block = 1
 
 class Optimizer:
     learning_rate_schedule_steps = 13500

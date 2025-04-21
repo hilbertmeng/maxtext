@@ -201,7 +201,7 @@ class CrossHeadProjection(nn.Module):
       else:
         assert False, f'[{in_dim}, {out_dim}]'
       return math.sqrt(2.0 / (in_dim + out_dim)) * relative_scale
-
+    print(f'key_wise: {self.key_wise} static_proj: {self.static_proj}')
     if self.static_proj:
       if self.squeeze_ratio is None:
         shape=[self.num_groups, self.num_heads_per_group, self.num_heads_per_group]
@@ -354,7 +354,8 @@ class AttentionOp(nn.Module):
         'query_input_dim': input_dim,
         'key_input_dim': input_dim,
         'dynamic_w_hidden_dim': dynamic_w_hidden_dim,
-        'loop_over_dynamic_hd': self.loop_over_dynamic_hd
+        'loop_over_dynamic_hd': self.loop_over_dynamic_hd,
+        'key_wise': self.config.key_wise,
       }
       self.pre_proj = CrossHeadProjection(**prepost_proj_kwargs)
       self.post_proj = CrossHeadProjection(**prepost_proj_kwargs)

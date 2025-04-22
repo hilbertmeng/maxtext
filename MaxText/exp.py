@@ -113,7 +113,21 @@ class Llama2XL(Llama2Medium):
     learning_rate_schedule_steps = 50000
     eval_interval = 5000
 
+class Llama2XLSG(Llama2Medium):
+    base_num_decoder_layers = 36
+    base_emb_dim = 2048
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 2816
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+    eval_interval = 5000
+    head_dim = 64
+
 class MuddLlama2XL(Mudd, Llama2XL):
+    pass
+
+class DcLlama2XLSG(LGLLWindow, DC, Llama2XLSG):
     pass
 
 class MuddLlama2Medium(Mudd, Llama2Medium):

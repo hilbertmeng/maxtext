@@ -385,9 +385,8 @@ class MoeBlock(nn.Module):
     """Scales weights according to DeepSeek's v3 reference implementation.
     https://github.com/deepseek-ai/DeepSeek-V3/blob/2f7b80eecebf3d1c84da5a0d465f6639ea175012/inference/model.py#L592-L594
     """
-    if self.config.routed_score_func == "sigmoid":
-      weights = nn.sigmoid(weights) # lsp
-      weights /= weights.sum(-1, keepdims=True)
+    weights = nn.sigmoid(weights) # lsp
+    weights /= weights.sum(-1, keepdims=True)
     weights *= self.config.routed_scaling_factor
     return weights
 
@@ -398,8 +397,7 @@ class MoeBlock(nn.Module):
     inputs_shape = inputs.shape
     inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
     weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
-
-    if self.config.decoder_block == "deepseek":
+    if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
       weights = self.deepseek_scale_weights(weights)
     else:
       weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
@@ -439,7 +437,12 @@ class MoeBlock(nn.Module):
       assert one_hot_indices is not None
       router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
       _gate_logits = gate_logits + router_mask
-      router_probs = jax.nn.softmax(_gate_logits.astype(jnp.float32), axis=-1)
+      if self.config.routed_score_func == 'sigmoid':
+        print(f'Enter sigmoid function......')
+        router_probs = nn.sigmoid(_gate_logits) # lsp
+        router_probs /= router_probs.sum(-1, keepdims=True)
+      else:
+        router_probs = jax.nn.softmax(_gate_logits.astype(jnp.float32), axis=-1)
       aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
       aux_loss *= self.config.load_balance_loss_weight
 

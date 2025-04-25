@@ -145,6 +145,28 @@ class DCLlama2Medium(DC, LGWindow, Llama2Medium):
 class DCMuddLlama2Medium(Mudd, DCLlama2Medium):
     model_name = 'DCMuddLlama2Medium'
 
+class Qwen2p5_3B(Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 2
+    base_mlp_dim = 11008
+    base_num_decoder_layers = 36
+    head_dim = 128
+    model_name = 'Qwen2p5_3B'
+    rope_max_timescale = 1000000
+    vocab_size = 151936
+
+class Qwen2p5_0p5B(Llama2Medium):
+    base_emb_dim = 896
+    base_num_query_heads = 14
+    base_num_kv_heads = 2
+    base_mlp_dim = 4864
+    base_num_decoder_layers = 24
+    head_dim = 64
+    model_name = 'Qwen2p5_0p5B'
+    rope_max_timescale = 1000000
+    vocab_size = 151936
+
 class Llama7B(Llama2Medium):
     base_emb_dim = 4096
     base_num_query_heads = 32

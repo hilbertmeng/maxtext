@@ -634,3 +634,4 @@ upload_loss_tb_period: 5 # # upload loss,acc,lr etc. to tensorboard interval ste
 training_num_batches_to_skip: 0
 key_wise: True
 num_layers_per_block: 1
+qkv_bias: False

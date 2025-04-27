@@ -24,6 +24,7 @@ class Common:
     insert_moe_indexes = []
     training_num_batches_to_skip = None
     num_layers_per_block = 1
+    qkv_bias = False
 
 class Optimizer:
     learning_rate_schedule_steps = 13500
@@ -155,8 +156,13 @@ class Qwen2p5_3B(Llama2Medium):
     model_name = 'Qwen2p5_3B'
     rope_max_timescale = 1000000
     vocab_size = 151936
+    qk_norm = False
+    logits_via_embedding = True # shared embedding weights
+    normalize_embedding_logits = False
+    dataset_type = 'pretrain_4k'
+    qkv_bias = True
 
-class Qwen2p5_0p5B(Llama2Medium):
+class Qwen2p5_0p5B(Qwen2p5_3B):
     base_emb_dim = 896
     base_num_query_heads = 14
     base_num_kv_heads = 2
@@ -164,8 +170,6 @@ class Qwen2p5_0p5B(Llama2Medium):
     base_num_decoder_layers = 24
     head_dim = 64
     model_name = 'Qwen2p5_0p5B'
-    rope_max_timescale = 1000000
-    vocab_size = 151936
 
 class Llama7B(Llama2Medium):
     base_emb_dim = 4096

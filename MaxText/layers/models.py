@@ -507,8 +507,9 @@ class Decoder(nn.Module):
 
     # [batch, length, emb_dim] -> [batch, length, vocab_size]
     if cfg.logits_via_embedding:
+      print(f'logits_via_embedding11: {cfg.logits_via_embedding}')
       # Use the transpose of embedding matrix for logit transform.
-      logits = self.shared_embedding.attend(y)
+      logits = self.shared_embedding.attend(y)  # lsp：权重共享
       if self.config.normalize_embedding_logits:
         # Correctly normalize pre-softmax logits for this shared case.
         logits = logits / jnp.sqrt(y.shape[-1])
@@ -516,6 +517,7 @@ class Decoder(nn.Module):
         logits = logits / cfg.final_logits_soft_cap
         logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
+      print(f'logits_via_embedding22: {cfg.logits_via_embedding}')
       logits = linears.DenseGeneral(
           cfg.vocab_size,
           weight_dtype=cfg.weight_dtype,

@@ -1188,6 +1188,7 @@ class Attention(nn.Module):
         name="query",
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
+        use_bias=self.config.qkv_bias,
     )(inputs_q)
     return query_proj
 
@@ -1220,6 +1221,7 @@ class Attention(nn.Module):
         name=proj_name,
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
+        use_bias=self.config.qkv_bias,
     )(inputs_kv)
     return kv_proj
 
@@ -1236,6 +1238,7 @@ class Attention(nn.Module):
         name=proj_name,
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
+        use_bias=self.config.qkv_bias,
     )(inputs)
     qkv_proj = checkpoint_name(qkv_proj, "qkv_proj")
     query, key, value = qkv_proj[:, :, 0, ...], qkv_proj[:, :, 1, ...], qkv_proj[:, :, 2, ...]

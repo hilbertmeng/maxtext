@@ -246,7 +246,7 @@ class MlpBlock(nn.Module):
         y = _convert_to_activation_function(act_fn)(x[:, :, idx, ...])
         activations.append(y)
     else:
-      for idx, act_fn in enumerate(self.activations):
+      for idx, act_fn in enumerate(self.activations): # wi_0 is mlp gate
         dense_name = "wi" if len(self.activations) == 1 else f"wi_{idx}"
         x = DenseGeneral(
             self.intermediate_dim,

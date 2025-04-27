@@ -93,6 +93,7 @@ class SubDecoderLayer(nn.Module):
       decoder_positions,
       deterministic,
       model_mode,
+      value_residual=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -117,6 +118,32 @@ class SubDecoderLayer(nn.Module):
       lnx = lnx_rms(inputs)
 
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+
+    if cfg.inner_ffn_dim:
+      lnx = linears.MlpBlock(
+          intermediate_dim=cfg.inner_ffn_dim, # lsp
+          activations=cfg.inner_ffn_activations or cfg.mlp_activations,
+          intermediate_dropout_rate=cfg.dropout_rate,
+          dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype,
+          name="inner_mlp",
+          config=cfg,
+          quant=self.quant,
+          use_bias=cfg.use_bias,
+          kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+      )(lnx, deterministic=deterministic)
+      lnx = lnx + inputs # inner ffn residual for attn
+      lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+      # attn norm (postnorm after inner ffn)
+      lnx_rms = norm_class(
+        dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        name="post_inner_ffn_layer_norm",
+        # kernel_axes=("norm",),
+        kernel_axes=("embed",),
+        epsilon=cfg.normalization_layer_epsilon,
+      )
+      lnx = lnx_rms(lnx)
 
     max_logging.log(f'Attention inputs: {inputs.shape}', debug=self.config.debug)
     # Self-attention block
@@ -170,7 +197,7 @@ class SubDecoderLayer(nn.Module):
       **mla_kwargs,
     )
 
-    attention_lnx = attention_layer(
+    attention_lnx, value_residual = attention_layer(
         lnx,
         lnx if not cfg.dense_conn else lnx_kv,
         decoder_positions,
@@ -178,6 +205,7 @@ class SubDecoderLayer(nn.Module):
         deterministic=deterministic,
         model_mode=model_mode,
         hidden_states=inputs,
+        value_residual=value_residual,
     )
 
     if self.config.record_internal_nn_metrics:
@@ -284,7 +312,10 @@ class SubDecoderLayer(nn.Module):
       )
 
     dyn_dense_w = self.mudd_mlp(layer_output) if not self.config.mudd_in_layer else None# lsp
-    return layer_output, dyn_dense_w
+    if self.config.value_residual_learning:
+      return layer_output, dyn_dense_w, value_residual
+    else:
+      return layer_output, dyn_dense_w
 
 
 class FusionDecoderLayer(nn.Module):
@@ -317,6 +348,7 @@ class FusionDecoderLayer(nn.Module):
       deterministic,
       model_mode,
       hids=None,
+      value_residual=None,
   ):
     if self.config.mudd_in_layer:
         if self.layer_inx == 0: # first layer
@@ -325,10 +357,13 @@ class FusionDecoderLayer(nn.Module):
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
 
     for layer in self.subs:
-        inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
+        if self.config.value_residual_learning:
+          inputs, dyn_dense_w, value_residual = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, value_residual=value_residual)
+        else:
+          inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
     
     if self.config.mudd_in_layer:
         if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
-        return inputs, hids
-    return inputs, dyn_dense_w
+        return inputs, hids, value_residual
+    return inputs, dyn_dense_w, value_residual

@@ -38,6 +38,7 @@ from layers import dc
 from layers import accelerator
 from layers import normalizations
 from layers import kv_shift
+from layers import head_pool
 
 import maxtext_utils
 
@@ -1172,9 +1173,19 @@ class Attention(nn.Module):
         use_ragged_attention=self.use_ragged_attention,
         ragged_block_size=self.ragged_block_size,
     )
-    if self.use_kv_shift:
-      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+
+    if self.config.merge_kvshift_vr:
+      self.kv_shift_vr = kv_shift.KVshiftVR(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+    else:
+      if self.use_kv_shift:
+        self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+      
+      if self.config.value_residual_learning:
+        self.value_residual = kv_shift.ValueResidual(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
     
+    if self.config.use_head_pool:
+      self.head_pool = head_pool.HeadPool(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+
     cfg = self.config
     if self.use_postnorm:
       norm_kwargs = {
@@ -1351,6 +1362,7 @@ class Attention(nn.Module):
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
       hidden_states=None,
+      value_residual=None,
   ):
     """Applies Attention on the input data.
 
@@ -1391,9 +1403,25 @@ class Attention(nn.Module):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
-    if self.use_kv_shift:
+    if self.config.merge_kvshift_vr:
+      if self.layer_inx == 0:
+          value_residual = value
       inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
-      query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v, inputs_m=hidden_states)
+      key, value = self.kv_shift_vr(key, value, value_residual, inputs_k=inputs_k, inputs_v=inputs_v, inputs_m=hidden_states)
+    else:
+      if self.config.value_residual_learning:
+        if self.layer_inx == 0:
+          value_residual = value
+        else:
+          inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
+          value = self.value_residual(inputs_v, value, value_residual, inputs_m=hidden_states)
+
+      if self.use_kv_shift:
+        inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
+        query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v, inputs_m=hidden_states)
+    
+    if self.config.use_head_pool:
+      query, key, value, o_out = self.head_pool(inputs_q, query, key, value)
 
     query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
 
@@ -1432,6 +1460,9 @@ class Attention(nn.Module):
 
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, hidden_states=hidden_states)
 
+    if self.config.use_head_pool and not self.config.hp_ablate_o:
+      out = out + o_out
+
     if self.use_postnorm:
       b, t, n, d = out.shape
       out = jnp.reshape(out,(b,t,n*d))
@@ -1446,7 +1477,7 @@ class Attention(nn.Module):
     # if self.use_postnorm: # hybrid norm
     #   out = self.post_norm(out) 
     out = checkpoint_name(out, "out_proj")
-    return out
+    return out, value_residual
 
 
 class MLA(Attention):
@@ -1667,6 +1698,7 @@ class MLA(Attention):
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
       hidden_states=None,
+      value_residual=None,
   ) -> Array:
     """Forward pass for MLA, reusing `AttentionOp` for the actual attention.
 
@@ -1708,4 +1740,4 @@ class MLA(Attention):
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, input_q=inputs_q, input_kv=inputs_kv)
     out = nn.with_logical_constraint(out, self.out_axis_names)
     out = self.out_projection(inputs_q.shape[-1], out)
-    return out
+    return out, value_residual

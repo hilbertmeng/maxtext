@@ -235,4 +235,75 @@ class Hiddenshift(nn.Module):
 
     # hidden states shift
     hid = hid * hg + (1-hg) * shift_1d(hid, offset=1, axis=1)
-    return hid                   
+    return hid           
+  
+
+class ValueResidual(nn.Module):
+  config: Any
+  mesh: Mesh
+  quant: Optional[Quant] = None
+  kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+  
+  def setup(self):
+    cfg = self.config
+    # norm_kwargs = {
+    #             "dtype": cfg.dtype,
+    #             "weight_dtype": cfg.weight_dtype,
+    #             "epsilon": cfg.normalization_layer_epsilon,
+    #             }
+    # self.hidden_shift_norm = normalizations.get_rmsnorm(name="hidden_shift_knorm", **norm_kwargs)
+    
+    kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant) 
+    self.dw_proj = linears.DenseGeneral(
+                                  (cfg.num_kv_heads,), # DN
+                                  kernel_init=initializers.contant_dense_init(0.0),
+                                  kernel_axes=('embed', "kv_heads"),
+                                  use_bias=True,
+                                  name='value_residual_proj',
+                                  **kwargs)
+
+  @nn.compact
+  def __call__(
+      self,
+      inputs_v,
+      value, # hidden states BTD
+      value_residual,
+      inputs_m=None,
+  ):
+    vg = jax.nn.sigmoid(self.dw_proj(inputs_v))[...,None] # BTD, DN->BTN1      BTD, DD -> BTD -> BTNd
+    value = (1-vg) * value + vg * value_residual # BTNd
+    return value 
+
+
+class KVshiftVR(nn.Module):
+  config: Any
+  mesh: Mesh
+  quant: Optional[Quant] = None
+  kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+  
+  def setup(self):
+    self.kv_shift = KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+    self.value_residual = ValueResidual(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+
+  @nn.compact
+  def __call__(
+      self,
+      key, # BTND
+      value, # BTND 
+      value_residual,
+      inputs_k=None, # BTD
+      inputs_v=None, # BTD
+      inputs_m=None, # BTD
+  ):
+    assert self.config.kv_shift_flash and self.config.kv_shift_hidden_way == 'kv' and not self.config.kv_shift_mlp
+    assert self.config.kv_shift_skip_knorm
+
+    kg = jax.nn.sigmoid(self.kv_shift.dw_proj_k(inputs_k))
+    vg = jax.nn.sigmoid(self.kv_shift.dw_proj_v(inputs_v))
+
+    vrg = jax.nn.sigmoid(self.value_residual.dw_proj(inputs_v))[...,None]
+
+    key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
+    value = value * (1 - vg - vrg) + vg/2 * shift_1d(value, offset=1, axis=1) + value_residual * vrg/2
+
+    return key, value    

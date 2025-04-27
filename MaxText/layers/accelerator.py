@@ -36,7 +36,7 @@ def get_large_negative_number(dtype: jnp.dtype) -> Array:
     return jnp.asarray(-0.7 * dtype_max, dtype=dtype)
 
 
-def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp.bfloat16, squeeze: bool = False, unmask_bos: bool = False) -> Array:
+def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp.bfloat16, squeeze: bool = False, unmask_bos: bool = False, mask_current_token: bool = False) -> Array:
   """
   w: query chunk size
   window_size: window size
@@ -53,7 +53,7 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
   else:
     offset = min(window_size, length - w)
   x = jnp.ones([w, w + offset])
-  m1 = jnp.triu(x, k=offset + 1)
+  m1 = jnp.triu(x, k=offset + 1 - int(mask_current_token))
   if window_size is not None:
     if window_size < length - w:
         m2 = jnp.tril(x, k=0)
@@ -199,13 +199,15 @@ class QChunk(nn.Module):
     b, t, n, _ = query.shape
     h = value.shape[-1]
     s = key.shape[1]
-    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, unmask_bos=self.config.unmask_bos)
+    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, unmask_bos=self.config.unmask_bos, mask_current_token=self.config.mask_current_token)
 
     if self.query_chunk_size is None:
         encoded = self._apply_attention_dot(
             query, key, value, attn_mask,  
             pre_proj_dw_args=pre_proj_dw_args, 
             post_proj_dw_args=post_proj_dw_args, 
+            pre_proj_layer=pre_proj_layer,
+            post_proj_layer=post_proj_layer,
             )
     else:
         max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')

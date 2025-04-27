@@ -114,6 +114,11 @@ class TrainXL:
     cosine_learning_rate_final_fraction = 0.1
     eval_interval = 50000
 
+class TrainSmall:
+    learning_rate = 6e-4
+    learning_rate_schedule_steps = 4800
+    eval_interval = 4800
+
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     base_emb_dim = 1024
     base_num_query_heads = 16
@@ -135,6 +140,10 @@ class Llama2MediumBase(Llama2Medium):
 class Llama2MediumBaseTest(Llama2MediumBase):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
+class Llama2MediumBaseVR(Llama2MediumBase):
+    scan_layers = False
+    value_residual_learning = True
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
 class Llama2MediumBaseDynamicTemp(Llama2MediumBase):
     use_dynamic_temp = True
@@ -297,6 +306,10 @@ class MuddLlama2Medium(Mudd, Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
 
+class MuddLlama2MediumVR(MuddLlama2Medium):
+    value_residual_learning = True
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
 class MuddLlama2MediumHead4(MuddLlama2Medium):
     mudd_num_heads = 4
     sharding_tolerance = 0.05
@@ -391,6 +404,9 @@ class DCLlama2MediumQWKWNoQKNormPadBosLGLL(LGLLWindow, DCLlama2Medium):
 class DCLlama2MediumQWKWNoQKNormPadBosLGLLQC2048(DCLlama2MediumQWKWNoQKNormPadBosLGLL):
     query_chunk_size = 2048
 
+class DCLlama2MediumQWKWNoQKNormPadBosLGLLQCNone(DCLlama2MediumQWKWNoQKNormPadBosLGLL):
+    query_chunk_size = None
+
 class DCLlama2MediumQWKWNoQKNormPadBosLGLLUnmaskBos(DCLlama2MediumQWKWNoQKNormPadBosLGLL):
     unmask_bos = True
     query_chunk_size = 2048
@@ -471,6 +487,21 @@ class DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid(DCMuddLlamaMediumQWKWKVshift
     dc_hidden_way = 'qk'
     sharding_tolerance = 0.05
 
+class DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHidVR(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid):
+    value_residual_learning = True
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class DCMuddLlamaMediumQWKWSharePrePostDwHidVR(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHidVR):
+    use_kv_shift = False
+
+class DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHidVRMerged(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHidVR):
+    merge_kvshift_vr = True
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+
+class DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHidVRAfterKVShift(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHidVR):
+    pass
+
 class DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHidDw2Zeroinit(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid):
     dc_dw2_zero_init = True
 
@@ -480,14 +511,46 @@ class DCMuddLlamaMediumQWKWKVshiftDw2Zeroinit(DCMuddLlamaMediumQWKWKVshift):
 class DCMuddLlamaMediumQWKVshiftSharePrePostDwHid(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid):
     key_wise = False
 
+class DCMuddLlamaMediumQWKVshiftSharePrePostDwHidDwBias(DCMuddLlamaMediumQWKVshiftSharePrePostDwHid):
+    use_dw_bias = True
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class DCMuddLlamaMediumQWKVshiftSharePrePostDwHidDwBiasZeroinit(DCMuddLlamaMediumQWKVshiftSharePrePostDwHidDwBias):
+    dc_dw2_zero_init = True
+
+class DCMuddLlamaMediumQWKVshiftSharePrePostDwHidDwDdBiasZeroinit(DCMuddLlamaMediumQWKVshiftSharePrePostDwHidDwBiasZeroinit):
+    use_dd_bias = True
+
+class DCMuddLlamaMediumQWKVshiftSharePrePostDwDdHidDwBias(DCMuddLlamaMediumQWKVshiftSharePrePostDwHidDwBias):
+    use_dd_bias = True # after dw1_norm and dd_tanh 
+
+class DCMuddLlamaMediumQWKVshiftSharePrePostDwDdHidDwBiasPostnorm(DCMuddLlamaMediumQWKVshiftSharePrePostDwDdHidDwBias):
+    use_postnorm = True # skip dw1_norm and dd_tanh 
+
 class DCMuddLlamaMediumQWSWKVshiftSharePrePostDwHid(DCMuddLlamaMediumQWKWKVshiftSharePrePostDwHid):
     key_wise = False
     static_proj = True
     query_chunk_size=2048
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
+class DCMuddLlamaMediumQWSWKVshiftSharePrePostDwHidPostSW(DCMuddLlamaMediumQWSWKVshiftSharePrePostDwHid):
+    pre_static_proj = False
+    post_static_proj = True
+
+class DCMuddLlamaMediumQWSWKVshiftSharePrePostDwHidR2(DCMuddLlamaMediumQWSWKVshiftSharePrePostDwHid):
+    query_chunk_size=128
+    sw_squeeze_ratio = 8
+
 class DCMuddLlamaMediumQWKWKVshiftDT(DCMuddLlamaMediumQWKWKVshift):
     use_dynamic_temp = True
+
+class LlamaSmall(Llama2Medium):
+    base_emb_dim = 768
+    base_num_query_heads = 12
+    base_num_kv_heads = 12
+    base_mlp_dim = 2048
+    base_num_decoder_layers = 12
+    head_dim = 64
 
 class LlamaLarge(Llama2Medium):
     base_emb_dim = 1536
@@ -549,22 +612,219 @@ class LlamaLargeSNTrace(Trace, LlamaLarge):
 class MuddLlamaLargeInnerSNTrace(Mudd, LlamaLargeSNTrace):
     mudd_in_layer = True # train speed: 0.367
 
-class DreamMiniMediumDebug(DreamMini, Llama2Medium):
-    query_chunk_size = 128
-    sw_squeeze_ratio = 8
+class LlamaSmall8XWider(LlamaSmall):
+    attention='dot_product_chunk'
+    query_chunk_size=512
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_mlp_dim = 2048 * 8
+    learning_rate = 6e-4
+    learning_rate_schedule_steps = 29000
+    scan_layers = False
+    eval_loop_num_batches = 162 * 2
+    eval_per_device_batch_size = 64.0
+    eval_interval = 1000
+    eval_steps = 40
+
+class LlamaSmall8XWiderHeadPool1V7(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 7
+    use_head_pool = True
+    hp_num_heads = int(2048 * 1 * 3 / 64)
+
+class LlamaSmall8XWiderHeadPool1V7Postnorm(LlamaSmall8XWiderHeadPool1V7):
+    use_postnorm = True
+
+class LlamaSmall8XWiderHeadPool1V7DwnormFix(LlamaSmall8XWiderHeadPool1V7):
+    hp_dw_norm = True
+
+class LlamaSmall8XWiderHeadPool1V7DwnormQKV(LlamaSmall8XWiderHeadPool1V7):
+    hp_ablate_o = True
+    hp_dw_norm = True
+
+class LlamaSmall8XWiderHeadPool1V7DwnormQKVQKNorm(LlamaSmall8XWiderHeadPool1V7DwnormQKV):
+    qk_norm = True
+
+class LlamaSmall8XWiderHeadPool1V7DwnormQKVQKNormDw2init(LlamaSmall8XWiderHeadPool1V7DwnormQKVQKNorm):
+    hp_custom_dw2_init = True
+
+class LlamaSmall8XWiderHeadPool1V7DwnormQKVQKNormDw2init0p001(LlamaSmall8XWiderHeadPool1V7DwnormQKVQKNorm):
+    hp_custom_dw2_init = True
+
+class LlamaSmall8XWiderHeadPool1V7QKVPostNormQKNorm(LlamaSmall8XWiderHeadPool1V7):
+    hp_ablate_o = True
+    qk_norm = True
+    use_postnorm = True
+
+class LlamaSmall8XWider1V7Head36(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 7
+    base_num_query_heads = 36 # 12 + 2048 * 3 / 64 / 4 
+    base_num_kv_heads = 36
+
+class LlamaSmall8XWiderHeadPool1V7Gate(LlamaSmall8XWiderHeadPool1V7):
+    hp_head_gate = True
+    hp_num_heads = int(2048 * 1 * 3 / 64 / 2)
+
+class LlamaSmall8XWiderHeadPool1V7GatePostnorm(LlamaSmall8XWiderHeadPool1V7Gate):
+    use_postnorm = True
+
+class LlamaSmall29KTokens(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 1
+
+class LlamaSmall8XWiderInnerFFN7V1(LlamaSmall8XWider):
+    mask_current_token = True
+    inner_ffn_dim = 2048 * 7
+    base_mlp_dim = 2048 * 1
+
+class LlamaSmall8XWiderInnerFFN5V3(LlamaSmall8XWider):
+    mask_current_token = True
+    inner_ffn_dim = 2048 * 5
+    base_mlp_dim = 2048 * 3
+
+class LlamaSmall8XWiderInnerFFN1V7(LlamaSmall8XWider):
+    mask_current_token = True
+    inner_ffn_dim = 2048 * 1
+    base_mlp_dim = 2048 * 7
+
+class LlamaSmall8XWiderInnerFFN2V6(LlamaSmall8XWider):
+    mask_current_token = True
+    inner_ffn_dim = 2048 * 2
+    base_mlp_dim = 2048 * 6
+
+class LlamaSmall8XWiderInnerFFN3V5(LlamaSmall8XWider):
+    mask_current_token = True
+    inner_ffn_dim = 2048 * 3
+    base_mlp_dim = 2048 * 5
+
+class LlamaSmall8XWiderInnerFFN5V3UnmaskCT(LlamaSmall8XWiderInnerFFN5V3):
+    mask_current_token = False
+
+class LlamaSmall8XWiderInnerFFN5V3UnmaskCTExpandInner(LlamaSmall8XWiderInnerFFN5V3UnmaskCT):
+    inner_ffn_activations = ['relu']
+    inner_ffn_dim = int(2048 * 5 * 3 / 2)
+    base_mlp_dim = 2048 * 3
+
+class LlamaSmall8XWiderInnerFFN5V3UnmaskCTExpandOuter(LlamaSmall8XWiderInnerFFN5V3UnmaskCT):
+    inner_ffn_activations = ['relu']
+    inner_ffn_dim = 2048 * 5
+    base_mlp_dim = int(2048 * (3 + 5/3))
+
+class DreamMiniMediumDebug8(SpeedTest, DreamMini, Llama2Medium):
+    query_chunk_size = 128
+    sw_squeeze_ratio = None # 4: 0.378, 8: 0.44, aplly_sw and chunk along S: 0.414 
+    per_device_batch_size = 16.0 # for v4
+    # mudd_in_layer = True 
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    static_proj = False
+    key_wise = True # v4: 0.456
 
 class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     query_chunk_size = 128
-    per_device_batch_size = 16.0 # 256 for v5p-32
+    per_device_batch_size = 8.0 # 256 for v4-64
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_num_decoder_layers = 36
+    base_mlp_dim = 2816 # 2048 * 4 /3
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 64
+
+class DCLlamaXLQWKW4KQC256Speed(DC, LGLLWindow, TrainXL, LlamaXL):
+    max_target_length = 4096
+    query_chunk_size = 256
+    per_device_batch_size = 4.0 # 256 for v4-64
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_num_decoder_layers = 36
+    base_mlp_dim = 2816 # 2048 * 4 /3
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 64
+    sharding_tolerance = 0.12
+    scan_layers = False # v4-64: 0.231
+
+class DCLlamaXLQWKW4KQC256SpeedChunk(DCLlamaXLQWKW4KQC256Speed):
+    attention='dot_product_chunk'
+
+
+class DCLlamaXLQWKW4KQC256SpeedChunkQKnorm(DCLlamaXLQWKW4KQC256Speed):
+    attention='dot_product_chunk' # v4-64: 0.228
+    qk_norm = True
+
+class DCLlamaXLQWKW4KQC256SpeedSepQK(DCLlamaXLQWKW4KQC256Speed):
+    seperate_qk_dw_proj = True # v4-64: 0.230
+    record_internal_nn_metrics = False
+    dc_share_prepost_dw_hidden = True 
+
+class DCLlamaXLQWKW4KQC256SpeedSepQKKVshift(KVshift, DCLlamaXLQWKW4KQC256SpeedSepQK):
+    kv_shift_mlp = False # linear KVshift
+    kv_shift_skip_knorm = True #v4-64: 0.222
+
+class DCLlamaXLQWKW4KQC256SpeedSepQKKVshiftMudd(Mudd, DCLlamaXLQWKW4KQC256SpeedSepQKKVshift):
+    pass # v4-64: 0.194
+
+class DCLlamaXLQWSW4KQC256Speed(DCLlamaXLQWKW4KQC256Speed):
+    static_proj = True # v4-64: 0.189
+    key_wise = False
+    seperate_qk_dw_proj = True
+
+class DCLlamaXLQWSW4KQC256SpeedChunkQKnorm(DCLlamaXLQWKW4KQC256SpeedChunkQKnorm):
+    static_proj = True # v4-64: 0.
+    key_wise = False
+    seperate_qk_dw_proj = True
+
+class DreamMiniXL4KQC256(DreamMiniXL):
+    max_target_length = 4096
+    per_device_batch_size = 8.0
+    query_chunk_size = 256 # v5p-32: 0.185, 72.5%KW
+    sharding_tolerance = 0.05
+
+class DreamMiniXL4KQC256KW(DreamMiniXL4KQC256):
+    static_proj = False
+    key_wise = True  # v5p-32: 0.255
+    sharding_tolerance = 0.06
+
+class DreamMiniXL4KQC256H16(DreamMiniXL4KQC256):
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 128 # v5p-32: 0.248
+
+class DreamMiniXL4KQC256v4(DreamMiniXL4KQC256):
+    per_device_batch_size = 4.0
+    sharding_tolerance = 0.07
+    record_internal_nn_metrics = False
+    mudd_in_layer = True # v4-64: 0.160, 85%KW, 52%Llama
+
+class LlamaXL4KQC512v4(DreamMiniXL4KQC256v4):
+    query_chunk_size = 512 # v4-64: 0.306 
+    # DC
+    pre_compose = False
+    post_compose = False
+    sliding_window_size = [None]
+    num_layers_per_block = 1
+    # MUDD
+    mudd_in_layer = False
+    dense_conn = False
+    # KVshift
+    use_kv_shift = False
+
+class DreamMiniXL4KQC256KWv4(DreamMiniXL4KQC256KW):
+    per_device_batch_size = 4.0 
+    sharding_tolerance = 0.12
+    mudd_in_layer = True  # v4-64: 0.187, 61%Llama
+    record_internal_nn_metrics = False
+
+class DreamMiniXL4KQC1KSpeedTest(SpeedTest, DreamMiniXL):
+    max_target_length = 4096
+    query_chunk_size = 2048
+    # mudd_in_layer = True
+    per_device_batch_size = 4.0
+    sw_squeeze_ratio = 16
 
 class DreamMiniXLSpeedTest(SpeedTest, DreamMiniXL):
     query_chunk_size = 256
 
-class DreamMiniXLQWKWSpeedTest(SpeedTest, DreamMiniXL): # 
-    key_wise = True
-    static_proj = False
+# class DreamMiniXLQWKW4KQC1KSpeedTest(SpeedTest, DreamMiniXL): # 
+#     key_wise = True
+#     static_proj = False
+#     max_target_length = 4096
+#     query_chunk_size = 1024
 
 class DreamMiniXLQWSpeedTest(SpeedTest, DreamMiniXL): # 
     static_proj = False

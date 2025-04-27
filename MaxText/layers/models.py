@@ -506,6 +506,7 @@ class Decoder(nn.Module):
           n = cfg.num_decoder_layers // cfg.num_layers_per_block
           sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
           max_logging.log(f'sliding_window_sizes: {sliding_window_sizes}', debug=cfg.debug)
+          value_residual = None
           for lyr in range(cfg.num_decoder_layers):
             RemattedBlockLayer = RemattedBlockLayers[0]
             y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_sizes[lyr])(
@@ -515,7 +516,10 @@ class Decoder(nn.Module):
                 deterministic,
                 model_mode,
                 hids=hids,
+                value_residual=value_residual,
             )
+            # if self.config.value_residual_learning:
+            y, value_residual = y[:-1], y[-1]
             if self.config.mudd_in_layer:
                 y, hids = y
             if self.config.record_internal_nn_metrics:

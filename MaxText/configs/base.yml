@@ -433,7 +433,7 @@ dump_hlo_local_dir: "/tmp/xla_dump/"
 dump_hlo_delete_local_after: True # Cleans local directory after its uploaded
 dump_hlo_gcs_dir: "" # Defaults to {base_output_directory}/{run_name}/xla_dump
 dump_hlo_module_name: "jit_train_step" # Filter uploading modules by this string. Set to empty string to remove any filter.
-dump_hlo_xla_flags: "" # Defaults to "--xla_dump_to={dump_hlo_local_dir} --xla_dump_hlo_module_re={dump_hlo_module_name} --xla_dump_large_constants"
+dump_hlo_xla_flags: "" # Defaults to "--xla_dump_to={dump_hlo_local_dir} --eval_steps={dump_hlo_module_name} --xla_dump_large_constants"
 dump_hlo_upload_all: False # If true all hosts dump HLO, false only jax.process_index()==0
 # All hosts should have identical HLO for SPMD programs, however we have encountered some bugs
 # where this is not the case and it is helpful to compare HLO across hosts.
@@ -623,6 +623,9 @@ use_bias: False
 norm_type: 'rmsnorm' # or 'layernorm'
 rope_ratio: 1
 attn_ffn_parallel: False
+
+# inner ffn 
+mask_current_token: False
 
 # other
 epoch: 1

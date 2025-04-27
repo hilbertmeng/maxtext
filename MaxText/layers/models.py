@@ -416,7 +416,10 @@ class Decoder(nn.Module):
         y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y)
       else:
         y_normed = y
-      y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
+      if cfg.mudd_in_layer:
+        y, hids = y, [y_normed]
+      else:
+        y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
     else:
       hids = []
 
@@ -493,8 +496,12 @@ class Decoder(nn.Module):
                 decoder_positions,
                 deterministic,
                 model_mode,
+                hids=hids,
             )
-            y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
+            if self.config.mudd_in_layer:
+              y, hids = y
+            if not self.config.mudd_in_layer:
+              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
             
     y = self.get_norm_layer()(
         dtype=cfg.dtype,

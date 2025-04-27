@@ -78,7 +78,47 @@ class DC:
     query_wise = True
     key_wise = True
     static_proj = False
- 
+
+class KVshift:
+    use_kv_shift = True
+    kv_shift_flash = True
+    kv_shift_mlp = True
+    kv_shift_hidden_way = 'kv'
+
+class SpeedTest:
+    enable_checkpointing = False 
+    record_internal_nn_metrics = False  
+
+class DreamMini(Mudd, KVshift, DC, LGLLWindow):
+    attention='dot_product_chunk'
+    # dc config: QW + SW + QKnorm
+    qk_norm = True
+    seperate_qk_dw_proj = True # generate qw from query-way hidden state
+    dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
+    static_proj = True # use SW
+    key_wise = False # No KW
+    # kv shift config: linear + No Knorm 
+    kv_shift_mlp = False # linear KVshift
+    kv_shift_skip_knorm = True # remove knorm, duplicated when using qknorm 
+
+class Trace:
+    profiler = 'xplane'
+    scan_layers = False
+    record_internal_nn_metrics = False
+    tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+
+class TrainXL:
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+    warmup_steps_fraction = 0.01
+    cosine_learning_rate_final_fraction = 0.1
+    eval_interval = 50000
+
+class TrainSmall:
+    learning_rate = 6e-4
+    learning_rate_schedule_steps = 4800
+    eval_interval = 4800
+
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     base_emb_dim = 1024
     base_num_query_heads = 16
@@ -101,6 +141,30 @@ class DCLlama2Medium(DC, LGWindow, Llama2Medium):
 
 class DCMuddLlama2Medium(Mudd, DCLlama2Medium):
     model_name = 'DCMuddLlama2Medium'
+
+class LlamaSmall(Llama2Medium):
+    base_emb_dim = 768
+    base_num_query_heads = 12
+    base_num_kv_heads = 12
+    base_mlp_dim = 2048
+    base_num_decoder_layers = 12
+    head_dim = 64
+
+class LlamaLarge(Llama2Medium):
+    base_emb_dim = 1536
+    base_num_query_heads = 24
+    base_num_kv_heads = 24
+    base_mlp_dim = 4096
+    base_num_decoder_layers = 24
+    head_dim = 64
+
+class LlamaXL(Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5504
+    base_num_decoder_layers = 24 # fix: 28 -> 24
+    head_dim = 64
 
 class Llama7B(Llama2Medium):
     base_emb_dim = 4096
@@ -129,4 +193,27 @@ class Llama33B(Llama2Medium):
     head_dim = 128
     model_name = 'Llama33B'
 
+class DreamMiniMedium(DreamMini, Llama2Medium):
+    query_chunk_size = 128
+    sw_squeeze_ratio = None # 4: 0.378, 8: 0.44, aplly_sw and chunk along S: 0.414 
+    per_device_batch_size = 16.0 # for v4
+    # mudd_in_layer = True 
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    static_proj = False
+    key_wise = True # v4: 0.456
 
+class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
+    query_chunk_size = 128
+    per_device_batch_size = 8.0 # 256 for v4-64
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_num_decoder_layers = 36
+    base_mlp_dim = 2816 # 2048 * 4 /3
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 64
+
+class DreamMiniXL4KQC256(DreamMiniXL):
+    max_target_length = 4096
+    per_device_batch_size = 8.0
+    query_chunk_size = 256 # v5p-32: 0.185, 72.5%KW
+    sharding_tolerance = 0.05

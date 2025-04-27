@@ -71,6 +71,11 @@ class DynamicWeightProjection(nn.Module):
   deterministic: bool = False
   dynamic_dropout_rate: Optional[float] = None
   quant: Optional[Quant] = None
+  dc_share_all_dw_hidden: bool = False
+  dc_share_prepost_dw_hidden: bool = False
+  dc_dw2_zero_init: bool = False
+  use_dw_bias: bool = False
+  use_dd_bias: bool = False
 
   def setup(self) -> None:
     self.num_heads_per_group = self.num_heads // self.num_groups
@@ -95,9 +100,25 @@ class DynamicWeightProjection(nn.Module):
       # self.dynamic_w_hidden_dim: num_heads_per_group * I * 2 = 32 * 2 * 2 = 128
       G, K, M = self.num_groups, self.dynamic_w_hidden_dim, self.num_heads_per_group
       I = dynamic_hidden_dim * 2  # 2 * 2
-      shape = [G, self.n_splits, K, I, M]
+      if self.dc_share_all_dw_hidden:
+        shape = [G, 1, K * self.n_splits, I * self.n_splits, M]
+      elif self.dc_share_prepost_dw_hidden:
+        shape = [G, self.n_splits // 2, K * 2, I * 2, M]
+      else:
+        shape = [G, self.n_splits, K, I, M]
       kernel_init_shard = nn.with_logical_partitioning(NormalInitializer(self.dynamic_w_init), (None, 'data', 'fsdp', None, 'tensor'))
-      self.qkw = self.param('qkw',kernel_init_shard, shape, self.weight_dtype)
+      if self.dc_dw2_zero_init:
+        shape = (shape[0], shape[1], shape[2], shape[3]//2, shape[4]) 
+        self.qkw1 = self.param('qkw1',kernel_init_shard, shape, self.weight_dtype)
+        self.qkw2 = self.param('qkw2',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, 'data', 'fsdp', None, 'tensor')), shape, self.weight_dtype)
+      else:
+        self.qkw = self.param('qkw',kernel_init_shard, shape, self.weight_dtype)
+      
+      if self.use_dw_bias:
+        assert self.dc_share_prepost_dw_hidden
+        bias_shape = [self.n_splits, I // 2, M] # CIM
+        self.w1_bias =  self.param('w1_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
+        self.w2_bias =  self.param('w2_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
   
     if self.dynamic_d_init is not None:
       self.dd = linears.DenseGeneral(
@@ -108,6 +129,9 @@ class DynamicWeightProjection(nn.Module):
                         kernel_axes=('embed', None, 'mlp'),
                         **kwargs
                         )
+      if self.use_dd_bias: 
+        bias_shape = [self.num_heads_per_group * self.n_splits]
+        self.dd_bias =  self.param('dd_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None,)), bias_shape, self.weight_dtype)
 
     self.dw_activation = nn.tanh
     # RMSNormScale, compare to RMSNorm. it remove scale
@@ -120,18 +144,33 @@ class DynamicWeightProjection(nn.Module):
       self.dropout = nn.Dropout(self.dynamic_dropout_rate)
 
   def __call__(self, query_vec):
-    qkw_kernel = jnp.asarray(self.qkw, self.dtype) # lsp
+    qkw_kernel = jnp.asarray(self.qkw, self.dtype) if not self.dc_dw2_zero_init else jnp.asarray(jnp.concatenate([self.qkw1, self.qkw2], axis=-2), self.dtype) # lsp
     if self.n_splits == 2:
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
       # C: n_split,  K -> M
-      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+      if self.dc_share_all_dw_hidden:
+        dw_hidden = rearrange(dw_hidden, 'B T G C K -> B T G 1 (C K)')
+        w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+        w1, w2 = [rearrange(w, 'B T G 1 (C I) M -> B T G C I M', C=self.n_splits) for w in [w1, w2]]
+      elif self.dc_share_prepost_dw_hidden:
+        dw_hidden = rearrange(dw_hidden, 'B T G (C P) K -> B T G C (P K)', P=2) # 
+        w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)  
+        w1, w2 = [rearrange(w, 'B T G C (P I) M -> B T G (P C) I M', P=2) for w in [w1, w2]]
+      else:
+        # C: n_split,  K -> M
+        w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+      if self.use_dw_bias:
+        w1 = w1 + self.w1_bias[None,None,None]
+        w2 = w2 + self.w2_bias[None,None,None]
       w1 = self.dw1_norm(w1)
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
 
       dd = self.dd(query_vec)
+      if self.use_dd_bias:
+        dd = dd + self.dd_bias[None, None]
       dd = self.dw_activation(dd)
       if self.dynamic_dropout_rate is not None:
         dd = self.dropout(dd, deterministic=self.deterministic)
@@ -142,12 +181,27 @@ class DynamicWeightProjection(nn.Module):
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
       # dw_hidden: b * t * 1 * n_split * 128  qkw_kernel: 1 * n_split * 128 * I(4) * 128
-      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+      if self.dc_share_all_dw_hidden:
+        dw_hidden = rearrange(dw_hidden, 'B T G C K -> B T G 1 (C K)')
+        w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+        w1, w2 = [rearrange(w, 'B T G 1 (C I) M -> B T G C I M', C=self.n_splits) for w in [w1, w2]]
+      elif self.dc_share_prepost_dw_hidden:
+        dw_hidden = rearrange(dw_hidden, 'B T G (C P) K -> B T G C (P K)', P=2) # C means q/k , P means pre/post
+        w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+        w1, w2 = [rearrange(w, 'B T G C (P I) M -> B T G (P C) I M', P=2) for w in [w1, w2]]
+      else:
+        # C: n_split,  K -> M
+        w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)        
+      if self.use_dw_bias:
+        w1 = w1 + self.w1_bias[None,None,None]
+        w2 = w2 + self.w2_bias[None,None,None]
       w1 = self.dw1_norm(w1)
       pre_qw1, pre_kw1, post_qw1, post_kw1 = unbind(w1, 4, axis=3) # BTG4IM->[BTGIM]*4
       pre_qw2, pre_kw2, post_qw2, post_kw2 = unbind(w2, 4, axis=3)
 
       dd = self.dd(query_vec)
+      if self.use_dd_bias:
+        dd = dd + self.dd_bias[None, None]
       dd = self.dw_activation(dd)
       if self.dynamic_dropout_rate is not None:
         dd = self.dropout(dd, deterministic=self.deterministic)
@@ -215,7 +269,16 @@ class CrossHeadProjection(nn.Module):
 
         shape=[self.num_groups, self.hidden_dim, self.num_heads_per_group]
         scale = init_fn(self.num_heads_per_group, in_dim=self.hidden_dim)
-        self.w1 = self.param('w2', NormalInitializer(scale), shape, self.weight_dtype)
+        self.w2 = self.param('w2', NormalInitializer(scale), shape, self.weight_dtype)
+
+  def apply_sw(self, ret, exp, _inputs, w):
+    # ret += jnp.einsum(exp, _inputs, w) # BGMTS,GMN->BGNTS
+    s = ret.shape[-1]
+    res = jnp.zeros(ret.shape, dtype=ret.dtype)
+    s_chunk = 128
+    for i in range(s//s_chunk):
+      res = res.at[:,:,:,:,i*s_chunk:(i+1)*s_chunk].set(jnp.einsum(exp, _inputs[:,:,:,:,i*s_chunk:(i+1)*s_chunk], w))
+    return ret + res
 
   def __call__(self, inputs, qw1 = None, qw2 = None, kw1 = None, kw2 = None, qdd = None, kdd = None):
     shape = inputs.shape  #  (16, 16, 4097, 4097)
@@ -236,7 +299,9 @@ class CrossHeadProjection(nn.Module):
         if self.input_activation_cls is not None: # None
           if self.use_input_bias: _inputs += self.ib if self.transpose else jnp.expand_dims(self.ib, axis=(2, 3))
           _inputs = self.input_activation(_inputs)
-        ret += jnp.einsum(exp, _inputs, w) if not self.left_mul else jnp.einsum(exp, w, _inputs)
+        assert not self.left_mul
+        ret = self.apply_sw(ret, exp, _inputs, w)
+        # ret += jnp.einsum(exp, _inputs, w) if not self.left_mul else jnp.einsum(exp, w, _inputs)
       else:
         hidden = jnp.einsum(exp, inputs, self.w1) if not self.left_mul else jnp.einsum(exp, self.w1, inputs)
         if self.squeeze_gate_activation_cls is not None:
@@ -248,6 +313,7 @@ class CrossHeadProjection(nn.Module):
     if qw1 is not None: # BTGIM
       hidden_sym = 'I'; hidden_label = inputs_label.replace('M', 'I')  # 'BGITS'
       for sym, (w1, w2) in zip(['T', 'S'], [(qw1, qw2), (kw1, kw2)]):
+        if w1 is None: continue
         dw_label = f'B{sym}G{hidden_sym}M' if w1.shape[-1] == self.num_heads_per_group \
           else f'B{sym}GM{hidden_sym}'  # BTGIM
         dynamic_hidden_dim = w1.shape[dw_label.index(hidden_sym)] # 2, 就是w1的I的值
@@ -280,6 +346,7 @@ class CrossHeadProjection(nn.Module):
 
     if qdd is not None:  # 对logits做二次修改
       for sym, dd in zip(['T', 'S'], [qdd, kdd]):
+        if dd is None: continue
         dd_label = f'B{sym}GM'
         if sym == 'T' and self.query_wise or sym == 'S' and self.key_wise or \
               not self.query_wise and not self.key_wise:
@@ -313,14 +380,19 @@ class AttentionOp(nn.Module):
     self.float32_qk_product = cfg.float32_qk_product
     self.pre_compose = cfg.pre_compose
     self.post_compose = cfg.post_compose
+    self.seperate_qk_dw_proj = cfg.seperate_qk_dw_proj
+
+    if self.config.dc_hidden_way == 'qk':
+      assert self.config.seperate_qk_dw_proj
 
     input_dim = self.num_query_heads * self.head_dim
     I = 2
     num_heads_per_group = self.num_query_heads // self.num_groups
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
     if cfg.pre_compose or cfg.post_compose:
-      if self.is_cross_attention:
-        for name in ['q_dyn_w_proj', 'k_dyn_w_proj']:
+      if self.is_cross_attention or self.seperate_qk_dw_proj:
+        for name, use in [('q_dyn_w_proj', cfg.query_wise), ('k_dyn_w_proj', cfg.key_wise)]:
+          if not use: continue
           setattr(self, name, DynamicWeightProjection(
             num_heads=self.num_query_heads, num_groups=self.num_groups,
             input_dim=self.num_query_heads * self.head_dim, n_splits=2,
@@ -332,6 +404,11 @@ class AttentionOp(nn.Module):
             deterministic=self.deterministic,
             dynamic_dropout_rate=self.dynamic_dropout_rate,
             quant=self.quant,
+            dc_share_all_dw_hidden=self.config.dc_share_all_dw_hidden,
+            dc_share_prepost_dw_hidden=self.config.dc_share_prepost_dw_hidden,
+            dc_dw2_zero_init=self.config.dc_dw2_zero_init,
+            use_dw_bias=self.config.use_dw_bias,
+            use_dd_bias=self.config.use_dd_bias,
           ))
       else:
         self.dyn_w_proj = DynamicWeightProjection(
@@ -345,6 +422,11 @@ class AttentionOp(nn.Module):
           deterministic=self.deterministic,
           dynamic_dropout_rate=self.dynamic_dropout_rate,
           quant=self.quant,
+          dc_share_all_dw_hidden=self.config.dc_share_all_dw_hidden,
+          dc_share_prepost_dw_hidden=self.config.dc_share_prepost_dw_hidden,
+          dc_dw2_zero_init=self.config.dc_dw2_zero_init,
+          use_dw_bias=self.config.use_dw_bias,
+          use_dd_bias=self.config.use_dd_bias,
           )
 
       self.pre_proj = CrossHeadProjection(
@@ -354,6 +436,8 @@ class AttentionOp(nn.Module):
         num_heads=self.num_query_heads, 
         num_groups=self.num_groups,
         static_proj=self.static_proj,
+        query_wise=cfg.query_wise,
+        key_wise=cfg.key_wise,
         query_input_dim=input_dim,
         key_input_dim=input_dim,
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
@@ -367,6 +451,8 @@ class AttentionOp(nn.Module):
         num_heads=self.num_query_heads, 
         num_groups=self.num_groups,
         static_proj=self.static_proj,
+        query_wise=cfg.query_wise,
+        key_wise=cfg.key_wise,
         query_input_dim=input_dim,
         key_input_dim=input_dim,
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
@@ -386,16 +472,27 @@ class AttentionOp(nn.Module):
 ):
     cfg = self.config
 
+    pre_proj_dw_args, post_proj_dw_args = (None, ) * 6, (None, ) * 6
     if cfg.pre_compose or cfg.post_compose:
         if hasattr(self, 'dyn_w_proj'):
-            pre_proj_dw_args, post_proj_dw_args = self.dyn_w_proj(input_q)
+          pre_proj_dw_args, post_proj_dw_args = self.dyn_w_proj(input_q)
+        elif self.seperate_qk_dw_proj and (hasattr(self, 'q_dyn_w_proj') or hasattr(self, 'k_dyn_w_proj')):
+          if self.config.query_wise:
+            pre_q_dw_args, post_q_dw_args = self.q_dyn_w_proj(input_q)
+          else:
+            pre_q_dw_args, post_q_dw_args = (None, ) * 3, (None, ) * 3
+          if self.config.key_wise:
+            _key_vec = input_kv[0] if isinstance(input_kv, (tuple, list)) and len(input_kv) == 2 else input_kv
+            pre_k_dw_args, post_k_dw_args = self.k_dyn_w_proj(_key_vec)
+          else:
+            pre_k_dw_args, post_k_dw_args = (None, ) * 3, (None, ) * 3
+          pre_proj_dw_args = pre_q_dw_args[:2] + pre_k_dw_args[:2] + pre_q_dw_args[2:] + pre_k_dw_args[2:]
+          post_proj_dw_args = post_q_dw_args[:2] + post_k_dw_args[:2] + post_q_dw_args[2:] + post_k_dw_args[2:]
         else:
-            if hasattr(self, 'dyn_w_pre_proj'):
-                pre_proj_dw_args = self.dyn_w_pre_proj(input_q)
-            if hasattr(self, 'dyn_w_post_proj'):
-                post_proj_dw_args = self.dyn_w_post_proj(input_kv)
-    else:
-        pre_proj_dw_args, post_proj_dw_args = (None, ) * 6, (None, ) * 6
+          if hasattr(self, 'dyn_w_pre_proj'):
+              pre_proj_dw_args = self.dyn_w_pre_proj(input_q)
+          if hasattr(self, 'dyn_w_post_proj'):
+              post_proj_dw_args = self.dyn_w_post_proj(input_kv)    
 
     outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size)(query, key, value, decoder_segment_ids, model_mode, 
                             pre_proj_dw_args, post_proj_dw_args, 

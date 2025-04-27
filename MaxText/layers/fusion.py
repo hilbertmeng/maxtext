@@ -137,6 +137,8 @@ class SubDecoderLayer(nn.Module):
         ragged_block_size=cfg.ragged_block_size,
         kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
         sliding_window_size=self.sliding_window_size,
+        layer_inx=self.layer_inx,
+        use_kv_shift=cfg.use_kv_shift,
     )
 
     attention_lnx = attention_layer(
@@ -236,7 +238,7 @@ class SubDecoderLayer(nn.Module):
           jnp.sum(layer_output == 0) / jnp.size(layer_output),
       )
 
-    dyn_dense_w = self.mudd_mlp(layer_output) # lsp
+    dyn_dense_w = self.mudd_mlp(layer_output) if not self.config.mudd_in_layer else None# lsp
     return layer_output, dyn_dense_w
 
 
@@ -258,7 +260,7 @@ class FusionDecoderLayer(nn.Module):
 
     if len(sliding_window_size) != 1:
         assert not self.config.dense_conn
-
+    self.layer_inx = layer_inx
     self.subs = [SubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}') for i, sws in enumerate(sliding_window_size)]
 
   @nn.compact
@@ -269,7 +271,19 @@ class FusionDecoderLayer(nn.Module):
       decoder_positions,
       deterministic,
       model_mode,
+      hids=None,
   ):
+    if self.config.mudd_in_layer:
+        if self.layer_inx == 0: # first layer
+            inputs = [inputs] * len(self.config.dynamic_dense_type)
+        else:
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
+    
     for layer in self.subs:
         inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
+    
+    if self.config.mudd_in_layer:
+        if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
+        return inputs, hids
     return inputs, dyn_dense_w

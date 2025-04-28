@@ -877,6 +877,19 @@ def create_learning_rate_schedule(config):
 
     return schedule
 
+  def make_wsd_schedule(init_lr, final_lr, len_steps):
+    # 0.5**((step - S) / T)
+    # T = S  * np.log(0.5) / 9 ,  S == config.learning_rate_schedule_steps
+    # T = -0.07701635339554948 / np.log(final_lr), 基于final_lr和恒定学习率步数计算出T
+    T = config.learning_rate_schedule_steps  * np.log(0.5) / (9 * np.log(final_lr))
+    def schedule(step):
+      if step <= len_steps:
+        return init_lr
+      lr = init_lr * 0.5 ** ((step - len_steps) / T)
+      return lr
+
+    return schedule
+
   lr = config.learning_rate
   cos_final_lr = lr * config.cosine_learning_rate_final_fraction
 
@@ -885,10 +898,16 @@ def create_learning_rate_schedule(config):
   constant_zero_steps = config.steps - config.learning_rate_schedule_steps
 
   warmup_schedule = optax.linear_schedule(init_value=0.0, end_value=lr, transition_steps=warmup_steps)
-  cos_schedule = make_cos_schedule(lr, cos_final_lr, cos_steps)
+  if config.scheduler == 'cosine':
+    schedule = make_cos_schedule(lr, cos_final_lr, cos_steps)
+  elif config.scheduler == 'wsd':
+    schedule = make_wsd_schedule(lr, cos_final_lr, config.learning_rate_schedule_steps)
+  else:
+    raise ValueError(f'Unknow scheduler type: {config.scheduler}')
+
   constant_schedule = optax.constant_schedule(0.0)
 
-  pieces = [warmup_schedule, cos_schedule]
+  pieces = [warmup_schedule, schedule]
   boundaries = [
       warmup_steps,
       warmup_steps + cos_steps,

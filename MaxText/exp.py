@@ -161,6 +161,8 @@ class Qwen2p5_3B(Llama2Medium):
     normalize_embedding_logits = False
     dataset_type = 'pretrain_4k'
     qkv_bias = True
+    # query_chunk_size = None
+    attention = 'dot_product_chunk'
 
 class Qwen2p5_0p5B(Qwen2p5_3B):
     base_emb_dim = 896

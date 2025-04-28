@@ -137,7 +137,6 @@ class SubDecoderLayer(nn.Module):
         ragged_block_size=cfg.ragged_block_size,
         kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
         sliding_window_size=self.sliding_window_size,
-        layer_inx=self.layer_inx,
         use_kv_shift=cfg.use_kv_shift,
     )
 

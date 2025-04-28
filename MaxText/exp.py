@@ -193,14 +193,29 @@ class Llama33B(Llama2Medium):
     head_dim = 128
     model_name = 'Llama33B'
 
-class DreamMiniMedium(DreamMini, Llama2Medium):
-    query_chunk_size = 128
-    sw_squeeze_ratio = None # 4: 0.378, 8: 0.44, aplly_sw and chunk along S: 0.414 
-    per_device_batch_size = 16.0 # for v4
-    # mudd_in_layer = True 
+class DreamMiniMediumRefactor(DreamMini, Llama2Medium):
+    query_chunk_size = 128 # loss 2.31413
+    per_device_batch_size = 32.0 
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
-    static_proj = False
-    key_wise = True # v4: 0.456
+    static_proj = True
+    key_wise = False 
+
+class DreamMiniMediumRefactorWindow1K(DreamMiniMediumRefactor):
+    sliding_window_size = [1024, None, 1024, 1024]
+
+class DreamMiniMediumRefactorWSD10X(DreamMiniMediumRefactor):
+    stable_steps_fraction = 0.89
+    cosine_learning_rate_final_fraction = 0.01
+    learning_rate = 3e-3
+
+class DreamMiniMediumRefactorSwQuant(DreamMiniMediumRefactor):
+    sw_quant = True # v5p-16 : 0.396
+    mudd_in_layer = True 
+    record_internal_nn_metrics = False
+
+class DreamMiniMediumRefactorRematMudd(DreamMiniMediumRefactor):
+    mudd_in_layer = True # v5p-16: 0.398
+    record_internal_nn_metrics = False
 
 class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     query_chunk_size = 128

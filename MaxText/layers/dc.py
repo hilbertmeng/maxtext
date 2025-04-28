@@ -15,6 +15,7 @@ import max_logging
 import common_types
 from flax.linen.linear import PrecisionLike
 from layers import accelerator
+from layers import quantizations
 
 Dtype = Any
 Array = common_types.Array
@@ -211,6 +212,7 @@ class DynamicWeightProjection(nn.Module):
 
 
 class CrossHeadProjection(nn.Module):
+  config: Any
   dtype: Optional[Dtype] = None
   weight_dtype: Dtype = jnp.float32
   precision: PrecisionLike = None
@@ -257,6 +259,23 @@ class CrossHeadProjection(nn.Module):
       return math.sqrt(2.0 / (in_dim + out_dim)) * relative_scale
 
     if self.static_proj:
+      cfg = self.config
+      self.sw_quant = self.config.sw_quant
+      if self.sw_quant:
+        quant_cfg = quantizations._get_int8_quant_config(self.config)
+        quant_mode = quantizations.get_quant_mode("train")
+        replicate_scale = self.config.replicate_quant_scale if self.config.replicate_quant_scale else False
+        quant = quantizations.AqtQuantization(quant_dg=quant_cfg, quant_mode=quant_mode, replicate_scale=replicate_scale)
+        
+        self.sw_proj = linears.DenseGeneral(
+                                      (self.num_heads_per_group,), # MN
+                                      kernel_init=initializers.nd_dense_init_normal(init_fn(self.num_heads_per_group)),
+                                      kernel_axes=(None, None),
+                                      use_bias=False,
+                                      name='sw_proj',
+                                      axis=2, #BGMTS
+                                      dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=quant)
+
       if self.squeeze_ratio is None:
         shape=[self.num_groups, self.num_heads_per_group, self.num_heads_per_group]
         scale = init_fn(self.num_heads_per_group)
@@ -272,6 +291,9 @@ class CrossHeadProjection(nn.Module):
         self.w2 = self.param('w2', NormalInitializer(scale), shape, self.weight_dtype)
 
   def apply_sw(self, ret, exp, _inputs, w):
+    if self.sw_quant:
+      res = rearrange(self.sw_proj(_inputs), 'B G T S N -> B G N T S')
+      return ret + res
     # ret += jnp.einsum(exp, _inputs, w) # BGMTS,GMN->BGNTS
     s = ret.shape[-1]
     res = jnp.zeros(ret.shape, dtype=ret.dtype)
@@ -430,6 +452,7 @@ class AttentionOp(nn.Module):
           )
 
       self.pre_proj = CrossHeadProjection(
+        config=self.config,
         dtype=self.dtype, 
         weight_dtype=self.weight_dtype, 
         precision=self.precision,
@@ -445,6 +468,7 @@ class AttentionOp(nn.Module):
         )
 
       self.post_proj = CrossHeadProjection(
+        config=self.config,
         dtype=self.dtype, 
         weight_dtype=self.weight_dtype, 
         precision=self.precision,

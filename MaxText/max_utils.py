@@ -881,7 +881,9 @@ def create_learning_rate_schedule(config):
   cos_final_lr = lr * config.cosine_learning_rate_final_fraction
 
   warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction)
-  cos_steps = config.learning_rate_schedule_steps - warmup_steps
+  stable_steps_fraction = config.stable_steps_fraction if config.stable_steps_fraction is not None else 0
+  stable_steps = int(config.learning_rate_schedule_steps * stable_steps_fraction)
+  cos_steps = config.learning_rate_schedule_steps - warmup_steps - stable_steps
   constant_zero_steps = config.steps - config.learning_rate_schedule_steps
 
   warmup_schedule = optax.linear_schedule(init_value=0.0, end_value=lr, transition_steps=warmup_steps)
@@ -890,13 +892,13 @@ def create_learning_rate_schedule(config):
 
   pieces = [warmup_schedule, cos_schedule]
   boundaries = [
-      warmup_steps,
-      warmup_steps + cos_steps,
+      warmup_steps + stable_steps,
+      warmup_steps + stable_steps + cos_steps,
   ]
 
   if constant_zero_steps > 0:
     pieces.append(constant_schedule)
-    boundaries.append(warmup_steps + cos_steps + constant_zero_steps)
+    boundaries.append(warmup_steps + stable_steps + cos_steps + constant_zero_steps)
 
   return optax.join_schedules(pieces, boundaries)
 

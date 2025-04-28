@@ -169,7 +169,9 @@ class QChunk(nn.Module):
         encoded = self._apply_attention_dot(
             query, key, value, attn_mask,  
             pre_proj_dw_args=pre_proj_dw_args, 
-            post_proj_dw_args=post_proj_dw_args, 
+            post_proj_dw_args=post_proj_dw_args,
+            pre_proj_layer=pre_proj_layer,
+            post_proj_layer=post_proj_layer, 
             )
     else:
         max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')

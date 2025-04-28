@@ -509,7 +509,10 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
-  correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
+  if config.record_internal_nn_metrics:
+    correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
+  else:
+    correct, accuracy = np.array([0]), 0
 
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)

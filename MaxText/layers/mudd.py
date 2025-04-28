@@ -60,6 +60,7 @@ class Mlp(nn.Module):
   mesh: Mesh
   quant: Optional[Quant] = None
   layer_inx: int = None
+  use_bias: bool = True
 
   def setup(self):
     cfg = self.config
@@ -104,10 +105,11 @@ class Mlp(nn.Module):
                                     use_bias=False, 
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
-    self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
-    init_v = jnp.array([0] * ((layer_inx + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
-    init_v = init_v[None].repeat(C, 0)
-    self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
+    if self.use_bias:
+      self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
+      init_v = jnp.array([0] * ((layer_inx + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
+      init_v = init_v[None].repeat(C, 0)
+      self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
   @nn.compact
   def __call__(
@@ -124,7 +126,10 @@ class Mlp(nn.Module):
       if cfg.dynamic_dense_scale_dw:
         max_logging.log(f'dynamic_dense_scale_dw: {cfg.dynamic_dense_scale_dw}', debug=self.config.debug)
         dyn_dense_kernel_out /= jnp.sqrt(self.dynamic_dense_inter_dim)
-      dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)
+      if self.use_bias:
+        dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)
+      else:
+        dyn_dense_w = dyn_dense_kernel_out
     return dyn_dense_w
 
 
@@ -134,16 +139,23 @@ class Compose(nn.Module):
   quant: Optional[Quant] = None
   layer_inx: int = None
   
+  def setup(self):
+    if self.config.mudd_in_layer:
+        self.mudd_mlp = Mlp(self.config, self.mesh, self.quant, self.layer_inx)
+          
   @nn.compact
   def __call__(
       self,
       layer_output,
       hids,
   ):
-    y, dyn_dense_w = layer_output
-    if dyn_dense_w is None: 
-      max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
-      return y, hids
+    if self.config.mudd_in_layer:
+        y, dyn_dense_w = layer_output, self.mudd_mlp(layer_output)
+    else:
+        y, dyn_dense_w = layer_output
+        if dyn_dense_w is None: 
+          max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
+          return y, hids
 
     max_logging.log(f'Compose history hidden states.', debug=self.config.debug)
     layer_inx = self.layer_inx

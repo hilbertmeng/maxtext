@@ -36,6 +36,10 @@ from layers import linears
 from layers import quantizations
 from layers import dc
 from layers import accelerator
+from layers import normalizations
+from layers import kv_shift
+
+import maxtext_utils
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -1134,6 +1138,7 @@ class Attention(nn.Module):
   ar_cache_axis_order: AxisIdxes = (1, 2, 0, 3)
   compute_axis_order: AxisIdxes = (0, 1, 2, 3)
   reshape_q: bool = False
+  use_kv_shift: bool = False
 
   def setup(self):
     if self.config.pre_compose or self.config.post_compose:
@@ -1163,6 +1168,9 @@ class Attention(nn.Module):
         use_ragged_attention=self.use_ragged_attention,
         ragged_block_size=self.ragged_block_size,
     )
+    if self.use_kv_shift:
+      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+      
 
   def query_projection(self, inputs_q: Array) -> Array:
     """Query projection."""
@@ -1352,6 +1360,10 @@ class Attention(nn.Module):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
+    if self.use_kv_shift:
+      inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
+      query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v)
+    
     query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
 
     # apply ROPE

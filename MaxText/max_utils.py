@@ -867,9 +867,18 @@ def create_learning_rate_schedule(config):
   3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
   The zero learning rate section can be used to more accurately measure the fully trained model's performance.
   """
+  def make_wsd_decay_schedule(init_lr, final_lr, len_steps):
+    # 0.5**((step - S) / T), S means decay start step.  T 根据decay结束开始和结束学习率 反推出来的一个值。
+    T = np.log(0.5) * len_steps /  np.log(final_lr / init_lr)
+    def schedule(step):
+      # 务必注意，这个传入的step不是实际的步数，是从0开始的, 应该是optax进一步处理了。正好是公式中的step - S
+      lr = init_lr * 0.5**(step / T)
+      return lr
+    return schedule
 
   def make_cos_schedule(init_lr, final_lr, len_steps):
     def schedule(step):
+      # 务必注意，这个传入的step不是实际的步数，是从0开始的
       pct = (step) / len_steps
       a = 0.5 * (jnp.cos(jnp.pi * pct) + 1)
       lr = init_lr * a + final_lr * (1 - a)
@@ -877,45 +886,28 @@ def create_learning_rate_schedule(config):
 
     return schedule
 
-  def make_wsd_schedule(init_lr, final_lr, len_steps):
-    # 0.5**((step - S) / T)
-    # T = S  * np.log(0.5) / 9 ,  S == config.learning_rate_schedule_steps
-    # T = -0.07701635339554948 / np.log(final_lr), 基于final_lr和恒定学习率步数计算出T
-    T = config.learning_rate_schedule_steps  * np.log(0.5) / (9 * np.log(final_lr))
-    def schedule(step):
-      if step <= len_steps:
-        return init_lr
-      lr = init_lr * 0.5 ** ((step - len_steps) / T)
-      return lr
-
-    return schedule
-
   lr = config.learning_rate
   cos_final_lr = lr * config.cosine_learning_rate_final_fraction
 
-  warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction) if config.warmup_steps < 0 else config.warmup_steps
-  cos_steps = config.learning_rate_schedule_steps - warmup_steps
+  warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction)
+  stable_steps_fraction = config.stable_steps_fraction if config.stable_steps_fraction is not None else 0
+  stable_steps = int(config.learning_rate_schedule_steps * stable_steps_fraction)
+  cos_steps = config.learning_rate_schedule_steps - warmup_steps - stable_steps
   constant_zero_steps = config.steps - config.learning_rate_schedule_steps
-
   warmup_schedule = optax.linear_schedule(init_value=0.0, end_value=lr, transition_steps=warmup_steps)
-  if config.scheduler == 'cosine':
-    schedule = make_cos_schedule(lr, cos_final_lr, cos_steps)
-  elif config.scheduler == 'wsd':
-    schedule = make_wsd_schedule(lr, cos_final_lr, config.learning_rate_schedule_steps)
-  else:
-    raise ValueError(f'Unknow scheduler type: {config.scheduler}')
-
+  decay_ratio = 1 - stable_steps_fraction - config.warmup_steps_fraction
+  cos_schedule = make_wsd_decay_schedule(lr, cos_final_lr, cos_steps) if stable_steps_fraction > 0 \
+                                                            else make_cos_schedule(lr, cos_final_lr, cos_steps)
   constant_schedule = optax.constant_schedule(0.0)
-
-  pieces = [warmup_schedule, schedule]
+  pieces = [warmup_schedule, cos_schedule]
   boundaries = [
-      warmup_steps,
-      warmup_steps + cos_steps,
+      warmup_steps + stable_steps,
+      warmup_steps + stable_steps + cos_steps,
   ]
 
   if constant_zero_steps > 0:
     pieces.append(constant_schedule)
-    boundaries.append(warmup_steps + cos_steps + constant_zero_steps)
+    boundaries.append(warmup_steps + stable_steps + cos_steps + constant_zero_steps)
 
   return optax.join_schedules(pieces, boundaries)
 

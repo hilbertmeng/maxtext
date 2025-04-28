@@ -893,7 +893,7 @@ def create_learning_rate_schedule(config):
   lr = config.learning_rate
   cos_final_lr = lr * config.cosine_learning_rate_final_fraction
 
-  warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction)
+  warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction) if config.warmup_steps < 0 else config.warmup_steps
   cos_steps = config.learning_rate_schedule_steps - warmup_steps
   constant_zero_steps = config.steps - config.learning_rate_schedule_steps
 

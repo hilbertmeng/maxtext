@@ -205,7 +205,7 @@ param_scan_axis: 1
 # The attention_type parameter determines the variants of attention, e.g. global or local_sliding
 attention: 'autoselected' # Supported attention: autoselected, dot_product, flash, cudnn_flash_te
 attention_type: 'global' # Supported attention_type: global, local_sliding, mla
-sliding_window_size: 0
+sliding_window_size: null
 attn_logits_soft_cap: 0.0
 final_logits_soft_cap: 0.0
 use_post_attn_norm: False
@@ -377,7 +377,7 @@ grain_eval_files: ''
 grain_worker_count: 1
 
 # Training loop
-steps: 150_001 # If set to -1 then will inherit value from learning_rate_schedule_steps
+steps: 1000000 # If set to -1 then will inherit value from learning_rate_schedule_steps
 log_period: 25 # Flushes Tensorboard
 
 jax_distributed_initialization_timeout: 300 # This is the default timeout in https://github.com/jax-ml/jax/blob/main/jax/_src/distributed.py
@@ -396,8 +396,8 @@ skip_jax_distributed_system: False # If True we will not initialize the jax dist
 # 3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
 # The zero learning rate section can be used to more accurately measure the fully trained model's performance.
 learning_rate: 3.e-5
-cosine_learning_rate_final_fraction: 0.1
-warmup_steps_fraction: 0.1
+cosine_learning_rate_final_fraction: 0.1 # 也可以作为wsd decay的结束学习率
+warmup_steps_fraction: 0.1 # cosine and wsd warmup steps fraction
 learning_rate_schedule_steps: -1 # By default the length of the schedule is set to the number of steps.
 # However you may choose a longer schedule (learning_rate_schedule_steps > steps), in which case the training will end before
 # dropping fully down. Or you may choose a shorter schedule, where the unspecified steps will have a learning rate of 0.
@@ -618,10 +618,11 @@ task_features: ['input_ids']
 mgate_dim: 0
 moe_type: 'openmoe'
 expert_capacity_factor: 1.5
-expert_chunk_size: null
+expert_chunk_size: 8
 router_z_loss_coef: 0.01
 gate_noise_coef: 0.5
 sfm_after_topn: True
+num_groups: 1
 keep_period: 1000 # step / keep_period would not be deleted
 max_to_keep: 4 # max save checkpoint nums nearby
 only_eval: False
@@ -630,3 +631,8 @@ eval_model_step: -1 # evaluate certain step checkpoint, if -1, auto select lates
 tensorboard_dir: ''
 upload_param_act_tb_period: 25 # upload param, activation to tensorboard interval steps
 upload_loss_tb_period: 5 # # upload loss,acc,lr etc. to tensorboard interval steps
+training_num_batches_to_skip: 0
+key_wise: True
+num_layers_per_block: 1
+qkv_bias: False
+stable_steps_fraction: 0.0

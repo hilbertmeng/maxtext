@@ -19,6 +19,7 @@ from typing import Callable, Tuple, Union
 from flax import linen as nn
 import jax
 import common_types
+import jax.numpy as jnp
 
 Array = common_types.Array
 DType = common_types.DType
@@ -60,10 +61,9 @@ def contant_dense_init(value):
 
   return init_fn
 
-
-def nd_dense_init_normal(scale):
+def nd_dense_init_normal(scale, min_val=None, max_val=None):
   def init_fn(key, shape, dtype, in_axis=None, out_axis=None):
     fn = nn.initializers.normal(scale)
-    return fn(key, shape, dtype)
+    return jnp.clip(fn(key, shape, dtype), min=min_val, max=max_val) # lsp: add min, max
 
   return init_fn

@@ -10,11 +10,12 @@ from jax import lax
 import jax.numpy as jnp
 import common_types
 import max_logging
-
+from layers import quantizations
 
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
+KVQuant = quantizations.KVQuant
 
 DEFAULT_MASK_VALUE = -0.7 * float(jnp.finfo(jnp.dtype("float32")).max)
 
@@ -70,6 +71,7 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
 class QChunk(nn.Module):
   config: Config
   sliding_window_size: int
+  kv_quant: Optional[KVQuant] = None
 
   def setup(self):
     cfg = self.config
@@ -91,11 +93,14 @@ class QChunk(nn.Module):
     assert query.shape[-1] == key.shape[-1], "q, k depths must match."
 
   def qk_product(self, query: Array, key: Array) -> Array:
+    einsum = jnp.einsum
+    if self.kv_quant: # true when quantize_kvcache set true
+      einsum = self.kv_quant.einsum_fn_with_rhs_qtensor(key)
     b, t, n, d = query.shape  
     n_kv = key.shape[-2]
     assert n_kv == self.num_kv_heads
-    # normal: b t n d
-    result = jnp.einsum('btnd,bsnd->bnts', query, key)
+    query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
+    result = einsum("btkgd,bskd->bkgts", query, key)
     return result
 
   def _apply_attention_dot(
@@ -113,7 +118,7 @@ class QChunk(nn.Module):
     if self.float32_qk_product:
       query = query.astype(jnp.float32)
       key = key.astype(jnp.float32)
-    # bnts
+    # bnts -> bkgts
     attn_weights = self.qk_product(query, key)
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
    
@@ -129,20 +134,22 @@ class QChunk(nn.Module):
     if self.config.float32_logits:
           attn_weights = attn_weights.astype(jnp.float32)
     # normalize the attention weights
-    probs = jax.nn.softmax(attn_weights).astype(self.dtype)
-    probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
+    probs = jax.nn.softmax(attn_weights).astype(self.dtype) # bkgts
+    probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
 
     if self.config.post_compose:
       post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
       probs = post_proj_layer(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
 
-    probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
+    probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
     # Casting softmaxt computation for float32 for model stability.
     probs = probs.astype(self.dtype)
     if attn_mask is not None:
       probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
-    output = jnp.einsum('bnts,bsnh->btnh', probs, value)
-    probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
+    output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
+    b, t, n_kv, g, h = output.shape
+    output = jnp.reshape(output, (b, t, n_kv * g, h))
+    output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
     return output
 
   @nn.compact

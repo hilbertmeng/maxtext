@@ -243,9 +243,10 @@ class AttentionOp(nn.Module):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
     elif self.attention_kernel == "dot_product_chunk": # lsp: dc, llama, mudd etc. expecially when head_dim < 128, can't use flash to accelerate
       return accelerator.QChunk(config=self.config, 
-                                sliding_window_size=self.sliding_window_size)(
-                                                    query, key, value, decoder_segment_ids, model_mode
-                                                    )
+                                sliding_window_size=self.sliding_window_size,
+                                kv_quant=self.kv_quant)(
+                                query, key, value, decoder_segment_ids, model_mode
+                                )
 
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
       if isinstance(key, KVTensor):
@@ -499,6 +500,7 @@ class AttentionOp(nn.Module):
 
     q_seq_len = query.shape[1]
     attn_weights = self.qk_product(query, key, q_seq_len, model_mode)
+    print(f'attn_weights: {attn_weights.shape}')
 
     if self.attn_logits_soft_cap:
       attn_weights = jnp.tanh(attn_weights / self.attn_logits_soft_cap)
@@ -1194,6 +1196,7 @@ class Attention(nn.Module):
         name="query",
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
+        use_bias=self.config.qkv_bias,
     )(inputs_q)
     return query_proj
 
@@ -1226,6 +1229,7 @@ class Attention(nn.Module):
         name=proj_name,
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
+        use_bias=self.config.qkv_bias,
     )(inputs_kv)
     return kv_proj
 
@@ -1242,6 +1246,7 @@ class Attention(nn.Module):
         name=proj_name,
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
+        use_bias=self.config.qkv_bias,
     )(inputs)
     qkv_proj = checkpoint_name(qkv_proj, "qkv_proj")
     query, key, value = qkv_proj[:, :, 0, ...], qkv_proj[:, :, 1, ...], qkv_proj[:, :, 2, ...]
@@ -1466,7 +1471,8 @@ class MLA(Attention):
           features=(self.num_query_heads, self.qk_head_dim),
           axis=-1,
           kernel_init=self.kernel_init,
-          kernel_axes=("q_lora", "q_heads", "kv"),
+          # kernel_axes=("q_lora", "q_heads", "kv"),
+          kernel_axes=("q_lora", "q_heads", "embed"), # lsp
           dtype=self.dtype,
           weight_dtype=self.weight_dtype,
           name="wq_b",
@@ -1497,7 +1503,8 @@ class MLA(Attention):
         features=(self.num_query_heads, (self.qk_nope_head_dim + self.v_head_dim)),
         axis=-1,
         kernel_init=self.kernel_init,
-        kernel_axes=("kv_lora", "kv_heads", "kv_head_dim"),
+        # kernel_axes=("kv_lora", "kv_heads", "kv_head_dim"),
+        kernel_axes=("kv_lora", "kv_heads", "embed"), # lsp
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         name="wkv_b",
@@ -1506,7 +1513,7 @@ class MLA(Attention):
     )
 
     # Set softmax scaling.
-    self.softmax_scale = self.qk_head_dim**-0.5
+    self.softmax_scale = self.qk_head_dim**0.5 # lsp, -0.5 -> 0.5
     if self.max_seq_len > self.original_seq_len:
       mscale = 0.1 * self.mscale * jnp.log(self.rope_factor) + 1.0
       self.softmax_scale = self.softmax_scale * mscale * mscale

@@ -136,6 +136,7 @@ class SubDecoderLayer(nn.Module):
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
         kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
         sliding_window_size=self.sliding_window_size,
         use_kv_shift=cfg.use_kv_shift,
     )
@@ -167,7 +168,8 @@ class SubDecoderLayer(nn.Module):
     )
     
     mlp_lnx = None
-    if cfg.shared_experts == 1:
+    if cfg.shared_experts == 1 and (cfg.scan_layers or self.layer_inx not in cfg.insert_moe_indexes):
+      max_logging.log(f'into mlp layer, layer_inx is {self.layer_inx}', debug=cfg.debug)
       # MLP block.
       mlp_lnx = linears.MlpBlock(
           intermediate_dim=self.updated_mlp_dim, # lsp
@@ -179,31 +181,56 @@ class SubDecoderLayer(nn.Module):
           config=cfg,
           quant=self.quant,
           kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+          # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) # lsp
       )(hidden_states, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
+      if cfg.record_internal_nn_metrics:
+            mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))
+            self.sow('intermediates', 'mlp_lnx/l2norm', mlp_l2norm)
+
     # lsp: moe
     moe_lnx = None
-    load_balance_loss = None
-    if cfg.num_experts > 1:
-      if cfg.moe_type == 'openmoe':
+    load_balance_loss = 0.0
+    if cfg.num_experts > 1 and (cfg.scan_layers or self.layer_inx in cfg.insert_moe_indexes):
+      max_logging.log(f'into moe layer, layer_inx is {self.layer_inx}', debug=cfg.debug)
+      kwargs = {
+        'config': cfg,
+        'mesh': mesh,
+        'kernel_init': initializers.nd_dense_init_normal(0.006),
+        # 'kernel_init': initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
+        'kernel_axes': ("embed", None),
+        'dtype': cfg.dtype,
+        'weight_dtype': cfg.weight_dtype,
+        'quant': self.quant,
+        'name': 'moe'
+      }
+      extra_kwargs = {
+        'num_experts': cfg.num_experts,
+        'num_experts_per_tok': cfg.num_experts_per_tok,
+        'intermediate_dim': self.updated_mlp_dim, # lsp
+        }
+      if cfg.moe_type == 'open': # with capacity and noise and balance loss
         moe_layer = linears.OpenMoeBlock
-      else:
+        kwargs.update(extra_kwargs)
+      elif cfg.moe_type == 'open_v2': # slowly, maybe have bug
+        moe_layer = linears.OpenMoeBlockV2
+        kwargs.update(extra_kwargs)
+      elif cfg.moe_type == 'deepseek': # model performance bad
+        moe_layer = linears.DeepSeekMoeBlock
+      elif cfg.moe_type == 'ol': # todo: don't run, can't compile
+        moe_layer = linears.JaxQwenSparseMoeBlock
+      elif cfg.moe_type == 'dropless': # no capacity and nosie, maybe have balance loss, bug no imporve with balance loss 0.01
+        kwargs.update(extra_kwargs)
         moe_layer = linears.MoeBlock
-      moe_lnx, load_balance_loss = moe_layer(
-        config=cfg,
-        num_experts=cfg.num_experts,
-        num_experts_per_tok=cfg.num_experts_per_tok,
-        mesh=mesh,
-        kernel_init=initializers.nd_dense_init_normal(0.006),
-        kernel_axes=("embed", None),
-        intermediate_dim=cfg.mlp_dim,
-        weight_dtype=cfg.weight_dtype,
-        dtype=cfg.dtype,
-        quant=self.quant,
-        name='moe'
-        )(hidden_states, paddings=decoder_segment_ids)
+      else:
+        raise ValueError(f'Unknow moe type: {cfg.moe_type}, it must be in [open, deepseek, ol, dropless]')
+      moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
       max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
+
+      if cfg.record_internal_nn_metrics: # lsp
+            moe_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(moe_lnx)))
+            self.sow('intermediates', 'moe_lnx/l2norm', moe_mlp_l2norm)
         
       if load_balance_loss is not None:
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)

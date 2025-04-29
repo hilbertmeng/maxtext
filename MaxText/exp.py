@@ -21,6 +21,10 @@ class Common:
     normalization_layer_epsilon = 1e-6
     query_chunk_size = 512
     tensorboard_dir = '' # tensorboard dir, final path is tensorboard_dir + run_name
+    insert_moe_indexes = []
+    training_num_batches_to_skip = None
+    num_layers_per_block = 1
+    qkv_bias = False
 
 class Optimizer:
     learning_rate_schedule_steps = 13500
@@ -131,9 +135,49 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
 
+class Llama2Large(Llama2Medium):
+    model_name = 'Llama2Large'
+    base_emb_dim = 1536
+    base_num_query_heads = 24
+    base_num_kv_heads = 24
+    base_mlp_dim = 4096
+    learning_rate_schedule_steps = 29000
+    learning_rate = 2.5e-4
+    eval_interval = 14500
+
+class Llama2XL(Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5504
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+    eval_interval = 5000
+
+class Llama2XLSG(Llama2Medium):
+    base_num_decoder_layers = 36
+    base_emb_dim = 2048
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 2816
+    learning_rate = 2e-4
+    learning_rate_schedule_steps = 50000
+    eval_interval = 5000
+    head_dim = 64
+
+class MuddLlama2XL(Mudd, Llama2XL):
+    pass
+
+class DcLlama2XLSG(LGLLWindow, DC, Llama2XLSG):
+    pass
+
 class MuddLlama2Medium(Mudd, Llama2Medium):
     model_name = 'MuddLlama2Medium'
 
+class MuddLlama2MediumG4(Mudd, Llama2Medium):
+    base_mlp_dim = 2816 + 512
+    base_num_kv_heads = 4
+    
 class DCLlama2Medium(DC, LGWindow, Llama2Medium):
     qk_norm = True
     model_name = 'DCLlama2Medium'
@@ -165,6 +209,33 @@ class LlamaXL(Llama2Medium):
     base_mlp_dim = 5504
     base_num_decoder_layers = 24 # fix: 28 -> 24
     head_dim = 64
+    
+class Qwen2p5_3B(Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 2
+    base_mlp_dim = 11008
+    base_num_decoder_layers = 36
+    head_dim = 128
+    model_name = 'Qwen2p5_3B'
+    rope_max_timescale = 1000000
+    vocab_size = 151936
+    qk_norm = False
+    logits_via_embedding = True # shared embedding weights
+    normalize_embedding_logits = False
+    dataset_type = 'pretrain_4k'
+    qkv_bias = True
+    # query_chunk_size = None
+    attention = 'dot_product_chunk'
+
+class Qwen2p5_0p5B(Qwen2p5_3B):
+    base_emb_dim = 896
+    base_num_query_heads = 14
+    base_num_kv_heads = 2
+    base_mlp_dim = 4864
+    base_num_decoder_layers = 24
+    head_dim = 64
+    model_name = 'Qwen2p5_0p5B'
 
 class Llama7B(Llama2Medium):
     base_emb_dim = 4096

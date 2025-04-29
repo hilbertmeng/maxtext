@@ -246,7 +246,7 @@ class MlpBlock(nn.Module):
         y = _convert_to_activation_function(act_fn)(x[:, :, idx, ...])
         activations.append(y)
     else:
-      for idx, act_fn in enumerate(self.activations):
+      for idx, act_fn in enumerate(self.activations): # wi_0 is mlp gate
         dense_name = "wi" if len(self.activations) == 1 else f"wi_{idx}"
         x = DenseGeneral(
             self.intermediate_dim,
@@ -385,8 +385,8 @@ class MoeBlock(nn.Module):
     """Scales weights according to DeepSeek's v3 reference implementation.
     https://github.com/deepseek-ai/DeepSeek-V3/blob/2f7b80eecebf3d1c84da5a0d465f6639ea175012/inference/model.py#L592-L594
     """
-    if self.config.routed_score_func == "sigmoid":
-      weights /= weights.sum(-1, keepdims=True)
+    weights = nn.sigmoid(weights) # lsp
+    weights /= weights.sum(-1, keepdims=True)
     weights *= self.config.routed_scaling_factor
     return weights
 
@@ -397,10 +397,12 @@ class MoeBlock(nn.Module):
     inputs_shape = inputs.shape
     inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
     weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
-    if self.config.decoder_block == "deepseek":
+    if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
+      print(f'Enter permute sigmoid function......')
       weights = self.deepseek_scale_weights(weights)
     else:
       weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
+
     flatten_selected_experts = jnp.ravel(selected_experts)
     sorted_selected_experts = jnp.argsort(flatten_selected_experts)
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok
@@ -429,7 +431,33 @@ class MoeBlock(nn.Module):
     return output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
 
   def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
-    tile_size = (512, 1024, 1024)  # (m, k, n)
+
+    aux_loss, router_z_loss = 0.0, 0.0
+    if self.config.load_balance_loss_weight is not None or self.config.record_internal_nn_metrics:
+      _, expert_index, one_hot_indices = _top_k(gate_logits, k=self.num_experts_per_tok)
+      assert one_hot_indices is not None
+      router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
+      _gate_logits = gate_logits + router_mask
+      if self.config.routed_score_func == 'sigmoid':
+        print(f'Enter sigmoid function......')
+        router_probs = nn.sigmoid(_gate_logits) # lsp
+        router_probs /= router_probs.sum(-1, keepdims=True)
+      else:
+        router_probs = jax.nn.softmax(_gate_logits.astype(jnp.float32), axis=-1)
+      aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
+      aux_loss *= self.config.load_balance_loss_weight
+
+    if self.config.record_internal_nn_metrics: # lsp
+      # weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok) # permute func can't record
+      l2norm = jnp.sqrt(jnp.sum(jnp.square(gate_logits)))
+      self.sow('intermediates', 'router_logits/l2norm', l2norm)
+      record_gate(self, 'router_logits', gate_logits, axis=(0, 1))
+      top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, self.num_experts // 8)])
+      self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
+      record_gate(self, 'router_probs', router_probs, axis=(0, 1))
+
+    # tile_size = (512, 1024, 1024)  # (m, k, n)
+    tile_size = (512, 512, 512)  # (m, k, n)
 
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape
@@ -514,7 +542,7 @@ class MoeBlock(nn.Module):
       )
       return output, None
 
-    return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
+    return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)[0], aux_loss # lsp: add aux_loss
 
   def reshape_and_update_weights(self, weights, indices):
     # input of weights & indices: (batch_size, seq_len, num_experts_per_tok)
@@ -747,6 +775,9 @@ class MoeBlock(nn.Module):
         ).astype(self.dtype)
       return output, None
 
+  def loop_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
+    pass
+
   def retrieve_quantized_weight(
       self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel
   ) -> tuple[QTensor, QTensor, QTensor]:
@@ -764,7 +795,7 @@ class MoeBlock(nn.Module):
     return w0_kernel, w1_kernel, wo_kernel
 
   @nn.compact
-  def __call__(self, inputs, padding=None): # lsp
+  def __call__(self, inputs, paddings=None, deterministic=False): # lsp
     cfg = self.config
     inputs = inputs.astype(cfg.dtype)
     gate_logits = DenseGeneral(
@@ -815,14 +846,14 @@ class DeepSeekMoeBlock(nn.Module):
   quant: Optional[Quant] = None
 
   @nn.compact
-  def __call__(self, inputs):
+  def __call__(self, inputs, paddings=None): # lsp
     cfg = self.config
     routed_experts, _ = MoeBlock(
         config=cfg,
         num_experts=cfg.num_experts,
         num_experts_per_tok=cfg.num_experts_per_tok,
         mesh=self.mesh,
-        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),
+        kernel_init=self.kernel_init,  # lsp
         kernel_axes=("embed", None),
         intermediate_dim=cfg.moe_mlp_dim,
         dtype=cfg.dtype,
@@ -839,9 +870,10 @@ class DeepSeekMoeBlock(nn.Module):
         name=f"shared_experts",
         config=cfg,
         quant=self.quant,
+        kernel_init=self.kernel_init,  # lsp
     )(inputs)
 
-    return routed_experts + shared_experts
+    return routed_experts + shared_experts, None  # lsp
 
 
 # ==================================================Add Mgate、OpenMoe code==========================================================
@@ -987,9 +1019,12 @@ def _entroy(probs):
 
 def record_gate(self, key, gate_scores, axis=(0, 1)):
     expert_to_token_score = gate_scores.mean(axis=axis)
+    expert_to_seq_token_score = gate_scores.mean(axis=1)
     sum_value = jnp.sum(expert_to_token_score, axis=-1)
-    expert_to_token_score = expert_to_token_score / (sum_value + 1e-6)
-    self.sow('intermediates', f'{key}/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: 5.45
+    expert_to_token_score = expert_to_token_score / (sum_value + 1e-6) # batch数据中，专家选择的token
+    expert_to_seq_token_score = expert_to_seq_token_score / (sum_value + 1e-6) # seq数据中，专家选择的token
+    self.sow('intermediates', f'{key}/expert_to_seq_token_score', _entroy(expert_to_seq_token_score)) # 熵越大越好 max: log(B*E)
+    self.sow('intermediates', f'{key}/expert_to_token_score', _entroy(expert_to_token_score)) # 熵越大越好 max: logE
     self.sow('intermediates', f'{key}/token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
 
 
@@ -1061,32 +1096,20 @@ class OpenMoeBlock(nn.Module):
         # silu
         self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
 
+        # expert_inputs: gecm,  mgatew: meh  -> 
+        self.mgate_layer = Mgate(config=self.config,
+              kernel_init=self.kernel_init,
+              weight_dtype=self.weight_dtype,
+              dtype=self.dtype,
+              quant=self.quant,
+              name='mgate',
+            )
+
     @nn.compact
     def __call__(self, inputs, paddings, deterministic=False):
         inputs = inputs.astype(self.dtype)
         combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
         return combined_outputs, aux_loss
-
-    # @nn.nowrap
-    # def add_aux_loss(self, name: str, value: Array, weight=None):
-    #     # Accumulate by summing aux_loss.
-    #     if weight is None:
-    #         weight = jnp.ones_like(value)
-
-    #     def reduce_fn(x, y):
-    #         assert isinstance(x, AuxLossStruct)
-    #         assert isinstance(y, AuxLossStruct)
-    #         return AuxLossStruct(value=x.value + y.value, weight=x.weight + y.weight)
-
-    #     self.sow(
-    #         'intermediates',  # 会在最后的结果中返回
-    #         name,
-    #         AuxLossStruct(value, weight),
-    #         init_fn=lambda: AuxLossStruct(
-    #             0.0, 0.0
-    #         ), 
-    #         reduce_fn=reduce_fn,
-    #     )
 
     def _call_experts(self, expert_inputs, expert_index, compute_n_expert, deterministic=False):
         """
@@ -1116,15 +1139,7 @@ class OpenMoeBlock(nn.Module):
         #  Broadcast along length.
         hidden = nn.Dropout(rate=self.config.dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
 
-        # expert_inputs: gecm,  mgatew: meh  -> 
-        mgate_layer = Mgate(config=self.config,
-              kernel_init=self.kernel_init,
-              weight_dtype=self.weight_dtype,
-              dtype=self.dtype,
-              quant=self.quant,
-              name='mgate',
-            )
-        hidden = mgate_layer(layer_inputs=expert_inputs, 
+        hidden = self.mgate_layer(layer_inputs=expert_inputs, 
                             hidden=hidden, 
                             expert_index=expert_index, 
                             compute_n_expert=compute_n_expert)
@@ -1142,13 +1157,16 @@ class OpenMoeBlock(nn.Module):
         num_tokens = np.prod(token_shape)
         m_dim = inputs.shape[-1]
        
-        num_groups = inputs.shape[0]
+        # num_groups = inputs.shape[0]
+        num_groups = self.config.num_groups # lsp
+
         tokens_per_group = num_tokens // num_groups
         assert num_tokens % num_groups == 0, max_logging.log(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 
         max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')
-        # expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
-        expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
+        # lsp： 因为在这里的实现是num_experts_per_tok合在一起计算的，因此，每个专家的容量应该是需要 * num_experts_per_tok
+        # num_experts_per_tok分开算的可以看https://github.com/lucidrains/st-moe-pytorch/blob/d94e65d8a1f50eb5b41efa5317b0d1b17c9dbfad/st_moe_pytorch/st_moe_pytorch.py#L485。这里的容量计算就不需要 * num_experts_per_tok
+        expert_capacity = math.ceil(self.expert_capacity_factor * tokens_per_group * self.num_experts_per_tok / self.num_experts)
         max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
@@ -1171,7 +1189,7 @@ class OpenMoeBlock(nn.Module):
         #   self.sow('intermediates', 'router_logits/noiso_before/max', router_logits.max())
         #   self.sow('intermediates', 'router_logits/noiso_before/min', router_logits.min())
 
-        if self.config.gate_noise_coef > 0.0:
+        if self.config.gate_noise_coef > 0.0 and not deterministic: # lsp: use when train, also is deterministic=False
           max_logging.log(f'gate_noise_coef: {self.config.gate_noise_coef}')
           noise = gumbel_noise(router_logits, seed=self.config.init_weights_seed)
           router_logits += noise * self.config.gate_noise_coef
@@ -1204,18 +1222,18 @@ class OpenMoeBlock(nn.Module):
 
         if self.config.record_internal_nn_metrics:
           # lsp note: slowly
-          # l2norm = jnp.linalg.norm(router_logits.reshape(-1, router_logits.shape[-1]), ord=2, axis=(0, 1))
+            # l2norm = jnp.linalg.norm(router_logits.reshape(-1, router_logits.shape[-1]), ord=2, axis=(0, 1))
           l2norm = jnp.sqrt(jnp.sum(jnp.square(router_logits)))
           self.sow('intermediates', 'router_logits/l2norm', l2norm)
           record_gate(self, 'router_logits', router_logits, axis=(0, 1))
-          # 解释：
-          # expert2token： router_probs = [[0.] * 6 + [0.5, 0.5]], 极端均匀选择2个专家，熵最大，为1.0，
-          # router_probs = [[0.] * 6 + [1.0, 0.0]]，极端不均匀选择2个专家，熵最大，为0.0。
-          # token2expert： router_probs = [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125], 每个专家极端均匀选择token，熵最大，为3.0，
-          # router_probs = [0] * 7 + [1.0, 0.]，每个专家极端不均匀选择token，熵最大，为0.0。
-          record_gate(self, 'sfm_after_topn', router_probs, axis=(0, 1)) 
+            # 解释：
+            # expert2token： router_probs = [[0.] * 6 + [0.5, 0.5]], 极端均匀选择2个专家，熵最大，为1.0，
+            # router_probs = [[0.] * 6 + [1.0, 0.0]]，极端不均匀选择2个专家，熵最大，为0.0。
+            # token2expert： router_probs = [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125], 每个专家极端均匀选择token，熵最大，为3.0，
+            # router_probs = [0] * 7 + [1.0, 0.]，每个专家极端不均匀选择token，熵最大，为0.0。
+          record_gate(self, 'router_probs', router_probs, axis=(0, 1)) 
           # top2, expert2token: E=8, max: 3, min:0.5
-          top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, 1)])
+          top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, self.num_experts // 8)])
           self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
         
         # 有padding的时候放开, 一般预训练没有pad
@@ -1276,9 +1294,8 @@ class OpenMoeBlock(nn.Module):
                   )
           也可以这么理解，每个token选择了2个专家，被选中的专家的位置处是对应的token索引。
                   '''
-        # 在topn那一维度选择max：就是提取当前专家选择了当前token的数量，因为1个专家只能被一个token选择一次，
-        # 因此topn这一维度肯定只有一个是正数，这样原来，得到的矩阵就是：如果当前专家选择了当前token，这个token被选中了多少次，如果没有选择当前专家，那么就是一个负数
-        # 此外，e这个维度，肯定只有topn个正数。如果取 1 * 1 * 1那么这个值不一定正数, 意味着没选中这个专家
+        # 在topn那一维度选择max：没取max之前，如果不为-1，表示当前专家选择了当前token，值的大小表示当前token在当前专家选中的token中的编号
+        # 如果为-1，表示当前token没有被当前专家选中
         token_priority = jnp.max(token_priority, axis=2) 
         # g * s *  e
         # token_priority = nn.with_logical_constraint(token_priority, ("activation_batch", "activation_length", "exp"))
@@ -1295,17 +1312,17 @@ class OpenMoeBlock(nn.Module):
             # max_logging.log(f'expert_index: {expert_index}')
             _token_priority = token_priority[..., expert_index: expert_index+compute_n_expert]
             _router_probs = router_probs[..., expert_index: expert_index+compute_n_expert]
-            # lsp： g * s * e * c  # 如果当前token选择了当前专家后，当前token被选中的总次数的one hot体现
+            # lsp： g * s * e * c  # _dispatch_mask[0, 0, 0]表示当前token在当前专家选中的token中的编号的one-hot体现
             _dispatch_mask = jax.nn.one_hot(_token_priority, expert_capacity, dtype=jnp.bool_)
             # _dispatch_mask = nn.with_logical_constraint(_dispatch_mask, ("activation_batch", "activation_length", "exp", None))
 
             # 把token选择专家的概率赋值到one_hot矩阵上
-            _combine_array = jnp.einsum('...se,...sec->...sec', _router_probs, _dispatch_mask)
+            _combine_array = jnp.einsum('gse,gsec->gsec', _router_probs, _dispatch_mask)
             _combine_array = jax.lax.convert_element_type(_combine_array, self.dtype)
             # _combine_array = nn.with_logical_constraint(_combine_array, ("activation_batch", "activation_length", "exp", None))
 
             # 专家的输入mask：gsm x gsec -> gecm，  _dispatch_mask可以将多出容量之外的toke进行丢弃
-            _expert_inputs = jnp.einsum('gs...,gsec->gec...', token_inputs, _dispatch_mask)
+            _expert_inputs = jnp.einsum('gsd,gsec->gecd', token_inputs, _dispatch_mask)
             _expert_inputs = jax.lax.convert_element_type(_expert_inputs, self.dtype)
             # gecm
             # max_logging.log(f'_expert_inputs: {_expert_inputs.shape}')
@@ -1313,7 +1330,7 @@ class OpenMoeBlock(nn.Module):
             _expert_outputs = self._call_experts(_expert_inputs, expert_index, compute_n_expert, deterministic=deterministic)
             # _expert_outputs = nn.with_logical_constraint(_expert_outputs, ("activation_batch", "exp", "activation_length", None))
 
-            _combined_outputs = jnp.einsum('gec...,gsec->gs...', _expert_outputs, _combine_array)
+            _combined_outputs = jnp.einsum('gecd,gsec->gsd', _expert_outputs, _combine_array)
 
             combined_outputs = _combined_outputs if combined_outputs is None else combined_outputs + _combined_outputs
             # max_logging.log(f'combined_outputs-{expert_index}: {combined_outputs}')

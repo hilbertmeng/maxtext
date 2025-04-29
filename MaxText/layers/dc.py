@@ -25,7 +25,7 @@ RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 DEFAULT_MASK_VALUE = -0.7 * float(jnp.finfo(jnp.dtype("float32")).max)
 NormalInitializer = initializers.nd_dense_init_normal
-
+KV_Quant = quantizations.KVQuant
 
 def unbind(ary, n, axis=0):
   return [jnp.squeeze(a, axis=axis) for a in jnp.split(ary, n, axis=axis)]
@@ -87,10 +87,10 @@ class DynamicWeightProjection(nn.Module):
     )
 
     if self.dynamic_w_init is not None:
-      # dynamic_hidden_dim： 2
+      # dynamic_hidden_dim： 2, 生成的参数的inner dim
       dynamic_hidden_dim = self.num_heads_per_group // self.dynamic_squeeze_ratio \
         if self.dynamic_squeeze_ratio is not None else 2
-      # '12x4096x1x4x128'
+      # '12x4096x1x4x128'  # stage * dim * num_groups * C * K， n_splits is C
       self.dw1 = linears.DenseGeneral(
                         features=(self.num_groups, self.n_splits, self.dynamic_w_hidden_dim),  
                         quant=self.quant,  # 0.00014
@@ -150,6 +150,7 @@ class DynamicWeightProjection(nn.Module):
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
+<<<<<<< HEAD
       # C: n_split,  K -> M
       if self.dc_share_all_dw_hidden:
         dw_hidden = rearrange(dw_hidden, 'B T G C K -> B T G 1 (C K)')
@@ -165,6 +166,10 @@ class DynamicWeightProjection(nn.Module):
       if self.use_dw_bias:
         w1 = w1 + self.w1_bias[None,None,None]
         w2 = w2 + self.w2_bias[None,None,None]
+=======
+      # C: n_split,  K -> IM
+      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+>>>>>>> lsp/refactor_dev
       w1 = self.dw1_norm(w1)
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
@@ -257,7 +262,7 @@ class CrossHeadProjection(nn.Module):
       else:
         assert False, f'[{in_dim}, {out_dim}]'
       return math.sqrt(2.0 / (in_dim + out_dim)) * relative_scale
-
+    print(f'key_wise: {self.key_wise} static_proj: {self.static_proj}')
     if self.static_proj:
       cfg = self.config
       self.sw_quant = self.config.sw_quant
@@ -303,15 +308,16 @@ class CrossHeadProjection(nn.Module):
     return ret + res
 
   def __call__(self, inputs, qw1 = None, qw2 = None, kw1 = None, kw2 = None, qdd = None, kdd = None):
-    shape = inputs.shape  #  (16, 16, 4097, 4097)
+    shape = inputs.shape  #  bkgts, k: kv_heads, g: groups
     assert inputs.shape[1] == self.num_heads
-
-    inputs = rearrange(inputs, 'B (G M) T S -> B G M T S', G=self.num_groups)
+    # inputs = rearrange(inputs, 'B (G M) T S -> B G M T S', G=self.num_groups)
+    inputs = rearrange(inputs, 'B M G T S -> B G M T S', G=self.num_groups)
     inputs_label = 'BGMTS'
     out_label = inputs_label.replace('M', 'N') #  BGNTS
     exp = f'{inputs_label},GMN->{out_label}' #  'BGMTS'  GMN   BGNTS
 
     ret = inputs
+    # __import__('ipdb').set_trace()
     # This op I/O too many, loss is lower but speed lower than remove it. suggest remove it
     # ret += jnp.einsum('BGMTS,GMN->BGNTS', inputs, self.w)
     if self.static_proj:
@@ -325,7 +331,7 @@ class CrossHeadProjection(nn.Module):
         ret = self.apply_sw(ret, exp, _inputs, w)
         # ret += jnp.einsum(exp, _inputs, w) if not self.left_mul else jnp.einsum(exp, w, _inputs)
       else:
-        hidden = jnp.einsum(exp, inputs, self.w1) if not self.left_mul else jnp.einsum(exp, self.w1, inputs)
+        hidden = jnp.einsum(exp, inputs, self.w1) if not self.left_mul else jnp.einsum(exp, self.w1, inputs) # self.left_mul: False
         if self.squeeze_gate_activation_cls is not None:
           hidden = hidden * self.gate_activation(jnp.einsum(exp, inputs, self.w1g))
         else:
@@ -337,10 +343,10 @@ class CrossHeadProjection(nn.Module):
       for sym, (w1, w2) in zip(['T', 'S'], [(qw1, qw2), (kw1, kw2)]):
         if w1 is None: continue
         dw_label = f'B{sym}G{hidden_sym}M' if w1.shape[-1] == self.num_heads_per_group \
-          else f'B{sym}GM{hidden_sym}'  # BTGIM
+          else f'B{sym}GM{hidden_sym}'  # BTGIM, BSGIM
         dynamic_hidden_dim = w1.shape[dw_label.index(hidden_sym)] # 2, 就是w1的I的值
-        eqn1 = f'{inputs_label},{dw_label}->{hidden_label}' # 'BGMTS,BTGMI->BGITS'  lsp: 'BGMTS,BTGIM->BGITS'
-        eqn2 = f'{hidden_label},{dw_label}->{inputs_label}' # 'BGITS,BTGMI->BGMTS'  lsp: 'BGITS,BTGIM->BGMTS'
+        eqn1 = f'{inputs_label},{dw_label}->{hidden_label}' # 'BGMTS,BTGMI->BGITS'  or  'BGMTS,BSGMI->BGITS'
+        eqn2 = f'{hidden_label},{dw_label}->{inputs_label}' # 'BGITS,BTGMI->BGMTS'  or 'BGITS,BSGMI->BGMTS'
         if sym == 'T' and self.query_wise or sym == 'S' and self.key_wise:
           # dynamic_hidden_dim: I -> 2 lsp here
           if self.loop_over_dynamic_hd and dynamic_hidden_dim <= 2:  # 循环算
@@ -353,7 +359,7 @@ class CrossHeadProjection(nn.Module):
                 assert dw_label[-2] == hidden_sym, dw_label
                 # 'BGMTS,BTGM->BGTS' # head融合 1次
                 hidden = jnp.einsum(eqn1.replace(hidden_sym, ''), inputs, w1[..., i, :])
-                # 'BGTS,BTGM->BGTS' # # head融合 2次
+                # 'BGTS,BTGM->BGMTS' # # head融合 2次
                 out = jnp.einsum(eqn2.replace(hidden_sym, ''), hidden, w2[..., i, :])
               ret = ret + out
           else: # 整块算
@@ -372,7 +378,7 @@ class CrossHeadProjection(nn.Module):
         dd_label = f'B{sym}GM'
         if sym == 'T' and self.query_wise or sym == 'S' and self.key_wise or \
               not self.query_wise and not self.key_wise:
-          # 'BGMTS', B(T/S)GM
+          # 'BGMTS', B(T/S)GM, 对分数进行缩放甚至去掉
           dout = jnp.einsum(f'{inputs_label},{dd_label}->{inputs_label}', inputs, dd)
           ret = ret + dout
     return jnp.reshape(ret, shape)  # BGMTS->BNTS
@@ -383,6 +389,7 @@ class AttentionOp(nn.Module):
   config: Any
   quant: Optional[Quant] = None
   sliding_window_size: int|None = None
+  kv_quant: Optional[KV_Quant] = None
 
   def setup(self):
     cfg = self.config
@@ -411,7 +418,25 @@ class AttentionOp(nn.Module):
     I = 2
     num_heads_per_group = self.num_query_heads // self.num_groups
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
+    n_splits = 2 if self.is_cross_attention else 4
+    dyn_w_kwargs = {
+        'num_heads': self.num_query_heads, 
+        'num_groups': self.num_groups,
+        'input_dim': self.num_query_heads * self.head_dim, 
+        'n_splits': n_splits,
+        'dynamic_w_init': math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
+        'dynamic_d_init': math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
+        'dynamic_squeeze_ratio': num_heads_per_group // I,
+        'dynamic_w_hidden_dim': dynamic_w_hidden_dim,
+        'dtype': self.dtype, 
+        'weight_dtype': self.weight_dtype, 
+        'precision': self.precision,
+        'deterministic': self.deterministic,
+        'dynamic_dropout_rate': self.dynamic_dropout_rate,
+        'quant': self.quant,
+    }
     if cfg.pre_compose or cfg.post_compose:
+<<<<<<< HEAD
       if self.is_cross_attention or self.seperate_qk_dw_proj:
         for name, use in [('q_dyn_w_proj', cfg.query_wise), ('k_dyn_w_proj', cfg.key_wise)]:
           if not use: continue
@@ -482,6 +507,30 @@ class AttentionOp(nn.Module):
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
         loop_over_dynamic_hd=self.loop_over_dynamic_hd
         )
+=======
+      if self.is_cross_attention: # default false
+        self.q_dyn_w_proj = DynamicWeightProjection(**dyn_w_kwargs)
+        self.k_dyn_w_proj = DynamicWeightProjection(**dyn_w_kwargs)
+      else:
+        self.dyn_w_proj = DynamicWeightProjection(**dyn_w_kwargs)
+        
+      prepost_proj_kwargs = {
+        'dtype': self.dtype, 
+        'weight_dtype': self.weight_dtype, 
+        'precision': self.precision,
+        'num_heads': self.num_query_heads, 
+        'num_groups': self.num_groups,
+        'static_proj': self.static_proj,
+        'query_input_dim': input_dim,
+        'key_input_dim': input_dim,
+        'dynamic_w_hidden_dim': dynamic_w_hidden_dim,
+        'loop_over_dynamic_hd': self.loop_over_dynamic_hd,
+        'key_wise': self.config.key_wise,
+      }
+      self.pre_proj = CrossHeadProjection(**prepost_proj_kwargs)
+      self.post_proj = CrossHeadProjection(**prepost_proj_kwargs)
+       
+>>>>>>> lsp/refactor_dev
 
   @nn.compact
   def __call__(
@@ -518,7 +567,7 @@ class AttentionOp(nn.Module):
           if hasattr(self, 'dyn_w_post_proj'):
               post_proj_dw_args = self.dyn_w_post_proj(input_kv)    
 
-    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size)(query, key, value, decoder_segment_ids, model_mode, 
+    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, self.kv_quant)(query, key, value, decoder_segment_ids, model_mode, 
                             pre_proj_dw_args, post_proj_dw_args, 
                             pre_proj_layer=self.pre_proj,
                             post_proj_layer=self.post_proj,

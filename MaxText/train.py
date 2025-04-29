@@ -229,7 +229,7 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
 def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True):
   """Writes metrics to tensorboard"""
   with jax.spmd_mode("allow_all"):
-    if jax.process_index() == 0 and step % config.upload_loss_tb_period == 0: # lsp
+    if jax.process_index() == 0 and (step % config.upload_loss_tb_period == 0 or not is_training): # lsp
       for metric_name in metrics.get("scalar", []):
         if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
           continue
@@ -246,6 +246,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
           # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
           f"total_weights: {metrics['scalar']['learning/total_weights']}, "
           f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+          f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}, "
           f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}, "
           f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
       )
@@ -322,24 +323,39 @@ def save_checkpoint(
         ),
     )
 
-
-# -----------------------------------------------------------------------------
+# # -----------------------------------------------------------------------------
 # Top-level Functions
 # -----------------------------------------------------------------------------
 # lsp
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
-
+  l_step_len = max(config.base_num_decoder_layers // 8, 1)
   if config.scan_layers:
-    if 'intermediates' in intermediate_outputs:
-      metrics_dict = intermediate_outputs["intermediates"]["decoder"]['layers'] # lsp
-    else:
-      metrics_dict = {}
-    # for sub in range(config.num_layers_per_block):
-    #   for layer_num in range(config.num_decoder_layers // config.num_layers_per_block):
-    #     pass
+    metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
+    for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下
+      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:
+        temp_dict = {
+          f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0][layer_num],
+          f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0][layer_num],
+          f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0][layer_num],
+          f"moe/router_logits/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_seq_token_score"][0][layer_num],
+          f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0][layer_num],
+          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0][layer_num],
+          f"moe/router_probs/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_seq_token_score"][0][layer_num],
+          f"moe/router_probs/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/token_to_expert_score"][0][layer_num],
+        }
+        output_metrics["scalar"].update(temp_dict)
+        step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
+        temp_dict = {f"moe/layer_{layer_num:03d}/selected_expert_{i}_token_nums": 
+                metrics_dict['moe'][f"top/selected_expert_token_nums"][0][layer_num][i] 
+                for i in range(0, config.num_experts, step_len)}
+        output_metrics["scalar"].update(temp_dict)
+
+      if config.shared_experts > 0 and layer_num not in config.insert_moe_indexes:
+        output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
+
   else:
-    for layer_num in range(config.num_decoder_layers):
+    for layer_num in range(0, config.num_decoder_layers, l_step_len):
       if config.dense_conn:
         layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
         output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]
@@ -348,6 +364,29 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/std/layer_{layer_num}"]
         output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/norm/layer_{layer_num}"]
         output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
+
+      metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
+
+      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:
+        temp_dict = {
+          f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0],
+          f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0],
+          f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0],
+          f"moe/router_logits/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_seq_token_score"][0],
+          f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0],
+          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0],
+          f"moe/router_probs/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_seq_token_score"][0],
+          f"moe/router_probs/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/token_to_expert_score"][0],
+        }
+        output_metrics["scalar"].update(temp_dict)
+        step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
+        temp_dict = {f"moe/layer_{layer_num:03d}/selected_expert_{i}_token_nums": 
+                metrics_dict['moe'][f"top/selected_expert_token_nums"][0][i] 
+                for i in range(0, config.num_experts, step_len)}
+        output_metrics["scalar"].update(temp_dict)
+
+      if config.shared_experts > 0 and layer_num not in config.insert_moe_indexes:
+        output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0]
 
 
 def _split_dpo_state(state):
@@ -525,8 +564,17 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   # get moe load balance loss
   moe_lb_loss = 0.0
   if config.num_experts > 1:
-    nested_key = ("intermediates", "decoder", "layers", "moe_lb_loss")
-    total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+    if config.scan_layers:
+      nested_key = ("intermediates", "decoder", "layers", "sub_0", "moe_lb_loss") # lsp
+      total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+    else:
+      total_moe_lb_loss = []
+      for i in range(config.num_decoder_layers):
+        if i not in config.insert_moe_indexes: continue
+        nested_key = ("intermediates", "decoder", f"layers_{i}", "sub_0", "moe_lb_loss") # lsp
+        layer_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+        total_moe_lb_loss.append(layer_moe_lb_loss)
+
     moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
     loss += moe_lb_loss
   aux = {
@@ -642,16 +690,16 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
             jax.tree_util.tree_map(lambda x: x.with_memory_kind(kind="device"), state_mesh_shardings.opt_state),
         )
     )
-  new_state = state.apply_gradients(grads=grads)
 
+  new_state = state.apply_gradients(grads=grads)
   scalar_metrics = {
-      "learning/loss": loss,
+      "learning/loss": loss - moe_lb_loss, # lsp: remove moe_lb_loss
       "learning/moe_lb_loss": moe_lb_loss,
       "learning/total_weights": total_weights,
       "learning/accuracy": aux['accuracy'], # lsp
   }
-  # lsp
-  params_scalar_values = compute_params_norm(new_state.params, config=config)
+  # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
+  params_scalar_values = compute_params_norm(state.params, config=config)
   scalar_metrics.update(params_scalar_values)
 
   if not config.optimizer_memory_host_offload:
@@ -996,7 +1044,7 @@ def train_loop(config, state=None):
     if config.report_performance_metric_for_gcp_monitoring:
       performance_metric_queue = queue.Queue()
       gcp_workload_monitor.start_performance_reporting_thread(performance_metric_queue)
-
+      
   for step in np.arange(start_step, config.steps):
     if not config.only_eval: # lsp
       if step == first_profiling_step or prof.should_activate_periodic_profile(step):
@@ -1050,7 +1098,6 @@ def train_loop(config, state=None):
               "eval/total_weights": 0.0,
               "eval/avg_loss": 0.0,
               "eval/moe_lb_loss": 0.0,
-              "eval/accuracy": 0.0, # lsp
           }
       }
       eval_dpo_reward_accuracy = 0.0
@@ -1107,8 +1154,8 @@ def train_loop(config, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
       cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / cumulative_eval_metrics["scalar"]["eval/total_weights"] 
       cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
-      
-      step = checkpoint_manager.latest_step() if config.eval_model_step == -1 and checkpoint_manager is not None else config.eval_model_step
+      if config.only_eval:
+        step = checkpoint_manager.latest_step() if config.eval_model_step == -1 and checkpoint_manager is not None else config.eval_model_step
       if config.use_dpo:
         cumulative_eval_metrics["scalar"]["eval/dpo_reward_accuracy"] = eval_dpo_reward_accuracy / eval_step_count
       write_metrics(

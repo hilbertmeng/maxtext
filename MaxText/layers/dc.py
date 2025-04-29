@@ -150,7 +150,6 @@ class DynamicWeightProjection(nn.Module):
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
-<<<<<<< HEAD
       # C: n_split,  K -> M
       if self.dc_share_all_dw_hidden:
         dw_hidden = rearrange(dw_hidden, 'B T G C K -> B T G 1 (C K)')
@@ -166,10 +165,6 @@ class DynamicWeightProjection(nn.Module):
       if self.use_dw_bias:
         w1 = w1 + self.w1_bias[None,None,None]
         w2 = w2 + self.w2_bias[None,None,None]
-=======
-      # C: n_split,  K -> IM
-      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
->>>>>>> lsp/refactor_dev
       w1 = self.dw1_norm(w1)
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
@@ -436,7 +431,6 @@ class AttentionOp(nn.Module):
         'quant': self.quant,
     }
     if cfg.pre_compose or cfg.post_compose:
-<<<<<<< HEAD
       if self.is_cross_attention or self.seperate_qk_dw_proj:
         for name, use in [('q_dyn_w_proj', cfg.query_wise), ('k_dyn_w_proj', cfg.key_wise)]:
           if not use: continue
@@ -507,30 +501,6 @@ class AttentionOp(nn.Module):
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
         loop_over_dynamic_hd=self.loop_over_dynamic_hd
         )
-=======
-      if self.is_cross_attention: # default false
-        self.q_dyn_w_proj = DynamicWeightProjection(**dyn_w_kwargs)
-        self.k_dyn_w_proj = DynamicWeightProjection(**dyn_w_kwargs)
-      else:
-        self.dyn_w_proj = DynamicWeightProjection(**dyn_w_kwargs)
-        
-      prepost_proj_kwargs = {
-        'dtype': self.dtype, 
-        'weight_dtype': self.weight_dtype, 
-        'precision': self.precision,
-        'num_heads': self.num_query_heads, 
-        'num_groups': self.num_groups,
-        'static_proj': self.static_proj,
-        'query_input_dim': input_dim,
-        'key_input_dim': input_dim,
-        'dynamic_w_hidden_dim': dynamic_w_hidden_dim,
-        'loop_over_dynamic_hd': self.loop_over_dynamic_hd,
-        'key_wise': self.config.key_wise,
-      }
-      self.pre_proj = CrossHeadProjection(**prepost_proj_kwargs)
-      self.post_proj = CrossHeadProjection(**prepost_proj_kwargs)
-       
->>>>>>> lsp/refactor_dev
 
   @nn.compact
   def __call__(

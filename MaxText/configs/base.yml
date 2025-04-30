@@ -632,8 +632,13 @@ tensorboard_dir: ''
 upload_param_act_tb_period: 25 # upload param, activation to tensorboard interval steps
 upload_loss_tb_period: 5 # # upload loss,acc,lr etc. to tensorboard interval steps
 training_num_batches_to_skip: 0
+query_wise: True
 key_wise: True
 num_layers_per_block: 1
 qkv_bias: False
 stable_steps_fraction: 0.0
 mudd_in_layer: False
+use_dw_bias: False
+use_dd_bias: False
+dc_share_prepost_dw_hidden: False
+seperate_qk_dw_proj: True

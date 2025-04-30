@@ -209,7 +209,7 @@ class LlamaXL(Llama2Medium):
     base_mlp_dim = 5504
     base_num_decoder_layers = 24 # fix: 28 -> 24
     head_dim = 64
-    
+
 class Qwen2p5_3B(Llama2Medium):
     base_emb_dim = 2048
     base_num_query_heads = 16
@@ -288,7 +288,10 @@ class DreamMiniMediumRefactorRematMudd(DreamMiniMediumRefactor):
     mudd_in_layer = True # v5p-16: 0.398
     record_internal_nn_metrics = False
 
-class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
+class DreamMiniXL(DreamMini, TrainXL, LlamaXL): 
+    # qw+sw: Q256: v5p-32, per batch 16 speed: 0.157  Q128: 0.166
+    # qw+kw: Q256: v5p-32, per batch 16 speed: 0.121, Q128: 0.111
+    # qw+sw: Q256: v5p-8,  per batch 16 speed: 0.172, Q128: 0.183
     query_chunk_size = 128
     per_device_batch_size = 8.0 # 256 for v4-64
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
@@ -297,6 +300,8 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     base_num_query_heads = 32
     base_num_kv_heads = 32
     head_dim = 64
+    use_dw_bias = True
+    use_dd_bias = True
 
 class DreamMiniXL4KQC256(DreamMiniXL):
     max_target_length = 4096

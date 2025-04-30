@@ -297,7 +297,7 @@ class CrossHeadProjection(nn.Module):
     # ret += jnp.einsum(exp, _inputs, w) # BGMTS,GMN->BGNTS
     s = ret.shape[-1]
     res = jnp.zeros(ret.shape, dtype=ret.dtype)
-    s_chunk = 128
+    s_chunk = s
     for i in range(s//s_chunk):
       res = res.at[:,:,:,:,i*s_chunk:(i+1)*s_chunk].set(jnp.einsum(exp, _inputs[:,:,:,:,i*s_chunk:(i+1)*s_chunk], w))
     return ret + res

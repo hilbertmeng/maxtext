@@ -118,6 +118,13 @@ class TrainXL:
     cosine_learning_rate_final_fraction = 0.1
     eval_interval = 50000
 
+class TrainMedium:
+    learning_rate = 3e-4
+    learning_rate_schedule_steps = 13500
+    warmup_steps_fraction = 0.01
+    cosine_learning_rate_final_fraction = 0.1
+    eval_interval = 13500
+
 class TrainSmall:
     learning_rate = 6e-4
     learning_rate_schedule_steps = 4800
@@ -302,6 +309,17 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     head_dim = 64
     use_dw_bias = True
     use_dd_bias = True
+
+class DreamMiniMedium(TrainMedium, DreamMiniXL): 
+    query_chunk_size = 256
+    use_dw_bias = True
+    use_dd_bias = True
+    base_emb_dim = 1024
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_mlp_dim = 2816
+    base_num_decoder_layers = 24
+    head_dim = 64
 
 class DreamMiniXL4KQC256(DreamMiniXL):
     max_target_length = 4096

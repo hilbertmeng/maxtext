@@ -328,6 +328,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     iter_file_nums = 1376
     max_target_length = 4096
     train_shuffle_buffer_size = 200000
+    sharding_tolerance = 0.2
 
      # # 除了第4阶段，每个阶段的结尾都是5375的倍数（第四阶段多了215steps），因此设置keep_period=5375.
     # 考虑到decay阶段比较重要，因此第四阶段设置为1075

@@ -2,6 +2,7 @@ from typing import Any, Tuple, Optional
 
 import numpy as np
 from flax import linen as nn
+import jax
 from jax import lax
 import jax.numpy as jnp
 from jax.sharding import Mesh
@@ -181,7 +182,7 @@ class Compose(nn.Module):
     if cfg.ddw_gen_pattern == 'q,k,v,m':
       max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is {cfg.mudd_postnorm}....', debug=self.config.debug)
       if cfg.mudd_postnorm:
-        post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=jax.nn.initializers.constant(0.001))
+        post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=nn.initializers.constant(0.001))
         y = tuple([y + (post_norm(
             wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
                                   ) if cidx == C - 1 else 

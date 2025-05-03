@@ -3,6 +3,7 @@ import json
 import os
 import random
 from typing import Dict, List, Optional
+import copy
 
 import numpy as np
 import max_logging
@@ -334,18 +335,20 @@ def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
     path_parts = path.split('/')
     bucket_name = path_parts[0]
     directory_path = '/'.join(path_parts[1:])
-    directory_path1 = directory_path + 'B0-20' if directory_path.endswith('/') else directory_path + '/'
-    directory_path2 = directory_path + 'B20-40' if directory_path.endswith('/') else directory_path + '/'
-    directory_path3 = directory_path + 'B0-40-last' if directory_path.endswith('/') else directory_path + '/'
-    print(f'directory_path1: {len(directory_path1)} 2: {len(directory_path2)} 3: {len(directory_path3)}')
+    directory_path1 = directory_path + 'B0-20/' if directory_path.endswith('/') else directory_path + '/B0-20/'
+    directory_path2 = directory_path + 'B20-40/' if directory_path.endswith('/') else directory_path + '/B20-40/'
+    directory_path3 = directory_path + 'B0-40-last/' if directory_path.endswith('/') else directory_path + '/B0-40-last/'
+    valid_directory_path = directory_path + 'validation/' if directory_path.endswith('/') else directory_path + '/validation/'
+
+    print(f'directory_path1: {directory_path1} 2: {directory_path2} 3: {directory_path3} valid_directory_path: {valid_directory_path}')
 
     rank_last_path = epath.Path(os.path.join(dataset_path, 'last_files.json'))
     with rank_last_path.open('r') as f:
-        rank_last_files = json.loads(f)['last_lines']
+        rank_last_files = json.load(f)['last_files']
 
-    for directory_path in [directory_path1, directory_path2, directory_path3]:
+    train_files, valid_files = [], []
+    for directory_path in [directory_path1, directory_path2, directory_path3, valid_directory_path]:
         print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
-        train_files, valid_files = [], []
         for blob in client.list_blobs(bucket_name, prefix=directory_path):
             path = f'gs://{os.path.join(bucket_name, blob.name)}'
             if path in rank_last_files:
@@ -474,7 +477,6 @@ def make_pile_train_iterator(config, mesh):  # lsp
     train_pathes, eval_pathes = extract_v3p5_data_files(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'xm3.5mini':
     train_pathes, eval_pathes = extract_v3p5mini_data_files(config.dataset_path, config.eval_split, config.train_stage)
-    
   elif config.dataset_type == 'instruct':
      train_pathes, eval_pathes = extract_role_play_instruct_data(config.dataset_path, config.eval_split)
   else:

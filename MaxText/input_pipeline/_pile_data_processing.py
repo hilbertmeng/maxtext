@@ -326,6 +326,63 @@ def extract_v3p5_data_files(dataset_path, eval_split):
     print(f'valid_files: {valid_files}')
     return train_files, valid_files
 
+def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
+
+    random.seed(9876)
+    client = storage.Client()
+    path = dataset_path.replace('gs://', '')
+    path_parts = path.split('/')
+    bucket_name = path_parts[0]
+    directory_path = '/'.join(path_parts[1:])
+    directory_path1 = directory_path + 'B0-20' if directory_path.endswith('/') else directory_path + '/'
+    directory_path2 = directory_path + 'B20-40' if directory_path.endswith('/') else directory_path + '/'
+    directory_path3 = directory_path + 'B0-40-last' if directory_path.endswith('/') else directory_path + '/'
+    print(f'directory_path1: {len(directory_path1)} 2: {len(directory_path2)} 3: {len(directory_path3)}')
+
+    rank_last_path = epath.Path(os.path.join(dataset_path, 'last_files.json'))
+    with rank_last_path.open('r') as f:
+        rank_last_files = json.loads(f)['last_lines']
+
+    for directory_path in [directory_path1, directory_path2, directory_path3]:
+        print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+        train_files, valid_files = [], []
+        for blob in client.list_blobs(bucket_name, prefix=directory_path):
+            path = f'gs://{os.path.join(bucket_name, blob.name)}'
+            if path in rank_last_files:
+                print(f'filter last file: {path}')
+                continue
+            if eval_split in path:
+                valid_files.append(path)
+            else:
+                train_files.append(path)
+
+    random.shuffle(train_files)
+    print(f'Total train file: {len(train_files)},  test file: {len(valid_files)}')
+
+    epoch = 2
+    shuffled_train_files = copy.deepcopy(train_files)
+    for e in range(epoch - 1):
+        temp_train_files = copy.deepcopy(train_files)
+        random.shuffle(temp_train_files)
+        shuffled_train_files.extend(temp_train_files)
+    train_files = shuffled_train_files
+
+    if train_stage == 1:
+        train_files = train_files[:1376]
+    elif train_stage == 2:
+        train_files = train_files[1376: 1376*2]
+    elif train_stage == 3:
+        train_files = train_files[1376*2 :1376*6]
+    else:
+        # last_f = os.path.join(dataset_path, 'R051.000076')
+        train_files = train_files[1376*6:]
+
+    print(f'[S{train_stage}]Train file: {len(train_files)},  test file: {len(valid_files)}')
+    print(f'[S{train_stage}]First 10 train files: {train_files[:10]}')
+    print(f'[S{train_stage}]Valid_files: {valid_files}')
+ 
+    return train_files, valid_files
+
 
 def extract_role_play_instruct_data(dataset_paths, eval_split):
     random.seed(9876)
@@ -415,6 +472,9 @@ def make_pile_train_iterator(config, mesh):  # lsp
     train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'pretrain_4k':
     train_pathes, eval_pathes = extract_v3p5_data_files(config.dataset_path, config.eval_split)
+  elif config.dataset_type == 'xm3.5mini':
+    train_pathes, eval_pathes = extract_v3p5mini_data_files(config.dataset_path, config.eval_split, config.train_stage)
+    
   elif config.dataset_type == 'instruct':
      train_pathes, eval_pathes = extract_role_play_instruct_data(config.dataset_path, config.eval_split)
   else:

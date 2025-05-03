@@ -896,9 +896,9 @@ def create_learning_rate_schedule(config):
   constant_zero_steps = config.steps - config.learning_rate_schedule_steps
   warmup_schedule = optax.linear_schedule(init_value=0.0, end_value=lr, transition_steps=warmup_steps)
   decay_ratio = 1 - stable_steps_fraction - config.warmup_steps_fraction
-  cos_schedule = make_wsd_decay_schedule(lr, cos_final_lr, cos_steps) if stable_steps_fraction > 0 \
+  cos_schedule = make_wsd_decay_schedule(lr, cos_final_lr, cos_steps) if stable_steps_fraction > 0 and config.decay_method == 'wsd' \
                                                             else make_cos_schedule(lr, cos_final_lr, cos_steps)
-  constant_schedule = optax.constant_schedule(0.0)
+  constant_schedule = optax.constant_schedule(cos_final_lr) # finally set cos_final_lr
   pieces = [warmup_schedule, cos_schedule]
   boundaries = [
       warmup_steps + stable_steps,

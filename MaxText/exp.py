@@ -1,3 +1,6 @@
+import math
+
+
 class Common:
     enable_goodput_recording = False # true is slower then false, decend 15%
     monitor_goodput = False
@@ -309,6 +312,62 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     head_dim = 64
     use_dw_bias = True
     use_dd_bias = True
+    train_stage = 1
+    dataset_type = 'xm3.5mini'
+    eval_split = 'validation'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    checkpoint_period = 215
+    learning_rate_schedule_steps = 161465
+    keep_period = 5375
+    stable_steps_fraction=0.865 # 0.01 warmup, 0.125 decay
+    decay_method = 'cosine' # or wsd
+     # # 除了第4阶段，每个阶段的结尾都是5375的倍数（第四阶段多了215steps），因此设置keep_period=5375.
+    # 考虑到decay阶段比较重要，因此第四阶段设置为1075
+    # eopch=0.25;end_steps1=53750;B=256;lr=2.5e-4*math.sqrt(2);file_nums=[0, 1376]
+    # eopch=0.25;end_steps2=26875;B=512;lr=2.5e-4*math.sqrt(4);file_nums=[1376, 2752]
+    # eopch=1;end_steps3=53750;B=1024;lr=2.5e-4*math.sqrt(8);file_nums=[2752, 8256]
+    # #按照计算，最后decay阶段，0.5epoch的步数是 26875。但考虑到 total file: 11032，多了几个文件，因此都加进去，多了 215 steps
+    # eopch=0.5;end_steps4=26875+215;B=1024;lr='cosine->2.5e-4';file_nums=[8256, 11008] 
+    if train_stage == 4: # v5p-128
+        per_device_batch_size = 16.0 # total 1024
+        eval_per_device_batch_size = 16 # total 1024
+        eval_loop_num_batches = 50
+        eval_interval = 1075
+        learning_rate = 2.5e-4 * math.sqrt(8)
+
+    elif train_stage == 3: # v5p-128
+        per_device_batch_size = 16.0 # total 1024
+        eval_per_device_batch_size = 16 # total 1024
+        eval_loop_num_batches = 50
+        eval_interval = 1075
+        learning_rate = 2.5e-4 * math.sqrt(8)
+
+    elif train_stage == 2: # v5p-64
+        per_device_batch_size = 16.0 # total 512
+        eval_per_device_batch_size = 32 # total 1024
+        eval_loop_num_batches = 50
+        eval_interval = 1075
+        learning_rate = 2.5e-4 * math.sqrt(4)
+
+    elif train_stage == 1: # v5p-32
+        per_device_batch_size = 16.0 # total 256
+        eval_per_device_batch_size = 32 # total 512
+        eval_loop_num_batches = 100
+        eval_interval = 5375
+        learning_rate = 2.5e-4 * math.sqrt(2)
+
+    else:
+        raise ValueError(f'Unknow tran_stage: {tran_stage}')
+
+class MiniXL:
+    learning_rate = 2.5e-4
+    learning_rate_schedule_steps = 50000
+    warmup_steps_fraction = 0.01
+    cosine_learning_rate_final_fraction = 0.1
+    eval_interval = 50000
+
+
 
 class DreamMiniMedium(TrainMedium, DreamMiniXL): 
     query_chunk_size = 256

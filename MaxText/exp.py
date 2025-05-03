@@ -306,7 +306,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     query_chunk_size = 128
     per_device_batch_size = 8.0 # 256 for v4-64
     tensorboard_dir = ""
-    base_num_decoder_layers = 4
+    base_num_decoder_layers = 36
     base_mlp_dim = 2816 # 2048 * 4 /3
     base_num_query_heads = 32
     base_num_kv_heads = 32
@@ -318,12 +318,17 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     eval_split = 'validation'
     mudd_prenorm = True
     mudd_postnorm = True
+    static_proj = False
+    dc_share_prepost_dw_hidden = True
     checkpoint_period = 215
     learning_rate_schedule_steps = 161465
     keep_period = 5375
     stable_steps_fraction=0.865 # 0.01 warmup, 0.125 decay
     decay_method = 'cosine' # or wsd
     iter_file_nums = 1376
+    max_target_length = 4096
+    train_shuffle_buffer_size = 200000
+
      # # 除了第4阶段，每个阶段的结尾都是5375的倍数（第四阶段多了215steps），因此设置keep_period=5375.
     # 考虑到decay阶段比较重要，因此第四阶段设置为1075
     # eopch=0.25;end_steps1=53750;B=256;lr=2.5e-4*math.sqrt(2);file_nums=[0, 1376]
@@ -337,7 +342,6 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         eval_loop_num_batches = 50
         eval_interval = 1075
         learning_rate = 2.5e-4 * math.sqrt(8)
-        train_shuffle_buffer_size = 26875+215
         cosine_learning_rate_final_fraction = 0.1 / math.sqrt(8)  # from 2.5e-4 * math.sqrt(8) -> 2.5e-5
 
     elif train_stage == 3: # v5p-128
@@ -346,7 +350,6 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         eval_loop_num_batches = 50
         eval_interval = 1075
         learning_rate = 2.5e-4 * math.sqrt(8)
-        train_shuffle_buffer_size = 53750
 
     elif train_stage == 2: # v5p-64
         per_device_batch_size = 16.0 # total 512
@@ -354,7 +357,6 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         eval_loop_num_batches = 50
         eval_interval = 5375
         learning_rate = 2.5e-4 * math.sqrt(4)
-        train_shuffle_buffer_size = 26875
 
     elif train_stage == 1: # v5p-32
         per_device_batch_size = 16.0 # total 256
@@ -362,7 +364,6 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         eval_loop_num_batches = 100
         eval_interval = 5375
         learning_rate = 2.5e-4 * math.sqrt(2)
-        train_shuffle_buffer_size = 53750
 
     else:
         raise ValueError(f'Unknow tran_stage: {tran_stage}')

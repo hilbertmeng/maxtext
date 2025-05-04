@@ -299,7 +299,7 @@ class DreamMiniMediumRefactorRematMudd(DreamMiniMediumRefactor):
     record_internal_nn_metrics = False
 
 class DreamMiniXL(DreamMini, TrainXL, LlamaXL): 
-    # qw+sw: Q256: v5p-32, per batch 16 speed: 0.157  Q128: 0.166
+    # qw: Q256: v5p-32, per batch 16 speed: 0.157  Q128: 0.166
     # qw+kw: Q256: v5p-32, per batch 16 speed: 0.121, Q128: 0.111
     # qw+sw: Q256: v5p-8,  per batch 16 speed: 0.172, Q128: 0.183
     zero_loss = True
@@ -329,6 +329,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     max_target_length = 4096
     train_shuffle_buffer_size = 200000
     sharding_tolerance = 0.2
+    vocab_size = 70000
 
      # # 除了第4阶段，每个阶段的结尾都是5375的倍数（第四阶段多了215steps），因此设置keep_period=5375.
     # 考虑到decay阶段比较重要，因此第四阶段设置为1075

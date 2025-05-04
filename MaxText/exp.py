@@ -327,7 +327,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     decay_method = 'cosine' # or wsd
     iter_file_nums = 1376
     max_target_length = 4096
-    train_shuffle_buffer_size = 200000
+    train_shuffle_buffer_size = 500000
     sharding_tolerance = 0.2
     vocab_size = 70000
 
@@ -360,10 +360,10 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         eval_interval = 5375
         learning_rate = 2.5e-4 * math.sqrt(4)
 
-    elif train_stage == 1: # v5p-32
-        per_device_batch_size = 16.0 # total 256
+    elif train_stage == 1: # v5p-64
+        per_device_batch_size = 8.0 # total 256
         eval_per_device_batch_size = 32 # total 512
-        eval_loop_num_batches = 100
+        eval_loop_num_batches = 50
         eval_interval = 5375
         learning_rate = 2.5e-4 * math.sqrt(2)
 

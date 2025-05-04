@@ -325,7 +325,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     keep_period = 5375
     stable_steps_fraction=0.865 # 0.01 warmup, 0.125 decay
     decay_method = 'cosine' # or wsd
-    iter_file_nums = 1376
+    iter_file_nums = 86
     max_target_length = 4096
     train_shuffle_buffer_size = 500000
     sharding_tolerance = 0.2

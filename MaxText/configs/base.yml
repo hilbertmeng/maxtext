@@ -642,3 +642,4 @@ use_dw_bias: False
 use_dd_bias: False
 dc_share_prepost_dw_hidden: False
 seperate_qk_dw_proj: True
+train_shuffle_buffer_size: 200

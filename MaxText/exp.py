@@ -320,16 +320,18 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     mudd_postnorm = True
     static_proj = False
     dc_share_prepost_dw_hidden = True
-    checkpoint_period = 215
-    learning_rate_schedule_steps = 161465
-    keep_period = 5375
-    stable_steps_fraction=0.865 # 0.01 warmup, 0.125 decay
+    checkpoint_period = 250
+    learning_rate_schedule_steps = 180300
+    keep_period = 3000
     decay_method = 'cosine' # or wsd
-    iter_file_nums = 86
+    iter_file_nums = 96
     max_target_length = 4096
     train_shuffle_buffer_size = 500000
     sharding_tolerance = 0.2
     vocab_size = 70000
+    eval_loop_num_batches = 55
+    base_lr = 4.0e-4
+    stable_steps_fraction= 0.99 - 30500 / 180500 # decay steps / total steps
 
      # # 除了第4阶段，每个阶段的结尾都是5375的倍数（第四阶段多了215steps），因此设置keep_period=5375.
     # 考虑到decay阶段比较重要，因此第四阶段设置为1075
@@ -341,35 +343,32 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     if train_stage == 4: # v5p-128
         per_device_batch_size = 16.0 # total 1024
         eval_per_device_batch_size = 16 # total 1024
-        eval_loop_num_batches = 50
-        eval_interval = 1075
-        learning_rate = 2.5e-4 * math.sqrt(8)
+        eval_interval = 1500
+        learning_rate = base_lr * math.sqrt(8)
         cosine_learning_rate_final_fraction = 0.1 / math.sqrt(8)  # from 2.5e-4 * math.sqrt(8) -> 2.5e-5
 
     elif train_stage == 3: # v5p-128
         per_device_batch_size = 16.0 # total 1024
         eval_per_device_batch_size = 16 # total 1024
-        eval_loop_num_batches = 50
-        eval_interval = 1075
-        learning_rate = 2.5e-4 * math.sqrt(8)
+        eval_interval = 1500
+        learning_rate = base_lr * math.sqrt(8)
 
     elif train_stage == 2: # v5p-64
         per_device_batch_size = 16.0 # total 512
         eval_per_device_batch_size = 32 # total 1024
-        eval_loop_num_batches = 50
-        eval_interval = 5375
-        learning_rate = 2.5e-4 * math.sqrt(4)
+        eval_interval = 3000
+        learning_rate = base_lr * math.sqrt(4)
 
     elif train_stage == 1: # v5p-64
         per_device_batch_size = 8.0 # total 256
-        eval_per_device_batch_size = 32 # total 512
-        eval_loop_num_batches = 50
-        eval_interval = 5375
-        learning_rate = 2.5e-4 * math.sqrt(2)
+        eval_per_device_batch_size = 32 # total 1024
+        eval_interval = 3000
+        learning_rate = base_lr * math.sqrt(2)
 
     else:
         raise ValueError(f'Unknow tran_stage: {tran_stage}')
 
+    
 class MiniXL:
     learning_rate = 2.5e-4
     learning_rate_schedule_steps = 50000

@@ -327,7 +327,7 @@ def extract_v3p5_data_files(dataset_path, eval_split):
     print(f'valid_files: {valid_files}')
     return train_files, valid_files
 
-def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
+def extract_v3p5mini_data_files_qwen(dataset_path, eval_split, train_stage):
 
     random.seed(9876)
     client = storage.Client()
@@ -371,14 +371,73 @@ def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
     train_files = shuffled_train_files
 
     if train_stage == 1:
-        train_files = train_files[:1376]
+        train_files = train_files[:1376 + 1] # +1是为了超出后不会报错
     elif train_stage == 2:
-        train_files = train_files[1376: 1376*2]
+        train_files = train_files[1376: 1376*2 + 1]
     elif train_stage == 3:
-        train_files = train_files[1376*2 :1376*6]
+        train_files = train_files[1376*2 :1376*6 + 1]
     else:
         # last_f = os.path.join(dataset_path, 'R051.000076')
         train_files = train_files[1376*6:]
+
+    print(f'[S{train_stage}]Train file: {len(train_files)},  test file: {len(valid_files)}')
+    print(f'[S{train_stage}]First 10 train files: {train_files[:10]}')
+    print(f'[S{train_stage}]Valid_files: {valid_files}')
+ 
+    return train_files, valid_files
+
+# unigram
+def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
+
+    random.seed(9876)
+    client = storage.Client()
+    path = dataset_path.replace('gs://', '')
+    path_parts = path.split('/')
+    bucket_name = path_parts[0]
+    directory_path = '/'.join(path_parts[1:])
+    directory_path1 = directory_path + 'B0-40/' if directory_path.endswith('/') else directory_path + '/B0-40/'
+    directory_path2 = directory_path + 'B0-40-last/' if directory_path.endswith('/') else directory_path + '/B0-40-last/'
+    valid_directory_path = directory_path + 'validation/' if directory_path.endswith('/') else directory_path + '/validation/'
+    print(f'directory_path1: {directory_path1} 2: {directory_path2} valid_directory_path: {valid_directory_path}')
+
+    rank_last_path = epath.Path(os.path.join(dataset_path, 'last_files.json'))
+    with rank_last_path.open('r') as f:
+        rank_last_files = json.load(f)['last_files']
+
+    train_files, valid_files = [], []
+    for directory_path in [directory_path1, directory_path2, valid_directory_path]:
+        print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+        for blob in client.list_blobs(bucket_name, prefix=directory_path):
+            path = f'gs://{os.path.join(bucket_name, blob.name)}'
+            if path in rank_last_files:
+                print(f'filter last file: {path}')
+                continue
+            if eval_split in path:
+                valid_files.append(path)
+            else:
+                train_files.append(path)
+
+    random.shuffle(train_files)
+    print(f'Total train file: {len(train_files)},  test file: {len(valid_files)}')
+
+    epoch = 2
+    shuffled_train_files = copy.deepcopy(train_files)
+    for e in range(epoch - 1):
+        temp_train_files = copy.deepcopy(train_files)
+        random.shuffle(temp_train_files)
+        shuffled_train_files.extend(temp_train_files)
+    train_files = shuffled_train_files
+    print(f'Total repeat:{epoch} train file: {len(train_files)},  test file: {len(valid_files)}')
+
+    if train_stage == 1:
+        train_files = train_files[:1536 + 1] # +1是为了超出后不会报错
+    elif train_stage == 2:
+        train_files = train_files[1536: 1536*2 + 1]
+    elif train_stage == 3:
+        train_files = train_files[1536*2 :1536*6 + 1]
+    else:
+        # last_f = os.path.join(dataset_path, 'R051.000076')
+        train_files = train_files[1536*6: ]
 
     print(f'[S{train_stage}]Train file: {len(train_files)},  test file: {len(valid_files)}')
     print(f'[S{train_stage}]First 10 train files: {train_files[:10]}')

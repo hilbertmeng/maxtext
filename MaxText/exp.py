@@ -313,7 +313,6 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     head_dim = 64
     use_dw_bias = True
     use_dd_bias = True
-    train_stage = 1
     dataset_type = 'xm3.5mini'
     eval_split = 'validation'
     mudd_prenorm = True
@@ -321,7 +320,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     static_proj = False
     dc_share_prepost_dw_hidden = True
     checkpoint_period = 250
-    learning_rate_schedule_steps = 180300
+    learning_rate_schedule_steps = 180500
     keep_period = 3000
     decay_method = 'cosine' # or wsd
     iter_file_nums = 96
@@ -340,6 +339,8 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     # eopch=1;end_steps3=53750;B=1024;lr=2.5e-4*math.sqrt(8);file_nums=[2752, 8256]
     # #按照计算，最后decay阶段，0.5epoch的步数是 26875。但考虑到 total file: 11032，多了几个文件，因此都加进去，多了 215 steps
     # eopch=0.5;end_steps4=26875+215;B=1024;lr='cosine->2.5e-4';file_nums=[8256, 11008] 
+    
+    train_stage = 1 # # 换阶段的话需要人工修改meta dict
     if train_stage == 4: # v5p-128
         per_device_batch_size = 16.0 # total 1024
         eval_per_device_batch_size = 16 # total 1024

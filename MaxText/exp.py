@@ -320,7 +320,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     static_proj = False
     dc_share_prepost_dw_hidden = True
     checkpoint_period = 250
-    learning_rate_schedule_steps = 180500
+    learning_rate_schedule_steps = 180546 # 需要设置比总训练步数大一些
     keep_period = 3000
     decay_method = 'cosine' # or wsd
     iter_file_nums = 96
@@ -330,15 +330,14 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     vocab_size = 70000
     eval_loop_num_batches = 55
     base_lr = 4.0e-4
-    stable_steps_fraction= 0.99 - 30500 / 180500 # decay steps / total steps
+    stable_steps_fraction= 0.99 - 30500 / 180500 # decay steps / total train steps
 
-     # # 除了第4阶段，每个阶段的结尾都是5375的倍数（第四阶段多了215steps），因此设置keep_period=5375.
-    # 考虑到decay阶段比较重要，因此第四阶段设置为1075
-    # eopch=0.25;end_steps1=53750;B=256;lr=2.5e-4*math.sqrt(2);file_nums=[0, 1376]
-    # eopch=0.25;end_steps2=26875;B=512;lr=2.5e-4*math.sqrt(4);file_nums=[1376, 2752]
-    # eopch=1;end_steps3=53750;B=1024;lr=2.5e-4*math.sqrt(8);file_nums=[2752, 8256]
-    # #按照计算，最后decay阶段，0.5epoch的步数是 26875。但考虑到 total file: 11032，多了几个文件，因此都加进去，多了 215 steps
-    # eopch=0.5;end_steps4=26875+215;B=1024;lr='cosine->2.5e-4';file_nums=[8256, 11008] 
+    # 每个阶段的结尾都是250的倍数，因此设置 keep_period=3000.
+    # eopch=0.25;end_steps1=60000;B=256;lr=2.5e-4*math.sqrt(2);file_nums=[0, 1536]
+    # eopch=0.25;end_steps2=30000;B=512;lr=2.5e-4*math.sqrt(4);file_nums=[1536, 3072]
+    # eopch=1;end_steps3=60000;B=1024;lr=2.5e-4*math.sqrt(8);file_nums=[3072, 9216]
+    # #按照计算，最后decay阶段，0.5epoch的步数是 30000。但考虑到 total file: 12344-12288，多了56个文件，因此都加进去，多了 500 steps
+    # eopch=0.5;end_steps4=30000+500;B=1024;lr='cosine->2.5e-4';file_nums=[9216, 12344]
     
     train_stage = 1 # # 换阶段的话需要人工修改meta dict
     if train_stage == 4: # v5p-128

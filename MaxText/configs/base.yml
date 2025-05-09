@@ -637,3 +637,7 @@ num_layers_per_block: 1
 qkv_bias: False
 scheduler: 'cosine'
 stable_steps_fraction: 0.0
+# distill vars
+distill_temperature: 2.0
+distill_alpha: 0.5
+use_distill: False

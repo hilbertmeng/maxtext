@@ -142,17 +142,17 @@ def write_metrics_locally(metrics, step, config, file, is_training=True):
     file.close()
 
 
-def add_config_to_summary_writer(config, summary_writer):
+def add_config_to_summary_writer(config, summary_writer, prefix=''):
   """Writes config params to tensorboard"""
   if jax.process_index() == 0:
     for key, value in config.get_keys().items():
-      add_text_to_summary_writer(key, str(value), summary_writer)
+      add_text_to_summary_writer(key, str(value), summary_writer, prefix)
 
 
-def add_text_to_summary_writer(key, value, summary_writer):
+def add_text_to_summary_writer(key, value, summary_writer, prefix=''):
   """Writes given key-value pair to tensorboard as text/summary"""
   if jax.process_index() == 0:
-    summary_writer.add_text(key, value)
+    summary_writer.add_text(prefix + key, value)
 
 
 def write_metrics_for_gcs(metrics, step, config, running_metrics, is_training=True):

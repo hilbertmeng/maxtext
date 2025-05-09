@@ -608,7 +608,7 @@ def loss_fn(model, config, data, dropout_rng, params, teacher_model, teacher_par
       data["inputs"],
       data["inputs_position"],
       decoder_segment_ids=data["inputs_segmentation"],
-      enable_dropout=config.enable_dropout if is_train else False,
+      enable_dropout=False,
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
     )

@@ -155,6 +155,15 @@ class DistillDCLlama2Medium(DCLlama2Medium):
     distill_alpha = 0.5
     zero_loss = True
 
+class DistillLlama2Medium(Llama2Medium):
+    vocab_size = 151936
+    dataset_type = 'pretrain_4k'
+    key_wise = False
+    use_kd = True
+    distill_temperature = 1.0
+    distill_alpha = 0.5
+    zero_loss = True
+
 class Qwen2p5_3B(Llama2Medium):
     base_emb_dim = 2048
     base_num_query_heads = 16

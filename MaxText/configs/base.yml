@@ -640,4 +640,6 @@ stable_steps_fraction: 0.0
 # distill vars
 distill_temperature: 2.0
 distill_alpha: 0.5
-use_distill: False
+use_kd: False # knowledge distillation
+lam: 0.1
+distill_loss_method: 'srkl'

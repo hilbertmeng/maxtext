@@ -408,7 +408,7 @@ class _HyperParameters:
       if os.path.isfile(tokenizer_path):
         raw_keys["tokenizer_path"] = tokenizer_path
 
-    if raw_keys['distill']:
+    if raw_keys['use_kd']:
       teacher_raw_keys = copy.deepcopy(raw_keys)
       teacher_raw_keys.update(teacher_raw_data_from_yaml)
       self.teacher_keys = teacher_raw_keys
@@ -936,7 +936,7 @@ class TeacherHyperParameters:
 def initialize(argv, **kwargs):
   _config = _HyperParameters(argv, **kwargs)
   config = HyperParameters(_config)
-  teacher_config = TeacherHyperParameters(_config) if config.use_distill else None
+  teacher_config = TeacherHyperParameters(_config) if config.use_kd else None
   return config, teacher_config
 
 

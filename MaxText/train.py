@@ -526,6 +526,46 @@ def distillation_loss(student_logits, teacher_logits, mask=None, temperature=2.0
     return distill_xent
 
 
+def minillm_distill_loss(logits, teacher_logits):
+    logits = jnp.asarray(logits, dtype=jnp.float32)
+    teacher_logits = jnp.asarray(teacher_logits)
+    teacher_probs = jax.nn.softmax(teacher_logits, axis=-1)
+    inf_mask = jnp.isinf(logits)
+    student_logprobs = jax.nn.log_softmax(logits, axis=-1)
+    prod_probs = jnp.where(inf_mask, 0.0, student_logprobs * teacher_probs)
+    distill_xent = -jnp.sum(prod_probs, axis=-1)
+    return distill_xent
+            
+
+def skewed_forward_kl(logits, teacher_logits, lam=0.1):
+    logits = jnp.asarray(logits, dtype=jnp.float32)
+    teacher_logits = jnp.asarray(teacher_logits)
+    teacher_probs = jax.nn.softmax(teacher_logits, axis=-1)
+    student_probs = jax.nn.softmax(logits, axis=-1)
+    mixed_probs = lam * teacher_probs + (1-lam) * student_probs
+    mixed_logprobs = jnp.log(mixed_probs)
+    inf_mask = jnp.isinf(logits) | jnp.isinf(teacher_logits)
+    prod_probs = jnp.where(inf_mask, 0.0, teacher_probs * mixed_logprobs)
+    distill_xent = -jnp.sum(prod_probs, axis=-1)
+    return distill_xent
+
+
+def skewed_reverse_kl(logits, teacher_logits, lam=0.1):
+    logits = jnp.asarray(logits, dtype=jnp.float32)
+    teacher_logits = jnp.asarray(teacher_logits)
+    teacher_probs = jax.nn.softmax(teacher_logits, axis=-1)
+    student_probs = jax.nn.softmax(logits, axis=-1)
+    mixed_probs = (1-lam) * teacher_probs + lam * student_probs
+    student_logprobs = jax.nn.log_softmax(logits, axis=-1)
+    mixed_logprobs = jnp.log(mixed_probs)
+    inf_mask = jnp.isinf(logits) | jnp.isinf(teacher_logits)
+    prod_probs = jnp.where(inf_mask, 0.0, student_probs * mixed_logprobs)
+    prod_probs -= jnp.where(inf_mask, 0.0, student_probs * student_logprobs)
+    # prod_probs： b*seq
+    distill_xent = -jnp.sum(prod_probs, axis=-1)
+    return distill_xent
+    
+
 def loss_fn(model, config, data, dropout_rng, params, teacher_model, teacher_params, is_train=True):
   """loss_fn for both train and eval.
 
@@ -561,7 +601,7 @@ def loss_fn(model, config, data, dropout_rng, params, teacher_model, teacher_par
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
-  if config.use_distill:
+  if config.use_kd:
     # __import__('ipdb').set_trace()
     teacher_logits, teacher_intermediate_outputs = teacher_model.apply(
       {'params': teacher_params}, # lsp
@@ -575,7 +615,15 @@ def loss_fn(model, config, data, dropout_rng, params, teacher_model, teacher_par
     print(f'teacher_logits: {teacher_logits.shape}')
     teacher_logits = jax.lax.stop_gradient(teacher_logits)
     # distill_loss: b x seq
-    distill_xent = distillation_loss(logits, teacher_logits, temperature=config.use_distill_temperature) # lsp
+    print(f'distill_loss_method: {config.distill_loss_method}')
+    if config.distill_loss_method == 'srkl':
+      distill_xent = skewed_reverse_kl(logits, teacher_logits, lam=config.lam)
+    elif config.distill_loss_method == 'skl':
+      distill_xent = skewed_forward_kl(logits, teacher_logits, lam=config.lam)
+    elif config.distill_loss_method == 'minillm':
+      distill_xent = minillm_distill_loss(logits, teacher_logits)
+    else:
+      distill_xent = distillation_loss(logits, teacher_logits, temperature=config.distill_temperature)
 
   correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
 
@@ -589,11 +637,15 @@ def loss_fn(model, config, data, dropout_rng, params, teacher_model, teacher_par
   loss = total_loss / (total_weights + EPS)
 
   distill_loss, teacher_loss = 0.0, 0.0
-  if config.use_distill: # compute per token's distill loss
+  if config.use_kd: # compute per token's distill loss
     distill_xent = distill_xent * (data["targets_segmentation"] != 0)
-    total_distill_loss = jnp.sum(distill_xent * config.use_distill_temperature ** 2) # 先平方在mean还是先mean再平方？
+    if config.distill_loss_method in ['srkl', 'skl']:
+      distill_temperature = 1.0
+    else:
+      distill_temperature = config.distill_temperature
+    total_distill_loss = jnp.sum(distill_xent * distill_temperature ** 2) # 先平方在mean还是先mean再平方？
     distill_loss = total_distill_loss / (total_weights + EPS)
-    loss = (1 - config.use_distill_alpha) * loss + config.use_distill_alpha * distill_loss # need distill loss to update student weights
+    loss = (1 - config.distill_alpha) * loss + config.distill_alpha * distill_loss # need distill loss to update student weights
 
     teacher_xent, _ = max_utils.cross_entropy_with_logits(teacher_logits, one_hot_targets, 0.0)
     teacher_xent = teacher_xent * (data["targets_segmentation"] != 0)
@@ -669,14 +721,16 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
     extra_dpo_args = [reference_params]
     _loss_fn = dpo_loss_fn
 
-  if config.use_distill:
+  if config.use_kd:
     state, teacher_params = _split_dpo_state(state)
     state_mesh_shardings, teacher_params_sharding = _split_dpo_state(state_mesh_shardings)
+    distill_alpha = config.distill_alpha
     # _loss_fn = distill_loss_fn
   else:
     teacher_params = None
     teacher_model = None
-
+    distill_alpha = 0.0
+    
   if config.gradient_accumulation_steps > 1:
 
     def accumulate_gradient(acc_grad_and_loss, data):
@@ -708,10 +762,11 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
     grad_and_loss, aux = jax.lax.scan(
         accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
     )
+    # lsp: 正确性有待验证
     loss = (
-        grad_and_loss["loss"] / grad_and_loss["total_weights"]
+        grad_and_loss["loss"] / grad_and_loss["total_weights"] * (1 - distill_alpha)
         + grad_and_loss["moe_lb_loss"] / config.gradient_accumulation_steps
-        + grad_and_loss["distill_loss"] / config.gradient_accumulation_steps
+        + grad_and_loss["distill_loss"] * distill_alpha / config.gradient_accumulation_steps
     )
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
     aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
@@ -747,7 +802,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
 
   new_state = state.apply_gradients(grads=grads)
   scalar_metrics = {
-      "learning/loss": loss - moe_lb_loss - distill_loss, # lsp: remove moe_lb_loss, distill_loss
+      "learning/loss": (loss - moe_lb_loss - distill_loss * distill_alpha) / (1 - distill_alpha), # lsp: remove moe_lb_loss, distill_loss
       "learning/moe_lb_loss": moe_lb_loss,
       "learning/distill_loss": distill_loss,
       "learning/teacher_loss": teacher_loss,
@@ -775,7 +830,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)
 
-  if config.use_distill:
+  if config.use_kd:
     new_state = _merge_dpo_state(new_state, teacher_params)
 
   return new_state, metrics
@@ -871,7 +926,7 @@ def setup_mesh_and_model(config, teacher_config=None):
   quant = quantizations.configure_quantization(config)
   model = Transformer(config, mesh, quant=quant)
   teacher_model = None
-  if config.use_distill is not None:
+  if config.use_kd:
     assert teacher_config is not None
     teacher_model = Transformer(teacher_config, mesh, quant=quant)
 
@@ -961,7 +1016,7 @@ def setup_train_loop(config, teacher_config=None):
     # The vocab tensor(s) of shape [vocab, embed] (and transpose) are not sharded by stage
     maxtext_utils.assert_params_sufficiently_sharded(state.params, mesh, config.sharding_tolerance)
 
-  if config.use_distill:
+  if config.use_kd:
     print(f'use_distill is true.')
     teacher_abstract_state, _, _ = max_utils.get_abstract_state(teacher_model, tx, teacher_config, init_rng, mesh, is_training=False)
     # lsp: teacher_abstract_state with shape and sharding, but teacher_sharding with only sharding
@@ -1077,7 +1132,7 @@ def train_loop(config, teacher_config=None, state=None):
         static_argnums_eval,
         donate_argnums_eval,
     ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config)
-  if not config.use_distill:
+  if not config.use_kd:
     num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
     print_tree_struct(name='params', tree=state.params, shape=True) # lsp
     max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
@@ -1178,7 +1233,7 @@ def train_loop(config, teacher_config=None, state=None):
         performance_metric_queue.put(step_time_delta.total_seconds())
 
       if checkpoint_manager is not None:
-        state_to_save = _split_dpo_state(state)[0] if config.use_dpo or config.use_distill else state
+        state_to_save = _split_dpo_state(state)[0] if config.use_dpo or config.use_kd else state
         if save_checkpoint(checkpoint_manager, int(step), state_to_save, config.dataset_type, data_iterator, config):
           checkpointing.print_save_message(step, config.async_checkpointing)
           record_file_and_step(step, config, data_iterator) # lsp

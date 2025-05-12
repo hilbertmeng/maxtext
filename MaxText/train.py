@@ -639,7 +639,7 @@ def loss_fn(model, config, data, dropout_rng, params, teacher_model, teacher_par
   distill_loss, teacher_loss = 0.0, 0.0
   if config.use_kd: # compute per token's distill loss
     distill_xent = distill_xent * (data["targets_segmentation"] != 0)
-    if config.distill_loss_method in ['srkl', 'skl']:
+    if config.distill_loss_method in ['srkl', 'skl', 'minillm']:
       distill_temperature = 1.0
     else:
       distill_temperature = config.distill_temperature

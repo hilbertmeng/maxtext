@@ -339,7 +339,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     # #按照计算，最后decay阶段，0.5epoch的步数是 30000。但考虑到 total file: 12344-12288，多了56个文件，因此都加进去，多了 500 steps
     # eopch=0.5;end_steps4=30000+500;B=1024;lr='cosine->2.5e-4';file_nums=[9216, 12344]
     
-    train_stage = 2 # # 换阶段的话需要人工修改meta dict
+    train_stage = 3 # # 换阶段的话需要人工修改meta dict
     if train_stage == 4: # v5p-128
         per_device_batch_size = 16.0 # total 1024
         eval_per_device_batch_size = 16 # total 1024

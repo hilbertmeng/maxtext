@@ -346,12 +346,14 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         eval_interval = 1500
         learning_rate = base_lr * math.sqrt(8)
         cosine_learning_rate_final_fraction = 0.1 / math.sqrt(8)  # from 2.5e-4 * math.sqrt(8) -> 2.5e-5
+        iter_file_nums = 192 # 每次迭代iter_file_nums个文件必须为为整数步数
 
     elif train_stage == 3: # v5p-128
         per_device_batch_size = 16.0 # total 1024
         eval_per_device_batch_size = 16 # total 1024
         eval_interval = 1500
         learning_rate = base_lr * math.sqrt(8)
+        iter_file_nums = 192
 
     elif train_stage == 2: # v5p-64
         per_device_batch_size = 16.0 # total 512

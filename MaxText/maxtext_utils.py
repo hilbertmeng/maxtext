@@ -61,8 +61,8 @@ def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, mo
   return functional_eval, in_shardings, out_shardings, static_argnums, donate_argnums
 
 
-def get_functional_eval_step(eval_step, model, config):
-  return functools.partial(eval_step, model, config)
+def get_functional_eval_step(eval_step, model, teacher_model, config):
+  return functools.partial(eval_step, model, teacher_model, config)
 
 
 def load_compiled(config, partial_train, state):

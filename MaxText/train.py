@@ -137,7 +137,7 @@ def compute_accuracy(logits, targets, masks):
 
 def save_eval_result(config, step, cumulative_eval_metrics):
   # lsp: save eval result
-  eval_result_path = epath.Path(os.path.join(config.base_output_directory, config.run_name, f'eval_results_{step}.json'))
+  eval_result_path = epath.Path(os.path.join(config.base_output_directory, config.run_name, f'eval_results/{step+1:06}.json'))
   with eval_result_path.open('w') as f:
     write_str = json.dumps(cumulative_eval_metrics)
     f.write(json.dumps(write_str, ensure_ascii=False))
@@ -849,7 +849,7 @@ def eval_step(model, teacher_model, config, state, data, dropout_rng):
   if config.use_kd:
     state, teacher_params = _split_dpo_state(state)
 
-  eval_loss_fn = functools.partial(_loss_fn, model, teacher_model, onfig, data, dropout_rng, is_train=False)
+  eval_loss_fn = functools.partial(_loss_fn, model, teacher_model, config, data, dropout_rng, is_train=False)
   loss, aux = eval_loss_fn(state.params, teacher_params, *extra_dpo_args)
   total_loss = aux["total_loss"]
   total_weights = aux["total_weights"]

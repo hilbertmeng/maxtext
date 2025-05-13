@@ -519,13 +519,13 @@ class Decoder(nn.Module):
                 value_residual=value_residual,
             )
             # if self.config.value_residual_learning:
-            y, value_residual = y[:-1], y[-1]
+            y, value_residual, attn_out = y[:-2], y[-2], y[-1]
             if self.config.mudd_in_layer:
                 y, hids = y
             if self.config.record_internal_nn_metrics:
               self.sow('intermediates', f'hidden_states_layer_{lyr}', maxtext_utils.l2norm(y[0])) # layer_out, dyn_dense_w = y
             if not self.config.mudd_in_layer:
-              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
+              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids, attn_out=attn_out) # lsp
 
     if self.config.shift_last_hidden:
       y = self.hidden_shift(y)

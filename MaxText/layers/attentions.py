@@ -27,6 +27,8 @@ from jax.experimental import shard_map
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_kernel
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_mask
 import jax.numpy as jnp
+from einops import rearrange
+
 import common_types
 from kernels.ragged_attention import ragged_gqa
 from kernels.ragged_attention import ragged_mha
@@ -1000,7 +1002,7 @@ class AttentionOp(nn.Module):
       two tuples of (k, v, decoder_segments) -- either can be Nones
 
     """
-    if key.shape != value.shape and self.config.attention_type != AttentionType.MLA.value:
+    if key.shape != value.shape and self.config.attention_type != AttentionType.MLA.value and self.config.qk_head_dim is None:
       raise ValueError(f"Can't KV cache with mismatched shapes {key.shape=}, {value.shape=}")
 
     if model_mode == common_types.MODEL_MODE_TRAIN:
@@ -1188,6 +1190,8 @@ class Attention(nn.Module):
 
     cfg = self.config
     if self.use_postnorm:
+      self.mixv_postnorm = True if self.config.mixv_postnorm is None else self.config.mixv_postnorm
+      self.o_postnorm = False if self.config.o_postnorm is None else self.config.o_postnorm
       norm_kwargs = {
                   "dtype": cfg.dtype,
                   "weight_dtype": cfg.weight_dtype,
@@ -1262,6 +1266,22 @@ class Attention(nn.Module):
         matmul_precision=self.config.matmul_precision,
     )(inputs_kv)
     return kv_proj
+
+  def vgate_projection(self, inputs_q: Array) -> Array:
+    G = int(self.config.vo_head_dim / self.head_dim)
+    vgate = DenseGeneral(
+        features=(self.num_kv_heads, G), # DNG
+        axis=-1,
+        kernel_init=self.kernel_init, # lsp
+        kernel_axes=("embed", "q_heads", "kv"),
+        dtype=self.dtype,
+        weight_dtype=self.weight_dtype,
+        name="vgate",
+        quant=self.quant,
+        use_bias=self.config.use_bias,
+        matmul_precision=self.config.matmul_precision,
+    )(inputs_q)
+    return vgate
 
   def qkv_projection(self, inputs: Array, proj_name: str):
     """Fused QKV projection"""
@@ -1363,6 +1383,7 @@ class Attention(nn.Module):
       deterministic: bool = False,
       hidden_states=None,
       value_residual=None,
+      ffn_act=None,
   ):
     """Applies Attention on the input data.
 
@@ -1398,6 +1419,18 @@ class Attention(nn.Module):
         query = self.query_projection(inputs_q)
         key = self.kv_projection(inputs_k, proj_name="key")
         value = self.kv_projection(inputs_v, proj_name="value")
+    elif self.config.inner_ffn_way is not None:
+      if self.config.inner_ffn_way == 'q':
+        inputs_k = inputs_v = hidden_states
+      elif self.config.inner_ffn_way == 'k':
+        inputs_q = inputs_v = hidden_states
+        inputs_k = inputs_kv
+      elif self.config.inner_ffn_way == 'v':
+        inputs_q = inputs_k = hidden_states
+        inputs_v = inputs_kv
+      query = self.query_projection(inputs_q)
+      key = self.kv_projection(inputs_k, proj_name="key")
+      value = self.kv_projection(inputs_v, proj_name="value")
     else:
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")
@@ -1421,7 +1454,7 @@ class Attention(nn.Module):
         query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v, inputs_m=hidden_states)
     
     if self.config.use_head_pool:
-      query, key, value, o_out = self.head_pool(inputs_q, query, key, value)
+      query, key, value, o_out, ow = self.head_pool(inputs_q, query, key, value, inputs_m=hidden_states, ffn_act=ffn_act)
 
     query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
 
@@ -1460,10 +1493,16 @@ class Attention(nn.Module):
 
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, hidden_states=hidden_states)
 
-    if self.config.use_head_pool and not self.config.hp_ablate_o:
-      out = out + o_out
+    mixed_v = out
+    if self.config.use_head_pool:
+      if not self.config.hp_ablate_o and o_out is not None and not self.config.hp_o_shortcut:
+        out = out + o_out
+      if self.config.hp_o_transform:
+        out = jnp.einsum("BTND,NM->BTMD", out, self.head_pool.sw_o)
+      if self.config.hp_o_shortcut:
+        out = out + o_out
 
-    if self.use_postnorm:
+    if self.use_postnorm and self.mixv_postnorm:
       b, t, n, d = out.shape
       out = jnp.reshape(out,(b,t,n*d))
       out = self.post_norm(out) # BTNd -> BT(Nd)-> BTNd
@@ -1471,11 +1510,26 @@ class Attention(nn.Module):
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 
+    if self.config.mixed_v_act:
+      out = jax.nn.silu(out)
+
+    if self.config.sub_head_gate:
+      vgate = jax.nn.silu(self.vgate_projection(inputs_q)) # BTNG
+      out = rearrange(out, 'B T N (G D) -> B T N G D', G=vgate.shape[-1]) * vgate[..., None]
+      out = rearrange(out, 'B T N G D -> B T N (G D)')
+
     # apply output projection,  output dim is set to the input dim.
     out = self.out_projection(inputs_q.shape[-1], out)
 
-    # if self.use_postnorm: # hybrid norm
-    #   out = self.post_norm(out) 
+    if self.config.use_head_pool and self.config.hp_out_proj:
+      if self.config.hp_dynamic_mixed_v:
+        ow = ow + self.head_pool.mixed_v_proj(mixed_v) # BTNd, dM-> BTNM 
+        out = out + self.head_pool.out_proj(jnp.einsum("BTND,BTNM->BTMD", mixed_v, ow))
+      else:
+        out = out + self.head_pool.out_proj(mixed_v)
+
+    if self.use_postnorm and self.o_postnorm: # hybrid norm
+      out = self.post_norm(out, dynamic=self.config.attn_postnorm_dynamic) 
     out = checkpoint_name(out, "out_proj")
     return out, value_residual
 

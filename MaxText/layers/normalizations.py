@@ -17,9 +17,11 @@
 from typing import Any, Tuple, Optional
 
 from flax import linen as nn
+import jax
 from jax import lax
 import jax.numpy as jnp
 from layers import initializers
+from layers import linears
 
 Initializer = initializers.Initializer
 
@@ -34,11 +36,11 @@ class RMSNorm(nn.Module):
   scale_init: Initializer = nn.initializers.ones
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jnp.ndarray, axis=-1, dynamic=False) -> jnp.ndarray:
     """Applies layer normalization on the input."""
     x = jnp.asarray(x, jnp.float32)
-    features = x.shape[-1]
-    mean2 = jnp.mean(lax.square(x), axis=-1, keepdims=True)
+    features = x.shape[axis]
+    mean2 = jnp.mean(lax.square(x), axis=axis, keepdims=True)
     y = jnp.asarray(x * lax.rsqrt(mean2 + self.epsilon), self.dtype)
     if not self.scale_init: return y # lsp
     scale = self.param(
@@ -47,6 +49,19 @@ class RMSNorm(nn.Module):
         (features,),
         self.weight_dtype,
     )
+
+    if dynamic:
+      kwargs = dict(dtype=self.dtype, weight_dtype=self.weight_dtype)
+      w_proj = linears.DenseGeneral(
+                                  (1,),
+                                  kernel_init=initializers.contant_dense_init(0.0),
+                                  kernel_axes=(None, None),
+                                  use_bias=True,
+                                  axis=axis,
+                                  name='norm_dw',
+                                  **kwargs)
+      dw = jax.nn.sigmoid(w_proj(x)) # **D** -> **1**
+      y = y * dw
 
     scale = jnp.asarray(scale, self.dtype)
     return y * scale

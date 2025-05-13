@@ -5,6 +5,7 @@ from flax import linen as nn
 from jax import lax
 import jax.numpy as jnp
 from jax.sharding import Mesh
+import jax
 
 from layers import initializers
 from layers import normalizations
@@ -78,15 +79,16 @@ class Mlp(nn.Module):
     self.pre_dense_proj1_norm = normalizations.get_rmsnorm(**norm_kwargs)
     
     factor = 1
-    layer_inx = self.layer_inx
+    layer_inx = self.layer_inx 
+    layer_expansion = 1 if not self.config.mudd_comp_attn else 2
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     if self.config.mudd_num_heads is not None:
       # init ov vectors 
       N = cfg.mudd_num_heads or 1
       self.ov_vectors = self.param('ov_vectors', nn.with_logical_partitioning(initializers.constant_init(1), (None,None,"embed",)), (C, N, cfg.base_emb_dim,), cfg.weight_dtype)
-      dw_shape = (C, N, ((layer_inx + 1) * factor + 1))
+      dw_shape = (C, N, ((layer_inx * layer_expansion + 1) * factor + 1))
     else:
-      dw_shape = (C, ((layer_inx + 1) * factor + 1))
+      dw_shape = (C, ((layer_inx * layer_expansion + 1) * factor + 1))
 
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 else 1
     max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {dynamic_dense_hidden_expand}', debug=self.config.debug)
@@ -114,7 +116,7 @@ class Mlp(nn.Module):
                                     **kwargs)
     if self.use_bias:
       self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
-      init_v = jnp.array([0] * ((layer_inx + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
+      init_v = jnp.array([0] * ((layer_inx * layer_expansion + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
       init_v = init_v[None].repeat(C, 0)
       self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
@@ -161,6 +163,7 @@ class Compose(nn.Module):
       self,
       layer_output,
       hids,
+      attn_out=None,
   ):
     if self.config.mudd_in_layer:
         y, dyn_dense_w = layer_output, self.mudd_mlp(layer_output)
@@ -179,6 +182,7 @@ class Compose(nn.Module):
     max_logging.log(f'Compose history hidden states.', debug=self.config.debug)
     layer_inx = self.layer_inx
     cfg = self.config
+    layer_expansion = 1 if not self.config.mudd_comp_attn else 2
 
     if self.config.record_internal_nn_metrics:
         _dyn_dense_w = dyn_dense_w.astype(jnp.float32)
@@ -190,6 +194,10 @@ class Compose(nn.Module):
         self.sow('intermediates', f'layer_output/norm/layer_{layer_inx}', l2norm(y.astype(jnp.float32)))
         del _dyn_dense_w
 
+    if self.config.mudd_comp_attn:
+      attn_out_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_attn_{layer_inx}", cfg=cfg)(attn_out) if cfg.mudd_prenorm else attn_out
+      hids.append(attn_out_normed)
+
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
@@ -200,7 +208,7 @@ class Compose(nn.Module):
     else:
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
     factor = 1
-    hid_idxs = list(range((layer_inx + 1) * factor + 1)) # L+1
+    hid_idxs = list(range((layer_inx * layer_expansion + 1) * factor + 1)) # L+1
     if cfg.ddw_gen_pattern == 'q,k,v,m':
       max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is {cfg.mudd_postnorm}....', debug=self.config.debug)
       if cfg.mudd_postnorm:
@@ -220,7 +228,7 @@ class Compose(nn.Module):
             # dw: BTCNL,CND->CBTLD ; CBTLD, LBTD -> CBTD
             # y = tuple([sum([ hids[lidx] * sum([dyn_dense_w[cidx,:,:,nidx,lidx] * ov_vectors[None,None, cidx, nidx] for nidx in range(ov_vectors.shape[1])]) for lidx in range(len(hids))]) for cidx in range(C) ])
             y = tuple([sum([ hids[lidx] * jnp.einsum('BTN,ND->BTD', dyn_dense_w[cidx,:,:,:,lidx,0], ov_vectors[cidx]/N) for lidx in range(len(hids))]) for cidx in range(C) ])
-          else:
+          else: # default
             y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
     if layer_inx == cfg.num_decoder_layers - 1:
       del hids

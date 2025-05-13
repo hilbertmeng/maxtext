@@ -306,6 +306,10 @@ class MuddLlama2Medium(Mudd, Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
 
+class MuddLlama2MediumCompAttn(MuddLlama2Medium):
+    mudd_comp_attn = True
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
 class MuddLlama2MediumVR(MuddLlama2Medium):
     value_residual_learning = True
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
@@ -630,6 +634,72 @@ class LlamaSmall8XWiderHeadPool1V7(LlamaSmall8XWider):
     use_head_pool = True
     hp_num_heads = int(2048 * 1 * 3 / 64)
 
+class LlamaSmall8XWiderHeadPool1V7ComposeBTNDQKNorm(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 7
+    use_head_pool = True
+    hp_num_heads = int(2048 * 1 * 3 / 2 / 64)
+    hp_dynamic = True
+    hp_static = False
+    hp_head_gate = False
+    hp_ways = "qkvo"
+    hp_dynamic_mixed_v = True
+    hp_out_proj = True
+    hp_share_inner = True
+    hp_dw_norm = True
+    qk_norm = True
+
+class LlamaSmall8XWiderHeadPool1V7Origin(LlamaSmall8XWiderHeadPool1V7):
+    hp_norm = True # seperate rmsnorm 
+    hp_head_gate = True 
+    hp_ways = "qkv"
+    hp_dynamic = False
+    hp_static = True
+    hp_num_heads = int(2048 * 1 / 64)
+
+class LlamaSmall8XWiderInnerFFN1V7Origin(LlamaSmall8XWider):
+    mask_current_token = True
+    inner_ffn_dim = 2048 * 1
+    base_mlp_dim = 2048 * 7
+    use_head_pool = True
+    hp_num_heads = int(2048 * 1 / 64)
+    hp_from_ffn = True
+    hp_ways = "qkv"
+    hp_dynamic = False
+    hp_static = True
+    hp_no_lora = True
+    hp_use_sw_scale = True
+
+class LlamaSmall8XWiderHeadPool1V7OriginNoLoraScale(LlamaSmall8XWiderHeadPool1V7Origin):
+    hp_no_lora = True
+    hp_use_sw_scale = True
+
+class LlamaSmall8XWiderHeadPool1V7OriginNoLoraScaleFromFFN(LlamaSmall8XWiderHeadPool1V7OriginNoLoraScale):
+    hp_from_ffn = True
+    inner_ffn_dim = 2048 * 1
+
+class LlamaSmall8XWiderHeadPool1V7OriginDynamic(LlamaSmall8XWiderHeadPool1V7Origin):
+    hp_rank = 12
+    hp_dynamic = True
+    hp_share_inner = True
+    hp_dw_norm = True
+
+class LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNorm(LlamaSmall8XWiderHeadPool1V7OriginDynamic):
+    use_postnorm = True
+    qk_norm = True
+
+class LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNormOTrans(LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNorm):
+    hp_o_transform = True
+
+class LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNormOTransOProj(LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNormOTrans):
+    hp_out_proj = True
+
+class LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNormOTransOProjShortCut(LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNormOTransOProj):
+    hp_o_shortcut = True
+
+class LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNormOTransFromFFN(LlamaSmall8XWiderHeadPool1V7OriginDynamicQKNormPostNormOTrans):
+    hp_from_ffn = True
+    inner_ffn_dim = 2048 * 1
+
 class LlamaSmall8XWiderHeadPool1V7Postnorm(LlamaSmall8XWiderHeadPool1V7):
     use_postnorm = True
 
@@ -659,6 +729,36 @@ class LlamaSmall8XWider1V7Head36(LlamaSmall8XWider):
     base_num_query_heads = 36 # 12 + 2048 * 3 / 64 / 4 
     base_num_kv_heads = 36
 
+class LlamaSmall8XWider1V7HeadDim192(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 7
+    head_dim = 64 * 3
+
+class LlamaSmall8XWider1V7VOHeadDim320(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 7
+    qk_head_dim = 64
+    vo_head_dim = 64 * 5
+
+class LlamaSmall8XWider1V7VOHeadDim320MuddCompAttn(Mudd, LlamaSmall8XWider1V7VOHeadDim320):
+    mudd_comp_attn = True
+
+class LlamaSmall8XWider1V7VOHeadDim320MuddCompAttnPrePostNorm(LlamaSmall8XWider1V7VOHeadDim320MuddCompAttn):
+    mudd_prenorm = True
+    mudd_postnorm = True
+
+class LlamaSmall8XWider1V7VOHeadDim320Mudd(Mudd, LlamaSmall8XWider1V7VOHeadDim320):
+    pass
+
+class LlamaSmall8XWider1V7QKHeadDim320(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 7
+    qk_head_dim = 64 * 5
+    vo_head_dim = 64 * 1
+
+class LlamaSmall8XWider1V7VOHeadDim320Silu(LlamaSmall8XWider1V7VOHeadDim320):
+    mixed_v_act = True # silu
+
+class LlamaSmall8XWider1V7VOHeadDim320SubHeadGate(LlamaSmall8XWider1V7VOHeadDim320):
+    sub_head_gate = True
+
 class LlamaSmall8XWiderHeadPool1V7Gate(LlamaSmall8XWiderHeadPool1V7):
     hp_head_gate = True
     hp_num_heads = int(2048 * 1 * 3 / 64 / 2)
@@ -669,10 +769,17 @@ class LlamaSmall8XWiderHeadPool1V7GatePostnorm(LlamaSmall8XWiderHeadPool1V7Gate)
 class LlamaSmall29KTokens(LlamaSmall8XWider):
     base_mlp_dim = 2048 * 1
 
+class LlamaSmall29KTokensVOHeadDim320(LlamaSmall29KTokens):
+    qk_head_dim = 64
+    vo_head_dim = 64 * 5
+
 class LlamaSmall8XWiderInnerFFN7V1(LlamaSmall8XWider):
     mask_current_token = True
     inner_ffn_dim = 2048 * 7
     base_mlp_dim = 2048 * 1
+
+class LlamaSmall8XWiderInnerFFN0V7(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 7
 
 class LlamaSmall8XWiderInnerFFN5V3(LlamaSmall8XWider):
     mask_current_token = True
@@ -683,6 +790,41 @@ class LlamaSmall8XWiderInnerFFN1V7(LlamaSmall8XWider):
     mask_current_token = True
     inner_ffn_dim = 2048 * 1
     base_mlp_dim = 2048 * 7
+
+class LlamaSmall8XWiderInnerFFN1V7DC(DC, LGWindow, LlamaSmall8XWiderInnerFFN1V7):
+    scan_layers = False
+
+class LlamaSmall8XWiderInnerFFN1V7DCPostNorm(LlamaSmall8XWiderInnerFFN1V7DC):
+    mlp_postnorm = True
+    use_postnorm = True
+    mixv_postnorm = False
+    o_postnorm = True
+
+class LlamaSmall8XWiderInnerFFN1V7DCPostNormDynamic(LlamaSmall8XWiderInnerFFN1V7DCPostNorm):
+    attn_postnorm_dynamic = True
+    mlp_postnorm_dynamic =  True
+
+class LlamaSmall8XWiderInnerFFN1V7Mudd(Mudd, LlamaSmall8XWiderInnerFFN1V7):
+    scan_layers = False
+
+class LlamaSmall8XWiderInnerFFN1V7MuddCompAttn(LlamaSmall8XWiderInnerFFN1V7Mudd):
+    mudd_comp_attn = True
+
+class LlamaSmall8XWiderInnerFFN1V7MuddCompAttnPrePostNorm(LlamaSmall8XWiderInnerFFN1V7MuddCompAttn):
+    mudd_prenorm = True
+    mudd_postnorm = True
+
+class LlamaSmall8XWiderInnerFFN1V7Qway(LlamaSmall8XWiderInnerFFN1V7):
+    normed_hidden_states = True
+    inner_ffn_way = 'q'
+
+class LlamaSmall8XWiderInnerFFN1V7Kway(LlamaSmall8XWiderInnerFFN1V7):
+    normed_hidden_states = True
+    inner_ffn_way = 'k'
+
+class LlamaSmall8XWiderInnerFFN1V7Vway(LlamaSmall8XWiderInnerFFN1V7):
+    normed_hidden_states = True
+    inner_ffn_way = 'v'
 
 class LlamaSmall8XWiderInnerFFN2V6(LlamaSmall8XWider):
     mask_current_token = True
@@ -706,6 +848,17 @@ class LlamaSmall8XWiderInnerFFN5V3UnmaskCTExpandOuter(LlamaSmall8XWiderInnerFFN5
     inner_ffn_activations = ['relu']
     inner_ffn_dim = 2048 * 5
     base_mlp_dim = int(2048 * (3 + 5/3))
+
+class DreamMiniMediumDev(SpeedTest, DreamMini, Llama2Medium):
+    query_chunk_size = 128
+    sw_squeeze_ratio = None 
+    per_device_batch_size = 32.0 
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    static_proj = True
+    key_wise = False 
+
+class DreamMiniMediumDevkvshiftmlp(DreamMiniMediumDev):
+    kv_shift_mlp = True
 
 class DreamMiniMediumDebug8(SpeedTest, DreamMini, Llama2Medium):
     query_chunk_size = 128
@@ -775,10 +928,17 @@ class DreamMiniXL4KQC256(DreamMiniXL):
     query_chunk_size = 256 # v5p-32: 0.185, 72.5%KW
     sharding_tolerance = 0.05
 
+class DreamMiniXL4KQC256BS16(SpeedTest, DreamMiniXL4KQC256):
+    per_device_batch_size = 16.0 # v5p-32: 0.089
+    mudd_in_layer = True
+
 class DreamMiniXL4KQC256KW(DreamMiniXL4KQC256):
     static_proj = False
     key_wise = True  # v5p-32: 0.255
     sharding_tolerance = 0.06
+
+class DreamMiniXL4KQC256KWBS16(SpeedTest, DreamMiniXL4KQC256KW):
+    per_device_batch_size = 16.0 # v5p-32: 0.123
 
 class DreamMiniXL4KQC256H16(DreamMiniXL4KQC256):
     base_num_query_heads = 16

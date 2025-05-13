@@ -114,13 +114,17 @@ class SubDecoderLayer(nn.Module):
         # kernel_axes=("norm",),
         kernel_axes=("embed",),
         epsilon=cfg.normalization_layer_epsilon,
-    )
-      lnx = lnx_rms(inputs)
+      )
+      if self.config.normed_hidden_states:
+        normed_hidden_states = lnx = lnx_rms(inputs)
+      else:
+        lnx = lnx_rms(inputs)
 
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
+    inner_ffn_act = None
     if cfg.inner_ffn_dim:
-      lnx = linears.MlpBlock(
+      lnx, inner_ffn_act = linears.MlpBlock(
           intermediate_dim=cfg.inner_ffn_dim, # lsp
           activations=cfg.inner_ffn_activations or cfg.mlp_activations,
           intermediate_dropout_rate=cfg.dropout_rate,
@@ -131,7 +135,7 @@ class SubDecoderLayer(nn.Module):
           quant=self.quant,
           use_bias=cfg.use_bias,
           kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-      )(lnx, deterministic=deterministic)
+      )(lnx, deterministic=deterministic, return_act=True)
       lnx = lnx + inputs # inner ffn residual for attn
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       # attn norm (postnorm after inner ffn)
@@ -204,8 +208,9 @@ class SubDecoderLayer(nn.Module):
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
         model_mode=model_mode,
-        hidden_states=inputs,
+        hidden_states=inputs if not self.config.normed_hidden_states else normed_hidden_states,
         value_residual=value_residual,
+        ffn_act=inner_ffn_act,
     )
 
     if self.config.record_internal_nn_metrics:
@@ -251,6 +256,16 @@ class SubDecoderLayer(nn.Module):
           use_bias=cfg.use_bias,
           kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
       )(hidden_states, deterministic=deterministic)
+      if cfg.mlp_postnorm:
+        lnx_rms = norm_class(
+          dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype,
+          name="mlp_postnorm",
+          kernel_axes=("embed",),
+          epsilon=cfg.normalization_layer_epsilon,
+        )
+        mlp_lnx = lnx_rms(mlp_lnx, dynamic=cfg.mlp_postnorm_dynamic)
+
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     # lsp: moe
@@ -315,7 +330,7 @@ class SubDecoderLayer(nn.Module):
     if self.config.value_residual_learning:
       return layer_output, dyn_dense_w, value_residual
     else:
-      return layer_output, dyn_dense_w
+      return layer_output, dyn_dense_w, intermediate_inputs
 
 
 class FusionDecoderLayer(nn.Module):
@@ -360,10 +375,10 @@ class FusionDecoderLayer(nn.Module):
         if self.config.value_residual_learning:
           inputs, dyn_dense_w, value_residual = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, value_residual=value_residual)
         else:
-          inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
+          inputs, dyn_dense_w, intermediate_inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
     
     if self.config.mudd_in_layer:
         if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
         return inputs, hids, value_residual
-    return inputs, dyn_dense_w, value_residual
+    return inputs, dyn_dense_w, value_residual, intermediate_inputs

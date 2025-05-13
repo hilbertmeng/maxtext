@@ -214,7 +214,7 @@ class MlpBlock(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   @nn.compact
-  def __call__(self, inputs, decode: bool = False, deterministic: bool = False):
+  def __call__(self, inputs, decode: bool = False, deterministic: bool = False, return_act: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -297,7 +297,7 @@ class MlpBlock(nn.Module):
     )(x)
 
     output = checkpoint_name(output, "mlpwo")
-    return output
+    return output if not return_act else (output, x)
 
 
 class MoeBlock(nn.Module):

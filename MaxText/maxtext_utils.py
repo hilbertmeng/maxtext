@@ -48,9 +48,9 @@ def get_functional_train_step(train_step, model, teacher_model, config, state_me
   return functools.partial(train_step, model, teacher_model, config, state_mesh_shardings)
 
 
-def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config):
+def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config, teacher_model=None):
   """Get the shardings (both state and data) for eval_step"""
-  functional_eval = get_functional_eval_step(eval_step, model, config)
+  functional_eval = get_functional_eval_step(eval_step, model, teacher_model, config)
   functional_eval.__name__ = "eval_step"
   data_pspec = P(*config.data_sharding)
   data_sharding = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), data_pspec)

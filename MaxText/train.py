@@ -566,7 +566,7 @@ def skewed_reverse_kl(logits, teacher_logits, lam=0.1):
     return distill_xent
     
 
-def loss_fn(model, config, data, dropout_rng, params, teacher_model, teacher_params, is_train=True):
+def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_params, is_train=True):
   """loss_fn for both train and eval.
 
   Args:
@@ -779,7 +779,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
         reference_params = jax.device_put(reference_params, max_utils.with_memory_kind(reference_params_sharding, "device"))
         extra_dpo_args = [reference_params]
     grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)
-    (loss, aux), raw_grads = grad_func(model, config, data, dropout_rng, state.params, teacher_model, teacher_params, *extra_dpo_args, is_train=True)
+    (loss, aux), raw_grads = grad_func(model, teacher_model, config, data, dropout_rng, state.params, teacher_params, *extra_dpo_args, is_train=True)
   intermediate_outputs = aux["intermediate_outputs"]
   if config.debug:
     print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
@@ -836,7 +836,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
   return new_state, metrics
 
 
-def eval_step(model, config, state, data, dropout_rng):
+def eval_step(model, teacher_model, config, state, data, dropout_rng):
   """eval_step no backprop and new state compared with train_step."""
 
   reference_params, extra_dpo_args, _loss_fn = [], [], loss_fn
@@ -845,8 +845,12 @@ def eval_step(model, config, state, data, dropout_rng):
     extra_dpo_args = [reference_params]
     _loss_fn = dpo_loss_fn
 
-  eval_loss_fn = functools.partial(_loss_fn, model, config, data, dropout_rng, is_train=False)
-  loss, aux = eval_loss_fn(state.params, *extra_dpo_args)
+  teacher_params = None
+  if config.use_kd:
+    state, teacher_params = _split_dpo_state(state)
+
+  eval_loss_fn = functools.partial(_loss_fn, model, teacher_model, onfig, data, dropout_rng, is_train=False)
+  loss, aux = eval_loss_fn(state.params, teacher_params, *extra_dpo_args)
   total_loss = aux["total_loss"]
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
@@ -1131,7 +1135,7 @@ def train_loop(config, teacher_config=None, state=None):
         out_shard_eval,
         static_argnums_eval,
         donate_argnums_eval,
-    ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config)
+    ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config, teacher_model)
   if not config.use_kd:
     num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
     print_tree_struct(name='params', tree=state.params, shape=True) # lsp

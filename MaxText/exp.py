@@ -318,3 +318,28 @@ class Llama2MediumDSMoe(DSMoe, Llama2Medium):
     decoder_block = "deepseek"
     first_num_dense_layers = 1
     attention_type = 'global'
+
+
+class LlamaSmallMoE8X(DroplessMoe, Llama2MediumOpenMoe):
+    base_emb_dim = 768
+    base_num_query_heads = 12
+    base_num_kv_heads = 12
+    base_num_decoder_layers = 12
+    head_dim = 64
+
+    base_mlp_dim = 2048 // 2
+    attention='dot_product_chunk'
+    query_chunk_size=512
+    # tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    learning_rate = 6e-4
+    learning_rate_schedule_steps = 29000
+    scan_layers = False
+    num_experts_per_tok = 2
+    num_experts = 16
+
+    moe_type = 'dropless'
+    megablox = True
+    sparse_matmul = True
+    routed_score_func = "sigmoid"
+    shared_experts = 0
+    insert_moe_indexes = list(range(0, 24, 1)) # 隔层插入moe

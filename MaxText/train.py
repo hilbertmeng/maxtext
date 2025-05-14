@@ -779,7 +779,8 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
       if config.use_dpo:
         reference_params = jax.device_put(reference_params, max_utils.with_memory_kind(reference_params_sharding, "device"))
         extra_dpo_args = [reference_params]
-    grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)
+    grad_func = jax.value_and_grad(_loss_fn, argnums=5, has_aux=True)
+    print(f'teacher_model: {teacher_model}')
     (loss, aux), raw_grads = grad_func(model, teacher_model, config, data, dropout_rng, state.params, teacher_params, *extra_dpo_args, is_train=True)
   intermediate_outputs = aux["intermediate_outputs"]
   if config.debug:

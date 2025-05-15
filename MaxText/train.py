@@ -1288,6 +1288,7 @@ def train_loop(config, teacher_config=None, state=None):
       )
       max_logging.log(
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=},"
+          f" avg_teacher_loss={cumulative_eval_metrics['scalar']['eval/avg_teacher_loss']*1e2:.3f}," # lsp
           f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
           f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
       )

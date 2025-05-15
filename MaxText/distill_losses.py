@@ -24,7 +24,7 @@ def forward_kld_topk(logits, teacher_logits, k: int):
         raise ValueError("Logits must have at least one dimension (num_classes).")
 
     num_classes = teacher_logits.shape[-1]
-    k_val = jnp.maximum(1, k)
+    k_val = max(1, k)
     teacher_probs = jax.nn.softmax(teacher_logits, axis=-1)
     student_logprobs = jax.nn.log_softmax(logits, axis=-1)
     _, top_k_indices = jax.lax.top_k(teacher_logits, k=k_val)
@@ -53,7 +53,7 @@ def reverse_kld_topk(logits, teacher_logits, k: int):
         raise ValueError("Logits must have at least one dimension (num_classes).")
 
     num_classes = teacher_logits.shape[-1]
-    k_val = jnp.maximum(1, k)
+    k_val = max(1, k)
 
     teacher_logprobs = jax.nn.log_softmax(teacher_logits, axis=-1)
     student_probs = jax.nn.softmax(logits, axis=-1)
@@ -125,10 +125,10 @@ def compute_distill_loss(config, logits, teacher_logits):
       distill_xent = bi_kld(teacher_logits, logits)
     elif config.distill_loss_method == 'topk_kl':
       assert config.distill_topk > 0
-      distill_xent = forward_kld_topk(logits, teacher_logits, k=config.distill_topk)
+      distill_xent = forward_kld_topk(logits, teacher_logits, k=int(config.distill_topk))
       assert config.distill_topk > 0
     elif config.distill_loss_method == 'topk_rkl':
-      distill_xent = reverse_kld_topk(logits, teacher_logits, k=config.distill_topk)
+      distill_xent = reverse_kld_topk(logits, teacher_logits, k=int(config.distill_topk))
     else:
       distill_xent = distillation_loss(logits, teacher_logits, temperature=config.distill_temperature)
     return distill_xent

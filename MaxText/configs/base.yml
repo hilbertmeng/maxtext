@@ -642,7 +642,7 @@ distill_temperature: 2.0
 distill_alpha: 0.5
 use_kd: False # knowledge distillation
 lam: 0.1
-distill_loss_method: 'srkl'
+distill_loss_method: 'srkl' # 
 train_shuffle_buffer_size: 1
 zero_loss: False
 olmoe_init: False

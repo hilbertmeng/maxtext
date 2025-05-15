@@ -445,7 +445,7 @@ class MoeBlock(nn.Module):
       else:
         router_probs = jax.nn.softmax(_gate_logits.astype(jnp.float32), axis=-1)
       aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
-      aux_loss *= self.config.load_balance_loss_weight
+      aux_loss = self.config.load_balance_loss_weight * aux_loss.mean()
 
     if self.config.record_internal_nn_metrics: # lsp
       # weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok) # permute func can't record
@@ -455,6 +455,13 @@ class MoeBlock(nn.Module):
       top_values = jnp.array([(expert_index == i).sum() for i in jnp.arange(0, self.num_experts, self.num_experts // 8)])
       self.sow('intermediates', f'top/selected_expert_token_nums', top_values)
       record_gate(self, 'router_probs', router_probs, axis=(0, 1))
+
+    if self.config.router_z_loss_coef is not None:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上  防止过大的logits
+      # <=> torch.logsumexp(logits, dim = -1)
+      router_z_loss = jnp.log(jnp.sum(jnp.exp(gate_logits), axis=-1))
+      router_z_loss = jnp.square(router_z_loss)            
+      router_z_loss = self.config.router_z_loss_coef * router_z_loss.mean()
+      aux_loss += router_z_loss
 
     # tile_size = (512, 1024, 1024)  # (m, k, n)
     tile_size = (512, 512, 512)  # (m, k, n)

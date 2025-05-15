@@ -78,6 +78,7 @@ import json
 from etils import epath
 from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
+from distill_losses import compute_distill_loss
 # pylint: disable=too-many-positional-arguments
 
 Transformer = models.Transformer
@@ -519,54 +520,6 @@ def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_t
   return loss, aux
 
 
-def distillation_loss(student_logits, teacher_logits, mask=None, temperature=2.0):
-    # 维度保持 [batch, seq, vocab]
-    student_log_probs = jax.nn.log_softmax(student_logits / temperature, axis=-1)
-    teacher_probs = jax.nn.softmax(teacher_logits / temperature, axis=-1)
-    distill_xent = optax.losses.kl_divergence(student_log_probs, teacher_probs)
-    return distill_xent
-
-
-def minillm_distill_loss(logits, teacher_logits):
-    logits = jnp.asarray(logits, dtype=jnp.float32)
-    teacher_logits = jnp.asarray(teacher_logits)
-    teacher_probs = jax.nn.softmax(teacher_logits, axis=-1)
-    inf_mask = jnp.isinf(logits)
-    student_logprobs = jax.nn.log_softmax(logits, axis=-1)
-    prod_probs = jnp.where(inf_mask, 0.0, student_logprobs * teacher_probs)
-    distill_xent = -jnp.sum(prod_probs, axis=-1)
-    return distill_xent
-            
-
-def skewed_forward_kl(logits, teacher_logits, lam=0.1):
-    logits = jnp.asarray(logits, dtype=jnp.float32)
-    teacher_logits = jnp.asarray(teacher_logits)
-    teacher_probs = jax.nn.softmax(teacher_logits, axis=-1)
-    student_probs = jax.nn.softmax(logits, axis=-1)
-    mixed_probs = lam * teacher_probs + (1-lam) * student_probs
-    mixed_logprobs = jnp.log(mixed_probs)
-    inf_mask = jnp.isinf(logits) | jnp.isinf(teacher_logits)
-    prod_probs = jnp.where(inf_mask, 0.0, teacher_probs * mixed_logprobs)
-    distill_xent = -jnp.sum(prod_probs, axis=-1)
-    return distill_xent
-
-
-def skewed_reverse_kl(logits, teacher_logits, lam=0.1):
-    logits = jnp.asarray(logits, dtype=jnp.float32)
-    teacher_logits = jnp.asarray(teacher_logits)
-    teacher_probs = jax.nn.softmax(teacher_logits, axis=-1)
-    student_probs = jax.nn.softmax(logits, axis=-1)
-    mixed_probs = (1-lam) * teacher_probs + lam * student_probs
-    student_logprobs = jax.nn.log_softmax(logits, axis=-1)
-    mixed_logprobs = jnp.log(mixed_probs)
-    inf_mask = jnp.isinf(logits) | jnp.isinf(teacher_logits)
-    prod_probs = jnp.where(inf_mask, 0.0, student_probs * mixed_logprobs)
-    prod_probs -= jnp.where(inf_mask, 0.0, student_probs * student_logprobs)
-    # prod_probs： b*seq
-    distill_xent = -jnp.sum(prod_probs, axis=-1)
-    return distill_xent
-    
-
 def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_params, is_train=True):
   """loss_fn for both train and eval.
 
@@ -615,17 +568,9 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
     )
     print(f'teacher_logits: {teacher_logits.shape}')
     teacher_logits = jax.lax.stop_gradient(teacher_logits)
-    # distill_loss: b x seq
-    print(f'distill_loss_method: {config.distill_loss_method}')
-    if config.distill_loss_method == 'srkl':
-      distill_xent = skewed_reverse_kl(logits, teacher_logits, lam=config.lam)
-    elif config.distill_loss_method == 'skl':
-      distill_xent = skewed_forward_kl(logits, teacher_logits, lam=config.lam)
-    elif config.distill_loss_method == 'minillm':
-      distill_xent = minillm_distill_loss(logits, teacher_logits)
-    else:
-      distill_xent = distillation_loss(logits, teacher_logits, temperature=config.distill_temperature)
 
+    distill_xent = compute_distill_loss(config, logits, teacher_logits)
+   
   correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
 
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
@@ -640,7 +585,7 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
   distill_loss, teacher_loss = 0.0, 0.0
   if config.use_kd: # compute per token's distill loss
     distill_xent = distill_xent * (data["targets_segmentation"] != 0)
-    if config.distill_loss_method in ['srkl', 'skl', 'minillm']:
+    if 'kl' in config.distill_loss_method:
       distill_temperature = 1.0
     else:
       distill_temperature = config.distill_temperature

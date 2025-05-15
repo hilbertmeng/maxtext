@@ -332,7 +332,7 @@ class MoeBlock(nn.Module):
 
     kernel_in_axis = np.arange(1)
     kernel_out_axis = np.arange(1, 2)
-    kernel_init = nd_dense_init(1.0, "fan_in", "truncated_normal")
+    # kernel_init = nd_dense_init(1.0, "fan_in", "truncated_normal")
 
     if quantizations.in_serve_mode(self.quant):
       # During aqt convert state we delete kernel weight from params to save memory.
@@ -341,7 +341,7 @@ class MoeBlock(nn.Module):
     else:
       w0_kernel = self.param(
           "wi_0",
-          nn.with_logical_partitioning(kernel_init, self.wi_kernel_axes),
+          nn.with_logical_partitioning(self.kernel_init, self.wi_kernel_axes),
           (num_experts, emb_dim, mlp_dim),
           self.weight_dtype,
           kernel_in_axis,
@@ -357,7 +357,7 @@ class MoeBlock(nn.Module):
     else:
       w1_kernel = self.param(
           "wi_1",
-          nn.with_logical_partitioning(kernel_init, self.wi_kernel_axes),
+          nn.with_logical_partitioning(self.kernel_init, self.wi_kernel_axes),
           (num_experts, emb_dim, mlp_dim),
           self.weight_dtype,
           kernel_in_axis,
@@ -372,7 +372,7 @@ class MoeBlock(nn.Module):
     else:
       wo_kernel = self.param(
           "wo",
-          nn.with_logical_partitioning(kernel_init, self.wo_kernel_axes),
+          nn.with_logical_partitioning(self.kernel_init, self.wo_kernel_axes),
           (num_experts, mlp_dim, emb_dim),
           self.weight_dtype,
           kernel_in_axis,
@@ -1044,7 +1044,7 @@ class OpenMoeBlock(nn.Module):
 
         kernel_in_axis = np.arange(1)
         kernel_out_axis = np.arange(1, 2)
-        kernel_init = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
+        # kernel_init = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
         # self.kernel_init = kernel_init
         # The first axes is expert
         kernel_axes = ("exp", "embed_no_exp", "mlp")
@@ -1064,7 +1064,7 @@ class OpenMoeBlock(nn.Module):
         # lsp：务必注意wi_0是需要过激活函数的，在这里称之为gate，小心别和dense的mlp搞反了
         w0_kernel = self.param(
             'wi_0',
-            nn.with_logical_partitioning(kernel_init, kernel_axes),
+            nn.with_logical_partitioning(self.kernel_init, kernel_axes),
             (self.num_experts, emb_dim, mlp_dim),
             self.weight_dtype,
             kernel_in_axis,
@@ -1074,7 +1074,7 @@ class OpenMoeBlock(nn.Module):
         
         w1_kernel = self.param(
             'wi_1',
-            nn.with_logical_partitioning(kernel_init, kernel_axes),
+            nn.with_logical_partitioning(self.kernel_init, kernel_axes),
             (self.num_experts, emb_dim, mlp_dim),
             self.weight_dtype,
             kernel_in_axis,
@@ -1084,7 +1084,7 @@ class OpenMoeBlock(nn.Module):
 
         wo_kernel = self.param(
             'wo',
-            nn.with_logical_partitioning(kernel_init, wo_kernel_axes),
+            nn.with_logical_partitioning(self.kernel_init, wo_kernel_axes),
             (self.num_experts, mlp_dim, emb_dim),
             self.weight_dtype,
             kernel_in_axis,

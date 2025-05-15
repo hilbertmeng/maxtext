@@ -130,4 +130,4 @@ def compute_distill_loss(config, logits, teacher_logits):
       distill_xent = reverse_kld_topk(logits, teacher_logits, k=int(config.distill_topk))
     else:
       distill_xent = distillation_loss(logits, teacher_logits, temperature=config.distill_temperature)
-    return distill_xent
+    return jnp.asarray(distill_xent, dtype=jnp.float32)

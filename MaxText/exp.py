@@ -344,11 +344,11 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         train_shuffle_buffer_size = 500000 // 8
         per_device_batch_size = 2.0 # total 4M
         eval_per_device_batch_size = 2.0 # total 4M
-        eval_interval = 1500
+        eval_interval = 1000
         learning_rate = 0.1 * base_lr
         learning_rate_schedule_steps = 10000
-        warmup_steps_fraction = 0.0 # 要不要warmup
-        # cosine_learning_rate_final_fraction = 0.1
+        warmup_steps_fraction = 0.0
+        cosine_learning_rate_final_fraction = 1.0
         stable_steps_fraction = 1.0
         iter_file_nums = 120
         # gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_32k_tfids0529

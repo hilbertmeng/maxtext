@@ -2,5 +2,13 @@
     "python.testing.pytestArgs": [],
     "python.testing.cwd": "${workspaceFolder}/MaxText",
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "workbench.colorCustomizations": {
+    "gitDecoration.modifiedResourceForeground": "#f3983d",  // 比如换成橙色
+    "gitDecoration.untrackedResourceForeground": "#00CC66", // 新文件绿色
+    "gitDecoration.deletedResourceForeground": "#FF3333",   // 删除红色
+},
+"python.analysis.diagnosticSeverityOverrides": {
+  "reportMissingImports": "none"
+}
 }

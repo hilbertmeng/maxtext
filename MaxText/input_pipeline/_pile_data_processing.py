@@ -399,10 +399,13 @@ def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
     directory_path2 = directory_path + 'B0-40-last/' if directory_path.endswith('/') else directory_path + '/B0-40-last/'
     valid_directory_path = directory_path + 'validation/' if directory_path.endswith('/') else directory_path + '/validation/'
     print(f'directory_path1: {directory_path1} 2: {directory_path2} valid_directory_path: {valid_directory_path}')
-
-    rank_last_path = epath.Path(os.path.join(dataset_path, 'last_files.json'))
-    with rank_last_path.open('r') as f:
-        rank_last_files = json.load(f)['last_files']
+    
+    if train_stage < 5:
+        rank_last_path = epath.Path(os.path.join(dataset_path, 'last_files.json'))
+        with rank_last_path.open('r') as f:
+            rank_last_files = json.load(f)['last_files']
+    else:
+        rank_last_files = []
 
     train_files, valid_files = [], []
     for directory_path in [directory_path1, directory_path2, valid_directory_path]:

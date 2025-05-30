@@ -419,8 +419,7 @@ def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
 
     random.shuffle(train_files)
     print(f'Total train file: {len(train_files)},  test file: {len(valid_files)}')
-
-    epoch = 2
+    epoch = 2 if train_stage != 5 else 1 # 第5阶段为32k训练，新的数据
     shuffled_train_files = copy.deepcopy(train_files)
     for e in range(epoch - 1):
         temp_train_files = copy.deepcopy(train_files)
@@ -435,7 +434,7 @@ def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
         train_files = train_files[1536: 1536*2 + 1]
     elif train_stage == 3:
         train_files = train_files[1536*2 :1536*6 + 1]
-    else:
+    elif train_stage == 4:
         # last_f = os.path.join(dataset_path, 'R051.000076')
         train_files = train_files[1536*6: ]
 

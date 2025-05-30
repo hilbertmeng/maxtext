@@ -339,8 +339,25 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     # #按照计算，最后decay阶段，0.5epoch的步数是 30000。但考虑到 total file: 12344-12288，多了56个文件，因此都加进去，多了 500 steps
     # eopch=0.5;end_steps4=30000+500;B=1024;lr='cosine->2.5e-4';file_nums=[9216, 12344]
     
-    train_stage = 4 # # 换阶段的话需要人工修改meta dict
-    if train_stage == 4: # v5p-128
+    train_stage = 5 # # 换阶段的话需要人工修改meta dict
+    if train_stage == 5: # v5p-128
+        train_shuffle_buffer_size = 500000 // 8
+        per_device_batch_size = 2.0 # total 4M
+        eval_per_device_batch_size = 2.0 # total 4M
+        eval_interval = 1500
+        learning_rate = 0.1 * base_lr
+        learning_rate_schedule_steps = 10000
+        warmup_steps_fraction = 0.0 # 要不要warmup
+        # cosine_learning_rate_final_fraction = 0.1
+        stable_steps_fraction = 1.0
+        iter_file_nums = 120
+        # gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_32k_tfids0529
+        rope_max_timescale = 1000000
+        max_target_length = 32768
+        eval_loop_num_batches = 60
+        keep_period = 1000
+    
+    elif train_stage == 4: # v5p-128
         per_device_batch_size = 16.0 # total 1024
         eval_per_device_batch_size = 16 # total 1024
         eval_interval = 1500
@@ -368,7 +385,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         learning_rate = base_lr * math.sqrt(2)
 
     else:
-        raise ValueError(f'Unknow tran_stage: {tran_stage}')
+        raise ValueError(f'Unknow tran_stage: {train_stage}')
 
     
 class MiniXL:

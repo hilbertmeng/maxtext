@@ -355,15 +355,20 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
   else:
+
     for layer_num in range(0, config.num_decoder_layers, l_step_len):
       if config.dense_conn:
-        layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/mean/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/min/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/min/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/std/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/norm/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
+        if config.mudd_in_layer:
+          l = layer_num if layer_num == config.num_decoder_layers - 1 else layer_num + 1
+          layer = intermediate_outputs["intermediates"]["decoder"][f'layers_{l}'][f"compose_{layer_num}"]
+        else:
+          layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/mean/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_w/min/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/min/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/std/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/norm/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
 
       metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
 
@@ -548,11 +553,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
   )
-  if config.record_internal_nn_metrics:
-    correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
-  else:
-    correct, accuracy = np.array([0]), 0
-
+  correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))

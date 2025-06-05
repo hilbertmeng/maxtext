@@ -71,6 +71,13 @@ class Mudd:
     dynamic_dense_scale_dw = False
     scan_layers = False
 
+class DroplessMoE:
+    moe_type = 'dropless'
+    megablox = True
+    sparse_matmul = True
+    routed_score_func = "sigmoid"
+    shared_experts = 0
+
 class DC:
     pre_compose = True
     post_compose = True
@@ -105,7 +112,7 @@ class Trace:
     profiler = 'xplane'
     scan_layers = False
     record_internal_nn_metrics = False
-    tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+    # tensorboard_dir = "gs://llm_projects/log/summaries/train/"
 
 class TrainXL:
     learning_rate = 2e-4
@@ -624,10 +631,390 @@ class LlamaSmall8XWider(LlamaSmall):
     learning_rate = 6e-4
     learning_rate_schedule_steps = 29000
     scan_layers = False
-    eval_loop_num_batches = 162 * 2
-    eval_per_device_batch_size = 64.0
-    eval_interval = 1000
-    eval_steps = 40
+    # eval_loop_num_batches = 162 * 2
+    # eval_per_device_batch_size = 64.0
+    # eval_interval = 1000
+    # eval_steps = 40
+
+class LlamaSmall16XWiderFFN(LlamaSmall8XWider):
+    base_mlp_dim = 2048 * 16
+    eval_loop_num_batches = 162 * 4
+    eval_per_device_batch_size = 32.0
+
+class LlamaMediumMoE8X(DroplessMoE, Llama2Medium):
+    base_mlp_dim = 2816 // 2
+    attention='dot_product_chunk'
+    query_chunk_size=512 
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    learning_rate = 3e-4
+    learning_rate_schedule_steps = 50000
+    scan_layers = False
+    num_experts_per_tok = 2
+    num_experts = 16
+    # record_raw_grad_per_param = True
+    # upload_param_act_tb_period = 1
+    # upload_loss_tb_period = 1
+    # record_internal_nn_metrics = 1
+    # routed_scaling_factor = 1.0
+
+class LlamaMedium50KTokens(Llama2Medium):
+    attention='dot_product_chunk'
+    query_chunk_size=512 
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    learning_rate = 3e-4
+    learning_rate_schedule_steps = 50000
+    scan_layers = False
+    eval_interval = 12500 # eval loss: 2.2768
+
+class MuddLlamaMedium50KTokens(Mudd, LlamaMedium50KTokens):
+    pass # eval loss: 2.2172
+
+class LlamaMediumMoE8XSoftmax(LlamaMediumMoE8X):
+    eval_interval = 12500
+    routed_score_func = "softmax" # eval loss: 2.1557
+    m_kn_tile_size = (1024, 128) # 0.520
+    # m_kn_tile_size = (512, 128) # 0.472 
+
+class MuddLlamaMediumMoE8XSoftmax(Mudd, LlamaMediumMoE8XSoftmax):
+    mudd_in_layer = True
+    record_internal_nn_metrics = 0
+    m_kn_tile_size = (512, 128) # eval loss: 2.0916
+
+class LlamaMediumMoE8XTileSize128(LlamaMediumMoE8X):
+    pass
+
+class LlamaSmallMoE8X(DroplessMoE, LlamaSmall):
+    base_mlp_dim = 2048 // 2
+    attention='dot_product_chunk'
+    query_chunk_size=512
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    learning_rate = 6e-4
+    learning_rate_schedule_steps = 29000
+    scan_layers = False
+    num_experts_per_tok = 2
+    num_experts = 16
+    # eval_loop_num_batches = 162 * 2
+    # eval_per_device_batch_size = 64.0
+    # eval_interval = 1000
+    # eval_steps = 40
+
+class LlamaSmallMoE8XBaseline(LlamaSmallMoE8X):
+    pass
+
+class LlamaSmallMoE8XC1(LlamaSmallMoE8XBaseline):
+    moe_type = 'openmoe'
+    sfm_after_topn = True
+    load_balance_loss_weight = 0.001
+    gate_noise_coef = 0.5
+    router_z_loss_coef = 0.001
+    expert_chunk_size = None
+    expert_capacity_factor = 1
+
+class LlamaSmallMoE8XC1p5(LlamaSmallMoE8XC1):
+    expert_capacity_factor = 1.5
+
+class LlamaSmallMoE8XC2(LlamaSmallMoE8XC1):
+    expert_capacity_factor = 2
+
+class LlamaSmallMoE8XC2LB0p01(LlamaSmallMoE8XC1):
+    expert_capacity_factor = 2
+    load_balance_loss_weight = 0.01
+
+class LlamaSmallMoE8XC2NoGateNoise(LlamaSmallMoE8XC2):
+    gate_noise_coef = 0
+
+class LlamaSmallMoE8XC16(LlamaSmallMoE8XC1):
+    expert_capacity_factor = 16
+    load_balance_loss_weight = 0
+    gate_noise_coef = 0
+
+class LlamaSmallMoE8XDC(DC, LGWindow, LlamaSmallMoE8XBaseline):
+    scan_layers = False
+
+class LlamaSmallMoE8XMudd(Mudd, LlamaSmallMoE8XBaseline):
+    scan_layers = False
+    dynamic_mlp_dim_unit = 256
+
+class LlamaSmallMoE8XMuddDynDim0(LlamaSmallMoE8XMudd):
+    dynamic_mlp_dim = False
+
+class LlamaSmallMoE8XMuddDynExperts(LlamaSmallMoE8XMudd):
+    dynamic_num_experts = True
+    dynamic_mlp_dim = False
+
+class LlamaSmallMoE7X(LlamaSmallMoE8XBaseline):
+    num_experts_per_tok = 2
+    num_experts = 14
+
+class LlamaSmallMoE8X3in16(LlamaSmallMoE8XBaseline):
+    num_experts_per_tok = 3
+    num_experts = 16
+
+class LlamaSmallMoE8X4in32(LlamaSmallMoE8XBaseline):
+    base_mlp_dim = 2048 // 4
+    num_experts_per_tok = 4
+    num_experts = 32
+
+class LlamaSmallMoE8X8in64(LlamaSmallMoE8XBaseline):
+    base_mlp_dim = 2048 // 8
+    num_experts_per_tok = 8
+    num_experts = 64
+
+class LlamaSmallMoE8X8in64Headdim192(LlamaSmallMoE8X8in64):
+    head_dim = 64 * 3
+
+class LlamaSmallMoE8X8in64InnerFFN(LlamaSmallMoE8X8in64):
+    mask_current_token = True
+    inner_ffn_dim = 2048 // 2
+
+class LlamaSmallMoE8X8in64InnerMoE(LlamaSmallMoE8X8in64):
+    outer_moe = False
+    inner_moe = True
+    shared_experts = 1
+    mask_current_token = True
+
+class LlamaSmallMoE8X8in64InnerOuterMoE(LlamaSmallMoE8X8in64):
+    outer_moe = True
+    inner_moe = True
+    num_experts_per_tok = 8
+
+class LlamaSmallMoE8X4in64ShareInnerOuterMoE(LlamaSmallMoE8X8in64):
+    share_inner_outer_moe = True 
+    outer_moe = True
+    inner_moe = True
+    num_experts_per_tok = 4
+
+class LlamaSmallMoE8X8in64ShareInnerOuterMoE(LlamaSmallMoE8X4in64ShareInnerOuterMoE):
+    num_experts_per_tok = 8
+
+class LlamaSmallMoE8X8in64ShareInnerOuterMoEOnAttnOutRes(LlamaSmallMoE8X8in64ShareInnerOuterMoE):
+    inner_moe_on_attn_out = True
+
+class LlamaSmallMoE8X8in64ShareInnerOuterMoEOnAttnOutPreNorm(LlamaSmallMoE8X8in64ShareInnerOuterMoE):
+    inner_moe_on_attn_out = True
+
+class LlamaSmallMoE8X4in64Chain2(LlamaSmallMoE8X8in64):
+    chain_moe = True
+    num_experts_per_tok = 4
+    outer_moe = True
+
+class LlamaSmallMoE8X8in64Chain2(LlamaSmallMoE8X4in64Chain2):
+    num_experts_per_tok = 8
+
+class LlamaSmallMoE8X8in64Chain2PreNormStdRes(LlamaSmallMoE8X8in64Chain2):
+    chain_moe_norm = True #  prenorm & standard residual
+
+class LlamaSmallMoE8X8in64Softmax(LlamaSmallMoE8X8in64):
+    routed_score_func = "softmax"
+    m_kn_tile_size = (1024, 256)
+
+class LlamaSmallMoE8X8in64MlpGateNormalInit(LlamaSmallMoE8X8in64):
+    m_kn_tile_size = (1024, 256)
+    moe_mlp_gate = True
+
+class LlamaSmallMoE8X8in64IndMlp4NormalInit(LlamaSmallMoE8X8in64):
+    m_kn_tile_size = (1024, 256)
+    moe_mlp_gate = True
+    moe_mlp_gate_expand = 4
+
+class LlamaSmallMoE8X16in64(LlamaSmallMoE8X8in64):
+    num_experts_per_tok = 16
+    m_kn_tile_size = (1024, 256)
+
+class LlamaSmallMoE8X32in64(LlamaSmallMoE8X8in64):
+    num_experts_per_tok = 32
+    m_kn_tile_size = (1024, 256)
+
+class LlamaSmallMoE8X64in64(LlamaSmallMoE8X8in64):
+    num_experts_per_tok = 64
+    m_kn_tile_size = (1024, 256)
+
+class LlamaSmallMoE8X8in128(LlamaSmallMoE8X8in64):
+    num_experts = 128
+
+class LlamaSmallMoE8X16in128(LlamaSmallMoE8X8in64):
+    num_experts = 128
+    num_experts_per_tok = 16
+
+class LlamaSmallMoE8X8in256(LlamaSmallMoE8X8in64):
+    num_experts = 256
+
+class LlamaSmallMoE8X8in512(LlamaSmallMoE8X8in64):
+    num_experts = 512
+
+class LlamaSmallMoE8X8in128Mudd(Mudd, LlamaSmallMoE8X8in128):
+    m_kn_tile_size = (512, 128)
+    dynamic_mlp_dim_unit = 128
+
+class LlamaSmallMoE8X8in256Mudd(Mudd, LlamaSmallMoE8X8in256):
+    m_kn_tile_size = (512, 128)
+    dynamic_mlp_dim_unit = 128
+
+class LlamaSmallMoE8X8in512Mudd(Mudd, LlamaSmallMoE8X8in512):
+    m_kn_tile_size = (512, 128)
+    dynamic_mlp_dim_unit = 128
+
+class LlamaSmallMoE8X8in64Mudd(Mudd, LlamaSmallMoE8X8in64):
+    m_kn_tile_size = (512, 128)
+    dynamic_mlp_dim_unit = 128
+
+class LlamaSmallMoE8X8in64MuddCompAttn(LlamaSmallMoE8X8in64Mudd): 
+    mudd_comp_attn = True
+    
+class LlamaSmallMoE8X8in64MuddDynExperts(LlamaSmallMoE8X8in64Mudd):
+    dynamic_num_experts = True
+    dynamic_mlp_dim = False
+
+class LlamaSmallMoE8X8in64MuddDynDim0(LlamaSmallMoE8X8in64Mudd):
+    dynamic_mlp_dim = False
+
+class LlamaSmallMoE8X8in64Test(SpeedTest, LlamaSmallMoE8X8in64):
+    m_kn_tile_size = (1024, 256) # speed: 0.756 step/s
+    # m_kn_tile_size = (512, 256) # speed: 0.706 step/s
+    # moe_chunk_size = 512 # 0.72
+    # moe_chunk_size = 1024 # 0.74
+
+class LlamaSmallMoE8X8in64Trace(Trace, LlamaSmallMoE8X8in64Test):
+    pass
+
+class LlamaSmallMoE8XTrace(Trace, LlamaSmallMoE8X):
+    pass
+
+class LlamaSmallMoE16X2in32(LlamaSmallMoE8XBaseline):
+    base_mlp_dim = 2048 // 2
+    num_experts_per_tok = 2
+    num_experts = 32
+
+class LlamaSmallMoE16X2in32Mudd(Mudd, LlamaSmallMoE16X2in32):
+    dynamic_mlp_dim_unit = 256
+
+class LlamaSmallMoE16X2in32DC(DC, LGWindow, LlamaSmallMoE16X2in32):
+    pass
+
+class LlamaSmallMoE7XInnerFFN1V7(LlamaSmallMoE8XBaseline):
+    mask_current_token = True
+    inner_ffn_dim = 2048 // 2
+    num_experts = 15
+
+class LlamaSmallMoE7XInnerFFN1V7Strict(LlamaSmallMoE7XInnerFFN1V7):
+    num_experts_per_tok = 1
+
+
+class LlamaSmallMoE8XTileFunc(LlamaSmallMoE8X):
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+
+class LlamaSmallMoE8XMegablox0(LlamaSmallMoE8X):
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+    megablox = False
+
+class LlamaSmallMoE8XTileSize256(LlamaSmallMoE8X):
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+
+class LlamaSmallMoE8XSkip2(LlamaSmallMoE8X):
+    moe_skip_layers = [0, 1]
+    freeze_first_layer_expert = True
+
+class LlamaSmallMoE8XSkip6(LlamaSmallMoE8X):
+    moe_skip_layers = [0, 1, 2, 3, 4, 5]
+    freeze_first_layer_expert = True
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+
+class LlamaSmallMoE8XSkip8(LlamaSmallMoE8XSkip6):
+    moe_skip_layers = [0, 1, 2, 3, 4, 5, 10, 11]
+
+class LlamaSmallMoE8XSkip4(LlamaSmallMoE8XSkip6):
+    moe_skip_layers = [0, 1, 10, 11]
+
+class LlamaSmallMoE8XSkipFirstLast(LlamaSmallMoE8XSkip6):
+    moe_skip_layers = [0, 11]
+
+class LlamaSmallMoE8XMoEPostNorm(LlamaSmallMoE8X):
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+    moe_postnorm = True
+
+class LlamaSmallMoE8XAttnPostNorm(LlamaSmallMoE8X):
+    freeze_first_layer_expert = True
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+    use_postnorm = True
+    o_postnorm = True
+    mixv_postnorm = False
+    # routed_scaling_factor = 2.0
+
+class LlamaSmallMoE8XAttnPostNormMoEPN(LlamaSmallMoE8XAttnPostNorm):
+    moe_postnorm = True
+
+class LlamaSmallMoE8XAttnPostNormMoEPN0p01(LlamaSmallMoE8XAttnPostNormMoEPN):
+    postnorm_scale_init = 0.01
+
+class LlamaSmallMoE8XAttnPostNormMoEPNQKNorm(LlamaSmallMoE8XAttnPostNormMoEPN):
+    qk_norm = True
+
+class LlamaSmallMoE8XAttnPostNormMoEPNQKNormSE1(LlamaSmallMoE8XAttnPostNormMoEPNQKNorm):
+    shared_experts = 1
+
+class LlamaSmallMoE8XFrez(LlamaSmallMoE8X):
+    freeze_first_layer_expert = True
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+
+class LlamaSmallMoE8XFrezSkip0(LlamaSmallMoE8XFrez):
+    moe_skip_layers = [0] # skip moe for the fisrt layer 
+
+class LlamaSmallMoE8XDebug5(SpeedTest, LlamaSmallMoE8X):
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+    routed_scaling_factor = 2.0
+
+class LlamaSmallMoE8XSF2Debug3(SpeedTest, LlamaSmallMoE8X):
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+    routed_scaling_factor = 0.5
+
+class LlamaSmallDebug(SpeedTest, LlamaSmall):
+    base_mlp_dim = 2048 
+    attention='dot_product_chunk'
+    query_chunk_size=512
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    learning_rate = 6e-4
+    learning_rate_schedule_steps = 29000
+    scan_layers = False
+    # num_experts_per_tok = 2
+    # num_experts = 16
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+    routed_scaling_factor = 0.5
+
+class LlamaSmallMoE8XSoftmax(LlamaSmallMoE8X):
+    routed_score_func = "softmax"
+
+class LlamaSmallMoE8XSoftmaxLR0p0002(LlamaSmallMoE8XSoftmax):
+    learning_rate = 2e-4
 
 class LlamaSmall8XWiderHeadPool1V7(LlamaSmall8XWider):
     base_mlp_dim = 2048 * 7
@@ -769,6 +1156,12 @@ class LlamaSmall8XWiderHeadPool1V7GatePostnorm(LlamaSmall8XWiderHeadPool1V7Gate)
 class LlamaSmall29KTokens(LlamaSmall8XWider):
     base_mlp_dim = 2048 * 1
 
+class LlamaSmall29KTokensDC(DC, LGWindow, LlamaSmall29KTokens):
+    scan_layers = False
+
+class LlamaSmall29KTokensMudd(Mudd, LlamaSmall29KTokens):
+    scan_layers = False
+
 class LlamaSmall29KTokensVOHeadDim320(LlamaSmall29KTokens):
     qk_head_dim = 64
     vo_head_dim = 64 * 5
@@ -868,6 +1261,38 @@ class DreamMiniMediumDebug8(SpeedTest, DreamMini, Llama2Medium):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
     static_proj = False
     key_wise = True # v4: 0.456
+
+class LlamaXL6144SpeedTest(SpeedTest, LlamaXL):
+    attention='dot_product_chunk'
+    query_chunk_size=512
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    scan_layers = False
+    base_mlp_dim = 6144 # v5p-32: 0.321
+
+class LlamaXL6144SpeedTest8XFFN(LlamaXL6144SpeedTest):
+    base_mlp_dim = 6144 * 8 # v5p-32: 
+
+class LlamaXLMoESpeedTest(SpeedTest, DroplessMoE, LlamaXL):
+    attention='dot_product_chunk'
+    query_chunk_size=512
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    # learning_rate = 6e-4
+    # learning_rate_schedule_steps = 29000
+    scan_layers = False
+    base_mlp_dim = int(round(6144 / 2 / 128)) * 128 
+    num_experts_per_tok = 2
+    num_experts = 16 # v5p-32: 0.214
+    m_kn_tile_size = (512, 256)
+
+class LlamaXLMoE4in32SpeedTest(LlamaXLMoESpeedTest):
+    base_mlp_dim = int(round(6144 / 4 / 128)) * 128 
+    num_experts_per_tok = 4
+    num_experts = 32 # v5p-32: 0.176
+    
+class LlamaXLMoE8in64SpeedTest(LlamaXLMoESpeedTest):
+    base_mlp_dim = int(round(6144 / 8 / 128)) * 128 
+    num_experts_per_tok = 8
+    num_experts = 64 # v5p-32: 0.128
 
 class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     query_chunk_size = 128

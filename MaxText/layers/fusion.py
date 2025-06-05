@@ -18,6 +18,7 @@ limitations under the License.
 # pylint: disable=arguments-differ
 # pylint: disable=no-name-in-module
 
+import jax
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
@@ -74,15 +75,69 @@ class SubDecoderLayer(nn.Module):
   layer_inx: int|None = None
 
   def setup(self):
+    cfg = self.config
     max_logging.log(f'SubDecoderLayer layer_inx: {self.layer_inx} sliding_window_size: {self.sliding_window_size}', debug=self.config.debug)
     self.mudd_mlp = mudd.Mlp(self.config, self.mesh, self.quant, self.layer_inx)
     self.mudd_qkvnorm = mudd.Norm(self.config, self.mesh, self.quant)
 
     if self.config.dynamic_mlp_dim:
-      self.updated_mlp_dim = round(self.config.mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / 128) * 128 
+      dynamic_mlp_dim_unit = 128 if self.config.dynamic_mlp_dim_unit is None else self.config.dynamic_mlp_dim_unit
+      self.updated_mlp_dim = round(self.config.mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / dynamic_mlp_dim_unit) * dynamic_mlp_dim_unit 
     else:
       self.updated_mlp_dim = self.config.mlp_dim
     max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
+
+    if self.config.dynamic_num_experts:
+      topk = int(round(cfg.num_experts_per_tok * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5)))
+      assert cfg.num_experts % cfg.num_experts_per_tok == 0
+      self.updated_num_experts = int(topk * cfg.num_experts / cfg.num_experts_per_tok)
+      self.updated_num_experts_per_tok = topk
+    else:
+      self.updated_num_experts = cfg.num_experts
+      self.updated_num_experts_per_tok = cfg.num_experts_per_tok
+
+    if self.config.outer_moe:
+      self.moe = linears.MoeBlock(
+        config=cfg,
+        num_experts=cfg.num_experts,
+        num_experts_per_tok=cfg.num_experts_per_tok,
+        mesh=self.mesh,
+        kernel_init=initializers.nd_dense_init_normal(0.006),
+        kernel_axes=("embed", None),
+        intermediate_dim=self.updated_mlp_dim,
+        weight_dtype=cfg.weight_dtype,
+        dtype=cfg.dtype,
+        quant=self.quant,
+        name='outer_moe',
+        )
+
+    if self.config.share_inner_outer_moe:
+      self.inner_router = linears.DenseGeneral(
+            self.config.num_experts,
+            dtype=self.config.dtype,
+            weight_dtype=self.config.weight_dtype,
+            quant=self.quant,
+            kernel_init=initializers.nd_dense_init_normal(0.006),
+            kernel_axes=("embed", None),
+            name="inner_gate",
+            use_bias=self.config.routed_bias,
+            bias_norm=self.config.routed_score_func,
+            matmul_precision=self.config.matmul_precision,
+        )
+    if self.config.chain_moe:
+      self.second_router = linears.DenseGeneral(
+            self.config.num_experts,
+            dtype=self.config.dtype,
+            weight_dtype=self.config.weight_dtype,
+            quant=self.quant,
+            kernel_init=initializers.nd_dense_init_normal(0.006),
+            kernel_axes=("embed", None),
+            name="router2_gate",
+            use_bias=self.config.routed_bias,
+            bias_norm=self.config.routed_score_func,
+            matmul_precision=self.config.matmul_precision,
+        )
+      
 
 
   @nn.compact
@@ -123,19 +178,39 @@ class SubDecoderLayer(nn.Module):
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     inner_ffn_act = None
-    if cfg.inner_ffn_dim:
-      lnx, inner_ffn_act = linears.MlpBlock(
-          intermediate_dim=cfg.inner_ffn_dim, # lsp
-          activations=cfg.inner_ffn_activations or cfg.mlp_activations,
-          intermediate_dropout_rate=cfg.dropout_rate,
-          dtype=cfg.dtype,
-          weight_dtype=cfg.weight_dtype,
-          name="inner_mlp",
+    inner_moe = False if self.config.inner_moe is None else self.config.inner_moe
+    if cfg.inner_ffn_dim or (inner_moe and not self.config.inner_moe_on_attn_out):
+      if inner_moe:
+        assert cfg.moe_type == 'dropless'
+        if self.config.share_inner_outer_moe:
+          lnx, _ = self.moe(lnx, paddings=decoder_segment_ids, router=self.inner_router)
+        else:
+          lnx, _ = linears.MoeBlock(
           config=cfg,
+          num_experts=cfg.num_experts,
+          num_experts_per_tok=cfg.num_experts_per_tok,
+          mesh=mesh,
+          kernel_init=initializers.nd_dense_init_normal(0.006),
+          kernel_axes=("embed", None),
+          intermediate_dim=self.updated_mlp_dim,
+          weight_dtype=cfg.weight_dtype,
+          dtype=cfg.dtype,
           quant=self.quant,
-          use_bias=cfg.use_bias,
-          kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-      )(lnx, deterministic=deterministic, return_act=True)
+          name='inner_moe'
+          )(lnx, paddings=decoder_segment_ids)
+      else:
+        lnx, inner_ffn_act = linears.MlpBlock(
+            intermediate_dim=cfg.inner_ffn_dim, # lsp
+            activations=cfg.inner_ffn_activations or cfg.mlp_activations,
+            intermediate_dropout_rate=cfg.dropout_rate,
+            dtype=cfg.dtype,
+            weight_dtype=cfg.weight_dtype,
+            name="inner_mlp",
+            config=cfg,
+            quant=self.quant,
+            use_bias=cfg.use_bias,
+            kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        )(lnx, deterministic=deterministic, return_act=True)
       lnx = lnx + inputs # inner ffn residual for attn
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       # attn norm (postnorm after inner ffn)
@@ -213,6 +288,10 @@ class SubDecoderLayer(nn.Module):
         ffn_act=inner_ffn_act,
     )
 
+    if inner_moe and self.config.inner_moe_on_attn_out and self.config.share_inner_outer_moe:
+      lnx_rms = norm_class(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, name="inner_moe_prenorm", kernel_axes=("embed",),epsilon=cfg.normalization_layer_epsilon)
+      _attention_lnx, _ = self.moe(lnx_rms(attention_lnx), paddings=decoder_segment_ids, router=self.inner_router)
+      attention_lnx = attention_lnx + _attention_lnx
     if self.config.record_internal_nn_metrics:
       self.sow('intermediates', 'attn_out', maxtext_utils.l2norm(attention_lnx))
 
@@ -242,10 +321,15 @@ class SubDecoderLayer(nn.Module):
     )
     
     mlp_lnx = None
-    if cfg.shared_experts == 1:
+    moe_skip_layers = self.config.moe_skip_layers if self.config.moe_skip_layers is not None else []
+    if cfg.shared_experts == 1 or (self.layer_inx in moe_skip_layers and self.config.freeze_first_layer_expert):
       # MLP block.
+      if self.layer_inx in moe_skip_layers and self.config.freeze_first_layer_expert:
+        expand = 2
+      else:
+        expand = 1
       mlp_lnx = linears.MlpBlock(
-          intermediate_dim=self.updated_mlp_dim, # lsp
+          intermediate_dim=self.updated_mlp_dim * expand, # lsp
           activations=cfg.mlp_activations,
           intermediate_dropout_rate=cfg.dropout_rate,
           dtype=cfg.dtype,
@@ -263,6 +347,7 @@ class SubDecoderLayer(nn.Module):
           name="mlp_postnorm",
           kernel_axes=("embed",),
           epsilon=cfg.normalization_layer_epsilon,
+          scale_init=jax.nn.initializers.constant(self.config.postnorm_scale_init),
         )
         mlp_lnx = lnx_rms(mlp_lnx, dynamic=cfg.mlp_postnorm_dynamic)
 
@@ -271,26 +356,67 @@ class SubDecoderLayer(nn.Module):
     # lsp: moe
     moe_lnx = None
     load_balance_loss = None
-    if cfg.num_experts > 1:
+    outer_moe = True if self.config.outer_moe is None else self.config.outer_moe
+    if cfg.num_experts > 1 and outer_moe and self.layer_inx not in moe_skip_layers:
       if cfg.moe_type == 'openmoe':
         moe_layer = linears.OpenMoeBlock
-      else:
+      elif cfg.moe_type == 'dropless':
         moe_layer = linears.MoeBlock
-      moe_lnx, load_balance_loss = moe_layer(
+      
+      if self.config.share_inner_outer_moe:
+        moe_lnx, load_balance_loss = self.moe(hidden_states, paddings=decoder_segment_ids, router=None) # use default router
+      elif self.config.chain_moe:
+        # first moe
+        moe_lnx, load_balance_loss1 = self.moe(hidden_states, paddings=decoder_segment_ids, router=None) # use default router
+        # second moe
+        lnx_rms = norm_class(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, name="chain_moe_prenorm", kernel_axes=("embed",),epsilon=cfg.normalization_layer_epsilon)
+        chain_moe_input = lnx_rms(mlp_inputs + moe_lnx) if self.config.chain_moe_norm else hidden_states+moe_lnx 
+        moe_lnx, load_balance_loss2 = self.moe(chain_moe_input, paddings=decoder_segment_ids, router=self.second_router) # use default router
+        if load_balance_loss1 is not None and load_balance_loss2 is not None:
+          load_balance_loss = load_balance_loss1 + load_balance_loss2
+      else:
+        moe_layer_func = moe_layer(
         config=cfg,
-        num_experts=cfg.num_experts,
-        num_experts_per_tok=cfg.num_experts_per_tok,
+        num_experts=self.updated_num_experts,
+        num_experts_per_tok=self.updated_num_experts_per_tok,
         mesh=mesh,
         kernel_init=initializers.nd_dense_init_normal(0.006),
         kernel_axes=("embed", None),
-        intermediate_dim=cfg.mlp_dim,
+        intermediate_dim=self.updated_mlp_dim,
         weight_dtype=cfg.weight_dtype,
         dtype=cfg.dtype,
         quant=self.quant,
         name='moe'
-        )(hidden_states, paddings=decoder_segment_ids)
+        )
+        if self.config.moe_chunk_size is None:
+          moe_lnx, load_balance_loss = moe_layer_func(hidden_states, paddings=decoder_segment_ids)
+        else:
+          b, t, d = hidden_states.shape 
+          c = self.config.moe_chunk_size
+          assert t % c == 0
+          moe_lnx = jnp.zeros((b, t, d), dtype=hidden_states.dtype)
+          load_balance_loss = 0
+          for cidx in range(t//c):
+            _moe_lnx, _load_balance_loss = moe_layer_func(hidden_states[:, c * cidx: c* (cidx+1)], paddings=decoder_segment_ids)
+            moe_lnx = moe_lnx.at[:, c * cidx: c* (cidx+1)].set(_moe_lnx)
+            if _load_balance_loss is None:
+              load_balance_loss = None
+            else:
+              load_balance_loss = load_balance_loss + _load_balance_loss
+
       max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
         
+      if cfg.moe_postnorm:
+        lnx_rms = norm_class(
+          dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype,
+          name="moe_postnorm",
+          kernel_axes=("embed",),
+          epsilon=cfg.normalization_layer_epsilon,
+          scale_init=jax.nn.initializers.constant(self.config.postnorm_scale_init),
+        )
+        moe_lnx = lnx_rms(moe_lnx)
+
       if load_balance_loss is not None:
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
@@ -308,7 +434,7 @@ class SubDecoderLayer(nn.Module):
       raise ValueError("Both mlp_lnx and moe_lnx is None, it's not allowed.")
 
     if self.config.record_internal_nn_metrics:
-      self.sow('intermediates', 'mlp_out', maxtext_utils.l2norm(mlp_lnx))
+      self.sow('intermediates', 'mlp_out', maxtext_utils.l2norm(mlp_lnx if mlp_lnx is not None else moe_lnx))
 
     layer_output = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(layer_output, deterministic=deterministic)
 
@@ -325,6 +451,8 @@ class SubDecoderLayer(nn.Module):
           "activation_fraction_zero",
           jnp.sum(layer_output == 0) / jnp.size(layer_output),
       )
+    if not self.config.mudd_comp_attn:
+      intermediate_inputs = None
 
     dyn_dense_w = self.mudd_mlp(layer_output) if not self.config.mudd_in_layer else None# lsp
     if self.config.value_residual_learning:
@@ -380,5 +508,5 @@ class FusionDecoderLayer(nn.Module):
     if self.config.mudd_in_layer:
         if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
-        return inputs, hids, value_residual
+        return inputs, hids, value_residual, intermediate_inputs
     return inputs, dyn_dense_w, value_residual, intermediate_inputs

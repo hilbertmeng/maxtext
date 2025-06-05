@@ -1192,11 +1192,13 @@ class Attention(nn.Module):
     if self.use_postnorm:
       self.mixv_postnorm = True if self.config.mixv_postnorm is None else self.config.mixv_postnorm
       self.o_postnorm = False if self.config.o_postnorm is None else self.config.o_postnorm
+      assert int(self.o_postnorm) + int(self.mixv_postnorm) == 1
       norm_kwargs = {
                   "dtype": cfg.dtype,
                   "weight_dtype": cfg.weight_dtype,
                   "name": "post_norm",
                   "epsilon": cfg.normalization_layer_epsilon,
+                  "scale_init": jax.nn.initializers.constant(self.config.postnorm_scale_init),
                   }
       self.post_norm = normalizations.get_rmsnorm(**norm_kwargs)
 
@@ -1481,6 +1483,11 @@ class Attention(nn.Module):
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
+
+    if self.num_query_heads > self.num_kv_heads: # GQA
+      n_expands = self.num_query_heads % self.num_kv_heads
+      key = jnp.repeat(key, n_expands, axis=-2) # BSNd
+      value = jnp.repeat(value, n_expands, axis=-2) 
 
     if self.config.record_internal_nn_metrics:
       if self.config.sigmoid_attention:

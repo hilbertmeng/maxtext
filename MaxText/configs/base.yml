@@ -627,6 +627,9 @@ attn_ffn_parallel: False
 # inner ffn 
 mask_current_token: False
 
+# postnorm 
+postnorm_scale_init: 1.0
+
 # other
 epoch: 1
 task_features: ['input_ids']

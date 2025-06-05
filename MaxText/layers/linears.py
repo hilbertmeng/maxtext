@@ -334,7 +334,8 @@ class MoeBlock(nn.Module):
 
     kernel_in_axis = np.arange(1)
     kernel_out_axis = np.arange(1, 2)
-    kernel_init = nd_dense_init(1.0, "fan_in", "truncated_normal")
+    # kernel_init = nd_dense_init(1.0, "fan_in", "truncated_normal")
+    kernel_init = self.kernel_init
 
     if quantizations.in_serve_mode(self.quant):
       # During aqt convert state we delete kernel weight from params to save memory.
@@ -387,9 +388,12 @@ class MoeBlock(nn.Module):
     """Scales weights according to DeepSeek's v3 reference implementation.
     https://github.com/deepseek-ai/DeepSeek-V3/blob/2f7b80eecebf3d1c84da5a0d465f6639ea175012/inference/model.py#L592-L594
     """
-    if self.config.routed_score_func == "sigmoid":
-      weights /= weights.sum(-1, keepdims=True)
+    weights = nn.sigmoid(weights) # lsp
+    weights /= weights.sum(-1, keepdims=True)
     weights *= self.config.routed_scaling_factor
+    # if self.config.routed_score_func == "sigmoid":
+    #   weights /= weights.sum(-1, keepdims=True)
+    # weights *= self.config.routed_scaling_factor
     return weights
 
   def permute(self, inputs, gate_logits):
@@ -397,28 +401,28 @@ class MoeBlock(nn.Module):
 
     # reshape inputs (batch, sequence, emb) to (batch * sequence, emb)
     inputs_shape = inputs.shape
-    inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
+    inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2])) # (BT)D
     weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
-    if self.config.decoder_block == "deepseek":
+    if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
       weights = self.deepseek_scale_weights(weights)
     else:
       weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
-    flatten_selected_experts = jnp.ravel(selected_experts)
-    sorted_selected_experts = jnp.argsort(flatten_selected_experts)
-    sorted_indices = sorted_selected_experts // self.num_experts_per_tok
+    flatten_selected_experts = jnp.ravel(selected_experts) # BTK -> (BTK)
+    sorted_selected_experts = jnp.argsort(flatten_selected_experts) # (BTK)
+    sorted_indices = sorted_selected_experts // self.num_experts_per_tok # (BTK)
     # sort inputs for number of selected experts
-    sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
-    group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
+    sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype) #(BTK)D
+    group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts) # N ; sum(N)=(BTK) 
     return sorted_inputs, sorted_selected_experts, weights, group_size
 
   def unpermute(self, intermediate, sorted_selected_experts, weights, batch_size, sequence_length):
     """Unpermute tokens to original order and combine weights."""
 
-    unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
-    reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok))
+    unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0) # (BTK)D
+    reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok)) # (BTK)->(BT)K
     reshaped_intermediate = jnp.reshape(
         unsort_intermediate,
-        (reshaped_weights.shape[0], self.num_experts_per_tok, -1),
+        (reshaped_weights.shape[0], self.num_experts_per_tok, -1), # (BTK)D->(BT)KD
     )
     with jax.named_scope("weight_sum"):
       matmul_precision = lax.Precision(self.config.matmul_precision)
@@ -431,7 +435,18 @@ class MoeBlock(nn.Module):
     return output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
 
   def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
-    tile_size = (512, 1024, 1024)  # (m, k, n)
+    # tile_size = (512, 1024, 1024)  # (m, k, n)
+    # tile_size = (512, 512, 512)
+    # tile_size = (256, 256, 256)
+    tile_size = (128, 128, 128)
+    m_kn_tile_size = (512, 256) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
+    _m, _kn = m_kn_tile_size
+    def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
+      _tm = _m
+      _tk = _m if k % _m ==0 else _kn
+      _tn = _m if n % _m ==0 else _kn
+      assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
+      return (_tm, _tk, _tn)
 
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape
@@ -457,7 +472,8 @@ class MoeBlock(nn.Module):
             rhs=kernel,
             group_sizes=group_sizes,
             preferred_element_type=jnp.bfloat16,
-            tiling=(min(tile_size[0], m), min(tile_size[1], k), min(tile_size[2], n)),
+            # tiling=(min(tile_size[0], m), min(tile_size[1], k), min(tile_size[2], n)),
+            tiling=tiling_func,
             lhs_quantize_dtype=lhs_quantize_dtype,
             rhs_quantize_dtype=rhs_quantize_dtype,
         )
@@ -766,23 +782,50 @@ class MoeBlock(nn.Module):
     return w0_kernel, w1_kernel, wo_kernel
 
   @nn.compact
-  def __call__(self, inputs, padding=None): # lsp
+  def __call__(self, inputs, paddings=None, router=None): # lsp
     cfg = self.config
     inputs = inputs.astype(cfg.dtype)
-    gate_logits = DenseGeneral(
-        self.num_experts,
-        dtype=self.dtype,
-        weight_dtype=self.weight_dtype,
-        quant=self.quant,
-        kernel_init=self.kernel_init,
-        kernel_axes=self.kernel_axes,
-        name="gate",
-        use_bias=self.config.routed_bias,
-        bias_norm=self.config.routed_score_func,
-        matmul_precision=self.config.matmul_precision,
-    )(inputs)
+    if router is None:
+      if self.config.moe_mlp_gate:
+        gate_expand = 1 if self.config.moe_mlp_gate_expand is None else self.config.moe_mlp_gate_expand
+        kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
+        dw_up_proj = DenseGeneral(
+                                        (self.num_experts * gate_expand),
+                                        kernel_init=self.kernel_init,
+                                        kernel_axes=('embed', None),
+                                        use_bias=False,
+                                        name='moe_gate_proj_up',
+                                        **kwargs)
+        dw_down_proj = DenseGeneral(
+                                        (self.num_experts if gate_expand == 1 else 1),
+                                        kernel_init=self.kernel_init, #initializers.contant_dense_init(0.0),
+                                        kernel_axes=(None, None),
+                                        use_bias=True,
+                                        name='moe_gate_proj_down',
+                                        **kwargs)
+        if gate_expand > 1:
+          gate_inner = jax.nn.gelu(dw_up_proj(inputs)) # BTD, D(KE)->BT(KE)
+          gate_inner = gate_inner.reshape(gate_inner.shape[0], gate_inner.shape[1], -1, gate_expand) # BT(KE)->BTKE
+          gate_logits = dw_down_proj(gate_inner).squeeze(-1) # BTKE, E1->BTK
+        else:
+          gate_logits = dw_down_proj(jax.nn.gelu(dw_up_proj(inputs)))
+      else:
+        gate_logits = DenseGeneral(
+            self.num_experts,
+            dtype=self.dtype,
+            weight_dtype=self.weight_dtype,
+            quant=self.quant,
+            kernel_init=self.kernel_init,
+            kernel_axes=self.kernel_axes,
+            name="gate",
+            use_bias=self.config.routed_bias,
+            bias_norm=self.config.routed_score_func,
+            matmul_precision=self.config.matmul_precision,
+        )(inputs)
+    else:
+      gate_logits = router(inputs)
 
-    w0_kernel, w1_kernel, wo_kernel = self.generate_kernels(cfg.num_experts, cfg.emb_dim, self.intermediate_dim)
+    w0_kernel, w1_kernel, wo_kernel = self.generate_kernels(self.num_experts, cfg.emb_dim, self.intermediate_dim)
     if cfg.sparse_matmul:
       max_logging.log("Running MoE sparse matmul implementation.")
       if quantizations.in_serve_mode(self.quant):

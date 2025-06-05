@@ -164,19 +164,19 @@ class DynamicWeightProjection(nn.Module):
       else:
         # C: n_split,  K -> M
         w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
-      if not skip_norm_tanh:
-        w1 = self.dw1_norm(w1)
       if self.use_dw_bias:
         w1 = w1 + self.w1_bias[None,None,None]
         w2 = w2 + self.w2_bias[None,None,None]
+      if not skip_norm_tanh:
+        w1 = self.dw1_norm(w1)
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
 
       dd = self.dd(query_vec)
-      if not skip_norm_tanh:
-        dd = self.dw_activation(dd)
       if self.use_dd_bias:
         dd = dd + self.dd_bias[None, None]
+      if not skip_norm_tanh:
+        dd = self.dw_activation(dd)
       if self.dynamic_dropout_rate is not None:
         dd = self.dropout(dd, deterministic=self.deterministic)
       pre_dd, post_dd = jnp.split(dd, 2, axis=-1)
@@ -197,17 +197,17 @@ class DynamicWeightProjection(nn.Module):
       else:
         # C: n_split,  K -> M
         w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)        
-      w1 = self.dw1_norm(w1)
       if self.use_dw_bias:
         w1 = w1 + self.w1_bias[None,None,None]
         w2 = w2 + self.w2_bias[None,None,None]
+      w1 = self.dw1_norm(w1)
       pre_qw1, pre_kw1, post_qw1, post_kw1 = unbind(w1, 4, axis=3) # BTG4IM->[BTGIM]*4
       pre_qw2, pre_kw2, post_qw2, post_kw2 = unbind(w2, 4, axis=3)
 
       dd = self.dd(query_vec)
-      dd = self.dw_activation(dd)
       if self.use_dd_bias:
         dd = dd + self.dd_bias[None, None]
+      dd = self.dw_activation(dd)
       if self.dynamic_dropout_rate is not None:
         dd = self.dropout(dd, deterministic=self.deterministic)
       pre_qdd, pre_kdd, post_qdd, post_kdd = jnp.split(dd, 4, axis=-1)

@@ -17,6 +17,7 @@
 import functools
 import operator
 from typing import Any, Callable, Iterable, Sequence, Tuple, Union, Optional
+import math
 
 import flax.linen as nn
 import jax
@@ -1057,7 +1058,7 @@ class DcMoeBlock(nn.Module):
 
         max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')
         # expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
-        expert_capacity = int(self.expert_capacity_factor * tokens_per_group / self.num_experts)
+        expert_capacity = math.ceil(self.expert_capacity_factor * tokens_per_group / self.num_experts)
         max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)

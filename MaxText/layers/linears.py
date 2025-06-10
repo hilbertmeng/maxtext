@@ -1052,7 +1052,7 @@ class DcMoeBlock(nn.Module):
         m_dim = inputs.shape[-1]
        
         num_groups = self.num_groups
-        tokens_per_group = num_tokens // num_groups
+        tokens_per_group = num_tokens // num_groups * self.num_experts_per_tok
         assert num_tokens % num_groups == 0, max_logging.log(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 
         max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')

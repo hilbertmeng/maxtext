@@ -54,7 +54,7 @@ elif [[ $tpu_suffix == *v6e* ]]; then
   zone='europe-west4-a'
 else  
   zone="europe-west4-b"
- # zone='us-east5-a'
+  zone='us-east5-a'
 fi
 echo "Zone: $zone"
 
@@ -63,7 +63,8 @@ echo "Romote path: $remote_path"
 # 检查传输方向
 if [ "$direction" -eq 0 ]; then
   # 从A传至B
-  gcloud compute tpus tpu-vm scp $file_name  llm-jax-${tpu_suffix}:$remote_path --worker all --zone $zone --project=ntpu-413714
+ # gcloud compute tpus tpu-vm scp $file_name  llm-jax-${tpu_suffix}:$remote_path --worker all --zone $zone --project=ntpu-413714
+  gcloud compute tpus tpu-vm scp $file_name  llm-jax-${tpu_suffix}:$remote_path --worker all --zone $zone --project=newproject-1-451205
   echo "File name <${file_name}> have been ftped to <$remote_path> successfully"
 elif [ "$direction" -eq 1 ]; then
   # 从B传至A
@@ -72,4 +73,3 @@ elif [ "$direction" -eq 1 ]; then
 else
   echo "无效的传输方向。传输方向应为0或1。"
 fi
-

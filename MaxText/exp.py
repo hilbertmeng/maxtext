@@ -86,6 +86,14 @@ class DC:
     key_wise = True
     static_proj = False
 
+class DC2(DC):
+    key_wise = False
+    qk_norm = True
+    seperate_qk_dw_proj = True # generate qw from query-way hidden state
+    dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
+    use_dw_bias = True
+    use_dd_bias = True
+
 class KVshift:
     use_kv_shift = True
     kv_shift_flash = True
@@ -306,12 +314,30 @@ class DCMLAMedium(DC, LGWindow, MLAMediumBase):
 class MUDDMLAMedium(Mudd, MLAMediumBase):
     pass
 
-
 class MuddLlama2Medium(Mudd, Llama2Medium):
-    model_name = 'MuddLlama2Medium'
+    # model_name = 'MuddLlama2Medium'
     attention='dot_product_chunk'
     query_chunk_size=512
-    tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class DC2MuddLlamaMedium(DC2, LGWindow, MuddLlama2Medium):
+    query_chunk_size = 256
+
+class DC2MuddLlamaMediumKV4QO16(DC2MuddLlamaMedium):
+    base_num_kv_heads = 4
+    base_num_query_heads = 16
+    base_mlp_dim = 2816 + 512 # 64*12*2/3 
+
+class DC2MuddLlamaMediumKV4QO24(DC2MuddLlamaMedium):
+    base_num_kv_heads = 4
+    base_num_query_heads = 24
+    base_mlp_dim = 2816 + 171 # 64*4*2/3 
+
+class DC2MuddLlamaMediumKV4QO32(DC2MuddLlamaMedium):
+    base_num_kv_heads = 4
+    base_num_query_heads = 32
+    base_mlp_dim = 2816 - 171 # 64*4*2/3 
+    sharding_tolerance = 0.05
 
 class MuddLlama2MediumCompAttn(MuddLlama2Medium):
     mudd_comp_attn = True
@@ -759,6 +785,9 @@ class LlamaSmallMoE8X8in64(LlamaSmallMoE8XBaseline):
     base_mlp_dim = 2048 // 8
     num_experts_per_tok = 8
     num_experts = 64
+
+class LlamaSmallMoE8X8in64Debug(Trace, SpeedTest, LlamaSmallMoE8X8in64):
+    pass
 
 class LlamaSmallMoE8X8in64Headdim192(LlamaSmallMoE8X8in64):
     head_dim = 64 * 3

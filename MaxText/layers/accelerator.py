@@ -113,7 +113,7 @@ class QChunk(nn.Module):
   def qk_product(self, query: Array, key: Array) -> Array:
     b, t, n, d = query.shape  
     n_kv = key.shape[-2]
-    assert n_kv == self.num_kv_heads
+    # assert n_kv == self.num_kv_heads
     # normal: b t n d
     result = jnp.einsum('btnd,bsnd->bnts', query, key)
     return result

@@ -35,6 +35,7 @@ import max_logging
 import max_utils
 from aqt.jax.v2 import aqt_tensor
 from kernels import megablox as mblx
+from layers.take_kernel import take_func
 
 
 Array = common_types.Array
@@ -411,7 +412,8 @@ class MoeBlock(nn.Module):
     sorted_selected_experts = jnp.argsort(flatten_selected_experts) # (BTK)
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok # (BTK)
     # sort inputs for number of selected experts
-    sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype) #(BTK)D
+    # sorted_inputs = take_func(inputs_2d, sorted_indices).astype(self.dtype)
+    sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype) # (BT)D -> (BTK)D
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts) # N ; sum(N)=(BTK) 
     return sorted_inputs, sorted_selected_experts, weights, group_size
 

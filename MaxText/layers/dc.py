@@ -378,7 +378,7 @@ class AttentionOp(nn.Module):
     self.num_kv_heads = cfg.num_kv_heads
     self.head_dim = cfg.head_dim
     self.is_cross_attention = False
-    self.num_groups = self.num_kv_heads // self.num_query_heads
+    self.num_groups = 1 if cfg.dc_num_groups is None else cfg.dc_num_groups
     self.dtype = cfg.dtype
     self.weight_dtype = cfg.weight_dtype
     self.precision = None

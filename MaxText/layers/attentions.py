@@ -1485,7 +1485,7 @@ class Attention(nn.Module):
     query /= depth_scaling
 
     if self.num_query_heads > self.num_kv_heads: # GQA
-      n_expands = self.num_query_heads % self.num_kv_heads
+      n_expands = self.num_query_heads // self.num_kv_heads
       key = jnp.repeat(key, n_expands, axis=-2) # BSNd
       value = jnp.repeat(value, n_expands, axis=-2) 
 

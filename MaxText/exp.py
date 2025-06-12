@@ -343,3 +343,37 @@ class LlamaSmallMoE8X(DroplessMoe, Llama2MediumOpenMoe):
     routed_score_func = "sigmoid"
     shared_experts = 0
     insert_moe_indexes = list(range(0, 24, 1)) # 隔层插入moe
+
+
+class Llama7BOpenMoe(CommonMoe, Llama7B):
+    num_experts = 8
+    moe_type = 'open'
+    sfm_after_topn = True
+    router_z_loss_coef = 0.001
+    load_balance_loss_weight = 0.01
+    gate_noise_coef = 0.5
+    expert_capacity_factor = 1.5
+    per_device_batch_size = 1.0
+    eval_per_device_batch_size = 1.0
+    base_mlp_dim = 5632
+    base_num_decoder_layers = 48
+    insert_moe_indexes = list(range(0, 48, 1))
+    vocab_size = 152064
+    mgate = True
+    mgate_dim = 44
+
+class DCLlama7BOpenMoe(DC, Llama7BOpenMoe):
+    sliding_window_size = [16384] * 4
+    num_layers_per_block = 4
+
+class DCLlama7BOpenMoeSub4Test(DC, Llama7BOpenMoe):
+    sliding_window_size = [16384] * 1
+    num_layers_per_block = 1
+    base_num_decoder_layers = 4
+    insert_moe_indexes = list(range(0, 4, 1))
+
+class DCLlama7BOpenMoeSub1Test(DC, Llama7BOpenMoe):
+    insert_moe_indexes = list(range(0, 4, 1))
+    sliding_window_size = [16384] * 1
+    num_layers_per_block = 1
+    base_num_decoder_layers = 4

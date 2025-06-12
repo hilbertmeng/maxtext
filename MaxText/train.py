@@ -165,7 +165,6 @@ def validate_train_config(config):
 
 
 def get_first_step(state):
-  with jax.spmd_mode("allow_all"):
     return int(state.step)
 
 
@@ -643,7 +642,6 @@ def compute_params_norm(params, config): # lsp
     else:
       scalar_vales[newk] = jnp.sqrt(jnp.sum(jnp.square(v)))
   return scalar_vales
-
 
 def train_step(model, teacher_model, config, state_mesh_shardings, state, data, dropout_rng):
   """

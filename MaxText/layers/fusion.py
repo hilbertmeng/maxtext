@@ -286,7 +286,14 @@ class FusionDecoderLayer(nn.Module):
     if len(sliding_window_size) != 1:
         assert not self.config.dense_conn
 
-    self.subs = [SubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}') for i, sws in enumerate(sliding_window_size)]
+    RematSubDecoderLayer = nn.remat(SubDecoderLayer,
+                                    prevent_cse=not self.config.scan_layers,
+                                    # policy= jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims, #  默认的 policy=None 会让 JAX 自己决定，通常是合理的
+                                    policy=None,
+                                    static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+                                    )
+    self.subs = [RematSubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
+                                      for i, sws in enumerate(sliding_window_size)]
 
   @nn.compact
   def __call__(
@@ -296,7 +303,19 @@ class FusionDecoderLayer(nn.Module):
       decoder_positions,
       deterministic,
       model_mode,
+      hids=None,
   ):
+    if self.config.mudd_in_layer:
+        if self.layer_inx == 0: # first layer
+            inputs = [inputs] * len(self.config.dynamic_dense_type)
+        else:
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
+    
     for layer in self.subs:
         inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
+    
+    if self.config.mudd_in_layer:
+        if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
+        return inputs, hids
     return inputs, dyn_dense_w

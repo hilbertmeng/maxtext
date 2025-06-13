@@ -407,14 +407,21 @@ class MoeBlock(nn.Module):
     sorted_selected_experts = jnp.argsort(flatten_selected_experts)
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok
     # sort inputs for number of selected experts
+    # inputs_2d: (b, d) sorted_indices: (topk*length, ), sorted_inputs: (topk*length, d)
     sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
+    # sorted_inputs = jnp.concatenate([inputs_2d] * self.num_experts_per_tok, axis=0)
+    print(f'inputs_2d: {inputs_2d.shape} sorted_indices: {sorted_indices.shape} sorted_inputs: {sorted_inputs.shape}')
+
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
     return sorted_inputs, sorted_selected_experts, weights, group_size
 
   def unpermute(self, intermediate, sorted_selected_experts, weights, batch_size, sequence_length):
     """Unpermute tokens to original order and combine weights."""
-
+    # intermediate: (topk*length, d), sorted_selected_experts: (topk*length, ), unsort_intermediate: (topk*length, d),
     unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
+    # unsort_intermediate = intermediate
+    print(f'intermediate: {intermediate.shape} sorted_selected_experts: {jnp.argsort(sorted_selected_experts).shape} unsort_intermediate: {unsort_intermediate.shape}')
+
     reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok))
     reshaped_intermediate = jnp.reshape(
         unsort_intermediate,
@@ -464,7 +471,15 @@ class MoeBlock(nn.Module):
       aux_loss += router_z_loss
 
     # tile_size = (512, 1024, 1024)  # (m, k, n)
-    tile_size = (512, 512, 512)  # (m, k, n)
+    # tile_size = (512, 512, 512)  # (m, k, n)
+    m_kn_tile_size = (512, 256) # if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
+    _m, _kn = m_kn_tile_size
+    def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
+      _tm = _m
+      _tk = _m if k % _m ==0 else _kn
+      _tn = _m if n % _m ==0 else _kn
+      assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
+      return (_tm, _tk, _tn)
 
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape
@@ -490,7 +505,7 @@ class MoeBlock(nn.Module):
             rhs=kernel,
             group_sizes=group_sizes,
             preferred_element_type=jnp.bfloat16,
-            tiling=(min(tile_size[0], m), min(tile_size[1], k), min(tile_size[2], n)),
+            tiling=tiling_func,
             lhs_quantize_dtype=lhs_quantize_dtype,
             rhs_quantize_dtype=rhs_quantize_dtype,
         )
@@ -1345,344 +1360,3 @@ class OpenMoeBlock(nn.Module):
         # Return to batched shape.
         combined_outputs = combined_outputs.reshape(*inputs.shape)
         return combined_outputs, aux_loss
-
-
-class OpenMoeBlockV2(nn.Module):
-    config: Config
-    num_experts: int
-    num_experts_per_tok: int
-    mesh: Mesh
-    kernel_init: NdInitializer
-    kernel_axes: Tuple[str, ...]
-    intermediate_dim: int = 4096
-    weight_dtype: DType = jnp.float32
-    dtype: DType = jnp.bfloat16
-    quant: Optional[Quant] = None
-    
-    def setup(self):
-
-        kernel_in_axis = np.arange(1)
-        kernel_out_axis = np.arange(1, 2)
-        kernel_init = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
-        # self.kernel_init = kernel_init
-        # The first axes is expert
-        kernel_axes = ("exp", "embed_no_exp", "mlp")
-        wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
-  
-        # self.num_experts = self.config.num_experts - n_shared_experts
-        mlp_dim = self.intermediate_dim # moe dim
-        emb_dim = self.config.base_emb_dim  # model dim
-        self.top_k = self.config.num_experts_per_tok
-        self.expert_capacity_factor = self.config.expert_capacity_factor
-        # self.expert_capacity = self.config.max_target_length * self.expert_capacity_factor * self.num_experts_per_tok // self.num_experts
-        self.min_group_size = self.config.min_group_size
-        self.router_z_loss_coef = self.config.router_z_loss_coef
-        self.aux_loss_coef = self.config.aux_loss_coef
-
-        self.expert_chunk_size = self.config.expert_chunk_size
-
-        # lsp：务必注意wi_0是需要过激活函数的，在这里称之为gate，小心别和dense的mlp搞反了
-        w0_kernel = self.param(
-            'wi_0',
-            nn.with_logical_partitioning(kernel_init, kernel_axes),
-            (self.num_experts, emb_dim, mlp_dim),
-            self.weight_dtype,
-            kernel_in_axis,
-            kernel_out_axis,
-          )
-        self.wi_gate_0 = jnp.asarray(w0_kernel, self.dtype)
-        
-        w1_kernel = self.param(
-            'wi_1',
-            nn.with_logical_partitioning(kernel_init, kernel_axes),
-            (self.num_experts, emb_dim, mlp_dim),
-            self.weight_dtype,
-            kernel_in_axis,
-            kernel_out_axis,
-          )
-        self.wi_0 = jnp.asarray(w1_kernel, self.dtype)
-
-        wo_kernel = self.param(
-            'wo',
-            nn.with_logical_partitioning(kernel_init, wo_kernel_axes),
-            (self.num_experts, mlp_dim, emb_dim),
-            self.weight_dtype,
-            kernel_in_axis,
-            kernel_out_axis,
-          )
-        self.wo_0 = jnp.asarray(wo_kernel, self.dtype)
-
-        self._is_ffn1_gated = True if self.config.mlp_activations[0] != 'linear' else False
-        # silu
-        self.activation = _convert_to_activation_function(self.config.mlp_activations[0])
-
-        if self.config.mgate:
-          inner_gate_kernel = self.param(
-            'mgate',
-            nn.with_logical_partitioning(kernel_init, kernel_axes),
-            (self.num_experts, emb_dim, self.config.mgate_dim),
-            self.weight_dtype,
-            kernel_in_axis,
-            kernel_out_axis,
-          )
-          self.inner_gate = jnp.asarray(inner_gate_kernel, self.dtype)
-          self.router_name = "router_gate"
-        else:
-          self.inner_gate = None
-          self.router_name = "router_gate"
-
-    def _compute_expert_scores(self, x_flat: jax.Array) -> jax.Array:
-        # expert_scores = self.router(x_flat.astype(jnp.float32)) # (B * t) x num_experts
-        expert_scores = DenseGeneral(
-                self.num_experts,
-                dtype=jnp.float32, # lsp
-                weight_dtype=self.weight_dtype,
-                kernel_init=nd_dense_init(1.0, "fan_in", "normal"),
-                kernel_axes=self.kernel_axes,
-                name=self.router_name)(x_flat.astype(jnp.float32))
-        expert_scores, expert_assignment = jax.lax.top_k(expert_scores, k=self.top_k) # (B * t) x top_k
-        expert_scores = jax.nn.softmax(expert_scores, axis=-1).astype(x_flat.dtype) # (B * t) x top_k
-    
-        return expert_assignment, expert_scores
-
-    def _compute_token_expert_assignment(self, x_flat: jax.Array, expert_assignment: jax.Array) -> jax.Array:
-        """
-          B: batch size
-          t: length of the input sequence
-          D: embedding dimension
-    
-          x_flat: (B * t) x D
-        """
-    
-        B_t, _ = x_flat.shape
-    
-        # expert capacity is the fraction of the total number of tokens that can be routed to an expert
-        expert_capacity = math.floor(B_t * self.expert_capacity_factor) # lsp
-        # For each token, each choice, and  each expert, there is either an assignment of the token to the expert ornot
-        expert_assignment_onehot = jax.nn.one_hot(expert_assignment, self.num_experts) # (B * t) x top_k x num_experts
-    
-        # Cumulative sum over the token indices, and then cumulaitive sum over the top_k dimension. This generates position of a token in an expert's capacity. The order of sum ensure that the first expert choice of a token is prioritized over the second expert choice of any other token, in the expert's position
-        position_in_experts = jnp.cumsum(jnp.cumsum(expert_assignment_onehot, axis=0), axis=1).astype(jnp.int32) # (B * t) x top_k x num_experts
-        
-        # Using the assigned positions, remove any token that did not make it within an expert's capacity.
-        expert_mask = expert_assignment_onehot * jnp.less(position_in_experts, expert_capacity) # (B * t) x top_k x num_experts
-        # By summing over the experts dimenion, obtain as mask of which tokens are processed by some experts and which ones are orphants.
-        token_assignment_mask = jnp.sum(expert_mask, axis=-1) # (B * t) x top_k
-    
-        # Apply onehot operate to the position array creates an occupancy mask for each token, choice index, expert, and the position in the expert. Multiply by the expert mask to remove tokens that were droppd
-        expert_choices = jax.nn.one_hot(position_in_experts, expert_capacity) * expert_mask[..., None] # (B * t) x top_k x num_experts x expert_capacity
-      
-        # Sum over the top_k dimenion, because for each token, and, expert, the expert can only be chosen as one of the top_k choices - the resulting mask will be binary. It is an occupancy mask for each token, and for each capacity position, whether there's an allocation
-        expert_choices = jnp.sum(expert_choices, axis=1) # (B * t) x num_experts x expert_capacity
-        expert_choices = expert_choices.transpose(1, 2, 0).astype(jnp.int32) # num_experts x expert_capacity x (B * t)
-    
-        # For each token, and for each choice index, which expert it gets assigned to. Note that this map contains values of 0, which is ambiguous between assignment to expert 0 and the token being an orphant. But which tokens were dropped is store in token_assignment_mask
-        expert_assignment = jnp.einsum('tke, e -> tk', expert_mask, jnp.arange(self.num_experts)) # (B * t) x top_k
-        # Extract out the position in the selected expert
-        position_in_selected_experts = jnp.einsum('tke, tke -> tk', expert_mask, position_in_experts) # (B * t) x top_k
-        # Stack them to a single tensor
-        expert_position_assignment = jnp.stack([expert_assignment, position_in_selected_experts], axis=-1).astype(jnp.int32) # (B * t) x top_k x 2
-    
-        return expert_choices, expert_position_assignment, token_assignment_mask
-
-    def _compute_experts(self, expert_inputs: jax.Array, deterministic:bool=False) -> jax.Array:
-        '''
-        expert_inputs: num_experts x expert_capacity x D
-        '''
-        theta_wi, theta_wo = self.wi_0, self.wo_0
-
-        if self._is_ffn1_gated:
-            theta_wi_gated = self.wi_gate_0
-            
-        # num_groups, num_experts, capacity, *hidden_dims = expert_inputs.shape
-        # assert num_experts == theta_wi.shape[0]
-        expert_inputs = nn.with_logical_constraint(expert_inputs, ("exp", "activation_batch", "tensor"))
-        max_logging.log(f'expert_inputs: {expert_inputs.shape} theta_wi: {theta_wi.shape}')
-        if self._is_ffn1_gated:
-            hidden0 = jnp.einsum("ecd,edm->ecm", expert_inputs, theta_wi)
-            hidden1 = jnp.einsum("ecd,edm->ecm", expert_inputs, theta_wi_gated)
-            hidden1 = self.activation(hidden1)
-            hidden = hidden1 * hidden0
-            # hidden = nn.with_logical_constraint(hidden, ("activation_batch", "exp", "activation_length", "tensor"))
-        else:
-            hidden = jnp.einsum("ecd,edm->ecm", expert_inputs, theta_wi)
-            hidden = self.activation(hidden)
-        #  Broadcast along length.
-        hidden = nn.Dropout(rate=self.config.dropout_rate, broadcast_dims=(-2,))(hidden, deterministic=deterministic) 
-        # hidden = self.mgate_layer(layer_inputs=expert_inputs, 
-        #                     hidden=hidden, 
-        #                     expert_index=expert_index, 
-        #                     compute_n_expert=compute_n_expert)
-
-        hidden = jnp.einsum("ecm,emd->ecd", hidden, theta_wo)
-        hidden = nn.with_logical_constraint(hidden, ("exp", "activation_batch", "tensor"))
-        return hidden
-
-
-    @nn.compact
-    def __call__(self, x, paddings, deterministic=False):
-        """      
-          B: batch size
-          t: length of the input sequence
-          D: embedding dimension
-    
-          x: B x t x D
-        """
-        aux_loss = 0.0
-        b, t, D = x.shape
-        x_flat = x.reshape((b * t, D)) 
-        
-        # expert_assignment, expert_scores: (B * t) x top_k
-        expert_assignment, expert_scores = self._compute_expert_scores(x_flat)
-    
-        # expert_choices: num_experts x expert_capacity x (B * t)
-        # expert_position_assignment: (B * t) x top_k x 2
-        # token_assignment_mask: (B * t) x top_k
-        expert_choices, expert_position_assignment, token_assignment_mask = self._compute_token_expert_assignment(x_flat, expert_assignment)
-    
-        # Reshape to have a batch dimension
-        expert_scores = jnp.reshape(expert_scores, ((b, t, self.top_k))) # B x t x top_k
-        expert_position_assignment = jnp.reshape(expert_position_assignment, ((b, t, self.top_k, 2))) # B x t x top_k x 2
-        expert_position_assignment = nn.with_logical_constraint(hidden, ("activation_batch", "activation_length", None, "tensor"))
-
-        token_assignment_mask = jnp.reshape(token_assignment_mask, ((b, t, self.top_k))) # B x t x top_k
-        # Assign x into expert and capacity positions
-        grouped_x = jnp.einsum('ect, tD -> ecD', expert_choices, x_flat) # num_experts x expert_capacity x D
-        print(f'grouped_x: {grouped_x.shape}')
-        # Process x with each expert, potentially in parallel across the experts
-        expert_outputs = self._compute_experts(grouped_x, deterministic=deterministic) # num_experts x expert_capacity x D
-        expert_outputs = expert_outputs[expert_position_assignment[..., 0], expert_position_assignment[..., 1], :] # B x t x top_k x D
-      
-        # Dropped tokens will receive a residual connection 
-        expert_outputs = jnp.where(token_assignment_mask[..., None], expert_outputs, x[..., None, :]) # B x t x top_k x D
-        result = jnp.einsum('btkD, btk -> btD', expert_outputs, expert_scores) # B x t x D
-    
-        return result, aux_loss
-
-
-
-class JaxQwenBlockSparseTop2MLP(nn.Module):
-  config: Config
-  kernel_init: NdInitializer
-  
-  def setup(self):
-      config = self.config
-      self.weight_dtype = config.weight_dtype
-      self.dtype = config.dtype
-  
-      kernel_in_axis = np.arange(1)
-      kernel_out_axis = np.arange(1, 2)
-      
-      kernel_axes=("embed", "mlp"),
-      gate_proj_kernel = self.param(
-                    'gate_proj',
-                    nn.with_logical_partitioning(self.kernel_init, kernel_axes),
-                    (config.emb_dim, config.mlp_dim),
-                    self.weight_dtype,
-                    kernel_in_axis,
-                    kernel_out_axis,
-                    )
-      self.gate_proj = jnp.asarray(gate_proj_kernel, self.dtype)
-
-      kernel_axes=("embed", "mlp"),
-      up_proj_kernel = self.param(
-                    'up_proj',
-                    nn.with_logical_partitioning(self.kernel_init, kernel_axes),
-                    (config.emb_dim, config.mlp_dim),
-                    self.weight_dtype,
-                    kernel_in_axis,
-                    kernel_out_axis,
-                    )
-      self.up_proj = jnp.asarray(up_proj_kernel, self.dtype)
-
-      kernel_axes=("mlp", "embed"),
-      down_proj_kernel = self.param(
-                    'down_proj',
-                    nn.with_logical_partitioning(self.kernel_init, kernel_axes),
-                    (config.mlp_dim, config.emb_dim),
-                    self.weight_dtype,
-                    kernel_in_axis,
-                    kernel_out_axis,
-                    )
-      self.down_proj = jnp.asarray(down_proj_kernel, self.dtype)
-
-  def __call__(self, hidden_states):
-      w0_state = jnp.einsum('td,df->tf', hidden_states, self.gate_proj)
-      w1_states = jnp.einsum('td,df->tf', hidden_states, self.up_proj)
-      current_hidden_states = nn.silu(w0_state) * w1_states
-      current_hidden_states = jnp.einsum('tf,fd->td', current_hidden_states, self.down_proj)
-      return current_hidden_states
-
-
-class JaxQwenSparseMoeBlock(nn.Module):
-    config: Config
-    mesh: Mesh
-    kernel_init: NdInitializer
-    kernel_axes: Tuple[str, ...]
-    weight_dtype: DType = jnp.float32
-    dtype: DType = jnp.bfloat16
-    quant: Optional[Quant] = None
-
-    def setup(self):
-        config = self.config
-        self.hidden_dim = config.emb_dim
-        self.num_experts = config.num_experts
-        self.top_k = config.num_experts_per_tok
-        kernel_in_axis = np.arange(1)
-        kernel_out_axis = np.arange(1, 2)
-
-        kernel_axes=("embed", "mlp"),
-        gate_proj_kernel = self.param(
-                      'gate',
-                      nn.with_logical_partitioning(self.kernel_init, kernel_axes),
-                      (self.hidden_dim, self.num_experts),
-                      self.weight_dtype,
-                      kernel_in_axis,
-                      kernel_out_axis,
-                      )
-        self.gate = jnp.asarray(gate_proj_kernel, self.dtype)
-        self.experts = [JaxQwenBlockSparseTop2MLP(config, self.kernel_init) for _ in range(self.num_experts)]
-
-        self.router_z_loss_coef = self.config.router_z_loss_coef
-        self.aux_loss_coef = self.config.load_balance_loss_weight
-
-    def __call__(self, hidden_states, paddings, deterministic=False):
-        batch_size, sequence_length, hidden_dim = hidden_states.shape
-        hidden_states = hidden_states.reshape(-1, hidden_dim)
-        # router_logits: (batch * sequence_length, n_experts)
-        router_logits = jnp.einsum('td,de->te', hidden_states, self.gate)
-        routing_weights = nn.softmax(router_logits, axis=1)
-
-        aux_loss, router_z_loss = 0.0, 0.0
-        # if self.aux_loss_coef is not None:
-        #     aux_loss = _load_balancing_loss(router_probs, expert_index)  # 各个专家之间实现均衡的负载分配
-        #     aux_loss *= self.aux_loss_coef
-        # if self.router_z_loss_coef is not None:  # 目的是避免路由器的输出变得过于极端或不稳定，确保概率分布不会集中在极少数的专家上  防止过大的logits
-        #     # <=> torch.logsumexp(logits, dim = -1)
-        #     router_z_loss = jnp.log(jnp.sum(jnp.exp(router_logits), axis=-1))
-        #     router_z_loss = jnp.square(router_z_loss)            
-        #     router_z_loss = self.router_z_loss_coef * router_z_loss.mean()
-        # aux_loss = aux_loss + router_z_loss
-
-        routing_weights, selected_experts = jax.lax.top_k(routing_weights, self.top_k)
-        routing_weights /= jnp.sum(routing_weights, axis=-1, keepdims=True)
-        # we cast back to the input dtype
-        routing_weights = jnp.asarray(routing_weights, hidden_states.dtype)
-        final_hidden_states = jnp.zeros(
-        (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype
-        )
-        expert_mask = nn.one_hot(selected_experts, num_classes=self.num_experts).transpose(2, 1, 0)
-        # __import__('ipdb').set_trace()
-        for expert_idx in range(self.num_experts):
-            expert_layer = self.experts[expert_idx]
-            idx, top_x = jnp.where(expert_mask[expert_idx]) # 动态的。不可编译
-            if top_x.shape[0] == 0:
-                continue
-            # in torch it is faster to index using lists than torch tensors
-            top_x_list = top_x.tolist()
-            idx_list = idx.tolist()
-            current_state = hidden_states[None, top_x_list].reshape(-1, hidden_dim)
-            current_hidden_states = expert_layer(current_state) * routing_weights[top_x_list, idx_list, None]
-            final_hidden_states = final_hidden_states.at[top_x].add(current_hidden_states.astype(self.dtype))
-        final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
-        return final_hidden_states, aux_loss

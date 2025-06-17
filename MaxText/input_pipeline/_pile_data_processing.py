@@ -307,7 +307,7 @@ def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
     # file size short：long = 1.5: 1, 为了保证short的token: long = 3: 7, 因此 short 取 (1 / 1.5) * (3 / 7) = 2 / 7
     short_k = min(3 * len(train_long_files) // 14, len(train_short_files))
     selected_short_files = random.sample(train_short_files, k=short_k)
-    train_files = selected_short_files + train_long_files
+    train_files = selected_short_files
     print(f'selected_short_files: {len(selected_short_files)} train_long_files: {len(train_long_files)}')
     random.shuffle(train_files)
     print(f'first 10 train files: {train_files[:10]}')

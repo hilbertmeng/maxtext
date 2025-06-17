@@ -18,6 +18,8 @@ from etils import epath
 from jax.sharding import PartitionSpec as PS
 from flax.traverse_util import flatten_dict, unflatten_dict
 
+import nest_asyncio
+nest_asyncio.apply()
 
 METADATA_FILE = '_METADATA'
 _CHECKPOINT_FILE = 'checkpoint'

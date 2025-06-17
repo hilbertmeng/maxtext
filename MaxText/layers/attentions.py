@@ -223,6 +223,7 @@ class AttentionOp(nn.Module):
       lengths: Array | None,
       model_mode: str,
       use_ragged_attention: bool = False,
+      eos_sum: Array | None = None,
   ):
     self.check_attention_inputs(query, key, value)
     length = query.shape[-3]
@@ -241,7 +242,7 @@ class AttentionOp(nn.Module):
       return accelerator.QChunk(config=self.config, 
                                 sliding_window_size=self.sliding_window_size,
                                 kv_quant=self.kv_quant)(
-                                query, key, value, decoder_segment_ids, model_mode
+                                query, key, value, decoder_segment_ids, model_mode, eos_sum
                                 )
 
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
@@ -1381,7 +1382,7 @@ class Attention(nn.Module):
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv)
+    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv, eos_sum=eos_sum)
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 

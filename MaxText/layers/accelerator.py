@@ -120,14 +120,14 @@ class QChunk(nn.Module):
       key = key.astype(jnp.float32)
     # bnts -> bkgts
     attn_weights = self.qk_product(query, key)
-    attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
+    attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', None, 'activation_length', None),)
    
     if self.config.pre_compose:
        # 5 demonsion
       pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
       attn_weights = pre_proj_layer(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
 
-    attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
+    attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', None, 'activation_length', None),)
     # apply attention mask
     if attn_mask is not None:
       attn_weights = apply_mask_to_logits(attn_weights, attn_mask)
@@ -176,19 +176,23 @@ class QChunk(nn.Module):
 
     b, t, n, _ = query.shape
     h = value.shape[-1]
+    print(f'eos_sum: {eos_sum}')
 
-    if not self.config.mix_attn or self.sliding_window_size < 32000:
+    if eos_sum is None:
+       # Attention mask compute
       attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype)
     else:
-      eos_sum = (decoder_segment_ids == 0).sum(1) 
-      eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
-      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, squeeze=True)
-      attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
-      large_negative_number = get_large_negative_number(attn_mask.dtype)
-      eos_sum_mask = large_negative_number * eos_sum
-      attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
-      attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
-      attn_mask = attn_mask[:, jnp.newaxis, ...] # bts -> bnts
+      if self.sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype)
+        attn_mask = attn_mask[:, jnp.newaxis]
+      else:
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, squeeze=True)
+        attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
+        large_negative_number = get_large_negative_number(attn_mask.dtype)
+        eos_sum_mask = large_negative_number * eos_sum
+        attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
+        attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
+        attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
 
     if self.query_chunk_size is None:
         encoded = self._apply_attention_dot(

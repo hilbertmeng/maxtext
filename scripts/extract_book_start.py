@@ -1,6 +1,7 @@
 import os
 import random
 import re
+from collections import Counter
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 
@@ -92,6 +93,15 @@ def filter_unused_line(lines):
     return lines
     
 
+def detect_language(text):
+    chinese_chars = re.findall(r'[\u4e00-\u9fff]', text)
+    english_chars = re.findall(r'[A-Za-z]', text)
+    if len(chinese_chars) > len(english_chars) // 10:
+        return False
+    else:
+        return True
+
+
 class QwenTokenizer():
     def __init__(self, tokenizer_path, save_dir, rank):
         if TOKENIZER_NAME == 'qwen':
@@ -106,12 +116,14 @@ class QwenTokenizer():
         self.next_ids = []
         self.count = 0
         self.extract_nums_perline = 0
-        self.extract_max_nums_perline = 5
+        self.extract_max_nums_perline = 4
         self.perfile_nums = 2000
         self.save_dir = save_dir
         self.writer = None
         self.rank = rank + RANK_START_INDEX
         self.writer_factory()
+        self.zh = 0
+        self.en = 0
 
     def writer_factory(self):
         if self.writer is not None:
@@ -151,6 +163,7 @@ class QwenTokenizer():
                 save_ids = []
         return total_ids
  
+
 def check_text_length(line):
     # 0524 add filter， 有些乱码数据很长一段
     text = line['text']
@@ -166,6 +179,18 @@ def check_text_length(line):
     else:
         return True
 
+
+pattern = re.compile(r"/(?:span|div|h\d|br|a|p)>")
+def counter_html(text):
+    length = len(text.split('\n'))
+    matches = pattern.findall(text)
+    counts = Counter(matches)
+    n = sum(counts.values())
+    if n / length > 0.3: # 包含1/3以上html标签的去掉
+        return True
+    return False
+
+
 def process_data(args):
     cur_rank_pathes, rank, workers = args
     print(f'rank: {rank} cur_rank_pathes: {len(cur_rank_pathes)}')
@@ -179,7 +204,19 @@ def process_data(args):
             line = cur_rank_lines[i]
             line = orjson.loads(line)
             text = line['text'] # 一本书
-            text = re.subn('？。|\?。', '？', text)[0] 
+            if counter_html(text):
+                print(f'Error text: {text[:1000]}')
+                continue
+            if detect_language(text[:1000]):
+                if random.randint(0, 4) != 0 and len(text) < 500000:
+                    continue
+                qwen_tokenizer.extract_max_nums_perline = 1
+                qwen_tokenizer.en += 1
+            else:
+                qwen_tokenizer.extract_max_nums_perline = 2
+                qwen_tokenizer.zh += 1
+            wen_or_ju = '。' if random.randint(0, 1) else '？'
+            text = re.subn('？。|\?。', wen_or_ju, text)[0]
             # text_split = re.split(r'(\n)', text) # 保留了换行符
             text_split = text.split('\n')
             text_split = filter_unused_line(text_split)
@@ -201,13 +238,13 @@ def process_data(args):
 
             if qwen_tokenizer.extract_nums_perline < qwen_tokenizer.extract_max_nums_perline and qwen_tokenizer.next_ids: # 没有提取够，说明书结束了。就添加eos
                 qwen_tokenizer.next_ids += EOS_ID
-                if len(qwen_tokenizer.next_ids) < 1000 and qwen_tokenizer.extract_nums_perline > 0 and MODE == 'train': # 上本书遗留小于1000token的书，扔掉
+                if len(qwen_tokenizer.next_ids) < 800 and qwen_tokenizer.extract_nums_perline > 0 and MODE == 'train': # 上本书遗留小于800token的书，扔掉
                     qwen_tokenizer.next_ids = []
                 elif len(qwen_tokenizer.next_ids) < 300 and qwen_tokenizer.extract_nums_perline == 0 and MODE == 'train': # 小于300token的书，扔掉
                     qwen_tokenizer.next_ids = []
-
+        print(f'cur file zh: {qwen_tokenizer.zh} en: {qwen_tokenizer.en}')
     qwen_tokenizer.writer.close()
-    return qwen_tokenizer.count
+    return [qwen_tokenizer.count, qwen_tokenizer.zh, qwen_tokenizer.en]
 
 
 def encode_file(pathes, workers=6):
@@ -250,13 +287,13 @@ if __name__ == "__main__":
    
     if data_type == 'valid':
         pathes = ['gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/jsonl/valid_concat.jsonl']
-        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_32k_tfids0529/validation'
+        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_4k32k_tfids0617/validation'
         print(f'SAVE_DIR: {SAVE_DIR}')
     else:
         buckets = args.bucketes.split('-')
         bucket_start = int(buckets[0])
         bucket_end = int(buckets[1]) if len(buckets) == 2 else bucket_start  + 1
-        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_32k_tfids0529/B0-40'
+        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_4k32k_tfids0617/B0-40'
         pathes = [f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/jsonl/2nd-shuffled-data_bucket-{bucket}-{index:03}-of-025.jsonl.zst' for bucket in range(bucket_start, bucket_end) for index in range(25)]
     print(f'total file nums: {len(pathes)}')
     run_pathes = pathes[file_start: file_end]

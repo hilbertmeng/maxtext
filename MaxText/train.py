@@ -334,6 +334,12 @@ def save_checkpoint(
 # lsp
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
+
+  if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
+    output_metrics["scalar"]["eos_sum"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum"]
+  if 'eos_sum_mean' in intermediate_outputs["intermediates"]["decoder"]:
+    output_metrics["scalar"]["eos_sum_mean"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum_mean"]
+
   l_step_len = max(config.base_num_decoder_layers // 8, 1)
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers

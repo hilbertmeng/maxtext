@@ -392,6 +392,14 @@ class Decoder(nn.Module):
     mesh = self.mesh
     assert decoder_input_tokens.ndim == 2  # [batch, len]
 
+    if cfg.mix_attn:
+      # ======================================32k long context max window size set==================================================
+      eos_sum = (decoder_segment_ids == 0).sum(1) 
+      eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
+      if cfg.record_internal_nn_metrics:
+        self.sow("intermediates", "eos_sum_mean", eos_sum.mean(), ) # 每个batch带有eos数据的比例
+        self.sow("intermediates", "eos_sum", eos_sum.sum(), ) # batch总的eos数量
+
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)

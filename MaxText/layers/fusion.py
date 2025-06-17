@@ -90,6 +90,7 @@ class SubDecoderLayer(nn.Module):
       decoder_positions,
       deterministic,
       model_mode,
+      eos_sum,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -147,6 +148,7 @@ class SubDecoderLayer(nn.Module):
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
         model_mode=model_mode,
+        eos_sum=eos_sum,
     )
 
     attention_lnx = nn.with_logical_constraint(
@@ -304,6 +306,7 @@ class FusionDecoderLayer(nn.Module):
       deterministic,
       model_mode,
       hids=None,
+      eos_sum=None,
   ):
     if self.config.mudd_in_layer:
         if self.layer_inx == 0: # first layer
@@ -312,7 +315,7 @@ class FusionDecoderLayer(nn.Module):
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
     
     for layer in self.subs:
-        inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
+        inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
     
     if self.config.mudd_in_layer:
         if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer

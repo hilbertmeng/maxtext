@@ -473,6 +473,7 @@ class Decoder(nn.Module):
               decoder_positions,
               deterministic,
               model_mode,
+              eos_sum,
           )
       else:
         if cfg.decoder_block == "deepseek":
@@ -485,13 +486,13 @@ class Decoder(nn.Module):
           num_layers = [cfg.first_num_dense_layers, num_moe_layers]
           for index in range(len(layers)):
               for index_j in range(num_layers[index]):
-                        y = layers[index](config=cfg, mesh=mesh, name=f"{layer_prefix[index]}_{index_j}", quant=self.quant)(
-                            y,
-                            decoder_segment_ids,
-                            decoder_positions,
-                            deterministic,
-                            model_mode,
-                        )
+                  y = layers[index](config=cfg, mesh=mesh, name=f"{layer_prefix[index]}_{index_j}", quant=self.quant)(
+                      y,
+                      decoder_segment_ids,
+                      decoder_positions,
+                      deterministic,
+                      model_mode,
+                  )
         else:
           if isinstance(cfg.sliding_window_size, list):
             assert len(cfg.sliding_window_size) == cfg.num_decoder_layers
@@ -508,6 +509,7 @@ class Decoder(nn.Module):
                 deterministic,
                 model_mode,
                 hids=hids,
+                eos_sum=eos_sum,
             )
             if self.config.mudd_in_layer:
               y, hids = y

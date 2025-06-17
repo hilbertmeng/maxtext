@@ -1314,6 +1314,7 @@ class Attention(nn.Module):
       inputs_kv: Array,
       inputs_positions: Array,
       decoder_segment_ids: Array | None = None,
+      eos_sum: Array | None = None,
       *,
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,

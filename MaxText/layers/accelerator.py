@@ -160,6 +160,7 @@ class QChunk(nn.Module):
     value: Array, 
     decoder_segment_ids: Array | None,  # attention mask
     model_mode: str = common_types.MODEL_MODE_TRAIN,
+    eos_sum = None,
     pre_proj_dw_args = None,
     post_proj_dw_args = None,
     pre_proj_layer = None,

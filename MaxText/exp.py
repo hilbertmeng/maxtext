@@ -82,6 +82,7 @@ class DC:
     query_wise = True
     key_wise = True
     static_proj = False
+    qk_norm = True
  
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     base_emb_dim = 1024
@@ -327,15 +328,15 @@ class LlamaSmallMoE8X(DroplessMoe, Llama2MediumOpenMoe):
     base_num_decoder_layers = 12
     head_dim = 64
 
-    base_mlp_dim = 2048 // 2
     attention='dot_product_chunk'
     query_chunk_size=512
     # tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
     learning_rate = 6e-4
     learning_rate_schedule_steps = 29000
     scan_layers = False
-    num_experts_per_tok = 2
-    num_experts = 16
+    num_experts_per_tok = 8
+    base_mlp_dim = 2048 // num_experts_per_tok
+    num_experts = 64
 
     moe_type = 'dropless'
     megablox = True
@@ -343,6 +344,7 @@ class LlamaSmallMoE8X(DroplessMoe, Llama2MediumOpenMoe):
     routed_score_func = "sigmoid"
     shared_experts = 0
     insert_moe_indexes = list(range(0, 24, 1)) # 隔层插入moe
+    num_layers_per_block = 1
 
 
 class Llama7BOpenMoe(CommonMoe, Llama7B):
@@ -351,8 +353,8 @@ class Llama7BOpenMoe(CommonMoe, Llama7B):
     sfm_after_topn = True
     router_z_loss_coef = 0.001
     load_balance_loss_weight = 0.01
-    gate_noise_coef = 0.5
-    expert_capacity_factor = 1.5
+    gate_noise_coef = 0.0
+    expert_capacity_factor = 1.0
     per_device_batch_size = 1.0
     eval_per_device_batch_size = 1.0
     base_mlp_dim = 5632
@@ -361,19 +363,53 @@ class Llama7BOpenMoe(CommonMoe, Llama7B):
     vocab_size = 152064
     mgate = True
     mgate_dim = 44
+    rope_max_timescale = 1000000
+
+class LlamaXLDMoe(CommonMoe, Llama2XL):
+    moe_type = 'dropless'
+    per_device_batch_size = 32.0
+    eval_per_device_batch_size = 32.0
+    insert_moe_indexes = list(range(0, 24, 1))
+    num_experts = 64
+    num_experts_per_tok = 8
+    base_mlp_dim = 768
+    query_chunk_size = 512
 
 class DCLlama7BOpenMoe(DC, Llama7BOpenMoe):
-    sliding_window_size = [16384] * 4
+    sliding_window_size = [256, 24576, 256, 256] * 1
     num_layers_per_block = 4
+    expert_chunk_size = None
 
-class DCLlama7BOpenMoeSub4Test(DC, Llama7BOpenMoe):
-    sliding_window_size = [16384] * 1
+class DCLlama7BOpenMoeTest(DCLlama7BOpenMoe):
     num_layers_per_block = 1
-    base_num_decoder_layers = 4
-    insert_moe_indexes = list(range(0, 4, 1))
+    base_emb_dim = 2048
+    base_num_query_heads = 8
+    base_num_kv_heads = 8
+    base_mlp_dim = 2816
+    base_num_decoder_layers = 32
+    insert_moe_indexes = list(range(0, 32, 1))
+    head_dim = 128
+    model_name = 'test'
+    scan_layers = True
+    moe_type = 'open'
+    remat_policy = 'minimal'
+    # sliding_window_size = [256, None, 256, 256]
+    sliding_window_size = 2048
 
-class DCLlama7BOpenMoeSub1Test(DC, Llama7BOpenMoe):
-    insert_moe_indexes = list(range(0, 4, 1))
-    sliding_window_size = [16384] * 1
-    num_layers_per_block = 1
-    base_num_decoder_layers = 4
+
+class DCLlama7BOpenMoeTest(DCLlama7BOpenMoe):
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_mlp_dim = 2816
+    base_num_decoder_layers = 32
+    insert_moe_indexes = list(range(0, 32, 1))
+    head_dim = 128
+    model_name = 'test'
+    scan_layers = True
+    moe_type = 'open'
+    remat_policy = 'minimal'
+    num_layers_per_block = 4
+    sliding_window_size = [None] * num_layers_per_block
+    # sliding_window_size = None
+    query_chunk_size = None

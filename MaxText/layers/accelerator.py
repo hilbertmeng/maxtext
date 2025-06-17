@@ -165,12 +165,29 @@ class QChunk(nn.Module):
     pre_proj_layer = None,
     post_proj_layer = None,
 ):
+    def update_mask(v, atten_mask):
+        # 当设置Windows大于4096时，自动根据数据中的eos数量，来决定Windows是否重置为4096
+        offset = 1 - 4096 - self.query_chunk_size
+        atten_mask = atten_mask.at[..., :offset].set(v)
+        return atten_mask
+    
     self.check_attention_inputs(query, key, value)
 
     b, t, n, _ = query.shape
     h = value.shape[-1]
-    s = key.shape[1]
-    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype)
+
+    if not self.config.mix_attn or self.sliding_window_size < 32000:
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype)
+    else:
+      eos_sum = (decoder_segment_ids == 0).sum(1) 
+      eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, squeeze=True)
+      attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
+      large_negative_number = get_large_negative_number(attn_mask.dtype)
+      eos_sum_mask = large_negative_number * eos_sum
+      attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
+      attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
+      attn_mask = attn_mask[:, jnp.newaxis, ...] # bts -> bnts
 
     if self.query_chunk_size is None:
         encoded = self._apply_attention_dot(

@@ -34,6 +34,7 @@ class PileDatasets():
                 num_batches_to_skip: Optional[int] = None,
                 only_eval: bool = False,
                 zero_loss: bool = True,
+                mix_attn: bool = False
                 ):
         self.mesh = mesh
         self.name = name
@@ -54,6 +55,8 @@ class PileDatasets():
         self.only_eval = only_eval
         self.zero_loss = zero_loss
         self.batch_padding_size = 0
+        self.mix_attn = mix_attn
+
         self.__post_init__()
         
     def __post_init__(self):
@@ -129,6 +132,18 @@ class PileDatasets():
             example[name] = tf.sparse.to_dense(t, default_value=0)[:self.seq_len + 1]
         return example
 
+    def build_attn_mask(self):
+        if not self.mix_attn:
+            return tf.ones([self.batch_size, self.seq_len], dtype=tf.int32)
+        p = 0.5                            
+        body = tf.ones([self.batch_size, self.seq_len - 1], dtype=tf.int32)
+        mask  = tf.random.uniform([self.batch_size, 1]) < p
+        last_column  = tf.where(mask,
+                                tf.zeros([self.batch_size, 1], dtype=tf.int32),   # 选中 → 0
+                                tf.ones ([self.batch_size, 1], dtype=tf.int32))   # 未选 → 1
+        inputs_segmentation = tf.concat([body, last_column], axis=1)
+        return inputs_segmentation
+
     def convert(self, data):
         seq_len = self.seq_len
         model_needed_inputs = {}
@@ -136,11 +151,9 @@ class PileDatasets():
         model_needed_inputs['targets'] = data["input_ids"][:, 1: seq_len + 1]
         key = 'labels' if "labels" in data else 'input_ids'
         weights = data[key] >= 0 if self.zero_loss else data[key] > 0
-        # print(f'key: {key}')
-        # print(f'weights: {weights.sum()}')
         # label loss mask, origin bool type, but due the complie is int32
-        model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32) 
-        model_needed_inputs['inputs_segmentation'] = tf.ones_like(model_needed_inputs['inputs'])  # attention mask
+        model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32)
+        model_needed_inputs['inputs_segmentation'] = self.build_attn_mask()
         pos = tf.range(seq_len)
         model_needed_inputs['inputs_position'] = model_needed_inputs['inputs_segmentation'] * pos
         model_needed_inputs['targets_position'] = model_needed_inputs['inputs_segmentation'] * pos  # no use, but complie have this key
@@ -448,6 +461,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             only_eval=False,
                             zero_loss=config.zero_loss,
                             iter_file_nums=config.iter_file_nums,
+                            mix_attn=config.mix_attn,
                             )
   eval_dataloader = None
   if eval_pathes:
@@ -466,6 +480,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             only_eval=False,
                             zero_loss=config.zero_loss,
                             iter_file_nums=config.iter_file_nums,
+                            mix_attn=config.mix_attn,
                             )
   def train_dataloader_fn():
     return train_dataloader

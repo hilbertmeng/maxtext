@@ -647,3 +647,4 @@ train_shuffle_buffer_size: 1
 zero_loss: False
 olmoe_init: False
 distill_topk: 0
+mix_attn: False

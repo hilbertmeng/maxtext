@@ -17,7 +17,7 @@ limitations under the License.
 """Transformer model definition."""
 # pylint: disable=arguments-differ
 # pylint: disable=no-name-in-module
-
+import jax
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
@@ -288,8 +288,8 @@ class FusionDecoderLayer(nn.Module):
 
     RematSubDecoderLayer = nn.remat(SubDecoderLayer,
                                     prevent_cse=not self.config.scan_layers,
-                                    # policy= jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims, #  默认的 policy=None 会让 JAX 自己决定，通常是合理的
-                                    policy=None,
+                                    policy= jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims, #  默认的 policy=None 会让 JAX 自己决定，通常是合理的
+                                    # policy=None,
                                     static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
                                     )
     self.subs = [RematSubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')

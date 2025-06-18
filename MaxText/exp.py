@@ -374,12 +374,19 @@ class LlamaXLDMoe(CommonMoe, Llama2XL):
     query_chunk_size = 512
 
 class DCLlama7BOpenMoe(DC, Llama7BOpenMoe):
-    sliding_window_size = [256, 32768, 256, 256] * 1
+    sliding_window_size = [256, 16384, 256, 256] * 1
     num_layers_per_block = 4
-    expert_chunk_size = 2
-    remat_policy = 'minimal'
+    expert_chunk_size = 4
+    # remat_policy = 'minimal'
     zero_loss = True
+
+class DCLlama7BOpenMoe32k(DCLlama7BOpenMoe):
     max_target_length = 32768
+    mix_attn = True
+    learning_rate = 2.0e-5
+    cosine_learning_rate_final_fraction = 1  # if set 1, equal to constant, else cosein curve
+    warmup_steps_fraction = 0.0005 # warmup steps = warmup_steps_fraction * learning_rate_schedule_steps
+    learning_rate_schedule_steps = 151050 
 
 class DCLlama7BOpenMoeTest(DCLlama7BOpenMoe):
     num_layers_per_block = 1

@@ -130,6 +130,18 @@ class PileDatasets():
             example[name] = tf.sparse.to_dense(t, default_value=0)[:self.seq_len + 1]
         return example
 
+    def build_attn_mask(self):
+        if not self.mix_attn:
+            return tf.ones([self.batch_size, self.seq_len], dtype=tf.int32)
+        p = 0.4                         
+        body = tf.ones([self.batch_size, self.seq_len - 1], dtype=tf.int32)
+        mask  = tf.random.uniform([self.batch_size, 1]) < p
+        last_column  = tf.where(mask,
+                                tf.zeros([self.batch_size, 1], dtype=tf.int32),   # 选中 → 0
+                                tf.ones ([self.batch_size, 1], dtype=tf.int32))   # 未选 → 1
+        inputs_segmentation = tf.concat([body, last_column], axis=1)
+        return inputs_segmentation
+    
     def convert(self, data):
         seq_len = self.seq_len
         model_needed_inputs = {}
@@ -141,7 +153,7 @@ class PileDatasets():
         # print(f'weights: {weights.sum()}')
         # label loss mask, origin bool type, but due the complie is int32
         model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32) 
-        model_needed_inputs['inputs_segmentation'] = tf.ones_like(model_needed_inputs['inputs'])  # attention mask
+        model_needed_inputs['inputs_segmentation'] = self.build_attn_mask()
         pos = tf.range(seq_len)
         model_needed_inputs['inputs_position'] = model_needed_inputs['inputs_segmentation'] * pos
         model_needed_inputs['targets_position'] = model_needed_inputs['inputs_segmentation'] * pos  # no use, but complie have this key

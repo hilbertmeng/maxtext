@@ -392,6 +392,18 @@ class Decoder(nn.Module):
     mesh = self.mesh
     assert decoder_input_tokens.ndim == 2  # [batch, len]
 
+    if cfg.mix_attn and decoder_segment_ids is not None:
+      # ======================================32k long context max window size set==================================================
+      eos_sum = (decoder_segment_ids == 0).sum(1)  # 3.5 mini train
+      print(f'[lsp]decoder_segment_ids: {decoder_segment_ids.shape}')
+      # eos_sum = (decoder_input_tokens == 151643).sum(1) # v4 moe
+      eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
+      if cfg.record_internal_nn_metrics:
+        self.sow("intermediates", "eos_sum_mean", eos_sum.mean(), ) # 每个batch带有eos数据的比例
+        self.sow("intermediates", "eos_sum", eos_sum.sum(), ) # batch总的eos数量
+    else:
+      eos_sum = None
+
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
@@ -465,6 +477,7 @@ class Decoder(nn.Module):
               decoder_positions,
               deterministic,
               model_mode,
+              eos_sum=eos_sum,
           )
       else:
         if cfg.decoder_block == "deepseek":
@@ -497,6 +510,7 @@ class Decoder(nn.Module):
                 deterministic,
                 model_mode,
                 hids=hids,
+                eos_sum=eos_sum,
             )
             if self.config.mudd_in_layer:
               y, hids = y

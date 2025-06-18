@@ -512,6 +512,7 @@ class AttentionOp(nn.Module):
     model_mode: str = common_types.MODEL_MODE_TRAIN,
     input_q: Array = None,
     input_kv: Array = None,
+    eos_sum: Array | None = None,
 ):
     cfg = self.config
 
@@ -537,7 +538,7 @@ class AttentionOp(nn.Module):
           if hasattr(self, 'dyn_w_post_proj'):
               post_proj_dw_args = self.dyn_w_post_proj(input_kv)    
 
-    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, self.kv_quant)(query, key, value, decoder_segment_ids, model_mode, 
+    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, self.kv_quant)(query, key, value, decoder_segment_ids, model_mode, eos_sum,
                             pre_proj_dw_args, post_proj_dw_args, 
                             pre_proj_layer=self.pre_proj,
                             post_proj_layer=self.post_proj,

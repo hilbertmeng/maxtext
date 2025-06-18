@@ -356,6 +356,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         max_target_length = 32768
         eval_loop_num_batches = 60
         keep_period = 1000
+        mix_attn = True
     
     elif train_stage == 4: # v5p-128
         per_device_batch_size = 16.0 # total 1024
@@ -394,8 +395,6 @@ class MiniXL:
     warmup_steps_fraction = 0.01
     cosine_learning_rate_final_fraction = 0.1
     eval_interval = 50000
-
-
 
 class DreamMiniMedium(TrainMedium, DreamMiniXL): 
     query_chunk_size = 256

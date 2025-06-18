@@ -133,6 +133,7 @@ class PileDatasets():
         return example
 
     def build_attn_mask(self):
+        return tf.ones([self.batch_size, self.seq_len], dtype=tf.int32)
         if not self.mix_attn:
             return tf.ones([self.batch_size, self.seq_len], dtype=tf.int32)
         p = 0.5                            

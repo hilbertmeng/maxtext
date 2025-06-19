@@ -68,6 +68,18 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
     return m[jnp.newaxis, jnp.newaxis, ...]
 
 
+def make_causal_dual_mask(query_chunk_size: int, max_target_length, dtype=jnp.float32) -> Array:
+    large_n = get_large_negative_number(dtype)
+    tril = jnp.tril(jnp.ones((query_chunk_size, query_chunk_size), dtype=bool))
+    left = jnp.where(tril, 0., large_n).astype(dtype)
+    # if query_chunk_size < max_target_length:
+    right = jnp.full((query_chunk_size, query_chunk_size), large_n, dtype)
+    mask = jnp.concatenate([left, right], axis=-1)[None, None]
+    # else:
+    #     mask = left
+    return mask
+
+
 class QChunk(nn.Module):
   config: Config
   sliding_window_size: int
@@ -178,15 +190,18 @@ class QChunk(nn.Module):
     h = value.shape[-1]
     print(f'eos_sum: {eos_sum}')
 
+    if self.sliding_window_size is None:
+      sliding_window_size = t
+
     if eos_sum is None:
        # Attention mask compute
-      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype)
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
     else:
-      if self.sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
-        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype)
+      if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
         attn_mask = attn_mask[:, jnp.newaxis]
       else:
-        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, squeeze=True)
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype, squeeze=True)
         attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
         large_negative_number = get_large_negative_number(attn_mask.dtype)
         eos_sum_mask = large_negative_number * eos_sum
@@ -201,26 +216,50 @@ class QChunk(nn.Module):
             post_proj_dw_args=post_proj_dw_args, 
             )
     else:
+        def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+          return (qw1[:, start : stop] if qw1 is not None else None,
+              qw2[:, start : stop] if qw2 is not None else None,
+              kw1[:, kv_start : stop] if kw1 is not None else None,
+              kw2[:, kv_start : stop] if kw2 is not None else None,
+              qdd[:, start : stop] if qdd is not None else None,
+              kdd[:, kv_start : stop] if kdd is not None else None)
+            
+        def fix_slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+          return (qw1[:, start : stop] if qw1 is not None else None,
+              qw2[:, start : stop] if qw2 is not None else None,
+              kw1[:, kv_start : kv_start+window_len] if kw1 is not None else None,
+              kw2[:, kv_start :  kv_start+window_len] if kw2 is not None else None,
+              qdd[:, start : stop] if qdd is not None else None,
+              kdd[:, kv_start :  kv_start+window_len] if kdd is not None else None)
+    
         max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')
         w = self.query_chunk_size
+
+        if self.config.fix_key_mask_shape:
+          first_chunk_mask = make_causal_dual_mask(w, t, query.dtype) if sliding_window_size < t else attn_mask
+          window_len = w + sliding_window_size if sliding_window_size < t else t
+        else:
+           first_chunk_mask = None
+
         assert t % w == 0, f'{t} % {w} != 0'
         encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
         for i in range(t // w):
             start, stop = i * w, (i + 1) * w
-            kv_start = max(0, stop - w - self.sliding_window_size) if self.sliding_window_size is not None else 0
+            kv_start = max(0, stop - w - self.sliding_window_size) if self.sliding_window_size < t else 0
             _query = query[:, start : stop]
             _key, _value = key[:, kv_start : stop], value[:, kv_start : stop]
-            _attn_mask = attn_mask[..., -_key.shape[1]:]
-            def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
-                return (qw1[:, start : stop] if qw1 is not None else None,
-                    qw2[:, start : stop] if qw2 is not None else None,
-                    kw1[:, kv_start : stop] if kw1 is not None else None,
-                    kw2[:, kv_start : stop] if kw2 is not None else None,
-                    qdd[:, start : stop] if qdd is not None else None,
-                    kdd[:, kv_start : stop] if kdd is not None else None)
+
+            if self.config.fix_key_mask_shape:
+              _key, _value = key[:, kv_start : kv_start + window_len], value[:, kv_start: kv_start + window_len]
+              _attn_mask = first_chunk_mask if i == 0 else attn_mask[..., -_key.shape[1]: ]
+              slice_func = fix_slice_dw
+            else:
+              _key, _value = key[:, kv_start : stop], value[:, kv_start : stop]
+              _attn_mask = attn_mask[..., -_key.shape[1]:]
+              slice_func = slice_dw
             
-            _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_dw(*pre_proj_dw_args)
-            _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
+            _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_func(*pre_proj_dw_args)
+            _post_proj_dw_args = None if post_proj_dw_args is None else slice_func(*post_proj_dw_args)
             _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
                                                 _pre_proj_dw_args, _post_proj_dw_args,
                                                 pre_proj_layer, post_proj_layer)

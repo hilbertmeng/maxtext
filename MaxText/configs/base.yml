@@ -649,3 +649,4 @@ olmoe_init: False
 distill_topk: 0
 mix_attn: False
 eval_loop_num_batches: 100
+fix_key_mask_shape: False

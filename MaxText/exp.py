@@ -420,3 +420,19 @@ class DCLlama7BOpenMoeTest(DCLlama7BOpenMoe):
     sliding_window_size = [256, None, 256, 256]
     # sliding_window_size = None
     query_chunk_size = None
+
+class DCQChunkScanTest(DC, Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_mlp_dim = 2048
+    base_num_decoder_layers = 4
+    head_dim = 128
+    model_name = 'Test'
+    per_device_batch_size = 1
+    eval_per_device_batch_size = 1
+    decoder_block = "fusion"
+    sliding_window_size = [256, None, 256, 256]
+    scan_layers = True
+    num_layers_per_block = 4
+    fix_key_mask_shape = True

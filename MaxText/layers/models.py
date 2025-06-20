@@ -436,7 +436,8 @@ class Decoder(nn.Module):
       hids = []
 
     policy = self.get_remat_policy()
-    RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, policy)
+    # RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, policy)
+    RemattedBlockLayers = self.decoder_layer # 外层建议不设置remat，在sub layer 设置
 
     if cfg.using_pipeline_parallelism:
       if cfg.pipeline_fsdp_ag_once:

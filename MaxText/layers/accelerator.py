@@ -11,6 +11,7 @@ import jax.numpy as jnp
 import common_types
 import max_logging
 from layers import quantizations
+from functools import partial
 
 Array = common_types.Array
 Config = common_types.Config
@@ -68,16 +69,77 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
     return m[jnp.newaxis, jnp.newaxis, ...]
 
 
-def make_causal_dual_mask(query_chunk_size: int, max_target_length, dtype=jnp.float32) -> Array:
+def make_causal_dual_mask(query_chunk_size: int, window_size: int, dtype=jnp.float32):
     large_n = get_large_negative_number(dtype)
     tril = jnp.tril(jnp.ones((query_chunk_size, query_chunk_size), dtype=bool))
     left = jnp.where(tril, 0., large_n).astype(dtype)
-    # if query_chunk_size < max_target_length:
-    right = jnp.full((query_chunk_size, query_chunk_size), large_n, dtype)
+    right = jnp.full((query_chunk_size, window_size), large_n, dtype)
     mask = jnp.concatenate([left, right], axis=-1)[None, None]
-    # else:
-    #     mask = left
     return mask
+
+
+def make_fix_mask(qcs: int, sws: int, seq_length: int, dtype=jnp.bfloat16):
+  NEG_INF = get_large_negative_number(dtype) 
+  # qcs: query_chunk_size, sws: sliding_window_size
+  n = qcs + sws
+  row = jnp.arange(n)[:, None]     # (n,1)
+  col = jnp.arange(n)[None, :]     # (1,n)
+  upper_right = col > row
+  in_bottom_left_block = (row >= sws) & (col < qcs)
+  lower_left_of_block   = (row - sws) >= col       # 使其成为该区块的左下三角
+  bottom_left_tri       = in_bottom_left_block & lower_left_of_block
+  mask_bool = upper_right | bottom_left_tri
+  m = jnp.where(mask_bool, NEG_INF, 0.).astype(dtype)
+  return m[None, None, :seq_length, : seq_length]
+
+@jax.jit
+def _apply_attention_dot2(
+    query: Array, 
+    key: Array,   
+    value: Array, 
+    attn_mask: Array | None,
+    pre_proj_dw_args: tuple = (),
+    post_proj_dw_args: tuple = (),
+):
+  dtype = jnp.bfloat16
+  # bnts -> bkgts
+  einsum = jnp.einsum
+  b, t, n, d = query.shape  
+  n_kv = key.shape[-2]
+  query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
+  attn_weights = einsum("btkgd,bskd->bkgts", query, key)
+
+  attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', None, 'activation_length', None),)
+  
+  # if self.config.pre_compose:
+  #    # 5 demonsion
+  #   pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
+  #   attn_weights = pre_proj_layer(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
+
+  attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', None, 'activation_length', None),)
+  # apply attention mask
+  if attn_mask is not None:
+    attn_weights = apply_mask_to_logits(attn_weights, attn_mask)
+  
+  attn_weights = attn_weights.astype(jnp.float32)
+  # normalize the attention weights
+  probs = jax.nn.softmax(attn_weights).astype(dtype) # bkgts
+  probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
+
+  # if self.config.post_compose:
+  #   post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
+  #   probs = post_proj_layer(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
+
+  probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
+  # Casting softmaxt computation for float32 for model stability.
+  probs = probs.astype(dtype)
+  if attn_mask is not None:
+    probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
+  output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
+  b, t, n_kv, g, h = output.shape
+  output = jnp.reshape(output, (b, t, n_kv * g, h))
+  output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
+  return output
 
 
 class QChunk(nn.Module):
@@ -163,6 +225,241 @@ class QChunk(nn.Module):
     output = jnp.reshape(output, (b, t, n_kv * g, h))
     output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
     return output
+  
+  def _attention_with_scan(
+      self,
+      query, key, value,
+      sliding_window_size: int | None,
+      pre_proj_dw_args: Array | None,
+      post_proj_dw_args: Array | None,
+      pre_proj_layer = None,
+      post_proj_layer = None
+  ):
+    b, t, n, h = query.shape
+    w  = self.query_chunk_size
+    assert t % w == 0, f"{t} % {w} != 0"
+    query = query.astype(jnp.bfloat16)
+    key = key.astype(jnp.bfloat16)
+    value = value.astype(jnp.bfloat16)
+    encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
+
+    num_steps = t // w
+    idxs = jnp.arange(num_steps, dtype=jnp.int32)
+    window_len = w + sliding_window_size if sliding_window_size < t else t
+    fix_masks = make_fix_mask(w, sliding_window_size, t, jnp.bfloat16)
+
+    @jax.jit
+    def step(carry, i):
+        encoded = carry
+        start = i * w
+        stop  = start + w
+        kv_start = jnp.maximum(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
+        mask_start = jnp.minimum(i * w, sliding_window_size)
+        _query = lax.dynamic_slice(query, (0, start, 0, 0), (b, w, n, h))
+        _key   = lax.dynamic_slice_in_dim(key, kv_start, window_len, axis=1)
+        _value = lax.dynamic_slice_in_dim(value, kv_start, window_len, axis=1)
+        _attn_mask = lax.dynamic_slice_in_dim(fix_masks, mask_start, w, axis=2)
+
+        def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+            tensors = (qw1, qw2, kw1, kw2, qdd, kdd)
+            starts  = (start, start, kv_start, kv_start, start, kv_start)
+            sizes   = (w, w, window_len, window_len, w, window_len)
+            def _slice(t, s, length):
+                return None if t is None else lax.dynamic_slice_in_dim(
+                    t, s, length, axis=1)
+            return tuple(jax.tree_util.tree_map(_slice, tensors, starts, sizes))
+              
+        _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_dw(*pre_proj_dw_args)
+        _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
+        _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
+                                              _pre_proj_dw_args, _post_proj_dw_args,
+                                              pre_proj_layer, post_proj_layer)
+        encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
+        return encoded, None
+
+    encoded_final, _ = lax.scan(step, encoded0, idxs)
+    return encoded_final
+  
+  def _attention_with_scan2(
+    self,
+    query, key, value,
+    sliding_window_size: int | None,
+    pre_proj_dw_args: Array | None = None,
+    post_proj_dw_args: Array | None = None,
+    pre_proj_layer=None,
+    post_proj_layer=None,
+):
+    b, t, n, h = query.shape
+    w = self.query_chunk_size
+    assert t % w == 0, f"{t} % {w} != 0"
+
+    num_steps = t // w
+    window_len = w + sliding_window_size if sliding_window_size < t else t
+
+    # 一次性生成每个 step 的 kv/mask 偏移
+    step_idx = jnp.arange(num_steps, dtype=jnp.int32)
+    kv_start = jnp.maximum(0, step_idx * w + w - sliding_window_size)
+    mask_start = jnp.minimum(step_idx * w, sliding_window_size)
+    fix_masks = make_fix_mask(w, sliding_window_size, t, jnp.bfloat16)
+
+    def _slice_in_dim(x, start, length):
+        return lax.dynamic_slice_in_dim(x, start, length, axis=1)
+
+    def step(_, inputs):
+        i, kv_s, mask_s = inputs 
+        start = i * w
+        _q = _slice_in_dim(query, start, w)
+        _k = _slice_in_dim(key,   kv_s,  window_len)
+        _v = _slice_in_dim(value, kv_s,  window_len)
+        _m = lax.dynamic_slice_in_dim(fix_masks, mask_s, w, axis=2)
+
+        def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+            tensors = (qw1, qw2, kw1, kw2, qdd, kdd)
+            starts  = (start, start, kv_start, kv_start, start, kv_start)
+            sizes   = (w, w, window_len, window_len, w, window_len)
+            def _slice(t, s, length):
+                return None if t is None else lax.dynamic_slice_in_dim(
+                    t, s, length, axis=1)
+            return tuple(jax.tree_util.tree_map(_slice, tensors, starts, sizes))
+
+        _pre_dw  = None if pre_proj_dw_args  is None else slice_dw(*pre_proj_dw_args)
+        _post_dw = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
+
+        # 真正的 attention 计算
+        _encoded = self._apply_attention_dot(
+            _q, _k, _v, _m,
+            _pre_dw, _post_dw,
+            pre_proj_layer, post_proj_layer,
+        )
+        return None, _encoded            # 把结果作为 ys 输出
+
+    # 把三串偏移捆成 xs 让 scan 分步读
+    _, encoded_chunks = lax.scan(step, None, (step_idx, kv_start, mask_start))
+    return encoded_chunks.reshape(b, t, n, h)
+  
+  def _attention_with_fori2(
+      self,
+      query, key, value,
+      sliding_window_size: int | None,
+      pre_proj_dw_args: Array | None,
+      post_proj_dw_args: Array | None,
+      pre_proj_layer = None,
+      post_proj_layer = None
+  ):
+    b, t, n, h = query.shape
+    w  = self.query_chunk_size
+    assert t % w == 0, f"{t} % {w} != 0"
+    query = query.astype(jnp.bfloat16)
+    key = key.astype(jnp.bfloat16)
+    value = value.astype(jnp.bfloat16)
+    encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
+
+    num_steps = t // w
+    idxs = jnp.arange(num_steps, dtype=jnp.int32)
+    window_len = w + sliding_window_size if sliding_window_size < t else t
+    fix_masks = make_fix_mask(w, sliding_window_size, t, jnp.bfloat16)
+
+    @jax.jit
+    def step(i, carry):
+        encoded = carry
+        start = i * w
+        stop  = start + w
+        kv_start = jnp.maximum(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
+        mask_start = jnp.minimum(i * w, sliding_window_size)
+        _query = lax.dynamic_slice(query, (0, start, 0, 0), (b, w, n, h))
+        _key   = lax.dynamic_slice_in_dim(key, kv_start, window_len, axis=1)
+        _value = lax.dynamic_slice_in_dim(value, kv_start, window_len, axis=1)
+        _attn_mask = lax.dynamic_slice_in_dim(fix_masks, mask_start, w, axis=2)
+
+        def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+            tensors = (qw1, qw2, kw1, kw2, qdd, kdd)
+            starts  = (start, start, kv_start, kv_start, start, kv_start)
+            sizes   = (w, w, window_len, window_len, w, window_len)
+            def _slice(t, s, length):
+                return None if t is None else lax.dynamic_slice_in_dim(
+                    t, s, length, axis=1)
+            return tuple(jax.tree_util.tree_map(_slice, tensors, starts, sizes))
+              
+        _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_dw(*pre_proj_dw_args)
+        _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
+        _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
+                                              _pre_proj_dw_args, _post_proj_dw_args,
+                                              pre_proj_layer, post_proj_layer)
+        encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
+        return encoded
+    # encoded_final = lax.fori_loop(0, num_steps, step, encoded0)
+    # encoded_final, _ = lax.scan(step, encoded0, idxs)
+    RematStep = nn.remat(step,
+                        prevent_cse=True,
+                        # policy= jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims, #  默认的 policy=None 会让 JAX 自己决定，通常是合理的
+                        policy=None,
+                        static_argnums=(0, ),  # Deterministic and model mode are static arguments.
+                        )
+    
+    for i in range(num_steps):
+       encoded0 = RematStep(i, encoded0)
+    return encoded0
+  
+  def _attention_with_remat(
+      self,
+      query, key, value,
+      sliding_window_size: int | None,
+      pre_proj_dw_args: Array | None,
+      post_proj_dw_args: Array | None,
+      pre_proj_layer = None,
+      post_proj_layer = None
+  ):
+    b, t, n, h = query.shape
+    w  = self.query_chunk_size
+    assert t % w == 0, f"{t} % {w} != 0"
+    query = query.astype(jnp.bfloat16)
+    key = key.astype(jnp.bfloat16)
+    value = value.astype(jnp.bfloat16)
+    num_steps = t // w
+    fix_masks = make_fix_mask(w, sliding_window_size, t, jnp.bfloat16)
+    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+    # encoded0传入step比append在cat更省1G显存
+    encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
+    def step(i, carry):
+        encoded = carry
+        start, stop = i * w, (i + 1) * w
+        kv_start = max(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
+        if not self.config.fix_key_mask_shape or sliding_window_size == t:
+          kv_stop = stop
+          _attn_mask = attn_mask[..., kv_start - stop:]
+        else:
+          mask_start = min(i * w, sliding_window_size)
+          mask_stop = min((i+1) * w, w + sliding_window_size)
+          _attn_mask = fix_masks[:, :, mask_start: mask_stop]
+          kv_stop = kv_start + w + sliding_window_size
+
+        _query = query[:, start : stop]
+        _key, _value = key[:, kv_start : kv_stop], value[:, kv_start : kv_stop]
+
+        def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+          return (qw1[:, start : stop] if qw1 is not None else None,
+              qw2[:, start : stop] if qw2 is not None else None,
+              kw1[:, kv_start : kv_stop] if kw1 is not None else None,
+              kw2[:, kv_start : kv_stop] if kw2 is not None else None,
+              qdd[:, start : stop] if qdd is not None else None,
+              kdd[:, kv_start : kv_stop] if kdd is not None else None)
+              
+        _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_dw(*pre_proj_dw_args)
+        _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
+        _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
+                                              _pre_proj_dw_args, _post_proj_dw_args,
+                                              pre_proj_layer, post_proj_layer)
+        encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
+        # encoded = encoded.at[:, start : stop].set(_encoded)
+        return encoded
+    RematStep = jax.checkpoint(step,
+                        prevent_cse=True,
+                        policy=None,
+                        static_argnums=(0, ),
+                        )
+    for i in range(num_steps):
+       encoded0 = RematStep(i, encoded0)
+    return encoded0
 
   @nn.compact
   def __call__(
@@ -178,90 +475,71 @@ class QChunk(nn.Module):
     pre_proj_layer = None,
     post_proj_layer = None,
 ):
-    def update_mask(v, atten_mask):
-        # 当设置Windows大于4096时，自动根据数据中的eos数量，来决定Windows是否重置为4096
-        offset = 1 - 4096 - self.query_chunk_size
-        atten_mask = atten_mask.at[..., :offset].set(v)
-        return atten_mask
-    
     self.check_attention_inputs(query, key, value)
 
     b, t, n, _ = query.shape
     h = value.shape[-1]
     print(f'eos_sum: {eos_sum}')
 
-    if self.sliding_window_size is None:
-      sliding_window_size = t
-
-    if eos_sum is None:
-       # Attention mask compute
-      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-    else:
-      if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
-        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-        attn_mask = attn_mask[:, jnp.newaxis]
-      else:
-        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype, squeeze=True)
-        attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
-        large_negative_number = get_large_negative_number(attn_mask.dtype)
-        eos_sum_mask = large_negative_number * eos_sum
-        attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
-        attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
-        attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
-
+    sliding_window_size = t if self.sliding_window_size is None else self.sliding_window_size
+    # Attention mask compute
+    
     if self.query_chunk_size is None:
-        encoded = self._apply_attention_dot(
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+      encoded = self._apply_attention_dot(
             query, key, value, attn_mask,  
             pre_proj_dw_args=pre_proj_dw_args, 
             post_proj_dw_args=post_proj_dw_args, 
             )
+    elif self.config.query_chunk_scan:
+      encoded = self._attention_with_remat(
+            query, key, value,
+            sliding_window_size,
+            pre_proj_dw_args,
+            post_proj_dw_args,
+            pre_proj_layer,
+            post_proj_layer
+            )
     else:
-        def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
-          return (qw1[:, start : stop] if qw1 is not None else None,
-              qw2[:, start : stop] if qw2 is not None else None,
-              kw1[:, kv_start : stop] if kw1 is not None else None,
-              kw2[:, kv_start : stop] if kw2 is not None else None,
-              qdd[:, start : stop] if qdd is not None else None,
-              kdd[:, kv_start : stop] if kdd is not None else None)
-            
-        def fix_slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
-          return (qw1[:, start : stop] if qw1 is not None else None,
-              qw2[:, start : stop] if qw2 is not None else None,
-              kw1[:, kv_start : kv_start+window_len] if kw1 is not None else None,
-              kw2[:, kv_start :  kv_start+window_len] if kw2 is not None else None,
-              qdd[:, start : stop] if qdd is not None else None,
-              kdd[:, kv_start :  kv_start+window_len] if kdd is not None else None)
-    
-        max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')
-        w = self.query_chunk_size
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+      max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')
+      w = self.query_chunk_size
 
-        if self.config.fix_key_mask_shape:
-          first_chunk_mask = make_causal_dual_mask(w, t, query.dtype) if sliding_window_size < t else attn_mask
-          window_len = w + sliding_window_size if sliding_window_size < t else t
-        else:
-           first_chunk_mask = None
+      if self.config.fix_key_mask_shape:
+        fix_masks = make_fix_mask(w, sliding_window_size, t, query.dtype)
 
-        assert t % w == 0, f'{t} % {w} != 0'
-        encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
-        for i in range(t // w):
-            start, stop = i * w, (i + 1) * w
-            kv_start = max(0, stop - w - self.sliding_window_size) if self.sliding_window_size < t else 0
-            _query = query[:, start : stop]
-            _key, _value = key[:, kv_start : stop], value[:, kv_start : stop]
+      assert t % w == 0, f'{t} % {w} != 0'
+      encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
+      for i in range(t // w):
+          start, stop = i * w, (i + 1) * w
+          kv_start = max(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
+          if not self.config.fix_key_mask_shape or sliding_window_size == t:
+            kv_stop = stop
+            _attn_mask = attn_mask[..., kv_start - stop:]
+          else:
+            mask_start = min(i * w, sliding_window_size)
+            mask_stop = min((i+1) * w, w + sliding_window_size)
+            _attn_mask = fix_masks[:, :, mask_start: mask_stop]
+            kv_stop = kv_start + w + sliding_window_size
 
-            if self.config.fix_key_mask_shape:
-              _key, _value = key[:, kv_start : kv_start + window_len], value[:, kv_start: kv_start + window_len]
-              _attn_mask = first_chunk_mask if i == 0 else attn_mask[..., -_key.shape[1]: ]
-              slice_func = fix_slice_dw
-            else:
-              _key, _value = key[:, kv_start : stop], value[:, kv_start : stop]
-              _attn_mask = attn_mask[..., -_key.shape[1]:]
-              slice_func = slice_dw
-            
-            _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_func(*pre_proj_dw_args)
-            _post_proj_dw_args = None if post_proj_dw_args is None else slice_func(*post_proj_dw_args)
-            _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
-                                                _pre_proj_dw_args, _post_proj_dw_args,
-                                                pre_proj_layer, post_proj_layer)
-            encoded = encoded.at[:, start : stop].set(_encoded)
+          _query = query[:, start : stop]
+          _key, _value = key[:, kv_start : kv_stop], value[:, kv_start : kv_stop]
+
+          def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+            return (qw1[:, start : stop] if qw1 is not None else None,
+                qw2[:, start : stop] if qw2 is not None else None,
+                kw1[:, kv_start : kv_stop] if kw1 is not None else None,
+                kw2[:, kv_start : kv_stop] if kw2 is not None else None,
+                qdd[:, start : stop] if qdd is not None else None,
+                kdd[:, kv_start : kv_stop] if kdd is not None else None)
+          
+          _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_dw(*pre_proj_dw_args)
+          _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
+          _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
+                                              _pre_proj_dw_args, _post_proj_dw_args,
+                                              pre_proj_layer, post_proj_layer)
+          encoded = encoded.at[:, start : stop].set(_encoded)
     return encoded, None, None
+  
+
+    

@@ -285,17 +285,20 @@ class FusionDecoderLayer(nn.Module):
     if not isinstance(sliding_window_size, (list, tuple)):
         sliding_window_size = [sliding_window_size]
 
-    sliding_window_size = [self.config.max_target_length if s is None else s for s in sliding_window_size]
+    sliding_window_size = [self.config.max_target_length if s is None else s for s in sliding_window_size  ]
     max_logging.log(f'FusionDecoderLayer layer_inx: {layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
-    if len(sliding_window_size) != 1:
-        assert not self.config.dense_conn
 
-    RematSubDecoderLayer = nn.remat(SubDecoderLayer,
-                                    prevent_cse=not self.config.scan_layers,
-                                    # policy= jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims, #  默认的 policy=None 会让 JAX 自己决定，通常是合理的
-                                    policy=None,
-                                    static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
-                                    )
+    if self.config.num_layers_per_block > 1:
+      assert not self.config.dense_conn
+      # prevent_cse设置为true时更节省显存，设置为false速度更快，具体怎么设置需要测试
+      RematSubDecoderLayer = nn.remat(SubDecoderLayer,
+                                      prevent_cse=True,
+                                      policy=models.get_remat_policy(self.config),
+                                      static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+                                      )
+    else:
+       RematSubDecoderLayer = SubDecoderLayer
+
     self.subs = [RematSubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
 

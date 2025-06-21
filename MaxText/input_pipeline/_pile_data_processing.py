@@ -35,6 +35,7 @@ class PileDatasets():
                 num_batches_to_skip: Optional[int] = None,
                 only_eval: bool = False,
                 zero_loss: bool = True,
+                mix_attn: bool = False
                 ):
         self.mesh = mesh
         self.name = name
@@ -55,6 +56,8 @@ class PileDatasets():
         self.only_eval = only_eval
         self.zero_loss = zero_loss
         self.batch_padding_size = 0
+        self.mix_attn = mix_attn
+        
         self.__post_init__()
         
     def __post_init__(self):
@@ -582,6 +585,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             only_eval=False,
                             zero_loss=config.zero_loss,
                             iter_file_nums=config.iter_file_nums,
+                            mix_attn=config.mix_attn,
                             )
   eval_dataloader = None
   if eval_pathes:
@@ -600,6 +604,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             only_eval=False,
                             zero_loss=config.zero_loss,
                             iter_file_nums=config.iter_file_nums,
+                            mix_attn=config.mix_attn,
                             )
   def train_dataloader_fn():
     return train_dataloader

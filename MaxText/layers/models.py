@@ -392,10 +392,14 @@ class Decoder(nn.Module):
     mesh = self.mesh
     assert decoder_input_tokens.ndim == 2  # [batch, len]
 
-    if cfg.mix_attn and decoder_segment_ids is not None:
+    if cfg.mix_attn:
+    # if cfg.mix_attn and decoder_segment_ids is not None: # mini
       # ======================================32k long context max window size set==================================================
       # eos_sum = (decoder_segment_ids == 0).sum(1)  # 3.5 mini train
-      print(f'[lsp]decoder_segment_ids: {decoder_segment_ids.shape}')
+      if decoder_segment_ids is not None:
+        print(f'[lsp]decoder_segment_ids: {decoder_segment_ids.shape}')
+      else:
+        print(f'[lsp]decoder_segment_ids: {decoder_segment_ids}')
       eos_sum = (decoder_input_tokens == 151643).sum(1)
       eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
       if cfg.record_internal_nn_metrics:

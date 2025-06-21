@@ -436,3 +436,4 @@ class DCQChunkScanTest(DC, Llama2Medium):
     scan_layers = True
     num_layers_per_block = 4
     fix_key_mask_shape = True
+    sub_remat = True

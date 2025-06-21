@@ -286,15 +286,17 @@ class FusionDecoderLayer(nn.Module):
 
     sliding_window_size = [self.config.max_target_length if s is None else s for s in sliding_window_size  ]
     max_logging.log(f'FusionDecoderLayer layer_inx: {layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
-    if len(sliding_window_size) != 1:
-        assert not self.config.dense_conn
 
-    RematSubDecoderLayer = nn.remat(SubDecoderLayer,
-                                    prevent_cse=True, # 设置为False会多占30G
-                                    policy=None,
-                                    # policy= jax.checkpoint_policies.save_only_these_names('encoded0'), # 设置这个也会多占30G显存
-                                    static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
-                                    )
+    if self.config.num_layers_per_block > 1:
+      assert not self.config.dense_conn
+      RematSubDecoderLayer = nn.remat(SubDecoderLayer,
+                                      prevent_cse=True, # set false would use more 30G HBM
+                                      policy=models.get_remat_policy(self.config),
+                                      static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+                                      )
+    else:
+       RematSubDecoderLayer = SubDecoderLayer
+
     self.subs = [RematSubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
 

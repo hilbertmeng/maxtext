@@ -279,14 +279,14 @@ class FusionDecoderLayer(nn.Module):
   sliding_window_size: list|int|None = -1 # lsp
 
   def setup(self):
-    layer_inx = None if self.config.scan_layers else int(self.name.split('_')[-1])
+    self.layer_inx = None if self.config.scan_layers else int(self.name.split('_')[-1])
     # When no sliding_window_size is passed in, the sliding_window_size in config is used, otherwise the passed in sliding_window_size is used.
     sliding_window_size = self.config.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
     if not isinstance(sliding_window_size, (list, tuple)):
         sliding_window_size = [sliding_window_size]
 
     sliding_window_size = [self.config.max_target_length if s is None else s for s in sliding_window_size  ]
-    max_logging.log(f'FusionDecoderLayer layer_inx: {layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
+    max_logging.log(f'FusionDecoderLayer layer_inx: {self.layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
 
     if self.config.num_layers_per_block > 1:
       assert not self.config.dense_conn
@@ -299,7 +299,7 @@ class FusionDecoderLayer(nn.Module):
     else:
        RematSubDecoderLayer = SubDecoderLayer
 
-    self.subs = [RematSubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
+    self.subs = [RematSubDecoderLayer(self.config, self.mesh, self.quant, sws, self.layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
 
   @nn.compact

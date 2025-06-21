@@ -437,3 +437,12 @@ class DCQChunkScanTest(DC, Llama2Medium):
     num_layers_per_block = 4
     fix_key_mask_shape = True
     sub_remat = True
+
+class DCQChunkScan7BTest(DCQChunkScanTest):
+    base_emb_dim = 4096
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5504
+    base_num_decoder_layers = 4
+    head_dim = 128
+ 

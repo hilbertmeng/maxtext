@@ -331,6 +331,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     eval_loop_num_batches = 55
     base_lr = 4.0e-4
     stable_steps_fraction= 0.99 - 30500 / 180500 # decay steps / total train steps
+    num_layers_per_block = 1
 
     # 每个阶段的结尾都是250的倍数，因此设置 keep_period=3000.
     # eopch=0.25;end_steps1=60000;B=256;lr=2.5e-4*math.sqrt(2);file_nums=[0, 1536]
@@ -351,12 +352,14 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         cosine_learning_rate_final_fraction = 1.0
         stable_steps_fraction = 1.0
         iter_file_nums = 120
-        # gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_32k_tfids0529
+        # gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_32k_tfids0601
         rope_max_timescale = 1000000
         max_target_length = 32768
         eval_loop_num_batches = 60
         keep_period = 1000
         mix_attn = True
+        query_chunk_method='remat'
+        sub_remat=False
     
     elif train_stage == 4: # v5p-128
         per_device_batch_size = 16.0 # total 1024

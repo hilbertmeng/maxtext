@@ -438,6 +438,7 @@ class Decoder(nn.Module):
       assert cfg.sub_remat
       RemattedBlockLayers = self.decoder_layer
     else:
+      assert not cfg.sub_remat
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
 
     if cfg.using_pipeline_parallelism:
@@ -500,11 +501,8 @@ class Decoder(nn.Module):
                             model_mode,
                         )
         else:
-          if isinstance(cfg.sliding_window_size, list):
-            assert len(cfg.sliding_window_size) == cfg.num_decoder_layers
-            sliding_window_sizes = cfg.sliding_window_size
-          else:
-            sliding_window_sizes = cfg.num_decoder_layers * [cfg.sliding_window_size]
+          n = cfg.num_decoder_layers // cfg.num_layers_per_block
+          sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
           max_logging.log(f'sliding_window_sizes: {sliding_window_sizes}', debug=cfg.debug)
           for lyr in range(cfg.num_decoder_layers):
             RemattedBlockLayer = RemattedBlockLayers[0]

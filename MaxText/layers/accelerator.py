@@ -418,9 +418,9 @@ class QChunk(nn.Module):
     num_steps = t // w
     fix_masks = make_fix_mask(w, sliding_window_size, t, jnp.bfloat16)
     attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-    # encoded0传入step比append在cat更省1G显存
+    # encoded0传入chunk_attn比append再cat更省1G显存
     encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
-    def step(i, carry):
+    def chunk_attn(i, carry):
         encoded = carry
         start, stop = i * w, (i + 1) * w
         kv_start = max(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
@@ -449,16 +449,15 @@ class QChunk(nn.Module):
         _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
                                               _pre_proj_dw_args, _post_proj_dw_args,
                                               pre_proj_layer, post_proj_layer)
-        encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
-        # encoded = encoded.at[:, start : stop].set(_encoded)
+        encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0)) # 比at性能稍好，但差不多
         return encoded
-    RematStep = jax.checkpoint(step,
-                        prevent_cse=True,
+    RematChunkAttn = jax.checkpoint(chunk_attn,
+                        prevent_cse=True, # suggest true, save more hbm memory
                         policy=None,
                         static_argnums=(0, ),
                         )
     for i in range(num_steps):
-       encoded0 = RematStep(i, encoded0)
+       encoded0 = RematChunkAttn(i, encoded0)
     return encoded0
 
   @nn.compact

@@ -387,3 +387,44 @@ class DCLlama7BOpenMoe32k(DCLlama7BOpenMoe):
     warmup_steps_fraction = 1e-6 # warmup steps = warmup_steps_fraction * learning_rate_schedule_steps
     learning_rate_schedule_steps = 151050
     iter_file_nums = 500
+
+class DCLlama7BOpenMoeTest(DCLlama7BOpenMoe):
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_mlp_dim = 2816
+    base_num_decoder_layers = 32
+    head_dim = 128
+    model_name = 'test'
+    scan_layers = True
+    moe_type = 'open'
+    remat_policy = 'minimal'
+    num_layers_per_block = 4
+    sliding_window_size = [256, None, 256, 256]
+    # sliding_window_size = None
+    query_chunk_size = None
+
+class DCQChunkScanTest(DC, Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_mlp_dim = 2048
+    base_num_decoder_layers = 4
+    head_dim = 128
+    model_name = 'Test'
+    per_device_batch_size = 1
+    eval_per_device_batch_size = 1
+    decoder_block = "fusion"
+    sliding_window_size = [256, None, 256, 256]
+    scan_layers = True
+    num_layers_per_block = 4
+    fix_key_mask_shape = True
+    sub_remat = True
+
+class DCQChunkScan7BTest(DCQChunkScanTest):
+    base_emb_dim = 4096
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5504
+    base_num_decoder_layers = 4
+    head_dim = 128

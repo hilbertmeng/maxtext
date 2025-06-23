@@ -197,6 +197,7 @@ class QChunk(nn.Module):
         _value = lax.dynamic_slice_in_dim(value, kv_start, window_len, axis=1)
         _attn_mask = lax.dynamic_slice_in_dim(attn_mask, mask_start, w, axis=2)
 
+        _pre_proj_dw_args, post_proj_dw_args = None, None
         def _safe_slice(tensor, s, length):
             return None if tensor is None else lax.dynamic_slice_in_dim(tensor, s, length, axis=1)
 
@@ -210,9 +211,6 @@ class QChunk(nn.Module):
                 _safe_slice(qdd, start,     w),
                 _safe_slice(kdd, kv_start,  window_len),
             )
-        else:
-            _pre_proj_dw_args = None
-
         if post_proj_dw_args is not None:
             qw1, qw2, kw1, kw2, qdd, kdd = post_proj_dw_args
             _post_proj_dw_args = (
@@ -223,9 +221,6 @@ class QChunk(nn.Module):
                 _safe_slice(qdd, start,     w),
                 _safe_slice(kdd, kv_start,  window_len),
             )
-        else:
-            _post_proj_dw_args = None
-
         _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
                                               _pre_proj_dw_args, _post_proj_dw_args,
                                               pre_proj_layer, post_proj_layer)
@@ -235,10 +230,10 @@ class QChunk(nn.Module):
           encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
           return encoded, None
     RematBody = jax.checkpoint(body, 
-                               prevent_cse=False, # attn scan prevent cse use False
+                               prevent_cse=True if parallel_method == 'vmap' else False, # attn scan prevent cse use False
                                policy=None) if remat else body
     if parallel_method == 'vmap':
-       # (num_steps, b, w, n, h)
+       # (num_steps, b, t, n, h)
       encoded0 = jax.vmap(RematBody)(None, jnp.arange(num_steps, dtype=jnp.int32))
       encoded0 = rearrange(encoded0, 'n B T N H -> B (n T) N H ', n=num_steps)
     else:
@@ -360,6 +355,7 @@ class QChunk(nn.Module):
       elif self.config.query_chunk_method == 'remat_scan':
         assert self.config.fix_key_mask_shape
         encoded = self._attention_with_parallel(*args, remat=True, parallel_method='scan')
+      # best branch
       elif self.config.query_chunk_method == 'remat': # support fix/dynamic key mask
         encoded = self._attention_with_remat(*args, remat=True)
       elif self.config.query_chunk_method == 'vmap':

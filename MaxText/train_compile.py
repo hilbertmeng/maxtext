@@ -123,7 +123,7 @@ def jit_and_compile(
         donate_argnums=donate_argnums,
     )
     lowered = jitted.lower(*func_input_args, **func_input_kwargs)
-  compiled = lowered.compile()
+  compiled = lowered.compile(compiler_options={"xla_embed_ir_in_executable": False})
   return compiled
 
 

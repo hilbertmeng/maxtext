@@ -292,7 +292,7 @@ class FusionDecoderLayer(nn.Module):
       assert not self.config.dense_conn
       # prevent_cse设置为true时更节省显存，设置为false速度更快，具体怎么设置需要测试
       RematSubDecoderLayer = nn.remat(SubDecoderLayer,
-                                      prevent_cse=True,
+                                      prevent_cse=False,
                                       policy=models.get_remat_policy(self.config),
                                       static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
                                       )

@@ -226,9 +226,10 @@ class QChunk(nn.Module):
                                               pre_proj_layer, post_proj_layer)
         if parallel_method == 'vmap':
            return _encoded
-        else:
-          encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
-          return encoded, None
+        
+        encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
+        return encoded, None
+    
     RematBody = jax.checkpoint(body, 
                                prevent_cse=True if parallel_method == 'vmap' else False, # attn scan prevent cse use False
                                policy=None) if remat else body

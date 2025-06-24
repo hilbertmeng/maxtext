@@ -123,13 +123,16 @@ def jit_and_compile(
         donate_argnums=donate_argnums,
     )
     lowered = jitted.lower(*func_input_args, **func_input_kwargs)
-  compiled = lowered.compile()
+  compiled = lowered.compile(compiler_options={
+            "xla_embed_ir_in_executable": False,
+        })
   return compiled
 
 
 def save_compiled(compiled, save_name):
   """Serialize and save the compiled function."""
   serialized, _, _ = serialize(compiled)
+  # __import__('ipdb').set_trace()
   with open(save_name, "wb") as f:
     pickle.dump(serialized, f)
 
@@ -137,6 +140,8 @@ def save_compiled(compiled, save_name):
 def main(argv: Sequence[str]) -> None:
   jax.config.update("jax_default_prng_impl", "unsafe_rbg")
   os.environ["LIBTPU_INIT_ARGS"] = os.environ.get("LIBTPU_INIT_ARGS", "") + " --xla_tpu_spmd_rng_bit_generator_unsafe=true"
+  # lsp: gemini add
+  os.environ["XLA_FLAGS"] = os.environ.get("XLA_FLAGS", "") + " --xla_embed_ir_in_executable=false"
   print("Starting train_compile.py...", flush=True)
 
   # Parse and validate configuration

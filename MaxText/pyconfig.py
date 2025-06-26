@@ -372,6 +372,8 @@ class _HyperParameters:
     max_logging.log(f"Updating keys from model: {keys_from_model}")
     validate_no_keys_overwritten_twice(keys_from_env_and_command_line, keys_from_model)
 
+    _update_exp_config(keys_from_env_and_command_line, raw_keys) # lsp must define in before user_init, because some vars would be changed in user_init.
+
     # This must be invoked before initializing the backend
     raw_keys = validate_and_set_hlo_dump_defaults(raw_keys)
 
@@ -382,8 +384,6 @@ class _HyperParameters:
 
     if raw_keys["jax_cache_dir"]:
       compilation_cache.set_cache_dir(os.path.expanduser(raw_keys["jax_cache_dir"]))
-
-    _update_exp_config(keys_from_env_and_command_line, raw_keys) # lsp must define in before user_init, because some vars would be changed in user_init.
 
     _HyperParameters.user_init(raw_keys)
     if raw_keys["dataset_type"] == "c4_mlperf" and raw_keys["model_name"] == "gpt3-175b":
@@ -916,12 +916,12 @@ def cls_attr2dict(cls):
 
 
 def _update_exp_config(cmd_vars, raw_keys):
-  max_logging.log(f"\n\nUpdated exp model vars:")
   import exp
   model_name = getattr(exp, raw_keys["exp_class"], None)
   if not model_name: return raw_keys
   model_vars = cls_attr2dict(model_name)
 
+  max_logging.log(f"\n\nUpdated exp model vars:")
   keys = list(model_vars.keys())
   keys.sort()
   for k in keys:

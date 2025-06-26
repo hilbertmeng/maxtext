@@ -161,8 +161,8 @@ class RotaryEmbedding(nn.Module):
       raise ValueError(
           "The embedding dims of the rotary position embedding" "must match the hidden dimension of the inputs."
       )
-
-    position = position[:, :, jnp.newaxis, jnp.newaxis]
+    if len(position.shape) == 2:
+      position = position[:, :, jnp.newaxis, jnp.newaxis] # BSNd
     sinusoid_inp = position / self.timescale
     sin = jnp.sin(sinusoid_inp).astype(inputs.dtype)
     cos = jnp.cos(sinusoid_inp).astype(inputs.dtype)

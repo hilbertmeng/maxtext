@@ -343,6 +343,11 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       output_metrics["scalar"][f"intermediates/hidden_states_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"hidden_states_layer_{layer_num}"][0]
       output_metrics["scalar"][f"intermediates/attn_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["attn_out"][0]
       output_metrics["scalar"][f"intermediates/mlp_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["mlp_out"][0]
+      
+      if config.mosa_mode == 'relu':
+        output_metrics["scalar"][f"intermediates/relu_gate_q_ratio_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention_mosa"]["relu_gate_q_ratio"][0]
+        output_metrics["scalar"][f"intermediates/relu_gate_k_ratio_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention_mosa"]["relu_gate_k_ratio"][0]
+
       if config.sigmoid_attention:
         output_metrics["scalar"][f"intermediates/q_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["q_norm_stat"][0]
         output_metrics["scalar"][f"intermediates/k_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["k_norm_stat"][0]      

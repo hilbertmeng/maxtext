@@ -507,7 +507,7 @@ class MoeBlock(nn.Module):
       w1_pspec = aqt_tensor.partition_spec(w1_pspec, (1,), w1_kernel.dtype, use_bias=False)
     if isinstance(wo_kernel, QTensor):
       wo_pspec = aqt_tensor.partition_spec(wo_pspec, (1,), wo_kernel.dtype, use_bias=False)
-
+       
     @functools.partial(
         shard_map.shard_map,
         mesh=self.mesh,
@@ -534,7 +534,8 @@ class MoeBlock(nn.Module):
       )
       return output, None
 
-    return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
+    wrapper_out = wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
+    return wrapper_out
 
   def reshape_and_update_weights(self, weights, indices):
     # input of weights & indices: (batch_size, seq_len, num_experts_per_tok)

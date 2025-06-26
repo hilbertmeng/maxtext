@@ -244,39 +244,98 @@ class SubDecoderLayer(nn.Module):
       attention_class = Attention
       mla_kwargs = {}
 
-    attention_layer = attention_class(
-      config=cfg,
-      num_query_heads=cfg.num_query_heads,
-      num_kv_heads=cfg.num_kv_heads,
-      head_dim=cfg.head_dim,
-      max_target_length=cfg.max_target_length,
-      max_prefill_predict_length=cfg.max_prefill_predict_length,
-      attention_kernel=cfg.attention,
-      mesh=mesh,
-      dtype=cfg.dtype,
-      weight_dtype=cfg.weight_dtype,
-      dropout_rate=cfg.dropout_rate,
-      name="self_attention",
-      float32_qk_product=cfg.float32_qk_product,
-      float32_logits=cfg.float32_logits,
-      quant=self.quant,
-      kv_quant=quantizations.configure_kv_quant(cfg),
-      prefill_cache_axis_order=tuple([int(i) for i in cfg.prefill_cache_axis_order.split(",")]),
-      ar_cache_axis_order=tuple([int(i) for i in cfg.ar_cache_axis_order.split(",")]),
-      compute_axis_order=tuple([int(i) for i in cfg.compute_axis_order.split(",")]),
-      reshape_q=cfg.reshape_q,
-      use_ragged_attention=cfg.use_ragged_attention,
-      ragged_block_size=cfg.ragged_block_size,
-      kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-      sliding_window_size=self.sliding_window_size,
-      layer_inx=self.layer_inx,
-      use_kv_shift=cfg.use_kv_shift,
-      use_alibi=cfg.use_alibi,
-      use_postnorm=cfg.use_postnorm,
-      **mla_kwargs,
-    )
+    if cfg.num_query_heads > 0:
+      attention_layer = attention_class(
+        config=cfg,
+        num_query_heads=cfg.num_query_heads,
+        num_kv_heads=cfg.num_kv_heads,
+        head_dim=cfg.head_dim,
+        max_target_length=cfg.max_target_length,
+        max_prefill_predict_length=cfg.max_prefill_predict_length,
+        attention_kernel=cfg.attention,
+        mesh=mesh,
+        dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        dropout_rate=cfg.dropout_rate,
+        name="self_attention",
+        float32_qk_product=cfg.float32_qk_product,
+        float32_logits=cfg.float32_logits,
+        quant=self.quant,
+        kv_quant=quantizations.configure_kv_quant(cfg),
+        prefill_cache_axis_order=tuple([int(i) for i in cfg.prefill_cache_axis_order.split(",")]),
+        ar_cache_axis_order=tuple([int(i) for i in cfg.ar_cache_axis_order.split(",")]),
+        compute_axis_order=tuple([int(i) for i in cfg.compute_axis_order.split(",")]),
+        reshape_q=cfg.reshape_q,
+        use_ragged_attention=cfg.use_ragged_attention,
+        ragged_block_size=cfg.ragged_block_size,
+        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        sliding_window_size=self.sliding_window_size,
+        layer_inx=self.layer_inx,
+        use_kv_shift=cfg.use_kv_shift,
+        use_alibi=cfg.use_alibi,
+        use_postnorm=cfg.use_postnorm,
+        query_chunk_size=cfg.query_chunk_size,
+        use_dc=(cfg.pre_compose or cfg.post_compose) and not cfg.ablate_dcmha,
+        **mla_kwargs,
+      )
 
-    attention_lnx, value_residual = attention_layer(
+      attention_lnx, value_residual = attention_layer(
+          lnx,
+          lnx if not cfg.dense_conn else lnx_kv,
+          decoder_positions,
+          decoder_segment_ids=decoder_segment_ids,
+          deterministic=deterministic,
+          model_mode=model_mode,
+          hidden_states=inputs if not self.config.normed_hidden_states else normed_hidden_states,
+          value_residual=value_residual,
+          ffn_act=inner_ffn_act,
+      )
+    else:
+      attention_lnx, value_residual = 0, None
+
+    if self.config.mosa_num_query_heads is not None and self.config.mosa_num_query_heads > 0:
+      mosa_kwargs=dict(mosa_num_query_heads=cfg.mosa_num_query_heads,
+                        mosa_num_kv_heads=cfg.mosa_num_kv_heads,
+                        mosa_topk= cfg.mosa_topk,
+                        mosa_num_routers=cfg.mosa_num_routers,
+                        mosa_mode=cfg.mosa_mode,
+                        query_chunk_size=cfg.mosa_query_chunk_size,
+                        use_dc=cfg.use_dcmosa,
+                        mosa_num_groups=cfg.mosa_num_groups,)
+        
+      mosa_attention_layer = attentions.MoSA(
+        config=cfg,
+        num_query_heads=cfg.mosa_num_query_heads,
+        num_kv_heads=cfg.mosa_num_kv_heads,
+        head_dim=cfg.head_dim,
+        max_target_length=cfg.max_target_length,
+        max_prefill_predict_length=cfg.max_prefill_predict_length,
+        attention_kernel=cfg.attention,
+        mesh=mesh,
+        dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        dropout_rate=cfg.dropout_rate,
+        name="self_attention_mosa",
+        float32_qk_product=cfg.float32_qk_product,
+        float32_logits=cfg.float32_logits,
+        quant=self.quant,
+        kv_quant=quantizations.configure_kv_quant(cfg),
+        prefill_cache_axis_order=tuple([int(i) for i in cfg.prefill_cache_axis_order.split(",")]),
+        ar_cache_axis_order=tuple([int(i) for i in cfg.ar_cache_axis_order.split(",")]),
+        compute_axis_order=tuple([int(i) for i in cfg.compute_axis_order.split(",")]),
+        reshape_q=cfg.reshape_q,
+        use_ragged_attention=cfg.use_ragged_attention,
+        ragged_block_size=cfg.ragged_block_size,
+        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        sliding_window_size=self.sliding_window_size,
+        layer_inx=self.layer_inx,
+        use_kv_shift=cfg.use_kv_shift,
+        use_alibi=cfg.use_alibi,
+        use_postnorm=cfg.use_postnorm,
+        **mla_kwargs,
+        **mosa_kwargs,
+        )
+      mosa_attention_lnx, _ = mosa_attention_layer(
         lnx,
         lnx if not cfg.dense_conn else lnx_kv,
         decoder_positions,
@@ -286,7 +345,9 @@ class SubDecoderLayer(nn.Module):
         hidden_states=inputs if not self.config.normed_hidden_states else normed_hidden_states,
         value_residual=value_residual,
         ffn_act=inner_ffn_act,
-    )
+      )
+      attention_lnx = attention_lnx + mosa_attention_lnx
+
 
     if inner_moe and self.config.inner_moe_on_attn_out and self.config.share_inner_outer_moe:
       lnx_rms = norm_class(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, name="inner_moe_prenorm", kernel_axes=("embed",),epsilon=cfg.normalization_layer_epsilon)

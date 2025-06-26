@@ -96,6 +96,9 @@ class DynamicWeightProjection(nn.Module):
                         kernel_init=NormalInitializer(math.sqrt(2.0 / (self.input_dim + self.dynamic_w_hidden_dim))), 
                         kernel_axes=('embed', None, 'heads', 'mlp'),
                         **kwargs)
+      # for dc mosa 
+      self.dw1_kernel = self.param('dw1_kernel',nn.with_logical_partitioning(NormalInitializer(math.sqrt(2.0 / (self.input_dim + self.dynamic_w_hidden_dim))), ('embed', None, 'heads', 'mlp')),
+                        (self.input_dim, self.num_groups, self.n_splits, self.dynamic_w_hidden_dim), self.weight_dtype) # DGCK
       self.dw_hidden_activation = nn.gelu
       # self.dynamic_w_hidden_dim: num_heads_per_group * I * 2 = 32 * 2 * 2 = 128
       G, K, M = self.num_groups, self.dynamic_w_hidden_dim, self.num_heads_per_group
@@ -130,6 +133,8 @@ class DynamicWeightProjection(nn.Module):
                         kernel_axes=('embed', None, 'mlp'),
                         **kwargs
                         )
+      self.dd_kernel = self.param('dd_kernel',nn.with_logical_partitioning(NormalInitializer(self.dynamic_d_init), ('embed', None, 'mlp')),
+                        (self.input_dim, self.num_groups, self.num_heads_per_group * self.n_splits), self.weight_dtype) # DGK
       if self.use_dd_bias: 
         bias_shape = [self.num_heads_per_group * self.n_splits]
         self.dd_bias =  self.param('dd_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None,)), bias_shape, self.weight_dtype)
@@ -149,7 +154,10 @@ class DynamicWeightProjection(nn.Module):
     qkw_kernel = jnp.asarray(self.qkw, self.dtype) if not self.dc_dw2_zero_init else jnp.asarray(jnp.concatenate([self.qkw1, self.qkw2], axis=-2), self.dtype) # lsp
     if self.n_splits == 2:
       skip_norm_tanh = False # default: False
-      dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
+      if len(query_vec.shape) == 4: # for dc mosa, BtGD
+        dw_hidden = self.dw_hidden_activation(jnp.einsum('BTGD, DGCK->BTGCK', query_vec, self.dw1_kernel))   # BTG2,64
+      else: # dcmha
+        dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
 
@@ -172,7 +180,10 @@ class DynamicWeightProjection(nn.Module):
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
 
-      dd = self.dd(query_vec)
+      if len(query_vec.shape) == 4: # for dc mosa, BtGD
+        dd = jnp.einsum('BTGD,DGK->BTGK', query_vec, self.dd_kernel)
+      else: #dcmha
+        dd = self.dd(query_vec)
       if self.use_dd_bias:
         dd = dd + self.dd_bias[None, None]
       if not skip_norm_tanh:
@@ -371,11 +382,12 @@ class AttentionOp(nn.Module):
   config: Any
   quant: Optional[Quant] = None
   sliding_window_size: int|None = None
+  query_chunk_size: int|None = None
+  num_query_heads: int = 0 
+  num_kv_heads: int = 0
 
   def setup(self):
     cfg = self.config
-    self.num_query_heads = cfg.num_query_heads
-    self.num_kv_heads = cfg.num_kv_heads
     self.head_dim = cfg.head_dim
     self.is_cross_attention = False
     self.num_groups = 1 if cfg.dc_num_groups is None else cfg.dc_num_groups
@@ -386,8 +398,7 @@ class AttentionOp(nn.Module):
     self.dynamic_dropout_rate = 0.0
     self.pre_static_proj = cfg.pre_static_proj if cfg.pre_static_proj is not None else cfg.static_proj
     self.post_static_proj = cfg.post_static_proj if cfg.post_static_proj is not None else cfg.static_proj
-    self.loop_over_dynamic_hd = True
-    self.query_chunk_size = cfg.query_chunk_size
+    self.loop_over_dynamic_hd = cfg.loop_over_dynamic_hd
     self.float32_qk_product = cfg.float32_qk_product
     self.pre_compose = cfg.pre_compose
     self.post_compose = cfg.post_compose
@@ -416,7 +427,7 @@ class AttentionOp(nn.Module):
           if not use: continue
           setattr(self, name, DynamicWeightProjection(
             num_heads=self.num_query_heads, num_groups=self.num_groups,
-            input_dim=self.num_query_heads * self.head_dim, n_splits=2,
+            input_dim=self.config.emb_dim, n_splits=2,
             dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
             dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
             dynamic_squeeze_ratio=num_heads_per_group // I,
@@ -434,7 +445,7 @@ class AttentionOp(nn.Module):
       else:
         self.dyn_w_proj = DynamicWeightProjection(
           num_heads=self.num_query_heads, num_groups=self.num_groups,
-          input_dim=self.num_query_heads * self.head_dim, n_splits=4,
+          input_dim=self.config.emb_dim, n_splits=4,
           dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
           dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
           dynamic_squeeze_ratio=num_heads_per_group // I,
@@ -493,6 +504,7 @@ class AttentionOp(nn.Module):
     input_q: Array = None,
     input_kv: Array = None,
     hidden_states: Array = None, # inputs_m
+    attn_mask=None,
 ):
     cfg = self.config
 
@@ -524,9 +536,10 @@ class AttentionOp(nn.Module):
             if hasattr(self, 'dyn_w_post_proj'):
                 post_proj_dw_args = self.dyn_w_post_proj(input_kv)
         
-    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size)(query, key, value, decoder_segment_ids, model_mode, 
+    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, query_chunk_size=self.query_chunk_size)(query, key, value, decoder_segment_ids, model_mode, 
                             pre_proj_dw_args, post_proj_dw_args, 
                             pre_proj_layer=self.pre_proj,
                             post_proj_layer=self.post_proj,
+                            attn_mask=attn_mask,
                             )
     return outputs

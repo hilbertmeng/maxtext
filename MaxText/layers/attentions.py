@@ -43,6 +43,7 @@ from layers import kv_shift
 from layers import head_pool
 
 import maxtext_utils
+import max_logging
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -108,6 +109,8 @@ global_v_layout = ""
 nd_dense_init = initializers.nd_dense_init
 shard_map = shard_map.shard_map
 
+NormalInitializer = initializers.nd_dense_init_normal
+
 dynamic_vector_slice_in_dim = jax.vmap(lax.dynamic_slice_in_dim, in_axes=(None, 0, None, None))
 
 
@@ -171,6 +174,7 @@ class AttentionOp(nn.Module):
   sliding_window_size: int | None = None
   use_ragged_attention: bool = False
   ragged_block_size: int = 256
+  query_chunk_size: Optional[int] = None
 
   def check_attention_inputs(self, query: Array, key: Array | KVTensor, value: Array | KVTensor) -> None:
     """Check attention inputs."""
@@ -230,6 +234,7 @@ class AttentionOp(nn.Module):
       lengths: Array | None,
       model_mode: str,
       use_ragged_attention: bool = False,
+      attn_mask=None,
   ):
     self.check_attention_inputs(query, key, value)
     length = query.shape[-3]
@@ -246,8 +251,8 @@ class AttentionOp(nn.Module):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
     elif self.attention_kernel == "dot_product_chunk": # lsp: dc, llama, mudd etc. expecially when head_dim < 128, can't use flash to accelerate
       return accelerator.QChunk(config=self.config, 
-                                sliding_window_size=self.sliding_window_size)(
-                                                    query, key, value, decoder_segment_ids, model_mode
+                                sliding_window_size=self.sliding_window_size, query_chunk_size=self.query_chunk_size)(
+                                                    query, key, value, decoder_segment_ids, model_mode, attn_mask=attn_mask,
                                                     )
 
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
@@ -1038,7 +1043,7 @@ class AttentionOp(nn.Module):
     return attn_out
 
   @nn.compact
-  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args, input_q=None, input_kv=None, hidden_states=None): # lsp
+  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args, input_q=None, input_kv=None, hidden_states=None, attn_mask=None): # lsp
     prefill_kv_cache, ar_kv_cache = self.kv_cache(
         key, value, decoder_segment_ids, model_mode, use_ragged_attention=self.use_ragged_attention
     )
@@ -1051,6 +1056,7 @@ class AttentionOp(nn.Module):
         lengths=None,
         model_mode=model_mode,
         use_ragged_attention=self.use_ragged_attention,
+        attn_mask=attn_mask,
     )
 
     # Return the "prefill" cache if it actually the combined prefill+ar kv cache
@@ -1067,6 +1073,7 @@ class AttentionOp(nn.Module):
         lengths=ar_kv_cache[3],
         model_mode=model_mode,
         use_ragged_attention=self.use_ragged_attention,
+        attn_mask=attn_mask,
     )
 
     if ar_unnormalized_output is not None:
@@ -1145,11 +1152,14 @@ class Attention(nn.Module):
   use_kv_shift: bool = False
   use_alibi: bool = False
   use_postnorm: bool = False
+  query_chunk_size: Optional[int] = None
+  use_dc: bool = False
   
 
   def setup(self):
-    if self.config.pre_compose or self.config.post_compose:
-      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size)
+    if self.use_dc:
+      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size, query_chunk_size=self.query_chunk_size, 
+                                        num_query_heads=self.num_query_heads, num_kv_heads=self.num_kv_heads)
     else:
       self.attention_op = AttentionOp(
         config=self.config,
@@ -1174,6 +1184,7 @@ class Attention(nn.Module):
         sliding_window_size=self.sliding_window_size,
         use_ragged_attention=self.use_ragged_attention,
         ragged_block_size=self.ragged_block_size,
+        query_chunk_size=self.query_chunk_size,
     )
 
     if self.config.merge_kvshift_vr:
@@ -1801,4 +1812,265 @@ class MLA(Attention):
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, input_q=inputs_q, input_kv=inputs_kv)
     out = nn.with_logical_constraint(out, self.out_axis_names)
     out = self.out_projection(inputs_q.shape[-1], out)
+    return out, value_residual
+
+
+def batch_take(inputs, indices=None):
+  if indices is None:
+    return inputs
+  return jax.vmap(lambda a,b: jnp.take(a, b, axis=0))(inputs, indices) # BTD -> BtND
+
+# https://github.com/jax-ml/jax/issues/17844#issuecomment-2241236592
+def batch_scatter_add(inputs, indices, updates):
+  return jax.vmap(lambda a,b,c:  a.at[b,:].add(c))(inputs, indices, updates)
+  # return jax.vmap(lambda a,b,c: jax.lax.scatter_add(a, b, c))(inputs, indices, updates)
+
+def cal_mosa_mask(q_indices, k_indices, dtype=jnp.dtype("float32")):
+    attn_mask = q_indices[...,None] >= k_indices[...,None,:]
+    large_negative_number = accelerator.get_large_negative_number(dtype)
+    attn_mask = attn_mask.astype(dtype)
+    attn_mask = jnp.where((attn_mask > 0.5), attn_mask, large_negative_number)
+    return attn_mask
+
+
+class MoSA(Attention):
+  """Mixture of Sparse Attention (MoSA) https://arxiv.org/abs/2505.00315 """
+
+  mosa_num_query_heads: int = 0
+  mosa_num_groups: Optional[int] = None
+  mosa_num_kv_heads: int = 0
+  mosa_topk: int = 256
+  mosa_num_routers: int = 1 # 1: shared qk indexs, 2: seperate qk indexs 
+  mosa_mode: str = 'topk' # 'relue'
+ 
+
+  def setup(self):
+    super().setup()
+
+    if self.mosa_num_groups is None : 
+      self.mosa_num_groups = self.mosa_num_query_heads
+    # else:
+    #   assert self.config.dc_num_groups == 1
+    
+    assert self.mosa_num_query_heads % self.mosa_num_groups == 0 
+    assert self.mosa_num_kv_heads % self.mosa_num_groups == 0
+    if self.config.dc_num_groups is not None:
+      assert self.mosa_num_groups == self.config.dc_num_groups
+
+
+    kernel_init_shard = nn.with_logical_partitioning(NormalInitializer(0.006), (None, None, 'embed', None))
+    self.mosa_num_query_heads_per_group = self.mosa_num_query_heads // self.mosa_num_groups
+    shape = (self.mosa_num_groups, self.mosa_num_query_heads_per_group, self.config.emb_dim, self.head_dim)
+    self.query_weight = self.param('query_weight', kernel_init_shard, shape, self.weight_dtype) # DdN
+    self.out_weight = self.param('out_weight', kernel_init_shard, shape, self.weight_dtype)    
+
+    self.mosa_num_kv_heads_per_group = self.mosa_num_kv_heads // self.mosa_num_groups
+    shape = (self.mosa_num_groups, self.mosa_num_kv_heads_per_group, self.config.emb_dim, self.head_dim)
+    self.key_weight = self.param('key_weight', kernel_init_shard, shape, self.weight_dtype)
+    self.value_weight = self.param('value_weight', kernel_init_shard, shape, self.weight_dtype)
+
+    if self.config.use_head_emb:
+      kernel_init_shard = nn.with_logical_partitioning(initializers.constant_init(0), (None, None, 'embed'))
+      shape = (2, self.mosa_num_query_heads, self.config.emb_dim)
+      self.head_emb = self.param('head_emb', kernel_init_shard, shape, self.weight_dtype) # CND
+
+  def mosa_router(self, x: Array,):
+    if self.config.mosa_router_hid_dim:
+      x = DenseGeneral(
+            (self.config.mosa_router_hid_dim),
+            dtype=self.dtype,
+            weight_dtype=self.weight_dtype,
+            quant=self.quant,
+            kernel_init=self.kernel_init,
+            kernel_axes=("embed", None),
+            name="mosa_router_proj_up",
+            matmul_precision=self.config.matmul_precision,
+        )(x)
+      x = jax.nn.gelu(x)
+    logits = DenseGeneral(
+            (self.mosa_num_groups, self.mosa_num_routers),
+            dtype=self.dtype,
+            weight_dtype=self.weight_dtype,
+            quant=self.quant,
+            kernel_init=self.kernel_init,
+            kernel_axes=(None, None, None) if self.config.mosa_router_hid_dim else ("embed", None, None),
+            name="mosa_router",
+            matmul_precision=self.config.matmul_precision,
+        )(x) # BTD, DGC -> BTGC
+    return logits 
+
+  def select(self, logits: Array):
+    C,B,N,T=logits.shape
+    # select the first token and other topk-1 tokens
+    topk = self.mosa_topk - 1
+    gate_q, q_indices = jax.lax.top_k(logits[0,:,:,1:], topk) # BNT -> BNt
+    gate_q = jnp.concatenate([logits[0,:,:,:1], gate_q], axis=-1).transpose((0,2,1)) # BNt->BtN
+    q_indices = jnp.concatenate([jnp.zeros((B,N,1),dtype=q_indices.dtype),q_indices+1], axis=-1).transpose((0,2,1)) # BNt->BtN
+    if self.mosa_num_routers == 1: 
+      gate_k, k_indices = gate_q, q_indices
+    else:
+      gate_k, k_indices = jax.lax.top_k(logits[1,:,:,1:], topk) # BNT -> BNt
+      gate_k = jnp.concatenate([logits[1,:,:,:1], gate_k], axis=-1).transpose((0,2,1)) # BNt->BtN
+      k_indices = jnp.concatenate([jnp.zeros((B,N,1),dtype=k_indices.dtype),k_indices+1], axis=-1).transpose((0,2,1)) # BNt->BtN
+    return gate_q, q_indices, gate_k, k_indices
+
+  @nn.compact
+  def __call__(
+      self,
+      inputs_q: Array,
+      inputs_kv: Array,
+      inputs_positions: Array,
+      decoder_segment_ids: Array | None = None,
+      *,
+      model_mode: str = common_types.MODEL_MODE_TRAIN,
+      deterministic: bool = False,
+      hidden_states=None,
+      value_residual=None,
+      ffn_act=None,
+  ):
+
+    inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
+    inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
+     
+    logits = self.mosa_router(inputs_q)
+
+    # max_logging.log(f"mosa_mode: {self.mosa_mode}")
+
+
+    if self.mosa_mode == 'topk':
+      logits = rearrange(logits, 'B T G C -> C B G T')
+      logits = jax.nn.sigmoid(logits) 
+      gate_q, q_indices, gate_k, k_indices = self.select(logits)
+      if self.config.mosa_sqrt_gate:
+        gate_q = jnp.sqrt(gate_q)
+        gate_k = jnp.sqrt(gate_k)
+    elif self.mosa_mode == 'relu':
+      logits = rearrange(logits, 'B T G C -> C B T G')
+      if self.config.mosa_num_routers == 2:
+        gate = jax.nn.relu(jax.lax.tanh(logits))
+        if self.config.mosa_sqrt_gate:
+          gate = jnp.sqrt(gate)
+        gate_q, gate_k = gate[0], gate[1]
+      else: 
+        gate_q = jax.nn.relu(jax.lax.tanh(logits))[0] # BTN
+        gate_k = None
+      self.sow('intermediates', 'relu_gate_q_ratio', (gate_q>0).astype(gate_q.dtype).mean())
+      self.sow('intermediates', 'relu_gate_k_ratio', 1 if gate_k is None else (gate_k>0).astype(gate_k.dtype).mean())
+      q_indices, k_indices = None, None
+    elif self.mosa_mode == 'full_gated':
+      logits = rearrange(logits, 'B T G C -> C B T G')
+      if self.config.mosa_num_routers == 2:
+        gate = jax.nn.sigmoid(logits)
+        if self.config.mosa_sqrt_gate:
+          gate = jnp.sqrt(gate)
+        gate_q, gate_k = gate[0], gate[1]
+      else:
+        gate_q = jax.nn.sigmoid(logits)[0] 
+        gate_k = None
+      q_indices, k_indices = None, None
+  
+    # max_logging.log(f"q_indices, k_indices shape: {q_indices.shape}, {k_indices.shape}")
+
+    _inputs_kv = inputs_kv[0] if isinstance(inputs_kv, (tuple, list)) else inputs_kv
+    _inputs_q = batch_take(inputs_q, indices=q_indices) # BTD, BtN -> BtND
+    _inputs_kv = batch_take(_inputs_kv, indices=k_indices) # BTD, BtN -> BtN
+
+    # max_logging.log(f"_inputs_q, _inputs_kv shape: {_inputs_q.shape}, {_inputs_kv.shape}")
+    if q_indices is not None:
+      query = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_q, self.query_weight)
+      key = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_kv, self.key_weight)
+      value = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_kv, self.value_weight)
+    else:
+      query = jnp.einsum('BtD,GNDd->BtGNd', _inputs_q, self.query_weight)
+      key = jnp.einsum('BtD,GNDd->BtGNd', _inputs_kv, self.key_weight)
+      value = jnp.einsum('BtD,GNDd->BtGNd', _inputs_kv, self.value_weight)
+
+    query = rearrange(query, 'B t G N d -> B t (G N) d')
+    key = rearrange(key, 'B t G N d -> B t (G N) d')
+    value = rearrange(value, 'B t G N d -> B t (G N) d')
+
+
+    value_residual = None
+
+    # query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
+
+    # apply ROPE
+    q_inputs_positions = inputs_positions if q_indices is None else batch_take(inputs_positions, indices=q_indices)[...,None] 
+    k_inputs_positions = inputs_positions if k_indices is None else batch_take(inputs_positions, indices=k_indices)[...,None] 
+    if self.mosa_num_groups > 1:
+      q_inputs_positions = q_inputs_positions.repeat(self.mosa_num_query_heads_per_group, axis=-2)
+      k_inputs_positions = k_inputs_positions.repeat(self.mosa_num_kv_heads_per_group, axis=-2)
+    query = self.apply_rotary_embedding(query, q_inputs_positions, name="query_rotary") # BNts
+    key = self.apply_rotary_embedding(key, k_inputs_positions, name="key_rotary")
+
+    if self.config.mosa_num_routers == 2:
+      value = gate_k.repeat(self.mosa_num_kv_heads_per_group, axis=-1)[...,None] * value # (BtG -> Bt(GN))1, Bt(GN)d->Bt(GN)d
+
+    if model_mode == common_types.MODEL_MODE_PREFILL:
+      query = nn.with_logical_constraint(query, self.prefill_query_axis_names)
+      key = nn.with_logical_constraint(key, self.prefill_key_axis_names)
+      value = nn.with_logical_constraint(value, self.prefill_value_axis_names)
+    else:
+      query = nn.with_logical_constraint(query, self.query_axis_names)
+      key = nn.with_logical_constraint(key, self.key_axis_names)
+      value = nn.with_logical_constraint(value, self.value_axis_names)
+    query = checkpoint_name(query, "query_proj")
+    key = checkpoint_name(key, "key_proj")
+    value = checkpoint_name(value, "value_proj")
+
+    assert not self.config.quantize_kvcache or self.kv_quant
+
+     # lsp
+    depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
+    query /= depth_scaling
+
+    # if self.num_query_heads > self.num_kv_heads: # GQA
+    #   n_expands = self.num_query_heads // self.num_kv_heads
+    #   key = jnp.repeat(key, n_expands, axis=-2) # BSNd
+    #   value = jnp.repeat(value, n_expands, axis=-2) 
+
+    # if self.config.record_internal_nn_metrics:
+    #   if self.config.sigmoid_attention:
+    #     self.sow('intermediates', 'q_norm_stat', maxtext_utils.l2norm(query))
+    #     self.sow('intermediates', 'k_norm_stat', maxtext_utils.l2norm(key))
+    #     attn_logits = jnp.tril(jnp.einsum('B T N D, B S N D -> B N T S', query, key) - 7.62)
+    #     self.sow('intermediates', 'attn_logits_max', attn_logits.max())
+    #     self.sow('intermediates', 'attn_logits_min', -1 * (-attn_logits).max())
+    #     self.sow('intermediates', 'attn_logits_mean', attn_logits.mean())
+
+    if q_indices is not None:
+      attn_mask = cal_mosa_mask(q_indices.transpose(0,2,1), k_indices.transpose(0,2,1))
+      attn_mask = attn_mask.repeat(self.mosa_num_query_heads_per_group, axis=1) # BNt, BNs-> BNts -> B(GN)ts
+    else:
+      attn_mask = None
+    # attn_mask = q_indices.transpose(0,2,1)[...,None] >= k_indices.transpose(0,2,1)[...,None,:] # BNt1 >= BN1s -> BNts
+
+    max_logging.log(f"query, key, value shape: {query.shape}, {key.shape}, {value.shape}")
+    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, _inputs_q, _inputs_kv, hidden_states=hidden_states, attn_mask=attn_mask)
+
+    out = nn.with_logical_constraint(out, self.out_axis_names)
+  
+    # apply output projection,  output dim is set to the input dim.
+    out = gate_q.repeat(self.mosa_num_query_heads_per_group, axis=-1)[...,None] * out # (BtG -> Bt(GN))1, BtNd -> BtNd
+
+    out = rearrange(out, 'B t (G N) d -> B t G N d', G=self.mosa_num_groups)
+    if q_indices is not None:
+      sparse_out = jnp.einsum('BtGNd,GNDd->BtGD', out, self.out_weight)
+    else:
+      sparse_out = jnp.einsum('BtGNd,GNDd->BtD', out, self.out_weight)
+
+    if self.config.use_head_emb and gate_k is not None and gate_q is not None: # add head emb for activated tokens  
+      if q_indices is not None:
+        sparse_out = sparse_out + jnp.einsum('BTN,ND->BTND', gate_q, self.head_emb[0]) + jnp.einsum('BTN,ND->BTND', gate_k, self.head_emb[1])
+      else:
+        sparse_out = sparse_out + jnp.einsum('BTN,ND->BTD', gate_q, self.head_emb[0]) + jnp.einsum('BTN,ND->BTD', gate_k, self.head_emb[1])
+
+    if q_indices is not None:
+      B,t,N,D= sparse_out.shape
+      out = jnp.zeros_like(inputs_q)
+      out = batch_scatter_add(out, q_indices.reshape(B,-1), sparse_out.reshape(B,-1,D))
+    else:
+      out = sparse_out
+   
+    out = checkpoint_name(out, "out_proj")
     return out, value_residual

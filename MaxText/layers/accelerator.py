@@ -76,10 +76,11 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
 class QChunk(nn.Module):
   config: Config
   sliding_window_size: int
+  query_chunk_size: Optional[int] = None
 
   def setup(self):
     cfg = self.config
-    self.query_chunk_size = cfg.query_chunk_size
+    # self.query_chunk_size = cfg.query_chunk_size
     self.float32_qk_product = cfg.float32_qk_product
     self.float32_logits = cfg.float32_logits
     self.post_compose = cfg.post_compose
@@ -138,7 +139,7 @@ class QChunk(nn.Module):
     attn_weights = self.qk_product(query, key)
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
    
-    if self.config.pre_compose:
+    if self.config.pre_compose and pre_proj_dw_args is not None:
        # 5 demonsion
       pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
       attn_weights = pre_proj_layer(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
@@ -168,7 +169,7 @@ class QChunk(nn.Module):
       probs = jax.nn.softmax(attn_weights).astype(self.dtype)
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
 
-    if self.config.post_compose:
+    if self.config.post_compose and post_proj_dw_args is not None:
       post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
       probs = post_proj_layer(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
 
@@ -193,13 +194,15 @@ class QChunk(nn.Module):
     post_proj_dw_args = None,
     pre_proj_layer = None,
     post_proj_layer = None,
+    attn_mask=None,
 ):
     self.check_attention_inputs(query, key, value)
 
     b, t, n, _ = query.shape
     h = value.shape[-1]
     s = key.shape[1]
-    attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, unmask_bos=self.config.unmask_bos, mask_current_token=self.config.mask_current_token)
+    if attn_mask is None:
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, self.sliding_window_size, t, query.dtype, unmask_bos=self.config.unmask_bos, mask_current_token=self.config.mask_current_token)
 
     if self.query_chunk_size is None:
         encoded = self._apply_attention_dot(

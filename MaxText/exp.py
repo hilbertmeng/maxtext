@@ -152,6 +152,173 @@ class Llama2MediumBase(Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://llm_projects/log/summaries/train/"
 
+class Llama2MediumBase32K(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    max_target_length = 1024 * 32
+    per_device_batch_size = 32.0 / 16
+    scan_layers = False # v5p-16: 0.154
+
+class Llama2MediumBase32KRope1M(Llama2MediumBase32K):
+    rope_max_timescale = 1000000
+    query_chunk_size=256
+
+class Llama2MediumBaseChannelGating(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    channel_gating = True
+    scan_layers = False
+
+class Llama2MediumBaseChannelGatingScale0Fix(Llama2MediumBaseChannelGating):
+    channel_gating_init_scale = 0
+
+class Llama2MediumBaseChannelBias(Llama2MediumBaseChannelGating):
+    channel_gating_init_scale = 0 # multiply -> add 
+
+class Llama2MediumBaseVocabGating(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    vocab_gating = True
+    scan_layers = False
+
+class Llama2MediumBaseVocabGatingScale0(Llama2MediumBaseVocabGating):
+    vocab_gating_init_scale = 0
+
+class Llama2MediumBaseVocabBias(Llama2MediumBaseVocabGating):
+    vocab_gating_init_scale = 0
+
+class Llama2MediumBaseHead32(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_num_query_heads = 32  # v5p-16: 0.587
+    base_num_kv_heads = 32
+    scan_layers = False
+
+class Llama2MediumBaseHead64(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_num_query_heads = 64 # v5p-16: 0.345
+    base_num_kv_heads = 64
+    scan_layers = False
+
+class Llama2MediumBaseHead128(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_num_query_heads = 128 # v5p-16: 0.345
+    base_num_kv_heads = 128
+    scan_layers = False
+
+class Llama2MediumMoSA(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_num_query_heads = 4
+    base_num_kv_heads = 4
+    query_chunk_size=512
+    scan_layers = False
+    # mosa config
+    mosa_mode = 'topk'
+    mosa_num_query_heads = 12 # v5p-16: 0.727
+    mosa_num_kv_heads = 12
+    mosa_topk = 256
+    mosa_num_routers = 1
+    mosa_query_chunk_size = None
+
+
+class Llama2MediumMoSATrace(Trace, SpeedTest, Llama2MediumMoSA):
+    mosa_num_groups = 12
+
+class Llama2MediumMoSAG3(Llama2MediumMoSA):
+    mosa_num_groups = 3
+
+class Llama2MediumMoSADC2G3(DC2, Llama2MediumMoSA):
+    qk_norm = False
+    ablate_dcmha = True
+    use_dcmosa = True
+    mosa_num_groups = 3
+    dc_num_groups = 3
+
+class Llama2MediumMoSADC2G6(Llama2MediumMoSADC2G3):
+    mosa_num_groups = 6
+    dc_num_groups = 6
+
+class Llama2MediumMoSADC2G3Topk1024(Llama2MediumMoSADC2G3):
+    mosa_topk = 1024
+
+class Llama2MediumMoSADC2G1TopK2048(Llama2MediumMoSADC2G3):
+    mosa_num_groups = 1
+    dc_num_groups = 1
+    mosa_topk = 2048
+
+class Llama2MediumMoSAHeadEmb(Llama2MediumMoSA):
+    use_head_emb = True
+
+class Llama2MediumMoSA32K(Llama2MediumMoSA):
+    max_target_length = 1024 * 32 # v5p-16: 0.476
+    per_device_batch_size = 32.0 / 16
+
+class Llama2MediumMoSA32KRope1M(Llama2MediumMoSA32K):
+    rope_max_timescale = 1000000
+
+class Llama2MediumMoSA32KTopK1024(Llama2MediumMoSA32K):
+    mosa_topk = 1024 # v5p-16: 0.454     
+
+class Llama2MediumMoSA32KTopK2048(Llama2MediumMoSA32K):
+    mosa_topk = 2048  # v5p-16: 0.418    
+
+class Llama2MediumMoSARelu(Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    query_chunk_size=512
+    base_num_query_heads = 0
+    scan_layers = False
+    mosa_mode = 'relu'
+    mosa_num_routers = 1
+    mosa_num_query_heads = 16 
+    mosa_num_kv_heads = 16
+    mosa_query_chunk_size = 512
+
+class Llama2MediumMoSAReluFullGated(Llama2MediumMoSARelu):
+    mosa_mode = 'full_gated'
+
+class Llama2MediumMoSAReluFullGatedSepRouter(Llama2MediumMoSAReluFullGated):
+    mosa_num_routers = 2
+
+class Llama2MediumMoSAReluFullGatedSepRouterSqrt(Llama2MediumMoSAReluFullGatedSepRouter): 
+    mosa_sqrt_gate = True
+   
+class Llama2MediumMoSAReluFullGatedSepRouterSqrtHeadEmb(Llama2MediumMoSAReluFullGatedSepRouterSqrt):
+    use_head_emb = True
+
+class Llama2MediumMoSAReluHead12(Llama2MediumMoSARelu):
+    mosa_num_query_heads = 12
+    mosa_num_kv_heads = 12
+    base_num_query_heads = 4
+    base_num_kv_heads = 4
+
+class Llama2MediumMoSAReluHead12SepRouter(Llama2MediumMoSAReluHead12):
+    mosa_num_routers = 2
+
+class Llama2MediumMoSAReluHead12SepRouterHeadEmb(Llama2MediumMoSAReluHead12SepRouter):
+    use_head_emb = True
+
+class Llama2MediumMoSAReluHead12SepRouterHeadEmbRdim128(Llama2MediumMoSAReluHead12SepRouterHeadEmb):
+    mosa_router_hid_dim = 128 
+
+class Llama2MediumMoSAReluHead12SepRouterSqrt(Llama2MediumMoSAReluHead12SepRouter):
+    mosa_sqrt_gate = True
+
+class Llama2MediumMoSASepRouter(Llama2MediumMoSA):
+    mosa_num_routers = 2 # v5p-16:
+
+class Llama2MediumMoSASepRouterSqrt(Llama2MediumMoSASepRouter):
+    mosa_sqrt_gate = True
+
+class Llama2MediumMoSATopK128(Llama2MediumMoSA):
+    mosa_topk = 128 # v5p-16: 0.932
+
+class Llama2MediumMoSATopK1024(Llama2MediumMoSA):
+    mosa_topk = 1024 # v5p-16: 
+    mosa_num_groups = 12
+
+class Llama2MediumMoSATopK64(Llama2MediumMoSA):
+    mosa_topk = 64 # v5p-16: 1.098
+
+class Llama2MediumMoSAHead64(Llama2MediumMoSA):
+    mosa_num_query_heads = 60  # v5p-16: 0.263
+    mosa_num_kv_heads = 60
+
 class Llama2MediumBaseTest(Llama2MediumBase):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
@@ -236,9 +403,17 @@ class Llama2MediumBaseDebug(Llama2MediumBase):
     use_postnorm = True
     qk_norm = True
 
-class Llama2MediumBaseTrace(Llama2MediumBase):
+class Llama2MediumBaseTrace(Trace, Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
     scan_layers = False
-    profiler = 'xplane'
+
+class Llama2MediumBaseTrace2(Trace, SpeedTest, Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    dump_hlo = True
+    scan_layers = False
+
+class Llama2MediumBaseTraceSN(Llama2MediumBaseTrace2):
+    remat_policy = 'save_nothing'
 
 class Llama2MediumBaseSaveNothingTrace(Llama2MediumBaseTrace):
     remat_policy = 'save_nothing'
@@ -695,6 +870,10 @@ class LlamaMedium50KTokens(Llama2Medium):
 class MuddLlamaMedium50KTokens(Mudd, LlamaMedium50KTokens):
     pass # eval loss: 2.2172
 
+class LlamaMediumMoE8XTrace(Trace, SpeedTest, LlamaMediumMoE8X):
+    m_kn_tile_size = (1024, 128)
+
+
 class LlamaMediumMoE8XSoftmax(LlamaMediumMoE8X):
     eval_interval = 12500
     routed_score_func = "softmax" # eval loss: 2.1557
@@ -787,6 +966,9 @@ class LlamaSmallMoE8X8in64(LlamaSmallMoE8XBaseline):
     num_experts = 64
 
 class LlamaSmallMoE8X8in64Debug(Trace, SpeedTest, LlamaSmallMoE8X8in64):
+    pass
+
+class LlamaSmallMoE8X8in64Trace(Trace, SpeedTest, LlamaSmallMoE8X8in64):
     pass
 
 class LlamaSmallMoE8X8in64Headdim192(LlamaSmallMoE8X8in64):
@@ -1323,6 +1505,46 @@ class LlamaXLMoE8in64SpeedTest(LlamaXLMoESpeedTest):
     num_experts_per_tok = 8
     num_experts = 64 # v5p-32: 0.128
 
+class LlamaXLMoE8in64SpeedTestTrace(Trace, LlamaXLMoE8in64SpeedTest):
+    pass 
+
+class LlamaXLMoE8in64SNSpeedTestTraceDebug(Trace, LlamaXLMoE8in64SpeedTest):
+    remat_policy = "save_nothing"
+
+class LlamaXLMoE8in64SNSpeedTestTraceDebug2(Trace, LlamaXLMoE8in64SpeedTest):
+    remat_policy = "save_nothing"
+    query_chunk_size = None
+
+class LlamaXLMoE8in64SNSpeedTestTraceDebug3(Trace, LlamaXLMoE8in64SpeedTest):
+    remat_policy = "save_nothing"
+    shared_experts = 1 
+    num_experts = 0
+    base_mlp_dim = 6144
+
+class LlamaXLMoE8in64SNSpeedTestTraceDebug4(Trace, LlamaXLMoE8in64SpeedTest):
+    remat_policy = "save_nothing" # shard moe param before and after gmm
+
+class LlamaXLMoE8in64SNSpeedTestTraceDebug5(Trace, LlamaXLMoE8in64SpeedTest):
+    remat_policy = "save_nothing" # shard moe param before and after gmm
+    query_chunk_size = None
+
+class LlamaXLOpenMoE8in64SNSpeedTestTraceV5p16(Trace, LlamaXLMoE8in64SpeedTest):
+    remat_policy = "save_nothing" # shard moe param before and after gmm
+    moe_type = "openmoe"
+    query_chunk_size = 512
+
+class LlamaXLTraceRefactorBranch(Trace, SpeedTest, TrainXL, LlamaXL):
+    query_chunk_size = 512
+    per_device_batch_size = 8.0 # 256 for v4-64
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    base_num_decoder_layers = 36
+    base_mlp_dim = 2816 # 2048 * 4 /3
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 64
+    attention='dot_product_chunk'
+    scan_layers = False
+
 class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     query_chunk_size = 128
     per_device_batch_size = 8.0 # 256 for v4-64
@@ -1558,3 +1780,135 @@ class Pythia3BTrace(Trace, Pythia3B):
 class MuddPythia3BTrace(Mudd, Pythia3BTrace):
     mudd_in_layer = True # v5p-128 train speed: 0.291
     sharding_tolerance = 0.05
+
+class Llama19B(Llama2Medium):
+    base_emb_dim = 5120
+    base_num_query_heads = 40
+    base_num_kv_heads = 40
+    base_mlp_dim = 12288
+    base_num_decoder_layers = 60
+    head_dim = 128
+    vocab_size = 151936
+    attention='dot_product_chunk'
+    scan_layers = False
+
+class Llama19BMoE2in32(DroplessMoE, Llama19B):
+    base_mlp_dim = 1536 * 4
+    num_experts_per_tok = 2
+    num_experts = 32
+
+class Llama19BMoE8in128(DroplessMoE, Llama19B):
+    base_mlp_dim = 1536
+    num_experts_per_tok = 8
+    num_experts = 128
+
+class Llama19BOpenMoE8in128(Llama19BMoE8in128):
+    moe_type = 'openmoe'
+    sfm_after_topn = True
+    load_balance_loss_weight = 0.01
+    gate_noise_coef = 0.5
+    router_z_loss_coef = 0.001
+    expert_chunk_size = None
+    expert_capacity_factor = 1
+
+class Llama19BDC2(DC2, Llama19B):
+    pass
+
+class Llama19BMudd(Mudd, Llama19B):
+    pass
+
+class Llama19BDream(DC2, DreamMini, Llama19B):
+    pass
+
+class Llama19BMoE8in128Dream(DC2, DreamMini, Llama19BMoE8in128):
+    pass 
+
+class Seq4KBatch1K(SpeedTest):
+    query_chunk_size=512
+    max_target_length = 4096
+    per_device_batch_size = 8.0  # v5p-256 
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class Llama19BSeq4KBatch1K(Seq4KBatch1K, Llama19B):
+    # query_chunk_size = 256 # v5p-256: 0.063
+    query_chunk_size=512 # v5p-256: 0.064
+
+class Llama19BDC2Seq4KBatch1K(Trace, Seq4KBatch1K, Llama19BDC2):
+    query_chunk_size=512 # v5p-256: 0.045
+    sharding_tolerance = 0.05
+    # compile_topology = 'v5p-256'
+    # compile_topology_num_slices=1 
+    compiled_trainstep_file="Llama19BDC2Seq4KBatch1K.pkl"
+
+class Llama19BMuddSeq4KBatch1K(Trace, Seq4KBatch1K, Llama19BMudd):
+    query_chunk_size=512 # v5p-256: 0.051 
+    mudd_in_layer = True
+    # compile_topology = 'v5p-256'
+    # compile_topology_num_slices=1 
+    compiled_trainstep_file="Llama19BMuddSeq4KBatch1K.pkl"
+
+class Llama19BDreamSeq4KBatch1K(Seq4KBatch1K, Llama19BDream):
+    query_chunk_size=512 # v5p-256: todo    
+    mudd_in_layer = True
+    compile_topology = 'v5p-256'
+    compile_topology_num_slices=1 
+    compiled_trainstep_file="Llama19BDreamSeq4KBatch1K.pkl"
+
+class Llama19BOpenMoE8in128C1p5Seq4KBatch1K(Seq4KBatch1K, Llama19BOpenMoE8in128):
+    expert_capacity_factor = 1.5 # v5p-256: todo 
+    compile_topology = 'v5p-256'
+    compile_topology_num_slices=1 
+    compiled_trainstep_file="Llama19BOpenMoE8in128C1p5Seq4KBatch1K.pkl"
+
+class Llama19BOpenMoE2in32C1p5Seq4KBatch1KLayer6(Trace, Seq4KBatch1K, Llama19BOpenMoE8in128):
+    base_mlp_dim = 1536 * 4
+    num_experts_per_tok = 2
+    num_experts = 32
+    # expert_chunk_size = 8
+    base_num_decoder_layers = 6
+    expert_capacity_factor = 1.5 # v5p-256: todo 
+    compile_topology = 'v5p-256'
+    compile_topology_num_slices=1 
+    compiled_trainstep_file="Llama19BOpenMoE2in32C1p5Seq4KBatch1KLayer6.pkl"
+
+class Llama19BOpenMoE2in32C1p5Seq4KBatch1KLayer60(Llama19BOpenMoE2in32C1p5Seq4KBatch1KLayer6):
+    base_num_decoder_layers = 60
+    compiled_trainstep_file="Llama19BOpenMoE2in32C1p5Seq4KBatch1KLayer60.pkl"
+
+class Llama19BMoE2in32Seq4KBatch1K(Trace, Seq4KBatch1K, Llama19BMoE2in32):
+    # per_device_batch_size = 8.0 # 421G
+    # per_device_batch_size = 1.0 # 352G
+    per_device_batch_size = 8.0
+    base_num_decoder_layers = 6
+    # pass # v5p-256:
+
+class Llama19BMoE2in32Seq4KBatch128L6Debug(Llama19BMoE2in32Seq4KBatch1K):
+    per_device_batch_size = 8.0 # v5p-32
+    base_num_decoder_layers = 6
+
+class Llama19BMoEDebug9(Llama19BMoE2in32Seq4KBatch128L6Debug):
+    base_mlp_dim = 1024
+    num_experts_per_tok = 8
+    num_experts = 128
+    # remat_policy = 'minimal'
+    # base_mlp_dim = 1536
+    # num_experts_per_tok = 8
+    # num_experts = 128
+
+class Llama19BMoEDebug4(Llama19BMoE2in32Seq4KBatch128L6Debug):
+    base_emb_dim = 768
+    base_num_query_heads = 12
+    base_num_kv_heads = 12
+    base_mlp_dim = 2048 # 2048
+    max_target_length = 2048 # 4096
+    # base_num_decoder_layers = 12
+    head_dim = 64
+
+class Llama19BMoE8in128Seq4KBatch1K(Seq4KBatch1K, Llama19BMoE8in128):
+    pass 
+
+# class Llama19BDreamSeq4KBatch1K(Seq4KBatch1K, Llama19BDream):
+#     pass
+
+class Llama19BMoE8in128Dream(Seq4KBatch1K, Llama19BMoE8in128Dream):
+    pass 

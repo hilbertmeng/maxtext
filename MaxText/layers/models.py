@@ -197,6 +197,32 @@ class Decoder(nn.Module):
       self.pipeline_module = pipeline.Pipeline(
           config=self.config, mesh=self.mesh, layers=pipeline_stage_module, remat_policy=remat_policy
       )
+    
+    cfg = self.config
+    if self.config.channel_gating:
+      channel_gating_init_scale = 1 if self.config.channel_gating_init_scale is None else self.config.channel_gating_init_scale
+      self.channel_gating = Embed(
+        num_embeddings=cfg.vocab_size,
+        features=cfg.emb_dim,
+        dtype=cfg.dtype,
+        attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        embedding_init=initializers.constant_init(channel_gating_init_scale), # lsp
+        name="channel_gating",
+        config=cfg,
+      )
+
+    if self.config.vocab_gating:
+      vocab_gating_init_scale = 1 if self.config.vocab_gating_init_scale is None else self.config.vocab_gating_init_scale 
+      self.vocab_gating = Embed(
+        num_embeddings=cfg.vocab_size,
+        features=cfg.vocab_size,
+        dtype=cfg.dtype,
+        attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        embedding_init=initializers.constant_init(vocab_gating_init_scale), # lsp
+        name="vocab_gating",
+        config=cfg,
+      )
+
 
     if self.config.shift_last_hidden:
       self.hidden_shift = Hiddenshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=initializers.nd_dense_init_normal(0.006))
@@ -544,6 +570,9 @@ class Decoder(nn.Module):
 
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
 
+    if self.config.channel_gating:
+      y = y + self.channel_gating(decoder_input_tokens.astype("int32"))
+
     # [batch, length, emb_dim] -> [batch, length, vocab_size]
     if cfg.logits_via_embedding:
       # Use the transpose of embedding matrix for logit transform.
@@ -570,6 +599,12 @@ class Decoder(nn.Module):
     logits = nn.with_logical_constraint(
         logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
     )
+    
+    if self.config.vocab_gating:
+      # logits = logits * self.vocab_gating(decoder_input_tokens.astype("int32"))
+      logits = logits + self.vocab_gating(decoder_input_tokens.astype("int32"))
+
+
     if self.config.cast_logits_to_fp32:
       logits = logits.astype(jnp.float32)
     return logits

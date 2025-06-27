@@ -252,14 +252,25 @@ class QChunk(nn.Module):
       remat: bool = False
   ):
     b, t, n, h = query.shape
-    w  = self.query_chunk_size
-    assert t % w == 0, f"{t} % {w} != 0"
-    num_steps = t // w
+    
+    if self.config.balanced_attn:
+      w = self.config.local_chunk_sizes if sliding_window_size < t else self.config.global_chunk_sizes 
+      num_steps = len(w) - 1
+      assert w[0] == 0 and w[-1] == t
+    else:
+      w  = self.query_chunk_size
+      assert t % w == 0, f"{t} % {w} != 0"
+      num_steps = t // w
+
+    print(f'sliding_window_size: {sliding_window_size} query_chunk_sizes: {w}')
     # encoded0传入chunk_attn比append再cat更省1G显存
     encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
     def chunk_attn(i, carry):
         encoded = carry
-        start, stop = i * w, (i + 1) * w
+        if self.config.balanced_attn:
+          start, stop = w[i], w[i + 1]
+        else:
+          start, stop = i * w, (i + 1) * w
         kv_start = max(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
         if not self.config.fix_key_mask_shape:
           kv_stop = stop

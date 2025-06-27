@@ -1382,7 +1382,10 @@ class Attention(nn.Module):
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv, eos_sum=eos_sum)
+    if self.config.pre_compose:
+      out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv, eos_sum=eos_sum)
+    else:
+      out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv)
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 

@@ -412,13 +412,13 @@ class DCQChunkScanTest(DC, Llama2Medium):
     base_num_decoder_layers = 4
     head_dim = 128
     model_name = 'Test'
-    per_device_batch_size = 1
+    per_device_batch_size = 4
     eval_per_device_batch_size = 1
     decoder_block = "fusion"
-    sliding_window_size = [256, None, 256, 256]
+    sliding_window_size = [256, None, 256, 256] * 12
     scan_layers = True
     num_layers_per_block = 4
-    fix_key_mask_shape = True
+    fix_key_mask_shape = False
     sub_remat = True
 
 class DCQChunkScan7BTest(DCQChunkScanTest):

@@ -57,6 +57,80 @@ HYBRID_RING_32X8 = "hybrid_ring_32x8"
 # pylint: disable=too-many-positional-arguments
 
 
+def calculate_q_split_points_final(q_length: int, n: int, block_size: int = 128, power: float = 2/3) -> list[int]:
+    """
+    为Q序列计算分块位置，旨在均衡每个块的计算量。
+    该函数使用 p_k = q_length * (k/n)**power 的策略。
+
+    Args:
+        q_length (int): Q序列的总长度。
+        n (int): 需要切分的份数。
+        block_size (int): 切分位置必须是此值的整数倍。
+        power (float): 幂指数。
+                       - 对于“矩形”计算模型 (end-start)*end，power=2/3 是一个很好的选择。
+                       - 对于“梯形”计算模型，power=0.5 (sqrt) 是理论最优。
+    Returns:
+        list[int]: 返回切分点列表。
+    """
+    if not isinstance(q_length, int) or not isinstance(n, int) or not isinstance(block_size, int):
+        raise TypeError("所有参数必须是整数。")
+    if q_length <= 0 or n <= 0 or block_size <= 0:
+        raise ValueError("所有参数必须是正数。")
+    
+    split_points = {0}
+    for k in range(1, n):
+        ideal_split = q_length * (k / n)**power
+        aligned_split = round(ideal_split / block_size) * block_size
+        aligned_split = min(int(aligned_split), q_length)
+        split_points.add(aligned_split)
+
+    split_points.add(q_length)
+    return sorted(list(split_points))
+
+
+def verify_with_rectangular_model(split_points: list[int]):
+    if len(split_points) < 2: return
+    relative_flops = []
+    for i in range(len(split_points) - 1):
+        start, end = split_points[i], split_points[i+1]
+        if start >= end: continue
+        flops = (end - start) * end
+        relative_flops.append(flops)
+        print(f"Block {len(relative_flops)}: Q[{start}:{end}] (len {end-start}), k_len={end}, FLOPs: {flops:,.0f}")
+    if not relative_flops or len(relative_flops) < 2: return
+    max_flops, min_flops = max(relative_flops), min(relative_flops)
+    b = round(max_flops / min_flops, 2)
+    print(f"\nResult: max_flops/min_flops = {b} (-> 1 is best.)")
+    print("---------------------------------------------------\n")
+    return b
+
+
+def build_query_chunks(q_len, query_chunk_size):
+#     q_len = 4096
+    n_chunks = q_len // query_chunk_size
+    min_b = 10.0
+    for p in np.arange(0.3, 1.3, 0.05):
+        qs = calculate_q_split_points_final(q_len, n_chunks, power=p)
+        b = verify_with_rectangular_model(qs)
+        if not b: continue
+        if b < min_b:
+            best_power = p
+            min_b = b
+            final_qs = qs
+    print(f'min_b: {min_b} best_power: {best_power}')
+    total_flops = 0
+    for i in range(1, len(final_qs), 1):
+        q = final_qs[i] - final_qs[i - 1]
+        k = final_qs[i]
+        flops = q * k
+        print(f'q k length: {[q, k]} flops: {flops}')
+        total_flops += flops
+    return final_qs
+
+# q_len = 4096
+# query_chunk_size = 384
+# query_chunks = build_query_chunks(q_len, query_chunk_size)
+
 def with_memory_kind(t, memory_kind):
   return jax.tree_util.tree_map(lambda x: x.with_memory_kind(kind=memory_kind), t)
 

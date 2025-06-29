@@ -960,10 +960,12 @@ def adjust_query_chunk_size(raw_keys):
     max_target_length = raw_keys['max_target_length']
     g_chunk_size = max_utils.build_query_chunks(q_len=max_target_length, query_chunk_size=query_chunk_size)
     raw_keys['global_chunk_sizes'] = g_chunk_size # list
-    scale = 4
+    scale = 1
     query_chunk_size *= scale
-    raw_keys['local_chunk_sizes'] = list(range(0, max_target_length // query_chunk_size, query_chunk_size)) # list
-
+    print(f'query_chunk_size: {query_chunk_size} max_target_length: {max_target_length}')
+    raw_keys['local_chunk_sizes'] = list(range(0, max_target_length + 10, query_chunk_size)) # list
+    print(f'local_chunk_sizes: {raw_keys["local_chunk_sizes"]}')
+    print(f'global_chunk_sizes: {raw_keys["global_chunk_sizes"]}')
 
 def _update_exp_config(cmd_vars, raw_keys):
   max_logging.log(f"\n\nUpdated exp model vars:")

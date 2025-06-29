@@ -70,6 +70,19 @@ def _compute_slide_attn_mask(w, window_size, length: int, dtype: jnp.dtype = jnp
     return m[jnp.newaxis, jnp.newaxis, ...]
 
 
+def comoute_dynamic_attn_mask(global_chunk_sizes, i, dtype=jnp.bfloat16, squeeze=False):
+  last_p = global_chunk_sizes[i-1]
+  cur_p = global_chunk_sizes[i]
+  m = jnp.triu(jnp.ones([cur_p - last_p, cur_p]), k=last_p+1)
+  large_negative_number = get_large_negative_number(dtype)
+  m = m.astype(dtype)
+  m = jnp.where((m > 0.5), large_negative_number, m)
+  if squeeze:
+    return m
+  else:
+    return m[jnp.newaxis, jnp.newaxis, ...]
+
+
 def make_fix_mask(qcs: int, sws: int, seq_length: int, dtype=jnp.bfloat16):
   NEG_INF = get_large_negative_number(dtype) 
   # qcs: query_chunk_size, sws: sliding_window_size
@@ -261,7 +274,7 @@ class QChunk(nn.Module):
       w  = self.query_chunk_size
       assert t % w == 0, f"{t} % {w} != 0"
       num_steps = t // w
-
+      
     print(f'sliding_window_size: {sliding_window_size} query_chunk_sizes: {w}')
     # encoded0传入chunk_attn比append再cat更省1G显存
     encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
@@ -271,10 +284,14 @@ class QChunk(nn.Module):
           start, stop = w[i], w[i + 1]
         else:
           start, stop = i * w, (i + 1) * w
-        kv_start = max(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
+
+        kv_start = max(0, start - sliding_window_size) if sliding_window_size < t else 0
         if not self.config.fix_key_mask_shape:
           kv_stop = stop
-          _attn_mask = attn_mask[..., kv_start - stop:]
+          if attn_mask is None:
+            _attn_mask = comoute_dynamic_attn_mask(self.config.global_chunk_sizes, i+1)
+          else:
+            _attn_mask = attn_mask[..., kv_start - stop:]
         else:
           mask_start = min(i * w, sliding_window_size)
           mask_stop = min((i+1) * w, w + sliding_window_size)
@@ -338,7 +355,14 @@ class QChunk(nn.Module):
       assert eos_sum is None and not self.config.mix_attn # not attn scan don't support mix_attn
     else:
       if eos_sum is None:
-        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+        if self.config.balanced_attn:
+          if sliding_window_size == t:
+            attn_mask = None
+          else:
+            q = self.config.local_chunk_sizes[1]
+            attn_mask = _compute_slide_attn_mask(q, sliding_window_size, t, query.dtype)
+        else:
+            attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
       else:
         if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
           attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)

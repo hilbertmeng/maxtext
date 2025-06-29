@@ -311,8 +311,7 @@ class QChunk(nn.Module):
     post_proj_layer = None,
 ):
     def update_mask(v, atten_mask):
-      # 当设置Windows大于8192时，自动根据数据中的eos数量，来决定Windows是否重置为4096
-      offset = 1 - 8192 - self.query_chunk_size
+      offset = 1 - 4096 - self.query_chunk_size
       atten_mask = atten_mask.at[..., :offset].set(v)
       return atten_mask
     

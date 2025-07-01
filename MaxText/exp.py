@@ -494,3 +494,37 @@ class DCMuddLlama19BCompile(DC, Mudd, Llama19B):
     mudd_compose_method = 'fori'
     mudd_prenorm = True
     mudd_postnorm = True
+
+class MuddLlama19BCompile(Mudd, Llama19B):
+    query_chunk_size=512 # v5p-256: todo    
+    mudd_in_layer = True
+    compile_topology = 'v5p-256'
+    compile_topology_num_slices= 1 
+    compiled_trainstep_file="DCMuddLlama19B.pkl"
+    max_target_length = 4096
+    per_device_batch_size = 8.0  # v5p-256
+
+    sliding_window_size = [256, None, 256, 256] * 15
+    num_layers_per_block = 1
+    fix_key_mask_shape = False
+    sub_remat = True
+    mudd_compose_method = 'fori'
+    mudd_prenorm = True
+    mudd_postnorm = True
+
+class DCLlama19BCompile(DC, Llama19B):
+    query_chunk_size=512 # v5p-256: todo    
+    mudd_in_layer = True
+    compile_topology = 'v5p-256'
+    compile_topology_num_slices= 1 
+    compiled_trainstep_file="DCMuddLlama19B.pkl"
+    max_target_length = 4096
+    per_device_batch_size = 8.0  # v5p-256
+
+    sliding_window_size = [256, None, 256, 256] * 15
+    num_layers_per_block = 1
+    fix_key_mask_shape = False
+    sub_remat = True
+    mudd_compose_method = 'fori'
+    mudd_prenorm = True
+    mudd_postnorm = True

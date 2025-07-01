@@ -4,6 +4,7 @@ import numpy as np
 from flax import linen as nn
 import jax.numpy as jnp
 from jax.sharding import Mesh
+from jax import lax
 
 from layers import initializers
 from layers import normalizations
@@ -33,6 +34,31 @@ def wsum(w: jnp.ndarray, # CBTL1
     sli = slice(chunk_i * seq_chunk_size, (chunk_i + 1) * seq_chunk_size)
     for l in range(L): # 每层
       out = out.at[:, :, sli, :].set(out[:, :, sli, :] + w[:, :, sli, l, :] * hids[l][:, sli, :])  # CBt1*BtD->CBtD)
+  return out
+
+
+def wsum_fori2(w: jnp.ndarray, hids: list[jnp.ndarray]) -> jnp.ndarray:
+    # w: CBTL1, hids: list of BTD
+    C, B, T, L, _ = w.shape
+    D = hids[0].shape[-1]
+    hids_stacked = jnp.stack(hids, axis=0)  # → LBTD
+    out_init = jnp.zeros((C, B, T, D), dtype=w.dtype)
+    def body_fn(l, out):
+        h = hids_stacked[l]  # BTD
+        return out + w[:, :, :, l, :] * h
+    out = lax.fori_loop(0, L, body_fn, out_init)
+    del hids_stacked
+    return out
+
+
+def wsum_fori(w: jnp.ndarray, # CBTL1
+         hids: list[jnp.ndarray], # list of BTD
+         ) -> jnp.ndarray:  # CBTD
+  C, B, T, L, _ = w.shape
+  D = hids[0].shape[-1]
+  out = jnp.zeros((C, B, T, D), dtype=hids[0].dtype)
+  for l in range(L): # 每层
+    out = out + w[:, :, :, l, :] * hids[l]  # CBt1*BtD->CBtD)
   return out
 
 
@@ -148,6 +174,7 @@ class Compose(nn.Module):
       layer_output,
       hids,
   ):
+
     if self.config.mudd_in_layer:
         y, dyn_dense_w = layer_output, self.mudd_mlp(layer_output)
     else:
@@ -175,20 +202,59 @@ class Compose(nn.Module):
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     max_logging.log(f'Compose dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}', debug=self.config.debug)
     dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-    factor = 1
-    hid_idxs = list(range((layer_inx + 1) * factor + 1)) # L+1
+
+    def wsum_scan(y, w, hids, seq_chunk_size):
+      C, B, T, L, _ = w.shape
+      D = hids[0].shape[-1]
+      seq_chunk_size = seq_chunk_size or T
+      assert T % seq_chunk_size == 0
+      num_chunks = T // seq_chunk_size
+      hids_stack = jnp.stack(hids, axis=0)  # [L, B, T, D]
+      def chunk_step(carry, chunk_i):
+          start = chunk_i * seq_chunk_size
+          w_chunk = lax.dynamic_slice_in_dim(w, start, seq_chunk_size, axis=2)
+          h_chunk = lax.dynamic_slice_in_dim(hids_stack, start, seq_chunk_size, axis=2)
+          def layer_step(carry, l):
+              w_l = w_chunk[:, :, :, l, :]       # [C, B, chunk, 1]
+              h_l = h_chunk[l]                   # [B, chunk, D]
+              h_l = jnp.expand_dims(h_l, 0)      # [1, B, chunk, D]
+              carry += w_l * h_l
+              return carry, None
+          chunk_out, _ = lax.scan(layer_step, jnp.zeros((C, B, seq_chunk_size, D), dtype=w.dtype), jnp.arange(L))
+          carry = lax.dynamic_update_slice(carry, chunk_out, (0, 0, start, 0))
+          return carry, None
+      out_init = jnp.zeros((C, B, T, D), dtype=hids[0].dtype)
+      out_final, _ = lax.scan(chunk_step, out_init, jnp.arange(num_chunks))
+      if cfg.mudd_postnorm:
+        y = tuple([y + (post_norm(out_final[cidx]) if cidx == C - 1 else out_final[cidx]) for cidx in range(C)])
+      else:
+        y = out_final
+      return y
+
     if cfg.ddw_gen_pattern == 'q,k,v,m':
       max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is {cfg.mudd_postnorm}....', debug=self.config.debug)
       if cfg.mudd_postnorm:
         post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=nn.initializers.constant(0.001))
-        y = tuple([y + (post_norm(
-            wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
-                                  ) if cidx == C - 1 else 
-            wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
-                        ) for cidx in range(C)])
+        if cfg.mudd_compose_method == 'scan':
+          y = wsum_scan(y, dyn_dense_w, hids, cfg.ddw_gen_chunk_size)
+        elif cfg.mudd_compose_method == 'fori':
+          y = tuple([y + (post_norm(
+              wsum_fori(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0)
+                                    ) if cidx == C - 1 else 
+              wsum_fori(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0)
+                          ) for cidx in range(C)])
+        else:
+          y = tuple([y + (post_norm(
+              wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
+                                    ) if cidx == C - 1 else 
+              wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
+                          ) for cidx in range(C)])
       else:
-        # (btl, btl, btl, btl)
-        y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
+        if cfg.mudd_compose_scan:
+          y = wsum_scan(y, dyn_dense_w, hids, cfg.ddw_gen_chunk_size)
+        else:
+          # (btl, btl, btl, btl)
+          y = tuple([wsum_scan(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
     if layer_inx == cfg.num_decoder_layers - 1:
       del hids
       return y[0], []

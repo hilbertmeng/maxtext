@@ -237,13 +237,20 @@ class QChunk(nn.Module):
       pre_proj_layer = None,
       post_proj_layer = None,
       remat = False,
-      parallel_method: str = 'vmap',
+      parallel_method: str = 'fori',
   ):
+    # assert self.config.fix_key_mask_shape
     b, t, n, h = query.shape
     w  = self.query_chunk_size
     assert t % w == 0, f"{t} % {w} != 0"
     num_steps = t // w
     window_len = w + sliding_window_size if sliding_window_size < t else t
+
+    if pre_proj_dw_args is not None:
+      qw1, qw2, kw1, kw2, qdd, kdd = pre_proj_dw_args
+
+    if post_proj_dw_args is not None:
+      pqw1, pqw2, pkw1, pkw2, pqdd, pkdd = post_proj_dw_args
 
     def body(*args):
       if parallel_method == 'fori':
@@ -264,9 +271,7 @@ class QChunk(nn.Module):
           return None if tensor is None else lax.dynamic_slice_in_dim(tensor, s, length, axis=1)
 
       _pre_proj_dw_args, _post_proj_dw_args = None, None
-      if pre_proj_dw_args is not None:
-          qw1, qw2, kw1, kw2, qdd, kdd = pre_proj_dw_args
-          _pre_proj_dw_args = (
+      _pre_proj_dw_args = (
               _safe_slice(qw1, start,     w),
               _safe_slice(qw2, start,     w),
               _safe_slice(kw1, kv_start,  window_len),
@@ -274,15 +279,13 @@ class QChunk(nn.Module):
               _safe_slice(qdd, start,     w),
               _safe_slice(kdd, kv_start,  window_len),
           )
-      if post_proj_dw_args is not None:
-          qw1, qw2, kw1, kw2, qdd, kdd = post_proj_dw_args
-          _post_proj_dw_args = (
-              _safe_slice(qw1, start,     w),
-              _safe_slice(qw2, start,     w),
-              _safe_slice(kw1, kv_start,  window_len),
-              _safe_slice(kw2, kv_start,  window_len),
-              _safe_slice(qdd, start,     w),
-              _safe_slice(kdd, kv_start,  window_len),
+      _post_proj_dw_args = (
+              _safe_slice(pqw1, start,     w),
+              _safe_slice(pqw2, start,     w),
+              _safe_slice(pkw1, kv_start,  window_len),
+              _safe_slice(pkw2, kv_start,  window_len),
+              _safe_slice(pqdd, start,     w),
+              _safe_slice(pkdd, kv_start,  window_len),
           )
       _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
                                             _pre_proj_dw_args, _post_proj_dw_args,
@@ -557,7 +560,11 @@ class QChunk(nn.Module):
         encoded = self._attention_with_parallel(*args, remat=True, parallel_method='scan')
       # best branch
       elif self.config.query_chunk_method == 'remat': # support fix/dynamic key mask
-        encoded = self._attention_with_remat(*args, remat=True)
+        if sliding_window_size == t:
+          encoded = self._attention_with_remat(*args, remat=True)
+        else:
+          attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+          encoded = self._attention_with_parallel(*args, remat=True, parallel_method='fori') # fori remat=True more quick than fori remat=False?
       elif self.config.query_chunk_method == 'vmap':
         encoded = self._attention_with_parallel(*args, parallel_method='vmap')
       elif self.config.query_chunk_method == 'remat_vmap':
@@ -569,6 +576,3 @@ class QChunk(nn.Module):
       else:                                           # support fix/dynamic key mask
         encoded = self._attention_with_remat(*args, remat=False)
     return encoded, None, None
-  
-
-    

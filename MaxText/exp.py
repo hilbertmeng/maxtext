@@ -404,7 +404,7 @@ class DCLlama7BOpenMoeTest(DCLlama7BOpenMoe):
     # sliding_window_size = None
     query_chunk_size = None
 
-class DCQChunkScanTest(DC, Llama2Medium):
+class DCHLOTest(DC, Llama2Medium):
     base_emb_dim = 2048
     base_num_query_heads = 16
     base_num_kv_heads = 16
@@ -421,10 +421,76 @@ class DCQChunkScanTest(DC, Llama2Medium):
     fix_key_mask_shape = False
     sub_remat = True
 
-class DCQChunkScan7BTest(DCQChunkScanTest):
+
+class MuddHLOTest(Mudd, Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_mlp_dim = 2048
+    base_num_decoder_layers = 4
+    head_dim = 128
+    model_name = 'MuddHLOTest'
+    per_device_batch_size = 4
+    eval_per_device_batch_size = 1
+    decoder_block = "fusion"
+    # sliding_window_size = [256, None, 256, 256] * 1
+    scan_layers = False
+    num_layers_per_block = 1
+    fix_key_mask_shape = False
+    sub_remat = True
+
+class DCMuddHLOTest(DC, Mudd, Llama2Medium):
+    base_emb_dim = 2048
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_mlp_dim = 2048
+    base_num_decoder_layers = 4
+    head_dim = 128
+    model_name = 'MuddHLOTest'
+    per_device_batch_size = 4
+    eval_per_device_batch_size = 1
+    decoder_block = "fusion"
+    sliding_window_size = [256, None, 256, 256] * 2
+    scan_layers = False
+    num_layers_per_block = 1
+    fix_key_mask_shape = False
+    sub_remat = True
+    mudd_compose_method = 'fori'
+    mudd_in_layer = True
+    ddw_gen_chunk_size = 1024
+
+class DCHLO7BTest(DCHLOTest):
     base_emb_dim = 4096
     base_num_query_heads = 32
     base_num_kv_heads = 32
     base_mlp_dim = 5504
     base_num_decoder_layers = 4
     head_dim = 128
+
+class Llama19B(Llama2Medium):
+    base_emb_dim = 5120
+    base_num_query_heads = 40
+    base_num_kv_heads = 40
+    base_mlp_dim = 12288
+    base_num_decoder_layers = 60
+    head_dim = 128
+    vocab_size = 151936
+    attention='dot_product_chunk'
+    scan_layers = False
+
+class DCMuddLlama19BCompile(DC, Mudd, Llama19B):
+    query_chunk_size=512 # v5p-256: todo    
+    mudd_in_layer = True
+    compile_topology = 'v5p-256'
+    compile_topology_num_slices= 1 
+    compiled_trainstep_file="DCMuddLlama19B.pkl"
+    max_target_length = 4096
+    per_device_batch_size = 8.0  # v5p-256
+
+    sliding_window_size = [256, None, 256, 256] * 15
+    num_layers_per_block = 1
+    fix_key_mask_shape = False
+    sub_remat = True
+    mudd_compose_method = 'fori'
+    mudd_prenorm = True
+    mudd_postnorm = True

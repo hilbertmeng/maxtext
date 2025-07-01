@@ -279,12 +279,13 @@ class FusionDecoderLayer(nn.Module):
 
   def setup(self):
     layer_inx = None if self.config.scan_layers else int(self.name.split('_')[-1])
+    self.layer_inx = layer_inx
     # When no sliding_window_size is passed in, the sliding_window_size in config is used, otherwise the passed in sliding_window_size is used.
     sliding_window_size = self.config.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
     if not isinstance(sliding_window_size, (list, tuple)):
         sliding_window_size = [sliding_window_size]
 
-    sliding_window_size = [self.config.max_target_length if s is None else s for s in sliding_window_size  ]
+    sliding_window_size = [s or self.config.max_target_length for s in sliding_window_size]
     max_logging.log(f'FusionDecoderLayer layer_inx: {layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
 
     if self.config.num_layers_per_block > 1:
@@ -316,9 +317,11 @@ class FusionDecoderLayer(nn.Module):
         if self.layer_inx == 0: # first layer
             inputs = [inputs] * len(self.config.dynamic_dense_type)
         else:
+            # 基于上一层的输出，生成mudd compose参数，并生成新的inputs
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
     
-    for layer in self.subs:
+    for layer in self.subs: # subs length must be 1 when train mudd.
+        # __import__('ipdb').set_trace()
         inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
     
     if self.config.mudd_in_layer:

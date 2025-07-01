@@ -506,7 +506,7 @@ class Decoder(nn.Module):
                   )
         else:
           if isinstance(cfg.sliding_window_size, list):
-            assert len(cfg.sliding_window_size) == cfg.num_decoder_layers
+            assert len(cfg.sliding_window_size) == cfg.num_decoder_layers, print(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers,}')
             sliding_window_sizes = cfg.sliding_window_size
           else:
             sliding_window_sizes = cfg.num_decoder_layers * [cfg.sliding_window_size]
@@ -524,7 +524,7 @@ class Decoder(nn.Module):
             )
             if self.config.mudd_in_layer:
               y, hids = y
-            if not self.config.mudd_in_layer:
+            else:
               y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
             
     y = self.get_norm_layer()(

@@ -421,13 +421,12 @@ class DCHLOTest(DC, Llama2Medium):
     fix_key_mask_shape = False
     sub_remat = True
 
-
 class MuddHLOTest(Mudd, Llama2Medium):
     base_emb_dim = 2048
     base_num_query_heads = 16
     base_num_kv_heads = 16
     base_mlp_dim = 2048
-    base_num_decoder_layers = 4
+    base_num_decoder_layers = 8
     head_dim = 128
     model_name = 'MuddHLOTest'
     per_device_batch_size = 4
@@ -438,6 +437,9 @@ class MuddHLOTest(Mudd, Llama2Medium):
     num_layers_per_block = 1
     fix_key_mask_shape = False
     sub_remat = True
+    mudd_postnorm = True
+    mudd_in_layer = True
+    mudd_prenorm = True
 
 class DCMuddHLOTest(DC, Mudd, Llama2Medium):
     base_emb_dim = 2048
@@ -458,6 +460,8 @@ class DCMuddHLOTest(DC, Mudd, Llama2Medium):
     mudd_compose_method = 'fori'
     mudd_in_layer = True
     ddw_gen_chunk_size = 1024
+    mudd_postnorm = True
+    mudd_prenorm = True
 
 class DCHLO7BTest(DCHLOTest):
     base_emb_dim = 4096
@@ -525,6 +529,4 @@ class DCLlama19BCompile(DC, Llama19B):
     num_layers_per_block = 1
     fix_key_mask_shape = False
     sub_remat = True
-    mudd_compose_method = 'fori'
-    mudd_prenorm = True
-    mudd_postnorm = True
+    dense_conn = False

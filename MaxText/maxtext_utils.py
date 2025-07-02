@@ -348,6 +348,20 @@ def apply_gradient_clipping(raw_grads, state, clipping_threshold):
   return grads
 
 
+import jax.numpy as jnp
+def pax_apply_gradient_clipping(raw_grads, clipping_threshold):
+  grad_single_norm = jax.tree_map(
+              lambda x: jnp.sqrt(jnp.sum(x * x)), raw_grads
+          )
+  def scale_gradient(grad, norm):
+    return grad * jnp.minimum(
+        jnp.array(1, norm.dtype),
+        jnp.array(clipping_threshold, norm.dtype) / norm,
+    )
+  grads = jax.tree_map(scale_gradient, grads, grad_single_norm)
+  return grads
+
+
 def get_nested_value(dictionary, nested_key, default=None):
   """
   Retrieves a value from a nested key in a dictionary.

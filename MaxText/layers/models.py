@@ -510,7 +510,6 @@ class Decoder(nn.Module):
             sliding_window_sizes = cfg.sliding_window_size
           else:
             sliding_window_sizes = cfg.num_decoder_layers * [cfg.sliding_window_size]
-          max_logging.log(f'sliding_window_sizes: {sliding_window_sizes}', debug=cfg.debug)
           for lyr in range(cfg.num_decoder_layers):
             RemattedBlockLayer = RemattedBlockLayers[0]
             y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_sizes[lyr])(
@@ -561,7 +560,6 @@ class Decoder(nn.Module):
       )(
           y
       )  # We do not quantize the logits matmul.
-    max_logging.log(f'logits: {logits.shape}', debug=cfg.debug)
     logits = nn.with_logical_constraint(
         logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
     )

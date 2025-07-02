@@ -71,7 +71,6 @@ class SubDecoderLayer(nn.Module):
   layer_inx: int|None = None
 
   def setup(self):
-    max_logging.log(f'SubDecoderLayer layer_inx: {self.layer_inx} sliding_window_size: {self.sliding_window_size}', debug=self.config.debug)
     self.mudd_mlp = mudd.Mlp(self.config, self.mesh, self.quant, self.layer_inx)
     self.mudd_qkvnorm = mudd.Norm(self.config, self.mesh, self.quant)
 
@@ -79,7 +78,7 @@ class SubDecoderLayer(nn.Module):
       self.updated_mlp_dim = round(self.config.mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
       self.updated_mlp_dim = self.config.mlp_dim
-    max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
+    max_logging.log(f'layer_inx: {self.layer_inx} sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
 
 
   @nn.compact
@@ -111,7 +110,6 @@ class SubDecoderLayer(nn.Module):
 
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
-    max_logging.log(f'Attention inputs: {inputs.shape}', debug=self.config.debug)
     # Self-attention block
     attention_layer = Attention(
         config=cfg,
@@ -170,7 +168,6 @@ class SubDecoderLayer(nn.Module):
     
     mlp_lnx = None
     if cfg.shared_experts == 1 and (cfg.scan_layers or self.layer_inx not in cfg.insert_moe_indexes):
-      max_logging.log(f'into mlp layer, layer_inx is {self.layer_inx}', debug=cfg.debug)
       # MLP block.
       mlp_lnx = linears.MlpBlock(
           intermediate_dim=self.updated_mlp_dim, # lsp
@@ -194,7 +191,6 @@ class SubDecoderLayer(nn.Module):
     moe_lnx = None
     load_balance_loss = 0.0
     if cfg.num_experts > 1 and (cfg.scan_layers or self.layer_inx in cfg.insert_moe_indexes):
-      max_logging.log(f'into moe layer, layer_inx is {self.layer_inx}', debug=cfg.debug)
       kwargs = {
         'config': cfg,
         'mesh': mesh,
@@ -227,7 +223,6 @@ class SubDecoderLayer(nn.Module):
       else:
         raise ValueError(f'Unknow moe type: {cfg.moe_type}, it must be in [open, deepseek, ol, dropless]')
       moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
-      max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
 
       if cfg.record_internal_nn_metrics: # lsp
             moe_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(moe_lnx)))
@@ -238,13 +233,10 @@ class SubDecoderLayer(nn.Module):
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     if mlp_lnx is not None and moe_lnx is not None:
-      max_logging.log('mlp_lnx is not None and moe_lnx is not None.', debug=cfg.debug)
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx
     elif mlp_lnx is not None and moe_lnx is None:
-      max_logging.log('mlp_lnx is not None and moe_lnx is None.', debug=cfg.debug)
       layer_output = mlp_lnx + intermediate_inputs
     elif mlp_lnx is None and moe_lnx is not None:
-      max_logging.log('mlp_lnx is None and moe_lnx is not None.', debug=cfg.debug)
       layer_output = intermediate_inputs + moe_lnx
     else:
       raise ValueError("Both mlp_lnx and moe_lnx is None, it's not allowed.")
@@ -286,8 +278,6 @@ class FusionDecoderLayer(nn.Module):
         sliding_window_size = [sliding_window_size]
 
     sliding_window_size = [s or self.config.max_target_length for s in sliding_window_size]
-    max_logging.log(f'FusionDecoderLayer layer_inx: {layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
-
     if self.config.num_layers_per_block > 1:
       assert not self.config.dense_conn
       # prevent_cse设置为true时更节省显存，设置为false速度更快，具体怎么设置需要测试

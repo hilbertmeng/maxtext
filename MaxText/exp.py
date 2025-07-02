@@ -448,7 +448,7 @@ class DCMuddHLOTest(DC, Mudd, Llama2Medium):
     base_mlp_dim = 2048
     base_num_decoder_layers = 4
     head_dim = 128
-    model_name = 'MuddHLOTest'
+    model_name = 'DCMuddHLOTest'
     per_device_batch_size = 4
     eval_per_device_batch_size = 1
     decoder_block = "fusion"
@@ -459,7 +459,6 @@ class DCMuddHLOTest(DC, Mudd, Llama2Medium):
     sub_remat = True
     mudd_compose_method = 'fori'
     mudd_in_layer = True
-    ddw_gen_chunk_size = 1024
     mudd_postnorm = True
     mudd_prenorm = True
 

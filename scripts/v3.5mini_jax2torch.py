@@ -6,13 +6,15 @@ import torch
 import numpy as np
 import jax.numpy as jnp
 import jax
-import orbax
 import orbax.checkpoint as ocp
 from etils import epath
 from jax.sharding import PartitionSpec as PS
 from flax.traverse_util import flatten_dict, unflatten_dict
 from einops import rearrange
 
+# 运行前准备:
+# 1、把modeling_dcformer.py的from env import args删除，下面的xm3.5mini判断条件直接写死
+# 2、gsutil -m cp -r gs://newproject-1-llm_base_models_europe-west4/v3.5mini/dreamily-v3.5-deploy /home/lishengping/projects/
 sys.path.append('/home/lishengping/projects/dreamily-v3.5-deploy/app') # 需要从这个里面引入modeling文件
 
 # 转换之前需要：modeling_dcformer.py：
@@ -49,8 +51,8 @@ for k, shape in shapedtype.items():
     
 abstract_unboxed_params = unflatten_dict(abstract_unboxed_params)['params']
 
-checkpoint_dir = 'gs://newproject-1-llm_base_models_europe-west4/v3.5mini/DreamMiniXL_32k_0531/checkpoints/0/items' # 4k
-checkpoint_dir = 'gs://newproject-1-llm_base_models_europe-west4/v3.5mini/DreamMiniXL_32k_0531/checkpoints/7500/items' # 32k
+checkpoint_dir = 'gs://newproject-1-llm_base_models_europe-west4/v3.5mini/DreamMiniXL32kMixAttn_0618/checkpoints/0/items' # 4k
+checkpoint_dir = 'gs://newproject-1-llm_base_models_europe-west4/v3.5mini/DreamMiniXL32kMixAttn_0618/checkpoints/7500/items' # 32k
 
 ckpt = epath.Path(checkpoint_dir)
 ckptr = ocp.PyTreeCheckpointer()
@@ -164,13 +166,13 @@ for key, tensor in flatten_dict(restored).items():
 # torch_params = torch.save(torch_params, 'torch_params.bin')
 # torch模型参数保存
 torch_config = ModelConfig()
-torch_config.torch_dtype = torch.bfloat16
+torch_config.torch_dtype = torch.float16
+torch_config.window_type = 'LGLL'
 model = DCFormer(torch_config)
 IncompatibleKeys = model.load_state_dict(torch_params, strict=False)
 for m in IncompatibleKeys.missing_keys:
     if 'layers.0' in m:
         print(m)
-        
 model.bfloat16()
-model.save_pretrained('v3.5mini32kS7500_bf16', safe_serialization=False)
+model.save_pretrained('v3.5mini32kMixAttnS7500_bf16', safe_serialization=False)
  

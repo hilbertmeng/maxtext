@@ -49,7 +49,7 @@ def wsum(w: jnp.ndarray, # CBTL1
   return out
 
 
-def wsum_jit(w: jnp.ndarray, # CBTL1
+def wsum_jit(w: jnp.ndarray, # CBTL1, same to wsum
          hids: list[jnp.ndarray], # list of BTD
          seq_chunk_size: int = None
          ) -> jnp.ndarray:  # CBTD
@@ -87,7 +87,7 @@ def wsum_fori(w: jnp.ndarray, hids: list[jnp.ndarray]) -> jnp.ndarray:
     return out
 
 
-def einsum(w: jnp.ndarray, # btcl
+def einsum(w: jnp.ndarray, # btcl, hbm increase 50%, need save multi hids array
          hids: list[jnp.ndarray], # list of BTD
          ) -> jnp.ndarray:  # CBTD
   

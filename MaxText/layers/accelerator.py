@@ -515,7 +515,6 @@ class QChunk(nn.Module):
     self.check_attention_inputs(query, key, value)
 
     b, t, _, _ = query.shape
-    print(f'eos_sum: {eos_sum}')
     sliding_window_size = t if self.sliding_window_size is None else min(t, self.sliding_window_size)
     if self.config.fix_key_mask_shape:
       attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)

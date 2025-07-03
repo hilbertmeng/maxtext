@@ -440,7 +440,6 @@ class Decoder(nn.Module):
       hids = []
 
     if cfg.num_layers_per_block > 1: # sub layer num > 1 should use sub remat
-      assert cfg.sub_remat
       RemattedBlockLayers = self.decoder_layer
     else:
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
@@ -547,7 +546,6 @@ class Decoder(nn.Module):
         logits = logits / cfg.final_logits_soft_cap
         logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
-      print(f'logits_via_embedding22: {cfg.logits_via_embedding}')
       logits = linears.DenseGeneral(
           cfg.vocab_size,
           weight_dtype=cfg.weight_dtype,

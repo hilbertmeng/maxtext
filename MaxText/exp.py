@@ -419,7 +419,6 @@ class DCHLOTest(DC, Llama2Medium):
     scan_layers = True
     num_layers_per_block = 4
     fix_key_mask_shape = False
-    sub_remat = True
 
 class MuddHLOTest(Mudd, Llama2Medium):
     base_emb_dim = 2048
@@ -436,10 +435,8 @@ class MuddHLOTest(Mudd, Llama2Medium):
     scan_layers = False
     num_layers_per_block = 1
     fix_key_mask_shape = False
-    sub_remat = True
     mudd_postnorm = True
     mudd_in_layer = True
-    mudd_prenorm = True
 
 class DCMuddHLOTest(DC, Mudd, Llama2Medium):
     base_emb_dim = 2048
@@ -456,7 +453,6 @@ class DCMuddHLOTest(DC, Mudd, Llama2Medium):
     scan_layers = False
     num_layers_per_block = 1
     fix_key_mask_shape = False
-    sub_remat = True
     mudd_compose_method = 'fori'
     mudd_in_layer = True
     mudd_postnorm = True
@@ -493,8 +489,6 @@ class DCMuddLlama19BCompile(DC, Mudd, Llama19B):
     sliding_window_size = [256, None, 256, 256] * 15
     num_layers_per_block = 1
     fix_key_mask_shape = False
-    sub_remat = True
-    mudd_compose_method = 'fori'
     mudd_prenorm = True
     mudd_postnorm = True
 
@@ -510,8 +504,6 @@ class MuddLlama19BCompile(Mudd, Llama19B):
     sliding_window_size = [256, None, 256, 256] * 15
     num_layers_per_block = 1
     fix_key_mask_shape = False
-    sub_remat = True
-    mudd_compose_method = 'fori'
     mudd_prenorm = True
     mudd_postnorm = True
 
@@ -527,5 +519,4 @@ class DCLlama19BCompile(DC, Llama19B):
     sliding_window_size = [256, None, 256, 256] * 15
     num_layers_per_block = 1
     fix_key_mask_shape = False
-    sub_remat = True
     dense_conn = False

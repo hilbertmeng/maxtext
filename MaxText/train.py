@@ -740,7 +740,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
   teacher_loss = aux["teacher_loss"]
 
   if config.gradient_clipping_threshold > 0:
-    grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
+    grads = maxtext_utils.pax_apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
   else:
     grads = raw_grads
   if config.optimizer_memory_host_offload:

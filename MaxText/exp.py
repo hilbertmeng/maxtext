@@ -520,3 +520,24 @@ class DCLlama19BCompile(DC, Llama19B):
     num_layers_per_block = 1
     fix_key_mask_shape = False
     dense_conn = False
+
+class Llama19BMoE2in32(Llama19B, Llama2MediumOpenMoe):
+    base_mlp_dim = 1536 * 4
+    num_experts_per_tok = 2
+    num_experts = 32
+    vocab_size = 151936
+    moe_type = 'open'
+    sfm_after_topn = True
+    load_balance_loss_weight = 0.01
+    gate_noise_coef = 0.5
+    router_z_loss_coef = 0.001
+    expert_chunk_size = None
+    expert_capacity_factor = 1.5
+    per_device_batch_size = 8.0  # v5p-256
+    query_chunk_size=512 # v5p-256: todo    
+    max_target_length = 4096
+
+class Llama19BMoE2in32Compile(Llama19B, Llama2MediumOpenMoe):
+    compile_topology = 'v5p-256'
+    compile_topology_num_slices= 1 
+    compiled_trainstep_file="Llama19BMoE2in32Compile.pkl2"

@@ -349,16 +349,16 @@ def apply_gradient_clipping(raw_grads, state, clipping_threshold):
 
 
 import jax.numpy as jnp
-def pax_apply_gradient_clipping(raw_grads, clipping_threshold):
-  grad_single_norm = jax.tree_map(
-              lambda x: jnp.sqrt(jnp.sum(x * x)), raw_grads
-          )
-  def scale_gradient(grad, norm):
+def pax_apply_gradient_clipping(raw_grads, state, clipping_threshold):
+  # grad_single_norm = jax.tree_map(
+  #             lambda x: jnp.sqrt(jnp.sum(x * x)), raw_grads
+  #         )
+  def scale_gradient(grad):
     return grad * jnp.minimum(
-        jnp.array(1, norm.dtype),
-        jnp.array(clipping_threshold, norm.dtype) / norm,
+        jnp.array(1, grad.dtype),
+        jnp.array(clipping_threshold, grad.dtype) / jnp.sqrt(jnp.sum(grad * grad)),
     )
-  grads = jax.tree_map(scale_gradient, grads, grad_single_norm)
+  grads = jax.tree_map(scale_gradient, raw_grads)
   return grads
 
 

@@ -1172,7 +1172,6 @@ class OpenMoeBlock(nn.Module):
         topn = self.num_experts_per_tok
         token_shape = inputs.shape[:-1]
         num_tokens = np.prod(token_shape)
-        m_dim = inputs.shape[-1]
        
         # num_groups = inputs.shape[0]
         num_groups = self.config.num_groups # lsp
@@ -1187,6 +1186,7 @@ class OpenMoeBlock(nn.Module):
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
        
+        print(f'expert_capacity: {expert_capacity}')
         # gsm
         grouped_inputs = jnp.reshape(inputs, (num_groups, tokens_per_group, self.config.base_emb_dim))
         token_inputs = jax.lax.convert_element_type(grouped_inputs, jnp.float32)

@@ -86,6 +86,31 @@ def wsum_fori(w: jnp.ndarray, hids: list[jnp.ndarray]) -> jnp.ndarray:
     del hids_stacked
     return out
 
+# class Cell(nn.Module):
+    
+#     @nn.compact
+#     def __call__(self, carry, w, *args):
+#         qkvr = jnp.stack(args)  # [L, B, T, D]
+#         c_out = jnp.einsum('btl,lbtd->btd', w, qkvr)
+#         print(f'qkvr: {qkvr.shape} w: {w.shape} c_out: {c_out.shape}')
+#         return carry, (c_out, None)
+    
+
+# def wsum_scan(w: jnp.ndarray, hids: list[jnp.ndarray]) -> jnp.ndarray:
+#   # w: btcl, hids: [btd] * L
+#   L = len(hids)
+#   ScannedCell = nn.scan(
+#       Cell,
+#       variable_broadcast="params",
+#       split_rngs={"params": False},
+#       in_axes=(2, *[0] * L), # carry不算，因此从w开始
+#       out_axes=(0, 0),
+#   )
+#   cell = ScannedCell()
+#   carry_init = jnp.zeros((1))
+#   variables = cell.init(jax.random.PRNGKey(0), carry_init, w, *hids)
+#   _, out = cell.apply(variables, carry_init, w, *hids)
+#   return out # cbtd
 
 def einsum(w: jnp.ndarray, # btcl, hbm increase 50%, need save multi hids array
          hids: list[jnp.ndarray], # list of BTD

@@ -320,7 +320,6 @@ class Llama2MediumDSMoe(DSMoe, Llama2Medium):
     first_num_dense_layers = 1
     attention_type = 'global'
 
-
 class LlamaSmallMoE8X(DroplessMoe, Llama2MediumOpenMoe):
     base_emb_dim = 768
     base_num_query_heads = 12
@@ -345,7 +344,6 @@ class LlamaSmallMoE8X(DroplessMoe, Llama2MediumOpenMoe):
     shared_experts = 0
     insert_moe_indexes = list(range(0, 24, 1)) # 隔层插入moe
     num_layers_per_block = 1
-
 
 class Llama7BOpenMoe(CommonMoe, Llama7B):
     num_experts = 8
@@ -387,22 +385,6 @@ class DCLlama7BOpenMoe32k(DCLlama7BOpenMoe):
     warmup_steps_fraction = 1e-6 # warmup steps = warmup_steps_fraction * learning_rate_schedule_steps
     learning_rate_schedule_steps = 151050
     iter_file_nums = 500
-
-class DCLlama7BOpenMoeTest(DCLlama7BOpenMoe):
-    base_emb_dim = 2048
-    base_num_query_heads = 16
-    base_num_kv_heads = 16
-    base_mlp_dim = 2816
-    base_num_decoder_layers = 32
-    head_dim = 128
-    model_name = 'test'
-    scan_layers = True
-    moe_type = 'open'
-    remat_policy = 'minimal'
-    num_layers_per_block = 4
-    sliding_window_size = [256, None, 256, 256]
-    # sliding_window_size = None
-    query_chunk_size = None
 
 class DCHLOTest(DC, Llama2Medium):
     base_emb_dim = 2048
@@ -457,14 +439,6 @@ class DCMuddHLOTest(DC, Mudd, Llama2Medium):
     mudd_in_layer = True
     mudd_postnorm = True
     mudd_prenorm = True
-
-class DCHLO7BTest(DCHLOTest):
-    base_emb_dim = 4096
-    base_num_query_heads = 32
-    base_num_kv_heads = 32
-    base_mlp_dim = 5504
-    base_num_decoder_layers = 4
-    head_dim = 128
 
 class Llama19B(Llama2Medium):
     base_emb_dim = 5120

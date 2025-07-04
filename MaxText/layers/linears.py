@@ -1065,10 +1065,10 @@ class OpenMoeBlock(nn.Module):
         kernel_out_axis = np.arange(1, 2)
         # kernel_init = nd_dense_init(1.0, 'fan_in', 'truncated_normal')
         # self.kernel_init = kernel_init
-        # The first axes is expert
+        # # The first axes is expert
         kernel_axes = ("exp", "embed_no_exp", "mlp")
         wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
-  
+
         # self.num_experts = self.config.num_experts - shared_experts
         mlp_dim = self.intermediate_dim # moe dim
         emb_dim = self.config.base_emb_dim  # model dim
@@ -1188,8 +1188,7 @@ class OpenMoeBlock(nn.Module):
        
         print(f'expert_capacity: {expert_capacity}')
         # gsm
-        grouped_inputs = jnp.reshape(inputs, (num_groups, tokens_per_group, self.config.base_emb_dim))
-        token_inputs = jax.lax.convert_element_type(grouped_inputs, jnp.float32)
+        token_inputs = jnp.reshape(inputs, (num_groups, tokens_per_group, self.config.base_emb_dim))
 
         router_logits = DenseGeneral(
                 self.num_experts,
@@ -1197,7 +1196,7 @@ class OpenMoeBlock(nn.Module):
                 weight_dtype=self.weight_dtype,
                 kernel_init=self.kernel_init,
                 kernel_axes=self.kernel_axes,
-                name='gate')(token_inputs)
+                name='gate')(token_inputs.astype(jnp.float32))
 
         # if self.config.record_internal_nn_metrics:
         #   self.sow('intermediates', 'router_logits/noiso_before/max', router_logits.max())
@@ -1254,7 +1253,7 @@ class OpenMoeBlock(nn.Module):
             assert paddings.shape == token_shape
             # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
             nonpaddings = paddings
-            nonpaddings = jnp.reshape(nonpaddings, grouped_inputs.shape[:2])
+            nonpaddings = jnp.reshape(nonpaddings, token_inputs.shape[:2])
             gate_mask = jnp.expand_dims(nonpaddings, axis=-1)
             # expert_gate *= gate_mask
     
@@ -1331,6 +1330,8 @@ class OpenMoeBlock(nn.Module):
 
             # 专家的输入mask：gsm x gsec -> gecm，  _dispatch_mask可以将多出容量之外的toke进行丢弃
             _expert_inputs = jnp.einsum('gsd,gsec->gecd', token_inputs, _dispatch_mask)
+            print(f'token_inputs: {token_inputs.dtype} _dispatch_mask:{_dispatch_mask.dtype} _expert_inputs: {_expert_inputs.dtype}')
+
             _expert_inputs = jax.lax.convert_element_type(_expert_inputs, self.dtype)
             # gecm
             # g * e * c * m

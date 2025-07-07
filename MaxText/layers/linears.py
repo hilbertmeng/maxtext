@@ -414,10 +414,46 @@ class MoeBlock(nn.Module):
 
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
     return sorted_inputs, sorted_selected_experts, weights, group_size
+  
+  def permute_new(self, inputs, gate_logits):
+    """Permute tokens to group by expert to fit gmm call."""
+
+    # ... (前面的代码不变) ...
+    inputs_shape = inputs.shape
+    inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
+    weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
+    if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
+      print(f'Enter permute sigmoid function......')
+      weights = self.deepseek_scale_weights(weights)
+    else:
+      weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
+
+    flatten_selected_experts = jnp.ravel(selected_experts)
+    
+    # 这个 sorted_selected_experts 是置换索引，它将把 flatten_selected_experts 排序
+    # 我们需要的是应用这个置换后的 token 的原始索引
+    permutation_indices = jnp.argsort(flatten_selected_experts)
+
+    # `original_token_indices` 告诉我们排好序的token（在0, 1, ..., B*S*k-1的位置上）
+    # 它们分别来自哪个原始token（在0, 1, ..., B*S-1的位置上）
+    # 这正是 segment_sum 所需的 segment_ids
+    original_token_indices = permutation_indices // self.num_experts_per_tok
+
+    # 使用 permutation_indices 来对输入进行排序
+    sorted_inputs = jnp.take(inputs_2d, indices=original_token_indices, axis=0).astype(self.dtype)
+    
+    print(f'inputs_2d: {inputs_2d.shape} original_token_indices: {original_token_indices.shape} sorted_inputs: {sorted_inputs.shape}')
+
+    group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
+    
+    # *** 修改: 返回 original_token_indices 和 permutation_indices ***
+    # 我们将用 permutation_indices 来对权重进行排序
+    return sorted_inputs, permutation_indices, original_token_indices, weights, group_size
 
   def unpermute(self, intermediate, sorted_selected_experts, weights, batch_size, sequence_length):
     """Unpermute tokens to original order and combine weights."""
     # intermediate: (topk*length, d), sorted_selected_experts: (topk*length, ), unsort_intermediate: (topk*length, d),
+    # intermediate: (65536, 5120) sorted_selected_experts: (65536,) unsort_intermediate: (65536, 5120)
     unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
     # unsort_intermediate = intermediate
     print(f'intermediate: {intermediate.shape} sorted_selected_experts: {jnp.argsort(sorted_selected_experts).shape} unsort_intermediate: {unsort_intermediate.shape}')
@@ -436,6 +472,37 @@ class MoeBlock(nn.Module):
           precision=matmul_precision,
       )
     return output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
+  
+  def unpermute_new(self, intermediate, permutation_indices, original_token_indices, weights, batch_size, sequence_length):
+    """Unpermute tokens using segment_sum to avoid slow backward pass."""
+    
+    # 1. 将权重展平，使其与 intermediate 中的token一一对应
+    # weights: (batch*seq, k) -> flat_weights: (batch*seq*k,)
+    flat_weights = jnp.ravel(weights)
+
+    # 2. 使用与输入token相同的置换，对权重进行排序
+    # 这样，排好序的权重就与排好序的专家输出 (intermediate) 对齐了
+    # permuted_flat_weights[i] 是 intermediate[i] 对应的权重
+    permuted_flat_weights = jnp.take(flat_weights, indices=permutation_indices, axis=0)
+
+    # 3. 将专家输出乘以其对应的权重
+    # intermediate: (batch*seq*k, emb_dim)
+    # permuted_flat_weights[:, None]: (batch*seq*k, 1)
+    weighted_intermediate = intermediate.astype(jnp.float32) * permuted_flat_weights[:, None].astype(jnp.float32)
+    
+    # 4. 使用 segment_sum 将加权后的输出加回到它们原始token的位置
+    # data: a (N, dim) array of values to be summed.
+    # segment_ids: an (N,) array of integers indicating which segment each row of data belongs to.
+    # num_segments: the total number of segments (i.e., total number of original tokens).
+    num_original_tokens = batch_size * sequence_length
+    combined_output = jax.ops.segment_sum(
+        data=weighted_intermediate,
+        segment_ids=original_token_indices,
+        num_segments=num_original_tokens
+    )
+
+    # 5. Reshape回原始的3D形状
+    return combined_output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
 
   def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
 
@@ -472,14 +539,14 @@ class MoeBlock(nn.Module):
 
     # tile_size = (512, 1024, 1024)  # (m, k, n)
     # tile_size = (512, 512, 512)  # (m, k, n)
-    m_kn_tile_size = (512, 256) # if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
-    _m, _kn = m_kn_tile_size
-    def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
-      _tm = _m
-      _tk = _m if k % _m ==0 else _kn
-      _tn = _m if n % _m ==0 else _kn
-      assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
-      return (_tm, _tk, _tn)
+    m_kn_tile_size = (512, 512, 256) # if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
+    # _m, _kn = m_kn_tile_size
+    # def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
+    #   _tm = _m
+    #   _tk = _m if k % _m ==0 else _kn
+    #   _tn = _m if n % _m ==0 else _kn
+    #   assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
+    #   return (_tm, _tk, _tn)
 
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape
@@ -505,7 +572,7 @@ class MoeBlock(nn.Module):
             rhs=kernel,
             group_sizes=group_sizes,
             preferred_element_type=jnp.bfloat16,
-            tiling=tiling_func,
+            tiling=m_kn_tile_size,
             lhs_quantize_dtype=lhs_quantize_dtype,
             rhs_quantize_dtype=rhs_quantize_dtype,
         )
@@ -547,7 +614,10 @@ class MoeBlock(nn.Module):
     )
     def wrapper(x, logits, w0, w1, wo):
       batch_size, sequence_length, _ = x.shape
-      x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
+      if self.config.permute_new:
+        x, permutation_indices, original_token_indices, weights, group_sizes = self.permute_new(x, logits)
+      else:
+        x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
       layer_w0 = gmm(x, w0, group_sizes)
       layer_w0 = checkpoint_name(layer_w0, "mlpwi_0")
       layer_w1 = gmm(x, w1, group_sizes)
@@ -559,7 +629,17 @@ class MoeBlock(nn.Module):
       tensor_parallelism = self.config.ici_tensor_parallelism * self.config.dcn_tensor_parallelism
       if tensor_parallelism > 1:
         intermediate_output = jax.lax.psum_scatter(intermediate_output, "tensor", scatter_dimension=1, tiled=True)
-      output = self.unpermute(
+      if self.config.permute_new:
+        output = self.unpermute_new(
+            intermediate_output, 
+            permutation_indices,
+            original_token_indices,
+            weights, 
+            batch_size=batch_size, 
+            sequence_length=sequence_length
+        )
+      else:
+        output = self.unpermute(
           intermediate_output, sorted_selected_experts, weights, batch_size=batch_size, sequence_length=sequence_length
       )
       return output, None
@@ -1047,6 +1127,18 @@ def record_gate(self, key, gate_scores, axis=(0, 1)):
     self.sow('intermediates', f'{key}/token_to_expert_score', _entroy(gate_scores)) # 熵越小越好
 
 
+def cum_sum(elements, axis=0, exclusive=False, reverse=False):
+  if reverse:
+    elements = jnp.flip(elements, axis=axis)
+
+  result = jnp.cumsum(elements, axis=axis)
+  if exclusive:
+    result = result - elements
+  if reverse:
+    return jnp.flip(result, axis=axis)
+  else:
+    return result
+  
 class OpenMoeBlock(nn.Module):
     config: Config
     num_experts: int
@@ -1124,11 +1216,11 @@ class OpenMoeBlock(nn.Module):
               name='mgate',
             )
 
-    @nn.compact
-    def __call__(self, inputs, paddings, deterministic=False):
-        inputs = inputs.astype(self.dtype)
-        combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
-        return combined_outputs, aux_loss
+    # @nn.compact
+    # def __call__(self, inputs, paddings, deterministic=False):
+    #     inputs = inputs.astype(self.dtype)
+    #     combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
+    #     return combined_outputs, aux_loss
 
     def _call_experts(self, expert_inputs, expert_index, compute_n_expert, deterministic=False):
         """
@@ -1345,3 +1437,187 @@ class OpenMoeBlock(nn.Module):
         # Return to batched shape.
         combined_outputs = combined_outputs.reshape(*inputs.shape)
         return combined_outputs, aux_loss
+    
+    def _create_over_capacity_ratio_summary(self,
+        mask, position_in_expert, capacity, name
+    ):
+      _ = name  # TODO(lepikhin): consider inlined summary
+      masked_position_in_expert = mask * position_in_expert
+      ge_capacity = jnp.greater_equal(masked_position_in_expert, capacity)
+      over_capacity = jnp.sum(ge_capacity).astype(jnp.float32)
+      denom = jnp.sum(mask).astype(jnp.float32)
+      over_capacity_ratio = over_capacity / jnp.maximum(
+          jnp.array(1.0, dtype=jnp.float32), denom
+      )
+      return over_capacity_ratio
+
+    def top2_gating_on_logits(self,
+      paddings,
+      logits,
+      experts_dim,
+      fprop_dtype,
+      capacity_factor=None,
+    ):
+      mask_dtype = fprop_dtype
+
+      logits = logits.astype(jnp.float32)
+      raw_gates = jax.nn.softmax(logits, axis=-1)  # along E dim
+
+      group_size_dim = logits.shape[1]
+      auto_expert_capacity = int(group_size_dim * capacity_factor / experts_dim)
+      
+      expert_capacity_dim = auto_expert_capacity
+      capacity = jnp.array(expert_capacity_dim, dtype=jnp.int32)
+      # top-1 index: GS tensor
+      index_1 = jnp.argmax(raw_gates, axis=-1)
+      # GSE
+      mask_1 = jax.nn.one_hot(index_1, experts_dim, dtype=mask_dtype)
+      density_1_proxy = raw_gates
+      assert len(mask_1.shape) == 3
+      importance = jnp.ones_like(mask_1[:, :, 0]).astype(fprop_dtype)
+      gate_1 = jnp.einsum('GSE,GSE->GS', raw_gates, mask_1.astype(raw_gates.dtype))
+      gates_without_top_1 = raw_gates * (1.0 - mask_1.astype(raw_gates.dtype))
+    
+      index_2 = jnp.argmax(gates_without_top_1, axis=-1)
+      mask_2 = jax.nn.one_hot(index_2, experts_dim, dtype=mask_dtype)
+      gate_2 = jnp.einsum(
+          'GSE,GSE->GS',
+          gates_without_top_1,
+          mask_2.astype(gates_without_top_1.dtype),
+      )
+      denom = gate_1 + gate_2 + 1e-9
+      gate_1 /= denom
+      gate_2 /= denom
+
+      position_in_expert_1 = cum_sum(mask_1, exclusive=True, axis=-2)
+      assert importance.dtype == fprop_dtype
+      density_denom = jnp.asarray(1.0, dtype=jnp.float32)
+      density_1 = jnp.mean(mask_1.astype(jnp.float32), axis=-2) / density_denom
+      density_1_proxy = (
+          jnp.mean(density_1_proxy, axis=-2, dtype=jnp.float32) / density_denom
+      )
+      aux_loss = jnp.mean(
+          density_1_proxy * density_1, dtype=jnp.float32
+      )  # element-wise
+      aux_loss *= experts_dim * experts_dim * self.config.load_balance_loss_weight  # const coefficients
+
+      mask_1 *= jnp.less(position_in_expert_1, expert_capacity_dim).astype(
+          mask_1.dtype
+      )
+      position_in_expert_1 = jnp.einsum('GSE,GSE->GS', position_in_expert_1, mask_1)
+
+      # How many examples in this sequence go to this expert?
+      mask_1_count = jnp.einsum('GSE->GE', mask_1)
+      # [batch, group] - mostly ones, but zeros where something didn't fit.
+      mask_1_flat = jnp.sum(mask_1, axis=-1, dtype=mask_dtype)
+      assert mask_1_count.dtype == mask_dtype
+      assert mask_1_flat.dtype == mask_dtype
+
+      position_in_expert_2 = cum_sum(
+          mask_2, exclusive=True, axis=-2
+      ) + jnp.expand_dims(mask_1_count, -2)
+      mask_2 *= jnp.less(position_in_expert_2, expert_capacity_dim).astype(
+          mask_2.dtype
+      )
+      position_in_expert_2 = jnp.einsum('GSE,GSE->GS', position_in_expert_2, mask_2)
+      mask_2_flat = jnp.sum(mask_2, axis=-1, dtype=mask_dtype)
+
+      gate_1 *= mask_1_flat.astype(gate_1.dtype)
+      gate_2 *= mask_2_flat.astype(gate_2.dtype)
+
+      # GSC tensor
+      b = jax.nn.one_hot(
+          position_in_expert_1.astype(np.int32),
+          expert_capacity_dim,
+          dtype=jnp.float32,
+      )
+      # GSE tensor
+      a = jnp.expand_dims(
+          gate_1 * mask_1_flat.astype(jnp.float32), axis=-1
+      ) * jax.nn.one_hot(index_1, experts_dim, dtype=jnp.float32)
+      # GSEC tensor 32 4096 32 196
+      first_part_of_combine_tensor = jnp.einsum('GSE,GSC->GSEC', a, b)
+      print(f'first_part_of_combine_tensor: {first_part_of_combine_tensor.shape}')
+      # GSC tensor
+      b = jax.nn.one_hot(
+          position_in_expert_2.astype(np.int32),
+          expert_capacity_dim,
+          dtype=jnp.float32,
+      )
+      # GSE tensor
+      a = jnp.expand_dims(
+          gate_2 * mask_2_flat.astype(fprop_dtype), axis=-1
+      ) * jax.nn.one_hot(index_2, experts_dim, dtype=jnp.float32)
+      second_part_of_combine_tensor = jnp.einsum('GSE,GSC->GSEC', a, b)
+      # GSEC tensor
+      combine_tensor = first_part_of_combine_tensor + second_part_of_combine_tensor
+      # GSEC tensor
+      dispatch_tensor = combine_tensor.astype(bool).astype(fprop_dtype)
+
+      combine_tensor = combine_tensor.astype(fprop_dtype)
+
+      return (
+        aux_loss,
+        combine_tensor,
+        dispatch_tensor,
+    )
+    
+    def _dispatch_and_combine_expert_outputs(self, inputs, paddings):
+      fprop_dtype = inputs.dtype
+      theta_wi, theta_wo = self.wi_0, self.wo_0
+      theta_wi_gated = self.wi_gate_0
+      token_shape = inputs.shape[:-1]
+      num_tokens = np.prod(token_shape)
+      m_dim = inputs.shape[-1]
+      num_groups = int(self.config.num_groups)
+      g_len = num_tokens // num_groups
+      reshaped_inputs = inputs.reshape([num_groups, g_len, m_dim])
+      logits = DenseGeneral(
+                self.config.num_experts,
+                dtype=self.dtype,
+                weight_dtype=self.weight_dtype,
+                kernel_init=self.kernel_init,
+                kernel_axes=self.kernel_axes,
+                name='gate')(reshaped_inputs)
+      gating = self.top2_gating_on_logits(
+        paddings=paddings,
+        logits=logits.astype(jnp.float32),
+        experts_dim=self.config.num_experts,
+        fprop_dtype=fprop_dtype,
+        capacity_factor=self.config.capacity_factor,
+    )
+      aux_loss, combine_tensor, dispatch_tensor = gating
+      combine_tensor = combine_tensor.astype(fprop_dtype)
+      dispatch_tensor = dispatch_tensor.astype(fprop_dtype)
+      # combine_tensor = self._split(combine_tensor, ap.gsec)
+      # dispatch_tensor = self._split(dispatch_tensor, ap.gsec)
+      expert_inputs = jnp.einsum(
+          'gsec,gsm->egcm', dispatch_tensor, reshaped_inputs
+      )
+      # expert_inputs = self._split(expert_inputs, ap.egcm)
+      print(f'expert_inputs: {expert_inputs.shape}')
+      hidden0 = jnp.einsum(
+          'egcm,emh->egch', expert_inputs, theta_wi
+      )
+      hidden1 = jnp.einsum(
+          'egcm,emh->egch', expert_inputs, theta_wi_gated
+      )
+      hidden1 = self.activation(hidden1)
+      hidden = hidden1 * hidden0
+
+      expert_output = jnp.einsum('egch,ehm->egcm', hidden, theta_wo)
+
+      transposed_expert_output = jnp.einsum('egcm->gecm', expert_output)
+      combined_output = jnp.einsum('gecm,gsec->gsm', transposed_expert_output,
+                                    combine_tensor)
+      return combined_output, aux_loss
+    
+    @nn.compact
+    def __call__(
+      self,
+      inputs,
+      paddings = None,
+      deterministic=False
+      ):
+      outputs, aux_loss = self._dispatch_and_combine_expert_outputs(inputs, paddings)
+      return outputs, aux_loss

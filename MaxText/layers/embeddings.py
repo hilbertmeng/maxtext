@@ -163,7 +163,7 @@ class RotaryEmbedding(nn.Module):
 
     position = position[:, :, jnp.newaxis, jnp.newaxis]
     sinusoid_inp = position / self.timescale
-    sin = jnp.sin(sinusoid_inp).astype(inputs.dtype)
+    sin = jnp.sin(sinusoid_inp).astype(inputs.dtype) #  # todo: lsp: 不转为bfloat16？
     cos = jnp.cos(sinusoid_inp).astype(inputs.dtype)
     first_half, second_half = jnp.split(inputs, 2, axis=-1)
     first_part = first_half * cos - second_half * sin

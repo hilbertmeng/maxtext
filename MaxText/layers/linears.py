@@ -390,35 +390,11 @@ class MoeBlock(nn.Module):
     weights *= self.config.routed_scaling_factor
     return weights
 
-  def permute(self, inputs, gate_logits):
-    """Permute tokens to group by expert to fit gmm call."""
 
-    # reshape inputs (batch, sequence, emb) to (batch * sequence, emb)
-    inputs_shape = inputs.shape
-    inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
-    weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
-    if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
-      print(f'Enter permute sigmoid function......')
-      weights = self.deepseek_scale_weights(weights)
-    else:
-      weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
 
-    flatten_selected_experts = jnp.ravel(selected_experts)
-    sorted_selected_experts = jnp.argsort(flatten_selected_experts)
-    sorted_indices = sorted_selected_experts // self.num_experts_per_tok
-    # sort inputs for number of selected experts
-    # inputs_2d: (b, d) sorted_indices: (topk*length, ), sorted_inputs: (topk*length, d)
-    sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
-    # sorted_inputs = jnp.concatenate([inputs_2d] * self.num_experts_per_tok, axis=0)
-    print(f'inputs_2d: {inputs_2d.shape} sorted_indices: {sorted_indices.shape} sorted_inputs: {sorted_inputs.shape}')
-
-    group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
-    return sorted_inputs, sorted_selected_experts, weights, group_size
-  
   def permute_new(self, inputs, gate_logits):
     """Permute tokens to group by expert to fit gmm call."""
 
-    # ... (前面的代码不变) ...
     inputs_shape = inputs.shape
     inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
     weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
@@ -450,28 +426,6 @@ class MoeBlock(nn.Module):
     # 我们将用 permutation_indices 来对权重进行排序
     return sorted_inputs, permutation_indices, original_token_indices, weights, group_size
 
-  def unpermute(self, intermediate, sorted_selected_experts, weights, batch_size, sequence_length):
-    """Unpermute tokens to original order and combine weights."""
-    # intermediate: (topk*length, d), sorted_selected_experts: (topk*length, ), unsort_intermediate: (topk*length, d),
-    # intermediate: (65536, 5120) sorted_selected_experts: (65536,) unsort_intermediate: (65536, 5120)
-    unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
-    # unsort_intermediate = intermediate
-    print(f'intermediate: {intermediate.shape} sorted_selected_experts: {jnp.argsort(sorted_selected_experts).shape} unsort_intermediate: {unsort_intermediate.shape}')
-
-    reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok))
-    reshaped_intermediate = jnp.reshape(
-        unsort_intermediate,
-        (reshaped_weights.shape[0], self.num_experts_per_tok, -1),
-    )
-    with jax.named_scope("weight_sum"):
-      matmul_precision = lax.Precision(self.config.matmul_precision)
-      output = jnp.einsum(
-          "BKE,BK -> BE",
-          reshaped_intermediate.astype(jnp.float32),
-          reshaped_weights.astype(jnp.float32),
-          precision=matmul_precision,
-      )
-    return output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
   
   def unpermute_new(self, intermediate, permutation_indices, original_token_indices, weights, batch_size, sequence_length):
     """Unpermute tokens using segment_sum to avoid slow backward pass."""
@@ -503,6 +457,54 @@ class MoeBlock(nn.Module):
 
     # 5. Reshape回原始的3D形状
     return combined_output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
+  
+  def permute(self, inputs, gate_logits):
+    """Permute tokens to group by expert to fit gmm call."""
+
+    # reshape inputs (batch, sequence, emb) to (batch * sequence, emb)
+    inputs_shape = inputs.shape
+    inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
+    weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
+    if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
+      print(f'Enter permute sigmoid function......')
+      weights = self.deepseek_scale_weights(weights)
+    else:
+      weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
+
+    flatten_selected_experts = jnp.ravel(selected_experts)
+    sorted_selected_experts = jnp.argsort(flatten_selected_experts)
+    sorted_indices = sorted_selected_experts // self.num_experts_per_tok
+    # sort inputs for number of selected experts
+    # inputs_2d: (b, d) sorted_indices: (topk*length, ), sorted_inputs: (topk*length, d)
+    sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
+    # sorted_inputs = jnp.concatenate([inputs_2d] * self.num_experts_per_tok, axis=0)
+    print(f'inputs_2d: {inputs_2d.shape} sorted_indices: {sorted_indices.shape} sorted_inputs: {sorted_inputs.shape}')
+
+    group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
+    return sorted_inputs, sorted_selected_experts, weights, group_size
+
+  def unpermute(self, intermediate, sorted_selected_experts, weights, batch_size, sequence_length):
+    """Unpermute tokens to original order and combine weights."""
+    # intermediate: (topk*length, d), sorted_selected_experts: (topk*length, ), unsort_intermediate: (topk*length, d),
+    # intermediate: (65536, 5120) sorted_selected_experts: (65536,) unsort_intermediate: (65536, 5120)
+    unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
+    print(f'intermediate: {intermediate.shape} sorted_selected_experts: {sorted_selected_experts.shape} unsort_intermediate: {unsort_intermediate.shape}')
+
+    reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok))
+    reshaped_intermediate = jnp.reshape(
+        unsort_intermediate,
+        (reshaped_weights.shape[0], self.num_experts_per_tok, -1),
+    )
+    with jax.named_scope("weight_sum"):
+      matmul_precision = lax.Precision(self.config.matmul_precision)
+      output = jnp.einsum(
+          "BKE,BK -> BE",
+          reshaped_intermediate.astype(jnp.float32),
+          reshaped_weights.astype(jnp.float32),
+          precision=matmul_precision,
+      )
+    return output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
+  
 
   def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
 
@@ -537,17 +539,7 @@ class MoeBlock(nn.Module):
       router_z_loss = self.config.router_z_loss_coef * router_z_loss.mean()
       aux_loss += router_z_loss
 
-    # tile_size = (512, 1024, 1024)  # (m, k, n)
-    # tile_size = (512, 512, 512)  # (m, k, n)
-    m_kn_tile_size = (512, 512, 256) # if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
-    # _m, _kn = m_kn_tile_size
-    # def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
-    #   _tm = _m
-    #   _tk = _m if k % _m ==0 else _kn
-    #   _tn = _m if n % _m ==0 else _kn
-    #   assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
-    #   return (_tm, _tk, _tn)
-
+    
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape
       # pad length is the 1st dimension of tiling size in gmm call
@@ -566,13 +558,20 @@ class MoeBlock(nn.Module):
         rhs_quantize_dtype = quant_dg.fwd.dg_quantizer.rhs.numerics.get_dtype()
 
       if self.config.megablox:
+        # inputs: 2d, (batch*length) * dim
         m, k, n = inputs.shape[0], inputs.shape[1], kernel.shape[2]
+        for kd in [512, 768, 256, 128]:
+          if n % kd == 0:
+            break
+        tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
+        print(f'tile_size: {tile_size}')
+
         output = mblx.gmm(
             lhs=inputs,
             rhs=kernel,
             group_sizes=group_sizes,
             preferred_element_type=jnp.bfloat16,
-            tiling=m_kn_tile_size,
+            tiling=tile_size,
             lhs_quantize_dtype=lhs_quantize_dtype,
             rhs_quantize_dtype=rhs_quantize_dtype,
         )

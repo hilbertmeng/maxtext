@@ -451,20 +451,22 @@ class Llama19B(Llama2Medium):
     attention='dot_product_chunk'
     scan_layers = False
 
-class DCMuddLlama19BCompile(DC, Mudd, Llama19B):
+class DCMuddLlama19B(DC, Mudd, Llama19B):
     query_chunk_size=512 # v5p-256: todo    
     mudd_in_layer = True
-    compile_topology = 'v5p-256'
-    compile_topology_num_slices= 1 
-    compiled_trainstep_file="DCMuddLlama19B.pkl"
     max_target_length = 4096
     per_device_batch_size = 8.0  # v5p-256
 
-    sliding_window_size = [256, None, 256, 256] * 15
+    sliding_window_size = [256, None, 256, 256] * 1
     num_layers_per_block = 1
     fix_key_mask_shape = False
     mudd_prenorm = True
     mudd_postnorm = True
+
+class DCMuddLlama19BCompile(DCMuddLlama19B):
+    compile_topology = 'v5p-256'
+    compile_topology_num_slices= 1 
+    compiled_trainstep_file="DCMuddLlama19B.pkl"
 
 class MuddLlama19BCompile(Mudd, Llama19B):
     query_chunk_size=512 # v5p-256: todo    
@@ -511,7 +513,18 @@ class Llama19BMoE2in32(Llama19B, Llama2MediumOpenMoe):
     query_chunk_size=512 # v5p-256: todo    
     max_target_length = 4096
 
-class Llama19BMoE2in32Compile(Llama19B, Llama2MediumOpenMoe):
+class Llama19BMoE2in32Compile(Llama19BMoE2in32):
     compile_topology = 'v5p-256'
     compile_topology_num_slices= 1 
     compiled_trainstep_file="Llama19BMoE2in32Compile.pkl2"
+
+
+class DCMuddLlama19BMoE2in32(DroplessMoe, DCMuddLlama19BCompile):
+    base_mlp_dim = 1536 * 4
+    num_experts_per_tok = 2
+    num_experts = 32
+    per_device_batch_size = 8.0  # v5p-256
+    query_chunk_size=256 # v5p-256: todo    
+    max_target_length = 4096
+
+    

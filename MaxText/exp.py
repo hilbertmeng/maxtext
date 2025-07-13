@@ -382,24 +382,29 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         eval_interval = 1500
         learning_rate = base_lr * math.sqrt(4)
 
-    elif train_stage == 1: # v5p-64
-        per_device_batch_size = 8.0 # total 256
-        eval_per_device_batch_size = 32 # total 1024
+    elif train_stage == 1: # v5p-64/v6e-64
+        per_device_batch_size = 4.0 # total 256
+        eval_per_device_batch_size = 16.0 # total 1024
         eval_interval = 3000
         learning_rate = base_lr * math.sqrt(2)
 
     else:
         raise ValueError(f'Unknow tran_stage: {train_stage}')
 
-
-class DreamMiniXLE64T4(DreamMiniXL): 
+class Dropless:
+    insert_moe_indexes = list(range(100))
     moe_type = 'dropless'
     megablox = True
+    num_experts = 32
+    num_experts_per_tok = 2
+    shared_experts = 0
+    expert_capacity_factor = 0.0
+    load_balance_loss_weight = 0.0
+    
+class DreamMiniXLE64T4(Dropless, DreamMiniXL): 
     num_experts = 64
     num_experts_per_tok = 4
     base_mlp_dim = 2816 // num_experts_per_tok
-    shared_experts = 0
-
 
 class MiniXL:
     learning_rate = 2.5e-4

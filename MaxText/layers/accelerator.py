@@ -196,7 +196,7 @@ class QChunk(nn.Module):
         _value = lax.dynamic_slice_in_dim(value, kv_start, window_len, axis=1)
         _attn_mask = lax.dynamic_slice_in_dim(attn_mask, mask_start, w, axis=2)
 
-        _pre_proj_dw_args, post_proj_dw_args = None, None
+        _pre_proj_dw_args, _post_proj_dw_args = None, None
         def _safe_slice(tensor, s, length):
             return None if tensor is None else lax.dynamic_slice_in_dim(tensor, s, length, axis=1)
 
@@ -356,7 +356,12 @@ class QChunk(nn.Module):
         encoded = self._attention_with_parallel(*args, remat=True, parallel_method='scan')
       # best branch
       elif self.config.query_chunk_method == 'remat': # support fix/dynamic key mask
-        encoded = self._attention_with_remat(*args, remat=True)
+        print(f'query_chunk_method: remat...')
+        if sliding_window_size == t:
+          encoded = self._attention_with_remat(*args, remat=True)
+        else:
+          attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+          encoded = self._attention_with_parallel(*args, remat=True, parallel_method='fori') # fori remat=True more quick than fori remat=False?
       elif self.config.query_chunk_method == 'vmap':
         encoded = self._attention_with_parallel(*args, parallel_method='vmap')
       elif self.config.query_chunk_method == 'remat_vmap':

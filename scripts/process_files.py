@@ -150,7 +150,7 @@ def check_text_length(line):
         return False
     # 计算单词的平常长度
     word_mean_len = char_count / len(words)
-    if word_mean_len > 50000:
+    if word_mean_len > 5000:
         print(f'\n\nError line name: {line["meta"]}\n\n')
         return False
     else:
@@ -169,22 +169,26 @@ def process_data(args):
             line = cur_rank_lines[i]
             line = orjson.loads(line)
             text = line['text'] # 一本书
-            text = re.subn('？。|\?。', '？', text)[0] 
-            text_split = re.split(r'(\n)', text) # 保留了换行符
+            wen_or_ju = '。' if random.randint(0, 1) else '？'
+            text = re.subn('？。|\?。', wen_or_ju, text)[0]
+            text_split = text.split('\n')
             text_split = filter_unused_line(text_split)
             if not check_text_length(line):
                 continue
-            per = 500
+            per = 800
             if len(text_split) > per:
                 # 一次Tokenize很长的数据会很慢，需要split。
                 for lnx in tqdm(range(0, len(text_split), per), desc=f'Rank-{rank}-sub-{i}'):
                     inp = text_split[lnx: lnx + per]
-                    inp = ''.join(inp) # 之前保留了\n
+                    inp = '\n'.join(inp)
                     qwen_tokenizer.partial_tokenize(inp)
             else:
-                text = ''.join(text_split) # 之前保留了\n
+                text = '\n'.join(text_split)
                 qwen_tokenizer.partial_tokenize(text)
-            qwen_tokenizer.next_ids += EOS_ID
+            if len(qwen_tokenizer.next_ids) < 300 and data_type == 'train': # 小于300token的书，扔掉
+                    qwen_tokenizer.next_ids = []
+            else:
+                qwen_tokenizer.next_ids += EOS_ID
 
     qwen_tokenizer.writer.close()
     return qwen_tokenizer.count
@@ -231,14 +235,14 @@ if __name__ == "__main__":
    
     if data_type == 'valid':
         pathes = ['gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/jsonl/valid_concat.jsonl']
-        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0506/validation'
+        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0713/validation'
         print(f'SAVE_DIR: {SAVE_DIR}')
     else:
         buckets = args.bucketes.split('-')
         bucket_start = int(buckets[0])
         bucket_end = int(buckets[1]) if len(buckets) == 2 else bucket_start  + 1
-        # SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0506/B{bucket_start}-{bucket_end}'
-        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0506/B0-40'
+        # SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0713/B{bucket_start}-{bucket_end}'
+        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0713/B0-40'
         pathes = [f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/jsonl/2nd-shuffled-data_bucket-{bucket}-{index:03}-of-025.jsonl.zst' for bucket in range(bucket_start, bucket_end) for index in range(25)]
     print(f'total file nums: {len(pathes)}')
     run_pathes = pathes[file_start: file_end]
@@ -255,13 +259,14 @@ if __name__ == "__main__":
 
 多进程处理多个文件:
 # Usage:
-TPU_NAME=llm-jax-mqy-v5p-16-68-maxtext; ZONE=us-east5-a
+TPU_NAME=llm-jax-v5p-8-10; ZONE=us-east5-a
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="/home/lishengping/miniconda3/bin/pip install -U tiktoken smart_open[gcs] gcsfs orjson transformers" --project=newproject-1-451205
+
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="sudo rm -r /home/lishengping/tokenizer;gsutil cp -r gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/tokenizer/my_qwen2_tokenizer_trained_on_60files_70000 /home/lishengping/" --project=newproject-1-451205
 or: unigram
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="sudo rm -r /home/lishengping/tokenizer;gsutil cp -r gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/tokenizer/spm_model_70000vocab_55G_bpe_character_coverage0.99999.extended_special.model /home/lishengping/" --project=newproject-1-451205
 # scp
-TPU_NAME=llm-jax-mqy-v5p-16-68-maxtext; ZONE=us-east5-a
+TPU_NAME=llm-jax-v5p-8-10; ZONE=us-east5-a
 SCRIPT=/Users/lishengping/codes/jax_projects/maxtext/scripts/process_files.py
 gcloud compute tpus tpu-vm scp $SCRIPT $TPU_NAME:/home/lishengping/processed.py  --zone=$ZONE  --worker=all  --project=newproject-1-451205
 

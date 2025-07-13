@@ -478,12 +478,18 @@ class MoeBlock(nn.Module):
 
       if self.config.megablox:
         m, k, n = inputs.shape[0], inputs.shape[1], kernel.shape[2]
+        for kd in [512, 768, 384, 256, 128]:
+          if n % kd == 0:
+            break
+        # if too large, will exceed vmem.
+        tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
+        print(f'tile_size: {tile_size}')
         output = mblx.gmm(
             lhs=inputs,
             rhs=kernel,
             group_sizes=group_sizes,
             preferred_element_type=jnp.bfloat16,
-            tiling=(min(tile_size[0], m), min(tile_size[1], k), min(tile_size[2], n)),
+            tiling=tile_size,
             lhs_quantize_dtype=lhs_quantize_dtype,
             rhs_quantize_dtype=rhs_quantize_dtype,
         )

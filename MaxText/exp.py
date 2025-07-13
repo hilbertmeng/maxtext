@@ -340,7 +340,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     # #按照计算，最后decay阶段，0.5epoch的步数是 30000。但考虑到 total file: 12344-12288，多了56个文件，因此都加进去，多了 500 steps
     # eopch=0.5;end_steps4=30000+500;B=1024;lr='cosine->2.5e-4';file_nums=[9216, 12344]
     
-    train_stage = 5 # # 换阶段的话需要人工修改meta dict
+    train_stage = 1 # # 换阶段的话需要人工修改meta dict
     if train_stage == 5: # v5p-128
         train_shuffle_buffer_size = 500000 // 8
         per_device_batch_size = 2.0 # total 4M
@@ -391,7 +391,16 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     else:
         raise ValueError(f'Unknow tran_stage: {train_stage}')
 
-    
+
+class DreamMiniXLE64T4(DreamMiniXL): 
+    moe_type = 'dropless'
+    megablox = True
+    num_experts = 64
+    num_experts_per_tok = 4
+    base_mlp_dim = 2816 // num_experts_per_tok
+    shared_experts = 0
+
+
 class MiniXL:
     learning_rate = 2.5e-4
     learning_rate_schedule_steps = 50000

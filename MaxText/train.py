@@ -686,7 +686,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
     def accumulate_gradient(acc_grad_and_loss, data):
       grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)
       (_, aux), cur_batch_gradient = grad_func(
-          model, config, data, dropout_rng, state.params, teacher_params, *extra_dpo_args, is_train=True
+          model, teacher_model, config, data, dropout_rng, state.params, teacher_params, *extra_dpo_args, is_train=True
       )
       acc_grad_and_loss["loss"] += aux["total_loss"]
       acc_grad_and_loss["moe_lb_loss"] += aux["moe_lb_loss"]
@@ -750,8 +750,8 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
             jax.tree_util.tree_map(lambda x: x.with_memory_kind(kind="device"), state_mesh_shardings.opt_state),
         )
     )
-
   new_state = state.apply_gradients(grads=grads)
+
   scalar_metrics = {
       "learning/loss": (loss - moe_lb_loss - distill_loss * distill_alpha) / (1 - distill_alpha), # lsp: remove moe_lb_loss, distill_loss
       "learning/moe_lb_loss": moe_lb_loss,

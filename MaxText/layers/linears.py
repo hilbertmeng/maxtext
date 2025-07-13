@@ -390,8 +390,6 @@ class MoeBlock(nn.Module):
     weights *= self.config.routed_scaling_factor
     return weights
 
-
-
   def permute_new(self, inputs, gate_logits):
     """Permute tokens to group by expert to fit gmm call."""
 
@@ -539,7 +537,7 @@ class MoeBlock(nn.Module):
       router_z_loss = self.config.router_z_loss_coef * router_z_loss.mean()
       aux_loss += router_z_loss
 
-    
+    # @jax.checkpoint
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape
       # pad length is the 1st dimension of tiling size in gmm call
@@ -560,9 +558,10 @@ class MoeBlock(nn.Module):
       if self.config.megablox:
         # inputs: 2d, (batch*length) * dim
         m, k, n = inputs.shape[0], inputs.shape[1], kernel.shape[2]
-        for kd in [512, 768, 256, 128]:
+        for kd in [512, 768, 384, 256, 128]:
           if n % kd == 0:
             break
+        # if too large, will exceed vmem.
         tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
         print(f'tile_size: {tile_size}')
 
@@ -619,11 +618,14 @@ class MoeBlock(nn.Module):
         x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
       layer_w0 = gmm(x, w0, group_sizes)
       layer_w0 = checkpoint_name(layer_w0, "mlpwi_0")
+
       layer_w1 = gmm(x, w1, group_sizes)
       layer_w1 = checkpoint_name(layer_w1, "mlpwi_1")
+
       layer_act = _convert_to_activation_function(self.config.mlp_activations[0])(layer_w0)
       intermediate_layer = jnp.multiply(layer_act, layer_w1)
       intermediate_output = gmm(intermediate_layer, wo, group_sizes)
+      
       intermediate_output = checkpoint_name(intermediate_output, "mlpwo")
       tensor_parallelism = self.config.ici_tensor_parallelism * self.config.dcn_tensor_parallelism
       if tensor_parallelism > 1:

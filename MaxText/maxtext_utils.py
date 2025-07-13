@@ -352,7 +352,7 @@ import jax.numpy as jnp
 def pax_apply_gradient_clipping(raw_grads, state, clipping_threshold):
   # grad_single_norm = jax.tree_map(
   #             lambda x: jnp.sqrt(jnp.sum(x * x)), raw_grads
-  #         )
+  #         ) todo: 看下grad的device
   def scale_gradient(grad):
     return grad * jnp.minimum(
         jnp.array(1, grad.dtype),

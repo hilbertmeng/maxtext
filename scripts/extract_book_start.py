@@ -233,7 +233,7 @@ def process_data(args):
                     if qwen_tokenizer.extract_nums_perline >= qwen_tokenizer.extract_max_nums_perline:
                         break
             else:
-                text = ''.join(text_split) # 之前保留了\n
+                text = '\n'.join(text_split) # 之前保留了\n
                 qwen_tokenizer.partial_tokenize(text)
 
             if qwen_tokenizer.extract_nums_perline < qwen_tokenizer.extract_max_nums_perline and qwen_tokenizer.next_ids: # 没有提取够，说明书结束了。就添加eos

@@ -319,8 +319,8 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     mudd_postnorm = True
     static_proj = False
     dc_share_prepost_dw_hidden = True
-    checkpoint_period = 250
-    learning_rate_schedule_steps = 180546 # 需要设置比总训练步数大一些
+    checkpoint_period = 100
+    learning_rate_schedule_steps = 177400 # 需要设置比总训练步数大一些
     keep_period = 3000
     decay_method = 'cosine' # or wsd
     iter_file_nums = 96
@@ -330,7 +330,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     vocab_size = 70000
     eval_loop_num_batches = 55
     base_lr = 4.0e-4
-    stable_steps_fraction= 0.99 - 30500 / 180500 # decay steps / total train steps
+    stable_steps_fraction= 0.99 - 27400 / 177400 # decay steps / total train steps
     num_layers_per_block = 1
 
     # 每个阶段的结尾都是250的倍数，因此设置 keep_period=3000.
@@ -383,8 +383,8 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         learning_rate = base_lr * math.sqrt(4)
 
     elif train_stage == 1: # v5p-64/v6e-64
-        per_device_batch_size = 4.0 # total 256
-        eval_per_device_batch_size = 16.0 # total 1024
+        per_device_batch_size = 8.0 # total 256
+        eval_per_device_batch_size = 32.0 # total 1024
         eval_interval = 3000
         learning_rate = base_lr * math.sqrt(2)
 

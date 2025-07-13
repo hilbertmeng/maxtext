@@ -55,6 +55,14 @@ def write_to_tfrecord(writer, input_ids):
     writer.write(example.SerializeToString())
 
 
+# SPLIT_IDS = {302, 4, 307, 304, 357, 376, 359, 507} # 空格 \n。.？?！!
+def split_after_match(lst):
+    for i in range(len(lst) - 1):
+        if lst[i] == 4 and lst[i+1] != 4:
+            return lst[i+1: ]
+    return []
+
+
 chapter_pat = re.compile('第(\d|[零一二三四五六七八九十百千]){1,}(章|节|卷|回)|^【\d+】|^\d+\.|^0\d+')
 chapter_en_pat = re.compile('Chapter ?\d+|^【\d+】|^\d+\.|^0\d+')
 chapter_digit = re.compile('(^-?\d{1,6}$)')
@@ -66,16 +74,16 @@ def match_chapter(line):
 ahthor_pat = re.compile(
     "Qidian|Novel (status|words)|书友群|广大书友|求推荐票|-分[頁页]-|感谢.*(打赏|支持)|手机用户请到阅读|抱歉，更的晚|（群号|三更.{,2}第.更|推荐票|&amp;&amp;&amp;&amp|分割线|&[lg]t\;"
 )
-poison_content = re.compile(r'未 ?完待续|本章完|【已屏蔽')
-
+poison_content = re.compile(r'未 ?完待续|本章完|【已屏蔽|最新章节|/div>')
 
 def contains_chinese(text):
     return re.search(r'[\u4e00-\u9fff]', text) is not None
 
 
 def match_unused_content(line):
-    # if poison_content.search(line) or ahthor_pat.search(line) or match_chapter:
-    if poison_content.search(line) or ahthor_pat.search(line):
+    line = line.strip()
+    if poison_content.search(line) or ahthor_pat.search(line) or match_chapter(line):
+    # if poison_content.search(line) or ahthor_pat.search(line):
         return True
     else:
         return False
@@ -85,7 +93,6 @@ def filter_unused_line(lines):
     lines = [l for l in lines if not match_unused_content(l)]
     return lines
     
-
 class QwenTokenizer():
     def __init__(self, tokenizer_path, save_dir, rank):
         if TOKENIZER_NAME == 'qwen':
@@ -109,7 +116,7 @@ class QwenTokenizer():
         if self.writer is not None:
             self.writer.close()
         save_path = os.path.join(self.save_dir, f'R{self.rank:03}.{self.count // self.perfile_nums:06}')
-        print(f'Newest save path: {save_path}')
+        print(f'Newest save path: {save_path} count: {self.count}')
         self.writer = tf.io.TFRecordWriter(save_path)
     
     def tokenize(self, text, max_len=4097, bos_id:list=[]):
@@ -119,13 +126,13 @@ class QwenTokenizer():
                 input_ids = input_ids[1: ]
         except:
             import pickle
-            pickle.dump(text, open(f'error_{self.count}.pkl', 'wb'))
+            pickle.dump(text, open(f'error_{data_type}/{self.count}.pkl', 'wb'))
             print(f'error======')
             return []
         if bos_id:
             max_len -= 1
         self.next_ids += input_ids #  加上上个step保留的id
-        total_ids = []
+        # total_ids = []
         while len(self.next_ids) >= max_len:
             save_ids = self.next_ids[: max_len]
             if len(save_ids) == max_len:
@@ -134,12 +141,12 @@ class QwenTokenizer():
                 self.count += 1
                 if self.count % self.perfile_nums == 0:
                     self.writer_factory()
-                total_ids.append(save_ids)
-                self.next_ids = self.next_ids[max_len: ]
+                # total_ids.append(save_ids)
+                self.next_ids = split_after_match(self.next_ids[max_len: ])
             else:
                 self.next_ids = save_ids
                 save_ids = []
-        return total_ids
+        return []
  
 def check_text_length(line):
     # 0524 add filter， 有些乱码数据很长一段
@@ -227,23 +234,25 @@ if __name__ == "__main__":
     MODE = 'r' if data_type == 'valid' else 'rb'
     RANK_START_INDEX = args.rank_start_index
 
+    os.makedirs(f'error_{data_type}', exist_ok=True)
+
     # set_start_method("spawn")  # tpu-vm
     num_processes = multiprocessing.cpu_count()
     print(f"num_processes: {num_processes}")
-    meta_path = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/meta.json'
+    meta_path = f'gs://newproject-1-jax_llm_data_europe-west4/xiaomeng/v3.5mini/meta.json'
     meta_path = epath.Path(meta_path)
    
     if data_type == 'valid':
-        pathes = ['gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/jsonl/valid_concat.jsonl']
-        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0713/validation'
+        pathes = ['gs://newproject-1-jax_llm_data_europe-west4/xiaomeng/v3.5mini/jsonl/valid_concat.jsonl']
+        SAVE_DIR = f'gs://newproject-1-jax_llm_data_europe-west4/xiaomeng/v3.5mini/unigram_tfids0714/validation'
         print(f'SAVE_DIR: {SAVE_DIR}')
     else:
         buckets = args.bucketes.split('-')
         bucket_start = int(buckets[0])
         bucket_end = int(buckets[1]) if len(buckets) == 2 else bucket_start  + 1
-        # SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0713/B{bucket_start}-{bucket_end}'
-        SAVE_DIR = f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_tfids0713/B0-40'
-        pathes = [f'gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/jsonl/2nd-shuffled-data_bucket-{bucket}-{index:03}-of-025.jsonl.zst' for bucket in range(bucket_start, bucket_end) for index in range(25)]
+        # SAVE_DIR = f'gs://newproject-1-jax_llm_data_europe-west4/xiaomeng/v3.5mini/unigram_tfids0713/B{bucket_start}-{bucket_end}'
+        SAVE_DIR = f'gs://newproject-1-jax_llm_data_europe-west4/xiaomeng/v3.5mini/unigram_tfids0714/B0-40'
+        pathes = [f'gs://newproject-1-jax_llm_data_europe-west4/xiaomeng/v3.5mini/jsonl/2nd-shuffled-data_bucket-{bucket}-{index:03}-of-025.jsonl.zst' for bucket in range(bucket_start, bucket_end) for index in range(25)]
     print(f'total file nums: {len(pathes)}')
     run_pathes = pathes[file_start: file_end]
     counts = encode_file(run_pathes, workers=int(args.workers))
@@ -259,19 +268,20 @@ if __name__ == "__main__":
 
 多进程处理多个文件:
 # Usage:
-TPU_NAME=llm-jax-v5p-8-10; ZONE=us-east5-a
+TPU_NAME=llm-jax-v5p-8-10; ZONE=europe-west4-b
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="/home/lishengping/miniconda3/bin/pip install -U tiktoken smart_open[gcs] gcsfs orjson transformers" --project=newproject-1-451205
 
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="sudo rm -r /home/lishengping/tokenizer;gsutil cp -r gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/tokenizer/my_qwen2_tokenizer_trained_on_60files_70000 /home/lishengping/" --project=newproject-1-451205
 or: unigram
 gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=all --command="sudo rm -r /home/lishengping/tokenizer;gsutil cp -r gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/tokenizer/spm_model_70000vocab_55G_bpe_character_coverage0.99999.extended_special.model /home/lishengping/" --project=newproject-1-451205
 # scp
-TPU_NAME=llm-jax-v5p-8-10; ZONE=us-east5-a
+TPU_NAME=llm-jax-v5p-8-10; ZONE=europe-west4-b
 SCRIPT=/Users/lishengping/codes/jax_projects/maxtext/scripts/process_files.py
 gcloud compute tpus tpu-vm scp $SCRIPT $TPU_NAME:/home/lishengping/processed.py  --zone=$ZONE  --worker=all  --project=newproject-1-451205
 
 # 
-gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=0 --command="killall processed.py;/home/lishengping/miniconda3/bin/python processed.py --bucket 0-40 --workers 1 --rank_start_index 0 --data_type valid" --project=newproject-1-451205
-gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=0 --command="killall processed.py;/home/lishengping/miniconda3/bin/python processed.py --bucket 0-40 --workers 50 --rank_start_index 0 --data_type train" --project=newproject-1-451205
-gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=1 --command="killall processed.py;/home/lishengping/miniconda3/bin/python processed.py --bucket 0-40 --workers 50 --rank_start_index 50 --data_type train" --project=newproject-1-451205
+gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=0 --command="killall processed.py;/home/lishengping/miniconda3/bin/python processed.py --bucket 0-40 --workers 1 --rank_start_index 0 --data_type valid 2>&1 | tee val.log" --project=newproject-1-451205
+
+gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=0 --command="killall processed.py;/home/lishengping/miniconda3/bin/python processed.py --bucket 0-20 --workers 50 --rank_start_index 0 --data_type train 2>&1 | tee train.log " --project=newproject-1-451205
+gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --worker=0 --command="killall processed.py;/home/lishengping/miniconda3/bin/python processed.py --bucket 20-40 --workers 50 --rank_start_index 50 --data_type train" --project=newproject-1-451205
 """

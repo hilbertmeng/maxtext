@@ -312,7 +312,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     base_num_kv_heads = 32
     head_dim = 64
     use_dw_bias = True
-    use_dd_bias = True
+    use_dd_bias = False
     dataset_type = 'xm3.5mini'
     eval_split = 'validation'
     mudd_prenorm = True
@@ -332,6 +332,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     base_lr = 4.0e-4
     stable_steps_fraction= 0.99 - 27400 / 177400 # decay steps / total train steps
     num_layers_per_block = 1
+    permute_new = True
 
     # 每个阶段的结尾都是250的倍数，因此设置 keep_period=3000.
     # eopch=0.25;end_steps1=60000;B=256;lr=2.5e-4*math.sqrt(2);file_nums=[0, 1536]
@@ -361,9 +362,9 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         query_chunk_method='remat'
         sub_remat=False
     
-    elif train_stage == 4: # v5p-128
-        per_device_batch_size = 16.0 # total 1024
-        eval_per_device_batch_size = 16 # total 1024
+    elif train_stage == 4: # v5p-128/v6e-512
+        per_device_batch_size = 2.0 # total 1024
+        eval_per_device_batch_size = 2.0 # total 1024
         eval_interval = 1500
         learning_rate = base_lr * math.sqrt(8)
         cosine_learning_rate_final_fraction = 0.1 / math.sqrt(8)  # from 2.5e-4 * math.sqrt(8) -> 2.5e-5

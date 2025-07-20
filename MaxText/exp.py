@@ -332,7 +332,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     base_lr = 4.0e-4
     stable_steps_fraction= 0.99 - 27400 / 177400 # decay steps / total train steps
     num_layers_per_block = 1
-    permute_new = True
+    permute_new = False
 
     # 每个阶段的结尾都是250的倍数，因此设置 keep_period=3000.
     # eopch=0.25;end_steps1=60000;B=256;lr=2.5e-4*math.sqrt(2);file_nums=[0, 1536]
@@ -341,7 +341,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     # #按照计算，最后decay阶段，0.5epoch的步数是 30000。但考虑到 total file: 12344-12288，多了56个文件，因此都加进去，多了 500 steps
     # eopch=0.5;end_steps4=30000+500;B=1024;lr='cosine->2.5e-4';file_nums=[9216, 12344]
     
-    train_stage = 1 # # 换阶段的话需要人工修改meta dict
+    train_stage = 2 # # 换阶段的话需要人工修改meta dict
     if train_stage == 5: # v5p-128
         train_shuffle_buffer_size = 500000 // 8
         per_device_batch_size = 2.0 # total 4M

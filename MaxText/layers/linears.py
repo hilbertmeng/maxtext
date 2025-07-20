@@ -399,18 +399,18 @@ class MoeBlock(nn.Module):
       weights = self.deepseek_scale_weights(weights)
     else:
       weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
-    flatten_selected_experts = jnp.ravel(selected_experts)
-    permutation_indices = jnp.argsort(flatten_selected_experts)
-    original_token_indices = permutation_indices // self.num_experts_per_tok
-    sorted_inputs = jnp.take(inputs_2d, indices=original_token_indices, axis=0).astype(self.dtype)
+    flatten_selected_experts = jnp.ravel(selected_experts) # （BTK）
+    sorted_selected_experts = jnp.argsort(flatten_selected_experts) # （BTK）
+    original_token_indices = sorted_selected_experts // self.num_experts_per_tok # 0-BT
+    sorted_inputs = jnp.take(inputs_2d, indices=original_token_indices, axis=0).astype(self.dtype) # (BT)D -> (BTK)D
     print(f'inputs_2d: {inputs_2d.shape} original_token_indices: {original_token_indices.shape} sorted_inputs: {sorted_inputs.shape}')
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
-    return sorted_inputs, permutation_indices, original_token_indices, weights, group_size
+    return sorted_inputs, sorted_selected_experts, original_token_indices, weights, group_size
   
-  def unpermute_new(self, intermediate, permutation_indices, original_token_indices, weights, batch_size, sequence_length):
-    flat_weights = jnp.ravel(weights)
-    permuted_flat_weights = jnp.take(flat_weights, indices=permutation_indices, axis=0)
-    weighted_intermediate = intermediate * permuted_flat_weights[:, None]
+  def unpermute_new(self, intermediate, sorted_selected_experts, original_token_indices, weights, batch_size, sequence_length):
+    flat_weights = jnp.ravel(weights) # （BTK）
+    permuted_flat_weights = jnp.take(flat_weights, indices=sorted_selected_experts, axis=0)
+    weighted_intermediate = intermediate * permuted_flat_weights[:, None] # (BTK)D, (BTK)1 -> (BTK)D
     num_original_tokens = batch_size * sequence_length
     combined_output = jax.ops.segment_sum(
         data=weighted_intermediate.astype(self.dtype),
@@ -560,7 +560,7 @@ class MoeBlock(nn.Module):
       batch_size, sequence_length, _ = x.shape
 
       if self.config.permute_new:
-        x, permutation_indices, original_token_indices, weights, group_sizes = self.permute_new(x, logits)
+        x, sorted_selected_experts, original_token_indices, weights, group_sizes = self.permute_new(x, logits)
       else:
         x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
 
@@ -571,7 +571,7 @@ class MoeBlock(nn.Module):
       layer_act = _convert_to_activation_function(self.config.mlp_activations[0])(layer_w0)
       intermediate_layer = jnp.multiply(layer_act, layer_w1)
       intermediate_output = gmm(intermediate_layer, wo, group_sizes)
-      intermediate_output = checkpoint_name(intermediate_output, "mlpwo")
+      intermediate_output = checkpoint_name(intermediate_output, "mlpwo") # （BTK）D
       tensor_parallelism = self.config.ici_tensor_parallelism * self.config.dcn_tensor_parallelism
       if tensor_parallelism > 1:
         intermediate_output = jax.lax.psum_scatter(intermediate_output, "tensor", scatter_dimension=1, tiled=True)
@@ -579,7 +579,7 @@ class MoeBlock(nn.Module):
       if self.config.permute_new:
         output = self.unpermute_new(
             intermediate_output, 
-            permutation_indices,
+            sorted_selected_experts,
             original_token_indices,
             weights, 
             batch_size=batch_size, 

@@ -654,3 +654,4 @@ query_chunk_method: ''
 balanced_attn: False
 mudd_compose_method: 'sdsa'
 permute_new: False
+clipping: 'global'

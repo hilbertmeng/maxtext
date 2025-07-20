@@ -22,7 +22,7 @@ import optax
 import max_utils
 from jax.sharding import PartitionSpec as P
 from jax.experimental.serialize_executable import deserialize_and_load
-
+import jax.numpy as jnp
 
 import pickle
 import functools
@@ -348,11 +348,21 @@ def apply_gradient_clipping(raw_grads, state, clipping_threshold):
   return grads
 
 
-import jax.numpy as jnp
+def apply_gradient_block_clipping(raw_grads, state, clipping_threshold):
+  gradient_clip_transformation = optax.clip_by_block_rms(threshold=clipping_threshold)
+  if OVERWRITE_WITH_GRADIENT in raw_grads:
+    # Scales + Amax History for Delayed Tensor Scaling SHOULD NOT be clipped or affect clipping
+    fp8_stats = raw_grads.pop(OVERWRITE_WITH_GRADIENT)
+    grads, _ = gradient_clip_transformation.update(raw_grads, state, None)
+    grads[OVERWRITE_WITH_GRADIENT] = fp8_stats  # pytype: disable=unsupported-operands
+    raw_grads[OVERWRITE_WITH_GRADIENT] = fp8_stats  # pytype: disable=unsupported-operands
+  else:
+    grads, _ = gradient_clip_transformation.update(raw_grads, state, None)
+
+  return grads
+
+
 def pax_apply_gradient_clipping(raw_grads, state, clipping_threshold):
-  # grad_single_norm = jax.tree_map(
-  #             lambda x: jnp.sqrt(jnp.sum(x * x)), raw_grads
-  #         ) todo: 看下grad的device
   def scale_gradient(grad):
     return grad * jnp.minimum(
         jnp.array(1, grad.dtype),
@@ -360,6 +370,46 @@ def pax_apply_gradient_clipping(raw_grads, state, clipping_threshold):
     )
   grads = jax.tree_map(scale_gradient, raw_grads)
   return grads
+
+
+def clip_by_global_norm_sharded(grads, state, max_norm):
+    # 1. 局部范数
+    def squared_l2_norm(p):
+        return jnp.sum(jnp.square(p))
+    
+    all_mesh_axes = ('data', 'stage', 'fsdp', 'fsdp_transpose', 'sequence', 'tensor', 
+                     'tensor_transpose', 'tensor_sequence', 'expert', 'autoregressive')
+
+    local_sqr_sums = jax.tree_util.tree_map(squared_l2_norm, grads)
+    local_sum = sum(jax.tree_util.tree_leaves(local_sqr_sums))  # per device
+
+    # 2. 全局聚合所有设备上的范数
+    global_sqr_sum = jax.lax.psum(local_sum, axis_name=all_mesh_axes)
+    global_norm = jnp.sqrt(global_sqr_sum)
+
+    # 3. 限制在 max_norm 之内
+    scale = jnp.minimum(1.0, max_norm / (global_norm + 1e-6))
+
+    # 4. 缩放梯度（按shard）
+    grads = jax.tree_util.tree_map(lambda g: g * scale, grads)
+    return grads
+
+
+def global_norm(tree):
+  return jnp.sqrt(sum([jnp.sum(jnp.square(x)) for x in jax.tree_util.tree_leaves(tree)]))
+
+
+@jax.remat
+def clip_by_global_norm_remat(grads, clipping_threshold):
+  norm = global_norm(grads)
+  scale = jnp.minimum(1.0, clipping_threshold / (norm + 1e-6))
+  return jax.tree_map(lambda g: g * scale, grads)
+
+
+def clip_by_global_norm(grads, clipping_threshold):
+  norm = global_norm(grads)
+  scale = jnp.minimum(1.0, clipping_threshold / (norm + 1e-6))
+  return jax.tree_map(lambda g: g * scale, grads)
 
 
 def get_nested_value(dictionary, nested_key, default=None):

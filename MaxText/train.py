@@ -738,9 +738,19 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
   moe_lb_loss = aux["moe_lb_loss"]
   distill_loss = aux["distill_loss"]
   teacher_loss = aux["teacher_loss"]
-
+  print(f'cliping: {config.clipping}......')
   if config.gradient_clipping_threshold > 0:
-    grads = maxtext_utils.pax_apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
+    if config.clipping == 'local':
+      grads = maxtext_utils.apply_gradient_block_clipping(raw_grads, state, config.gradient_clipping_threshold)
+    elif config.clipping == 'global':
+      grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
+    elif config.clipping == 'tree_norm':
+      # tree struct, 先聚合 L2 norm，然后 clip：
+      grads = maxtext_utils.clip_by_global_norm(raw_grads, config.gradient_clipping_threshold)
+    elif config.clipping == 'tree_norm_remat':
+      grads = maxtext_utils.clip_by_global_norm_remat(raw_grads, config.gradient_clipping_threshold)
+    else:
+      ValueError(f'Unknow cliping: {config.clipping}')
   else:
     grads = raw_grads
   if config.optimizer_memory_host_offload:

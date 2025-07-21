@@ -406,6 +406,7 @@ class DreamMiniXLE64T4(Dropless, DreamMiniXL):
     num_experts = 64
     num_experts_per_tok = 4
     base_mlp_dim = 2816 // num_experts_per_tok
+    routed_score_func = 'sigmoid'
 
 class MiniXL:
     learning_rate = 2.5e-4

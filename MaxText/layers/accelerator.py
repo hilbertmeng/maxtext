@@ -13,6 +13,8 @@ import max_logging
 from layers import quantizations
 from functools import partial
 from einops import rearrange
+import aqt.jax.v2.aqt_dot_general as aqt
+import aqt.jax.v2.config as aqt_config
 
 Array = common_types.Array
 Config = common_types.Config
@@ -168,7 +170,7 @@ class QChunk(nn.Module):
     assert key.shape[-3] == value.shape[-3], "k, v lengths must match."
     assert query.shape[-1] == key.shape[-1], "q, k depths must match."
 
-  def qk_product(self, query: Array, key: Array) -> Array:
+  def qk_product2(self, query: Array, key: Array) -> Array:
     einsum = jnp.einsum
     if self.kv_quant: # true when quantize_kvcache set true
       einsum = self.kv_quant.einsum_fn_with_rhs_qtensor(key)
@@ -177,6 +179,15 @@ class QChunk(nn.Module):
     assert n_kv == self.num_kv_heads
     query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
     result = einsum("btkgd,bskd->bkgts", query, key)
+    return result
+  
+  def qk_product(self, query: Array, key: Array) -> Array:
+    dot_general = aqt.dot_general_make(8, 8)
+    b, t, n, d = query.shape  
+    n_kv = key.shape[-2]
+    assert n_kv == self.num_kv_heads
+    query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
+    result = jnp.einsum("btkgd,bskd->bkgts", query, key, _dot_general=dot_general.__call__)
     return result
 
   def _apply_attention_dot(

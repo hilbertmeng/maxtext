@@ -503,7 +503,7 @@ class MoeBlock(nn.Module):
         lhs_quantize_dtype = quant_dg.fwd.dg_quantizer.lhs.numerics.get_dtype()
         rhs_quantize_dtype = quant_dg.fwd.dg_quantizer.rhs.numerics.get_dtype()
 
-      m_kn_tile_size = (512, 256) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
+      m_kn_tile_size = (512, 128) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
       _m, _kn = m_kn_tile_size
       def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
         _tm = _m

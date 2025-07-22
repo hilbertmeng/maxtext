@@ -14,7 +14,6 @@ from layers import quantizations
 from functools import partial
 from einops import rearrange
 import aqt.jax.v2.aqt_dot_general as aqt
-import aqt.jax.v2.config as aqt_config
 
 Array = common_types.Array
 Config = common_types.Config
@@ -100,51 +99,15 @@ def make_fix_mask(qcs: int, sws: int, seq_length: int, dtype=jnp.bfloat16):
   return m[None, None, :seq_length, : seq_length]
 
 
-def _apply_attention_dot(
-      carry: Array | None,
-      args,
-      pre_proj_layer = None,
-      post_proj_layer = None,
-  ):
+qk_int8 = aqt.dot_general_make(8, 8) # 8, 8, 8会变慢
+pv_int8 = aqt.dot_general_make(8) # 8, 8, 8会变慢
 
-  def qk_product(query: Array, key: Array) -> Array:
-      einsum = jnp.einsum
-      b, t, n, d = query.shape  
-      n_kv = key.shape[-2]
-      query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
-      result = einsum("btkgd,bskd->bkgts", query, key)
-      return result
-
-  query, key, value, attn_mask = args[:4]
-  dtype = jnp.bfloat16
-  attn_weights = qk_product(query, key)
-
-  pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = args[4:10]
-  attn_weights = pre_proj_layer(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
-
-  attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', None, 'activation_length', None),)
-  # apply attention mask
-  if attn_mask is not None:
-    attn_weights = apply_mask_to_logits(attn_weights, attn_mask)
-
-  # normalize the attention weights
-  probs = jax.nn.softmax(attn_weights).astype(dtype) # bkgts
-  probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
-
-  post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = args[10: 16]
-  probs = post_proj_layer(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
-
-  probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
-  # Casting softmaxt computation for float32 for model stability.
-  probs = probs.astype(dtype)
-  if attn_mask is not None:
-    probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
-  output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
-  b, t, n_kv, g, h = output.shape
-  output = jnp.reshape(output, (b, t, n_kv * g, h))
-  output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
-  return None, output
-
+#     lhs_bits=8,
+#     rhs_bits=8,
+#     # bwd_bits=8, # inference use none
+#     # use_fwd_quant=True,
+#     # allow_dummy_gradients=False
+# )
 
 class QChunk(nn.Module):
   config: Config
@@ -170,24 +133,14 @@ class QChunk(nn.Module):
     assert key.shape[-3] == value.shape[-3], "k, v lengths must match."
     assert query.shape[-1] == key.shape[-1], "q, k depths must match."
 
-  def qk_product2(self, query: Array, key: Array) -> Array:
-    einsum = jnp.einsum
-    if self.kv_quant: # true when quantize_kvcache set true
-      einsum = self.kv_quant.einsum_fn_with_rhs_qtensor(key)
-    b, t, n, d = query.shape  
-    n_kv = key.shape[-2]
-    assert n_kv == self.num_kv_heads
-    query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
-    result = einsum("btkgd,bskd->bkgts", query, key)
-    return result
-  
   def qk_product(self, query: Array, key: Array) -> Array:
-    dot_general = aqt.dot_general_make(8, 8)
     b, t, n, d = query.shape  
     n_kv = key.shape[-2]
     assert n_kv == self.num_kv_heads
     query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
-    result = jnp.einsum("btkgd,bskd->bkgts", query, key, _dot_general=dot_general.__call__)
+    # result = jnp.einsum("btkgd,bskd->bkgts", query, key)
+    result = jnp.einsum("btkgd,bskd->bkgts", query, key, 
+                        _dot_general=qk_int8.__call__ if self.config.quantization == 'int8' else lax.dot_general)
     return result
 
   def _apply_attention_dot(
@@ -207,6 +160,7 @@ class QChunk(nn.Module):
       key = key.astype(jnp.float32)
     # bnts -> bkgts
     attn_weights = self.qk_product(query, key)
+
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', None, 'activation_length', None),)
    
     if self.config.pre_compose:
@@ -233,7 +187,11 @@ class QChunk(nn.Module):
     probs = probs.astype(self.dtype)
     if attn_mask is not None:
       probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
-    output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
+
+    # output = jnp.einsum('bkgts,bskh->btkgh', probs, value)
+    output = jnp.einsum('bkgts,bskh->btkgh', probs, value, 
+                        _dot_general=pv_int8.__call__ if self.config.quantization == 'int8' else lax.dot_general)
+                          
     b, t, n_kv, g, h = output.shape
     output = jnp.reshape(output, (b, t, n_kv * g, h))
     output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)

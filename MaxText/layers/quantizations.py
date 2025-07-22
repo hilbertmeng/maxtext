@@ -151,7 +151,7 @@ class AqtQuantization:
         _rhs_axis_metadata_wrapper, mesh_axes=mesh_axes, is_tiled=is_tiled, replicate_scale=replicate_scale
     )
 
-  def dot_general_cls(self, mesh_axes: Tuple[str, ...] = ()):
+  def dot_general_cls(self, mesh_axes: Tuple[str, ...] = (), key: jax.random.PRNGKey = None):
     """Returns dot_general configured with aqt params."""
     if isinstance(self.quant_dg, dict):
       quant_dg, is_tiled, tiling_fn = self._get_mixed_precision_cfg()
@@ -164,7 +164,8 @@ class AqtQuantization:
     # print(f"quant_dg: {quant_dg}, is_tiled: {is_tiled}, module_path: {module_path}")
     aqt_dg_cls = functools.partial(
         aqt_flax.AqtDotGeneral,
-        quant_dg,
+        cfg=quant_dg,
+        key=key if key is not None else jax.random.PRNGKey(0),
         rhs_quant_mode=self.quant_mode,
         lhs_freeze_mode=aqt_flax.FreezerMode.NONE,
         rhs_freeze_mode=aqt_flax.FreezerMode.CALIBRATION_AND_VALUE,
@@ -282,11 +283,26 @@ def _get_int8_quant_config(config):
     drhs_bits = 8
     drhs_accumulator_dtype = jnp.int32
     drhs_local_aqt = aqt_config.LocalAqt(contraction_axis_shard_count=config.quantization_local_shard_count)
-  return aqt_config.config_v3(
+
+  if config.only_fw_quant: # only forward quant
+    return aqt_config.config_v3(
+      fwd_bits=8,
+      dlhs_bits=None,
+      drhs_bits=None,
+      rng_type="custom-1",  # 前传选择jax.uniform和custom-1都一样
+      dlhs_local_aqt=None,
+      drhs_local_aqt=None,
+      fwd_accumulator_dtype=jnp.int32,
+      dlhs_accumulator_dtype=None,
+      drhs_accumulator_dtype=None,
+  )
+  else:
+    return aqt_config.config_v3(
       fwd_bits=8,
       dlhs_bits=8,
       drhs_bits=drhs_bits,
-      rng_type="jax.uniform",
+      # rng_type="jax.uniform",
+      rng_type='custom-1', # 反传时选择这个，然后收入传入rng key可以一定程度减少显存。但仍然会比bf大一倍。
       dlhs_local_aqt=None,
       drhs_local_aqt=drhs_local_aqt,
       fwd_accumulator_dtype=jnp.int32,

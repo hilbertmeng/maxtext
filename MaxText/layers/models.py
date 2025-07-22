@@ -33,6 +33,7 @@ from layers import pipeline
 from layers import mudd
 from layers import initializers
 import max_logging
+import aqt.jax.v2.aqt_dot_general as aqt
 
 Array = common_types.Array
 Config = common_types.Config
@@ -64,6 +65,8 @@ def get_remat_policy(cfg):
           "context",
           "out_proj",
       )
+    elif cfg.remat_policy == "nothing":
+      policy = jax.checkpoint_policies.nothing_saveable
     elif cfg.remat_policy == "save_dot_except_mlpwi":
       policy = jax.checkpoint_policies.save_only_these_names(
           "query_proj",
@@ -245,6 +248,14 @@ class SequentialBlockDecoderLayers(nn.Module):
     return inputs
 
 
+dot_general_int8 = aqt.dot_general_make(
+                                      lhs_bits=8,
+                                      rhs_bits=None,   # 不量化 logits_dense，避免误差
+                                      bwd_bits=8,
+                                      use_fwd_quant=True,
+                                      allow_dummy_gradients=False
+                                  )
+
 class Decoder(nn.Module):
   """A stack of decoder layers as a part of an encoder-decoder architecture."""
 
@@ -263,6 +274,13 @@ class Decoder(nn.Module):
       self.pipeline_module = pipeline.Pipeline(
           config=self.config, mesh=self.mesh, layers=pipeline_stage_module, remat_policy=remat_policy
       )
+    # dense_kernel = self.param(
+    #                         "logits_dense",
+    #                         nn.with_logical_partitioning(initializers.nd_dense_init_normal(0.006), ("embed", "vocab")),
+    #                         (self.config.emb_dim, self.config.vocab_size),
+    #                         self.config.weight_dtype,
+    #                     )
+    # self.logits_dense = dense_kernel.astype(self.config.dtype)
 
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
@@ -272,6 +290,7 @@ class Decoder(nn.Module):
           prevent_cse=not self.config.scan_layers,
           policy=policy,
           static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+          rngs={"params": True, "aqt": True, "dropout": True},
       )
       RemattedBlockLayers.append(layer)
     return RemattedBlockLayers
@@ -536,7 +555,7 @@ class Decoder(nn.Module):
 
     # [batch, length, emb_dim] -> [batch, length, vocab_size]
     if cfg.logits_via_embedding:
-      print(f'logits_via_embedding11: {cfg.logits_via_embedding}')
+      print(f'Word embedding shared: {cfg.logits_via_embedding}')
       # Use the transpose of embedding matrix for logit transform.
       logits = self.shared_embedding.attend(y)  # lsp：权重共享
       if self.config.normalize_embedding_logits:
@@ -546,15 +565,21 @@ class Decoder(nn.Module):
         logits = logits / cfg.final_logits_soft_cap
         logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
+      # # dot_general_int8 = aqt.dot_general_make(8, 8, 8)
+      # logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
+      #                   _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' else jax.lax.dot_general)
       logits = linears.DenseGeneral(
           cfg.vocab_size,
           weight_dtype=cfg.weight_dtype,
           dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
           kernel_axes=("embed", "vocab"),
+          quant=self.quant,
           name="logits_dense",
           matmul_precision=self.config.matmul_precision,
           kernel_init=initializers.nd_dense_init_normal(0.006), #lsp
           # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), #lsp
+          use_quant=cfg.use_quant,
+          rng=jax.random.PRNGKey(1111),
       )(
           y
       )  # We do not quantize the logits matmul.

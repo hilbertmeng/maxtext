@@ -655,3 +655,5 @@ balanced_attn: False
 mudd_compose_method: 'sdsa'
 permute_new: False
 clipping: 'global'
+use_quant: False
+only_fw_quant: False

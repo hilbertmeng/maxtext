@@ -106,6 +106,8 @@ class DenseGeneral(nn.Module):
   use_bias: bool = False
   bias_norm: str = ""
   matmul_precision: str = "default"
+  use_quant: bool = False
+  rng: None = None
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
@@ -122,8 +124,8 @@ class DenseGeneral(nn.Module):
       """Computes a dot_general operation that may be quantized."""
       dot_general = lax.dot_general
       matmul_precision = lax.Precision(self.matmul_precision)
-      if self.quant:
-        dot_general_cls = self.quant.dot_general_cls(mesh_axes=self.kernel_axes)
+      if self.quant and self.use_quant:
+        dot_general_cls = self.quant.dot_general_cls(mesh_axes=self.kernel_axes, key=self.rng)
         dot_general = dot_general_cls()
         return dot_general(inputs, kernel, ((axis, contract_ind), ((), ())), precision=None)
       return dot_general(inputs, kernel, ((axis, contract_ind), ((), ())), precision=matmul_precision)
@@ -201,6 +203,7 @@ class MlpBlock(nn.Module):
   use_bias: bool = False
   use_pre_norm: bool = False
   quant: Optional[Quant] = None
+  rng: None = None
 
   def get_norm_layer(self):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "deepseek"):
@@ -239,6 +242,7 @@ class MlpBlock(nn.Module):
           name="wi",
           quant=self.quant,
           use_bias=self.use_bias,
+          rng=self.rng,
           matmul_precision=self.config.matmul_precision,
       )(inputs)
       x = checkpoint_name(x, "mlpwi")
@@ -246,6 +250,7 @@ class MlpBlock(nn.Module):
         y = _convert_to_activation_function(act_fn)(x[:, :, idx, ...])
         activations.append(y)
     else:
+      # rng1, aqt_rng = jax.random.split(dropout_rng, num=2)
       for idx, act_fn in enumerate(self.activations): # wi_0 is mlp gate
         dense_name = "wi" if len(self.activations) == 1 else f"wi_{idx}"
         x = DenseGeneral(
@@ -258,6 +263,8 @@ class MlpBlock(nn.Module):
             quant=self.quant,
             use_bias=self.use_bias,
             matmul_precision=self.config.matmul_precision,
+            use_quant=cfg.use_quant,
+            rng=self.rng,
         )(inputs)
         x = checkpoint_name(x, "mlp" + dense_name)
         if cfg.activations_in_float32:
@@ -292,6 +299,8 @@ class MlpBlock(nn.Module):
         quant=self.quant,
         use_bias=self.use_bias,
         matmul_precision=self.config.matmul_precision,
+        use_quant=cfg.use_quant,
+        rng=self.rng
     )(x)
 
     output = checkpoint_name(output, "mlpwo")

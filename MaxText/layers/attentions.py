@@ -1137,6 +1137,7 @@ class Attention(nn.Module):
   ar_cache_axis_order: AxisIdxes = (1, 2, 0, 3)
   compute_axis_order: AxisIdxes = (0, 1, 2, 3)
   reshape_q: bool = False
+  rng: None = None
 
   def setup(self):
     if self.config.pre_compose or self.config.post_compose:
@@ -1190,6 +1191,8 @@ class Attention(nn.Module):
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
         use_bias=self.config.qkv_bias,
+        use_quant=self.config.use_quant,
+        rng=self.rng,
     )(inputs_q)
     return query_proj
 
@@ -1223,6 +1226,8 @@ class Attention(nn.Module):
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
         use_bias=self.config.qkv_bias,
+        use_quant=self.config.use_quant,
+        rng=self.rng
     )(inputs_kv)
     return kv_proj
 
@@ -1256,6 +1261,8 @@ class Attention(nn.Module):
         name="out",
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
+        use_quant=self.config.use_quant,
+        rng=self.rng
     )(out)
     return out_proj
 

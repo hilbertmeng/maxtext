@@ -399,15 +399,17 @@ def global_norm(tree):
   return jnp.sqrt(sum([jnp.sum(jnp.square(x)) for x in jax.tree_util.tree_leaves(tree)]))
 
 
-@jax.remat
-def clip_by_global_norm_remat(grads, clipping_threshold):
-  norm = global_norm(grads)
-  scale = jnp.minimum(1.0, clipping_threshold / (norm + 1e-6))
-  return jax.tree_map(lambda g: g * scale, grads)
+def clip_grads_linalg_norm(grads, max_norm):
+  def _clip(g):
+      norm = jnp.linalg.norm(g)
+      factor = jnp.minimum(1.0, max_norm / (norm + 1e-6))
+      return g * factor
+  return jax.tree_util.tree_map(_clip, grads)
 
 
 def clip_by_global_norm(grads, clipping_threshold):
   norm = global_norm(grads)
+  
   scale = jnp.minimum(1.0, clipping_threshold / (norm + 1e-6))
   return jax.tree_map(lambda g: g * scale, grads)
 

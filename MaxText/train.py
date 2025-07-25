@@ -747,8 +747,8 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
     elif config.clipping == 'tree_norm':
       # tree struct, 先聚合 L2 norm，然后 clip：
       grads = maxtext_utils.clip_by_global_norm(raw_grads, config.gradient_clipping_threshold)
-    elif config.clipping == 'tree_norm_remat':
-      grads = maxtext_utils.clip_by_global_norm_remat(raw_grads, config.gradient_clipping_threshold)
+    elif config.clipping == 'linalg_norm':
+      grads = maxtext_utils.clip_grads_linalg_norm(raw_grads, config.gradient_clipping_threshold)
     else:
       ValueError(f'Unknow cliping: {config.clipping}')
   else:

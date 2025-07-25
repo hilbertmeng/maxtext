@@ -740,14 +740,14 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
   teacher_loss = aux["teacher_loss"]
   print(f'cliping: {config.clipping}......')
   if config.gradient_clipping_threshold > 0:
-    if config.clipping == 'local':
+    if config.clipping == 'local': # unused
       grads = maxtext_utils.apply_gradient_block_clipping(raw_grads, state, config.gradient_clipping_threshold)
     elif config.clipping == 'global':
       grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
-    elif config.clipping == 'tree_norm':
-      # tree struct, 先聚合 L2 norm，然后 clip：
+    elif config.clipping == 'tree_norm': # unused
+      # tree struct, 先聚合 L2 norm，然后 clip：# unused
       grads = maxtext_utils.clip_by_global_norm(raw_grads, config.gradient_clipping_threshold)
-    elif config.clipping == 'linalg_norm':
+    elif config.clipping == 'linalg_norm': # unused
       grads = maxtext_utils.clip_grads_linalg_norm(raw_grads, config.gradient_clipping_threshold)
     else:
       ValueError(f'Unknow cliping: {config.clipping}')

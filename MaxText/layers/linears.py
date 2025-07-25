@@ -444,7 +444,7 @@ class MoeBlock(nn.Module):
     # 2. 使用与输入token相同的置换，对权重进行排序
     # 这样，排好序的权重就与排好序的专家输出 (intermediate) 对齐了
     # permuted_flat_weights[i] 是 intermediate[i] 对应的权重
-    permuted_flat_weights = jnp.take(flat_weights, indices=permutation_indices, axis=0)
+    permuted_flat_weights = jnp.take(flat_weights, indices=permutation_indices, axis=0) # gather
 
     # 3. 将专家输出乘以其对应的权重
     # intermediate: (batch*seq*k, emb_dim)
@@ -483,7 +483,8 @@ class MoeBlock(nn.Module):
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok
     # sort inputs for number of selected experts
     # inputs_2d: (b, d) sorted_indices: (topk*length, ), sorted_inputs: (topk*length, d)
-    sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
+    # sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
+    sorted_inputs = mblx.take.tpu_friendly_gather(inputs_2d, sorted_indices).astype(self.dtype)
     # sorted_inputs = jnp.concatenate([inputs_2d] * self.num_experts_per_tok, axis=0)
     print(f'inputs_2d: {inputs_2d.shape} sorted_indices: {sorted_indices.shape} sorted_inputs: {sorted_inputs.shape}')
 
@@ -494,7 +495,8 @@ class MoeBlock(nn.Module):
     """Unpermute tokens to original order and combine weights."""
     # intermediate: (topk*length, d), sorted_selected_experts: (topk*length, ), unsort_intermediate: (topk*length, d),
     # intermediate: (65536, 5120) sorted_selected_experts: (65536,) unsort_intermediate: (65536, 5120)
-    unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
+    # unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
+    unsort_intermediate = mblx.take.tpu_gather_by_permutation(intermediate, jnp.argsort(sorted_selected_experts))
     print(f'intermediate: {intermediate.shape} sorted_selected_experts: {sorted_selected_experts.shape} unsort_intermediate: {unsort_intermediate.shape}')
 
     reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok))

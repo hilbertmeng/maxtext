@@ -14,3 +14,4 @@
 """Megablox kernel"""
 
 from kernels.megablox.ops import gmm
+from . import take

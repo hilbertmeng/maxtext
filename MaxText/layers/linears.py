@@ -108,6 +108,7 @@ class DenseGeneral(nn.Module):
   matmul_precision: str = "default"
   use_quant: bool = False
   rng: None = None
+  debug_quant: bool = False
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
@@ -124,7 +125,7 @@ class DenseGeneral(nn.Module):
       """Computes a dot_general operation that may be quantized."""
       dot_general = lax.dot_general
       matmul_precision = lax.Precision(self.matmul_precision)
-      if self.quant and self.use_quant:
+      if self.quant and self.use_quant and self.debug_quant:
         dot_general_cls = self.quant.dot_general_cls(mesh_axes=self.kernel_axes, key=self.rng)
         dot_general = dot_general_cls()
         return dot_general(inputs, kernel, ((axis, contract_ind), ((), ())), precision=None)
@@ -333,9 +334,15 @@ class MoeBlock(nn.Module):
   dtype: DType = jnp.float32
   quant: Optional[Quant] = None
 
-  # The first axes is expert
-  wi_kernel_axes = ("exp", "embed_no_exp", "mlp")
-  wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
+  # # The first axes is expert
+  # wi_kernel_axes = ("exp", "embed_no_exp", "mlp")
+  # wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
+
+  wi_kernel_axes = ("embed_no_exp", None, "mlp")
+  wo_kernel_axes = ("embed_no_exp", "mlp", None)
+
+  def setup(self):
+    self.w0, self.w1, self.w2 = self.generate_kernels(self.num_experts, self.config.emb_dim, self.config.mlp_dim)
 
   def generate_kernels(self, num_experts, emb_dim, mlp_dim):
 
@@ -562,6 +569,7 @@ class MoeBlock(nn.Module):
 
       lhs_quantize_dtype, rhs_quantize_dtype = None, None
       if self.quant is not None:
+        print(f'moe quant......')
         quant_dg = self.quant.quant_dg
         lhs_quantize_dtype = quant_dg.fwd.dg_quantizer.lhs.numerics.get_dtype()
         rhs_quantize_dtype = quant_dg.fwd.dg_quantizer.rhs.numerics.get_dtype()
@@ -610,11 +618,15 @@ class MoeBlock(nn.Module):
     # Currently, we only support data and tensor parallelism with Megablox.
     # We all gather the input activations over tensor parallelism to follow strategy
     # in https://parsa.epfl.ch/course-info/cs723/papers/Megatron.pdf.
-    input_partition_spec = nn.logical_to_mesh_axes(("activation_batch", None, None))
+    input_partition_spec = nn.logical_to_mesh_axes((None, None, None))
     gate_logits_pspec = nn.logical_to_mesh_axes(("activation_batch", None, None))
     w0_pspec = nn.logical_to_mesh_axes((None, None, "mlp"))
     w1_pspec = nn.logical_to_mesh_axes((None, None, "mlp"))
     wo_pspec = nn.logical_to_mesh_axes((None, "mlp", None))
+
+    # w0_pspec = nn.logical_to_mesh_axes(('embed_no_exp', None, "mlp"))
+    # w1_pspec = nn.logical_to_mesh_axes(('embed_no_exp', None, "mlp"))
+    # wo_pspec = nn.logical_to_mesh_axes(('embed_no_exp', "mlp", None))
 
     if isinstance(w0_kernel, QTensor):
       w0_pspec = aqt_tensor.partition_spec(w0_pspec, (1,), w0_kernel.dtype, use_bias=False)
@@ -932,7 +944,9 @@ class MoeBlock(nn.Module):
         matmul_precision=self.config.matmul_precision,
     )(inputs)
 
-    w0_kernel, w1_kernel, wo_kernel = self.generate_kernels(cfg.num_experts, cfg.emb_dim, self.intermediate_dim)
+    # w0_kernel, w1_kernel, wo_kernel = self.generate_kernels(cfg.num_experts, cfg.emb_dim, self.intermediate_dim)
+    w0_kernel, w1_kernel, wo_kernel = self.w0, self.w1, self.w2
+
     if cfg.sparse_matmul:
       max_logging.log("Running MoE sparse matmul implementation.")
       if quantizations.in_serve_mode(self.quant):

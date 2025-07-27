@@ -648,4 +648,3 @@ fix_key_mask_shape: False
 query_chunk_method: ''
 sub_remat: False
 mix_attn: False
-permute_new: False

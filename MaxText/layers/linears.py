@@ -389,35 +389,6 @@ class MoeBlock(nn.Module):
     weights /= weights.sum(-1, keepdims=True)
     weights *= self.config.routed_scaling_factor
     return weights
-  
-  def permute_new(self, inputs, gate_logits):
-    inputs_shape = inputs.shape
-    inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
-    weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
-    if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
-      print(f'Enter permute sigmoid function......')
-      weights = self.deepseek_scale_weights(weights)
-    else:
-      weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
-    flatten_selected_experts = jnp.ravel(selected_experts) # （BTK）
-    sorted_selected_experts = jnp.argsort(flatten_selected_experts) # （BTK）
-    original_token_indices = sorted_selected_experts // self.num_experts_per_tok # 0-BT
-    sorted_inputs = jnp.take(inputs_2d, indices=original_token_indices, axis=0).astype(self.dtype) # (BT)D -> (BTK)D
-    print(f'inputs_2d: {inputs_2d.shape} original_token_indices: {original_token_indices.shape} sorted_inputs: {sorted_inputs.shape}')
-    group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
-    return sorted_inputs, sorted_selected_experts, original_token_indices, weights, group_size
-  
-  def unpermute_new(self, intermediate, sorted_selected_experts, original_token_indices, weights, batch_size, sequence_length):
-    flat_weights = jnp.ravel(weights) # （BTK）
-    permuted_flat_weights = jnp.take(flat_weights, indices=sorted_selected_experts, axis=0)
-    weighted_intermediate = intermediate * permuted_flat_weights[:, None] # (BTK)D, (BTK)1 -> (BTK)D
-    num_original_tokens = batch_size * sequence_length
-    combined_output = jax.ops.segment_sum(
-        data=weighted_intermediate.astype(self.dtype),
-        segment_ids=original_token_indices,
-        num_segments=num_original_tokens
-    )
-    return combined_output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
 
   def permute(self, inputs, gate_logits):
     """Permute tokens to group by expert to fit gmm call."""
@@ -435,15 +406,13 @@ class MoeBlock(nn.Module):
     flatten_selected_experts = jnp.ravel(selected_experts)
     sorted_selected_experts = jnp.argsort(flatten_selected_experts)
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok
-    # sort inputs for number of selected experts
-    sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
+    sorted_inputs = mblx.take.tpu_friendly_gather(inputs_2d, sorted_indices).astype(self.dtype)
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
     return sorted_inputs, sorted_selected_experts, weights, group_size
 
   def unpermute(self, intermediate, sorted_selected_experts, weights, batch_size, sequence_length):
     """Unpermute tokens to original order and combine weights."""
-
-    unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
+    unsort_intermediate = mblx.take.tpu_gather_by_permutation(intermediate, jnp.argsort(sorted_selected_experts))
     reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok))
     reshaped_intermediate = jnp.reshape(
         unsort_intermediate,
@@ -511,8 +480,6 @@ class MoeBlock(nn.Module):
         _tn = _m if n % _m ==0 else _kn
         assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
         return (_tm, _tk, _tn)
-      # 最后传这个func进去
-        # tiling=tiling_func,
 
       if self.config.megablox:
         # m, k, n = inputs.shape[0], inputs.shape[1], kernel.shape[2]
@@ -569,11 +536,7 @@ class MoeBlock(nn.Module):
     )
     def wrapper(x, logits, w0, w1, wo):
       batch_size, sequence_length, _ = x.shape
-
-      if self.config.permute_new:
-        x, sorted_selected_experts, original_token_indices, weights, group_sizes = self.permute_new(x, logits)
-      else:
-        x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
+      x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
 
       layer_w0 = gmm(x, w0, group_sizes)
       layer_w0 = checkpoint_name(layer_w0, "mlpwi_0")
@@ -587,17 +550,7 @@ class MoeBlock(nn.Module):
       if tensor_parallelism > 1:
         intermediate_output = jax.lax.psum_scatter(intermediate_output, "tensor", scatter_dimension=1, tiled=True)
       
-      if self.config.permute_new:
-        output = self.unpermute_new(
-            intermediate_output, 
-            sorted_selected_experts,
-            original_token_indices,
-            weights, 
-            batch_size=batch_size, 
-            sequence_length=sequence_length
-        )
-      else:
-        output = self.unpermute(
+      output = self.unpermute(
           intermediate_output, sorted_selected_experts, weights, batch_size=batch_size, sequence_length=sequence_length
       )
         

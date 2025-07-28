@@ -119,9 +119,9 @@ class DynamicWeightProjection(nn.Module):
       
       if self.use_dw_bias:
         assert self.dc_share_prepost_dw_hidden
-        bias_shape = [self.n_splits, I // 2, M] # CIM
-        self.w1_bias =  self.param('w1_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
-        self.w2_bias =  self.param('w2_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
+        bias_shape = [G, self.n_splits, I // 2, M] # CIM
+        self.w1_bias =  self.param('w1_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, None, 'kv_heads')), bias_shape, self.weight_dtype)
+        self.w2_bias =  self.param('w2_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, None, 'kv_heads')), bias_shape, self.weight_dtype)
 
 
     if self.dynamic_d_init is not None:
@@ -173,8 +173,8 @@ class DynamicWeightProjection(nn.Module):
         # C: n_split,  K -> M
         w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
       if self.use_dw_bias:
-        w1 = w1 + self.w1_bias[None,None,None]
-        w2 = w2 + self.w2_bias[None,None,None]
+        w1 = w1 + self.w1_bias[None,None]
+        w2 = w2 + self.w2_bias[None,None]
       if not skip_norm_tanh:
         w1 = self.dw1_norm(w1)
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
@@ -316,8 +316,8 @@ class CrossHeadProjection(nn.Module):
           if self.use_input_bias: _inputs += self.ib if self.transpose else jnp.expand_dims(self.ib, axis=(2, 3))
           _inputs = self.input_activation(_inputs)
 
-        ret = self.apply_sw(ret, exp, _inputs, w)
-        # ret += jnp.einsum(exp, _inputs, w) if not self.left_mul else jnp.einsum(exp, w, _inputs) # BGMTS,GMN->BGNTS
+        # ret = self.apply_sw(ret, exp, _inputs, w)
+        ret += jnp.einsum(exp, _inputs, w) if not self.left_mul else jnp.einsum(exp, w, _inputs) # BGMTS,GMN->BGNTS
         # ret += rearrange( rearrange(_inputs, 'B G M T S -> B T S (G M)') @ w[0], 'B T S (G N) -> B G N T S', G=self.num_groups)
         # BTSM, MN-> BTSN
         # assert not self.left_mul and self.num_groups == 1
@@ -365,7 +365,7 @@ class CrossHeadProjection(nn.Module):
             else:
               ret = ret + hidden
 
-    if qdd is not None:  # 对logits做二次修改
+    if qdd is not None or kdd is not None:  # 对logits做二次修改
       for sym, dd in zip(['T', 'S'], [qdd, kdd]):
         if dd is None: continue
         dd_label = f'B{sym}GM'
@@ -385,6 +385,7 @@ class AttentionOp(nn.Module):
   query_chunk_size: int|None = None
   num_query_heads: int = 0 
   num_kv_heads: int = 0
+  key_wise: bool = False
 
   def setup(self):
     cfg = self.config
@@ -423,7 +424,7 @@ class AttentionOp(nn.Module):
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
     if cfg.pre_compose or cfg.post_compose:
       if self.is_cross_attention or self.seperate_qk_dw_proj:
-        for name, use in [('q_dyn_w_proj', cfg.query_wise), ('k_dyn_w_proj', cfg.key_wise)]:
+        for name, use in [('q_dyn_w_proj', cfg.query_wise), ('k_dyn_w_proj', self.key_wise)]:
           if not use: continue
           setattr(self, name, DynamicWeightProjection(
             num_heads=self.num_query_heads, num_groups=self.num_groups,
@@ -469,7 +470,7 @@ class AttentionOp(nn.Module):
         num_groups=self.num_groups,
         static_proj=self.pre_static_proj,
         query_wise=cfg.query_wise,
-        key_wise=cfg.key_wise,
+        key_wise=self.key_wise,
         query_input_dim=input_dim,
         key_input_dim=input_dim,
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
@@ -487,7 +488,7 @@ class AttentionOp(nn.Module):
         query_input_dim=input_dim,
         key_input_dim=input_dim,
         query_wise=cfg.query_wise,
-        key_wise=cfg.key_wise,
+        key_wise=self.key_wise,
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
         loop_over_dynamic_hd=self.loop_over_dynamic_hd,
         squeeze_ratio=self.config.sw_squeeze_ratio,
@@ -523,7 +524,7 @@ class AttentionOp(nn.Module):
             pre_q_dw_args, post_q_dw_args = self.q_dyn_w_proj(input_q)
           else:
             pre_q_dw_args, post_q_dw_args = (None, ) * 3, (None, ) * 3
-          if self.config.key_wise:
+          if self.key_wise:
             _key_vec = input_kv[0] if isinstance(input_kv, (tuple, list)) and len(input_kv) == 2 else input_kv
             pre_k_dw_args, post_k_dw_args = self.k_dyn_w_proj(_key_vec)
           else:
@@ -535,6 +536,24 @@ class AttentionOp(nn.Module):
                 pre_proj_dw_args = self.dyn_w_pre_proj(input_q)
             if hasattr(self, 'dyn_w_post_proj'):
                 post_proj_dw_args = self.dyn_w_post_proj(input_kv)
+    
+    if self.config.ablate_kw:
+      # pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd
+      if self.config.ablate_prekdd:
+        pre_proj_dw_args = pre_proj_dw_args[:2] + (None, None,) + (pre_proj_dw_args[-2], None,)
+        post_proj_dw_args = post_proj_dw_args[:2] + (None, None,) + post_proj_dw_args[-2:]
+      else:
+        pre_proj_dw_args = pre_proj_dw_args[:2] + (None, None,) + pre_proj_dw_args[-2:]
+        post_proj_dw_args = post_proj_dw_args[:2] + (None, None,) + post_proj_dw_args[-2:]
+
+    # if self.config.kdd_only:
+    #   # pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd
+    #   if self.config.pre_compose:
+    #     pre_proj_dw_args = (None, ) * 5 +  (pre_proj_dw_args[-1], )
+    #     post_proj_dw_args = (None, ) * 6
+    #   elif self.config.post_compose:
+    #     pre_proj_dw_args = (None, ) * 6 
+    #     post_proj_dw_args = (None, ) * 5 + (post_proj_dw_args[-1], )      
         
     outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, query_chunk_size=self.query_chunk_size)(query, key, value, decoder_segment_ids, model_mode, 
                             pre_proj_dw_args, post_proj_dw_args, 

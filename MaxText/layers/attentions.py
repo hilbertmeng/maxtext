@@ -175,6 +175,7 @@ class AttentionOp(nn.Module):
   use_ragged_attention: bool = False
   ragged_block_size: int = 256
   query_chunk_size: Optional[int] = None
+  key_wise: bool = False
 
   def check_attention_inputs(self, query: Array, key: Array | KVTensor, value: Array | KVTensor) -> None:
     """Check attention inputs."""
@@ -251,7 +252,9 @@ class AttentionOp(nn.Module):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
     elif self.attention_kernel == "dot_product_chunk": # lsp: dc, llama, mudd etc. expecially when head_dim < 128, can't use flash to accelerate
       return accelerator.QChunk(config=self.config, 
-                                sliding_window_size=self.sliding_window_size, query_chunk_size=self.query_chunk_size)(
+                                sliding_window_size=self.sliding_window_size, 
+                                # key_wise=self.key_wise,
+                                query_chunk_size=self.query_chunk_size)(
                                                     query, key, value, decoder_segment_ids, model_mode, attn_mask=attn_mask,
                                                     )
 
@@ -1154,11 +1157,13 @@ class Attention(nn.Module):
   use_postnorm: bool = False
   query_chunk_size: Optional[int] = None
   use_dc: bool = False
+  use_v_gate: bool = False
+  key_wise: bool = False
   
 
   def setup(self):
     if self.use_dc:
-      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size, query_chunk_size=self.query_chunk_size, 
+      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size, query_chunk_size=self.query_chunk_size, key_wise=self.key_wise,
                                         num_query_heads=self.num_query_heads, num_kv_heads=self.num_kv_heads)
     else:
       self.attention_op = AttentionOp(
@@ -1212,7 +1217,18 @@ class Attention(nn.Module):
                   "scale_init": jax.nn.initializers.constant(self.config.postnorm_scale_init),
                   }
       self.post_norm = normalizations.get_rmsnorm(**norm_kwargs)
-
+    
+    if self.config.key_lora_dim:
+      num_k_head = self.config.num_k_head if self.config.num_k_head is not None else self.num_kv_heads
+      kernel_init_shard = nn.with_logical_partitioning(self.kernel_init, ('embed', None, None))
+      self.wk_a = self.param('wk_a',kernel_init_shard, (self.config.emb_dim, num_k_head, self.config.key_lora_dim), self.weight_dtype)
+      kernel_init_shard = nn.with_logical_partitioning(self.kernel_init, (None, None, None))
+      self.wk_b = self.param('wk_b',kernel_init_shard, (self.config.key_lora_dim, num_k_head, self.head_dim), self.weight_dtype)
+    if self.config.value_lora_dim:
+      kernel_init_shard = nn.with_logical_partitioning(self.kernel_init, ('embed', None, None))
+      self.wv_a = self.param('wv_a',kernel_init_shard, (self.config.emb_dim, self.num_kv_heads, self.config.value_lora_dim), self.weight_dtype)
+      kernel_init_shard = nn.with_logical_partitioning(self.kernel_init, (None, None, None))
+      self.wv_b = self.param('wv_b',kernel_init_shard, (self.config.value_lora_dim, self.num_kv_heads, self.head_dim), self.weight_dtype)
 
   def query_projection(self, inputs_q: Array) -> Array:
     """Query projection."""
@@ -1265,19 +1281,30 @@ class Attention(nn.Module):
       head_dim = self.config.qk_head_dim 
     elif proj_name == 'value' and self.config.vo_head_dim:
       head_dim = self.config.vo_head_dim
-
-    kv_proj = DenseGeneral(
-        features=(self.num_kv_heads, head_dim),
-        axis=-1,
-        kernel_init=self.kernel_init,
-        kernel_axes=kernel_axes,
-        dtype=self.dtype,
-        weight_dtype=self.weight_dtype,
-        name=proj_name,
-        quant=self.quant,
-        use_bias=self.config.use_bias,
-        matmul_precision=self.config.matmul_precision,
-    )(inputs_kv)
+    
+    if proj_name == 'key' and self.config.key_lora_dim:
+      hid = jnp.einsum('BTD,DNK->BTNK', inputs_kv, self.wk_a)
+      kv_proj = jnp.einsum('BTNK, KNd->BTNd', hid, self.wk_b)
+    elif proj_name == 'value' and self.config.value_lora_dim:      
+      hid = jnp.einsum('BTD,DNK->BTNK', inputs_kv, self.wv_a)
+      if self.config.value_lora_norm:
+        hid = RMSNorm(dtype=self.config.dtype,weight_dtype=self.config.weight_dtype, name="v_lora_norm", 
+              epsilon=self.config.normalization_layer_epsilon, kernel_axes=("norm",), scale_init=nn.initializers.ones,
+              )(hid)
+      kv_proj = jnp.einsum('BTNK, KNd->BTNd', hid, self.wv_b)
+    else:
+      kv_proj = DenseGeneral(
+          features=(self.num_kv_heads, head_dim),
+          axis=-1,
+          kernel_init=self.kernel_init,
+          kernel_axes=kernel_axes,
+          dtype=self.dtype,
+          weight_dtype=self.weight_dtype,
+          name=proj_name,
+          quant=self.quant,
+          use_bias=self.config.use_bias,
+          matmul_precision=self.config.matmul_precision,
+      )(inputs_kv)
     return kv_proj
 
   def vgate_projection(self, inputs_q: Array) -> Array:
@@ -1423,6 +1450,7 @@ class Attention(nn.Module):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
+    max_logging.log(f'num_kv_heads: {self.num_kv_heads}, use_v_gate: {self.use_v_gate}, key_wise: {self.key_wise}')
     # apply projection.
     if self.config.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -1497,8 +1525,25 @@ class Attention(nn.Module):
 
     if self.num_query_heads > self.num_kv_heads: # GQA
       n_expands = self.num_query_heads // self.num_kv_heads
-      key = jnp.repeat(key, n_expands, axis=-2) # BSNd
-      value = jnp.repeat(value, n_expands, axis=-2) 
+      if key.shape[-2] < self.num_query_heads: # for K lora
+        key = jnp.repeat(key, n_expands, axis=-2) # BSNd
+      if value.shape[-2] < self.num_query_heads:  # for V lora
+        value = jnp.repeat(value, n_expands, axis=-2) 
+    
+    if self.config.use_k_gate:
+      k_gate = DenseGeneral((self.num_query_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+            kernel_init=self.kernel_init,kernel_axes=('embed', None),name="k_gate",
+        )(inputs_q)
+      k_gate = jax.nn.tanh(k_gate) + 1  if self.config.k_gate_tanh else jax.nn.sigmoid(k_gate) 
+      key = key * k_gate[...,None] # BSND, BSN1->BSND
+
+    if self.use_v_gate:
+      use_v_gate_bias = self.config.use_v_gate_bias if self.config.use_v_gate_bias is not None else False
+      v_gate = DenseGeneral((self.num_query_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+            kernel_init=self.kernel_init,kernel_axes=('embed', None),name="v_gate", use_bias=use_v_gate_bias,
+        )(inputs_q)
+      v_gate = jax.nn.tanh(v_gate) + 1  if self.config.v_gate_tanh else jax.nn.sigmoid(v_gate) 
+      value = value * v_gate[...,None] # BSND, BSN1->BSND
 
     if self.config.record_internal_nn_metrics:
       if self.config.sigmoid_attention:
@@ -1510,6 +1555,13 @@ class Attention(nn.Module):
         self.sow('intermediates', 'attn_logits_mean', attn_logits.mean())
 
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, hidden_states=hidden_states)
+
+    if self.config.use_o_gate:
+      o_gate = DenseGeneral((self.config.num_out_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+            kernel_init=self.kernel_init,kernel_axes=('embed', None),name="o_gate",)(inputs_q) # BTD,DN->BTN
+      o_gate = jax.nn.tanh(o_gate) + 1  if self.config.o_gate_tanh else jax.nn.sigmoid(o_gate)
+      out = jnp.repeat(out, self.config.num_out_heads // out.shape[-2] , axis=-2) 
+      out = out * o_gate[...,None] # BSND, BSN1->BSND
 
     mixed_v = out
     if self.config.use_head_pool:
@@ -1584,6 +1636,7 @@ class MLA(Attention):
     assert self.num_query_heads == self.num_kv_heads, "MLA requires equal number of query and kv heads"
     assert not self.config.fused_qkv, "Fused QKV is not supported for MLA"
 
+    mla_rope_groups = self.config.mla_rope_groups if self.config.mla_rope_groups is not None else 1 
     if self.q_lora_rank == 0:
       # Standard Q projection (without LoRA).
       self.query_proj = DenseGeneral(
@@ -1641,7 +1694,7 @@ class MLA(Attention):
     )
     if (self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm') or self.config.mla_k_hidnrom:
       self.wkv_a_k = DenseGeneral(
-          features=self.qk_rope_head_dim,
+          features=self.qk_rope_head_dim * mla_rope_groups,
           axis=-1,
           kernel_init=self.kernel_init,
           kernel_axes=("embed", "kv_lora"),
@@ -1664,7 +1717,7 @@ class MLA(Attention):
       )
     else:
       self.wkv_a = DenseGeneral(
-        features=self.kv_lora_rank + self.qk_rope_head_dim,
+        features=self.kv_lora_rank + self.qk_rope_head_dim * mla_rope_groups,
         axis=-1,
         kernel_init=self.kernel_init,
         kernel_axes=("embed", "kv_lora"),
@@ -1683,7 +1736,7 @@ class MLA(Attention):
         scale_init=nn.initializers.ones if self.config.mla_kv_norm_learnable else None,
     )
     self.wkv_b = DenseGeneral(
-        features=(self.num_query_heads, (self.qk_nope_head_dim + self.v_head_dim)),
+        features=(self.num_query_heads, (self.qk_nope_head_dim + self.v_head_dim)), # KNd, 192*16*(48+128) 
         axis=-1,
         kernel_init=self.kernel_init,
         kernel_axes=("kv_lora", "kv_heads", "embed"), # TODO: fix sharding 
@@ -1694,6 +1747,12 @@ class MLA(Attention):
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
     )
+
+    if self.config.mla_num_groups is not None:
+      num_heads_per_group = self.num_query_heads // self.config.mla_num_groups
+      kernel_init_shard = nn.with_logical_partitioning(NormalInitializer(0.006), (None, None, None, 'embed'))
+      shape = (self.config.mla_num_groups, self.kv_lora_rank // self.config.mla_num_groups, num_heads_per_group, self.qk_nope_head_dim + self.v_head_dim)
+      self.wkv_b_kernel = self.param('wkv_b_kernel', kernel_init_shard, shape, self.weight_dtype) # NKMd, 4*(192//4)*4*(48+128), delta= 192*12*(48+128) 
 
     # Set softmax scaling.
     self.softmax_scale = self.qk_head_dim**0.5
@@ -1730,17 +1789,29 @@ class MLA(Attention):
     else:
       low_rank = self.wkv_a(inputs)
       low_rank_main, low_rank_rope = jnp.split(low_rank, [self.kv_lora_rank], axis=-1)
-    low_rank_main = self.kv_norm(low_rank_main)
-    # Note: cache `low_rank_main` and `low_rank_rope` for inference.
-    kv_out = self.wkv_b(low_rank_main)
 
+    if self.config.mla_num_groups is not None:
+      low_rank_main = rearrange(low_rank_main, 'B T (N K) -> B T N K', N=self.config.mla_num_groups) # BTK -> BTNK
+      low_rank_main = self.kv_norm(low_rank_main)
+      kv_out = jnp.einsum('BTNK, NKMd -> BTMNd', low_rank_main, self.wkv_b_kernel)
+      kv_out = rearrange(kv_out, 'B T M N d -> B T (M N) d')
+    else:
+      low_rank_main = self.kv_norm(low_rank_main)
+      # Note: cache `low_rank_main` and `low_rank_rope` for inference.
+      kv_out = self.wkv_b(low_rank_main)
+    
     # Split kv_out into key_nope and value parts.
     key_nope, value = jnp.split(kv_out, [self.qk_nope_head_dim], axis=-1)
 
     # Apply rotary embedding to key_rope.
-    key_rope = jnp.expand_dims(low_rank_rope, axis=2)
-    key_rope = self.apply_rotary_embedding(key_rope, inputs_positions, name="key_rope")
-    key_rope = jnp.broadcast_to(key_rope, (key_nope.shape[0], key_nope.shape[1], self.num_query_heads, key_rope.shape[3]))
+    if self.config.mla_rope_groups is not None:
+      key_rope = rearrange(low_rank_rope, 'B T (G K) -> B T G K', G=self.config.mla_rope_groups) # BTK -> BTGK
+      key_rope = self.apply_rotary_embedding(key_rope, inputs_positions, name="key_rope")
+      key_rope = jnp.repeat(key_rope, self.num_query_heads//self.config.mla_rope_groups, axis=-2) # BTGK -> BT(GN)K
+    else:
+      key_rope = jnp.expand_dims(low_rank_rope, axis=2) # BTK -> BT1K
+      key_rope = self.apply_rotary_embedding(key_rope, inputs_positions, name="key_rope")
+      key_rope = jnp.broadcast_to(key_rope, (key_nope.shape[0], key_nope.shape[1], self.num_query_heads, key_rope.shape[3]))
 
     key = jnp.concatenate([key_nope, key_rope], axis=-1)
     return key, value
@@ -1771,6 +1842,7 @@ class MLA(Attention):
       deterministic: bool = False,
       hidden_states=None,
       value_residual=None,
+      ffn_act=None,
   ) -> Array:
     """Forward pass for MLA, reusing `AttentionOp` for the actual attention.
 
@@ -1805,6 +1877,13 @@ class MLA(Attention):
       key = nn.with_logical_constraint(key, self.key_axis_names)
       value = nn.with_logical_constraint(value, self.value_axis_names)
 
+    if self.config.use_v_gate:
+      v_gate = DenseGeneral((self.num_query_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+            kernel_init=self.kernel_init,kernel_axes=('embed', None),name="v_gate",
+        )(inputs_q)
+      v_gate = jax.nn.tanh(v_gate) + 1  if self.config.v_gate_tanh else jax.nn.sigmoid(v_gate) 
+      value = value * v_gate[...,None] # BSND, BSN1->BSND
+
     query = checkpoint_name(query, "query_proj")
     key = checkpoint_name(key, "key_proj")
     value = checkpoint_name(value, "value_proj")
@@ -1815,10 +1894,10 @@ class MLA(Attention):
     return out, value_residual
 
 
-def batch_take(inputs, indices=None):
+def batch_take(inputs, indices=None, axis=0):
   if indices is None:
     return inputs
-  return jax.vmap(lambda a,b: jnp.take(a, b, axis=0))(inputs, indices) # BTD -> BtND
+  return jax.vmap(lambda a,b: jnp.take(a, b, axis=axis))(inputs, indices) # BTD -> BtND
 
 # https://github.com/jax-ml/jax/issues/17844#issuecomment-2241236592
 def batch_scatter_add(inputs, indices, updates):
@@ -1847,7 +1926,10 @@ class MoSA(Attention):
   def setup(self):
     super().setup()
 
-    if self.mosa_num_groups is None : 
+    self.mosa_head_sparse = self.config.mosa_head_sparse
+    self.mosa_head_topk = self.config.mosa_head_topk
+
+    if self.mosa_num_groups is None: 
       self.mosa_num_groups = self.mosa_num_query_heads
     # else:
     #   assert self.config.dc_num_groups == 1
@@ -1887,8 +1969,9 @@ class MoSA(Attention):
             matmul_precision=self.config.matmul_precision,
         )(x)
       x = jax.nn.gelu(x)
+    num_heads = self.mosa_num_groups if not self.mosa_head_sparse else self.mosa_num_query_heads **2 
     logits = DenseGeneral(
-            (self.mosa_num_groups, self.mosa_num_routers),
+            (num_heads, self.mosa_num_routers),
             dtype=self.dtype,
             weight_dtype=self.weight_dtype,
             quant=self.quant,
@@ -1938,8 +2021,13 @@ class MoSA(Attention):
 
 
     if self.mosa_mode == 'topk':
-      logits = rearrange(logits, 'B T G C -> C B G T')
       logits = jax.nn.sigmoid(logits) 
+      if self.mosa_head_sparse:
+        head_scores = logits.mean(axis=(1,-1)) # BTGC->BG
+        head_scores, head_indices = jax.lax.top_k(head_scores, self.mosa_head_topk) # BG -> BK
+        qk_head_indices, ov_head_indices = head_indices // self.mosa_num_query_heads, head_indices % self.mosa_num_query_heads
+        logits = batch_take(logits, indices=head_indices, axis=1) # BTGC->BTKC
+      logits = rearrange(logits, 'B T G C -> C B G T')
       gate_q, q_indices, gate_k, k_indices = self.select(logits)
       if self.config.mosa_sqrt_gate:
         gate_q = jnp.sqrt(gate_q)
@@ -1971,24 +2059,36 @@ class MoSA(Attention):
   
     # max_logging.log(f"q_indices, k_indices shape: {q_indices.shape}, {k_indices.shape}")
 
-    _inputs_kv = inputs_kv[0] if isinstance(inputs_kv, (tuple, list)) else inputs_kv
-    _inputs_q = batch_take(inputs_q, indices=q_indices) # BTD, BtN -> BtND
-    _inputs_kv = batch_take(_inputs_kv, indices=k_indices) # BTD, BtN -> BtN
+    _inputs_q, _inputs_kv  = None, None
+    if not self.mosa_head_sparse:
+      _inputs_kv = inputs_kv[0] if isinstance(inputs_kv, (tuple, list)) else inputs_kv
+      _inputs_q = batch_take(inputs_q, indices=q_indices) # BTD, BtN -> BtND
+      _inputs_kv = batch_take(_inputs_kv, indices=k_indices) # BTD, BtN -> BtN
 
     # max_logging.log(f"_inputs_q, _inputs_kv shape: {_inputs_q.shape}, {_inputs_kv.shape}")
     if q_indices is not None:
-      query = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_q, self.query_weight)
-      key = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_kv, self.key_weight)
-      value = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_kv, self.value_weight)
+      if self.mosa_head_sparse: # BTD-> BTKND
+        select_matmul = lambda input, w, t_idx, k_idx: jnp.einsum('tKD,KNDd->tKNd', input[t_idx,:], w[k_idx,:])
+        query = jax.vmap(select_matmul, in_axes=(0,None,0,0))(inputs_q, self.query_weight, q_indices, qk_head_indices)
+        key = jax.vmap(select_matmul, in_axes=(0,None,0,0))(inputs_q, self.key_weight, k_indices, qk_head_indices)
+        value = jax.vmap(select_matmul, in_axes=(0,None,0,0))(inputs_q, self.value_weight, k_indices, ov_head_indices)
+      else:
+        query = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_q, self.query_weight)
+        key = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_kv, self.key_weight)
+        value = jnp.einsum('BtGD,GNDd->BtGNd', _inputs_kv, self.value_weight)
     else:
       query = jnp.einsum('BtD,GNDd->BtGNd', _inputs_q, self.query_weight)
       key = jnp.einsum('BtD,GNDd->BtGNd', _inputs_kv, self.key_weight)
       value = jnp.einsum('BtD,GNDd->BtGNd', _inputs_kv, self.value_weight)
 
+    # if self.mosa_head_sparse:
+    #   query = batch_take(query, indices=qk_head_indices, axis=1) # BtGNd [BK] -> BtKNd
+    #   key = batch_take(key, indices=qk_head_indices, axis=1) # BtGNd [BK] -> BtKNd
+    #   value = batch_take(value, indices=ov_head_indices, axis=1) # BtGNd [BK] -> BtKNd
+
     query = rearrange(query, 'B t G N d -> B t (G N) d')
     key = rearrange(key, 'B t G N d -> B t (G N) d')
     value = rearrange(value, 'B t G N d -> B t (G N) d')
-
 
     value_residual = None
 
@@ -2052,10 +2152,15 @@ class MoSA(Attention):
   
     # apply output projection,  output dim is set to the input dim.
     out = gate_q.repeat(self.mosa_num_query_heads_per_group, axis=-1)[...,None] * out # (BtG -> Bt(GN))1, BtNd -> BtNd
+    # if self.mosa_head_sparse:
+    #   out = out * head_scores[:,None,:,None] # BtND, B1K1
 
-    out = rearrange(out, 'B t (G N) d -> B t G N d', G=self.mosa_num_groups)
+    out = rearrange(out, 'B t (G N) d -> B t G N d', N=self.mosa_num_query_heads_per_group)
     if q_indices is not None:
-      sparse_out = jnp.einsum('BtGNd,GNDd->BtGD', out, self.out_weight)
+      if self.mosa_head_sparse: # BtKNd, BKNDd -> BtKD
+        sparse_out = jax.vmap(lambda o, w, idx:jnp.einsum('tKNd,KNDd->tKD', o, w[idx,:]), in_axes=(0,None,0))(out, self.out_weight, ov_head_indices)
+      else:
+        sparse_out = jnp.einsum('BtGNd,GNDd->BtGD', out, self.out_weight)
     else:
       sparse_out = jnp.einsum('BtGNd,GNDd->BtD', out, self.out_weight)
 

@@ -35,7 +35,7 @@ import max_logging
 import max_utils
 from aqt.jax.v2 import aqt_tensor
 from kernels import megablox as mblx
-from layers.take_kernel import take_func
+# from layers.take_kernel import my_take, my_take_sum 
 
 
 Array = common_types.Array
@@ -413,13 +413,18 @@ class MoeBlock(nn.Module):
     sorted_indices = sorted_selected_experts // self.num_experts_per_tok # (BTK)
     # sort inputs for number of selected experts
     # sorted_inputs = take_func(inputs_2d, sorted_indices).astype(self.dtype)
+    # if self.config.custom_take:
+    #   sorted_inputs = my_take_sum(inputs_2d, sorted_indices).astype(self.dtype)
+    # else:
     sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype) # (BT)D -> (BTK)D
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts) # N ; sum(N)=(BTK) 
     return sorted_inputs, sorted_selected_experts, weights, group_size
 
   def unpermute(self, intermediate, sorted_selected_experts, weights, batch_size, sequence_length):
     """Unpermute tokens to original order and combine weights."""
-
+    # if self.config.custom_take:
+    #   unsort_intermediate = my_take(intermediate, jnp.argsort(sorted_selected_experts)) # (BTK)D
+    # else:
     unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0) # (BTK)D
     reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok)) # (BTK)->(BT)K
     reshaped_intermediate = jnp.reshape(

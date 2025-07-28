@@ -248,7 +248,7 @@ class SubDecoderLayer(nn.Module):
       attention_layer = attention_class(
         config=cfg,
         num_query_heads=cfg.num_query_heads,
-        num_kv_heads=cfg.num_kv_heads,
+        num_kv_heads=cfg.num_kv_heads[self.layer_inx % len(cfg.num_kv_heads)] if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads,
         head_dim=cfg.head_dim,
         max_target_length=cfg.max_target_length,
         max_prefill_predict_length=cfg.max_prefill_predict_length,
@@ -274,7 +274,9 @@ class SubDecoderLayer(nn.Module):
         use_kv_shift=cfg.use_kv_shift,
         use_alibi=cfg.use_alibi,
         use_postnorm=cfg.use_postnorm,
-        query_chunk_size=cfg.query_chunk_size,
+        query_chunk_size=cfg.query_chunk_size[self.layer_inx % len(cfg.query_chunk_size)] if isinstance(cfg.query_chunk_size, list) else cfg.query_chunk_size,
+        key_wise=cfg.key_wise[self.layer_inx % len(cfg.key_wise)] if isinstance(cfg.key_wise, list) else cfg.key_wise,
+        use_v_gate=cfg.use_v_gate[self.layer_inx % len(cfg.use_v_gate)] if isinstance(cfg.use_v_gate, list) else cfg.use_v_gate,
         use_dc=(cfg.pre_compose or cfg.post_compose) and not cfg.ablate_dcmha,
         **mla_kwargs,
       )

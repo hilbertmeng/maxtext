@@ -28,6 +28,9 @@ import time
 import queue
 import re
 
+from flax.traverse_util import flatten_dict, unflatten_dict
+from jax.sharding import PartitionSpec
+
 from typing import Sequence
 from absl import app
 from flax import linen as nn
@@ -60,7 +63,7 @@ from gcp_workload_monitor import GCPWorkloadMonitor
 import jax.numpy as jnp
 from jax import random
 from jax.sharding import Mesh
-from jax.experimental import checkify
+from jax.experimental import checkify, shard_map
 
 from cloud_tpu_diagnostics import diagnostic
 from cloud_tpu_diagnostics.configuration import debug_configuration
@@ -77,6 +80,9 @@ from etils import epath
 from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
 # pylint: disable=too-many-positional-arguments
+
+from jax.lax import with_sharding_constraint
+from jax._src.pjit import reshard, explicit_axes
 
 Transformer = models.Transformer
 EPS = 1e-8
@@ -645,11 +651,42 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
+   
+  specs = jax.tree_util.tree_map(lambda x: x.spec, state_mesh_shardings.params)
+  # flat_raw_grads = flatten_dict(raw_grads)
+  # flat_specs = flatten_dict(specs)
+  # max_logging.log(f'specs, {type(specs)}, raw_grads, {type(raw_grads)}')
+  # for k,v in flat_specs.items():
+  #   max_logging.log(f"{k}, {v}")
+  # for k,v in flat_raw_grads.items():
+  #   max_logging.log(f"{k}, {v}")
+  # max_logging.log(f"raw_grads, {type(raw_grads)}, {raw_grads['params']['decoder']['decoder_norm']['scale']}")
+  # max_logging.log(f"state_mesh_shardings.params, {type(state_mesh_shardings.params)}, {state_mesh_shardings.params['params']['decoder']['decoder_norm']['scale']}")
 
+  # @functools.partial(shard_map.shard_map, mesh=model.mesh, in_specs=(specs,), out_specs=specs, check_rep=False)
+  # def _reshard(raw_grads,):
+  #   return raw_grads
+
+  # @functools.partial(shard_map.shard_map, mesh=model.mesh, in_specs=(specs, None, None), out_specs=specs, check_rep=False)
+  # def apply_gradient_clipping_pax(raw_grads, clipping_threshold, grad_norm):
+  #   grad_scale = jnp.minimum(
+  #       jnp.array(1, grad_norm.dtype),
+  #       jnp.array(clipping_threshold, grad_norm.dtype) / grad_norm,
+  #   )
+  #   raw_grads = jax.tree_util.tree_map(lambda g: g * grad_scale, raw_grads)
+  #   return raw_grads
+
+  raw_grad_norm = max_utils.l2norm_pytree(raw_grads)
   if config.gradient_clipping_threshold > 0:
+    # grads = apply_gradient_clipping_pax(raw_grads, config.gradient_clipping_threshold, raw_grad_norm)
     grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
+    # grads = raw_grads
   else:
     grads = raw_grads
+  
+  # with_sharding_constraint
+  # grads = _reshard(grads,)#, in_shardings=state_mesh_shardings.params)
+
   if config.optimizer_memory_host_offload:
     state = state.replace(
         opt_state=jax.device_put(
@@ -673,8 +710,11 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     scalar_metrics.update(grads_scalar_values)
 
   if not config.optimizer_memory_host_offload:
-    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
-    scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
+    # scalar_metrics["learning/grad_norm"] = 1
+    # scalar_metrics["learning/raw_grad_norm"] = 1
+    # scalar_metrics["learning/param_norm"] = 1
+    # scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
+    scalar_metrics["learning/raw_grad_norm"] = raw_grad_norm
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
   if config.use_dpo:
     scalar_metrics["learning/dpo_reward_accuracy"] = aux["reward_accuracy"]

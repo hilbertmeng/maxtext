@@ -92,7 +92,17 @@ class DC2(DC):
     seperate_qk_dw_proj = True # generate qw from query-way hidden state
     dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
     use_dw_bias = True
-    use_dd_bias = True
+    use_dd_bias = True # harm performance 
+    static_proj = False
+
+class DC3(DC):
+    key_wise = False
+    qk_norm = True
+    seperate_qk_dw_proj = True # generate qw from query-way hidden state
+    dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
+    use_dw_bias = True
+    use_dd_bias = False 
+    static_proj = False
 
 class KVshift:
     use_kv_shift = True
@@ -110,7 +120,7 @@ class DreamMini(Mudd, KVshift, DC, LGLLWindow):
     qk_norm = True
     seperate_qk_dw_proj = True # generate qw from query-way hidden state
     dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
-    static_proj = True # use SW
+    static_proj = False # use SW
     key_wise = False # No KW
     # kv shift config: linear + No Knorm 
     kv_shift_mlp = False # linear KVshift
@@ -150,7 +160,31 @@ class Llama2MediumBase(Llama2Medium):
     model_name = "Llama2MediumBase"
     attention='dot_product_chunk'
     query_chunk_size=512
-    tensorboard_dir = "gs://llm_projects/log/summaries/train/"
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class Llama2MediumBasePreKdd(Llama2MediumBase):
+    pre_compose = True
+    post_compose = False
+    loop_over_dynamic_hd = True
+    query_wise = True
+    key_wise = True
+    static_proj = False
+    kdd_only = True 
+    scan_layers = False
+
+class Llama2MediumBasePostKdd(Llama2MediumBasePreKdd):
+    pre_compose = False
+    post_compose = True
+
+class Llama2MediumBaseKgate(Llama2MediumBase):
+    use_k_gate = True
+    k_gate_tanh = True
+    scan_layers = False
+
+class Llama2MediumBaseVgate(Llama2MediumBase):
+    use_v_gate = True
+    v_gate_tanh = True
+    scan_layers = False
 
 class Llama2MediumBase32K(Llama2MediumBase):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
@@ -158,9 +192,24 @@ class Llama2MediumBase32K(Llama2MediumBase):
     per_device_batch_size = 32.0 / 16
     scan_layers = False # v5p-16: 0.154
 
+class Llama2MediumBase4K(Llama2MediumBase32K):
+    max_target_length = 2048 * 2
+    per_device_batch_size = 32.0 / 2
+
+class Llama2MediumBase8K(Llama2MediumBase32K):
+    max_target_length = 2048 * 4
+    per_device_batch_size = 32.0 / 4
+
+class Llama2MediumBase16K(Llama2MediumBase32K):
+    max_target_length = 2048 * 8
+    per_device_batch_size = 32.0 / 8
+
 class Llama2MediumBase32KRope1M(Llama2MediumBase32K):
     rope_max_timescale = 1000000
     query_chunk_size=256
+
+class Llama2MediumBase32KRope1MQKnorm(Llama2MediumBase32KRope1M):
+    qk_norm = True
 
 class Llama2MediumBaseChannelGating(Llama2MediumBase):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
@@ -216,6 +265,19 @@ class Llama2MediumMoSA(Llama2MediumBase):
     mosa_num_routers = 1
     mosa_query_chunk_size = None
 
+class Llama2MediumMoSARerun(Llama2MediumMoSA):
+    mosa_num_groups = 12
+
+class Llama2MediumMoSASparseDCHead12(Llama2MediumMoSA):
+    mosa_num_groups = 12
+    mosa_head_sparse = True
+    mosa_head_topk = 12
+
+class Llama2MediumMoSASparseDCHead12Fix(Llama2MediumMoSASparseDCHead12):
+    pass
+
+class Llama2MediumMoSASparseDCHead24(Llama2MediumMoSASparseDCHead12):
+    mosa_head_topk = 24
 
 class Llama2MediumMoSATrace(Trace, SpeedTest, Llama2MediumMoSA):
     mosa_num_groups = 12
@@ -229,6 +291,12 @@ class Llama2MediumMoSADC2G3(DC2, Llama2MediumMoSA):
     use_dcmosa = True
     mosa_num_groups = 3
     dc_num_groups = 3
+
+class Llama2MediumDC2G4(DC2, LGWindow, Llama2MediumBase):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    qk_norm = True
+    scan_layers = False
+    mosa_num_groups = 4
 
 class Llama2MediumMoSADC2G6(Llama2MediumMoSADC2G3):
     mosa_num_groups = 6
@@ -474,7 +542,7 @@ class MLAMediumBase(Llama2MediumBase):
     scan_layers = False
     # mla_out_zero_init = False
 
-    debug = True
+    # debug = True
     # record_internal_nn_metrics = True
     # mla_kv_norm_learnable = False
     # mla_k_hidnrom = True
@@ -485,6 +553,16 @@ class MLAMediumBaseKhidnorm(MLAMediumBase):
 
 class DCMLAMedium(DC, LGWindow, MLAMediumBase):
     pass
+
+class MLAMediumBaseG4(MLAMediumBase):
+    mla_num_groups = 4
+    base_mlp_dim = 2816 + 132
+
+class DCMLAMediumBaseG4(DC, LGWindow, MLAMediumBaseG4):
+    pass 
+
+class DCMLAMediumBaseG4DCG4(DCMLAMediumBaseG4):
+    dc_num_groups = 4 
 
 class MUDDMLAMedium(Mudd, MLAMediumBase):
     pass
@@ -498,10 +576,131 @@ class MuddLlama2Medium(Mudd, Llama2Medium):
 class DC2MuddLlamaMedium(DC2, LGWindow, MuddLlama2Medium):
     query_chunk_size = 256
 
-class DC2MuddLlamaMediumKV4QO16(DC2MuddLlamaMedium):
+class DC2MuddLlamaMediumNoddBias(DC2MuddLlamaMedium):
+    use_dd_bias = False
+
+class DC2MuddLlamaMediumMLA(DC2, LGWindow, Mudd, MLAMediumBase):
+    attention='dot_product_chunk'
+    query_chunk_size=512
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class DC2MuddLlamaMediumMLAG4(DC2MuddLlamaMediumMLA):
+    '''
+    kv_param = (dim*kv_lora_rank + (kv_lora_rank//num_groups) * num_groups *( num_heads_per_group * (v_head_dim + qk_nope_head_dim)) + dim*qk_rope_head_dim*num_groups) 
+    q_param = dim * q_lora_rank + q_lora_rank* num_heads * ( qk_nope_head_dim + qk_rope_head_dim )
+    o_param = dim* num_heads * v_head_dim
+    '''
+    kv_lora_rank = 104 * 4 # total kv: (104 + 24) * 4
+    qk_nope_head_dim = 104 
+    qk_rope_head_dim = 24
+    mla_rope_groups = 4
+    mla_num_groups = 4
+    base_mlp_dim = 2816 + 2 # 
+
+class DC2MuddLlamaMediumMLAG4Aligned(DC2MuddLlamaMediumMLAG4): # no q_lora
+    v_head_dim = 64
+    qk_nope_head_dim = 48 
+    qk_rope_head_dim = 16
+    kv_lora_rank = 112 * 4
+    base_mlp_dim = 2816 + 446
+    q_lora_rank = 0
+
+class DC2MuddLlamaMediumMLAG4VgateTanh(DC2MuddLlamaMediumMLAG4):
+    use_v_gate = True
+    v_gate_tanh = True
+
+
+
+class DC2MuddLlamaMediumKW(DC2MuddLlamaMedium):
+    key_wise = True
+
+class DC2MuddLlamaMediumKV4QO16(DC2MuddLlamaMedium): # QW + bias
     base_num_kv_heads = 4
     base_num_query_heads = 16
     base_mlp_dim = 2816 + 512 # 64*12*2/3 
+
+class DC2MuddLlamaMediumKLora(DC2MuddLlamaMedium):
+    key_lora_dim = 16 # 64 / 4
+    base_mlp_dim = 2816 + 250# (1024*16*64 - 1024*16*16 - 16*16*64)/1024/3
+
+class DC2MuddLlamaMediumHeaddim16(DC2MuddLlamaMedium):
+    qk_head_dim = 16
+    base_mlp_dim = 2816 + 512 # 1024* 16 * 48 * 2 / 1024 /3
+
+class DC2MuddLlamaMediumVLora(DC2MuddLlamaMedium):
+    value_lora_dim = 16 # 64 / 4
+    base_mlp_dim = 2816 + 250# (1024*16*64 - 1024*16*16 - 16*16*64)/1024/3
+
+class DC2MuddLlamaMediumVLoraNorm(DC2MuddLlamaMediumVLora):
+    value_lora_norm = True
+
+class DC2MuddLlamaMediumKV4QO16PostKdd(DC2MuddLlamaMediumKV4QO16):
+    key_wise = True 
+    ablate_kw = True
+    ablate_prekdd = True
+
+class DC2MuddLlamaMediumKV4QO16PrePostKdd(DC2MuddLlamaMediumKV4QO16):
+    key_wise = True 
+    ablate_kw = True 
+
+class DC2MuddLlamaMediumKV4QO16Vgate(DC2MuddLlamaMediumKV4QO16):
+    use_v_gate = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanh(DC2MuddLlamaMediumKV4QO16Vgate):
+    v_gate_tanh = True
+
+class DC2MuddLlamaMediumKV4QO16Ogate(DC2MuddLlamaMediumKV4QO16):
+    use_o_gate = True
+    o_gate_tanh = True
+    num_out_heads = 16 * 2  # (12 * 2 - 16) * 64 / 3 
+    base_mlp_dim = 2816 + 170
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhOgate(DC2MuddLlamaMediumKV4QO16VgateTanh):
+    use_o_gate = True
+    o_gate_tanh = True
+    num_out_heads = 16 * 2  # (12 * 2 - 16) * 64 / 3 
+    base_mlp_dim = 2816 + 170
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLL(LGLLWindow, DC2MuddLlamaMediumKV4QO16VgateTanh):
+    base_num_kv_heads = [16,4,16,16] # L: MHA + Vgate (w/o KW); G: GQA + KW(w/o Vgate)
+    use_v_gate = [True, False, True, True]
+    key_wise = [False, True, False, False]
+    num_layers_per_block = 1
+    base_mlp_dim = 2816 + int(512/4)
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL):
+    # L: MHA + Vgate (w/o KW); G: GQA + KW(w/o Vgate)
+    use_v_gate = True
+    key_wise = False
+    num_layers_per_block = 1
+
+class DC2MuddLlamaMediumKV4QO16LGLLPostkdd(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
+    use_v_gate = False
+    key_wise = True 
+    ablate_kw = True
+    ablate_prekdd = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLPrePostkdd(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
+    use_v_gate = False
+    key_wise = True 
+    ablate_kw = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateGQA(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
+    base_num_kv_heads = 4
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhBias(DC2MuddLlamaMediumKV4QO16VgateTanh):
+    use_v_gate_bias = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhKLora(DC2MuddLlamaMediumKV4QO16VgateTanh): # num_v_head = 4, repeat to 16  
+    num_k_head = 16
+    key_lora_dim = 16
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhKgate(DC2MuddLlamaMediumKV4QO16VgateTanh):
+    k_gate_tanh = True
+    use_k_gate = True
+
+class DC2MuddLlamaMediumKV4QO16KW(DC2MuddLlamaMediumKV4QO16): # QW + bias + KW
+    key_wise = True
 
 class DC2MuddLlamaMediumKV4QO24(DC2MuddLlamaMedium):
     base_num_kv_heads = 4
@@ -965,6 +1164,49 @@ class LlamaSmallMoE8X8in64(LlamaSmallMoE8XBaseline):
     num_experts_per_tok = 8
     num_experts = 64
 
+class LlamaSmallMoE8X8in64DC2Head8X(DC2, LGWindow, LlamaSmallMoE8X8in64):
+    base_num_query_heads = 12 * 8
+    base_num_kv_heads = 12 * 8
+    sharding_tolerance = 0.08
+    eval_interval = 29000
+
+class LlamaSmallMoE8X8in64Head8X(LlamaSmallMoE8X8in64):
+    base_num_query_heads = 12 * 8
+    base_num_kv_heads = 12 * 8
+    sharding_tolerance = 0.08
+    eval_interval = 29000
+
+
+class LlamaSmallMoE8X8in64Head8XMoSA(LlamaSmallMoE8X8in64Head8X):
+    base_num_query_heads = 4
+    base_num_kv_heads = 4
+    query_chunk_size=512
+    scan_layers = False
+    # mosa config
+    mosa_mode = 'topk'
+    mosa_num_query_heads = 12 * 8 - 4 # v5p-16: 
+    mosa_num_groups = 12 * 8 - 4
+    mosa_num_kv_heads = 12 * 8 - 4 
+    mosa_topk = 256
+    mosa_num_routers = 1
+    mosa_query_chunk_size = None
+
+class LlamaSmallMoE8X8in64Head1XMoSA(LlamaSmallMoE8X8in64Head8XMoSA):
+    mosa_num_query_heads = 12 - 4 # v5p-16: 
+    mosa_num_groups = 12 - 4
+    mosa_num_kv_heads = 12 - 4 
+
+class LlamaSmallMoE8X8in64Head8XMoSADC2(DC2, LlamaSmallMoE8X8in64Head8XMoSA):
+    qk_norm = False
+    ablate_dcmha = True
+    use_dcmosa = True
+    mosa_num_groups = 23
+    dc_num_groups = 23
+
+class LlamaSmallMoE8X8in92DC2(DC2, LGWindow, LlamaSmallMoE8X8in64):
+    num_experts = int(64 + 3.5 * 8)
+    eval_interval = 29000
+
 class LlamaSmallMoE8X8in64Debug(Trace, SpeedTest, LlamaSmallMoE8X8in64):
     pass
 
@@ -1367,6 +1609,21 @@ class LlamaSmall8XWiderHeadPool1V7GatePostnorm(LlamaSmall8XWiderHeadPool1V7Gate)
 class LlamaSmall29KTokens(LlamaSmall8XWider):
     base_mlp_dim = 2048 * 1
 
+class LlamaSmall29KTokensMoSA(LlamaSmall29KTokens):
+    base_num_query_heads = 4
+    base_num_kv_heads = 4
+    query_chunk_size=512
+    scan_layers = False
+    # mosa config
+    mosa_mode = 'topk'
+    mosa_num_query_heads = 8 # v5p-16: 
+    mosa_num_groups = 8
+    mosa_num_kv_heads = 8 
+    mosa_topk = 256
+    mosa_num_routers = 1
+    mosa_query_chunk_size = None
+    eval_interval = 29000
+
 class LlamaSmall29KTokensDC(DC, LGWindow, LlamaSmall29KTokens):
     scan_layers = False
 
@@ -1473,6 +1730,35 @@ class DreamMiniMediumDebug8(SpeedTest, DreamMini, Llama2Medium):
     static_proj = False
     key_wise = True # v4: 0.456
 
+class DC3MuddLlamaXLGQA4DCG2LGLLKWBS8(Mudd, DC3, LGLLWindow, TrainXL, LlamaXL):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    attention='dot_product_chunk'
+    query_chunk_size = 256
+    per_device_batch_size = 8.0 # v6e-32
+    qk_norm = True
+    seperate_qk_dw_proj = True # generate qw from query-way hidden state
+    dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
+    dc_num_groups = 2
+    key_wise = True 
+    base_num_kv_heads = [32,8,32,32] # L: MHA  G: GQA
+    num_layers_per_block = 1
+    base_mlp_dim = 5504 + 256 # 24*64*2/4/3
+    sharding_tolerance = 0.05
+    loop_over_dynamic_hd = False
+
+class LlamaXLBase(TrainXL, LlamaXL):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    attention='dot_product_chunk'
+    query_chunk_size = 256
+    per_device_batch_size = 8.0 # v6e-32
+
+class DC3MuddLlamaXLGQA4DCG2LGLLVgateBS8(DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
+    use_v_gate = True
+    key_wise = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKDDBS8(DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
+    ablate_kw = True
+
 class LlamaXL6144SpeedTest(SpeedTest, LlamaXL):
     attention='dot_product_chunk'
     query_chunk_size=512
@@ -1527,6 +1813,34 @@ class LlamaXLMoE8in64SNSpeedTestTraceDebug4(Trace, LlamaXLMoE8in64SpeedTest):
 class LlamaXLMoE8in64SNSpeedTestTraceDebug5(Trace, LlamaXLMoE8in64SpeedTest):
     remat_policy = "save_nothing" # shard moe param before and after gmm
     query_chunk_size = None
+
+class LlamaXLMoE8in64SNNoMetrics(Trace, LlamaXLMoE8in64SpeedTest):
+    remat_policy = "save_nothing" # disable all-reduce on params and grads
+    query_chunk_size = None
+
+class LlamaXLMoE8in64L12RwbFusion0v5p16(Trace, LlamaXLMoE8in64SpeedTest): # xla_tpu_rwb_fusion=false
+    base_num_decoder_layers = 12  #todo
+    remat_policy = "save_nothing" 
+
+class LlamaXLMoE8in64L4RwbFusion1(Trace, LlamaXLMoE8in64SpeedTest): # xla_tpu_rwb_fusion=true
+    base_num_decoder_layers = 4 # 20.8G
+    remat_policy = "save_nothing"
+
+class LlamaXLMoE8in64L12RwbFusion1v5p16(Trace, LlamaXLMoE8in64SpeedTest): # xla_tpu_rwb_fusion=true
+    base_num_decoder_layers = 12 #todo
+    remat_policy = "save_nothing"
+
+class LlamaXLMoE8in64L12LhsRerun5(Trace, LlamaXLMoE8in64SpeedTest): # xla_latency_hiding_scheduler_rerun=5
+    base_num_decoder_layers = 12 # todo
+    remat_policy = "save_nothing"
+
+class LlamaXLMoE8in64L12MemSch(Trace, LlamaXLMoE8in64SpeedTest): # xla_memory_scheduler=kBrkga
+    base_num_decoder_layers = 12 # todo
+    remat_policy = "save_nothing"
+
+class LlamaXLMoE8in64L12DisLhs(Trace, LlamaXLMoE8in64SpeedTest): # xla_tpu_enable_latency_hiding_scheduler=false
+    base_num_decoder_layers = 12 # todo
+    remat_policy = "save_nothing"
 
 class LlamaXLOpenMoE8in64SNSpeedTestTraceV5p16(Trace, LlamaXLMoE8in64SpeedTest):
     remat_policy = "save_nothing" # shard moe param before and after gmm
@@ -1838,21 +2152,33 @@ class Llama19BDC2Seq4KBatch1K(Trace, Seq4KBatch1K, Llama19BDC2):
     sharding_tolerance = 0.05
     # compile_topology = 'v5p-256'
     # compile_topology_num_slices=1 
-    compiled_trainstep_file="Llama19BDC2Seq4KBatch1K.pkl"
+    compiled_trainstep_file="Llama19BDC2Seq4KBatch1K.pkl" # 1.8G
 
 class Llama19BMuddSeq4KBatch1K(Trace, Seq4KBatch1K, Llama19BMudd):
     query_chunk_size=512 # v5p-256: 0.051 
     mudd_in_layer = True
-    # compile_topology = 'v5p-256'
+    # compile_topology = 'v5p-256' 
     # compile_topology_num_slices=1 
-    compiled_trainstep_file="Llama19BMuddSeq4KBatch1K.pkl"
+    compiled_trainstep_file="Llama19BMuddSeq4KBatch1K.pkl" # 1 G
 
-class Llama19BDreamSeq4KBatch1K(Seq4KBatch1K, Llama19BDream):
+class Llama19BDreamSeq4KBatch1K(Trace, Seq4KBatch1K, Llama19BDream):
     query_chunk_size=512 # v5p-256: todo    
     mudd_in_layer = True
     compile_topology = 'v5p-256'
-    compile_topology_num_slices=1 
-    compiled_trainstep_file="Llama19BDreamSeq4KBatch1K.pkl"
+    compile_topology_num_slices= 1 
+    num_layers_per_block = 1
+    compiled_trainstep_file = "Llama19BDreamSeq4KBatch1K.pkl"
+    # key_wise = False # 6.56 G
+    # qk_norm = False
+    # seperate_qk_dw_proj = False # generate qw from query-way hidden state
+    # dc_share_prepost_dw_hidden = False # share prepost mlp, likewise mudd
+    # use_dw_bias = False
+    # use_dd_bias = False
+
+# class Llama19BDreamSeq4KBatch1KL2(Llama19BDreamSeq4KBatch1K):
+#     compiled_trainstep_file=""
+#     base_num_decoder_layers = 4
+#     # compile_topology = 'v5p-8'
 
 class Llama19BOpenMoE8in128C1p5Seq4KBatch1K(Seq4KBatch1K, Llama19BOpenMoE8in128):
     expert_capacity_factor = 1.5 # v5p-256: todo 

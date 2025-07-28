@@ -74,9 +74,14 @@ def find_nans_and_infs(pytree):
   return jax.tree_util.tree_flatten(bad_pytree)
 
 
-def l2norm_pytree(x):
+def l2norm_pytree(x, mode='maxtext'):
   """L2 norm of a pytree of arrays."""
-  return jnp.sqrt(jax.tree_util.tree_reduce(lambda x, y: x + jnp.sum(jnp.square(y)), x, initializer=0.0))
+  if mode == 'maxtext':
+    return jnp.sqrt(jax.tree_util.tree_reduce(lambda x, y: x + jnp.sum(jnp.square(y)), x, initializer=0.0))
+  else:
+    grad_norms_squared = jax.tree_map(lambda x: jnp.sum(x * x), x,)
+    grad_norms_squared, _ = jax.tree_util.tree_flatten(grad_norms_squared)
+    return jnp.sqrt(jnp.sum(jnp.stack(grad_norms_squared)))
 
 
 def calculate_num_params_from_pytree(params):

@@ -203,12 +203,13 @@ def calculate_tflops_training_per_device(config, log=True):
   if config.attention_type == "mla":
     qkv_flops, attention_flops, projection_flops = calculate_mla_tflops_per_device(config)
   else:
+    num_kv_heads = config.num_kv_heads[0] if isinstance(config.num_kv_heads, list) else config.num_kv_heads
     qkv_flops = (
         2
         * config.per_device_batch_size
         * config.max_target_length
         * config.emb_dim
-        * (config.num_query_heads + 2 * config.num_kv_heads)
+        * (config.num_query_heads + 2 * num_kv_heads)
         * config.head_dim
     )
     attention_flops = (
@@ -351,6 +352,13 @@ def apply_gradient_clipping(raw_grads, state, clipping_threshold):
 
   return grads
 
+def apply_gradient_clipping_pax(raw_grads, clipping_threshold, grad_norm):
+  grad_scale = jnp.minimum(
+      jnp.array(1, grad_norm.dtype),
+      jnp.array(clipping_threshold, grad_norm.dtype) / grad_norm,
+  )
+  raw_grads = jax.tree_util.tree_map(lambda g: g * grad_scale, raw_grads)
+  return raw_grads
 
 def get_nested_value(dictionary, nested_key, default=None):
   """

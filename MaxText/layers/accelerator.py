@@ -226,7 +226,7 @@ class QChunk(nn.Module):
         return encoded, None
     
     RematBody = jax.checkpoint(body, 
-                               prevent_cse=True if parallel_method == 'vmap' else False, # attn scan prevent cse use False
+                               prevent_cse=False, # attn scan prevent cse use False
                                policy=None) if remat else body
     encoded0, _ = lax.scan(f=RematBody, init=encoded0, xs=jnp.arange(num_steps))
     return encoded0

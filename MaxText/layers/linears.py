@@ -325,8 +325,11 @@ class MoeBlock(nn.Module):
   quant: Optional[Quant] = None
 
   # The first axes is expert
-  wi_kernel_axes = ("exp", "embed_no_exp", "mlp")
-  wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
+  # wi_kernel_axes = ("exp", "embed_no_exp", "mlp")
+  # wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
+
+  wi_kernel_axes = ("embed_no_exp", None, "mlp")
+  wo_kernel_axes = ("embed_no_exp", "mlp", None)
 
   def generate_kernels(self, num_experts, emb_dim, mlp_dim):
 
@@ -472,29 +475,29 @@ class MoeBlock(nn.Module):
         lhs_quantize_dtype = quant_dg.fwd.dg_quantizer.lhs.numerics.get_dtype()
         rhs_quantize_dtype = quant_dg.fwd.dg_quantizer.rhs.numerics.get_dtype()
 
-      m_kn_tile_size = (512, 128) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
-      _m, _kn = m_kn_tile_size
-      def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
-        _tm = _m
-        _tk = _m if k % _m ==0 else _kn
-        _tn = _m if n % _m ==0 else _kn
-        assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
-        return (_tm, _tk, _tn)
+      # m_kn_tile_size = (512, 128) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
+      # _m, _kn = m_kn_tile_size
+      # def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
+      #   _tm = _m
+      #   _tk = _m if k % _m ==0 else _kn
+      #   _tn = _m if n % _m ==0 else _kn
+      #   assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
+      #   return (_tm, _tk, _tn)
 
       if self.config.megablox:
-        # m, k, n = inputs.shape[0], inputs.shape[1], kernel.shape[2]
-        # for kd in [512, 768, 384, 256, 128]:
-        #   if n % kd == 0:
-        #     break
-        # # if too large, will exceed vmem.
-        # tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
-        # print(f'tile_size: {tile_size}')
+        m, k, n = inputs.shape[0], inputs.shape[1], kernel.shape[2]
+        for kd in [512, 768, 384, 256, 128, 64]:
+          if n % kd == 0:
+            break
+        # if too large, will exceed vmem.
+        tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
+        print(f'tile_size: {tile_size}')
         output = mblx.gmm(
             lhs=inputs,
             rhs=kernel,
             group_sizes=group_sizes,
             preferred_element_type=jnp.bfloat16,
-            tiling=tiling_func,
+            tiling=tile_size,
             lhs_quantize_dtype=lhs_quantize_dtype,
             rhs_quantize_dtype=rhs_quantize_dtype,
         )

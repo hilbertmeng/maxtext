@@ -177,7 +177,6 @@ class QChunk(nn.Module):
       pre_proj_layer = None,
       post_proj_layer = None,
       remat = False,
-      parallel_method: str = 'vmap',
   ):
     b, t, n, h = query.shape
     w  = self.query_chunk_size
@@ -223,21 +222,13 @@ class QChunk(nn.Module):
         _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
                                               _pre_proj_dw_args, _post_proj_dw_args,
                                               pre_proj_layer, post_proj_layer)
-        if parallel_method == 'vmap':
-           return _encoded
-        
         encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
         return encoded, None
     
     RematBody = jax.checkpoint(body, 
                                prevent_cse=True if parallel_method == 'vmap' else False, # attn scan prevent cse use False
                                policy=None) if remat else body
-    if parallel_method == 'vmap':
-       # (num_steps, b, t, n, h)
-      encoded0 = jax.vmap(RematBody)(None, jnp.arange(num_steps, dtype=jnp.int32))
-      encoded0 = rearrange(encoded0, 'n B T N H -> B (n T) N H ', n=num_steps)
-    else:
-      encoded0, _ = lax.scan(f=RematBody, init=encoded0, xs=jnp.arange(num_steps))
+    encoded0, _ = lax.scan(f=RematBody, init=encoded0, xs=jnp.arange(num_steps))
     return encoded0
   
   def _attention_with_remat(
@@ -260,15 +251,9 @@ class QChunk(nn.Module):
         encoded = carry
         start, stop = i * w, (i + 1) * w
         kv_start = max(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
-        if not self.config.fix_key_mask_shape:
-          kv_stop = stop
-          _attn_mask = attn_mask[..., kv_start - stop:]
-        else:
-          mask_start = min(i * w, sliding_window_size)
-          mask_stop = min((i+1) * w, w + sliding_window_size)
-          _attn_mask = attn_mask[:, :, mask_start: mask_stop]
-          kv_stop = kv_start + w + sliding_window_size
-
+        kv_stop = stop
+        _attn_mask = attn_mask[..., kv_start - stop:]
+        
         _query = query[:, start : stop]
         _key, _value = key[:, kv_start : kv_stop], value[:, kv_start : kv_stop]
 
@@ -317,30 +302,25 @@ class QChunk(nn.Module):
     
     self.check_attention_inputs(query, key, value)
 
-    b, t, _, _ = query.shape
+    b, t, n, h = query.shape
     print(f'eos_sum: {eos_sum}')
     sliding_window_size = t if self.sliding_window_size is None else min(t, self.sliding_window_size)
-    if self.config.fix_key_mask_shape:
-      attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-      assert eos_sum is None and not self.config.mix_attn # not attn scan don't support mix_attn
+    if eos_sum is None:
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
     else:
-      if eos_sum is None:
+      if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+        attn_mask = attn_mask[:, jnp.newaxis]
       else:
-        if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
-          attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-          attn_mask = attn_mask[:, jnp.newaxis]
-        else:
-          attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype, squeeze=True)
-          attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
-          large_negative_number = get_large_negative_number(attn_mask.dtype)
-          eos_sum_mask = large_negative_number * eos_sum
-          attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
-          attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
-          attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype, squeeze=True)
+        attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
+        large_negative_number = get_large_negative_number(attn_mask.dtype)
+        eos_sum_mask = large_negative_number * eos_sum
+        attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
+        attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
+        attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
 
     if self.query_chunk_size is None:
-      assert not self.config.fix_key_mask_shape
       encoded = self._apply_attention_dot(
               query, key, value, attn_mask,  
               pre_proj_dw_args=pre_proj_dw_args, 
@@ -348,24 +328,40 @@ class QChunk(nn.Module):
               )
     else:
       args = (query, key, value, attn_mask, sliding_window_size, pre_proj_dw_args, post_proj_dw_args, pre_proj_layer, post_proj_layer)
-      if self.config.query_chunk_method == 'scan': # need huge hbm, only support fix key mask
-        assert self.config.fix_key_mask_shape
-        encoded = self._attention_with_parallel(*args, remat=False, parallel_method='scan')
-      elif self.config.query_chunk_method == 'remat_scan':
-        assert self.config.fix_key_mask_shape
-        encoded = self._attention_with_parallel(*args, remat=True, parallel_method='scan')
       # best branch
-      elif self.config.query_chunk_method == 'remat': # support fix/dynamic key mask
+      if self.config.query_chunk_method == 'remat': # support fix/dynamic key mask
         print(f'query_chunk_method: remat...')
         if sliding_window_size == t:
           encoded = self._attention_with_remat(*args, remat=True)
         else:
           attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-          encoded = self._attention_with_parallel(*args, remat=True, parallel_method='fori') # fori remat=True more quick than fori remat=False?
-      elif self.config.query_chunk_method == 'vmap':
-        encoded = self._attention_with_parallel(*args, parallel_method='vmap')
-      elif self.config.query_chunk_method == 'remat_vmap':
-        encoded = self._attention_with_parallel(*args,  remat=True, parallel_method='vmap')
+          encoded = self._attention_with_parallel(*args, remat=True) # fori remat=True more quick than fori remat=False?
       else:                                           # support fix/dynamic key mask
-        encoded = self._attention_with_remat(*args, remat=False)
+        max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')
+        w = self.query_chunk_size
+        assert t % w == 0, f'{t} % {w} != 0'
+        encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
+        for i in range(t // w):
+            start, stop = i * w, (i + 1) * w
+            kv_start = max(0, stop - w - self.sliding_window_size) if self.sliding_window_size is not None else 0
+            _query = query[:, start : stop]
+            _key, _value = key[:, kv_start : stop], value[:, kv_start : stop]
+            _attn_mask = attn_mask[..., -_key.shape[1]:]
+            def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+                return (qw1[:, start : stop] if qw1 is not None else None,
+                    qw2[:, start : stop] if qw2 is not None else None,
+                    kw1[:, kv_start : stop] if kw1 is not None else None,
+                    kw2[:, kv_start : stop] if kw2 is not None else None,
+                    qdd[:, start : stop] if qdd is not None else None,
+                    kdd[:, kv_start : stop] if kdd is not None else None)
+            
+            _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_dw(*pre_proj_dw_args)
+            _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
+            _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
+                                                _pre_proj_dw_args, _post_proj_dw_args,
+                                                pre_proj_layer, post_proj_layer)
+            encoded = encoded.at[:, start : stop].set(_encoded)
     return encoded, None, None
+  
+
+      

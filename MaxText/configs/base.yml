@@ -651,7 +651,6 @@ mix_attn: False
 eval_loop_num_batches: 100
 fix_key_mask_shape: False
 query_chunk_method: ''
-balanced_attn: False
 mudd_compose_method: 'sdsa'
 permute_new: False
 clipping: 'global'

@@ -284,7 +284,7 @@ class QChunk(nn.Module):
       encoded0, _ = lax.scan(f=RematBody, init=encoded0, xs=jnp.arange(num_steps))
     return encoded0
 
-  def _attention_with_remat(
+  def _attention_for_remat(
       self,
       query, key, value, attn_mask,
       sliding_window_size: int | None,
@@ -295,39 +295,18 @@ class QChunk(nn.Module):
       remat: bool = False
   ):
     b, t, n, h = query.shape
-    
-    if self.config.balanced_attn:
-      w = self.config.local_chunk_sizes if sliding_window_size < t else self.config.global_chunk_sizes 
-      num_steps = len(w) - 1
-      assert w[0] == 0 and w[-1] == t
-    else:
-      w  = self.query_chunk_size
-      assert t % w == 0, f"{t} % {w} != 0"
-      num_steps = t // w
-      
+    w  = self.query_chunk_size
+    assert t % w == 0, f"{t} % {w} != 0"
+    num_steps = t // w
     print(f'sliding_window_size: {sliding_window_size} query_chunk_sizes: {w}')
     # encoded0传入chunk_attn比append再cat更省1G显存
     encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
     def chunk_attn(i, carry):
         encoded = carry
-        if self.config.balanced_attn:
-          start, stop = w[i], w[i + 1]
-        else:
-          start, stop = i * w, (i + 1) * w
-
+        start, stop = i * w, (i + 1) * w
         kv_start = max(0, start - sliding_window_size) if sliding_window_size < t else 0
-        if not self.config.fix_key_mask_shape:
-          kv_stop = stop
-          if attn_mask is None:
-            _attn_mask = comoute_dynamic_attn_mask(self.config.global_chunk_sizes, i+1)
-          else:
-            _attn_mask = attn_mask[..., kv_start - stop:]
-        else:
-          mask_start = min(i * w, sliding_window_size)
-          mask_stop = min((i+1) * w, w + sliding_window_size)
-          _attn_mask = attn_mask[:, :, mask_start: mask_stop]
-          kv_stop = kv_start + w + sliding_window_size
-
+        kv_stop = stop
+        _attn_mask = attn_mask[..., kv_start - stop:]
         _query = query[:, start : stop]
         _key, _value = key[:, kv_start : kv_stop], value[:, kv_start : kv_stop]
 
@@ -384,14 +363,7 @@ class QChunk(nn.Module):
       assert eos_sum is None and not self.config.mix_attn # not attn scan don't support mix_attn
     else:
       if eos_sum is None:
-        if self.config.balanced_attn:
-          if sliding_window_size == t:
-            attn_mask = None
-          else:
-            q = self.config.local_chunk_sizes[1]
-            attn_mask = _compute_slide_attn_mask(q, sliding_window_size, t, query.dtype)
-        else:
-            attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
       else:
         if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
           attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
@@ -415,13 +387,12 @@ class QChunk(nn.Module):
     else:
       args = (query, key, value, attn_mask, sliding_window_size, pre_proj_dw_args, post_proj_dw_args, pre_proj_layer, post_proj_layer)
       # best branch
-      if self.config.query_chunk_method == 'remat': # support fix/dynamic key mask
+      if self.config.query_chunk_method == 'parallel_remat':
         if sliding_window_size == t:
           encoded = self._attention_with_remat(*args, remat=True)
         else:
           attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-          # parallel_method: fori, vmap, scan
-          encoded = self._attention_with_parallel(*args, remat=True, parallel_method='fori') # fori remat=True more quick than fori remat=False?
-      else:                                           # support fix/dynamic key mask
-        encoded = self._attention_with_remat(*args, remat=False)
+          encoded = self._attention_parallel_remat(*args, remat=True, parallel_method='fori')
+      else:
+        encoded = self._attention_for_remat(*args, remat=False)
     return encoded, None, None

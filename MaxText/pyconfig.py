@@ -953,20 +953,6 @@ def cls_attr2dict(cls):
   return d
 
 
-def adjust_query_chunk_size(raw_keys):
-    if not raw_keys['balanced_attn']:
-      return
-    query_chunk_size = raw_keys['query_chunk_size']
-    max_target_length = raw_keys['max_target_length']
-    g_chunk_size = max_utils.build_query_chunks(q_len=max_target_length, query_chunk_size=query_chunk_size)
-    raw_keys['global_chunk_sizes'] = g_chunk_size # list
-    scale = 1
-    query_chunk_size *= scale
-    print(f'query_chunk_size: {query_chunk_size} max_target_length: {max_target_length}')
-    raw_keys['local_chunk_sizes'] = list(range(0, max_target_length + 10, query_chunk_size)) # list
-    print(f'local_chunk_sizes: {raw_keys["local_chunk_sizes"]}')
-    print(f'global_chunk_sizes: {raw_keys["global_chunk_sizes"]}')
-
 def _update_exp_config(cmd_vars, raw_keys):
   max_logging.log(f"\n\nUpdated exp model vars:")
   import exp
@@ -986,8 +972,6 @@ def _update_exp_config(cmd_vars, raw_keys):
 
   if raw_keys['scan_layers'] and raw_keys['insert_moe_indexes'] and raw_keys['num_experts'] > 1:
     assert len(raw_keys['insert_moe_indexes']) >= raw_keys['base_num_decoder_layers']
-
-  adjust_query_chunk_size(raw_keys)
 
 
 if __name__ == "__main__":

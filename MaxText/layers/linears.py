@@ -405,72 +405,6 @@ class MoeBlock(nn.Module):
     weights /= weights.sum(-1, keepdims=True)
     weights *= self.config.routed_scaling_factor
     return weights
-
-  def permute_new(self, inputs, gate_logits):
-    """Permute tokens to group by expert to fit gmm call."""
-
-    inputs_shape = inputs.shape
-    inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
-    weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
-    if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
-      print(f'Enter permute sigmoid function......')
-      weights = self.deepseek_scale_weights(weights)
-    else:
-      weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
-
-    flatten_selected_experts = jnp.ravel(selected_experts)
-    
-    # 这个 sorted_selected_experts 是置换索引，它将把 flatten_selected_experts 排序
-    # 我们需要的是应用这个置换后的 token 的原始索引
-    permutation_indices = jnp.argsort(flatten_selected_experts)
-
-    # `original_token_indices` 告诉我们排好序的token（在0, 1, ..., B*S*k-1的位置上）
-    # 它们分别来自哪个原始token（在0, 1, ..., B*S-1的位置上）
-    # 这正是 segment_sum 所需的 segment_ids
-    original_token_indices = permutation_indices // self.num_experts_per_tok
-
-    # 使用 permutation_indices 来对输入进行排序
-    sorted_inputs = jnp.take(inputs_2d, indices=original_token_indices, axis=0).astype(self.dtype)
-    
-    print(f'inputs_2d: {inputs_2d.shape} original_token_indices: {original_token_indices.shape} sorted_inputs: {sorted_inputs.shape}')
-
-    group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
-    
-    # *** 修改: 返回 original_token_indices 和 permutation_indices ***
-    # 我们将用 permutation_indices 来对权重进行排序
-    return sorted_inputs, permutation_indices, original_token_indices, weights, group_size
-
-  
-  def unpermute_new(self, intermediate, permutation_indices, original_token_indices, weights, batch_size, sequence_length):
-    """Unpermute tokens using segment_sum to avoid slow backward pass."""
-    
-    # 1. 将权重展平，使其与 intermediate 中的token一一对应
-    # weights: (batch*seq, k) -> flat_weights: (batch*seq*k,)
-    flat_weights = jnp.ravel(weights)
-
-    # 2. 使用与输入token相同的置换，对权重进行排序
-    # 这样，排好序的权重就与排好序的专家输出 (intermediate) 对齐了
-    # permuted_flat_weights[i] 是 intermediate[i] 对应的权重
-    permuted_flat_weights = jnp.take(flat_weights, indices=permutation_indices, axis=0) # gather
-
-    # 3. 将专家输出乘以其对应的权重
-    # intermediate: (batch*seq*k, emb_dim)
-    # permuted_flat_weights[:, None]: (batch*seq*k, 1)
-    weighted_intermediate = intermediate.astype(jnp.float32) * permuted_flat_weights[:, None].astype(jnp.float32)
-    
-    # 4. 使用 segment_sum 将加权后的输出加回到它们原始token的位置
-    # data: a (N, dim) array of values to be summed.
-    # segment_ids: an (N,) array of integers indicating which segment each row of data belongs to.
-    # num_segments: the total number of segments (i.e., total number of original tokens).
-    num_original_tokens = batch_size * sequence_length
-    combined_output = jax.ops.segment_sum(
-        data=weighted_intermediate,
-        segment_ids=original_token_indices,
-        num_segments=num_original_tokens
-    )
-
-    # 5. Reshape回原始的3D形状
-    return combined_output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
   
   def permute(self, inputs, gate_logits):
     """Permute tokens to group by expert to fit gmm call."""
@@ -602,6 +536,7 @@ class MoeBlock(nn.Module):
             lhs_quantize_dtype=lhs_quantize_dtype,
             rhs_quantize_dtype=rhs_quantize_dtype,
         )
+        print(f'output: {output.shape} inputs: {inputs.shape} kernel: {kernel.shape}')
       else:
         if self.quant is not None:
           raise NotImplementedError("Quantization is not yet supported with ragged_dot, please set" " megablox=True")
@@ -618,15 +553,12 @@ class MoeBlock(nn.Module):
     # Currently, we only support data and tensor parallelism with Megablox.
     # We all gather the input activations over tensor parallelism to follow strategy
     # in https://parsa.epfl.ch/course-info/cs723/papers/Megatron.pdf.
-    input_partition_spec = nn.logical_to_mesh_axes((None, None, None))
+    input_partition_spec = nn.logical_to_mesh_axes(('activation_batch', None, None))
     gate_logits_pspec = nn.logical_to_mesh_axes(("activation_batch", None, None))
+
     w0_pspec = nn.logical_to_mesh_axes((None, None, "mlp"))
     w1_pspec = nn.logical_to_mesh_axes((None, None, "mlp"))
     wo_pspec = nn.logical_to_mesh_axes((None, "mlp", None))
-
-    # w0_pspec = nn.logical_to_mesh_axes(('embed_no_exp', None, "mlp"))
-    # w1_pspec = nn.logical_to_mesh_axes(('embed_no_exp', None, "mlp"))
-    # wo_pspec = nn.logical_to_mesh_axes(('embed_no_exp', "mlp", None))
 
     if isinstance(w0_kernel, QTensor):
       w0_pspec = aqt_tensor.partition_spec(w0_pspec, (1,), w0_kernel.dtype, use_bias=False)
@@ -644,10 +576,7 @@ class MoeBlock(nn.Module):
     )
     def wrapper(x, logits, w0, w1, wo):
       batch_size, sequence_length, _ = x.shape
-      if self.config.permute_new:
-        x, permutation_indices, original_token_indices, weights, group_sizes = self.permute_new(x, logits)
-      else:
-        x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
+      x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
       layer_w0 = gmm(x, w0, group_sizes)
       layer_w0 = checkpoint_name(layer_w0, "mlpwi_0")
 
@@ -662,17 +591,8 @@ class MoeBlock(nn.Module):
       tensor_parallelism = self.config.ici_tensor_parallelism * self.config.dcn_tensor_parallelism
       if tensor_parallelism > 1:
         intermediate_output = jax.lax.psum_scatter(intermediate_output, "tensor", scatter_dimension=1, tiled=True)
-      if self.config.permute_new:
-        output = self.unpermute_new(
-            intermediate_output, 
-            permutation_indices,
-            original_token_indices,
-            weights, 
-            batch_size=batch_size, 
-            sequence_length=sequence_length
-        )
-      else:
-        output = self.unpermute(
+     
+      output = self.unpermute(
           intermediate_output, sorted_selected_experts, weights, batch_size=batch_size, sequence_length=sequence_length
       )
       return output, None

@@ -92,8 +92,8 @@ def make_fix_mask(qcs: int, sws: int, seq_length: int, dtype=jnp.bfloat16):
   col = jnp.arange(n)[None, :]     # (1,n)
   upper_right = col > row
   in_bottom_left_block = (row >= sws) & (col < qcs)
-  lower_left_of_block   = (row - sws) >= col       # 使其成为该区块的左下三角
-  bottom_left_tri       = in_bottom_left_block & lower_left_of_block
+  lower_left_of_block = (row - sws) >= col       # 使其成为该区块的左下三角
+  bottom_left_tri = in_bottom_left_block & lower_left_of_block
   mask_bool = upper_right | bottom_left_tri
   m = jnp.where(mask_bool, NEG_INF, 0.).astype(dtype)
   return m[None, None, :seq_length, : seq_length]
@@ -197,7 +197,7 @@ class QChunk(nn.Module):
     output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
     return output
 
-  def _attention_with_parallel(
+  def _attention_parallel_remat(
       self,
       query, key, value, attn_mask,
       sliding_window_size: int | None,
@@ -213,12 +213,6 @@ class QChunk(nn.Module):
     assert t % w == 0, f"{t} % {w} != 0"
     num_steps = t // w
     window_len = w + sliding_window_size if sliding_window_size < t else t
-
-    if pre_proj_dw_args is not None:
-      qw1, qw2, kw1, kw2, qdd, kdd = pre_proj_dw_args
-
-    if post_proj_dw_args is not None:
-      pqw1, pqw2, pkw1, pkw2, pqdd, pkdd = post_proj_dw_args
 
     def body(*args):
       if parallel_method == 'fori':
@@ -239,22 +233,26 @@ class QChunk(nn.Module):
           return None if tensor is None else lax.dynamic_slice_in_dim(tensor, s, length, axis=1)
 
       _pre_proj_dw_args, _post_proj_dw_args = None, None
-      _pre_proj_dw_args = (
-              _safe_slice(qw1, start,     w),
-              _safe_slice(qw2, start,     w),
-              _safe_slice(kw1, kv_start,  window_len),
-              _safe_slice(kw2, kv_start,  window_len),
-              _safe_slice(qdd, start,     w),
-              _safe_slice(kdd, kv_start,  window_len),
-          )
-      _post_proj_dw_args = (
-              _safe_slice(pqw1, start,     w),
-              _safe_slice(pqw2, start,     w),
-              _safe_slice(pkw1, kv_start,  window_len),
-              _safe_slice(pkw2, kv_start,  window_len),
-              _safe_slice(pqdd, start,     w),
-              _safe_slice(pkdd, kv_start,  window_len),
-          )
+      if pre_proj_dw_args is not None:
+            qw1, qw2, kw1, kw2, qdd, kdd = pre_proj_dw_args
+            _pre_proj_dw_args = (
+                _safe_slice(qw1, start,     w),
+                _safe_slice(qw2, start,     w),
+                _safe_slice(kw1, kv_start,  window_len),
+                _safe_slice(kw2, kv_start,  window_len),
+                _safe_slice(qdd, start,     w),
+                _safe_slice(kdd, kv_start,  window_len),
+            )
+      if post_proj_dw_args is not None:
+            qw1, qw2, kw1, kw2, qdd, kdd = post_proj_dw_args
+            _post_proj_dw_args = (
+                _safe_slice(qw1, start,     w),
+                _safe_slice(qw2, start,     w),
+                _safe_slice(kw1, kv_start,  window_len),
+                _safe_slice(kw2, kv_start,  window_len),
+                _safe_slice(qdd, start,     w),
+                _safe_slice(kdd, kv_start,  window_len),
+            )
       _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
                                             _pre_proj_dw_args, _post_proj_dw_args,
                                             pre_proj_layer, post_proj_layer)
@@ -348,17 +346,20 @@ class QChunk(nn.Module):
     post_proj_layer = None,
 ):
     def update_mask(v, atten_mask):
-      # 当设置Windows大于8192时，自动根据数据中的eos数量，来决定Windows是否重置为4096
-      offset = 1 - 8192 - self.query_chunk_size
+      # 当设置Windows大于4096时，自动根据数据中的eos数量，来决定Windows是否重置为4096
+      offset = 1 - 4096 - self.query_chunk_size
       atten_mask = atten_mask.at[..., :offset].set(v)
       return atten_mask
     
     self.check_attention_inputs(query, key, value)
 
-    b, t, _, _ = query.shape
+    b, t, n, h = query.shape
     sliding_window_size = t if self.sliding_window_size is None else min(t, self.sliding_window_size)
     if eos_sum is None:
-      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+      if 'parallel' in self.config.query_chunk_method and sliding_window_size < t:
+        attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+      else:
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
     else:
       if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
@@ -373,20 +374,20 @@ class QChunk(nn.Module):
         attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
 
     if self.query_chunk_size is None:
+      print(f'query_chunk_size is None')
       encoded = self._apply_attention_dot(
-              query, key, value, attn_mask,  
-              pre_proj_dw_args=pre_proj_dw_args, 
-              post_proj_dw_args=post_proj_dw_args, 
-              )
+                                      query, key, value, attn_mask,  
+                                      pre_proj_dw_args=pre_proj_dw_args, 
+                                      post_proj_dw_args=post_proj_dw_args, 
+                                      )
     else:
       args = (query, key, value, attn_mask, sliding_window_size, pre_proj_dw_args, post_proj_dw_args, pre_proj_layer, post_proj_layer)
-      # best branch
-      if self.config.query_chunk_method == 'parallel_remat':
-        if sliding_window_size == t:
-          encoded = self._attention_with_remat(*args, remat=True)
-        else:
-          attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-          encoded = self._attention_parallel_remat(*args, remat=True, parallel_method='fori')
+      remat = True if 'remat' in self.config.query_chunk_method else False
+      print(f'query_chunk_method: {self.config.query_chunk_method} t: {t}')
+      if 'parallel' in self.config.query_chunk_method and sliding_window_size < t:
+        print(f'Local Attn Parallel.... remat is {remat} sliding_window_size: {sliding_window_size}')
+        encoded = self._attention_parallel_remat(*args, remat=remat, parallel_method='scan')
       else:
-        encoded = self._attention_for_remat(*args, remat=False)
+        print(f'Global|Local Attn.... remat is {remat} sliding_window_size: {sliding_window_size}')
+        encoded = self._attention_for_remat(*args, remat=remat)
     return encoded, None, None

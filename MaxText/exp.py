@@ -496,10 +496,12 @@ class Llama19BMoE2in32(DroplessMoe, Llama19B, Llama2MediumOpenMoe):
     num_experts_per_tok = 2
     num_experts = 32
     vocab_size = 151936
-    per_device_batch_size = 8.0  # v5p-256
+    per_device_batch_size = 2.0  # v5p-256
     query_chunk_size=512 # v5p-256: todo    
     max_target_length = 4096
     routed_score_func = 'sigmoid'
+    sliding_window_size = [256, None, 256, 256] * 2
+
 
 class Llama19BMoE2in32Compile(Llama19BMoE2in32):
     compile_topology = 'v5p-256'
@@ -507,12 +509,13 @@ class Llama19BMoE2in32Compile(Llama19BMoE2in32):
     compiled_trainstep_file="Llama19BMoE2in32Compile.pkl2"
 
 
-class DCMuddLlama19BMoE2in32(DroplessMoe, DCMuddLlama19BCompile):
+class DCMuddLlama19BMoE2in32(LGLLWindow, DroplessMoe, DCMuddLlama19B):
     base_mlp_dim = 1536 * 4
     num_experts_per_tok = 2
     num_experts = 32
-    per_device_batch_size = 8.0  # v5p-256
+    per_device_batch_size = 2.0  # v5p-256
     query_chunk_size=256 # v5p-256: todo    
     max_target_length = 4096
+    sliding_window_size = [256, None, 256, 256] * 2
 
     

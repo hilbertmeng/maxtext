@@ -501,7 +501,7 @@ class Llama19BMoE2in32(DroplessMoe, Llama19B, Llama2MediumOpenMoe):
     max_target_length = 4096
     routed_score_func = 'sigmoid'
     sliding_window_size = [256, None, 256, 256] * 2
-
+    m_kn_tile_size = (1024, 512)
 
 class Llama19BMoE2in32Compile(Llama19BMoE2in32):
     compile_topology = 'v5p-256'

@@ -489,7 +489,6 @@ class MoeBlock(nn.Module):
       router_z_loss = self.config.router_z_loss_coef * router_z_loss.mean()
       aux_loss += router_z_loss
 
-    # @jax.checkpoint
     def gmm(inputs, kernel, group_sizes):
       hs_shape = inputs.shape
       # pad length is the 1st dimension of tiling size in gmm call
@@ -508,35 +507,32 @@ class MoeBlock(nn.Module):
         lhs_quantize_dtype = quant_dg.fwd.dg_quantizer.lhs.numerics.get_dtype()
         rhs_quantize_dtype = quant_dg.fwd.dg_quantizer.rhs.numerics.get_dtype()
 
-      # m_kn_tile_size = (512, 128) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
-      # _m, _kn = m_kn_tile_size
-      # def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
-      #   _tm = _m
-      #   _tk = _m if k % _m ==0 else _kn
-      #   _tn = _m if n % _m ==0 else _kn
-      #   assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
-      #   return (_tm, _tk, _tn)
-      # # 最后传这个func进去
-      #   # tiling=tiling_func,
+      m_kn_tile_size = (512, 512) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
+      _m, _kn = m_kn_tile_size
+      def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
+        _tm = _m
+        _tk = _m if k % _m ==0 else _kn
+        _tn = _m if n % _m ==0 else _kn
+        assert m % _tm == 0 and k % _tk == 0 and n % _tn == 0, f"m:{m}, k:{k}, n:{n}"
+        return (_tm, _tk, _tn)
 
       if self.config.megablox:
-        m, k, n = inputs.shape[0], inputs.shape[1], kernel.shape[2]
-        for kd in [512, 768, 384, 256, 128]:
-          if n % kd == 0:
-            break
-        # if too large, will exceed vmem.
-        tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
-        print(f'tile_size: {tile_size} mkn: {[m, k, n]}')
+        # m, k, n = inputs.shape[0], inputs.shape[1], kernel.shape[2]
+        # for kd in [512, 768, 384, 256, 128]:
+        #   if n % kd == 0:
+        #     break
+        # # if too large, will exceed vmem.
+        # tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
+        # print(f'tile_size: {tile_size} mkn: {[m, k, n]}')
         output = mblx.gmm(
             lhs=inputs,
             rhs=kernel,
             group_sizes=group_sizes,
             preferred_element_type=jnp.bfloat16,
-            tiling=tile_size,
+            tiling=tiling_func,
             lhs_quantize_dtype=lhs_quantize_dtype,
             rhs_quantize_dtype=rhs_quantize_dtype,
         )
-        print(f'output: {output.shape} inputs: {inputs.shape} kernel: {kernel.shape}')
       else:
         if self.quant is not None:
           raise NotImplementedError("Quantization is not yet supported with ragged_dot, please set" " megablox=True")

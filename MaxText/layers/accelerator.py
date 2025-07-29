@@ -208,7 +208,6 @@ class QChunk(nn.Module):
       remat = False,
       parallel_method: str = 'fori',
   ):
-    # assert self.config.fix_key_mask_shape
     b, t, n, h = query.shape
     w  = self.query_chunk_size
     assert t % w == 0, f"{t} % {w} != 0"
@@ -358,27 +357,22 @@ class QChunk(nn.Module):
 
     b, t, _, _ = query.shape
     sliding_window_size = t if self.sliding_window_size is None else min(t, self.sliding_window_size)
-    if self.config.fix_key_mask_shape:
-      attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-      assert eos_sum is None and not self.config.mix_attn # not attn scan don't support mix_attn
+    if eos_sum is None:
+      attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
     else:
-      if eos_sum is None:
+      if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+        attn_mask = attn_mask[:, jnp.newaxis]
       else:
-        if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
-          attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-          attn_mask = attn_mask[:, jnp.newaxis]
-        else:
-          attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype, squeeze=True)
-          attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
-          large_negative_number = get_large_negative_number(attn_mask.dtype)
-          eos_sum_mask = large_negative_number * eos_sum
-          attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
-          attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
-          attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
+        attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype, squeeze=True)
+        attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
+        large_negative_number = get_large_negative_number(attn_mask.dtype)
+        eos_sum_mask = large_negative_number * eos_sum
+        attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
+        attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
+        attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
 
     if self.query_chunk_size is None:
-      assert not self.config.fix_key_mask_shape
       encoded = self._apply_attention_dot(
               query, key, value, attn_mask,  
               pre_proj_dw_args=pre_proj_dw_args, 

@@ -193,6 +193,16 @@ class DCLlama2Medium(DC, LGWindow, Llama2Medium):
     model_name = 'DCLlama2Medium'
     scan_layers = False
 
+class DCLlama2MediumMJTest(DCLlama2Medium):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    enable_checkpointing = False
+    record_internal_nn_metrics = False    
+    base_num_decoder_layers = 2 
+    num_layers_per_block = 1
+    scan_layers = False
+    #profiler = 'xplane' # uncomment it when profiling
+
+
 class DCMuddLlama2Medium(Mudd, DCLlama2Medium):
     model_name = 'DCMuddLlama2Medium'
 

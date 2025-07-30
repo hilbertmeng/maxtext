@@ -280,6 +280,9 @@ class QChunk(nn.Module):
     for i in range(num_steps):
        encoded0 = RematChunkAttn(i, encoded0)
     return encoded0
+  
+
+  
 
   @nn.compact
   def __call__(
@@ -320,6 +323,9 @@ class QChunk(nn.Module):
         attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
         attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
 
+
+
+  #provide chunk function -> provide q, k, v and parameters in chunk
     if self.query_chunk_size is None:
       encoded = self._apply_attention_dot(
               query, key, value, attn_mask,  
@@ -361,6 +367,12 @@ class QChunk(nn.Module):
                                                 _pre_proj_dw_args, _post_proj_dw_args,
                                                 pre_proj_layer, post_proj_layer)
             encoded = encoded.at[:, start : stop].set(_encoded)
+    
+    
+    
+    
+    
+    
     return encoded, None, None
   
 

@@ -404,7 +404,7 @@ def flash_attention_chunk(self,
     pre_qw2_chunk = lax.dynamic_slice(pre_qw2, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, chunk_sizes, I_dim, num_heads))
     pre_qdd_chunk = lax.dynamic_slice(pre_qdd, (0, chunk_idx, 0), slice_sizes = (batch_size, chunk_sizes, num_heads))
 
-    return (chunk_idx + chunk_sizes, query_chunk_pre_helper(chunk_idx, q_chunk, key, value, pre_qw1_chunk, pre_qw2_chunk, pre_qdd_chunk,
+    return (chunk_idx + chunk_sizes, query_chunk_pre_helper(self, chunk_idx, q_chunk, key, value, pre_qw1_chunk, pre_qw2_chunk, pre_qdd_chunk,
                                                         pre_kw1, pre_kw2,pre_kdd, pre_proj_layer,chunk_sizes, attn_mask, seq_len_t))
     
   def chunk_scanner_post(chunk_idx, _):
@@ -413,7 +413,7 @@ def flash_attention_chunk(self,
     post_qw2_chunk = lax.dynamic_slice(post_qw2, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, chunk_sizes, I_dim, num_heads))
     post_qdd_chunk = lax.dynamic_slice(post_qdd, (0, chunk_idx, 0), slice_sizes = (batch_size, chunk_sizes, num_heads))
     
-    return (chunk_idx + chunk_sizes, query_chunk_post_helper(chunk_idx, seq_len_t, key, value, post_qw1_chunk, post_qw2_chunk, post_qdd_chunk,
+    return (chunk_idx + chunk_sizes, query_chunk_post_helper(self, chunk_idx, seq_len_t, key, value, post_qw1_chunk, post_qw2_chunk, post_qdd_chunk,
                             post_kw1, post_kw2, post_kdd, post_proj_layer, attn_mask))
   
   
@@ -470,7 +470,7 @@ def query_chunk_pre_helper(self, chunk_idx, q_chunk, k, v, pre_qw1_chunk, pre_qw
           
           
       
-def query_chunk_post_helper(chunk_idx, q_len, k, v, post_qw1_chunk, post_qw2_chunk, post_qdd_chunk,
+def query_chunk_post_helper(self, chunk_idx, q_len, k, v, post_qw1_chunk, post_qw2_chunk, post_qdd_chunk,
                             post_kw1, post_kw2, post_kdd, post_proj_layer, attn_mask, probs):
 
     batch_size, seq_len_k, num_heads, v_dim = k.shape

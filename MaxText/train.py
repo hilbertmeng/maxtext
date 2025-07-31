@@ -649,6 +649,10 @@ def compute_params_norm(params, config): # lsp
       scalar_vales[newk] = jnp.sqrt(jnp.sum(jnp.square(v)))
   return scalar_vales
 
+
+from jax.experimental import shard_map
+mesh = None
+
 def train_step(model, teacher_model, config, state_mesh_shardings, state, data, dropout_rng):
   """
 
@@ -739,28 +743,37 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
   distill_loss = aux["distill_loss"]
   teacher_loss = aux["teacher_loss"]
   print(f'cliping: {config.clipping}......')
-  if config.gradient_clipping_threshold > 0:
-    if config.clipping == 'local': # unused
-      grads = maxtext_utils.apply_gradient_block_clipping(raw_grads, state, config.gradient_clipping_threshold)
-    elif config.clipping == 'global':
-      grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
-    elif config.clipping == 'tree_norm': # unused
-      # tree struct, 先聚合 L2 norm，然后 clip：# unused
-      grads = maxtext_utils.clip_by_global_norm(raw_grads, config.gradient_clipping_threshold)
-    elif config.clipping == 'linalg_norm': # unused
-      grads = maxtext_utils.clip_grads_linalg_norm(raw_grads, config.gradient_clipping_threshold)
-    else:
-      ValueError(f'Unknow cliping: {config.clipping}')
-  else:
-    grads = raw_grads
-  if config.optimizer_memory_host_offload:
-    state = state.replace(
-        opt_state=jax.device_put(
-            state.opt_state,
-            jax.tree_util.tree_map(lambda x: x.with_memory_kind(kind="device"), state_mesh_shardings.opt_state),
-        )
-    )
-  new_state = state.apply_gradients(grads=grads)
+  print(f'mesh: {mesh}')
+
+  
+  # input_partition_spec = state_mesh_shardings.params
+  input_partition_spec = jax.tree_util.tree_map(
+    lambda s: s.spec, state_mesh_shardings.params
+)
+  @functools.partial(
+    shard_map.shard_map,
+    mesh=mesh,
+    in_specs=(input_partition_spec, ),
+    out_specs=(input_partition_spec),
+    check_rep=False,
+  )
+  def clip(rgrads):
+    print(f'rgrads:')
+    for k, v in flatten_dict(rgrads).items():
+      jk = '/'.join(k)
+      print(jk, v.shape)
+    grads = maxtext_utils.clip_by_global_norm_sharded(rgrads, None, config.gradient_clipping_threshold)
+    return grads
+  print(f'raw_grads:')
+  for k, v in flatten_dict(raw_grads).items():
+    jk = '/'.join(k)
+    print(jk, v.shape)
+  cliped_grads = clip(raw_grads)
+  print(f'cliped_grads:')
+  for k, v in flatten_dict(cliped_grads).items():
+    jk = '/'.join(k)
+    print(jk, v.shape)
+  new_state = state.apply_gradients(grads=cliped_grads)
 
   scalar_metrics = {
       "learning/loss": (loss - moe_lb_loss - distill_loss * distill_alpha) / (1 - distill_alpha), # lsp: remove moe_lb_loss, distill_loss
@@ -775,7 +788,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
   scalar_metrics.update(params_scalar_values)
 
   if not config.optimizer_memory_host_offload:
-    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
+    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(cliped_grads)
     scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
   if config.use_dpo:
@@ -885,6 +898,7 @@ def setup_mesh_and_model(config, teacher_config=None):
 
   # Mesh definition
   devices_array = max_utils.create_device_mesh(config)
+  global mesh
   mesh = Mesh(devices_array, config.mesh_axes)
 
   # Model and Optimizer definition

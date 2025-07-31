@@ -363,6 +363,7 @@ def apply_gradient_block_clipping(raw_grads, state, clipping_threshold):
 
   return grads
 
+from flax.traverse_util import flatten_dict, unflatten_dict
 
 def pax_apply_gradient_clipping(raw_grads, state, clipping_threshold):
   def scale_gradient(grad):
@@ -393,7 +394,17 @@ def clip_by_global_norm_sharded(grads, state, max_norm):
     scale = jnp.minimum(1.0, max_norm / (global_norm + 1e-6))
 
     # 4. 缩放梯度（按shard）
+    print(f'grads00:')
+    for k, v in flatten_dict(grads).items():
+      jk = '/'.join(k)
+      print(jk, v.shape)
+
     grads = jax.tree_util.tree_map(lambda g: g * scale, grads)
+
+    print(f'grads11:')
+    for k, v in flatten_dict(grads).items():
+      jk = '/'.join(k)
+      print(jk, v.shape)
     return grads
 
 

@@ -367,7 +367,6 @@ class QChunk(nn.Module):
 
   def flash_attention_chunk(self,
         query, key, value, attn_mask,
-        sliding_window_size: int | None,
         pre_proj_dw_args: Array | None,
         post_proj_dw_args: Array | None,
         pre_proj_layer = None,

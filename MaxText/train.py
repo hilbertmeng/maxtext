@@ -1059,10 +1059,6 @@ def train_loop(config, state=None):
       with jax.profiler.StepTraceAnnotation("train", step_num=step):
         record_goodput(recorder, config, recorder.record_data_loading_start_time if recorder else None)
         example_batch = load_next_batch(data_iterator, example_batch, config)
-        # if 105178 < step < 105188:
-        if 150416 < step < 150426:
-          print(f'Skip step: {step}')
-          continue
         record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
         check_example_batch(config, example_batch=example_batch)
         # pylint: disable=not-callable

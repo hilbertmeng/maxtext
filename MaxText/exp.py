@@ -332,6 +332,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     base_lr = 4.0e-4
     stable_steps_fraction= 0.99 - 27400 / 177400 # decay steps / total train steps
     num_layers_per_block = 1
+    m_kn_tile_size = (512, 128)
 
     # 每个阶段的结尾都是250的倍数，因此设置 keep_period=3000.
     # eopch=0.25;end_steps1=60000;B=256;lr=2.5e-4*math.sqrt(2);file_nums=[0, 1536]

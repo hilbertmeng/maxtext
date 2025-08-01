@@ -318,6 +318,7 @@ def assert_params_sufficiently_sharded(params, mesh, tolerance):
       "scenario across `fsdp`, `fsdp_transpose`,`sequence`, `tensor`, `tensor_transpose`, `tensor_sequence`, `expert` axes."
   )
   unsharded_param_perc = total_num_params_per_chip / perfectly_sharded_params_per_chip - 1
+  print(f'total_num_params: {total_num_params} total_num_params_per_chip: {total_num_params_per_chip} perfectly_sharded_params_per_chip: {perfectly_sharded_params_per_chip}')
   assert unsharded_param_perc < tolerance, (
       f"Number of unsharded parameters exceeds tolerance {tolerance * 100}% "
       f"of total parameters with a value of {unsharded_param_perc}%."

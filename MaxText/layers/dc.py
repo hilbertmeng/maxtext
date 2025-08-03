@@ -315,7 +315,7 @@ class CrossHeadProjection(nn.Module):
     # __import__('ipdb').set_trace()
     # This op I/O too many, loss is lower but speed lower than remove it. suggest remove it
     # ret += jnp.einsum('BGMTS,GMN->BGNTS', inputs, self.w)
-    if self.static_proj:
+    if self.static_proj: # FALSE, IGNORE
       if self.squeeze_ratio is None: # None
         w = self.w
         _inputs = inputs
@@ -333,7 +333,7 @@ class CrossHeadProjection(nn.Module):
           hidden = self.activation(hidden)
         ret += jnp.einsum(exp, hidden, self.w2) if not self.left_mul else jnp.einsum(exp, self.w2, ret)
 
-    if qw1 is not None: # BTGIM
+    if qw1 is not None: # BTGIM #TRIGGER
       hidden_sym = 'I'; hidden_label = inputs_label.replace('M', 'I')  # 'BGITS'
       for sym, (w1, w2) in zip(['T', 'S'], [(qw1, qw2), (kw1, kw2)]):
         if w1 is None: continue

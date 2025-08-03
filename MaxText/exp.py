@@ -199,8 +199,10 @@ class DCLlama2MediumMJTest(DCLlama2Medium):
     record_internal_nn_metrics = False    
     base_num_decoder_layers = 2 
     num_layers_per_block = 1
+    query_chunk_size = 256
     scan_layers = False
     #profiler = 'xplane' # uncomment it when profiling
+    sliding_window_size = None # added by mqy
 
 
 class DCMuddLlama2Medium(Mudd, DCLlama2Medium):

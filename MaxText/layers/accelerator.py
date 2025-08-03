@@ -156,16 +156,18 @@ class QChunk(nn.Module):
     # normalize the attention weights
     probs = jax.nn.softmax(attn_weights).astype(self.dtype) # bkgts
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
-
     if self.config.post_compose:
       post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
+
       probs = post_proj_layer(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
+
 
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
     # Casting softmaxt computation for float32 for model stability.
     probs = probs.astype(self.dtype)
     if attn_mask is not None:
       probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
+      # value -> (128, 2048, 16, 64)
     output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
     b, t, n_kv, g, h = output.shape
     output = jnp.reshape(output, (b, t, n_kv * g, h))
@@ -290,80 +292,7 @@ class QChunk(nn.Module):
 #for replacing apply_attention_dot
 
   #return chunk_idx, output
-  #main inputs: q_chunk, k, and pre_weights, pre_layer, attn_mask
-  def query_chunk_pre_helper(self, chunk_idx, q_chunk, k, v, pre_qw1_chunk, pre_qw2_chunk, pre_qdd_chunk,
-                            pre_kw1, pre_kw2,pre_kdd, pre_proj_layer, q_chunk_size, attn_mask, q_len):
-      
-      _, batch_size, num_heads, dim= q_chunk.shape
-      I_dim = pre_qw1_chunk.shape[-1]
-      seq_len_k = k.shape[1] 
-      k_chunk_size = min(K_CHUNK_SIZE, seq_len_k)
-      
-      def chunk_scanner(carries, _):
-          chunk_idx, out = carries
-          
-          k_chunk = lax.dynamic_slice(k, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, k_chunk_size, num_heads, dim))
-
-          chunk_attn_mask = lax.dynamic_slice(attn_mask, (0, chunk_idx), slice_sizes = (q_len, k_chunk_size))
-          #get attention scores
-          chunk_attn_weights = self.qk_product(q_chunk, k_chunk)
-          chunk_attn_weights = nn.with_logical_constraint(chunk_attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
-          
-          #chunk for k dim
-          if self.config.pre_compose:
-              pre_kw1_chunk = lax.dynamic_slice(pre_kw1, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, k_chunk_size, num_heads, I_dim))
-              pre_kw2_chunk = lax.dynamic_slice(pre_kw2, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, k_chunk_size, I_dim, num_heads))
-              pre_kdd_chunk = lax.dynamic_slice(pre_kdd, (0, chunk_idx, 0), slice_sizes = (batch_size, k_chunk_size, num_heads))
-              #compose layer
-              chunk_attn_weights = pre_proj_layer(chunk_attn_weights, pre_qw1_chunk, 
-                                                  pre_qw2_chunk, pre_kw1_chunk, pre_kw2_chunk, 
-                                                  pre_qdd_chunk, pre_kdd_chunk)
-          chunk_attn_weights = nn.with_logical_constraint(chunk_attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
-          if attn_mask is not None:
-            chunk_attn_weights = apply_mask_to_logits(chunk_attn_weights, chunk_attn_mask)
-          if self.config.float32_logits:
-            chunk_attn_weights = chunk_attn_weights.astype(jnp.float32)
-            
-          return chunk_attn_weights
-        
-      out = jnp.zeros((batch_size, num_heads, q_chunk_size, k_chunk_size))
-      _, out = lax.scan(chunk_scanner, init = (0, out), xs = None, length = math.ceil(seq_len_k / K_CHUNK_SIZE))
-      return out
-            
-            
-        
-  def query_chunk_post_helper(self, chunk_idx, q_len, k, v, post_qw1_chunk, post_qw2_chunk, post_qdd_chunk,
-                              post_kw1, post_kw2, post_kdd, post_proj_layer, attn_mask, probs):
-
-      batch_size, seq_len_k, num_heads, v_dim = k.shape
-      I_dim = I_dim = post_qw1_chunk.shape[-1]
-      k_chunk_size = min(K_CHUNK_SIZE, seq_len_k)
-      q_chunk_size = min(Q_CHUNK_SIZE, q_len)
-      
-      def chunk_scanner(chunk_idx, _):
-        
-        v_chunk = lax.dynamic_slice(v, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, k_chunk_size, num_heads, v_dim))
-        chunk_attn_mask = lax.dynamic_slice(attn_mask, (0, chunk_idx), slice_sizes = (q_len, k_chunk_size))
-        
-        post_kw1_chunk = lax.dynamic_slice(post_kw1, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, k_chunk_size, num_heads, I_dim))
-        post_kw2_chunk = lax.dynamic_slice(post_kw2, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, k_chunk_size, I_dim, num_heads))
-        post_kdd_chunk = lax.dynamic_slice(post_kdd, (0, chunk_idx, 0), slice_sizes = (batch_size, k_chunk_size, num_heads))
-        probs = post_proj_layer(probs, post_qw1_chunk, post_qw2_chunk, post_kw1_chunk, post_kw2_chunk, post_qdd_chunk, post_kdd_chunk)
-        
-        probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
-        probs = probs.astype(self.dtype)
-        if attn_mask is not None:
-          probs = jnp.where((chunk_attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
-        output = jnp.einsum('bkgts,bskh->btkgh', probs, v_chunk)
-        b, t, n_kv, g, h = output.shape
-        output = jnp.reshape(output, (b, t, n_kv * g, h))
-        output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
-        return output
-      
-      out = jnp.zeros((batch_size, num_heads, q_chunk_size, k_chunk_size))
-      _, out = lax.scan(chunk_scanner, init = (0, out), xs = None, length = math.ceil(seq_len_k / K_CHUNK_SIZE))
-      return out
-    
+  #main inputs: q_chunk, k, and pre_weights, pre_layer, attn_mask  
 
   def flash_attention_chunk(self,
         query, key, value, attn_mask,
@@ -375,40 +304,140 @@ class QChunk(nn.Module):
     
     pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
     post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
-    I_dim = pre_qw1.shape[-1]
+    B_dim, T_dim, G_dim, H_dim, I_dim = pre_qw1.shape
+
     batch_size, seq_len_t, num_heads, dim = query.shape
     seq_len_k = key.shape[1]
-    
-    
+    print(f"dimension:{batch_size}, {seq_len_t}, {num_heads}, {dim}")
+    print(f"key dimension: {key.shape}")
+    print(f"value dimension: {value.shape}")    
     #chunk scanner, outer loop for q chunk
     def chunk_scanner_pre(chunk_idx, _):
       chunk_sizes = min(Q_CHUNK_SIZE, seq_len_t)
 
       q_chunk = lax.dynamic_slice(query, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, chunk_sizes, num_heads, dim))
+      attn_mask_q_chunk = lax.dynamic_slice(attn_mask, (0, 0, chunk_idx, 0), slice_sizes = (1,1, chunk_sizes, seq_len_k))
       
       #chunk along q dimension
-      pre_qw1_chunk = lax.dynamic_slice(pre_qw1, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, chunk_sizes, num_heads, I_dim))
-      pre_qw2_chunk = lax.dynamic_slice(pre_qw2, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, chunk_sizes, I_dim, num_heads))
-      pre_qdd_chunk = lax.dynamic_slice(pre_qdd, (0, chunk_idx, 0), slice_sizes = (batch_size, chunk_sizes, num_heads))
+      pre_qw1_chunk = lax.dynamic_slice(pre_qw1, (0, chunk_idx, 0, 0, 0), slice_sizes = (B_dim, chunk_sizes, G_dim, H_dim, I_dim))
+      pre_qw2_chunk = lax.dynamic_slice(pre_qw2, (0, chunk_idx, 0, 0, 0), slice_sizes = (B_dim, chunk_sizes, G_dim, H_dim, I_dim))
+      pre_qdd_chunk = lax.dynamic_slice(pre_qdd, (0, chunk_idx, 0, 0), slice_sizes = (B_dim, chunk_sizes, G_dim, I_dim))
+      
+      
+      def query_chunk_pre_helper(self, chunk_idx, q_chunk, k, v, pre_qw1_chunk, pre_qw2_chunk, pre_qdd_chunk,
+                            pre_kw1, pre_kw2,pre_kdd, pre_proj_layer, q_chunk_size, attn_mask):
+        
+        B_dim, T_dim, G_dim, H_dim, I_dim = pre_qw1.shape
+        seq_len_k = k.shape[1] 
+        q_len = attn_mask.shape[2]
+        q_chunk_size = min(Q_CHUNK_SIZE, q_len)
+        k_chunk_size = min(K_CHUNK_SIZE, seq_len_k)
+        
+        def chunk_scanner(chunk_idx, _):
+            
+            k_chunk = lax.dynamic_slice(k, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, k_chunk_size, num_heads, dim))
+
+            chunk_attn_mask = lax.dynamic_slice(attn_mask, (0, 0, 0, chunk_idx), slice_sizes = (1, 1, q_chunk_size, k_chunk_size))
+            #get attention scores
+            chunk_attn_weights = self.qk_product(q_chunk, k_chunk)
+            chunk_attn_weights = nn.with_logical_constraint(chunk_attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
+            
+            #chunk for k dim
+            if self.config.pre_compose:
+                pre_kw1_chunk = lax.dynamic_slice(pre_kw1, (0, chunk_idx, 0, 0, 0), slice_sizes = (B_dim, k_chunk_size, G_dim, H_dim, I_dim))
+                pre_kw2_chunk = lax.dynamic_slice(pre_kw2, (0, chunk_idx, 0, 0, 0), slice_sizes = (B_dim, k_chunk_size, G_dim, H_dim, I_dim))
+                pre_kdd_chunk = lax.dynamic_slice(pre_kdd, (0, chunk_idx, 0, 0), slice_sizes = (B_dim, k_chunk_size, G_dim, I_dim))
+                #compose layer
+                chunk_attn_weights = pre_proj_layer(chunk_attn_weights, pre_qw1_chunk, 
+                                                    pre_qw2_chunk, pre_kw1_chunk, pre_kw2_chunk, 
+                                                    pre_qdd_chunk, pre_kdd_chunk)
+            chunk_attn_weights = nn.with_logical_constraint(chunk_attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
+            print(f"chunked weights dimension:{chunk_attn_weights.shape}")
+            if attn_mask is not None:
+              chunk_attn_weights = apply_mask_to_logits(chunk_attn_weights, chunk_attn_mask)
+            if self.config.float32_logits:
+              chunk_attn_weights = chunk_attn_weights.astype(jnp.float32)
+              
+            return chunk_idx, chunk_attn_weights
+          
+        # out = jnp.zeros((batch_size, num_heads, 1, q_chunk_size, k_chunk_size))
+        _, out = lax.scan(chunk_scanner, init = 0, xs = None, length = math.ceil(seq_len_k / K_CHUNK_SIZE))
+        return out
+            
 
       return (chunk_idx + chunk_sizes, query_chunk_pre_helper(self, chunk_idx, q_chunk, key, value, pre_qw1_chunk, pre_qw2_chunk, pre_qdd_chunk,
-                                                          pre_kw1, pre_kw2,pre_kdd, pre_proj_layer,chunk_sizes, attn_mask, seq_len_t))
+                                                          pre_kw1, pre_kw2,pre_kdd, pre_proj_layer,chunk_sizes, attn_mask_q_chunk))
       
     def chunk_scanner_post(chunk_idx, _):
       chunk_sizes = min(Q_CHUNK_SIZE, seq_len_t)
-      post_qw1_chunk = lax.dynamic_slice(post_qw1, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, chunk_sizes, num_heads, I_dim))
-      post_qw2_chunk = lax.dynamic_slice(post_qw2, (0, chunk_idx, 0, 0), slice_sizes = (batch_size, chunk_sizes, I_dim, num_heads))
-      post_qdd_chunk = lax.dynamic_slice(post_qdd, (0, chunk_idx, 0), slice_sizes = (batch_size, chunk_sizes, num_heads))
+      post_qw1_chunk = lax.dynamic_slice(post_qw1, (0, chunk_idx, 0, 0, 0), slice_sizes = (B_dim, chunk_sizes, G_dim, H_dim, I_dim))
+      post_qw2_chunk = lax.dynamic_slice(post_qw2, (0, chunk_idx, 0, 0, 0), slice_sizes = (B_dim, chunk_sizes, G_dim, H_dim, I_dim))
+      post_qdd_chunk = lax.dynamic_slice(post_qdd, (0, chunk_idx, 0, 0), slice_sizes = (B_dim, chunk_sizes, G_dim, I_dim))
+      attn_mask_q_chunk = lax.dynamic_slice(attn_mask, (0, 0, chunk_idx, 0), slice_sizes = (1,1, chunk_sizes, seq_len_k))
+      prob_chunk = lax.dynamic_slice(probs,  (0, 0, 0, chunk_idx, 0), slice_sizes = (batch_size,num_heads, 1, chunk_sizes, seq_len_k))
+      
+      
+      
+      def query_chunk_post_helper(self, chunk_idx, q_len, k, v, post_qw1_chunk, post_qw2_chunk, post_qdd_chunk,
+                              post_kw1, post_kw2, post_kdd, post_proj_layer, attn_mask, probs):
+
+        batch_size, seq_len_k, num_heads, dim = k.shape
+        batch_v, len_v, head_v, v_dim = v.shape
+        I_dim = post_qw1_chunk.shape[-1]
+        G_dim = post_qw1_chunk.shape[2]
+        k_chunk_size = min(K_CHUNK_SIZE, seq_len_k)
+        q_chunk_size = min(Q_CHUNK_SIZE, q_len)
+        
+        def chunk_scanner(carries, _):
+          chunk_idx, old_output = carries
+          v_chunk = lax.dynamic_slice(v, (0, chunk_idx, 0, 0), slice_sizes = (batch_v, k_chunk_size, head_v, v_dim))
+          chunk_attn_mask = lax.dynamic_slice(attn_mask, (0, 0, 0, chunk_idx), slice_sizes = (1, 1, q_chunk_size, k_chunk_size))
+          probs_chunk = lax.dynamic_slice(probs, (0, 0, 0, 0, chunk_idx), slice_sizes = (batch_size, num_heads, 1, q_chunk_size, k_chunk_size))
+          
+          post_kw1_chunk = lax.dynamic_slice(post_kw1, (0, chunk_idx, 0, 0, 0), slice_sizes = (B_dim, k_chunk_size, G_dim, H_dim, I_dim))
+          post_kw2_chunk = lax.dynamic_slice(post_kw2, (0, chunk_idx, 0, 0, 0), slice_sizes = (B_dim, k_chunk_size, G_dim, H_dim, I_dim))
+          post_kdd_chunk = lax.dynamic_slice(post_kdd, (0, chunk_idx, 0, 0), slice_sizes = (B_dim, k_chunk_size, G_dim, I_dim))
+          post_probs = post_proj_layer(probs_chunk, post_qw1_chunk, post_qw2_chunk, post_kw1_chunk, post_kw2_chunk, post_qdd_chunk, post_kdd_chunk)
+          
+          post_probs = nn.with_logical_constraint(post_probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
+          print(f"post probs shape{post_probs.shape}")
+          # print(f"attention chunk shape{chunk_attn_mask.shape}")
+          post_probs = post_probs.astype(self.dtype)
+          if attn_mask is not None:
+            post_probs = jnp.where((chunk_attn_mask >= DEFAULT_MASK_VALUE * 0.5), post_probs, 0.)
+          output = jnp.einsum('bkgts,bskh->btkgh', post_probs, v_chunk)
+          print(f"v shape: {v.shape}")
+          print(f"v_chunk_shape: {v_chunk.shape}")
+          print(f"probs @ v shape: {output.shape}")
+          b, t, n_kv, g, h = output.shape
+          output = jnp.reshape(output, (b, t, n_kv * g, h))
+          output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
+          print(f"k chunk output shape: {output.shape}")
+          # output = output.squeeze(axis=0)
+          return (chunk_idx, old_output + output), None
+        
+        out = jnp.zeros((batch_size, q_chunk_size, num_heads, dim))
+        (idx, out), _ = lax.scan(chunk_scanner, init = (0, out), xs = None, length = math.ceil(seq_len_k / K_CHUNK_SIZE))
+        return out
+    
       
       return (chunk_idx + chunk_sizes, query_chunk_post_helper(self, chunk_idx, seq_len_t, key, value, post_qw1_chunk, post_qw2_chunk, post_qdd_chunk,
-                              post_kw1, post_kw2, post_kdd, post_proj_layer, attn_mask))
+                              post_kw1, post_kw2, post_kdd, post_proj_layer, attn_mask_q_chunk, prob_chunk))
     
     
     _, pre_weights = lax.scan(chunk_scanner_pre, init = 0, xs = None, length = math.ceil(seq_len_t /Q_CHUNK_SIZE))
+    pre_weights = rearrange(
+    pre_weights,
+    'c d b h g t s -> b h g (c t) (d s)')
+    # print(f"pre weights shape: {pre_weights.shape}")
     
-    probs = jax.nn.softmax(pre_weights).astype(jnp.dtype)
+    probs = jax.nn.softmax(pre_weights)
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
-    _, out = lax.scan(chunk_scanner_post, init = 0, xs = None, length = math.ceil(seq_len_k / K_CHUNK_SIZE))
+    # print(f"probs shape: {probs.shape}")
+    _, out = lax.scan(chunk_scanner_post, init = 0, xs = None, length = math.ceil(seq_len_t / Q_CHUNK_SIZE))
+    out = rearrange(out,
+    'c b t h d -> b (t c) h d')
+    # print(f"final_output shape: {out.shape}")
       
     return out  
     
@@ -445,60 +474,64 @@ class QChunk(nn.Module):
         attn_mask = attn_mask[:, jnp.newaxis]
       else:
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype, squeeze=True)
+        # attn_mask = _compute_slide_attn_mask(2048, sliding_window_size, t, query.dtype, squeeze=True)
         attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
         large_negative_number = get_large_negative_number(attn_mask.dtype)
         eos_sum_mask = large_negative_number * eos_sum
         attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
         attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
         attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
-
-    encoded = self.flash_attention_chunk(query, key, value, attn_mask,  
-              pre_proj_dw_args=pre_proj_dw_args, 
-              post_proj_dw_args=post_proj_dw_args)
+        print(f"attn_mask shape {attn_mask.shape}")
+      
+    # encoded = self.flash_attention_chunk(query, key, value, attn_mask,  
+    #           pre_proj_dw_args, 
+    #           post_proj_dw_args, pre_proj_layer, post_proj_layer)
 
   #provide chunk function -> provide q, k, v and parameters in chunk
-    # if self.query_chunk_size is None:
-    #   encoded = self._apply_attention_dot(
-    #           query, key, value, attn_mask,  
-    #           pre_proj_dw_args=pre_proj_dw_args, 
-    #           post_proj_dw_args=post_proj_dw_args, 
-    #           )
-    # else:
-    #   args = (query, key, value, attn_mask, sliding_window_size, pre_proj_dw_args, post_proj_dw_args, pre_proj_layer, post_proj_layer)
-    #   # best branch
-    #   if self.config.query_chunk_method == 'remat': # support fix/dynamic key mask
-    #     print(f'query_chunk_method: remat...')
-    #     if sliding_window_size == t:
-    #       encoded = self._attention_with_remat(*args, remat=True)
-    #     else:
-    #       attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-    #       encoded = self._attention_with_parallel(*args, remat=True) # fori remat=True more quick than fori remat=False?
-    #   else:                                           # support fix/dynamic key mask
-    #     max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')
-    #     w = self.query_chunk_size
-    #     assert t % w == 0, f'{t} % {w} != 0'
-    #     encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
-    #     for i in range(t // w):
-    #         start, stop = i * w, (i + 1) * w
-    #         kv_start = max(0, stop - w - self.sliding_window_size) if self.sliding_window_size is not None else 0
-    #         _query = query[:, start : stop]
-    #         _key, _value = key[:, kv_start : stop], value[:, kv_start : stop]
-    #         _attn_mask = attn_mask[..., -_key.shape[1]:]
-    #         def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
-    #             return (qw1[:, start : stop] if qw1 is not None else None,
-    #                 qw2[:, start : stop] if qw2 is not None else None,
-    #                 kw1[:, kv_start : stop] if kw1 is not None else None,
-    #                 kw2[:, kv_start : stop] if kw2 is not None else None,
-    #                 qdd[:, start : stop] if qdd is not None else None,
-    #                 kdd[:, kv_start : stop] if kdd is not None else None)
+    if self.query_chunk_size is None:
+      encoded = self._apply_attention_dot(
+              query, key, value, attn_mask,  
+              pre_proj_dw_args=pre_proj_dw_args, 
+              post_proj_dw_args=post_proj_dw_args, 
+              )
+    else:
+      args = (query, key, value, attn_mask, sliding_window_size, pre_proj_dw_args, post_proj_dw_args, pre_proj_layer, post_proj_layer)
+      # best branch
+      if self.config.query_chunk_method == 'remat': # support fix/dynamic key mask
+        print(f'query_chunk_method: remat...')
+        if sliding_window_size == t:
+          encoded = self._attention_with_remat(*args, remat=True)
+        else:
+          attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
+          encoded = self._attention_with_parallel(*args, remat=True) # fori remat=True more quick than fori remat=False?
+      else:                                           # support fix/dynamic key mask
+        max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')
+        w = self.query_chunk_size
+        assert t % w == 0, f'{t} % {w} != 0'
+        encoded = jnp.zeros((b, t, n, h), dtype=value.dtype)
+        for i in range(t // w):
+            start, stop = i * w, (i + 1) * w
+            kv_start = max(0, stop - w - self.sliding_window_size) if self.sliding_window_size is not None else 0
+            # kv_start = 0
+            kv_stop = stop
+            _query = query[:, start : stop]
+            _key, _value = key[:, kv_start : kv_stop], value[:, kv_start : kv_stop]
+            _attn_mask = attn_mask[..., -_key.shape[1]:]
+            def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
+                return (qw1[:, start : stop] if qw1 is not None else None,
+                    qw2[:, start : stop] if qw2 is not None else None,
+                    kw1[:, kv_start : kv_stop] if kw1 is not None else None,
+                    kw2[:, kv_start : kv_stop] if kw2 is not None else None,
+                    qdd[:, start : stop] if qdd is not None else None,
+                    kdd[:, kv_start : kv_stop] if kdd is not None else None)
             
-    #         _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_dw(*pre_proj_dw_args)
-    #         _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
-    #         _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
-    #                                             _pre_proj_dw_args, _post_proj_dw_args,
-    #                                             pre_proj_layer, post_proj_layer)
-    #         encoded = encoded.at[:, start : stop].set(_encoded)
-    # return encoded, None, None
+            _pre_proj_dw_args = None if pre_proj_dw_args is None else slice_dw(*pre_proj_dw_args)
+            _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
+            _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
+                                                _pre_proj_dw_args, _post_proj_dw_args,
+                                                pre_proj_layer, post_proj_layer)
+            encoded = encoded.at[:, start : stop].set(_encoded)
+    return encoded, None, None
 
 
 

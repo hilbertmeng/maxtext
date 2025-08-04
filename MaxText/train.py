@@ -1094,7 +1094,7 @@ def train_loop(config, state=None):
             delete_local_after=config.dump_hlo_delete_local_after,
             all_host_upload=config.dump_hlo_upload_all,
         )
-    if config.eval_interval > 0 and step > start_step and (step + 1) % config.eval_interval == 0 or config.only_eval:
+    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
       print(f'eval_data_iterator: {eval_data_iterator} ')
       cumulative_eval_metrics = {

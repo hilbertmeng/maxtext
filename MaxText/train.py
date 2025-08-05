@@ -344,7 +344,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   if config.scan_layers:
     metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
     for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下
-      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:
+      if config.num_experts > 1:
         temp_dict = {
           f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0][layer_num],
           f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0][layer_num],
@@ -362,7 +362,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                 for i in range(0, config.num_experts, step_len)}
         output_metrics["scalar"].update(temp_dict)
 
-      if config.shared_experts > 0 and layer_num not in config.insert_moe_indexes:
+      if config.shared_experts > 0:
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
   else:
@@ -378,7 +378,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
 
       metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
 
-      if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:
+      if config.num_experts > 1:
         temp_dict = {
           f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0],
           f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0],
@@ -396,7 +396,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                 for i in range(0, config.num_experts, step_len)}
         output_metrics["scalar"].update(temp_dict)
 
-      if config.shared_experts > 0 and layer_num not in config.insert_moe_indexes:
+      if config.shared_experts > 0:
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0]
 
 
@@ -524,7 +524,6 @@ def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_t
   }
   return loss, aux
 
-
 def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_params, is_train=True):
   """loss_fn for both train and eval.
 
@@ -612,7 +611,6 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
     else:
       total_moe_lb_loss = []
       for i in range(config.num_decoder_layers):
-        if i not in config.insert_moe_indexes: continue
         nested_key = ("intermediates", "decoder", f"layers_{i}", "sub_0", "moe_lb_loss") # lsp
         layer_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
         total_moe_lb_loss.append(layer_moe_lb_loss)
@@ -653,7 +651,7 @@ def compute_params_norm(params, config): # lsp
 from jax.experimental import shard_map
 mesh = None
 
-def train_step(model, teacher_model, config, state_mesh_shardings, state, data, dropout_rng):
+def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, data, dropout_rng):
   """
 
   Args:
@@ -744,35 +742,30 @@ def train_step(model, teacher_model, config, state_mesh_shardings, state, data, 
   teacher_loss = aux["teacher_loss"]
   print(f'cliping: {config.clipping}......')
   print(f'mesh: {mesh}')
-
+  # input_partition_spec = jax.tree_util.tree_map(
+  #   lambda s: s.spec, state_mesh_shardings.params
+  # )
+  # def squared_l2_norm(p):
+  #   return jnp.sum(jnp.square(p))
   
-  # input_partition_spec = state_mesh_shardings.params
-  input_partition_spec = jax.tree_util.tree_map(
-    lambda s: s.spec, state_mesh_shardings.params
-)
-  @functools.partial(
-    shard_map.shard_map,
-    mesh=mesh,
-    in_specs=(input_partition_spec, ),
-    out_specs=(input_partition_spec),
-    check_rep=False,
-  )
-  def clip(rgrads):
-    print(f'rgrads:')
-    for k, v in flatten_dict(rgrads).items():
-      jk = '/'.join(k)
-      print(jk, v.shape)
-    grads = maxtext_utils.clip_by_global_norm_sharded(rgrads, None, config.gradient_clipping_threshold)
-    return grads
-  print(f'raw_grads:')
-  for k, v in flatten_dict(raw_grads).items():
-    jk = '/'.join(k)
-    print(jk, v.shape)
-  cliped_grads = clip(raw_grads)
-  print(f'cliped_grads:')
-  for k, v in flatten_dict(cliped_grads).items():
-    jk = '/'.join(k)
-    print(jk, v.shape)
+  # @functools.partial(
+  #   shard_map.shard_map,
+  #   mesh=mesh,
+  #   in_specs=(input_partition_spec, ),
+  #   out_specs=(input_partition_spec),
+  #   check_rep=False,
+  # )
+  # def clip(rgrads):
+  #   local_tree_sums = jax.tree_util.tree_map(squared_l2_norm, rgrads)
+  #   scalar_sums = jax.tree_util.tree_leaves(local_tree_sums) # list
+  #   local_norm = jnp.sqrt(jnp.sum(jnp.array(scalar_sums)))
+  #   scale = jnp.minimum(1.0, config.gradient_clipping_threshold / (local_norm + 1e-6))
+  #   # 每个chip上有不同的scale，但是每个参数共用一个scale
+  #   grads = jax.tree_util.tree_map(lambda g: g * scale, rgrads)
+  #   return grads
+  # with jax.named_scope("grad_clip"):
+  #   cliped_grads = clip(raw_grads)
+  cliped_grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
   new_state = state.apply_gradients(grads=cliped_grads)
 
   scalar_metrics = {
@@ -898,7 +891,6 @@ def setup_mesh_and_model(config, teacher_config=None):
 
   # Mesh definition
   devices_array = max_utils.create_device_mesh(config)
-  global mesh
   mesh = Mesh(devices_array, config.mesh_axes)
 
   # Model and Optimizer definition

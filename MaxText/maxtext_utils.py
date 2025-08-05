@@ -33,7 +33,7 @@ OVERWRITE_WITH_GRADIENT = "_overwrite_with_gradient"
 
 def get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, model, config, teacher_model=None):
   """Get the shardings (both state and data) for train_step"""
-  functional_train = get_functional_train_step(train_step, model, teacher_model, config, state_mesh_shardings)
+  functional_train = get_functional_train_step(train_step, model, teacher_model, config, state_mesh_shardings, mesh)
   functional_train.__name__ = "train_step"
   data_pspec = P(*config.data_sharding)
   data_sharding = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), data_pspec)
@@ -44,8 +44,8 @@ def get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, 
   return functional_train, in_shardings, out_shardings, static_argnums, donate_argnums
 
 
-def get_functional_train_step(train_step, model, teacher_model, config, state_mesh_shardings):
-  return functools.partial(train_step, model, teacher_model, config, state_mesh_shardings)
+def get_functional_train_step(train_step, model, teacher_model, config, state_mesh_shardings, mesh):
+  return functools.partial(train_step, model, teacher_model, config, state_mesh_shardings, mesh)
 
 
 def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config, teacher_model=None):
@@ -379,32 +379,17 @@ def clip_by_global_norm_sharded(grads, state, max_norm):
     # 1. 局部范数
     def squared_l2_norm(p):
         return jnp.sum(jnp.square(p))
-    
     all_mesh_axes = ('data', 'stage', 'fsdp', 'fsdp_transpose', 'sequence', 'tensor', 
                      'tensor_transpose', 'tensor_sequence', 'expert', 'autoregressive')
-
     local_sqr_sums = jax.tree_util.tree_map(squared_l2_norm, grads)
     local_sum = sum(jax.tree_util.tree_leaves(local_sqr_sums))  # per device
-
     # 2. 全局聚合所有设备上的范数
     global_sqr_sum = jax.lax.psum(local_sum, axis_name=all_mesh_axes)
     global_norm = jnp.sqrt(global_sqr_sum)
 
     # 3. 限制在 max_norm 之内
     scale = jnp.minimum(1.0, max_norm / (global_norm + 1e-6))
-
-    # 4. 缩放梯度（按shard）
-    print(f'grads00:')
-    for k, v in flatten_dict(grads).items():
-      jk = '/'.join(k)
-      print(jk, v.shape)
-
     grads = jax.tree_util.tree_map(lambda g: g * scale, grads)
-
-    print(f'grads11:')
-    for k, v in flatten_dict(grads).items():
-      jk = '/'.join(k)
-      print(jk, v.shape)
     return grads
 
 

@@ -168,7 +168,7 @@ class SubDecoderLayer(nn.Module):
     )
     
     mlp_lnx = None
-    if cfg.shared_experts == 1 and (cfg.scan_layers or self.layer_inx not in cfg.insert_moe_indexes):
+    if cfg.shared_experts == 1:
       # MLP block.
       mlp_lnx = linears.MlpBlock(
           intermediate_dim=self.updated_mlp_dim, # lsp
@@ -192,7 +192,7 @@ class SubDecoderLayer(nn.Module):
     # lsp: moe
     moe_lnx = None
     load_balance_loss = 0.0
-    if cfg.num_experts > 1 and (cfg.scan_layers or self.layer_inx in cfg.insert_moe_indexes):
+    if cfg.num_experts > 1:
       kwargs = {
         'config': cfg,
         'mesh': mesh,
@@ -212,13 +212,9 @@ class SubDecoderLayer(nn.Module):
       if cfg.moe_type == 'open': # with capacity and noise and balance loss
         moe_layer = linears.OpenMoeBlock
         kwargs.update(extra_kwargs)
-      elif cfg.moe_type == 'open_v2': # slowly, maybe have bug
-        moe_layer = linears.OpenMoeBlockV2
         kwargs.update(extra_kwargs)
       elif cfg.moe_type == 'deepseek': # model performance bad
         moe_layer = linears.DeepSeekMoeBlock
-      elif cfg.moe_type == 'ol': # todo: don't run, can't compile
-        moe_layer = linears.JaxQwenSparseMoeBlock
       elif cfg.moe_type == 'dropless': # no capacity and nosie, maybe have balance loss, bug no imporve with balance loss 0.01
         kwargs.update(extra_kwargs)
         moe_layer = linears.MoeBlock
@@ -313,7 +309,6 @@ class FusionDecoderLayer(nn.Module):
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
     
     for layer in self.subs: # subs length must be 1 when train mudd.
-        # __import__('ipdb').set_trace()
         inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
     
     if self.config.mudd_in_layer:

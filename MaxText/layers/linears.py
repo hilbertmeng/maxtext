@@ -335,11 +335,14 @@ class MoeBlock(nn.Module):
   quant: Optional[Quant] = None
 
   # # The first axes is expert
-  # wi_kernel_axes = ("exp", "embed_no_exp", "mlp")
-  # wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
+  wi_kernel_axes = ("exp", "embed_no_exp", "mlp")
+  wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
 
-  wi_kernel_axes = ("embed_no_exp", None, "mlp")
-  wo_kernel_axes = ("embed_no_exp", "mlp", None)
+  # wi_kernel_axes = ("exp", None, "mlp")
+  # wo_kernel_axes = ("exp", "mlp", None)
+
+  # wi_kernel_axes = ("embed", None, "mlp")
+  # wo_kernel_axes = ("embed", "mlp", None)
 
   def setup(self):
     self.w0, self.w1, self.w2 = self.generate_kernels(self.num_experts, self.config.emb_dim, self.config.mlp_dim)
@@ -573,6 +576,8 @@ class MoeBlock(nn.Module):
     def wrapper(x, logits, w0, w1, wo):
       batch_size, sequence_length, _ = x.shape
       x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
+
+      # w0 = jax.lax.all_gather(w0, axis_name='fsdp', axix=1).reshape(w0.shape[0], -1, w0.shape[-1])
       layer_w0 = gmm(x, w0, group_sizes)
       layer_w0 = checkpoint_name(layer_w0, "mlpwi_0")
 
@@ -581,6 +586,8 @@ class MoeBlock(nn.Module):
 
       layer_act = _convert_to_activation_function(self.config.mlp_activations[0])(layer_w0)
       intermediate_layer = jnp.multiply(layer_act, layer_w1)
+
+      intermediate_layer = checkpoint_name(intermediate_layer, "mlp_intermediate_act") 
       intermediate_output = gmm(intermediate_layer, wo, group_sizes)
       
       intermediate_output = checkpoint_name(intermediate_output, "mlpwo")
@@ -592,7 +599,6 @@ class MoeBlock(nn.Module):
           intermediate_output, sorted_selected_experts, weights, batch_size=batch_size, sequence_length=sequence_length
       )
       return output, None
-
     return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)[0], aux_loss # lsp: add aux_loss
 
   def reshape_and_update_weights(self, weights, indices):
@@ -1167,11 +1173,11 @@ class OpenMoeBlock(nn.Module):
               name='mgate',
             )
 
-    # @nn.compact
-    # def __call__(self, inputs, paddings, deterministic=False):
-    #     inputs = inputs.astype(self.dtype)
-    #     combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
-    #     return combined_outputs, aux_loss
+    @nn.compact
+    def __call__(self, inputs, paddings, deterministic=False):
+        inputs = inputs.astype(self.dtype)
+        combined_outputs, aux_loss = self._dispatch_and_combine_expert_outputs_openmoe(inputs, paddings, deterministic=deterministic)
+        return combined_outputs, aux_loss
 
     def _call_experts(self, expert_inputs, expert_index, compute_n_expert, deterministic=False):
         """
@@ -1563,12 +1569,12 @@ class OpenMoeBlock(nn.Module):
                                     combine_tensor)
       return combined_output, aux_loss
     
-    @nn.compact
-    def __call__(
-      self,
-      inputs,
-      paddings = None,
-      deterministic=False
-      ):
-      outputs, aux_loss = self._dispatch_and_combine_expert_outputs(inputs, paddings)
-      return outputs, aux_loss
+    # @nn.compact
+    # def __call__(
+    #   self,
+    #   inputs,
+    #   paddings = None,
+    #   deterministic=False
+    #   ):
+    #   outputs, aux_loss = self._dispatch_and_combine_expert_outputs(inputs, paddings)
+    #   return outputs, aux_loss

@@ -21,7 +21,6 @@ class Common:
     normalization_layer_epsilon = 1e-6
     query_chunk_size = 512
     tensorboard_dir = '' # tensorboard dir, final path is tensorboard_dir + run_name
-    insert_moe_indexes = []
     training_num_batches_to_skip = None
     num_layers_per_block = 1
     qkv_bias = False
@@ -242,7 +241,6 @@ class CommonMoe:
     num_experts = 8
     num_experts_per_tok = 2
     shared_experts = 0
-    insert_moe_indexes = list(range(0, 100, 1))
     expert_chunk_size = None
 
 class DroplessMoe:
@@ -286,7 +284,7 @@ class MuddLlama2LargeOpenMoe(Mudd, Llama2LargeOpenMoe):
     dynamic_mlp_dim = False
 
 class Llama2MediumOpenMoeS1L2(Llama2MediumOpenMoe, Llama2Medium):
-    insert_moe_indexes = list(range(1, 24, 2)) # 隔层插入moe
+    pass
 
 class Llama2MediumOLMoe(CommonMoe, Llama2Medium):
     num_experts = 64
@@ -342,7 +340,6 @@ class LlamaSmallMoE8X(DroplessMoe, Llama2MediumOpenMoe):
     sparse_matmul = True
     routed_score_func = "sigmoid"
     shared_experts = 0
-    insert_moe_indexes = list(range(0, 24, 1)) # 隔层插入moe
     num_layers_per_block = 1
 
 class Llama7BOpenMoe(CommonMoe, Llama7B):

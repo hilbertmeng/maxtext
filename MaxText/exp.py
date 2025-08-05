@@ -516,3 +516,7 @@ class DCMuddLlama19BMoE2in32(LGLLWindow, DroplessMoe, DCMuddLlama19B):
     sliding_window_size = [256, None, 256, 256] * 2
 
     
+class MTPLlama2Medium(Llama2Medium):
+    mtp_num_layers = 1
+    mtp_eval_target_module = 1
+    vocab_size = 151936

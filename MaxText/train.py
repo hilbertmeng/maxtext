@@ -79,6 +79,8 @@ from etils import epath
 from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
 from distill_losses import compute_distill_loss
+from layers.mtp import calculate_mtp_acceptance_rate, calculate_mtp_loss
+
 # pylint: disable=too-many-positional-arguments
 
 Transformer = models.Transformer
@@ -91,7 +93,10 @@ def print_tree_struct(name, tree, shape=False): # lsp
   for k, v in flatten_dict(tree).items():
     k = '.'.join(k)
     if shape:
-      max_logging.log(f'{k}: {v.shape}')
+      try:
+        max_logging.log(f'{k}: {v.shape}')
+      except:
+        max_logging.log(f'no shape {k}: {v}')
     else:
       max_logging.log(f'{k}')
 
@@ -118,11 +123,15 @@ def model_init(model, config, key):
   input_shape = (config.global_batch_size_to_load, config.max_target_length)
   params = model.init(
       {"params": key, "dropout": key, "aqt": key},
-      jnp.ones(input_shape, dtype=jnp.int32),
-      jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_input_tokens=jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_positions=jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_target_tokens=jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_target_mask=jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_segment_ids=None,
+      enable_dropout=True,
+      model_mode='train',
   )
   return params
-
 
 def compute_accuracy(logits, targets, masks):
   batch_weights = jnp.maximum(jnp.sum(masks, axis=-1), 1e-10)
@@ -249,6 +258,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
           # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
           f"total_weights: {metrics['scalar']['learning/total_weights']}, "
           f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+          f"mtp_loss: {metrics['scalar']['learning/mtp_loss']:.3f}, "
           f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}, "
           f"distill_loss: {metrics['scalar']['learning/distill_loss']:.3f}, "
           f"teacher_loss: {metrics['scalar']['learning/teacher_loss']:.3f}, "
@@ -550,14 +560,25 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
     for k, v in data.items():
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
+  mutable_collections = ["intermediates"]
+  if config.mtp_num_layers > 0 and is_train:
+    mutable_collections.append("mtp_losses")
+
+  # During evaluation, if the acceptance rate test is enabled, we must
+  # make its specific collection mutable so the MTPBlock can sow into it.
+  if config.mtp_eval_target_module > 0 and not is_train:
+    mutable_collections.append("mtp_acceptance")
+
   logits, intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
       decoder_segment_ids=data["inputs_segmentation"],
+      decoder_target_mask=data["targets_segmentation"],
+      decoder_target_tokens=data["targets"],
       enable_dropout=config.enable_dropout if is_train else False,
       rngs={"dropout": rng1, "params": aqt_rng},
-      mutable="intermediates",
+      mutable=mutable_collections,
   )
   if config.use_kd:
     # __import__('ipdb').set_trace()
@@ -602,6 +623,12 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
     total_teacher_loss = jnp.sum(teacher_xent)
     teacher_loss = total_teacher_loss / (total_weights + EPS) # no gradient
 
+  # Calculate and Add MTP Loss
+  mtp_loss = 0.0
+  if config.mtp_num_layers > 0 and is_train:
+    mtp_loss = calculate_mtp_loss(intermediate_outputs, config)
+    loss += mtp_loss
+
   # get moe load balance loss
   moe_lb_loss = 0.0
   if config.num_experts > 1:
@@ -626,6 +653,7 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
       "correct": jnp.sum(correct), # lsp
       "distill_loss": distill_loss, # lsp
       "teacher_loss": teacher_loss, # lsp
+      "mtp_loss": mtp_loss,
   }
   return loss, aux
 
@@ -694,6 +722,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
       acc_grad_and_loss["moe_lb_loss"] += aux["moe_lb_loss"]
       acc_grad_and_loss["distill_loss"] += aux["distill_loss"]
       acc_grad_and_loss["teacher_loss"] += aux["teacher_loss"]
+      acc_grad_and_loss["mtp_loss"] += aux["mtp_loss"]
       acc_grad_and_loss["grad"] = jax.tree_util.tree_map(
           lambda x, y: x * aux["total_weights"] + y, cur_batch_gradient, acc_grad_and_loss["grad"]
       )
@@ -709,7 +738,9 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
 
     data = jax.tree_util.tree_map(reshape_to_microbatch_accumulations, data)
     init_grad = jax.tree_util.tree_map(jnp.zeros_like, state.params)
-    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, "distill_loss": 0.0, "teacher_loss": 0.0, "accuracy": 0.0} # lsp
+    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, 
+                          "distill_loss": 0.0, "teacher_loss": 0.0, "accuracy": 0.0,
+                          "mtp_loss": 0.0} # lsp
 
     grad_and_loss, aux = jax.lax.scan(
         accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
@@ -719,6 +750,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
         grad_and_loss["loss"] / grad_and_loss["total_weights"] * (1 - distill_alpha)
         + grad_and_loss["moe_lb_loss"] / config.gradient_accumulation_steps
         + grad_and_loss["distill_loss"] * distill_alpha / config.gradient_accumulation_steps
+        + grad_and_loss["mtp_loss"] / config.gradient_accumulation_steps
     )
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
     aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
@@ -740,6 +772,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   moe_lb_loss = aux["moe_lb_loss"]
   distill_loss = aux["distill_loss"]
   teacher_loss = aux["teacher_loss"]
+  mtp_loss = aux["mtp_loss"]
   print(f'cliping: {config.clipping}......')
   print(f'mesh: {mesh}')
   # input_partition_spec = jax.tree_util.tree_map(
@@ -771,6 +804,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   scalar_metrics = {
       "learning/loss": (loss - moe_lb_loss - distill_loss * distill_alpha) / (1 - distill_alpha), # lsp: remove moe_lb_loss, distill_loss
       "learning/moe_lb_loss": moe_lb_loss,
+      "learning/mtp_loss": mtp_loss,
       "learning/distill_loss": distill_loss,
       "learning/teacher_loss": teacher_loss,
       "learning/total_weights": total_weights,
@@ -818,11 +852,18 @@ def eval_step(model, teacher_model, config, state, data, dropout_rng):
 
   eval_loss_fn = functools.partial(_loss_fn, model, teacher_model, config, data, dropout_rng, is_train=False)
   loss, aux = eval_loss_fn(state.params, teacher_params, *extra_dpo_args)
+
+  mtp_acceptance_rate = 0.0
+  if config.mtp_eval_target_module > 0:
+    mtp_acceptance_rate = calculate_mtp_acceptance_rate(aux["intermediate_outputs"], config)
+
+
   total_loss = aux["total_loss"]
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
   distill_loss = aux["distill_loss"]
   teacher_loss = aux["teacher_loss"]
+  mtp_loss = aux["mtp_loss"]
   metrics = {
       "scalar": {
           "evaluation/loss": loss,
@@ -833,6 +874,8 @@ def eval_step(model, teacher_model, config, state, data, dropout_rng):
           "evaluation/teacher_loss": teacher_loss,
           "evaluation/accuracy": aux["accuracy"], # lsp
           "evaluation/correct": aux["correct"], # lsp
+          "evaluation/mtp_loss": mtp_loss,
+          "evaluation/mtp_acceptance_rate_percent": mtp_acceptance_rate,
       },
   }
   if config.use_dpo:
@@ -1235,6 +1278,8 @@ def train_loop(config, teacher_config=None, state=None):
               "eval/moe_lb_loss": 0.0,
               "eval/distill_loss": 0.0,
               "eval/teacher_loss": 0.0,
+              "eval/mtp_loss": 0.0,
+              "eval/mtp_acceptance_rate_percent": 0.0,
           }
       }
       eval_dpo_reward_accuracy = 0.0
@@ -1263,6 +1308,9 @@ def train_loop(config, teacher_config=None, state=None):
         cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
         cumulative_eval_metrics["scalar"]["eval/distill_loss"] += float(eval_metrics["scalar"]["evaluation/distill_loss"])
         cumulative_eval_metrics["scalar"]["eval/teacher_loss"] += float(eval_metrics["scalar"]["evaluation/teacher_loss"])
+        cumulative_eval_metrics["scalar"]["eval/mtp_loss"] += float(eval_metrics["scalar"]["evaluation/mtp_loss"])
+        cumulative_eval_metrics["scalar"]["eval/mtp_acceptance_rate_percent"] += float(eval_metrics["scalar"]["evaluation/mtp_acceptance_rate_percent"])
+
         # lsp
         _correct = float(eval_metrics['scalar']['evaluation/correct'])
         _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
@@ -1295,6 +1343,12 @@ def train_loop(config, teacher_config=None, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_teacher_loss"] = (
           cumulative_eval_metrics["scalar"]["eval/teacher_loss"] / eval_step_count
       )
+      cumulative_eval_metrics["scalar"]["eval/avg_mtp_loss"] = (
+          cumulative_eval_metrics["scalar"]["eval/mtp_loss"] / eval_step_count
+      )
+      cumulative_eval_metrics["scalar"]["eval/avg_mtp_acceptance_rate_percent"] = (
+          cumulative_eval_metrics["scalar"]["eval/mtp_acceptance_rate_percent"] / eval_step_count
+      )
       # lsp: batch mean loss, token/batch mean acc
       cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
       cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / cumulative_eval_metrics["scalar"]["eval/total_weights"] 
@@ -1310,7 +1364,9 @@ def train_loop(config, teacher_config=None, state=None):
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=},"
           f" avg_teacher_loss={cumulative_eval_metrics['scalar']['eval/avg_teacher_loss']:.3f}," # lsp
           f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
-          f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
+          f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']},"
+          f" avg_mtp_loss={cumulative_eval_metrics['scalar']['eval/avg_mtp_loss']:.3f}," # lsp
+          f" avg_mtp_accept_rate={cumulative_eval_metrics['scalar']['eval/mtp_acceptance_rate_percent']:.3f}," # lsp
       )
       save_eval_result(config, step, cumulative_eval_metrics) # lsp
       

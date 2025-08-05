@@ -34,7 +34,7 @@ from layers import mudd
 from layers import initializers
 import max_logging
 import aqt.jax.v2.aqt_dot_general as aqt
-import mtp
+from layers import mtp
 
 Array = common_types.Array
 Config = common_types.Config
@@ -405,10 +405,10 @@ class Decoder(nn.Module):
       decoder_input_tokens,
       decoder_positions,
       decoder_segment_ids=None,
-      deterministic=False,
-      model_mode=common_types.MODEL_MODE_TRAIN,
       decoder_target_tokens: Optional[jnp.ndarray] = None,
       decoder_target_mask: Optional[jnp.ndarray] = None,
+      deterministic=False,
+      model_mode=common_types.MODEL_MODE_TRAIN,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -549,21 +549,27 @@ class Decoder(nn.Module):
               y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
 
     # =====================================llm head======================================
-
-    mtp_layer = mtp.MultiTokenPredictionBlock(cfg, mesh, self.quant,
-                                              transformer_layer_module=RemattedBlockLayer, 
-                                              shared_embedding=self.shared_embedding,
-                                          )
-    resutls = mtp_layer(main_hidden_state=y,
-                        input_ids=decoder_input_tokens,
-                        target_ids=decoder_target_tokens,
-                        target_mask=decoder_target_mask,
-                        position_ids=decoder_positions,
-                        decoder_segment_ids=decoder_segment_ids,
-                        deterministic=deterministic,
-                        model_mode=common_types.MODEL_MODE_TRAIN,
-                        )
-         
+    RematMTPBlock = nn.remat(  # pylint: disable=invalid-name
+          mtp.MultiTokenPredictionBlock,
+          prevent_cse=True,
+          policy=get_remat_policy(cfg),
+          static_argnums=(-2, -1),  # Deterministic and model mode are static arguments.
+          rngs={"params": True, "aqt": True, "dropout": True},
+      )
+    logits = RematMTPBlock(cfg, mesh, self.quant,
+                          name="mtp_block",
+                          transformer_layer_module=self.decoder_layer[0], 
+                          shared_embedding=self.shared_embedding,
+                        )(
+                main_hidden_state=y,
+                input_ids=decoder_input_tokens,
+                target_ids=decoder_target_tokens,
+                target_mask=decoder_target_mask,
+                position_ids=decoder_positions,
+                decoder_segment_ids=decoder_segment_ids,
+                deterministic=deterministic,
+                # model_mode=common_types.MODEL_MODE_TRAIN,
+                  )
     return logits
 
 
@@ -598,6 +604,8 @@ class Transformer(nn.Module):
       self,
       decoder_input_tokens,
       decoder_positions,
+      decoder_target_tokens,
+      decoder_target_mask,
       decoder_segment_ids=None,
       enable_dropout=True,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -614,6 +622,8 @@ class Transformer(nn.Module):
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,
         decoder_segment_ids=decoder_segment_ids,
+        decoder_target_tokens=decoder_target_tokens,
+        decoder_target_mask=decoder_target_mask,
         deterministic=not enable_dropout,
         model_mode=model_mode,
     )

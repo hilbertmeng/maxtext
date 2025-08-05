@@ -24,17 +24,15 @@ from jax.sharding import Mesh
 
 from flax import linen as nn
 
-from MaxText.common_types import Config, MODEL_MODE_TRAIN
-# from MaxText.layers.attentions import dense_general
+from common_types import Config, MODEL_MODE_TRAIN
 from layers.normalizations import RMSNorm as rms_norm
-from MaxText.layers.decoders import Decoder, DecoderLayer
-from MaxText import max_utils
-from MaxText import maxtext_utils
+import max_utils
+import maxtext_utils
 from layers import initializers
 from layers import linears
 
-from MaxText.globals import EPS
 
+EPS = 1e-8
 
 def main_head(y, cfg, shared_embedding, deterministic, quant):
     y = rms_norm(
@@ -124,7 +122,7 @@ class MultiTokenPredictionLayer(nn.Module):
   config: Config
   mesh: Mesh
   layer_number: int
-  transformer_layer_module: Type[DecoderLayer] = DecoderLayer
+  transformer_layer_module: None
 
   @nn.compact
   def __call__(
@@ -228,7 +226,7 @@ class MultiTokenPredictionBlock(nn.Module):
   config: Config
   mesh: Mesh
   quant: None
-  transformer_layer_module: Type[DecoderLayer]
+  transformer_layer_module: None
   shared_embedding: None
 
   @nn.compact
@@ -245,8 +243,6 @@ class MultiTokenPredictionBlock(nn.Module):
   ):
     cfg = self.config
     main_logits = main_head(main_hidden_state, cfg, self.shared_embedding, deterministic, self.quant)
-    if cfg.use_mtp:
-       return main_logits
 
     # The initial hidden state for the MTP chain is the raw output from the main model.
     mtp_hidden_state = main_hidden_state
@@ -283,14 +279,16 @@ class MultiTokenPredictionBlock(nn.Module):
       )
 
       # Project to logits using the shared embedding transpose
-      mtp_logits = self.decoder._apply_output_head(next_mtp_hidden_state, deterministic, model_mode)
+      mtp_logits = self.shared_embedding.attend(next_mtp_hidden_state)
 
       # Calculate cross-entropy loss for this specific layer's prediction
       mtp_xent, _ = max_utils.cross_entropy_with_logits(mtp_logits, jax.nn.one_hot(rolled_target_ids, cfg.vocab_size), 0.0)
       mtp_xent_masked = mtp_xent * rolled_target_mask
+      print(f'mtp_xent_masked: {mtp_xent_masked.shape}')
 
       # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.
-      if not self.is_initializing():
+      if not self.is_initializing() or 1:
+        print(f'MTP loss record.....')
         # For evaluation, save the top prediction and a valid token mask.
         # This is only active for the target layer during an eval run.
         if cfg.mtp_eval_target_module == k and self.is_mutable_collection("mtp_acceptance"):
@@ -357,4 +355,4 @@ def calculate_mtp_acceptance_rate(intermediate_outputs, config):
   total_valid_tokens = jnp.sum(valid_mask)
 
   # Return acceptance rate as a percentage
-  return (correct_predictions / (total_valid_tokens + 1e-6)) * 100
+  return (correct_predictions / (total_valid_tokens + EPS)) * 100

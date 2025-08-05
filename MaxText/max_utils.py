@@ -803,6 +803,8 @@ def init_initial_state(model, tx, config, is_training, key):
       {"params": key, "dropout": key, "aqt": key},
       np.ones(input_shape, dtype=jnp.int32),
       np.ones(input_shape, dtype=jnp.int32),
+      np.ones(input_shape, dtype=jnp.int32),
+      np.ones(input_shape, dtype=jnp.int32),
   )
   if is_training:
     return init_training_state(model.apply, model_vars, tx)

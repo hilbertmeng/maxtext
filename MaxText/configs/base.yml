@@ -655,3 +655,6 @@ permute_new: False
 clipping: 'global'
 use_quant: False
 only_fw_quant: False
+mtp_num_layers: 0
+mtp_eval_target_module: 0
+mtp_loss_scaling_factor: 0.1

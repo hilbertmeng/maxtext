@@ -268,7 +268,10 @@ class FusionDecoderLayer(nn.Module):
   sliding_window_size: list|int|None = -1 # lsp
 
   def setup(self):
-    layer_inx = None if self.config.scan_layers else int(self.name.split('_')[-1])
+    if 'mtp' in self.name:
+       layer_inx = -1
+    else:
+      layer_inx = None if self.config.scan_layers else int(self.name.split('_')[-1])
     self.layer_inx = layer_inx
     # When no sliding_window_size is passed in, the sliding_window_size in config is used, otherwise the passed in sliding_window_size is used.
     sliding_window_size = self.config.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size

@@ -34,6 +34,7 @@ from layers import mudd
 from layers import initializers
 import max_logging
 import aqt.jax.v2.aqt_dot_general as aqt
+import mtp
 
 Array = common_types.Array
 Config = common_types.Config
@@ -406,6 +407,8 @@ class Decoder(nn.Module):
       decoder_segment_ids=None,
       deterministic=False,
       model_mode=common_types.MODEL_MODE_TRAIN,
+      decoder_target_tokens: Optional[jnp.ndarray] = None,
+      decoder_target_mask: Optional[jnp.ndarray] = None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -544,51 +547,23 @@ class Decoder(nn.Module):
               y, hids = y
             else:
               y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
-            
-    y = self.get_norm_layer()(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="decoder_norm",
-        epsilon=cfg.normalization_layer_epsilon,
-        kernel_axes=("norm",),
-    )(y)
-    y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
 
-    # [batch, length, emb_dim] -> [batch, length, vocab_size]
-    if cfg.logits_via_embedding:
-      print(f'Word embedding shared: {cfg.logits_via_embedding}')
-      # Use the transpose of embedding matrix for logit transform.
-      logits = self.shared_embedding.attend(y)  # lsp：权重共享
-      if self.config.normalize_embedding_logits:
-        # Correctly normalize pre-softmax logits for this shared case.
-        logits = logits / jnp.sqrt(y.shape[-1])
-      if cfg.final_logits_soft_cap:
-        logits = logits / cfg.final_logits_soft_cap
-        logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
-    else:
-      # # dot_general_int8 = aqt.dot_general_make(8, 8, 8)
-      # logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
-      #                   _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' else jax.lax.dot_general)
-      logits = linears.DenseGeneral(
-          cfg.vocab_size,
-          weight_dtype=cfg.weight_dtype,
-          dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-          kernel_axes=("embed", "vocab"),
-          quant=self.quant,
-          name="logits_dense",
-          matmul_precision=self.config.matmul_precision,
-          kernel_init=initializers.nd_dense_init_normal(0.006), #lsp
-          # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), #lsp
-          use_quant=cfg.use_quant,
-          rng=jax.random.PRNGKey(1111),
-      )(
-          y
-      )  # We do not quantize the logits matmul.
-    logits = nn.with_logical_constraint(
-        logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
-    )
-    if self.config.cast_logits_to_fp32:
-      logits = logits.astype(jnp.float32)
+    # =====================================llm head======================================
+
+    mtp_layer = mtp.MultiTokenPredictionBlock(cfg, mesh, self.quant,
+                                              transformer_layer_module=RemattedBlockLayer, 
+                                              shared_embedding=self.shared_embedding,
+                                          )
+    resutls = mtp_layer(main_hidden_state=y,
+                        input_ids=decoder_input_tokens,
+                        target_ids=decoder_target_tokens,
+                        target_mask=decoder_target_mask,
+                        position_ids=decoder_positions,
+                        decoder_segment_ids=decoder_segment_ids,
+                        deterministic=deterministic,
+                        model_mode=common_types.MODEL_MODE_TRAIN,
+                        )
+         
     return logits
 
 

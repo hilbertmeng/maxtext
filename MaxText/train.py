@@ -561,14 +561,6 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
   mutable_collections = ["intermediates"]
-  if config.mtp_num_layers > 0 and is_train:
-    mutable_collections.append("mtp_losses")
-
-  # During evaluation, if the acceptance rate test is enabled, we must
-  # make its specific collection mutable so the MTPBlock can sow into it.
-  if config.mtp_eval_target_module > 0 and not is_train:
-    mutable_collections.append("mtp_acceptance")
-
   logits, intermediate_outputs = model.apply(
       params,
       data["inputs"],
@@ -581,7 +573,6 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
       mutable=mutable_collections,
   )
   if config.use_kd:
-    # __import__('ipdb').set_trace()
     teacher_logits, teacher_intermediate_outputs = teacher_model.apply(
       {'params': teacher_params}, # lsp
       data["inputs"],

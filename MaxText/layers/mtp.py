@@ -291,16 +291,16 @@ class MultiTokenPredictionBlock(nn.Module):
         print(f'MTP loss record.....')
         # For evaluation, save the top prediction and a valid token mask.
         # This is only active for the target layer during an eval run.
-        if cfg.mtp_eval_target_module == k and self.is_mutable_collection("mtp_acceptance"):
+        if cfg.mtp_eval_target_module == k:
           mtp_top_1_pred = jnp.argmax(mtp_logits, axis=-1)
-          self.sow("mtp_acceptance", "mtp_preds", mtp_top_1_pred)
-          self.sow("mtp_acceptance", "mtp_mask", rolled_target_mask)
+          self.sow("intermediates", "mtp_preds", jnp.sum(mtp_top_1_pred))
+          self.sow("intermediates", "mtp_mask", jnp.sum(rolled_target_mask))
 
         # For training, save the loss components for this MTP head.
         # This is only active during a training run.
-        if self.is_mutable_collection("mtp_losses"):
-          self.sow("mtp_losses", "losses", jnp.sum(mtp_xent_masked))
-          self.sow("mtp_losses", "weights", jnp.sum(rolled_target_mask))
+        # if self.is_mutable_collection("mtp_losses"):
+        self.sow("intermediates", "mtp_losses", jnp.sum(mtp_xent_masked))
+        self.sow("intermediates", "mtp_weights", jnp.sum(rolled_target_mask))
 
       # The output of this layer is the input for the next, maintaining the causal chain.
       mtp_hidden_state = next_mtp_hidden_state
@@ -310,9 +310,8 @@ class MultiTokenPredictionBlock(nn.Module):
 
 def calculate_mtp_loss(intermediate_outputs, config):
   """Calculates the Multi Token Prediction loss from intermediate outputs."""
-  losses_path = ("mtp_losses", "mtp_block", "losses")
-  weights_path = ("mtp_losses", "mtp_block", "weights")
-
+  losses_path = ("intermediates", "decoder", "mtp_block", "mtp_losses")
+  weights_path = ("intermediates","decoder", "mtp_block", "mtp_weights")
   mtp_losses = maxtext_utils.get_nested_value(intermediate_outputs, losses_path, default=())
   mtp_weights = maxtext_utils.get_nested_value(intermediate_outputs, weights_path, default=())
 
@@ -329,10 +328,9 @@ def calculate_mtp_loss(intermediate_outputs, config):
 
 def calculate_mtp_acceptance_rate(intermediate_outputs, config):
   """Calculates the MTP acceptance rate from intermediate outputs."""
-
-  sown_data = maxtext_utils.get_nested_value(intermediate_outputs, ("mtp_acceptance", "mtp_block"), {})
-  mtp_preds = maxtext_utils.get_nested_value(sown_data, ("mtp_preds",), [None])[0]
-  valid_mask = maxtext_utils.get_nested_value(sown_data, ("mtp_mask",), [None])[0]
+  sown_data = maxtext_utils.get_nested_value(intermediate_outputs, ("intermediates"), {})
+  mtp_preds = maxtext_utils.get_nested_value(sown_data, ("decoder", "mtp_block", "mtp_preds"), [None])[0]
+  valid_mask = maxtext_utils.get_nested_value(sown_data, ("decoder", "mtp_block", "mtp_mask"), [None])[0]
 
   # These values are only "sown" (saved) during an evaluation run and only for the specific
   # MTP layer specified by `config.mtp_eval_target_module`. This check handles cases

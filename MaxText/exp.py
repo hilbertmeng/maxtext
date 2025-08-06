@@ -519,4 +519,7 @@ class DCMuddLlama19BMoE2in32(LGLLWindow, DroplessMoe, DCMuddLlama19B):
 class MTPLlama2Medium(Llama2Medium):
     mtp_num_layers = 1
     mtp_eval_target_module = 1
-    vocab_size = 151936
+    # vocab_size = 151936
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 64.0
+    shuffle_buffer_size = None

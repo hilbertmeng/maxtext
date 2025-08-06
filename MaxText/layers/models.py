@@ -249,6 +249,60 @@ class SequentialBlockDecoderLayers(nn.Module):
     return inputs
 
 
+class OutputHead(nn.Module):
+
+  config: Config
+  shared_embedding: nn.Module
+  mesh: Mesh
+  quant: Optional[Quant] = None
+
+  def setup(self):
+    cfg = self.config
+    self.norm = RMSNorm(dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        name="decoder_norm",
+        epsilon=cfg.normalization_layer_epsilon,
+        kernel_axes=("norm",),
+        )
+    self.logits_dense = linears.DenseGeneral(
+            cfg.vocab_size,
+            weight_dtype=cfg.weight_dtype,
+            dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+            kernel_axes=("embed", "vocab"),
+            quant=self.quant,
+            name="logits_dense",
+            matmul_precision=cfg.matmul_precision,
+            kernel_init=initializers.nd_dense_init_normal(0.006), #lsp
+            # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), #lsp
+            use_quant=cfg.use_quant,
+            # rng=jax.random.PRNGKey(1111),
+        )
+    self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
+  
+  @nn.compact
+  def __call__(self, y, deterministic):
+    cfg = self.config
+    y = self.dropout(y, deterministic=deterministic)
+    if cfg.logits_via_embedding:
+        print(f'Word embedding shared: {cfg.logits_via_embedding}')
+        # Use the transpose of embedding matrix for logit transform.
+        logits = self.shared_embedding.attend(y)  # lsp：权重共享
+        if cfg.normalize_embedding_logits:
+            # Correctly normalize pre-softmax logits for this shared case.
+            logits = logits / jnp.sqrt(y.shape[-1])
+        if cfg.final_logits_soft_cap:
+            logits = logits / cfg.final_logits_soft_cap
+            logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
+    else:
+        logits = self.logits_dense(y)
+        logits = nn.with_logical_constraint(
+            logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
+        )
+    if cfg.cast_logits_to_fp32:
+        logits = logits.astype(jnp.float32)
+    return logits
+
+
 dot_general_int8 = aqt.dot_general_make(
                                       lhs_bits=8,
                                       rhs_bits=None,   # 不量化 logits_dense，避免误差
@@ -548,28 +602,34 @@ class Decoder(nn.Module):
             else:
               y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
 
+    OutputHeadLayer = OutputHead(config=cfg, 
+                        shared_embedding=self.shared_embedding,
+                        mesh=mesh,
+                        quant=self.quant,
+                        name='lm_head')
+
+    logits = OutputHeadLayer(y, deterministic=deterministic)
     # =====================================llm head======================================
-    RematMTPBlock = nn.remat(  # pylint: disable=invalid-name
-          mtp.MultiTokenPredictionBlock,
-          prevent_cse=True,
-          policy=get_remat_policy(cfg),
-          static_argnums=(-2, -1),  # Deterministic and model mode are static arguments.
-          rngs={"params": True, "aqt": True, "dropout": True},
+    if cfg.mtp_num_layers > 0:
+      # lsp: Don't to use remat in here where will lead to decrease performance and inscrease hbm significantly.
+      mtp.MultiTokenPredictionBlock(
+        config=cfg,
+        mesh=mesh,
+        quant=self.quant,
+        name="mtp_block",
+        transformer_layer_module=self.decoder_layer[0],
+        shared_embedding=self.shared_embedding,
+      )(
+        OutputHeadLayer,
+        main_hidden_state=y,
+        input_ids=decoder_input_tokens,
+        target_ids=decoder_target_tokens,
+        target_mask=decoder_target_mask,
+        position_ids=decoder_positions,
+        decoder_segment_ids=decoder_segment_ids,
+        deterministic=deterministic,
+        model_mode=model_mode,
       )
-    logits = RematMTPBlock(cfg, mesh, self.quant,
-                          name="mtp_block",
-                          transformer_layer_module=self.decoder_layer[0], 
-                          shared_embedding=self.shared_embedding,
-                        )(
-                main_hidden_state=y,
-                input_ids=decoder_input_tokens,
-                target_ids=decoder_target_tokens,
-                target_mask=decoder_target_mask,
-                position_ids=decoder_positions,
-                decoder_segment_ids=decoder_segment_ids,
-                deterministic=deterministic,
-                # model_mode=common_types.MODEL_MODE_TRAIN,
-                  )
     return logits
 
 

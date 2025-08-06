@@ -80,6 +80,7 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
 from distill_losses import compute_distill_loss
 from layers.mtp import calculate_mtp_acceptance_rate, calculate_mtp_loss
+# from jax.experimental import shard_map
 
 # pylint: disable=too-many-positional-arguments
 
@@ -251,20 +252,26 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
 
     if is_training:
       full_log = step % config.log_period == 0
+      step_message = f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}"
+      flops_message = f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}"
+      weight_message = f"total_weights: {metrics['scalar']['learning/total_weights']}"
+      loss_message = f"loss: {metrics['scalar']['learning/loss']:.3f}"
+      accuracy_message = f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}"
+      lr_message = f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
+      print_messages = [step_message, flops_message,weight_message, loss_message, accuracy_message, lr_message]
 
-      max_logging.log(
-          f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
-          f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-          # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
-          f"total_weights: {metrics['scalar']['learning/total_weights']}, "
-          f"loss: {metrics['scalar']['learning/loss']:.3f}, "
-          f"mtp_loss: {metrics['scalar']['learning/mtp_loss']:.3f}, "
-          f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}, "
-          f"distill_loss: {metrics['scalar']['learning/distill_loss']:.3f}, "
-          f"teacher_loss: {metrics['scalar']['learning/teacher_loss']:.3f}, "
-          f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}, "
-          f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
-      )
+      if config.mtp_num_layers > 0 and config.mtp_eval_target_module > 0:
+        print_messages.append(f"mtp_loss: {metrics['scalar']['learning/mtp_loss']:.3f}")
+        print_messages.append(f"mtp_accept_rate: {metrics['scalar']['learning/mtp_accept_rate']:.3f}")
+
+      if config.num_experts > 1:
+        print_messages.append(f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}")
+      if config.use_kd > 1:
+        print_messages.append(f"distill_loss: {metrics['scalar']['learning/distill_loss']:.3f}, teacher_loss: {metrics['scalar']['learning/teacher_loss']:.3f}")
+
+      print_messages = ' '.join(print_messages)
+      max_logging.log(print_messages)
+
       if full_log and jax.process_index() == 0:
         max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
         writer.flush()
@@ -615,9 +622,10 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
     teacher_loss = total_teacher_loss / (total_weights + EPS) # no gradient
 
   # Calculate and Add MTP Loss
-  mtp_loss = 0.0
-  if config.mtp_num_layers > 0 and is_train:
+  mtp_loss, mtp_accept_rate = 0.0, 0.0
+  if config.mtp_num_layers > 0:
     mtp_loss = calculate_mtp_loss(intermediate_outputs, config)
+    mtp_accept_rate = calculate_mtp_acceptance_rate(intermediate_outputs, config, logits)
     loss += mtp_loss
 
   # get moe load balance loss
@@ -645,6 +653,7 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
       "distill_loss": distill_loss, # lsp
       "teacher_loss": teacher_loss, # lsp
       "mtp_loss": mtp_loss,
+      "mtp_accept_rate": mtp_accept_rate,
   }
   return loss, aux
 
@@ -667,8 +676,6 @@ def compute_params_norm(params, config): # lsp
   return scalar_vales
 
 
-from jax.experimental import shard_map
-mesh = None
 
 def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, data, dropout_rng):
   """
@@ -764,6 +771,8 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   distill_loss = aux["distill_loss"]
   teacher_loss = aux["teacher_loss"]
   mtp_loss = aux["mtp_loss"]
+  mtp_accept_rate = aux["mtp_accept_rate"]
+
   print(f'cliping: {config.clipping}......')
   print(f'mesh: {mesh}')
   # input_partition_spec = jax.tree_util.tree_map(
@@ -793,9 +802,10 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   new_state = state.apply_gradients(grads=cliped_grads)
 
   scalar_metrics = {
-      "learning/loss": (loss - moe_lb_loss - distill_loss * distill_alpha) / (1 - distill_alpha), # lsp: remove moe_lb_loss, distill_loss
+      "learning/loss": (loss - mtp_loss - moe_lb_loss - distill_loss * distill_alpha) / (1 - distill_alpha), # lsp: remove moe_lb_loss, distill_loss, mtp_loss
       "learning/moe_lb_loss": moe_lb_loss,
       "learning/mtp_loss": mtp_loss,
+      "learning/mtp_accept_rate": mtp_accept_rate,
       "learning/distill_loss": distill_loss,
       "learning/teacher_loss": teacher_loss,
       "learning/total_weights": total_weights,
@@ -846,7 +856,7 @@ def eval_step(model, teacher_model, config, state, data, dropout_rng):
 
   mtp_acceptance_rate = 0.0
   if config.mtp_eval_target_module > 0:
-    mtp_acceptance_rate = calculate_mtp_acceptance_rate(aux["intermediate_outputs"], config)
+    mtp_acceptance_rate = aux['mtp_accept_rate']
 
 
   total_loss = aux["total_loss"]
@@ -866,7 +876,7 @@ def eval_step(model, teacher_model, config, state, data, dropout_rng):
           "evaluation/accuracy": aux["accuracy"], # lsp
           "evaluation/correct": aux["correct"], # lsp
           "evaluation/mtp_loss": mtp_loss,
-          "evaluation/mtp_acceptance_rate_percent": mtp_acceptance_rate,
+          "evaluation/mtp_accept_rate": mtp_acceptance_rate,
       },
   }
   if config.use_dpo:
@@ -937,13 +947,13 @@ def setup_mesh_and_model(config, teacher_config=None):
 
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
 
-   # lsp: add rule param weight decay
-  if config.wd_mults:
-    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
-    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
-    wd_tree = get_wd_tree(config=config, params=params_shape)
-  else:
-    wd_tree = None
+  #  # lsp: add rule param weight decay
+  # if config.wd_mults:
+  #   params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
+  #   max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
+  #   wd_tree = get_wd_tree(config=config, params=params_shape)
+  # else:
+  wd_tree = None
 
   tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
   logger = checkpointing.setup_checkpoint_logger(config)
@@ -1270,7 +1280,7 @@ def train_loop(config, teacher_config=None, state=None):
               "eval/distill_loss": 0.0,
               "eval/teacher_loss": 0.0,
               "eval/mtp_loss": 0.0,
-              "eval/mtp_acceptance_rate_percent": 0.0,
+              "eval/mtp_accept_rate": 0.0,
           }
       }
       eval_dpo_reward_accuracy = 0.0
@@ -1278,7 +1288,7 @@ def train_loop(config, teacher_config=None, state=None):
       # pylint: disable=not-callable
       eval_start_time = time.time()
       eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
-      correct, accuracy, mean_b_loss = 0, 0, 0 # lsp
+      correct, accuracy, mean_b_loss, mtp_loss, mtp_accept_rate = 0, 0, 0, 0, 0 # lsp
       for i in range(eval_steps):
         try:
           eval_batch = next(eval_data_iterator)
@@ -1300,15 +1310,20 @@ def train_loop(config, teacher_config=None, state=None):
         cumulative_eval_metrics["scalar"]["eval/distill_loss"] += float(eval_metrics["scalar"]["evaluation/distill_loss"])
         cumulative_eval_metrics["scalar"]["eval/teacher_loss"] += float(eval_metrics["scalar"]["evaluation/teacher_loss"])
         cumulative_eval_metrics["scalar"]["eval/mtp_loss"] += float(eval_metrics["scalar"]["evaluation/mtp_loss"])
-        cumulative_eval_metrics["scalar"]["eval/mtp_acceptance_rate_percent"] += float(eval_metrics["scalar"]["evaluation/mtp_acceptance_rate_percent"])
+        cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] += float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"])
 
         # lsp
         _correct = float(eval_metrics['scalar']['evaluation/correct'])
         _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
         _mean_b_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
+        _mtp_loss = float(eval_metrics["scalar"]["evaluation/mtp_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
+        _mtp_accept_rate = float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
+
         correct += _correct
         accuracy += _accuracy
         mean_b_loss += _mean_b_loss
+        mtp_loss += _mtp_loss
+        mtp_accept_rate += _mtp_accept_rate
         
         eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
         # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
@@ -1316,10 +1331,20 @@ def train_loop(config, teacher_config=None, state=None):
 
         total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
         per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
-        max_logging.log(
-          f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}, '
-          f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
-          )
+
+        step_loss_message = f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}'
+        weight_message = f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
+        print_messages = [step_loss_message, weight_message]
+
+        if config.mtp_num_layers > 0 and config.mtp_eval_target_module > 0:
+          print_messages.append(f"mtp_loss: {mtp_loss:.3f}")
+          print_messages.append(f"mtp_accept_rate: {mtp_accept_rate:.3f}")
+        print_messages = ' '.join(print_messages)
+        max_logging.log(print_messages)
+        # max_logging.log(s
+        #   f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}, '
+        #   f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
+        #   )
 
       eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
           cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS
@@ -1337,8 +1362,8 @@ def train_loop(config, teacher_config=None, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_mtp_loss"] = (
           cumulative_eval_metrics["scalar"]["eval/mtp_loss"] / eval_step_count
       )
-      cumulative_eval_metrics["scalar"]["eval/avg_mtp_acceptance_rate_percent"] = (
-          cumulative_eval_metrics["scalar"]["eval/mtp_acceptance_rate_percent"] / eval_step_count
+      cumulative_eval_metrics["scalar"]["eval/avg_mtp_accept_rate"] = (
+          cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] / eval_step_count
       )
       # lsp: batch mean loss, token/batch mean acc
       cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
@@ -1357,7 +1382,7 @@ def train_loop(config, teacher_config=None, state=None):
           f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
           f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']},"
           f" avg_mtp_loss={cumulative_eval_metrics['scalar']['eval/avg_mtp_loss']:.3f}," # lsp
-          f" avg_mtp_accept_rate={cumulative_eval_metrics['scalar']['eval/mtp_acceptance_rate_percent']:.3f}," # lsp
+          f" avg_mtp_accept_rate={cumulative_eval_metrics['scalar']['eval/mtp_accept_rate']:.3f}," # lsp
       )
       save_eval_result(config, step, cumulative_eval_metrics) # lsp
       

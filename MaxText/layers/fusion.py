@@ -71,14 +71,15 @@ class SubDecoderLayer(nn.Module):
   layer_inx: int|None = None
 
   def setup(self):
-    self.mudd_mlp = mudd.Mlp(self.config, self.mesh, self.quant, self.layer_inx)
-    self.mudd_qkvnorm = mudd.Norm(self.config, self.mesh, self.quant)
+    cfg = self.config
+    self.mudd_mlp = mudd.Mlp(cfg, self.mesh, self.quant, self.layer_inx)
+    self.mudd_qkvnorm = mudd.Norm(cfg, self.mesh, self.quant)
 
-    if self.config.dynamic_mlp_dim:
-      self.updated_mlp_dim = round(self.config.mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / 128) * 128 
+    if cfg.dynamic_mlp_dim:
+      self.updated_mlp_dim = round(cfg.mlp_dim * (self.layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
-      self.updated_mlp_dim = self.config.mlp_dim
-    max_logging.log(f'layer_inx: {self.layer_inx} sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
+      self.updated_mlp_dim = cfg.mlp_dim
+    max_logging.log(f'layer_inx: {self.layer_inx} sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
 
 
   @nn.compact
@@ -268,29 +269,27 @@ class FusionDecoderLayer(nn.Module):
   sliding_window_size: list|int|None = -1 # lsp
 
   def setup(self):
-    if 'mtp' in self.name:
-       layer_inx = -1
-    else:
-      layer_inx = None if self.config.scan_layers else int(self.name.split('_')[-1])
+    cfg = self.config
+    layer_inx = None if cfg.scan_layers else int(self.name.split('_')[-1])
     self.layer_inx = layer_inx
     # When no sliding_window_size is passed in, the sliding_window_size in config is used, otherwise the passed in sliding_window_size is used.
-    sliding_window_size = self.config.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
+    sliding_window_size = cfg.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
     if not isinstance(sliding_window_size, (list, tuple)):
         sliding_window_size = [sliding_window_size]
 
-    sliding_window_size = [s or self.config.max_target_length for s in sliding_window_size]
-    if self.config.num_layers_per_block > 1:
-      assert not self.config.dense_conn
+    sliding_window_size = [s or cfg.max_target_length for s in sliding_window_size]
+    if cfg.num_layers_per_block > 1:
+      assert not cfg.dense_conn
       # prevent_cse设置为true时更节省显存，设置为false速度更快，具体怎么设置需要测试
       RematSubDecoderLayer = nn.remat(SubDecoderLayer,
                                       prevent_cse=True,
-                                      policy=models.get_remat_policy(self.config),
+                                      policy=models.get_remat_policy(cfg),
                                       static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
                                       )
     else:
        RematSubDecoderLayer = SubDecoderLayer
 
-    self.subs = [RematSubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
+    self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
 
   @nn.compact
@@ -304,18 +303,20 @@ class FusionDecoderLayer(nn.Module):
       hids=None,
       eos_sum=None,
   ):
-    if self.config.mudd_in_layer:
+    cfg = self.config
+    if cfg.mudd_in_layer:
         if self.layer_inx == 0: # first layer
-            inputs = [inputs] * len(self.config.dynamic_dense_type)
+            inputs = [inputs] * len(cfg.dynamic_dense_type)
         else:
-            # 基于上一层的输出，生成mudd compose参数，并生成新的inputs
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
+            # return compose'inputs length is 4
+            inputs, hids = mudd.Compose(cfg, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
     
     for layer in self.subs: # subs length must be 1 when train mudd.
+        # return no compose's inputs length is 1
         inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
     
-    if self.config.mudd_in_layer:
-        if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
+    if cfg.mudd_in_layer:
+        if self.layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers: # last layer
+            inputs, hids = mudd.Compose(cfg, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
         return inputs, hids
     return inputs, dyn_dense_w

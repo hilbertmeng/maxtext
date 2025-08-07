@@ -30,57 +30,10 @@ import max_utils
 import maxtext_utils
 from layers import initializers
 from layers import linears
+from layers import mudd
 
 
 EPS = 1e-8
-
-def apply_output_head(y, cfg, shared_embedding, deterministic, quant):
-    y = rms_norm(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="decoder_norm",
-        epsilon=cfg.normalization_layer_epsilon,
-        kernel_axes=("norm",),
-    )(y)
-    y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
-    # [batch, length, emb_dim] -> [batch, length, vocab_size]
-    if cfg.logits_via_embedding:
-        print(f'Word embedding shared: {cfg.logits_via_embedding}')
-        # Use the transpose of embedding matrix for logit transform.
-        logits = shared_embedding.attend(y)  # lsp：权重共享
-        if cfg.normalize_embedding_logits:
-            # Correctly normalize pre-softmax logits for this shared case.
-            logits = logits / jnp.sqrt(y.shape[-1])
-        if cfg.final_logits_soft_cap:
-            logits = logits / cfg.final_logits_soft_cap
-            logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
-    else:
-        # # dot_general_int8 = aqt.dot_general_make(8, 8, 8)
-        # logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
-        #                   _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' else jax.lax.dot_general)
-        logits = linears.DenseGeneral(
-            cfg.vocab_size,
-            weight_dtype=cfg.weight_dtype,
-            dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-            kernel_axes=("embed", "vocab"),
-            quant=quant,
-            name="logits_dense",
-            matmul_precision=cfg.matmul_precision,
-            kernel_init=initializers.nd_dense_init_normal(0.006), #lsp
-            # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), #lsp
-            use_quant=cfg.use_quant,
-            # rng=jax.random.PRNGKey(1111),
-        )(
-            y
-        )  # We do not quantize the logits matmul.
-        logits = nn.with_logical_constraint(
-            logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
-        )
-    if cfg.cast_logits_to_fp32:
-        logits = logits.astype(jnp.float32)
-    return logits
-
-
 def roll_and_mask(x: jnp.ndarray, shift: int = -1) -> jnp.ndarray:
   """
   Performs a leftward roll on the sequence axis (axis=1) and masks the
@@ -127,11 +80,12 @@ class MultiTokenPredictionLayer(nn.Module):
   @nn.compact
   def __call__(
       self,
-      prev_hidden_state: jnp.ndarray,
+      prev_hidden_state: jnp.ndarray, # It is a list if use mudd.
       target_token_embedding: jnp.ndarray,
       position_ids: jnp.ndarray,
       decoder_segment_ids: Optional[jnp.ndarray],
       deterministic: bool,
+      hids: list = None,
       model_mode: str = MODEL_MODE_TRAIN,
   ) -> jnp.ndarray:
     """
@@ -160,26 +114,26 @@ class MultiTokenPredictionLayer(nn.Module):
     mesh = self.mesh
     k = self.layer_number
 
+    projected_features = []
     # --- 1. Normalize Hidden State and Embedding ---
     embedding_norm_layer = rms_norm(
         # num_features=target_token_embedding.shape[-1],
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
-        name=f"mtp_{k}_embedding_norm",
+        name=f"embedding_norm",
         epsilon=cfg.normalization_layer_epsilon,
         kernel_axes=("norm",),
     )
     embedding_norm = embedding_norm_layer(target_token_embedding)
 
     hidden_state_norm_layer = rms_norm(
-        # num_features=prev_hidden_state.shape[-1],
+        # num_features=_prev_hidden_state.shape[-1],
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
-        name=f"mtp_{k}_hidden_state_norm",
+        name=f"hidden_state_norm",
         epsilon=cfg.normalization_layer_epsilon,
         kernel_axes=("norm",),
     )
-
     hidden_state_norm = hidden_state_norm_layer(prev_hidden_state)
 
     # --- 2. Concatenate Normalized Representations ---
@@ -194,21 +148,28 @@ class MultiTokenPredictionLayer(nn.Module):
         weight_dtype=cfg.weight_dtype,
         use_bias=False,
         kernel_axes=("concat_embed", "embed"),
-        name=f"mtp_{k}_projection",
+        name=f"projection",
     )
     # Shape: [B, S, H]
     projected_features = projection_layer(concatenated_features)
-
     # --- 4. Pass through MTP Transformer Block ---
-    output = self.transformer_layer_module(config=cfg, mesh=mesh, name=f"mtp_{k}_transformer_layer")(
-        inputs=projected_features,
+    y = self.transformer_layer_module(config=cfg, mesh=mesh, name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
+        inputs=projected_features, # single array
         decoder_segment_ids=decoder_segment_ids,
         decoder_positions=position_ids,
         deterministic=deterministic,
         model_mode=model_mode,
+        hids=hids,
     )
+    if cfg.dense_conn:
+        assert cfg.mudd_in_layer, print('Use Mtp must use mudd in layer.')
+        output, hids = y
+        # lyr = int(self.name.split('_')[-1])
+        # output, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
+    else:
+       output = y
 
-    if isinstance(output, tuple):
+    if isinstance(output, tuple): # mudd is list type, so ignore it.
       # Handles the scan=True case, where the output is a tuple.
       next_hidden_state = output[0]
     else:
@@ -217,7 +178,7 @@ class MultiTokenPredictionLayer(nn.Module):
 
     # Shape: [B, S, H]
     # --- Return Processed Hidden State ---
-    return next_hidden_state
+    return next_hidden_state if not cfg.dense_conn else (next_hidden_state, hids)
 
 
 class MultiTokenPredictionBlock(nn.Module):
@@ -241,6 +202,7 @@ class MultiTokenPredictionBlock(nn.Module):
       decoder_segment_ids,
       deterministic=False,
       model_mode=MODEL_MODE_TRAIN,
+      hids=None,
   ):
     cfg = self.config
     # The initial hidden state for the MTP chain is the raw output from the main model.
@@ -268,7 +230,7 @@ class MultiTokenPredictionBlock(nn.Module):
           MultiTokenPredictionLayer,
           prevent_cse=True,
           policy=None,
-          static_argnums=(4, ), # 务必注意：参数中有默认值的不能作为静态参数
+          static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
           rngs={"params": True, "aqt": True, "dropout": True},
       )
        # Instantiate and apply the MTP layer for this step
@@ -276,31 +238,38 @@ class MultiTokenPredictionBlock(nn.Module):
           config=cfg,
           mesh=self.mesh,
           layer_number=k,
-          name=f"mtp_layer_{k}",
+          name=f"mtp_{k}",
+          # lsp: Should get prev token's history status in unmtp layers when use mudd, because cur token no history status.
+          # but in mtp layers, should get current token's history status. in fact, we can get the position correspond to generated token directly.
           transformer_layer_module=self.transformer_layer_module,
       )
-      next_mtp_hidden_state = mtp_layer(
-          mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic
+      output = mtp_layer(
+          mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids
       )
+      if cfg.dense_conn:
+        qkvr_hidden_states, hids = output
+        # Ther last layer output is a list, but is a array in middle layer.
+        next_mtp_hidden_state = qkvr_hidden_states[-1] if isinstance(qkvr_hidden_states, list|tuple) else qkvr_hidden_states
+      else:
+        next_mtp_hidden_state = output
 
       # Project to logits using the shared embedding transpose
       mtp_logits = output_layer(next_mtp_hidden_state, deterministic)
 
       # Calculate cross-entropy loss for this specific layer's prediction
       mtp_xent, _ = max_utils.cross_entropy_with_logits(mtp_logits, jax.nn.one_hot(rolled_target_ids, cfg.vocab_size), 0.0)
-      mtp_xent_masked = mtp_xent * rolled_target_mask
-      print(f'mtp_xent_masked: {mtp_xent_masked.shape}')
+      mtp_xent_masked = mtp_xent * rolled_target_mask # BL
 
       # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.
-      if not self.is_initializing() or 1:
+      if not self.is_initializing(): # don't excute here when model.init
         print(f'MTP loss record.....')
         # For evaluation, save the top prediction and a valid token mask.
         # This is only active for the target layer during an eval run.
         if cfg.mtp_eval_target_module == k:
           print(f'mtp_eval_target_module={k}, compute mtp preds and masks......')
-          mtp_top_1_pred = jnp.argmax(mtp_logits, axis=-1)
-          self.sow("intermediates", "mtp_preds", jnp.sum(mtp_top_1_pred))
-          self.sow("intermediates", "mtp_mask", jnp.sum(rolled_target_mask))
+          mtp_top_1_pred = jnp.argmax(mtp_logits, axis=-1) # blv -> bl
+          self.sow("intermediates", "mtp_preds", mtp_top_1_pred)
+          self.sow("intermediates", "mtp_mask", rolled_target_mask)
 
         # For training, save the loss components for this MTP head.
         # This is only active during a training run.

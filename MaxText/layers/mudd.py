@@ -159,10 +159,11 @@ class Mlp(nn.Module):
     
     factor = 1
     layer_inx = self.layer_inx
-    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
+    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == (cfg.num_decoder_layers - 1 + cfg.mtp_num_layers) else len(cfg.dynamic_dense_type)
     dw_shape = (C, ((layer_inx + 1) * factor + 1))
+    print(f'dw_shape: {dw_shape}')
 
-    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 else 1
+    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else 1
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
 
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
@@ -197,7 +198,6 @@ class Mlp(nn.Module):
       layer_output,
   ):
     cfg = self.config
-    mesh = self.mesh
     dyn_dense_w = None
     if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
@@ -252,8 +252,8 @@ class Compose(nn.Module):
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     # hids = hids.at[self.layer_inx].set(y_normed)
     hids.append(y_normed)
-    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
-
+    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else len(cfg.dynamic_dense_type)
+    print(f'layer_inx: {layer_inx} C: {C}')
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=nn.initializers.constant(0.001))
       if cfg.mudd_compose_method == 'jit':
@@ -270,8 +270,7 @@ class Compose(nn.Module):
                         ) for cidx in range(C)])
     else:
         # (btl, btl, btl, btl)
+        dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
         y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
-    if layer_inx == cfg.num_decoder_layers - 1:
-      del hids
-      return y[0], []
+        
     return y, hids

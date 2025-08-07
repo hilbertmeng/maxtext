@@ -523,3 +523,9 @@ class MTPLlama2Medium(Llama2Medium):
     per_device_batch_size = 64.0
     eval_per_device_batch_size = 64.0
     shuffle_buffer_size = None
+
+class MTPMuddLlama2Medium(Mudd, MTPLlama2Medium):
+    mtp_num_layers = 2
+    mtp_eval_target_module = 1
+    mudd_in_layer = True
+   

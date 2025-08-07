@@ -1316,8 +1316,8 @@ def train_loop(config, teacher_config=None, state=None):
         _correct = float(eval_metrics['scalar']['evaluation/correct'])
         _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
         _mean_b_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
-        _mtp_loss = float(eval_metrics["scalar"]["evaluation/mtp_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
-        _mtp_accept_rate = float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
+        _mtp_loss = float(eval_metrics["scalar"]["evaluation/mtp_loss"])
+        _mtp_accept_rate = float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"])
 
         correct += _correct
         accuracy += _accuracy
@@ -1337,8 +1337,8 @@ def train_loop(config, teacher_config=None, state=None):
         print_messages = [step_loss_message, weight_message]
 
         if config.mtp_num_layers > 0 and config.mtp_eval_target_module > 0:
-          print_messages.append(f"mtp_loss: {mtp_loss:.3f}")
-          print_messages.append(f"mtp_accept_rate: {mtp_accept_rate:.3f}")
+          print_messages.append(f"mtp_loss: {_mtp_loss:.3f}")
+          print_messages.append(f"mtp_accept_rate: {_mtp_accept_rate:.3f}")
         print_messages = ' '.join(print_messages)
         max_logging.log(print_messages)
         # max_logging.log(s

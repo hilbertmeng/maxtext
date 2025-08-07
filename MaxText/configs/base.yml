@@ -651,6 +651,7 @@ mix_attn: False
 eval_loop_num_batches: 100
 query_chunk_method: ''
 mudd_compose_method: 'sdsa'
+mudd_in_layer: True
 permute_new: False
 clipping: 'global'
 use_quant: False

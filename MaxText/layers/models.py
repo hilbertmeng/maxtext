@@ -607,8 +607,10 @@ class Decoder(nn.Module):
                         mesh=mesh,
                         quant=self.quant,
                         name='lm_head')
-
+    y = y[-1] if isinstance(y, list|tuple) else y
+    print(f'OutputHeadLayer input: {y.shape}')
     logits = OutputHeadLayer(y, deterministic=deterministic)
+    print(f'main logits: {logits.shape}')
     # =====================================llm head======================================
     if cfg.mtp_num_layers > 0:
       # lsp: Don't to use remat in here where will lead to decrease performance and inscrease hbm significantly.
@@ -629,6 +631,7 @@ class Decoder(nn.Module):
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
         model_mode=model_mode,
+        hids=hids,
       )
     return logits
 

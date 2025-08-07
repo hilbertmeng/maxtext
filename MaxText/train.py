@@ -382,6 +382,20 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       if config.shared_experts > 0:
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/max/layer_23
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/mean/layer_23
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/min/layer_23
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/norm/layer_23
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/std/layer_23
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.layer_output/norm/layer_23
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/max/layer_24
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/mean/layer_24
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/min/layer_24
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/norm/layer_24
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/std/layer_24
+# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.layer_output/norm/layer_24
+# intermediates.decoder.mtp_block.mtp_1.layers_24.sub_0.mlp_lnx/l2norm
+
   else:
     loop_indexes = list(range(0, config.num_decoder_layers, l_step_len)) + \
                   list(range(config.num_decoder_layers, config.num_decoder_layers + config.mtp_num_layers, 1))
@@ -389,9 +403,9 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       mtp_i = layer_num - config.num_decoder_layers + 1
       if config.dense_conn:
         if config.mudd_in_layer:
-          if mtp_i > 0: # mtp layer
+          if mtp_i >= 0: # mtp layer
             add = int(mtp_i != config.mtp_num_layers)
-            layer = intermediate_outputs["intermediates"]["decoder"]["mtp_block"][f"mtp_{mtp_i}"][f"layers_{layer_num + add}"][f"compose_{layer_num}"]
+            layer = intermediate_outputs["intermediates"]["decoder"]["mtp_block"][f"mtp_{mtp_i + add}"][f"layers_{layer_num + add}"][f"compose_{layer_num}"]
           else:
             add = int(layer_num != config.num_decoder_layers - 1)
             layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num + add}"][f"compose_{layer_num}"]
@@ -954,13 +968,13 @@ def setup_mesh_and_model(config, teacher_config=None):
 
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
 
-  #  # lsp: add rule param weight decay
-  # if config.wd_mults:
-  #   params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
-  #   max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
-  #   wd_tree = get_wd_tree(config=config, params=params_shape)
-  # else:
-  wd_tree = None
+   # lsp: add rule param weight decay
+  if config.wd_mults:
+    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
+    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
+    wd_tree = get_wd_tree(config=config, params=params_shape)
+  else:
+    wd_tree = None
 
   tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
   logger = checkpointing.setup_checkpoint_logger(config)

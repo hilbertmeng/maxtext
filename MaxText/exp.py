@@ -532,5 +532,13 @@ class MTPL1MuddLlama2Medium(Mudd, MTPLlama2Medium):
     mudd_postnorm = True
     eval_steps = -1
 
+class MTPL2MuddLlama2Medium(Mudd, MTPLlama2Medium):
+    mtp_num_layers = 2
+    mtp_eval_target_module = 2
+    mudd_in_layer = True
+    mudd_prenorm = True
+    mudd_postnorm = True
+    eval_steps = -1
+
 
    

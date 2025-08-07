@@ -383,28 +383,32 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
   else:
-    for layer_num in range(0, config.num_decoder_layers, l_step_len):
+    loop_indexes = list(range(0, config.num_decoder_layers, l_step_len)) + \
+                  list(range(config.num_decoder_layers, config.num_decoder_layers + config.mtp_num_layers, 1))
+    for layer_num in loop_indexes:
+      mtp_i = layer_num - config.num_decoder_layers + 1
       if config.dense_conn:
-        layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/mean/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/min/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/min/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/std/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/norm/layer_{layer_num}"]
+        if config.mudd_in_layer:
+          if mtp_i > 0: # mtp layer
+            add = int(mtp_i != config.mtp_num_layers)
+            layer = intermediate_outputs["intermediates"]["decoder"]["mtp_block"][f"mtp_{mtp_i}"][f"layers_{layer_num + add}"][f"compose_{layer_num}"]
+          else:
+            add = int(layer_num != config.num_decoder_layers - 1)
+            layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num + add}"][f"compose_{layer_num}"]
+        else:
+          layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
+        for read_key in ['max', 'mean', 'min', 'std', 'norm']:
+          output_metrics["scalar"][f"mudd/dyn_dense_w/{read_key}/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/{read_key}/layer_{layer_num}"]
         output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
 
-      metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
-
-      if config.num_experts > 1:
+      if config.num_experts > 1: # todo(lsp): moe mtp mudd record
+        metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
+        for moe_key1 in ['router_logits', 'router_probs']:
+          for moe_key2 in ['expert_to_token_score', 'expert_to_seq_token_score', 'token_to_expert_score']:
+            output_metrics["scalar"][f'moe/{moe_key1}/{moe_key2}/layer_{layer_num:03d}'] = metrics_dict['moe'][f"{moe_key1}/{moe_key2}"][0]
         temp_dict = {
-          f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0],
           f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0],
-          f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0],
-          f"moe/router_logits/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_seq_token_score"][0],
-          f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0],
-          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0],
-          f"moe/router_probs/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_seq_token_score"][0],
-          f"moe/router_probs/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/token_to_expert_score"][0],
+          f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0],
         }
         output_metrics["scalar"].update(temp_dict)
         step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
@@ -414,8 +418,11 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"].update(temp_dict)
 
       if config.shared_experts > 0:
+        if mtp_i > 0:
+          metrics_dict = intermediate_outputs["intermediates"]["decoder"]["mtp_block"][f"mtp_{mtp_i}"][f"layers_{layer_num}"]['sub_0']
+        else:
+          metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0]
-
 
 def _split_dpo_state(state):
   reference_params = state.params["reference_params"]

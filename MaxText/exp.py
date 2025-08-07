@@ -42,7 +42,7 @@ class PileDataset:
     max_target_length = 2048
     train_shuffle_buffer_size = None
     eval_shuffle_buffer_size = None
-    eval_loop_num_batches = 162
+    eval_steps = 162
     iter_file_nums = 2
     dataset_type = 'pile'
     zero_loss = False
@@ -524,8 +524,13 @@ class MTPLlama2Medium(Llama2Medium):
     eval_per_device_batch_size = 64.0
     shuffle_buffer_size = None
 
-class MTPMuddLlama2Medium(Mudd, MTPLlama2Medium):
-    mtp_num_layers = 2
+class MTPL1MuddLlama2Medium(Mudd, MTPLlama2Medium):
+    mtp_num_layers = 1
     mtp_eval_target_module = 1
     mudd_in_layer = True
+    mudd_prenorm = True
+    mudd_postnorm = True
+    eval_steps = -1
+
+
    

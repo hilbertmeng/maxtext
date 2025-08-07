@@ -648,7 +648,6 @@ zero_loss: False
 olmoe_init: False
 distill_topk: 0
 mix_attn: False
-eval_loop_num_batches: 100
 query_chunk_method: ''
 mudd_compose_method: 'sdsa'
 mudd_in_layer: True

@@ -1289,17 +1289,17 @@ def train_loop(config, teacher_config=None, state=None):
       eval_start_time = time.time()
       eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
       correct, accuracy, mean_b_loss, mtp_loss, mtp_accept_rate = 0, 0, 0, 0, 0 # lsp
-      for i in range(eval_steps):
+      for _ in range(eval_steps):
         try:
           eval_batch = next(eval_data_iterator)
         except:
           pstr = 'Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.'
           max_logging.log(pstr)
           eval_data_iterator.reset()
-          break
-        if config.eval_steps > 0 and eval_step_count >= config.eval_steps:
-          eval_batch = next(eval_data_iterator) # lsp
-          break
+          if config.eval_steps == -1: # -1 means eval whole dataset, otherwise must eval eval_steps examples
+            break
+          else: 
+            continue
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
           if config.only_eval: # lsp
             nextrng = jax.jit(jax.random.fold_in)(init_rng, step)

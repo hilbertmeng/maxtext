@@ -154,19 +154,27 @@ class MultiTokenPredictionLayer(nn.Module):
     # Shape: [B, S, H]
     projected_features = projection_layer(concatenated_features)
     # --- 4. Pass through MTP Transformer Block ---
-    y = self.transformer_layer_module(config=cfg, mesh=mesh, name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
-        inputs=projected_features, # single array
-        decoder_segment_ids=decoder_segment_ids,
-        decoder_positions=position_ids,
-        deterministic=deterministic,
-        model_mode=model_mode,
-        hids=hids,
+    y = self.transformer_layer_module(
+        config=cfg, mesh=mesh, 
+        name=f"layers_{k - 1 + cfg.num_decoder_layers}",
+        is_final_compose=k==cfg.mtp_mtp_num_layers)(
+          inputs=projected_features, # single array
+          decoder_segment_ids=decoder_segment_ids,
+          decoder_positions=position_ids,
+          deterministic=deterministic,
+          model_mode=model_mode,
+          hids=hids,
     )
     if cfg.dense_conn:
         assert cfg.mudd_in_layer, print('Mtp must set mudd_in_layer=true.')
         output, hids = y
-        # lyr = int(self.name.split('_')[-1])
-        # output, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
+        output, hids = mudd.Compose(
+          cfg, self.mesh, None, k + cfg.num_decoder_layers, 
+          name=f'compose_{k + cfg.num_decoder_layers}'
+           )(
+            layer_output=output, 
+            hids=hids
+           )
     else:
        output = y
 

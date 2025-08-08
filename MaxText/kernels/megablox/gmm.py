@@ -381,7 +381,7 @@ def gmm(
   tiles_n, n_rem = _calculate_irregular_num_tiles(n, tn)
   del n_rem
 
-  # Create the metadata we need for computation.
+  # Create the metadata we need for computation. num_active_tiles: padding后多少个tiling
   group_metadata, num_active_tiles = make_group_metadata(  # pylint: disable=unbalanced-tuple-unpacking
       group_sizes=group_sizes,
       m=m,
@@ -646,6 +646,7 @@ def tgmm(
   Returns:
     A  3d, jnp.ndarray with shape [num_groups, k, n].
   """
+  # __import__('ipdb').set_trace()
   if group_offset is None:
     group_offset = jnp.array([0], dtype=jnp.int32)
   else:
@@ -666,6 +667,7 @@ def tgmm(
     raise ValueError(f"No tuned tiling found for (m, k, n) = ({m}, {k}, {n})")
 
   tm, tk, tn = tiling
+  # tiles_k: k // tk, k_rem: t % tk
   tiles_k, k_rem = _calculate_irregular_num_tiles(k, tk)
   del k_rem
   tiles_n, n_rem = _calculate_irregular_num_tiles(n, tn)
@@ -677,7 +679,7 @@ def tgmm(
       m=m,
       tm=tm,
       start_group=group_offset[0],
-      num_nonzero_groups=num_actual_groups,
+      num_nonzero_groups=num_actual_groups, # expert nums
       visit_empty_groups=True,
   )
 

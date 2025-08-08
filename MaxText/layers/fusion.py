@@ -72,7 +72,6 @@ class SubDecoderLayer(nn.Module):
 
   def setup(self):
     cfg = self.config
-    self.mudd_mlp = mudd.Mlp(cfg, self.mesh, self.quant, self.layer_inx)
     self.mudd_qkvnorm = mudd.Norm(cfg, self.mesh, self.quant)
 
     if cfg.dynamic_mlp_dim:
@@ -247,18 +246,7 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
-
-    if 0 and cfg.record_internal_nn_metrics: # lsp: unused
-      self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
-      self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
-      self.sow(
-          "intermediates",
-          "activation_fraction_zero",
-          jnp.sum(layer_output == 0) / jnp.size(layer_output),
-      )
-
-    dyn_dense_w = self.mudd_mlp(layer_output) # lsp
-    return layer_output, dyn_dense_w
+    return layer_output
 
 
 class FusionDecoderLayer(nn.Module):
@@ -268,6 +256,7 @@ class FusionDecoderLayer(nn.Module):
   mesh: Mesh
   quant: Optional[Quant] = None
   sliding_window_size: list|int|None = -1 # lsp
+  is_final_compose: bool = False
 
   def setup(self):
     cfg = self.config
@@ -292,6 +281,7 @@ class FusionDecoderLayer(nn.Module):
 
     self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
+    
 
   @nn.compact
   def __call__(
@@ -306,19 +296,18 @@ class FusionDecoderLayer(nn.Module):
   ):
     cfg = self.config
     if cfg.dense_conn and cfg.mudd_in_layer:
-        if self.layer_inx == 0: # first layer
-            inputs = [inputs] * len(cfg.dynamic_dense_type)
-        else:
-            # return compose'inputs length is 4
-            inputs, hids = mudd.Compose(cfg, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
+        # return's inputs length is 4
+        inputs, hids = mudd.Compose(
+          cfg, self.mesh, self.quant, self.layer_inx, 
+          name=f'compose_{self.layer_inx}'
+           )(
+            layer_output=inputs, 
+            hids=hids
+           )
+        print(f'layer_inx: {self.layer_inx} inputs: {len(inputs)}')
     
     for layer in self.subs: # subs length must be 1 when train mudd.
-        # return no compose's inputs length is 1
-        inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
-    
-    if cfg.dense_conn and cfg.mudd_in_layer:
-        if self.layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers: # last layer
-            inputs, hids = mudd.Compose(cfg, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
-        return inputs, hids
-    
-    return inputs, dyn_dense_w
+        # return's inputs length is 1
+        inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
+
+    return inputs, hids

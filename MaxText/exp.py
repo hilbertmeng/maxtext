@@ -515,7 +515,6 @@ class DCMuddLlama19BMoE2in32(LGLLWindow, DroplessMoe, DCMuddLlama19B):
     max_target_length = 4096
     sliding_window_size = [256, None, 256, 256] * 2
 
-    
 class MTPLlama2Medium(Llama2Medium):
     mtp_num_layers = 1
     mtp_eval_target_module = 1
@@ -523,6 +522,7 @@ class MTPLlama2Medium(Llama2Medium):
     per_device_batch_size = 64.0
     eval_per_device_batch_size = 64.0
     shuffle_buffer_size = None
+    head_compose_types = 'tt'
 
 class MTPL1MuddLlama2Medium(Mudd, MTPLlama2Medium):
     mtp_num_layers = 1
@@ -540,5 +540,12 @@ class MTPL2MuddLlama2Medium(Mudd, MTPLlama2Medium):
     mudd_postnorm = True
     eval_steps = -1
 
-
-   
+class MTPL1HCtttMuddLlama2Medium(Mudd, MTPLlama2Medium):
+    # compose true(T) or false(F) in main logits, main_hidden_state, projected_features position
+    head_compose_types = 'ttt' # true, true, true
+    mtp_num_layers = 1
+    mtp_eval_target_module = 1
+    mudd_in_layer = True
+    mudd_prenorm = True
+    mudd_postnorm = True
+    eval_steps = -1

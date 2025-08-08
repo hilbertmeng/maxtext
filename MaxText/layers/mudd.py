@@ -12,7 +12,6 @@ from layers import normalizations
 from layers import linears
 from layers import quantizations 
 from einops import rearrange
-import max_logging
 
 Quant = quantizations.AqtQuantization
 
@@ -86,31 +85,6 @@ def wsum_fori(w: jnp.ndarray, hids: list[jnp.ndarray]) -> jnp.ndarray:
     del hids_stacked
     return out
 
-# class Cell(nn.Module):
-    
-#     @nn.compact
-#     def __call__(self, carry, w, *args):
-#         qkvr = jnp.stack(args)  # [L, B, T, D]
-#         c_out = jnp.einsum('btl,lbtd->btd', w, qkvr)
-#         print(f'qkvr: {qkvr.shape} w: {w.shape} c_out: {c_out.shape}')
-#         return carry, (c_out, None)
-    
-
-# def wsum_scan(w: jnp.ndarray, hids: list[jnp.ndarray]) -> jnp.ndarray:
-#   # w: btcl, hids: [btd] * L
-#   L = len(hids)
-#   ScannedCell = nn.scan(
-#       Cell,
-#       variable_broadcast="params",
-#       split_rngs={"params": False},
-#       in_axes=(2, *[0] * L), # carry不算，因此从w开始
-#       out_axes=(0, 0),
-#   )
-#   cell = ScannedCell()
-#   carry_init = jnp.zeros((1))
-#   variables = cell.init(jax.random.PRNGKey(0), carry_init, w, *hids)
-#   _, out = cell.apply(variables, carry_init, w, *hids)
-#   return out # cbtd
 
 def einsum(w: jnp.ndarray, # btcl, hbm increase 50%, need save multi hids array
          hids: list[jnp.ndarray], # list of BTD
@@ -143,6 +117,7 @@ class Mlp(nn.Module):
   quant: Optional[Quant] = None
   layer_inx: int = None
   use_bias: bool = True
+  C: int = 4
 
   def setup(self):
     cfg = self.config
@@ -159,8 +134,8 @@ class Mlp(nn.Module):
     
     factor = 1
     layer_inx = self.layer_inx
-    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == (cfg.num_decoder_layers - 1 + cfg.mtp_num_layers) else len(cfg.dynamic_dense_type)
-    dw_shape = (C, ((layer_inx + 1) * factor + 1))
+    C = self.C
+    dw_shape = (C, (layer_inx * factor + 1)) # lsp
     print(f'dw_shape: {dw_shape}')
 
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else 1
@@ -188,7 +163,7 @@ class Mlp(nn.Module):
                                     **kwargs)
     if self.use_bias:
       self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
-      init_v = jnp.array([0] * ((layer_inx + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
+      init_v = jnp.array([0] * (dw_shape[1] - 1) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
       init_v = init_v[None].repeat(C, 0)
       self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
@@ -217,10 +192,7 @@ class Compose(nn.Module):
   mesh: Mesh
   quant: Optional[Quant] = None
   layer_inx: int = None
-  
-  def setup(self):
-    if self.config.mudd_in_layer:
-        self.mudd_mlp = Mlp(self.config, self.mesh, self.quant, self.layer_inx)
+  C: int = 4
           
   @nn.compact
   def __call__(
@@ -228,32 +200,27 @@ class Compose(nn.Module):
       layer_output,
       hids,
   ):
-
+    cfg = self.config
+    
+    if self.layer_inx < 1:
+      return [layer_output] * len(cfg.dynamic_dense_type), hids
+    
+    y = layer_output
     if self.config.mudd_in_layer:
-        y, dyn_dense_w = layer_output, self.mudd_mlp(layer_output)
-    else:
-        y, dyn_dense_w = layer_output
-        if dyn_dense_w is None: 
-          return y, hids
+      dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, C=self.C)(layer_output)
 
     layer_inx = self.layer_inx
-    cfg = self.config
 
     if self.config.record_internal_nn_metrics:
-        _dyn_dense_w = dyn_dense_w.astype(jnp.float32)
-        self.sow('intermediates', f'dyn_dense_w/max/layer_{layer_inx}', jnp.max(_dyn_dense_w))
-        self.sow('intermediates', f'dyn_dense_w/mean/layer_{layer_inx}', jnp.mean(_dyn_dense_w))
-        self.sow('intermediates', f'dyn_dense_w/min/layer_{layer_inx}', jnp.min(_dyn_dense_w))
-        self.sow('intermediates', f'dyn_dense_w/norm/layer_{layer_inx}', l2norm(_dyn_dense_w))
-        self.sow('intermediates', f'dyn_dense_w/std/layer_{layer_inx}', jnp.std(_dyn_dense_w))
-        self.sow('intermediates', f'layer_output/norm/layer_{layer_inx}', l2norm(y.astype(jnp.float32)))
-        del _dyn_dense_w
+      for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
+        self.sow('intermediates', f'dyn_dense_w/{op.__name__}/layer_{layer_inx}', op(dyn_dense_w.astype(jnp.float32)))
+      self.sow('intermediates', f'layer_output/norm/layer_{layer_inx}', l2norm(y.astype(jnp.float32)))
 
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
-    # hids = hids.at[self.layer_inx].set(y_normed)
     hids.append(y_normed)
-    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else len(cfg.dynamic_dense_type)
-    print(f'layer_inx: {layer_inx} C: {C}')
+    # C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers else len(cfg.dynamic_dense_type)
+    C = self.C
+    print(f'layer_inx: {layer_inx} C: {C} hids: {len(hids)}')
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=nn.initializers.constant(0.001))
       if cfg.mudd_compose_method == 'jit':

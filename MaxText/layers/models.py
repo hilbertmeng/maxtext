@@ -588,7 +588,12 @@ class Decoder(nn.Module):
             sliding_window_sizes = cfg.num_decoder_layers * [cfg.sliding_window_size]
           for lyr in range(cfg.num_decoder_layers):
             RemattedBlockLayer = RemattedBlockLayers[0]
-            y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_sizes[lyr])(
+            y = RemattedBlockLayer(
+              config=cfg, 
+              mesh=mesh, 
+              name=f"layers_{lyr}", 
+              quant=self.quant, 
+              sliding_window_size=sliding_window_sizes[lyr])(
                 y,
                 decoder_segment_ids,
                 decoder_positions,
@@ -597,22 +602,35 @@ class Decoder(nn.Module):
                 hids=hids,
                 eos_sum=eos_sum,
             )
-            if cfg.dense_conn:
-              if cfg.mudd_in_layer:
-                y, hids = y
-              else:
-                y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
-            else:
-              y, _ = y
+            y, hids = y
+            if cfg.dense_conn and not cfg.mudd_in_layer:
+              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids)
+
+    if cfg.dense_conn:
+      if cfg.head_compose_types[:2] == 'tt':
+        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name=f'compose_{lyr + 1}', C=2)(y, hids)
+        main_head_inputs, mtp_head_inputs = y
+      elif cfg.head_compose_types[:2] == 'tf':
+        mtp_head_inputs = y
+        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name=f'compose_{lyr + 1}', C=1)(y, hids)
+        main_head_inputs = y[0]
+      elif cfg.head_compose_types[:2] == 'ft':
+        main_head_inputs = y
+        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name=f'compose_{lyr + 1}', C=1)(y, hids)
+        mtp_head_inputs = y[0]
+      else:
+        main_head_inputs, mtp_head_inputs = y, y # mtpmudd-0.4B: 2.3667
+    else:
+        main_head_inputs, mtp_head_inputs = y, None
 
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,
                         mesh=mesh,
                         quant=self.quant,
                         name='lm_head')
-    y = y[-1] if isinstance(y, list|tuple) else y
-    print(f'OutputHeadLayer input: {y.shape}')
-    logits = OutputHeadLayer(y, deterministic=deterministic)
+    
+    print(f'OutputHeadLayer input: {main_head_inputs.shape}')
+    logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
     print(f'main logits: {logits.shape}')
     # =====================================llm head======================================
     if cfg.mtp_num_layers > 0:
@@ -626,7 +644,7 @@ class Decoder(nn.Module):
         shared_embedding=self.shared_embedding,
       )(
         OutputHeadLayer,
-        main_hidden_state=y,
+        main_hidden_state=mtp_head_inputs,
         input_ids=decoder_input_tokens,
         target_ids=decoder_target_tokens,
         target_mask=decoder_target_mask,

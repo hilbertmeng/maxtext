@@ -382,20 +382,6 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       if config.shared_experts > 0:
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/max/layer_23
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/mean/layer_23
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/min/layer_23
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/norm/layer_23
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.dyn_dense_w/std/layer_23
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_23.layer_output/norm/layer_23
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/max/layer_24
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/mean/layer_24
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/min/layer_24
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/norm/layer_24
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.dyn_dense_w/std/layer_24
-# intermediates.decoder.mtp_block.mtp_1.layers_24.compose_24.layer_output/norm/layer_24
-# intermediates.decoder.mtp_block.mtp_1.layers_24.sub_0.mlp_lnx/l2norm
-
   else:
     loop_indexes = list(range(0, config.num_decoder_layers, l_step_len)) + \
                   list(range(config.num_decoder_layers, config.num_decoder_layers + config.mtp_num_layers, 1))

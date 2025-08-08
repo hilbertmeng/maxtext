@@ -148,6 +148,7 @@ class MultiTokenPredictionLayer(nn.Module):
         weight_dtype=cfg.weight_dtype,
         use_bias=False,
         kernel_axes=("concat_embed", "embed"),
+        # kernel_init=initializers.nd_dense_init_normal(0.006), # lsp?
         name=f"projection",
     )
     # Shape: [B, S, H]
@@ -162,7 +163,7 @@ class MultiTokenPredictionLayer(nn.Module):
         hids=hids,
     )
     if cfg.dense_conn:
-        assert cfg.mudd_in_layer, print('Use Mtp must use mudd in layer.')
+        assert cfg.mudd_in_layer, print('Mtp must set mudd_in_layer=true.')
         output, hids = y
         # lyr = int(self.name.split('_')[-1])
         # output, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp

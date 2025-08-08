@@ -256,7 +256,6 @@ class FusionDecoderLayer(nn.Module):
   mesh: Mesh
   quant: Optional[Quant] = None
   sliding_window_size: list|int|None = -1 # lsp
-  is_final_compose: bool = False
 
   def setup(self):
     cfg = self.config
@@ -296,14 +295,25 @@ class FusionDecoderLayer(nn.Module):
   ):
     cfg = self.config
     if cfg.dense_conn and cfg.mudd_in_layer:
-        # return's inputs length is 4
-        inputs, hids = mudd.Compose(
-          cfg, self.mesh, self.quant, self.layer_inx, 
-          name=f'compose_{self.layer_inx}'
-           )(
-            layer_output=inputs, 
-            hids=hids
-           )
+        if self.layer_inx == cfg.num_decoder_layers and cfg.head_compose_types[2] == 'f':
+           assert cfg.head_compose_types[1] == 't'
+          #  hids = hids[:-1] + [inputs] # 要不要替换掉这个呢？
+           inputs = [inputs] * len(cfg.dynamic_dense_type)
+           print(f'enter if branch.........')
+        else:
+          if cfg.head_compose_types[1:3] == 'tt' and self.layer_inx >= cfg.num_decoder_layers:
+             layer_inx = self.layer_inx + 1
+          else:
+             layer_inx = self.layer_inx
+             
+          # return's inputs length is 4
+          inputs, hids = mudd.Compose(
+            cfg, self.mesh, self.quant, layer_inx, 
+            name=f'compose_{self.layer_inx}'
+            )(
+              layer_output=inputs, 
+              hids=hids
+            )
         print(f'layer_inx: {self.layer_inx} inputs: {len(inputs)}')
     
     for layer in self.subs: # subs length must be 1 when train mudd.

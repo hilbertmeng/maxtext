@@ -542,7 +542,7 @@ class MTPL2MuddLlama2Medium(Mudd, MTPLlama2Medium):
 
 class MTPL1HCtttMuddLlama2Medium(Mudd, MTPLlama2Medium):
     # compose true(T) or false(F) in main logits, main_hidden_state, projected_features position
-    head_compose_types = 'ttt' # true, true, true
+    head_compose_types = 'ttt' # true, true, true, experiments: ttf, tft, ttt
     mtp_num_layers = 1
     mtp_eval_target_module = 1
     mudd_in_layer = True

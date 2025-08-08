@@ -597,10 +597,13 @@ class Decoder(nn.Module):
                 hids=hids,
                 eos_sum=eos_sum,
             )
-            if self.config.mudd_in_layer:
-              y, hids = y
+            if cfg.dense_conn:
+              if cfg.mudd_in_layer:
+                y, hids = y
+              else:
+                y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
             else:
-              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
+              y, _ = y
 
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,

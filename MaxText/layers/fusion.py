@@ -98,6 +98,7 @@ class SubDecoderLayer(nn.Module):
       lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
       inputs = inputs[3]
     else:
+      print(f'inputs: {inputs}')
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
       lnx_rms = models.RMSNorm(
@@ -304,7 +305,7 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
-    if cfg.mudd_in_layer:
+    if cfg.dense_conn and cfg.mudd_in_layer:
         if self.layer_inx == 0: # first layer
             inputs = [inputs] * len(cfg.dynamic_dense_type)
         else:
@@ -315,8 +316,9 @@ class FusionDecoderLayer(nn.Module):
         # return no compose's inputs length is 1
         inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
     
-    if cfg.mudd_in_layer:
+    if cfg.dense_conn and cfg.mudd_in_layer:
         if self.layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers: # last layer
             inputs, hids = mudd.Compose(cfg, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
         return inputs, hids
+    
     return inputs, dyn_dense_w

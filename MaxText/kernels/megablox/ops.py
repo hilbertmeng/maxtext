@@ -108,7 +108,7 @@ def _gmm_bwd(
   # TODO(tgale, enriqueps, apaske): Fuse this transposition into the tgmm.
   grad_rhs = grad_rhs.swapaxes(1, 2) if transpose_rhs else grad_rhs
   print(f'grad_lhs: {grad_lhs.shape} grad_rhs: {grad_rhs.shape} grad: {grad.shape}')
-  return grad_lhs, grad_rhs, None, None, grad
+#   return grad_lhs, grad_rhs, None, None, grad
 
 
 gmm.defvjp(_gmm_fwd, _gmm_bwd)

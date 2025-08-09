@@ -614,6 +614,7 @@ class Decoder(nn.Module):
         mtp_head_inputs = y
         y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name=f'compose_{lyr + 1}', C=1)(y, hids)
         main_head_inputs = y[0]
+        hids = hids[:-1]
       elif cfg.head_compose_types[:2] == 'ft':
         main_head_inputs = y
         y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name=f'compose_{lyr + 1}', C=1)(y, hids)

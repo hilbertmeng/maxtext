@@ -1,14 +1,42 @@
 {
-    "python.testing.pytestArgs": [],
-    "python.testing.cwd": "${workspaceFolder}/MaxText",
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true,
-    "workbench.colorCustomizations": {
-    "gitDecoration.modifiedResourceForeground": "#f3983d",  // 比如换成橙色
-    "gitDecoration.untrackedResourceForeground": "#00CC66", // 新文件绿色
-    "gitDecoration.deletedResourceForeground": "#FF3333",   // 删除红色
+"python.testing.pytestArgs": [],
+"python.testing.cwd": "${workspaceFolder}/MaxText",
+"python.testing.unittestEnabled": false,
+"python.testing.pytestEnabled": true,
+"workbench.colorCustomizations": {
+"gitDecoration.modifiedResourceForeground": "#c93df3",  // 比如换成橙色
+"gitDecoration.untrackedResourceForeground": "#00CC66", // 新文件绿色
+"gitDecoration.deletedResourceForeground": "#d5c8c8",   // 删除
 },
+"python.analysis.typeCheckingMode": "basic",  
 "python.analysis.diagnosticSeverityOverrides": {
-  "reportMissingImports": "none"
+  "reportMissingImports": "none",
+  "reportArgumentType": "none",
+  "reportOptionalMemberAccess": "none",     // 解决 local_iterator.xxx
+  "reportAttributeAccessIssue": "none",      // 解决 .shape 等动态属性
+   "reportOptionalCall": "none"          // ← 新增
+},
+// 鼠标悬浮显示定义/文档
+"editor.hover.enabled": true,
+
+// 悬浮延迟时间（毫秒），越短越快
+"editor.hover.delay": 200,
+
+// Ctrl/Cmd + 点击直接跳转，而不是 Peek
+"editor.definitionLinkOpensInPeek": false,
+// 主要，选用alt充当鼠标，相当于设置command + 点击跳转。
+"editor.multiCursorModifier": "alt", 
+
+// 多个定义时直接跳转到第一个
+"editor.gotoLocation.multipleDefinitions": "goto",
+
+// 启用参数提示（悬浮时显示函数参数）
+"editor.parameterHints.enabled": true,
+
+// 启用符号高亮（光标放上去会高亮所有引用）
+"editor.occurrencesHighlight": "singleFile",
+"python.defaultInterpreterPath": "/Users/lishengping/miniconda3/envs/py310/bin/python",
+// 让 VS Code 自动加载所有环境
+"python.terminal.activateEnvironment": true
 }
-}
+

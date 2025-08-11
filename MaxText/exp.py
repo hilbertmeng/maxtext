@@ -670,8 +670,6 @@ class DC2MuddLlamaMediumMLAG4VgateTanh(DC2MuddLlamaMediumMLAG4):
     use_v_gate = True
     v_gate_tanh = True
 
-
-
 class DC2MuddLlamaMediumKW(DC2MuddLlamaMedium):
     key_wise = True
 
@@ -729,7 +727,7 @@ class DC2MuddLlamaMediumKV4QO16VgateTanhLGLL(LGLLWindow, DC2MuddLlamaMediumKV4QO
     num_layers_per_block = 1
     base_mlp_dim = 2816 + int(512/4)
 
-class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL):
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL): # DC2Mudd + GQA + Vgate medium baseline 
     # L: MHA + Vgate (w/o KW); G: GQA + KW(w/o Vgate)
     use_v_gate = True
     key_wise = False
@@ -1796,9 +1794,9 @@ class DC3MuddLlamaXLGQA4DCG2LGLLKWBS8(Mudd, DC3, LGLLWindow, TrainXL, LlamaXL):
     attention='dot_product_chunk'
     query_chunk_size = 256
     per_device_batch_size = 8.0 # v6e-32
-    qk_norm = True
-    seperate_qk_dw_proj = True # generate qw from query-way hidden state
-    dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
+    # qk_norm = True
+    # seperate_qk_dw_proj = True # generate qw from query-way hidden state
+    # dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
     dc_num_groups = 2
     key_wise = True 
     base_num_kv_heads = [32,8,32,32] # L: MHA  G: GQA
@@ -1825,6 +1823,20 @@ class DC3MuddLlamaXLGQA4DCG2LGLLVgateBS8(DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
     compile_topology = 'v6e-32'
     compile_topology_num_slices=1
     compiled_trainstep_file="DC3MuddLlamaXLGQA4DCG2LGLLVgateBS8.pkl" # 
+
+class DC3MuddLlamaXLGQA4DCG2LGLLVgate(Mudd, DC3, LGLLWindow, TrainXL, LlamaXL):  # DC2Mudd + GQA + Vgate XL baseline
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    attention='dot_product_chunk'
+    use_v_gate = True
+    query_chunk_size = 256
+    per_device_batch_size = 16.0 # v5p-32
+    dc_num_groups = 2
+    base_num_kv_heads = [32,8,32,32] # L: MHA  G: GQA
+    num_layers_per_block = 1
+    base_mlp_dim = 5504 + 256 # 24*64*2/4/3
+    sharding_tolerance = 0.05
+    loop_over_dynamic_hd = False
+    record_internal_nn_metrics = 0
 
 class DC3MuddLlamaXLGQA4DCG2LGLLKDDBS8(DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
     ablate_kw = True

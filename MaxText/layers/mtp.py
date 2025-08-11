@@ -172,7 +172,8 @@ class MultiTokenPredictionLayer(nn.Module):
         if k == cfg.mtp_num_layers:
           output, hids = mudd.Compose(
             cfg, self.mesh, None, k + cfg.num_decoder_layers, 
-            name=f'compose_{k + cfg.num_decoder_layers}'
+            # name=f'compose_{k + cfg.num_decoder_layers}'
+            name=f'compose'
             )(
               layer_output=output, 
               hids=hids

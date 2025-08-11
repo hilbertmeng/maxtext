@@ -207,7 +207,7 @@ class Compose(nn.Module):
     
     y = layer_output
     if self.config.mudd_in_layer:
-      dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, C=self.C)(layer_output)
+      dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=self.C)(layer_output)
 
     layer_inx = self.layer_inx
 
@@ -216,13 +216,16 @@ class Compose(nn.Module):
         self.sow('intermediates', f'dyn_dense_w/{op.__name__}/layer_{layer_inx}', op(dyn_dense_w.astype(jnp.float32)))
       self.sow('intermediates', f'layer_output/norm/layer_{layer_inx}', l2norm(y.astype(jnp.float32)))
 
-    y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
+    # y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
+    y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
+
     hids.append(y_normed)
     # C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers else len(cfg.dynamic_dense_type)
     C = self.C
     print(f'layer_inx: {layer_inx} C: {C} hids: {len(hids)}')
     if cfg.mudd_postnorm:
-      post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=nn.initializers.constant(0.001))
+      # post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=nn.initializers.constant(0.001))
+      post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm", cfg=cfg, scale_init=nn.initializers.constant(0.001))
       if cfg.mudd_compose_method == 'jit':
         dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
         y = tuple([y + post_norm(r) if i == C - 1 else y + r for i, r in enumerate(wsum_jit(dyn_dense_w, hids))])

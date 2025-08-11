@@ -1060,6 +1060,7 @@ def train_loop(config, state=None):
         record_goodput(recorder, config, recorder.record_data_loading_start_time if recorder else None)
         example_batch = load_next_batch(data_iterator, example_batch, config)
         # if 71829 <= step <= 71833: continue  # mini-moe in here loss crash
+        # if 94739 <= step <= 94745: continue
         record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
         check_example_batch(config, example_batch=example_batch)
         # pylint: disable=not-callable

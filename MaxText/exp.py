@@ -162,6 +162,67 @@ class Llama2MediumBase(Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
+class Llama2MediumSandwichAAAB(Llama2MediumBase):
+    recursive_pattern = 'ABCDEF'*3 + 'GHIJKL'
+    scan_layers = False 
+    record_internal_nn_metrics = 0  
+
+# uncheatable_eval
+class Llama2MediumSandwichAAABUCTEval(Llama2MediumSandwichAAAB):
+    only_eval = True
+    eval_per_device_batch_size = 1.0 # v5p-8
+    dataset_type = 'uncheatable_eval'
+    eval_model_step = 13500
+    load_parameters_from_path = 'gs://newproject-1-llm_projects_us-east5/log/Llama2MediumSandwichAAAB/checkpoints/13500/items'
+    '''
+    Eval whole valid dataset finished.
+    average loss on ao3_english after step=13500: eval_step_count=1685, eval_loss=3.3686440764800025, avg_accuracy=0.000, total_weights=2283572.0
+    average loss on arxiv_computer after step=13500: eval_step_count=1685, eval_loss=3.2666134498741837, avg_accuracy=0.000, total_weights=1882167.0
+    average loss on arxiv_physics after step=13500: eval_step_count=1685, eval_loss=3.02760533846879, avg_accuracy=0.000, total_weights=2103353.0
+    average loss on bbc_news after step=13500: eval_step_count=1685, eval_loss=3.1302614029072, avg_accuracy=0.000, total_weights=1439811.0
+    average loss on github_cpp after step=13500: eval_step_count=1685, eval_loss=1.4323872781231963, avg_accuracy=0.000, total_weights=2422836.0
+    average loss on github_python after step=13500: eval_step_count=1685, eval_loss=1.6829365424545095, avg_accuracy=0.000, total_weights=2455603.0
+    average loss on wikipedia_english after step=13500: eval_step_count=1685, eval_loss=2.9790216867655657, avg_accuracy=0.000, total_weights=1202241.0
+    Save eval result to `gs://newproject-1-llm_projects_us-east5/log/Llama2MediumSandwichAAABUCTEval/eval_results_13500.json` finished.
+    '''
+
+class Llama2MediumSandwichAAABMudd(Mudd, Llama2MediumSandwichAAAB):
+    mudd_in_layer = True
+    dynamic_mlp_dim = False
+
+class DCLlama2MediumSandwichAAAB(DC, Llama2MediumSandwichAAAB):
+    qk_norm = True
+
+class Llama2MediumSandwichABBBC(Llama2MediumBase):
+    recursive_pattern = 'ABC' + 'DEFHIJ'*3 + 'KLM'
+    scan_layers = False 
+    record_internal_nn_metrics = 0  
+
+class Llama2MediumSandwichABBBC2(Llama2MediumBase):
+    recursive_pattern = 'A' + 'DEFHIJ'*3 + 'BCKLM'
+    scan_layers = False 
+    record_internal_nn_metrics = 0  
+
+class Llama2MediumSandwichABBC(Llama2MediumBase):
+    recursive_pattern = 'A' + 'BCDEFHIJKL'*2 + 'M'
+    scan_layers = False 
+    record_internal_nn_metrics = 0  
+    base_num_decoder_layers = 22
+
+class Llama2Medium12L(Llama2MediumBase):
+    scan_layers = False 
+    record_internal_nn_metrics = 0  
+    base_num_decoder_layers = 12
+    learning_rate_schedule_steps = 27000
+    eval_interval = 27000
+
+class Llama2MediumSandwich(Llama2MediumBase):
+    # recursive_pattern = 'BCDEFGH'*3 + 'I' 
+    recursive_pattern = 'A' + 'BCDEFGH'*3 + 'IJ'
+    scan_layers = False 
+    per_device_batch_size = 16.0 # v6e-16
+    record_internal_nn_metrics = 0  
+
 class Llama2MediumBasePreKdd(Llama2MediumBase):
     pre_compose = True
     post_compose = False
@@ -1745,19 +1806,31 @@ class DC3MuddLlamaXLGQA4DCG2LGLLKWBS8(Mudd, DC3, LGLLWindow, TrainXL, LlamaXL):
     base_mlp_dim = 5504 + 256 # 24*64*2/4/3
     sharding_tolerance = 0.05
     loop_over_dynamic_hd = False
+    record_internal_nn_metrics = 0
+    compile_topology = 'v6e-32'
+    compile_topology_num_slices=1
+    compiled_trainstep_file="DC3MuddLlamaXLGQA4DCG2LGLLKWBS8.pkl" # 
+
 
 class LlamaXLBase(TrainXL, LlamaXL):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
     attention='dot_product_chunk'
     query_chunk_size = 256
+    scan_layers = False
     per_device_batch_size = 8.0 # v6e-32
 
 class DC3MuddLlamaXLGQA4DCG2LGLLVgateBS8(DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
     use_v_gate = True
     key_wise = False
+    compile_topology = 'v6e-32'
+    compile_topology_num_slices=1
+    compiled_trainstep_file="DC3MuddLlamaXLGQA4DCG2LGLLVgateBS8.pkl" # 
 
 class DC3MuddLlamaXLGQA4DCG2LGLLKDDBS8(DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
     ablate_kw = True
+    compile_topology = '' # 'v6e-32'
+    compile_topology_num_slices=1
+    compiled_trainstep_file="DC3MuddLlamaXLGQA4DCG2LGLLKDDBS8.pkl" # 
 
 class LlamaXL6144SpeedTest(SpeedTest, LlamaXL):
     attention='dot_product_chunk'

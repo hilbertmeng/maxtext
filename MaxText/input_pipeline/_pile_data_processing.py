@@ -278,6 +278,47 @@ def extract_pythia_datapath(dataset_path, eval_split):  # lsp
     return pathes, eval_pathes
 
 
+def extract_uct_eval_datapath(dataset_path, eval_split):  # uncheatable_eval: train_pathes on pile; eval_pathes on uct_eval
+    if not dataset_path:
+      return []
+    client = storage.Client()
+    path = dataset_path.replace('gs://', '')
+    path_parts = path.split('/')
+    bucket_name = path_parts[0]
+    directory_path = '/'.join(path_parts[1:])
+    directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
+    print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+    step_map_path = {}
+    eval_pathes = []
+    rerank = 0
+    for blob in client.list_blobs(bucket_name, prefix=directory_path):
+        if ".tfrecord" not in blob.name: continue
+        try:
+            step = int(blob.name.rsplit("pile.tfrecord.b", maxsplit=1)[-1])
+        except:
+            step = rerank
+            rerank += 1
+        path = f'gs://{os.path.join(bucket_name, blob.name)}'
+
+        if eval_split in path:
+            print(f'eval path: {path}')
+            # eval_pathes.append(path)
+            continue
+        step_map_path[step] = path
+
+    for blob in client.list_blobs(bucket_name, prefix='uncheatable_eval_data/'):
+        if ".tfrecord" not in blob.name: continue
+        path = f'gs://{os.path.join(bucket_name, blob.name)}'
+        eval_pathes.append(path)
+        
+    sorted_step_path = sorted(step_map_path.items(), key=lambda x: x[0])
+    steps, pathes = zip(*sorted_step_path)
+    if not isinstance(pathes, list):
+        pathes = list(pathes)
+    max_logging.log(f'pathes: {len(pathes)} eval_pathes: {eval_pathes}')
+    return pathes, eval_pathes
+
+
 def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
     random.seed(9876)
     client = storage.Client()
@@ -419,6 +460,8 @@ def make_pile_train_iterator(config, mesh):  # lsp
   eval_name = f'{config.dataset_type}.eval'
   if config.dataset_type == 'pile':
     train_pathes, eval_pathes = extract_pythia_datapath(config.dataset_path, config.eval_split)
+  elif config.dataset_type == 'uncheatable_eval':
+    train_pathes, eval_pathes = extract_uct_eval_datapath(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'novel_4_32k':
     train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'pretrain_4k':
@@ -459,23 +502,45 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             )
   eval_dataloader = None
   if eval_pathes:
-    eval_dataloader = PileDatasets(
-                            mesh=mesh,
-                            name=eval_name, 
-                            path=eval_pathes, 
-                            meta_dict={},
-                            batch_size=int(config.eval_per_device_batch_size * num_local_devices),
-                            seq_len=config.max_target_length,
-                            repeat=config.epoch,
-                            seed=config.data_shuffle_seed,
-                            task_features=task_features,
-                            shuffle_buffer_size=config.eval_shuffle_buffer_size,
-                            num_batches_to_skip=None,
-                            only_eval=False,
-                            zero_loss=config.zero_loss,
-                            iter_file_nums=config.iter_file_nums,
-                            pad_bos=config.pad_bos,
-                            )
+    if config.dataset_type == 'uncheatable_eval':
+        eval_dataloader = []
+        for eval_path in eval_pathes:
+            _eval_dataloader = PileDatasets(
+                                    mesh=mesh,
+                                    name=eval_path.split('/')[-1].replace('.tfrecord', ''), 
+                                    path=[eval_path], 
+                                    meta_dict={},
+                                    batch_size=int(config.eval_per_device_batch_size * num_local_devices),
+                                    seq_len=config.max_target_length,
+                                    repeat=config.epoch,
+                                    seed=config.data_shuffle_seed,
+                                    task_features=task_features,
+                                    shuffle_buffer_size=config.eval_shuffle_buffer_size,
+                                    num_batches_to_skip=None,
+                                    only_eval=False,
+                                    zero_loss=config.zero_loss,
+                                    iter_file_nums=config.iter_file_nums,
+                                    pad_bos=config.pad_bos,
+                                    )
+            eval_dataloader.append(_eval_dataloader)
+    else:
+        eval_dataloader = PileDatasets(
+                                mesh=mesh,
+                                name=eval_name, 
+                                path=eval_pathes, 
+                                meta_dict={},
+                                batch_size=int(config.eval_per_device_batch_size * num_local_devices),
+                                seq_len=config.max_target_length,
+                                repeat=config.epoch,
+                                seed=config.data_shuffle_seed,
+                                task_features=task_features,
+                                shuffle_buffer_size=config.eval_shuffle_buffer_size,
+                                num_batches_to_skip=None,
+                                only_eval=False,
+                                zero_loss=config.zero_loss,
+                                iter_file_nums=config.iter_file_nums,
+                                pad_bos=config.pad_bos,
+                                )
   def train_dataloader_fn():
     return train_dataloader
 

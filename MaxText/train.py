@@ -1102,7 +1102,20 @@ def train_loop(config, state=None):
     if config.eval_interval > 0 and step > start_step and (step + 1) % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
       print(f'eval_data_iterator: {eval_data_iterator} ')
-      cumulative_eval_metrics = {
+      eval_dpo_reward_accuracy = 0.0
+      eval_step_count = 0
+      # pylint: disable=not-callable
+      eval_start_time = time.time()
+      eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
+      if not isinstance(eval_data_iterator, list):
+        eval_data_iterators = [eval_data_iterator]
+      else:
+        eval_data_iterators = eval_data_iterator
+      all_cumulative_eval_metrics = {}
+      for eval_data_iterator in eval_data_iterators:
+        dataset_name = eval_data_iterator.name
+        correct, accuracy, mean_b_loss = 0, 0, 0 # lsp
+        cumulative_eval_metrics = {
           "scalar": {
               "eval/total_loss": 0.0,
               "eval/total_weights": 0.0,
@@ -1110,61 +1123,56 @@ def train_loop(config, state=None):
               "eval/moe_lb_loss": 0.0,
               "eval/accuracy": 0.0, # lsp
           }
-      }
-      eval_dpo_reward_accuracy = 0.0
-      eval_step_count = 0
-      # pylint: disable=not-callable
-      eval_start_time = time.time()
-      eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
-      correct, accuracy, mean_b_loss = 0, 0, 0 # lsp
-      for i in range(eval_steps):
-        try:
-          eval_batch = next(eval_data_iterator)
-        except:
-          pstr = 'Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.'
-          max_logging.log(pstr)
-          eval_data_iterator.reset()
-          break
-        if config.eval_steps > 0 and eval_step_count >= config.eval_steps:
-          eval_batch = next(eval_data_iterator) # lsp
-          break
-        with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-          if config.only_eval: # lsp
-            nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
-          eval_metrics = p_eval_step(state, eval_batch, nextrng)
-        cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
-        cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
-        cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
-        # lsp
-        _correct = float(eval_metrics['scalar']['evaluation/correct'])
-        _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
-        _mean_b_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
-        correct += _correct
-        accuracy += _accuracy
-        mean_b_loss += _mean_b_loss
-        
-        eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
-        # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
-        eval_step_count += 1
+        }
+        for i in range(eval_steps):
+          try:
+            eval_batch = next(eval_data_iterator)
+          except:
+            pstr = 'Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.'
+            max_logging.log(pstr)
+            eval_data_iterator.reset()
+            break
+          if config.eval_steps > 0 and eval_step_count >= config.eval_steps:
+            eval_batch = next(eval_data_iterator) # lsp
+            break
+          with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+            if config.only_eval: # lsp
+              nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
+            eval_metrics = p_eval_step(state, eval_batch, nextrng)
+          cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
+          cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
+          cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
+          # lsp
+          _correct = float(eval_metrics['scalar']['evaluation/correct'])
+          _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
+          _mean_b_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
+          correct += _correct
+          accuracy += _accuracy
+          mean_b_loss += _mean_b_loss
+          
+          eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
+          # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
+          eval_step_count += 1
 
-        total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
-        per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
-        max_logging.log(
-          f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}, '
-          f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
-          )
+          total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
+          per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
+          max_logging.log(
+            f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}, '
+            f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
+            )
 
-      eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
-          cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS
-      )
-      cumulative_eval_metrics["scalar"]["eval/avg_loss"] = eval_loss
-      cumulative_eval_metrics["scalar"]["eval/avg_moe_lb_loss"] = (
-          cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / eval_step_count
-      )
-      # lsp: batch mean loss, token/batch mean acc
-      cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
-      cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / cumulative_eval_metrics["scalar"]["eval/total_weights"] 
-      cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
+        eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
+            cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS
+        )
+        cumulative_eval_metrics["scalar"]["eval/avg_loss"] = eval_loss
+        cumulative_eval_metrics["scalar"]["eval/avg_moe_lb_loss"] = (
+            cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / eval_step_count
+        )
+        # lsp: batch mean loss, token/batch mean acc
+        cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
+        cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / cumulative_eval_metrics["scalar"]["eval/total_weights"] 
+        cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
+        all_cumulative_eval_metrics[dataset_name] = cumulative_eval_metrics
       
       step = checkpoint_manager.latest_step() if config.eval_model_step == -1 and checkpoint_manager is not None else config.eval_model_step
       if config.use_dpo:
@@ -1172,12 +1180,13 @@ def train_loop(config, state=None):
       write_metrics(
           writer, local_metrics_file, running_gcs_metrics, cumulative_eval_metrics, step, config, is_training=False
       )
-      max_logging.log(
-          f"average loss after {step=}: {eval_step_count=}, {eval_loss=},"
-          f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
-          f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
-      )
-      save_eval_result(config, step, cumulative_eval_metrics) # lsp
+      for dataset_name, cumulative_eval_metrics in all_cumulative_eval_metrics.items():
+        max_logging.log(
+            f" average loss on {dataset_name} after {step=}: {eval_step_count=}, eval_loss={cumulative_eval_metrics['scalar']['eval/avg_loss']},"
+            f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
+            f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
+        )
+      save_eval_result(config, step, all_cumulative_eval_metrics) # lsp
       
       if eval_loss <= config.target_eval_loss:
         max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")

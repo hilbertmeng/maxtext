@@ -533,7 +533,7 @@ class FusionDecoderLayer(nn.Module):
   sliding_window_size: list|int|None = -1 # lsp
 
   def setup(self):
-    layer_inx = None if self.config.scan_layers else int(self.name.split('_')[-1])
+    layer_inx = None if self.config.scan_layers or self.config.recursive_pattern else int(self.name.split('_')[-1])
     # When no sliding_window_size is passed in, the sliding_window_size in config is used, otherwise the passed in sliding_window_size is used.
     sliding_window_size = self.config.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
     max_logging.log(f'FusionDecoderLayer layer_inx: {layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
@@ -553,14 +553,18 @@ class FusionDecoderLayer(nn.Module):
       decoder_positions,
       deterministic,
       model_mode,
+      layer_inx, # None 
       hids=None,
       value_residual=None,
   ):
+    if layer_inx is None:
+      layer_inx = self.layer_inx
+
     if self.config.mudd_in_layer:
-        if self.layer_inx == 0: # first layer
+        if layer_inx == 0: # first layer
             inputs = [inputs] * len(self.config.dynamic_dense_type)
         else:
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, layer_inx-1, name=f'compose_{layer_inx-1}')(inputs, hids) # lsp
 
     for layer in self.subs:
         if self.config.value_residual_learning:
@@ -569,7 +573,7 @@ class FusionDecoderLayer(nn.Module):
           inputs, dyn_dense_w, intermediate_inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
     
     if self.config.mudd_in_layer:
-        if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
+        if layer_inx == self.config.base_num_decoder_layers-1: # last layer
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, layer_inx, name=f'compose_{layer_inx}')(inputs, hids) # lsp
         return inputs, hids, value_residual, intermediate_inputs
     return inputs, dyn_dense_w, value_residual, intermediate_inputs

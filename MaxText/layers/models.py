@@ -304,12 +304,14 @@ class Decoder(nn.Module):
 
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
+    static_argnums = (4,5,6) if self.config.mudd_in_layer and self.config.recursive_pattern else (4,5)
+    # static_argnums = (4,5)
     for block_layer in block_layers:
       layer = nn.remat(  # pylint: disable=invalid-name
           block_layer,
           prevent_cse=not self.config.scan_layers,
           policy=policy,
-          static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+          static_argnums=static_argnums,  # Deterministic and model mode are static arguments.
       )
       RemattedBlockLayers.append(layer)
     return RemattedBlockLayers
@@ -528,6 +530,30 @@ class Decoder(nn.Module):
                             deterministic,
                             model_mode,
                         )
+        elif cfg.decoder_block == "fusion" and cfg.recursive_pattern: #mqy
+          RemattedBlockLayer = RemattedBlockLayers[0]
+          # n = cfg.num_decoder_layers // cfg.num_layers_per_block
+          # sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
+          pat = cfg.recursive_pattern
+          assert len(pat) == cfg.num_decoder_layers # 'ABC' * 8, ''
+          layers_dict = dict([(layer_sym, RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{layer_sym}", quant=self.quant, sliding_window_size=None)) for layer_sym in set(pat)])
+          # layers_dict = dict([(layer_sym, self.decoder_layer[0](config=cfg, mesh=mesh, name=f"layers_{layer_sym}", quant=self.quant, sliding_window_size=None)) for layer_sym in set(pat)])
+          for lyr in range(cfg.num_decoder_layers):
+            layer = layers_dict[pat[lyr]]
+            # layer = self.set_remat_policy([layer], policy)[0]
+            y = layer(
+                y,
+                decoder_segment_ids,
+                decoder_positions,
+                deterministic,
+                model_mode,
+                lyr,
+                hids=hids,
+            )
+            if self.config.mudd_in_layer:
+              y, hids = y[:2]
+            else:
+              y = y[0]
         else:
           n = cfg.num_decoder_layers // cfg.num_layers_per_block
           sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
@@ -541,6 +567,7 @@ class Decoder(nn.Module):
                 decoder_positions,
                 deterministic,
                 model_mode,
+                None,
                 hids=hids,
                 value_residual=value_residual,
             )

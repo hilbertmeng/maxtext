@@ -294,7 +294,9 @@ def load_state_if_possible(
             None,
         )
 
-  if load_parameters_from_path != "":
+  if load_parameters_from_path != "" or config.load_parameters_from_path:
+    if config.load_parameters_from_path is not None:
+      load_parameters_from_path = config.load_parameters_from_path
     restored_params = load_params_from_path(load_parameters_from_path, abstract_unboxed_pre_state.params)
     return None, restored_params
   elif load_full_state_from_path != "":

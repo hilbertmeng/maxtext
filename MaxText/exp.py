@@ -570,3 +570,6 @@ class Llama2MediumMoeDeepEmbed(DroplessMoe, Llama2Medium):
     load_balance_loss_weight = 0.0
     router_z_loss_coef = 0.0
     m_kn_tile_size = (512, 128)
+
+class MuddLlama2MediumDeepEmbed(Mudd, Llama2MediumDeepEmbed):
+    pass

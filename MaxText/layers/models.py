@@ -486,11 +486,7 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
-    if self.deep_embedding is not None:
-      deep_embed = self.deep_embedding(decoder_input_tokens.astype("int32"))
-    else:
-      deep_embed = None
-
+   
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
@@ -631,7 +627,7 @@ class Decoder(nn.Module):
       else:
         # 非 mtp mudd 组合
         y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
-        main_head_inputs = y
+        main_head_inputs = y[0]
         mtp_head_inputs = None
     else:
         # 非mudd分支，不组合

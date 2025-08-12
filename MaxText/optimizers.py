@@ -22,7 +22,7 @@ import jax
 
 import optax
 import jax.numpy as jnp
-
+from optax.contrib._muon import muon
 
 def get_optimizer(config, learning_rate_schedule, wd_tree=None):
   """create optimizer"""
@@ -50,6 +50,16 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None):
     )
   elif config.opt_type == "sgd":
     return optax.sgd(learning_rate_schedule)
+  elif config.opt_type == "muon":
+    return muon(
+      learning_rate_schedule,
+      adam_b1=config.adam_b1,
+      adam_b2=config.adam_b2,
+      eps=config.adam_eps,
+      adam_eps_root=config.adam_eps_root,
+      weight_decay=config.adam_weight_decay,
+      weight_decay_mask=mask,
+  )
   else:
     raise ValueError(f"{config.opt_type=} is not a supported.")
 

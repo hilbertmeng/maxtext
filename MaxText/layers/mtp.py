@@ -151,8 +151,6 @@ class MultiTokenPredictionLayer(nn.Module):
         # kernel_init=initializers.nd_dense_init_normal(0.006), # lsp?
         name=f"projection",
     )
-    # if cfg.head_compose_types[1:3] == 'tt':
-    #     add = 1
     # Shape: [B, S, H]
     projected_features = projection_layer(concatenated_features)
     # --- 4. Pass through MTP Transformer Block ---
@@ -172,7 +170,6 @@ class MultiTokenPredictionLayer(nn.Module):
         if k == cfg.mtp_num_layers:
           output, hids = mudd.Compose(
             cfg, self.mesh, None, k + cfg.num_decoder_layers, 
-            # name=f'compose_{k + cfg.num_decoder_layers}'
             name=f'compose'
             )(
               layer_output=output, 

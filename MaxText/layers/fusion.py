@@ -297,7 +297,6 @@ class FusionDecoderLayer(nn.Module):
     if cfg.dense_conn and cfg.mudd_in_layer:
         if self.layer_inx == cfg.num_decoder_layers and cfg.head_compose_types[2] == 'f':
            assert cfg.head_compose_types[1] == 't'
-          #  hids = hids[:-1] + [inputs] # 要不要替换掉这个呢？
            inputs = [inputs] * len(cfg.dynamic_dense_type)
            print(f'enter if branch.........')
         else:
@@ -309,7 +308,6 @@ class FusionDecoderLayer(nn.Module):
           # return's inputs length is 4
           inputs, hids = mudd.Compose(
             cfg, self.mesh, self.quant, layer_inx, 
-            # name=f'compose_{self.layer_inx}'
             name=f'compose'
             )(
               layer_output=inputs, 

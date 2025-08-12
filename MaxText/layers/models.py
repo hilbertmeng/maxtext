@@ -607,20 +607,20 @@ class Decoder(nn.Module):
               y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids)
 
     if cfg.dense_conn:
-      if cfg.head_compose_types[:2] == 'tt':
-        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name=f'compose_{lyr + 1}', C=2)(y, hids)
+      if cfg.head_compose_types[:2] == 'tt': # ttt: 2.382, ttf: 2.390
+        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=2)(y, hids)
         main_head_inputs, mtp_head_inputs = y
-      elif cfg.head_compose_types[:2] == 'tf':
+      elif cfg.head_compose_types[:2] == 'tf': # tft: 2.369
         mtp_head_inputs = y
-        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name=f'compose_{lyr + 1}', C=1)(y, hids)
+        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
         main_head_inputs = y[0]
         hids = hids[:-1]
-      elif cfg.head_compose_types[:2] == 'ft':
+      elif cfg.head_compose_types[:2] == 'ft': # ftt: 未做
         main_head_inputs = y
-        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name=f'compose_{lyr + 1}', C=1)(y, hids)
+        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
         mtp_head_inputs = y[0]
       else:
-        main_head_inputs, mtp_head_inputs = y, y # mtpmudd-0.4B: 2.3667
+        main_head_inputs, mtp_head_inputs = y, y # fft: mtpmudd-0.4B: 2.367
     else:
         main_head_inputs, mtp_head_inputs = y, None
 
@@ -635,6 +635,7 @@ class Decoder(nn.Module):
     print(f'main logits: {logits.shape}')
     # =====================================llm head======================================
     if cfg.mtp_num_layers > 0:
+      assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
       # lsp: Don't to use remat in here where will lead to decrease performance and inscrease hbm significantly.
       mtp.MultiTokenPredictionBlock(
         config=cfg,

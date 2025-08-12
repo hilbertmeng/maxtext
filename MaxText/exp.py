@@ -549,3 +549,24 @@ class MTPL1HCtttMuddLlama2Medium(Mudd, MTPLlama2Medium):
     mudd_prenorm = True
     mudd_postnorm = True
     eval_steps = -1
+
+class Llama2MediumDeepEmbed(Llama2Medium):
+    # vocab_size = 151936
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 64.0
+    shuffle_buffer_size = None
+    head_compose_types = 'ttt'
+    deep_embed = True
+
+class Llama2MediumMoeDeepEmbed(DroplessMoe, Llama2Medium):
+    # vocab_size = 151936
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 64.0
+    shuffle_buffer_size = None
+    head_compose_types = 'ttt'
+    deep_embed = True
+    num_experts = 32
+    num_experts_per_tok = 2
+    load_balance_loss_weight = 0.0
+    router_z_loss_coef = 0.0
+    m_kn_tile_size = (512, 128)

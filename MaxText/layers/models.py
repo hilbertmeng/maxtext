@@ -487,7 +487,10 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
-    deep_embed = self.deep_embedding(decoder_input_tokens.astype("int32"))
+    if self.deep_embedding is not None:
+      deep_embed = self.deep_embedding(decoder_input_tokens.astype("int32"))
+    else:
+      deep_embed = None
 
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
@@ -611,21 +614,28 @@ class Decoder(nn.Module):
               y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids)
 
     if cfg.dense_conn:
-      if cfg.head_compose_types[:2] == 'tt': # ttt: 2.382, ttf: 2.390
-        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=2)(y, hids)
-        main_head_inputs, mtp_head_inputs = y
-      elif cfg.head_compose_types[:2] == 'tf': # tft: 2.369
-        mtp_head_inputs = y
-        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
-        main_head_inputs = y[0]
-        hids = hids[:-1]
-      elif cfg.head_compose_types[:2] == 'ft': # ftt: 未做
-        main_head_inputs = y
-        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
-        mtp_head_inputs = y[0]
+      if cfg.mtp_num_layers > 0:
+        if cfg.head_compose_types[:2] == 'tt': # ttt: 2.382, ttf: 2.390
+          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=2)(y, hids)
+          main_head_inputs, mtp_head_inputs = y
+        elif cfg.head_compose_types[:2] == 'tf': # tft: 2.369
+          mtp_head_inputs = y
+          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
+          main_head_inputs = y[0]
+          hids = hids[:-1]
+        elif cfg.head_compose_types[:2] == 'ft': # ftt: 未做
+          main_head_inputs = y
+          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
+          mtp_head_inputs = y[0]
+        else:
+          main_head_inputs, mtp_head_inputs = y, y # fft: mtpmudd-0.4B: 2.367
       else:
-        main_head_inputs, mtp_head_inputs = y, y # fft: mtpmudd-0.4B: 2.367
+        # 非 mtp mudd 组合
+        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
+        main_head_inputs = y
+        mtp_head_inputs = None
     else:
+        # 非mudd分支，不组合
         main_head_inputs, mtp_head_inputs = y, None
 
     OutputHeadLayer = OutputHead(config=cfg, 
@@ -687,10 +697,11 @@ class Transformer(nn.Module):
         name="token_embedder",
         config=cfg,
     )
+    self.deep_embedding = None
     if cfg.deep_embed:
       self.deep_embedding = Embed(
         num_embeddings=cfg.vocab_size,
-        features=cfg.emb_dim * cfg.deep_embed_ratio,
+        features=cfg.mlp_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
         embedding_init=initializers.nd_dense_init_normal(0.006), # lsp

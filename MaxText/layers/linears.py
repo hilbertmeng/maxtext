@@ -291,8 +291,8 @@ class MlpBlock(nn.Module):
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
     if deep_embed is not None:
-      x = x * deep_embed # lsp
       print(f'x: {x.shape} deep_embed: {deep_embed.shape}')
+      x = x * deep_embed # lsp
 
     output = DenseGeneral(
         inputs.shape[-1],
@@ -466,7 +466,9 @@ class MoeBlock(nn.Module):
   def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel, deep_embed=None):
 
     aux_loss, router_z_loss = 0.0, 0.0
-    if self.config.load_balance_loss_weight is not None or self.config.record_internal_nn_metrics:
+    if self.config.load_balance_loss_weight is not None and  \
+       self.config.load_balance_loss_weight > 0.0  \
+      or self.config.record_internal_nn_metrics:
       _, expert_index, one_hot_indices = _top_k(gate_logits, k=self.num_experts_per_tok)
       assert one_hot_indices is not None
       router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
@@ -514,7 +516,7 @@ class MoeBlock(nn.Module):
         lhs_quantize_dtype = quant_dg.fwd.dg_quantizer.lhs.numerics.get_dtype()
         rhs_quantize_dtype = quant_dg.fwd.dg_quantizer.rhs.numerics.get_dtype()
 
-      m_kn_tile_size = (512, 512) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
+      m_kn_tile_size = (512, 128) if self.config.m_kn_tile_size is None else self.config.m_kn_tile_size
       _m, _kn = m_kn_tile_size
       def tiling_func(m,k,n): # w1: (BTK)D, DJ-> (BTK)J k=768 ; w2: BTJ, JD-> BTD k=1024
         _tm = _m

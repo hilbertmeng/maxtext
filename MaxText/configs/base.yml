@@ -658,4 +658,5 @@ only_fw_quant: False
 mtp_num_layers: 0
 mtp_eval_target_module: 0
 mtp_loss_scaling_factor: 0.1
-head_compose_types: 'tt'
+head_compose_types: 'ttt'
+deep_embed: False

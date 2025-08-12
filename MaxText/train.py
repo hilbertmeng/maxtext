@@ -265,7 +265,10 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
         print_messages.append(f"mtp_accept_rate: {metrics['scalar']['learning/mtp_accept_rate']:.3f}")
 
       if config.num_experts > 1:
-        print_messages.append(f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}")
+        moe_lb_loss = np.array(metrics['scalar']['learning/moe_lb_loss'])
+        if not isinstance(moe_lb_loss, float):
+          moe_lb_loss = moe_lb_loss.item()
+        print_messages.append(f"moe_lb_loss: {moe_lb_loss:.3f}")
       if config.use_kd > 1:
         print_messages.append(f"distill_loss: {metrics['scalar']['learning/distill_loss']:.3f}, teacher_loss: {metrics['scalar']['learning/teacher_loss']:.3f}")
 

@@ -318,6 +318,7 @@ class Decoder(nn.Module):
   shared_embedding: nn.Module
   mesh: Mesh
   quant: Optional[Quant] = None
+  deep_embedding: Optional[nn.Module] = None
 
   def setup(self):
     """Initialize decoder layer."""
@@ -486,6 +487,8 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
+    deep_embed = self.deep_embedding(decoder_input_tokens.astype("int32"))
+
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
@@ -601,6 +604,7 @@ class Decoder(nn.Module):
                 model_mode,
                 hids=hids,
                 eos_sum=eos_sum,
+                deep_embed=deep_embed,
             )
             y, hids = y
             if cfg.dense_conn and not cfg.mudd_in_layer:
@@ -683,8 +687,26 @@ class Transformer(nn.Module):
         name="token_embedder",
         config=cfg,
     )
+    if cfg.deep_embed:
+      self.deep_embedding = Embed(
+        num_embeddings=cfg.vocab_size,
+        features=cfg.emb_dim * cfg.deep_embed_ratio,
+        dtype=cfg.dtype,
+        attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        embedding_init=initializers.nd_dense_init_normal(0.006), # lsp
+        # embedding_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
+        name="deep_token_embedder",
+        config=cfg,
+      )
 
-    self.decoder = Decoder(config=cfg, shared_embedding=self.shared_embedding, mesh=mesh, quant=self.quant, name='decoder')
+    self.decoder = Decoder(
+        config=cfg, 
+        shared_embedding=self.shared_embedding, 
+        deep_embedding=self.deep_embedding, 
+        mesh=mesh, 
+        quant=self.quant, 
+        name='decoder'
+    )
 
   def __call__(
       self,

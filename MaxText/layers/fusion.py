@@ -90,6 +90,7 @@ class SubDecoderLayer(nn.Module):
       deterministic,
       model_mode,
       eos_sum,
+      deep_embed,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -183,7 +184,7 @@ class SubDecoderLayer(nn.Module):
           kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) if cfg.olmoe_init 
                       else initializers.nd_dense_init_normal(0.006), # lsp
           rng=jax.random.PRNGKey(10),  # lsp
-      )(hidden_states, deterministic=deterministic)
+      )(hidden_states, deep_embed=deep_embed, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:
@@ -221,7 +222,10 @@ class SubDecoderLayer(nn.Module):
         moe_layer = linears.MoeBlock
       else:
         raise ValueError(f'Unknow moe type: {cfg.moe_type}, it must be in [open, deepseek, ol, dropless]')
-      moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
+      if cfg.moe_type == 'dropless':
+        moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, deep_embed=deep_embed, paddings=decoder_segment_ids, deterministic=deterministic)
+      else:
+        moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
 
       if cfg.record_internal_nn_metrics: # lsp
             moe_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(moe_lnx)))
@@ -292,6 +296,7 @@ class FusionDecoderLayer(nn.Module):
       model_mode,
       hids=None,
       eos_sum=None,
+      deep_embed=None,
   ):
     cfg = self.config
     if cfg.dense_conn and cfg.mudd_in_layer:
@@ -317,6 +322,6 @@ class FusionDecoderLayer(nn.Module):
     
     for layer in self.subs: # subs length must be 1 when train mudd.
         # return's inputs length is 1
-        inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
+        inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum, deep_embed)
 
     return inputs, hids

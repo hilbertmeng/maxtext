@@ -217,7 +217,7 @@ class MlpBlock(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   @nn.compact
-  def __call__(self, inputs, decode: bool = False, deterministic: bool = False):
+  def __call__(self, inputs, deep_embed=None, decode: bool = False, deterministic: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -289,6 +289,10 @@ class MlpBlock(nn.Module):
               quant=self.quant,
               name='mgate',
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
+
+    if deep_embed is not None:
+      x = x * deep_embed # lsp
+      print(f'x: {x.shape} deep_embed: {deep_embed.shape}')
 
     output = DenseGeneral(
         inputs.shape[-1],
@@ -459,7 +463,7 @@ class MoeBlock(nn.Module):
     return output.reshape(batch_size, sequence_length, -1).astype(self.dtype)
   
 
-  def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel):
+  def sparse_matmul(self, inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel, deep_embed=None):
 
     aux_loss, router_z_loss = 0.0, 0.0
     if self.config.load_balance_loss_weight is not None or self.config.record_internal_nn_metrics:
@@ -554,6 +558,7 @@ class MoeBlock(nn.Module):
     # in https://parsa.epfl.ch/course-info/cs723/papers/Megatron.pdf.
     input_partition_spec = nn.logical_to_mesh_axes(('activation_batch', None, None))
     gate_logits_pspec = nn.logical_to_mesh_axes(("activation_batch", None, None))
+    deep_embed_pspec = input_partition_spec if deep_embed is not None else None
 
     w0_pspec = nn.logical_to_mesh_axes((None, None, "mlp"))
     w1_pspec = nn.logical_to_mesh_axes((None, None, "mlp"))
@@ -569,11 +574,11 @@ class MoeBlock(nn.Module):
     @functools.partial(
         shard_map.shard_map,
         mesh=self.mesh,
-        in_specs=(input_partition_spec, gate_logits_pspec, w0_pspec, w1_pspec, wo_pspec),
+        in_specs=(input_partition_spec, gate_logits_pspec, w0_pspec, w1_pspec, wo_pspec, deep_embed_pspec),
         out_specs=(nn.logical_to_mesh_axes(("activation_batch", None, "activation_embed"))),
         check_rep=False,
     )
-    def wrapper(x, logits, w0, w1, wo):
+    def wrapper(x, logits, w0, w1, wo, de):
       batch_size, sequence_length, _ = x.shape
       x, sorted_selected_experts, weights, group_sizes = self.permute(x, logits)
 
@@ -587,6 +592,14 @@ class MoeBlock(nn.Module):
       layer_act = _convert_to_activation_function(self.config.mlp_activations[0])(layer_w0)
       intermediate_layer = jnp.multiply(layer_act, layer_w1)
 
+      # Apply deep embedding modulation before final projection if provided
+      if de is not None:
+        de2d = jnp.reshape(de, (batch_size * sequence_length, -1)).astype(self.dtype)
+        # sorted_indices follows the same ordering used in permute()
+        sorted_indices = sorted_selected_experts // self.num_experts_per_tok
+        sorted_de = mblx.take.tpu_friendly_gather(de2d, sorted_indices)
+        intermediate_layer = intermediate_layer * sorted_de.astype(intermediate_layer.dtype)
+
       intermediate_layer = checkpoint_name(intermediate_layer, "mlp_intermediate_act") 
       intermediate_output = gmm(intermediate_layer, wo, group_sizes)
       
@@ -599,7 +612,8 @@ class MoeBlock(nn.Module):
           intermediate_output, sorted_selected_experts, weights, batch_size=batch_size, sequence_length=sequence_length
       )
       return output, None
-    return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)[0], aux_loss # lsp: add aux_loss
+   
+    return wrapper(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel, deep_embed)[0], aux_loss
 
   def reshape_and_update_weights(self, weights, indices):
     # input of weights & indices: (batch_size, seq_len, num_experts_per_tok)
@@ -850,7 +864,7 @@ class MoeBlock(nn.Module):
     return w0_kernel, w1_kernel, wo_kernel
 
   @nn.compact
-  def __call__(self, inputs, paddings=None, deterministic=False): # lsp
+  def __call__(self, inputs, deep_embed=None, paddings=None, deterministic=False): # lsp
     cfg = self.config
     inputs = inputs.astype(cfg.dtype)
     gate_logits = DenseGeneral(
@@ -875,7 +889,7 @@ class MoeBlock(nn.Module):
         w0_kernel, w1_kernel, wo_kernel = self.retrieve_quantized_weight(
             inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel
         )
-      return self.sparse_matmul(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
+      return self.sparse_matmul(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel, deep_embed)
     else:
       max_logging.log("Running MoE dense matmul implementation.")
       return self.dense_matmul(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)

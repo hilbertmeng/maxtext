@@ -630,8 +630,7 @@ class Decoder(nn.Module):
         main_head_inputs = y[0]
         mtp_head_inputs = None
     else:
-        # 非mudd分支，不组合
-        main_head_inputs, mtp_head_inputs = y, None
+        main_head_inputs, mtp_head_inputs = y, y
 
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,

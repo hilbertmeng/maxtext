@@ -367,6 +367,7 @@ class _HyperParameters:
 
     raw_keys = OrderedDict()
     keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv, **kwargs)
+    print('!!!! 0', raw_keys.get('dataset_type', None) )
     max_logging.log(f"Updating keys from env and command line: {keys_from_env_and_command_line}")
     keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_keys, config_name)
     max_logging.log(f"Updating keys from model: {keys_from_model}")
@@ -384,8 +385,9 @@ class _HyperParameters:
       compilation_cache.set_cache_dir(os.path.expanduser(raw_keys["jax_cache_dir"]))
 
     _update_exp_config(keys_from_env_and_command_line, raw_keys) # lsp must define in before user_init, because some vars would be changed in user_init.
-
+    print('!!!! 1', raw_keys.get('dataset_type', None) )
     _HyperParameters.user_init(raw_keys)
+    print('!!!! 2', raw_keys.get('dataset_type', None) )
     if raw_keys["dataset_type"] == "c4_mlperf" and raw_keys["model_name"] == "gpt3-175b":
       _HyperParameters.configure_gpt3_task(raw_keys)
 

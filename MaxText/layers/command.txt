@@ -1,0 +1,48 @@
+ssh lishengping@35.186.124.92
+
+
+# env 
+TPU_TYPE="v5p-8"; ZONE="us-east5-a"; CREATE_ARGS="--runtime-version v2-alpha-tpuv5"; SUFFIX="v5p"
+ID="train"; TPU_NAME=llm-jax-mj-${TPU_TYPE}-$ID; PROJECT_ID="newproject-1-451205"; BUCKET_PREFIX="newproject-1-"
+
+FRAMEWORK="maxtext"; BRANCH="mingjian"; TrainCompile=""
+
+BUCKET_ZONE=${ZONE::-2} # us-east5-a -> us-east5
+BASE_OUTPUT_DIR="gs://${BUCKET_PREFIX}llm_projects_${BUCKET_ZONE}/log/"
+DATASET_PATH="gs://${BUCKET_PREFIX}common_datasets_$BUCKET_ZONE/pythia_pile_idxmaps_tfrecord"
+
+# create TPU in the queue
+gcloud alpha compute tpus queued-resources create ${TPU_NAME} --node-id ${TPU_NAME}  --project ${PROJECT_ID}   --zone=${ZONE}   --accelerator-type=${TPU_TYPE} ${CREATE_ARGS} --service-account 626151558586-compute@developer.gserviceaccount.com  --best-effort
+
+# check status
+gcloud alpha compute tpus queued-resources list --zone=$ZONE  --project $PROJECT_ID
+
+
+# install env for training 
+gcloud compute tpus tpu-vm scp /home/lishengping/tpu/install_0812_v5p_mqy_maxtext.sh ${TPU_NAME}:~/ --zone=$ZONE --project $PROJECT_ID --worker=all;
+
+gcloud compute tpus tpu-vm ssh ${TPU_NAME} --zone=$ZONE --project $PROJECT_ID --worker=all --command="bash install_0812_v5p_mqy_maxtext.sh ${ZONE:0:-2} ${TPU_TYPE} ${BUCKET_PREFIX} 2>&1 | tee install.log; /home/lishengping/miniconda3/bin/pip install google-cloud-storage";
+
+gcloud compute tpus tpu-vm ssh $TPU_NAME  --project=$PROJECT_ID --zone=$ZONE --worker=all --command="/home/lishengping/miniconda3/bin/pip3 install -U jax[tpu]==0.6.0 orbax-checkpoint==0.11.6 aqtp pathwaysutils flax omegaconf google-cloud-monitoring  cloud-accelerator-diagnostics cloud-tpu-diagnostics ml_goodput_measurement tensorflow-text"
+
+
+#delete tpu
+gcloud compute tpus tpu-vm delete ${TPU_NAME} --zone=${ZONE} --project $PROJECT_ID --quiet
+echo 'Y' | gcloud alpha compute tpus queued-resources delete $TPU_NAME --zone=$ZONE  --project $PROJECT_ID
+
+# ssh tpu
+gcloud compute tpus tpu-vm ssh ${TPU_NAME} --zone=$ZONE --project $PROJECT_ID
+
+
+# rsync code 
+gcloud compute tpus tpu-vm scp --recurse /home/lishengping/mingjian/projects/maxtext/MaxText ${TPU_NAME}:/home/lishengping/projects/maxtext/ --zone=$ZONE --project $PROJECT_ID --worker all;
+
+# run exp 
+gcloud compute tpus tpu-vm ssh $TPU_NAME --project=$PROJECT_ID --zone=$ZONE --worker=all --command="export HARDWARE=tpu; export JAX_TRACEBACK_FILTERING=off; export LIBTPU_INIT_ARGS='--xla_tpu_enable_async_collective_fusion_fuse_all_gather=true --xla_tpu_megacore_fusion_allow_ags=false --xla_enable_async_collective_permute=true 
+            --xla_tpu_enable_ag_backward_pipelining=true --xla_tpu_enable_data_parallel_all_reduce_opt=true --xla_tpu_data_parallel_opt_different_sized_ops=true --xla_tpu_enable_async_collective_fusion=true --xla_tpu_enable_async_collective_fusion_multiple_steps=true --xla_tpu_overlap_compute_collective_tc=true --xla_enable_async_all_gather=true'; cd /home/lishengping/projects/maxtext; /home/lishengping/miniconda3/bin/python MaxText/train.py MaxText/configs/base.yml base_output_directory=$BASE_OUTPUT_DIR run_name=${EXP}  dataset_path=$DATASET_PATH exp_class=${EXP}"
+
+EXP="DCLlama2MediumMJTest"
+
+
+# kill running exp
+gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE --project $PROJECT_ID --worker=all --command="killall train.py;sudo lsof -w /dev/vfio/0 |cut -c 9-14|awk 'NR>1 {print $1}'| xargs sudo kill -9; sudo rm -f /tmp/libtpu_lockfile;sudo chmod +777 -R /tmp/tpu_logs/;"; sleep 2

@@ -44,6 +44,7 @@ class Optimizer:
 class PileDataset:
     vocab_size = 50432
     max_target_length = 2048
+    # max_target_length = 256 
     train_shuffle_buffer_size = None
     eval_shuffle_buffer_size = None
     eval_loop_num_batches = 162
@@ -193,18 +194,94 @@ class DCLlama2Medium(DC, LGWindow, Llama2Medium):
     model_name = 'DCLlama2Medium'
     scan_layers = False
 
-class DCLlama2MediumMJTest(DCLlama2Medium):
+class DCLlama2MediumMJbaseline(DCLlama2Medium):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
     enable_checkpointing = False
     record_internal_nn_metrics = False    
     base_num_decoder_layers = 2 
     num_layers_per_block = 1
-    query_chunk_size = 256
+    query_chunk_size = 2048
     scan_layers = False
-    #profiler = 'xplane' # uncomment it when profiling
+    profiler = 'xplane' # uncomment it when profiling
+    sliding_window_size = None # added by mqy
+    
+    
+    #2048 * 2048 -> 4194304
+    
+class DCLlama2MediumMJbaseline2(DCLlama2Medium):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    enable_checkpointing = False
+    record_internal_nn_metrics = False    
+    base_num_decoder_layers = 2 
+    num_layers_per_block = 1
+    query_chunk_size = 64
+    max_target_length = 256 
+    scan_layers = False
+    profiler = 'xplane' # uncomment it when profiling
     sliding_window_size = None # added by mqy
 
+class DCLlama2MediumMJTest_scan(DCLlama2MediumMJbaseline):
+    chunk_mod = 0 #zero to use scan
+    chunk_DCMHA = True
+    q_chunk_size = 128
+    k_chunk_size = 128
+class DCLlama2MediumMJTest_dloop(DCLlama2MediumMJbaseline):
+    chunk_mod = 1 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 128
+    k_chunk_size = 128
+class DCLlama2MediumMJTest_dloop_512(DCLlama2MediumMJbaseline):
+    chunk_mod = 1 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 512
+    k_chunk_size = 512
+    
+class DCLlama2MediumMJTest_dloop_256(DCLlama2MediumMJbaseline):
+    chunk_mod = 1 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 256
+    k_chunk_size = 256
+class DCLlama2MediumMJTest_dloop_512_256(DCLlama2MediumMJbaseline):
+    chunk_mod = 1 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 512
+    k_chunk_size = 256
+class DCLlama2MediumMJTest_dloop_512_128(DCLlama2MediumMJbaseline):
+    chunk_mod = 1 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 512
+    k_chunk_size = 128
+    
+class DCLlama2MediumMJTest_dloop_256_128(DCLlama2MediumMJbaseline):
+    chunk_mod = 1 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 256
+    k_chunk_size = 128
+    
+    
+class DCLlama2MediumMJTest_dloop_vmap(DCLlama2MediumMJbaseline):
+    chunk_mod = 2 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 64  
+    k_chunk_size = 64
+    
+class DCLlama2MediumMJTest_dloop_vmap2(DCLlama2MediumMJbaseline):
+    chunk_mod = 2 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 64
+    k_chunk_size = 64
+    
+class DCLlama2MediumMJTest_dloop_vmap3(DCLlama2MediumMJbaseline):
+    chunk_mod = 2 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 64
+    k_chunk_size = 64
 
+class DCLlama2MediumMJTest_dloop_512_512(DCLlama2MediumMJbaseline):
+    chunk_mod = 1 #1 to use loop
+    chunk_DCMHA = True
+    q_chunk_size = 512
+    k_chunk_size = 512
 class DCMuddLlama2Medium(Mudd, DCLlama2Medium):
     model_name = 'DCMuddLlama2Medium'
 
@@ -336,7 +413,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     keep_period = 3000
     decay_method = 'cosine' # or wsd
     iter_file_nums = 96
-    max_target_length = 4096
+    max_target_length = 4096   
     train_shuffle_buffer_size = 500000
     sharding_tolerance = 0.2
     vocab_size = 70000

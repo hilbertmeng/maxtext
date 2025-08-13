@@ -26,6 +26,7 @@ from optax.contrib._muon import muon
 
 def get_optimizer(config, learning_rate_schedule, wd_tree=None):
   """create optimizer"""
+  print(f'opt_type: {config.opt_type}')
   if config.opt_type == "adamw":
     mask = jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, wd_tree) if wd_tree else None
     # Create AdamW Optimizer following Llama2's training details, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
@@ -51,14 +52,16 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None):
   elif config.opt_type == "sgd":
     return optax.sgd(learning_rate_schedule)
   elif config.opt_type == "muon":
+    mask = jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, wd_tree) if wd_tree is not None else None
     return muon(
-      learning_rate_schedule,
+      learning_rate_schedule, # 学习率峰值 {0.8×, 1.0×, 1.2× 基线}
       adam_b1=config.adam_b1,
       adam_b2=config.adam_b2,
       eps=config.adam_eps,
       adam_eps_root=config.adam_eps_root,
       weight_decay=config.adam_weight_decay,
       weight_decay_mask=mask,
+      adaptive=False, # default is False, 开启 adaptive 不只是变方向，也会变“有效步长”。如果开启比较稳定，可以适当调大学习率
   )
   else:
     raise ValueError(f"{config.opt_type=} is not a supported.")

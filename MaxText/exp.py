@@ -37,6 +37,13 @@ class Optimizer:
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0)]  # 0.表示不进行decay
     opt_type = 'adam_pax'
 
+class Muon:
+    opt_type = 'muon'
+    adam_b1 = 0.9
+    adam_b2 = 0.95
+    adam_eps = 1.0e-8
+    adam_weight_decay = 0.1
+
 class PileDataset:
     vocab_size = 50432
     max_target_length = 2048
@@ -572,4 +579,7 @@ class Llama2MediumMoeDeepEmbed(DroplessMoe, Llama2Medium):
     m_kn_tile_size = (512, 128)
 
 class MuddLlama2MediumDeepEmbed(Mudd, Llama2MediumDeepEmbed):
+    pass
+
+class MuonLlama2Medium(Muon, Llama2Medium):
     pass

@@ -295,7 +295,7 @@ class MlpBlock(nn.Module):
         num_embeddings=cfg.vocab_size,
         features=self.intermediate_dim,
         dtype=cfg.dtype,
-        embedding_init=initializers.nd_dense_init_normal(0.006),
+        embedding_init=initializers.contant_dense_init(1.0),
         name="deep_embed",
         config=cfg,
       )(decoder_input_tokens.astype("int32"))
@@ -628,7 +628,7 @@ class MoeBlock(nn.Module):
         num_embeddings=self.config.vocab_size,
         features=self.intermediate_dim,
         dtype=self.config.dtype,
-        embedding_init=initializers.nd_dense_init_normal(0.006),
+        embedding_init=initializers.contant_dense_init(1.0),
         name="deep_embed",
         config=self.config,
       )(decoder_input_tokens.astype("int32"))

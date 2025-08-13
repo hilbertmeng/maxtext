@@ -48,14 +48,14 @@ def nd_dense_init(scale, mode, distribution):
 def contant_dense_init(value):
   """Initializer with in_axis, out_axis set at call time."""
 
-  def init_fn(key, shape, dtype, in_axis, out_axis):
+  def init_fn(key, shape, dtype, in_axis=0, out_axis=1):
     fn = jax.nn.initializers.constant(value)
     return fn(key, shape, dtype)
 
   return init_fn
 
 def nd_dense_init_normal(scale, min_val=None, max_val=None):
-  def init_fn(key, shape, dtype, in_axis=None, out_axis=None):
+  def init_fn(key, shape, dtype, in_axis=0, out_axis=1):
     fn = nn.initializers.normal(scale)
     return jnp.clip(fn(key, shape, dtype), min=min_val, max=max_val) # lsp: add min, max
 

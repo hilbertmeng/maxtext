@@ -674,8 +674,9 @@ def compute_params_norm(params, config): # lsp
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
     newk = k.replace('params', 'total_params')
-    if config.scan_layers and 'layers' in k:
+    if config.scan_layers and ('layers' in k and 'mtp' not in k): # lsp: mtp heads no scan
       axis = list(range(v.ndim))
+      print(f'axis: {axis}, k: {k}, v.shape: {v.shape}')
       axis.pop(config.param_scan_axis)
       normv = jnp.sqrt(jnp.sum(jnp.square(v), axis=axis))
       for lyr in range(normv.shape[0]):

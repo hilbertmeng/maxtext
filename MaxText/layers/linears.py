@@ -290,7 +290,7 @@ class MlpBlock(nn.Module):
               name='mgate',
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
-    if cfg.deep_embed:
+    if cfg.deep_embed == '4x':
       deep_embedding = embeddings.Embed(
         num_embeddings=cfg.vocab_size,
         features=self.intermediate_dim,
@@ -299,7 +299,7 @@ class MlpBlock(nn.Module):
         name="deep_embed",
         config=cfg,
       )(decoder_input_tokens.astype("int32"))
-      print(f'x: {x.shape} deep_embedding: {deep_embedding.shape}')
+      print(f'x: {x.shape} 4 x deep_embedding: {deep_embedding.shape}')
       x = x * deep_embedding # lsp
 
     output = DenseGeneral(
@@ -315,6 +315,18 @@ class MlpBlock(nn.Module):
         use_quant=cfg.use_quant,
         rng=self.rng
     )(x)
+
+    if cfg.deep_embed == '1x':
+      deep_embedding = embeddings.Embed(
+        num_embeddings=cfg.vocab_size,
+        features=cfg.emb_dim,
+        dtype=cfg.dtype,
+        embedding_init=initializers.contant_dense_init(1.0),
+        name="deep_embed",
+        config=cfg,
+      )(decoder_input_tokens.astype("int32"))
+      print(f'output: {output.shape} 1 x deep_embedding: {deep_embedding.shape}')
+      output = output * deep_embedding # lsp
 
     output = checkpoint_name(output, "mlpwo")
     return output

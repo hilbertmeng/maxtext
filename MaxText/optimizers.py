@@ -73,7 +73,10 @@ def muon(
     for _k, v in flat_params.items():
       k = "/".join(_k)
       ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
-      if ndim == 2 and 'embedding' not in k:
+      if 'embedding' in k: # embedding 和 head lr不同
+      # if 'embedding' in k or 'logits_dense' in k:
+        label = 'adam_embed'
+      elif ndim >= 2 and 'embedding' not in k and 'logits_dense' not in k:
         label = 'muon'
       elif ndim == 1 and 'scale' in k:
         label = 'adam_rms'
@@ -81,7 +84,7 @@ def muon(
         label = 'adam_bias'
       else:
         label = 'adam'
-      print(f'k: {k}, label: {label}')
+      print(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
@@ -100,11 +103,12 @@ def muon(
                   adaptive=adaptive,
               ),
               transform.add_decayed_weights(weight_decay, muon_mask),
-              scale_by_learning_rate(learning_rate_schedule),
+              scale_by_learning_rate(learning_rate_schedule, scale=8),
           ),
-          'adam_rms': adam_optimizer(weight_decay=0.1, lr_coef=0.2), # rms add weight decay
+          'adam_embed': adam_optimizer(weight_decay=0.0, lr_coef=100),
+          'adam_rms': adam_optimizer(weight_decay=0.0, lr_coef=1.0),
           'adam_bias': adam_optimizer(weight_decay=0.0, lr_coef=1.0),
-          'adam': adam_optimizer(weight_decay=weight_decay, lr_coef=1.0),
+          'adam': adam_optimizer(weight_decay=0.0, lr_coef=1.0),
       },
       # lsp: Only two dims use muon, other use adam
       param_labels=lambda params: build_param_labels(params),
@@ -140,9 +144,9 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None):
   elif config.opt_type == "muon":
     adam_optimizer = partial(adam_pax,
         learning_rate_schedule,
-        beta1=config.adam_b1,
-        beta2=config.adam_b2,
-        epsilon=config.adam_eps,
+        beta1=0.8,
+        beta2=0.95,
+        epsilon=1e-10,
         epsilon_root=config.adam_eps_root,
         # weight_decay=config.adam_weight_decay,
         wd_tree=None, # lsp

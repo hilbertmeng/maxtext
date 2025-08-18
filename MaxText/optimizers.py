@@ -81,6 +81,7 @@ def muon(
         label = 'adam_bias'
       else:
         label = 'adam'
+      print(f'k: {k}, label: {label}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
@@ -101,7 +102,7 @@ def muon(
               transform.add_decayed_weights(weight_decay, muon_mask),
               scale_by_learning_rate(learning_rate_schedule),
           ),
-          'adam_rms': adam_optimizer(weight_decay=0.0, lr_coef=0.2),
+          'adam_rms': adam_optimizer(weight_decay=0.1, lr_coef=0.2), # rms add weight decay
           'adam_bias': adam_optimizer(weight_decay=0.0, lr_coef=1.0),
           'adam': adam_optimizer(weight_decay=weight_decay, lr_coef=1.0),
       },

@@ -272,9 +272,7 @@ class OutputHead(nn.Module):
             quant=self.quant,
             name="logits_dense",
             matmul_precision=cfg.matmul_precision,
-            # kernel_init=initializers.nd_dense_init_normal(0.006), #lsp
-            kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),
-            # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), #lsp
+            kernel_init=initializers.get_init_method(cfg.init_method), # lsp
             use_quant=cfg.use_quant,
             # rng=jax.random.PRNGKey(1111),
         )
@@ -687,9 +685,7 @@ class Transformer(nn.Module):
         features=cfg.emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        # embedding_init=initializers.nd_dense_init_normal(0.006), # lsp
-        embedding_init=nn.initializers.normal(stddev=1.0),
-        # embedding_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
+        embedding_init=initializers.get_init_method(cfg.init_method), # lsp
         name="token_embedder",
         config=cfg,
     )

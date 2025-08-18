@@ -661,3 +661,4 @@ mtp_loss_scaling_factor: 0.1
 head_compose_types: 'ttt'
 deep_embed: ''
 clip_by_global_norm: True
+init_method: '006normal'

@@ -136,8 +136,9 @@ class SubDecoderLayer(nn.Module):
         reshape_q=cfg.reshape_q,
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
-        kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) if cfg.olmoe_init 
-                      else initializers.nd_dense_init_normal(0.006), # lsp
+        # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) if cfg.olmoe_init 
+        #               else initializers.nd_dense_init_normal(0.006), # lsp
+        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),
         sliding_window_size=self.sliding_window_size,
         rng=jax.random.PRNGKey(9),  # lsp
     )
@@ -181,8 +182,9 @@ class SubDecoderLayer(nn.Module):
           name="mlp",
           config=cfg,
           quant=self.quant,
-          kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) if cfg.olmoe_init 
-                      else initializers.nd_dense_init_normal(0.006), # lsp
+          # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) if cfg.olmoe_init 
+          #             else initializers.nd_dense_init_normal(0.006), # lsp
+          kernel_init=initializers.nd_dense_init(1.0, "fan_in", "truncated_normal"),
           rng=jax.random.PRNGKey(10),  # lsp
       )(hidden_states, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))

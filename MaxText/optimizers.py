@@ -27,9 +27,7 @@ import optax
 import jax.numpy as jnp
 from optax.contrib._muon import scale_by_muon
 from optax._src import combine
-from optax._src import alias
 from optax._src import base
-from optax._src import combine
 from optax._src import transform
 
 
@@ -45,6 +43,35 @@ def scale_by_learning_rate(
   if callable(learning_rate):
     return transform.scale_by_schedule(lambda count: m * learning_rate(count) * scale)
   return transform.scale(m * learning_rate)
+
+
+def _build_wd_bool_mask_from_tree(wd_tree):
+  """Converts a weight-decay coefficient tree into a boolean mask tree.
+
+  Any value equal to 0.0 becomes False, otherwise True. If `wd_tree` is None,
+  returns None.
+  """
+  if wd_tree is None:
+    return None
+  return jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, wd_tree)
+
+
+def _apply_clipping(optimizer: optax.GradientTransformation, config) -> optax.GradientTransformation:
+  """Optionally wraps optimizer with gradient clipping according to config."""
+  if getattr(config, 'gradient_clipping_threshold', 0) > 0:
+    if getattr(config, 'clip_by_global_norm', False):
+      print(f'clip_by_global_norm: {config.gradient_clipping_threshold}')
+      return optax.chain(
+          optax.clip_by_global_norm(config.gradient_clipping_threshold),
+          optimizer,
+      )
+    else:
+      print(f'Error clip: {config.gradient_clipping_threshold}')
+      return optax.chain(
+          optax.clip(config.gradient_clipping_threshold),
+          optimizer,
+      )
+  return optimizer
 
 # muon must decay
 def muon(
@@ -114,68 +141,73 @@ def muon(
       param_labels=lambda params: build_param_labels(params),
   )
 
+def _build_adamw(config, learning_rate_schedule, wd_tree):
+  mask = _build_wd_bool_mask_from_tree(wd_tree)
+  return optax.adamw(
+      learning_rate_schedule,
+      b1=config.adam_b1,
+      b2=config.adam_b2,
+      eps=config.adam_eps,
+      eps_root=config.adam_eps_root,
+      weight_decay=config.adam_weight_decay,
+      mask=mask,
+  )
+
+
+def _build_adam_pax(config, learning_rate_schedule, wd_tree):
+  return adam_pax(
+      learning_rate_schedule,
+      beta1=config.adam_b1,
+      beta2=config.adam_b2,
+      epsilon=config.adam_eps,
+      epsilon_root=config.adam_eps_root,
+      weight_decay=config.adam_weight_decay,
+      wd_tree=wd_tree,
+  )
+
+
+def _build_sgd(_config, learning_rate_schedule, _wd_tree):
+  return optax.sgd(learning_rate_schedule)
+
+
+def _build_muon(config, learning_rate_schedule, wd_tree):
+  adam_optimizer = partial(
+      adam_pax,
+      learning_rate_schedule,
+      beta1=0.8,
+      beta2=0.95,
+      epsilon=1e-10,
+      epsilon_root=config.adam_eps_root,
+      wd_tree=None,
+  )
+  return muon(
+      learning_rate_schedule,
+      eps=config.adam_eps,
+      weight_decay=config.adam_weight_decay,
+      weight_decay_mask=wd_tree,
+      adaptive=False,
+      adam_optimizer=adam_optimizer,
+  )
+
+
+_OPTIMIZER_BUILDERS = {
+  'adamw': _build_adamw,
+  'adam_pax': _build_adam_pax,
+  'sgd': _build_sgd,
+  'muon': _build_muon,
+}
+
+
 def get_optimizer(config, learning_rate_schedule, wd_tree=None):
-  """create optimizer"""
+  """Create optimizer based on `config.opt_type` with optional clipping."""
   print(f'opt_type: {config.opt_type}')
-  if config.opt_type == "adamw":
-    mask = jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, wd_tree) if wd_tree else None
-    # Create AdamW Optimizer following Llama2's training details, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
-    optimizer = optax.adamw(
-        learning_rate_schedule,
-        b1=config.adam_b1,
-        b2=config.adam_b2,
-        eps=config.adam_eps,
-        eps_root=config.adam_eps_root,
-        weight_decay=config.adam_weight_decay,
-        mask=mask,
-    )
-  elif config.opt_type == "adam_pax":
-    optimizer = adam_pax(
-        learning_rate_schedule,
-        beta1=config.adam_b1,
-        beta2=config.adam_b2,
-        epsilon=config.adam_eps,
-        epsilon_root=config.adam_eps_root,
-        weight_decay=config.adam_weight_decay,
-        wd_tree=wd_tree, # lsp
-    )
-  elif config.opt_type == "sgd":
-    optimizer = optax.sgd(learning_rate_schedule)
-  elif config.opt_type == "muon":
-    adam_optimizer = partial(adam_pax,
-        learning_rate_schedule,
-        beta1=0.8,
-        beta2=0.95,
-        epsilon=1e-10,
-        epsilon_root=config.adam_eps_root,
-        # weight_decay=config.adam_weight_decay,
-        wd_tree=None, # lsp
-    )
-    optimizer = muon(
-        learning_rate_schedule,
-        eps=config.adam_eps,
-        weight_decay=config.adam_weight_decay,
-        weight_decay_mask=wd_tree,
-        adaptive=False, # default is False, 开启 adaptive 不只是变方向，也会变“有效步长”。如果开启比较稳定，可以适当调大学习率
-        adam_optimizer=adam_optimizer,
-      )
-  else:
+  try:
+    optimizer_builder = _OPTIMIZER_BUILDERS[config.opt_type]
+  except KeyError:
     raise ValueError(f"{config.opt_type=} is not a supported.")
-  
-  if config.gradient_clipping_threshold > 0:
-    if config.clip_by_global_norm:
-      print(f'clip_by_global_norm: {config.gradient_clipping_threshold}')
-      return optax.chain(
-          optax.clip_by_global_norm(config.gradient_clipping_threshold),
-          optimizer,
-      )
-    else:
-      print(f'clip: {config.gradient_clipping_threshold}')
-      return optax.chain(
-          optax.clip(config.gradient_clipping_threshold),
-          optimizer,
-      )
-  return optimizer
+
+  optimizer = optimizer_builder(config, learning_rate_schedule, wd_tree)
+  return _apply_clipping(optimizer, config)
 
 
 def adam_pax(

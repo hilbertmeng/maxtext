@@ -48,7 +48,6 @@ import max_logging
 import optimizers
 import profiler
 import pyconfig
-import pathwaysutils  # pylint: disable=unused-import
 import tensorflow as tf
 
 from vertex_tensorboard import VertexTensorboardManager
@@ -809,8 +808,8 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   #   return grads
   # with jax.named_scope("grad_clip"):
   #   cliped_grads = clip(raw_grads)
-  cliped_grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
-  new_state = state.apply_gradients(grads=cliped_grads)
+  # cliped_grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
+  new_state = state.apply_gradients(grads=raw_grads)
 
   scalar_metrics = {
       "learning/loss": (loss - mtp_loss - moe_lb_loss - distill_loss * distill_alpha) / (1 - distill_alpha), # lsp: remove moe_lb_loss, distill_loss, mtp_loss
@@ -827,7 +826,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   scalar_metrics.update(params_scalar_values)
 
   if not config.optimizer_memory_host_offload:
-    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(cliped_grads)
+    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
   if config.use_dpo:

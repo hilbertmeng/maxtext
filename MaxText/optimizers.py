@@ -46,7 +46,7 @@ def scale_by_learning_rate(
     return transform.scale_by_schedule(lambda count: m * learning_rate(count) * scale)
   return transform.scale(m * learning_rate)
 
-
+# muon must decay
 def muon(
     learning_rate_schedule: base.ScalarOrSchedule,
     ns_coeffs: Union[
@@ -73,7 +73,7 @@ def muon(
     for _k, v in flat_params.items():
       k = "/".join(_k)
       ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
-      if 'embedding' in k: # embedding 和 head lr不同
+      if 'embedding' in k: # head lr不能太大
       # if 'embedding' in k or 'logits_dense' in k:
         label = 'adam_embed'
       elif ndim >= 2 and 'embedding' not in k and 'logits_dense' not in k:
@@ -102,7 +102,7 @@ def muon(
                   nesterov=nesterov,
                   adaptive=adaptive,
               ),
-              transform.add_decayed_weights(weight_decay, muon_mask),
+              transform.add_decayed_weights(0.1, muon_mask), # muon opt must decay, the performance is better
               scale_by_learning_rate(learning_rate_schedule, scale=8),
           ),
           'adam_embed': adam_optimizer(weight_decay=0.0, lr_coef=100),

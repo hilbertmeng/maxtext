@@ -662,3 +662,4 @@ head_compose_types: 'ttt'
 deep_embed: ''
 clip_by_global_norm: True
 init_method: '006normal'
+muon_scale: 0.2

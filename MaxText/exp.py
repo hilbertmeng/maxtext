@@ -43,6 +43,7 @@ class Muon:
     adam_b2 = 0.95
     adam_eps = 1.0e-8
     adam_weight_decay = 0.1
+    muon_scale = 0.2
 
 class PileDataset:
     vocab_size = 50432

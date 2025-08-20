@@ -19,12 +19,13 @@ limitations under the License.
 from typing import Any, Callable, Optional, Union
 import chex
 from functools import partial
+import math
 
 import jax
-
-import flax.traverse_util as traverse_util
 import optax
 import jax.numpy as jnp
+import flax.traverse_util as traverse_util
+
 from optax.contrib._muon import scale_by_muon
 from optax._src import combine
 from optax._src import base
@@ -92,35 +93,30 @@ def muon(
     nesterov: bool = True,
     adaptive: bool = False,
     adam_optimizer: Optional[Any] = None,
+    config: Optional[Any] = None,
 ) -> base.GradientTransformation:
-  
+
   def build_param_labels(params):
     flat_params = traverse_util.flatten_dict(params)
     param_labels = {}
     for _k, v in flat_params.items():
       k = "/".join(_k)
       ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
-      if 'embedding' in k: # head lr不能太大
-      # if 'embedding' in k or 'logits_dense' in k:
-        label = 'adam_embed'
-      elif ndim >= 2 and 'embedding' not in k and 'logits_dense' not in k:
-        label = 'muon'
+      if ndim >= 2 and 'mlp' in k: # head lr不能太大
+        label = 'muon_mlp'
+      elif ndim >= 2 and 'attention' in k:
+        label = 'muon_attn'
       elif ndim == 1 and 'scale' in k:
-        label = 'adam_rms'
-      elif ndim == 1 and 'bias' in k:
-        label = 'adam_bias'
+        label = 'adam_one_dim'
       else:
-        label = 'adam'
+        label = 'adam_default'
       print(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
-  muon_mask = jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, weight_decay_mask) \
-                                    if weight_decay_mask is not None else None # lsp
-  return combine.partition(
-      transforms={
-          'muon': combine.chain(
-              scale_by_muon(
+  # muon_mask = jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, weight_decay_mask) \
+  #                                   if weight_decay_mask is not None else None # lsp
+  muon_base = scale_by_muon(
                   ns_coeffs=ns_coeffs,
                   ns_steps=ns_steps,
                   beta=beta,
@@ -128,14 +124,24 @@ def muon(
                   mu_dtype=mu_dtype,
                   nesterov=nesterov,
                   adaptive=adaptive,
-              ),
-              transform.add_decayed_weights(0.1, muon_mask), # muon opt must decay, the performance is better
-              scale_by_learning_rate(learning_rate_schedule, scale=8),
+              )
+  attn_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim)) * config.muon_scale
+  mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
+  print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale}')
+  return combine.partition(
+      transforms={
+          'muon_attn': combine.chain(
+              muon_base,
+              transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
+              scale_by_learning_rate(learning_rate_schedule, scale=attn_scale),
           ),
-          'adam_embed': adam_optimizer(weight_decay=0.0, lr_coef=100),
-          'adam_rms': adam_optimizer(weight_decay=0.0, lr_coef=1.0),
-          'adam_bias': adam_optimizer(weight_decay=0.0, lr_coef=1.0),
-          'adam': adam_optimizer(weight_decay=0.0, lr_coef=1.0),
+          'muon_mlp': combine.chain(
+              muon_base,
+              transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
+              scale_by_learning_rate(learning_rate_schedule, scale=mlp_scale),
+          ),
+          'adam_one_dim': adam_optimizer(weight_decay=weight_decay, lr_coef=1.0),
+          'adam_default': adam_optimizer(weight_decay=weight_decay, lr_coef=1.0),
       },
       # lsp: Only two dims use muon, other use adam
       param_labels=lambda params: build_param_labels(params),
@@ -187,6 +193,7 @@ def _build_muon(config, learning_rate_schedule, wd_tree):
       weight_decay_mask=wd_tree,
       adaptive=False,
       adam_optimizer=adam_optimizer,
+      config=config,
   )
 
 

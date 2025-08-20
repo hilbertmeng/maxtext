@@ -301,6 +301,15 @@ class MlpBlock(nn.Module):
       )(decoder_input_tokens.astype("int32"))
       print(f'x: {x.shape} 4 x deep_embedding: {deep_embedding.shape}')
       x = x * deep_embedding # lsp
+      if cfg.deep_embed_norm:
+        print(f'deep_embed_norm is true......')
+        x = RMSNorm(
+            name="deep_embed_norm",
+            dtype=cfg.dtype,
+            weight_dtype=cfg.weight_dtype,
+            kernel_axes=("norm", ),
+            epsilon=cfg.normalization_layer_epsilon,
+        )(x)
 
     output = DenseGeneral(
         inputs.shape[-1],
@@ -322,11 +331,20 @@ class MlpBlock(nn.Module):
         features=cfg.emb_dim,
         dtype=cfg.dtype,
         embedding_init=initializers.contant_dense_init(1.0),
-        name="deep_embed",
+        name="'deep_embed'",
         config=cfg,
       )(decoder_input_tokens.astype("int32"))
       print(f'output: {output.shape} 1 x deep_embedding: {deep_embedding.shape}')
       output = output * deep_embedding # lsp
+      if cfg.deep_embed_norm:
+        print(f'deep_embed_norm is true......')
+        output = RMSNorm(
+            name="deep_embed_norm",
+            dtype=cfg.dtype,
+            weight_dtype=cfg.weight_dtype,
+            kernel_axes=("norm", ),
+            epsilon=cfg.normalization_layer_epsilon,
+        )(output)
 
     output = checkpoint_name(output, "mlpwo")
     return output

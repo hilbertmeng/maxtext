@@ -17,7 +17,6 @@ limitations under the License.
 # pylint: disable=bare-except, consider-using-generator, ungrouped-imports, too-many-positional-arguments
 """Utils that are only interesting to MaxText. """
 from typing import Any, Callable, Optional, Union
-import re
 import chex
 from functools import partial
 import math
@@ -75,38 +74,6 @@ def _apply_clipping(optimizer: optax.GradientTransformation, config) -> optax.Gr
       )
   return optimizer
 
-
-def scale_by_regex_lr_mults(lr_mults: Optional[list[tuple[str, float]]] = None) -> base.GradientTransformation:
-  """Scales updates element-wise using multipliers built from regex on param names.
-
-  If `lr_mults` is falsy, returns identity.
-  """
-  if not lr_mults:
-    return base.identity()
-
-  def init_fn(params):
-    flat = traverse_util.flatten_dict(params)
-    mults = {}
-    for key, _ in flat.items():
-      name = "/".join(key)
-      mult = 1.0
-      for pat, user_mult in lr_mults:
-        if re.findall(pat, name):
-          mult = float(user_mult)
-          break
-      mults[key] = mult
-    mult_tree = traverse_util.unflatten_dict(mults)
-    print(f'muon mult_tree: {mult_tree}')
-    return mult_tree
-
-  def update_fn(updates, state, params=None):  # state is mult_tree
-    def _scale(u, m):
-      return u * jnp.asarray(m, dtype=u.dtype)
-    new_updates = jax.tree_util.tree_map(_scale, updates, state)
-    return new_updates, state
-
-  return base.GradientTransformation(init_fn, update_fn)
-
 # muon must decay
 def muon(
     learning_rate_schedule: base.ScalarOrSchedule,
@@ -118,7 +85,7 @@ def muon(
     beta: float = 0.95,
     eps: float = 1e-8,
     weight_decay: float = 0.0,
-    wd_tree: Optional[
+    weight_decay_mask: Optional[
         Union[Any, Callable[[base.Params], Any]]
     ] = None,
     mu_dtype: Optional[chex.ArrayDType] = None,
@@ -135,15 +102,19 @@ def muon(
     for _k, v in flat_params.items():
       k = "/".join(_k)
       ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
-      label = 'adam_base'
-      if ndim == 2 and 'embedding' not in k and 'logits_dense' not in k:
-        label = 'muon_base'
+      label = 'adam_default'
+      if ndim == 2 and 'mlp' in k: # head lr不能太大
+        label = 'muon_mlp'
+      elif ndim == 2 and 'attention' in k:
+        label = 'muon_attn'
+      elif 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
+        label = 'adam_one_dim'
+     
       print(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
-  muon_mask = _build_wd_bool_mask_from_tree(wd_tree)
-  print(f'muon_mask: {muon_mask}')
+  # muon_mask = _build_wd_bool_mask_from_tree(weight_decay_mask)
   muon_base = scale_by_muon(
                   ns_coeffs=ns_coeffs,
                   ns_steps=ns_steps,
@@ -153,24 +124,32 @@ def muon(
                   nesterov=nesterov,
                   adaptive=adaptive,
               )
+  default_scale = 1.0
+  attn_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim)) * config.muon_scale
+  mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
+  print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale}')
   return combine.partition(
       transforms={
-          'muon_base': combine.chain(
+          'muon_attn': combine.chain(
               muon_base,
-              transform.add_decayed_weights(weight_decay, mask=muon_mask),
-              scale_by_learning_rate(learning_rate_schedule),
-              scale_by_regex_lr_mults(getattr(config, 'lr_mults', None)),
+              transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
+              scale_by_learning_rate(learning_rate_schedule, scale=attn_scale),
           ),
-          'adam_base': combine.chain(
-              adam_optimizer(weight_decay=weight_decay, lr_tree=muon_mask),
-              scale_by_regex_lr_mults(getattr(config, 'lr_mults', None)),
+          'muon_mlp': combine.chain(
+              muon_base,
+              transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
+              scale_by_learning_rate(learning_rate_schedule, scale=mlp_scale),
           ),
+          # Small model rms wd set 0.0 better, bigger model unknow. but muon paper suggest wd=0.1
+          'adam_one_dim': adam_optimizer(weight_decay=0.0, lr_coef=default_scale),
+          'adam_default': adam_optimizer(weight_decay=weight_decay, lr_coef=default_scale),
       },
+      # lsp: Only two dims use muon, other use adam
       param_labels=lambda params: build_param_labels(params),
   )
 
 
-def _build_adamw(config, learning_rate_schedule, wd_tree, lr_tree=None):
+def _build_adamw(config, learning_rate_schedule, wd_tree):
 
   def build_param_labels(params):
     flat_params = traverse_util.flatten_dict(params)
@@ -179,10 +158,7 @@ def _build_adamw(config, learning_rate_schedule, wd_tree, lr_tree=None):
       k = "/".join(_k)
       ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
       label = 'adam_default'
-      # 优先级最高
-      if 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
-        label = 'adam_one_dim'
-      elif 'deep' in k:
+      if 'deep' in k:
         label = 'adam_deep'
       print(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
@@ -205,7 +181,7 @@ def _build_adamw(config, learning_rate_schedule, wd_tree, lr_tree=None):
       eps_root=config.adam_eps_root,
   )
   weight_decay = config.adam_weight_decay
-  deep_scale = 50 # lr scale for deep
+  deep_scale = 100 # lr scale for deep
   adam_one_dim_scale = 1.0
   adam_default_scale = 1.0
   return combine.partition(
@@ -223,7 +199,7 @@ def _build_adamw(config, learning_rate_schedule, wd_tree, lr_tree=None):
   )
 
 
-def _build_adam_pax(config, learning_rate_schedule, wd_tree, lr_tree=None):
+def _build_adam_pax(config, learning_rate_schedule, wd_tree):
   return adam_pax(
       learning_rate_schedule,
       beta1=config.adam_b1,
@@ -232,7 +208,6 @@ def _build_adam_pax(config, learning_rate_schedule, wd_tree, lr_tree=None):
       epsilon_root=config.adam_eps_root,
       weight_decay=config.adam_weight_decay,
       wd_tree=wd_tree,
-      lr_tree=lr_tree,
   )
 # below no add muon scale
 # beta1=0.8, beta2=0.95, epsilon=1e-10, qkvo+mlp wd 0.1, other wd=0.0, qkvo+mlp lr 8x, embed lr 100x, other lr 1x, eval loss: 2.4190
@@ -248,11 +223,11 @@ def _build_adam_pax(config, learning_rate_schedule, wd_tree, lr_tree=None):
 # 2、如果某个参数的学习率设置的较大，那么对于模型而言，前期loss会低，但是后期乏力，因此，需要一个合适的学习率。过大或者过小都不是很好。
 # 3、如果某个参数因为学得慢需要设置较大学习率，最后尽量和正常参数学习率的比率保持一致。最好不要decay到一样的学习率。也就是大学习率和小学习率始终保持一个固定比例较好
 
-def _build_sgd(_config, learning_rate_schedule, _wd_tree, lr_tree=None):
+def _build_sgd(_config, learning_rate_schedule, _wd_tree):
   return optax.sgd(learning_rate_schedule)
 
 
-def _build_muon(config, learning_rate_schedule, wd_tree, lr_tree=None):
+def _build_muon(config, learning_rate_schedule, wd_tree):
   adam_optimizer = partial(
       adam_pax,
       learning_rate_schedule,
@@ -266,7 +241,7 @@ def _build_muon(config, learning_rate_schedule, wd_tree, lr_tree=None):
       learning_rate_schedule,
       eps=config.adam_eps,
       weight_decay=config.adam_weight_decay,
-      wd_tree=wd_tree,
+      weight_decay_mask=wd_tree,
       adaptive=False,
       adam_optimizer=adam_optimizer,
       config=config,
@@ -281,7 +256,7 @@ _OPTIMIZER_BUILDERS = {
 }
 
 
-def get_optimizer(config, learning_rate_schedule, wd_tree=None, lr_tree=None):
+def get_optimizer(config, learning_rate_schedule, wd_tree=None):
   """Create optimizer based on `config.opt_type` with optional clipping."""
   print(f'opt_type: {config.opt_type}')
   try:
@@ -289,7 +264,7 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None, lr_tree=None):
   except KeyError:
     raise ValueError(f"{config.opt_type=} is not a supported.")
 
-  optimizer = optimizer_builder(config, learning_rate_schedule, wd_tree, lr_tree)
+  optimizer = optimizer_builder(config, learning_rate_schedule, wd_tree)
   return _apply_clipping(optimizer, config)
 
 
@@ -301,7 +276,7 @@ def adam_pax(
     epsilon_root: float,
     weight_decay: float,
     wd_tree=None,  # lsp
-    lr_tree=None,
+    lr_coef=1.0,
 ) -> optax.GradientTransformation:
   """Standard Adam optimizer that supports weight decay.
 
@@ -387,13 +362,9 @@ def adam_pax(
     else: # lsp
         updates = jax.tree_util.tree_map(lambda x, v, wd: x + wd * v, updates, params, wd_tree)
 
-    lr_scalar = learning_rate_fn(count)
-    step_size = -lr_scalar
-    if lr_tree is None:
-      updates = jax.tree_util.tree_map(lambda x: step_size * x, updates)
-    else:
-      # Per-parameter lr multiplier via tree
-      updates = jax.tree_util.tree_map(lambda x, lr_scale: step_size * lr_scale * x, updates, lr_tree)
+    step_size = -lr_coef * learning_rate_fn(count) # lsp
+    # Finally, fold in step size.
+    updates = jax.tree_util.tree_map(lambda x: step_size * x, updates)
 
     updated_states = optax.ScaleByAdamState(count=count + 1, mu=mu, nu=nu)
     return updates, updated_states

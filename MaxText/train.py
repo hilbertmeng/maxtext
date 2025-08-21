@@ -120,27 +120,6 @@ def get_wd_tree(config, params):
   return wd_tree
 
 
-def get_lr_tree(config, params):
-  """Build per-parameter learning rate multipliers via regex.
-
-  Example:
-    config.lr_mults = [(".*/embed/.*", 100.0), (".*/(q|k|v|o)/.*", 8.0)]
-  """
-  if not getattr(config, 'lr_mults', None):
-    return None
-  assert isinstance(config.lr_mults, list)
-  lr_tree = {}
-  for name in flatten_dict(params):
-    name_str = '/'.join(name)
-    lr_mult = 1.0
-    for pat, user_lr in config.lr_mults:
-      if re.findall(pat, name_str):
-        lr_mult = user_lr
-        break
-    lr_tree[name] = lr_mult
-  lr_tree = unflatten_dict(lr_tree)
-  return lr_tree
-
 def model_init(model, config, key):
   input_shape = (config.global_batch_size_to_load, config.max_target_length)
   params = model.init(
@@ -986,15 +965,7 @@ def setup_mesh_and_model(config, teacher_config=None):
     max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
     wd_tree = get_wd_tree(config=config, params=params_shape)
 
-  # lsp: add rule param learning rate multiplier
-  if getattr(config, 'lr_mults', None):
-    if 'params_shape' not in locals():
-      params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
-    max_logging.log(f'lr_mults is not None, -> {config.lr_mults}')
-    lr_tree = get_lr_tree(config=config, params=params_shape)
-    print(f'lr_tree: {lr_tree}')
-
-  tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree, lr_tree)
+  tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
   logger = checkpointing.setup_checkpoint_logger(config)
   if config.enable_emergency_checkpoint:
     if config.use_replicator_service:

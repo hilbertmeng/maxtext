@@ -106,7 +106,7 @@ def muon(
         label = 'muon_mlp'
       elif ndim >= 2 and 'attention' in k:
         label = 'muon_attn'
-      elif ndim == 1 and 'scale' in k:
+      elif 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
         label = 'adam_one_dim'
       else:
         label = 'adam_default'
@@ -140,7 +140,8 @@ def muon(
               transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
               scale_by_learning_rate(learning_rate_schedule, scale=mlp_scale),
           ),
-          'adam_one_dim': adam_optimizer(weight_decay=weight_decay, lr_coef=1.0),
+          # Small model rms wd set 0.0 better, bigger model unknow. but muon paper suggest wd=0.1
+          'adam_one_dim': adam_optimizer(weight_decay=0.0, lr_coef=1.0),
           'adam_default': adam_optimizer(weight_decay=weight_decay, lr_coef=1.0),
       },
       # lsp: Only two dims use muon, other use adam
@@ -170,7 +171,19 @@ def _build_adam_pax(config, learning_rate_schedule, wd_tree):
       weight_decay=config.adam_weight_decay,
       wd_tree=wd_tree,
   )
-
+# below no add muon scale
+# beta1=0.8, beta2=0.95, epsilon=1e-10, qkvo+mlp wd 0.1, other wd=0.0, qkvo+mlp lr 8x, embed lr 100x, other lr 1x, eval loss: 2.4190
+# beta1=0.8, beta2=0.95, epsilon=1e-10, all wd=0.1 exp rms wd=0.0, qkvo+mlp lr 8x, embed lr 100x, other lr 1x, eval loss: 2.4191
+# beta1=0.8, beta2=0.95, epsilon=1e-10, all wd=0.0 , qkvo+mlp lr 8x, embed lr 100x, other lr 1x, eval loss: 2.4221
+# below add muon scale
+# beta1=0.8, beta2=0.95, epsilon=1e-10, all wd=0.1, val loss: 2.4233
+# beta1=0.8, beta2=0.95, epsilon=1e-10, all  wd=0.1, exp Rms wd=0.0, eval loss: 2.4178
+# beta1=0.9, beta2=0.95, epsilon=1e-8,  all wd=0.1, val loss: 2.4216
+# beta1=0.9, beta2=0.95, epsilon=1e-8, all  wd=0.1, exp Rms wd=0.0, eval loss: 
+# 总结：
+# 1、如果某个参数（非1维矩阵）设置了wd，那么对于模型而言，前期loss会低，但是后期乏力，因此，wd会较大的影响后期模型的性能，最终设置了wd会好一些
+# 2、如果某个参数的学习率设置的较大，那么对于模型而言，前期loss会低，但是后期乏力，因此，需要一个合适的学习率。过大或者过小都不是很好。
+# 3、如果某个参数因为学得慢需要设置较大学习率，最后尽量和正常参数学习率的比率保持一致。最好不要decay到一样的学习率。也就是大学习率和小学习率始终保持一个固定比例较好
 
 def _build_sgd(_config, learning_rate_schedule, _wd_tree):
   return optax.sgd(learning_rate_schedule)
@@ -311,7 +324,7 @@ def adam_pax(
     else: # lsp
         updates = jax.tree_util.tree_map(lambda x, v, wd: x + wd * v, updates, params, wd_tree)
 
-    step_size = -1.0 * learning_rate_fn(count) * lr_coef # lsp
+    step_size = -lr_coef * learning_rate_fn(count) # lsp
     # Finally, fold in step size.
     updates = jax.tree_util.tree_map(lambda x: step_size * x, updates)
 

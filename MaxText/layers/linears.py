@@ -331,7 +331,7 @@ class MlpBlock(nn.Module):
         features=cfg.emb_dim,
         dtype=cfg.dtype,
         embedding_init=initializers.contant_dense_init(1.0),
-        name="'deep_embed'",
+        name="deep_embed",
         config=cfg,
       )(decoder_input_tokens.astype("int32"))
       print(f'output: {output.shape} 1 x deep_embedding: {deep_embedding.shape}')

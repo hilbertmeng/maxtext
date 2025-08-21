@@ -114,6 +114,7 @@ def get_wd_tree(config, params):
       for pat, user_wd in config.wd_mults:
           if re.findall(pat, name_str):
             wd = user_wd
+            break # find it, no need to continue
       wd_tree[name] = wd
   wd_tree = unflatten_dict(wd_tree)
   return wd_tree

@@ -683,10 +683,12 @@ def is_valid_custom_mesh(ici_parallelism, strategy):
 
 def optimize_mesh_for_tpu_v6e(mesh, devices):
   """Apply transformations to the mesh to optimize for TPU v6e"""
+  print(f'device_kind: {devices[0].device_kind}')
   if devices[0].device_kind != "TPU v6 lite":
     return mesh
   num_devices = len(devices)
   mesh_is_1d_ring = num_devices in mesh.shape
+  print(f'mesh_is_1d_ring: {mesh_is_1d_ring}')
   if not mesh_is_1d_ring:
     return mesh
   # check that the physical topology is 2x4
@@ -695,6 +697,7 @@ def optimize_mesh_for_tpu_v6e(mesh, devices):
   max_coords = tuple(max(dc[i] for dc in device_coords) for i in range(coord_size))
   min_coords = tuple(min(dc[i] for dc in device_coords) for i in range(coord_size))
   dims = tuple(h - l + 1 for (h, l) in zip(max_coords, min_coords))
+  print(f'dims: {dims}')
   if dims != (2, 4, 1):
     return mesh
   axis_idx = mesh.shape.index(num_devices)

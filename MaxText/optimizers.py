@@ -127,7 +127,7 @@ def muon(
   default_scale = 1.0
   attn_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim)) * config.muon_scale
   mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
-  print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale}')
+  print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
   return combine.partition(
       transforms={
           'muon_attn': combine.chain(
@@ -232,8 +232,8 @@ def _build_muon(config, learning_rate_schedule, wd_tree):
       adam_pax,
       learning_rate_schedule,
       beta1=config.adam_b1,
-      beta2=0.95,
-      epsilon=1e-10,
+      beta2=config.adam_b2,
+      epsilon=config.adam_eps,
       epsilon_root=config.adam_eps_root,
       wd_tree=None,
   )

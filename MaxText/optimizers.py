@@ -102,20 +102,19 @@ def muon(
     for _k, v in flat_params.items():
       k = "/".join(_k)
       ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
+      label = 'adam_default'
       if ndim >= 2 and 'mlp' in k: # head lr不能太大
         label = 'muon_mlp'
       elif ndim >= 2 and 'attention' in k:
         label = 'muon_attn'
       elif 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
         label = 'adam_one_dim'
-      else:
-        label = 'adam_default'
+     
       print(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
-  # muon_mask = jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, weight_decay_mask) \
-  #                                   if weight_decay_mask is not None else None # lsp
+  # muon_mask = _build_wd_bool_mask_from_tree(weight_decay_mask)
   muon_base = scale_by_muon(
                   ns_coeffs=ns_coeffs,
                   ns_steps=ns_steps,
@@ -148,16 +147,57 @@ def muon(
       param_labels=lambda params: build_param_labels(params),
   )
 
+
 def _build_adamw(config, learning_rate_schedule, wd_tree):
-  mask = _build_wd_bool_mask_from_tree(wd_tree)
-  return optax.adamw(
+
+  def build_param_labels(params):
+    flat_params = traverse_util.flatten_dict(params)
+    param_labels = {}
+    for _k, v in flat_params.items():
+      k = "/".join(_k)
+      ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
+      label = 'adam_default'
+      # 优先级最高
+      if 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
+        label = 'adam_one_dim'
+      elif 'deep' in k:
+        label = 'adam_deep'
+      print(f'k: {k}, label: {label} ndim: {ndim}')
+      param_labels[_k] = label
+    return traverse_util.unflatten_dict(param_labels)
+
+  # mask = _build_wd_bool_mask_from_tree(wd_tree)
+  adam_optimizer = partial(
+      adam_pax,
       learning_rate_schedule,
+      beta1=config.adam_b1,
+      beta2=config.adam_b2,
+      epsilon=config.adam_eps,
+      epsilon_root=config.adam_eps_root,
+      wd_tree=None,
+  )
+  adam_base = transform.scale_by_adam(
       b1=config.adam_b1,
       b2=config.adam_b2,
       eps=config.adam_eps,
       eps_root=config.adam_eps_root,
-      weight_decay=config.adam_weight_decay,
-      mask=mask,
+  )
+  weight_decay = config.adam_weight_decay
+  deep_scale = 50 # lr scale for deep
+  adam_one_dim_scale = 1.0
+  adam_default_scale = 1.0
+  return combine.partition(
+      transforms={
+          'adam_deep': combine.chain(
+              adam_base,
+              transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
+              scale_by_learning_rate(learning_rate_schedule, scale=deep_scale),
+          ),
+          'adam_one_dim': adam_optimizer(weight_decay=0.0, lr_coef=adam_one_dim_scale),
+          'adam_default': adam_optimizer(weight_decay=weight_decay, lr_coef=adam_default_scale),
+      },
+      # lsp: Only two dims use muon, other use adam
+      param_labels=lambda params: build_param_labels(params),
   )
 
 
@@ -179,7 +219,7 @@ def _build_adam_pax(config, learning_rate_schedule, wd_tree):
 # beta1=0.8, beta2=0.95, epsilon=1e-10, all wd=0.1, val loss: 2.4233
 # beta1=0.8, beta2=0.95, epsilon=1e-10, all  wd=0.1, exp Rms wd=0.0, eval loss: 2.4178
 # beta1=0.9, beta2=0.95, epsilon=1e-8,  all wd=0.1, val loss: 2.4216
-# beta1=0.9, beta2=0.95, epsilon=1e-8, all  wd=0.1, exp Rms wd=0.0, eval loss: 
+# beta1=0.9, beta2=0.95, epsilon=1e-8, all  wd=0.1, exp Rms wd=0.0, eval loss: 2.4158
 # 总结：
 # 1、如果某个参数（非1维矩阵）设置了wd，那么对于模型而言，前期loss会低，但是后期乏力，因此，wd会较大的影响后期模型的性能，最终设置了wd会好一些
 # 2、如果某个参数的学习率设置的较大，那么对于模型而言，前期loss会低，但是后期乏力，因此，需要一个合适的学习率。过大或者过小都不是很好。

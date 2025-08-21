@@ -595,15 +595,12 @@ class MuddLlama2MediumDeepEmbed(Mudd, Llama2MediumDeepEmbed):
     pass
 
 class MuonLlama2Medium(Muon, Llama2Medium):
-    muon_scale = 0.2
-    base_num_query_heads = 16
-    head_dim = 64
-    base_emb_dim = 1024
-    base_mlp_dim = 2816
-    qkvo_lr_mult = muon_scale * math.sqrt(max(base_num_query_heads * head_dim, base_emb_dim))
-    mlp_lr_mult = muon_scale * math.sqrt(max(base_num_query_heads, base_num_query_heads * head_dim))
-    lr_mults = [(".*/embedding/.*", 1.0), (".*/(query|key|value|out)/.*", qkvo_lr_mult), 
-    (".*/(wi_0|wi_1|wo)/.*", mlp_lr_mult)]
+    pass
 
 class MuonMuddLlama2Medium(Muon, MuddLlama2Medium):
     pass
+
+class MuonLlamaXL(Muon, Llama2XL):
+    eval_interval = 12500
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0

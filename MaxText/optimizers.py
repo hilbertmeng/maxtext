@@ -231,7 +231,7 @@ def _build_muon(config, learning_rate_schedule, wd_tree):
   adam_optimizer = partial(
       adam_pax,
       learning_rate_schedule,
-      beta1=0.8,
+      beta1=config.adam_b1,
       beta2=0.95,
       epsilon=1e-10,
       epsilon_root=config.adam_eps_root,

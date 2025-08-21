@@ -321,7 +321,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     dc_share_prepost_dw_hidden = True
     checkpoint_period = 100
     learning_rate_schedule_steps = 177400 # 需要设置比总训练步数大一些
-    keep_period = 3000
+    keep_period = 1000
     decay_method = 'cosine' # or wsd
     iter_file_nums = 96
     max_target_length = 4096
@@ -341,7 +341,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     # #按照计算，最后decay阶段，0.5epoch的步数是 30000。但考虑到 total file: 12344-12288，多了56个文件，因此都加进去，多了 500 steps
     # eopch=0.5;end_steps4=30000+500;B=1024;lr='cosine->2.5e-4';file_nums=[9216, 12344]
     
-    train_stage = 3 # # 换阶段的话需要人工修改meta dict
+    train_stage = 4 # # 换阶段的话需要人工修改meta dict
     if train_stage == 5: # v5p-128
         train_shuffle_buffer_size = 500000 // 8
         per_device_batch_size = 2.0 # total 4M
@@ -363,8 +363,8 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         sub_remat=False
     
     elif train_stage == 4: # v5p-128/v6e-512
-        per_device_batch_size = 2.0 # total 1024
-        eval_per_device_batch_size = 2.0 # total 1024
+        per_device_batch_size = 16.0 # total 1024
+        eval_per_device_batch_size = 16.0 # total 1024
         eval_interval = 1500
         learning_rate = base_lr * math.sqrt(8)
         cosine_learning_rate_final_fraction = 0.1 / math.sqrt(8)  # from 2.5e-4 * math.sqrt(8) -> 2.5e-5

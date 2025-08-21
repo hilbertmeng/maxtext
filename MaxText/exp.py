@@ -1,3 +1,6 @@
+import math
+
+
 class Common:
     enable_goodput_recording = False # true is slower then false, decend 15%
     monitor_goodput = False
@@ -35,6 +38,9 @@ class Optimizer:
     adam_weight_decay = 0.1
     learning_rate = 3e-4
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0)]  # 0.表示不进行decay
+    # 学习率正则倍数，按参数名匹配；值为倍率（相对全局LR）。按顺序匹配命中第一个就生效
+    # 例如：[(".*/embed/.*", 100.0), (".*/(q|k|v|o)/.*", 8.0)]
+    lr_mults = []
     opt_type = 'adam_pax'
 
 class Muon:
@@ -589,4 +595,15 @@ class MuddLlama2MediumDeepEmbed(Mudd, Llama2MediumDeepEmbed):
     pass
 
 class MuonLlama2Medium(Muon, Llama2Medium):
+    muon_scale = 0.2
+    base_num_query_heads = 16
+    head_dim = 64
+    base_emb_dim = 1024
+    base_mlp_dim = 2816
+    qkvo_lr_mult = muon_scale * math.sqrt(max(base_num_query_heads * head_dim, base_emb_dim))
+    mlp_lr_mult = muon_scale * math.sqrt(max(base_num_query_heads, base_num_query_heads * head_dim))
+    lr_mults = [(".*/embedding/.*", 1.0), (".*/(query|key|value|out)/.*", qkvo_lr_mult), 
+    (".*/(wi_0|wi_1|wo)/.*", mlp_lr_mult)]
+
+class MuonMuddLlama2Medium(Muon, MuddLlama2Medium):
     pass

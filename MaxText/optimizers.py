@@ -105,6 +105,8 @@ def muon(
       label = 'adam_default'
       if 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
         label = 'adam_one_dim'
+      elif 'dyn_w_proj' in k: # dc use adam
+        label = 'adam_default'
       elif ndim == 2 and 'attention' in k:
         label = 'muon_attn'
       elif ndim == 2 and 'mlp' in k and 'compose' not in k: # remove mudd params

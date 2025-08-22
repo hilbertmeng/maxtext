@@ -64,15 +64,12 @@ class PileDataset:
 
 class GWindow:
     sliding_window_size = None
-    num_layers_per_block = 1
 
 class LGWindow:
     sliding_window_size = [256, None]
-    num_layers_per_block = 2
 
 class LGLLWindow:
     sliding_window_size = [256, None, 256, 256]
-    num_layers_per_block = 4
     
 class Mudd:
     dense_conn = True # dense_proj1 and dense_proj2
@@ -601,6 +598,12 @@ class MuonMuddLlama2Medium(Muon, MuddLlama2Medium):
     dynamic_mlp_dim = False
     mudd_prenorm = True
     mudd_postnorm = True
+
+class MuonDCMuddLlama2Medium(Muon, DCMuddLlama2Medium):
+    dynamic_mlp_dim = False
+    mudd_prenorm = True
+    mudd_postnorm = True
+    num_layers_per_block = 1
 
 class MuonLlamaXL(Muon, Llama2XL):
     eval_interval = 12500

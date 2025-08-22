@@ -598,7 +598,9 @@ class MuonLlama2Medium(Muon, Llama2Medium):
     pass
 
 class MuonMuddLlama2Medium(Muon, MuddLlama2Medium):
-    pass
+    dynamic_mlp_dim = False
+    mudd_prenorm = True
+    mudd_postnorm = True
 
 class MuonLlamaXL(Muon, Llama2XL):
     eval_interval = 12500

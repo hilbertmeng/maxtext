@@ -103,12 +103,12 @@ def muon(
       k = "/".join(_k)
       ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
       label = 'adam_default'
-      if ndim == 2 and 'mlp' in k: # head lr不能太大
-        label = 'muon_mlp'
+      if 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
+        label = 'adam_one_dim'
       elif ndim == 2 and 'attention' in k:
         label = 'muon_attn'
-      elif 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
-        label = 'adam_one_dim'
+      elif ndim == 2 and 'mlp' in k and 'compose' not in k: # remove mudd params
+        label = 'muon_mlp'
      
       print(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label

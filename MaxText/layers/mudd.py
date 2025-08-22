@@ -137,6 +137,7 @@ class Mlp(nn.Module):
     C = self.C
     dw_shape = (C, (layer_inx * factor + 1)) # lsp
     print(f'dw_shape: {dw_shape}')
+    self.dw_shape = dw_shape
 
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else 1
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
@@ -146,6 +147,7 @@ class Mlp(nn.Module):
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
 
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
+    # (model_dim, inter_dim), inter_dim << model_dim
     self.dense_proj1 = linears.DenseGeneral(
                                     dynamic_dense_inter_dim,
                                     kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
@@ -155,7 +157,7 @@ class Mlp(nn.Module):
                                     **kwargs)
     self.dense_activation = linears._convert_to_activation_function(cfg.dynamic_dense_act_cls)
     
-    self.dense_proj2 = linears.DenseGeneral(dw_shape, 
+    self.dense_proj2 = linears.DenseGeneral(dw_shape if cfg.opt_type != 'muon' else np.prod(dw_shape), 
                                     kernel_init=initializers.contant_dense_init(0.0), 
                                     kernel_axes=('kv', None), 
                                     use_bias=False, 
@@ -178,6 +180,10 @@ class Mlp(nn.Module):
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
+      if cfg.opt_type == 'muon':
+        # bt(c*l) -> btcl
+        dyn_dense_kernel_out = dyn_dense_kernel_out.reshape(*dyn_dense_kernel_out.shape[:2], *self.dw_shape)
+
       if cfg.dynamic_dense_scale_dw:
         dyn_dense_kernel_out /= jnp.sqrt(self.dynamic_dense_inter_dim)
       if self.use_bias:

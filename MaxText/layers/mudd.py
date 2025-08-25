@@ -161,6 +161,7 @@ class Mlp(nn.Module):
                                     kernel_init=initializers.contant_dense_init(0.0), 
                                     kernel_axes=('kv', None), 
                                     use_bias=False, 
+                                    # lsp：这个参数相当于scale的作用，感觉不适合muon
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
     if self.use_bias:

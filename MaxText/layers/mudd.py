@@ -135,7 +135,7 @@ class Mlp(nn.Module):
     factor = 1
     layer_inx = self.layer_inx
     C = self.C
-    dw_shape = (C, (layer_inx * factor + 1)) # lsp
+    dw_shape = (C, layer_inx * factor + 1) # lsp
     print(f'dw_shape: {dw_shape}')
     self.dw_shape = dw_shape
 
@@ -157,9 +157,10 @@ class Mlp(nn.Module):
                                     **kwargs)
     self.dense_activation = linears._convert_to_activation_function(cfg.dynamic_dense_act_cls)
     
-    self.dense_proj2 = linears.DenseGeneral(dw_shape if not cfg.mudd_use_muon else np.prod(dw_shape), 
+    self.dense_proj2 = linears.DenseGeneral(
+                                    dw_shape if not cfg.mudd_use_muon else np.prod(dw_shape), 
                                     kernel_init=initializers.contant_dense_init(0.0), 
-                                    kernel_axes=('kv', None), 
+                                    kernel_axes=('kv', None, 'mlp') if not cfg.mudd_use_muon else ('kv', 'mlp'), 
                                     use_bias=False, 
                                     # lsp：这个参数相当于scale的作用，感觉不适合muon
                                     name='dynamic_dense_conn2', 
@@ -183,7 +184,7 @@ class Mlp(nn.Module):
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
       if cfg.mudd_use_muon:
         # bt(c*l) -> btcl
-        dyn_dense_kernel_out = dyn_dense_kernel_out.reshape(*dyn_dense_kernel_out.shape[:2], *self.dw_shape)
+        dyn_dense_kernel_out = dyn_dense_kernel_out.reshape(*dyn_dense_kernel_out.shape[:-1], *self.dw_shape)
 
       if cfg.dynamic_dense_scale_dw:
         dyn_dense_kernel_out /= jnp.sqrt(self.dynamic_dense_inter_dim)

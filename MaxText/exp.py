@@ -594,6 +594,15 @@ class MuddLlama2MediumDeepEmbed(Mudd, Llama2MediumDeepEmbed):
 class MuonLlama2Medium(Muon, Llama2Medium):
     pass
 
+class LamaMediumMoonPaperBSZLR(Llama2Medium):
+    per_device_batch_size = 96.0
+    eval_per_device_batch_size = 64.0
+    learning_rate_schedule_steps = 9000
+    learning_rate = 9.503e-4
+
+class MuonLamaMediumMoonPaperBSZLR(Muon, LamaMediumMoonPaperBSZLR):
+    pass
+
 class MuonMuddLlama2Medium(Muon, MuddLlama2Medium):
     dynamic_mlp_dim = False
     mudd_prenorm = True
@@ -607,7 +616,7 @@ class MuonDCMuddLlama2Medium(Muon, DCMuddLlama2Medium):
 
 class MuonDCMuddLamaAndDCMuddUseMuon(MuonDCMuddLlama2Medium):
     dc_use_muon = True
-    muon_use_muon = True
+    mudd_use_muon = True
 
 class MuonLlamaXL(Muon, Llama2XL):
     eval_interval = 12500

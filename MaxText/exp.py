@@ -622,3 +622,14 @@ class MuonLlamaXL(Muon, Llama2XL):
     eval_interval = 12500
     per_device_batch_size = 16.0
     eval_per_device_batch_size = 64.0
+
+class LlamaXLMoonPaperBSZLR(Llama2XL):
+    per_device_batch_size = 96.0 # 8*96=768
+    eval_per_device_batch_size = 96.0
+    learning_rate_schedule_steps = 16666 # 50000/3=16666.666666666666
+    learning_rate = 8.561e-4
+    eval_interval = 8333
+
+class MuonLlamaXLMoonPaperBSZLR(Muon, LlamaXLMoonPaperBSZLR):
+    pass
+

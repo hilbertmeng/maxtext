@@ -447,14 +447,14 @@ def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
     print(f'Total repeat:{epoch} train file: {len(train_files)},  test file: {len(valid_files)}')
 
     if train_stage == 1:
-        train_files = train_files[:1536 + 1] # +1是为了超出后不会报错
+        train_files = train_files[:1536 + 1] + train_files[-191:]
     elif train_stage == 2:
-        train_files = train_files[1536: 1536*2 + 1]
+        train_files = train_files[1536: 1536*2 + 1] + train_files[:191]
     elif train_stage == 3:
-        train_files = train_files[1536*2 :1536*6 + 1]
+        train_files = train_files[1536*2 :1536*6 + 1] + train_files[:191]
     elif train_stage == 4:
         # last_f = os.path.join(dataset_path, 'R051.000076')
-        train_files = train_files[1536*6: ]
+        train_files = train_files[1536*6: ] + train_files[:100]
 
     print(f'[S{train_stage}]Train file: {len(train_files)},  test file: {len(valid_files)}')
     print(f'[S{train_stage}]First 10 train files: {train_files[:10]}')

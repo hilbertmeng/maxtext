@@ -1062,9 +1062,9 @@ def train_loop(config, state=None):
         # mini-moe in here loss crash
         # if 71829 <= step <= 71833 or 94739 <= step <= 94745 or 94395 <= step <= 94405: continue
         # if 124813 <= step <= 124819 or 125068 <= step <= 125074
-        # if 133937 <= step <= 133945: 
-        #   print(f'[lsp]step {step} is skipped')
-        #   continue
+        if 153970 <= step <= 153970 + 8: 
+          print(f'[lsp]step {step} is skipped')
+          continue
         record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
         check_example_batch(config, example_batch=example_batch)
         # pylint: disable=not-callable

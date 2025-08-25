@@ -157,7 +157,7 @@ class Mlp(nn.Module):
                                     **kwargs)
     self.dense_activation = linears._convert_to_activation_function(cfg.dynamic_dense_act_cls)
     
-    self.dense_proj2 = linears.DenseGeneral(dw_shape if cfg.opt_type != 'muon' else np.prod(dw_shape), 
+    self.dense_proj2 = linears.DenseGeneral(dw_shape if not cfg.mudd_use_muon else np.prod(dw_shape), 
                                     kernel_init=initializers.contant_dense_init(0.0), 
                                     kernel_axes=('kv', None), 
                                     use_bias=False, 
@@ -180,7 +180,7 @@ class Mlp(nn.Module):
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
-      if cfg.opt_type == 'muon':
+      if cfg.mudd_use_muon:
         # bt(c*l) -> btcl
         dyn_dense_kernel_out = dyn_dense_kernel_out.reshape(*dyn_dense_kernel_out.shape[:2], *self.dw_shape)
 

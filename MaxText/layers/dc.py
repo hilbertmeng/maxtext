@@ -70,6 +70,7 @@ class DynamicWeightProjection(nn.Module):
   deterministic: bool = False
   dynamic_dropout_rate: Optional[float] = None
   quant: Optional[Quant] = None
+  dc_use_muon: bool = False
 
   def setup(self) -> None:
     self.num_heads_per_group = self.num_heads // self.num_groups
@@ -85,7 +86,8 @@ class DynamicWeightProjection(nn.Module):
         if self.dynamic_squeeze_ratio is not None else 2
       # '12x4096x1x4x128'  # stage * dim * num_groups * C * K， n_splits is C
       self.dw1 = linears.DenseGeneral(
-                        features=(self.num_groups, self.n_splits, self.dynamic_w_hidden_dim),  
+                        features=(self.num_groups, self.n_splits, self.dynamic_w_hidden_dim) if not self.dc_use_muon else \
+                                  self.num_groups * self.n_splits * self.dynamic_w_hidden_dim,  # lsp
                         quant=self.quant,  # 0.00014
                         kernel_init=NormalInitializer(math.sqrt(2.0 / (self.input_dim + self.dynamic_w_hidden_dim))), 
                         kernel_axes=('embed', None, 'heads', 'mlp'),
@@ -95,13 +97,18 @@ class DynamicWeightProjection(nn.Module):
       G, K, M = self.num_groups, self.dynamic_w_hidden_dim, self.num_heads_per_group
       I = dynamic_hidden_dim * 2  # 2 * 2
       shape = [G, self.n_splits, K, I, M]
+      # lsp
+      two_dim_shape = [G * self.n_splits * K * I, M]
+      self.G, self.K, self.I, self.M = G, K, I, M
+
       kernel_init_shard = nn.with_logical_partitioning(NormalInitializer(self.dynamic_w_init), (None, 'data', 'fsdp', None, 'tensor'))
-      self.qkw = self.param('qkw',kernel_init_shard, shape, self.weight_dtype)
+      self.qkw = self.param('qkw', kernel_init_shard, shape if not self.dc_use_muon else two_dim_shape, self.weight_dtype)
   
     if self.dynamic_d_init is not None:
       self.dd = linears.DenseGeneral(
                         features=(self.num_groups, 
-                        self.num_heads_per_group * self.n_splits), 
+                        self.num_heads_per_group * self.n_splits) if not self.dc_use_muon else \
+                        self.num_groups * self.num_heads_per_group * self.n_splits,  # lsp
                         quant=self.quant,
                         kernel_init=NormalInitializer(self.dynamic_d_init), 
                         kernel_axes=('embed', None, 'mlp'),
@@ -120,8 +127,12 @@ class DynamicWeightProjection(nn.Module):
 
   def __call__(self, query_vec):
     qkw_kernel = jnp.asarray(self.qkw, self.dtype) # lsp
+    if self.dc_use_muon:
+      qkw_kernel = qkw_kernel.reshape(self.G, self.n_splits, self.K, self.I, self.M)
     if self.n_splits == 2:
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
+      if self.dc_use_muon: # lsp: recover to original shape
+        dw_hidden = dw_hidden.reshape(*dw_hidden.shape[:-1], self.num_groups, self.n_splits, self.dynamic_w_hidden_dim)
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
       # C: n_split,  K -> IM
@@ -131,6 +142,8 @@ class DynamicWeightProjection(nn.Module):
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
 
       dd = self.dd(query_vec)
+      if self.dc_use_muon: # lsp: recover to original shape
+        dd = dd.reshape(*dd.shape[:-1], self.num_groups, self.num_heads_per_group * self.n_splits)
       dd = self.dw_activation(dd)
       if self.dynamic_dropout_rate is not None:
         dd = self.dropout(dd, deterministic=self.deterministic)
@@ -138,6 +151,8 @@ class DynamicWeightProjection(nn.Module):
       return (pre_w1, pre_w2, pre_dd), (post_w1, post_w2, post_dd)
     else:
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))
+      if self.dc_use_muon: # lsp: recover to original shape
+        dw_hidden = dw_hidden.reshape(*dw_hidden.shape[:-1], self.num_groups, self.n_splits, self.dynamic_w_hidden_dim)
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
       # dw_hidden: b * t * 1 * n_split * 128  qkw_kernel: 1 * n_split * 128 * I(4) * 128
@@ -334,6 +349,7 @@ class AttentionOp(nn.Module):
         'deterministic': self.deterministic,
         'dynamic_dropout_rate': self.dynamic_dropout_rate,
         'quant': self.quant,
+        'dc_use_muon': cfg.dc_use_muon,
     }
     if cfg.pre_compose or cfg.post_compose:
       if self.is_cross_attention: # default false

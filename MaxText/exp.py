@@ -605,6 +605,10 @@ class MuonDCMuddLlama2Medium(Muon, DCMuddLlama2Medium):
     mudd_postnorm = True
     num_layers_per_block = 1
 
+class MuonDCMuddLamaAndDCMuddUseMuon(MuonDCMuddLlama2Medium):
+    dc_use_muon = True
+    muon_use_muon = True
+
 class MuonLlamaXL(Muon, Llama2XL):
     eval_interval = 12500
     per_device_batch_size = 16.0

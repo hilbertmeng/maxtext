@@ -169,6 +169,9 @@ class QChunk(nn.Module):
       attn_weights = pre_proj_layer(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
 
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', None, 'activation_length', None),)
+    attn_weights_max = jnp.max(attn_weights)
+    self.sow('intermediates', 'attn_weights/max', attn_weights_max)
+    
     # apply attention mask
     if attn_mask is not None:
       attn_weights = apply_mask_to_logits(attn_weights, attn_mask)

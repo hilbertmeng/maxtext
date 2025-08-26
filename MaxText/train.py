@@ -894,9 +894,8 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
       "learning/accuracy": aux['accuracy'], # lsp
   }
   # Record Smax and scale factor for monitoring
-  if tau is not None:
-    scalar_metrics["learning/attn_smax"] = attn_smax if attn_smax is not None else jnp.nan
-    scalar_metrics["learning/qk_scale_c"] = qk_scale_c
+  scalar_metrics["learning/attn_smax"] = attn_smax if attn_smax is not None else jnp.nan
+  scalar_metrics["learning/qk_scale_c"] = qk_scale_c
   # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
   params_scalar_values = compute_params_norm(state.params, config=config)
   scalar_metrics.update(params_scalar_values)

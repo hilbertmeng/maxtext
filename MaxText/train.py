@@ -86,7 +86,7 @@ _DEFAULT_OCDBT_TARGET_DATA_FILE_SIZE = 2 * 1024**3
 def print_tree_struct(name, tree, shape=False): # lsp
   max_logging.log(f'{name} struct follow:')
   for k, v in flatten_dict(tree).items():
-    k = '.'.join(k)
+    k = '/'.join(k)
     if shape:
       max_logging.log(f'{k}: {v.shape}')
     else:
@@ -1062,7 +1062,7 @@ def train_loop(config, state=None):
         # mini-moe in here loss crash
         # if 71829 <= step <= 71833 or 94739 <= step <= 94745 or 94395 <= step <= 94405: continue
         # if 124813 <= step <= 124819 or 125068 <= step <= 125074
-        if 153970 <= step <= 153970 + 8: 
+        if 153970 <= step <= 153970 + 8 or 153983 <= step <= 153983 + 9:
           print(f'[lsp]step {step} is skipped')
           continue
         record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)

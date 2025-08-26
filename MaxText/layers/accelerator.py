@@ -350,6 +350,8 @@ class QChunk(nn.Module):
                                       query, key, value, attn_mask,  
                                       pre_proj_dw_args=pre_proj_dw_args, 
                                       post_proj_dw_args=post_proj_dw_args, 
+                                      pre_proj_layer =pre_proj_layer,
+                                      post_proj_layer =post_proj_layer,
                                       )
     else:
       args = (query, key, value, attn_mask, sliding_window_size, pre_proj_dw_args, post_proj_dw_args, pre_proj_layer, post_proj_layer)

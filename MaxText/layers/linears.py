@@ -208,7 +208,7 @@ class MlpBlock(nn.Module):
 
   def setup(self):
     D = self.config.emb_dim
-    d = np.sqrt(D)
+    d = int(np.sqrt(D))
     print(f'D: {D} d: {d}')
     self.s1 = self.param('s1', nn.initializers.constant(0.0), (D, d))
     self.s2 = self.param('s2', nn.initializers.constant(0.0), (d, D))

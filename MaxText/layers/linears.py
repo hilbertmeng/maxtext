@@ -206,6 +206,15 @@ class MlpBlock(nn.Module):
   quant: Optional[Quant] = None
   rng: None = None
 
+  def setup(self):
+    D = self.config.emb_dim
+    d = np.sqrt(D)
+    print(f'D: {D} d: {d}')
+    self.s1 = self.param('s1', nn.initializers.constant(0.0), (D, d))
+    self.s2 = self.param('s2', nn.initializers.constant(0.0), (d, D))
+    self.s2_bias = self.param('s2.bias', nn.initializers.constant(1.0), (D,))
+    print(f's1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape}')
+
   def get_norm_layer(self):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "deepseek"):
       return RMSNorm
@@ -326,6 +335,7 @@ class MlpBlock(nn.Module):
     )(x)
 
     if cfg.deep_embed == '1x':
+      B, T = decoder_input_tokens.shape
       deep_embedding = embeddings.Embed(
         num_embeddings=cfg.vocab_size,
         features=cfg.emb_dim,
@@ -335,7 +345,14 @@ class MlpBlock(nn.Module):
         config=cfg,
       )(decoder_input_tokens.astype("int32"))
       print(f'output: {output.shape} 1 x deep_embedding: {deep_embedding.shape}')
-      output = output * deep_embedding # lsp
+      deep_embedding = deep_embedding.reshape(B, T, self.d, self.d) # btdd , d**2 = D
+      # btD x Dd -> btd
+      deep_w = inputs @ self.s1
+      # bt1d * btdd -> bt1d
+      deep_w = deep_w[:, :, None, :] @ deep_embedding 
+      # btd * dD -> btD
+      deep_w = deep_w.reshape(B, T, -1) @ self.s2 + self.s2_bias
+      output = output * deep_w # lsp
       if cfg.deep_embed_norm:
         print(f'deep_embed_norm is true......')
         output = RMSNorm(

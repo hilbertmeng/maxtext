@@ -623,6 +623,19 @@ class MuonLlamaXL(Muon, Llama2XL):
     per_device_batch_size = 16.0
     eval_per_device_batch_size = 64.0
 
+class LlamaXLH16(Llama2XL):
+    eval_interval = 12500
+    per_device_batch_size = 32.0
+    eval_per_device_batch_size = 32.0
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    attention = 'flash'
+    qk_norm = True
+    head_dim = 128
+
+class MuonLlamaXLH16(Muon, LlamaXLH16):
+    pass
+
 class LlamaXLMoonPaperBSZLR(Llama2XL):
     per_device_batch_size = 96.0 # 8*96=768
     eval_per_device_batch_size = 96.0

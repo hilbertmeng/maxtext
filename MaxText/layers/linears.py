@@ -212,9 +212,9 @@ class MlpBlock(nn.Module):
       self.d = int(np.sqrt(D))
       print(f'D: {D} d: {self.d}')
       # nd_dense_init(1.0, "fan_in", "truncated_normal")
-      self.s1 = self.param('s1', initializers.nd_dense_init_normal(0.006), (D, self.d), self.weight_dtype)
-      self.s2 = self.param('s2', initializers.nd_dense_init_normal(0.006), (self.d, D), self.weight_dtype)
-      self.s2_bias = self.param('s2.bias', initializers.nd_dense_init_normal(0.006), (D,), self.weight_dtype)
+      self.s1 = self.param('s1', initializers.nd_dense_init_normal(0.006), (D, self.d),)
+      self.s2 = self.param('s2', initializers.nd_dense_init_normal(0.006), (self.d, D))
+      self.s2_bias = self.param('s2.bias', initializers.nd_dense_init_normal(0.006), (D,))
       print(f's1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape}')
 
   def get_norm_layer(self):

@@ -848,14 +848,14 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   attn_smax = _extract_attn_smax(intermediate_outputs)
   tau = getattr(config, 'attn_logit_threshold', None)
   print(f'attn_smax: {attn_smax} tau: {tau}')
-  if tau is not None and attn_smax is not None:
+  if tau and attn_smax is not None:
     qk_scale_c = jnp.where(attn_smax > tau, jnp.sqrt(tau / (attn_smax + 1e-12)), 1.0)
   else:
     qk_scale_c = jnp.ones(config.num_decoder_layers)
 
   new_state = state.apply_gradients(grads=raw_grads)
   
-  if tau is not None:
+  if tau: # not none and > 0
     # Apply scaling only if the feature is enabled (tau provided)
     print(f'qk_scale_c: {qk_scale_c}')
     scaled_params = dict(new_state.params)

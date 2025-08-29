@@ -666,4 +666,4 @@ muon_scale: 0.2
 deep_embed_norm: False
 mudd_use_muon: False
 dc_use_muon: False
-attn_logit_threshold: null # suggest 30.0
+attn_logit_threshold: 0.0 # k2 paper use 30.0, default 0.0 means don't to use attn logits clip

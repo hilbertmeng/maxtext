@@ -1417,6 +1417,7 @@ class Attention(nn.Module):
       inputs_q: Array,
       inputs_kv: Array,
       inputs_positions: Array,
+      layer_inx: int | None,
       decoder_segment_ids: Array | None = None,
       *,
       model_mode: str = common_types.MODEL_MODE_TRAIN,
@@ -1539,9 +1540,14 @@ class Attention(nn.Module):
 
     if self.use_v_gate:
       use_v_gate_bias = self.config.use_v_gate_bias if self.config.use_v_gate_bias is not None else False
+      if self.config.vgate_vway:
+        inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
+        _inputs = inputs_v
+      else:
+        _inputs = inputs_q  
       v_gate = DenseGeneral((self.num_query_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
             kernel_init=self.kernel_init,kernel_axes=('embed', None),name="v_gate", use_bias=use_v_gate_bias,
-        )(inputs_q)
+        )(_inputs)
       v_gate = jax.nn.tanh(v_gate) + 1  if self.config.v_gate_tanh else jax.nn.sigmoid(v_gate) 
       value = value * v_gate[...,None] # BSND, BSN1->BSND
 
@@ -1554,7 +1560,13 @@ class Attention(nn.Module):
         self.sow('intermediates', 'attn_logits_min', -1 * (-attn_logits).max())
         self.sow('intermediates', 'attn_logits_mean', attn_logits.mean())
 
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, hidden_states=hidden_states)
+    if self.config.sep_dc and self.use_dc and getattr(self.config, "recursive_pattern", None) and layer_inx is not None :
+      max_logging.log(f'sep_dc, use_dc, recursive_pattern, layer_inx: {self.config.sep_dc}, {self.use_dc}, {getattr(self.config, "recursive_pattern", None)}, {layer_inx}')
+      attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size, query_chunk_size=self.query_chunk_size, key_wise=self.key_wise,
+                                        num_query_heads=self.num_query_heads, num_kv_heads=self.num_kv_heads, name=f"dc_attn_{layer_inx}")
+      out = attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, hidden_states=hidden_states)
+    else:
+      out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, hidden_states=hidden_states)
 
     if self.config.use_o_gate:
       o_gate = DenseGeneral((self.config.num_out_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,

@@ -346,10 +346,21 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
     #     pass
   else:
     for layer_num in range(config.num_decoder_layers):
-      output_metrics["scalar"][f"intermediates/hidden_states_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"hidden_states_layer_{layer_num}"][0]
-      output_metrics["scalar"][f"intermediates/attn_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["attn_out"][0]
-      output_metrics["scalar"][f"intermediates/mlp_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["mlp_out"][0]
+      if not config.recursive_pattern:
+        output_metrics["scalar"][f"intermediates/hidden_states_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"hidden_states_layer_{layer_num}"][0]
+        output_metrics["scalar"][f"intermediates/attn_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["attn_out"][0]
+        output_metrics["scalar"][f"intermediates/mlp_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["mlp_out"][0]
       
+      if config.mod_sparse_gate:
+        if config.recursive_pattern:
+          output_metrics["scalar"][f"intermediates/mod_sparse_attn_hard_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{config.recursive_pattern[layer_num]}"]["sub_0"][f"mod_sparse_attn_hard_{layer_num}"][0]
+          output_metrics["scalar"][f"intermediates/mod_sparse_ffn_hard_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{config.recursive_pattern[layer_num]}"]["sub_0"][f"mod_sparse_ffn_hard_{layer_num}"][0]
+          output_metrics["scalar"][f"intermediates/mod_sparse_loss_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{config.recursive_pattern[layer_num]}"]["sub_0"][f"mod_sparse_loss_{layer_num}"][0]
+        else:
+          output_metrics["scalar"][f"intermediates/mod_sparse_attn_hard_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["mod_sparse_attn_hard"][0]
+          output_metrics["scalar"][f"intermediates/mod_sparse_ffn_hard_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["mod_sparse_ffn_hard"][0]
+          output_metrics["scalar"][f"intermediates/mod_sparse_loss_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["mod_sparse_loss"][0]
+
       if config.mosa_mode == 'relu':
         output_metrics["scalar"][f"intermediates/relu_gate_q_ratio_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention_mosa"]["relu_gate_q_ratio"][0]
         output_metrics["scalar"][f"intermediates/relu_gate_k_ratio_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention_mosa"]["relu_gate_k_ratio"][0]
@@ -495,7 +506,7 @@ def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_t
   return loss, aux
 
 
-def loss_fn(model, config, data, dropout_rng, params, is_train=True):
+def loss_fn(model, config, data, dropout_rng, params, skip_layers, is_train=True):
   """loss_fn for both train and eval.
 
   Args:
@@ -525,6 +536,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       params,
       data["inputs"],
       data["inputs_position"],
+      skip_layers=skip_layers,
       decoder_segment_ids=data["inputs_segmentation"],
       enable_dropout=config.enable_dropout if is_train else False,
       rngs={"dropout": rng1, "params": aqt_rng},
@@ -545,16 +557,32 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   loss = total_loss / (total_weights + EPS)
   # get moe load balance loss
   moe_lb_loss = 0.0
+  mod_sparse_loss = 0.0
   if config.num_experts > 1:
     nested_key = ("intermediates", "decoder", "layers", "moe_lb_loss")
     total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
     moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
     loss += moe_lb_loss
+  # Collect modular sparsity loss if present
+  if config.mod_sparse_gate:
+    assert not config.scan_layers
+    total_sparse_loss = []
+    print(flatten_dict(intermediate_outputs).keys())
+    for i in range(config.num_decoder_layers):
+      if config.recursive_pattern:
+        nested_sparse_key = ("intermediates", "decoder",  f"layers_{config.recursive_pattern[i]}", "sub_0", f"mod_sparse_loss_{i}")
+      else:
+        nested_sparse_key = ("intermediates", "decoder",  f"layers_{i}", "sub_0", "mod_sparse_loss")
+      sparse_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_sparse_key, None)
+      total_sparse_loss.append(sparse_loss)
+    mod_sparse_loss = jnp.mean(jnp.array(total_sparse_loss))
+    loss += mod_sparse_loss 
   aux = {
       "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
       "moe_lb_loss": moe_lb_loss,
+      "mod_sparse_loss": mod_sparse_loss,
       "accuracy": accuracy, # lsp
       "correct": jnp.sum(correct), # lsp
   }
@@ -579,7 +607,7 @@ def compute_params_norm(params, config, parent_key='total_params'): # lsp
   return scalar_vales
 
 
-def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
+def train_step(model, config, state_mesh_shardings, state, data, dropout_rng, skip_layers):
   """
 
   Args:
@@ -610,6 +638,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       )
       acc_grad_and_loss["loss"] += aux["total_loss"]
       acc_grad_and_loss["moe_lb_loss"] += aux["moe_lb_loss"]
+      acc_grad_and_loss["mod_sparse_loss"] += aux.get("mod_sparse_loss", 0.0)
       acc_grad_and_loss["grad"] = jax.tree_util.tree_map(
           lambda x, y: x * aux["total_weights"] + y, cur_batch_gradient, acc_grad_and_loss["grad"]
       )
@@ -625,7 +654,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
     data = jax.tree_util.tree_map(reshape_to_microbatch_accumulations, data)
     init_grad = jax.tree_util.tree_map(jnp.zeros_like, state.params)
-    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, "accuracy": 0.0} # lsp
+    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, "mod_sparse_loss": 0.0, "accuracy": 0.0} # lsp
 
     grad_and_loss, aux = jax.lax.scan(
         accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
@@ -633,6 +662,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     loss = (
         grad_and_loss["loss"] / grad_and_loss["total_weights"]
         + grad_and_loss["moe_lb_loss"] / config.gradient_accumulation_steps
+        + grad_and_loss.get("mod_sparse_loss", 0.0) / config.gradient_accumulation_steps
     )
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
     aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
@@ -645,7 +675,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
         reference_params = jax.device_put(reference_params, max_utils.with_memory_kind(reference_params_sharding, "device"))
         extra_dpo_args = [reference_params]
     grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)
-    (loss, aux), raw_grads = grad_func(model, config, data, dropout_rng, state.params, *extra_dpo_args, is_train=True)
+    (loss, aux), raw_grads = grad_func(model, config, data, dropout_rng, state.params, *extra_dpo_args, skip_layers, is_train=True)
   intermediate_outputs = aux["intermediate_outputs"]
   if config.debug:
     print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
@@ -680,7 +710,6 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   if config.gradient_clipping_threshold > 0:
     # grads = apply_gradient_clipping_pax(raw_grads, config.gradient_clipping_threshold, raw_grad_norm)
     grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
-    # grads = raw_grads
   else:
     grads = raw_grads
   
@@ -697,8 +726,10 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   new_state = state.apply_gradients(grads=grads)
 
   scalar_metrics = {
-      "learning/loss": loss,
+      "learning/loss": loss - aux.get("mod_sparse_loss", 0.0) - aux["moe_lb_loss"],
+      "learning/total_loss": loss,
       "learning/moe_lb_loss": moe_lb_loss,
+      "learning/mod_sparse_loss": aux.get("mod_sparse_loss", 0.0),
       "learning/total_weights": total_weights,
       "learning/accuracy": aux['accuracy'], # lsp
   }
@@ -732,7 +763,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   return new_state, metrics
 
 
-def eval_step(model, config, state, data, dropout_rng):
+def eval_step(model, config, state, data, dropout_rng, skip_layers):
   """eval_step no backprop and new state compared with train_step."""
 
   reference_params, extra_dpo_args, _loss_fn = [], [], loss_fn
@@ -741,8 +772,15 @@ def eval_step(model, config, state, data, dropout_rng):
     extra_dpo_args = [reference_params]
     _loss_fn = dpo_loss_fn
 
-  eval_loss_fn = functools.partial(_loss_fn, model, config, data, dropout_rng, is_train=False)
-  loss, aux = eval_loss_fn(state.params, *extra_dpo_args)
+  # eval_loss_fn = functools.partial(_loss_fn, model, config, data, dropout_rng, is_train=False)
+  # loss, aux = eval_loss_fn(state.params, *extra_dpo_args)
+
+  if config.use_dpo:
+    # dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_train)
+    loss, aux = _loss_fn(model, config, data, dropout_rng, state.params, reference_params, is_train=False)
+  else:
+    # loss_fn(model, config, data, dropout_rng, params, skip_layers, is_train)
+    loss, aux = _loss_fn(model, config, data, dropout_rng, state.params, skip_layers, is_train=False)
   total_loss = aux["total_loss"]
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
@@ -1069,8 +1107,14 @@ def train_loop(config, state=None):
         # pylint: disable=not-callable
         nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
         record_goodput(recorder, config, recorder.record_step_start_time if recorder else None, step)
+        if config.skip_layers: # [list(range(12))] 
+          random_index = jax.random.randint(nextrng, (1,), 0, len(config.skip_layers))[0]
+          current_skip_layers = config.skip_layers[random_index]
+          max_logging.log(f'random_index in skip_layers: {random_index}')
+        else:
+          current_skip_layers = None
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-          state, metrics = p_train_step(state, example_batch, nextrng)
+          state, metrics = p_train_step(state, example_batch, nextrng, current_skip_layers)
 
       step_time_delta = datetime.datetime.now() - last_step_completion
       last_step_completion = datetime.datetime.now()
@@ -1111,9 +1155,18 @@ def train_loop(config, state=None):
         eval_data_iterators = [eval_data_iterator]
       else:
         eval_data_iterators = eval_data_iterator
+      if config.skip_layers: # duplicate eval_data_iterators for each skip_layers
+        raw_eval_data_iterators = eval_data_iterators
+        eval_data_iterators, pat_idxs = [], []
+        for pat_idx in range(len(config.skip_layers)):
+          for _iter in raw_eval_data_iterators:
+            eval_data_iterators.append(_iter)
+            pat_idxs.append(pat_idx)
       all_cumulative_eval_metrics = {}
-      for eval_data_iterator in eval_data_iterators:
+      for iter_idx, eval_data_iterator in enumerate(eval_data_iterators):
         dataset_name = eval_data_iterator.name
+        if config.skip_layers:
+          dataset_name = f'{dataset_name}_pat_{pat_idxs[iter_idx]}'
         correct, accuracy, mean_b_loss = 0, 0, 0 # lsp
         cumulative_eval_metrics = {
           "scalar": {
@@ -1138,7 +1191,12 @@ def train_loop(config, state=None):
           with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
             if config.only_eval: # lsp
               nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
-            eval_metrics = p_eval_step(state, eval_batch, nextrng)
+            if config.skip_layers: # [list(range(12))] 
+              current_skip_layers = config.skip_layers[pat_idxs[iter_idx]]
+              max_logging.log(f'pat idx in skip_layers: {pat_idxs[iter_idx]}')
+            else:
+              current_skip_layers = None
+            eval_metrics = p_eval_step(state, eval_batch, nextrng, current_skip_layers)
           cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
           cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
           cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])

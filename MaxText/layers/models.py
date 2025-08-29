@@ -223,12 +223,37 @@ class Decoder(nn.Module):
         config=cfg,
       )
 
+    if self.config.use_rins_linear_adapters:
+      self.rins_norms = [self.get_norm_layer()(
+        dtype=self.config.dtype,
+        weight_dtype=self.config.weight_dtype,
+        name=f"rins_norm_{pat_idx}",
+        epsilon=self.config.normalization_layer_epsilon,
+        kernel_axes=("norm",),
+    ) for pat_idx in range(len(self.config.skip_layers))]
+      self.rins_linear_adapters = [linears.DenseGeneral(features=(self.config.emb_dim,),axis=-1, kernel_init=initializers.nd_dense_init_normal(0),
+        kernel_axes=("embed", None), dtype=self.config.dtype, weight_dtype=self.config.weight_dtype,name=f"rins_linear_adapter_{pat_idx}",
+        quant=self.quant, use_bias=False, matmul_precision=self.config.matmul_precision) for pat_idx in range(len(self.config.skip_layers))]
+      # rins_rank = 128
+      # lora linear adapter for stochastic rins
+      # self.rins_linear_adapters = [linears.MlpBlock(intermediate_dim=rins_rank, activations=['linear'],dtype=self.config.dtype,weight_dtype=self.config.weight_dtype,
+      #         name=f"rins_linear_adapter_{pat_idx}",config=self.config,quant=self.quant,use_bias=False,kernel_init=initializers.nd_dense_init_normal(0.006),) for pat_idx in range(len(self.config.skip_layers))]
 
     if self.config.shift_last_hidden:
       self.hidden_shift = Hiddenshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=initializers.nd_dense_init_normal(0.006))
   
     if self.config.use_dynamic_temp: 
        self.dynamic_temp = DynamicTemperature(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=initializers.nd_dense_init_normal(0.006))
+
+  def initialize_rins_adapters(self, dummy_input):
+    """Explicitly initialize all RINS adapters to ensure parameter creation.
+    
+    Args:
+      dummy_input: A dummy tensor with shape compatible with adapter input
+    """
+    if self.config.use_rins_linear_adapters and hasattr(self, 'rins_linear_adapters'):
+      for adapter, norm in zip(self.rins_linear_adapters, self.rins_norms):
+        _ = adapter(norm(dummy_input * 0.0))  # Zero-weight call to force parameter creation
 
   def get_remat_policy(self):
     cfg = self.config
@@ -304,7 +329,7 @@ class Decoder(nn.Module):
 
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
-    static_argnums = (4,5,6) if self.config.mudd_in_layer and self.config.recursive_pattern else (4,5)
+    static_argnums = (4,5,6) if (self.config.mudd_in_layer or self.config.sep_dc or self.config.mod_sparse_gate) and self.config.recursive_pattern else (4,5)
     # static_argnums = (4,5)
     for block_layer in block_layers:
       layer = nn.remat(  # pylint: disable=invalid-name
@@ -430,6 +455,7 @@ class Decoder(nn.Module):
       self,
       decoder_input_tokens,
       decoder_positions,
+      skip_layers=None,
       decoder_segment_ids=None,
       deterministic=False,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -468,6 +494,10 @@ class Decoder(nn.Module):
         y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
     else:
       hids = []
+
+    # Force initialization of RINS adapters early in the forward pass
+    if cfg.use_rins_linear_adapters and self.is_mutable_collection('params'):
+      self.initialize_rins_adapters(y)
 
     policy = self.get_remat_policy()
     RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, policy)
@@ -511,6 +541,7 @@ class Decoder(nn.Module):
               decoder_positions,
               deterministic,
               model_mode,
+              None,
           )
       else:
         if cfg.decoder_block == "deepseek":
@@ -532,15 +563,15 @@ class Decoder(nn.Module):
                         )
         elif cfg.decoder_block == "fusion" and cfg.recursive_pattern: #mqy
           RemattedBlockLayer = RemattedBlockLayers[0]
-          # n = cfg.num_decoder_layers // cfg.num_layers_per_block
-          # sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
           pat = cfg.recursive_pattern
           assert len(pat) == cfg.num_decoder_layers # 'ABC' * 8, ''
-          layers_dict = dict([(layer_sym, RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{layer_sym}", quant=self.quant, sliding_window_size=None)) for layer_sym in set(pat)])
-          # layers_dict = dict([(layer_sym, self.decoder_layer[0](config=cfg, mesh=mesh, name=f"layers_{layer_sym}", quant=self.quant, sliding_window_size=None)) for layer_sym in set(pat)])
+          layers_dict = dict([(layer_sym, RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{layer_sym}", quant=self.quant, 
+               sliding_window_size=cfg.sliding_window_size[pat.index(layer_sym) % len(cfg.sliding_window_size)] if isinstance(cfg.sliding_window_size, list) else None)) for layer_sym in set(pat)])
           for lyr in range(cfg.num_decoder_layers):
             layer = layers_dict[pat[lyr]]
-            # layer = self.set_remat_policy([layer], policy)[0]
+            if skip_layers is not None and lyr in skip_layers:
+              max_logging.log(f'skipping layer {lyr}, skip_layers: {skip_layers}')
+              continue
             y = layer(
                 y,
                 decoder_segment_ids,
@@ -554,6 +585,14 @@ class Decoder(nn.Module):
               y, hids = y[:2]
             else:
               y = y[0]
+            
+            if cfg.use_rins_linear_adapters:
+              pat_idx = cfg.skip_layers.index(skip_layers)
+              y = y + self.rins_linear_adapters[pat_idx](self.rins_norms[pat_idx](y))
+              # if self.is_mutable_collection('params'):
+              #   for i, adapter in enumerate(self.rins_linear_adapters):
+              #     if i != pat_idx:
+              #       _ = adapter(self.rins_norms[i](y * 0.0))
         else:
           n = cfg.num_decoder_layers // cfg.num_layers_per_block
           sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
@@ -598,7 +637,17 @@ class Decoder(nn.Module):
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
 
     if self.config.channel_gating:
-      y = y + self.channel_gating(decoder_input_tokens.astype("int32"))
+      channel_gating_norm = self.get_norm_layer()(
+        dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        name="channel_gating_norm",
+        epsilon=cfg.normalization_layer_epsilon,
+        kernel_axes=("norm",),
+      )
+      if self.config.channel_gating_norm:
+        y = y + channel_gating_norm(y * self.channel_gating(decoder_input_tokens.astype("int32")))
+      else:
+        y = y * self.channel_gating(decoder_input_tokens.astype("int32"))
 
     # [batch, length, emb_dim] -> [batch, length, vocab_size]
     if cfg.logits_via_embedding:
@@ -667,6 +716,7 @@ class Transformer(nn.Module):
       self,
       decoder_input_tokens,
       decoder_positions,
+      skip_layers=None,
       decoder_segment_ids=None,
       enable_dropout=True,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -682,6 +732,7 @@ class Transformer(nn.Module):
     logits = self.decoder(
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,
+        skip_layers=skip_layers,
         decoder_segment_ids=decoder_segment_ids,
         deterministic=not enable_dropout,
         model_mode=model_mode,

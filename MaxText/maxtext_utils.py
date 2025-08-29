@@ -43,7 +43,8 @@ def get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, 
   data_sharding = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), data_pspec)
   in_shardings = (state_mesh_shardings, data_sharding, None)  # State, batch, rng
   out_shardings = (state_mesh_shardings, None)  # State, metrics
-  static_argnums = ()  # We partial out the static argnums of model and config
+  # static_argnums = ()  # We partial out the static argnums of model and config
+  static_argnums = (3,) # set skip_layers to static
   donate_argnums = 0  # This is the index of the state - we allow the compiler to make use of this memory.
   return functional_train, in_shardings, out_shardings, static_argnums, donate_argnums
 
@@ -60,7 +61,8 @@ def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, mo
   data_sharding = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), data_pspec)
   in_shardings = (state_mesh_shardings, data_sharding, None)  # State, batch, rng
   out_shardings = None  # metrics
-  static_argnums = ()  # We partial out the static argnums of model, config
+  # static_argnums = ()  # We partial out the static argnums of model, config
+  static_argnums = (3,) # set skip_layers to static
   donate_argnums = ()  # state will be kept instead of being donated in eval_step
   return functional_eval, in_shardings, out_shardings, static_argnums, donate_argnums
 

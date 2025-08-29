@@ -32,6 +32,7 @@ from layers import models
 from layers import quantizations
 from layers import mudd
 from layers import initializers
+from layers import dc
 import max_logging
 
 from layers.gpt3 import Gpt3LayerNorm
@@ -80,11 +81,13 @@ class SubDecoderLayer(nn.Module):
     self.mudd_mlp = mudd.Mlp(self.config, self.mesh, self.quant, self.layer_inx)
     self.mudd_qkvnorm = mudd.Norm(self.config, self.mesh, self.quant)
 
+    mlp_dim =self.config.mlp_dim[self.layer_inx % len(self.config.mlp_dim) ] if isinstance(self.config.mlp_dim, list) else self.config.mlp_dim 
     if self.config.dynamic_mlp_dim:
       dynamic_mlp_dim_unit = 128 if self.config.dynamic_mlp_dim_unit is None else self.config.dynamic_mlp_dim_unit
-      self.updated_mlp_dim = round(self.config.mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / dynamic_mlp_dim_unit) * dynamic_mlp_dim_unit 
+      self.updated_mlp_dim = round(mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / dynamic_mlp_dim_unit) * dynamic_mlp_dim_unit 
     else:
-      self.updated_mlp_dim = self.config.mlp_dim
+      self.updated_mlp_dim = mlp_dim
+
     max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
 
     if self.config.dynamic_num_experts:
@@ -148,6 +151,7 @@ class SubDecoderLayer(nn.Module):
       decoder_positions,
       deterministic,
       model_mode,
+      layer_inx,
       value_residual=None,
   ):
     cfg = self.config
@@ -280,11 +284,11 @@ class SubDecoderLayer(nn.Module):
         use_dc=(cfg.pre_compose or cfg.post_compose) and not cfg.ablate_dcmha,
         **mla_kwargs,
       )
-
       attention_lnx, value_residual = attention_layer(
           lnx,
           lnx if not cfg.dense_conn else lnx_kv,
           decoder_positions,
+          layer_inx,
           decoder_segment_ids=decoder_segment_ids,
           deterministic=deterministic,
           model_mode=model_mode,
@@ -349,6 +353,39 @@ class SubDecoderLayer(nn.Module):
         ffn_act=inner_ffn_act,
       )
       attention_lnx = attention_lnx + mosa_attention_lnx
+
+    if self.config.mod_sparse_gate:
+      mod_sparse_gate = linears.DenseGeneral(
+        2,
+        dtype=self.config.dtype,
+        weight_dtype=self.config.weight_dtype,
+        quant=self.quant,
+        kernel_init=initializers.nd_dense_init_normal(0.006),
+        kernel_axes=("embed", None),
+        name="mod_sparse_gate",
+      )
+      # Compute gating logits and probabilities
+      mod_sparse_logits = mod_sparse_gate(lnx)  # BTD, D2 -> BT2
+      init_bias = 1 
+      mod_sparse_logits = mod_sparse_logits + init_bias
+      mod_sparse_probs = jax.nn.sigmoid(mod_sparse_logits)
+      # Straight-through estimator to get hard 0/1 mask in forward, gradients from probs
+      mod_sparse_hard = (mod_sparse_probs > 0.5).astype(mod_sparse_probs.dtype) 
+      mod_sparse_score = mod_sparse_probs + jax.lax.stop_gradient(mod_sparse_hard - mod_sparse_probs)
+      # Auxiliary sparsity loss encourages fewer active paths
+      mod_sparse_loss = jnp.mean(mod_sparse_probs)
+      mod_sparse_loss = mod_sparse_loss * (self.config.sparse_loss_weight if getattr(self.config, 'sparse_loss_weight', None) is not None else 1)
+      if self.config.recursive_pattern:
+        self.sow("intermediates", f"mod_sparse_loss_{layer_inx}", mod_sparse_loss)
+        self.sow("intermediates", f"mod_sparse_attn_hard_{layer_inx}", mod_sparse_hard[:, :, 0].mean())
+        self.sow("intermediates", f"mod_sparse_ffn_hard_{layer_inx}", mod_sparse_hard[:, :, 1].mean())
+      else:
+        self.sow("intermediates", "mod_sparse_loss", mod_sparse_loss)
+        self.sow("intermediates", "mod_sparse_attn_hard", mod_sparse_hard[:, :, 0].mean())
+        self.sow("intermediates", "mod_sparse_ffn_hard", mod_sparse_hard[:, :, 1].mean())
+      # Apply gate
+      attn_sparse_score, ffn_sparse_score = mod_sparse_score[:, :, :1], mod_sparse_score[:, :, 1:]
+      attention_lnx = attention_lnx * attn_sparse_score  # BTD, BT1 -> BTD 
 
 
     if inner_moe and self.config.inner_moe_on_attn_out and self.config.share_inner_outer_moe:
@@ -484,6 +521,9 @@ class SubDecoderLayer(nn.Module):
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
+    if self.config.mod_sparse_gate and mlp_lnx is not None:
+      mlp_lnx = mlp_lnx * ffn_sparse_score
+
     if mlp_lnx is not None and moe_lnx is not None:
       max_logging.log('mlp_lnx is not None and moe_lnx is not None.', debug=cfg.debug)
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx
@@ -568,9 +608,9 @@ class FusionDecoderLayer(nn.Module):
 
     for layer in self.subs:
         if self.config.value_residual_learning:
-          inputs, dyn_dense_w, value_residual = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, value_residual=value_residual)
+          inputs, dyn_dense_w, value_residual = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, layer_inx, value_residual=value_residual)
         else:
-          inputs, dyn_dense_w, intermediate_inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
+          inputs, dyn_dense_w, intermediate_inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, layer_inx)
     
     if self.config.mudd_in_layer:
         if layer_inx == self.config.base_num_decoder_layers-1: # last layer

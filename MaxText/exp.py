@@ -26,6 +26,10 @@ class Optimizer:
     learning_rate_schedule_steps = 13500
     warmup_steps_fraction = 0.01
     cosine_learning_rate_final_fraction = 0.1
+    # Learning-rate schedule type: 'cosine' (default) or 'wsd' (Warmup–Stable–Decay)
+    lr_schedule_type = 'cosine'
+    # Only used when lr_schedule_type == 'wsd'
+    stable_steps_fraction = 0.0
     adam_b1 = 0.9
     adam_b2 = 0.95
     adam_eps = 1.0e-8
@@ -56,6 +60,10 @@ class LGWindow:
 class LGLLWindow:
     sliding_window_size = [256, None, 256, 256]
     num_layers_per_block = 4
+
+class LGLWindow:
+    sliding_window_size = [256, None, 256]
+    num_layers_per_block = 3
     
 class Mudd:
     dense_conn = True # dense_proj1 and dense_proj2
@@ -162,10 +170,46 @@ class Llama2MediumBase(Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
+class Llama2MediumBaseModSparseGate(Llama2MediumBase): 
+    mod_sparse_gate = True  
+    sparse_loss_weight = 1
+    scan_layers = False
+
+class Llama2MediumBaseModSparseGateW10(Llama2MediumBaseModSparseGate):
+    sparse_loss_weight = 10
+
+class Llama2MediumBaseModSparseGateW0p01(Llama2MediumBaseModSparseGate): # fix sparse loss 
+    sparse_loss_weight = 0.01
+
+class Llama2MediumBaseModSparseGateW0p1(Llama2MediumBaseModSparseGate): # fix sparse loss 
+    sparse_loss_weight = 0.1
+
+class Llama2MediumBaseModSparseGateW0p01LGL(LGLWindow, Llama2MediumBaseModSparseGateW0p01):
+    pass
+
 class Llama2MediumSandwichAAAB(Llama2MediumBase):
     recursive_pattern = 'ABCDEF'*3 + 'GHIJKL'
     scan_layers = False 
     record_internal_nn_metrics = 0  
+
+class Llama2MediumSandwichAAABModSparseGateW0p01(LGLWindow, Llama2MediumSandwichAAAB):
+    mod_sparse_gate = True  
+    sparse_loss_weight = 0.01
+    scan_layers = False
+    num_layers_per_block = 1
+    record_internal_nn_metrics = 1
+
+class Llama2MediumSandwichAAABStochRecur(Llama2MediumSandwichAAAB): # stochastic recursive layers
+    skip_layers = [None, tuple(range(6,18)), tuple(range(12,18))] # eval loss AAAB (loss 2.553868), AB (loss 2.583183), AAB (loss 2.553942)
+
+class Llama2MediumSandwichAAABStochRecurAdapter(Llama2MediumSandwichAAABStochRecur):
+    use_rins_linear_adapters = True
+
+class Llama2MediumSandwichAAABWSD15xTokens(Llama2MediumSandwichAAAB):
+    lr_schedule_type = 'wsd'
+    stable_steps_fraction = 0.89
+    learning_rate_schedule_steps = int(13500 * 0.5 * 15) # 67k loss: 2.394, 101k loss: 2.28283
+    eval_interval = int(13500 * 0.5 * 2.5)
 
 # uncheatable_eval
 class Llama2MediumSandwichAAABUCTEval(Llama2MediumSandwichAAAB):
@@ -193,6 +237,9 @@ class Llama2MediumSandwichAAABMudd(Mudd, Llama2MediumSandwichAAAB):
 class DCLlama2MediumSandwichAAAB(DC, Llama2MediumSandwichAAAB):
     qk_norm = True
 
+class DCLlama2MediumSandwichAAABSeperateDC(DCLlama2MediumSandwichAAAB):
+    sep_dc = True
+
 class Llama2MediumSandwichABBBC(Llama2MediumBase):
     recursive_pattern = 'ABC' + 'DEFHIJ'*3 + 'KLM'
     scan_layers = False 
@@ -215,6 +262,13 @@ class Llama2Medium12L(Llama2MediumBase):
     base_num_decoder_layers = 12
     learning_rate_schedule_steps = 27000
     eval_interval = 27000
+
+class Llama2Medium12LWSD30xTokens(Llama2Medium12L):
+    lr_schedule_type = 'wsd'
+    stable_steps_fraction = 0.89
+    learning_rate_schedule_steps = int(13500 * 0.5 * 30) # 67*2k loss: 2.4083, 101*2k loss:2.29518
+    eval_interval = int(13500 * 0.5 * 5)
+    steps = -1 
 
 class Llama2MediumSandwich(Llama2MediumBase):
     # recursive_pattern = 'BCDEFGH'*3 + 'I' 
@@ -282,6 +336,10 @@ class Llama2MediumBaseChannelGatingScale0Fix(Llama2MediumBaseChannelGating):
 
 class Llama2MediumBaseChannelBias(Llama2MediumBaseChannelGating):
     channel_gating_init_scale = 0 # multiply -> add 
+
+class Llama2MediumBaseChannelGatingNorm(Llama2MediumBaseChannelGating):
+    channel_gating_init_scale = 1 
+    channel_gating_norm = True
 
 class Llama2MediumBaseVocabGating(Llama2MediumBase):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
@@ -637,6 +695,26 @@ class MuddLlama2Medium(Mudd, Llama2Medium):
 class DC2MuddLlamaMedium(DC2, LGWindow, MuddLlama2Medium):
     query_chunk_size = 256
 
+class DC2MuddLlamaMedium12L30xTokens(DC2MuddLlamaMedium):
+    mudd_in_layer = True
+    dynamic_mlp_dim = False
+    sliding_window_size = None
+    num_layers_per_block = 1
+    record_internal_nn_metrics = 0  
+    base_num_decoder_layers = 12
+    lr_schedule_type = 'wsd'
+    stable_steps_fraction = 0.89
+    learning_rate_schedule_steps = int(13500 * 0.5 * 30) # 101*2k loss: 2.2207
+    eval_interval = int(13500 * 0.5 * 5) 
+    steps = -1 
+
+class DC2MuddLlamaMedium24LSandwichAAAB15xTokens(DC2MuddLlamaMedium12L30xTokens):
+    base_num_decoder_layers = 24
+    recursive_pattern = 'ABCDEF'*3 + 'GHIJKL'
+    learning_rate_schedule_steps = int(13500 * 0.5 * 15) # 101k loss: 2.190914
+    eval_interval = int(13500 * 0.5 * 2.5)
+
+
 class DC2MuddLlamaMediumNoddBias(DC2MuddLlamaMedium):
     use_dd_bias = False
 
@@ -732,6 +810,9 @@ class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16Vg
     use_v_gate = True
     key_wise = False
     num_layers_per_block = 1
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVway(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
+    vgate_vway = True
 
 class DC2MuddLlamaMediumKV4QO16LGLLPostkdd(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
     use_v_gate = False
@@ -1837,6 +1918,21 @@ class DC3MuddLlamaXLGQA4DCG2LGLLVgate(Mudd, DC3, LGLLWindow, TrainXL, LlamaXL): 
     sharding_tolerance = 0.05
     loop_over_dynamic_hd = False
     record_internal_nn_metrics = 0
+
+class DC3MuddLlamaXLGQA4DCG2LGLLVgateVway(DC3MuddLlamaXLGQA4DCG2LGLLVgate):
+    per_device_batch_size = 8.0
+    vgate_vway = True 
+    # compile_topology = 'v6e-32'
+    # compile_topology_num_slices=1
+    compiled_trainstep_file="DC3MuddLlamaXLGQA4DCG2LGLLVgateVway.pkl" # 
+
+class DC3MuddLlamaXLGQA4DCG2LGLLVgateVwayDDBias(DC3MuddLlamaXLGQA4DCG2LGLLVgate):
+    use_dd_bias = True
+    per_device_batch_size = 8.0
+    vgate_vway = True 
+    # compile_topology = 'v6e-32'
+    # compile_topology_num_slices=1
+    compiled_trainstep_file="DC3MuddLlamaXLGQA4DCG2LGLLVgateVwayDDBias.pkl" 
 
 class DC3MuddLlamaXLGQA4DCG2LGLLKDDBS8(DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
     ablate_kw = True

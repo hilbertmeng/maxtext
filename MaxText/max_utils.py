@@ -864,13 +864,15 @@ def setup_initial_state(
 
 
 def create_learning_rate_schedule(config):
-  """Creates a warmup and cosine decay learning rate schedule:
-  We take inspiration from Llama2's learning rate (LR) schedule, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
-  Learning rate schedule has either two or three parts:
-  1) Linear warmup from 0 to [learning_rate] over steps 0 to [learning_rate_schedule_steps * warmup_steps_fraction]
-  2) Cosine from [learning_rate] to [learning_rate * cosine_learning_rate_final_fraction] until learning_rate_schedule_steps
-  3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
-  The zero learning rate section can be used to more accurately measure the fully trained model's performance.
+  """Creates LR schedules (cosine by default, optional Warmup–Stable–Decay).
+
+  Default (cosine) follows Llama 2: warmup + cosine(+ optional trailing zeros).
+
+  If config.lr_schedule_type == 'wsd', create a Warmup–Stable–Decay schedule:
+    1) Linear warmup from 0 to learning_rate for warmup_steps_fraction
+    2) Constant learning rate for stable_steps_fraction
+    3) Cosine decay to learning_rate * cosine_learning_rate_final_fraction
+    4) Optional constant zero for the remaining steps (if steps > schedule)
   """
 
   def make_cos_schedule(init_lr, final_lr, len_steps):
@@ -885,19 +887,50 @@ def create_learning_rate_schedule(config):
   lr = config.learning_rate
   cos_final_lr = lr * config.cosine_learning_rate_final_fraction
 
-  warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction)
-  cos_steps = config.learning_rate_schedule_steps - warmup_steps
-  constant_zero_steps = config.steps - config.learning_rate_schedule_steps
+  schedule_len = config.learning_rate_schedule_steps
+  warmup_steps = int(schedule_len * config.warmup_steps_fraction)
+  remaining_after_warmup = max(schedule_len - warmup_steps, 0)
+
+  # Detect WSD schedule type (default to 'cosine' for backward compatibility)
+  lr_schedule_type = getattr(config, "lr_schedule_type", "cosine")
+
+  if lr_schedule_type == "wsd":
+    stable_steps_fraction = getattr(config, "stable_steps_fraction", 0.0)
+    stable_steps = int(schedule_len * stable_steps_fraction)
+    decay_steps = max(schedule_len - warmup_steps - stable_steps, 0)
+
+    warmup_schedule = optax.linear_schedule(init_value=0.0, end_value=lr, transition_steps=warmup_steps)
+    stable_schedule = optax.constant_schedule(lr)
+    decay_schedule = make_cos_schedule(lr, cos_final_lr, max(decay_steps, 1))
+    constant_zero_schedule = optax.constant_schedule(0.0)
+
+    pieces = [warmup_schedule]
+    boundaries = [warmup_steps]
+
+    if stable_steps > 0:
+      pieces.append(stable_schedule)
+      boundaries.append(warmup_steps + stable_steps)
+    if decay_steps > 0:
+      pieces.append(decay_schedule)
+      boundaries.append(warmup_steps + stable_steps + decay_steps)
+
+    constant_zero_steps = config.steps - schedule_len
+    if constant_zero_steps > 0:
+      pieces.append(constant_zero_schedule)
+      boundaries.append(warmup_steps + stable_steps + decay_steps + constant_zero_steps)
+
+    return optax.join_schedules(pieces, boundaries)
+
+  # Default cosine schedule
+  cos_steps = remaining_after_warmup
+  constant_zero_steps = config.steps - schedule_len
 
   warmup_schedule = optax.linear_schedule(init_value=0.0, end_value=lr, transition_steps=warmup_steps)
-  cos_schedule = make_cos_schedule(lr, cos_final_lr, cos_steps)
+  cos_schedule = make_cos_schedule(lr, cos_final_lr, max(cos_steps, 1))
   constant_schedule = optax.constant_schedule(0.0)
 
   pieces = [warmup_schedule, cos_schedule]
-  boundaries = [
-      warmup_steps,
-      warmup_steps + cos_steps,
-  ]
+  boundaries = [warmup_steps, warmup_steps + cos_steps]
 
   if constant_zero_steps > 0:
     pieces.append(constant_schedule)

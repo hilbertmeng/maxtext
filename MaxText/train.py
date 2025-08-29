@@ -157,6 +157,67 @@ def save_eval_result(config, step, cumulative_eval_metrics):
   if config.only_eval: exit(0)  # lsp
 
 
+# ---- Compute attention logits max (Smax) and scale factor c for Q/K ----
+def _extract_attn_smax(intermediates_vars):
+  try:
+    inter = intermediates_vars.get("intermediates", {})
+  except Exception:
+    return None
+  try:
+    flat = flatten_dict(inter, keep_empty_nodes=True)
+  except Exception:
+    return None
+  collected = []
+  for k_tuple, v in flat.items():
+    if not k_tuple:
+      continue
+    if k_tuple[-1] == 'attn_weights/max':
+      # Flax stores intermediates as lists; support both scalar and list
+      if isinstance(v, (list, tuple)):
+        if len(v) == 0:
+          continue
+        vals = [jnp.asarray(x) for x in v]
+        collected.append(jnp.max(jnp.stack([jnp.max(x) for x in vals])))
+      else:
+        collected.append(jnp.max(jnp.asarray(v)))
+  if len(collected) == 0:
+    return None
+  return jnp.stack(collected)
+
+
+# ---- Post-update: scale Wq and Wk by c when enabled ----
+def _scale_qk_params(p_params, c):
+  flat = flatten_dict(p_params, keep_empty_nodes=True)
+  new_flat = {}
+  idx = 0
+  for k_tuple, value in flat.items():
+    new_val = value
+    if isinstance(value, (jnp.ndarray,)):
+      key_path = "/".join(k_tuple)
+      # Non-fused Q/K kernels
+      if key_path.endswith("/query/kernel") or key_path.endswith("/key/kernel") or \
+          ("/self_attention/query/" in key_path and key_path.endswith("/kernel")) or \
+          ("/self_attention/key/" in key_path and key_path.endswith("/kernel")):
+        new_val = value * c[idx]
+        idx += 1
+      # Fused QKV kernel: multiply q (index 0) and k (index 1) slices by c
+      elif key_path.endswith("/qkv_proj/kernel"):
+        v = value
+        # Find an axis of size 3 corresponding to qkv
+        qkv_axes = [i for i, s in enumerate(v.shape) if s == 3]
+        if len(qkv_axes) >= 1:
+          ax = qkv_axes[0]
+          indexer = [slice(None)] * v.ndim
+          indexer[ax] = 0
+          v = v.at[tuple(indexer)].multiply(c[idx])
+          indexer[ax] = 1
+          v = v.at[tuple(indexer)].multiply(c[idx])
+          new_val = v
+          idx += 1
+    new_flat[k_tuple] = new_val
+  return unflatten_dict(new_flat)
+
+
 def validate_train_config(config):
   """Validates the configuration is set correctly for train.py"""
 
@@ -783,99 +844,17 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   teacher_loss = aux["teacher_loss"]
   mtp_loss = aux["mtp_loss"]
   mtp_accept_rate = aux["mtp_accept_rate"]
-
-  # ---- Compute attention logits max (Smax) and scale factor c for Q/K ----
-  def _extract_attn_smax(intermediates_vars):
-    try:
-      inter = intermediates_vars.get("intermediates", {})
-    except Exception:
-      return None
-    try:
-      flat = flatten_dict(inter, keep_empty_nodes=True)
-    except Exception:
-      return None
-    collected = []
-    for k_tuple, v in flat.items():
-      if not k_tuple:
-        continue
-      if k_tuple[-1] == 'attn_weights/max':
-        # Flax stores intermediates as lists; support both scalar and list
-        if isinstance(v, (list, tuple)):
-          if len(v) == 0:
-            continue
-          vals = [jnp.asarray(x) for x in v]
-          collected.append(jnp.max(jnp.stack([jnp.max(x) for x in vals])))
-        else:
-          collected.append(jnp.max(jnp.asarray(v)))
-    if len(collected) == 0:
-      return None
-    return jnp.max(jnp.stack(collected))
-
+  
   attn_smax = _extract_attn_smax(intermediate_outputs)
   tau = getattr(config, 'attn_logit_threshold', None)
   print(f'attn_smax: {attn_smax} tau: {tau}')
   if tau is not None and attn_smax is not None:
     qk_scale_c = jnp.where(attn_smax > tau, jnp.sqrt(tau / (attn_smax + 1e-12)), 1.0)
   else:
-    qk_scale_c = jnp.array(1.0, dtype=jnp.float32)
+    qk_scale_c = jnp.ones(config.num_decoder_layers)
 
-  print(f'cliping: {config.clipping}......')
-  print(f'mesh: {mesh}')
-  # input_partition_spec = jax.tree_util.tree_map(
-  #   lambda s: s.spec, state_mesh_shardings.params
-  # )
-  # def squared_l2_norm(p):
-  #   return jnp.sum(jnp.square(p))
-  
-  # @functools.partial(
-  #   shard_map.shard_map,
-  #   mesh=mesh,
-  #   in_specs=(input_partition_spec, ),
-  #   out_specs=(input_partition_spec),
-  #   check_rep=False,
-  # )
-  # def clip(rgrads):
-  #   local_tree_sums = jax.tree_util.tree_map(squared_l2_norm, rgrads)
-  #   scalar_sums = jax.tree_util.tree_leaves(local_tree_sums) # list
-  #   local_norm = jnp.sqrt(jnp.sum(jnp.array(scalar_sums)))
-  #   scale = jnp.minimum(1.0, config.gradient_clipping_threshold / (local_norm + 1e-6))
-  #   # 每个chip上有不同的scale，但是每个参数共用一个scale
-  #   grads = jax.tree_util.tree_map(lambda g: g * scale, rgrads)
-  #   return grads
-  # with jax.named_scope("grad_clip"):
-  #   cliped_grads = clip(raw_grads)
-  # cliped_grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
   new_state = state.apply_gradients(grads=raw_grads)
-
-  # ---- Post-update: scale Wq and Wk by c when enabled ----
-  def _scale_qk_params(p_params, c):
-    flat = flatten_dict(p_params, keep_empty_nodes=True)
-    new_flat = {}
-    for k_tuple, value in flat.items():
-      new_val = value
-      if isinstance(value, (jnp.ndarray,)):
-        key_path = "/".join(k_tuple)
-        # Non-fused Q/K kernels
-        if key_path.endswith("/query/kernel") or key_path.endswith("/key/kernel") or \
-           ("/self_attention/query/" in key_path and key_path.endswith("/kernel")) or \
-           ("/self_attention/key/" in key_path and key_path.endswith("/kernel")):
-          new_val = value * c
-        # Fused QKV kernel: multiply q (index 0) and k (index 1) slices by c
-        elif key_path.endswith("/qkv_proj/kernel"):
-          v = value
-          # Find an axis of size 3 corresponding to qkv
-          qkv_axes = [i for i, s in enumerate(v.shape) if s == 3]
-          if len(qkv_axes) >= 1:
-            ax = qkv_axes[0]
-            indexer = [slice(None)] * v.ndim
-            indexer[ax] = 0
-            v = v.at[tuple(indexer)].multiply(c)
-            indexer[ax] = 1
-            v = v.at[tuple(indexer)].multiply(c)
-            new_val = v
-      new_flat[k_tuple] = new_val
-    return unflatten_dict(new_flat)
-
+  
   if tau is not None:
     # Apply scaling only if the feature is enabled (tau provided)
     print(f'qk_scale_c: {qk_scale_c}')
@@ -893,10 +872,6 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
       "learning/total_weights": total_weights,
       "learning/accuracy": aux['accuracy'], # lsp
   }
-  # Record Smax and scale factor for monitoring
-  scalar_metrics["learning/attn_smax"] = attn_smax if attn_smax is not None else jnp.nan
-  scalar_metrics["learning/qk_scale_c"] = qk_scale_c
-  # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
   params_scalar_values = compute_params_norm(state.params, config=config)
   scalar_metrics.update(params_scalar_values)
 
@@ -913,6 +888,9 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
 
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
+    for i in range(len(qk_scale_c)):
+      metrics["scalar"][f"attn/attn_weights/qk_scale_c/layer_{i:03d}"] = qk_scale_c[i]
+      metrics["scalar"][f"attn/attn_weights/attn_smax/layer_{i:03d}"] = attn_smax[i]
 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)
@@ -1266,7 +1244,6 @@ def train_loop(config, teacher_config=None, state=None):
     if config.only_eval:
       p_train_step = None
     else:
-      # __import__('ipdb').set_trace()
       p_train_step = jax.jit(
         functional_train,
         in_shardings=in_shard_train,

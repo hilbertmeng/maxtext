@@ -209,14 +209,21 @@ class MlpBlock(nn.Module):
   def setup(self):
     if  self.config.deep_embed and 'x' in self.config.deep_embed:
       D = self.config.emb_dim
-      self.d = int(np.sqrt(D))
-      print(f'D: {D} d: {self.d}')
+      d = int(np.sqrt(D))
+      if D % d != 0:
+        self.d1 = 32
+        self.d2 = D // self.d1
+      else:
+        self.d1 = d
+        self.d2 = d
+
+      print(f'D: {D} d1: {self.d1} d2: {self.d2}')
       # nd_dense_init(1.0, "fan_in", "truncated_normal")
       # self.s1 = self.param('s1', initializers.nd_dense_init_normal(0.07746), (D, self.d), self.weight_dtype)
       # self.s2 = self.param('s2', nn.initializers.constant(0.0), (self.d, D), self.weight_dtype)
       # self.s2_bias = self.param('s2.bias', nn.initializers.constant(1.0), (D,), self.weight_dtype)
-      self.s1 = self.param('s1', self.kernel_init, (D, self.d), self.weight_dtype)
-      self.s2 = self.param('s2', self.kernel_init, (self.d, D), self.weight_dtype)
+      self.s1 = self.param('s1', self.kernel_init, (D, self.d1), self.weight_dtype)
+      self.s2 = self.param('s2', self.kernel_init, (self.d2, D), self.weight_dtype)
       self.s2_bias = self.param('s2.bias', self.kernel_init, (D,), self.weight_dtype)
       print(f's1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape}')
 
@@ -351,21 +358,22 @@ class MlpBlock(nn.Module):
         config=cfg,
       )(decoder_input_tokens.astype("int32"))
       print(f'output: {output.shape} 1 x deep_embedding: {deep_embedding.shape}')
-      deep_embedding = deep_embedding.reshape(B, T, self.d, self.d) # btdd , d**2 = D
+      deep_embedding = deep_embedding.reshape(B, T, self.d1, self.d2) # btdd , d**2 = D
       # btD x Dd -> btd -> bt1d
       deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
       # bt1d @ btdd -> bt1d @ dD -> bt1D + btD -> bt1D
       deep_w = deep_w @ deep_embedding @ self.s2 + self.s2_bias
       output = output * deep_w.reshape(B, T, -1)
-      if cfg.deep_embed_norm:
-        print(f'deep_embed_norm is true......')
-        output = RMSNorm(
-            name="deep_embed_norm",
-            dtype=cfg.dtype,
-            weight_dtype=cfg.weight_dtype,
-            kernel_axes=("norm", ),
-            epsilon=cfg.normalization_layer_epsilon,
-        )(output)
+
+    if cfg.deep_embed_norm or cfg.mlp_post_norm:
+      print(f'deep_embed_norm or mlp_post_norm is true......')
+      output = RMSNorm(
+          name="deep_embed_norm",
+          dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype,
+          kernel_axes=("norm", ),
+          epsilon=cfg.normalization_layer_epsilon,
+      )(output)
 
     output = checkpoint_name(output, "mlpwo")
     return output

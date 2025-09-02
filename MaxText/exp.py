@@ -575,6 +575,10 @@ class Llama2MediumDeepEmbed4x(Llama2MediumDeepEmbed):
 class Llama2MediumDeepEmbed1x(Llama2MediumDeepEmbed):
     deep_embed = '1x'
 
+class LlamaXLDeepEmbed1x(Llama2XL):
+    deep_embed = '1x'
+    deep_embed_norm = True
+
 class Llama2MediumMoeDeepEmbed(DroplessMoe, Llama2Medium):
     # vocab_size = 151936
     per_device_batch_size = 64.0

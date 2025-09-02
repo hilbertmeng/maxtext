@@ -212,9 +212,12 @@ class MlpBlock(nn.Module):
       self.d = int(np.sqrt(D))
       print(f'D: {D} d: {self.d}')
       # nd_dense_init(1.0, "fan_in", "truncated_normal")
-      self.s1 = self.param('s1', initializers.nd_dense_init_normal(0.07746), (D, self.d), self.weight_dtype)
-      self.s2 = self.param('s2', nn.initializers.constant(0.0), (self.d, D), self.weight_dtype)
-      self.s2_bias = self.param('s2.bias', nn.initializers.constant(1.0), (D,), self.weight_dtype)
+      # self.s1 = self.param('s1', initializers.nd_dense_init_normal(0.07746), (D, self.d), self.weight_dtype)
+      # self.s2 = self.param('s2', nn.initializers.constant(0.0), (self.d, D), self.weight_dtype)
+      # self.s2_bias = self.param('s2.bias', nn.initializers.constant(1.0), (D,), self.weight_dtype)
+      self.s1 = self.param('s1', self.kernel_init, (D, self.d), self.weight_dtype)
+      self.s2 = self.param('s2', self.kernel_init, (self.d, D), self.weight_dtype)
+      self.s2_bias = self.param('s2.bias', self.kernel_init, (D,), self.weight_dtype)
       print(f's1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape}')
 
   def get_norm_layer(self):
@@ -342,7 +345,8 @@ class MlpBlock(nn.Module):
         num_embeddings=cfg.vocab_size,
         features=cfg.emb_dim,
         dtype=cfg.dtype,
-        embedding_init=initializers.nd_dense_init_normal(0.07746), # 0.006**(1/2) = 0.07746
+        # embedding_init=initializers.nd_dense_init_normal(0.07746), # 0.006**(1/2) = 0.07746
+        embedding_init=self.kernel_init, # 0.006**(1/2) = 0.07746
         name="deep_embed",
         config=cfg,
       )(decoder_input_tokens.astype("int32"))

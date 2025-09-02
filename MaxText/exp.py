@@ -595,6 +595,10 @@ class Llama2MediumMoeDeepEmbed(DroplessMoe, Llama2Medium):
 class MuddLlama2MediumDeepEmbed(Mudd, Llama2MediumDeepEmbed):
     pass
 
+class DCMuddLlama2MediumDE1x(DCMuddLlama2Medium):
+    deep_embed = '1x'
+    deep_embed_norm = True
+
 class MuonLlama2Medium(Muon, Llama2Medium):
     pass
 

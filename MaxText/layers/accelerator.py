@@ -170,7 +170,8 @@ class QChunk(nn.Module):
 
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', None, 'activation_length', None),)
     attn_weights_max = jnp.max(attn_weights)
-    self.sow('intermediates', 'attn_weights/max', attn_weights_max)
+    if self.config.record_internal_nn_metrics:
+      self.sow('intermediates', 'attn_weights/max', attn_weights_max)
     
     # apply attention mask
     if attn_mask is not None:

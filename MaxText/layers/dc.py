@@ -506,6 +506,8 @@ class AttentionOp(nn.Module):
     input_kv: Array = None,
     hidden_states: Array = None, # inputs_m
     attn_mask=None,
+    attn_bias=None,
+    sinks=None,
 ):
     cfg = self.config
 
@@ -555,10 +557,14 @@ class AttentionOp(nn.Module):
     #     pre_proj_dw_args = (None, ) * 6 
     #     post_proj_dw_args = (None, ) * 5 + (post_proj_dw_args[-1], )      
         
-    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, query_chunk_size=self.query_chunk_size)(query, key, value, decoder_segment_ids, model_mode, 
+    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size,
+                      query_chunk_size=self.query_chunk_size)(
+                            query, key, value, decoder_segment_ids, model_mode, 
                             pre_proj_dw_args, post_proj_dw_args, 
                             pre_proj_layer=self.pre_proj,
                             post_proj_layer=self.post_proj,
                             attn_mask=attn_mask,
+                            attn_bias=attn_bias,
+                            sinks=sinks
                             )
     return outputs

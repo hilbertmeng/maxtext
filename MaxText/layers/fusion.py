@@ -84,7 +84,7 @@ class SubDecoderLayer(nn.Module):
       dynamic_mlp_dim_unit = 128 if self.config.dynamic_mlp_dim_unit is None else self.config.dynamic_mlp_dim_unit
       self.updated_mlp_dim = round(self.config.mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / dynamic_mlp_dim_unit) * dynamic_mlp_dim_unit 
     else:
-      self.updated_mlp_dim = self.config.mlp_dim
+      self.updated_mlp_dim = self.config.mlp_dim[self.layer_inx % len(self.config.mlp_dim)] if isinstance(self.config.mlp_dim, list) else self.config.mlp_dim 
     max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
 
     if self.config.dynamic_num_experts:
@@ -244,10 +244,10 @@ class SubDecoderLayer(nn.Module):
       attention_class = Attention
       mla_kwargs = {}
 
-    if cfg.num_query_heads > 0:
+    if isinstance(cfg.num_query_heads, list) or cfg.num_query_heads > 0:
       attention_layer = attention_class(
         config=cfg,
-        num_query_heads=cfg.num_query_heads,
+        num_query_heads=cfg.num_query_heads[self.layer_inx % len(cfg.num_query_heads)] if isinstance(cfg.num_query_heads, list) else cfg.num_query_heads,
         num_kv_heads=cfg.num_kv_heads[self.layer_inx % len(cfg.num_kv_heads)] if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads,
         head_dim=cfg.head_dim,
         max_target_length=cfg.max_target_length,

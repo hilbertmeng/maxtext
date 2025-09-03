@@ -8,6 +8,7 @@ from flax import linen as nn
 import jax
 from jax import lax
 import jax.numpy as jnp
+import einops
 import common_types
 import max_logging
 from layers.embeddings import get_alibi_mask
@@ -130,6 +131,8 @@ class QChunk(nn.Module):
       pre_proj_layer = None,
       post_proj_layer = None,
       alibi_mask=None,
+      attn_bias=None,
+      sinks=None,
   ):
     """Apply Attention."""
     if self.float32_qk_product:
@@ -155,10 +158,20 @@ class QChunk(nn.Module):
       attn_weights = attn_weights + self.sigmoid_bias
       if self.config.sigmoid_bias_learnable:
         attn_weights = attn_weights + self.sigmoid_bias_learn
+    if attn_bias is not None:
+      attn_weights = attn_weights.astype(jnp.float32) + attn_bias
    
     # apply attention mask
     if attn_mask is not None:
       attn_weights = apply_mask_to_logits(attn_weights, attn_mask)
+    
+    if sinks is not None:
+      batch_size, num_heads, seq_len, kv_len = attn_weights.shape
+      sink_logits = einops.repeat(sinks, 'N -> B N T 1', B=batch_size, T=seq_len)
+      sink_logits = nn.with_logical_constraint(sink_logits, 
+        ('activation_batch', 'heads', 'activation_length', None),)  # XD: necceary?
+      attn_weights = jnp.concatenate([attn_weights, sink_logits], axis=-1)
+    
     if self.config.float32_logits:
       attn_weights = attn_weights.astype(jnp.float32)
     # normalize the attention weights
@@ -167,6 +180,9 @@ class QChunk(nn.Module):
       # probs = attn_weights.astype(self.dtype)
     else:
       probs = jax.nn.softmax(attn_weights).astype(self.dtype)
+    
+    if sinks is not None: probs = probs[..., :-1]
+    
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
 
     if self.config.post_compose and post_proj_dw_args is not None:
@@ -195,6 +211,8 @@ class QChunk(nn.Module):
     pre_proj_layer = None,
     post_proj_layer = None,
     attn_mask=None,
+    attn_bias=None,
+    sinks=None,
 ):
     self.check_attention_inputs(query, key, value)
 
@@ -211,6 +229,7 @@ class QChunk(nn.Module):
             post_proj_dw_args=post_proj_dw_args, 
             pre_proj_layer=pre_proj_layer,
             post_proj_layer=post_proj_layer,
+            sinks=sinks,
             )
     else:
         max_logging.log(f'Use Query chunk to Accelerate. query_chunk_size: {self.query_chunk_size}')
@@ -285,6 +304,7 @@ class QChunk(nn.Module):
             _key, _value = key[:, kv_start : stop], value[:, kv_start : stop]
             _attn_mask = attn_mask[..., -_key.shape[1]:]
             alibi_mask = jnp.array(self.alibi_mask[..., start : stop, -_key.shape[1]:]) if self.use_alibi else None
+            _attn_bias = attn_bias[..., start : stop, -_key.shape[1]:] if attn_bias is not None else None
             def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
                 return (qw1[:, start : stop] if qw1 is not None else None,
                     qw2[:, start : stop] if qw2 is not None else None,
@@ -297,6 +317,8 @@ class QChunk(nn.Module):
             _post_proj_dw_args = None if post_proj_dw_args is None else slice_dw(*post_proj_dw_args)
             _encoded = self._apply_attention_dot(_query, _key, _value, _attn_mask, 
                                                 _pre_proj_dw_args, _post_proj_dw_args,
-                                                pre_proj_layer, post_proj_layer, alibi_mask=alibi_mask)
+                                                pre_proj_layer, post_proj_layer,
+                                                alibi_mask=alibi_mask, attn_bias=_attn_bias,
+                                                sinks=sinks)
             encoded = encoded.at[:, start : stop].set(_encoded)
     return encoded, None, None

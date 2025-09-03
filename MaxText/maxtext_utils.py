@@ -164,6 +164,7 @@ def calculate_ffn_mamtul_tflops_per_device(config, mlp_dim):
     - MoE FFN layers (mlp_dim = config.moe_mlp_dim),
       need to scale by shared_experts or num_experts_per_tok.
   """
+  if isinstance(mlp_dim, list): mlp_dim = sum(mlp_dim) / len(mlp_dim)
   ffn1_flops = (
       2 * config.per_device_batch_size * config.max_target_length * mlp_dim * config.emb_dim * len(config.mlp_activations)
   )
@@ -204,23 +205,24 @@ def calculate_tflops_training_per_device(config, log=True):
     qkv_flops, attention_flops, projection_flops = calculate_mla_tflops_per_device(config)
   else:
     num_kv_heads = config.num_kv_heads[0] if isinstance(config.num_kv_heads, list) else config.num_kv_heads
+    num_query_heads = sum(config.num_query_heads) / len(config.num_query_heads) if isinstance(config.num_query_heads, list) else config.num_query_heads
     qkv_flops = (
         2
         * config.per_device_batch_size
         * config.max_target_length
         * config.emb_dim
-        * (config.num_query_heads + 2 * num_kv_heads)
+        * (num_query_heads + 2 * num_kv_heads)
         * config.head_dim
     )
     attention_flops = (
-        4 * config.per_device_batch_size * config.max_target_length**2 * config.num_query_heads * config.head_dim
+        4 * config.per_device_batch_size * config.max_target_length**2 * num_query_heads * config.head_dim
     )
     projection_flops = (
         2
         * config.per_device_batch_size
         * config.max_target_length
         * config.emb_dim
-        * config.num_query_heads
+        * num_query_heads
         * config.head_dim
     )
 

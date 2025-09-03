@@ -60,6 +60,7 @@ class KVshift(nn.Module):
   mesh: Mesh
   quant: Optional[Quant] = None
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+  num_kv_heads: int | None = None
   
   def setup(self):
     cfg = self.config
@@ -77,6 +78,7 @@ class KVshift(nn.Module):
     self.kv_shift_hidden_way = self.config.kv_shift_hidden_way
     self.q_shift = self.config.use_q_shift
     num_shifts = 2 if not self.q_shift else 3 
+    num_kv_heads = self.num_kv_heads if self.num_kv_heads is not None else cfg.num_kv_heads
     if self.kv_shift_mlp:
       if self.kv_shift_hidden_way in ['kv', 'qkv']:
         for mode in self.kv_shift_hidden_way:
@@ -113,7 +115,7 @@ class KVshift(nn.Module):
       if self.kv_shift_hidden_way in ['kv', 'qkv']:
         for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads, 1),
+                                      (num_kv_heads, 1),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=False,

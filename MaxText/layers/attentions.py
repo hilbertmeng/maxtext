@@ -27,7 +27,7 @@ from jax.experimental import shard_map
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_kernel
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_mask
 import jax.numpy as jnp
-from einops import rearrange
+from einops import rearrange, repeat
 
 import common_types
 from kernels.ragged_attention import ragged_gqa
@@ -236,6 +236,8 @@ class AttentionOp(nn.Module):
       model_mode: str,
       use_ragged_attention: bool = False,
       attn_mask=None,
+      attn_bias=None,
+      sinks=None,
   ):
     self.check_attention_inputs(query, key, value)
     length = query.shape[-3]
@@ -256,7 +258,7 @@ class AttentionOp(nn.Module):
                                 # key_wise=self.key_wise,
                                 query_chunk_size=self.query_chunk_size)(
                                                     query, key, value, decoder_segment_ids, model_mode, attn_mask=attn_mask,
-                                                    )
+                                                    attn_bias=attn_bias, sinks=sinks)
 
     elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
       if isinstance(key, KVTensor):
@@ -1046,7 +1048,8 @@ class AttentionOp(nn.Module):
     return attn_out
 
   @nn.compact
-  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args, input_q=None, input_kv=None, hidden_states=None, attn_mask=None): # lsp
+  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args, input_q=None, input_kv=None, hidden_states=None,
+               attn_mask=None, attn_bias=None, sinks=None): # lsp
     prefill_kv_cache, ar_kv_cache = self.kv_cache(
         key, value, decoder_segment_ids, model_mode, use_ragged_attention=self.use_ragged_attention
     )
@@ -1060,6 +1063,8 @@ class AttentionOp(nn.Module):
         model_mode=model_mode,
         use_ragged_attention=self.use_ragged_attention,
         attn_mask=attn_mask,
+        attn_bias=attn_bias,
+        sinks=sinks
     )
 
     # Return the "prefill" cache if it actually the combined prefill+ar kv cache
@@ -1087,6 +1092,16 @@ class AttentionOp(nn.Module):
     else:
       return prefill_unnormalized_output / prefill_exponentials_sum
 
+def segsum(x):  # adapted from https://github.com/state-spaces/mamba/blob/main/mamba_ssm/modules/ssd_minimal.py#L23-L32
+    T = x.shape[-1]
+    x = repeat(x, "... T -> ... T S", S=T)
+    mask = jnp.tril(jnp.ones((T, T), dtype=bool), k=-1)
+    x = jnp.where(mask, x, 0)
+    x_segsum = jnp.cumsum(x, axis=-2)
+    # XD: leave to attention mask
+    # mask = jnp.tril(jnp.ones((T, T), dtype=bool), k=0)
+    # x_segsum = jnp.where(mask, x_segsum, -jnp.inf)
+    return x_segsum
 
 class Attention(nn.Module):
   """Generic Attention.
@@ -1158,10 +1173,19 @@ class Attention(nn.Module):
   query_chunk_size: Optional[int] = None
   use_dc: bool = False
   use_v_gate: bool = False
-  key_wise: bool = False
-  
+  key_wise: bool = False  
 
   def setup(self):
+    # use_attn_sink = self.config.use_attn_sink if getattr(self.config, 'use_attn_sink', False) else self.use_attn_sink
+    self.sinks = self.param('sinks_bias',  # XD: append bias to name to skip weight decay
+        nn.with_logical_partitioning(
+            nn.initializers.zeros,
+            ('heads',)  # XD: need check
+        ),
+        (self.num_query_heads,),
+        self.dtype
+    ) if self.config.use_attn_sink else None
+
     if self.use_dc:
       self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size, query_chunk_size=self.query_chunk_size, key_wise=self.key_wise,
                                         num_query_heads=self.num_query_heads, num_kv_heads=self.num_kv_heads)
@@ -1196,7 +1220,8 @@ class Attention(nn.Module):
       self.kv_shift_vr = kv_shift.KVshiftVR(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
     else:
       if self.use_kv_shift:
-        self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+        self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init,
+                                         num_kv_heads=self.num_kv_heads)
       
       if self.config.value_residual_learning:
         self.value_residual = kv_shift.ValueResidual(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
@@ -1454,6 +1479,7 @@ class Attention(nn.Module):
     # apply projection.
     if self.config.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
+      inputs_k = inputs_v = inputs_kv
     elif self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm':
         assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
         inputs_k, inputs_v = inputs_kv
@@ -1476,6 +1502,7 @@ class Attention(nn.Module):
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
+      inputs_k = inputs_v = inputs_kv
 
     if self.config.merge_kvshift_vr:
       if self.layer_inx == 0:
@@ -1545,6 +1572,50 @@ class Attention(nn.Module):
       v_gate = jax.nn.tanh(v_gate) + 1  if self.config.v_gate_tanh else jax.nn.sigmoid(v_gate) 
       value = value * v_gate[...,None] # BSND, BSN1->BSND
 
+    attn_bias = None
+    kwargs = dict(dtype=self.dtype, weight_dtype=self.weight_dtype, quant=self.quant)
+    if getattr(self.config, 'use_fox', False):  # forgetting transformer
+      x = {'q': inputs_q, 'k': inputs_k, 'v': inputs_v, 'm': hidden_states}[self.config.fgate_input] \
+        if self.config.fgate_input is not None else inputs_kv
+      fgate_logit = DenseGeneral((self.num_query_heads,), kernel_axes=('embed', 'heads'), name="fgate_proj",
+                                 kernel_init=self.kernel_init, use_bias=True,
+                                 bias_init=initializers.constant_init(self.config.fgate_bias_init)
+                                 if self.config.fgate_bias_init is not None else None, **kwargs)(x)
+      fgate_logit = rearrange(fgate_logit, "B T N -> B N T")
+      log_fgate = jax.nn.log_sigmoid(fgate_logit.astype(jnp.float32))
+      forget_bias = segsum(log_fgate)  # BNTS
+      attn_bias = -forget_bias
+
+    if getattr(self.config, 'use_selective_attn', False):  # https://arxiv.org/abs/2410.02703
+      head_dim = self.config.qk_head_dim or self.head_dim
+      q, k = [DenseGeneral((head_dim,), kernel_axes=('embed', 'kv'), name=f"selective_attn_proj_{name}", 
+             kernel_init=self.kernel_init, use_bias=self.config.use_bias, **kwargs)(x)
+             for name, x in [("query", inputs_q), ("key", inputs_k)]]
+      S = jnp.einsum("B T D, B S D -> B T S", q, k) / head_dim**0.5
+      # adapted from https://github.com/fangyuan-ksgk/selective-attention-transformer/blob/main/model/model.py#L197-L204
+      S = jax.nn.relu(S)  # Only positive selection | (bs, seqlen, seqlen)
+      S = S.at[..., 0].set(0)  # S[..., 0] = 0  # Do not mask <BOS> | first token in sequence is not masked (beginning of sequence)
+      S = (1 - jnp.eye(S.shape[-1])) * S  # TS*BTS->BTS. Do not mask self | zero-out diagonal elements
+      S = jnp.roll(S, 1, axis=-2)  # each token is able to mask next token's attention (Key step)
+      S = S.at[..., 0, :].set(0)  # S[..., 0, :] = 0 # roll operation creates redundant beginning mask, so we zero-out the first row
+      S = S.astype(jnp.float32)
+      selective_mask = jnp.cumsum(S, axis=-1)  # Accumulate selection mask for each token (decided by all its previous token's)
+      if getattr(self.config, 'selective_attn_dynamic_qw', False):
+        qw = DenseGeneral((self.num_query_heads,), kernel_axes=('embed', 'kv'), name=f"selective_attn_dyn_qw_proj", use_bias=True, 
+                          kernel_init=initializers.nd_dense_init_normal(0.001), bias_init=initializers.constant_init(1.0), **kwargs)(inputs_q)
+        # selective_mask = selective_mask * rearrange(qw, 'B T N -> B N T 1')  # B1TS*BNT1->BNTS
+        selective_mask = jnp.einsum('BTS,BTN->BNTS', selective_mask, qw)
+      elif getattr(self.config, 'selective_attn_dynamic_kw', False):
+        kw = DenseGeneral((self.num_query_heads,), kernel_axes=('embed', 'kv'), name=f"selective_attn_dyn_kw_proj", use_bias=True, 
+                          kernel_init=initializers.nd_dense_init_normal(0.001), bias_init=initializers.constant_init(1.0), **kwargs)(inputs_k)
+        # selective_mask = selective_mask * rearrange(kw, 'B S N -> B N 1 S')  # B1TS*BN1S->BNTS
+        selective_mask = jnp.einsum('BTS,BSN->BNTS', selective_mask, kw)
+      else:
+        selective_mask = selective_mask[:, None]  # BTS->B1TS
+      attn_bias = -selective_mask if attn_bias is None else attn_bias - selective_mask
+    if attn_bias is not None:
+      attn_bias = nn.with_logical_constraint(attn_bias, ('activation_batch', 'heads', 'activation_length', None),)  # XD: necessary?
+
     if self.config.record_internal_nn_metrics:
       if self.config.sigmoid_attention:
         self.sow('intermediates', 'q_norm_stat', maxtext_utils.l2norm(query))
@@ -1554,7 +1625,8 @@ class Attention(nn.Module):
         self.sow('intermediates', 'attn_logits_min', -1 * (-attn_logits).max())
         self.sow('intermediates', 'attn_logits_mean', attn_logits.mean())
 
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, hidden_states=hidden_states)
+    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv,
+                            hidden_states=hidden_states, attn_bias=attn_bias, sinks=self.sinks)
 
     if self.config.use_o_gate:
       o_gate = DenseGeneral((self.config.num_out_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
@@ -1562,6 +1634,16 @@ class Attention(nn.Module):
       o_gate = jax.nn.tanh(o_gate) + 1  if self.config.o_gate_tanh else jax.nn.sigmoid(o_gate)
       out = jnp.repeat(out, self.config.num_out_heads // out.shape[-2] , axis=-2) 
       out = out * o_gate[...,None] # BSND, BSN1->BSND
+
+    if self.config.o_gate_hidden_dim:
+      o_gate_hidden = DenseGeneral((self.config.o_gate_hidden_dim,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+            kernel_init=self.kernel_init,kernel_axes=('embed', None), name="o_gate_proj_1",)(
+            hidden_states if self.config.o_gate_use_inputs_m else inputs_q)
+      if self.config.o_gate_hidden_act == 'sigmoid': o_gate_hidden = jax.nn.sigmoid(o_gate_hidden)
+      o_gate = DenseGeneral((inputs_q.shape[-1],),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+            kernel_init=self.kernel_init,kernel_axes=(None, 'embed'), name="o_gate_proj_2",)(o_gate_hidden)
+      if self.config.o_gate_act == 'sigmoid': o_gate = jax.nn.sigmoid(o_gate)
+      out = out * rearrange(o_gate, 'B T (N D) -> B T N D', N=self.config.num_query_heads)
 
     mixed_v = out
     if self.config.use_head_pool:

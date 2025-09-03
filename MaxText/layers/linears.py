@@ -105,6 +105,7 @@ class DenseGeneral(nn.Module):
   kernel_axes: Tuple[Optional[str], ...] = ()
   quant: Optional[Quant] = None
   use_bias: bool = False
+  bias_init: NdInitializer = bias_init
   bias_norm: str = ""
   matmul_precision: str = "default"
 
@@ -163,7 +164,7 @@ class DenseGeneral(nn.Module):
       )
       bias = self.param(
           "bias",
-          nn.with_logical_partitioning(bias_init, bias_axes),
+          nn.with_logical_partitioning(self.bias_init, bias_axes),
           # nn.with_logical_partitioning(bias_init, ('embed',)), # shard bias for pythia 
           bias_shape,
           self.weight_dtype,

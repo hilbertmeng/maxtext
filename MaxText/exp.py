@@ -747,6 +747,104 @@ class DC2MuddLlamaMediumKV4QO16LGLLPrePostkdd(DC2MuddLlamaMediumKV4QO16VgateTanh
 class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateGQA(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
     base_num_kv_heads = 4
 
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateFixMLPDim(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
+    dynamic_mlp_dim = False
+    
+class DC2MuddLlamaMediumKV4QO32VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateFixMLPDim):
+    base_num_query_heads = [16, 16 + 16, 16, 16]  # L:16, G:32
+    base_mlp_dim = [2816, 2816 - 682, 2816, 2816]  # D * n * d * 2 = D * f * 3 => f = n * d * 2 / 3 = 682
+
+class DC2MuddLlamaMediumKV4QO24VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateFixMLPDim):
+    base_num_query_heads = [16, 16 + 8, 16, 16]  # L:16, G:24
+    base_mlp_dim = [2816, 2816 - 342, 2816, 2816]  # D * n * d * 2 = D * f * 3 => f = n * d * 2 / 3 = 342
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateAttnSink(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate): # 0.482
+    use_attn_sink = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateFoXk(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate): # 0.241
+    use_fox = True
+    fgate_input = 'k'
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateFoXv(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate): # 0.241
+    use_fox = True
+    fgate_input = 'v'
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateFoXvBias4(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateFoXv):
+    fgate_bias_init = 4.0
+
+class Llama2MediumBaseFoXv(Llama2MediumBase):  # 0.254
+    scan_layers = False
+    use_fox = True
+
+class Llama2MediumBaseFoXvBias4(Llama2MediumBaseFoXv):
+    fgate_bias_init = 4.0
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateSelAttn(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate): # 0.447
+    use_selective_attn = True
+    base_mlp_dim = 2816 - 42  # D * d * 2 = D * f * 3 => f = d * 2 / 3 = 42
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateSelAttnDynQW(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateSelAttn): # 0.405
+    selective_attn_dynamic_qw = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateSelAttnDynKW(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateSelAttn): # 0.405
+    selective_attn_dynamic_kw = True
+
+class Llama2MediumBaseSelAttn(Llama2MediumBase):
+    scan_layers = False
+    use_selective_attn = True
+    base_mlp_dim = 2816 - 42  # D * d * 2 = D * f * 3 => f = d * 2 / 3 = 42
+
+class Llama2MediumBaseSelAttnDynQW(Llama2MediumBaseSelAttn):
+    selective_attn_dynamic_qw = True
+
+class Llama2MediumBaseSelAttnDynKW(Llama2MediumBaseSelAttn):
+    selective_attn_dynamic_kw = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
+    o_gate_hidden_dim = 128
+    base_mlp_dim = 2816 - 86  # f = d * 2 / 3 = 86  # real avg dim after dynamic adjust: 2730.67, \delta = 0.67
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHidA128(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128):
+    o_gate_hidden_act = 'sigmoid'
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128A(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128):
+    o_gate_act = 'sigmoid'
+    
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHidA128A(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128): # 0.531
+    o_gate_hidden_act = 'sigmoid'
+    o_gate_act = 'sigmoid'
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128AInpM(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128A):
+    o_gate_use_inputs_m = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64A(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128A): # best
+    o_gate_hidden_dim = 64
+    base_mlp_dim = 2816 - 43  # f = d * 2 / 3 = 43  # real avg dim after dynamic adjust: 2778.67, \delta = 5.67
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid256A(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128A):
+    o_gate_hidden_dim = 256
+    base_mlp_dim = 2816 - 172  # f = d * 2 / 3 = 172
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid32A(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128A):
+    o_gate_hidden_dim = 32
+    base_mlp_dim = 2816 - 22  # f = d * 2 / 3 = 22
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64AKVshift(KVshift, DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64A):  # 0.515
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateKVshift(KVshift, DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):  # 0.522
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+
+class DC2MuddLlamaMediumKVshift(KVshift, DC2MuddLlamaMedium):  # 0.473
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+
+class DC2MuddLlamaMediumKWKVshift(KVshift, DC2MuddLlamaMediumKW): # 0.379
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+
 class DC2MuddLlamaMediumKV4QO16VgateTanhBias(DC2MuddLlamaMediumKV4QO16VgateTanh):
     use_v_gate_bias = True
 

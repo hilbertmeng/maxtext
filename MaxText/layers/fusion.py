@@ -298,11 +298,12 @@ class FusionDecoderLayer(nn.Module):
       inputs,
       decoder_segment_ids,
       decoder_positions,
+      decoder_input_tokens,
       deterministic,
       model_mode,
       hids=None,
       eos_sum=None,
-      decoder_input_tokens=None,
+      # decoder_input_tokens=None,
   ):
     cfg = self.config
     if cfg.dense_conn and cfg.mudd_in_layer:

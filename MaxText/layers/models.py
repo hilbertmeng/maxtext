@@ -424,6 +424,7 @@ class Decoder(nn.Module):
             nn.broadcast,
             nn.broadcast,
             nn.broadcast,
+            nn.broadcast,
             nn.broadcast, # 关键字参数不在这个范围内
         ),
         length=length,
@@ -557,6 +558,7 @@ class Decoder(nn.Module):
               y,
               decoder_segment_ids,
               decoder_positions,
+              decoder_input_tokens,
               deterministic,
               model_mode,
               eos_sum=eos_sum,
@@ -601,11 +603,12 @@ class Decoder(nn.Module):
                 y,
                 decoder_segment_ids,
                 decoder_positions,
+                decoder_input_tokens,
                 deterministic,
                 model_mode,
                 hids=hids,
                 eos_sum=eos_sum,
-                decoder_input_tokens=decoder_input_tokens,
+                # decoder_input_tokens=decoder_input_tokens,
             )
             y, hids = y
             if cfg.dense_conn and not cfg.mudd_in_layer:

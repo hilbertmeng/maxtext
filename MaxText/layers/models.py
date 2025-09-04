@@ -343,7 +343,7 @@ class Decoder(nn.Module):
           block_layer,
           prevent_cse=not self.config.scan_layers,
           policy=policy,
-          static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+          static_argnums=(5, 6),  # Deterministic and model mode are static arguments.
           rngs={"params": True, "aqt": True, "dropout": True},
       )
       RemattedBlockLayers.append(layer)
@@ -608,7 +608,6 @@ class Decoder(nn.Module):
                 model_mode,
                 hids=hids,
                 eos_sum=eos_sum,
-                # decoder_input_tokens=decoder_input_tokens,
             )
             y, hids = y
             if cfg.dense_conn and not cfg.mudd_in_layer:

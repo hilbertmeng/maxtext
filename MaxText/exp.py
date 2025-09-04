@@ -592,8 +592,13 @@ class Llama2MediumMoeDeepEmbed(DroplessMoe, Llama2Medium):
     router_z_loss_coef = 0.0
     m_kn_tile_size = (512, 128)
 
-class MuddLlama2MediumDeepEmbed(Mudd, Llama2MediumDeepEmbed):
-    pass
+class MuddLlama2MediumDE1x(MuddLlama2Medium):
+    deep_embed = '1x'
+    deep_embed_norm = True
+
+class DCLlama2MediumDE1x(DCLlama2Medium):
+    deep_embed = '1x'
+    deep_embed_norm = True
 
 class DCMuddLlama2MediumDE1x(DCMuddLlama2Medium):
     deep_embed = '1x'

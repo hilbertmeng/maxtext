@@ -596,6 +596,11 @@ class MuddLlama2MediumDE1x(MuddLlama2Medium):
     deep_embed = '1x'
     deep_embed_norm = True
 
+class MuddLlama2MediumDE1xCompile(MuddLlama2MediumDE1x):
+    compile_topology = 'v6e-16'
+    compile_topology_num_slices= 1 
+    compiled_trainstep_file="MuddLlama2MediumDE1xCompile.pkl"
+
 class DCLlama2MediumDE1x(DCLlama2Medium):
     deep_embed = '1x'
     deep_embed_norm = True

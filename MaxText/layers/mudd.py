@@ -90,7 +90,7 @@ def einsum(w: jnp.ndarray, # btcl, hbm increase 50%, need save multi hids array
          hids: list[jnp.ndarray], # list of BTD
          ) -> jnp.ndarray:  # CBTD
   
-  return jnp.einsum('btcl,lbtd->cbtd', w, jnp.stack(hids))
+  return jnp.einsum('btcl,lbtd->cbtd', w, hids)
 
 
 class Norm(nn.Module):
@@ -132,18 +132,13 @@ class Mlp(nn.Module):
         norm_kwargs['scale_init'] = None # it means use scale is false
     self.pre_dense_proj1_norm = normalizations.get_rmsnorm(**norm_kwargs)
     
-    factor = 1
-    layer_inx = self.layer_inx
     C = self.C
-    dw_shape = (C, layer_inx * factor + 1) # lsp
+    dw_shape = (C, cfg.num_decoder_layers + 1) # lsp
     print(f'dw_shape: {dw_shape}')
     self.dw_shape = dw_shape
 
-    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else 1
+    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type)
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
-
-    if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
-      dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
 
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
@@ -207,45 +202,36 @@ class Compose(nn.Module):
       self,
       layer_output,
       hids,
+      index,
   ):
     cfg = self.config
-    
-    if self.layer_inx < 1:
-      return [layer_output] * len(cfg.dynamic_dense_type), hids
+
+    assert not isinstance(layer_output, tuple|list) # index 0 is y
     
     y = layer_output
     if self.config.mudd_in_layer:
-      dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=self.C)(layer_output)
+      dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=self.C)(y)
 
-    layer_inx = self.layer_inx
+    layer_inx = None
 
-    if self.config.record_internal_nn_metrics:
-      for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
-        self.sow('intermediates', f'dyn_dense_w/{op.__name__}/layer_{layer_inx}', op(dyn_dense_w.astype(jnp.float32)))
-      self.sow('intermediates', f'layer_output/norm/layer_{layer_inx}', l2norm(y.astype(jnp.float32)))
-
-    # y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
+    hids = hids[1:] + [y_normed]
+    # hids = jnp.roll(hids, -1, axis=0) # 往前偏移1, slowly
 
-    hids.append(y_normed)
     # C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers else len(cfg.dynamic_dense_type)
     C = self.C
     print(f'layer_inx: {layer_inx} C: {C} hids: {len(hids)}')
     if cfg.mudd_postnorm:
       # post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm_{layer_inx}", cfg=cfg, scale_init=nn.initializers.constant(0.001))
       post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm", cfg=cfg, scale_init=nn.initializers.constant(0.001))
-      if cfg.mudd_compose_method == 'jit':
-        dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-        y = tuple([y + post_norm(r) if i == C - 1 else y + r for i, r in enumerate(wsum_jit(dyn_dense_w, hids))])
-      elif cfg.mudd_compose_method == 'einsum':
-        y = tuple([y + post_norm(r) if i == C - 1 else y + r for i, r in enumerate(einsum(dyn_dense_w, hids))])
-      else:
-        dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-        y = tuple([y + (post_norm(
+      # y = tuple([y + post_norm(r) if i == C - 1 else y + r for i, r in enumerate(einsum(dyn_dense_w, hids))])
+      dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
+      y = tuple([y + (post_norm(
             wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
                                   ) if cidx == C - 1 else 
             wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
                         ) for cidx in range(C)])
+      print(f'y: {len(y)} y[0]: {y[0].shape}')
     else:
         # (btl, btl, btl, btl)
         dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)

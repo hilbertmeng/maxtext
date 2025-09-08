@@ -295,9 +295,10 @@ class FusionDecoderLayer(nn.Module):
   @nn.compact
   def __call__(
       self,
-      inputs,
+      inputs, # tuple (y, historical_states) for dense_conn, or just y for normal
       decoder_segment_ids,
       decoder_positions,
+      index,
       deterministic,
       model_mode,
       hids=None,
@@ -306,28 +307,26 @@ class FusionDecoderLayer(nn.Module):
   ):
     cfg = self.config
     if cfg.dense_conn and cfg.mudd_in_layer:
-        if self.layer_inx == cfg.num_decoder_layers and cfg.head_compose_types[2] == 'f':
-           assert cfg.head_compose_types[1] == 't'
-           inputs = [inputs] * len(cfg.dynamic_dense_type)
-           print(f'enter if branch.........')
-        else:
-          if cfg.head_compose_types[1:3] == 'tt' and self.layer_inx >= cfg.num_decoder_layers:
-             layer_inx = self.layer_inx + 1
-          else:
-             layer_inx = self.layer_inx
-             
-          # return's inputs length is 4
-          inputs, hids = mudd.Compose(
-            cfg, self.mesh, self.quant, layer_inx, 
-            name=f'compose'
-            )(
-              layer_output=inputs, 
-              hids=hids
-            )
-        print(f'layer_inx: {self.layer_inx} inputs: {len(inputs)}')
-    
+      layer_inx = None
+      
     for layer in self.subs: # subs length must be 1 when train mudd.
-        # return's inputs length is 1
-        inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum, decoder_input_tokens)
-
-    return inputs, hids
+      if isinstance(inputs, tuple):
+        inputs, historical_states = inputs
+      # inputs length is 4 return's inputs length is 1
+      inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum, decoder_input_tokens)
+      if cfg.dense_conn:
+        # inputs length is 1 return's inputs length is 4
+        inputs, historical_states = mudd.Compose(
+          cfg, self.mesh, self.quant, layer_inx, 
+          name=f'compose'
+          )(
+            layer_output=inputs, 
+            hids=historical_states,
+            index=index,
+          )
+      print(f'layer_inx: {self.layer_inx} inputs: {len(inputs)}')
+    
+    if cfg.dense_conn:
+      return (inputs, historical_states), None
+    else:
+      return inputs, None

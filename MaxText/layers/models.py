@@ -335,6 +335,7 @@ class Decoder(nn.Module):
     #                         self.config.weight_dtype,
     #                     )
     # self.logits_dense = dense_kernel.astype(self.config.dtype)
+    
 
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
@@ -343,7 +344,7 @@ class Decoder(nn.Module):
           block_layer,
           prevent_cse=not self.config.scan_layers,
           policy=policy,
-          static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+          static_argnums=(5, 6),  # Deterministic and model mode are static arguments.
           rngs={"params": True, "aqt": True, "dropout": True},
       )
       RemattedBlockLayers.append(layer)
@@ -424,9 +425,11 @@ class Decoder(nn.Module):
             nn.broadcast,
             nn.broadcast,
             nn.broadcast,
+            nn.broadcast,
             nn.broadcast, # 关键字参数不在这个范围内
         ),
         length=length,
+        unroll=2,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
     return scan_fn(config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant)
@@ -508,10 +511,6 @@ class Decoder(nn.Module):
         y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y)
       else:
         y_normed = y
-      if cfg.mudd_in_layer:
-        y, hids = y, [y_normed]
-      else:
-        y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
     else:
       hids = []
 
@@ -553,14 +552,32 @@ class Decoder(nn.Module):
           )
         else:
           RemattedBlockLayer = RemattedBlockLayers[0]
-          y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
-              y,
-              decoder_segment_ids,
-              decoder_positions,
-              deterministic,
-              model_mode,
-              eos_sum=eos_sum,
-          )
+
+          if cfg.dense_conn:
+            historical_states = [jnp.zeros_like(y) for _ in range(self.config.num_decoder_layers)] +  [y_normed]
+            indexes = jnp.arange(cfg.num_decoder_layers + 1)
+            y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
+                ((y, ) * len(cfg.dynamic_dense_type), historical_states),
+                decoder_segment_ids,
+                decoder_positions,
+                indexes,
+                deterministic,
+                model_mode,
+                eos_sum=eos_sum,
+            )
+            print(f'Final y1: {len(y)}')
+            y = y[0][-1]
+            print(f'Final y2: {y.shape}')
+          else:
+            y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
+                y,
+                decoder_segment_ids,
+                decoder_positions,
+                None,
+                deterministic,
+                model_mode,
+                eos_sum=eos_sum,
+            )
       else:
         if cfg.decoder_block == "deepseek":
           assert len(RemattedBlockLayers) == 2, f"Unscanned layers must have a length of 2 using deepseek."
@@ -612,26 +629,12 @@ class Decoder(nn.Module):
               y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids)
 
     if cfg.dense_conn:
-      if cfg.mtp_num_layers > 0:
-        if cfg.head_compose_types[:2] == 'tt': # ttt: 2.382, ttf: 2.390
-          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=2)(y, hids)
-          main_head_inputs, mtp_head_inputs = y
-        elif cfg.head_compose_types[:2] == 'tf': # tft: 2.369
-          mtp_head_inputs = y
-          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
-          main_head_inputs = y[0]
-          hids = hids[:-1]
-        elif cfg.head_compose_types[:2] == 'ft': # ftt: 未做
-          main_head_inputs = y
-          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
-          mtp_head_inputs = y[0]
-        else:
-          main_head_inputs, mtp_head_inputs = y, y # fft: mtpmudd-0.4B: 2.367
-      else:
-        # 非 mtp mudd 组合
+      if not cfg.scan_layers:
         y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
         main_head_inputs = y[0]
-        mtp_head_inputs = None
+      else:
+        main_head_inputs = y
+      mtp_head_inputs = None
     else:
         main_head_inputs, mtp_head_inputs = y, y
 

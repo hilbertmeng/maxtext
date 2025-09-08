@@ -175,6 +175,11 @@ class Llama2MediumBaseModSparseGate(Llama2MediumBase):
     sparse_loss_weight = 1
     scan_layers = False
 
+class DC3MUDDLlama2MediumBaseModSparseGate(Mudd, DC3, LGLWindow, Llama2MediumBaseModSparseGate):
+    mod_sparse_gate_use_bias = True
+    sparse_loss_weight = 0.01
+    mod_sparse_gate_mask_layers = tuple(range(6,18))    
+
 class Llama2MediumBaseModSparseGateW10(Llama2MediumBaseModSparseGate):
     sparse_loss_weight = 10
 
@@ -199,11 +204,41 @@ class Llama2MediumSandwichAAABModSparseGateW0p01(LGLWindow, Llama2MediumSandwich
     num_layers_per_block = 1
     record_internal_nn_metrics = 1
 
+class DC3MUDDLlama2MediumSandwichAAABModSparseGate(Mudd, DC3, Llama2MediumSandwichAAABModSparseGateW0p01):
+    mod_sparse_gate_use_bias = True
+    mod_sparse_gate_mask_layers = tuple(range(6,18))  
+    dynamic_mlp_dim = False
+    mudd_in_layer = True
+
 class Llama2MediumSandwichAAABStochRecur(Llama2MediumSandwichAAAB): # stochastic recursive layers
     skip_layers = [None, tuple(range(6,18)), tuple(range(12,18))] # eval loss AAAB (loss 2.553868), AB (loss 2.583183), AAB (loss 2.553942)
 
+class Llama2MediumSandwichAAABStochRecurP08(Llama2MediumSandwichAAAB): # stochastic recursive layers
+    skip_layers = [tuple(range(6,18)), tuple(range(12,18)), None] # AB, AAB, AAAB
+    pattern_probs = [0.64, 0.32, 0.04] # p^2, 2p(1-p), (1-p)^2
+
+class Llama2MediumSandwichAAABStochRecurP08WSD25xTokens(Llama2MediumSandwichAAABStochRecurP08):
+    lr_schedule_type = 'wsd'
+    stable_steps_fraction = 0.89
+    learning_rate_schedule_steps = int(13500 * 0.5 * 25) # 
+    eval_interval = int(13500 * 0.5 * 5)
+    steps = -1 
+
+class Llama2MediumSandwichAAABStochRecurP08WSD25xTokensAdapter(Llama2MediumSandwichAAABStochRecurP08WSD25xTokens):
+    use_rins_linear_adapters = True # loss: AB:2.30658, AAB: 2.29375, AAAB: 2.298733
+
+class Llama2MediumSandwichAAABStochRecurP08WSD25xTokensAdapterFix(Llama2MediumSandwichAAABStochRecurP08WSD25xTokensAdapter):
+    pass
+
+# class Llama2MediumSandwichAAABStochRecurP05(Llama2MediumSandwichAAAB): # stochastic recursive layers
+#     skip_layers = [tuple(range(6,18)), tuple(range(12,18)), None] # AB, AAB, AAAB
+#     pattern_probs = [0.25, 0.5, 0.25] # p^2, 2p(1-p), (1-p)^2
+
 class Llama2MediumSandwichAAABStochRecurAdapter(Llama2MediumSandwichAAABStochRecur):
     use_rins_linear_adapters = True
+
+class Llama2MediumSandwichAAABStochRecurAdapterDebug2(Llama2MediumSandwichAAABStochRecurAdapter):
+    pass
 
 class Llama2MediumSandwichAAABWSD15xTokens(Llama2MediumSandwichAAAB):
     lr_schedule_type = 'wsd'
@@ -269,6 +304,52 @@ class Llama2Medium12LWSD30xTokens(Llama2Medium12L):
     learning_rate_schedule_steps = int(13500 * 0.5 * 30) # 67*2k loss: 2.4083, 101*2k loss:2.29518
     eval_interval = int(13500 * 0.5 * 5)
     steps = -1 
+
+
+class Llama2Medium6LD1536WSD30xTokens(Llama2Medium12LWSD30xTokens):
+    scan_layers = False 
+    base_num_decoder_layers = 6
+    base_emb_dim = 1536
+    base_mlp_dim = 4096
+    base_num_query_heads = 24
+    base_num_kv_heads = 24
+    per_device_batch_size = 16.0 # v6e-16 loss: 2.31160
+    eval_per_device_batch_size = 64.0 # v6e-16 
+    record_internal_nn_metrics = 0 
+    # compile_topology = 'v6e-16'
+    # compile_topology_num_slices=1
+    # compiled_trainstep_file="Llama2Medium6LD1536WSD30xTokens.pkl" # 
+
+class Llama2Medium6LD1536SandwichAAABWSD15xTokens(Llama2Medium6LD1536WSD30xTokens):
+    recursive_pattern = 'ABC'*3 + 'DEF'
+    base_num_decoder_layers = 12
+    stable_steps_fraction = 0.89
+    learning_rate_schedule_steps = int(13500 * 0.5 * 15) # 101k loss: 2.28303
+    eval_interval = int(13500 * 0.5 * 2.5)
+    # compile_topology = 'v6e-16'
+    # compile_topology_num_slices=1
+    compiled_trainstep_file = ''
+    # compiled_trainstep_file="Llama2Medium6LD1536SandwichAAABWSD15xTokens.pkl" 
+
+class Llama2Medium6LD1536SandwichAAABWSD25xTokensStoch(Llama2Medium6LD1536SandwichAAABWSD15xTokens):
+    compiled_trainstep_file="" 
+    skip_layers = [tuple(range(3,9)), tuple(range(6,9)), None] # loss AB:2.324266, AAB:2.30723, AAAB: 2.31212
+    pattern_probs = [0.64, 0.32, 0.04] # p^2, 2p(1-p), (1-p)^2
+    learning_rate_schedule_steps = int(13500 * 0.5 * 25) # 
+    eval_interval = int(13500 * 0.5 * 5)
+    steps = -1 
+
+class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapter(Llama2Medium6LD1536SandwichAAABWSD25xTokensStoch):
+    use_rins_linear_adapters = True # loss: AB:2.31893 AAB:2.301328 AAAB: 2.305473
+
+class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapterFix(Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapter):
+    pass 
+
+class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapterLN(Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapter):
+    rins_layer_norm = True
+
+# class Llama2Medium6LD1536SandwichAAABWSD15xTokensAdapterDebug(Llama2Medium6LD1536SandwichAAABWSD15xTokensAdapter):
+#     pass
 
 class Llama2MediumSandwich(Llama2MediumBase):
     # recursive_pattern = 'BCDEFGH'*3 + 'I' 
@@ -803,7 +884,7 @@ class DC2MuddLlamaMediumKV4QO16VgateTanhLGLL(LGLLWindow, DC2MuddLlamaMediumKV4QO
     use_v_gate = [True, False, True, True]
     key_wise = [False, True, False, False]
     num_layers_per_block = 1
-    base_mlp_dim = 2816 + int(512/4)
+    base_mlp_dim = 2816 + int(512/4) # 512 = 12 * 64 * 2 / 3
 
 class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL): # DC2Mudd + GQA + Vgate medium baseline 
     # L: MHA + Vgate (w/o KW); G: GQA + KW(w/o Vgate)
@@ -813,6 +894,23 @@ class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16Vg
 
 class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVway(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
     vgate_vway = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVwayKVshift(KVshift, DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVway): 
+    # vgate on raw value 
+    kv_shift_mlp = False # linear KVshift
+    kv_shift_skip_knorm = True # remove knorm, duplicated when using qknorm 
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVwayKshift(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVwayKVshift):
+    skip_vshift = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVwayKVshiftPre(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVwayKVshift):
+    pass 
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLKVshift(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVwayKVshift):
+    use_v_gate = False
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLKVshiftTanh(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLKVshift):
+    kv_shift_decoupled_gate = True
 
 class DC2MuddLlamaMediumKV4QO16LGLLPostkdd(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
     use_v_gate = False

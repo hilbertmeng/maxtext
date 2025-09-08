@@ -1196,7 +1196,7 @@ class Attention(nn.Module):
       self.kv_shift_vr = kv_shift.KVshiftVR(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
     else:
       if self.use_kv_shift:
-        self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+        self.kv_shift = kv_shift.KVshift(config=self.config, num_kv_heads=self.num_kv_heads, mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
       
       if self.config.value_residual_learning:
         self.value_residual = kv_shift.ValueResidual(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
@@ -1477,6 +1477,9 @@ class Attention(nn.Module):
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
+    
+    raw_value = value
+
 
     if self.config.merge_kvshift_vr:
       if self.layer_inx == 0:
@@ -1549,6 +1552,12 @@ class Attention(nn.Module):
             kernel_init=self.kernel_init,kernel_axes=('embed', None),name="v_gate", use_bias=use_v_gate_bias,
         )(_inputs)
       v_gate = jax.nn.tanh(v_gate) + 1  if self.config.v_gate_tanh else jax.nn.sigmoid(v_gate) 
+      # if self.use_kv_shift:
+      #   if self.num_query_heads > self.num_kv_heads:
+      #     raw_value = jnp.repeat(raw_value, n_expands, axis=-2)
+      #   value = raw_value * (v_gate[...,None] - 1) + value
+      # else:
+      # vgate = vgate * vg + (1-vg) * shift_1d(vgate, offset=1, axis=1)
       value = value * v_gate[...,None] # BSND, BSN1->BSND
 
     if self.config.record_internal_nn_metrics:

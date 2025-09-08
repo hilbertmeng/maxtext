@@ -60,6 +60,7 @@ class KVshift(nn.Module):
   mesh: Mesh
   quant: Optional[Quant] = None
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+  num_kv_heads: int| None = None
   
   def setup(self):
     cfg = self.config
@@ -77,18 +78,19 @@ class KVshift(nn.Module):
     self.kv_shift_hidden_way = self.config.kv_shift_hidden_way
     self.q_shift = self.config.use_q_shift
     num_shifts = 2 if not self.q_shift else 3 
+    num_kv_heads = self.num_kv_heads if self.num_kv_heads is not None else cfg.num_kv_heads
     if self.kv_shift_mlp:
       if self.kv_shift_hidden_way in ['kv', 'qkv']:
         for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_up_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads),
+                                      (num_kv_heads),
                                       kernel_init=self.kernel_init,
                                       kernel_axes=('embed', "kv_heads"),
                                       use_bias=False,
                                       name=f'kv_shift_proj_up_{mode}',
                                       **kwargs))
           setattr(self, f'dw_down_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads, 1),
+                                      (num_kv_heads, 1),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', None),
                                       use_bias=True,
@@ -96,14 +98,14 @@ class KVshift(nn.Module):
                                       **kwargs))
       else:
         self.dw_up_proj = linears.DenseGeneral(
-                                      (cfg.num_kv_heads * num_shifts),
+                                      (num_kv_heads * num_shifts),
                                       kernel_init=self.kernel_init,
                                       kernel_axes=('embed', "kv_heads"),
                                       use_bias=False,
                                       name='kv_shift_proj_up',
                                       **kwargs)
         self.dw_down_proj = linears.DenseGeneral(
-                                      (cfg.num_kv_heads, num_shifts),
+                                      (num_kv_heads, num_shifts),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=True,
@@ -113,7 +115,7 @@ class KVshift(nn.Module):
       if self.kv_shift_hidden_way in ['kv', 'qkv']:
         for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads, 1),
+                                      (num_kv_heads, 2 if self.config.kv_shift_decoupled_gate else 1),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=False,
@@ -121,7 +123,7 @@ class KVshift(nn.Module):
                                       **kwargs))
       else:
         self.dw_proj = linears.DenseGeneral(
-                                      (cfg.num_kv_heads, num_shifts),
+                                      (num_kv_heads, num_shifts),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=False,
@@ -151,8 +153,12 @@ class KVshift(nn.Module):
           kg = jax.nn.sigmoid(self.dw_down_proj_k(jax.nn.gelu(self.dw_up_proj_k(inputs_k))))
           vg = jax.nn.sigmoid(self.dw_down_proj_v(jax.nn.gelu(self.dw_up_proj_v(inputs_v))))
         else:
-          kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))
-          vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))
+          if self.config.kv_shift_decoupled_gate:
+            kg = jax.nn.tanh(self.dw_proj_k(inputs_k))+1 # BTN2
+            vg = jax.nn.tanh(self.dw_proj_v(inputs_v))+1
+          else:
+            kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k)) # BTN1 -> BTNd 
+            vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))
       elif self.kv_shift_hidden_way == 'qkv':
         if self.kv_shift_mlp:
           qg = jax.nn.sigmoid(self.dw_down_proj_q(jax.nn.gelu(self.dw_up_proj_q(inputs_q))))
@@ -177,8 +183,13 @@ class KVshift(nn.Module):
 
     # kv shift
     if self.config.kv_shift_flash:
-      key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
-      value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
+      if self.config.kv_shift_decoupled_gate:
+        key = key * kg[...,:1] + kg[...,1:] * shift_1d(key, offset=1, axis=1)
+        value = value * vg[...,:1] + vg[...,1:] * shift_1d(value, offset=1, axis=1)
+      else:
+        key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
+        if not self.config.skip_vshift:
+          value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
     else:
       key = key.at[:, 1:].set( key[:,1:] * kg + (1-kg) * key[:,:-1] ) 
       value = value.at[:, 1:].set( value[:,1:] * vg + (1-vg) * value[:,:-1] )

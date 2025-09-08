@@ -354,39 +354,34 @@ class SubDecoderLayer(nn.Module):
       )
       attention_lnx = attention_lnx + mosa_attention_lnx
 
+    ffn_sparse_score = None
     if self.config.mod_sparse_gate:
-      mod_sparse_gate = linears.DenseGeneral(
-        2,
-        dtype=self.config.dtype,
-        weight_dtype=self.config.weight_dtype,
-        quant=self.quant,
-        kernel_init=initializers.nd_dense_init_normal(0.006),
-        kernel_axes=("embed", None),
-        name="mod_sparse_gate",
-      )
-      # Compute gating logits and probabilities
-      mod_sparse_logits = mod_sparse_gate(lnx)  # BTD, D2 -> BT2
-      init_bias = 1 
-      mod_sparse_logits = mod_sparse_logits + init_bias
-      mod_sparse_probs = jax.nn.sigmoid(mod_sparse_logits)
-      # Straight-through estimator to get hard 0/1 mask in forward, gradients from probs
-      mod_sparse_hard = (mod_sparse_probs > 0.5).astype(mod_sparse_probs.dtype) 
-      mod_sparse_score = mod_sparse_probs + jax.lax.stop_gradient(mod_sparse_hard - mod_sparse_probs)
-      # Auxiliary sparsity loss encourages fewer active paths
-      mod_sparse_loss = jnp.mean(mod_sparse_probs)
-      mod_sparse_loss = mod_sparse_loss * (self.config.sparse_loss_weight if getattr(self.config, 'sparse_loss_weight', None) is not None else 1)
-      if self.config.recursive_pattern:
-        self.sow("intermediates", f"mod_sparse_loss_{layer_inx}", mod_sparse_loss)
-        self.sow("intermediates", f"mod_sparse_attn_hard_{layer_inx}", mod_sparse_hard[:, :, 0].mean())
-        self.sow("intermediates", f"mod_sparse_ffn_hard_{layer_inx}", mod_sparse_hard[:, :, 1].mean())
-      else:
-        self.sow("intermediates", "mod_sparse_loss", mod_sparse_loss)
-        self.sow("intermediates", "mod_sparse_attn_hard", mod_sparse_hard[:, :, 0].mean())
-        self.sow("intermediates", "mod_sparse_ffn_hard", mod_sparse_hard[:, :, 1].mean())
-      # Apply gate
-      attn_sparse_score, ffn_sparse_score = mod_sparse_score[:, :, :1], mod_sparse_score[:, :, 1:]
-      attention_lnx = attention_lnx * attn_sparse_score  # BTD, BT1 -> BTD 
-
+      _layer_inx = layer_inx if self.config.recursive_pattern else self.layer_inx
+      if (self.config.mod_sparse_gate_mask_layers is None) or (_layer_inx in self.config.mod_sparse_gate_mask_layers):
+        mod_sparse_gate = linears.DenseGeneral(2, dtype=self.config.dtype, weight_dtype=self.config.weight_dtype, quant=self.quant, kernel_init=initializers.nd_dense_init_normal(0.006),
+                        kernel_axes=("embed", None), name=f"mod_sparse_gate_{_layer_inx}", use_bias=self.config.mod_sparse_gate_use_bias,) # breaking change: use seperate gate by default in recursive patterns
+        # Compute gating logits and probabilities
+        mod_sparse_logits = mod_sparse_gate(lnx)  # BTD, D2 -> BT2
+        init_bias = 1 
+        mod_sparse_logits = mod_sparse_logits + init_bias
+        mod_sparse_probs = jax.nn.sigmoid(mod_sparse_logits)
+        # Straight-through estimator to get hard 0/1 mask in forward, gradients from probs
+        mod_sparse_hard = (mod_sparse_probs > 0.5).astype(mod_sparse_probs.dtype) 
+        mod_sparse_score = mod_sparse_probs + jax.lax.stop_gradient(mod_sparse_hard - mod_sparse_probs)
+        # Auxiliary sparsity loss encourages fewer active paths
+        mod_sparse_loss = jnp.mean(mod_sparse_probs)
+        mod_sparse_loss = mod_sparse_loss * (self.config.sparse_loss_weight if getattr(self.config, 'sparse_loss_weight', None) is not None else 1)
+        if self.config.recursive_pattern:
+          self.sow("intermediates", f"mod_sparse_loss_{layer_inx}", mod_sparse_loss)
+          self.sow("intermediates", f"mod_sparse_attn_hard_{layer_inx}", mod_sparse_hard[:, :, 0].mean())
+          self.sow("intermediates", f"mod_sparse_ffn_hard_{layer_inx}", mod_sparse_hard[:, :, 1].mean())
+        else:
+          self.sow("intermediates", "mod_sparse_loss", mod_sparse_loss)
+          self.sow("intermediates", "mod_sparse_attn_hard", mod_sparse_hard[:, :, 0].mean())
+          self.sow("intermediates", "mod_sparse_ffn_hard", mod_sparse_hard[:, :, 1].mean())
+        # Apply gate
+        attn_sparse_score, ffn_sparse_score = mod_sparse_score[:, :, :1], mod_sparse_score[:, :, 1:]
+        attention_lnx = attention_lnx * attn_sparse_score  # BTD, BT1 -> BTD 
 
     if inner_moe and self.config.inner_moe_on_attn_out and self.config.share_inner_outer_moe:
       lnx_rms = norm_class(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, name="inner_moe_prenorm", kernel_axes=("embed",),epsilon=cfg.normalization_layer_epsilon)
@@ -521,7 +516,7 @@ class SubDecoderLayer(nn.Module):
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
-    if self.config.mod_sparse_gate and mlp_lnx is not None:
+    if self.config.mod_sparse_gate and mlp_lnx is not None and ffn_sparse_score is not None:
       mlp_lnx = mlp_lnx * ffn_sparse_score
 
     if mlp_lnx is not None and moe_lnx is not None:

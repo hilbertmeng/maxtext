@@ -91,7 +91,9 @@ def load_compiled(config, partial_train, state):
   serialized_compiled = load_serialized_compiled(config.compiled_trainstep_file)
   shaped_batch = input_pipeline_interface.get_shaped_batch(config)
   example_rng = jax.random.PRNGKey(0)
-  shaped_input_args = (state, shaped_batch, example_rng)
+  # shaped_input_args = (state, shaped_batch, example_rng)
+  shaped_input_args = (state, shaped_batch, example_rng, None) # append pattern to shaped_input_args
+
   shaped_input_kwargs = {}
   in_tree, out_tree = get_train_input_output_trees(partial_train, shaped_input_args, shaped_input_kwargs)
   p_train_step = deserialize_and_load(serialized_compiled, in_tree, out_tree)

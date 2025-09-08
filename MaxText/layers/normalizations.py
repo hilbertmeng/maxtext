@@ -26,6 +26,48 @@ from layers import linears
 Initializer = initializers.Initializer
 
 
+class Gpt3LayerNorm(nn.Module):
+  """GPT3 Layer normalization operating on the last axis of the input data."""
+
+  epsilon: float = 1e-6
+  dtype: Any = jnp.float32
+  weight_dtype: Any = jnp.float32
+  kernel_axes: Tuple[Optional[str], ...] = ()
+  scale_init: Initializer = nn.initializers.zeros
+  use_bias: bool = True
+  reductions_in_fp32: bool = False
+
+  @nn.compact
+  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+    """Applies layer normalization on the input."""
+    if self.reductions_in_fp32:
+      x = jnp.asarray(x, jnp.float32)
+    mean = jnp.mean(x, axis=[-1], keepdims=True)
+    var = jnp.mean(jnp.square(x - mean), axis=[-1], keepdims=True)
+    normed_inputs = (x - mean) * lax.rsqrt(var + self.epsilon)
+    if self.reductions_in_fp32:
+      normed_inputs = normed_inputs.astype(self.dtype)
+
+    features = x.shape[-1]
+    scale = self.param(
+        "scale", nn.with_logical_partitioning(self.scale_init, self.kernel_axes), (features,), self.weight_dtype
+    )
+
+    scale = jnp.asarray(scale, self.dtype)
+    output = normed_inputs * (scale + 1)
+
+    if self.use_bias:
+      bias = self.param(
+          "bias",
+          nn.with_logical_partitioning(initializers.default_bias_init, self.kernel_axes),
+          (features,),
+          self.weight_dtype,
+      )
+      bias = jnp.asarray(bias, self.dtype)
+      output += bias
+    return output
+
+
 class RMSNorm(nn.Module):
   """RMS normalization."""
 

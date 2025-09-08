@@ -351,7 +351,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"intermediates/attn_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["attn_out"][0]
         output_metrics["scalar"][f"intermediates/mlp_out_norm_layer_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["mlp_out"][0]
       
-      if config.mod_sparse_gate:
+      if config.mod_sparse_gate and ((config.mod_sparse_gate_mask_layers is None) or (layer_num in config.mod_sparse_gate_mask_layers)):
         if config.recursive_pattern:
           output_metrics["scalar"][f"intermediates/mod_sparse_attn_hard_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{config.recursive_pattern[layer_num]}"]["sub_0"][f"mod_sparse_attn_hard_{layer_num}"][0]
           output_metrics["scalar"][f"intermediates/mod_sparse_ffn_hard_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{config.recursive_pattern[layer_num]}"]["sub_0"][f"mod_sparse_ffn_hard_{layer_num}"][0]
@@ -372,7 +372,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"intermediates/attn_logits_min_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["attn_logits_min"][0]
         output_metrics["scalar"][f"intermediates/attn_logits_mean_{layer_num}"] = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]["sub_0"]["self_attention"]["attn_logits_mean"][0]
 
-      if config.dense_conn:
+      if config.dense_conn and not config.mudd_in_layer:
         layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
         output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]
         output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/mean/layer_{layer_num}"]
@@ -569,6 +569,8 @@ def loss_fn(model, config, data, dropout_rng, params, skip_layers, is_train=True
     total_sparse_loss = []
     print(flatten_dict(intermediate_outputs).keys())
     for i in range(config.num_decoder_layers):
+      if config.mod_sparse_gate_mask_layers is not None and i not in config.mod_sparse_gate_mask_layers:
+        continue
       if config.recursive_pattern:
         nested_sparse_key = ("intermediates", "decoder",  f"layers_{config.recursive_pattern[i]}", "sub_0", f"mod_sparse_loss_{i}")
       else:
@@ -1107,8 +1109,11 @@ def train_loop(config, state=None):
         # pylint: disable=not-callable
         nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
         record_goodput(recorder, config, recorder.record_step_start_time if recorder else None, step)
-        if config.skip_layers: # [list(range(12))] 
-          random_index = jax.random.randint(nextrng, (1,), 0, len(config.skip_layers))[0]
+        if config.skip_layers: # 
+          if config.pattern_probs: # 
+            random_index = jax.random.choice(nextrng, len(config.pattern_probs), p=jnp.asarray(config.pattern_probs),shape=(1,))[0]
+          else:
+            random_index = jax.random.randint(nextrng, (1,), 0, len(config.skip_layers))[0]
           current_skip_layers = config.skip_layers[random_index]
           max_logging.log(f'random_index in skip_layers: {random_index}')
         else:

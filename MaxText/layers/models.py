@@ -224,18 +224,19 @@ class Decoder(nn.Module):
       )
 
     if self.config.use_rins_linear_adapters:
-      self.rins_norms = [self.get_norm_layer()(
+      norm_layer_class = normalizations.Gpt3LayerNorm if self.config.rins_layer_norm else self.get_norm_layer()
+      self.rins_norms = [norm_layer_class(
         dtype=self.config.dtype,
         weight_dtype=self.config.weight_dtype,
         name=f"rins_norm_{pat_idx}",
         epsilon=self.config.normalization_layer_epsilon,
         kernel_axes=("norm",),
     ) for pat_idx in range(len(self.config.skip_layers))]
-      self.rins_linear_adapters = [linears.DenseGeneral(features=(self.config.emb_dim,),axis=-1, kernel_init=initializers.nd_dense_init_normal(0),
+      self.rins_linear_adapters = [linears.DenseGeneral(features=(self.config.emb_dim,),axis=-1, kernel_init=initializers.nd_dense_init_normal(0.006),
         kernel_axes=("embed", None), dtype=self.config.dtype, weight_dtype=self.config.weight_dtype,name=f"rins_linear_adapter_{pat_idx}",
         quant=self.quant, use_bias=False, matmul_precision=self.config.matmul_precision) for pat_idx in range(len(self.config.skip_layers))]
       # rins_rank = 128
-      # lora linear adapter for stochastic rins
+      # # lora linear adapter for stochastic rins
       # self.rins_linear_adapters = [linears.MlpBlock(intermediate_dim=rins_rank, activations=['linear'],dtype=self.config.dtype,weight_dtype=self.config.weight_dtype,
       #         name=f"rins_linear_adapter_{pat_idx}",config=self.config,quant=self.quant,use_bias=False,kernel_init=initializers.nd_dense_init_normal(0.006),) for pat_idx in range(len(self.config.skip_layers))]
 
@@ -586,13 +587,11 @@ class Decoder(nn.Module):
             else:
               y = y[0]
             
-            if cfg.use_rins_linear_adapters:
-              pat_idx = cfg.skip_layers.index(skip_layers)
-              y = y + self.rins_linear_adapters[pat_idx](self.rins_norms[pat_idx](y))
-              # if self.is_mutable_collection('params'):
-              #   for i, adapter in enumerate(self.rins_linear_adapters):
-              #     if i != pat_idx:
-              #       _ = adapter(self.rins_norms[i](y * 0.0))
+          # BUG
+          if cfg.use_rins_linear_adapters:
+            pat_idx = cfg.skip_layers.index(skip_layers)
+            y = y + self.rins_linear_adapters[pat_idx](self.rins_norms[pat_idx](y))
+
         else:
           n = cfg.num_decoder_layers // cfg.num_layers_per_block
           sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]

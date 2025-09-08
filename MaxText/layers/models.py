@@ -490,8 +490,6 @@ class Decoder(nn.Module):
     if cfg.deep_embed and 'x' in cfg.deep_embed:
       y, deep_embedding = y[...,:cfg.emb_dim], y[...,cfg.emb_dim: ]
       deep_embedding = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, 32, -1)
-    else:
-      deep_embedding = None
    
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
@@ -565,7 +563,7 @@ class Decoder(nn.Module):
               decoder_segment_ids,
               decoder_positions,
               decoder_input_tokens,
-              deep_embedding,
+              deep_embedding if cfg.deep_embed else None,
               deterministic,
               model_mode,
               eos_sum=eos_sum,
@@ -611,7 +609,7 @@ class Decoder(nn.Module):
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
-                deep_embedding[:, :, lyr],
+                deep_embedding[:, :, lyr] if cfg.deep_embed else None,
                 deterministic,
                 model_mode,
                 hids=hids,

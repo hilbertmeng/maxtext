@@ -429,7 +429,6 @@ class Decoder(nn.Module):
             nn.broadcast, # 关键字参数不在这个范围内
         ),
         length=length,
-        unroll=2,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
     return scan_fn(config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant)

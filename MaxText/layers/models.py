@@ -343,7 +343,7 @@ class Decoder(nn.Module):
           block_layer,
           prevent_cse=not self.config.scan_layers,
           policy=policy,
-          static_argnums=(5, 6),  # Deterministic and model mode are static arguments.
+          static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
           rngs={"params": True, "aqt": True, "dropout": True},
       )
       RemattedBlockLayers.append(layer)
@@ -424,6 +424,7 @@ class Decoder(nn.Module):
             nn.broadcast,
             nn.broadcast,
             nn.broadcast,
+            2, # deep_embedding
             nn.broadcast,
             nn.broadcast, # 关键字参数不在这个范围内
         ),
@@ -486,6 +487,11 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
+    if cfg.deep_embed and 'x' in cfg.deep_embed:
+      y, deep_embedding = y[...,:cfg.emb_dim], y[...,cfg.emb_dim: ]
+      deep_embedding = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, 32, -1)
+    else:
+      deep_embedding = None
    
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
@@ -559,6 +565,7 @@ class Decoder(nn.Module):
               decoder_segment_ids,
               decoder_positions,
               decoder_input_tokens,
+              deep_embedding,
               deterministic,
               model_mode,
               eos_sum=eos_sum,
@@ -604,6 +611,7 @@ class Decoder(nn.Module):
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
+                deep_embedding[:, :, lyr],
                 deterministic,
                 model_mode,
                 hids=hids,
@@ -686,9 +694,13 @@ class Transformer(nn.Module):
 
     cfg = self.config
     mesh = self.mesh
+    if cfg.deep_embed == '1x':
+      emb_dim = cfg.emb_dim * (cfg.num_decoder_layers + 1)
+    else:
+      emb_dim = cfg.emb_dim
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
-        features=cfg.emb_dim,
+        features=emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
         embedding_init=initializers.get_init_method(cfg.init_method), # lsp

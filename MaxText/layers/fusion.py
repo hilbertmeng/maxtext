@@ -87,10 +87,11 @@ class SubDecoderLayer(nn.Module):
       inputs,
       decoder_segment_ids,
       decoder_positions,
+      decoder_input_tokens,
+      deep_embedding,
       deterministic,
       model_mode,
       eos_sum,
-      decoder_input_tokens,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -183,7 +184,7 @@ class SubDecoderLayer(nn.Module):
           quant=self.quant,
           kernel_init=initializers.get_init_method(cfg.init_method), # lsp
           rng=jax.random.PRNGKey(10),  # lsp
-      )(hidden_states, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
+      )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:
@@ -283,7 +284,7 @@ class FusionDecoderLayer(nn.Module):
       RematSubDecoderLayer = nn.remat(SubDecoderLayer,
                                       prevent_cse=True,
                                       policy=models.get_remat_policy(cfg),
-                                      static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+                                      static_argnums=(5, 6),  # Deterministic and model mode are static arguments.
                                       )
     else:
        RematSubDecoderLayer = SubDecoderLayer
@@ -299,6 +300,7 @@ class FusionDecoderLayer(nn.Module):
       decoder_segment_ids,
       decoder_positions,
       decoder_input_tokens,
+      deep_embedding,
       deterministic,
       model_mode,
       hids=None,
@@ -329,6 +331,15 @@ class FusionDecoderLayer(nn.Module):
     
     for layer in self.subs: # subs length must be 1 when train mudd.
         # return's inputs length is 1
-        inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum, decoder_input_tokens)
+        inputs = layer(
+            inputs,
+            decoder_segment_ids,
+            decoder_positions,
+            decoder_input_tokens,
+            deep_embedding,
+            deterministic,
+            model_mode,
+            eos_sum,
+        )
 
     return inputs, hids

@@ -238,7 +238,7 @@ class MlpBlock(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   @nn.compact
-  def __call__(self, inputs, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
+  def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -348,17 +348,8 @@ class MlpBlock(nn.Module):
 
     if cfg.deep_embed == '1x':
       B, T = decoder_input_tokens.shape
-      deep_embedding = embeddings.Embed(
-        num_embeddings=cfg.vocab_size,
-        features=cfg.emb_dim,
-        dtype=cfg.dtype,
-        # embedding_init=initializers.nd_dense_init_normal(0.07746), # 0.006**(1/2) = 0.07746
-        embedding_init=self.kernel_init, # 0.006**(1/2) = 0.07746
-        name="deep_embed",
-        config=cfg,
-      )(decoder_input_tokens.astype("int32"))
       print(f'output: {output.shape} 1 x deep_embedding: {deep_embedding.shape}')
-      deep_embedding = deep_embedding.reshape(B, T, self.d1, self.d2) # btdd , d**2 = D
+      # deep_embedding = deep_embedding.reshape(B, T, self.d1, self.d2) # btdd , d**2 = D
       # btD x Dd -> btd -> bt1d
       deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
       # bt1d @ btdd -> bt1d @ dD -> bt1D + btD -> bt1D

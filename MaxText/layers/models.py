@@ -585,7 +585,7 @@ class Decoder(nn.Module):
               decoder_segment_ids,
               decoder_positions,
               decoder_input_tokens,
-              deep_embeddings,
+              deep_embeddings if 'x' in cfg.deep_embed else None,
               deterministic,
               model_mode,
               eos_sum=eos_sum,

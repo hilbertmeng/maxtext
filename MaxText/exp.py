@@ -567,7 +567,7 @@ class Llama2MediumDeepEmbed(Llama2Medium):
     eval_per_device_batch_size = 64.0
     shuffle_buffer_size = None
     head_compose_types = 'ttt'
-    deep_embed = 'none'
+    deep_embed = ''
 
 class Llama2MediumDeepEmbed4x(Llama2MediumDeepEmbed):
     deep_embed = '4x'
@@ -585,7 +585,7 @@ class Llama2MediumMoeDeepEmbed(DroplessMoe, Llama2Medium):
     eval_per_device_batch_size = 64.0
     shuffle_buffer_size = None
     head_compose_types = 'ttt'
-    deep_embed = True
+    deep_embed = '4x'
     num_experts = 32
     num_experts_per_tok = 2
     load_balance_loss_weight = 0.0

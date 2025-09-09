@@ -99,7 +99,6 @@ class SubDecoderLayer(nn.Module):
       lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
       inputs = inputs[3]
     else:
-      print(f'inputs: {inputs}')
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
       lnx_rms = models.RMSNorm(

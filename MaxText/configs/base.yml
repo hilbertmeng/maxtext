@@ -659,7 +659,7 @@ mtp_num_layers: 0
 mtp_eval_target_module: 0
 mtp_loss_scaling_factor: 0.1
 head_compose_types: 'ttt'
-deep_embed: ''
+deep_embed: 'none'
 clip_by_global_norm: True
 init_method: '006normal'
 muon_scale: 0.2

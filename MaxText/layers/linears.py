@@ -83,8 +83,9 @@ def _canonicalize_tuple(x):
 
 
 def _split_de_dim(embed_dim):
-  d = int(np.sqrt(embed_dim))
-  d1, d2 = (32, embed_dim // 32) if embed_dim % d != 0 else (d, d)
+  # d = int(np.sqrt(embed_dim))
+  # d1, d2 = (32, embed_dim // 32) if embed_dim % d != 0 else (d, d)
+  d1, d2 = 32, embed_dim // 32 # first dimension fix 32
   return d1, d2
 
 
@@ -183,6 +184,48 @@ class DenseGeneral(nn.Module):
     return output
 
 
+class DeepEmbedBlock(nn.Module):
+  """Transformer Deep Embed Block."""
+
+  config: Config
+  kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
+  weight_dtype: DType = jnp.float32
+  dtype: DType = jnp.float32
+  intermediate_dim: int = 2048
+
+  def setup(self):
+    if 'x' in self.config.deep_embed:
+      D = self.config.emb_dim if '1x' in self.config.deep_embed else self.intermediate_dim
+      self.d1, self.d2 = _split_de_dim(D)
+      print(f'emb_dim: {D} d1: {self.d1} d2: {self.d2}')
+      self.s1 = self.param('s1', self.kernel_init, (self.config.emb_dim, self.d1), self.weight_dtype)
+      self.s2 = self.param('s2', self.kernel_init, (self.d2, D), self.weight_dtype)
+      self.s2_bias = self.param('s2.bias', self.kernel_init, (D,), self.weight_dtype)
+      print(f's1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape}')
+
+  @nn.compact
+  def __call__(self, inputs, output, deep_embedding):
+    print(f'deep_embed: {self.config.deep_embed} inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
+    if 'x' in self.config.deep_embed:
+      B, T = inputs.shape[:2]
+      # btD x Dd -> btd -> bt1d
+      deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
+      # bt1d @ btdd -> bt1d @ dD -> bt1D + btD -> bt1D
+      deep_w = deep_w @ deep_embedding @ self.s2 + self.s2_bias
+      output = output * deep_w.reshape(B, T, -1)
+  
+    if self.config.deep_embed_norm or self.config.mlp_post_norm:
+      output = RMSNorm(
+          name="deep_embed_norm",
+          dtype=self.config.dtype,
+          weight_dtype=self.config.weight_dtype,
+          kernel_axes=("norm", ),
+          epsilon=self.config.normalization_layer_epsilon,
+      )(output)
+
+    return output
+
+
 class MlpBlock(nn.Module):
   """Transformer MLP / feed-forward block.
 
@@ -213,18 +256,13 @@ class MlpBlock(nn.Module):
   rng: None = None
 
   def setup(self):
-    if  self.config.deep_embed and 'x' in self.config.deep_embed:
-      D = self.config.emb_dim
-      self.d1, self.d2 = _split_de_dim(D)
-      print(f'emb_dim: {D} d1: {self.d1} d2: {self.d2}')
-      # nd_dense_init(1.0, "fan_in", "truncated_normal")
-      # self.s1 = self.param('s1', initializers.nd_dense_init_normal(0.07746), (D, self.d), self.weight_dtype)
-      # self.s2 = self.param('s2', nn.initializers.constant(0.0), (self.d, D), self.weight_dtype)
-      # self.s2_bias = self.param('s2.bias', nn.initializers.constant(1.0), (D,), self.weight_dtype)
-      self.s1 = self.param('s1', self.kernel_init, (D, self.d1), self.weight_dtype)
-      self.s2 = self.param('s2', self.kernel_init, (self.d2, D), self.weight_dtype)
-      self.s2_bias = self.param('s2.bias', self.kernel_init, (D,), self.weight_dtype)
-      print(f's1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape}')
+    if 'x' in self.config.deep_embed:
+      self.deep_embed_block = DeepEmbedBlock(
+        config=self.config, 
+        kernel_init=self.kernel_init, 
+        weight_dtype=self.weight_dtype, 
+        dtype=self.dtype, 
+        intermediate_dim=self.intermediate_dim)
 
   def get_norm_layer(self):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "deepseek"):
@@ -311,25 +349,7 @@ class MlpBlock(nn.Module):
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
     if cfg.deep_embed == '4x':
-      deep_embedding = embeddings.Embed(
-        num_embeddings=cfg.vocab_size,
-        features=self.intermediate_dim,
-        dtype=cfg.dtype,
-        embedding_init=initializers.contant_dense_init(1.0),
-        name="deep_embed",
-        config=cfg,
-      )(decoder_input_tokens.astype("int32"))
-      print(f'x: {x.shape} 4 x deep_embedding: {deep_embedding.shape}')
-      x = x * deep_embedding # lsp
-      if cfg.deep_embed_norm:
-        print(f'deep_embed_norm is true......')
-        x = RMSNorm(
-            name="deep_embed_norm",
-            dtype=cfg.dtype,
-            weight_dtype=cfg.weight_dtype,
-            kernel_axes=("norm", ),
-            epsilon=cfg.normalization_layer_epsilon,
-        )(x)
+      x = self.deep_embed_block(inputs, x, deep_embedding)
 
     output = DenseGeneral(
         inputs.shape[-1],
@@ -346,24 +366,7 @@ class MlpBlock(nn.Module):
     )(x)
 
     if cfg.deep_embed == '1x':
-      B, T = decoder_input_tokens.shape
-      print(f'output: {output.shape} 1 x deep_embedding: {deep_embedding.shape}')
-      # deep_embedding = deep_embedding.reshape(B, T, self.d1, self.d2) # btdd , d**2 = D
-      # btD x Dd -> btd -> bt1d
-      deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
-      # bt1d @ btdd -> bt1d @ dD -> bt1D + btD -> bt1D
-      deep_w = deep_w @ deep_embedding @ self.s2 + self.s2_bias
-      output = output * deep_w.reshape(B, T, -1)
-
-    if cfg.deep_embed_norm or cfg.mlp_post_norm:
-      print(f'deep_embed_norm or mlp_post_norm is true......')
-      output = RMSNorm(
-          name="deep_embed_norm",
-          dtype=cfg.dtype,
-          weight_dtype=cfg.weight_dtype,
-          kernel_axes=("norm", ),
-          epsilon=cfg.normalization_layer_epsilon,
-      )(output)
+      output = self.deep_embed_block(inputs, output, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")
     return output

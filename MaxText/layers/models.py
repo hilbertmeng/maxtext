@@ -53,6 +53,28 @@ Quant = quantizations.AqtQuantization
 # ------------------------------------------------------------------------------
 
 
+def get_deep_embedding(cfg, y):
+  y, deep_embedding = y[..., :cfg.emb_dim], y[..., cfg.emb_dim: ]
+  if cfg.dynamic_mlp_dim and '4x' in cfg.deep_embed:
+    assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
+    start_idx = 0
+    deep_embeddings = []
+    for layer_inx in range(cfg.num_decoder_layers):
+      updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128
+      d1, d2 = linears._split_de_dim(updated_mlp_dim)
+      cur_layer_deep_embedding = deep_embedding[..., start_idx: start_idx + updated_mlp_dim]
+      start_idx += updated_mlp_dim
+      cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*y.shape[:2], d1, d2)
+      deep_embeddings.append(cur_layer_deep_embedding)
+      print(f'layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
+  else:
+    de_dim = deep_embedding.shape[-1] // cfg.num_decoder_layers
+    d1, d2 = linears._split_de_dim(de_dim)
+    deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
+    print(f'deep_embeddings: {deep_embeddings.shape}')
+  return y, deep_embeddings
+
+
 def get_remat_policy(cfg):
   if cfg.remat_policy != "none":
     if cfg.remat_policy == "minimal":
@@ -424,7 +446,7 @@ class Decoder(nn.Module):
             nn.broadcast,
             nn.broadcast,
             nn.broadcast,
-            2, # deep_embedding
+            0, # deep_embedding
             nn.broadcast,
             nn.broadcast, # 关键字参数不在这个范围内
         ),
@@ -487,11 +509,10 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
-    if cfg.deep_embed and 'x' in cfg.deep_embed:
-      y, deep_embedding = y[..., :cfg.emb_dim], y[..., cfg.emb_dim: ]
-      d1, d2 = linears._split_de_dim(cfg.emb_dim)
-      deep_embedding = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2)
-   
+
+    if 'x' in cfg.deep_embed:
+      y, deep_embeddings = get_deep_embedding(cfg, y)
+      
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
@@ -564,7 +585,7 @@ class Decoder(nn.Module):
               decoder_segment_ids,
               decoder_positions,
               decoder_input_tokens,
-              deep_embedding if cfg.deep_embed and 'x' in cfg.deep_embed else None,
+              deep_embeddings,
               deterministic,
               model_mode,
               eos_sum=eos_sum,
@@ -610,7 +631,7 @@ class Decoder(nn.Module):
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
-                deep_embedding[:, :, lyr] if cfg.deep_embed and 'x' in cfg.deep_embed else None,
+                deep_embeddings[lyr] if 'x' in cfg.deep_embed else None,
                 deterministic,
                 model_mode,
                 hids=hids,
@@ -694,9 +715,13 @@ class Transformer(nn.Module):
     cfg = self.config
     mesh = self.mesh
     if cfg.deep_embed == '1x':
-      emb_dim = cfg.emb_dim * (cfg.num_decoder_layers + 1)
+      emb_dim = cfg.emb_dim  + cfg.num_decoder_layers * cfg.emb_dim
+    elif '4x' in cfg.deep_embed:
+      emb_dim = cfg.emb_dim +  cfg.num_decoder_layers * cfg.mlp_dim
     else:
+      assert 'x' not in cfg.deep_embed, f'deep_embed: {cfg.deep_embed} is not supported'
       emb_dim = cfg.emb_dim
+    print(f'deep_embed: {cfg.deep_embed} emb_dim: {emb_dim}')
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
         features=emb_dim,

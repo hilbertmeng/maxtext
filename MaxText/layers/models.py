@@ -488,8 +488,9 @@ class Decoder(nn.Module):
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     if cfg.deep_embed and 'x' in cfg.deep_embed:
-      y, deep_embedding = y[...,:cfg.emb_dim], y[...,cfg.emb_dim: ]
-      deep_embedding = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, 32, -1)
+      y, deep_embedding = y[..., :cfg.emb_dim], y[..., cfg.emb_dim: ]
+      d1, d2 = linears._split_de_dim(cfg.emb_dim)
+      deep_embedding = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2)
    
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)

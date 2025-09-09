@@ -82,6 +82,12 @@ def _canonicalize_tuple(x):
     return (x,)
 
 
+def _split_de_dim(embed_dim):
+  d = int(np.sqrt(embed_dim))
+  d1, d2 = (32, embed_dim // 32) if embed_dim % d != 0 else (d, d)
+  return d1, d2
+
+
 class DenseGeneral(nn.Module):
   """A linear transformation with flexible axes.
 
@@ -209,15 +215,8 @@ class MlpBlock(nn.Module):
   def setup(self):
     if  self.config.deep_embed and 'x' in self.config.deep_embed:
       D = self.config.emb_dim
-      d = int(np.sqrt(D))
-      if D % d != 0:
-        self.d1 = 32
-        self.d2 = D // self.d1
-      else:
-        self.d1 = d
-        self.d2 = d
-
-      print(f'D: {D} d1: {self.d1} d2: {self.d2}')
+      self.d1, self.d2 = _split_de_dim(D)
+      print(f'emb_dim: {D} d1: {self.d1} d2: {self.d2}')
       # nd_dense_init(1.0, "fan_in", "truncated_normal")
       # self.s1 = self.param('s1', initializers.nd_dense_init_normal(0.07746), (D, self.d), self.weight_dtype)
       # self.s2 = self.param('s2', nn.initializers.constant(0.0), (self.d, D), self.weight_dtype)

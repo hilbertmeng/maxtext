@@ -510,8 +510,10 @@ class Decoder(nn.Module):
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
 
-    if 'x' in cfg.deep_embed:
+    if cfg.deep_embed_init == 'outside' and 'x' in cfg.deep_embed:
       y, deep_embeddings = get_deep_embedding(cfg, y)
+    else:
+      deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
       
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
@@ -585,7 +587,7 @@ class Decoder(nn.Module):
               decoder_segment_ids,
               decoder_positions,
               decoder_input_tokens,
-              deep_embeddings if 'x' in cfg.deep_embed else None,
+              deep_embeddings,
               deterministic,
               model_mode,
               eos_sum=eos_sum,
@@ -631,7 +633,7 @@ class Decoder(nn.Module):
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
-                deep_embeddings[lyr] if 'x' in cfg.deep_embed else None,
+                deep_embeddings[lyr],
                 deterministic,
                 model_mode,
                 hids=hids,
@@ -714,12 +716,11 @@ class Transformer(nn.Module):
 
     cfg = self.config
     mesh = self.mesh
-    if cfg.deep_embed == '1x':
+    if cfg.deep_embed_init == 'outside' and cfg.deep_embed == '1x':
       emb_dim = cfg.emb_dim  + cfg.num_decoder_layers * cfg.emb_dim
-    elif '4x' in cfg.deep_embed:
+    elif cfg.deep_embed_init == 'outside' and '4x' in cfg.deep_embed:
       emb_dim = cfg.emb_dim +  cfg.num_decoder_layers * cfg.mlp_dim
     else:
-      assert 'x' not in cfg.deep_embed, f'deep_embed: {cfg.deep_embed} is not supported'
       emb_dim = cfg.emb_dim
     print(f'deep_embed: {cfg.deep_embed} emb_dim: {emb_dim}')
     self.shared_embedding = Embed(

@@ -194,17 +194,19 @@ class DeepEmbedBlock(nn.Module):
   intermediate_dim: int = 2048
 
   def setup(self):
-    if 'x' in self.config.deep_embed:
-      D = self.config.emb_dim if '1x' in self.config.deep_embed else self.intermediate_dim
-      self.d1, self.d2 = _split_de_dim(D)
-      print(f'emb_dim: {D} d1: {self.d1} d2: {self.d2}')
-      self.s1 = self.param('s1', self.kernel_init, (self.config.emb_dim, self.d1), self.weight_dtype)
-      self.s2 = self.param('s2', self.kernel_init, (self.d2, D), self.weight_dtype)
-      self.s2_bias = self.param('s2.bias', self.kernel_init, (D,), self.weight_dtype)
-      print(f's1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape}')
+    D = self.config.emb_dim if '1x' in self.config.deep_embed else self.intermediate_dim
+    self.d1, self.d2 = _split_de_dim(D)
+    print(f'emb_dim: {D} d1: {self.d1} d2: {self.d2}')
+    self.s1 = self.param('s1', self.kernel_init, (self.config.emb_dim, self.d1), self.weight_dtype)
+    self.s2 = self.param('s2', self.kernel_init, (self.d2, D), self.weight_dtype)
+    self.s2_bias = self.param('s2.bias', self.kernel_init, (D,), self.weight_dtype)
+    print(f's1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape}')
 
   @nn.compact
   def __call__(self, inputs, output, deep_embedding):
+    if self.config.deep_embed_init == 'inside':
+      deep_embedding = deep_embedding.reshape(*inputs.shape[:2], self.d1, self.d2)
+
     print(f'deep_embed: {self.config.deep_embed} inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
     if 'x' in self.config.deep_embed:
       B, T = inputs.shape[:2]
@@ -349,6 +351,16 @@ class MlpBlock(nn.Module):
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
     if cfg.deep_embed == '4x':
+      if deep_embedding is None:
+        deep_embedding = embeddings.Embed(
+          num_embeddings=cfg.vocab_size,
+          features=self.intermediate_dim,
+          dtype=cfg.dtype,
+          embedding_init=self.kernel_init,
+          name="deep_embed",
+          config=cfg,
+        )(decoder_input_tokens.astype("int32"))
+        print(f'Outside DE is None, inside 4x DE shape: {deep_embedding.shape}')
       x = self.deep_embed_block(inputs, x, deep_embedding)
 
     output = DenseGeneral(
@@ -366,6 +378,18 @@ class MlpBlock(nn.Module):
     )(x)
 
     if cfg.deep_embed == '1x':
+      if deep_embedding is None:
+        deep_embedding = embeddings.Embed(
+          num_embeddings=cfg.vocab_size,
+          features=cfg.emb_dim,
+          dtype=cfg.dtype,
+          embedding_init=self.kernel_init,
+          name="deep_embed",
+          config=cfg,
+        )(decoder_input_tokens.astype("int32"))
+        # deep_embedding = deep_embedding.reshape(*decoder_input_tokens.shape[:2], self.d1, self.d2)
+        print(f'Outside DE is None, inside 1x DE shape: {deep_embedding.shape}')
+
       output = self.deep_embed_block(inputs, output, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")

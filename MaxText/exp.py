@@ -43,6 +43,11 @@ class Optimizer:
     lr_mults = []
     opt_type = 'adam_pax'
 
+class WSD:
+    warmup_steps_fraction = 0.01
+    stable_steps_fraction = 0.89
+    cosine_learning_rate_final_fraction = 0.1
+
 class Muon:
     opt_type = 'muon'
     adam_b1 = 0.9
@@ -135,6 +140,9 @@ class Llama2XLSG(Llama2Medium):
     learning_rate_schedule_steps = 50000
     eval_interval = 5000
     head_dim = 64
+
+class Llama2MediumWSD(WSD, Llama2Medium):
+    pass
 
 class MuddLlama2XL(Mudd, Llama2XL):
     pass
@@ -610,6 +618,9 @@ class DCMuddLlama2MediumDE1x(DCMuddLlama2Medium):
     deep_embed_norm = True
 
 class MuonLlama2Medium(Muon, Llama2Medium):
+    pass
+
+class MuonLlama2MediumWSD(WSD, MuonLlama2Medium):
     pass
 
 class LamaMediumMoonPaperBSZLR(Llama2Medium):

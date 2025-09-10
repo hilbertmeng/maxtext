@@ -84,8 +84,8 @@ class Mudd:
     dynamic_dense_hidden_round = True
     ddw_gen_pattern = 'q,k,v,m'
     ddw_gen_chunk_size = None
-    mudd_prenorm = False
-    mudd_postnorm = False
+    mudd_prenorm = True
+    mudd_postnorm = True
     dynamic_mlp_dim = True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
     dynamic_dense_scale_dw = False
     scan_layers = False
@@ -561,7 +561,7 @@ class MTPL2MuddLlama2Medium(Mudd, MTPLlama2Medium):
 
 class MTPL1HCtttMuddLlama2Medium(Mudd, MTPLlama2Medium):
     # compose true(T) or false(F) in main logits, main_hidden_state, projected_features position
-    head_compose_types = 'ttt' # true, true, true, experiments: ttf, tft, ttt
+    head_compose_types = 'ttt' # true, true, true, experiments: ttf, tft, ttt, tft is best
     mtp_num_layers = 1
     mtp_eval_target_module = 1
     mudd_in_layer = True

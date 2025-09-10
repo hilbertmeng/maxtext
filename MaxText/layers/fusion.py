@@ -78,7 +78,8 @@ class SubDecoderLayer(nn.Module):
       self.updated_mlp_dim = round(cfg.mlp_dim * (self.layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
       self.updated_mlp_dim = cfg.mlp_dim
-    max_logging.log(f'layer_inx: {self.layer_inx} sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
+    max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
+    max_logging.log('==================================================\n')
 
 
   @nn.compact
@@ -325,8 +326,7 @@ class FusionDecoderLayer(nn.Module):
             name=f'compose'
             )(
               layer_output=inputs, 
-              hidden_states=hids
+              hids=hids,
+              decoder_input_tokens=decoder_input_tokens,
             )
-        print(f'layer_inx: {self.layer_inx} inputs: {len(inputs)}')
-      
     return inputs, hids

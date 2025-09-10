@@ -660,6 +660,7 @@ mtp_eval_target_module: 0
 mtp_loss_scaling_factor: 0.1
 head_compose_types: 'ttt'
 deep_embed: 'none'
+mudd_deep_embed: 'none'
 deep_embed_init: 'inside' # inside or outside
 clip_by_global_norm: True
 init_method: '006normal'

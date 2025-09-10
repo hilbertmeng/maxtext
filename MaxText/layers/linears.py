@@ -82,10 +82,10 @@ def _canonicalize_tuple(x):
     return (x,)
 
 
-def _split_de_dim(embed_dim):
+def _split_de_dim(embed_dim, default_d1=32):
   # d = int(np.sqrt(embed_dim))
   # d1, d2 = (32, embed_dim // 32) if embed_dim % d != 0 else (d, d)
-  d1, d2 = 32, embed_dim // 32 # first dimension fix 32
+  d1, d2 = default_d1, embed_dim // default_d1 # first dimension fix 32
   return d1, d2
 
 
@@ -192,10 +192,11 @@ class DeepEmbedBlock(nn.Module):
   weight_dtype: DType = jnp.float32
   dtype: DType = jnp.float32
   intermediate_dim: int = 2048
+  default_d1: int = 32
 
   def setup(self):
     D = self.config.emb_dim if '1x' in self.config.deep_embed else self.intermediate_dim
-    self.d1, self.d2 = _split_de_dim(D)
+    self.d1, self.d2 = _split_de_dim(D, default_d1=self.default_d1)
     print(f'emb_dim: {D} d1: {self.d1} d2: {self.d2}')
     self.s1 = self.param('s1', self.kernel_init, (self.config.emb_dim, self.d1), self.weight_dtype)
     self.s2 = self.param('s2', self.kernel_init, (self.d2, D), self.weight_dtype)

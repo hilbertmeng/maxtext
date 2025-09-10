@@ -52,11 +52,12 @@ class Embed(nn.Module):
   dtype: DType = jnp.float32
   attend_dtype: Optional[DType] = None
   embedding_init: Initializer = default_embed_init
+  shard_axis_name: Optional[str] = ("vocab", "embed")
 
   def setup(self):
     self.embedding = self.param(
         "embedding",
-        with_logical_partitioning(self.embedding_init, ("vocab", "embed")),
+        with_logical_partitioning(self.embedding_init, self.shard_axis_name),
         (self.num_embeddings, self.features),
         self.config.weight_dtype,
     )

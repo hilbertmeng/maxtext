@@ -122,26 +122,6 @@ class Mlp(nn.Module):
     if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
-      
-      # ============================Mudd 4x deep embed============================
-      if cfg.mudd_deep_embed == '4x':
-        deep_embedding = embeddings.Embed(
-          num_embeddings=cfg.vocab_size,
-          features=self.dynamic_dense_inter_dim,
-          dtype=cfg.dtype,
-          embedding_init=initializers.get_init_method(cfg.init_method),
-          name="deep_embed",
-          config=cfg,
-        )(decoder_input_tokens.astype("int32"))
-
-        dense_w_inner = linears.DeepEmbedBlock(
-          config=cfg, 
-          kernel_init=initializers.get_init_method(cfg.init_method), 
-          weight_dtype=cfg.weight_dtype, 
-          dtype=cfg.dtype, 
-          intermediate_dim=self.dynamic_dense_inter_dim
-          )(layer_output, dense_w_inner, deep_embedding) # lsp
-      # ============================Mudd 4x deep embed============================
 
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
       if cfg.mudd_use_muon:
@@ -154,6 +134,30 @@ class Mlp(nn.Module):
         dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)
       else:
         dyn_dense_w = dyn_dense_kernel_out
+
+     # ============================Mudd 1x deep embed============================
+      if cfg.mudd_deep_embed == '1x':
+        print(f'Mudd 1x deep embed')
+        intermediate_dim = np.prod(self.dw_shape)
+        deep_embedding = embeddings.Embed(
+          num_embeddings=cfg.vocab_size,
+          features=intermediate_dim,
+          dtype=cfg.dtype,
+          embedding_init=initializers.nd_dense_init_normal(0.006),
+          name="deep_embed",
+          config=cfg,
+          shard_axis_name=("embed", "vocab"),
+        )(decoder_input_tokens.astype("int32"))
+
+        dense_w_inner = linears.DeepEmbedBlock(
+          config=cfg, 
+          kernel_init=initializers.nd_dense_init_normal(0.006), 
+          weight_dtype=cfg.weight_dtype, 
+          dtype=cfg.dtype, 
+          intermediate_dim=intermediate_dim,
+          default_d1=self.C
+          )(layer_output, dense_w_inner, deep_embedding) # lsp
+      # ============================Mudd 4=1x deep embed============================
     return dyn_dense_w
 
 

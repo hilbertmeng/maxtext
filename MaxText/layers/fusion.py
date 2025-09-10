@@ -325,7 +325,7 @@ class FusionDecoderLayer(nn.Module):
             name=f'compose'
             )(
               layer_output=inputs, 
-              hids=hids
+              hidden_states=hids
             )
         print(f'layer_inx: {self.layer_inx} inputs: {len(inputs)}')
       

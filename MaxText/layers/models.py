@@ -651,10 +651,7 @@ class Decoder(nn.Module):
         else:
           main_head_inputs, mtp_head_inputs = y, y # fft: mtpmudd-0.4B: 2.367
       else:
-        # 非 mtp mudd 组合
-        y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
-        main_head_inputs = y[0]
-        mtp_head_inputs = None
+        main_head_inputs, mtp_head_inputs = y[0], None
     else:
         main_head_inputs, mtp_head_inputs = y, y
 

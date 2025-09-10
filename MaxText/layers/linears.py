@@ -95,6 +95,8 @@ class DenseGeneral(nn.Module):
     use_bias: whether to add bias in linear transformation.
     bias_norm: whether to add normalization before adding bias.
     quant: quantization config, defaults to None implying no quantization.
+    lora_rank: rank for LoRA low-rank adaptation. If 0, LoRA is disabled.
+    lora_alpha: disabled, scaling factor for LoRA update; effective scale is lora_alpha / lora_rank.
   """
 
   features: Union[Iterable[int], int]
@@ -107,9 +109,12 @@ class DenseGeneral(nn.Module):
   use_bias: bool = False
   bias_norm: str = ""
   matmul_precision: str = "default"
+  # LoRA configurations
+  lora_rank: Optional[int] = 0
+  # lora_alpha: float = 1.0
 
   @nn.compact
-  def __call__(self, inputs: Array) -> Array:
+  def __call__(self, inputs: Array, lora_pat: Optional[int] = None) -> Array: # lora_pat: static pattern name during forward pass for lora
     """Applies a linear transformation to the inputs along multiple dimensions.
 
     Args:
@@ -155,6 +160,52 @@ class DenseGeneral(nn.Module):
 
     contract_ind = tuple(range(0, len(axis)))
     output = compute_dot_general(inputs, kernel, axis, contract_ind)
+
+    # LoRA: low-rank delta W = A @ B
+    if lora_pat is not None and self.lora_rank is not None and self.lora_rank > 0:
+      # Shapes for LoRA parameters
+      lora_a_shape = tuple(inputs.shape[ax] for ax in axis) + (self.lora_rank,)
+      lora_b_shape = (self.lora_rank,) + features
+
+      # Logical axes for partitioning to match main kernel layout when possible
+      lora_a_axes = self.kernel_axes[: len(axis)] + ("lora",)
+      lora_b_axes = ("lora",) + self.kernel_axes[-len(features) :]
+
+      # Initialize LoRA parameters: A ~ N(0, small), B initialized to zeros so initial delta is zero
+      lora_a = self.param(
+          f"lora_a_{lora_pat}",
+          nn.with_logical_partitioning(initializers.nd_dense_init_normal(0.006), lora_a_axes),
+          lora_a_shape,
+          self.weight_dtype,
+          np.arange(len(axis)),  # in_axis for A
+          np.array([len(axis)]),  # out_axis for A (rank)
+      )
+      lora_b = self.param(
+          f"lora_b_{lora_pat}",
+          nn.with_logical_partitioning(initializers.contant_dense_init(0.0), lora_b_axes),
+          lora_b_shape,
+          self.weight_dtype,
+          np.array([0]),  # in_axis for B (rank)
+          np.arange(1, 1 + len(features)),  # out_axes for features
+      )
+      lora_a = jnp.asarray(lora_a, self.dtype)
+      lora_b = jnp.asarray(lora_b, self.dtype)
+
+      # First: inputs @ A  -> introduces rank dimension at the end
+      hidden = compute_dot_general(inputs, lora_a, axis, contract_ind)
+
+      # Then: hidden @ B contracting over last dim of hidden with first dim (rank) of B
+      matmul_precision = lax.Precision(self.matmul_precision)
+      lora_delta = lax.dot_general(
+          hidden,
+          lora_b,
+          (((hidden.ndim - 1,), (0,)), ((), ())),
+          precision=matmul_precision,
+      )
+
+      # scale = self.lora_alpha / float(max(1, self.lora_rank))
+      scale = 1.0 
+      output = output + (scale * lora_delta).astype(self.dtype)
 
     if self.use_bias:
       bias_axes, bias_shape = (

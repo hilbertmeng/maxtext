@@ -342,8 +342,12 @@ class Llama2Medium6LD1536SandwichAAABWSD25xTokensStoch(Llama2Medium6LD1536Sandwi
 class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapter(Llama2Medium6LD1536SandwichAAABWSD25xTokensStoch):
     use_rins_linear_adapters = True # loss: AB:2.31893 AAB:2.301328 AAAB: 2.305473
 
+class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochBlockLora(Llama2Medium6LD1536SandwichAAABWSD25xTokensStoch):
+    lora_rank = 128 #
+    lora_layers = tuple(range(3,9)) # add lora to A(A)B and A(AA)B
+
 class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapterFix(Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapter):
-    pass 
+    pass  # loss: AB:2.323687, AAB: 2.30587, AAAB: 2.311481
 
 class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapterLN(Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapter):
     rins_layer_norm = True
@@ -885,6 +889,22 @@ class DC2MuddLlamaMediumKV4QO16VgateTanhLGLL(LGLLWindow, DC2MuddLlamaMediumKV4QO
     key_wise = [False, True, False, False]
     num_layers_per_block = 1
     base_mlp_dim = 2816 + int(512/4) # 512 = 12 * 64 * 2 / 3
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eDebug9(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL):  # 0.542
+    use_v_gate = False
+    key_wise = False  # added in _fix
+    num_layers_per_block = 1  # added in _fix
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+    base_num_decoder_layers = 8 
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    # record_raw_grad_per_param = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eDebug10(DC2MuddLlamaMediumKV4QO16LGLLv6eDebug9):
+    pass
 
 class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL): # DC2Mudd + GQA + Vgate medium baseline 
     # L: MHA + Vgate (w/o KW); G: GQA + KW(w/o Vgate)

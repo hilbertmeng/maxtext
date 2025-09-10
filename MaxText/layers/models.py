@@ -532,15 +532,8 @@ class Decoder(nn.Module):
       )(decoder_positions)
 
     if cfg.dense_conn: # lsp
-      if cfg.mudd_prenorm:
-        assert cfg.ddw_gen_pattern == 'q,k,v,m', max_logging.log(f'Error: ddw_gen_pattern must be ‘q,k,v,m’ when mudd_prenorm is true.')
-        y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y)
-      else:
-        y_normed = y
-      if cfg.mudd_in_layer:
-        y, hids = y, [y_normed]
-      else:
-        y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
+      y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
+      y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
     else:
       hids = []
 
@@ -640,8 +633,6 @@ class Decoder(nn.Module):
                 eos_sum=eos_sum,
             )
             y, hids = y
-            if cfg.dense_conn and not cfg.mudd_in_layer:
-              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids)
 
     if cfg.dense_conn:
       if cfg.mtp_num_layers > 0:

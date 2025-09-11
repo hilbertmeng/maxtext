@@ -186,7 +186,7 @@ class DenseGeneral(nn.Module):
 
 class DeepEmbedBlock(nn.Module):
   """Transformer Deep Embed Block."""
-  # name: str = 'deep_embed_block'
+  name: str = 'deep_embed_block'
   config: Config
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
   weight_dtype: DType = jnp.float32

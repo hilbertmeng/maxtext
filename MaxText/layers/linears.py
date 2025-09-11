@@ -186,7 +186,7 @@ class DenseGeneral(nn.Module):
 
 class DeepEmbedBlock(nn.Module):
   """Transformer Deep Embed Block."""
-
+  # name: str = 'deep_embed_block'
   config: Config
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
   weight_dtype: DType = jnp.float32
@@ -209,7 +209,8 @@ class DeepEmbedBlock(nn.Module):
       deep_embedding = deep_embedding.reshape(*inputs.shape[:2], self.d1, self.d2)
 
     print(f'deep_embed: {self.config.deep_embed} inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
-    if 'x' in self.config.deep_embed:
+    if 'x' in self.config.deep_embed or 'x' in self.config.mudd_deep_embed:
+      print(f'DeepEmbedBlock deep embed')
       B, T = inputs.shape[:2]
       # btD x Dd -> btd -> bt1d
       deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)

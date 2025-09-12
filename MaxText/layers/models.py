@@ -720,7 +720,7 @@ class Transformer(nn.Module):
         # Multi deep embed don't support outside init
         raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')
      
-    print(f'deep_embed: {cfg.deep_embed} emb_dim: {emb_dim}')
+    print(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {emb_dim}')
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
         features=emb_dim,

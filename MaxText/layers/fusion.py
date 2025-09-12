@@ -151,6 +151,18 @@ class SubDecoderLayer(nn.Module):
         model_mode=model_mode,
         eos_sum=eos_sum,
     )
+    if 'attn' in cfg.deep_embed_type:
+      attention_lnx = linears.DeepEmbedBlock(
+        name='attn_de_block',
+        config=cfg, 
+        kernel_init=initializers.get_init_method(cfg.init_method),
+        weight_dtype=cfg.weight_dtype, 
+        dtype=cfg.dtype, 
+        input_dim=cfg.emb_dim,
+        output_dim=cfg.emb_dim,
+        de_d1_d2_dims=(32, cfg.emb_dim // 32)  # fix first dimension to 32, and don't need to follow mudd mlp dim.
+        )(inputs, attention_lnx, decoder_input_tokens, deep_embedding)
+      print(f'Outside DE is None, inside 1x Attn DE')
 
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")

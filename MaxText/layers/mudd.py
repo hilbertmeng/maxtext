@@ -82,7 +82,7 @@ class Mlp(nn.Module):
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
 
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
-      dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 128
+      dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
 
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
     print('\n==================================================')
@@ -112,6 +112,47 @@ class Mlp(nn.Module):
       init_v = init_v[None].repeat(C, 0)
       self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
+  def _create_deep_embedding(self, cfg, decoder_input_tokens, features, embed_init=None, shard_axes=None):
+    """Create deep embedding with specified configuration."""
+    embed_kwargs = {
+      "num_embeddings": cfg.vocab_size,
+      "features": features,
+      "dtype": cfg.dtype,
+      "embedding_init": embed_init or initializers.nd_dense_init_normal(0.006),
+      "name": "DE",
+      "config": cfg,
+    }
+    if shard_axes:
+      embed_kwargs["shard_axis_name"] = shard_axes
+    
+    return embeddings.Embed(**embed_kwargs)(decoder_input_tokens.astype("int32"))
+
+
+  def _apply_deep_embed_1x(self, cfg, layer_output, dyn_dense_w, decoder_input_tokens, scale_mode=False):
+    """Apply 1x deep embedding logic."""
+    output_dim = np.prod(self.dw_shape)
+    print(f'Enter Mudd DE: {cfg.deep_embed_type} scale_mode: {scale_mode}')
+    if scale_mode:
+      embed_init = nn.initializers.constant(1.0)
+      deep_embedding = self._create_deep_embedding(
+        cfg, decoder_input_tokens, output_dim, embed_init, ("embed", "vocab")
+      )
+      deep_embedding = deep_embedding.reshape(*decoder_input_tokens.shape[:2], *self.dw_shape)
+      return deep_embedding * dyn_dense_w
+    else:
+      dyn_dense_w_reshaped = dyn_dense_w.reshape(*decoder_input_tokens.shape[:2], -1)
+      dyn_dense_w_processed = linears.DeepEmbedBlock(
+        config=cfg,
+        kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
+        weight_dtype=cfg.weight_dtype,
+        dtype=cfg.dtype,
+        input_dim=cfg.emb_dim,
+        output_dim=output_dim,
+        de_d1_d2_dims=(16, 16),
+      )(layer_output, dyn_dense_w_reshaped, decoder_input_tokens)
+      
+      return dyn_dense_w_processed.reshape(*dyn_dense_w_processed.shape[:2], *self.dw_shape)
+
   @nn.compact
   def __call__(
       self,
@@ -125,8 +166,16 @@ class Mlp(nn.Module):
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
 
       # Apply 4x deep embedding if configured
-      if cfg.mudd_deep_embed == '4x':
-        dense_w_inner = self._apply_deep_embed_4x(cfg, layer_output, dense_w_inner, decoder_input_tokens)
+      if cfg.deep_embed_type == '4xmudd':
+        linears.DeepEmbedBlock(
+          config=cfg,
+          kernel_init=initializers.nd_dense_init_normal(0.006),
+          weight_dtype=cfg.weight_dtype,
+          dtype=cfg.dtype,
+          input_dim=cfg.emb_dim,
+          output_dim=self.dynamic_dense_inter_dim,
+          de_d1_d2_dims=(16, 16),
+        )(layer_output, dense_w_inner, decoder_input_tokens, None)
 
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
       if cfg.mudd_use_muon:
@@ -141,72 +190,11 @@ class Mlp(nn.Module):
         dyn_dense_w = dyn_dense_kernel_out
 
       # Apply deep embedding for 1x and 1xScale modes
-      if cfg.mudd_deep_embed == '1x':
-        print(f'Mudd 1x deep embed')
-        dyn_dense_w = self._apply_deep_embed_1x(cfg, layer_output, dyn_dense_w, decoder_input_tokens)
-      elif cfg.mudd_deep_embed == '1xScale':
-        print(f'Mudd 1xScale deep embed')
-        dyn_dense_w = self._apply_deep_embed_1x(cfg, layer_output, dyn_dense_w, decoder_input_tokens, scale_mode=True)
+      if '1xmudd' in cfg.deep_embed_type:
+        scale_mode = True if 'scale' in cfg.deep_embed_type.lower() else False
+        dyn_dense_w = self._apply_deep_embed_1x(cfg, layer_output, dyn_dense_w, decoder_input_tokens, scale_mode=scale_mode)
+
     return dyn_dense_w
-
-  def _create_deep_embedding(self, cfg, decoder_input_tokens, features, embed_init=None, shard_axes=None):
-    """Create deep embedding with specified configuration."""
-    embed_kwargs = {
-      "num_embeddings": cfg.vocab_size,
-      "features": features,
-      "dtype": cfg.dtype,
-      "embedding_init": embed_init or initializers.nd_dense_init_normal(0.006),
-      "name": "deep_embed",
-      "config": cfg,
-    }
-    if shard_axes:
-      embed_kwargs["shard_axis_name"] = shard_axes
-    
-    return embeddings.Embed(**embed_kwargs)(decoder_input_tokens.astype("int32"))
-
-  def _apply_deep_embed_4x(self, cfg, layer_output, dense_w_inner, decoder_input_tokens):
-    """Apply 4x deep embedding logic."""
-    deep_embedding = self._create_deep_embedding(
-      cfg, decoder_input_tokens, self.dynamic_dense_inter_dim
-    )
-    
-    return linears.DeepEmbedBlock(
-      config=cfg,
-      kernel_init=initializers.nd_dense_init_normal(0.006),
-      weight_dtype=cfg.weight_dtype,
-      dtype=cfg.dtype,
-      intermediate_dim=self.dynamic_dense_inter_dim
-    )(layer_output, dense_w_inner, deep_embedding)
-
-  def _apply_deep_embed_1x(self, cfg, layer_output, dyn_dense_w, decoder_input_tokens, scale_mode=False):
-    """Apply 1x deep embedding logic."""
-    intermediate_dim = np.prod(self.dw_shape)
-    
-    if scale_mode:
-      # 1xScale mode: use constant initialization for scaling
-      embed_init = nn.initializers.constant(1.0)
-      deep_embedding = self._create_deep_embedding(
-        cfg, decoder_input_tokens, intermediate_dim, embed_init, ("embed", "vocab")
-      )
-      deep_embedding = deep_embedding.reshape(*decoder_input_tokens.shape[:2], *self.dw_shape)
-      return deep_embedding * dyn_dense_w
-    else:
-      # Standard 1x mode
-      deep_embedding = self._create_deep_embedding(
-        cfg, decoder_input_tokens, intermediate_dim, shard_axes=("embed", "vocab")
-      )
-      
-      dyn_dense_w_reshaped = dyn_dense_w.reshape(*decoder_input_tokens.shape[:2], -1)
-      dyn_dense_w_processed = linears.DeepEmbedBlock(
-        config=cfg,
-        kernel_init=initializers.nd_dense_init_normal(0.006),
-        weight_dtype=cfg.weight_dtype,
-        dtype=cfg.dtype,
-        intermediate_dim=intermediate_dim,
-        default_d1=self.C
-      )(layer_output, dyn_dense_w_reshaped, deep_embedding)
-      
-      return dyn_dense_w_processed.reshape(*dyn_dense_w_processed.shape[:2], *self.dw_shape)
 
 
 class Compose(nn.Module):

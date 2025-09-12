@@ -55,21 +55,21 @@ Quant = quantizations.AqtQuantization
 
 def get_deep_embedding(cfg, y):
   y, deep_embedding = y[..., :cfg.emb_dim], y[..., cfg.emb_dim: ]
-  if cfg.dynamic_mlp_dim and '4x' in cfg.deep_embed:
+  print(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}')
+  if cfg.deep_embed_type == '4xmlp':
     assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
     start_idx = 0
     deep_embeddings = []
     for layer_inx in range(cfg.num_decoder_layers):
-      updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128
-      d1, d2 = linears._split_de_dim(updated_mlp_dim)
+      updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 if cfg.dynamic_mlp_dim else cfg.mlp_dim
+      d1, d2 = (32, updated_mlp_dim // 32)
       cur_layer_deep_embedding = deep_embedding[..., start_idx: start_idx + updated_mlp_dim]
       start_idx += updated_mlp_dim
       cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*y.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
       print(f'layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
-  else:
-    de_dim = deep_embedding.shape[-1] // cfg.num_decoder_layers
-    d1, d2 = linears._split_de_dim(de_dim)
+  elif cfg.deep_embed_type in ['1xmlp', '1xattn']:
+    d1, d2 = (32, cfg.emb_dim // 32)
     deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
     print(f'deep_embeddings: {deep_embeddings.shape}')
   return y, deep_embeddings
@@ -510,7 +510,7 @@ class Decoder(nn.Module):
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
 
-    if cfg.deep_embed_init == 'outside' and 'x' in cfg.deep_embed:
+    if cfg.deep_embed_init == 'outside' and cfg.deep_embed_type in ['1xmlp', '1xattn', '4xmlp']:
       y, deep_embeddings = get_deep_embedding(cfg, y)
     else:
       deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
@@ -704,9 +704,9 @@ class Transformer(nn.Module):
 
     cfg = self.config
     mesh = self.mesh
-    if cfg.deep_embed_init == 'outside' and cfg.deep_embed == '1x':
+    if cfg.deep_embed_init == 'outside' and (cfg.deep_embed_type == '1xmlp' or cfg.deep_embed_type == '1xattn'):
       emb_dim = cfg.emb_dim  + cfg.num_decoder_layers * cfg.emb_dim
-    elif cfg.deep_embed_init == 'outside' and '4x' in cfg.deep_embed:
+    elif cfg.deep_embed_init == 'outside' and cfg.deep_embed_type == '4xmlp':
       emb_dim = cfg.emb_dim +  cfg.num_decoder_layers * cfg.mlp_dim
     else:
       emb_dim = cfg.emb_dim

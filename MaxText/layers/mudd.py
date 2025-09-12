@@ -85,7 +85,6 @@ class Mlp(nn.Module):
       dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
 
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
-    print('\n==================================================')
     print(f'layer_inx: {layer_inx} dw_shape: {dw_shape} dynamic_dense_inter_dim: {dynamic_dense_inter_dim}')
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
     # (model_dim, inter_dim), inter_dim << model_dim

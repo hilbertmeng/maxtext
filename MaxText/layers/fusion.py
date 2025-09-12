@@ -79,7 +79,6 @@ class SubDecoderLayer(nn.Module):
     else:
       self.updated_mlp_dim = cfg.mlp_dim
     max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
-    max_logging.log('==================================================\n')
 
 
   @nn.compact

@@ -283,6 +283,7 @@ class MlpBlock(nn.Module):
 
     self.deep_embed_block = None
     if output_dim is not None and de_embed_dim is not None:
+      d1 = 32 # suggest 32 or < d2 // 2
       self.deep_embed_block = DeepEmbedBlock(
         name='deep_embed',
         config=self.config, 
@@ -291,7 +292,7 @@ class MlpBlock(nn.Module):
         dtype=self.dtype, 
         input_dim=cfg.emb_dim,
         output_dim=output_dim,
-        de_d1_d2_dims=(32, de_embed_dim // 32)) # fix first dimension to 32, and don't need to follow mudd mlp dim.
+        de_d1_d2_dims=(d1, de_embed_dim // d1)) # fix first dimension to 32, and don't need to follow mudd mlp dim.
 
   def get_norm_layer(self):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "deepseek"):

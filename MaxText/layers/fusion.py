@@ -153,7 +153,7 @@ class SubDecoderLayer(nn.Module):
     )
     if 'attn' in cfg.deep_embed_type:
       attention_lnx = linears.DeepEmbedBlock(
-        name='attn_de_block',
+        name='attn_deep_embed',
         config=cfg, 
         kernel_init=initializers.get_init_method(cfg.init_method),
         weight_dtype=cfg.weight_dtype, 
@@ -184,7 +184,6 @@ class SubDecoderLayer(nn.Module):
     mlp_lnx = None
     if cfg.shared_experts == 1:
       # MLP block.
-      
       mlp_lnx = linears.MlpBlock(
           intermediate_dim=self.updated_mlp_dim, # lsp
           activations=cfg.mlp_activations,
@@ -200,8 +199,8 @@ class SubDecoderLayer(nn.Module):
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:
-            mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))
-            self.sow('intermediates', 'mlp_lnx/l2norm', mlp_l2norm)
+        mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))
+        self.sow('intermediates', 'mlp_lnx/l2norm', mlp_l2norm)
 
     # lsp: moe
     moe_lnx = None

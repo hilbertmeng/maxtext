@@ -186,7 +186,6 @@ class DenseGeneral(nn.Module):
 
 class DeepEmbedBlock(nn.Module):
   """Transformer Deep Embed Block."""
-  name: str = 'deep_embed_block'
   config: Config
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
   weight_dtype: DType = jnp.float32
@@ -207,6 +206,7 @@ class DeepEmbedBlock(nn.Module):
     cfg = self.config
     if cfg.deep_embed_init == 'inside' and deep_embedding is None:
       deep_embedding = embeddings.Embed(
+            name="token_embedder",
             num_embeddings=cfg.vocab_size,
             features=self.d1 * self.d2, # Don't need to follow mudd mlp dim.
             dtype=cfg.dtype,
@@ -225,7 +225,7 @@ class DeepEmbedBlock(nn.Module):
   
     if cfg.deep_embed_norm or cfg.mlp_post_norm:
       output = RMSNorm(
-          name="deep_embed_norm",
+          name="norm",
           dtype=cfg.dtype,
           weight_dtype=cfg.weight_dtype,
           kernel_axes=("norm", ),
@@ -266,10 +266,10 @@ class MlpBlock(nn.Module):
 
   def setup(self):
     cfg = self.config
-    if cfg.deep_embed_type == '1xmlp':
+    if '1xmlp' in cfg.deep_embed_type:
       output_dim = cfg.emb_dim
       de_embed_dim = cfg.emb_dim
-    elif cfg.deep_embed_type == '4xmlp':
+    elif '4xmlp' in cfg.deep_embed_type:
       output_dim = self.intermediate_dim
       de_embed_dim = cfg.mlp_dim
     else:
@@ -278,6 +278,7 @@ class MlpBlock(nn.Module):
     self.deep_embed_block = None
     if output_dim is not None and de_embed_dim is not None:
       self.deep_embed_block = DeepEmbedBlock(
+        name='deep_embed',
         config=self.config, 
         kernel_init=self.kernel_init, 
         weight_dtype=self.weight_dtype, 
@@ -370,8 +371,8 @@ class MlpBlock(nn.Module):
               name='mgate',
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
-    if cfg.deep_embed_type == '4xmlp':
-      print(f'Outside DE is None, inside 4x mlp DE shape: {deep_embedding.shape}')
+    if '4xmlp' in cfg.deep_embed_type:
+      print(f'Outside DE is None, inside 4xmlp DE')
       x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
 
     output = DenseGeneral(
@@ -388,8 +389,8 @@ class MlpBlock(nn.Module):
         rng=self.rng
     )(x)
 
-    if cfg.deep_embed_type == '1xmlp':
-      print(f'Outside DE is None, inside 1x mlp DE shape: {deep_embedding.shape}')
+    if '1xmlp' in cfg.deep_embed_type:
+      print(f'Outside DE is None, inside 1xmlp')
       output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")

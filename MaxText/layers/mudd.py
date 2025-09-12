@@ -119,7 +119,7 @@ class Mlp(nn.Module):
       "features": features,
       "dtype": cfg.dtype,
       "embedding_init": embed_init or initializers.nd_dense_init_normal(0.006),
-      "name": "DE",
+      "name": "token_embedder",
       "config": cfg,
     }
     if shard_axes:
@@ -142,6 +142,7 @@ class Mlp(nn.Module):
     else:
       dyn_dense_w_reshaped = dyn_dense_w.reshape(*decoder_input_tokens.shape[:2], -1)
       dyn_dense_w_processed = linears.DeepEmbedBlock(
+        name='deep_embed',
         config=cfg,
         kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
         weight_dtype=cfg.weight_dtype,
@@ -166,8 +167,9 @@ class Mlp(nn.Module):
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
 
       # Apply 4x deep embedding if configured
-      if cfg.deep_embed_type == '4xmudd':
+      if '4xmudd' in cfg.deep_embed_type:
         linears.DeepEmbedBlock(
+        name='deep_embed',
           config=cfg,
           kernel_init=initializers.nd_dense_init_normal(0.006),
           weight_dtype=cfg.weight_dtype,

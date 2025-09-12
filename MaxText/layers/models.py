@@ -15,7 +15,7 @@
 """Transformer models."""
 # pylint: disable=arguments-differ
 # pylint: disable=no-name-in-module
-
+import re
 from typing import Any, Callable, Optional
 
 
@@ -56,22 +56,25 @@ Quant = quantizations.AqtQuantization
 def get_deep_embedding(cfg, y):
   y, deep_embedding = y[..., :cfg.emb_dim], y[..., cfg.emb_dim: ]
   print(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}')
-  if cfg.deep_embed_type == '4xmlp':
+  if '4xmlp' in cfg.deep_embed_type:
     assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
     start_idx = 0
     deep_embeddings = []
     for layer_inx in range(cfg.num_decoder_layers):
-      updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 if cfg.dynamic_mlp_dim else cfg.mlp_dim
+      # updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 if cfg.dynamic_mlp_dim else cfg.mlp_dim
+      updated_mlp_dim = cfg.mlp_dim # dynamic_mlp_dim loss higher than static mlp_dim, about 0.003 gap
       d1, d2 = (32, updated_mlp_dim // 32)
       cur_layer_deep_embedding = deep_embedding[..., start_idx: start_idx + updated_mlp_dim]
       start_idx += updated_mlp_dim
       cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*y.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
       print(f'layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
-  elif cfg.deep_embed_type in ['1xmlp', '1xattn']:
+  elif re.match(r'1xmlp|1xattn', cfg.deep_embed_type):
     d1, d2 = (32, cfg.emb_dim // 32)
     deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
     print(f'deep_embeddings: {deep_embeddings.shape}')
+  else:
+    raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type}')
   return y, deep_embeddings
 
 
@@ -510,7 +513,7 @@ class Decoder(nn.Module):
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
 
-    if cfg.deep_embed_init == 'outside' and cfg.deep_embed_type in ['1xmlp', '1xattn', '4xmlp']:
+    if cfg.deep_embed_init == 'outside' and re.match(r'1xmlp|1xattn|4xmlp', cfg.deep_embed_type):
       y, deep_embeddings = get_deep_embedding(cfg, y)
     else:
       deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
@@ -704,12 +707,18 @@ class Transformer(nn.Module):
 
     cfg = self.config
     mesh = self.mesh
-    if cfg.deep_embed_init == 'outside' and (cfg.deep_embed_type == '1xmlp' or cfg.deep_embed_type == '1xattn'):
-      emb_dim = cfg.emb_dim  + cfg.num_decoder_layers * cfg.emb_dim
-    elif cfg.deep_embed_init == 'outside' and cfg.deep_embed_type == '4xmlp':
-      emb_dim = cfg.emb_dim +  cfg.num_decoder_layers * cfg.mlp_dim
-    else:
-      emb_dim = cfg.emb_dim
+    emb_dim = cfg.emb_dim
+    if cfg.deep_embed_init == 'outside':
+      if '1xattn' in cfg.deep_embed_type:
+        emb_dim += cfg.num_decoder_layers * cfg.emb_dim
+      elif '1xmlp' in cfg.deep_embed_type:
+        emb_dim  += cfg.num_decoder_layers * cfg.emb_dim
+      elif '4xmlp' in cfg.deep_embed_type:
+        emb_dim +=  cfg.num_decoder_layers * cfg.mlp_dim
+      else:
+        # Multi deep embed don't support outside init
+        raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')
+     
     print(f'deep_embed: {cfg.deep_embed} emb_dim: {emb_dim}')
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,

@@ -618,7 +618,7 @@ class Decoder(nn.Module):
           else:
             sliding_window_sizes = cfg.num_decoder_layers * [cfg.sliding_window_size]
           for lyr in range(cfg.num_decoder_layers):
-            print('\n=================decoder layer=====================\n')
+            print(f'\n=================decoder layer: {lyr}=====================\n')
             RemattedBlockLayer = RemattedBlockLayers[0]
             y = RemattedBlockLayer(
               config=cfg, 

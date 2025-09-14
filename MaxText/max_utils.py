@@ -938,11 +938,16 @@ def setup_initial_state(
 
 
 def create_learning_rate_schedule(config):
-  """Creates a warmup and cosine decay learning rate schedule:
+  """Creates learning rate schedules based on config.scheduler:
+  
+  Supported schedulers:
+  - 'cosine' (default): Warmup + Cosine decay
+  - 'linear': Warmup + Linear decay
+  
   We take inspiration from Llama2's learning rate (LR) schedule, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
   Learning rate schedule has either two or three parts:
   1) Linear warmup from 0 to [learning_rate] over steps 0 to [learning_rate_schedule_steps * warmup_steps_fraction]
-  2) Cosine from [learning_rate] to [learning_rate * cosine_learning_rate_final_fraction] until learning_rate_schedule_steps
+  2) Decay from [learning_rate] to [learning_rate * cosine_learning_rate_final_fraction] until learning_rate_schedule_steps
   3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
   The zero learning rate section can be used to more accurately measure the fully trained model's performance.
   """
@@ -965,28 +970,48 @@ def create_learning_rate_schedule(config):
 
     return schedule
 
+  def make_linear_decay_schedule(init_lr, final_lr, len_steps):
+    def schedule(step):
+      # Linear decay from init_lr to final_lr over len_steps
+      # step ranges from 0 to len_steps
+      pct = step / len_steps
+      return init_lr * (1 - pct) + final_lr * pct
+    return schedule
+
   lr = config.learning_rate
-  cos_final_lr = lr * config.cosine_learning_rate_final_fraction
+  final_lr = lr * config.cosine_learning_rate_final_fraction
 
   warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction)
   stable_steps_fraction = config.stable_steps_fraction if config.stable_steps_fraction is not None else 0
   stable_steps = int(config.learning_rate_schedule_steps * stable_steps_fraction)
-  cos_steps = config.learning_rate_schedule_steps - warmup_steps - stable_steps
+  decay_steps = config.learning_rate_schedule_steps - warmup_steps - stable_steps
   constant_zero_steps = config.steps - config.learning_rate_schedule_steps
+  
   warmup_schedule = optax.linear_schedule(init_value=0.0, end_value=lr, transition_steps=warmup_steps)
-  decay_ratio = 1 - stable_steps_fraction - config.warmup_steps_fraction
-  cos_schedule = make_wsd_decay_schedule(lr, cos_final_lr, cos_steps) if stable_steps_fraction > 0 \
-                                                            else make_cos_schedule(lr, cos_final_lr, cos_steps)
+  
+  # Get scheduler type from config, default to 'cosine' for backward compatibility
+  scheduler_type = getattr(config, 'scheduler', 'cosine')
+  
+  if scheduler_type == 'linear':
+    # Linear decay schedule
+    decay_schedule = make_linear_decay_schedule(lr, final_lr, decay_steps)
+  elif scheduler_type == 'cosine':
+    # Cosine or WSD decay schedule (original behavior)
+    decay_schedule = make_wsd_decay_schedule(lr, final_lr, decay_steps) if stable_steps_fraction > 0 \
+                                                              else make_cos_schedule(lr, final_lr, decay_steps)
+  else:
+    raise ValueError(f"Unknown scheduler type: {scheduler_type}. Supported types: 'cosine', 'linear'")
+    
   constant_schedule = optax.constant_schedule(0.0)
-  pieces = [warmup_schedule, cos_schedule]
+  pieces = [warmup_schedule, decay_schedule]
   boundaries = [
       warmup_steps + stable_steps,
-      warmup_steps + stable_steps + cos_steps,
+      warmup_steps + stable_steps + decay_steps,
   ]
 
   if constant_zero_steps > 0:
     pieces.append(constant_schedule)
-    boundaries.append(warmup_steps + stable_steps + cos_steps + constant_zero_steps)
+    boundaries.append(warmup_steps + stable_steps + decay_steps + constant_zero_steps)
 
   return optax.join_schedules(pieces, boundaries)
 

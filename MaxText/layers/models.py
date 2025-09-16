@@ -668,7 +668,22 @@ class Decoder(nn.Module):
     print(f'OutputHeadLayer input: {main_head_inputs.shape}')
     logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
     print(f'main logits: {logits.shape}')
-    # =====================================llm head======================================
+    # =====================================llm head DE======================================
+    if 'dehead' in cfg.deep_embed_type.lower():
+      print(f'OutputHeadLayer dehead')
+      logits = linears.DeepEmbedBlock(
+        name='head_deep_embed',
+        config=cfg, 
+        kernel_init=initializers.get_init_method(cfg.init_method),
+        weight_dtype=cfg.weight_dtype, 
+        dtype=cfg.dtype, 
+        input_dim=main_head_inputs.shape[-1],
+        output_dim=logits.shape[-1],
+        de_d1_d2_dims=(128, logits.shape[-1] // 128)
+        )(main_head_inputs, logits, decoder_input_tokens, deep_embedding=None)
+      print(f'Outside DE is None, inside 1x Attn DE')
+      main_head_inputs = main_head_inputs.reshape(*main_head_inputs.shape[:2], -1)
+
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
       # lsp: Don't to use remat in here where will lead to decrease performance and inscrease hbm significantly.

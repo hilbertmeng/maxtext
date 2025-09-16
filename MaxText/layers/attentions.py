@@ -1362,6 +1362,7 @@ class Attention(nn.Module):
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
       decoder_input_tokens: Array | None = None,
+      deep_embedding: Array | None = None,
   ):
     """Applies Attention on the input data.
 
@@ -1432,8 +1433,13 @@ class Attention(nn.Module):
         dtype=cfg.dtype, 
         input_dim=cfg.emb_dim,
         output_dim=cfg.emb_dim,
-        de_d1_d2_dims=(32, cfg.emb_dim // 32)  # fix first dimension to 32, and don't need to follow mudd mlp dim.
-        )(inputs_v, value, decoder_input_tokens, deep_embedding=None)
+        de_d1_d2_dims=(32, cfg.emb_dim // 32)
+        )(
+          inputs_kv if isinstance(inputs_kv, jnp.ndarray) else inputs_kv[1], 
+          value, 
+          decoder_input_tokens, 
+          deep_embedding=deep_embedding
+          )
       print(f'Outside DE is None, inside value DE')
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)

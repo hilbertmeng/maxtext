@@ -1361,6 +1361,7 @@ class Attention(nn.Module):
       *,
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
+      decoder_input_tokens: Array | None = None,
   ):
     """Applies Attention on the input data.
 
@@ -1384,13 +1385,14 @@ class Attention(nn.Module):
     Returns:
       output of shape `[batch, length, q_features]`.
     """
+    cfg = self.config
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
     # apply projection.
-    if self.config.fused_qkv:
+    if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
-    elif self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm':
+    elif cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm':
         assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
         inputs_k, inputs_v = inputs_kv
         query = self.query_projection(inputs_q)
@@ -1401,7 +1403,7 @@ class Attention(nn.Module):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
-    query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
+    query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp
 
     # apply ROPE
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
@@ -1419,12 +1421,24 @@ class Attention(nn.Module):
     key = checkpoint_name(key, "key_proj")
     value = checkpoint_name(value, "value_proj")
 
-    assert not self.config.quantize_kvcache or self.kv_quant
+    assert not cfg.quantize_kvcache or self.kv_quant
 
+    if 'devalue' in cfg.deep_embed_type.lower():
+      value = linears.DeepEmbedBlock(
+        name='value_deep_embed',
+        config=cfg, 
+        kernel_init=initializers.get_init_method(cfg.init_method),
+        weight_dtype=cfg.weight_dtype, 
+        dtype=cfg.dtype, 
+        input_dim=cfg.emb_dim,
+        output_dim=cfg.emb_dim,
+        de_d1_d2_dims=(32, cfg.emb_dim // 32)  # fix first dimension to 32, and don't need to follow mudd mlp dim.
+        )(inputs_v, value, decoder_input_tokens, deep_embedding=None)
+      print(f'Outside DE is None, inside value DE')
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
-    if self.config.pre_compose:
+    if cfg.pre_compose or cfg.post_compose:
       out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv, eos_sum=eos_sum)
     else:
       out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv)

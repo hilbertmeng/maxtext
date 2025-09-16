@@ -220,15 +220,14 @@ class DeepEmbedBlock(nn.Module):
             config=cfg,
           )(decoder_input_tokens.astype("int32"))
       deep_embedding = deep_embedding.reshape(*output.shape[:2], self.d1, self.d2)
-
+# inputs: (256, 2048, 1024) output: (256, 2048, 16, 64) deep_embedding: (256, 2048, 32, 32)
     print(f'inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
     print(f'DeepEmbedBlock deep_embed_type: {self.config.deep_embed_type}')
     # btD x Dd -> btd -> bt1d
     deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
     # bt1d @ btdd -> bt1d @ dD -> bt1D + bt1D -> bt1D
     deep_w = deep_w @ deep_embedding @ self.s2 + self.s2_bias
-    output = output * deep_w.reshape(*inputs.shape[:2], -1)
-  
+    output = output * deep_w.reshape(*output.shape)
     if cfg.deep_embed_norm or cfg.mlp_post_norm:
       output = RMSNorm(
           name="norm",

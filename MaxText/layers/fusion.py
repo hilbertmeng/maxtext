@@ -149,6 +149,7 @@ class SubDecoderLayer(nn.Module):
         deterministic=deterministic,
         model_mode=model_mode,
         eos_sum=eos_sum,
+        decoder_input_tokens=decoder_input_tokens,
     )
     if 'attn' in cfg.deep_embed_type:
       attention_lnx = linears.DeepEmbedBlock(

@@ -274,9 +274,11 @@ class MlpBlock(nn.Module):
     if '1xmlp' in cfg.deep_embed_type:
       output_dim = cfg.emb_dim
       de_embed_dim = cfg.emb_dim
+      suffix = '1xmlp'
     elif '4xmlp' in cfg.deep_embed_type:
       output_dim = self.intermediate_dim
       de_embed_dim = cfg.mlp_dim
+      suffix = '4xmlp'
     else:
        output_dim, de_embed_dim = None, None
 
@@ -284,7 +286,7 @@ class MlpBlock(nn.Module):
     if output_dim is not None and de_embed_dim is not None:
       d1 = 32 # suggest 32 or < d2 // 2
       self.deep_embed_block = DeepEmbedBlock(
-        name='deep_embed',
+        name=f'{suffix}_deep_embed',
         config=self.config, 
         kernel_init=self.kernel_init, 
         weight_dtype=self.weight_dtype, 

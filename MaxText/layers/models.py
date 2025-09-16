@@ -69,7 +69,7 @@ def get_deep_embedding(cfg, y):
       cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*y.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
       print(f'layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
-  elif re.match(r'1xmlp|1xattn', cfg.deep_embed_type):
+  elif re.findall(r'1xmlp|1xattn', cfg.deep_embed_type):
     d1, d2 = (32, cfg.emb_dim // 32)
     deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
     print(f'deep_embeddings: {deep_embeddings.shape}')
@@ -513,7 +513,7 @@ class Decoder(nn.Module):
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
 
-    if cfg.deep_embed_init == 'outside' and re.match(r'1xmlp|1xattn|4xmlp', cfg.deep_embed_type):
+    if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp', cfg.deep_embed_type):
       y, deep_embeddings = get_deep_embedding(cfg, y)
     else:
       deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers

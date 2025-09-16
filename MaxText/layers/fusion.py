@@ -150,10 +150,11 @@ class SubDecoderLayer(nn.Module):
         model_mode=model_mode,
         eos_sum=eos_sum,
         decoder_input_tokens=decoder_input_tokens,
+        deep_embedding=deep_embedding,
     )
     if 'attn' in cfg.deep_embed_type:
       attention_lnx = linears.DeepEmbedBlock(
-        name='attn_deep_embed',
+        name='attnout_deep_embed',
         config=cfg, 
         kernel_init=initializers.get_init_method(cfg.init_method),
         weight_dtype=cfg.weight_dtype, 

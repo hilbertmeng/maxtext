@@ -532,8 +532,9 @@ class Decoder(nn.Module):
             kernel_init=initializers.get_init_method(cfg.init_method), # lsp
             use_quant=cfg.use_quant,
         )(y) # btD -> btld
+        dynamic_de /= cfg.emb_dim ** 0.5
         dynamic_de = normalizations.get_rmsnorm(name="gemma3n_de_norm", cfg=cfg)(dynamic_de)
-        deep_embeddings += dynamic_de
+        deep_embeddings = (deep_embeddings +  dynamic_de) * jax.lax.rsqrt(2.0)
         deep_embeddings = deep_embeddings.transpose(2, 0, 1, 3)
     else:
       deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
@@ -761,7 +762,8 @@ class Transformer(nn.Module):
         features=emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=initializers.get_init_method(cfg.init_method), # lsp
+        embedding_init=initializers.get_init_method(cfg.init_method) if 'gemma3n' not in cfg.deep_embed_type else \
+            initializers.nd_dense_init(1.0, "fan_in", "normal"), # lsp
         name="token_embedder",
         config=cfg,
     )

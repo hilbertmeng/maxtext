@@ -357,13 +357,6 @@ class Decoder(nn.Module):
       self.pipeline_module = pipeline.Pipeline(
           config=self.config, mesh=self.mesh, layers=pipeline_stage_module, remat_policy=remat_policy
       )
-    # dense_kernel = self.param(
-    #                         "logits_dense",
-    #                         nn.with_logical_partitioning(initializers.nd_dense_init_normal(0.006), ("embed", "vocab")),
-    #                         (self.config.emb_dim, self.config.vocab_size),
-    #                         self.config.weight_dtype,
-    #                     )
-    # self.logits_dense = dense_kernel.astype(self.config.dtype)
 
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
@@ -561,10 +554,10 @@ class Decoder(nn.Module):
     else:
       hids = []
 
-    if cfg.num_layers_per_block > 1: # sub layer num > 1 should use sub remat
-      RemattedBlockLayers = self.decoder_layer
+    if cfg.num_layers_per_block == 1 and cfg.mudd_in_layer:
+      RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg))
     else:
-      RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
+      RemattedBlockLayers = self.decoder_layer
       
     if cfg.using_pipeline_parallelism:
       if cfg.pipeline_fsdp_ag_once:

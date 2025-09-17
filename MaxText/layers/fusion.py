@@ -17,6 +17,7 @@ limitations under the License.
 """Transformer model definition."""
 # pylint: disable=arguments-differ
 # pylint: disable=no-name-in-module
+from errno import EILSEQ
 import jax
 from flax import linen as nn
 from jax.sharding import Mesh
@@ -290,21 +291,17 @@ class FusionDecoderLayer(nn.Module):
         sliding_window_size = [sliding_window_size]
 
     sliding_window_size = [s or cfg.max_target_length for s in sliding_window_size]
-    if cfg.num_layers_per_block > 1:
-      assert not cfg.dense_conn
-      # prevent_cse设置为true时更节省显存，设置为false速度更快，具体怎么设置需要测试
-      RematSubDecoderLayer = nn.remat(SubDecoderLayer,
-                                      prevent_cse=False,
-                                      policy=models.get_remat_policy(cfg),
-                                      static_argnums=(5, 6),  # Deterministic and model mode are static arguments.
-                                      )
+    if cfg.num_layers_per_block == 1 and cfg.mudd_in_layer:
+      RematSubDecoderLayer = SubDecoderLayer
     else:
-       RematSubDecoderLayer = SubDecoderLayer
-
+      RematSubDecoderLayer = nn.remat(SubDecoderLayer,
+                                      prevent_cse=True,
+                                      policy=models.get_remat_policy(cfg),
+                                      static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
+                                      )
     self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
     
-
   @nn.compact
   def __call__(
       self,
@@ -317,7 +314,6 @@ class FusionDecoderLayer(nn.Module):
       model_mode,
       hids=None,
       eos_sum=None,
-      # decoder_input_tokens=None,
   ):
     cfg = self.config
     for layer in self.subs: # subs length must be 1 when train mudd.

@@ -22,6 +22,7 @@ from typing import Any, Callable, Optional
 from flax import linen as nn
 import functools
 import jax
+from jax.lax import dynamic_update_slice
 import jax.numpy as jnp
 from jax.ad_checkpoint import checkpoint_name
 import common_types
@@ -56,7 +57,10 @@ Quant = quantizations.AqtQuantization
 def get_deep_embedding(cfg, y):
   y, deep_embedding = y[..., :cfg.emb_dim], y[..., cfg.emb_dim: ]
   print(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}')
-  if '4xmlp' in cfg.deep_embed_type:
+  if re.findall(r'gemma3n', cfg.deep_embed_type):
+    deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, -1) # btlD
+    print(f'gemma3n deep_embeddings: {deep_embeddings.shape}')
+  elif '4xmlp' in cfg.deep_embed_type:
     assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
     start_idx = 0
     deep_embeddings = []
@@ -68,11 +72,11 @@ def get_deep_embedding(cfg, y):
       start_idx += updated_mlp_dim
       cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*y.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
-      print(f'layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
+      print(f'4xmlp layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
   elif re.findall(r'1xmlp|1xattn', cfg.deep_embed_type):
     d1, d2 = (32, cfg.emb_dim // 32)
     deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
-    print(f'deep_embeddings: {deep_embeddings.shape}')
+    print(f'1xmlp|1xattn deep_embeddings: {deep_embeddings.shape}')
   else:
     raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type}')
   return y, deep_embeddings
@@ -513,8 +517,24 @@ class Decoder(nn.Module):
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
 
-    if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp', cfg.deep_embed_type):
+    if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp|gemma3n', cfg.deep_embed_type):
       y, deep_embeddings = get_deep_embedding(cfg, y)
+      print(f'deep_embeddings: {deep_embeddings.shape} y: {y.shape}')
+      if 'gemma3n' in cfg.deep_embed_type:
+        dynamic_de = linears.DenseGeneral(
+            (cfg.num_decoder_layers, deep_embeddings.shape[-1]),
+            weight_dtype=cfg.weight_dtype,
+            dtype=cfg.dtype,
+            kernel_axes=("embed", None, "mlp"),
+            quant=self.quant,
+            name="gemma3n_deep_embed",
+            matmul_precision=cfg.matmul_precision,
+            kernel_init=initializers.get_init_method(cfg.init_method), # lsp
+            use_quant=cfg.use_quant,
+        )(y) # btD -> btld
+        dynamic_de = normalizations.get_rmsnorm(name="gemma3n_deep_embed_norm", cfg=cfg)(dynamic_de)
+        deep_embeddings += dynamic_de
+        deep_embeddings = deep_embeddings.transpose(2, 0, 1, 3)
     else:
       deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
       

@@ -527,12 +527,12 @@ class Decoder(nn.Module):
             dtype=cfg.dtype,
             kernel_axes=("embed", None, "mlp"),
             quant=self.quant,
-            name="gemma3n_deep_embed",
+            name="gemma3n_de_proj",
             matmul_precision=cfg.matmul_precision,
             kernel_init=initializers.get_init_method(cfg.init_method), # lsp
             use_quant=cfg.use_quant,
         )(y) # btD -> btld
-        dynamic_de = normalizations.get_rmsnorm(name="gemma3n_deep_embed_norm", cfg=cfg)(dynamic_de)
+        dynamic_de = normalizations.get_rmsnorm(name="gemma3n_de_norm", cfg=cfg)(dynamic_de)
         deep_embeddings += dynamic_de
         deep_embeddings = deep_embeddings.transpose(2, 0, 1, 3)
     else:

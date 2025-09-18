@@ -548,15 +548,19 @@ class Decoder(nn.Module):
           config=cfg,
       )(decoder_positions)
 
-    if cfg.dense_conn: # lsp
+    if cfg.dense_conn:
       y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
       y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
     else:
       hids = []
 
-    RemattedBlockLayers = self.decoder_layer # remat is used in sub layers, outside layers don't need to use remat
-    # RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg))
-
+    if cfg.dense_conn and not cfg.mudd_in_layer:
+      print(f'Outside layers don\'t use remat')
+      RemattedBlockLayers = self.decoder_layer
+    else:
+      print(f'Outside layers use remat')
+      RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg))
+      
     if cfg.using_pipeline_parallelism:
       if cfg.pipeline_fsdp_ag_once:
         partition_spec = self.pipeline_module.get_weight_sharding(
@@ -619,6 +623,7 @@ class Decoder(nn.Module):
                       model_mode,
                   )
         else:
+          assert cfg.num_layers_per_block == 1, f"num_layers_per_block: {cfg.num_layers_per_block} != 1"
           if isinstance(cfg.sliding_window_size, list):
             print(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
             if len(cfg.sliding_window_size) != cfg.num_decoder_layers:

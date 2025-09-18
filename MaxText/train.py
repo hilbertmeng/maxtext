@@ -419,30 +419,33 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
   if 'eos_sum_mean' in intermediate_outputs["intermediates"]["decoder"]:
     output_metrics["scalar"]["eos_sum_mean"] = intermediate_outputs["intermediates"]["decoder"]["eos_sum_mean"]
 
-  l_step_len = max(config.base_num_decoder_layers // 8, 1)
+  l_step_len = max(config.base_num_decoder_layers // config.num_layers_per_block // 8, 1)
   if config.scan_layers:
-    metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
     for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下
-      if config.num_experts > 1:
-        temp_dict = {
-          f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0][layer_num],
-          f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0][layer_num],
-          f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0][layer_num],
-          f"moe/router_logits/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_seq_token_score"][0][layer_num],
-          f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0][layer_num],
-          f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0][layer_num],
-          f"moe/router_probs/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_seq_token_score"][0][layer_num],
-          f"moe/router_probs/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/token_to_expert_score"][0][layer_num],
-        }
-        output_metrics["scalar"].update(temp_dict)
-        step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
-        temp_dict = {f"moe/layer_{layer_num:03d}/selected_expert_{i}_token_nums": 
-                metrics_dict['moe'][f"top/selected_expert_token_nums"][0][layer_num][i] 
-                for i in range(0, config.num_experts, step_len)}
-        output_metrics["scalar"].update(temp_dict)
+      for j in range(config.num_layers_per_block):
+        metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"][f'sub_{j}'] # decode -> layers
+        if config.num_experts > 1:
+          temp_dict = {
+            f"moe/router_logits/l2norm/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/l2norm"][0][layer_num],
+            f"moe/moe_lnx/l2norm/layer_{layer_num:03d}": metrics_dict["moe_lnx/l2norm"][0][layer_num],
+            f"moe/router_logits/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_token_score"][0][layer_num],
+            f"moe/router_logits/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/expert_to_seq_token_score"][0][layer_num],
+            f"moe/router_logits/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_logits/token_to_expert_score"][0][layer_num],
+            f"moe/router_probs/expert_to_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_token_score"][0][layer_num],
+            f"moe/router_probs/expert_to_seq_token_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/expert_to_seq_token_score"][0][layer_num],
+            f"moe/router_probs/token_to_expert_score/layer_{layer_num:03d}": metrics_dict['moe']["router_probs/token_to_expert_score"][0][layer_num],
+          }
+          output_metrics["scalar"].update(temp_dict)
+          step_len = config.num_experts // 8 if config.num_experts >= 16 else 1
+          temp_dict = {f"moe/layer_{layer_num:03d}/selected_expert_{i}_token_nums": 
+                  metrics_dict['moe'][f"top/selected_expert_token_nums"][0][layer_num][i] 
+                  for i in range(0, config.num_experts, step_len)}
+          output_metrics["scalar"].update(temp_dict)
 
-      if config.shared_experts > 0:
-        output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
+        if config.shared_experts > 0:
+          output_metrics["scalar"][f"activation/mlp_lnx/norm/layer_{layer_num:03d}"] = metrics_dict[f"mlp_lnx/l2norm"][0][layer_num]
+          output_metrics["scalar"][f"activation/attn_lnx/norm/layer_{layer_num:03d}"] = metrics_dict[f"attn_lnx/l2norm"][0][layer_num]
+          output_metrics["scalar"][f"activation/attn_weights/max/layer_{layer_num:03d}"] = metrics_dict['self_attention']['attention_op']['QChunk_0'][f"attn_weights/max"][0][layer_num]
 
   else:
     loop_indexes = list(range(0, config.num_decoder_layers, l_step_len)) + \
@@ -451,19 +454,14 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       mtp_i = layer_num - config.num_decoder_layers + 1
       if config.dense_conn:
         if config.mudd_in_layer:
-          if mtp_i >= 0: # mtp layer
-            add = int(mtp_i != config.mtp_num_layers)
-            layer = intermediate_outputs["intermediates"]["decoder"]["mtp_block"][f"mtp_{mtp_i + add}"][f"layers_{layer_num + add}"][f"compose_{layer_num}"]
-          else:
-            add = int(layer_num != config.num_decoder_layers - 1)
-            layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num + add}"][f"compose_{layer_num}"]
+          add = int(layer_num != config.num_decoder_layers - 1)
+          layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num + add}"]['compose']
         else:
-          layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
-        for read_key in ['max', 'mean', 'min', 'std', 'norm']:
-          output_metrics["scalar"][f"mudd/dyn_dense_w/{read_key}/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/{read_key}/layer_{layer_num}"]
-        output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
-
-      if config.num_experts > 1: # todo(lsp): moe mtp mudd record
+          layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['compose']
+        for read_key in ['max', 'mean', 'min', 'std', 'l2norm']:
+          output_metrics["scalar"][f"mudd/dyn_dense_w/{read_key}/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/{read_key}"]
+       
+      if config.num_experts > 1: # todo(lsp): moe mtp mudd reco rd
         metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
         for moe_key1 in ['router_logits', 'router_probs']:
           for moe_key2 in ['expert_to_token_score', 'expert_to_seq_token_score', 'token_to_expert_score']:
@@ -480,11 +478,14 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"].update(temp_dict)
 
       if config.shared_experts > 0:
-        if mtp_i > 0:
-          metrics_dict = intermediate_outputs["intermediates"]["decoder"]["mtp_block"][f"mtp_{mtp_i}"][f"layers_{layer_num}"]['sub_0']
-        else:
-          metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
-        output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0]
+        # if mtp_i > 0:
+        #   metrics_dict = intermediate_outputs["intermediates"]["decoder"]["mtp_block"][f"mtp_{mtp_i}"][f"layers_{layer_num}"]['sub_0']
+        # else:
+        metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
+        output_metrics["scalar"][f"activation/mlp_lnx/norm/layer_{layer_num:03d}"] = metrics_dict[f"mlp_lnx/l2norm"][0]
+        output_metrics["scalar"][f"activation/attn_lnx/norm/layer_{layer_num:03d}"] = metrics_dict[f"attn_lnx/l2norm"][0]
+        output_metrics["scalar"][f"activation/attn_weights/max/layer_{layer_num:03d}"] = metrics_dict['self_attention']['attention_op']['QChunk_0'][f"attn_weights/max"][0]
+
 
 def _split_dpo_state(state):
   reference_params = state.params["reference_params"]

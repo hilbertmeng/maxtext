@@ -213,8 +213,6 @@ class Compose(nn.Module):
       decoder_input_tokens,
   ):
     cfg = self.config
-    if not cfg.dense_conn:
-      return layer_output, hids
     
     y = layer_output
     layer_inx = self.layer_inx
@@ -223,8 +221,8 @@ class Compose(nn.Module):
 
     if self.config.record_internal_nn_metrics:
       for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
-        self.sow('intermediates', f'dyn_dense_w/{op.__name__}/layer_{layer_inx}', op(dyn_dense_w.astype(jnp.float32)))
-      self.sow('intermediates', f'layer_output/norm/layer_{layer_inx}', l2norm(y.astype(jnp.float32)))
+        self.sow('intermediates', f'dyn_dense_w/{op.__name__}', op(dyn_dense_w.astype(jnp.float32)))
+      self.sow('intermediates', f'layer_output/norm', l2norm(y.astype(jnp.float32)))
 
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)

@@ -93,7 +93,6 @@ class SubDecoderLayer(nn.Module):
       deterministic,
       model_mode,
       eos_sum,
-      hids=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -166,6 +165,10 @@ class SubDecoderLayer(nn.Module):
         de_d1_d2_dims=(32, cfg.emb_dim // 32)  # fix first dimension to 32, and don't need to follow mudd mlp dim.
         )(inputs, attention_lnx, decoder_input_tokens, deep_embedding)
       print(f'Outside DE is None, inside 1x Attn DE')
+
+    if cfg.record_internal_nn_metrics:
+        attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))
+        self.sow('intermediates', 'attn_lnx/l2norm', attention_lnx_l2norm)
 
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
@@ -271,17 +274,7 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
-    if cfg.mudd_in_layer:
-      # return's inputs length is 4
-      layer_output, hids = mudd.Compose(
-          cfg, self.mesh, self.quant, self.layer_inx, 
-          name=f'compose'
-          )(
-            layer_output=layer_output, 
-            hids=hids,
-            decoder_input_tokens=decoder_input_tokens,
-          )
-    return layer_output, hids
+    return layer_output
 
 
 class FusionDecoderLayer(nn.Module):
@@ -300,15 +293,16 @@ class FusionDecoderLayer(nn.Module):
     sliding_window_size = cfg.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
     if not isinstance(sliding_window_size, (list, tuple)):
         sliding_window_size = [sliding_window_size]
-
     sliding_window_size = [s or cfg.max_target_length for s in sliding_window_size]
-    # if cfg.num_layers_per_block > 1 or not cfg.mudd_in_layer: # mudd_in_layer is false, sub must use remat
-    RematSubDecoderLayer = nn.remat(SubDecoderLayer,
+
+    if cfg.dense_conn and not cfg.mudd_in_layer:
+      RematSubDecoderLayer = nn.remat(SubDecoderLayer,
                                       prevent_cse=True,
                                       policy=models.get_remat_policy(cfg),
                                       static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
                                       )
-    # RematSubDecoderLayer = SubDecoderLayer
+    else:
+      RematSubDecoderLayer = SubDecoderLayer
     self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
     
@@ -327,8 +321,8 @@ class FusionDecoderLayer(nn.Module):
   ):
     cfg = self.config
     for layer in self.subs: # subs length must be 1 when train mudd.
-        # return's inputs length is 4 if mudd_in_layer is True else inputs length is 1
-        inputs, hids = layer(
+        # return's inputs length is 1
+        inputs = layer(
             inputs,
             decoder_segment_ids,
             decoder_positions,
@@ -337,12 +331,12 @@ class FusionDecoderLayer(nn.Module):
             deterministic,
             model_mode,
             eos_sum,
-            hids,
         )
-        if not cfg.mudd_in_layer:
+        if cfg.dense_conn:
+          # return's inputs length is 4
           inputs, hids = mudd.Compose(
               cfg, self.mesh, self.quant, self.layer_inx, 
-              name=f'compose'
+              name='compose'
               )(
                 layer_output=inputs, 
                 hids=hids,

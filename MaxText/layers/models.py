@@ -512,7 +512,7 @@ class Decoder(nn.Module):
 
     if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp|gemma3n', cfg.deep_embed_type):
       y, deep_embeddings = get_deep_embedding(cfg, y)
-      print(f'deep_embeddings: {deep_embeddings.shape} y: {y.shape}')
+      print(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}')
       if 'gemma3n' in cfg.deep_embed_type:
         dynamic_de = linears.DenseGeneral(
             (cfg.num_decoder_layers, deep_embeddings.shape[-1]),

@@ -206,8 +206,10 @@ class DeepEmbedBlock(nn.Module):
     s2_bias_kernel_init = nn.with_logical_partitioning(self.kernel_init, s2_bias_axes)
     self.s1 = self.param('s1', s1_kernel_init, (self.input_dim, self.d1), self.weight_dtype)
     self.s2 = self.param('s2', s2_kernel_init, (self.d2, self.output_dim), self.weight_dtype)
-    self.s2_bias = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
-    print(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias.shape} de_d1_d2_dims: {self.de_d1_d2_dims}')
+    self.s2_bias = None
+    if self.config.use_s2_bias:
+      self.s2_bias = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
+    print(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias} de_d1_d2_dims: {self.de_d1_d2_dims}')
 
   @nn.compact
   def __call__(self, inputs, output, decoder_input_tokens, deep_embedding=None):
@@ -231,7 +233,12 @@ class DeepEmbedBlock(nn.Module):
       # btD x Dd -> btd -> bt1d
       deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
       # bt1d @ btdd -> bt1d @ dD -> bt1D + bt1D -> bt1D
-      deep_w = deep_w @ deep_embedding @ self.s2 + self.s2_bias
+      deep_w = deep_w @ deep_embedding
+      gate_deep_w = jax.nn.sigmoid(deep_w) if cfg.use_de_gate else deep_w
+      if self.s2_bias is not None:
+        deep_w = gate_deep_w @ self.s2 + self.s2_bias
+      else:
+        deep_w = gate_deep_w @ self.s2
 
     output = output * deep_w.reshape(*output.shape)
 

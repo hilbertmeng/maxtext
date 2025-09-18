@@ -593,6 +593,10 @@ class Decoder(nn.Module):
               model_mode,
           )
         else:
+          if isinstance(cfg.sliding_window_size, list):
+            assert len(cfg.sliding_window_size) == cfg.num_layers_per_block
+          else:
+            assert cfg.num_layers_per_block == 1
           RemattedBlockLayer = RemattedBlockLayers[0]
           y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
               y,

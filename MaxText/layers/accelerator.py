@@ -137,14 +137,12 @@ class QChunk(nn.Module):
     b, t, n, d = query.shape
     n_kv = key.shape[-2]
     ggqa = int(getattr(self.config, 'ggqa', 1)) if self.sliding_window_size == self.config.max_target_length else 1
-    print(f'query: {query.shape} key: {key.shape} ggqa: {ggqa} sliding_window_size: {self.sliding_window_size}')
     query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
     # result = jnp.einsum("btkgd,bskd->bkgts", query, key)
     result = jnp.einsum("btkgd,bskd->bkgts", query, key, 
                         _dot_general=qk_int8.__call__ if self.config.quantization == 'int8' else lax.dot_general)
     if ggqa > 1:
       result = result.reshape(b, -1, 1, *result.shape[-2:])
-    print(f'result: {result.shape}')
     return result
 
   def _apply_attention_dot(

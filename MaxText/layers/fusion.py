@@ -93,6 +93,7 @@ class SubDecoderLayer(nn.Module):
       deterministic,
       model_mode,
       eos_sum,
+      hids=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -270,7 +271,17 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
-    return layer_output
+    if cfg.mudd_in_layer:
+      # return's inputs length is 4
+      layer_output, hids = mudd.Compose(
+          cfg, self.mesh, self.quant, self.layer_inx, 
+          name=f'compose'
+          )(
+            layer_output=layer_output, 
+            hids=hids,
+            decoder_input_tokens=decoder_input_tokens,
+          )
+    return layer_output, hids
 
 
 class FusionDecoderLayer(nn.Module):
@@ -291,14 +302,13 @@ class FusionDecoderLayer(nn.Module):
         sliding_window_size = [sliding_window_size]
 
     sliding_window_size = [s or cfg.max_target_length for s in sliding_window_size]
-    if cfg.num_layers_per_block == 1 and cfg.mudd_in_layer:
-      RematSubDecoderLayer = SubDecoderLayer
-    else:
-      RematSubDecoderLayer = nn.remat(SubDecoderLayer,
+    # if cfg.num_layers_per_block > 1 or not cfg.mudd_in_layer: # mudd_in_layer is false, sub must use remat
+    RematSubDecoderLayer = nn.remat(SubDecoderLayer,
                                       prevent_cse=True,
                                       policy=models.get_remat_policy(cfg),
                                       static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
                                       )
+    # RematSubDecoderLayer = SubDecoderLayer
     self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
     
@@ -317,8 +327,8 @@ class FusionDecoderLayer(nn.Module):
   ):
     cfg = self.config
     for layer in self.subs: # subs length must be 1 when train mudd.
-        # return's inputs length is 1
-        inputs = layer(
+        # return's inputs length is 4 if mudd_in_layer is True else inputs length is 1
+        inputs, hids = layer(
             inputs,
             decoder_segment_ids,
             decoder_positions,
@@ -327,14 +337,15 @@ class FusionDecoderLayer(nn.Module):
             deterministic,
             model_mode,
             eos_sum,
+            hids,
         )
-        # return's inputs length is 4
-        inputs, hids = mudd.Compose(
-            cfg, self.mesh, self.quant, self.layer_inx, 
-            name=f'compose'
-            )(
-              layer_output=inputs, 
-              hids=hids,
-              decoder_input_tokens=decoder_input_tokens,
-            )
+        if not cfg.mudd_in_layer:
+          inputs, hids = mudd.Compose(
+              cfg, self.mesh, self.quant, self.layer_inx, 
+              name=f'compose'
+              )(
+                layer_output=inputs, 
+                hids=hids,
+                decoder_input_tokens=decoder_input_tokens,
+              )
     return inputs, hids

@@ -554,11 +554,9 @@ class Decoder(nn.Module):
     else:
       hids = []
 
-    if cfg.num_layers_per_block == 1 and cfg.mudd_in_layer:
-      RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg))
-    else:
-      RemattedBlockLayers = self.decoder_layer
-      
+    RemattedBlockLayers = self.decoder_layer # remat is used in sub layers, outside layers don't need to use remat
+    # RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg))
+
     if cfg.using_pipeline_parallelism:
       if cfg.pipeline_fsdp_ag_once:
         partition_spec = self.pipeline_module.get_weight_sharding(

@@ -134,13 +134,17 @@ class QChunk(nn.Module):
     assert query.shape[-1] == key.shape[-1], "q, k depths must match."
 
   def qk_product(self, query: Array, key: Array) -> Array:
-    b, t, n, d = query.shape  
+    b, t, n, d = query.shape
     n_kv = key.shape[-2]
-    assert n_kv == self.num_kv_heads
+    ggqa = int(getattr(self.config, 'ggqa', 1)) if self.sliding_window_size == self.config.max_target_length else 1
+    print(f'query: {query.shape} key: {key.shape} ggqa: {ggqa} sliding_window_size: {self.sliding_window_size}')
     query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
     # result = jnp.einsum("btkgd,bskd->bkgts", query, key)
     result = jnp.einsum("btkgd,bskd->bkgts", query, key, 
                         _dot_general=qk_int8.__call__ if self.config.quantization == 'int8' else lax.dot_general)
+    if ggqa > 1:
+      result = result.reshape(b, -1, 1, *result.shape[-2:])
+    print(f'result: {result.shape}')
     return result
 
   def _apply_attention_dot(
@@ -191,11 +195,14 @@ class QChunk(nn.Module):
     probs = probs.astype(self.dtype)
     if attn_mask is not None:
       probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
-
     # output = jnp.einsum('bkgts,bskh->btkgh', probs, value)
+    
+    # lsp
+    ggqa = int(getattr(self.config, 'ggqa', 1)) if self.sliding_window_size == self.config.max_target_length else 1
+    probs = rearrange(probs, 'b (k G) g t s -> b k (G g) t s', G=ggqa)
+
     output = jnp.einsum('bkgts,bskh->btkgh', probs, value, 
                         _dot_general=pv_int8.__call__ if self.config.quantization == 'int8' else lax.dot_general)
-                          
     b, t, n_kv, g, h = output.shape
     output = jnp.reshape(output, (b, t, n_kv * g, h))
     output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)

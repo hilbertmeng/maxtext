@@ -36,6 +36,7 @@ from layers import linears
 from layers import quantizations
 from layers import dc
 from layers import accelerator
+from einops import rearrange
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -1219,19 +1220,27 @@ class Attention(nn.Module):
     Returns:
       Projection of key or value, in shape of `[batch, kv_length, head_dim]`.
     """
+    b, t, h = inputs_kv.shape
+
     if self.num_kv_heads == -1:
       raise ValueError("num_kv_heads is not defined.")
 
     if self.num_query_heads % self.num_kv_heads != 0:
       raise ValueError("Invalid num_kv_heads for GQA.")
+    
+    num_kv_heads = self.num_kv_heads
+    if self.sliding_window_size == t: # lsp
+      ggqa = int(getattr(self.config, 'ggqa', 1))
+      print(f'Enter GGQA...... ggqa: {ggqa}')
+      num_kv_heads = num_kv_heads // ggqa
 
+    print(f'num_kv_heads: {num_kv_heads} sliding_window_size: {self.sliding_window_size}')
     if self.config.opt_type == 'muon':
       kernel_axes = ("embed", "mlp")
-      features=(self.num_kv_heads * self.head_dim, )
+      features=(num_kv_heads * self.head_dim, )
     else:
       kernel_axes = ("embed", "kv_heads", "kv_head_dim")
-      features=(self.num_kv_heads, self.head_dim) 
-    b, t, h = inputs_kv.shape
+      features=(num_kv_heads, self.head_dim) 
     kv_proj = DenseGeneral(
         features=features,
         axis=-1,
@@ -1247,7 +1256,7 @@ class Attention(nn.Module):
         rng=self.rng
     )(inputs_kv)
     if self.config.opt_type == 'muon':
-      kv_proj = kv_proj.reshape(b, t, self.num_kv_heads, self.head_dim)
+      kv_proj = kv_proj.reshape(b, t, num_kv_heads, self.head_dim)
     return kv_proj
 
   def qkv_projection(self, inputs: Array, proj_name: str):
@@ -1450,6 +1459,33 @@ class Attention(nn.Module):
       out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv)
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
+
+    if self.config.o_gate_hidden_dim:
+      print(f'Enter o_gate_hidden_dim......')
+      o_gate_hidden = DenseGeneral(
+        (self.config.o_gate_hidden_dim,),
+        dtype=self.dtype,
+        weight_dtype=self.weight_dtype,
+        quant=self.quant,
+        kernel_init=self.kernel_init,
+        kernel_axes=('embed', None), 
+        name="o_gate_proj_1",)(
+          inputs_q
+          )
+
+      o_gate = DenseGeneral(
+        (inputs_q.shape[-1],),
+        dtype=self.dtype,
+        weight_dtype=self.weight_dtype,
+        quant=self.quant,
+        kernel_init=self.kernel_init,
+        kernel_axes=(None, 'embed'), 
+        name="o_gate_proj_2",)(
+          o_gate_hidden
+          )
+      o_gate = jax.nn.sigmoid(o_gate)
+      print(f'self.config.num_query_heads: {self.config.num_query_heads}')
+      out = out * rearrange(o_gate, 'B T (N D) -> B T N D', N=self.config.num_query_heads)
 
     # apply output projection,  output dim is set to the input dim.
     out = self.out_projection(inputs_q.shape[-1], out)

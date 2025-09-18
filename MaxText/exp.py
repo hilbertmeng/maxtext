@@ -686,3 +686,10 @@ class MuonLlamaXLH16MoonPaperBSZLR(Muon, LlamaXLH16MoonPaperBSZLR):
 class MuonLlamaXLMoonPaperBSZLR(Muon, LlamaXLMoonPaperBSZLR):
     pass
 
+class DCMuddMLlamaOgateLGLLGgqa4(LGLLWindow, DCMuddLlama2Medium):
+    o_gate_hidden_dim = 64
+    key_wise = False
+    ggqa = 4
+    mudd_prenorm = False
+    mudd_postnorm = False
+

@@ -677,3 +677,9 @@ attn_logit_threshold: 0.0 # k2 paper use 30.0, default 0.0 means don't to use at
 
 o_gate_hidden_dim: 64
 ggqa: 1
+
+# Bucket logging configuration
+bucket_logging_enabled: False  # Whether to enable logging to GCS bucket
+bucket_logging_dir: "logs"        # GCS bucket path for logs, e.g., "gs://my-bucket/logs"
+bucket_log_upload_interval: 60 # Upload interval in seconds (default: 60)
+bucket_log_buffer_size: 1000   # Maximum buffer size before forced upload (default: 1000)

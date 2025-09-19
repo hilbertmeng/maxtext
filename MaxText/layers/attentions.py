@@ -1483,7 +1483,7 @@ class Attention(nn.Module):
         name="o_gate_proj_2",)(
           o_gate_hidden
           )
-      o_gate = jax.nn.sigmoid(o_gate)
+      o_gate = jax.nn.sigmoid(o_gate) # -> tanh
       print(f'self.config.num_query_heads: {self.config.num_query_heads}')
       out = out * rearrange(o_gate, 'B T (N D) -> B T N D', N=self.config.num_query_heads)
 

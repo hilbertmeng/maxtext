@@ -1457,8 +1457,19 @@ def main(argv: Sequence[str]) -> None:
   if "xla_tpu_spmd_rng_bit_generator_unsafe" not in os.environ.get("LIBTPU_INIT_ARGS", ""):
     os.environ["LIBTPU_INIT_ARGS"] = os.environ.get("LIBTPU_INIT_ARGS", "") + " --xla_tpu_spmd_rng_bit_generator_unsafe=true"
   config, teacher_config = pyconfig.initialize(argv)
-  max_utils.print_system_information()
   validate_train_config(config)
+  
+  # Initialize bucket logging if enabled
+  if config.bucket_logging_enabled:
+    max_logging.initialize_bucket_logging(
+      run_name=config.run_name,
+      bucket_dir=config.bucket_logging_dir,
+      upload_interval=getattr(config, 'bucket_log_upload_interval', 60),
+      max_buffer_size=getattr(config, 'bucket_log_buffer_size', 1000)
+    )
+    max_logging.log(f"Bucket logging enabled - logs will be saved to: {config.bucket_logging_dir}")
+  
+  max_utils.print_system_information()
   os.environ["TFDS_DATA_DIR"] = config.dataset_path
   # persist cache miss log
   # os.environ["JAX_DEBUG_LOG_MODULES"] = "jax._src.compiler,jax._src.lru_cache" # 单独设置这行不显示

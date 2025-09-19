@@ -22,33 +22,52 @@ import time
 from datetime import datetime
 from typing import Optional, List
 import jax
+import max_utils
 
 
 class BucketLogger:
     """Logger that can batch upload logs to GCS bucket"""
     
     def __init__(self, run_name: Optional[str] = None, bucket_dir: Optional[str] = None, upload_interval: int = 60, max_buffer_size: int = 1000):
-        self.bucket_dir = bucket_dir
-        self.upload_interval = upload_interval  # seconds
-        self.max_buffer_size = max_buffer_size
-        self.log_buffer: List[str] = []
-        self.buffer_lock = threading.Lock()
-        self.last_upload_time = time.time()
-        self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_name = run_name
-        
-        # Only process 0 should upload logs to avoid duplicates
-        self.should_upload = jax.process_index() == 0
-        
-        if self.bucket_dir and self.should_upload:
-            self._start_upload_thread()
+          self.bucket_dir = bucket_dir
+          self.upload_interval = upload_interval  # seconds
+          self.max_buffer_size = max_buffer_size
+          self.log_buffer: List[str] = []
+          self.buffer_lock = threading.Lock()
+          self.last_upload_time = time.time()
+          self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+          self.run_name = run_name
+          
+          # Only process 0 should upload logs to avoid duplicates
+          self.should_upload = jax.process_index() == 0
+
+          self.local_filename = f"{self.run_name}.{self.session_id}.txt"
+          self.backup_dir = f"{self.bucket_dir.rstrip('/')}"
+
+          self.destination_path = f"{self.backup_dir}/{self.local_filename}"
+          
+          if self.bucket_dir and self.should_upload:
+               self._start_upload_thread()
+
+    def backup_main_py_files(self):
+        """Backup main py files to GCS bucket"""
+
+        main_filenames = ['exp.py', 'train.py', 'configs/base.yml', 'layers/models.py', 'layers/linears.py', 'layers/attentions.py', 
+        'layers/normalizations.py', 'layers/accelerator.py', 'layers/fusion.py', 'layers/mudd.py', 'layers/dc.py', 'layers/mtp.py']
+        for filename in main_filenames:
+          filename = f'MaxText/{filename}'
+          destination_path = os.path.join(self.backup_dir, filename)
+          max_utils.upload_blob(destination_path, filename)
+          print(f'Backup {filename} to {destination_path}.')
     
     def _start_upload_thread(self):
         """Start background thread for periodic uploads"""
         def upload_worker():
-            while True:
-                time.sleep(self.upload_interval)
-                self._upload_buffered_logs()
+          # upload experiment's model py files
+          self.backup_main_py_files()
+          while True:
+            time.sleep(self.upload_interval)
+            self._upload_buffered_logs()
         
         upload_thread = threading.Thread(target=upload_worker, daemon=True)
         upload_thread.start()
@@ -68,21 +87,13 @@ class BucketLogger:
         
         try:
             # Import here to avoid circular imports
-            from MaxText import max_utils
-            
-            temp_filename = f"{self.run_name}.{self.session_id}.txt"
-            
-            with open(temp_filename, 'a+') as f:
+            with open(self.local_filename, 'a+') as f:
                 f.write(log_content)
-            
             # Upload to bucket
-            destination_path = f"{self.bucket_dir.rstrip('/')}/{temp_filename}.txt"
-            
-            max_utils.upload_blob(destination_path, temp_filename)
-            print(f"[BucketLogger] Uploaded logs to {destination_path}", flush=True)
-            
+            max_utils.upload_blob(self.destination_path, self.local_filename)
+            print(f"[BucketLogger] Uploaded logs to {self.destination_path}", flush=True)
             # Clean up temp file
-          #   os.remove(temp_filename)
+          #   os.remove(local_filename)
             
         except Exception as e:
             print(f"[BucketLogger] Failed to upload logs: {str(e)}", flush=True)

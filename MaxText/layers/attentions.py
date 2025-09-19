@@ -1230,7 +1230,7 @@ class Attention(nn.Module):
       kernel_init_shard = nn.with_logical_partitioning(self.kernel_init, (None, None, None))
       self.wv_b = self.param('wv_b',kernel_init_shard, (self.config.value_lora_dim, self.num_kv_heads, self.head_dim), self.weight_dtype)
 
-  def query_projection(self, inputs_q: Array) -> Array:
+  def query_projection(self, inputs_q: Array, lora_pat: int | None = None) -> Array:
     """Query projection."""
 
     # NOTE: T5 does not explicitly rescale the attention logits by
@@ -1254,10 +1254,11 @@ class Attention(nn.Module):
         quant=self.quant,
         use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
-    )(inputs_q)
+        lora_rank=self.config.lora_rank,
+    )(inputs_q, lora_pat=lora_pat)
     return query_proj
 
-  def kv_projection(self, inputs_kv: Array, proj_name: str) -> Array:
+  def kv_projection(self, inputs_kv: Array, proj_name: str, lora_pat: int | None = None) -> Array:
     """Projection for Key and Value.
 
     Args:
@@ -1304,10 +1305,11 @@ class Attention(nn.Module):
           quant=self.quant,
           use_bias=self.config.use_bias,
           matmul_precision=self.config.matmul_precision,
-      )(inputs_kv)
+          lora_rank=self.config.lora_rank,
+      )(inputs_kv, lora_pat=lora_pat)
     return kv_proj
 
-  def vgate_projection(self, inputs_q: Array) -> Array:
+  def vgate_projection(self, inputs_q: Array, lora_pat: int | None = None) -> Array:
     G = int(self.config.vo_head_dim / self.head_dim)
     vgate = DenseGeneral(
         features=(self.num_kv_heads, G), # DNG
@@ -1320,10 +1322,11 @@ class Attention(nn.Module):
         quant=self.quant,
         use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
-    )(inputs_q)
+        lora_rank=self.config.lora_rank,
+    )(inputs_q, lora_pat=lora_pat)
     return vgate
 
-  def qkv_projection(self, inputs: Array, proj_name: str):
+  def qkv_projection(self, inputs: Array, proj_name: str, lora_pat: int | None = None):
     """Fused QKV projection"""
 
     qkv_proj = DenseGeneral(
@@ -1337,12 +1340,13 @@ class Attention(nn.Module):
         quant=self.quant,
         use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
-    )(inputs)
+        lora_rank=self.config.lora_rank,
+    )(inputs, lora_pat=lora_pat)
     qkv_proj = checkpoint_name(qkv_proj, "qkv_proj")
     query, key, value = qkv_proj[:, :, 0, ...], qkv_proj[:, :, 1, ...], qkv_proj[:, :, 2, ...]
     return query, key, value
 
-  def out_projection(self, output_dim: int, out: Array) -> Array:
+  def out_projection(self, output_dim: int, out: Array, lora_pat: int | None = None) -> Array:
     out_proj = DenseGeneral(
         features=output_dim,
         axis=(-2, -1),
@@ -1354,7 +1358,8 @@ class Attention(nn.Module):
         quant=self.quant,
         use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
-    )(out)
+        lora_rank=self.config.lora_rank,
+    )(out, lora_pat=lora_pat)
     return out_proj
 
   def apply_rotary_embedding(self, inputs: Array, inputs_positions: Array, name: str):
@@ -1454,13 +1459,13 @@ class Attention(nn.Module):
     max_logging.log(f'num_kv_heads: {self.num_kv_heads}, use_v_gate: {self.use_v_gate}, key_wise: {self.key_wise}')
     # apply projection.
     if self.config.fused_qkv:
-      query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
+      query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj", lora_pat=layer_inx)
     elif self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm':
         assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
         inputs_k, inputs_v = inputs_kv
-        query = self.query_projection(inputs_q)
-        key = self.kv_projection(inputs_k, proj_name="key")
-        value = self.kv_projection(inputs_v, proj_name="value")
+        query = self.query_projection(inputs_q, lora_pat=layer_inx)
+        key = self.kv_projection(inputs_k, proj_name="key", lora_pat=layer_inx)
+        value = self.kv_projection(inputs_v, proj_name="value", lora_pat=layer_inx)
     elif self.config.inner_ffn_way is not None:
       if self.config.inner_ffn_way == 'q':
         inputs_k = inputs_v = hidden_states
@@ -1474,9 +1479,9 @@ class Attention(nn.Module):
       key = self.kv_projection(inputs_k, proj_name="key")
       value = self.kv_projection(inputs_v, proj_name="value")
     else:
-      query = self.query_projection(inputs_q)
-      key = self.kv_projection(inputs_kv, proj_name="key")
-      value = self.kv_projection(inputs_kv, proj_name="value")
+      query = self.query_projection(inputs_q, lora_pat=layer_inx)
+      key = self.kv_projection(inputs_kv, proj_name="key", lora_pat=layer_inx)
+      value = self.kv_projection(inputs_kv, proj_name="value", lora_pat=layer_inx)
     
     raw_value = value
 
@@ -1610,7 +1615,7 @@ class Attention(nn.Module):
       out = rearrange(out, 'B T N G D -> B T N (G D)')
 
     # apply output projection,  output dim is set to the input dim.
-    out = self.out_projection(inputs_q.shape[-1], out)
+    out = self.out_projection(inputs_q.shape[-1], out, lora_pat=layer_inx)
 
     if self.config.use_head_pool and self.config.hp_out_proj:
       if self.config.hp_dynamic_mixed_v:

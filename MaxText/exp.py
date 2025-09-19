@@ -21,6 +21,7 @@ class Common:
     normalization_layer_epsilon = 1e-6
     query_chunk_size = 512
     tensorboard_dir = '' # tensorboard dir, final path is tensorboard_dir + run_name
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches_mqy' 
 
 class Optimizer:
     learning_rate_schedule_steps = 13500
@@ -343,7 +344,10 @@ class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapter(Llama2Medium6LD153
     use_rins_linear_adapters = True # loss: AB:2.31893 AAB:2.301328 AAAB: 2.305473
 
 class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochBlockLora(Llama2Medium6LD1536SandwichAAABWSD25xTokensStoch):
-    lora_rank = 128 #
+    lora_rank = 128 # # AB: 2.319031, AAB: 2.294265, AAAB: 2.29580515
+
+class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAALora(Llama2Medium6LD1536SandwichAAABWSD25xTokensStoch):
+    lora_rank = 128 # AB: 2.324858, AAB: 2.299211, AAAB: 2.3008218
     lora_layers = tuple(range(3,9)) # add lora to A(A)B and A(AA)B
 
 class Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapterFix(Llama2Medium6LD1536SandwichAAABWSD25xTokensStochAdapter):
@@ -911,6 +915,48 @@ class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16Vg
     use_v_gate = True
     key_wise = False
     num_layers_per_block = 1
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateL4Debug(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
+    base_num_decoder_layers = 4 
+
+class LlamaMediumKV4QO16LGLLL4Debug(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
+    base_num_decoder_layers = 4 
+    use_v_gate = False
+    pre_compose = False
+    post_compose = False
+    dense_conn = False
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+    jax_cache_dir = '~/jax_caches' # compile time 116 s 
+
+class LlamaMediumKV4QO16LGLLL4ScanDebug(LlamaMediumKV4QO16LGLLL4Debug):
+    query_chunk_method = 'parallel' # compile time 80 s 
+
+class DC2MuddLlamaMediumKV4QO16LGLLL4Debug(LlamaMediumKV4QO16LGLLL4Debug):
+    pre_compose = True  # compile time  826 s 
+    post_compose = True
+    dense_conn = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLL4ScanDebug(LlamaMediumKV4QO16LGLLL4Debug):
+    query_chunk_method = 'parallel'
+    pre_compose = True  # compile time 403s 
+    post_compose = True
+    dense_conn = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLL8Debug(LlamaMediumKV4QO16LGLLL4Debug):
+    base_num_decoder_layers = 8
+    pre_compose = True  # compile time   1885 s 
+    post_compose = True
+    dense_conn = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLL8ScanDebug(LlamaMediumKV4QO16LGLLL4Debug):
+    base_num_decoder_layers = 8
+    query_chunk_method = 'parallel'
+    pre_compose = True  # compile time  1010s 
+    post_compose = True
+    dense_conn = True
 
 class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateVway(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):
     vgate_vway = True

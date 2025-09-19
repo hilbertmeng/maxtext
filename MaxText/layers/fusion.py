@@ -288,7 +288,7 @@ class SubDecoderLayer(nn.Module):
           lnx,
           lnx if not cfg.dense_conn else lnx_kv,
           decoder_positions,
-          layer_inx,
+          None if self.config.lora_layers is not None and layer_inx not in self.config.lora_layers else layer_inx, # layer_inx filtered by lora_layers: None for non-lora layers, violate sep_dc 
           decoder_segment_ids=decoder_segment_ids,
           deterministic=deterministic,
           model_mode=model_mode,
@@ -434,7 +434,7 @@ class SubDecoderLayer(nn.Module):
           quant=self.quant,
           use_bias=cfg.use_bias,
           kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-      )(hidden_states, deterministic=deterministic)
+      )(hidden_states, deterministic=deterministic, layer_inx=None if self.config.lora_layers is not None and layer_inx not in self.config.lora_layers else layer_inx) # layer_inx filtered by lora_layers: None for non-lora layers
       if cfg.mlp_postnorm:
         lnx_rms = norm_class(
           dtype=cfg.dtype,

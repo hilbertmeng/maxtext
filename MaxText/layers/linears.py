@@ -168,8 +168,15 @@ class DenseGeneral(nn.Module):
       lora_b_shape = (self.lora_rank,) + features
 
       # Logical axes for partitioning to match main kernel layout when possible
-      lora_a_axes = self.kernel_axes[: len(axis)] + ("lora",)
-      lora_b_axes = ("lora",) + self.kernel_axes[-len(features) :]
+      if 'embed' in self.kernel_axes[: len(axis)]:
+        lora_a_axes = self.kernel_axes[: len(axis)] + ("lora",)
+      else:
+        lora_a_axes = self.kernel_axes[: len(axis)] + ("embed",)
+      
+      if 'embed' in self.kernel_axes[-len(features) :]:
+        lora_b_axes = ("lora",) + self.kernel_axes[-len(features) :]
+      else:
+        lora_b_axes = ("embed",) + self.kernel_axes[-len(features) :]
 
       # Initialize LoRA parameters: A ~ N(0, small), B initialized to zeros so initial delta is zero
       lora_a = self.param(
@@ -266,7 +273,7 @@ class MlpBlock(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   @nn.compact
-  def __call__(self, inputs, decode: bool = False, deterministic: bool = False, return_act: bool = False):
+  def __call__(self, inputs, layer_inx: int | None = None, decode: bool = False, deterministic: bool = False, return_act: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -293,7 +300,8 @@ class MlpBlock(nn.Module):
           quant=self.quant,
           use_bias=self.use_bias,
           matmul_precision=self.config.matmul_precision,
-      )(inputs)
+          lora_rank=self.config.lora_rank,
+      )(inputs, lora_pat=layer_inx)
       x = checkpoint_name(x, "mlpwi")
       for idx, act_fn in enumerate(self.activations):
         y = _convert_to_activation_function(act_fn)(x[:, :, idx, ...])
@@ -311,7 +319,8 @@ class MlpBlock(nn.Module):
             quant=self.quant,
             use_bias=self.use_bias,
             matmul_precision=self.config.matmul_precision,
-        )(inputs)
+            lora_rank=self.config.lora_rank,
+        )(inputs, lora_pat=layer_inx)
         x = checkpoint_name(x, "mlp" + dense_name)
         if cfg.activations_in_float32:
           x = x.astype(jnp.float32)
@@ -346,7 +355,8 @@ class MlpBlock(nn.Module):
         quant=self.quant,
         use_bias=self.use_bias,
         matmul_precision=self.config.matmul_precision,
-    )(x)
+        lora_rank=self.config.lora_rank,
+    )(x, lora_pat=layer_inx)
 
     output = checkpoint_name(output, "mlpwo")
     return output if not return_act else (output, x)

@@ -1094,7 +1094,9 @@ def train_loop(config, state=None):
     if config.report_performance_metric_for_gcp_monitoring:
       performance_metric_queue = queue.Queue()
       gcp_workload_monitor.start_performance_reporting_thread(performance_metric_queue)
-
+  
+  before_compile_time = time.time()
+  print('start compile...', before_compile_time)
   for step in np.arange(start_step, config.steps):
     if not config.only_eval: # lsp
       if step == first_profiling_step or prof.should_activate_periodic_profile(step):
@@ -1120,6 +1122,10 @@ def train_loop(config, state=None):
           current_skip_layers = None
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
           state, metrics = p_train_step(state, example_batch, nextrng, current_skip_layers)
+          
+      if step == 0:
+        print('after compile...', time.time())
+        print('compile time...', time.time() - before_compile_time)
 
       step_time_delta = datetime.datetime.now() - last_step_completion
       last_step_completion = datetime.datetime.now()

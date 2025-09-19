@@ -330,7 +330,7 @@ class Decoder(nn.Module):
 
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
-    static_argnums = (4,5,6) if (self.config.mudd_in_layer or self.config.sep_dc or self.config.mod_sparse_gate) and self.config.recursive_pattern else (4,5)
+    static_argnums = (4,5,6) if (self.config.mudd_in_layer or self.config.sep_dc or self.config.mod_sparse_gate or self.config.lora_rank) and self.config.recursive_pattern else (4,5)
     # static_argnums = (4,5)
     for block_layer in block_layers:
       layer = nn.remat(  # pylint: disable=invalid-name
@@ -566,6 +566,8 @@ class Decoder(nn.Module):
           RemattedBlockLayer = RemattedBlockLayers[0]
           pat = cfg.recursive_pattern
           assert len(pat) == cfg.num_decoder_layers # 'ABC' * 8, ''
+          if cfg.lora_layers is not None: # lora_layers and sep_dc cannot be used together
+            assert not cfg.sep_dc 
           layers_dict = dict([(layer_sym, RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{layer_sym}", quant=self.quant, 
                sliding_window_size=cfg.sliding_window_size[pat.index(layer_sym) % len(cfg.sliding_window_size)] if isinstance(cfg.sliding_window_size, list) else None)) for layer_sym in set(pat)])
           for lyr in range(cfg.num_decoder_layers):

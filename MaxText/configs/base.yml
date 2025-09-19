@@ -675,7 +675,7 @@ mudd_use_muon: False
 dc_use_muon: False
 attn_logit_threshold: 0.0 # k2 paper use 30.0, default 0.0 means don't to use attn logits clip
 
-o_gate_hidden_dim: 64
+o_gate_hidden_dim: 0
 ggqa: 1
 
 # Bucket logging configuration

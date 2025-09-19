@@ -664,7 +664,7 @@ head_compose_types: 'ttt'
 deep_embed_type: 'none' # choices: [none,  attn, 1xmlp, 4xmlp, 1xmudd, 4xmudd, devalue...], alse combine with other types, such as 1xattn_1xmlp....
 deep_embed_init: 'inside' # choices: inside, outside
 deep_embed_norm: False
-use_de_gate: False
+de_gate: 'none' # choices: none, tanh, sigmoid, relu, gelu
 use_s2_bias: True
 
 clip_by_global_norm: True

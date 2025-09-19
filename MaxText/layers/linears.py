@@ -232,15 +232,37 @@ class DeepEmbedBlock(nn.Module):
     else:
       # btD x Dd -> btd -> bt1d
       deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
+     
       # bt1d @ btdd -> bt1d @ dD -> bt1D + bt1D -> bt1D
       deep_w = deep_w @ deep_embedding
-      gate_deep_w = jax.nn.sigmoid(deep_w) if cfg.use_de_gate else deep_w
-      if self.s2_bias is not None:
-        deep_w = gate_deep_w @ self.s2 + self.s2_bias
-      else:
-        deep_w = gate_deep_w @ self.s2
+      if cfg.de_gate == 'tanh':
+        deep_w = jax.nn.tanh(deep_w)
+      elif cfg.de_gate == 'sigmoid':
+        deep_w = jax.nn.sigmoid(deep_w)
+      elif cfg.de_gate == 'relu':
+        deep_w = jax.nn.relu(deep_w)
+      elif cfg.de_gate == 'gelu':
+        deep_w = jax.nn.gelu(deep_w)
+      elif cfg.de_gate == 'silu':
+        deep_w = jax.nn.silu(deep_w)
 
-    output = output * deep_w.reshape(*output.shape)
+      if self.s2_bias is not None:
+        deep_w = (deep_w @ self.s2 + self.s2_bias).reshape(*output.shape)
+      else:
+        deep_w = (deep_w @ self.s2).reshape(*output.shape)
+
+      # if cfg.de_gate == 'tanh':
+      #   deep_w = jax.nn.tanh(deep_w)
+      # elif cfg.de_gate == 'sigmoid':
+      #   deep_w = jax.nn.sigmoid(deep_w)
+      # elif cfg.de_gate == 'relu':
+      #   deep_w = jax.nn.relu(deep_w)
+      # elif cfg.de_gate == 'gelu':
+      #   deep_w = jax.nn.gelu(deep_w)
+      # elif cfg.de_gate == 'silu':
+      #   deep_w = jax.nn.silu(deep_w)
+
+    output *= deep_w
 
     if cfg.deep_embed_norm or cfg.mlp_post_norm:
       output = RMSNorm(

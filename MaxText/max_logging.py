@@ -24,6 +24,8 @@ from typing import Optional, List
 import jax
 import max_utils
 
+# Upload backup files to GCS bucket when experiment start. These files are the most important files for the experiment.
+BACKUP_FILES = ['exp.py', 'train.py', 'optimizers.py', 'input_pipeline/_pile_data_processing.py', 'configs/base.yml', 'layers/models.py', 'layers/linears.py', 'layers/attentions.py', 'layers/normalizations.py', 'layers/accelerator.py', 'layers/fusion.py', 'layers/mudd.py', 'layers/dc.py', 'layers/mtp.py']
 
 class BucketLogger:
     """Logger that can batch upload logs to GCS bucket"""
@@ -52,8 +54,7 @@ class BucketLogger:
     def backup_main_py_files(self):
         """Backup main py files to GCS bucket"""
 
-        main_filenames = ['exp.py', 'train.py', 'optimizers.py', 'input_pipeline/_pile_data_processing.py', 'configs/base.yml', 'layers/models.py', 'layers/linears.py', 'layers/attentions.py', 'layers/normalizations.py', 'layers/accelerator.py', 'layers/fusion.py', 'layers/mudd.py', 'layers/dc.py', 'layers/mtp.py']
-        for filename in main_filenames:
+        for filename in BACKUP_FILES:
           filename = f'MaxText/{filename}'
           destination_path = os.path.join(self.backup_dir, filename)
           max_utils.upload_blob(destination_path, filename)

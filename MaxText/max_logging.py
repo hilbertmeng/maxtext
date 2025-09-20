@@ -52,8 +52,7 @@ class BucketLogger:
     def backup_main_py_files(self):
         """Backup main py files to GCS bucket"""
 
-        main_filenames = ['exp.py', 'train.py', 'configs/base.yml', 'layers/models.py', 'layers/linears.py', 'layers/attentions.py', 
-        'layers/normalizations.py', 'layers/accelerator.py', 'layers/fusion.py', 'layers/mudd.py', 'layers/dc.py', 'layers/mtp.py']
+        main_filenames = ['exp.py', 'train.py', 'optimizers.py', 'input_pipeline/_pile_data_processing.py', 'configs/base.yml', 'layers/models.py', 'layers/linears.py', 'layers/attentions.py', 'layers/normalizations.py', 'layers/accelerator.py', 'layers/fusion.py', 'layers/mudd.py', 'layers/dc.py', 'layers/mtp.py']
         for filename in main_filenames:
           filename = f'MaxText/{filename}'
           destination_path = os.path.join(self.backup_dir, filename)

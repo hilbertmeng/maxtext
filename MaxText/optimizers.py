@@ -1,20 +1,3 @@
-"""
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-     https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
-# pylint: disable=bare-except, consider-using-generator, ungrouped-imports, too-many-positional-arguments
 """Utils that are only interesting to MaxText. """
 from typing import Any, Callable, Optional, Union
 import chex
@@ -268,7 +251,6 @@ _OPTIMIZER_BUILDERS = {
 
 
 def get_optimizer(config, learning_rate_schedule, wd_tree=None):
-  """Create optimizer based on `config.opt_type` with optional clipping."""
   print(f'opt_type: {config.opt_type}')
   try:
     optimizer_builder = _OPTIMIZER_BUILDERS[config.opt_type]
@@ -289,25 +271,6 @@ def adam_pax(
     wd_tree=None,  # lsp
     lr_coef=1.0,
 ) -> optax.GradientTransformation:
-  """Standard Adam optimizer that supports weight decay.
-
-  Follows the implementation in pax/praxis sharded_adam
-  https://github.com/google/praxis/blob/545e00ab126b823265d70c715950d39333484f38/praxis/optimizers.py#L621
-
-  Args:
-    learning_rate_fn: a callable that given the current training step, returns
-      the learning rate to apply.
-    beta1: decay rate to track the first moment.
-    beta2: decay rate to track the second moment.
-    epsilon: Small constant applied to the denominator outside of the square
-      root to avoid dividing by zero when rescaling.
-    epsilon_root: Small constant applied to the denominator inside of the square
-      root to avoid dividing by zero when rescaling.
-    weight_decay: If > 0, weight decay to apply.
-
-  Returns:
-    A `optax.GradientTransformation`.
-  """
 
   def init_fn(params):
     mu = jax.tree_util.tree_map(jnp.zeros_like, params)  # First moment
@@ -315,25 +278,6 @@ def adam_pax(
     return optax.ScaleByAdamState(count=jnp.zeros([], jnp.int32), mu=mu, nu=nu)
 
   def bias_corrected_decay(step: jnp.int32, decay: float):
-    """Incorporates bias correction into decay.
-
-    Please see section 7.1 in https://arxiv.org/pdf/1804.04235.pdf for the
-    derivation of the formulas below. With bias-corrected decay, we can simply
-    do
-
-    m_{t} = decay1 * m_{t-1} + (1 - decay1) * g
-    v_{t} = decay2 * v_{t-1} + (1 - decay2) * g ^ 2
-
-    without further bias correction.
-
-    Args:
-      step: current step, 0-based.
-      decay: the raw decay. As t -> infinity, bias corrected decay converges to
-        this value.
-
-    Returns:
-      Bias corrected decay.
-    """
     t = step.astype(jnp.float32) + 1.0
     return decay * (1.0 - jnp.power(decay, t - 1.0)) / (1.0 - jnp.power(decay, t))
 
@@ -350,11 +294,6 @@ def adam_pax(
         self.nu = nu
 
     def _update_momentum(update, mu, nu):
-      # The conversion to the data type of the update ensures that bfloat16 remains
-      # bfloat16 in the optimizer state. This conversion has to be done after
-      # `bias_corrected_dacay` is calculated as calculating `jnp.power(decay, t)` in low
-      # precision can result in it being rounded to 1 and subsequently a
-      # "division by zero" error.
       beta1_decay = bias_corrected_decay(count, beta1).astype(update)
       beta2_decay = bias_corrected_decay(count, beta2).astype(update)
       mu = (1.0 - beta1_decay) * update + beta1_decay * mu

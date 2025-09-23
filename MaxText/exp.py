@@ -693,3 +693,15 @@ class DCMuddMLlamaOgateLGLLGgqa4(LGLLWindow, DCMuddLlama2Medium):
     mudd_prenorm = False
     mudd_postnorm = False
 
+
+class DCMuddXLama(DC, Mudd, Llama2XL):
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 64.0
+    eval_steps = 162
+    learning_rate_schedule_steps = 25000
+    learning_rate = 2e-4
+    eval_interval = 12500
+    qk_norm = True
+
+class MuonDCMuddXLama(Muon, DCMuddXLama):
+    pass

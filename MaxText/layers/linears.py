@@ -229,7 +229,6 @@ class MlpBlock(nn.Module):
         output_dim=output_dim,
         de_d1_d2_dims=(d1, de_embed_dim // d1)) # fix first dimension to 32, and don't need to follow mudd mlp dim.
 
-
   def get_norm_layer(self):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "deepseek"):
       return RMSNorm
@@ -311,8 +310,19 @@ class MlpBlock(nn.Module):
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
     if '4xmlp' in cfg.deep_embed_type:
+      assert '1xmlp' not in cfg.deep_embed_type, '1xmlp and 4xmlp cannot be used together'
       print(f'Outside DE is None, inside 4xmlp')
-      x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding['4xmlp'])
+      if deep_embedding is not None:
+        d1 = deep_embedding.shape[-2]
+        devalue_d2 = cfg.emb_dim // d1
+        mlp_d2 = cfg.mlp_dim // d1
+        start_dim = devalue_d2 if 'devalue' in cfg.deep_embed_type else 0
+        end_dim = start_dim + mlp_d2
+        print(f'start_dim: {start_dim} end_dim: {end_dim} deep_embedding: {deep_embedding.shape}')
+        de = deep_embedding[..., start_dim: end_dim]
+      else:
+        de = None
+      x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding=de)
 
     output = DenseGeneral(
         inputs.shape[-1],
@@ -326,8 +336,18 @@ class MlpBlock(nn.Module):
         matmul_precision=self.config.matmul_precision,
     )(x)
     if '1xmlp' in cfg.deep_embed_type:
+      assert '4xmlp' not in cfg.deep_embed_type, '1xmlp and 4xmlp cannot be used together'
       print(f'Outside DE is None, inside 1xmlp')
-      output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding['1xmlp'])
+      if deep_embedding is not None:
+        d1 = deep_embedding.shape[-2]
+        devalue_d2 = cfg.emb_dim // d1
+        mlp_d2 = devalue_d2
+        start_dim = devalue_d2 if 'devalue' in cfg.deep_embed_type else 0
+        end_dim = start_dim + mlp_d2
+        de = deep_embedding[..., start_dim: end_dim]
+      else:
+        de = None
+      output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding=de)
 
     output = checkpoint_name(output, "mlpwo")
     return output

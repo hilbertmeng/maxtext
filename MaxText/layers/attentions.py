@@ -27,6 +27,7 @@ from jax.experimental import shard_map
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_kernel
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_mask
 import jax.numpy as jnp
+import numpy as np
 import common_types
 from kernels.ragged_attention import ragged_gqa
 from kernels.ragged_attention import ragged_mha
@@ -38,6 +39,7 @@ from layers import dc
 from layers import accelerator
 from layers import kv_shift
 from einops import rearrange
+from layers import deepembed
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -1329,6 +1331,8 @@ class Attention(nn.Module):
       inputs_kv: Array,
       inputs_positions: Array,
       decoder_segment_ids: Array | None = None,
+      decoder_input_tokens: Array | None = None,
+      deep_embedding: Array | None = None,
       *,
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
@@ -1356,6 +1360,7 @@ class Attention(nn.Module):
     Returns:
       output of shape `[batch, length, q_features]`.
     """
+    cfg = self.config
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
@@ -1396,6 +1401,34 @@ class Attention(nn.Module):
     value = checkpoint_name(value, "value_proj")
 
     assert not self.config.quantize_kvcache or self.kv_quant
+
+    print(f'cfg.deep_embed_type: {cfg.deep_embed_type}')
+    if 'devalue' in cfg.deep_embed_type.lower():
+      if deep_embedding is not None:
+        d1 = deep_embedding.shape[-2]
+        d2 = cfg.emb_dim // d1
+        print(f'd1: {d1} d2: {d2} deep_embedding: {deep_embedding.shape} value: {value.shape}')
+        de = deep_embedding[..., :d2]
+      else:
+        de = None
+      ggqa = getattr(cfg, 'ggqa', 1) if self.sliding_window_size == cfg.max_target_length else 1
+      value = deepembed.DeepEmbedBlock(
+        name='value_deep_embed',
+        config=cfg, 
+        kernel_init=initializers.get_init_method(cfg.init_method),
+        weight_dtype=cfg.weight_dtype, 
+        dtype=cfg.dtype, 
+        input_dim=cfg.emb_dim,
+        output_dim=cfg.emb_dim // ggqa,
+        de_d1_d2_dims=(32, cfg.emb_dim // 32)
+        )(
+          inputs_kv if isinstance(inputs_kv, jnp.ndarray) else inputs_kv[1], 
+          value, 
+          decoder_input_tokens, 
+          deep_embedding=de,
+          )
+      print(f'value: {value.shape} dtype: {value.dtype}')
+      print(f'Outside DE is None, inside value DE')
 
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)

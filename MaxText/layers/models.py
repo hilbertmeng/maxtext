@@ -33,6 +33,7 @@ from layers import pipeline
 from layers import deepembed
 from layers import initializers
 import max_logging
+from einops import rearrange
 
 Array = common_types.Array
 Config = common_types.Config
@@ -410,14 +411,10 @@ class Decoder(nn.Module):
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
-
     if self.deep_embeddings is not None:
-      de = self.deep_embeddings(decoder_input_tokens.astype("int32"))
-      deep_embeddings = deepembed.get_deep_embedding(cfg, de)
-      print(f'deep_embeddings:')
-      for k, v in deep_embeddings.items():
-        print(f'{k}: {v.shape}')
-      print('\n')
+      deep_embeddings = self.deep_embeddings(decoder_input_tokens.astype("int32"))
+      deep_embeddings = rearrange(deep_embeddings, 'B T (L d e) -> L B T d e', L=cfg.num_decoder_layers, d=32 if cfg.emb_dim < 4096 else 64)
+      print(f'deep_embeddings: {deep_embeddings.shape}')
     else:
       deep_embeddings = None
 
@@ -485,7 +482,7 @@ class Decoder(nn.Module):
               decoder_segment_ids,
               decoder_positions,
               decoder_input_tokens,
-              deep_embeddings,
+              deep_embeddings if deep_embeddings is not None else None,
               deterministic,
               model_mode,
               eos_sum=eos_sum,
@@ -519,7 +516,7 @@ class Decoder(nn.Module):
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
-                deep_embeddings,
+                deep_embeddings[lyr] if deep_embeddings is not None else None,
                 deterministic,
                 model_mode,
                 hids=hids,

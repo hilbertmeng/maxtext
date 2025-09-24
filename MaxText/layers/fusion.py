@@ -191,7 +191,7 @@ class SubDecoderLayer(nn.Module):
           quant=self.quant,
           kernel_init=initializers.get_init_method(cfg.init_method), # lsp
           # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) # lsp
-      )(hidden_states, deterministic=deterministic)
+      )(hidden_states, decoder_input_tokens=decoder_input_tokens, deep_embedding=deep_embedding, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:
@@ -288,7 +288,7 @@ class FusionDecoderLayer(nn.Module):
       RematSubDecoderLayer = nn.remat(SubDecoderLayer,
                                       prevent_cse=True, # True和False的时候会影响kernel融合，loss也会有差异
                                       policy=models.get_remat_policy(self.config),
-                                      static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+                                      static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
                                       )
     else:
        RematSubDecoderLayer = SubDecoderLayer

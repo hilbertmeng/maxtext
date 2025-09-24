@@ -33,11 +33,16 @@ class DeepEmbedBlock(nn.Module):
     s1_kernel_init = nn.with_logical_partitioning(self.kernel_init, s1_axes)
     s2_kernel_init = nn.with_logical_partitioning(self.kernel_init, s2_axes)
     s2_bias_kernel_init = nn.with_logical_partitioning(self.kernel_init, s2_bias_axes)
-    self.s1 = self.param('s1', s1_kernel_init, (self.input_dim, self.d1), self.weight_dtype)
-    self.s2 = self.param('s2', s2_kernel_init, (self.d2, self.output_dim), self.weight_dtype)
+
+    s1_kernel = self.param('s1', s1_kernel_init, (self.input_dim, self.d1), self.weight_dtype)
+    self.s1 = jnp.asarray(s1_kernel, self.dtype)
+    s2_kernel = self.param('s2', s2_kernel_init, (self.d2, self.output_dim), self.weight_dtype)
+    self.s2 = jnp.asarray(s2_kernel, self.dtype)
     self.s2_bias = None
     if self.config.use_s2_bias:
-      self.s2_bias = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
+      s2_bias_kernel = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
+      self.s2_bias = jnp.asarray(s2_bias_kernel, self.dtype)
+
     print(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias} de_d1_d2_dims: {self.de_d1_d2_dims}')
 
   @nn.compact
@@ -101,32 +106,14 @@ class DeepEmbedBlock(nn.Module):
 
     return output
 
-def get_deep_embedding(cfg, de):
-  deep_embeddings = {}
-  print(f'de: {de.shape}')
-  if cfg.deep_embed_init == 'outside':
-    for de_type in ['devalue', 'deattnout', '1xmlp', '4xmlp']:
-      if de_type in cfg.deep_embed_type:
-        offset_dim = cfg.mlp_dim if de_type == '4xmlp' else cfg.emb_dim
-        print(f'de_type: {de_type} offset_dim: {offset_dim}')
-        offset_dim *= cfg.num_decoder_layers
-        deep_embeddings[de_type] = rearrange(
-            de[..., :offset_dim], 'B T (L d e) -> L B T d e',
-            L=cfg.num_decoder_layers, 
-            d=32 if cfg.emb_dim < 4096 else 64
-            )
-        de = de[..., offset_dim: ]
-        print(f'{de_type}: {deep_embeddings[de_type].shape}')
- 
-  return deep_embeddings
 
 def compute_embed_dim(cfg):
   emb_dim = 0
   if cfg.deep_embed_init == 'outside':
     if 'devalue' in cfg.deep_embed_type:
       emb_dim += cfg.num_decoder_layers * cfg.emb_dim
-    if 'deattnout' in cfg.deep_embed_type:
-      emb_dim += cfg.num_decoder_layers * cfg.emb_dim
+    # if 'deattnout' in cfg.deep_embed_type: 
+    #   emb_dim += cfg.num_decoder_layers * cfg.emb_dim
     if '1xmlp' in cfg.deep_embed_type:
       emb_dim  += cfg.num_decoder_layers * cfg.emb_dim
     if '4xmlp' in cfg.deep_embed_type:

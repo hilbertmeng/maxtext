@@ -310,8 +310,8 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     for layer in self.subs:
-        outputs = layer(inputs, decoder_segment_ids, decoder_positions, decoder_input_tokens, deep_embedding, deterministic, model_mode, eos_sum)
+        y = layer(inputs, decoder_segment_ids, decoder_positions, decoder_input_tokens, deep_embedding, deterministic, model_mode, eos_sum)
         if self.config.dense_conn:
-          y, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name='compose')(outputs, hids, decoder_input_tokens)
+          y, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name='compose')(y, hids, decoder_input_tokens)
     
     return y, hids

@@ -432,3 +432,15 @@ class DreamMiniXL4KQC256(DreamMiniXL):
     per_device_batch_size = 8.0
     query_chunk_size = 256 # v5p-32: 0.185, 72.5%KW
     sharding_tolerance = 0.05
+
+class DCMuddMLlamaOgateLGLLGgqa4(LGLLWindow, DCMuddLlama2Medium):
+    o_gate_hidden_dim = 64
+    key_wise = False
+    ggqa = 4
+    mudd_prenorm = False
+    mudd_postnorm = False
+    use_dw_bias = True
+    use_dd_bias = True
+    seperate_qk_dw_proj = True
+    num_layers_per_block = 1
+    dc_share_prepost_dw_hidden = True

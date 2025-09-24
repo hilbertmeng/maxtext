@@ -161,8 +161,7 @@ def validate_train_config(config):
 
 
 def get_first_step(state):
-  with jax.spmd_mode("allow_all"):
-    return int(state.step)
+  return int(state.step)
 
 
 def load_next_batch(train_iter, example_batch, config):
@@ -228,31 +227,30 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
 
 def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True):
   """Writes metrics to tensorboard"""
-  with jax.spmd_mode("allow_all"):
-    if jax.process_index() == 0 and (step % config.upload_loss_tb_period == 0 or not is_training): # lsp
-      for metric_name in metrics.get("scalar", []):
-        if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
-          continue
-        writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name]), step)
-      # for metric_name in metrics.get("scalars", []):
-      #   writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
+  if jax.process_index() == 0 and (step % config.upload_loss_tb_period == 0 or not is_training): # lsp
+    for metric_name in metrics.get("scalar", []):
+      if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
+        continue
+      writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name]), step)
+    # for metric_name in metrics.get("scalars", []):
+    #   writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
 
-    if is_training:
-      full_log = step % config.log_period == 0
+  if is_training:
+    full_log = step % config.log_period == 0
 
-      max_logging.log(
-          f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
-          f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-          # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
-          f"total_weights: {metrics['scalar']['learning/total_weights']}, "
-          f"loss: {metrics['scalar']['learning/loss']:.3f}, "
-          f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}, "
-          f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}, "
-          f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
-      )
-      if full_log and jax.process_index() == 0:
-        max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
-        writer.flush()
+    max_logging.log(
+        f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
+        f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
+        # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
+        f"total_weights: {metrics['scalar']['learning/total_weights']}, "
+        f"loss: {metrics['scalar']['learning/loss']:.3f}, "
+        f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}, "
+        f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}, "
+        f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
+    )
+    if full_log and jax.process_index() == 0:
+      max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
+      writer.flush()
 
 
 def clear_buffered_metrics():

@@ -35,6 +35,7 @@ import max_logging
 import max_utils
 from aqt.jax.v2 import aqt_tensor
 from kernels import megablox as mblx
+from layers import deepembed
 
 
 Array = common_types.Array
@@ -202,6 +203,33 @@ class MlpBlock(nn.Module):
   use_pre_norm: bool = False
   quant: Optional[Quant] = None
 
+  def setup(self) -> None:
+    cfg = self.config
+    if '1xmlp' in cfg.deep_embed_type:
+      output_dim = cfg.emb_dim
+      de_embed_dim = cfg.emb_dim
+      suffix = '1xmlp'
+    elif '4xmlp' in cfg.deep_embed_type:
+      output_dim = self.intermediate_dim
+      de_embed_dim = cfg.mlp_dim
+      suffix = '4xmlp'
+    else:
+       output_dim, de_embed_dim = None, None
+
+    self.deep_embed_block = None
+    if output_dim is not None and de_embed_dim is not None:
+      d1 = 32 # suggest 32 or < d2 // 2
+      self.deep_embed_block = deepembed.DeepEmbedBlock(
+        name=f'{suffix}_deep_embed',
+        config=self.config, 
+        kernel_init=self.kernel_init, 
+        weight_dtype=self.weight_dtype, 
+        dtype=self.dtype, 
+        input_dim=cfg.emb_dim,
+        output_dim=output_dim,
+        de_d1_d2_dims=(d1, de_embed_dim // d1)) # fix first dimension to 32, and don't need to follow mudd mlp dim.
+
+
   def get_norm_layer(self):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "deepseek"):
       return RMSNorm
@@ -213,7 +241,7 @@ class MlpBlock(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   @nn.compact
-  def __call__(self, inputs, decode: bool = False, deterministic: bool = False):
+  def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -282,6 +310,10 @@ class MlpBlock(nn.Module):
               name='mgate',
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
+    if '4xmlp' in cfg.deep_embed_type:
+      print(f'Outside DE is None, inside 4xmlp')
+      x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding['4xmlp'])
+
     output = DenseGeneral(
         inputs.shape[-1],
         dtype=self.dtype,
@@ -293,6 +325,9 @@ class MlpBlock(nn.Module):
         use_bias=self.use_bias,
         matmul_precision=self.config.matmul_precision,
     )(x)
+    if '1xmlp' in cfg.deep_embed_type:
+      print(f'Outside DE is None, inside 1xmlp')
+      output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding['1xmlp'])
 
     output = checkpoint_name(output, "mlpwo")
     return output

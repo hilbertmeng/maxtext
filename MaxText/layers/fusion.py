@@ -88,6 +88,8 @@ class SubDecoderLayer(nn.Module):
       inputs,
       decoder_segment_ids,
       decoder_positions,
+      decoder_input_tokens,
+      deep_embedding,
       deterministic,
       model_mode,
       eos_sum,
@@ -150,6 +152,8 @@ class SubDecoderLayer(nn.Module):
         deterministic=deterministic,
         model_mode=model_mode,
         eos_sum=eos_sum,
+        decoder_input_tokens=decoder_input_tokens,
+        deep_embedding=deep_embedding,
     )
     if cfg.record_internal_nn_metrics:
       attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))
@@ -298,14 +302,16 @@ class FusionDecoderLayer(nn.Module):
       inputs,
       decoder_segment_ids,
       decoder_positions,
+      decoder_input_tokens,
+      deep_embedding,
       deterministic,
       model_mode,
       hids=None,
       eos_sum=None,
   ):
     for layer in self.subs:
-        outputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
+        outputs = layer(inputs, decoder_segment_ids, decoder_positions, decoder_input_tokens, deep_embedding, deterministic, model_mode, eos_sum)
         if self.config.dense_conn:
-          y, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name='compose')(outputs, hids)
+          y, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name='compose')(outputs, hids, decoder_input_tokens)
     
     return y, hids

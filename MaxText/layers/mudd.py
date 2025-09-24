@@ -150,6 +150,7 @@ class Compose(nn.Module):
       self,
       layer_output,
       hids,
+      decoder_input_tokens=None,
   ):
     cfg = self.config
     layer_inx = self.layer_inx

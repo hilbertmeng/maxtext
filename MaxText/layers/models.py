@@ -271,7 +271,7 @@ class Decoder(nn.Module):
           block_layer,
           prevent_cse=not self.config.scan_layers,
           policy=policy,
-          static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+          static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
       )
       RemattedBlockLayers.append(layer)
     return RemattedBlockLayers
@@ -348,10 +348,12 @@ class Decoder(nn.Module):
             "dropout": cfg.enable_dropout,
         },
         in_axes=(
-            nn.broadcast,
-            nn.broadcast,
-            nn.broadcast,
-            nn.broadcast,
+          nn.broadcast,
+          nn.broadcast,
+          nn.broadcast,
+          0, # deep_embedding
+          nn.broadcast,
+          nn.broadcast, # 关键字参数不在这个范围内
         ),
         length=length,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
@@ -409,12 +411,15 @@ class Decoder(nn.Module):
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
-    de = self.deep_embeddings(decoder_input_tokens.astype("int32"))
-    deep_embeddings = deepembed.get_deep_embedding(cfg, de)
-    print(f'deep_embeddings:')
-    for k, v in deep_embeddings.items():
-      print(f'{k}: {v.shape}')
-    print('\n')
+    if self.deep_embeddings is not None:
+      de = self.deep_embeddings(decoder_input_tokens.astype("int32"))
+      deep_embeddings = deepembed.get_deep_embedding(cfg, de)
+      print(f'deep_embeddings:')
+      for k, v in deep_embeddings.items():
+        print(f'{k}: {v.shape}')
+      print('\n')
+    else:
+      deep_embeddings = None
 
     if cfg.use_untrainable_positional_embedding:
       y = PositionalEmbedding(cfg.base_emb_dim)(y, decoder_positions)
@@ -479,6 +484,8 @@ class Decoder(nn.Module):
               y,
               decoder_segment_ids,
               decoder_positions,
+              decoder_input_tokens,
+              deep_embeddings,
               deterministic,
               model_mode,
               eos_sum=eos_sum,
@@ -511,6 +518,8 @@ class Decoder(nn.Module):
                 y,
                 decoder_segment_ids,
                 decoder_positions,
+                decoder_input_tokens,
+                deep_embeddings,
                 deterministic,
                 model_mode,
                 hids=hids,
@@ -584,6 +593,8 @@ class Transformer(nn.Module):
         name="deep_token_embedder",
         config=cfg,
     )
+    else:
+      self.deep_embeddings = None
 
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,

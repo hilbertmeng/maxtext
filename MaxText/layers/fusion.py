@@ -151,6 +151,9 @@ class SubDecoderLayer(nn.Module):
         model_mode=model_mode,
         eos_sum=eos_sum,
     )
+    if cfg.record_internal_nn_metrics:
+      attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))
+      self.sow('intermediates', 'attn_lnx/l2norm', attention_lnx_l2norm)
 
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
@@ -188,8 +191,8 @@ class SubDecoderLayer(nn.Module):
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:
-            mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))
-            self.sow('intermediates', 'mlp_lnx/l2norm', mlp_l2norm)
+        mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))
+        self.sow('intermediates', 'mlp_lnx/l2norm', mlp_l2norm)
 
     # lsp: moe
     moe_lnx = None
@@ -230,13 +233,13 @@ class SubDecoderLayer(nn.Module):
       moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
       max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
 
-      if cfg.record_internal_nn_metrics: # lsp
-            moe_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(moe_lnx)))
-            self.sow('intermediates', 'moe_lnx/l2norm', moe_mlp_l2norm)
-        
+      if cfg.record_internal_nn_metrics:
+        moe_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(moe_lnx)))
+        self.sow('intermediates', 'moe_lnx/l2norm', moe_mlp_l2norm)
+      moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+
       if load_balance_loss is not None:
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)
-      moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     if mlp_lnx is not None and moe_lnx is not None:
       max_logging.log('mlp_lnx is not None and moe_lnx is not None.', debug=cfg.debug)
@@ -257,17 +260,7 @@ class SubDecoderLayer(nn.Module):
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
 
-    if 0 and cfg.record_internal_nn_metrics: # lsp: unused
-      self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
-      self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
-      self.sow(
-          "intermediates",
-          "activation_fraction_zero",
-          jnp.sum(layer_output == 0) / jnp.size(layer_output),
-      )
-
-    dyn_dense_w = self.mudd_mlp(layer_output) if not self.config.mudd_in_layer else None# lsp
-    return layer_output, dyn_dense_w
+    return layer_output
 
 
 class FusionDecoderLayer(nn.Module):
@@ -288,11 +281,9 @@ class FusionDecoderLayer(nn.Module):
     sliding_window_size = [self.config.max_target_length if s is None else s for s in sliding_window_size  ]
     max_logging.log(f'FusionDecoderLayer layer_inx: {self.layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
 
-    if self.config.num_layers_per_block > 1:
-      assert not self.config.dense_conn
-      # prevent_cse设置为true时更节省显存，设置为false速度更快，具体怎么设置需要测试
+    if self.config.dense_conn and not self.config.mudd_in_layer:
       RematSubDecoderLayer = nn.remat(SubDecoderLayer,
-                                      prevent_cse=False,
+                                      prevent_cse=True, # True和False的时候会影响kernel融合，loss也会有差异
                                       policy=models.get_remat_policy(self.config),
                                       static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
                                       )
@@ -313,17 +304,9 @@ class FusionDecoderLayer(nn.Module):
       hids=None,
       eos_sum=None,
   ):
-    if self.config.mudd_in_layer:
-        if self.layer_inx == 0: # first layer
-            inputs = [inputs] * len(self.config.dynamic_dense_type)
-        else:
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
-    
     for layer in self.subs:
-        inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
+        outputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
+        if self.config.dense_conn:
+          y, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name='compose')(outputs, hids)
     
-    if self.config.mudd_in_layer:
-        if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
-        return inputs, hids
-    return inputs, dyn_dense_w
+    return y, hids

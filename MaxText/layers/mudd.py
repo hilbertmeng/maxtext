@@ -62,6 +62,7 @@ class Mlp(nn.Module):
   quant: Optional[Quant] = None
   layer_inx: int = None
   use_bias: bool = True
+  C: int = None
 
   def setup(self):
     cfg = self.config
@@ -79,7 +80,8 @@ class Mlp(nn.Module):
     
     factor = 1
     layer_inx = self.layer_inx
-    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
+    C = self.C
+    # C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     dw_shape = (C, ((layer_inx + 1) * factor + 1))
 
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 else 1
@@ -141,44 +143,29 @@ class Compose(nn.Module):
   layer_inx: int = None
   
   def setup(self):
-    if self.config.mudd_in_layer:
-        self.mudd_mlp = Mlp(self.config, self.mesh, self.quant, self.layer_inx)
-          
+    pass
+
   @nn.compact
   def __call__(
       self,
       layer_output,
       hids,
   ):
-    if self.config.mudd_in_layer:
-        y, dyn_dense_w = layer_output, self.mudd_mlp(layer_output)
-    else:
-        y, dyn_dense_w = layer_output
-        if dyn_dense_w is None: 
-          max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
-          return y, hids
-
-    max_logging.log(f'Compose history hidden states.', debug=self.config.debug)
-    layer_inx = self.layer_inx
     cfg = self.config
+    layer_inx = self.layer_inx
+    y = layer_output
+    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
+    dyn_dense_w = Mlp(cfg, self.mesh, self.quant, self.layer_inx, name='mlp', C=C)(layer_output)
 
     if self.config.record_internal_nn_metrics:
-        _dyn_dense_w = dyn_dense_w.astype(jnp.float32)
-        self.sow('intermediates', f'dyn_dense_w/max/layer_{layer_inx}', jnp.max(_dyn_dense_w))
-        self.sow('intermediates', f'dyn_dense_w/mean/layer_{layer_inx}', jnp.mean(_dyn_dense_w))
-        self.sow('intermediates', f'dyn_dense_w/min/layer_{layer_inx}', jnp.min(_dyn_dense_w))
-        self.sow('intermediates', f'dyn_dense_w/norm/layer_{layer_inx}', l2norm(_dyn_dense_w))
-        self.sow('intermediates', f'dyn_dense_w/std/layer_{layer_inx}', jnp.std(_dyn_dense_w))
-        self.sow('intermediates', f'layer_output/norm/layer_{layer_inx}', l2norm(y.astype(jnp.float32)))
-        del _dyn_dense_w
+      for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
+        self.sow('intermediates', f'dyn_dense_w/{op.__name__}', op(dyn_dense_w.astype(jnp.float32)))
+      self.sow('intermediates', f'layer_output/norm', l2norm(y.astype(jnp.float32)))
 
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
-    C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     max_logging.log(f'Compose dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}', debug=self.config.debug)
     dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-    factor = 1
-    hid_idxs = list(range((layer_inx + 1) * factor + 1)) # L+1
     if cfg.ddw_gen_pattern == 'q,k,v,m':
       max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is {cfg.mudd_postnorm}....', debug=self.config.debug)
       if cfg.mudd_postnorm:

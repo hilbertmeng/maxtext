@@ -648,3 +648,5 @@ query_chunk_method: ''
 sub_remat: False
 mix_attn: False
 o_gate_hidden_dim: 0
+
+mtp_num_layers: 0

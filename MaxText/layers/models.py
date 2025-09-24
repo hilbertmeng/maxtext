@@ -421,25 +421,18 @@ class Decoder(nn.Module):
           config=cfg,
       )(decoder_positions)
 
-    if cfg.dense_conn: # lsp
-      if cfg.mudd_prenorm:
-        assert cfg.ddw_gen_pattern == 'q,k,v,m', max_logging.log(f'Error: ddw_gen_pattern must be ‘q,k,v,m’ when mudd_prenorm is true.')
-        y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y)
-      else:
-        y_normed = y
-      if cfg.mudd_in_layer:
-        y, hids = y, [y_normed]
-      else:
-        y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
+    if cfg.dense_conn:
+      y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
+      y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
     else:
       hids = []
 
-    if cfg.num_layers_per_block > 1: # sub layer num > 1 should use sub remat
-      assert cfg.sub_remat
+    if cfg.dense_conn and not cfg.mudd_in_layer:
+      print(f'Outside layers don\'t use remat')
       RemattedBlockLayers = self.decoder_layer
     else:
-      assert not cfg.sub_remat
-      RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
+      print(f'Outside layers use remat')
+      RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg))
 
     if cfg.using_pipeline_parallelism:
       if cfg.pipeline_fsdp_ag_once:
@@ -506,7 +499,7 @@ class Decoder(nn.Module):
           max_logging.log(f'sliding_window_sizes: {sliding_window_sizes}', debug=cfg.debug)
           for lyr in range(cfg.num_decoder_layers):
             RemattedBlockLayer = RemattedBlockLayers[0]
-            y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_sizes[lyr])(
+            y, hids = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_sizes[lyr])(
                 y,
                 decoder_segment_ids,
                 decoder_positions,
@@ -515,10 +508,6 @@ class Decoder(nn.Module):
                 hids=hids,
                 eos_sum=eos_sum,
             )
-            if self.config.mudd_in_layer:
-              y, hids = y
-            if not self.config.mudd_in_layer:
-              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
             
     y = self.get_norm_layer()(
         dtype=cfg.dtype,

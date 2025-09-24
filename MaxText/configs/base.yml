@@ -650,3 +650,8 @@ mix_attn: False
 o_gate_hidden_dim: 0
 
 mtp_num_layers: 0
+init_method: 006normal
+# DE
+de_gate: ''
+deep_embed_init: ''
+deep_embed_type: '' # 'devalue,deattnout,1xmlp,4xmlp'

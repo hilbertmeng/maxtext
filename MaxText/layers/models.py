@@ -30,7 +30,7 @@ from layers import embeddings
 from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
-from layers import mudd
+from layers import deepembed
 from layers import initializers
 import max_logging
 
@@ -249,6 +249,7 @@ class Decoder(nn.Module):
 
   config: Config
   shared_embedding: nn.Module
+  deep_embeddings: nn.Module
   mesh: Mesh
   quant: Optional[Quant] = None
 
@@ -408,6 +409,13 @@ class Decoder(nn.Module):
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
+    de = self.deep_embeddings(decoder_input_tokens.astype("int32"))
+    deep_embeddings = deepembed.get_deep_embedding(cfg, de)
+    print(f'deep_embeddings:')
+    for k, v in deep_embeddings.items():
+      print(f'{k}: {v.shape}')
+    print('\n')
+
     if cfg.use_untrainable_positional_embedding:
       y = PositionalEmbedding(cfg.base_emb_dim)(y, decoder_positions)
 
@@ -538,8 +546,7 @@ class Decoder(nn.Module):
           kernel_axes=("embed", "vocab"),
           name="logits_dense",
           matmul_precision=self.config.matmul_precision,
-          kernel_init=initializers.nd_dense_init_normal(0.006), #lsp
-          # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), #lsp
+          kernel_init=initializers.get_init_method(cfg.init_method),
       )(
           y
       )  # We do not quantize the logits matmul.
@@ -566,18 +573,34 @@ class Transformer(nn.Module):
 
     cfg = self.config
     mesh = self.mesh
+    de_dim = deepembed.compute_embed_dim(cfg)
+    if de_dim > 0: # de 单独初始化，以防影响word_embeddings
+      self.deep_embeddings = Embed(
+        num_embeddings=cfg.vocab_size,
+        features=de_dim,
+        dtype=cfg.dtype,
+        attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        embedding_init=initializers.get_init_method(cfg.init_method), # lsp
+        name="deep_token_embedder",
+        config=cfg,
+    )
+
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
         features=cfg.emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=initializers.nd_dense_init_normal(0.006), # lsp
-        # embedding_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
+        embedding_init=initializers.get_init_method(cfg.init_method), # lsp
         name="token_embedder",
         config=cfg,
     )
 
-    self.decoder = Decoder(config=cfg, shared_embedding=self.shared_embedding, mesh=mesh, quant=self.quant)
+    self.decoder = Decoder(
+      config=cfg, 
+      shared_embedding=self.shared_embedding, 
+      deep_embeddings=self.deep_embeddings,
+      mesh=mesh, 
+      quant=self.quant)
 
   def __call__(
       self,

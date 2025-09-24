@@ -852,7 +852,18 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   else:
     qk_scale_c = jnp.ones(config.num_decoder_layers)
 
-  new_state = state.apply_gradients(grads=raw_grads)
+  if config.gradient_clipping_threshold > 0:
+    grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
+  else:
+    grads = raw_grads
+  if config.optimizer_memory_host_offload:
+    state = state.replace(
+        opt_state=jax.device_put(
+            state.opt_state,
+            jax.tree_util.tree_map(lambda x: x.with_memory_kind(kind="device"), state_mesh_shardings.opt_state),
+        )
+    )
+  new_state = state.apply_gradients(grads=grads)
   
   if tau: # not none and > 0
     # Apply scaling only if the feature is enabled (tau provided)
@@ -875,7 +886,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   scalar_metrics.update(params_scalar_values)
 
   if not config.optimizer_memory_host_offload:
-    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(raw_grads)
+    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
     scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
   if config.use_dpo:

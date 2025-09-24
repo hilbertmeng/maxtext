@@ -258,7 +258,7 @@ def get_optimizer(config, learning_rate_schedule, wd_tree=None):
     raise ValueError(f"{config.opt_type=} is not a supported.")
 
   optimizer = optimizer_builder(config, learning_rate_schedule, wd_tree)
-  return _apply_clipping(optimizer, config)
+  return optimizer
 
 
 def adam_pax(

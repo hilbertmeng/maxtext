@@ -232,14 +232,16 @@ class MultiTokenPredictionBlock(nn.Module):
 
       # Embed the k-th future input tokens using the shared embedding module
       target_token_embedding = self.shared_embedding(rolled_input_ids)
-
-      RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
-          MultiTokenPredictionLayer,
-          prevent_cse=True,
-          policy=None,
-          static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
-          rngs={"params": True, "aqt": True, "dropout": True},
-      )
+      if cfg.mtp_use_remat:
+        RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
+            MultiTokenPredictionLayer,
+            prevent_cse=cfg.remat_prevent_cse,
+            policy=None,
+            static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
+            rngs={"params": True, "aqt": True, "dropout": True},
+        )
+      else:
+        RematMTPLayer = MultiTokenPredictionLayer
        # Instantiate and apply the MTP layer for this step
       mtp_layer = RematMTPLayer(
           config=cfg,

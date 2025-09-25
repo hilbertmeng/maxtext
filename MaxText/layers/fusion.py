@@ -297,7 +297,7 @@ class FusionDecoderLayer(nn.Module):
 
     if cfg.dense_conn and not cfg.mudd_in_layer:
       RematSubDecoderLayer = nn.remat(SubDecoderLayer,
-                                      prevent_cse=True,
+                                      prevent_cse=cfg.remat_prevent_cse,
                                       policy=models.get_remat_policy(cfg),
                                       static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
                                       )

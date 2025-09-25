@@ -364,7 +364,7 @@ class Decoder(nn.Module):
     for block_layer in block_layers:
       layer = nn.remat(  # pylint: disable=invalid-name
           block_layer,
-          prevent_cse=not self.config.scan_layers,
+          prevent_cse=self.config.remat_prevent_cse, # lsp, default false
           policy=policy,
           static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
           rngs={"params": True, "aqt": True, "dropout": True},
@@ -670,7 +670,7 @@ class Decoder(nn.Module):
     else:
       main_head_inputs = y
       mtp_head_inputs = None
-
+    # mtp share llm head params
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,
                         mesh=mesh,

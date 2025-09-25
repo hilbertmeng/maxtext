@@ -114,7 +114,7 @@ class QChunk(nn.Module):
       einsum = self.kv_quant.einsum_fn_with_rhs_qtensor(key)
     b, t, n, d = query.shape  
     n_kv = key.shape[-2]
-    assert n_kv == self.num_kv_heads
+    # assert n_kv == self.num_kv_heads
     query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
     result = einsum("btkgd,bskd->bkgts", query, key)
     return result

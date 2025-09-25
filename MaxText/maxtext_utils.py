@@ -199,12 +199,13 @@ def calculate_tflops_training_per_device(config, log=True):
   if config.attention_type == "mla":
     qkv_flops, attention_flops, projection_flops = calculate_mla_tflops_per_device(config)
   else:
+    num_kv_heads = config.num_kv_heads[0] if isinstance(config.num_kv_heads, list) else config.num_kv_heads
     qkv_flops = (
         2
         * config.per_device_batch_size
         * config.max_target_length
         * config.emb_dim
-        * (config.num_query_heads + 2 * config.num_kv_heads)
+        * (config.num_query_heads + 2 * num_kv_heads)
         * config.head_dim
     )
     attention_flops = (

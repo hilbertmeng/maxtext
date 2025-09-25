@@ -1038,7 +1038,7 @@ class AttentionOp(nn.Module):
     return attn_out
 
   @nn.compact
-  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args): # lsp
+  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args, eos_sum=None): # lsp
     prefill_kv_cache, ar_kv_cache = self.kv_cache(
         key, value, decoder_segment_ids, model_mode, use_ragged_attention=self.use_ragged_attention
     )
@@ -1145,7 +1145,7 @@ class Attention(nn.Module):
 
   def setup(self):
     if self.config.pre_compose or self.config.post_compose:
-      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size)
+      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size, num_kv_heads=self.num_kv_heads)
     else:
       self.attention_op = AttentionOp(
         config=self.config,
@@ -1394,6 +1394,22 @@ class Attention(nn.Module):
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
+
+    if self.num_query_heads > self.num_kv_heads: # GQA
+      assert self.num_query_heads % self.num_kv_heads == 0
+      n_expands = self.num_query_heads // self.num_kv_heads
+      if key.shape[-2] < self.num_query_heads: # for K lora
+        key = jnp.repeat(key, n_expands, axis=-2) # BSNd
+      if value.shape[-2] < self.num_query_heads:  # for V lora
+        value = jnp.repeat(value, n_expands, axis=-2) 
+
+    if self.config.use_v_gate:
+      v_gate = DenseGeneral((self.num_query_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+            kernel_init=self.kernel_init,kernel_axes=('embed', None),name="v_gate", use_bias=False,
+        )(inputs_q)
+      v_gate = jax.nn.tanh(v_gate) + 1 
+      value = value * v_gate[...,None] # BSND, BSN1->BSND
+
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
 
     out = nn.with_logical_constraint(out, self.out_axis_names)

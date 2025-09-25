@@ -86,6 +86,15 @@ class DC:
     key_wise = True
     static_proj = False
 
+class DC2(DC):
+    key_wise = False
+    qk_norm = True
+    seperate_qk_dw_proj = True # generate qw from query-way hidden state
+    dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
+    use_dw_bias = True
+    use_dd_bias = True # harm performance 
+    static_proj = False
+
 class KVshift:
     use_kv_shift = True
     kv_shift_flash = True
@@ -273,6 +282,22 @@ class Llama33B(Llama2Medium):
     base_num_decoder_layers = 60
     head_dim = 128
     model_name = 'Llama33B'
+
+class DC2MuddLlamaMediumKV4QO16LGLLMqyDev(DC2, LGLLWindow, MuddLlama2Medium):  # mqy 
+    query_chunk_size = 256
+    num_layers_per_block = 1
+    base_num_query_heads = 16
+    base_num_kv_heads = [16,4,16,16] # L: MHA + Vgate (w/o KW); G: GQA + KW(w/o Vgate)
+    base_mlp_dim = 2816 + int(512/4)
+    sharding_tolerance = 0.05
+    attention='dot_product_chunk'
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class DC2MuddLlamaMediumKV4QO16LGLLMqyDevQchunk512(DC2MuddLlamaMediumKV4QO16LGLLMqyDev):
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches_mqy'
+    query_chunk_size = 512
 
 class DreamMiniMediumRefactor(DreamMini, Llama2Medium):
     query_chunk_size = 128 # loss 2.31413

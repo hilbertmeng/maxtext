@@ -312,6 +312,12 @@ class FusionDecoderLayer(nn.Module):
     for layer in self.subs:
         y = layer(inputs, decoder_segment_ids, decoder_positions, decoder_input_tokens, deep_embedding, deterministic, model_mode, eos_sum)
         if self.config.dense_conn:
-          y, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name='compose')(y, hids, decoder_input_tokens)
+          if self.layer_inx == self.config.num_decoder_layers - 1: # last layer whether to compose depends on head_compose_types
+            if self.config.head_compose_types[0:2] == 'tf': # decoder last layer compose
+              y, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name='compose')(y, hids, decoder_input_tokens)
+            elif self.config.head_compose_types[0:2] == 'ft': # decoder last layer no compose, but mpt inputs compose
+              pass
+          else:
+              y, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name='compose')(y, hids, decoder_input_tokens)
     
     return y, hids

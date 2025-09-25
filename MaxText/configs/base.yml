@@ -649,9 +649,8 @@ sub_remat: False
 mix_attn: False
 o_gate_hidden_dim: 0
 ggqa: 1
-
-mtp_num_layers: 0
 init_method: 006normal
+
 # DE
 de_gate: ''
 use_s2_bias: True
@@ -663,3 +662,9 @@ bucket_logging_enabled: True  # Whether to enable logging to GCS bucket
 bucket_logging_dir: "logs"        # GCS bucket path for logs, e.g., "gs://my-bucket/logs"
 bucket_log_upload_interval: 300 # Upload interval in seconds (default: 300)
 bucket_log_buffer_size: 500   # Maximum buffer size before forced upload (default: 150)
+
+# MTP
+mtp_num_layers: 0
+mtp_eval_target_module: 0
+mtp_loss_scaling_factor: 0.1
+head_compose_types: 'tft'

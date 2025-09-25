@@ -179,7 +179,5 @@ class Compose(nn.Module):
       else:
         # (btl, btl, btl, btl)
         y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
-    if layer_inx == cfg.num_decoder_layers - 1:
-      del hids
-      return y[0], []
+
     return y, hids

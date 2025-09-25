@@ -133,19 +133,19 @@ class TrainSmall:
     learning_rate_schedule_steps = 4800
     eval_interval = 4800
 
-class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
+class MLama(GWindow, PileDataset, Optimizer, Common):
     base_emb_dim = 1024
     base_num_query_heads = 16
     base_num_kv_heads = 16
     base_mlp_dim = 2816
     base_num_decoder_layers = 24
     head_dim = 64
-    model_name = 'Llama2Medium'
+    model_name = 'MLama'
     per_device_batch_size = 32.0
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
 
-class Llama2Large(Llama2Medium):
+class Llama2Large(MLama):
     model_name = 'Llama2Large'
     base_emb_dim = 1536
     base_num_query_heads = 24
@@ -155,7 +155,7 @@ class Llama2Large(Llama2Medium):
     learning_rate = 2.5e-4
     eval_interval = 14500
 
-class Llama2XL(Llama2Medium):
+class Llama2XL(MLama):
     base_emb_dim = 2048
     base_num_query_heads = 32
     base_num_kv_heads = 32
@@ -164,7 +164,7 @@ class Llama2XL(Llama2Medium):
     learning_rate_schedule_steps = 50000
     eval_interval = 5000
 
-class Llama2XLSG(Llama2Medium):
+class Llama2XLSG(MLama):
     base_num_decoder_layers = 36
     base_emb_dim = 2048
     base_num_query_heads = 32
@@ -181,22 +181,22 @@ class MuddLlama2XL(Mudd, Llama2XL):
 class DcLlama2XLSG(LGLLWindow, DC, Llama2XLSG):
     pass
 
-class MuddLlama2Medium(Mudd, Llama2Medium):
-    model_name = 'MuddLlama2Medium'
+class MuddMLama(Mudd, MLama):
+    model_name = 'MuddMLama'
 
-class MuddLlama2MediumG4(Mudd, Llama2Medium):
+class MuddMLamaG4(Mudd, MLama):
     base_mlp_dim = 2816 + 512
     base_num_kv_heads = 4
     
-class DCLlama2Medium(DC, LGWindow, Llama2Medium):
+class DCMLama(DC, LGWindow, MLama):
     qk_norm = True
-    model_name = 'DCLlama2Medium'
+    model_name = 'DCMLama'
     scan_layers = False
 
-class DCMuddLlama2Medium(Mudd, DCLlama2Medium):
-    model_name = 'DCMuddLlama2Medium'
+class DCMuddMLama(Mudd, DCMLama):
+    model_name = 'DCMuddMLama'
 
-class LlamaSmall(Llama2Medium):
+class LlamaSmall(MLama):
     base_emb_dim = 768
     base_num_query_heads = 12
     base_num_kv_heads = 12
@@ -204,7 +204,7 @@ class LlamaSmall(Llama2Medium):
     base_num_decoder_layers = 12
     head_dim = 64
 
-class LlamaLarge(Llama2Medium):
+class LlamaLarge(MLama):
     base_emb_dim = 1536
     base_num_query_heads = 24
     base_num_kv_heads = 24
@@ -212,7 +212,7 @@ class LlamaLarge(Llama2Medium):
     base_num_decoder_layers = 24
     head_dim = 64
 
-class LlamaXL(Llama2Medium):
+class LlamaXL(MLama):
     base_emb_dim = 2048
     base_num_query_heads = 32
     base_num_kv_heads = 32
@@ -220,7 +220,7 @@ class LlamaXL(Llama2Medium):
     base_num_decoder_layers = 24 # fix: 28 -> 24
     head_dim = 64
 
-class Qwen2p5_3B(Llama2Medium):
+class Qwen2p5_3B(MLama):
     base_emb_dim = 2048
     base_num_query_heads = 16
     base_num_kv_heads = 2
@@ -247,7 +247,7 @@ class Qwen2p5_0p5B(Qwen2p5_3B):
     head_dim = 64
     model_name = 'Qwen2p5_0p5B'
 
-class Llama7B(Llama2Medium):
+class Llama7B(MLama):
     base_emb_dim = 4096
     base_num_query_heads = 32
     base_num_kv_heads = 32
@@ -256,7 +256,7 @@ class Llama7B(Llama2Medium):
     head_dim = 128
     model_name = 'Llama7B'
 
-class Llama13B(Llama2Medium):
+class Llama13B(MLama):
     base_emb_dim = 5120
     base_num_query_heads = 40
     base_num_kv_heads = 40
@@ -265,7 +265,7 @@ class Llama13B(Llama2Medium):
     head_dim = 128
     model_name = 'Llama13B'
 
-class Llama33B(Llama2Medium):
+class Llama33B(MLama):
     base_emb_dim = 6656
     base_num_query_heads = 52
     base_num_kv_heads = 52
@@ -274,7 +274,7 @@ class Llama33B(Llama2Medium):
     head_dim = 128
     model_name = 'Llama33B'
 
-class DreamMiniMediumRefactor(DreamMini, Llama2Medium):
+class DreamMiniMediumRefactor(DreamMini, MLama):
     query_chunk_size = 128 # loss 2.31413
     per_device_batch_size = 32.0 
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
@@ -433,7 +433,7 @@ class DreamMiniXL4KQC256(DreamMiniXL):
     query_chunk_size = 256 # v5p-32: 0.185, 72.5%KW
     sharding_tolerance = 0.05
 
-class DCMuddMLlamaOgateLGLLGgqa4(LGLLWindow, DCMuddLlama2Medium):
+class DCMuddMLlamaOgateLGLLGgqa4(LGLLWindow, DCMuddMLama):
     o_gate_hidden_dim = 64
     key_wise = False
     ggqa = 4
@@ -444,3 +444,37 @@ class DCMuddMLlamaOgateLGLLGgqa4(LGLLWindow, DCMuddLlama2Medium):
     seperate_qk_dw_proj = True
     num_layers_per_block = 1
     dc_share_prepost_dw_hidden = True
+
+class MTPMLama(MLama):
+    mtp_num_layers = 1
+    mtp_eval_target_module = 1
+    per_device_batch_size = 64.0
+    eval_per_device_batch_size = 64.0
+    shuffle_buffer_size = None
+    head_compose_types = 'tt'
+
+class MTPL1MuddMLama(Mudd, MTPMLama):
+    mtp_num_layers = 1
+    mtp_eval_target_module = 1
+    mudd_in_layer = True
+    mudd_prenorm = True
+    mudd_postnorm = True
+    eval_steps = -1
+
+class MTPL2MuddLama(Mudd, MTPMLama):
+    mtp_num_layers = 2
+    mtp_eval_target_module = 2
+    mudd_in_layer = True
+    mudd_prenorm = True
+    mudd_postnorm = True
+    eval_steps = -1
+
+class MTPL1HCtttMuddMLama(Mudd, MTPMLama):
+    # compose true(T) or false(F) in main logits, main_hidden_state, projected_features position
+    head_compose_types = 'ttt' # true, true, true, experiments: ttf, tft, ttt, tft is best
+    mtp_num_layers = 1
+    mtp_eval_target_module = 1
+    mudd_in_layer = True
+    mudd_prenorm = True
+    mudd_postnorm = True
+    eval_steps = -1

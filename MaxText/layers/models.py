@@ -34,6 +34,8 @@ from layers import deepembed
 from layers import initializers
 import max_logging
 from einops import rearrange
+from layers import mtp
+from layers import mudd
 
 Array = common_types.Array
 Config = common_types.Config
@@ -50,6 +52,57 @@ Quant = quantizations.AqtQuantization
 # ------------------------------------------------------------------------------
 # The network: Decoder & Transformer Definitions
 # ------------------------------------------------------------------------------
+class OutputHead(nn.Module):
+
+  config: Config
+  shared_embedding: nn.Module
+  mesh: Mesh
+  quant: Optional[Quant] = None
+
+  def setup(self):
+    cfg = self.config
+    self.norm = RMSNorm(dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        name="decoder_norm",
+        epsilon=cfg.normalization_layer_epsilon,
+        kernel_axes=("norm",),
+        )
+    self.logits_dense = linears.DenseGeneral(
+            cfg.vocab_size,
+            weight_dtype=cfg.weight_dtype,
+            dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+            kernel_axes=("embed", "vocab"),
+            quant=self.quant,
+            name="logits_dense",
+            matmul_precision=cfg.matmul_precision,
+            kernel_init=initializers.get_init_method(cfg.init_method), # lsp
+            use_quant=cfg.use_quant,
+        )
+    self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
+  
+  @nn.compact
+  def __call__(self, y, deterministic):
+    cfg = self.config
+    y = self.dropout(y, deterministic=deterministic)
+    if cfg.logits_via_embedding:
+        print(f'Word embedding shared: {cfg.logits_via_embedding}')
+        # Use the transpose of embedding matrix for logit transform.
+        logits = self.shared_embedding.attend(y)  # lsp：权重共享
+        if cfg.normalize_embedding_logits:
+            # Correctly normalize pre-softmax logits for this shared case.
+            logits = logits / jnp.sqrt(y.shape[-1])
+        if cfg.final_logits_soft_cap:
+            logits = logits / cfg.final_logits_soft_cap
+            logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
+    else:
+        logits = self.logits_dense(y)
+        logits = nn.with_logical_constraint(
+            logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
+        )
+    if cfg.cast_logits_to_fp32:
+        logits = logits.astype(jnp.float32)
+    return logits
+
 
 def get_remat_policy(cfg):
   if cfg.remat_policy != "none":
@@ -523,7 +576,18 @@ class Decoder(nn.Module):
                 hids=hids,
                 eos_sum=eos_sum,
             )
-            
+    if isinstance(y, tuple):
+      y = y[-1]
+
+    OutputHeadLayer = OutputHead(config=cfg, 
+                        shared_embedding=self.shared_embedding,
+                        mesh=mesh,
+                        quant=self.quant,
+                        name='lm_head')
+
+    logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
+    print(f'main logits: {logits.shape}')
+    
     y = self.get_norm_layer()(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,

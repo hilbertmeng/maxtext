@@ -76,6 +76,7 @@ from etils import epath
 from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
 # pylint: disable=too-many-positional-arguments
+from layers.mtp import calculate_mtp_acceptance_rate, calculate_mtp_loss
 
 Transformer = models.Transformer
 EPS = 1e-8
@@ -236,17 +237,27 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
 
   if is_training:
     full_log = step % config.log_period == 0
+    step_message = f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}"
+    flops_message = f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}"
+    weight_message = f"total_weights: {metrics['scalar']['learning/total_weights']}"
+    loss_message = f"loss: {metrics['scalar']['learning/loss']:.3f}"
+    accuracy_message = f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}"
+    lr_message = f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
+    print_messages = [step_message, flops_message,weight_message, loss_message, accuracy_message, lr_message]
 
-    max_logging.log(
-        f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
-        f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-        # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
-        f"total_weights: {metrics['scalar']['learning/total_weights']}, "
-        f"loss: {metrics['scalar']['learning/loss']:.3f}, "
-        f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}, "
-        f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}, "
-        f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
-    )
+    if config.mtp_num_layers > 0 and config.mtp_eval_target_module > 0:
+      print_messages.append(f"mtp_loss: {metrics['scalar']['learning/mtp_loss']:.3f}")
+      print_messages.append(f"mtp_accept_rate: {metrics['scalar']['learning/mtp_accept_rate']:.3f}")
+
+    if config.num_experts > 1:
+      moe_lb_loss = np.array(metrics['scalar']['learning/moe_lb_loss'])
+      if not isinstance(moe_lb_loss, float):
+        moe_lb_loss = moe_lb_loss.item()
+      print_messages.append(f"moe_lb_loss: {moe_lb_loss:.3f}")
+
+    print_messages = ' '.join(print_messages)
+    max_logging.log(print_messages)
+
     if full_log and jax.process_index() == 0:
       max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
       writer.flush()
@@ -361,8 +372,9 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
           output_metrics["scalar"][f"activation/attn_weights/max/layer_{layer_num:03d}"] = metrics_dict['self_attention']['attention_op']['QChunk_0'][f"attn_weights/max"][0][layer_num]
 
   else:
+    # todo(lsp): mtp record
     loop_indexes = list(range(0, config.num_decoder_layers, l_step_len)) + \
-                  list(range(config.num_decoder_layers, config.num_decoder_layers + config.mtp_num_layers, 1))
+                  list(range(config.num_decoder_layers, config.num_decoder_layers, 1))
     for layer_num in loop_indexes:
       if config.dense_conn:
         if config.mudd_in_layer:
@@ -568,6 +580,14 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   total_loss = jnp.sum(xent)
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
+
+  # Calculate and Add MTP Loss
+  mtp_loss, mtp_accept_rate = 0.0, 0.0
+  if config.mtp_num_layers > 0:
+    mtp_loss = calculate_mtp_loss(intermediate_outputs, config)
+    mtp_accept_rate = calculate_mtp_acceptance_rate(intermediate_outputs, config, logits)
+    loss += mtp_loss
+
   # get moe load balance loss
   moe_lb_loss = 0.0
   if config.num_experts > 1:
@@ -589,8 +609,10 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "total_loss": total_loss,
       "total_weights": total_weights,
       "moe_lb_loss": moe_lb_loss,
-      "accuracy": accuracy, # lsp
-      "correct": jnp.sum(correct), # lsp
+      "accuracy": accuracy,
+      "correct": jnp.sum(correct),
+      "mtp_loss": mtp_loss,
+      "mtp_accept_rate": mtp_accept_rate,
   }
   return loss, aux
 
@@ -601,8 +623,9 @@ def compute_params_norm(params, config): # lsp
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
     newk = k.replace('params', 'total_params')
-    if config.scan_layers and 'layers' in k:
+    if config.scan_layers and ('layers' in k and 'mtp' not in k): # lsp: mtp heads no scan
       axis = list(range(v.ndim))
+      print(f'axis: {axis}, k: {k}, v.shape: {v.shape}')
       axis.pop(config.param_scan_axis)
       normv = jnp.sqrt(jnp.sum(jnp.square(v), axis=axis))
       for lyr in range(normv.shape[0]):
@@ -648,7 +671,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
           lambda x, y: x * aux["total_weights"] + y, cur_batch_gradient, acc_grad_and_loss["grad"]
       )
       acc_grad_and_loss["total_weights"] += aux["total_weights"]
-      acc_grad_and_loss["accuracy"] += aux["accuracy"] # lsp
+      acc_grad_and_loss["accuracy"] += aux["accuracy"]
+      acc_grad_and_loss["mtp_loss"] += aux["mtp_loss"]
       return acc_grad_and_loss, aux
 
     def reshape_to_microbatch_accumulations(batch_arr):
@@ -659,7 +683,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
     data = jax.tree_util.tree_map(reshape_to_microbatch_accumulations, data)
     init_grad = jax.tree_util.tree_map(jnp.zeros_like, state.params)
-    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, "accuracy": 0.0} # lsp
+    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, "accuracy": 0.0, "mtp_loss": 0.0}
 
     grad_and_loss, aux = jax.lax.scan(
         accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
@@ -667,6 +691,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     loss = (
         grad_and_loss["loss"] / grad_and_loss["total_weights"]
         + grad_and_loss["moe_lb_loss"] / config.gradient_accumulation_steps
+        + grad_and_loss["mtp_loss"] / config.gradient_accumulation_steps
     )
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
     aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
@@ -685,6 +710,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
+  mtp_loss = aux["mtp_loss"]
+  mtp_accept_rate = aux["mtp_accept_rate"]
 
   if config.gradient_clipping_threshold > 0:
     grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
@@ -700,8 +727,10 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   new_state = state.apply_gradients(grads=grads)
   scalar_metrics = {
-      "learning/loss": loss - moe_lb_loss, # lsp: remove moe_lb_loss
+      "learning/loss": loss - moe_lb_loss - mtp_loss, # lsp: remove moe_lb_loss and mtp_loss
       "learning/moe_lb_loss": moe_lb_loss,
+      "learning/mtp_loss": mtp_loss,
+      "learning/mtp_accept_rate": mtp_accept_rate,
       "learning/total_weights": total_weights,
       "learning/accuracy": aux['accuracy'], # lsp
   }
@@ -743,12 +772,18 @@ def eval_step(model, config, state, data, dropout_rng):
   total_loss = aux["total_loss"]
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
+  mtp_acceptance_rate = 0.0
+  if config.mtp_eval_target_module > 0:
+    mtp_acceptance_rate = aux['mtp_accept_rate']
+  mtp_loss = aux["mtp_loss"]
   metrics = {
       "scalar": {
           "evaluation/loss": loss,
           "evaluation/total_loss": total_loss,
           "evaluation/total_weights": total_weights,
           "evaluation/moe_lb_loss": moe_lb_loss,
+          "evaluation/mtp_loss": mtp_loss,
+          "evaluation/mtp_accept_rate": mtp_acceptance_rate,
           "evaluation/accuracy": aux["accuracy"], # lsp
           "evaluation/correct": aux["correct"], # lsp
       },
@@ -1110,6 +1145,8 @@ def train_loop(config, state=None):
               "eval/total_weights": 0.0,
               "eval/avg_loss": 0.0,
               "eval/moe_lb_loss": 0.0,
+              "eval/mtp_loss": 0.0,
+              "eval/mtp_accept_rate": 0.0,
           }
       }
       eval_dpo_reward_accuracy = 0.0
@@ -1117,7 +1154,7 @@ def train_loop(config, state=None):
       # pylint: disable=not-callable
       eval_start_time = time.time()
       eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
-      correct, accuracy, mean_b_loss = 0, 0, 0 # lsp
+      correct, accuracy, mean_b_loss, mtp_loss, mtp_accept_rate = 0, 0, 0, 0, 0 # lsp
       for i in range(eval_steps):
         try:
           eval_batch = next(eval_data_iterator)
@@ -1136,23 +1173,35 @@ def train_loop(config, state=None):
         cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
         cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
         cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
+        cumulative_eval_metrics["scalar"]["eval/mtp_loss"] += float(eval_metrics["scalar"]["evaluation/mtp_loss"])
+        cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] += float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"])
         # lsp
         _correct = float(eval_metrics['scalar']['evaluation/correct'])
         _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
         _mean_b_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
+        _mtp_loss = float(eval_metrics["scalar"]["evaluation/mtp_loss"])
+        _mtp_accept_rate = float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"])
         correct += _correct
         accuracy += _accuracy
         mean_b_loss += _mean_b_loss
+        mtp_loss += _mtp_loss
+        mtp_accept_rate += _mtp_accept_rate
         
         eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
         eval_step_count += 1
 
         total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
         per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
-        max_logging.log(
-          f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}, '
-          f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
-          )
+
+        step_loss_message = f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}'
+        weight_message = f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
+        print_messages = [step_loss_message, weight_message]
+
+        if config.mtp_num_layers > 0 and config.mtp_eval_target_module > 0:
+          print_messages.append(f"mtp_loss: {_mtp_loss:.3f}")
+          print_messages.append(f"mtp_accept_rate: {_mtp_accept_rate:.3f}")
+        print_messages = ' '.join(print_messages)
+        max_logging.log(print_messages)
 
       eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
           cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS
@@ -1160,6 +1209,12 @@ def train_loop(config, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_loss"] = eval_loss
       cumulative_eval_metrics["scalar"]["eval/avg_moe_lb_loss"] = (
           cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / eval_step_count
+      )
+      cumulative_eval_metrics["scalar"]["eval/avg_mtp_loss"] = (
+          cumulative_eval_metrics["scalar"]["eval/mtp_loss"] / eval_step_count
+      )
+      cumulative_eval_metrics["scalar"]["eval/avg_mtp_accept_rate"] = (
+          cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] / eval_step_count
       )
       # lsp: batch mean loss, token/batch mean acc
       cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
@@ -1175,7 +1230,9 @@ def train_loop(config, state=None):
       max_logging.log(
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=},"
           f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
-          f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
+          f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']},"
+          f" avg_mtp_loss={cumulative_eval_metrics['scalar']['eval/avg_mtp_loss']:.3f}," # lsp
+          f" avg_mtp_accept_rate={cumulative_eval_metrics['scalar']['eval/mtp_accept_rate']:.3f}," # lsp
       )
       save_eval_result(config, step, cumulative_eval_metrics) # lsp
       

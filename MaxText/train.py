@@ -48,6 +48,8 @@ import profiler
 import pyconfig
 import pathwaysutils  # pylint: disable=unused-import
 import tensorflow as tf
+from contextlib import nullcontext
+
 
 from vertex_tensorboard import VertexTensorboardManager
 # Placeholder: internal
@@ -81,6 +83,11 @@ from input_pipeline._pile_data_processing import record_file_and_step
 Transformer = models.Transformer
 EPS = 1e-8
 _DEFAULT_OCDBT_TARGET_DATA_FILE_SIZE = 2 * 1024**3
+
+
+def spmd_allow_context():
+  # print(f"jax.__version__: {jax.__version__}")
+  return nullcontext() if jax.__version__ == "0.6.2" else jax.spmd_mode("allow_all") 
 
 
 def print_tree_struct(name, tree, shape=False): # lsp
@@ -161,7 +168,7 @@ def validate_train_config(config):
 
 
 def get_first_step(state):
-  with jax.spmd_mode("allow_all"):
+  with spmd_allow_context():
     return int(state.step)
 
 
@@ -228,7 +235,7 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
 
 def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True):
   """Writes metrics to tensorboard"""
-  with jax.spmd_mode("allow_all"):
+  with spmd_allow_context():
     if jax.process_index() == 0 and (step % config.upload_loss_tb_period == 0 or not is_training): # lsp
       for metric_name in metrics.get("scalar", []):
         if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp

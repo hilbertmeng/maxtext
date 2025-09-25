@@ -116,7 +116,7 @@ class SubDecoderLayer(nn.Module):
     attention_layer = Attention(
         config=cfg,
         num_query_heads=cfg.num_query_heads,
-        num_kv_heads=cfg.num_kv_heads,
+        num_kv_heads=cfg.num_kv_heads[self.layer_inx % len(cfg.num_kv_heads)] if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads,
         head_dim=cfg.head_dim,
         max_target_length=cfg.max_target_length,
         max_prefill_predict_length=cfg.max_prefill_predict_length,

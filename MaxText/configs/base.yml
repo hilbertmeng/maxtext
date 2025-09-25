@@ -658,7 +658,7 @@ only_fw_quant: False
 mtp_num_layers: 0
 mtp_eval_target_module: 0
 mtp_loss_scaling_factor: 0.1
-head_compose_types: 'ttt'
+mtp_use_compose: False
 
 # deepembed params
 deep_embed_type: 'none' # choices: [none,  attn, 1xmlp, 4xmlp, 1xmudd, 4xmudd, devalue...], alse combine with other types, such as 1xattn_1xmlp....

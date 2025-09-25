@@ -559,9 +559,9 @@ class MTPL2MuddLlama2Medium(Mudd, MTPLlama2Medium):
     mudd_postnorm = True
     eval_steps = -1
 
-class MTPL1HCtttMuddLlama2Medium(Mudd, MTPLlama2Medium):
+class MTPL1NoComposeMuddLlama2Medium(Mudd, MTPLlama2Medium):
     # compose true(T) or false(F) in main logits, main_hidden_state, projected_features position
-    head_compose_types = 'ttt' # true, true, true, experiments: ttf, tft, ttt, tft is best
+    mtp_use_compose = False # true, true, true, experiments: ttf, tft, ttt, tft is best
     mtp_num_layers = 1
     mtp_eval_target_module = 1
     mudd_in_layer = True
@@ -569,12 +569,14 @@ class MTPL1HCtttMuddLlama2Medium(Mudd, MTPLlama2Medium):
     mudd_postnorm = True
     eval_steps = -1
 
+class MTPL1UseComposeMuddLlama2Medium(MTPL1NoComposeMuddLlama2Medium):
+    mtp_use_compose = True
+
 class Llama2MediumDeepEmbed(Llama2Medium):
     # vocab_size = 151936
     per_device_batch_size = 64.0
     eval_per_device_batch_size = 64.0
     shuffle_buffer_size = None
-    head_compose_types = 'ttt'
     deep_embed = ''
 
 class Llama2MediumDeepEmbed4x(Llama2MediumDeepEmbed):
@@ -592,7 +594,6 @@ class Llama2MediumMoeDeepEmbed(DroplessMoe, Llama2Medium):
     per_device_batch_size = 64.0
     eval_per_device_batch_size = 64.0
     shuffle_buffer_size = None
-    head_compose_types = 'ttt'
     deep_embed = '4x'
     num_experts = 32
     num_experts_per_tok = 2

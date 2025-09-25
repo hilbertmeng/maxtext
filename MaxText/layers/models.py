@@ -310,6 +310,7 @@ class OutputHead(nn.Module):
   @nn.compact
   def __call__(self, y, deterministic):
     cfg = self.config
+    y = self.norm(y) # 20250925 fix, this bug occurred at MTP experiment.
     y = self.dropout(y, deterministic=deterministic)
     if cfg.logits_via_embedding:
         print(f'Word embedding shared: {cfg.logits_via_embedding}')
@@ -659,26 +660,10 @@ class Decoder(nn.Module):
             )
             y, hids = y
 
-    if cfg.dense_conn:
-      if cfg.mtp_num_layers > 0:
-        if cfg.head_compose_types[:2] == 'tt': # ttt: 2.382, ttf: 2.390
-          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=2)(y, hids)
-          main_head_inputs, mtp_head_inputs = y
-        elif cfg.head_compose_types[:2] == 'tf': # tft: 2.369
-          mtp_head_inputs = y
-          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
-          main_head_inputs = y[0]
-          hids = hids[:-1]
-        elif cfg.head_compose_types[:2] == 'ft': # ftt: 未做
-          main_head_inputs = y
-          y, hids = mudd.Compose(cfg, mesh, self.quant, lyr + 1, name='compose', C=1)(y, hids)
-          mtp_head_inputs = y[0]
-        else:
-          main_head_inputs, mtp_head_inputs = y, y # fft: mtpmudd-0.4B: 2.367
-      else:
-        main_head_inputs, mtp_head_inputs = y[0], None
-    else:
-        main_head_inputs, mtp_head_inputs = y, y
+    if isinstance(y, tuple|list):
+      y = y[-1]
+    
+    main_head_inputs = mtp_head_inputs = y
 
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,

@@ -153,6 +153,17 @@ class MultiTokenPredictionLayer(nn.Module):
     )
     # Shape: [B, S, H]
     projected_features = projection_layer(concatenated_features)
+
+    # compose
+    if cfg.dense_conn and cfg.mtp_use_compose:
+        projected_features, hids = mudd.Compose(
+            cfg, self.mesh, None, k + cfg.num_decoder_layers, 
+            name=f'compose'
+            )(
+              layer_output=projected_features, 
+              hids=hids
+            )
+
     # --- 4. Pass through MTP Transformer Block ---
     y = self.transformer_layer_module(
         config=cfg, mesh=mesh, 
@@ -164,19 +175,7 @@ class MultiTokenPredictionLayer(nn.Module):
           model_mode=model_mode,
           hids=hids,
     )
-    if cfg.dense_conn:
-        assert cfg.mudd_in_layer, print('Mtp must set mudd_in_layer=true.')
-        output, hids = y
-        if k == cfg.mtp_num_layers:
-          output, hids = mudd.Compose(
-            cfg, self.mesh, None, k + cfg.num_decoder_layers, 
-            name=f'compose'
-            )(
-              layer_output=output, 
-              hids=hids
-            )
-    else:
-       output = y
+    output, hids = y
 
     if isinstance(output, tuple): # mudd is list type, so ignore it.
       # Handles the scan=True case, where the output is a tuple.
@@ -187,7 +186,7 @@ class MultiTokenPredictionLayer(nn.Module):
 
     # Shape: [B, S, H]
     # --- Return Processed Hidden State ---
-    return next_hidden_state if not cfg.dense_conn else (next_hidden_state, hids)
+    return next_hidden_state, hids
 
 
 class MultiTokenPredictionBlock(nn.Module):
@@ -252,18 +251,14 @@ class MultiTokenPredictionBlock(nn.Module):
           # but in mtp layers, should get current token's history status. in fact, we can get the position correspond to generated token directly.
           transformer_layer_module=self.transformer_layer_module,
       )
-      output = mtp_layer(
+      next_mtp_hidden_state, hids = mtp_layer(
           mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids
       )
-      if cfg.dense_conn:
-        qkvr_hidden_states, hids = output
-        # Ther last layer output is a list, but is a array in middle layer.
-        next_mtp_hidden_state = qkvr_hidden_states[-1] if isinstance(qkvr_hidden_states, list|tuple) else qkvr_hidden_states
-      else:
-        next_mtp_hidden_state = output
-
       # Project to logits using the shared embedding transpose
-      mtp_logits = output_layer(next_mtp_hidden_state, deterministic)
+      mtp_logits = output_layer(
+        next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state, 
+        deterministic
+        )
 
       # Calculate cross-entropy loss for this specific layer's prediction
       mtp_xent, _ = max_utils.cross_entropy_with_logits(mtp_logits, jax.nn.one_hot(rolled_target_ids, cfg.vocab_size), 0.0)

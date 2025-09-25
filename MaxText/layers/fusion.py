@@ -333,9 +333,16 @@ class FusionDecoderLayer(nn.Module):
             eos_sum,
         )
         if cfg.dense_conn:
+          if self.layer_inx == cfg.num_decoder_layers - 1:
+            C = 2 if cfg.mtp_num_layers > 0 else 1 # if use mtp, return 2 tensors, otherwise return 1 tensor
+          elif self.layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers - 1:
+            C = 1 # last layer return 1 tensor
+          else:
+            C = 4 # other layer return 4 tensors
           # return's inputs length is 4
           inputs, hids = mudd.Compose(
-              cfg, self.mesh, self.quant, self.layer_inx, 
+              cfg, self.mesh, self.quant, len(hids), 
+              C=C,
               name='compose'
               )(
                 layer_output=inputs, 

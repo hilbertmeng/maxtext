@@ -215,8 +215,7 @@ class Compose(nn.Module):
     cfg = self.config
     
     y = layer_output
-    layer_inx = self.layer_inx
-    C = 1 if layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers - 1 else len(cfg.dynamic_dense_type)
+    C = self.C
     dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=C)(layer_output, decoder_input_tokens)
 
     if self.config.record_internal_nn_metrics:

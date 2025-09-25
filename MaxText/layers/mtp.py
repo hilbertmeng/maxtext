@@ -86,6 +86,7 @@ class MultiTokenPredictionLayer(nn.Module):
       decoder_segment_ids: Optional[jnp.ndarray],
       deterministic: bool,
       hids: list = None,
+      rolled_input_ids: jnp.ndarray = None,
       model_mode: str = MODEL_MODE_TRAIN,
   ) -> jnp.ndarray:
     """
@@ -148,41 +149,39 @@ class MultiTokenPredictionLayer(nn.Module):
         weight_dtype=cfg.weight_dtype,
         use_bias=False,
         kernel_axes=("concat_embed", "embed"),
-        # kernel_init=initializers.nd_dense_init_normal(0.006), # lsp?
+        kernel_init=initializers.get_init_method(cfg.init_method),
         name=f"projection",
     )
     # Shape: [B, S, H]
     projected_features = projection_layer(concatenated_features)
 
-    # compose
-    if cfg.dense_conn and cfg.mtp_use_compose:
-        projected_features, hids = mudd.Compose(
-            cfg, self.mesh, None, k + cfg.num_decoder_layers, 
+    # compose，感觉多于
+    if cfg.dense_conn:
+      if cfg.mtp_use_compose:
+          projected_features, hids = mudd.Compose(
+            cfg, self.mesh, None, len(hids), 
             name=f'compose'
             )(
-              layer_output=projected_features, 
-              hids=hids
+            layer_output=projected_features, 
+            hids=hids,
+            decoder_input_tokens=rolled_input_ids,
             )
-
+      else:
+        projected_features = [projected_features] * 4
     # --- 4. Pass through MTP Transformer Block ---
     y = self.transformer_layer_module(
         config=cfg, mesh=mesh, 
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
-          inputs=projected_features, # single array
+          inputs=projected_features,
           decoder_segment_ids=decoder_segment_ids,
           decoder_positions=position_ids,
+          decoder_input_tokens=rolled_input_ids,
+          deep_embedding=None,
           deterministic=deterministic,
           model_mode=model_mode,
           hids=hids,
     )
-    output, hids = y
-
-    if isinstance(output, tuple): # mudd is list type, so ignore it.
-      # Handles the scan=True case, where the output is a tuple.
-      next_hidden_state = output[0]
-    else:
-      # Handles the scan=False case, where the output is a single tensor.
-      next_hidden_state = output
+    next_hidden_state, hids = y
 
     # Shape: [B, S, H]
     # --- Return Processed Hidden State ---
@@ -252,7 +251,7 @@ class MultiTokenPredictionBlock(nn.Module):
           transformer_layer_module=self.transformer_layer_module,
       )
       next_mtp_hidden_state, hids = mtp_layer(
-          mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids
+          mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids, rolled_input_ids
       )
       # Project to logits using the shared embedding transpose
       mtp_logits = output_layer(

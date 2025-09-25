@@ -660,10 +660,16 @@ class Decoder(nn.Module):
             )
             y, hids = y
 
-    if isinstance(y, tuple|list):
-      y = y[-1]
-    
-    main_head_inputs = mtp_head_inputs = y
+    if self.config.dense_conn:
+      if cfg.mtp_num_layers > 0:
+        main_head_inputs = y[0]
+        mtp_head_inputs = y[1]
+      else:
+        main_head_inputs = y[-1]
+        mtp_head_inputs = None
+    else:
+      main_head_inputs = y
+      mtp_head_inputs = None
 
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,

@@ -46,7 +46,6 @@ import max_logging
 import optimizers
 import profiler
 import pyconfig
-import pathwaysutils  # pylint: disable=unused-import
 import tensorflow as tf
 
 from vertex_tensorboard import VertexTensorboardManager
@@ -1146,7 +1145,6 @@ def train_loop(config, state=None):
         mean_b_loss += _mean_b_loss
         
         eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
-        # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
         eval_step_count += 1
 
         total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
@@ -1223,6 +1221,17 @@ def main(argv: Sequence[str]) -> None:
   config = pyconfig.initialize(argv)
   max_utils.print_system_information()
   validate_train_config(config)
+
+  # Initialize bucket logging if enabled
+  if config.bucket_logging_enabled:
+    max_logging.initialize_bucket_logging(
+      run_name=config.run_name,
+      bucket_dir=config.bucket_logging_dir,
+      upload_interval=getattr(config, 'bucket_log_upload_interval', 60),
+      max_buffer_size=getattr(config, 'bucket_log_buffer_size', 1000)
+    )
+    max_logging.log(f"Bucket logging enabled - logs will be saved to: {config.bucket_logging_dir}")
+
   os.environ["TFDS_DATA_DIR"] = config.dataset_path
   vertex_tensorboard_manager = VertexTensorboardManager()
   if config.use_vertex_tensorboard or os.environ.get("UPLOAD_DATA_TO_TENSORBOARD"):

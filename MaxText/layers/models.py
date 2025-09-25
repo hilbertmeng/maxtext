@@ -510,6 +510,7 @@ class Decoder(nn.Module):
           sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
           max_logging.log(f'sliding_window_sizes: {sliding_window_sizes}', debug=cfg.debug)
           for lyr in range(cfg.num_decoder_layers):
+            print(f'\n==================================== Decoder layer: {lyr} ====================================')
             RemattedBlockLayer = RemattedBlockLayers[0]
             y, hids = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_sizes[lyr])(
                 y,

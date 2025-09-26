@@ -315,10 +315,10 @@ class QChunk(nn.Module):
     post_proj_dw_args = None,
     pre_proj_layer = None,
     post_proj_layer = None,
-):
+  ):
     def update_mask(v, atten_mask):
       # 当设置Windows大于4096时，自动根据数据中的eos数量，来决定Windows是否重置为4096
-      offset = 1 - 4096 - self.query_chunk_size
+      offset = 1 - 4096 - self.query_chunk_size # 32k attn_mask mask 4k
       atten_mask = atten_mask.at[..., :offset].set(v)
       return atten_mask
     
@@ -326,15 +326,16 @@ class QChunk(nn.Module):
 
     b, t, n, h = query.shape
     sliding_window_size = t if self.sliding_window_size is None else min(t, self.sliding_window_size)
-    if eos_sum is None:
-      if 'parallel' in self.config.query_chunk_method and sliding_window_size < t:
+    print(f'sliding_window_size: {sliding_window_size} query_chunk_method: {self.config.query_chunk_method} eos_sum: {eos_sum}')
+    if sliding_window_size < t:
+      if 'parallel' in self.config.query_chunk_method:
         attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
       else:
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-    else:
-      if sliding_window_size < self.config.max_target_length // 3: # 1, 1 t s
+      print(f'global attn_mask: {attn_mask.shape} query_chunk_method: {self.config.query_chunk_method}')
+    else: # global split into 2 kind of attn_mask, 4k and 32k
+      if eos_sum is None:
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-        attn_mask = attn_mask[:, jnp.newaxis]
       else:
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype, squeeze=True)
         attn_mask = jax.lax.broadcast(attn_mask, (b, )) # b x qchunk x s
@@ -343,6 +344,7 @@ class QChunk(nn.Module):
         attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
         attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
         attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
+      print(f'global attn_mask: {attn_mask.shape} eos_sum: {eos_sum}')
 
     if self.query_chunk_size is None:
       print(f'query_chunk_size is None')

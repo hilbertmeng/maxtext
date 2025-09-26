@@ -46,7 +46,7 @@ class PileDataset:
     max_target_length = 2048
     train_shuffle_buffer_size = None
     eval_shuffle_buffer_size = None
-    eval_loop_num_batches = 162
+    eval_steps = 162
     iter_file_nums = 2
     dataset_type = 'pile'
     zero_loss = False
@@ -353,7 +353,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     train_shuffle_buffer_size = 500000
     sharding_tolerance = 0.2
     vocab_size = 70000
-    eval_loop_num_batches = 55
+    eval_steps = 55
     base_lr = 4.0e-4
     stable_steps_fraction= 0.99 - 27400 / 177400 # decay steps / total train steps
     num_layers_per_block = 1
@@ -381,7 +381,7 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         # gs://newproject-1-jax_llm_data_us-east5/xiaomeng/v3.5mini/unigram_32k_tfids0601
         rope_max_timescale = 1000000
         max_target_length = 32768
-        eval_loop_num_batches = 60
+        eval_steps = 60
         keep_period = 1000
         mix_attn = True
         query_chunk_method='remat'
@@ -433,6 +433,10 @@ class DreamMiniXLE64T4(Dropless, DreamMiniXL):
     base_mlp_dim = 2816 // num_experts_per_tok
     routed_score_func = 'sigmoid'
     query_chunk_size = None
+
+class DreamMiniXLE64T432k(DreamMiniXLE64T4): 
+    mix_attn = True
+    max_target_length = 32768
 
 class MiniXL:
     learning_rate = 2.5e-4

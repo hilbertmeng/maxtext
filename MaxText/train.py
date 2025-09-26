@@ -1066,12 +1066,6 @@ def train_loop(config, state=None):
       with jax.profiler.StepTraceAnnotation("train", step_num=step):
         record_goodput(recorder, config, recorder.record_data_loading_start_time if recorder else None)
         example_batch = load_next_batch(data_iterator, example_batch, config)
-        # mini-moe in here loss crash
-        # if 71829 <= step <= 71833 or 94739 <= step <= 94745 or 94395 <= step <= 94405: continue
-        # if 124813 <= step <= 124819 or 125068 <= step <= 125074
-        if 153970 <= step <= 153970 + 8 or 153983 <= step <= 153983 + 9:
-          print(f'[lsp]step {step} is skipped')
-          continue
         record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
         check_example_batch(config, example_batch=example_batch)
         # pylint: disable=not-callable
@@ -1107,7 +1101,7 @@ def train_loop(config, state=None):
             delete_local_after=config.dump_hlo_delete_local_after,
             all_host_upload=config.dump_hlo_upload_all,
         )
-    if step > 136000 and config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
+    if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
       print(f'eval_data_iterator: {eval_data_iterator} ')
       cumulative_eval_metrics = {
@@ -1226,8 +1220,20 @@ def main(argv: Sequence[str]) -> None:
   if "xla_tpu_spmd_rng_bit_generator_unsafe" not in os.environ.get("LIBTPU_INIT_ARGS", ""):
     os.environ["LIBTPU_INIT_ARGS"] = os.environ.get("LIBTPU_INIT_ARGS", "") + " --xla_tpu_spmd_rng_bit_generator_unsafe=true"
   config = pyconfig.initialize(argv)
-  max_utils.print_system_information()
+
+  # Initialize bucket logging if enabled
+  if config.bucket_logging_enabled:
+    max_logging.initialize_bucket_logging(
+      run_name=config.run_name,
+      bucket_dir=config.bucket_logging_dir,
+      upload_interval=getattr(config, 'bucket_log_upload_interval', 60),
+      max_buffer_size=getattr(config, 'bucket_log_buffer_size', 1000)
+    )
+    max_logging.log(f"Bucket logging enabled - logs will be saved to: {config.bucket_logging_dir}")
+
   validate_train_config(config)
+  max_utils.print_system_information()
+
   os.environ["TFDS_DATA_DIR"] = config.dataset_path
   vertex_tensorboard_manager = VertexTensorboardManager()
   if config.use_vertex_tensorboard or os.environ.get("UPLOAD_DATA_TO_TENSORBOARD"):

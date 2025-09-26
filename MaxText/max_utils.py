@@ -1002,7 +1002,7 @@ def create_learning_rate_schedule(config):
   else:
     raise ValueError(f"Unknown scheduler type: {scheduler_type}. Supported types: 'cosine', 'linear'")
     
-  constant_schedule = optax.constant_schedule(0.0)
+  constant_schedule = optax.constant_schedule(final_lr) 
   pieces = [warmup_schedule, decay_schedule]
   boundaries = [
       warmup_steps + stable_steps,

@@ -684,5 +684,5 @@ bucket_logging_dir: "logs"        # GCS bucket path for logs, e.g., "gs://my-buc
 bucket_log_upload_interval: 300 # Upload interval in seconds (default: 300)
 bucket_log_buffer_size: 500   # Maximum buffer size before forced upload (default: 150)
 
-remat_prevent_cse: False
+remat_prevent_cse: True
 mtp_use_remat: False

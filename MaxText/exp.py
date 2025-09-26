@@ -666,25 +666,27 @@ class LlamaXLH16(Llama2XL):
 class MuonLlamaXLH16(Muon, LlamaXLH16):
     pass
 
-class LlamaXLMoonPaperBSZLR(Llama2XL):
+class LlamaXLBigBatchLR(Llama2XL):
     per_device_batch_size = 96.0 # 8*96=768
     eval_per_device_batch_size = 96.0
     learning_rate_schedule_steps = 16666 # 50000/3=16666.666666666666
     learning_rate = 8.561e-4
     eval_interval = 8333
 
-class LlamaXLH16MoonPaperBSZLR(LlamaXLH16):
-    per_device_batch_size = 48.0 # 16*48=768, v6e-16
-    eval_per_device_batch_size = 48.0
-    learning_rate_schedule_steps = 16666 # 50000/3=16666.666666666666
-    learning_rate = 8.561e-4
-    eval_interval = 8333
-    qk_norm = True
-
-class MuonLlamaXLH16MoonPaperBSZLR(Muon, LlamaXLH16MoonPaperBSZLR):
+class MuonLlamaXLBigBatchLR(Muon, LlamaXLBigBatchLR):
+    pass
+    
+class MuonLlamaXLH16MoonPaperBSZLR(MuonLlamaXLH16):
     pass
 
-class MuonLlamaXLMoonPaperBSZLR(Muon, LlamaXLMoonPaperBSZLR):
+class LlamaXLBigBatchLR(LlamaXLH16):
+    per_device_batch_size = 96.0
+    eval_per_device_batch_size = 96.0
+    learning_rate_schedule_steps = 16666
+    learning_rate = 8.561e-4
+    eval_interval = 8333
+
+class MuonLlamaXLBigBatchLR(Muon, LlamaXLBigBatchLR):
     pass
 
 class DCMuddMLlamaOgateLGLLGgqa4(LGLLWindow, DCMuddLlama2Medium):
@@ -693,7 +695,6 @@ class DCMuddMLlamaOgateLGLLGgqa4(LGLLWindow, DCMuddLlama2Medium):
     ggqa = 4
     mudd_prenorm = False
     mudd_postnorm = False
-
 
 class DCMuddXLama(DC, Mudd, Llama2XL):
     per_device_batch_size = 64.0

@@ -707,3 +707,23 @@ class DCMuddXLama(DC, Mudd, Llama2XL):
 
 class MuonDCMuddXLama(Muon, DCMuddXLama):
     pass
+
+
+class DCL12LamaLG(DC, LGWindow, Llama2Medium):
+    qk_norm = True
+    model_name = 'DCLlama2Medium'
+    scan_layers = False
+    base_num_decoder_layers = 12
+    base_num_query_heads = 12
+    base_num_kv_heads = 12
+    base_emb_dim = 1536
+    head_dim = 128
+    base_mlp_dim = 4096
+    query_chunk_size = 256
+    attention = 'dot_product_chunk'
+    learning_rate_schedule_steps = 9000
+    eval_interval = 9000
+    key_wise = False
+
+class DCL12LamaLGFlash(DCL12LamaLG):
+    attention = 'flash'

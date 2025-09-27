@@ -1141,7 +1141,59 @@ class Attention(nn.Module):
   rng: None = None
 
   def setup(self):
-    if self.config.pre_compose or self.config.post_compose:
+    # When using dynamic pre/post composition with flash kernels, keep the
+    # standard AttentionOp (flash path) and fold compositions around it.
+    use_flash_like = self.config.attention in ("flash", "cudnn_flash_te", "autoselected")
+    if (self.config.pre_compose or self.config.post_compose) and use_flash_like:
+      self.attention_op = AttentionOp(
+        config=self.config,
+        mesh=self.mesh,
+        attention_kernel=self.attention_kernel,
+        max_target_length=self.max_target_length,
+        max_prefill_predict_length=self.max_prefill_predict_length,
+        float32_qk_product=self.float32_qk_product,
+        float32_logits=self.float32_logits,
+        quant=self.quant,
+        kv_quant=self.kv_quant,
+        num_query_heads=self.num_query_heads,
+        num_kv_heads=self.num_kv_heads,
+        dropout_rate=self.dropout_rate,
+        dtype=self.dtype,
+        prefill_cache_axis_order=self.prefill_cache_axis_order,
+        ar_cache_axis_order=self.ar_cache_axis_order,
+        compute_axis_order=self.compute_axis_order,
+        reshape_q=self.reshape_q,
+        attention_type=self.attention_type,
+        attn_logits_soft_cap=self.attn_logits_soft_cap,
+        sliding_window_size=self.sliding_window_size,
+        use_ragged_attention=self.use_ragged_attention,
+        ragged_block_size=self.ragged_block_size,
+      )
+      # Build dynamic-weight generator to produce query-wise composition weights.
+      # We only use the query-wise parts in flash-compatible mode.
+      num_groups = max(1, self.num_query_heads // max(1, self.num_kv_heads))
+      num_heads_per_group = self.num_query_heads // num_groups
+      I = 2
+      dynamic_w_hidden_dim = num_heads_per_group * I * 2
+      dyn_w_kwargs = {
+        'num_heads': self.num_query_heads,
+        'num_groups': num_groups,
+        'input_dim': self.num_query_heads * self.head_dim,
+        'n_splits': 4,
+        'dynamic_w_init': math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
+        'dynamic_d_init': math.sqrt(2 / (self.num_query_heads * self.head_dim + num_heads_per_group)) * 0.005,
+        'dynamic_squeeze_ratio': num_heads_per_group // I,
+        'dynamic_w_hidden_dim': dynamic_w_hidden_dim,
+        'dtype': self.dtype,
+        'weight_dtype': self.weight_dtype,
+        'precision': None,
+        'deterministic': False,
+        'dynamic_dropout_rate': 0.0,
+        'quant': self.quant,
+        'dc_use_muon': getattr(self.config, 'dc_use_muon', False),
+      }
+      self.dyn_w_proj = dc.DynamicWeightProjection(**dyn_w_kwargs)
+    elif self.config.pre_compose or self.config.post_compose:
       self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size)
     else:
       self.attention_op = AttentionOp(
@@ -1453,7 +1505,66 @@ class Attention(nn.Module):
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
-    if cfg.pre_compose or cfg.post_compose:
+    use_flash_like = cfg.attention in ("flash", "cudnn_flash_te", "autoselected")
+    if (cfg.pre_compose or cfg.post_compose) and use_flash_like:
+      print(f'DC Use flash like attention')
+      # Generate dynamic weights (use only query-wise components for flash path)
+      pre_args, post_args = self.dyn_w_proj(inputs_q)
+      pre_qw1, pre_qw2, _, _, pre_qdd, _ = pre_args
+      post_qw1, post_qw2, _, _, post_qdd, _ = post_args
+
+      def apply_query_mix(x, w1, w2):
+        # x: [B, T, N, D] -> [B, T, G, M, D]
+        b, t, n, d = x.shape
+        num_groups = max(1, self.num_query_heads // max(1, self.num_kv_heads))
+        m = n // num_groups
+        x5 = jnp.reshape(x, (b, t, num_groups, m, d))
+        # w1,w2: [B, T, G, I, M]
+        hidden = jnp.einsum('btgmd,btgim->btgid', x5, w1)
+        mixed = jnp.einsum('btgid,btgim->btgmd', hidden, w2)
+        return jnp.reshape(mixed, (b, t, n, d))
+
+      def apply_key_mix(x, w1, w2):
+        # x: [B, T, N, D] -> [B, T, G, M, D]
+        b, t, n, d = x.shape
+        num_groups = max(1, self.num_query_heads // max(1, self.num_kv_heads))
+        m = n // num_groups
+        x5 = jnp.reshape(x, (b, t, num_groups, m, d))
+        # w1,w2: [B, T, G, I, M]
+        hidden = jnp.einsum('btgmd,btgim->btgid', x5, w1)
+        mixed = jnp.einsum('btgid,btgim->btgmd', hidden, w2)
+        return jnp.reshape(mixed, (b, t, n, d))
+
+
+      # Pre-compose: fold query-wise mixing and row scaling into Q
+      if cfg.pre_compose:
+        # query = query + apply_query_mix(query, pre_qw1, pre_qw2)
+        key = key + apply_key_mix(key, pre_qw1, pre_qw2)
+
+        if pre_qdd is not None:
+          # Scale rows (per head, per token)
+          b, t, n, d = query.shape
+          num_groups = max(1, self.num_query_heads // max(1, self.num_kv_heads))
+          m = n // num_groups
+          scale = jnp.reshape(pre_qdd, (b, t, num_groups, m))
+          scale = 1.0 + scale
+          scale = jnp.reshape(scale, (b, t, n, 1))
+          query = query * scale
+
+      out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv)
+
+      # Post-compose: fold query-wise mixing and row scaling into output
+      if cfg.post_compose:
+        out = out + apply_query_mix(out, post_qw1, post_qw2)
+        if post_qdd is not None:
+          b, t, n, d = out.shape
+          num_groups = max(1, self.num_query_heads // max(1, self.num_kv_heads))
+          m = n // num_groups
+          scale = jnp.reshape(post_qdd, (b, t, num_groups, m))
+          scale = 1.0 + scale
+          scale = jnp.reshape(scale, (b, t, n, 1))
+          out = out * scale
+    elif cfg.pre_compose or cfg.post_compose:
       out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv, eos_sum=eos_sum)
     else:
       out = self.attention_op(query, key, value, decoder_segment_ids, model_mode,  inputs_q, inputs_kv)

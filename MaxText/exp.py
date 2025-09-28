@@ -41,6 +41,14 @@ class Optimizer:
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0)]  # 0.表示不进行decay
     opt_type = 'adam_pax'
 
+class Muon:
+    opt_type = 'muon'
+    adam_b1 = 0.9
+    adam_b2 = 0.95
+    adam_eps = 1.0e-8
+    adam_weight_decay = 0.1
+    muon_scale = 0.2
+
 class PileDataset:
     vocab_size = 50432
     max_target_length = 2048
@@ -111,7 +119,7 @@ class DreamMini(Mudd, KVshift, DC, LGLLWindow):
     qk_norm = True
     seperate_qk_dw_proj = True # generate qw from query-way hidden state
     dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
-    static_proj = True # use SW
+    static_proj = False
     key_wise = False # No KW
     # kv shift config: linear + No Knorm 
     kv_shift_mlp = False # linear KVshift
@@ -293,7 +301,6 @@ class DC2MuddLlamaMediumKV4QO16LGLLMqyDev(DC2, LGLLWindow, MuddLlama2Medium):  #
     attention='dot_product_chunk'
     per_device_batch_size = 16.0
     eval_per_device_batch_size = 64.0
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
 class DC2MuddLlamaMediumKV4QO16LGLLMqyDevQchunk512(DC2MuddLlamaMediumKV4QO16LGLLMqyDev):
     jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches_mqy'
@@ -461,3 +468,19 @@ class DreamMiniXL4KQC256(DreamMiniXL):
     per_device_batch_size = 8.0
     query_chunk_size = 256 # v5p-32: 0.185, 72.5%KW
     sharding_tolerance = 0.05
+
+class DCMuddXLamaLGLLGgqa(LlamaXL, DreamMini):
+    use_dw_bias = True
+    use_dd_bias = False
+    use_kv_shift = False
+    G = 4
+    base_num_query_heads = 32
+    base_mlp_dim = 5504
+    base_num_kv_heads = [base_num_query_heads, base_num_query_heads // G, base_num_query_heads, base_num_query_heads]
+    base_mlp_dim = base_mlp_dim + 256 # ggqa attn param add into mlp
+    static_proj = False
+
+class MuonDCMuddXLamaLGLLGgqa(Muon, DCMuddXLamaLGLLGgqa):
+    dc_use_muon = True
+    mudd_use_muon = True
+    

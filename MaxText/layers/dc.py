@@ -77,6 +77,7 @@ class DynamicWeightProjection(nn.Module):
   dc_dw2_zero_init: bool = False
   use_dw_bias: bool = False
   use_dd_bias: bool = False
+  dc_use_muon: bool = False
 
   def setup(self) -> None:
     self.num_heads_per_group = self.num_heads // self.num_groups
@@ -92,10 +93,11 @@ class DynamicWeightProjection(nn.Module):
         if self.dynamic_squeeze_ratio is not None else 2
       # '12x4096x1x4x128'  # stage * dim * num_groups * C * K， n_splits is C
       self.dw1 = linears.DenseGeneral(
-                        features=(self.num_groups, self.n_splits, self.dynamic_w_hidden_dim),  
+                        features=(self.num_groups, self.n_splits, self.dynamic_w_hidden_dim) if not self.dc_use_muon else \
+                                  self.num_groups * self.n_splits * self.dynamic_w_hidden_dim,  # lsp
                         quant=self.quant,  # 0.00014
                         kernel_init=NormalInitializer(math.sqrt(2.0 / (self.input_dim + self.dynamic_w_hidden_dim))), 
-                        kernel_axes=('embed', None, 'heads', 'mlp'),
+                        kernel_axes=('embed', None, 'heads', 'mlp') if not self.dc_use_muon else ('embed', 'mlp'),
                         **kwargs)
       self.dw_hidden_activation = nn.gelu
       # self.dynamic_w_hidden_dim: num_heads_per_group * I * 2 = 32 * 2 * 2 = 128
@@ -103,17 +105,26 @@ class DynamicWeightProjection(nn.Module):
       I = dynamic_hidden_dim * 2  # 2 * 2
       if self.dc_share_all_dw_hidden:
         shape = [G, 1, K * self.n_splits, I * self.n_splits, M]
+        two_dim_shape = [G * 1 * self.n_splits * K * I * self.n_splits, M]
       elif self.dc_share_prepost_dw_hidden:
         shape = [G, self.n_splits // 2, K * 2, I * 2, M]
+        two_dim_shape = [G * self.n_splits // 2 * K * 2 * I * 2, M]
       else:
         shape = [G, self.n_splits, K, I, M]
-      kernel_init_shard = nn.with_logical_partitioning(NormalInitializer(self.dynamic_w_init), (None, 'data', 'fsdp', None, 'tensor'))
+        two_dim_shape = [G * self.n_splits * K * I, M]
+
+      self.G, self.K, self.I, self.M = G, K, I, M
+      
+      kernel_init_shard = nn.with_logical_partitioning(
+        NormalInitializer(self.dynamic_w_init), 
+        (None, 'data', 'fsdp', None, 'tensor') if not self.dc_use_muon else ('fsdp', 'tensor')
+        )
       if self.dc_dw2_zero_init:
         shape = (shape[0], shape[1], shape[2], shape[3]//2, shape[4]) 
         self.qkw1 = self.param('qkw1',kernel_init_shard, shape, self.weight_dtype)
         self.qkw2 = self.param('qkw2',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, 'data', 'fsdp', None, 'tensor')), shape, self.weight_dtype)
       else:
-        self.qkw = self.param('qkw',kernel_init_shard, shape, self.weight_dtype)
+        self.qkw = self.param('qkw', kernel_init_shard, shape if not self.dc_use_muon else two_dim_shape, self.weight_dtype)
       
       if self.use_dw_bias:
         assert self.dc_share_prepost_dw_hidden
@@ -124,12 +135,14 @@ class DynamicWeightProjection(nn.Module):
     if self.dynamic_d_init is not None:
       self.dd = linears.DenseGeneral(
                         features=(self.num_groups, 
-                        self.num_heads_per_group * self.n_splits), 
+                        self.num_heads_per_group * self.n_splits) if not self.dc_use_muon else \
+                        self.num_groups * self.num_heads_per_group * self.n_splits,  # lsp
                         quant=self.quant,
                         kernel_init=NormalInitializer(self.dynamic_d_init), 
-                        kernel_axes=('embed', None, 'mlp'),
+                        kernel_axes=('embed', None, 'mlp') if not self.dc_use_muon else ('embed', 'mlp'),
                         **kwargs
                         )
+
       if self.use_dd_bias: 
         bias_shape = [self.num_heads_per_group * self.n_splits]
         self.dd_bias =  self.param('dd_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None,)), bias_shape, self.weight_dtype)
@@ -146,8 +159,18 @@ class DynamicWeightProjection(nn.Module):
 
   def __call__(self, query_vec):
     qkw_kernel = jnp.asarray(self.qkw, self.dtype) if not self.dc_dw2_zero_init else jnp.asarray(jnp.concatenate([self.qkw1, self.qkw2], axis=-2), self.dtype) # lsp
+    if self.dc_use_muon:
+      if self.dc_share_all_dw_hidden:
+        qkw_kernel = qkw_kernel.reshape(self.G, 1, self.K * self.n_splits, self.I * self.n_splits, self.M)
+      elif self.dc_share_prepost_dw_hidden:
+        qkw_kernel = qkw_kernel.reshape(self.G, self.n_splits // 2, self.K * 2, self.I * 2, self.M)
+      else:
+        qkw_kernel = qkw_kernel.reshape(self.G, self.n_splits, self.K, self.I, self.M)
+
     if self.n_splits == 2:
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
+      if self.dc_use_muon:
+        dw_hidden = dw_hidden.reshape(*dw_hidden.shape[:-1], self.num_groups, self.n_splits, self.dynamic_w_hidden_dim)
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
       # C: n_split,  K -> M
@@ -170,6 +193,8 @@ class DynamicWeightProjection(nn.Module):
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
 
       dd = self.dd(query_vec)
+      if self.dc_use_muon: # lsp: recover to original shape
+        dd = dd.reshape(*dd.shape[:-1], self.num_groups, self.num_heads_per_group * self.n_splits)
       if self.use_dd_bias:
         dd = dd + self.dd_bias[None, None]
       dd = self.dw_activation(dd)
@@ -179,6 +204,8 @@ class DynamicWeightProjection(nn.Module):
       return (pre_w1, pre_w2, pre_dd), (post_w1, post_w2, post_dd)
     else:
       dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))
+      if self.dc_use_muon: # lsp: recover to original shape
+        dw_hidden = dw_hidden.reshape(*dw_hidden.shape[:-1], self.num_groups, self.n_splits, self.dynamic_w_hidden_dim)
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
       # dw_hidden: b * t * 1 * n_split * 128  qkw_kernel: 1 * n_split * 128 * I(4) * 128
@@ -201,6 +228,8 @@ class DynamicWeightProjection(nn.Module):
       pre_qw2, pre_kw2, post_qw2, post_kw2 = unbind(w2, 4, axis=3)
 
       dd = self.dd(query_vec)
+      if self.dc_use_muon: # lsp: recover to original shape
+        dd = dd.reshape(*dd.shape[:-1], self.num_groups, self.num_heads_per_group * self.n_splits)
       if self.use_dd_bias:
         dd = dd + self.dd_bias[None, None]
       dd = self.dw_activation(dd)
@@ -258,7 +287,7 @@ class CrossHeadProjection(nn.Module):
         assert False, f'[{in_dim}, {out_dim}]'
       return math.sqrt(2.0 / (in_dim + out_dim)) * relative_scale
     print(f'key_wise: {self.key_wise} static_proj: {self.static_proj}')
-    if self.static_proj:
+    if self.static_proj: 
       cfg = self.config
       self.sw_quant = self.config.sw_quant
       if self.sw_quant:
@@ -279,16 +308,21 @@ class CrossHeadProjection(nn.Module):
       if self.squeeze_ratio is None:
         shape=[self.num_groups, self.num_heads_per_group, self.num_heads_per_group]
         scale = init_fn(self.num_heads_per_group)
-        self.w = self.param('w', NormalInitializer(scale), shape, self.weight_dtype)
+        w_kernel = self.param('w', NormalInitializer(scale), shape, self.weight_dtype)
+        self.w = jnp.asarray(w_kernel, self.dtype) # convert dtype to compute
+        
       else:
         self.hidden_dim = self.num_heads_per_group // self.squeeze_ratio
         shape=[self.num_groups, self.num_heads_per_group, self.hidden_dim]
         scale = init_fn(self.hidden_dim)
-        self.w1 = self.param('w1', NormalInitializer(scale), shape, self.weight_dtype)
+        w1_kernel = self.param('w1', NormalInitializer(scale), shape, self.weight_dtype)
+        self.w1 = jnp.asarray(w1_kernel, self.dtype)
 
         shape=[self.num_groups, self.hidden_dim, self.num_heads_per_group]
         scale = init_fn(self.num_heads_per_group, in_dim=self.hidden_dim)
         self.w2 = self.param('w2', NormalInitializer(scale), shape, self.weight_dtype)
+        w2_kernel = self.param('w2', NormalInitializer(scale), shape, self.weight_dtype)
+        self.w2 = jnp.asarray(w2_kernel, self.dtype)
 
   def apply_sw(self, ret, exp, _inputs, w):
     if self.sw_quant:
@@ -312,7 +346,6 @@ class CrossHeadProjection(nn.Module):
     exp = f'{inputs_label},GMN->{out_label}' #  'BGMTS'  GMN   BGNTS
 
     ret = inputs
-    # __import__('ipdb').set_trace()
     # This op I/O too many, loss is lower but speed lower than remove it. suggest remove it
     # ret += jnp.einsum('BGMTS,GMN->BGNTS', inputs, self.w)
     if self.static_proj:
@@ -379,7 +412,7 @@ class CrossHeadProjection(nn.Module):
     return jnp.reshape(ret, shape)  # BGMTS->BNTS
 
 
-class AttentionOp(nn.Module):
+class AttentionOp(nn.Module):#
 
   config: Any
   quant: Optional[Quant] = None
@@ -413,23 +446,7 @@ class AttentionOp(nn.Module):
     I = 2
     num_heads_per_group = self.num_query_heads // self.num_groups
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
-    n_splits = 2 if self.is_cross_attention else 4
-    dyn_w_kwargs = {
-        'num_heads': self.num_query_heads, 
-        'num_groups': self.num_groups,
-        'input_dim': self.num_query_heads * self.head_dim, 
-        'n_splits': n_splits,
-        'dynamic_w_init': math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
-        'dynamic_d_init': math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
-        'dynamic_squeeze_ratio': num_heads_per_group // I,
-        'dynamic_w_hidden_dim': dynamic_w_hidden_dim,
-        'dtype': self.dtype, 
-        'weight_dtype': self.weight_dtype, 
-        'precision': self.precision,
-        'deterministic': self.deterministic,
-        'dynamic_dropout_rate': self.dynamic_dropout_rate,
-        'quant': self.quant,
-    }
+    
     if cfg.pre_compose or cfg.post_compose:
       if self.is_cross_attention or self.seperate_qk_dw_proj:
         for name, use in [('q_dyn_w_proj', cfg.query_wise), ('k_dyn_w_proj', cfg.key_wise)]:
@@ -450,6 +467,7 @@ class AttentionOp(nn.Module):
             dc_dw2_zero_init=self.config.dc_dw2_zero_init,
             use_dw_bias=self.config.use_dw_bias,
             use_dd_bias=self.config.use_dd_bias,
+            dc_use_muon=cfg.dc_use_muon,
           ))
       else:
         self.dyn_w_proj = DynamicWeightProjection(
@@ -468,6 +486,7 @@ class AttentionOp(nn.Module):
           dc_dw2_zero_init=self.config.dc_dw2_zero_init,
           use_dw_bias=self.config.use_dw_bias,
           use_dd_bias=self.config.use_dd_bias,
+          dc_use_muon=cfg.dc_use_muon,
           )
 
       self.pre_proj = CrossHeadProjection(

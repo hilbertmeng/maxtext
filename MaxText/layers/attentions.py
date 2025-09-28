@@ -1144,6 +1144,7 @@ class Attention(nn.Module):
   use_kv_shift: bool = False
 
   def setup(self):
+    print(f'num_kv_heads: {self.num_kv_heads}')
     if self.config.pre_compose or self.config.post_compose:
       self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size, num_kv_heads=self.num_kv_heads)
     else:
@@ -1172,34 +1173,38 @@ class Attention(nn.Module):
         ragged_block_size=self.ragged_block_size,
     )
     if self.use_kv_shift:
-      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init, num_kv_heads=self.num_kv_heads)
       
 
   def query_projection(self, inputs_q: Array) -> Array:
     """Query projection."""
 
-    # NOTE: T5 does not explicitly rescale the attention logits by
-    #       1/sqrt(depth_kq)!  This is folded into the initializers of the
-    #       linear transformations, which is equivalent under Adafactor.
-    depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
+    if self.config.opt_type == 'muon':
+      kernel_axes=("embed", "mlp")
+      features = (self.num_query_heads * self.head_dim, )
+    else:
+      kernel_axes=("embed", "q_heads", "kv")
+      features = (self.num_query_heads, self.head_dim)
 
-    # def query_init(*args):
-    #   # pylint: disable=no-value-for-parameter
-    #   return self.kernel_init(*args) / depth_scaling
+    b, t, h = inputs_q.shape
 
     query_proj = DenseGeneral(
-        features=(self.num_query_heads, self.head_dim),
+        features=features,
         axis=-1,
         kernel_init=self.kernel_init, # lsp
-        kernel_axes=("embed", "q_heads", "kv"),
+        kernel_axes=kernel_axes,
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         name="query",
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
         use_bias=self.config.qkv_bias,
-    )(inputs_q)
-    return query_proj
+    )
+    output = query_proj(inputs_q)
+    print(f'output: {output.shape}')
+    if self.config.opt_type == 'muon':
+      output = output.reshape(b, t, self.num_query_heads, self.head_dim)
+    return output
 
   def kv_projection(self, inputs_kv: Array, proj_name: str) -> Array:
     """Projection for Key and Value.
@@ -1212,16 +1217,23 @@ class Attention(nn.Module):
     Returns:
       Projection of key or value, in shape of `[batch, kv_length, head_dim]`.
     """
+    b, t, h = inputs_kv.shape
+
     if self.num_kv_heads == -1:
       raise ValueError("num_kv_heads is not defined.")
 
     if self.num_query_heads % self.num_kv_heads != 0:
       raise ValueError("Invalid num_kv_heads for GQA.")
-
-    kernel_axes = ("embed", "kv_heads", "kv_head_dim")
-
+    
+    num_kv_heads = self.num_kv_heads
+    if self.config.opt_type == 'muon':
+      kernel_axes = ("embed", "mlp")
+      features=(num_kv_heads * self.head_dim, )
+    else:
+      kernel_axes = ("embed", "kv_heads", "kv_head_dim")
+      features=(num_kv_heads, self.head_dim) 
     kv_proj = DenseGeneral(
-        features=(self.num_kv_heads, self.head_dim),
+        features=features,
         axis=-1,
         kernel_init=self.kernel_init,
         kernel_axes=kernel_axes,
@@ -1232,6 +1244,8 @@ class Attention(nn.Module):
         matmul_precision=self.config.matmul_precision,
         use_bias=self.config.qkv_bias,
     )(inputs_kv)
+    if self.config.opt_type == 'muon':
+      kv_proj = kv_proj.reshape(b, t, num_kv_heads, self.head_dim)
     return kv_proj
 
   def qkv_projection(self, inputs: Array, proj_name: str):
@@ -1254,17 +1268,33 @@ class Attention(nn.Module):
     return query, key, value
 
   def out_projection(self, output_dim: int, out: Array) -> Array:
-    out_proj = DenseGeneral(
-        features=output_dim,
-        axis=(-2, -1),
-        kernel_init=self.kernel_init,
-        kernel_axes=("heads", "kv", "embed"),
-        dtype=self.dtype,
-        weight_dtype=self.weight_dtype,
-        name="out",
-        quant=self.quant,
-        matmul_precision=self.config.matmul_precision,
-    )(out)
+    if self.config.opt_type == 'muon':
+      kernel_shape = (self.head_dim * self.num_query_heads, output_dim)
+      kernel_in_axis = (0, )
+      kernel_out_axis = (1, )
+      kernel = self.param(
+          "out",
+          nn.with_logical_partitioning(self.kernel_init, ("mlp", "embed")),
+          kernel_shape,
+          self.weight_dtype,
+          kernel_in_axis,
+          kernel_out_axis,
+      )
+      kernel = kernel.reshape(self.num_query_heads, self.head_dim, output_dim)
+      kernel = jnp.asarray(kernel, self.dtype)
+      out_proj = jnp.einsum("btnh,nhd->btd", out, kernel)
+    else:
+      out_proj = DenseGeneral(
+          features=output_dim,
+          axis=(-2, -1),
+          kernel_init=self.kernel_init,
+          kernel_axes=("heads", "kv", "embed"),
+          dtype=self.dtype,
+          weight_dtype=self.weight_dtype,
+          name="out",
+          quant=self.quant,
+          matmul_precision=self.config.matmul_precision,
+      )(out)
     return out_proj
 
   def apply_rotary_embedding(self, inputs: Array, inputs_positions: Array, name: str):

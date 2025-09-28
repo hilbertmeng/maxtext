@@ -645,10 +645,14 @@ seperate_qk_dw_proj: True
 train_shuffle_buffer_size: 200
 query_chunk_method: ''
 sub_remat: False
-mix_attn: False
+mix_attn: False # 32k and 4k global attention
 
 # Bucket logging configuration
 bucket_logging_enabled: True  # Whether to enable logging to GCS bucket
 bucket_logging_dir: "logs"        # GCS bucket path for logs, e.g., "gs://my-bucket/logs"
 bucket_log_upload_interval: 300 # Upload interval in seconds (default: 300)
 bucket_log_buffer_size: 500   # Maximum buffer size before forced upload (default: 150)
+
+# muon
+dc_use_muon: False
+mudd_use_muon: False

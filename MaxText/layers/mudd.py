@@ -34,7 +34,8 @@ def wsum(w: jnp.ndarray, # CBTL1
   for chunk_i in range(T // seq_chunk_size):
     sli = slice(chunk_i * seq_chunk_size, (chunk_i + 1) * seq_chunk_size)
     for l in range(L): # 每层
-      out = out.at[:, :, sli, :].set(out[:, :, sli, :] + w[:, :, sli, l, :] * hids[l][:, sli, :])  # CBt1*BtD->CBtD)
+      upd = (out[:, :, sli, :] + w[:, :, sli, l, :] * hids[l][:, sli, :]).astype(out.dtype)
+      out = out.at[:, :, sli, :].set(upd)  # CBt1*BtD->CBtD)
   return out
 
 
@@ -81,6 +82,7 @@ class Mlp(nn.Module):
     layer_inx = self.layer_inx
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     dw_shape = (C, ((layer_inx + 1) * factor + 1))
+    self.dw_shape = dw_shape
 
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 else 1
     max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {dynamic_dense_hidden_expand}', debug=self.config.debug)
@@ -100,9 +102,10 @@ class Mlp(nn.Module):
                                     **kwargs)
     self.dense_activation = linears._convert_to_activation_function(cfg.dynamic_dense_act_cls)
     
-    self.dense_proj2 = linears.DenseGeneral(dw_shape, 
+    self.dense_proj2 = linears.DenseGeneral(
+                                    dw_shape if not cfg.mudd_use_muon else np.prod(dw_shape), 
                                     kernel_init=initializers.contant_dense_init(0.0), 
-                                    kernel_axes=('kv', None), 
+                                    kernel_axes=('kv', None, 'mlp') if not cfg.mudd_use_muon else ('kv', 'mlp'), 
                                     use_bias=False, 
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
@@ -124,6 +127,9 @@ class Mlp(nn.Module):
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
+      if cfg.mudd_use_muon:
+        # bt(c*l) -> btcl
+        dyn_dense_kernel_out = dyn_dense_kernel_out.reshape(*dyn_dense_kernel_out.shape[:-1], *self.dw_shape)
       if cfg.dynamic_dense_scale_dw:
         max_logging.log(f'dynamic_dense_scale_dw: {cfg.dynamic_dense_scale_dw}', debug=self.config.debug)
         dyn_dense_kernel_out /= jnp.sqrt(self.dynamic_dense_inter_dim)

@@ -325,11 +325,11 @@ class MoeBlock(nn.Module):
   quant: Optional[Quant] = None
 
   # The first axes is expert
-  # wi_kernel_axes = ("exp", "embed_no_exp", "mlp")
-  # wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
+  wi_kernel_axes = ("exp", "embed_no_exp", "mlp")
+  wo_kernel_axes = ("exp", "mlp", "embed_no_exp")
 
-  wi_kernel_axes = ("embed_no_exp", None, "mlp")
-  wo_kernel_axes = ("embed_no_exp", "mlp", None)
+  # wi_kernel_axes = ("embed_no_exp", None, "mlp")
+  # wo_kernel_axes = ("embed_no_exp", "mlp", None)
 
   def generate_kernels(self, num_experts, emb_dim, mlp_dim):
 

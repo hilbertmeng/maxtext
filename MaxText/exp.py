@@ -479,8 +479,12 @@ class DCMuddXLamaLGLLGgqa(LlamaXL, DreamMini):
     base_num_kv_heads = [base_num_query_heads, base_num_query_heads // G, base_num_query_heads, base_num_query_heads]
     base_mlp_dim = base_mlp_dim + 256 # ggqa attn param add into mlp
     static_proj = False
+    mudd_prenorm = True
+    mudd_postnorm = True
+    sliding_window_size = [256, None, 256, 256]
+    num_layers_per_block = 1
 
 class MuonDCMuddXLamaLGLLGgqa(Muon, DCMuddXLamaLGLLGgqa):
-    dc_use_muon = True
-    mudd_use_muon = True
+    dc_use_muon = False
+    mudd_use_muon = False
     

@@ -879,7 +879,7 @@ def create_learning_rate_schedule(config):
   def make_cos_schedule(init_lr, final_lr, len_steps):
     def schedule(step):
       # 务必注意，这个传入的step不是实际的步数，是从0开始的
-      pct = (step) / len_steps
+      pct = (step) / max(1, len_steps)
       a = 0.5 * (jnp.cos(jnp.pi * pct) + 1)
       lr = init_lr * a + final_lr * (1 - a)
       return lr

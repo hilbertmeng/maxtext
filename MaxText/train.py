@@ -684,7 +684,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng, sk
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
    
-  specs = jax.tree_util.tree_map(lambda x: x.spec, state_mesh_shardings.params)
+  # specs = jax.tree_util.tree_map(lambda x: x.spec, state_mesh_shardings.params)
   # flat_raw_grads = flatten_dict(raw_grads)
   # flat_specs = flatten_dict(specs)
   # max_logging.log(f'specs, {type(specs)}, raw_grads, {type(raw_grads)}')
@@ -708,7 +708,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng, sk
   #   raw_grads = jax.tree_util.tree_map(lambda g: g * grad_scale, raw_grads)
   #   return raw_grads
 
-  raw_grad_norm = max_utils.l2norm_pytree(raw_grads)
+  # raw_grad_norm = max_utils.l2norm_pytree(raw_grads)
   if config.gradient_clipping_threshold > 0:
     # grads = apply_gradient_clipping_pax(raw_grads, config.gradient_clipping_threshold, raw_grad_norm)
     grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
@@ -746,8 +746,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng, sk
     # scalar_metrics["learning/grad_norm"] = 1
     # scalar_metrics["learning/raw_grad_norm"] = 1
     # scalar_metrics["learning/param_norm"] = 1
-    # scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
-    scalar_metrics["learning/raw_grad_norm"] = raw_grad_norm
+    scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
+    scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
   if config.use_dpo:
     scalar_metrics["learning/dpo_reward_accuracy"] = aux["reward_accuracy"]

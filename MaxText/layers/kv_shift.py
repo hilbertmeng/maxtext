@@ -59,6 +59,7 @@ class KVshift(nn.Module):
   config: Any
   mesh: Mesh
   quant: Optional[Quant] = None
+  num_kv_heads: int = 16
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
   num_kv_heads: int = None
   

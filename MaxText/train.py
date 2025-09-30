@@ -1311,7 +1311,8 @@ def train_loop(config, teacher_config=None, state=None):
         )
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
-      print(f'eval_data_iterator: {eval_data_iterator} step_in_file: {eval_data_iterator.step_in_file}')
+      step_in_file = eval_data_iterator.step_in_file
+      print(f'eval_data_iterator: {eval_data_iterator} step_in_file: {step_in_file}')
       cumulative_eval_metrics = {
           "scalar": {
               "eval/total_loss": 0.0,
@@ -1326,17 +1327,17 @@ def train_loop(config, teacher_config=None, state=None):
       }
       eval_dpo_reward_accuracy = 0.0
       eval_step_count = 0
-      # pylint: disable=not-callable
       eval_start_time = time.time()
-      eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
+      eval_steps = config.eval_steps if config.eval_steps != -1 else 10000# 设置一个很大的数，自动停止
       correct, accuracy, mean_b_loss, mtp_loss, mtp_accept_rate = 0, 0, 0, 0, 0 # lsp
+      start_step = step_in_file
       for _ in range(eval_steps):
         try: eval_batch = next(eval_data_iterator)
         except:
           print('Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.')
           eval_data_iterator.reset()
           # -1 means eval whole dataset, otherwise must eval eval_steps examples
-          if config.eval_steps == -1: break
+          if config.eval_steps == -1 or start_step == 0: break # 意味着从头到尾都评测完了，不需要继续了。
           else: eval_batch = next(eval_data_iterator)
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
           if config.only_eval: # lsp

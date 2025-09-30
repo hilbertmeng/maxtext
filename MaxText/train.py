@@ -1311,7 +1311,7 @@ def train_loop(config, teacher_config=None, state=None):
         )
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
-      print(f'eval_data_iterator: {eval_data_iterator} ')
+      print(f'eval_data_iterator: {eval_data_iterator} step_in_file: {eval_data_iterator.step_in_file}')
       cumulative_eval_metrics = {
           "scalar": {
               "eval/total_loss": 0.0,
@@ -1331,16 +1331,13 @@ def train_loop(config, teacher_config=None, state=None):
       eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
       correct, accuracy, mean_b_loss, mtp_loss, mtp_accept_rate = 0, 0, 0, 0, 0 # lsp
       for _ in range(eval_steps):
-        try:
-          eval_batch = next(eval_data_iterator)
+        try: eval_batch = next(eval_data_iterator)
         except:
-          pstr = 'Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.'
-          max_logging.log(pstr)
+          print('Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.')
           eval_data_iterator.reset()
-          if config.eval_steps == -1: # -1 means eval whole dataset, otherwise must eval eval_steps examples
-            break
-          else: 
-            continue
+          # -1 means eval whole dataset, otherwise must eval eval_steps examples
+          if config.eval_steps == -1: break
+          else: eval_batch = next(eval_data_iterator)
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
           if config.only_eval: # lsp
             nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
@@ -1352,7 +1349,6 @@ def train_loop(config, teacher_config=None, state=None):
         cumulative_eval_metrics["scalar"]["eval/teacher_loss"] += float(eval_metrics["scalar"]["evaluation/teacher_loss"])
         cumulative_eval_metrics["scalar"]["eval/mtp_loss"] += float(eval_metrics["scalar"]["evaluation/mtp_loss"])
         cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] += float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"])
-
         # lsp
         _correct = float(eval_metrics['scalar']['evaluation/correct'])
         _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
@@ -1367,7 +1363,6 @@ def train_loop(config, teacher_config=None, state=None):
         mtp_accept_rate += _mtp_accept_rate
         
         eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
-        # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
         eval_step_count += 1
 
         total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
@@ -1382,10 +1377,7 @@ def train_loop(config, teacher_config=None, state=None):
           print_messages.append(f"mtp_accept_rate: {_mtp_accept_rate:.3f}")
         print_messages = ' '.join(print_messages)
         max_logging.log(print_messages)
-        # max_logging.log(s
-        #   f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}, '
-        #   f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
-        #   )
+      
 
       eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
           cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS

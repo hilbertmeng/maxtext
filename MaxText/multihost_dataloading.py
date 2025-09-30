@@ -104,6 +104,7 @@ class MultiHostDataLoadIterator:
       raise ValueError("Type error: dataloader should be either tf.data.Dataset or Iterable.")
 
   def reset(self):
+    print(f'process: {jax.process_index()} MultiHostDataLoadIterator reset')
     if isinstance(self.dataloader, tf.data.Dataset):
       self.local_iterator = self.dataloader.as_numpy_iterator()
     elif isinstance(self.dataloader, Iterable):

@@ -91,11 +91,9 @@ class PileDatasets():
             }
         self.step_in_file = 0
 
- #   def peek_padded(self):
-  #      return self.get_next_padded()
-
     def reset(self):
         self.init_meta()
+        print(f'process: {jax.process_index()} reset path: {self.path}')
         self.dataset = self.load_tfrecord_dataset(fnames=self.path)
 
     def __iter__(self):
@@ -164,10 +162,12 @@ class PileDatasets():
         tf.random.set_seed(self.seed)
         ds = tf.data.Dataset.from_tensor_slices(fname)
         ds = ds.apply(tf.data.TFRecordDataset)
-        # shard host data
+        if 'eval' in self.name: # 不然有时候eval数据集不均分会报错。
+            print(f'This eval mode......')
+            ds = ds.batch(self.num_infeed_hosts, drop_remainder=True)
+            ds = ds.unbatch()
         process_index = jax.process_index()
-        # 在这里进行shard的话，不同的pod在相同的batch_size时，拿到的数据不一致
-        ds = ds.shard(self.num_infeed_hosts, process_index)
+        ds = ds.shard(self.num_infeed_hosts, process_index) # 不保证每台机器数据一样多。
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE) # 取 seq_len + 1
         print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
@@ -182,10 +182,8 @@ class PileDatasets():
             drop_remainder=True,
         )
         if self.shuffle_buffer_size is not None:
-            # batch化之后继续进行shuffle，让batch之间shuffle更加彻底
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size // self.batch_size)
-        # lsp: batch之后进行shard。如果不进行shuffle，在batch化之前shard也行
-        # ds = ds.shard(self.num_infeed_hosts, process_index)
+
         ds = ds.map(self.convert)
         ds = ds.prefetch(tf.data.AUTOTUNE)
         if self.step_in_file: ds = ds.skip(self.step_in_file)  # XD fix
@@ -205,7 +203,6 @@ class PileDatasets():
             fname = repeat_fnames[n * self.iter_file_nums : (n + 1) * self.iter_file_nums]
             self.meta_dict["cur_files"] = fname
             ds = self._load_file_dataset(fname)
-            # ds = ds.as_numpy_iterator()
             for batch in ds:
                 self.meta_dict["step_in_file"] += 1
                 self.step_in_file += 1
@@ -443,7 +440,6 @@ def make_pile_train_iterator(config, mesh):  # lsp
   except:
     only_eval = False
   meta_dict = extract_train_skip_step(job_dir,  step=config.training_num_batches_to_skip, only_eval=only_eval)
-  # load_full_state_path
   print(f'meta_dict: {meta_dict}')
 
   task_features = config.task_features

@@ -514,4 +514,28 @@ class DCMuddXLamaLGLLGgqa(LlamaXL, DreamMini):
 class MuonDCMuddXLamaLGLLGgqa(Muon, DCMuddXLamaLGLLGgqa):
     dc_use_muon = False
     mudd_use_muon = False
-    
+
+class DC2MuddLlamaMediumLGL4LSPDebug(LGWindow, MuddLlama2Medium):  # mqy 
+    record_internal_nn_metrics = False
+    pre_compose = True
+    post_compose = True
+    loop_over_dynamic_hd = True
+    query_wise = True    
+    key_wise = False
+    qk_norm = True
+    seperate_qk_dw_proj = True # generate qw from query-way hidden state
+    dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
+    use_dw_bias = True
+    use_dd_bias = True # harm performance 
+    static_proj = False
+    query_chunk_size = 1024
+    base_num_decoder_layers = 4
+    num_layers_per_block = 1
+    sharding_tolerance = 0.05
+    attention='dot_product_chunk'
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+
+class DC2MuddLlamaMediumKV4QO16LGLLMqyDevQchunk512KVshift(SpeedTest, KVshift, DC2MuddLlamaMediumKV4QO16LGLLMqyDevQchunk512):
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True

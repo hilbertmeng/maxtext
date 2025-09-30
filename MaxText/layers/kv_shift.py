@@ -112,7 +112,7 @@ class KVshift(nn.Module):
                                       name='kv_shift_proj_down',
                                       **kwargs)
     else:
-      if self.kv_shift_hidden_way in ['kv', 'qkv']:
+      if self.kv_shift_hidden_way in ['kv', 'qkv'] and self.config.kv_shift_flash:
         for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
                                       (self.num_kv_heads, 1),
@@ -141,7 +141,7 @@ class KVshift(nn.Module):
       inputs_v=None, # BTD
       inputs_m=None, # BTD
   ):
-    assert self.config.kv_shift_flash
+    # assert self.config.kv_shift_flash
     inputs = inputs_q
 
     if self.kv_shift_hidden_way == 'm':

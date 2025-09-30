@@ -1172,7 +1172,7 @@ class Attention(nn.Module):
         ragged_block_size=self.ragged_block_size,
     )
     if self.use_kv_shift:
-      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init, num_kv_heads=self.num_kv_heads)
       
 
   def query_projection(self, inputs_q: Array) -> Array:

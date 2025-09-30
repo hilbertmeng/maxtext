@@ -59,6 +59,7 @@ class KVshift(nn.Module):
   config: Any
   mesh: Mesh
   quant: Optional[Quant] = None
+  num_kv_heads: int = 16
   kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
   
   def setup(self):
@@ -81,14 +82,14 @@ class KVshift(nn.Module):
       if self.kv_shift_hidden_way in ['kv', 'qkv']:
         for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_up_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads),
+                                      (self.num_kv_heads),
                                       kernel_init=self.kernel_init,
                                       kernel_axes=('embed', "kv_heads"),
                                       use_bias=False,
                                       name=f'kv_shift_proj_up_{mode}',
                                       **kwargs))
           setattr(self, f'dw_down_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads, 1),
+                                      (self.num_kv_heads, 1),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', None),
                                       use_bias=True,
@@ -96,14 +97,14 @@ class KVshift(nn.Module):
                                       **kwargs))
       else:
         self.dw_up_proj = linears.DenseGeneral(
-                                      (cfg.num_kv_heads * num_shifts),
+                                      (self.num_kv_heads * num_shifts),
                                       kernel_init=self.kernel_init,
                                       kernel_axes=('embed', "kv_heads"),
                                       use_bias=False,
                                       name='kv_shift_proj_up',
                                       **kwargs)
         self.dw_down_proj = linears.DenseGeneral(
-                                      (cfg.num_kv_heads, num_shifts),
+                                      (self.num_kv_heads, num_shifts),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=True,
@@ -113,7 +114,7 @@ class KVshift(nn.Module):
       if self.kv_shift_hidden_way in ['kv', 'qkv']:
         for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads, 1),
+                                      (self.num_kv_heads, 1),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=False,

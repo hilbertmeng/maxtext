@@ -55,6 +55,16 @@ def shift_1d(inputs, offset: int, axis: int):
     )
   return output
 
+class StaticShiftPerChannel(nn.Module):
+  config: Any
+  mesh: Mesh
+  quant: Optional[Quant] = None
+  kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+
+  def setup(self):
+    cfg = self.config
+    self.mu =  self.param('w1_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, None, 'kv_heads')), bias_shape, self.weight_dtype)
+
 class KVshift(nn.Module):
   config: Any
   mesh: Mesh
@@ -79,33 +89,42 @@ class KVshift(nn.Module):
     self.q_shift = self.config.use_q_shift
     num_shifts = 2 if not self.q_shift else 3 
     num_kv_heads = self.num_kv_heads if self.num_kv_heads is not None else cfg.num_kv_heads
+    self.kv_shift_per_channel = self.config.kv_shift_per_channel
+    if self.kv_shift_per_channel:
+      assert self.kv_shift_mlp
+      self.mu_k = self.param('mu_k',nn.with_logical_partitioning(initializers.constant_init(0.5), ('embed',)), (self.config.emb_dim,), cfg.weight_dtype)
+      self.mu_v = self.param('mu_v',nn.with_logical_partitioning(initializers.constant_init(0.5), ('embed',)), (self.config.emb_dim,), cfg.weight_dtype)
+    if self.kv_shift_mlp:
+      self.kv_shift_lora_act = {'tanh': jax.nn.tanh, 'gelu': jax.nn.gelu, 'identity': jax.nn.identity}[self.config.kv_shift_lora_act]
     if self.kv_shift_mlp:
       if self.kv_shift_hidden_way in ['kv', 'qkv']:
         for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_up_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads),
+                                      (num_kv_heads if not self.kv_shift_per_channel else self.config.kv_shift_lora_dim),
                                       kernel_init=self.kernel_init,
-                                      kernel_axes=('embed', "kv_heads"),
+                                      # kernel_axes=('embed', "kv_heads"),  # by mqy
+                                      kernel_axes=('embed', None), # fix by xd
                                       use_bias=False,
                                       name=f'kv_shift_proj_up_{mode}',
                                       **kwargs))
           setattr(self, f'dw_down_proj_{mode}', linears.DenseGeneral(
-                                      (cfg.num_kv_heads, 1),
+                                      (num_kv_heads, cfg.head_dim if self.kv_shift_per_channel else 1),
                                       kernel_init=initializers.contant_dense_init(0.0),
-                                      kernel_axes=('embed', None),
+                                      # kernel_axes=('embed', None),  # by mqy
+                                      kernel_axes=(None, None, None), # TODO xd: how to shard?
                                       use_bias=True,
                                       name=f'kv_shift_proj_down_{mode}',
                                       **kwargs))
       else:
         self.dw_up_proj = linears.DenseGeneral(
-                                      (cfg.num_kv_heads * num_shifts),
+                                      (num_kv_heads * num_shifts),
                                       kernel_init=self.kernel_init,
                                       kernel_axes=('embed', "kv_heads"),
                                       use_bias=False,
                                       name='kv_shift_proj_up',
                                       **kwargs)
         self.dw_down_proj = linears.DenseGeneral(
-                                      (cfg.num_kv_heads, num_shifts),
+                                      (num_kv_heads, num_shifts),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=True,
@@ -123,7 +142,7 @@ class KVshift(nn.Module):
                                       **kwargs))
       else:
         self.dw_proj = linears.DenseGeneral(
-                                      (cfg.num_kv_heads, num_shifts),
+                                      (num_kv_heads, num_shifts),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=False,
@@ -147,11 +166,15 @@ class KVshift(nn.Module):
     if self.kv_shift_hidden_way == 'm':
       inputs = self.kv_shift_prenorm(inputs_m)
 
+    if self.config.kv_shift_per_channel:
+      inputs_k = inputs_k * self.mu_k + (1 - self.mu_k) * shift_1d(inputs_k, offset=1, axis=1)
+      inputs_v = inputs_v * self.mu_v + (1 - self.mu_v) * shift_1d(inputs_v, offset=1, axis=1)
+
     if self.config.kv_shift_flash:
       if self.kv_shift_hidden_way == 'kv':
         if self.kv_shift_mlp: # best branch
-          kg = jax.nn.sigmoid(self.dw_down_proj_k(jax.nn.gelu(self.dw_up_proj_k(inputs_k))))
-          vg = jax.nn.sigmoid(self.dw_down_proj_v(jax.nn.gelu(self.dw_up_proj_v(inputs_v))))
+          kg = jax.nn.sigmoid(self.dw_down_proj_k(self.kv_shift_lora_act(self.dw_up_proj_k(inputs_k))))
+          vg = jax.nn.sigmoid(self.dw_down_proj_v(self.kv_shift_lora_act(self.dw_up_proj_v(inputs_v))))
         else:
           kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))
           vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))
@@ -192,7 +215,7 @@ class KVshift(nn.Module):
     if not self.config.kv_shift_skip_knorm:
       key = self.kv_shift_norm(key)
 
-    return query, key, value    
+    return query, key, value, inputs_k, inputs_v    
 
 
 class Hiddenshift(nn.Module):

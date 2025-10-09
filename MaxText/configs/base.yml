@@ -656,5 +656,6 @@ bucket_log_buffer_size: 500   # Maximum buffer size before forced upload (defaul
 # muon
 dc_use_muon: False
 mudd_use_muon: False
+muon_scale: 0.2
 
 kv_shift_flash: True

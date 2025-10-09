@@ -638,6 +638,10 @@ class MuonMuddLlama2Medium(Muon, MuddLlama2Medium):
     mudd_prenorm = True
     mudd_postnorm = True
 
+class MuonDCLlama2Medium(Muon, DCLlama2Medium):
+    pass
+
+
 class MuonDCMuddLlama2Medium(Muon, DCMuddLlama2Medium):
     dynamic_mlp_dim = False
     mudd_prenorm = True

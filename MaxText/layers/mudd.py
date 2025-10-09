@@ -25,7 +25,7 @@ def l2norm(x):
 
 def wsum(w: jnp.ndarray, # CBTL1
          hids: list[jnp.ndarray], # list of BTD
-         seq_chunk_size: int = None
+         seq_chunk_size: int = None,
          ) -> jnp.ndarray:  # CBTD
   C, B, T, L, _ = w.shape
   D = hids[0].shape[-1]
@@ -35,7 +35,7 @@ def wsum(w: jnp.ndarray, # CBTL1
   for chunk_i in range(T // seq_chunk_size):
     sli = slice(chunk_i * seq_chunk_size, (chunk_i + 1) * seq_chunk_size)
     for l in range(L): # 每层
-      out = out.at[:, :, sli, :].set(out[:, :, sli, :] + w[:, :, sli, l, :] * hids[l][:, sli, :])  # CBt1*BtD->CBtD)
+      out = out.at[:, :, sli, :].set(out[:, :, sli, :] + (w[:, :, sli, l, :] * hids[l][:, sli, :].astype(w.dtype)).astype(out.dtype))  # CBt1*BtD->CBtD)
   return out
 
 
@@ -98,12 +98,13 @@ class Mlp(nn.Module):
       dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
 
-    kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
+    kwargs = dict(weight_dtype=cfg.weight_dtype, quant=self.quant)
     self.dense_proj1 = linears.DenseGeneral(
                                     dynamic_dense_inter_dim,
                                     kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
                                     kernel_axes=('embed', 'kv'),
                                     use_bias=False,
+                                    dtype=jnp.float32 if cfg.mudd_in_fp32 else cfg.dtype,
                                     name='dynamic_dense_conn1',
                                     **kwargs)
     self.dense_activation = linears._convert_to_activation_function(cfg.dynamic_dense_act_cls)
@@ -112,6 +113,7 @@ class Mlp(nn.Module):
                                     kernel_init=initializers.contant_dense_init(0.0), 
                                     kernel_axes=('kv', None), 
                                     use_bias=False, 
+                                    dtype=jnp.float32 if cfg.mudd_in_fp32 else cfg.dtype,
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
     if self.use_bias:
@@ -140,6 +142,8 @@ class Mlp(nn.Module):
       else:
         dyn_dense_w = dyn_dense_kernel_out
 
+    if cfg.mudd_in_fp32 and dyn_dense_w is not None:
+      dyn_dense_w = dyn_dense_w.astype(jnp.float32)
     if self.config.mudd_num_heads is not None:
       return (dyn_dense_w, self.ov_vectors)
     else:

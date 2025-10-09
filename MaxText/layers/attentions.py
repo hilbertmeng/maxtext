@@ -1475,7 +1475,7 @@ class Attention(nn.Module):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
-    max_logging.log(f'num_kv_heads: {self.num_kv_heads}, use_v_gate: {self.use_v_gate}, key_wise: {self.key_wise}')
+    # max_logging.log(f'num_kv_heads: {self.num_kv_heads}, use_v_gate: {self.use_v_gate}, key_wise: {self.key_wise}')
     # apply projection.
     if self.config.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
@@ -1519,7 +1519,8 @@ class Attention(nn.Module):
 
       if self.use_kv_shift:
         inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
-        query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v, inputs_m=hidden_states)
+        query, key, value, shifted_inputs_k, shifted_inputs_v = self.kv_shift(
+          inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v, inputs_m=hidden_states)
     
     if self.config.use_head_pool:
       query, key, value, o_out, ow = self.head_pool(inputs_q, query, key, value, inputs_m=hidden_states, ffn_act=ffn_act)
@@ -1560,7 +1561,7 @@ class Attention(nn.Module):
     if self.config.use_k_gate:
       k_gate = DenseGeneral((self.num_query_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
             kernel_init=self.kernel_init,kernel_axes=('embed', None),name="k_gate",
-        )(inputs_q)
+        )(shifted_inputs_k if self.confg.use_shifted_k_gate_inputs else inputs_k)
       k_gate = jax.nn.tanh(k_gate) + 1  if self.config.k_gate_tanh else jax.nn.sigmoid(k_gate) 
       key = key * k_gate[...,None] # BSND, BSN1->BSND
 
@@ -1568,7 +1569,7 @@ class Attention(nn.Module):
       use_v_gate_bias = self.config.use_v_gate_bias if self.config.use_v_gate_bias is not None else False
       v_gate = DenseGeneral((self.num_query_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
             kernel_init=self.kernel_init,kernel_axes=('embed', None),name="v_gate", use_bias=use_v_gate_bias,
-        )(inputs_q)
+        )(shifted_inputs_v if self.config.use_shifted_v_gate_inputs else inputs_v)
       v_gate = jax.nn.tanh(v_gate) + 1  if self.config.v_gate_tanh else jax.nn.sigmoid(v_gate) 
       value = value * v_gate[...,None] # BSND, BSN1->BSND
 

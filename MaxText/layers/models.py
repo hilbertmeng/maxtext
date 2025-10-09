@@ -398,6 +398,7 @@ class Decoder(nn.Module):
             nn.broadcast,
             nn.broadcast,
             nn.broadcast,
+            nn.broadcast,
         ),
         length=length,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
@@ -511,6 +512,7 @@ class Decoder(nn.Module):
               decoder_positions,
               deterministic,
               model_mode,
+              None, # for layer_inx
           )
       else:
         if cfg.decoder_block == "deepseek":

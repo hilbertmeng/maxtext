@@ -70,6 +70,7 @@ class Mudd:
     dynamic_mlp_dim = True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
     dynamic_dense_scale_dw = False
     scan_layers = False
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches'
 
 class DroplessMoE:
     moe_type = 'dropless'
@@ -156,11 +157,30 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
 
+class v6eMedium:
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+
 class Llama2MediumBase(Llama2Medium):
     model_name = "Llama2MediumBase"
     attention='dot_product_chunk'
     query_chunk_size=512
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+
+class Llama2MediumBasev5p(Llama2MediumBase):
+    per_device_batch_size = 32.0
+    eval_per_device_batch_size = 128.0
+
+class Llama2MediumBasev6e(Llama2MediumBase):
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+
+class Llama2MediumBasev4(Llama2MediumBase):
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+
 
 class Llama2MediumSandwichAAAB(Llama2MediumBase):
     recursive_pattern = 'ABCDEF'*3 + 'GHIJKL'
@@ -727,6 +747,19 @@ class DC2MuddLlamaMediumKV4QO16VgateTanhLGLL(LGLLWindow, DC2MuddLlamaMediumKV4QO
     num_layers_per_block = 1
     base_mlp_dim = 2816 + int(512/4)
 
+class DC2MuddLlamaMediumKV4QO16LGLLv6eNewcmtDebug6(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL):  # 0.542
+    use_v_gate = False
+    key_wise = False  # added in _fix
+    num_layers_per_block = 1  # added in _fix
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+    base_num_decoder_layers = 8
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    # record_raw_grad_per_param = True
+
 class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL): # DC2Mudd + GQA + Vgate medium baseline 
     # L: MHA + Vgate (w/o KW); G: GQA + KW(w/o Vgate)
     use_v_gate = True
@@ -817,7 +850,7 @@ class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHidA128A(DC2MuddLlamaMe
 class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128AInpM(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128A):
     o_gate_use_inputs_m = True
 
-class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64A(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128A): # best
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64A(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid128A): # best 0.531
     o_gate_hidden_dim = 64
     base_mlp_dim = 2816 - 43  # f = d * 2 / 3 = 43  # real avg dim after dynamic adjust: 2778.67, \delta = 5.67
 
@@ -844,6 +877,276 @@ class DC2MuddLlamaMediumKVshift(KVshift, DC2MuddLlamaMedium):  # 0.473
 class DC2MuddLlamaMediumKWKVshift(KVshift, DC2MuddLlamaMediumKW): # 0.379
     kv_shift_mlp = False
     kv_shift_skip_knorm = True
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64AFixMLPDim(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64A):  # 0.526
+    base_mlp_dim = 2816 + int(512/4) - 43
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64ASameMLPDim(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64A):
+    dynamic_mlp_dim = False
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64ASameMLPDimFix(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64ASameMLPDim):
+    base_mlp_dim = 2816 + int(512/4) - 43
+
+class DC2MuddLlamaMediumKV4QO16LGLL(DC2MuddLlamaMediumKV4QO16VgateTanhLGLL):  # 0.542
+    use_v_gate = False
+    key_wise = False  # added in _fix
+    num_layers_per_block = 1  # added in _fix
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftv5p(KVshift, DC2MuddLlamaMediumKV4QO16LGLL):
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftFp32Normv5p(DC2MuddLlamaMediumKV4QO16LGLLKVshiftv5p):
+    mudd_in_fp32 = True
+    dc_in_fp32 = True
+    mudd_postnorm = True
+    mudd_prenorm = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLFixDCv5p(DC2MuddLlamaMediumKV4QO16LGLL):
+    pass
+
+class DC2MuddLlamaMediumKV4QO16LGLLv5pWoDC(DC2MuddLlamaMediumKV4QO16LGLL):
+    pre_compose = False
+    post_compose = False
+
+class DC2MuddLlamaMediumKV4QO16LGLLv5pWoMudd(DC2MuddLlamaMediumKV4QO16LGLL):
+    dense_conn = False
+
+class DC2MuddLlamaMediumKV4QO16LGLLv5pDcFp32WoMudd(DC2MuddLlamaMediumKV4QO16LGLL):
+    dense_conn = False
+    dc_in_fp32 = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLPrePostNormv5p(DC2MuddLlamaMediumKV4QO16LGLL):
+    mudd_prenorm = True
+    mudd_postnorm = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLMuddFP32v5p(DC2MuddLlamaMediumKV4QO16LGLL):
+    mudd_in_fp32 = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateFixDCv5p(DC2MuddLlamaMediumKV4QO16LGLL):
+    o_gate_hidden_dim = 64
+    o_gate_act = 'sigmoid'
+    base_mlp_dim = 2816 + int(512/4) - 43
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6e(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgate):  # 0.551  significantly lower than DC2MuddLlamaMediumKV4QO16LGLLv6e
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+    # _fixjax 0.521 loss slightly higher than DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6e, but still noticeably lower than DC2MuddLlamaMediumKV4QO16LGLLv6e
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6eFixDC(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6e): # mqy
+    pass 
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev4FixDC(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6e): # mqy
+    pass
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6e(DC2MuddLlamaMediumKV4QO16LGLL):  # 0.524  loss = 8.xx at step 0, loss = nan at step 1
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eFp32(DC2MuddLlamaMediumKV4QO16LGLLv6e):
+    mudd_in_fp32 = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eTest(SpeedTest, DC2MuddLlamaMediumKV4QO16LGLLv6e):
+    pass
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftv6eFixDCFp32Debug(SpeedTest, KVshift, DC2MuddLlamaMediumKV4QO16LGLLv6e):
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+    jax_cache_dir = '~/jax_caches3/'
+    mudd_in_fp32 = True
+    record_raw_grad_per_param = True
+    upload_param_act_tb_period = 1
+    upload_loss_tb_period = 1
+    record_internal_nn_metrics = 1
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftv6eFixDCDebug6(SpeedTest, KVshift, DC2MuddLlamaMediumKV4QO16LGLLv6e):
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+    # record_raw_grad_per_param = True
+    # upload_param_act_tb_period = 1
+    # upload_loss_tb_period = 1
+    # record_internal_nn_metrics = 1
+    jax_cache_dir = '~/jax_caches2/'
+    mudd_in_fp32 = False
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eFixDCNorm(DC2MuddLlamaMediumKV4QO16LGLLv6e): # mqy
+    mudd_prenorm = True
+    mudd_postnorm = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eFixDC(DC2MuddLlamaMediumKV4QO16LGLLv6e): # mqy
+    pass
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eWoDC(DC2MuddLlamaMediumKV4QO16LGLLv6e): # mqy
+    pre_compose = False
+    post_compose = False
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eWoMudd(DC2MuddLlamaMediumKV4QO16LGLLv6e): # mqy
+    dense_conn = False
+
+class DC2MuddLlamaMediumKV4QO16LGLLv4FixDC(DC2MuddLlamaMediumKV4QO16LGLLv6e): # mqy
+    pass
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av6e(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64AFixMLPDim):  # 0.552 nan at step 1  compile 2h19m
+    # Train with wrong name DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64A6e. Fixed afterwards.
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av6eFixDC(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av6e): # mqy
+    pass
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av4FixDC(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av6e): # mqy
+    pass
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av6eQchunkParalled(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av6e):  # 0.454
+    # loss > DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6e
+    query_chunk_method = 'parallel'
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches_DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av6eQchunkParalled'
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6eOgateHid64AQchunkParalled(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6e):  # 0.418
+    # slightly worse than DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateOgateHid64Av6eQchunkParalled
+    o_gate_hidden_dim = 64
+    o_gate_act = 'sigmoid'
+    base_mlp_dim = 2816 + int(512/4) - 43
+    query_chunk_method = 'parallel'
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eQChunkParallel(DC2MuddLlamaMediumKV4QO16LGLLv6e):
+    # loss even > MuddLlama2Medium and DCLlama2MediumQWKW
+    query_chunk_method = 'parallel'
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches'
+
+class DC2MuddLlamaMediumKV4QO16LGLLL8v6e(DC2MuddLlamaMediumKV4QO16LGLLv6e):
+    base_num_decoder_layers = 8   # loss = 2.950 at step 1485, loss = nan at step 1486
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eFixEnv(DC2MuddLlamaMediumKV4QO16LGLLv6e):  # 0.557
+    # loss noticably higher than DC2MuddLlamaMediumKV4QO16LGLL_fix on v5p
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches_DC2MuddLlamaMediumKV4QO16LGLLv6eFixEnv'
+
+class DC2MuddLlamaMediumKV4QO16LGLLv6eFixEnvQChunkParallel(DC2MuddLlamaMediumKV4QO16LGLLv6eFixEnv): # 0.455 loss matches DC2MuddLlamaMediumKV4QO16LGLLv6eFixEnv
+    query_chunk_method = 'parallel'
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches_DC2MuddLlamaMediumKV4QO16LGLLv6eFixEnvQChunkParallel'
+
+class DC2MuddLlamaMediumKV4QO16LGLLL4AttnScanv6e(DC2MuddLlamaMediumKV4QO16LGLLv6e):
+    base_num_decoder_layers = 4
+    query_chunk_method = 'parallel' # attention scan for L layers 
+
+class DC2MuddLlamaMediumKV4QO16LGLLL8v6eFixEnv(DC2MuddLlamaMediumKV4QO16LGLLL8v6e):
+    # upload_param_act_tb_period = 1
+    # upload_loss_tb_period = 1
+    jax_cache_dir = '~/jax_caches/'
+
+class DC2LlamaMediumKV4QO16LGLLv6e(DC2MuddLlamaMediumKV4QO16LGLLv6e):
+    dense_conn = False
+    dynamic_mlp_dim = False
+    scan_layers = True
+    num_layers_per_block = 4
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshift(KVshift, DC2MuddLlamaMediumKV4QO16LGLL):  # 0.527
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftv6e(DC2MuddLlamaMediumKV4QO16LGLLKVshift):  # nan at step 990
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftv6eQChunkParallel(DC2MuddLlamaMediumKV4QO16LGLLKVshiftv6e):  # run with _fixjax and input_q
+    # loss very slightly better than DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6e_fixjax, slighly worse than DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgatev6e
+    # almost the same as DC2MuddLlamaMediumKV4QO16LGLLKVshiftv6e
+    query_chunk_method = 'parallel'
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftChannelLora32Gelu(DC2MuddLlamaMediumKV4QO16LGLLKVshift):  # 0.515
+    kv_shift_mlp = True
+    kv_shift_per_channel = True
+    kv_shift_lora_dim = 32
+    kv_shift_lora_act = 'gelu'
+    base_mlp_dim = 2816 + int(512/4) - 42  # int(32*2*2/3)
+    sharding_tolerance = 0.05  # dw_down_proj_k/v are not sharded, so sharding_tolerance ~= 0.033 > default tolerance of 0.02
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftChannelLora32Geluv6eQChunkParallel(v6eMedium, DC2MuddLlamaMediumKV4QO16LGLLKVshiftChannelLora32Gelu): # run with _fixjax 0.410
+    query_chunk_method = 'parallel'
+    sharding_tolerance = 0.1  # 0.068 on v6e
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateKVshiftv6eQChunkParallel(v6eMedium, DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateKVshift): # run with _fixjax and input_v 0.416
+    query_chunk_method = 'parallel'
+
+class DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateShiftInpKVshiftChannelLora32Geluv6eQChunkParallel(DC2MuddLlamaMediumKV4QO16VgateTanhLGLLallVgateKVshiftv6eQChunkParallel): # 0.406
+    use_shifted_v_gate_inputs = True
+    kv_shift_mlp = True
+    kv_shift_per_channel = True
+    kv_shift_lora_dim = 32
+    kv_shift_lora_act = 'gelu'
+    base_mlp_dim = 2816 + int(512/4) - 42  # int(32*2*2/3)
+    sharding_tolerance = 0.1
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftChannelLora32Tanh(DC2MuddLlamaMediumKV4QO16LGLLKVshiftChannelLora32Gelu): # 0.513
+    kv_shift_lora_act = 'tanh'
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftChannelLora32(DC2MuddLlamaMediumKV4QO16LGLLKVshiftChannelLora32Gelu):  # 0.515
+    kv_shift_lora_act = 'identity'
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftmlpGelu(DC2MuddLlamaMediumKV4QO16LGLLKVshift): # 0.527
+    kv_shift_mlp = True
+    kv_shift_lora_act = 'gelu'
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftmlpTanh(DC2MuddLlamaMediumKV4QO16LGLLKVshiftmlpGelu): # 0.525
+    kv_shift_lora_act = 'tanh'
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64A(DC2MuddLlamaMediumKV4QO16LGLL):
+    o_gate_hidden_dim = 64
+    base_mlp_dim = 2816 + int(512/4) - 43
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6e(DC2MuddLlamaMediumKV4QO16LGLLOgateHid64A):  # 0.554 nan at step 2. NaN or Inf found in input tensor  compile 2h17m
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+    o_gate_act = 'sigmoid'  # added in _fixact 0.519 compiled in 8m11s
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6eFixDCNorm(DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6e): # mqy
+    mudd_prenorm = True
+    mudd_postnorm = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6eFixDC(DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6e): # mqy
+    pass 
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av4FixDC(DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6e): # mqy
+    pass 
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6eL4Jax062Debug1(SpeedTest,DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6e):
+    base_num_decoder_layers = 4
+    o_gate_act = 'sigmoid'
+    mudd_prenorm = True
+    mudd_postnorm = True
+    # o_gate_hidden_dim = None
+    jax_cache_dir = '~/jax_caches6/'
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6eL4Jax062Debug2(SpeedTest,DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6e):
+    base_num_decoder_layers = 4
+    # o_gate_hidden_dim= None 
+    mudd_prenorm = True
+    mudd_postnorm = True
+    o_gate_act = 'sigmoid'
+    jax_cache_dir = '~/jax_caches6/'
+
+class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6eQChunkParallel(DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6e):  # 0.456
+    # nearly the same loss as DC2MuddLlamaMediumKV4QO16LGLLv6eFixEnv
+    query_chunk_method = 'parallel'
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches_DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6eQChunkParallel'
+    o_gate_act = 'sigmoid'  # added in _fixact 0.422 compiled in 7m40s
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftOgateHid64A(KVshift, DC2MuddLlamaMediumKV4QO16LGLLOgateHid64A):
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+    o_gate_hidden_dim = 64
+    base_mlp_dim = 2816 - 43
+    base_mlp_dim = 2816 + int(512/4) - 43
 
 class DC2MuddLlamaMediumKV4QO16VgateTanhBias(DC2MuddLlamaMediumKV4QO16VgateTanh):
     use_v_gate_bias = True
@@ -1003,6 +1306,16 @@ class DCLlama2MediumQWKW(DCLlama2MediumStaticWQW):
     static_proj = False
     key_wise = True
     seperate_qk_dw_proj = False
+
+class DCLlama2MediumQWKWv6e(DCLlama2MediumQWKW):
+    query_chunk_size = 256 * 2
+    sharding_tolerance = 0.05
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 64.0
+
+class DCLlama2MediumQWKWv6eQChunkParallel(DCLlama2MediumQWKWv6e):
+    query_chunk_method = 'parallel'
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_europe-west4/jax_caches_DCLlama2MediumQWKWv6eQChunkParallel'
 
 class DCLlama2MediumQWKWKVshift(DCLlama2MediumQWKW):
     use_kv_shift = True
@@ -1903,10 +2216,77 @@ class DC3MuddLlamaXLGQA4DCG2LGLLKWBS8(Mudd, DC3, LGLLWindow, TrainXL, LlamaXL):
     sharding_tolerance = 0.05
     loop_over_dynamic_hd = False
     record_internal_nn_metrics = 0
-    compile_topology = 'v6e-32'
-    compile_topology_num_slices=1
-    compiled_trainstep_file="DC3MuddLlamaXLGQA4DCG2LGLLKWBS8.pkl" # 
+    # compile_topology = 'v6e-32'
+    # compile_topology_num_slices=1
+    # compiled_trainstep_file="DC3MuddLlamaXLGQA4DCG2LGLLKWBS8.pkl" # 
 
+class LlamaXLGGQA4LGLL(LGLLWindow, TrainXL, LlamaXL):
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_us-east5/jax_caches'
+    attention='dot_product_chunk'
+    query_chunk_size = 256
+    per_device_batch_size = 16.0 # v5p-32
+    base_num_kv_heads = [32,8,32,32] # L: MHA  G: GQA
+    num_layers_per_block = 1
+    scan_layers = False
+    base_mlp_dim = 5504 + 256 # 24*64*2/4/3
+    sharding_tolerance = 0.05
+    record_internal_nn_metrics = 0
+
+class LlamaXLGGQA4LGLLKVshift(KVshift, LlamaXLGGQA4LGLL):
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = False
+
+class DC3LlamaXLGGQA4LGLLDCG2(DC3, LlamaXLGGQA4LGLL):
+    dc_num_groups = 2
+    loop_over_dynamic_hd = False
+
+class MuddLlamaXLGGQA4LGLL(Mudd, LlamaXLGGQA4LGLL):
+    pass 
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p(KVshift, DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
+    key_wise = False
+    per_device_batch_size = 16.0 # v5p-32
+    kv_shift_mlp = False
+    kv_shift_skip_knorm = True
+    mudd_in_fp32 = True
+    dc_in_fp32 = True
+    mudd_postnorm = True
+    mudd_prenorm = True
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5pLkw(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p): # Local key-wise DC
+    key_wise = [True, False, True, True]
+    jax_cache_dir = 'gs://newproject-1-llm_base_models_us-east5/jax_caches'
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftNormv5pMuddFP32(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p):
+    dc_in_fp32 = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftNormv5pDCFP32(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p):
+    mudd_in_fp32 = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftNormv5p(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p):
+    mudd_in_fp32 = False
+    dc_in_fp32 = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5pOgate(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p):
+    o_gate_act = 'sigmoid'
+    o_gate_hidden_dim = 128
+    base_mlp_dim = 5504 + 256 - 85 # 128 * 2 / 3 = 85.33
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5pWoDC(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p):
+    pre_compose = False
+    post_compose = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5pWoMudd(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p):
+    dense_conn = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLBS8v6e(DC3MuddLlamaXLGQA4DCG2LGLLKWBS8):
+    key_wise = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLOgateBS8v6e(DC3MuddLlamaXLGQA4DCG2LGLLBS8v6e):
+    o_gate_act = 'sigmoid'
+    o_gate_hidden_dim = 128
+    base_mlp_dim = 5504 + 256 - 85 # 128 * 2 / 3 = 85.33
 
 class LlamaXLBase(TrainXL, LlamaXL):
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"

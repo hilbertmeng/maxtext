@@ -283,7 +283,7 @@ logical_axis_rules: [
                       ['kv_heads', ['tensor', 'tensor_transpose', 'tensor_sequence', 'autoregressive']],
                       ['embed', ['fsdp', 'fsdp_transpose', 'sequence', 'tensor_transpose', 'expert']],
                       ['embed', ['fsdp', 'sequence', 'tensor_transpose', 'expert']],
-                      ['f', ['fsdp', 'fsdp_transpose', 'sequence', 'expert']],
+                      ['embed', ['fsdp', 'fsdp_transpose', 'sequence', 'expert']],
                       ['embed', ['fsdp', 'sequence', 'expert']],
                       ['embed_no_exp', ['fsdp', 'fsdp_transpose', 'sequence', 'tensor_transpose']],
                       ['embed_no_exp', ['fsdp', 'sequence', 'tensor_transpose']],

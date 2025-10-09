@@ -543,7 +543,10 @@ class FusionDecoderLayer(nn.Module):
     if len(sliding_window_size) != 1:
         assert not self.config.dense_conn
     self.layer_inx = layer_inx
-    self.subs = [SubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}') for i, sws in enumerate(sliding_window_size)]
+    if self.config.scan_layers: # replace layer_inx with sub_layer_inx i 
+        self.subs = [SubDecoderLayer(self.config, self.mesh, self.quant, sws, i, name=f'sub_{i}') for i, sws in enumerate(sliding_window_size)]
+    else:
+        self.subs = [SubDecoderLayer(self.config, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}') for i, sws in enumerate(sliding_window_size)]
 
   @nn.compact
   def __call__(
@@ -576,4 +579,8 @@ class FusionDecoderLayer(nn.Module):
         if layer_inx == self.config.base_num_decoder_layers-1: # last layer
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, layer_inx, name=f'compose_{layer_inx}')(inputs, hids) # lsp
         return inputs, hids, value_residual, intermediate_inputs
-    return inputs, dyn_dense_w, value_residual, intermediate_inputs
+    
+    if self.config.scan_layers:
+      return inputs, dyn_dense_w
+    else:
+      return inputs, dyn_dense_w, value_residual, intermediate_inputs

@@ -97,8 +97,8 @@ class DynamicWeightProjection(nn.Module):
                         kernel_axes=('embed', None, 'heads', 'mlp'),
                         **kwargs)
       # for dc mosa 
-      self.dw1_kernel = self.param('dw1_kernel',nn.with_logical_partitioning(NormalInitializer(math.sqrt(2.0 / (self.input_dim + self.dynamic_w_hidden_dim))), ('embed', None, 'heads', 'mlp')),
-                        (self.input_dim, self.num_groups, self.n_splits, self.dynamic_w_hidden_dim), self.weight_dtype) # DGCK
+      # self.dw1_kernel = self.param('dw1_kernel',nn.with_logical_partitioning(NormalInitializer(math.sqrt(2.0 / (self.input_dim + self.dynamic_w_hidden_dim))), ('embed', None, 'heads', 'mlp')),
+      #                   (self.input_dim, self.num_groups, self.n_splits, self.dynamic_w_hidden_dim), self.weight_dtype) # DGCK
       self.dw_hidden_activation = nn.gelu
       # self.dynamic_w_hidden_dim: num_heads_per_group * I * 2 = 32 * 2 * 2 = 128
       G, K, M = self.num_groups, self.dynamic_w_hidden_dim, self.num_heads_per_group
@@ -133,8 +133,8 @@ class DynamicWeightProjection(nn.Module):
                         kernel_axes=('embed', None, 'mlp'),
                         **kwargs
                         )
-      self.dd_kernel = self.param('dd_kernel',nn.with_logical_partitioning(NormalInitializer(self.dynamic_d_init), ('embed', None, 'mlp')),
-                        (self.input_dim, self.num_groups, self.num_heads_per_group * self.n_splits), self.weight_dtype) # DGK
+      # self.dd_kernel = self.param('dd_kernel',nn.with_logical_partitioning(NormalInitializer(self.dynamic_d_init), ('embed', None, 'mlp')),
+      #                   (self.input_dim, self.num_groups, self.num_heads_per_group * self.n_splits), self.weight_dtype) # DGK
       if self.use_dd_bias: 
         bias_shape = [self.num_heads_per_group * self.n_splits]
         self.dd_bias =  self.param('dd_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None,)), bias_shape, self.weight_dtype)
@@ -154,10 +154,10 @@ class DynamicWeightProjection(nn.Module):
     qkw_kernel = jnp.asarray(self.qkw, self.dtype) if not self.dc_dw2_zero_init else jnp.asarray(jnp.concatenate([self.qkw1, self.qkw2], axis=-2), self.dtype) # lsp
     if self.n_splits == 2:
       skip_norm_tanh = False # default: False
-      if len(query_vec.shape) == 4: # for dc mosa, BtGD
-        dw_hidden = self.dw_hidden_activation(jnp.einsum('BTGD, DGCK->BTGCK', query_vec, self.dw1_kernel))   # BTG2,64
-      else: # dcmha
-        dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
+      # if len(query_vec.shape) == 4: # for dc mosa, BtGD
+      #   dw_hidden = self.dw_hidden_activation(jnp.einsum('BTGD, DGCK->BTGCK', query_vec, self.dw1_kernel))   # BTG2,64
+      # else: # dcmha
+      dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
 
@@ -180,10 +180,10 @@ class DynamicWeightProjection(nn.Module):
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
 
-      if len(query_vec.shape) == 4: # for dc mosa, BtGD
-        dd = jnp.einsum('BTGD,DGK->BTGK', query_vec, self.dd_kernel)
-      else: #dcmha
-        dd = self.dd(query_vec)
+      # if len(query_vec.shape) == 4: # for dc mosa, BtGD
+      #   dd = jnp.einsum('BTGD,DGK->BTGK', query_vec, self.dd_kernel)
+      # else: #dcmha
+      dd = self.dd(query_vec)
       if self.use_dd_bias:
         dd = dd + self.dd_bias[None, None]
       if not skip_norm_tanh:
@@ -298,6 +298,7 @@ class CrossHeadProjection(nn.Module):
 
   def __call__(self, inputs, qw1 = None, qw2 = None, kw1 = None, kw2 = None, qdd = None, kdd = None):
     shape = inputs.shape  #  (16, 16, 4097, 4097)
+    dtype = inputs.dtype
     assert inputs.shape[1] == self.num_heads
 
     inputs = rearrange(inputs, 'B (G M) T S -> B G M T S', G=self.num_groups)
@@ -305,7 +306,7 @@ class CrossHeadProjection(nn.Module):
     out_label = inputs_label.replace('M', 'N') #  BGNTS
     exp = f'{inputs_label},GMN->{out_label}' #  'BGMTS'  GMN   BGNTS
 
-    ret = inputs
+    ret = inputs.astype(self.dtype)
     # This op I/O too many, loss is lower but speed lower than remove it. suggest remove it
     # ret += jnp.einsum('BGMTS,GMN->BGNTS', inputs, self.w)
     if self.static_proj:
@@ -374,7 +375,7 @@ class CrossHeadProjection(nn.Module):
           # 'BGMTS', B(T/S)GM
           dout = jnp.einsum(f'{inputs_label},{dd_label}->{inputs_label}', inputs, dd)
           ret = ret + dout
-    return jnp.reshape(ret, shape)  # BGMTS->BNTS
+    return jnp.reshape(ret, shape).astype(dtype)  # BGMTS->BNTS
 
 
 class AttentionOp(nn.Module):
@@ -433,7 +434,7 @@ class AttentionOp(nn.Module):
             dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
             dynamic_squeeze_ratio=num_heads_per_group // I,
             dynamic_w_hidden_dim=dynamic_w_hidden_dim,
-            dtype=self.dtype, weight_dtype=self.weight_dtype, precision=self.precision,
+            dtype=jnp.float32 if self.config.dc_in_fp32 else self.dtype, weight_dtype=self.weight_dtype, precision=self.precision,
             deterministic=self.deterministic,
             dynamic_dropout_rate=self.dynamic_dropout_rate,
             quant=self.quant,
@@ -451,7 +452,7 @@ class AttentionOp(nn.Module):
           dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
           dynamic_squeeze_ratio=num_heads_per_group // I,
           dynamic_w_hidden_dim=dynamic_w_hidden_dim,
-          dtype=self.dtype, weight_dtype=self.weight_dtype, precision=self.precision,
+          dtype=jnp.float32 if self.config.dc_in_fp32 else self.dtype, weight_dtype=self.weight_dtype, precision=self.precision,
           deterministic=self.deterministic,
           dynamic_dropout_rate=self.dynamic_dropout_rate,
           quant=self.quant,
@@ -463,7 +464,7 @@ class AttentionOp(nn.Module):
           )
 
       self.pre_proj = CrossHeadProjection(
-        dtype=self.dtype, 
+        dtype=jnp.float32 if self.config.dc_in_fp32 else self.dtype, 
         weight_dtype=self.weight_dtype, 
         precision=self.precision,
         num_heads=self.num_query_heads, 
@@ -479,7 +480,7 @@ class AttentionOp(nn.Module):
         )
 
       self.post_proj = CrossHeadProjection(
-        dtype=self.dtype, 
+        dtype=jnp.float32 if self.config.dc_in_fp32 else self.dtype, 
         weight_dtype=self.weight_dtype, 
         precision=self.precision,
         num_heads=self.num_query_heads, 

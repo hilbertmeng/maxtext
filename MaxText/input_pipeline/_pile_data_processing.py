@@ -166,6 +166,10 @@ class PileDatasets():
         tf.random.set_seed(self.seed)
         ds = tf.data.Dataset.from_tensor_slices(fname)
         ds = ds.apply(tf.data.TFRecordDataset)
+        if 'eval' in self.name: # 不然有时候eval数据集不均分会报错。
+            print(f'This eval mode......')
+            ds = ds.batch(self.num_infeed_hosts, drop_remainder=True)
+            ds = ds.unbatch()
         # shard host data
         process_index = jax.process_index()
         # 在这里进行shard的话，不同的pod在相同的batch_size时，拿到的数据不一致

@@ -256,6 +256,27 @@ class Decoder(nn.Module):
       for adapter, norm in zip(self.rins_linear_adapters, self.rins_norms):
         _ = adapter(norm(dummy_input * 0.0))  # Zero-weight call to force parameter creation
 
+  def initialize_mudd_compose_layers(self, y, cfg, layers_dict, decoder_segment_ids, decoder_positions, deterministic, model_mode):
+    for pat_idx in range(len(cfg.skip_layers)):
+      layer_skips = 0
+      hids = [y]
+      for lyr in range(cfg.num_decoder_layers):
+        layer = layers_dict[cfg.recursive_pattern[lyr]]
+        if cfg.skip_layers[pat_idx] is not None and lyr in cfg.skip_layers[pat_idx]:
+          layer_skips += 1
+          continue 
+        lyr = lyr - layer_skips
+        _ = layer(
+            y,
+            decoder_segment_ids,
+            decoder_positions,
+            deterministic,
+            model_mode,
+            (lyr, pat_idx),
+            hids=hids,
+        )
+        hids.append(y) # dummy call to force parameter creation
+
   def get_remat_policy(self):
     cfg = self.config
     if cfg.remat_policy != "none":
@@ -570,18 +591,24 @@ class Decoder(nn.Module):
             assert not cfg.sep_dc 
           layers_dict = dict([(layer_sym, RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{layer_sym}", quant=self.quant, 
                sliding_window_size=cfg.sliding_window_size[pat.index(layer_sym) % len(cfg.sliding_window_size)] if isinstance(cfg.sliding_window_size, list) else None)) for layer_sym in set(pat)])
+          if cfg.mudd_in_layer and cfg.dense_conn and cfg.skip_layers is not None and self.is_mutable_collection('params'):
+            self.initialize_mudd_compose_layers(y, cfg, layers_dict, decoder_segment_ids, decoder_positions, deterministic, model_mode)
+          layer_skips = 0
           for lyr in range(cfg.num_decoder_layers):
             layer = layers_dict[pat[lyr]]
+            pat_idx = cfg.skip_layers.index(skip_layers) if cfg.skip_layers is not None else 0
             if skip_layers is not None and lyr in skip_layers:
               max_logging.log(f'skipping layer {lyr}, skip_layers: {skip_layers}')
-              continue
+              layer_skips += 1
+              continue 
+            lyr = lyr - layer_skips
             y = layer(
                 y,
                 decoder_segment_ids,
                 decoder_positions,
                 deterministic,
                 model_mode,
-                lyr,
+                (lyr, pat_idx),
                 hids=hids,
             )
             if self.config.mudd_in_layer:

@@ -803,6 +803,18 @@ class DC2MuddLlamaMedium24LSandwichAAAB15xTokens(DC2MuddLlamaMedium12L30xTokens)
     learning_rate_schedule_steps = int(13500 * 0.5 * 15) # 101k loss: 2.190914
     eval_interval = int(13500 * 0.5 * 2.5)
 
+class DC2MuddLlamaMedium24LSandwichAAABStochP0825xTokensAdapter(DC2MuddLlamaMedium24LSandwichAAAB15xTokens):
+    skip_layers = [tuple(range(6,18)), tuple(range(12,18)), None] # loss AB: 2.230174  , AAB: 2.201737 , AAAB: 2.2002029
+    pattern_probs = [0.64, 0.32, 0.04] # p^2, 2p(1-p), (1-p)^2
+    lr_schedule_type = 'wsd'
+    stable_steps_fraction = 0.89
+    learning_rate_schedule_steps = int(13500 * 0.5 * 25) # 
+    eval_interval = int(13500 * 0.5 * 5)
+    steps = -1 
+    use_rins_linear_adapters = True
+
+class DC2MuddLlamaMedium24LSandwichAAABStochP0825xTokensAdapterSepQProjFix(DC2MuddLlamaMedium24LSandwichAAABStochP0825xTokensAdapter):
+    seperate_q_proj = True
 
 class DC2MuddLlamaMediumNoddBias(DC2MuddLlamaMedium):
     use_dd_bias = False

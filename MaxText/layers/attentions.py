@@ -1230,7 +1230,7 @@ class Attention(nn.Module):
       kernel_init_shard = nn.with_logical_partitioning(self.kernel_init, (None, None, None))
       self.wv_b = self.param('wv_b',kernel_init_shard, (self.config.value_lora_dim, self.num_kv_heads, self.head_dim), self.weight_dtype)
 
-  def query_projection(self, inputs_q: Array, lora_pat: int | None = None) -> Array:
+  def query_projection(self, inputs_q: Array, lora_pat: int | None = None, pat_idx: int = 0) -> Array:
     """Query projection."""
 
     # NOTE: T5 does not explicitly rescale the attention logits by
@@ -1243,6 +1243,14 @@ class Attention(nn.Module):
     #   return self.kernel_init(*args) / depth_scaling
 
     head_dim = self.config.qk_head_dim if self.config.qk_head_dim else self.head_dim
+    if self.config.seperate_q_proj and self.config.recursive_pattern is not None:
+      skip_layer = self.config.skip_layers[pat_idx]
+      pat = ''.join([ l_s for _idx, l_s in enumerate(self.config.recursive_pattern) if skip_layer is None or _idx not in skip_layer ])
+      layer_name = pat[lora_pat]
+      max_logging.log(f'layer_name: {layer_name}, recursive_pattern: {pat}, count: {pat.count(layer_name)}')
+      name = f"query_{lora_pat}" if pat.count(layer_name) > 1 else "query" # seperate query projection only for shared layers in recursive pattern
+    else:
+      name = "query"
     query_proj = DenseGeneral(
         features=(self.num_query_heads, head_dim),
         axis=-1,
@@ -1250,7 +1258,7 @@ class Attention(nn.Module):
         kernel_axes=("embed", "q_heads", "kv"),
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
-        name="query",
+        name=name,
         quant=self.quant,
         use_bias=self.config.use_bias,
         matmul_precision=self.config.matmul_precision,
@@ -1423,6 +1431,7 @@ class Attention(nn.Module):
       inputs_kv: Array,
       inputs_positions: Array,
       layer_inx: int | None,
+      pat_idx: int = 0,
       decoder_segment_ids: Array | None = None,
       *,
       model_mode: str = common_types.MODEL_MODE_TRAIN,
@@ -1463,7 +1472,7 @@ class Attention(nn.Module):
     elif self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm':
         assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
         inputs_k, inputs_v = inputs_kv
-        query = self.query_projection(inputs_q, lora_pat=layer_inx)
+        query = self.query_projection(inputs_q, lora_pat=layer_inx, pat_idx=pat_idx)
         key = self.kv_projection(inputs_k, proj_name="key", lora_pat=layer_inx)
         value = self.kv_projection(inputs_v, proj_name="value", lora_pat=layer_inx)
     elif self.config.inner_ffn_way is not None:

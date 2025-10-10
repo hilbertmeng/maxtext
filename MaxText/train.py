@@ -27,6 +27,8 @@ import functools
 import time
 import queue
 import re
+from contextlib import nullcontext
+
 
 from flax.traverse_util import flatten_dict, unflatten_dict
 from jax.sharding import PartitionSpec
@@ -87,6 +89,9 @@ from jax._src.pjit import reshard, explicit_axes
 Transformer = models.Transformer
 EPS = 1e-8
 _DEFAULT_OCDBT_TARGET_DATA_FILE_SIZE = 2 * 1024**3
+
+def spmd_allow_context():
+  return nullcontext() if jax.__version__ == "0.6.2" else jax.spmd_mode("allow_all") 
 
 
 def print_tree_struct(name, tree, shape=False): # lsp
@@ -167,7 +172,7 @@ def validate_train_config(config):
 
 
 def get_first_step(state):
-  with jax.spmd_mode("allow_all"):
+  with spmd_allow_context():
     return int(state.step)
 
 
@@ -234,7 +239,7 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
 
 def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True):
   """Writes metrics to tensorboard"""
-  with jax.spmd_mode("allow_all"):
+  with spmd_allow_context():
     if jax.process_index() == 0 and step % config.upload_loss_tb_period == 0: # lsp
       for metric_name in metrics.get("scalar", []):
         if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, 'total_grads' in metric_name, 'mudd' in metric_name, 'intermediates' in metric_name]): # lsp
@@ -1116,6 +1121,8 @@ def train_loop(config, state=None):
             random_index = jax.random.choice(nextrng, len(config.pattern_probs), p=jnp.asarray(config.pattern_probs),shape=(1,))[0]
           else:
             random_index = jax.random.randint(nextrng, (1,), 0, len(config.skip_layers))[0]
+          if step == 0:
+            random_index = -1 # always use the last skip_layers for initial step
           current_skip_layers = config.skip_layers[random_index]
           max_logging.log(f'random_index in skip_layers: {random_index}')
         else:

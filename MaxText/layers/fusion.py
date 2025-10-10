@@ -152,6 +152,7 @@ class SubDecoderLayer(nn.Module):
       deterministic,
       model_mode,
       layer_inx,
+      pat_idx=0,
       value_residual=None,
   ):
     cfg = self.config
@@ -289,6 +290,7 @@ class SubDecoderLayer(nn.Module):
           lnx if not cfg.dense_conn else lnx_kv,
           decoder_positions,
           None if self.config.lora_layers is not None and layer_inx not in self.config.lora_layers else layer_inx, # layer_inx filtered by lora_layers: None for non-lora layers, violate sep_dc 
+          pat_idx=pat_idx,
           decoder_segment_ids=decoder_segment_ids,
           deterministic=deterministic,
           model_mode=model_mode,
@@ -588,10 +590,15 @@ class FusionDecoderLayer(nn.Module):
       decoder_positions,
       deterministic,
       model_mode,
-      layer_inx, # None 
+      layer_inx, # layer_inx | (layer_inx, pat_idx)
       hids=None,
       value_residual=None,
   ):
+    if isinstance(layer_inx, tuple):
+      layer_inx, pat_idx = layer_inx
+    else:
+      pat_idx = 0  
+
     if layer_inx is None:
       layer_inx = self.layer_inx
 
@@ -599,16 +606,17 @@ class FusionDecoderLayer(nn.Module):
         if layer_inx == 0: # first layer
             inputs = [inputs] * len(self.config.dynamic_dense_type)
         else:
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, layer_inx-1, name=f'compose_{layer_inx-1}')(inputs, hids) # lsp
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, layer_inx-1, pat_idx=pat_idx, name=f'compose_{layer_inx-1}_pat{pat_idx}')(inputs, hids) # lsp
 
     for layer in self.subs:
         if self.config.value_residual_learning:
-          inputs, dyn_dense_w, value_residual = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, layer_inx, value_residual=value_residual)
+          inputs, dyn_dense_w, value_residual = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, layer_inx, pat_idx=pat_idx, value_residual=value_residual)
         else:
-          inputs, dyn_dense_w, intermediate_inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, layer_inx)
+          inputs, dyn_dense_w, intermediate_inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, layer_inx, pat_idx=pat_idx)
     
     if self.config.mudd_in_layer:
-        if layer_inx == self.config.base_num_decoder_layers-1: # last layer
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, layer_inx, name=f'compose_{layer_inx}')(inputs, hids) # lsp
+        num_skip_layers = 0 if self.config.skip_layers is None else ( 0 if self.config.skip_layers[pat_idx] is None else len(self.config.skip_layers[pat_idx])) 
+        if layer_inx == self.config.base_num_decoder_layers-1-num_skip_layers: # last layer
+            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, layer_inx, pat_idx=pat_idx, name=f'compose_{layer_inx}_pat{pat_idx}')(inputs, hids) # lsp
         return inputs, hids, value_residual, intermediate_inputs
     return inputs, dyn_dense_w, value_residual, intermediate_inputs

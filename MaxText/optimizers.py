@@ -14,6 +14,7 @@ from optax._src import combine
 from optax._src import base
 from optax._src import transform
 
+import max_utils
 
 def scale_by_learning_rate(
     learning_rate: Optional[base.ScalarOrSchedule] = None,
@@ -122,17 +123,25 @@ def muon(
   attn_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim)) * config.muon_scale
   mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
   print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
+
+  if config.muon_decay_lr:
+    muon_final_lr = config.learning_rate * 0.02 / config.muon_scale
+    muon_learning_rate_schedule = max_utils.create_muon_learning_rate_schedule(config, final_lr=muon_final_lr)
+    print(f'muon_final_lr: {muon_final_lr}')
+  else:
+    muon_learning_rate_schedule = learning_rate_schedule   
+
   return combine.partition(
       transforms={
           'muon_attn': combine.chain(
               muon_base,
               transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
-              scale_by_learning_rate(learning_rate_schedule, scale=attn_scale),
+              scale_by_learning_rate(muon_learning_rate_schedule, scale=attn_scale),
           ),
           'muon_mlp': combine.chain(
               muon_base,
               transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
-              scale_by_learning_rate(learning_rate_schedule, scale=mlp_scale),
+              scale_by_learning_rate(muon_learning_rate_schedule, scale=mlp_scale),
           ),
           # Small model rms wd set 0.0 better, bigger model unknow. but muon paper suggest wd=0.1
           'adam_one_dim': adam_optimizer(weight_decay=0.0, lr_coef=default_scale),

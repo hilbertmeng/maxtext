@@ -937,7 +937,7 @@ def setup_initial_state(
 # -----------------------------------------------------------------------------
 
 
-def create_learning_rate_schedule(config):
+def create_learning_rate_schedule(config, final_lr=None):
   """Creates learning rate schedules based on config.scheduler:
   
   Supported schedulers:
@@ -979,7 +979,10 @@ def create_learning_rate_schedule(config):
     return schedule
 
   lr = config.learning_rate
-  final_lr = lr * config.cosine_learning_rate_final_fraction
+
+  if final_lr is None:
+    max_logging.log(f'final_lr is None, using config.cosine_learning_rate_final_fraction: {config.cosine_learning_rate_final_fraction}')
+    final_lr = lr * config.cosine_learning_rate_final_fraction
 
   warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction)
   stable_steps_fraction = config.stable_steps_fraction if config.stable_steps_fraction is not None else 0

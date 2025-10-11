@@ -858,7 +858,7 @@ def setup_initial_state(
 # -----------------------------------------------------------------------------
 
 
-def create_learning_rate_schedule(config):
+def create_learning_rate_schedule(config, final_lr=None):
   """Creates a warmup and cosine decay learning rate schedule:
   We take inspiration from Llama2's learning rate (LR) schedule, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
   Learning rate schedule has either two or three parts:
@@ -887,7 +887,10 @@ def create_learning_rate_schedule(config):
     return schedule
 
   lr = config.learning_rate
-  cos_final_lr = lr * config.cosine_learning_rate_final_fraction
+
+  if final_lr is None:
+    max_logging.log(f'final_lr is None, using config.cosine_learning_rate_final_fraction: {config.cosine_learning_rate_final_fraction}')
+    final_lr = lr * config.cosine_learning_rate_final_fraction
 
   warmup_steps = int(config.learning_rate_schedule_steps * config.warmup_steps_fraction)
   stable_steps_fraction = config.stable_steps_fraction if config.stable_steps_fraction is not None else 0
@@ -897,9 +900,9 @@ def create_learning_rate_schedule(config):
   # 应对无warmup情况，直接从lr开始，一直保持常量学习率lr训练
   warmup_schedule = optax.linear_schedule(init_value=0.0 if warmup_steps > 0 else lr, end_value=lr, transition_steps=warmup_steps)
   # decay_ratio = 1 - stable_steps_fraction - config.warmup_steps_fraction
-  cos_schedule = make_wsd_decay_schedule(lr, cos_final_lr, cos_steps) if stable_steps_fraction > 0 and config.decay_method == 'wsd' \
-                                                            else make_cos_schedule(lr, cos_final_lr, cos_steps)
-  constant_schedule = optax.constant_schedule(cos_final_lr) # finally set cos_final_lr
+  cos_schedule = make_wsd_decay_schedule(lr, final_lr, cos_steps) if stable_steps_fraction > 0 and config.decay_method == 'wsd' \
+                                                            else make_cos_schedule(lr, final_lr, cos_steps)
+  constant_schedule = optax.constant_schedule(final_lr) # finally set final_lr
   pieces = [warmup_schedule, cos_schedule]
   boundaries = [
       warmup_steps + stable_steps,

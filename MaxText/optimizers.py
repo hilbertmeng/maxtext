@@ -125,8 +125,8 @@ def muon(
   print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
 
   if config.muon_decay_lr:
-    muon_final_lr = config.learning_rate * 0.02 / config.muon_scale
-    muon_learning_rate_schedule = max_utils.create_muon_learning_rate_schedule(config, final_lr=muon_final_lr)
+    muon_final_lr = config.learning_rate * 0.02 / config.muon_scale # 不论muon_scale是多少，均按照 muon_scale=0.2 计算的最终学习率
+    muon_learning_rate_schedule = max_utils.create_learning_rate_schedule(config, final_lr=muon_final_lr)
     print(f'muon_final_lr: {muon_final_lr}')
   else:
     muon_learning_rate_schedule = learning_rate_schedule   

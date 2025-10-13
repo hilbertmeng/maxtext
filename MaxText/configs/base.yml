@@ -673,7 +673,7 @@ muon_scale: 0.2
 mlp_post_norm: False
 mudd_use_muon: False
 dc_use_muon: False
-muon_decay_lr: False
+muon_decay_ratio: 0.1
 attn_logit_threshold: 0.0 # k2 paper use 30.0, default 0.0 means don't to use attn logits clip
 
 o_gate_hidden_dim: 0

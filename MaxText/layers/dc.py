@@ -84,39 +84,87 @@ class DynamicWeightProjection(nn.Module):
       # dynamic_hidden_dim： 2, 生成的参数的inner dim
       dynamic_hidden_dim = self.num_heads_per_group // self.dynamic_squeeze_ratio \
         if self.dynamic_squeeze_ratio is not None else 2
-      # '12x4096x1x4x128'  # stage * dim * num_groups * C * K， n_splits is C
-      self.dw1 = linears.DenseGeneral(
-                        features=(self.num_groups, self.n_splits, self.dynamic_w_hidden_dim) if not self.dc_use_muon else \
-                                  self.num_groups * self.n_splits * self.dynamic_w_hidden_dim,  # lsp
-                        quant=self.quant,  # 0.00014
-                        kernel_init=NormalInitializer(math.sqrt(2.0 / (self.input_dim + self.dynamic_w_hidden_dim))), 
-                        kernel_axes=('embed', None, 'heads', 'mlp') if not self.dc_use_muon else ('embed', 'mlp'),
-                        **kwargs)
-      self.dw_hidden_activation = nn.gelu
-      # self.dynamic_w_hidden_dim: num_heads_per_group * I * 2 = 32 * 2 * 2 = 128
+
       G, K, M = self.num_groups, self.dynamic_w_hidden_dim, self.num_heads_per_group
+      
+      # '12x4096x1x4x128'  # stage * dim * num_groups * C * K， n_splits is C
+      if not self.dc_use_muon:
+        self.dw1 = linears.DenseGeneral(
+                        features=(G, self.n_splits, K),
+                        quant=self.quant,
+                        kernel_init=NormalInitializer(math.sqrt(2.0 / (self.input_dim + K))), 
+                        kernel_axes=('embed', None, 'heads', 'mlp'),
+                        **kwargs)
+      else:
+        dw1s = []
+        for gn in range(G * self.n_splits):
+          dw1 = self.param(
+            f'dw1_gn{gn}', 
+            nn.with_logical_partitioning(
+              NormalInitializer(math.sqrt(2.0 / (self.input_dim + K))),
+              ('embed', 'mlp'),
+              ), 
+            (self.input_dim, K), 
+            self.weight_dtype
+            )
+          dw1s.append(dw1[None])
+        self.dw1 = jnp.concatenate(dw1s, axis=1).reshape(G, self.n_splits,self.input_dim, K)
+        print(f'dc_use_muon: True, self.dw1.shape: {self.dw1.shape}')
+        
+      self.dw_hidden_activation = nn.gelu
       I = dynamic_hidden_dim * 2  # 2 * 2
       shape = [G, self.n_splits, K, I, M]
-      # lsp
-      two_dim_shape = [G * self.n_splits * K * I, M]
       self.G, self.K, self.I, self.M = G, K, I, M
-
-      kernel_init_shard = nn.with_logical_partitioning(
-        NormalInitializer(self.dynamic_w_init), 
-        (None, 'data', 'fsdp', None, 'tensor') if not self.dc_use_muon else ('fsdp', 'tensor')
+      if not self.dc_use_muon:
+        kernel_init_shard = nn.with_logical_partitioning(
+        NormalInitializer(self.dynamic_w_init), (None, 'data', 'fsdp', None, 'tensor')
         )
-      self.qkw = self.param('qkw', kernel_init_shard, shape if not self.dc_use_muon else two_dim_shape, self.weight_dtype)
-  
+        qkw_kernel = self.param('qkw', kernel_init_shard, shape, self.weight_dtype)
+        print(f'dc_use_muon: False, qkw_kernel shape: {qkw_kernel.shape}')
+
+      else:
+        qkws = []
+        for gn in range(self.num_groups * self.n_splits):
+          qkw = self.param(
+            f'qkw_gn{gn}', 
+            nn.with_logical_partitioning(
+              NormalInitializer(self.dynamic_w_init), 
+              ('fsdp', 'tensor')
+              ), 
+            (K, I * M), 
+            self.weight_dtype
+            )
+          qkws.append(qkw[None])
+        qkw_kernel = jnp.concatenate(qkws, axis=0).reshape(*shape)
+        print(f'dc_use_muon: True, qkw_kernel shape: {qkw_kernel.shape}')
+    self.qkw = jnp.asarray(qkw_kernel, self.dtype)
+
     if self.dynamic_d_init is not None:
-      self.dd = linears.DenseGeneral(
-                        features=(self.num_groups, 
-                        self.num_heads_per_group * self.n_splits) if not self.dc_use_muon else \
-                        self.num_groups * self.num_heads_per_group * self.n_splits,  # lsp
-                        quant=self.quant,
-                        kernel_init=NormalInitializer(self.dynamic_d_init), 
-                        kernel_axes=('embed', None, 'mlp') if not self.dc_use_muon else ('embed', 'mlp'),
-                        **kwargs
-                        )
+      if not self.dc_use_muon:
+        self.dd = linears.DenseGeneral(
+              features=(self.num_groups, 
+              self.num_heads_per_group * self.n_splits) if not self.dc_use_muon else \
+              self.num_groups * self.num_heads_per_group * self.n_splits,  # lsp
+              quant=self.quant,
+              kernel_init=NormalInitializer(self.dynamic_d_init), 
+              kernel_axes=('embed', None, 'mlp'),
+              **kwargs
+              )
+      else:
+        dds = []
+        for gn in range(G * self.n_splits):
+          dd = self.param(
+            f'dd_gn{gn}', 
+            nn.with_logical_partitioning(
+              NormalInitializer(self.dynamic_d_init), 
+              ('embed', 'mlp')
+            ), 
+            (self.input_dim, self.num_heads_per_group), 
+            self.weight_dtype
+          )
+          dds.append(dd[..., None])
+        self.dd = jnp.concatenate(dds, axis=-1).reshape(self.input_dim,  self.n_splits * self.num_heads_per_group, G)
+        print(f'dc_use_muon: True, self.dd.shape: {self.dd.shape}')
 
     self.dw_activation = nn.tanh
     # RMSNormScale, compare to RMSNorm. it remove scale
@@ -129,45 +177,40 @@ class DynamicWeightProjection(nn.Module):
       self.dropout = nn.Dropout(self.dynamic_dropout_rate)
 
   def __call__(self, query_vec):
-    qkw_kernel = jnp.asarray(self.qkw, self.dtype) # lsp
-    if self.dc_use_muon:
-      qkw_kernel = qkw_kernel.reshape(self.G, self.n_splits, self.K, self.I, self.M)
     if self.n_splits == 2:
-      dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))   # BTG2,64
-      if self.dc_use_muon: # lsp: recover to original shape
-        dw_hidden = dw_hidden.reshape(*dw_hidden.shape[:-1], self.num_groups, self.n_splits, self.dynamic_w_hidden_dim)
+      dw_hidden = jnp.einsum('BTD,GCDK->BTGCK', query_vec, self.dw1) if self.dc_use_muon else self.dw1(query_vec)
+      dw_hidden = self.dw_hidden_activation(dw_hidden)
+
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
       # C: n_split,  K -> IM
-      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, self.qkw), 2, axis=-2)
       w1 = self.dw1_norm(w1)
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
-
-      dd = self.dd(query_vec)
+      
+      dd = jnp.einsum('BTD,DKG->BTGK', query_vec, self.dd) if self.dc_use_muon else self.dd(query_vec)
       dd = self.dw_activation(dd)
-      if self.dc_use_muon: # lsp: recover to original shape
-        dd = dd.reshape(*dd.shape[:-1], self.num_groups, self.num_heads_per_group * self.n_splits)
+
       if self.dynamic_dropout_rate is not None:
         dd = self.dropout(dd, deterministic=self.deterministic)
       pre_dd, post_dd = jnp.split(dd, 2, axis=-1)
       return (pre_w1, pre_w2, pre_dd), (post_w1, post_w2, post_dd)
     else: # normal pass here
-      dw_hidden = self.dw_hidden_activation(self.dw1(query_vec))
-      if self.dc_use_muon: # lsp: recover to original shape
-        dw_hidden = dw_hidden.reshape(*dw_hidden.shape[:-1], self.num_groups, self.n_splits, self.dynamic_w_hidden_dim)
+      dw_hidden = jnp.einsum('BTD,GCDK->BTGCK', query_vec, self.dw1) if self.dc_use_muon else self.dw1(query_vec)
+      dw_hidden = self.dw_hidden_activation(dw_hidden)
+
       if self.dynamic_dropout_rate is not None:
         dw_hidden = self.dropout(dw_hidden, deterministic=self.deterministic)
       # dw_hidden: b * t * 1 * n_split * 128  qkw_kernel: 1 * n_split * 128 * I(4) * 128
-      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, qkw_kernel), 2, axis=-2)
+      w1, w2 = jnp.split(jnp.einsum('BTGCK,GCKIM->BTGCIM', dw_hidden, self.qkw), 2, axis=-2)
       w1 = self.dw1_norm(w1)
       pre_qw1, pre_kw1, post_qw1, post_kw1 = unbind(w1, 4, axis=3) # BTG4IM->[BTGIM]*4
       pre_qw2, pre_kw2, post_qw2, post_kw2 = unbind(w2, 4, axis=3)
 
-      dd = self.dd(query_vec)
+      dd = jnp.einsum('BTD,DKG->BTGK', query_vec, self.dd) if self.dc_use_muon else self.dd(query_vec)
       dd = self.dw_activation(dd)
-      if self.dc_use_muon: # lsp: recover to original shape
-        dd = dd.reshape(*dd.shape[:-1], self.num_groups, self.num_heads_per_group * self.n_splits)
+
       if self.dynamic_dropout_rate is not None:
         dd = self.dropout(dd, deterministic=self.deterministic)
       pre_qdd, pre_kdd, post_qdd, post_kdd = jnp.split(dd, 4, axis=-1)

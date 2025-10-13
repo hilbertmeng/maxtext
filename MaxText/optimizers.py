@@ -124,12 +124,12 @@ def muon(
   mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
   print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
 
-  if config.muon_decay_lr:
-    muon_final_lr = config.learning_rate * 0.02 / config.muon_scale # 不论muon_scale是多少，均按照 muon_scale=0.2 计算的最终学习率
+  if config.muon_decay_ratio and config.muon_decay_ratio > 0.0:
+    muon_final_lr = config.muon_decay_ratio * config.learning_rate * 0.2 / config.muon_scale # 不论muon_scale是多少，均按照 muon_scale=0.1 计算的最终学习率
     muon_learning_rate_schedule = max_utils.create_learning_rate_schedule(config, final_lr=muon_final_lr)
     print(f'muon_final_lr: {muon_final_lr}')
   else:
-    muon_learning_rate_schedule = learning_rate_schedule   
+    muon_learning_rate_schedule = learning_rate_schedule     
 
   return combine.partition(
       transforms={

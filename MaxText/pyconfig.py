@@ -368,7 +368,7 @@ class _HyperParameters:
       teacher_raw_data_from_yaml = self._load_config(teacher_config_name) # dict
       cmd_argv_start = 3
     except Exception as e:
-      print(f'Load teacher yml failed, error: {e}')
+      max_logging.log(f'Load teacher yml failed, error: {e}')
       cmd_argv_start = 2
       teacher_raw_data_from_yaml = {}
 
@@ -910,7 +910,7 @@ class HyperParameters:
 
   def __setattr__(self, attr, value):
     # raise ValueError("Reinitialization of config is not allowed")
-    print(f'Reset attr: {attr} value: {value}') # lsp
+    max_logging.log(f'Reset attr: {attr} value: {value}') # lsp
     self.self._config.keys[attr] = value
 
   def get_keys(self):
@@ -930,7 +930,7 @@ class TeacherHyperParameters:
 
   def __setattr__(self, attr, value):
     raise ValueError("Reinitialization of config is not allowed")
-    # print(f'Reset attr: {attr} value: {value}') # lsp
+    # max_logging.log(f'Reset attr: {attr} value: {value}') # lsp
     # self.self._config.teacher_keys[attr] = value
 
   def get_keys(self):
@@ -976,5 +976,5 @@ def _update_exp_config(cmd_vars, raw_keys):
 
 if __name__ == "__main__":
   main_config = initialize(sys.argv)
-  print(main_config.steps)
+  max_logging.log(main_config.steps)
   r = range(main_config.steps)

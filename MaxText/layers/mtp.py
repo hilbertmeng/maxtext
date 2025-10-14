@@ -31,6 +31,7 @@ import maxtext_utils
 from layers import initializers
 from layers import linears
 from layers import mudd
+import max_logging
 
 
 EPS = 1e-8
@@ -267,11 +268,11 @@ class MultiTokenPredictionBlock(nn.Module):
 
       # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.
       if not self.is_initializing(): # don't excute here when model.init
-        print(f'MTP loss record.....')
+        max_logging.log(f'MTP loss record.....')
         # For evaluation, save the top prediction and a valid token mask.
         # This is only active for the target layer during an eval run.
         if cfg.mtp_eval_target_module == k:
-          print(f'mtp_eval_target_module={k}, compute mtp preds and masks......')
+          max_logging.log(f'mtp_eval_target_module={k}, compute mtp preds and masks......')
           mtp_top_1_pred = jnp.argmax(mtp_logits, axis=-1) # blv -> bl
           self.sow("intermediates", "mtp_preds", mtp_top_1_pred)
           self.sow("intermediates", "mtp_mask", rolled_target_mask)
@@ -316,7 +317,7 @@ def calculate_mtp_acceptance_rate(intermediate_outputs, config, logits):
   # MTP layer specified by `config.mtp_eval_target_module`. This check handles cases
   # where the required data is absent (e.g., during a training step) and prevents errors.
   if mtp_preds is None or valid_mask is None:
-    print(f'mtp_preds or valid_mask is None....')
+    max_logging.log(f'mtp_preds or valid_mask is None....')
     return 0.0
 #   main_logits_path =  ("intermediates","decoder", "logits") # lsp
 #   main_logits = maxtext_utils.get_nested_value(intermediate_outputs, main_logits_path, default=())[0] # tuple type, such as (main_logits, )

@@ -37,6 +37,7 @@ from layers import quantizations
 from layers import dc
 from layers import accelerator
 from einops import rearrange
+import max_logging
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -498,7 +499,7 @@ class AttentionOp(nn.Module):
 
     q_seq_len = query.shape[1]
     attn_weights = self.qk_product(query, key, q_seq_len, model_mode)
-    print(f'attn_weights: {attn_weights.shape}')
+    max_logging.log(f'attn_weights: {attn_weights.shape}')
 
     if self.attn_logits_soft_cap:
       attn_weights = jnp.tanh(attn_weights / self.attn_logits_soft_cap)
@@ -1256,7 +1257,7 @@ class Attention(nn.Module):
         rng=self.rng,
     )
     output = query_proj(inputs_q)
-    print(f'output: {output.shape}')
+    max_logging.log(f'output: {output.shape}')
     if self.config.opt_type == 'muon':
       output = output.reshape(b, t, self.num_query_heads, self.head_dim)
     return output
@@ -1283,10 +1284,10 @@ class Attention(nn.Module):
     num_kv_heads = self.num_kv_heads
     if self.sliding_window_size == t: # lsp
       ggqa = int(getattr(self.config, 'ggqa', 1))
-      print(f'Enter GGQA...... ggqa: {ggqa}')
+      max_logging.log(f'Enter GGQA...... ggqa: {ggqa}')
       num_kv_heads = num_kv_heads // ggqa
 
-    print(f'num_kv_heads: {num_kv_heads} sliding_window_size: {self.sliding_window_size}')
+    max_logging.log(f'num_kv_heads: {num_kv_heads} sliding_window_size: {self.sliding_window_size}')
     if self.config.opt_type == 'muon':
       kernel_axes = ("embed", "mlp")
       features=(num_kv_heads * self.head_dim, )
@@ -1501,13 +1502,13 @@ class Attention(nn.Module):
           decoder_input_tokens, 
           deep_embedding=deep_embedding
           )
-      print(f'Outside DE is None, inside value DE')
+      max_logging.log(f'Outside DE is None, inside value DE')
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
     use_flash_like = cfg.attention in ("flash", "cudnn_flash_te", "autoselected")
     if (cfg.pre_compose or cfg.post_compose) and use_flash_like:
-      print(f'DC Use flash like attention')
+      max_logging.log(f'DC Use flash like attention')
       # Generate dynamic weights (use only query-wise components for flash path)
       pre_args, post_args = self.dyn_w_proj(inputs_q)
       pre_qw1, pre_qw2, _, _, pre_qdd, _ = pre_args
@@ -1572,7 +1573,7 @@ class Attention(nn.Module):
     out = nn.with_logical_constraint(out, self.out_axis_names)
 
     if self.config.o_gate_hidden_dim:
-      print(f'Enter o_gate_hidden_dim......')
+      max_logging.log(f'Enter o_gate_hidden_dim......')
       o_gate_hidden = DenseGeneral(
         (self.config.o_gate_hidden_dim,),
         dtype=self.dtype,
@@ -1595,7 +1596,7 @@ class Attention(nn.Module):
           o_gate_hidden
           )
       o_gate = jax.nn.sigmoid(o_gate) # -> tanh
-      print(f'self.config.num_query_heads: {self.config.num_query_heads}')
+      max_logging.log(f'self.config.num_query_heads: {self.config.num_query_heads}')
       out = out * rearrange(o_gate, 'B T (N D) -> B T N D', N=self.config.num_query_heads)
 
     # apply output projection,  output dim is set to the input dim.

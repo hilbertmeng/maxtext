@@ -11,6 +11,7 @@ from layers import normalizations
 from layers import linears
 from layers import quantizations
 from layers import embeddings
+import max_logging
 
 # Type alias for quantization
 Quant = quantizations.AqtQuantization
@@ -85,7 +86,7 @@ class Mlp(nn.Module):
       dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
 
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
-    print(f'layer_inx: {layer_inx} dw_shape: {dw_shape} dynamic_dense_inter_dim: {dynamic_dense_inter_dim}')
+    max_logging.log(f'layer_inx: {layer_inx} dw_shape: {dw_shape} dynamic_dense_inter_dim: {dynamic_dense_inter_dim}')
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
     # (model_dim, inter_dim), inter_dim << model_dim
     self.dense_proj1 = linears.DenseGeneral(
@@ -130,7 +131,7 @@ class Mlp(nn.Module):
   def _apply_deep_embed_1x(self, cfg, layer_output, dyn_dense_w, decoder_input_tokens, scale_mode=False):
     """Apply 1x deep embedding logic."""
     output_dim = np.prod(self.dw_shape)
-    print(f'Enter Mudd DE: {cfg.deep_embed_type} scale_mode: {scale_mode}')
+    max_logging.log(f'Enter Mudd DE: {cfg.deep_embed_type} scale_mode: {scale_mode}')
     if scale_mode:
       embed_init = nn.initializers.constant(1.0)
       deep_embedding = self._create_deep_embedding(
@@ -225,7 +226,7 @@ class Compose(nn.Module):
 
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
-    print(f'C: {C} hids length: {len(hids)}')
+    max_logging.log(f'C: {C} hids length: {len(hids)}')
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm", cfg=cfg, scale_init=nn.initializers.constant(0.001))
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)

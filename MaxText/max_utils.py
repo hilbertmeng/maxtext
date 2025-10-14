@@ -96,12 +96,12 @@ def verify_with_rectangular_model(split_points: list[int]):
         if start >= end: continue
         flops = (end - start) * end
         relative_flops.append(flops)
-        print(f"Block {len(relative_flops)}: Q[{start}:{end}] (len {end-start}), k_len={end}, FLOPs: {flops:,.0f}")
+        max_logging.log(f"Block {len(relative_flops)}: Q[{start}:{end}] (len {end-start}), k_len={end}, FLOPs: {flops:,.0f}")
     if not relative_flops or len(relative_flops) < 2: return
     max_flops, min_flops = max(relative_flops), min(relative_flops)
     b = round(max_flops / min_flops, 2)
-    print(f"\nResult: max_flops/min_flops = {b} (-> 1 is best.)")
-    print("---------------------------------------------------\n")
+    max_logging.log(f"\nResult: max_flops/min_flops = {b} (-> 1 is best.)")
+    max_logging.log("---------------------------------------------------\n")
     return b
 
 
@@ -117,13 +117,13 @@ def build_query_chunks(q_len, query_chunk_size):
             best_power = p
             min_b = b
             final_qs = qs
-    print(f'min_b: {min_b} best_power: {best_power}')
+    max_logging.log(f'min_b: {min_b} best_power: {best_power}')
     total_flops = 0
     for i in range(1, len(final_qs), 1):
         q = final_qs[i] - final_qs[i - 1]
         k = final_qs[i]
         flops = q * k
-        print(f'q k length: {[q, k]} flops: {flops}')
+        max_logging.log(f'q k length: {[q, k]} flops: {flops}')
         total_flops += flops
     return final_qs
 
@@ -683,12 +683,12 @@ def is_valid_custom_mesh(ici_parallelism, strategy):
 
 def optimize_mesh_for_tpu_v6e(mesh, devices):
   """Apply transformations to the mesh to optimize for TPU v6e"""
-  print(f'device_kind: {devices[0].device_kind}')
+  max_logging.log(f'device_kind: {devices[0].device_kind}')
   if devices[0].device_kind != "TPU v6 lite":
     return mesh
   num_devices = len(devices)
   mesh_is_1d_ring = num_devices in mesh.shape
-  print(f'mesh_is_1d_ring: {mesh_is_1d_ring}')
+  max_logging.log(f'mesh_is_1d_ring: {mesh_is_1d_ring}')
   if not mesh_is_1d_ring:
     return mesh
   # check that the physical topology is 2x4
@@ -697,7 +697,7 @@ def optimize_mesh_for_tpu_v6e(mesh, devices):
   max_coords = tuple(max(dc[i] for dc in device_coords) for i in range(coord_size))
   min_coords = tuple(min(dc[i] for dc in device_coords) for i in range(coord_size))
   dims = tuple(h - l + 1 for (h, l) in zip(max_coords, min_coords))
-  print(f'dims: {dims}')
+  max_logging.log(f'dims: {dims}')
   if dims != (2, 4, 1):
     return mesh
   axis_idx = mesh.shape.index(num_devices)
@@ -1195,15 +1195,15 @@ def get_kv_cache_annotations(model, config, rng, mesh):
 
 
 def print_pytree_shape(print_str, ptree):
-  print("\n")
-  print(print_str)
-  print(jax.tree_util.tree_map(lambda x: x.shape, ptree))
+  max_logging.log("\n")
+  max_logging.log(print_str)
+  max_logging.log(jax.tree_util.tree_map(lambda x: x.shape, ptree))
 
 
 def print_model_vars(print_str, model_vars):
   for k in model_vars:
-    print(f"{print_str} key{k}:")
-    print(f"\t {model_vars[k]}")
+    max_logging.log(f"{print_str} key{k}:")
+    max_logging.log(f"\t {model_vars[k]}")
 
 
 def get_project():
@@ -1231,14 +1231,14 @@ def summarize_pytree_data(params, name="Params", raw=False):
   if not raw:
     num_params_in_billions = num_params / 1e9
     total_param_size_in_gb = total_param_size / 1e9
-    print(
+    max_logging.log(
         f"{name} stats: \n"
         f"\tTotal number of params: {num_params_in_billions:.3f} billion \n"
         f"\tTotal memory usage: {total_param_size_in_gb:.3f} GB \n"
         f"\tAvg size: {avg_param_size:.3f} bytes\n"
     )
   else:
-    print(
+    max_logging.log(
         f"{name} stats: \n"
         f"\tTotal number of params: {num_params:.3f} \n"
         f"\tTotal memory usage: {total_param_size:.3f} bytes \n"

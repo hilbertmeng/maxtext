@@ -27,6 +27,7 @@ import jax.numpy as jnp
 import pickle
 import functools
 from input_pipeline import input_pipeline_interface
+import max_logging
 
 OVERWRITE_WITH_GRADIENT = "_overwrite_with_gradient"
 
@@ -254,7 +255,7 @@ def calculate_tflops_training_per_device(config, log=True):
   total_tflops = learnable_weight_tflops + attention_tflops + reference_model_tflops
 
   if log:
-    print(
+    max_logging.log(
         "Per train step:\n",
         f"Total TFLOPs: {total_tflops:.2f} \n",
         f"split as {100 * learnable_weight_tflops/total_tflops:.2f}% learnable weight flops",
@@ -280,7 +281,7 @@ def calculate_prefill_tflops_per_device(num_model_parameters, prefill_length, co
   total_tflops = learnable_weight_tflops + causal_attention_tflops
 
   if log:
-    print(
+    max_logging.log(
         "Per prefill step per device: \n",
         f"\tTotal TFLOPs: {total_tflops:.2f} \n",
         f"\t\tLearnable weight TFLOPs: {learnable_weight_tflops:.2f} ",
@@ -319,8 +320,8 @@ def assert_params_sufficiently_sharded(params, mesh, tolerance):
       "scenario across `fsdp`, `fsdp_transpose`,`sequence`, `tensor`, `tensor_transpose`, `tensor_sequence`, `expert` axes."
   )
   unsharded_param_perc = total_num_params_per_chip / perfectly_sharded_params_per_chip - 1
-  print(f'total_num_params_per_chip: {total_num_params_per_chip} total_num_params: {total_num_params} perfectly_sharded_params_per_chip: {perfectly_sharded_params_per_chip}')
-  print(f'unsharded_param_perc: {unsharded_param_perc} tolerance: {tolerance}')
+  max_logging.log(f'total_num_params_per_chip: {total_num_params_per_chip} total_num_params: {total_num_params} perfectly_sharded_params_per_chip: {perfectly_sharded_params_per_chip}')
+  max_logging.log(f'unsharded_param_perc: {unsharded_param_perc} tolerance: {tolerance}')
   assert unsharded_param_perc < tolerance, (
       f"Number of unsharded parameters exceeds tolerance {tolerance * 100}% "
       f"of total parameters with a value of {unsharded_param_perc}%."

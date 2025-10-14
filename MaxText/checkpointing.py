@@ -211,7 +211,7 @@ def load_state_if_possible(
           step = config.eval_model_step
         load_parameters_from_path = epath.Path(config.checkpoint_dir) / str(step) / 'items'
       step = None
-      print(f'Only eval mode, load_parameters_from_path: {load_parameters_from_path} step: {step}')
+      max_logging.log(f'Only eval mode, load_parameters_from_path: {load_parameters_from_path} step: {step}')
 
     if step is not None:
       max_logging.log(f"restoring from this run's directory step {step}")
@@ -347,4 +347,4 @@ def save_params_to_path(checkpoint_dir, params):
   assert checkpoint_dir, "checkpoint_dir is not defined."
   orbax_checkpointer = ocp.PyTreeCheckpointer()
   orbax_checkpointer.save(checkpoint_dir, {"params": params}, force=True)
-  print(f"Quantized params checkpoint saved at: {checkpoint_dir}")
+  max_logging.log(f"Quantized params checkpoint saved at: {checkpoint_dir}")

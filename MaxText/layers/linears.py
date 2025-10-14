@@ -209,7 +209,7 @@ class DeepEmbedBlock(nn.Module):
     self.s2_bias = None
     if self.config.use_s2_bias:
       self.s2_bias = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
-    print(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias} de_d1_d2_dims: {self.de_d1_d2_dims}')
+    max_logging.log(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias} de_d1_d2_dims: {self.de_d1_d2_dims}')
 
   @nn.compact
   def __call__(self, inputs, output, decoder_input_tokens, deep_embedding=None):
@@ -224,8 +224,8 @@ class DeepEmbedBlock(nn.Module):
             config=cfg,
           )(decoder_input_tokens.astype("int32"))
       deep_embedding = deep_embedding.reshape(*output.shape[:2], self.d1, self.d2)
-    print(f'inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
-    print(f'DeepEmbedBlock deep_embed_type: {self.config.deep_embed_type}')
+    max_logging.log(f'inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
+    max_logging.log(f'DeepEmbedBlock deep_embed_type: {self.config.deep_embed_type}')
 
     if 'gemma3n' in cfg.deep_embed_type:
       deep_w = deep_embedding
@@ -416,7 +416,7 @@ class MlpBlock(nn.Module):
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
     if '4xmlp' in cfg.deep_embed_type:
-      print(f'Outside DE is None, inside 4xmlp')
+      max_logging.log(f'Outside DE is None, inside 4xmlp')
       x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
 
     output = DenseGeneral(
@@ -434,7 +434,7 @@ class MlpBlock(nn.Module):
     )(x)
 
     if '1xmlp' in cfg.deep_embed_type:
-      print(f'Outside DE is None, inside 1xmlp')
+      max_logging.log(f'Outside DE is None, inside 1xmlp')
       output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")
@@ -550,7 +550,7 @@ class MoeBlock(nn.Module):
     inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
     weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
     if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
-      print(f'Enter permute sigmoid function......')
+      max_logging.log(f'Enter permute sigmoid function......')
       weights = self.deepseek_scale_weights(weights)
     else:
       weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
@@ -563,7 +563,7 @@ class MoeBlock(nn.Module):
     # sorted_inputs = jnp.take(inputs_2d, indices=sorted_indices, axis=0).astype(self.dtype)
     sorted_inputs = mblx.take.tpu_friendly_gather(inputs_2d, sorted_indices).astype(self.dtype)
     # sorted_inputs = jnp.concatenate([inputs_2d] * self.num_experts_per_tok, axis=0)
-    print(f'inputs_2d: {inputs_2d.shape} sorted_indices: {sorted_indices.shape} sorted_inputs: {sorted_inputs.shape}')
+    max_logging.log(f'inputs_2d: {inputs_2d.shape} sorted_indices: {sorted_indices.shape} sorted_inputs: {sorted_inputs.shape}')
 
     group_size = jnp.bincount(flatten_selected_experts, length=self.num_experts)
     return sorted_inputs, sorted_selected_experts, weights, group_size
@@ -574,7 +574,7 @@ class MoeBlock(nn.Module):
     # intermediate: (65536, 5120) sorted_selected_experts: (65536,) unsort_intermediate: (65536, 5120)
     # unsort_intermediate = jnp.take(intermediate, indices=jnp.argsort(sorted_selected_experts), axis=0)
     unsort_intermediate = mblx.take.tpu_gather_by_permutation(intermediate, jnp.argsort(sorted_selected_experts))
-    print(f'intermediate: {intermediate.shape} sorted_selected_experts: {sorted_selected_experts.shape} unsort_intermediate: {unsort_intermediate.shape}')
+    max_logging.log(f'intermediate: {intermediate.shape} sorted_selected_experts: {sorted_selected_experts.shape} unsort_intermediate: {unsort_intermediate.shape}')
 
     reshaped_weights = jnp.reshape(weights, (-1, self.num_experts_per_tok))
     reshaped_intermediate = jnp.reshape(
@@ -603,7 +603,7 @@ class MoeBlock(nn.Module):
       router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
       _gate_logits = gate_logits + router_mask
       if self.config.routed_score_func == 'sigmoid':
-        print(f'Enter sigmoid function......')
+        max_logging.log(f'Enter sigmoid function......')
         router_probs = nn.sigmoid(_gate_logits) # lsp
         router_probs /= router_probs.sum(-1, keepdims=True)
       else:
@@ -640,7 +640,7 @@ class MoeBlock(nn.Module):
 
       lhs_quantize_dtype, rhs_quantize_dtype = None, None
       if self.quant is not None:
-        print(f'moe quant......')
+        max_logging.log(f'moe quant......')
         quant_dg = self.quant.quant_dg
         lhs_quantize_dtype = quant_dg.fwd.dg_quantizer.lhs.numerics.get_dtype()
         rhs_quantize_dtype = quant_dg.fwd.dg_quantizer.rhs.numerics.get_dtype()
@@ -661,7 +661,7 @@ class MoeBlock(nn.Module):
         #     break
         # # if too large, will exceed vmem.
         # tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
-        # print(f'tile_size: {tile_size} mkn: {[m, k, n]}')
+        # max_logging.log(f'tile_size: {tile_size} mkn: {[m, k, n]}')
         output = mblx.gmm(
             lhs=inputs,
             rhs=kernel,
@@ -1120,7 +1120,7 @@ class Mgate(nn.Module):
 
     if self.config.mgate_dim < 2: return hidden
 
-    print(f'mgate layer_inputs: {layer_inputs.shape} hidden: {hidden.shape} expert_index: {expert_index} compute_n_expert: {compute_n_expert}')
+    max_logging.log(f'mgate layer_inputs: {layer_inputs.shape} hidden: {hidden.shape} expert_index: {expert_index} compute_n_expert: {compute_n_expert}')
     if unsqueeze:
       layer_inputs = layer_inputs[:, None] # add a dimension when not moe 
       hidden = hidden[:, None] # add a dimension when not moe 
@@ -1391,7 +1391,7 @@ class OpenMoeBlock(nn.Module):
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
        
-        print(f'expert_capacity: {expert_capacity}')
+        max_logging.log(f'expert_capacity: {expert_capacity}')
         # gsm
         token_inputs = jnp.reshape(inputs, (num_groups, tokens_per_group, self.config.base_emb_dim))
 
@@ -1535,7 +1535,7 @@ class OpenMoeBlock(nn.Module):
 
             # 专家的输入mask：gsm x gsec -> gecm，  _dispatch_mask可以将多出容量之外的toke进行丢弃
             _expert_inputs = jnp.einsum('gsd,gsec->gecd', token_inputs, _dispatch_mask)
-            print(f'token_inputs: {token_inputs.dtype} _dispatch_mask:{_dispatch_mask.dtype} _expert_inputs: {_expert_inputs.dtype}')
+            max_logging.log(f'token_inputs: {token_inputs.dtype} _dispatch_mask:{_dispatch_mask.dtype} _expert_inputs: {_expert_inputs.dtype}')
 
             _expert_inputs = jax.lax.convert_element_type(_expert_inputs, self.dtype)
             # gecm
@@ -1650,7 +1650,7 @@ class OpenMoeBlock(nn.Module):
       ) * jax.nn.one_hot(index_1, experts_dim, dtype=jnp.float32)
       # GSEC tensor 32 4096 32 196
       first_part_of_combine_tensor = jnp.einsum('GSE,GSC->GSEC', a, b)
-      print(f'first_part_of_combine_tensor: {first_part_of_combine_tensor.shape}')
+      max_logging.log(f'first_part_of_combine_tensor: {first_part_of_combine_tensor.shape}')
       # GSC tensor
       b = jax.nn.one_hot(
           position_in_expert_2.astype(np.int32),
@@ -1708,7 +1708,7 @@ class OpenMoeBlock(nn.Module):
           'gsec,gsm->egcm', dispatch_tensor, reshaped_inputs
       )
       # expert_inputs = self._split(expert_inputs, ap.egcm)
-      print(f'expert_inputs: {expert_inputs.shape}')
+      max_logging.log(f'expert_inputs: {expert_inputs.shape}')
       hidden0 = jnp.einsum(
           'egcm,emh->egch', expert_inputs, theta_wi
       )

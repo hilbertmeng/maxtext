@@ -15,6 +15,7 @@ from optax._src import base
 from optax._src import transform
 
 import max_utils
+import max_logging
 
 def scale_by_learning_rate(
     learning_rate: Optional[base.ScalarOrSchedule] = None,
@@ -45,13 +46,13 @@ def _apply_clipping(optimizer: optax.GradientTransformation, config) -> optax.Gr
   """Optionally wraps optimizer with gradient clipping according to config."""
   if getattr(config, 'gradient_clipping_threshold', 0) > 0:
     if getattr(config, 'clip_by_global_norm', False):
-      print(f'clip_by_global_norm: {config.gradient_clipping_threshold}')
+      max_logging.log(f'clip_by_global_norm: {config.gradient_clipping_threshold}')
       return optax.chain(
           optax.clip_by_global_norm(config.gradient_clipping_threshold),
           optimizer,
       )
     else:
-      print(f'Error clip: {config.gradient_clipping_threshold}')
+      max_logging.log(f'Error clip: {config.gradient_clipping_threshold}')
       return optax.chain(
           optax.clip(config.gradient_clipping_threshold),
           optimizer,
@@ -105,7 +106,7 @@ def muon(
       elif ndim == 2 and 'mlp' in k and 'compose' not in k: # remove mudd params
         label = 'muon_mlp'
      
-      print(f'k: {k}, label: {label} ndim: {ndim}')
+      max_logging.log(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
@@ -122,12 +123,12 @@ def muon(
   default_scale = 1.0
   attn_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim)) * config.muon_scale
   mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
-  print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
+  max_logging.log(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
 
   if config.muon_decay_ratio and config.muon_decay_ratio > 0.0:
     muon_final_lr = config.muon_decay_ratio * config.learning_rate * 0.2 / config.muon_scale # 不论muon_scale是多少，均按照 muon_scale=0.1 计算的最终学习率
     muon_learning_rate_schedule = max_utils.create_learning_rate_schedule(config, final_lr=muon_final_lr)
-    print(f'muon_final_lr: {muon_final_lr}')
+    max_logging.log(f'muon_final_lr: {muon_final_lr}')
   else:
     muon_learning_rate_schedule = learning_rate_schedule     
 
@@ -163,7 +164,7 @@ def _build_adamw(config, learning_rate_schedule, wd_tree):
       label = 'adam_default'
       if 'deep' in k:
         label = 'adam_deep'
-      print(f'k: {k}, label: {label} ndim: {ndim}')
+      max_logging.log(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
@@ -260,7 +261,7 @@ _OPTIMIZER_BUILDERS = {
 
 
 def get_optimizer(config, learning_rate_schedule, wd_tree=None):
-  print(f'opt_type: {config.opt_type}')
+  max_logging.log(f'opt_type: {config.opt_type}')
   try:
     optimizer_builder = _OPTIMIZER_BUILDERS[config.opt_type]
   except KeyError:

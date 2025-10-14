@@ -16,6 +16,7 @@ import common_types
 from flax.linen.linear import PrecisionLike
 from layers import accelerator
 
+
 Dtype = Any
 Array = common_types.Array
 DType = common_types.DType
@@ -96,48 +97,29 @@ class DynamicWeightProjection(nn.Module):
                         kernel_axes=('embed', None, 'heads', 'mlp'),
                         **kwargs)
       else:
-        dw1s = []
-        for gn in range(G * self.n_splits):
-          dw1 = self.param(
-            f'dw1_gn{gn}', 
-            nn.with_logical_partitioning(
-              NormalInitializer(math.sqrt(2.0 / (self.input_dim + K))),
-              ('embed', 'mlp'),
-              ), 
-            (self.input_dim, K), 
-            self.weight_dtype
-            )
-          dw1s.append(dw1[None])
-        self.dw1 = jnp.concatenate(dw1s, axis=1).reshape(G, self.n_splits,self.input_dim, K)
-        print(f'dc_use_muon: True, self.dw1.shape: {self.dw1.shape}')
+        shard = nn.with_logical_partitioning(NormalInitializer(math.sqrt(2.0 / (self.input_dim + K))),('embed', 'mlp'))
+        self.dw1 = jnp.stack(
+          [self.param(f'dw1_gn{gn}', shard, (self.input_dim, K), self.weight_dtype).astype(self.dtype) 
+          for gn in range(G * self.n_splits)], axis=0
+          )[None]
+        max_logging.log(f'dc_use_muon: True, self.dw1.shape: {self.dw1.shape} dw1.dtype: {self.dw1.dtype}')
         
       self.dw_hidden_activation = nn.gelu
       I = dynamic_hidden_dim * 2  # 2 * 2
       shape = [G, self.n_splits, K, I, M]
       self.G, self.K, self.I, self.M = G, K, I, M
       if not self.dc_use_muon:
-        kernel_init_shard = nn.with_logical_partitioning(
-        NormalInitializer(self.dynamic_w_init), (None, 'data', 'fsdp', None, 'tensor')
-        )
-        qkw_kernel = self.param('qkw', kernel_init_shard, shape, self.weight_dtype)
-        print(f'dc_use_muon: False, qkw_kernel shape: {qkw_kernel.shape}')
-
+        shard = nn.with_logical_partitioning(NormalInitializer(self.dynamic_w_init), (None, 'data', 'fsdp', None, 'tensor'))
+        self.qkw = self.param('qkw', shard, shape, self.weight_dtype).astype(self.dtype)
+        max_logging.log(f'dc_use_muon: True, self.qkw.shape: {self.qkw.shape} qkw.dtype: {self.qkw.dtype}')
       else:
-        qkws = []
-        for gn in range(self.num_groups * self.n_splits):
-          qkw = self.param(
-            f'qkw_gn{gn}', 
-            nn.with_logical_partitioning(
-              NormalInitializer(self.dynamic_w_init), 
-              ('fsdp', 'tensor')
-              ), 
-            (K, I * M), 
-            self.weight_dtype
-            )
-          qkws.append(qkw[None])
-        qkw_kernel = jnp.concatenate(qkws, axis=0).reshape(*shape)
-        print(f'dc_use_muon: True, qkw_kernel shape: {qkw_kernel.shape}')
-    self.qkw = jnp.asarray(qkw_kernel, self.dtype)
+        shard = nn.with_logical_partitioning(NormalInitializer(self.dynamic_w_init), ('fsdp', 'tensor'))
+        qkws = jnp.stack(
+          [self.param(f'qkw_gn{gn}', shard, (K, I * M), self.weight_dtype,).astype(self.dtype)
+          for gn in range(self.num_groups * self.n_splits)], axis=0
+          )[None]
+        self.qkw = qkws.reshape(*shape)
+        max_logging.log(f'dc_use_muon: True, self.qkw.shape: {self.qkw.shape} qkw.dtype: {self.qkw.dtype}')
 
     if self.dynamic_d_init is not None:
       if not self.dc_use_muon:
@@ -151,20 +133,13 @@ class DynamicWeightProjection(nn.Module):
               **kwargs
               )
       else:
-        dds = []
-        for gn in range(G * self.n_splits):
-          dd = self.param(
-            f'dd_gn{gn}', 
-            nn.with_logical_partitioning(
-              NormalInitializer(self.dynamic_d_init), 
-              ('embed', 'mlp')
-            ), 
-            (self.input_dim, self.num_heads_per_group), 
-            self.weight_dtype
-          )
-          dds.append(dd[..., None])
-        self.dd = jnp.concatenate(dds, axis=-1).reshape(self.input_dim,  self.n_splits * self.num_heads_per_group, G)
-        print(f'dc_use_muon: True, self.dd.shape: {self.dd.shape}')
+        shard = nn.with_logical_partitioning(NormalInitializer(self.dynamic_d_init), ('embed', 'mlp'))
+        dd = jnp.stack(
+          [self.param(f'dd_gn{gn}', shard, (self.input_dim, self.num_heads_per_group), self.weight_dtype).astype(self.dtype)
+          for gn in range(G * self.n_splits)], axis=0
+          )[None]
+        self.dd = dd.reshape(self.input_dim,  G, self.n_splits * self.num_heads_per_group)
+        max_logging.log(f'dc_use_muon: True, self.dd.shape: {self.dd.shape}')
 
     self.dw_activation = nn.tanh
     # RMSNormScale, compare to RMSNorm. it remove scale
@@ -208,7 +183,7 @@ class DynamicWeightProjection(nn.Module):
       pre_qw1, pre_kw1, post_qw1, post_kw1 = unbind(w1, 4, axis=3) # BTG4IM->[BTGIM]*4
       pre_qw2, pre_kw2, post_qw2, post_kw2 = unbind(w2, 4, axis=3)
 
-      dd = jnp.einsum('BTD,DKG->BTGK', query_vec, self.dd) if self.dc_use_muon else self.dd(query_vec)
+      dd = jnp.einsum('BTD,DGK->BTGK', query_vec, self.dd) if self.dc_use_muon else self.dd(query_vec)
       dd = self.dw_activation(dd)
 
       if self.dynamic_dropout_rate is not None:

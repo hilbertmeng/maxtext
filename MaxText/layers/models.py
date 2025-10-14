@@ -56,10 +56,10 @@ Quant = quantizations.AqtQuantization
 
 def get_deep_embedding(cfg, y):
   y, deep_embedding = y[..., :cfg.emb_dim], y[..., cfg.emb_dim: ]
-  print(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}')
+  max_logging.log(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}')
   if re.findall(r'gemma3n', cfg.deep_embed_type):
     deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, -1) # btlD
-    print(f'gemma3n deep_embeddings: {deep_embeddings.shape}')
+    max_logging.log(f'gemma3n deep_embeddings: {deep_embeddings.shape}')
   elif '4xmlp' in cfg.deep_embed_type:
     assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
     start_idx = 0
@@ -72,11 +72,11 @@ def get_deep_embedding(cfg, y):
       start_idx += updated_mlp_dim
       cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*y.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
-      print(f'4xmlp layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
+      max_logging.log(f'4xmlp layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
   elif re.findall(r'1xmlp|1xattn', cfg.deep_embed_type):
     d1, d2 = (32, cfg.emb_dim // 32)
     deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
-    print(f'1xmlp|1xattn deep_embeddings: {deep_embeddings.shape}')
+    max_logging.log(f'1xmlp|1xattn deep_embeddings: {deep_embeddings.shape}')
   else:
     raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type}')
   return y, deep_embeddings
@@ -313,7 +313,7 @@ class OutputHead(nn.Module):
     y = self.norm(y) # 20250925 fix, this bug occurred at MTP experiment.
     y = self.dropout(y, deterministic=deterministic)
     if cfg.logits_via_embedding:
-        print(f'Word embedding shared: {cfg.logits_via_embedding}')
+        max_logging.log(f'Word embedding shared: {cfg.logits_via_embedding}')
         # Use the transpose of embedding matrix for logit transform.
         logits = self.shared_embedding.attend(y)  # lsp：权重共享
         if cfg.normalize_embedding_logits:
@@ -497,9 +497,9 @@ class Decoder(nn.Module):
       # ======================================32k long context max window size set==================================================
       # eos_sum = (decoder_segment_ids == 0).sum(1)  # 3.5 mini train
       if decoder_segment_ids is not None:
-        print(f'[lsp]decoder_segment_ids: {decoder_segment_ids.shape}')
+        max_logging.log(f'[lsp]decoder_segment_ids: {decoder_segment_ids.shape}')
       else:
-        print(f'[lsp]decoder_segment_ids: {decoder_segment_ids}')
+        max_logging.log(f'[lsp]decoder_segment_ids: {decoder_segment_ids}')
       eos_sum = (decoder_input_tokens == 151643).sum(1)
       eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
       if cfg.record_internal_nn_metrics:
@@ -513,7 +513,7 @@ class Decoder(nn.Module):
 
     if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp|gemma3n', cfg.deep_embed_type):
       y, deep_embeddings = get_deep_embedding(cfg, y)
-      print(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}')
+      max_logging.log(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}')
       if 'gemma3n' in cfg.deep_embed_type:
         dynamic_de = linears.DenseGeneral(
             (cfg.num_decoder_layers, deep_embeddings.shape[-1]),
@@ -556,10 +556,10 @@ class Decoder(nn.Module):
       hids = []
 
     if cfg.dense_conn and not cfg.mudd_in_layer:
-      print(f'Outside layers don\'t use remat')
+      max_logging.log(f'Outside layers don\'t use remat')
       RemattedBlockLayers = self.decoder_layer
     else:
-      print(f'Outside layers use remat')
+      max_logging.log(f'Outside layers use remat')
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg))
       
     if cfg.using_pipeline_parallelism:
@@ -630,7 +630,7 @@ class Decoder(nn.Module):
         else:
           assert cfg.num_layers_per_block == 1, f"num_layers_per_block: {cfg.num_layers_per_block} != 1"
           if isinstance(cfg.sliding_window_size, list):
-            print(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
+            max_logging.log(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
             if len(cfg.sliding_window_size) != cfg.num_decoder_layers:
               n = cfg.num_decoder_layers // len(cfg.sliding_window_size)
               sliding_window_sizes = cfg.sliding_window_size * n
@@ -640,7 +640,7 @@ class Decoder(nn.Module):
           else:
             sliding_window_sizes = cfg.num_decoder_layers * [cfg.sliding_window_size]
           for lyr in range(cfg.num_decoder_layers):
-            print(f'\n=================decoder layer: {lyr}=====================\n')
+            max_logging.log(f'\n=================decoder layer: {lyr}=====================\n')
             RemattedBlockLayer = RemattedBlockLayers[0]
             y = RemattedBlockLayer(
               config=cfg, 
@@ -677,12 +677,12 @@ class Decoder(nn.Module):
                         quant=self.quant,
                         name='lm_head')
     
-    print(f'OutputHeadLayer input: {main_head_inputs.shape}')
+    max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
     logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
-    print(f'main logits: {logits.shape}')
+    max_logging.log(f'main logits: {logits.shape}')
     # =====================================llm head DE======================================
     if 'dehead' in cfg.deep_embed_type.lower():
-      print(f'OutputHeadLayer dehead')
+      max_logging.log(f'OutputHeadLayer dehead')
       logits = linears.DeepEmbedBlock(
         name='head_deep_embed',
         config=cfg, 
@@ -693,7 +693,7 @@ class Decoder(nn.Module):
         output_dim=logits.shape[-1],
         de_d1_d2_dims=(128, logits.shape[-1] // 128)
         )(main_head_inputs, logits, decoder_input_tokens, deep_embedding=None)
-      print(f'Outside DE is None, inside 1x Attn DE')
+      max_logging.log(f'Outside DE is None, inside 1x Attn DE')
       main_head_inputs = main_head_inputs.reshape(*main_head_inputs.shape[:2], -1)
 
     if cfg.mtp_num_layers > 0:
@@ -747,7 +747,7 @@ class Transformer(nn.Module):
         # Multi deep embed don't support outside init
         raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')
      
-    print(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {emb_dim}')
+    max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {emb_dim}')
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
         features=emb_dim,

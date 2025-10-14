@@ -151,7 +151,7 @@ def save_eval_result(config, step, cumulative_eval_metrics):
   with eval_result_path.open('w') as f:
     write_str = json.dumps(cumulative_eval_metrics)
     f.write(json.dumps(write_str, ensure_ascii=False))
-  print(f'Save eval result to `{eval_result_path}` finished.')
+  max_logging.log(f'Save eval result to `{eval_result_path}` finished.')
   if config.only_eval: exit(0)  # lsp
 
 
@@ -659,7 +659,7 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable="intermediates",
     )
-    print(f'teacher_logits: {teacher_logits.shape}')
+    max_logging.log(f'teacher_logits: {teacher_logits.shape}')
     teacher_logits = jax.lax.stop_gradient(teacher_logits)
 
     distill_xent = compute_distill_loss(config, logits, teacher_logits)
@@ -736,7 +736,7 @@ def compute_params_norm(params, config): # lsp
     newk = k.replace('params', 'total_params')
     if config.scan_layers and ('layers' in k and 'mtp' not in k): # lsp: mtp heads no scan
       axis = list(range(v.ndim))
-      print(f'axis: {axis}, k: {k}, v.shape: {v.shape}')
+      max_logging.log(f'axis: {axis}, k: {k}, v.shape: {v.shape}')
       axis.pop(config.param_scan_axis)
       normv = jnp.sqrt(jnp.sum(jnp.square(v), axis=axis))
       for lyr in range(normv.shape[0]):
@@ -832,7 +832,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
         reference_params = jax.device_put(reference_params, max_utils.with_memory_kind(reference_params_sharding, "device"))
         extra_dpo_args = [reference_params]
     grad_func = jax.value_and_grad(_loss_fn, argnums=5, has_aux=True)  # argnums: 针对哪个参数计算梯度
-    print(f'teacher_model: {teacher_model}')
+    max_logging.log(f'teacher_model: {teacher_model}')
     (loss, aux), raw_grads = grad_func(model, teacher_model, config, data, dropout_rng, state.params, teacher_params, *extra_dpo_args, is_train=True)
   intermediate_outputs = aux["intermediate_outputs"]
   if config.debug:
@@ -846,7 +846,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   
   attn_smax = _extract_attn_smax(intermediate_outputs)
   tau = getattr(config, 'attn_logit_threshold', None)
-  print(f'attn_smax: {attn_smax} tau: {tau}')
+  max_logging.log(f'attn_smax: {attn_smax} tau: {tau}')
   if tau and attn_smax is not None:
     qk_scale_c = jnp.where(attn_smax > tau, jnp.sqrt(tau / (attn_smax + 1e-12)), 1.0)
   else:
@@ -867,7 +867,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   
   if tau: # not none and > 0
     # Apply scaling only if the feature is enabled (tau provided)
-    print(f'qk_scale_c: {qk_scale_c}')
+    max_logging.log(f'qk_scale_c: {qk_scale_c}')
     scaled_params = dict(new_state.params)
     scaled_params['params'] = _scale_qk_params(new_state.params['params'], qk_scale_c)
     new_state = new_state.replace(params=scaled_params)
@@ -1082,7 +1082,7 @@ def setup_train_loop(config, teacher_config=None):
     maxtext_utils.assert_params_sufficiently_sharded(state.params, mesh, config.sharding_tolerance)
 
   if config.use_kd:
-    print(f'use_distill is true.')
+    max_logging.log(f'use_distill is true.')
     teacher_abstract_state, _, _ = max_utils.get_abstract_state(teacher_model, tx, teacher_config, init_rng, mesh, is_training=False)
     # lsp: teacher_abstract_state with shape and sharding, but teacher_sharding with only sharding
     teacher_sharding = jax.tree_util.tree_map(lambda x: x.sharding, teacher_abstract_state.params['params'])
@@ -1217,12 +1217,12 @@ def train_loop(config, teacher_config=None, state=None):
 
   # Define the compilation of functional_train, either by loading the compiled version or wrapping a new one in a jit
   if config.compiled_trainstep_file != "":
-    print("Loading the compiled function...", flush=True)
+    max_logging.log("Loading the compiled function...", flush=True)
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
     p_train_step = maxtext_utils.load_compiled(config, functional_train, state)
     # TODO: p_eval_step is not yet supported in load_compiled
     p_eval_step = None
-    print("Loaded compiled function!", flush=True)
+    max_logging.log("Loaded compiled function!", flush=True)
   else:
     if config.only_eval:
       p_train_step = None
@@ -1312,7 +1312,7 @@ def train_loop(config, teacher_config=None, state=None):
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
       step_in_file = eval_data_iterator.step_in_file
-      print(f'eval_data_iterator: {eval_data_iterator} step_in_file: {step_in_file}')
+      max_logging.log(f'eval_data_iterator: {eval_data_iterator} step_in_file: {step_in_file}')
       cumulative_eval_metrics = {
           "scalar": {
               "eval/total_loss": 0.0,
@@ -1334,7 +1334,7 @@ def train_loop(config, teacher_config=None, state=None):
       for _ in range(eval_steps):
         try: eval_batch = next(eval_data_iterator)
         except:
-          print('Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.')
+          max_logging.log('Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.')
           eval_data_iterator.reset()
           # -1 means eval whole dataset, otherwise must eval eval_steps examples
           if config.eval_steps == -1 or start_step == 0: break # 意味着从头到尾都评测完了，不需要继续了。

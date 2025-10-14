@@ -304,7 +304,7 @@ class QChunk(nn.Module):
     w  = self.query_chunk_size
     assert t % w == 0, f"{t} % {w} != 0"
     num_steps = t // w
-    print(f'sliding_window_size: {sliding_window_size} query_chunk_sizes: {w}')
+    max_logging.log(f'sliding_window_size: {sliding_window_size} query_chunk_sizes: {w}')
     # encoded0传入chunk_attn比append再cat更省1G显存
     encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
     def chunk_attn(i, carry):
@@ -383,7 +383,7 @@ class QChunk(nn.Module):
         attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
 
     if self.query_chunk_size is None:
-      print(f'query_chunk_size is None')
+      max_logging.log(f'query_chunk_size is None')
       encoded = self._apply_attention_dot(
                                       query, key, value, attn_mask,  
                                       pre_proj_dw_args=pre_proj_dw_args, 
@@ -392,11 +392,11 @@ class QChunk(nn.Module):
     else:
       args = (query, key, value, attn_mask, sliding_window_size, pre_proj_dw_args, post_proj_dw_args, pre_proj_layer, post_proj_layer)
       remat = True if 'remat' in self.config.query_chunk_method else False
-      print(f'query_chunk_method: {self.config.query_chunk_method} t: {t}')
+      max_logging.log(f'query_chunk_method: {self.config.query_chunk_method} t: {t}')
       if 'parallel' in self.config.query_chunk_method and sliding_window_size < t:
-        print(f'Local Attn Parallel.... remat is {remat} sliding_window_size: {sliding_window_size}')
+        max_logging.log(f'Local Attn Parallel.... remat is {remat} sliding_window_size: {sliding_window_size}')
         encoded = self._attention_parallel_remat(*args, remat=remat, parallel_method='scan')
       else:
-        print(f'Global|Local Attn.... remat is {remat} sliding_window_size: {sliding_window_size}')
+        max_logging.log(f'Global|Local Attn.... remat is {remat} sliding_window_size: {sliding_window_size}')
         encoded = self._attention_for_remat(*args, remat=remat)
     return encoded, None, None

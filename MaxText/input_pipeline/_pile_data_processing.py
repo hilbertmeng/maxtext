@@ -68,13 +68,13 @@ class PileDatasets():
             self.init_meta()
         else:
             if self.meta_dict["file_in_data"] != 0:
-                assert self.meta_dict["iter_file_nums"] == self.iter_file_nums, print(
+                assert self.meta_dict["iter_file_nums"] == self.iter_file_nums, max_logging.log(
                     f'iter_file_nums in meta_dict is not equal to cur args. => {self.meta_dict["iter_file_nums"]}≠'
                     f" {self.iter_file_nums}"
                 )
             self.step_in_file = self.meta_dict.get('step_in_file')  # XD fix
 
-        print(f'meta_dict: {self.meta_dict}')
+        max_logging.log(f'meta_dict: {self.meta_dict}')
         self.seed = self.meta_dict['seed']
         self.dataset = self.load_tfrecord_dataset(fnames=self.path)
         self._peek = None
@@ -93,7 +93,7 @@ class PileDatasets():
 
     def reset(self):
         self.init_meta()
-        print(f'process: {jax.process_index()} reset path: {self.path}')
+        max_logging.log(f'process: {jax.process_index()} reset path: {self.path}')
         self.dataset = self.load_tfrecord_dataset(fnames=self.path)
 
     def __iter__(self):
@@ -163,13 +163,13 @@ class PileDatasets():
         ds = tf.data.Dataset.from_tensor_slices(fname)
         ds = ds.apply(tf.data.TFRecordDataset)
         if 'eval' in self.name: # 不然有时候eval数据集不均分会报错。
-            print(f'This eval mode......')
+            max_logging.log(f'This eval mode......')
             ds = ds.batch(self.num_infeed_hosts, drop_remainder=True)
             ds = ds.unbatch()
         process_index = jax.process_index()
         ds = ds.shard(self.num_infeed_hosts, process_index) # 不保证每台机器数据一样多。
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE) # 取 seq_len + 1
-        print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
+        max_logging.log(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
 
@@ -198,7 +198,7 @@ class PileDatasets():
         repeat_fnames = fnames * self.repeat
         N = math.ceil(len(repeat_fnames) / self.iter_file_nums)
         file_in_data = self.meta_dict["file_in_data"]
-        print(f'file_in_data: {file_in_data} N: {N}')
+        max_logging.log(f'file_in_data: {file_in_data} N: {N}')
         for n in range(file_in_data, N, 1):
             fname = repeat_fnames[n * self.iter_file_nums : (n + 1) * self.iter_file_nums]
             self.meta_dict["cur_files"] = fname
@@ -223,11 +223,11 @@ def record_file_and_step(step, config, train_input):  # lsp
     meta_dict = train_input.meta_dict
     meta_dict['checkpoint_step'] = int(step)
 
-    print(f'save_newest_path: {save_newest_path}')
-    print(f'save_path: {save_path}')
-    print(f'meta_dict: {meta_dict}')
+    max_logging.log(f'save_newest_path: {save_newest_path}')
+    max_logging.log(f'save_path: {save_path}')
+    max_logging.log(f'meta_dict: {meta_dict}')
     for k, v in meta_dict.items():
-      print(k, type(v))
+      max_logging.log(k, type(v))
 
     if jax.process_index() == 0:
       try:
@@ -237,9 +237,9 @@ def record_file_and_step(step, config, train_input):  # lsp
         with save_path.open('w') as f2:
             json.dump(meta_dict, f2)
       except Exception as error:
-        print(f'Write meta dict error: {error}')
+        max_logging.log(f'Write meta dict error: {error}')
 
-    print(f'Save skip_file_and_step successful... file_in_data: {meta_dict["file_in_data"]} || step_in_file: {meta_dict["step_in_file"]}')  # XD
+    max_logging.log(f'Save skip_file_and_step successful... file_in_data: {meta_dict["file_in_data"]} || step_in_file: {meta_dict["step_in_file"]}')  # XD
 
 
 def extract_pythia_datapath(dataset_path, eval_split):  # lsp
@@ -251,7 +251,7 @@ def extract_pythia_datapath(dataset_path, eval_split):  # lsp
     bucket_name = path_parts[0]
     directory_path = '/'.join(path_parts[1:])
     directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
-    print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+    max_logging.log(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
     step_map_path = {}
     eval_pathes = []
     rerank = 0
@@ -265,7 +265,7 @@ def extract_pythia_datapath(dataset_path, eval_split):  # lsp
         path = f'gs://{os.path.join(bucket_name, blob.name)}'
 
         if eval_split in path:
-            print(f'eval path: {path}')
+            max_logging.log(f'eval path: {path}')
             eval_pathes.append(path)
             continue
         step_map_path[step] = path
@@ -306,11 +306,11 @@ def extract_v3p5_longdata_files(dataset_path, eval_split=None):  # lsp
     short_k = min(3 * len(train_long_files) // 7, len(train_short_files))
     selected_short_files = random.sample(train_short_files, k=short_k)
     train_files = selected_short_files + train_long_files
-    print(f'selected_short_files: {len(selected_short_files)} train_long_files: {len(train_long_files)}')
+    max_logging.log(f'selected_short_files: {len(selected_short_files)} train_long_files: {len(train_long_files)}')
     random.shuffle(train_files)
-    print(f'first 10 train files: {train_files[:10]}')
+    max_logging.log(f'first 10 train files: {train_files[:10]}')
     valid_files = sorted(valid_files)
-    print(f'valid_files: {valid_files}')
+    max_logging.log(f'valid_files: {valid_files}')
     return train_files, valid_files
 
 
@@ -322,7 +322,7 @@ def extract_v3p5_data_files(dataset_path, eval_split):
     bucket_name = path_parts[0]
     directory_path = '/'.join(path_parts[1:])
     directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
-    print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+    max_logging.log(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
     train_files, valid_files = [], []
     for blob in client.list_blobs(bucket_name, prefix=directory_path):
         path = f'gs://{os.path.join(bucket_name, blob.name)}'
@@ -333,19 +333,19 @@ def extract_v3p5_data_files(dataset_path, eval_split):
     # train_files = sorted(train_files)
     # valid_files = sorted(valid_files)
     random.shuffle(train_files)
-    print(f'Train file: {len(train_files)},  test file: {len(valid_files)}')
-    print(f'first 10 train files: {train_files[:10]}')
-    print(f'valid_files: {valid_files}')
+    max_logging.log(f'Train file: {len(train_files)},  test file: {len(valid_files)}')
+    max_logging.log(f'first 10 train files: {train_files[:10]}')
+    max_logging.log(f'valid_files: {valid_files}')
     return train_files, valid_files
 
 
 def extract_role_play_instruct_data(dataset_paths, eval_split):
     random.seed(9876)
     client = storage.Client()
-    print(f'dataset_paths0: {dataset_paths}')
+    max_logging.log(f'dataset_paths0: {dataset_paths}')
     dataset_paths = dataset_paths.split('@')
-    print(f'dataset_paths1: {dataset_paths}')
-    print(f'Dataset from {len(dataset_paths)} source')
+    max_logging.log(f'dataset_paths1: {dataset_paths}')
+    max_logging.log(f'Dataset from {len(dataset_paths)} source')
     total_train_files, total_valid_files = [], []
     for dataset_path in dataset_paths:
         path = dataset_path.replace('gs://', '')
@@ -378,16 +378,16 @@ def extract_role_play_instruct_data(dataset_paths, eval_split):
                 valid_files = train_files[ :1]
             train_files = train_files[1: ]
         
-        print(f'dataset_path: {dataset_path} train nums: {len(train_files)} valid nums: {len(valid_files)} valid files: {valid_files}')
+        max_logging.log(f'dataset_path: {dataset_path} train nums: {len(train_files)} valid nums: {len(valid_files)} valid files: {valid_files}')
 
         total_train_files.extend(train_files)
         total_valid_files.extend(valid_files)
     random.shuffle(total_train_files)
     random.seed(9875) # 文件多次shuffle，让文件之间shuffle更彻底
     random.shuffle(total_train_files)
-    print(f'Total train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
-    print(f'First 10 train files: {total_train_files[:20]}')
-    print(f'Total valid files: {total_valid_files}')
+    max_logging.log(f'Total train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
+    max_logging.log(f'First 10 train files: {total_train_files[:20]}')
+    max_logging.log(f'Total valid files: {total_valid_files}')
     return total_train_files, total_valid_files
 
 
@@ -398,13 +398,13 @@ def extract_train_skip_step(model_dir, step, only_eval=False):  # lsp
         skip_file_and_step_path = model_dir / str(step) / SKIP_STEP_NAME
     else:
         skip_file_and_step_path = model_dir / SKIP_STEP_NAME
-    print(f"model_dir: {model_dir}")
+    max_logging.log(f"model_dir: {model_dir}")
     try:
         with skip_file_and_step_path.open('r') as f:
             meta_dict = json.load(f)
-        print(f"Load skip_file_and_step_path: ’{skip_file_and_step_path}‘ Finished.......")
+        max_logging.log(f"Load skip_file_and_step_path: ’{skip_file_and_step_path}‘ Finished.......")
     except:
-        print(f"skip_file_and_step_path: ’{skip_file_and_step_path}‘ is not existed.......")
+        max_logging.log(f"skip_file_and_step_path: ’{skip_file_and_step_path}‘ is not existed.......")
         meta_dict = {}
 
     if jax.process_index() == 0:
@@ -440,7 +440,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
   except:
     only_eval = False
   meta_dict = extract_train_skip_step(job_dir,  step=config.training_num_batches_to_skip, only_eval=only_eval)
-  print(f'meta_dict: {meta_dict}')
+  max_logging.log(f'meta_dict: {meta_dict}')
 
   task_features = config.task_features
   train_dataloader = PileDatasets(

@@ -164,7 +164,7 @@ class SubDecoderLayer(nn.Module):
         output_dim=cfg.emb_dim,
         de_d1_d2_dims=(32, cfg.emb_dim // 32)  # fix first dimension to 32, and don't need to follow mudd mlp dim.
         )(inputs, attention_lnx, decoder_input_tokens, deep_embedding)
-      print(f'Outside DE is None, inside 1x Attn DE')
+      max_logging.log(f'Outside DE is None, inside 1x Attn DE')
 
     if cfg.record_internal_nn_metrics:
         attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))

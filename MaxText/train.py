@@ -1167,6 +1167,7 @@ def train_loop(config, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
       if config.only_eval:
         step = checkpoint_manager.latest_step() if config.eval_model_step == -1 and checkpoint_manager is not None else config.eval_model_step
+        if step is None: step = 1
       if config.use_dpo:
         cumulative_eval_metrics["scalar"]["eval/dpo_reward_accuracy"] = eval_dpo_reward_accuracy / eval_step_count
       write_metrics(

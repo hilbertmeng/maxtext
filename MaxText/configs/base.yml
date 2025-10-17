@@ -687,3 +687,5 @@ bucket_log_buffer_size: 500   # Maximum buffer size before forced upload (defaul
 
 remat_prevent_cse: True
 mtp_use_remat: False
+
+use_kv_shift: False

@@ -38,6 +38,7 @@ from layers import dc
 from layers import accelerator
 from einops import rearrange
 import max_logging
+from layers import kv_shift
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -1140,6 +1141,7 @@ class Attention(nn.Module):
   compute_axis_order: AxisIdxes = (0, 1, 2, 3)
   reshape_q: bool = False
   rng: None = None
+  use_kv_shift: bool = False
 
   def setup(self):
     # When using dynamic pre/post composition with flash kernels, keep the
@@ -1221,6 +1223,9 @@ class Attention(nn.Module):
         use_ragged_attention=self.use_ragged_attention,
         ragged_block_size=self.ragged_block_size,
     )
+    if self.use_kv_shift:
+      self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init, num_kv_heads=self.num_kv_heads)
+      
 
   def query_projection(self, inputs_q: Array) -> Array:
     """Query projection."""
@@ -1465,6 +1470,10 @@ class Attention(nn.Module):
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
+
+    if self.use_kv_shift:
+      inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
+      query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v)
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp
 

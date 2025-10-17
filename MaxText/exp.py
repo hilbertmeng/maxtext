@@ -99,6 +99,13 @@ class DC:
     static_proj = False
     qk_norm = True
  
+class KVshift:
+    use_kv_shift = True
+    kv_shift_flash = True
+    kv_shift_mlp = False
+    kv_shift_hidden_way = 'kv'
+    kv_shift_skip_knorm = True # remove knorm, duplicated when using qknorm 
+
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     base_emb_dim = 1024
     base_num_query_heads = 16
@@ -731,3 +738,42 @@ class DCL12LamaLG(DC, LGWindow, Llama2Medium):
 
 class DCL12LamaLGFlash(DCL12LamaLG):
     attention = 'flash'
+
+
+class MuonDeDcMuddMtp1KvshiftOgateLgllGgqa4(Muon, KVshift, LGLLWindow, DCMuddLlama2Medium):
+    base_emb_dim = 4096
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5120
+    base_num_decoder_layers = 55
+    head_dim = 128
+    model_name = 'v4.5-8B-slim'
+
+    per_device_batch_size = 8.0
+    eval_per_device_batch_size = 8.0
+
+    o_gate_hidden_dim = 64
+    key_wise = False
+    ggqa = 4
+
+    mudd_prenorm = True
+    mudd_postnorm = True
+    dc_use_muon = True
+    mudd_use_muon = True
+
+    deep_embed_type = '4xmlp'
+    deep_embed_norm = True
+    deep_embed_init = 'inside'
+
+    mtp_use_remat = True
+    mtp_num_layers = 1
+
+    muon_scale = 0.35
+
+    # LGLL + kvshift + Ogate + muon + DE + MTP： 预估8倍提升
+    # cosine
+    # lr: 调研下
+    # 120B，5倍Scaling law
+    # rope 只取一部分去算
+    # muon_scale 0.35 -> 0.1
+    # deep_embed_norm: False

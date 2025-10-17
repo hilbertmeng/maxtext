@@ -140,6 +140,7 @@ class SubDecoderLayer(nn.Module):
         kernel_init=initializers.get_init_method(cfg.init_method), # lsp
         sliding_window_size=self.sliding_window_size,
         rng=jax.random.PRNGKey(9),  # lsp
+        use_kv_shift=cfg.use_kv_shift,
     )
 
     attention_lnx = attention_layer(

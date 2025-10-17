@@ -452,10 +452,10 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
                   list(range(config.num_decoder_layers, config.num_decoder_layers + config.mtp_num_layers, 1))
     for layer_num in loop_indexes:
       mtp_i = layer_num - config.num_decoder_layers + 1
+      mtp_num = layer_num - config.num_decoder_layers
       if config.dense_conn:
         if config.mudd_in_layer:
-          add = int(layer_num != config.num_decoder_layers - 1)
-          layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num + add}"]['compose']
+          layer = intermediate_outputs["intermediates"]["decoder"]['mtp_block'][f"mtp_{mtp_num}"][f"layers_{layer_num}"]['compose']
         else:
           layer = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['compose']
         for read_key in ['max', 'mean', 'min', 'std', 'l2norm']:

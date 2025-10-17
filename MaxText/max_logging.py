@@ -131,10 +131,10 @@ def initialize_bucket_logging(bucket_dir: Optional[str] = None, upload_interval:
         print(f"[MaxText] Initialized bucket logging to {bucket_dir}", flush=True)
 
 
-def log(user_str, debug=True, save_to_bucket=True):
+def log(user_str, *args, debug=True, save_to_bucket=True):
     """Enhanced logging function that supports both console and bucket output"""
     if debug:
-        print(user_str, flush=True)
+        print(user_str, *args, flush=True)
     
     # Also save to bucket if enabled
     if save_to_bucket and _bucket_logger:

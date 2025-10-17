@@ -171,7 +171,8 @@ class MultiTokenPredictionLayer(nn.Module):
         projected_features = [projected_features] * 4
     # --- 4. Pass through MTP Transformer Block ---
     y = self.transformer_layer_module(
-        config=cfg, mesh=mesh, 
+        config=cfg, mesh=mesh,
+        sliding_window_size=cfg.sliding_window_size[-1],
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
           inputs=projected_features,
           decoder_segment_ids=decoder_segment_ids,
@@ -182,8 +183,8 @@ class MultiTokenPredictionLayer(nn.Module):
           model_mode=model_mode,
           hids=hids,
     )
-    next_hidden_state, hids = y
 
+    next_hidden_state, hids = y
     # Shape: [B, S, H]
     # --- Return Processed Hidden State ---
     return next_hidden_state, hids

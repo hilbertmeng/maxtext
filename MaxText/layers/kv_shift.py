@@ -112,7 +112,7 @@ class KVshift(nn.Module):
                                       name='kv_shift_proj_down',
                                       **kwargs)
     else:
-      if self.kv_shift_hidden_way in ['kv', 'qkv'] and self.config.kv_shift_flash:
+      if self.kv_shift_hidden_way in ['kv', 'qkv'] and self.config.kv_shift_flash: # kv
         for mode in self.kv_shift_hidden_way:
           setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
                                       (self.num_kv_heads, 1),
@@ -149,7 +149,7 @@ class KVshift(nn.Module):
 
     if self.config.kv_shift_flash:
       if self.kv_shift_hidden_way == 'kv':
-        if self.kv_shift_mlp: # best branch
+        if self.kv_shift_mlp: # False
           kg = jax.nn.sigmoid(self.dw_down_proj_k(jax.nn.gelu(self.dw_up_proj_k(inputs_k))))
           vg = jax.nn.sigmoid(self.dw_down_proj_v(jax.nn.gelu(self.dw_up_proj_v(inputs_v))))
         else:
@@ -179,6 +179,7 @@ class KVshift(nn.Module):
 
     # kv shift
     if self.config.kv_shift_flash:
+      __import__('ipdb').set_trace()
       key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
       value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
     else:

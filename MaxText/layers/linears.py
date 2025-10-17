@@ -320,7 +320,8 @@ class MlpBlock(nn.Module):
 
     self.deep_embed_block = None
     if output_dim is not None and de_embed_dim is not None:
-      d1 = 32 # suggest 32 or < d2 // 2
+      d1 = 32 if cfg.mlp_dim < 4096 else 64 
+      print(f'd1: {d1}')
       self.deep_embed_block = DeepEmbedBlock(
         name=f'{suffix}_deep_embed',
         config=self.config, 

@@ -631,14 +631,14 @@ class Decoder(nn.Module):
           assert cfg.num_layers_per_block == 1, f"num_layers_per_block: {cfg.num_layers_per_block} != 1"
           if isinstance(cfg.sliding_window_size, list):
             max_logging.log(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
-            if len(cfg.sliding_window_size) != cfg.num_decoder_layers:
-              n = cfg.num_decoder_layers // len(cfg.sliding_window_size)
+            if len(cfg.sliding_window_size) != cfg.num_decoder_layers + cfg.mtp_num_layers:
+              n = (cfg.num_decoder_layers + cfg.mtp_num_layers) // len(cfg.sliding_window_size)
               sliding_window_sizes = cfg.sliding_window_size * n
             else:
               sliding_window_sizes = cfg.sliding_window_size
-            assert len(sliding_window_sizes) == cfg.num_decoder_layers, f"sliding_window_sizes: {sliding_window_sizes} != num_decoder_layers: {cfg.num_decoder_layers}"
+            assert len(sliding_window_sizes) == cfg.num_decoder_layers + cfg.mtp_num_layers, f"sliding_window_sizes: {sliding_window_sizes} != num_decoder_layers: {cfg.num_decoder_layers + cfg.mtp_num_layers}"
           else:
-            sliding_window_sizes = cfg.num_decoder_layers * [cfg.sliding_window_size]
+            sliding_window_sizes = (cfg.num_decoder_layers + cfg.mtp_num_layers) * [cfg.sliding_window_size]
           for lyr in range(cfg.num_decoder_layers):
             max_logging.log(f'\n=================decoder layer: {lyr}=====================\n')
             RemattedBlockLayer = RemattedBlockLayers[0]

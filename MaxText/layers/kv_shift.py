@@ -179,7 +179,6 @@ class KVshift(nn.Module):
 
     # kv shift
     if self.config.kv_shift_flash:
-      __import__('ipdb').set_trace()
       key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
       value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
     else:

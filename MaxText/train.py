@@ -1217,12 +1217,12 @@ def train_loop(config, teacher_config=None, state=None):
 
   # Define the compilation of functional_train, either by loading the compiled version or wrapping a new one in a jit
   if config.compiled_trainstep_file != "":
-    max_logging.log("Loading the compiled function...", flush=True)
+    max_logging.log("Loading the compiled function...")
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
     p_train_step = maxtext_utils.load_compiled(config, functional_train, state)
     # TODO: p_eval_step is not yet supported in load_compiled
     p_eval_step = None
-    max_logging.log("Loaded compiled function!", flush=True)
+    max_logging.log("Loaded compiled function!")
   else:
     if config.only_eval:
       p_train_step = None

@@ -1482,7 +1482,8 @@ class Attention(nn.Module):
       inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
       query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v)
 
-    query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp
+    if self.config.qk_norm:
+      query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp
 
     # apply ROPE
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")

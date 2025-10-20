@@ -746,6 +746,18 @@ class DCL12LamaLG(DC, LGWindow, Llama2Medium):
 class DCL12LamaLGFlash(DCL12LamaLG):
     attention = 'flash'
 
+class Lama8BSlim(Llama2Medium):
+    base_emb_dim = 4096
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5120
+    base_num_decoder_layers = 56
+    head_dim = 128
+    vocab_size = 151936
+    model_name = 'Lama-8B-slim'
+
+class MTP1Lama8BSlim(MTP1Layer, Lama8BSlim):
+    pass
 
 class MuonDeDcMuddMtp1KvshiftOgateLgllGgqa4(Muon, MTP1Layer, KVshift, LGLLWindow, DCMuddLlama2Medium):
     base_emb_dim = 4096
@@ -786,4 +798,13 @@ class MuonDeDcMuddMtp1KvshiftOgateLgllGgqa4(Muon, MTP1Layer, KVshift, LGLLWindow
     # muon_scale 0.35 -> 0.1
     # deep_embed_norm: False
 
+class MuonDeMtp1KvshiftOgateLgllGgqa4(MuonDeDcMuddMtp1KvshiftOgateLgllGgqa4):
+    pre_compose = False
+    post_compose = False
+    dense_conn = False
+    mtp_num_layers = 0
+    base_num_decoder_layers = 56
+
+    
+    
 

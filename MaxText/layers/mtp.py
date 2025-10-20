@@ -170,20 +170,23 @@ class MultiTokenPredictionLayer(nn.Module):
       else:
         projected_features = [projected_features] * 4
     # --- 4. Pass through MTP Transformer Block ---
+    if isinstance(cfg.sliding_window_size, list):
+      sliding_window_size = cfg.sliding_window_size[-1]
+    else:
+      sliding_window_size = cfg.sliding_window_size
     y = self.transformer_layer_module(
         config=cfg, mesh=mesh,
-        sliding_window_size=cfg.sliding_window_size[-1],
+        sliding_window_size=sliding_window_size,
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
-          inputs=projected_features,
-          decoder_segment_ids=decoder_segment_ids,
-          decoder_positions=position_ids,
-          decoder_input_tokens=rolled_input_ids,
-          deep_embedding=None,
-          deterministic=deterministic,
-          model_mode=model_mode,
+          projected_features,
+          decoder_segment_ids,
+          position_ids,
+          rolled_input_ids,
+          None,
+          deterministic,
+          model_mode,
           hids=hids,
     )
-
     next_hidden_state, hids = y
     # Shape: [B, S, H]
     # --- Return Processed Hidden State ---
@@ -209,8 +212,8 @@ class MultiTokenPredictionBlock(nn.Module):
       target_mask,
       position_ids,
       decoder_segment_ids,
-      deterministic=False,
-      model_mode=MODEL_MODE_TRAIN,
+      deterministic,
+      model_mode,
       hids=None,
   ):
     cfg = self.config
@@ -234,16 +237,16 @@ class MultiTokenPredictionBlock(nn.Module):
 
       # Embed the k-th future input tokens using the shared embedding module
       target_token_embedding = self.shared_embedding(rolled_input_ids)
-      if cfg.mtp_use_remat:
-        RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
-            MultiTokenPredictionLayer,
-            prevent_cse=cfg.remat_prevent_cse,
-            policy=None,
-            static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
-            rngs={"params": True, "aqt": True, "dropout": True},
-        )
-      else:
-        RematMTPLayer = MultiTokenPredictionLayer
+      # if cfg.mtp_use_remat: # outside use remat can reduce more memory usage
+      RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
+          MultiTokenPredictionLayer,
+          prevent_cse=cfg.remat_prevent_cse,
+          policy=None,
+          static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
+          rngs={"params": True, "aqt": True, "dropout": True},
+      )
+      # else:
+        # RematMTPLayer = MultiTokenPredictionLayer
        # Instantiate and apply the MTP layer for this step
       mtp_layer = RematMTPLayer(
           config=cfg,

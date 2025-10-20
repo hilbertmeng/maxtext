@@ -35,21 +35,20 @@ class QKNorm(nn.Module):
 
   @nn.compact
   def __call__(self, query, key):
-    if self.config.qk_norm:
-      query = RMSNorm(
-        weight_dtype=self.config.weight_dtype,
-        dtype=self.config.dtype,
-        name=f'q_norm',
-        kernel_axes=('norm',),
-        epsilon=self.config.normalization_layer_epsilon,
-        )(query)
-      key = RMSNorm(
-        weight_dtype=self.config.weight_dtype,
-        dtype=self.config.dtype,
-        name=f'k_norm',
-        kernel_axes=('norm',),
-        epsilon=self.config.normalization_layer_epsilon,
-        )(key)
+    query = RMSNorm(
+      weight_dtype=self.config.weight_dtype,
+      dtype=self.config.dtype,
+      name=f'q_norm',
+      kernel_axes=('norm',),
+      epsilon=self.config.normalization_layer_epsilon,
+      )(query)
+    key = RMSNorm(
+      weight_dtype=self.config.weight_dtype,
+      dtype=self.config.dtype,
+      name=f'k_norm',
+      kernel_axes=('norm',),
+      epsilon=self.config.normalization_layer_epsilon,
+      )(key)
     return query, key
 
 

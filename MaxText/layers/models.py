@@ -277,6 +277,16 @@ class SequentialBlockDecoderLayers(nn.Module):
       )
     return inputs
 
+dot_general_int8 = aqt.dot_general_make(8, 8)
+
+# dot_general_int8 = aqt.dot_general_make(
+#                                       lhs_bits=8, # inputs
+#                                       rhs_bits=None, # params
+#                                       bwd_bits=8, # backward
+#                                       use_fwd_quant=True,
+#                                       allow_dummy_gradients=False
+#                                   )
+
 
 class OutputHead(nn.Module):
 
@@ -293,6 +303,7 @@ class OutputHead(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
         kernel_axes=("norm",),
         )
+    
     self.logits_dense = linears.DenseGeneral(
             cfg.vocab_size,
             weight_dtype=cfg.weight_dtype,
@@ -305,6 +316,13 @@ class OutputHead(nn.Module):
             use_quant=cfg.use_quant,
             # rng=jax.random.PRNGKey(1111),
         )
+    # dense_kernel = self.param(
+    #                         "logits_dense",
+    #                         nn.with_logical_partitioning(initializers.nd_dense_init_normal(0.006), ("embed", "vocab")),
+    #                         (self.config.emb_dim, self.config.vocab_size),
+    #                         self.config.weight_dtype,
+    #                     ) # int use 888更快，但显存也会增大
+    # self.logits_dense = dense_kernel.astype(self.config.dtype)
     self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
   
   @nn.compact
@@ -323,22 +341,16 @@ class OutputHead(nn.Module):
             logits = logits / cfg.final_logits_soft_cap
             logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
-        logits = self.logits_dense(y)
-        logits = nn.with_logical_constraint(
-            logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
-        )
+      # logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
+      #                   _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' else jax.lax.dot_general)
+      logits = self.logits_dense(y)
+      logits = nn.with_logical_constraint(
+          logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
+      )
     if cfg.cast_logits_to_fp32:
         logits = logits.astype(jnp.float32)
     return logits
 
-
-dot_general_int8 = aqt.dot_general_make(
-                                      lhs_bits=8,
-                                      rhs_bits=None,   # 不量化 logits_dense，避免误差
-                                      bwd_bits=8,
-                                      use_fwd_quant=True,
-                                      allow_dummy_gradients=False
-                                  )
 
 class Decoder(nn.Module):
   """A stack of decoder layers as a part of an encoder-decoder architecture."""
@@ -668,8 +680,12 @@ class Decoder(nn.Module):
         main_head_inputs = y[-1]
         mtp_head_inputs = None
     else:
-      main_head_inputs = y
-      mtp_head_inputs = None
+      if cfg.mtp_num_layers > 0:
+        main_head_inputs = y
+        mtp_head_inputs = y
+      else:
+        main_head_inputs = y
+        mtp_head_inputs = None
     # mtp share llm head params
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,
@@ -680,42 +696,39 @@ class Decoder(nn.Module):
     max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
     logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
     max_logging.log(f'main logits: {logits.shape}')
-    # =====================================llm head DE======================================
-    if 'dehead' in cfg.deep_embed_type.lower():
-      max_logging.log(f'OutputHeadLayer dehead')
-      logits = linears.DeepEmbedBlock(
-        name='head_deep_embed',
-        config=cfg, 
-        kernel_init=initializers.get_init_method(cfg.init_method),
-        weight_dtype=cfg.weight_dtype, 
-        dtype=cfg.dtype, 
-        input_dim=main_head_inputs.shape[-1],
-        output_dim=logits.shape[-1],
-        de_d1_d2_dims=(128, logits.shape[-1] // 128)
-        )(main_head_inputs, logits, decoder_input_tokens, deep_embedding=None)
-      max_logging.log(f'Outside DE is None, inside 1x Attn DE')
-      main_head_inputs = main_head_inputs.reshape(*main_head_inputs.shape[:2], -1)
 
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
-      # lsp: Don't to use remat in here where will lead to decrease performance and inscrease hbm significantly.
-      mtp.MultiTokenPredictionBlock(
+      if cfg.mtp_use_remat:
+        RematMTPLayer = nn.remat(
+              mtp.MultiTokenPredictionBlock,
+              prevent_cse=cfg.remat_prevent_cse,
+              policy=None,
+              static_argnums=(8, 9), # remat传入的关键字参数不计入static_argnums的索引
+              rngs={"params": True, "aqt": True, "dropout": True},
+          )
+        transformer_layer_module = self.decoder_layer[0]
+      else:
+        RematMTPLayer = mtp.MultiTokenPredictionBlock
+        transformer_layer_module = RemattedBlockLayers[0]
+
+      RematMTPLayer(
         config=cfg,
         mesh=mesh,
         quant=self.quant,
         name="mtp_block",
-        transformer_layer_module=self.decoder_layer[0],
+        transformer_layer_module=transformer_layer_module,
         shared_embedding=self.shared_embedding,
       )(
         OutputHeadLayer,
-        main_hidden_state=mtp_head_inputs,
-        input_ids=decoder_input_tokens,
-        target_ids=decoder_target_tokens,
-        target_mask=decoder_target_mask,
-        position_ids=decoder_positions,
-        decoder_segment_ids=decoder_segment_ids,
-        deterministic=deterministic,
-        model_mode=model_mode,
+        mtp_head_inputs,
+        decoder_input_tokens,
+        decoder_target_tokens,
+        decoder_target_mask,
+        decoder_positions,
+        decoder_segment_ids,
+        deterministic,
+        model_mode,
         hids=hids,
       )
     return logits

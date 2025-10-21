@@ -215,6 +215,7 @@ class DeepEmbedBlock(nn.Module):
   def __call__(self, inputs, output, decoder_input_tokens, deep_embedding=None):
     cfg = self.config
     if cfg.deep_embed_init == 'inside' and deep_embedding is None:
+      max_logging.log(f'Inside DE, decoder_input_tokens: {decoder_input_tokens.shape}')
       deep_embedding = embeddings.Embed(
             name="token_embedder",
             num_embeddings=cfg.vocab_size,
@@ -226,41 +227,16 @@ class DeepEmbedBlock(nn.Module):
       deep_embedding = deep_embedding.reshape(*output.shape[:2], self.d1, self.d2)
     max_logging.log(f'inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
     max_logging.log(f'DeepEmbedBlock deep_embed_type: {self.config.deep_embed_type}')
-
-    if 'gemma3n' in cfg.deep_embed_type:
-      deep_w = deep_embedding
+   
+    # btD x Dd -> btd -> bt1d
+    deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
+    # bt1d @ btdd -> bt1d @ dD -> bt1D + bt1D -> bt1D
+    deep_w = deep_w @ deep_embedding
+  
+    if self.s2_bias is not None:
+      deep_w = (deep_w @ self.s2 + self.s2_bias).reshape(*output.shape)
     else:
-      # btD x Dd -> btd -> bt1d
-      deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
-     
-      # bt1d @ btdd -> bt1d @ dD -> bt1D + bt1D -> bt1D
-      deep_w = deep_w @ deep_embedding
-      if cfg.de_gate == 'tanh':
-        deep_w = jax.nn.tanh(deep_w)
-      elif cfg.de_gate == 'sigmoid':
-        deep_w = jax.nn.sigmoid(deep_w)
-      elif cfg.de_gate == 'relu':
-        deep_w = jax.nn.relu(deep_w)
-      elif cfg.de_gate == 'gelu':
-        deep_w = jax.nn.gelu(deep_w)
-      elif cfg.de_gate == 'silu':
-        deep_w = jax.nn.silu(deep_w)
-
-      if self.s2_bias is not None:
-        deep_w = (deep_w @ self.s2 + self.s2_bias).reshape(*output.shape)
-      else:
-        deep_w = (deep_w @ self.s2).reshape(*output.shape)
-
-      # if cfg.de_gate == 'tanh':
-      #   deep_w = jax.nn.tanh(deep_w)
-      # elif cfg.de_gate == 'sigmoid':
-      #   deep_w = jax.nn.sigmoid(deep_w)
-      # elif cfg.de_gate == 'relu':
-      #   deep_w = jax.nn.relu(deep_w)
-      # elif cfg.de_gate == 'gelu':
-      #   deep_w = jax.nn.gelu(deep_w)
-      # elif cfg.de_gate == 'silu':
-      #   deep_w = jax.nn.silu(deep_w)
+      deep_w = (deep_w @ self.s2).reshape(*output.shape)
 
     output *= deep_w
 
@@ -417,7 +393,7 @@ class MlpBlock(nn.Module):
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
     if '4xmlp' in cfg.deep_embed_type:
-      max_logging.log(f'Outside DE is None, inside 4xmlp')
+      max_logging.log(f'Inside 4xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}')
       x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
 
     output = DenseGeneral(
@@ -435,7 +411,7 @@ class MlpBlock(nn.Module):
     )(x)
 
     if '1xmlp' in cfg.deep_embed_type:
-      max_logging.log(f'Outside DE is None, inside 1xmlp')
+      max_logging.log(f'Inside 1xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}')
       output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")

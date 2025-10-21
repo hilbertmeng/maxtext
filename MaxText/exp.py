@@ -1,5 +1,5 @@
-import math
 
+# config
 
 class Common:
     enable_goodput_recording = False # true is slower then false, decend 15%
@@ -75,7 +75,12 @@ class LGWindow:
 
 class LGLLWindow:
     sliding_window_size = [256, None, 256, 256]
-    
+
+class DE:
+    deep_embed_type = '4xmlp'
+    deep_embed_norm = True
+    deep_embed_init = 'inside'   
+
 class Mudd:
     dense_conn = True # dense_proj1 and dense_proj2
     dynamic_dense_type = 'qkvm'
@@ -89,6 +94,7 @@ class Mudd:
     dynamic_mlp_dim = True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
     dynamic_dense_scale_dw = False
     scan_layers = False
+    mudd_in_layer = True
 
 class DC:
     pre_compose = True
@@ -98,6 +104,7 @@ class DC:
     key_wise = True
     static_proj = False
     qk_norm = True
+    attention = 'dot_product_chunk'
  
 class KVshift:
     use_kv_shift = True
@@ -756,7 +763,65 @@ class Lama8BSlim(Llama2Medium):
     vocab_size = 151936
     model_name = 'Lama-8B-slim'
 
-class MTP1Lama8BSlim(MTP1Layer, Lama8BSlim):
+class Lama8BSlimTest(Llama2Medium):
+    base_emb_dim = 4096
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5120
+    base_num_decoder_layers = 16
+    head_dim = 128
+    vocab_size = 151936
+    model_name = 'Lama-8B-slim'
+    attention = 'flash'
+
+class MuddLama8BSlim(Mudd, Lama8BSlimTest):
+    pass
+
+class MuddPNFLama8BSlim(Mudd, Lama8BSlimTest):
+    mudd_prenorm = False
+    
+
+class DCLama8BSlim(DC, LGWindow, Lama8BSlimTest):
+    key_wise = False
+    ggqa = 4
+
+class MTP1Lama8BSlim(MTP1Layer, Lama8BSlimTest):
+    base_num_decoder_layers = 15
+
+class DELama8BSlim(DE, Lama8BSlimTest):
+    pass
+
+class DEOsLama8BSlim(DE, Lama8BSlimTest):
+    deep_embed_init = 'outside'
+
+class MuonLama8BSlim(Muon, Lama8BSlimTest):
+    pass
+
+class KVshiftOgateLama8BSlim(KVshift, Lama8BSlimTest):
+    o_gate_hidden_dim = 64
+
+class KVshiftOgateMtp1DcMuddLama8BSlim(KVshift, MTP1Layer, DC, LGWindow, Mudd, Lama8BSlimTest):
+    o_gate_hidden_dim = 64
+    key_wise = False
+    ggqa = 4
+    base_num_decoder_layers = 15
+
+class MTP1KVshiftLama8BSlim(KVshift, MTP1Lama8BSlim):
+    pass
+
+class MTP1KVshiftOgateLama8BSlim(MTP1KVshiftLama8BSlim):
+    o_gate_hidden_dim = 64
+
+class MuonMTP1KVshiftOgateLama8BSlim(Muon, MTP1KVshiftOgateLama8BSlim):
+    pass
+
+class MuonMTP1KVshiftOgateMuddLama8BSlim(Mudd, MuonMTP1KVshiftOgateLama8BSlim):
+    pass
+
+class MuonDeMTP1KVshiftOgateMuddLama8BSlim(DE, MuonMTP1KVshiftOgateMuddLama8BSlim):
+    pass
+
+class MuonMTP1KVshiftOgateDcMuddLama8BSlim(DC, LGLLWindow, MuonDeMTP1KVshiftOgateMuddLama8BSlim):
     pass
 
 class MuonDeDcMuddMtp1KvshiftOgateLgllGgqa4(Muon, MTP1Layer, KVshift, LGLLWindow, DCMuddLlama2Medium):

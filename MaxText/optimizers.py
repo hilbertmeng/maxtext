@@ -232,24 +232,30 @@ def _build_sgd(_config, learning_rate_schedule, _wd_tree):
 
 
 def _build_muon(config, learning_rate_schedule, wd_tree):
-  adam_optimizer = partial(
-      adam_pax,
-      learning_rate_schedule,
-      beta1=config.adam_b1,
-      beta2=config.adam_b2,
-      epsilon=config.adam_eps,
-      epsilon_root=config.adam_eps_root,
-      wd_tree=None,
-  )
-  return muon(
-      learning_rate_schedule,
-      eps=config.adam_eps,
+  # adam_optimizer = partial(
+  #     adam_pax,
+  #     learning_rate_schedule,
+  #     beta1=config.adam_b1,
+  #     beta2=config.adam_b2,
+  #     epsilon=config.adam_eps,
+  #     epsilon_root=config.adam_eps_root,
+  #     wd_tree=None,
+  # )
+  # return muon(
+  #     learning_rate_schedule,
+  #     eps=config.adam_eps,
+  #     weight_decay=config.adam_weight_decay,
+  #     weight_decay_mask=wd_tree,
+  #     adaptive=False,
+  #     adam_optimizer=adam_optimizer,
+  #     config=config,
+  # )
+  opt = optax.contrib.muon(
+      learning_rate=learning_rate_schedule, 
       weight_decay=config.adam_weight_decay,
-      weight_decay_mask=wd_tree,
-      adaptive=False,
-      adam_optimizer=adam_optimizer,
-      config=config,
+      muon_weight_dimension_numbers=None
   )
+  return opt
 
 
 _OPTIMIZER_BUILDERS = {

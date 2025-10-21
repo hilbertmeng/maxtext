@@ -306,6 +306,16 @@ class FusionDecoderLayer(nn.Module):
       RematSubDecoderLayer = SubDecoderLayer
     self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
+    self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
+
+  def get_C(self, cfg):
+    if self.layer_inx == cfg.num_decoder_layers - 1:
+      C = 2 if cfg.mtp_num_layers > 0 else 1 # if use mtp, return 2 tensors, otherwise return 1 tensor
+    elif self.layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers - 1:
+      C = 1 # last layer return 1 tensor
+    else:
+      C = 4 # other layer return 4 tensors
+    return C
     
   @nn.compact
   def __call__(
@@ -322,32 +332,49 @@ class FusionDecoderLayer(nn.Module):
   ):
     cfg = self.config
     for layer in self.subs: # subs length must be 1 when train mudd.
-        # return's inputs length is 1
-        inputs = layer(
-            inputs,
-            decoder_segment_ids,
-            decoder_positions,
-            decoder_input_tokens,
-            deep_embedding,
-            deterministic,
-            model_mode,
-            eos_sum,
-        )
-        if cfg.dense_conn:
-          if self.layer_inx == cfg.num_decoder_layers - 1:
-            C = 2 if cfg.mtp_num_layers > 0 else 1 # if use mtp, return 2 tensors, otherwise return 1 tensor
-          elif self.layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers - 1:
-            C = 1 # last layer return 1 tensor
-          else:
-            C = 4 # other layer return 4 tensors
+      if cfg.dense_conn:
+        if self.layer_inx == 0:
+          y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(inputs) if cfg.mudd_prenorm else inputs
+          inputs = [inputs] * len(cfg.dynamic_dense_type)
+          hids.append(y_normed)
+        elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:
+          inputs = [inputs] * len(cfg.dynamic_dense_type) # mtp
+        else:
           # return's inputs length is 4
           inputs, hids = mudd.Compose(
-              cfg, self.mesh, self.quant, len(hids), 
-              C=C,
-              name='compose'
-              )(
-                layer_output=inputs, 
-                hids=hids,
-                decoder_input_tokens=decoder_input_tokens,
-              )
+            cfg, self.mesh, self.quant, 
+            layer_inx=len(hids), 
+            name='compose',
+            C=4,
+            )(
+              layer_output=inputs, 
+              hids=hids,
+              decoder_input_tokens=decoder_input_tokens,
+            )
+      print(f'layer_inx: {self.layer_inx} inputs length: {len(inputs)}')
+      # return's inputs length is 1
+      inputs = layer(
+          inputs,
+          decoder_segment_ids,
+          decoder_positions,
+          decoder_input_tokens,
+          deep_embedding,
+          deterministic,
+          model_mode,
+          eos_sum,
+      )
+      print(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}')
+      if cfg.dense_conn and self.layer_inx in self.break_layers:
+        C = self.get_C(cfg)
+        inputs, hids = mudd.Compose(
+          cfg, self.mesh, self.quant, 
+          layer_inx=len(hids), 
+          name=f'compose_break',
+          C=C,
+          )(
+            layer_output=inputs, 
+            hids=hids,
+            decoder_input_tokens=decoder_input_tokens,
+          )
+        
     return inputs, hids

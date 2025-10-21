@@ -156,24 +156,9 @@ class MultiTokenPredictionLayer(nn.Module):
     # Shape: [B, S, H]
     projected_features = projection_layer(concatenated_features)
 
-    # compose，感觉多于
-    if cfg.dense_conn:
-      if cfg.mtp_use_compose:
-          projected_features, hids = mudd.Compose(
-            cfg, self.mesh, None, len(hids), 
-            name=f'compose'
-            )(
-            layer_output=projected_features, 
-            hids=hids,
-            decoder_input_tokens=rolled_input_ids,
-            )
-      else:
-        projected_features = [projected_features] * 4
     # --- 4. Pass through MTP Transformer Block ---
-    if isinstance(cfg.sliding_window_size, list):
-      sliding_window_size = cfg.sliding_window_size[-1]
-    else:
-      sliding_window_size = cfg.sliding_window_size
+    sliding_window_size = cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) \
+                                                  else cfg.sliding_window_size
     y = self.transformer_layer_module(
         config=cfg, mesh=mesh,
         sliding_window_size=sliding_window_size,
@@ -238,21 +223,21 @@ class MultiTokenPredictionBlock(nn.Module):
       # Embed the k-th future input tokens using the shared embedding module
       target_token_embedding = self.shared_embedding(rolled_input_ids)
       # if cfg.mtp_use_remat: # outside use remat can reduce more memory usage
-      RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
-          MultiTokenPredictionLayer,
-          prevent_cse=cfg.remat_prevent_cse,
-          policy=None,
-          static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
-          rngs={"params": True, "aqt": True, "dropout": True},
-      )
+      # RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
+      #     MultiTokenPredictionLayer,
+      #     prevent_cse=cfg.remat_prevent_cse,
+      #     policy=None,
+      #     static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
+      #     rngs={"params": True, "aqt": True, "dropout": True},
+      # )
       # else:
-        # RematMTPLayer = MultiTokenPredictionLayer
+      RematMTPLayer = MultiTokenPredictionLayer
        # Instantiate and apply the MTP layer for this step
       mtp_layer = RematMTPLayer(
           config=cfg,
           mesh=self.mesh,
           layer_number=k,
-          name=f"mtp_{k}",
+          name=f"mtp_{k-1}",
           # lsp: Should get prev token's history status in unmtp layers when use mudd, because cur token no history status.
           # but in mtp layers, should get current token's history status. in fact, we can get the position correspond to generated token directly.
           transformer_layer_module=self.transformer_layer_module,
@@ -263,7 +248,8 @@ class MultiTokenPredictionBlock(nn.Module):
       # Project to logits using the shared embedding transpose
       mtp_logits = output_layer(
         next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state, 
-        deterministic
+        deterministic,
+        int8=True,
         )
 
       # Calculate cross-entropy loss for this specific layer's prediction

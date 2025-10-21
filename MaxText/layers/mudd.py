@@ -229,6 +229,7 @@ class Compose(nn.Module):
     max_logging.log(f'C: {C} hids length: {len(hids)}')
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm", cfg=cfg, scale_init=nn.initializers.constant(0.001))
+      print(f'dyn_dense_w: {dyn_dense_w.shape} C: {C}')
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
       y = tuple([y + (post_norm(
           wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)

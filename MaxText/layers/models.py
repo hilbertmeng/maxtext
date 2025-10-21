@@ -67,14 +67,16 @@ def get_deep_embedding(cfg, y):
     for layer_inx in range(cfg.num_decoder_layers):
       # updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 if cfg.dynamic_mlp_dim else cfg.mlp_dim
       updated_mlp_dim = cfg.mlp_dim # dynamic_mlp_dim loss higher than static mlp_dim, about 0.003 gap
-      d1, d2 = (32, updated_mlp_dim // 32)
+      d1 = 32 if updated_mlp_dim < 4096 else 64
+      d2 = updated_mlp_dim // d1
       cur_layer_deep_embedding = deep_embedding[..., start_idx: start_idx + updated_mlp_dim]
       start_idx += updated_mlp_dim
       cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*y.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
       max_logging.log(f'4xmlp layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
   elif re.findall(r'1xmlp|1xattn', cfg.deep_embed_type):
-    d1, d2 = (32, cfg.emb_dim // 32)
+    d1 = 32 if cfg.emb_dim < 4096 else 64
+    d2 = cfg.emb_dim // d1
     deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
     max_logging.log(f'1xmlp|1xattn deep_embeddings: {deep_embeddings.shape}')
   else:
@@ -277,7 +279,7 @@ class SequentialBlockDecoderLayers(nn.Module):
       )
     return inputs
 
-dot_general_int8 = aqt.dot_general_make(8, 8)
+dot_general_int8 = aqt.dot_general_make(8, 8, 8)
 
 # dot_general_int8 = aqt.dot_general_make(
 #                                       lhs_bits=8, # inputs
@@ -304,29 +306,29 @@ class OutputHead(nn.Module):
         kernel_axes=("norm",),
         )
     
-    self.logits_dense = linears.DenseGeneral(
-            cfg.vocab_size,
-            weight_dtype=cfg.weight_dtype,
-            dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-            kernel_axes=("embed", "vocab"),
-            quant=self.quant,
-            name="logits_dense",
-            matmul_precision=cfg.matmul_precision,
-            kernel_init=initializers.get_init_method(cfg.init_method), # lsp
-            use_quant=cfg.use_quant,
-            # rng=jax.random.PRNGKey(1111),
-        )
-    # dense_kernel = self.param(
-    #                         "logits_dense",
-    #                         nn.with_logical_partitioning(initializers.nd_dense_init_normal(0.006), ("embed", "vocab")),
-    #                         (self.config.emb_dim, self.config.vocab_size),
-    #                         self.config.weight_dtype,
-    #                     ) # int use 888更快，但显存也会增大
-    # self.logits_dense = dense_kernel.astype(self.config.dtype)
+    # self.logits_dense = linears.DenseGeneral(
+        #     cfg.vocab_size,
+        #     weight_dtype=cfg.weight_dtype,
+        #     dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
+        #     kernel_axes=("embed", "vocab"),
+        #     quant=self.quant,
+        #     name="logits_dense",
+        #     matmul_precision=cfg.matmul_precision,
+        #     kernel_init=initializers.get_init_method(cfg.init_method), # lsp
+        #     use_quant=cfg.use_quant,
+        #     # rng=jax.random.PRNGKey(1111),
+        # )
+    dense_kernel = self.param(
+                            "logits_dense",
+                            nn.with_logical_partitioning(initializers.nd_dense_init_normal(0.006), ("embed", "vocab")),
+                            (self.config.emb_dim, self.config.vocab_size),
+                            self.config.weight_dtype,
+                        ) # int use 888更快，但显存也会增大
+    self.logits_dense = dense_kernel.astype(self.config.dtype)
     self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
   
   @nn.compact
-  def __call__(self, y, deterministic):
+  def __call__(self, y, deterministic, int8=False):
     cfg = self.config
     y = self.norm(y) # 20250925 fix, this bug occurred at MTP experiment.
     y = self.dropout(y, deterministic=deterministic)
@@ -341,9 +343,9 @@ class OutputHead(nn.Module):
             logits = logits / cfg.final_logits_soft_cap
             logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
-      # logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
-      #                   _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' else jax.lax.dot_general)
-      logits = self.logits_dense(y)
+      logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
+                        _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' or int8 else jax.lax.dot_general)
+      # logits = self.logits_dense(y)
       logits = nn.with_logical_constraint(
           logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
       )
@@ -561,12 +563,7 @@ class Decoder(nn.Module):
           config=cfg,
       )(decoder_positions)
 
-    if cfg.dense_conn:
-      y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
-      y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
-    else:
-      hids = []
-
+    hids = []
     if cfg.dense_conn and not cfg.mudd_in_layer:
       max_logging.log(f'Outside layers don\'t use remat')
       RemattedBlockLayers = self.decoder_layer
@@ -692,14 +689,10 @@ class Decoder(nn.Module):
                         mesh=mesh,
                         quant=self.quant,
                         name='lm_head')
-    
-    max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
-    logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
-    max_logging.log(f'main logits: {logits.shape}')
 
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
-      if cfg.mtp_use_remat:
+      if cfg.mtp_use_remat: # suggest False
         RematMTPLayer = nn.remat(
               mtp.MultiTokenPredictionBlock,
               prevent_cse=cfg.remat_prevent_cse,
@@ -731,6 +724,11 @@ class Decoder(nn.Module):
         model_mode,
         hids=hids,
       )
+      
+    max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
+    logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
+    max_logging.log(f'main logits: {logits.shape}')
+
     return logits
 
 

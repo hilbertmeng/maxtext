@@ -1504,6 +1504,8 @@ class Attention(nn.Module):
     assert not cfg.quantize_kvcache or self.kv_quant
 
     if 'devalue' in cfg.deep_embed_type.lower():
+      d1 = 32 if cfg.emb_dim < 4096 else 64
+      d2 = cfg.emb_dim // d1
       value = linears.DeepEmbedBlock(
         name='value_deep_embed',
         config=cfg, 
@@ -1512,7 +1514,7 @@ class Attention(nn.Module):
         dtype=cfg.dtype, 
         input_dim=cfg.emb_dim,
         output_dim=cfg.emb_dim,
-        de_d1_d2_dims=(32, cfg.emb_dim // 32)
+        de_d1_d2_dims=(d1, d2)
         )(
           inputs_kv if isinstance(inputs_kv, jnp.ndarray) else inputs_kv[1], 
           value, 

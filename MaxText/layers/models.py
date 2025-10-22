@@ -22,7 +22,6 @@ from typing import Any, Callable, Optional
 from flax import linen as nn
 import functools
 import jax
-from jax.lax import dynamic_update_slice
 import jax.numpy as jnp
 from jax.ad_checkpoint import checkpoint_name
 import common_types
@@ -31,7 +30,6 @@ from layers import embeddings
 from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
-from layers import mudd
 from layers import initializers
 import max_logging
 import aqt.jax.v2.aqt_dot_general as aqt
@@ -744,11 +742,11 @@ class Transformer(nn.Module):
     mesh = self.mesh
     emb_dim = cfg.emb_dim
     if cfg.deep_embed_init == 'outside':
-      if '1xattn' in cfg.deep_embed_type:
+      if '1xattn' in cfg.deep_embed_type or 'devalue' in cfg.deep_embed_type.lower():
         emb_dim += cfg.num_decoder_layers * cfg.emb_dim
-      elif '1xmlp' in cfg.deep_embed_type:
+      elif '1xmlp' in cfg.deep_embed_type.lower():
         emb_dim  += cfg.num_decoder_layers * cfg.emb_dim
-      elif '4xmlp' in cfg.deep_embed_type:
+      elif '4xmlp' in cfg.deep_embed_type.lower():
         emb_dim +=  cfg.num_decoder_layers * cfg.mlp_dim
       else:
         # Multi deep embed don't support outside init

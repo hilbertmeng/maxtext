@@ -23,6 +23,7 @@ from jax import lax
 import jax.numpy as jnp
 from layers import initializers
 
+
 Config = Any
 Array = jnp.ndarray
 DType = jnp.dtype
@@ -53,14 +54,16 @@ class Embed(nn.Module):
   attend_dtype: Optional[DType] = None
   embedding_init: Initializer = default_embed_init
   shard_axis_name: Optional[str] = ("vocab", "embed")
+  # shard_axis_name: Optional[str] = ("embed", "vocab") # # slowly
 
   def setup(self):
-    self.embedding = self.param(
+    embedding_kernel = self.param(
         "embedding",
         with_logical_partitioning(self.embedding_init, self.shard_axis_name),
         (self.num_embeddings, self.features),
         self.config.weight_dtype,
     )
+    self.embedding = embedding_kernel.astype(self.dtype)
 
   def __call__(self, inputs: Array) -> Array:
     """Embeds the inputs along the last dimension.
@@ -78,12 +81,13 @@ class Embed(nn.Module):
     if not jnp.issubdtype(inputs.dtype, jnp.integer):
       raise ValueError("Input type must be an integer or unsigned integer.")
 
-    if cfg.use_iota_embed:
+    if cfg.use_iota_embed: # slowly
       iota = lax.iota(jnp.int32, self.num_embeddings)
       one_hot = jnp.array(inputs[..., jnp.newaxis] == iota, dtype=self.dtype)
       output = jnp.dot(one_hot, jnp.asarray(self.embedding, self.dtype))
     else:
-      output = jnp.asarray(self.embedding, self.dtype)[inputs]
+      output = self.embedding[inputs]
+
     output = nn.with_logical_constraint(
         output, ("activation_embed_and_logits_batch", "activation_length", "activation_embed")
     )
@@ -103,7 +107,7 @@ class Embed(nn.Module):
       in NLP models.
     """
     dtype = self.attend_dtype if self.attend_dtype is not None else self.dtype
-    return jnp.dot(query, jnp.asarray(self.embedding, jnp.bfloat16).T)
+    return jnp.dot(query, jnp.asarray(self.embedding, dtype).T)
 
 
 class RotaryEmbedding(nn.Module):

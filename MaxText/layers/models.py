@@ -151,6 +151,13 @@ def get_remat_policy(cfg):
       policy = jax.checkpoint_policies.save_only_these_names(
           "out_proj",
       )
+    elif cfg.remat_policy == "de_offloaded":
+      policy = jax.checkpoint_policies.save_and_offload_only_these_names(
+          names_which_can_be_saved=[],
+          names_which_can_be_offloaded=["de_embedding"],
+          offload_src="device",
+          offload_dst="pinned_host",
+      )
     else:
       assert cfg.remat_policy == "full", "Remat policy needs to be on list of remat policies"
       policy = None

@@ -227,7 +227,8 @@ class DeepEmbedBlock(nn.Module):
       deep_embedding = deep_embedding.reshape(*output.shape[:2], self.d1, self.d2)
     max_logging.log(f'inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
     max_logging.log(f'DeepEmbedBlock deep_embed_type: {self.config.deep_embed_type}')
-   
+
+    deep_embedding = checkpoint_name(deep_embedding, "de_embedding")
     # btD x Dd -> btd -> bt1d
     deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
     # bt1d @ btdd -> bt1d @ dD -> bt1D + bt1D -> bt1D

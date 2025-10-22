@@ -788,6 +788,9 @@ class DCLama8BSlim(DC, LGWindow, Lama8BSlimTest):
 class MTP1Lama8BSlim(MTP1Layer, Lama8BSlimTest):
     base_num_decoder_layers = 15
 
+class MuddMTP1Lama8BSlim(Mudd, MTP1Lama8BSlim):
+    pass
+
 class DELama8BSlim(DE, Lama8BSlimTest):
     pass
 

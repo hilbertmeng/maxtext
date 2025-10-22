@@ -35,6 +35,7 @@ from layers import mudd
 from layers import initializers
 import max_logging
 import aqt.jax.v2.aqt_dot_general as aqt
+
 from layers import mtp
 
 Array = common_types.Array
@@ -279,7 +280,7 @@ class SequentialBlockDecoderLayers(nn.Module):
       )
     return inputs
 
-dot_general_int8 = aqt.dot_general_make(8, 8, 8)
+dot_general_int8 = aqt.dot_general_make(8, 8)
 
 # dot_general_int8 = aqt.dot_general_make(
 #                                       lhs_bits=8, # inputs
@@ -332,7 +333,7 @@ class OutputHead(nn.Module):
     cfg = self.config
     y = self.norm(y) # 20250925 fix, this bug occurred at MTP experiment.
     y = self.dropout(y, deterministic=deterministic)
-    if cfg.logits_via_embedding:
+    if cfg.logits_via_embedding: # false
         max_logging.log(f'Word embedding shared: {cfg.logits_via_embedding}')
         # Use the transpose of embedding matrix for logit transform.
         logits = self.shared_embedding.attend(y)  # lsp：权重共享
@@ -344,7 +345,7 @@ class OutputHead(nn.Module):
             logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
       logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
-                        _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' or int8 else jax.lax.dot_general)
+                        _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' and int8 else jax.lax.dot_general)
       # logits = self.logits_dense(y)
       logits = nn.with_logical_constraint(
           logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
@@ -651,7 +652,7 @@ class Decoder(nn.Module):
           for lyr in range(cfg.num_decoder_layers):
             max_logging.log(f'\n=================decoder layer: {lyr}=====================\n')
             RemattedBlockLayer = RemattedBlockLayers[0]
-            y = RemattedBlockLayer(
+            y, hids = RemattedBlockLayer(
               config=cfg, 
               mesh=mesh, 
               name=f"layers_{lyr}", 
@@ -667,32 +668,25 @@ class Decoder(nn.Module):
                 hids=hids,
                 eos_sum=eos_sum,
             )
-            y, hids = y
 
     if self.config.dense_conn:
-      if cfg.mtp_num_layers > 0:
-        main_head_inputs = y[0]
-        mtp_head_inputs = y[1]
-      else:
-        main_head_inputs = y[-1]
-        mtp_head_inputs = None
+      main_head_inputs, mtp_head_inputs = y if cfg.mtp_num_layers > 0 else [y, None]
     else:
-      if cfg.mtp_num_layers > 0:
-        main_head_inputs = y
-        mtp_head_inputs = y
-      else:
-        main_head_inputs = y
-        mtp_head_inputs = None
+      main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
+
     # mtp share llm head params
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,
                         mesh=mesh,
                         quant=self.quant,
                         name='lm_head')
+    max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
+    logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
+    max_logging.log(f'main logits: {logits.shape}')
 
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
-      if cfg.mtp_use_remat: # suggest False
+      if cfg.mtp_use_remat:
         RematMTPLayer = nn.remat(
               mtp.MultiTokenPredictionBlock,
               prevent_cse=cfg.remat_prevent_cse,
@@ -724,11 +718,6 @@ class Decoder(nn.Module):
         model_mode,
         hids=hids,
       )
-      
-    max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
-    logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
-    max_logging.log(f'main logits: {logits.shape}')
-
     return logits
 
 

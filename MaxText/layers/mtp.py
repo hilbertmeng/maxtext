@@ -32,7 +32,10 @@ from layers import initializers
 from layers import linears
 from layers import mudd
 import max_logging
+import aqt.jax.v2.aqt_dot_general as aqt
 
+
+dot_general_int8 = aqt.dot_general_make(8, 8)
 
 EPS = 1e-8
 def roll_and_mask(x: jnp.ndarray, shift: int = -1) -> jnp.ndarray:
@@ -75,8 +78,18 @@ class MultiTokenPredictionLayer(nn.Module):
 
   config: Config
   mesh: Mesh
+  quant: None
   layer_number: int
   transformer_layer_module: None
+
+  def setup(self):
+    cfg = self.config
+    kernel_init_shard = nn.with_logical_partitioning(
+      initializers.get_init_method(self.config.init_method), 
+      ('concat_embed', 'embed'),
+      )
+    projection_layer = self.param('projection_layer', kernel_init_shard, (2*cfg.emb_dim, cfg.emb_dim), cfg.weight_dtype)
+    self.projection_layer = jnp.asarray(projection_layer, cfg.dtype)
 
   @nn.compact
   def __call__(
@@ -141,26 +154,18 @@ class MultiTokenPredictionLayer(nn.Module):
     # --- 2. Concatenate Normalized Representations ---
     # Shape: [B, S, 2*H]
     concatenated_features = jnp.concatenate([embedding_norm, hidden_state_norm], axis=-1)
-
     # --- 3. Project Concatenated Features ---
     # Projects from 2*H back down to H
-    projection_layer = linears.DenseGeneral(
-        features=cfg.base_emb_dim,
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        use_bias=False,
-        kernel_axes=("concat_embed", "embed"),
-        kernel_init=initializers.get_init_method(cfg.init_method),
-        name=f"projection",
-    )
     # Shape: [B, S, H]
-    projected_features = projection_layer(concatenated_features)
-
+    projected_features = jnp.einsum('btH,Hh->bth', concatenated_features, self.projection_layer, 
+        _dot_general=dot_general_int8.__call__ 
+        if cfg.quantization == 'int8' and cfg.mtp_head_int8 else jax.lax.dot_general
+        )
     # --- 4. Pass through MTP Transformer Block ---
     sliding_window_size = cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) \
                                                   else cfg.sliding_window_size
     y = self.transformer_layer_module(
-        config=cfg, mesh=mesh,
+        config=cfg, mesh=mesh, quant=self.quant,
         sliding_window_size=sliding_window_size,
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
           projected_features,
@@ -222,20 +227,21 @@ class MultiTokenPredictionBlock(nn.Module):
 
       # Embed the k-th future input tokens using the shared embedding module
       target_token_embedding = self.shared_embedding(rolled_input_ids)
-      # if cfg.mtp_use_remat: # outside use remat can reduce more memory usage
-      # RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
-      #     MultiTokenPredictionLayer,
-      #     prevent_cse=cfg.remat_prevent_cse,
-      #     policy=None,
-      #     static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
-      #     rngs={"params": True, "aqt": True, "dropout": True},
-      # )
-      # else:
-      RematMTPLayer = MultiTokenPredictionLayer
+      if cfg.mtp_use_remat: # 和外面一起使用可以节省一个logits显存
+        RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
+            MultiTokenPredictionLayer,
+            prevent_cse=cfg.remat_prevent_cse,
+            policy=None,
+            static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
+            rngs={"params": True, "aqt": True, "dropout": True},
+        )
+      else:
+        RematMTPLayer = MultiTokenPredictionLayer
        # Instantiate and apply the MTP layer for this step
       mtp_layer = RematMTPLayer(
           config=cfg,
           mesh=self.mesh,
+          quant=self.quant,
           layer_number=k,
           name=f"mtp_{k-1}",
           # lsp: Should get prev token's history status in unmtp layers when use mudd, because cur token no history status.
@@ -249,7 +255,7 @@ class MultiTokenPredictionBlock(nn.Module):
       mtp_logits = output_layer(
         next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state, 
         deterministic,
-        int8=True,
+        int8=cfg.mtp_head_int8,
         )
 
       # Calculate cross-entropy loss for this specific layer's prediction

@@ -306,7 +306,11 @@ class FusionDecoderLayer(nn.Module):
       RematSubDecoderLayer = SubDecoderLayer
     self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
-    self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
+                                    
+    if cfg.mtp_num_layers == 0:
+      self.break_layers = [cfg.num_decoder_layers - 1]
+    else:
+      self.break_layers = [cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers]
 
   def get_C(self, cfg):
     if self.layer_inx == cfg.num_decoder_layers - 1:
@@ -351,7 +355,6 @@ class FusionDecoderLayer(nn.Module):
               hids=hids,
               decoder_input_tokens=decoder_input_tokens,
             )
-      print(f'layer_inx: {self.layer_inx} inputs length: {len(inputs)}')
       # return's inputs length is 1
       inputs = layer(
           inputs,
@@ -363,7 +366,7 @@ class FusionDecoderLayer(nn.Module):
           model_mode,
           eos_sum,
       )
-      print(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}')
+      max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}')
       if cfg.dense_conn and self.layer_inx in self.break_layers:
         C = self.get_C(cfg)
         inputs, hids = mudd.Compose(

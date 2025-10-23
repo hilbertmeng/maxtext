@@ -673,8 +673,8 @@ class Decoder(nn.Module):
                 hids=hids,
                 eos_sum=eos_sum,
             )
-
-    if self.config.dense_conn:
+    max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}')
+    if cfg.dense_conn:
       main_head_inputs, mtp_head_inputs = y if cfg.mtp_num_layers > 0 else [y, None]
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]

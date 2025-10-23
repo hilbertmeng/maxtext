@@ -83,10 +83,15 @@ def muon(
 
   def build_param_labels(params):
     flat_params = traverse_util.flatten_dict(params)
-    param_labels = {}
+    param_labels, weight_dim_nums = {}, {}
     for _k, v in flat_params.items():
       k = "/".join(_k)
-      ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
+      if hasattr(v, 'ndim'):
+        ndim = v.ndim
+      elif hasattr(v, 'value'):
+        ndim = v.value.ndim
+      else:
+        ndim = 1
       label = 'adam_default'
       # if 'bias' in k or (ndim == 1 and 'scale' in k) or 'dynamic_dense_conn2' in k: # rms no wd better(0.002), but muon paper suggest wd
       if 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
@@ -105,21 +110,27 @@ def muon(
         label = 'muon_attn'
       elif ndim == 2 and 'mlp' in k and 'compose' not in k: # remove mudd params
         label = 'muon_mlp'
-     
       max_logging.log(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
+  def weight_dim_nums_fn(params): # optax>=0.2.6
+    return jax.tree.map(lambda x: optax.contrib.MuonDimensionNumbers((0,), (1,)), params)
+
   # muon_mask = _build_wd_bool_mask_from_tree(weight_decay_mask)
-  muon_base = scale_by_muon(
-                  ns_coeffs=ns_coeffs,
-                  ns_steps=ns_steps,
-                  beta=beta,
-                  eps=eps,
-                  mu_dtype=mu_dtype,
-                  nesterov=nesterov,
-                  adaptive=adaptive,
-              )
+  muon_kwargs = {
+    'ns_coeffs': ns_coeffs,
+    'ns_steps': ns_steps,
+    'beta': beta,
+    'eps': eps,
+    'mu_dtype': mu_dtype,
+    'nesterov': nesterov,
+    'adaptive': adaptive,
+  }
+  if optax.__version__ >= '0.2.6': # speed up
+    muon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
+  muon_base = scale_by_muon(**muon_kwargs)
+
   default_scale = 1.0
   attn_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim)) * config.muon_scale
   mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
@@ -232,30 +243,24 @@ def _build_sgd(_config, learning_rate_schedule, _wd_tree):
 
 
 def _build_muon(config, learning_rate_schedule, wd_tree):
-  # adam_optimizer = partial(
-  #     adam_pax,
-  #     learning_rate_schedule,
-  #     beta1=config.adam_b1,
-  #     beta2=config.adam_b2,
-  #     epsilon=config.adam_eps,
-  #     epsilon_root=config.adam_eps_root,
-  #     wd_tree=None,
-  # )
-  # return muon(
-  #     learning_rate_schedule,
-  #     eps=config.adam_eps,
-  #     weight_decay=config.adam_weight_decay,
-  #     weight_decay_mask=wd_tree,
-  #     adaptive=False,
-  #     adam_optimizer=adam_optimizer,
-  #     config=config,
-  # )
-  opt = optax.contrib.muon(
-      learning_rate=learning_rate_schedule, 
-      weight_decay=config.adam_weight_decay,
-      muon_weight_dimension_numbers=None
+  adam_optimizer = partial(
+      adam_pax,
+      learning_rate_schedule,
+      beta1=config.adam_b1,
+      beta2=config.adam_b2,
+      epsilon=config.adam_eps,
+      epsilon_root=config.adam_eps_root,
+      wd_tree=None,
   )
-  return opt
+  return muon(
+      learning_rate_schedule,
+      eps=config.adam_eps,
+      weight_decay=config.adam_weight_decay,
+      weight_decay_mask=wd_tree,
+      adaptive=False,
+      adam_optimizer=adam_optimizer,
+      config=config,
+  )
 
 
 _OPTIMIZER_BUILDERS = {

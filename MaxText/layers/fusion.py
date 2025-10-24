@@ -155,6 +155,8 @@ class SubDecoderLayer(nn.Module):
         deep_embedding=deep_embedding,
     )
     if 'attn' in cfg.deep_embed_type:
+      d1 = 32 if cfg.emb_dim < 4096 else 64
+      d2 = cfg.emb_dim // d1
       attention_lnx = linears.DeepEmbedBlock(
         name='attnout_deep_embed',
         config=cfg, 
@@ -163,7 +165,7 @@ class SubDecoderLayer(nn.Module):
         dtype=cfg.dtype, 
         input_dim=cfg.emb_dim,
         output_dim=cfg.emb_dim,
-        de_d1_d2_dims=(32, cfg.emb_dim // 32)  # fix first dimension to 32, and don't need to follow mudd mlp dim.
+        de_d1_d2_dims=(d1, d2)  # fix first dimension to 32, and don't need to follow mudd mlp dim.
         )(inputs, attention_lnx, decoder_input_tokens, deep_embedding)
       max_logging.log(f'Outside DE is None, inside 1x Attn DE')
 
@@ -307,10 +309,7 @@ class FusionDecoderLayer(nn.Module):
     self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
                                     
-    if cfg.mtp_num_layers == 0:
-      self.break_layers = [cfg.num_decoder_layers - 1]
-    else:
-      self.break_layers = [cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers]
+    self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
 
   def get_C(self, cfg):
     if self.layer_inx == cfg.num_decoder_layers - 1:

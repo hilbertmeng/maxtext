@@ -162,7 +162,7 @@ class MultiTokenPredictionLayer(nn.Module):
         if cfg.quantization == 'int8' and cfg.mtp_head_int8 else jax.lax.dot_general
         )
     # --- 4. Pass through MTP Transformer Block ---
-    sliding_window_size = cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) \
+    sliding_window_size = cfg.sliding_window_size[-1] if isinstance(cfg.sliding_window_size, list) \
                                                   else cfg.sliding_window_size
     y = self.transformer_layer_module(
         config=cfg, mesh=mesh, quant=self.quant,

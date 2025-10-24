@@ -32,9 +32,9 @@ import max_logging
 OVERWRITE_WITH_GRADIENT = "_overwrite_with_gradient"
 
 
-def get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, model, config, teacher_model=None):
+def get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, model, config):
   """Get the shardings (both state and data) for train_step"""
-  functional_train = get_functional_train_step(train_step, model, teacher_model, config, state_mesh_shardings, mesh)
+  functional_train = get_functional_train_step(train_step, model, config, state_mesh_shardings, mesh)
   functional_train.__name__ = "train_step"
   data_pspec = P(*config.data_sharding)
   data_sharding = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), data_pspec)
@@ -45,13 +45,13 @@ def get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, 
   return functional_train, in_shardings, out_shardings, static_argnums, donate_argnums
 
 
-def get_functional_train_step(train_step, model, teacher_model, config, state_mesh_shardings, mesh):
-  return functools.partial(train_step, model, teacher_model, config, state_mesh_shardings, mesh)
+def get_functional_train_step(train_step, model, config, state_mesh_shardings, mesh):
+  return functools.partial(train_step, model, config, state_mesh_shardings, mesh)
 
 
-def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config, teacher_model=None):
+def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config):
   """Get the shardings (both state and data) for eval_step"""
-  functional_eval = get_functional_eval_step(eval_step, model, teacher_model, config)
+  functional_eval = get_functional_eval_step(eval_step, model, config)
   functional_eval.__name__ = "eval_step"
   data_pspec = P(*config.data_sharding)
   data_sharding = jax.tree_util.tree_map(lambda p: jax.sharding.NamedSharding(mesh, p), data_pspec)
@@ -62,8 +62,8 @@ def get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, mo
   return functional_eval, in_shardings, out_shardings, static_argnums, donate_argnums
 
 
-def get_functional_eval_step(eval_step, model, teacher_model, config):
-  return functools.partial(eval_step, model, teacher_model, config)
+def get_functional_eval_step(eval_step, model, config):
+  return functools.partial(eval_step, model, config)
 
 
 def load_compiled(config, partial_train, state):

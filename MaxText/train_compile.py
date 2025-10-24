@@ -145,7 +145,7 @@ def main(argv: Sequence[str]) -> None:
   print("Starting train_compile.py...", flush=True)
 
   # Parse and validate configuration
-  config, teacher_config = pyconfig.initialize(argv)
+  config = pyconfig.initialize(argv)
   # print(f'config: {config}')
   validate_config(config)
 

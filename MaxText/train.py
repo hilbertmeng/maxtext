@@ -75,7 +75,6 @@ import json
 from etils import epath
 from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
-from distill_losses import compute_distill_loss
 from layers.mtp import calculate_mtp_acceptance_rate, calculate_mtp_loss
 # from jax.experimental import shard_map
 
@@ -328,8 +327,6 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
       if not isinstance(moe_lb_loss, float):
         moe_lb_loss = moe_lb_loss.item()
       print_messages.append(f"moe_lb_loss: {moe_lb_loss:.3f}")
-    if config.use_kd > 1:
-      print_messages.append(f"distill_loss: {metrics['scalar']['learning/distill_loss']:.3f}, teacher_loss: {metrics['scalar']['learning/teacher_loss']:.3f}")
 
     print_messages = ' '.join(print_messages)
     max_logging.log(print_messages)
@@ -611,7 +608,7 @@ def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_t
   }
   return loss, aux
 
-def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_params, is_train=True):
+def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   """loss_fn for both train and eval.
 
   Args:
@@ -638,7 +635,7 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
   mutable_collections = ["intermediates"]
-  logits, intermediate_outputs = model.apply(
+  loss, intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
@@ -649,23 +646,8 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable=mutable_collections,
   )
-  if config.use_kd:
-    teacher_logits, teacher_intermediate_outputs = teacher_model.apply(
-      {'params': teacher_params}, # lsp
-      data["inputs"],
-      data["inputs_position"],
-      decoder_segment_ids=data["inputs_segmentation"],
-      enable_dropout=False,
-      rngs={"dropout": rng1, "params": aqt_rng},
-      mutable="intermediates",
-    )
-    max_logging.log(f'teacher_logits: {teacher_logits.shape}')
-    teacher_logits = jax.lax.stop_gradient(teacher_logits)
 
-    distill_xent = compute_distill_loss(config, logits, teacher_logits)
-   
-  correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
-
+  # correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
   xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
@@ -674,22 +656,6 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
   total_loss = jnp.sum(xent)
   total_weights = jnp.sum(data["targets_segmentation"] != 0)
   loss = total_loss / (total_weights + EPS)
-
-  distill_loss, teacher_loss = 0.0, 0.0
-  if config.use_kd: # compute per token's distill loss
-    distill_xent = distill_xent * (data["targets_segmentation"] != 0)
-    if 'kl' in config.distill_loss_method:
-      distill_temperature = 1.0
-    else:
-      distill_temperature = config.distill_temperature
-    total_distill_loss = jnp.sum(distill_xent * distill_temperature ** 2) # 先平方在mean还是先mean再平方？
-    distill_loss = total_distill_loss / (total_weights + EPS)
-    loss = (1 - config.distill_alpha) * loss + config.distill_alpha * distill_loss # need distill loss to update student weights
-
-    teacher_xent, _ = max_utils.cross_entropy_with_logits(teacher_logits, one_hot_targets, 0.0)
-    teacher_xent = teacher_xent * (data["targets_segmentation"] != 0)
-    total_teacher_loss = jnp.sum(teacher_xent)
-    teacher_loss = total_teacher_loss / (total_weights + EPS) # no gradient
 
   # Calculate and Add MTP Loss
   mtp_loss, mtp_accept_rate = 0.0, 0.0
@@ -720,8 +686,6 @@ def loss_fn(model, teacher_model, config, data, dropout_rng, params, teacher_par
       "moe_lb_loss": moe_lb_loss,
       "accuracy": accuracy, # lsp
       "correct": jnp.sum(correct), # lsp
-      "distill_loss": distill_loss, # lsp
-      "teacher_loss": teacher_loss, # lsp
       "mtp_loss": mtp_loss,
       "mtp_accept_rate": mtp_accept_rate,
   }
@@ -748,7 +712,7 @@ def compute_params_norm(params, config): # lsp
 
 
 
-def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, data, dropout_rng):
+def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   """
 
   Args:
@@ -770,27 +734,15 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
     extra_dpo_args = [reference_params]
     _loss_fn = dpo_loss_fn
 
-  if config.use_kd:
-    state, teacher_params = _split_dpo_state(state)
-    state_mesh_shardings, teacher_params_sharding = _split_dpo_state(state_mesh_shardings)
-    distill_alpha = config.distill_alpha
-    # _loss_fn = distill_loss_fn
-  else:
-    teacher_params = None
-    teacher_model = None
-    distill_alpha = 0.0
-    
   if config.gradient_accumulation_steps > 1:
 
     def accumulate_gradient(acc_grad_and_loss, data):
       grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)
       (_, aux), cur_batch_gradient = grad_func(
-          model, teacher_model, config, data, dropout_rng, state.params, teacher_params, *extra_dpo_args, is_train=True
+          model, config, data, dropout_rng, state.params, *extra_dpo_args, is_train=True
       )
       acc_grad_and_loss["loss"] += aux["total_loss"]
       acc_grad_and_loss["moe_lb_loss"] += aux["moe_lb_loss"]
-      acc_grad_and_loss["distill_loss"] += aux["distill_loss"]
-      acc_grad_and_loss["teacher_loss"] += aux["teacher_loss"]
       acc_grad_and_loss["mtp_loss"] += aux["mtp_loss"]
       acc_grad_and_loss["grad"] = jax.tree_util.tree_map(
           lambda x, y: x * aux["total_weights"] + y, cur_batch_gradient, acc_grad_and_loss["grad"]
@@ -807,8 +759,7 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
 
     data = jax.tree_util.tree_map(reshape_to_microbatch_accumulations, data)
     init_grad = jax.tree_util.tree_map(jnp.zeros_like, state.params)
-    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, 
-                          "distill_loss": 0.0, "teacher_loss": 0.0, "accuracy": 0.0,
+    init_grad_and_loss = {"loss": 0.0, "grad": init_grad, "total_weights": 0, "moe_lb_loss": 0.0, "accuracy": 0.0,
                           "mtp_loss": 0.0} # lsp
 
     grad_and_loss, aux = jax.lax.scan(
@@ -816,9 +767,8 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
     )
     # lsp: 正确性有待验证
     loss = (
-        grad_and_loss["loss"] / grad_and_loss["total_weights"] * (1 - distill_alpha)
+        grad_and_loss["loss"] / grad_and_loss["total_weights"]
         + grad_and_loss["moe_lb_loss"] / config.gradient_accumulation_steps
-        + grad_and_loss["distill_loss"] * distill_alpha / config.gradient_accumulation_steps
         + grad_and_loss["mtp_loss"] / config.gradient_accumulation_steps
     )
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
@@ -832,15 +782,12 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
         reference_params = jax.device_put(reference_params, max_utils.with_memory_kind(reference_params_sharding, "device"))
         extra_dpo_args = [reference_params]
     grad_func = jax.value_and_grad(_loss_fn, argnums=5, has_aux=True)  # argnums: 针对哪个参数计算梯度
-    max_logging.log(f'teacher_model: {teacher_model}')
-    (loss, aux), raw_grads = grad_func(model, teacher_model, config, data, dropout_rng, state.params, teacher_params, *extra_dpo_args, is_train=True)
+    (loss, aux), raw_grads = grad_func(model, config, data, dropout_rng, state.params, *extra_dpo_args, is_train=True)
   intermediate_outputs = aux["intermediate_outputs"]
   if config.debug:
     print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
-  distill_loss = aux["distill_loss"]
-  teacher_loss = aux["teacher_loss"]
   mtp_loss = aux["mtp_loss"]
   mtp_accept_rate = aux["mtp_accept_rate"]
   
@@ -873,12 +820,10 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
     new_state = new_state.replace(params=scaled_params)
 
   scalar_metrics = {
-      "learning/loss": (loss - mtp_loss - moe_lb_loss - distill_loss * distill_alpha) / (1 - distill_alpha), # lsp: remove moe_lb_loss, distill_loss, mtp_loss
+      "learning/loss": loss - mtp_loss - moe_lb_loss,
       "learning/moe_lb_loss": moe_lb_loss,
       "learning/mtp_loss": mtp_loss,
       "learning/mtp_accept_rate": mtp_accept_rate,
-      "learning/distill_loss": distill_loss,
-      "learning/teacher_loss": teacher_loss,
       "learning/total_weights": total_weights,
       "learning/accuracy": aux['accuracy'], # lsp
   }
@@ -905,13 +850,10 @@ def train_step(model, teacher_model, config, state_mesh_shardings, mesh, state, 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)
 
-  if config.use_kd:
-    new_state = _merge_dpo_state(new_state, teacher_params)
-
   return new_state, metrics
 
 
-def eval_step(model, teacher_model, config, state, data, dropout_rng):
+def eval_step(model, config, state, data, dropout_rng):
   """eval_step no backprop and new state compared with train_step."""
 
   reference_params, extra_dpo_args, _loss_fn = [], [], loss_fn
@@ -920,12 +862,8 @@ def eval_step(model, teacher_model, config, state, data, dropout_rng):
     extra_dpo_args = [reference_params]
     _loss_fn = dpo_loss_fn
 
-  teacher_params = None
-  if config.use_kd:
-    state, teacher_params = _split_dpo_state(state)
-
-  eval_loss_fn = functools.partial(_loss_fn, model, teacher_model, config, data, dropout_rng, is_train=False)
-  loss, aux = eval_loss_fn(state.params, teacher_params, *extra_dpo_args)
+  eval_loss_fn = functools.partial(_loss_fn, model, config, data, dropout_rng, is_train=False)
+  loss, aux = eval_loss_fn(state.params, *extra_dpo_args)
 
   mtp_acceptance_rate = 0.0
   if config.mtp_eval_target_module > 0:
@@ -935,8 +873,6 @@ def eval_step(model, teacher_model, config, state, data, dropout_rng):
   total_loss = aux["total_loss"]
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
-  distill_loss = aux["distill_loss"]
-  teacher_loss = aux["teacher_loss"]
   mtp_loss = aux["mtp_loss"]
   metrics = {
       "scalar": {
@@ -944,8 +880,6 @@ def eval_step(model, teacher_model, config, state, data, dropout_rng):
           "evaluation/total_loss": total_loss,
           "evaluation/total_weights": total_weights,
           "evaluation/moe_lb_loss": moe_lb_loss,
-          "evaluation/distill_loss": distill_loss,
-          "evaluation/teacher_loss": teacher_loss,
           "evaluation/accuracy": aux["accuracy"], # lsp
           "evaluation/correct": aux["correct"], # lsp
           "evaluation/mtp_loss": mtp_loss,
@@ -968,7 +902,7 @@ def check_example_batch(config, example_batch):
     err.throw()
 
 
-def setup_mesh_and_model(config, teacher_config=None):
+def setup_mesh_and_model(config):
   """Set up the mesh and the model for training
 
   Args:
@@ -995,11 +929,6 @@ def setup_mesh_and_model(config, teacher_config=None):
   # Model and Optimizer definition
   quant = quantizations.configure_quantization(config)
   model = Transformer(config, mesh, quant=quant)
-  teacher_model = None
-  if config.use_kd:
-    assert teacher_config is not None
-    teacher_model = Transformer(teacher_config, mesh, quant=quant)
-
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
 
   wd_tree, lr_tree = None, None
@@ -1048,10 +977,10 @@ def setup_mesh_and_model(config, teacher_config=None):
     )
 
 
-  return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx, teacher_model
+  return init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx
 
 
-def setup_train_loop(config, teacher_config=None):
+def setup_train_loop(config):
   """Set up prerequisites for the training loop -
       checkpoint_manager, PRNG keys, Mesh, Model and optimizer.
       Set up data iterator and tokenizer, initialize the model.
@@ -1070,7 +999,7 @@ def setup_train_loop(config, teacher_config=None):
     data_iterator:
     state: the initialized train state
   """
-  init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx, teacher_model = setup_mesh_and_model(config, teacher_config)
+  init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx = setup_mesh_and_model(config)
   data_iterator, eval_data_iterator = create_data_iterator(config, mesh)
 
   state, _, state_mesh_shardings, data_iterator = max_utils.setup_training_state(
@@ -1080,31 +1009,6 @@ def setup_train_loop(config, teacher_config=None):
   if not config.using_pipeline_parallelism:
     # The vocab tensor(s) of shape [vocab, embed] (and transpose) are not sharded by stage
     maxtext_utils.assert_params_sufficiently_sharded(state.params, mesh, config.sharding_tolerance)
-
-  if config.use_kd:
-    max_logging.log(f'use_distill is true.')
-    teacher_abstract_state, _, _ = max_utils.get_abstract_state(teacher_model, tx, teacher_config, init_rng, mesh, is_training=False)
-    # lsp: teacher_abstract_state with shape and sharding, but teacher_sharding with only sharding
-    teacher_sharding = jax.tree_util.tree_map(lambda x: x.sharding, teacher_abstract_state.params['params'])
-    state_mesh_shardings = _merge_dpo_state(state_mesh_shardings, teacher_sharding)
-    max_logging.log(f"Restoring teacher parameters for distill from `{teacher_config.load_parameters_path}`")
-    # teacher_params: {'params': {'decoder': ......}}
-    _, teacher_params = checkpointing.load_state_if_possible(
-          None,
-          data_iterator,
-          load_parameters_from_path=teacher_config.load_parameters_path,
-          load_full_state_from_path="",
-          abstract_unboxed_pre_state=teacher_abstract_state,
-          enable_single_replica_ckpt_restoring=False,
-          dataset_type=config.dataset_type,
-          step=0,
-      )
-    if teacher_params is not None:
-      state = _merge_dpo_state(state, teacher_params['params'])
-    else:
-      max_logging.log(
-          f"Could not restore reference parameters for Teacher model from '{os.path.join(str(config.checkpoint_dir), str(0))}'"
-      )
 
   if config.use_dpo:
     abstract_state, _, _ = max_utils.get_abstract_state(model, tx, config, init_rng, mesh, is_training=True)
@@ -1141,11 +1045,10 @@ def setup_train_loop(config, teacher_config=None):
       data_iterator,
       eval_data_iterator,
       state,
-      teacher_model, # lsp
   )
 
 
-def train_loop(config, teacher_config=None, state=None):
+def train_loop(config, state=None):
   """Main Training loop.
   Args:
     config:
@@ -1164,8 +1067,7 @@ def train_loop(config, teacher_config=None, state=None):
       data_iterator,
       eval_data_iterator,
       state,
-      teacher_model,
-  ) = setup_train_loop(config, teacher_config)
+  ) = setup_train_loop(config)
 
   if config.use_dpo:
     if "reference_params" not in state.params:
@@ -1181,7 +1083,7 @@ def train_loop(config, teacher_config=None, state=None):
       out_shard_train,
       static_argnums_train,
       donate_argnums_train,
-  ) = maxtext_utils.get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, model, config, teacher_model)
+  ) = maxtext_utils.get_functional_train_with_signature(train_step, mesh, state_mesh_shardings, model, config)
 
   if eval_data_iterator:
     # pylint: disable=line-too-long
@@ -1191,21 +1093,11 @@ def train_loop(config, teacher_config=None, state=None):
         out_shard_eval,
         static_argnums_eval,
         donate_argnums_eval,
-    ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config, teacher_model)
-  if not config.use_kd:
-    num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
-    print_tree_struct(name='params', tree=state.params, shape=True) # lsp
-    max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
-  else:
-    num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params['reference_params'])
-    print_tree_struct(name='Teacher params', tree=state.params['reference_params'], shape=True) # lsp
-    max_logging.log(f"Teacher number parameters: {num_model_parameters/1e9:.3f} billion")
-    max_utils.add_text_to_summary_writer("num_model_parameters", str(num_model_parameters), writer, prefix='teacher_')
-    max_utils.add_config_to_summary_writer(teacher_config, writer, prefix='teacher_')
+    ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_shardings, model, config)
 
-    num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params['params'])
-    print_tree_struct(name='Student params', tree=state.params['params'], shape=True) # lsp
-    max_logging.log(f"Student number parameters: {num_model_parameters/1e9:.3f} billion")
+  num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
+  print_tree_struct(name='params', tree=state.params, shape=True) # lsp
+  max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
    
   per_device_tflops, _, _ = maxtext_utils.calculate_tflops_training_per_device(config)
   per_device_tokens = maxtext_utils.calculate_tokens_training_per_device(config)
@@ -1289,7 +1181,7 @@ def train_loop(config, teacher_config=None, state=None):
         performance_metric_queue.put(step_time_delta.total_seconds())
 
       if checkpoint_manager is not None:
-        state_to_save = _split_dpo_state(state)[0] if config.use_dpo or config.use_kd else state
+        state_to_save = _split_dpo_state(state)[0] if config.use_dpo else state
         if save_checkpoint(checkpoint_manager, int(step), state_to_save, config.dataset_type, data_iterator, config):
           checkpointing.print_save_message(step, config.async_checkpointing)
           record_file_and_step(step, config, data_iterator) # lsp
@@ -1319,8 +1211,6 @@ def train_loop(config, teacher_config=None, state=None):
               "eval/total_weights": 0.0,
               "eval/avg_loss": 0.0,
               "eval/moe_lb_loss": 0.0,
-              "eval/distill_loss": 0.0,
-              "eval/teacher_loss": 0.0,
               "eval/mtp_loss": 0.0,
               "eval/mtp_accept_rate": 0.0,
           }
@@ -1346,8 +1236,6 @@ def train_loop(config, teacher_config=None, state=None):
         cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
         cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
         cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
-        cumulative_eval_metrics["scalar"]["eval/distill_loss"] += float(eval_metrics["scalar"]["evaluation/distill_loss"])
-        cumulative_eval_metrics["scalar"]["eval/teacher_loss"] += float(eval_metrics["scalar"]["evaluation/teacher_loss"])
         cumulative_eval_metrics["scalar"]["eval/mtp_loss"] += float(eval_metrics["scalar"]["evaluation/mtp_loss"])
         cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] += float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"])
         # lsp
@@ -1387,12 +1275,6 @@ def train_loop(config, teacher_config=None, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_moe_lb_loss"] = (
           cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / eval_step_count
       )
-      cumulative_eval_metrics["scalar"]["eval/avg_distill_loss"] = (
-          cumulative_eval_metrics["scalar"]["eval/distill_loss"] / eval_step_count
-      )
-      cumulative_eval_metrics["scalar"]["eval/avg_teacher_loss"] = (
-          cumulative_eval_metrics["scalar"]["eval/teacher_loss"] / eval_step_count
-      )
       cumulative_eval_metrics["scalar"]["eval/avg_mtp_loss"] = (
           cumulative_eval_metrics["scalar"]["eval/mtp_loss"] / eval_step_count
       )
@@ -1412,7 +1294,6 @@ def train_loop(config, teacher_config=None, state=None):
       )
       max_logging.log(
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=},"
-          f" avg_teacher_loss={cumulative_eval_metrics['scalar']['eval/avg_teacher_loss']:.3f}," # lsp
           f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
           f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']},"
           f" avg_mtp_loss={cumulative_eval_metrics['scalar']['eval/avg_mtp_loss']:.3f}," # lsp
@@ -1460,7 +1341,7 @@ def main(argv: Sequence[str]) -> None:
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
   if "xla_tpu_spmd_rng_bit_generator_unsafe" not in os.environ.get("LIBTPU_INIT_ARGS", ""):
     os.environ["LIBTPU_INIT_ARGS"] = os.environ.get("LIBTPU_INIT_ARGS", "") + " --xla_tpu_spmd_rng_bit_generator_unsafe=true"
-  config, teacher_config = pyconfig.initialize(argv)
+  config = pyconfig.initialize(argv)
   validate_train_config(config)
   
   # Initialize bucket logging if enabled
@@ -1492,7 +1373,7 @@ def main(argv: Sequence[str]) -> None:
   )
   diagnostic_config = diagnostic_configuration.DiagnosticConfig(debug_config)
   with diagnostic.diagnose(diagnostic_config):
-    train_loop(config, teacher_config)
+    train_loop(config)
 
 
 if __name__ == "__main__":

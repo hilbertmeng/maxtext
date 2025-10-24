@@ -363,19 +363,11 @@ class _HyperParameters:
   def __init__(self, argv: list[str], **kwargs):
     config_name: str = argv[1]
     raw_data_from_yaml = self._load_config(config_name)
-    try: # lsp
-      teacher_config_name: str = argv[2]
-      teacher_raw_data_from_yaml = self._load_config(teacher_config_name) # dict
-      cmd_argv_start = 3
-    except Exception as e:
-      max_logging.log(f'Load teacher yml failed, error: {e}')
-      cmd_argv_start = 2
-      teacher_raw_data_from_yaml = {}
 
     self._validate_env_variables(raw_data_from_yaml)
 
     raw_keys = OrderedDict()
-    keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv[cmd_argv_start:], **kwargs)
+    keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv[1:], **kwargs)
     max_logging.log(f"Updating keys from env and command line: {keys_from_env_and_command_line}")
     keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_keys, config_name)
     max_logging.log(f"Updating keys from model: {keys_from_model}")
@@ -407,13 +399,6 @@ class _HyperParameters:
 
       if os.path.isfile(tokenizer_path):
         raw_keys["tokenizer_path"] = tokenizer_path
-
-    if raw_keys['use_kd']:
-      teacher_raw_keys = copy.deepcopy(raw_keys)
-      teacher_raw_keys.update(teacher_raw_data_from_yaml)
-      self.teacher_keys = teacher_raw_keys
-    else:
-      self.teacher_keys = {}
 
     self.keys = raw_keys
     keys = [k for k in raw_keys]  # pylint: disable=unnecessary-comprehension
@@ -917,30 +902,10 @@ class HyperParameters:
     return self._config.keys
 
 
-class TeacherHyperParameters:
-  """Wrapper class to expose the configuration in a read-only manner."""
-
-  def __init__(self, config):
-    object.__setattr__(self, "_config", config)
-
-  def __getattr__(self, attr):
-    if attr not in self._config.teacher_keys:
-      return None
-    return self._config.teacher_keys[attr]
-
-  def __setattr__(self, attr, value):
-    raise ValueError("Reinitialization of config is not allowed")
-    # max_logging.log(f'Reset attr: {attr} value: {value}') # lsp
-    # self.self._config.teacher_keys[attr] = value
-
-  def get_keys(self):
-    return self._config.teacher_keys
-
 def initialize(argv, **kwargs):
   _config = _HyperParameters(argv, **kwargs)
   config = HyperParameters(_config)
-  teacher_config = TeacherHyperParameters(_config) if config.use_kd else None
-  return config, teacher_config
+  return config
 
 
 def cls_attr2dict(cls):

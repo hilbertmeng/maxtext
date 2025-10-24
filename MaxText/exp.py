@@ -190,7 +190,6 @@ class DistillDCLlama2Medium(DCLlama2Medium):
     vocab_size = 151936
     dataset_type = 'pretrain_4k'
     key_wise = False
-    use_kd = True
     distill_temperature = 1.0
     distill_alpha = 0.5
     zero_loss = True
@@ -199,7 +198,6 @@ class DistillLlama2Medium(Llama2Medium):
     vocab_size = 151936
     dataset_type = 'pretrain_4k'
     key_wise = False
-    use_kd = True
     distill_temperature = 1.0
     distill_alpha = 0.5
     zero_loss = True

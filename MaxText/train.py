@@ -496,20 +496,6 @@ def _merge_dpo_state(state, reference_params):
 
 
 def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_train=True):
-  """loss_fn for both train and eval.
-
-  Args:
-    model: A nn.Module
-    config: Config of parameters
-    data: Batch of data to apply to the model
-    dropout_rng: A key to use to generate rng for dropout
-    params: Model params
-    is_train: True for train_step and False for eval_step
-
-  Returns:
-    loss: average loss
-    aux: a dictionary including intermediate_outputs, total_loss, and total_weights
-  """
   # inputs, targets, segments, positions = apply_args
   rng1, aqt_rng = jax.random.split(dropout_rng)
 
@@ -607,6 +593,7 @@ def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_t
       "reward_accuracy": reward_accuracy,
   }
   return loss, aux
+
 
 def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   """loss_fn for both train and eval.
@@ -712,21 +699,7 @@ def compute_params_norm(params, config): # lsp
 
 
 
-def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
-  """
-
-  Args:
-    model: A nn.Module
-    state: A pytree of the current state of the model
-    data: Batch of data to apply to the model
-    dropout_rng: A key to use to generate rng for dropout
-
-  Returns:
-    new_state: Same format as state.
-    metrics: Dictionary of model metrics such as loss, training rate, etc.
-    rng2: A new rng key that can be used in future calls.
-
-  """
+def train_step(model, config, state_mesh_shardings, mesh, state, data, dropout_rng):
   reference_params, reference_params_sharding, extra_dpo_args, _loss_fn = [], [], [], loss_fn
   if config.use_dpo:
     state, reference_params = _split_dpo_state(state)
@@ -903,21 +876,6 @@ def check_example_batch(config, example_batch):
 
 
 def setup_mesh_and_model(config):
-  """Set up the mesh and the model for training
-
-  Args:
-    config
-
-  Returns:
-    init_rng: RNG key
-    writer: Summary writer for tensorboard
-    checkpoint_manager: Orbax checkpointer
-    state_mesh_annotations: the mesh annotations for the train state
-    model:
-    mesh:
-    learning_rate_schedule:
-    tx:
-  """
 
   init_rng = random.PRNGKey(config.init_weights_seed)
   writer = max_utils.initialize_summary_writer(config)
@@ -981,24 +939,6 @@ def setup_mesh_and_model(config):
 
 
 def setup_train_loop(config):
-  """Set up prerequisites for the training loop -
-      checkpoint_manager, PRNG keys, Mesh, Model and optimizer.
-      Set up data iterator and tokenizer, initialize the model.
-
-  Args:
-    config
-
-  Returns:
-    init_rng:
-    writer: Summary writer for tensorboard
-    checkpoint_manager: Orbax checkpointer
-    state_mesh_annotations: the mesh annotations for the train state
-    model:
-    mesh:
-    learning_rate_schedule:
-    data_iterator:
-    state: the initialized train state
-  """
   init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx = setup_mesh_and_model(config)
   data_iterator, eval_data_iterator = create_data_iterator(config, mesh)
 
@@ -1049,13 +989,6 @@ def setup_train_loop(config):
 
 
 def train_loop(config, state=None):
-  """Main Training loop.
-  Args:
-    config:
-    state:
-    ckpt_path:
-  Returns:
-  """
   (
       init_rng,
       writer,
@@ -1333,7 +1266,6 @@ def train_loop(config, state=None):
 
 def main(argv: Sequence[str]) -> None:
   jax.config.update("jax_default_prng_impl", "unsafe_rbg")
-
 
   # TF allocates extraneous GPU memory when using TFDS data
   # this leads to CUDA OOMs. WAR for now is to hide GPUs from TF

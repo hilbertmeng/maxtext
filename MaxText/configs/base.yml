@@ -637,16 +637,10 @@ num_layers_per_block: 1
 qkv_bias: False
 scheduler: 'cosine'
 stable_steps_fraction: 0.0
-# distill vars
-distill_temperature: 2.0
-distill_alpha: 0.5
-use_kd: False # knowledge distillation
 lam: 0.1
-distill_loss_method: 'srkl' # 
 train_shuffle_buffer_size: 1
 zero_loss: False
 olmoe_init: False
-distill_topk: 0
 mix_attn: False
 query_chunk_method: ''
 mudd_compose_method: 'sdsa'

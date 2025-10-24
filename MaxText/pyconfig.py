@@ -289,7 +289,7 @@ class _HyperParameters:
   def _update_from_env_and_command_line(self, raw_keys, raw_data_from_yaml, argv, **kwargs) -> list[str]:
     """Update model config from environment and command line using OmegaConf overrides."""
     # Use OmegaConf.from_cli to capture CLI arguments.
-    cli_cfg = OmegaConf.from_cli(argv) # lsp
+    cli_cfg = OmegaConf.from_cli(argv[2:])
     # Also create a configuration from any extra keyword arguments.
     kwargs_cfg = OmegaConf.create(kwargs)
     # Merge command-line and keyword arguments.
@@ -367,7 +367,7 @@ class _HyperParameters:
     self._validate_env_variables(raw_data_from_yaml)
 
     raw_keys = OrderedDict()
-    keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv[1:], **kwargs)
+    keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv, **kwargs)
     max_logging.log(f"Updating keys from env and command line: {keys_from_env_and_command_line}")
     keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_keys, config_name)
     max_logging.log(f"Updating keys from model: {keys_from_model}")

@@ -214,7 +214,7 @@ class DeepEmbedBlock(nn.Module):
   @nn.compact
   def __call__(self, inputs, output, decoder_input_tokens, deep_embedding=None):
     cfg = self.config
-    if cfg.deep_embed_init == 'inside' and deep_embedding is None:
+    if deep_embedding is None:
       max_logging.log(f'Inside DE, decoder_input_tokens: {decoder_input_tokens.shape}')
       deep_embedding = embeddings.Embed(
             name="token_embedder",

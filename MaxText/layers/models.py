@@ -54,8 +54,7 @@ Quant = quantizations.AqtQuantization
 # ------------------------------------------------------------------------------
 
 
-def get_deep_embedding(cfg, y):
-  y, deep_embedding = y[..., :cfg.emb_dim], y[..., cfg.emb_dim: ]
+def get_deep_embedding(cfg, deep_embedding):
   max_logging.log(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}')
   if re.findall(r'gemma3n', cfg.deep_embed_type):
     deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, -1) # btlD
@@ -71,7 +70,7 @@ def get_deep_embedding(cfg, y):
       d2 = updated_mlp_dim // d1
       cur_layer_deep_embedding = deep_embedding[..., start_idx: start_idx + updated_mlp_dim]
       start_idx += updated_mlp_dim
-      cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*y.shape[:2], d1, d2)
+      cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*deep_embedding.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
       max_logging.log(f'4xmlp layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
   elif re.findall(r'1xmlp|1xattn', cfg.deep_embed_type):
@@ -81,7 +80,7 @@ def get_deep_embedding(cfg, y):
     max_logging.log(f'1xmlp|1xattn deep_embeddings: {deep_embeddings.shape}')
   else:
     raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type}')
-  return y, deep_embeddings
+  return deep_embeddings
 
 
 def get_remat_policy(cfg):
@@ -366,6 +365,7 @@ class Decoder(nn.Module):
 
   config: Config
   shared_embedding: nn.Module
+  deep_embedding: nn.Module
   mesh: Mesh
   quant: Optional[Quant] = None
 
@@ -533,24 +533,10 @@ class Decoder(nn.Module):
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
 
     if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp|gemma3n', cfg.deep_embed_type):
-      y, deep_embeddings = get_deep_embedding(cfg, y)
+      deep_embeddings = self.deep_embedding(decoder_input_tokens.astype("int32"))
+      deep_embeddings = get_deep_embedding(cfg, deep_embeddings)
       max_logging.log(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}')
-      if 'gemma3n' in cfg.deep_embed_type:
-        dynamic_de = linears.DenseGeneral(
-            (cfg.num_decoder_layers, deep_embeddings.shape[-1]),
-            weight_dtype=cfg.weight_dtype,
-            dtype=cfg.dtype,
-            kernel_axes=("embed", None, "mlp"),
-            quant=self.quant,
-            name="gemma3n_de_proj",
-            matmul_precision=cfg.matmul_precision,
-            kernel_init=initializers.get_init_method(cfg.init_method), # lsp
-            use_quant=cfg.use_quant,
-        )(y) # btD -> btld
-        dynamic_de /= cfg.emb_dim ** 0.5
-        dynamic_de = normalizations.get_rmsnorm(name="gemma3n_de_norm", cfg=cfg)(dynamic_de)
-        deep_embeddings = (deep_embeddings +  dynamic_de) * jax.lax.rsqrt(2.0)
-        deep_embeddings = deep_embeddings.transpose(2, 0, 1, 3)
+    
     else:
       deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
       
@@ -754,32 +740,45 @@ class Transformer(nn.Module):
 
     cfg = self.config
     mesh = self.mesh
-    emb_dim = cfg.emb_dim
+    de_dim = 0
     if cfg.deep_embed_init == 'outside':
       if '1xattn' in cfg.deep_embed_type or 'devalue' in cfg.deep_embed_type.lower():
-        emb_dim += cfg.num_decoder_layers * cfg.emb_dim
+        de_dim += cfg.num_decoder_layers * cfg.emb_dim
       elif '1xmlp' in cfg.deep_embed_type.lower():
-        emb_dim  += cfg.num_decoder_layers * cfg.emb_dim
+        de_dim  += cfg.num_decoder_layers * cfg.emb_dim
       elif '4xmlp' in cfg.deep_embed_type.lower():
-        emb_dim +=  cfg.num_decoder_layers * cfg.mlp_dim
+        de_dim +=  cfg.num_decoder_layers * cfg.mlp_dim
       else:
         # Multi deep embed don't support outside init
         raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')
      
-    max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {emb_dim}')
+    max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {de_dim}')
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
-        features=emb_dim,
+        features=cfg.emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=initializers.get_init_method(cfg.init_method) if 'gemma3n' not in cfg.deep_embed_type else \
-            initializers.nd_dense_init(1.0, "fan_in", "normal"), # lsp
+        embedding_init=initializers.get_init_method(cfg.init_method), # lsp
         name="token_embedder",
         config=cfg,
     )
+    if de_dim > 0:
+      self.deep_embedding = Embed(
+          num_embeddings=cfg.vocab_size,
+          features=de_dim,
+          dtype=cfg.dtype,
+          attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,
+          embedding_init=initializers.get_init_method(cfg.init_method), # lsp
+          name="de_token_embedder",
+          config=cfg,
+      )
+    else:
+      self.deep_embedding = None
+      
     self.decoder = Decoder(
         config=cfg, 
-        shared_embedding=self.shared_embedding, 
+        shared_embedding=self.shared_embedding,
+        deep_embedding=self.deep_embedding,
         mesh=mesh, 
         quant=self.quant, 
         name='decoder'

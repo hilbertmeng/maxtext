@@ -131,17 +131,6 @@ def model_init(model, config, key):
   )
   return params
 
-def compute_accuracy(logits, targets, masks):
-  batch_weights = jnp.maximum(jnp.sum(masks, axis=-1), 1e-10)
-  correct = jnp.where(
-        masks > 0.0,
-        jnp.argmax(logits, axis=-1) == targets,
-        jnp.array(False)
-    )
-  correct = jnp.sum(correct, axis=-1)
-  accuracy = jnp.mean(correct / batch_weights)
-  return correct, accuracy
-
 
 def save_eval_result(config, step, cumulative_eval_metrics):
   # lsp: save eval result
@@ -622,7 +611,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
   mutable_collections = ["intermediates"]
-  loss, intermediate_outputs = model.apply(
+  (xent, correct), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
@@ -635,20 +624,23 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   )
 
   # correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
-  one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
-  xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
-  xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
+  # one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
+  # xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
+  # xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
   # Mask out paddings at the end of each example.
-  xent = xent * (data["targets_segmentation"] != 0)
+  mask = data["targets_segmentation"] != 0
+  xent *= mask
   total_loss = jnp.sum(xent)
-  total_weights = jnp.sum(data["targets_segmentation"] != 0)
+  total_weights = jnp.sum(mask)
+  accuracy = correct / total_weights
   loss = total_loss / (total_weights + EPS)
 
   # Calculate and Add MTP Loss
   mtp_loss, mtp_accept_rate = 0.0, 0.0
   if config.mtp_num_layers > 0:
     mtp_loss = calculate_mtp_loss(intermediate_outputs, config)
-    mtp_accept_rate = calculate_mtp_acceptance_rate(intermediate_outputs, config, logits)
+    # mtp_accept_rate = calculate_mtp_acceptance_rate(intermediate_outputs, config, logits)
+    mtp_accept_rate = 0.0
     loss += mtp_loss
 
   # get moe load balance loss
@@ -672,7 +664,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "total_weights": total_weights,
       "moe_lb_loss": moe_lb_loss,
       "accuracy": accuracy, # lsp
-      "correct": jnp.sum(correct), # lsp
+      "correct": correct, # lsp
       "mtp_loss": mtp_loss,
       "mtp_accept_rate": mtp_accept_rate,
   }
@@ -754,7 +746,7 @@ def train_step(model, config, state_mesh_shardings, mesh, state, data, dropout_r
       if config.use_dpo:
         reference_params = jax.device_put(reference_params, max_utils.with_memory_kind(reference_params_sharding, "device"))
         extra_dpo_args = [reference_params]
-    grad_func = jax.value_and_grad(_loss_fn, argnums=5, has_aux=True)  # argnums: 针对哪个参数计算梯度
+    grad_func = jax.value_and_grad(_loss_fn, argnums=4, has_aux=True)  # argnums: 针对哪个参数计算梯度
     (loss, aux), raw_grads = grad_func(model, config, data, dropout_rng, state.params, *extra_dpo_args, is_train=True)
   intermediate_outputs = aux["intermediate_outputs"]
   if config.debug:

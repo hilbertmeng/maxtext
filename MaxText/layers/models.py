@@ -35,6 +35,7 @@ import max_logging
 import aqt.jax.v2.aqt_dot_general as aqt
 
 from layers import mtp
+import max_utils
 
 Array = common_types.Array
 Config = common_types.Config
@@ -656,7 +657,8 @@ class Decoder(nn.Module):
             sliding_window_sizes = (cfg.num_decoder_layers + cfg.mtp_num_layers) * [cfg.sliding_window_size]
           for lyr in range(cfg.num_decoder_layers):
             max_logging.log(f'\n=================decoder layer: {lyr}=====================\n')
-            RemattedBlockLayer = RemattedBlockLayers[0]
+            
+            RemattedBlockLayer = RemattedBlockLayers[0] if lyr != cfg.num_decoder_layers - 1 else self.decoder_layer[0]
             y, hids = RemattedBlockLayer(
               config=cfg, 
               mesh=mesh, 
@@ -686,9 +688,19 @@ class Decoder(nn.Module):
                         quant=self.quant,
                         name='lm_head')
     max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
-    logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
-    max_logging.log(f'main logits: {logits.shape}')
 
+
+    # ============================ compute loss and accuracy ============================
+    xent, correct, main_model_preds = max_utils.compute_loss_chunked(
+      output_head_layer=OutputHeadLayer,
+      inputs=main_head_inputs,
+      target_tokens=decoder_target_tokens,
+      target_mask=decoder_target_mask,
+      vocab_size=cfg.vocab_size,
+      chunk_size=cfg.loss_chunk_size,
+      deterministic=deterministic,
+    )
+    mtp_loss = 0.0
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
       if cfg.mtp_use_remat:
@@ -722,8 +734,10 @@ class Decoder(nn.Module):
         deterministic,
         model_mode,
         hids=hids,
+        # main_model_preds=main_model_preds,
       )
-    return logits
+
+    return xent, correct
 
 
 class Transformer(nn.Module):

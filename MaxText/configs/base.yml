@@ -686,3 +686,5 @@ remat_prevent_cse: True
 mtp_use_remat: False
 
 use_kv_shift: False
+
+loss_chunk_size: 1024

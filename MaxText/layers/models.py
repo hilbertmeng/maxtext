@@ -686,7 +686,7 @@ class Decoder(nn.Module):
       chunk_size=cfg.loss_chunk_size,
       deterministic=deterministic,
     )
-    mtp_loss = 0.0
+    mtp_xent = 0.0
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
       if cfg.mtp_use_remat:
@@ -702,7 +702,7 @@ class Decoder(nn.Module):
         RematMTPLayer = mtp.MultiTokenPredictionBlock
         transformer_layer_module = RemattedBlockLayers[0]
 
-      RematMTPLayer(
+      mtp_xent = RematMTPLayer(
         config=cfg,
         mesh=mesh,
         quant=self.quant,
@@ -723,7 +723,7 @@ class Decoder(nn.Module):
         # main_model_preds=main_model_preds,
       )
 
-    return xent, correct
+    return xent, correct, mtp_xent
 
 
 class Transformer(nn.Module):

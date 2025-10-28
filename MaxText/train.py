@@ -611,7 +611,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
   mutable_collections = ["intermediates"]
-  (xent, correct), intermediate_outputs = model.apply(
+  (xent, correct, mtp_xent), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
@@ -638,8 +638,9 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   # Calculate and Add MTP Loss
   mtp_loss, mtp_accept_rate = 0.0, 0.0
   if config.mtp_num_layers > 0:
-    mtp_loss = calculate_mtp_loss(intermediate_outputs, config)
+    # mtp_loss = calculate_mtp_loss(intermediate_outputs, config)
     # mtp_accept_rate = calculate_mtp_acceptance_rate(intermediate_outputs, config, logits)
+    mtp_loss = mtp_xent.mean() * config.mtp_loss_scaling_factor
     mtp_accept_rate = 0.0
     loss += mtp_loss
 

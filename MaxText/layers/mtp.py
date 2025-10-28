@@ -39,42 +39,14 @@ dot_general_int8 = aqt.dot_general_make(8, 8)
 
 EPS = 1e-8
 def roll_and_mask(x: jnp.ndarray, shift: int = -1) -> jnp.ndarray:
-  """
-  Performs a leftward roll on the sequence axis (axis=1) and masks the
-  newly created invalid positions at the end of the sequence.
-  Assumes input `x` has a batch dimension at axis 0 and sequence at axis 1.
-
-  Args:
-    x: The input array of shape [batch, seq_len, ...].
-    shift: The number of positions to shift left.
-
-  Returns:
-    The rolled array of the same shape as x.
-  """
   # If shift is 0, it's a no-op. Return the original array.
   if shift == 0:
     return x
-
   # to set the last `abs(shift)` elements of the sequence to zero.
   return jnp.roll(x, shift, axis=1).at[:, shift:, ...].set(0)
 
 
 class MultiTokenPredictionLayer(nn.Module):
-  """
-  Implements Multi-Token Prediction (MTP) step:
-      1. Normalization of previous hidden state and target token embedding.
-      2. Concatenation and Projection of normalized features.
-      3. Processing through a Transformer Decoder Layer.
-
-      Equation Representation (Conceptual):
-          norm_h = RMSNorm(h_prev)
-          norm_e = RMSNorm(e_target)
-          h_proj = W_p(concat(norm_h, norm_e))
-          h_next = TransformerLayer(h_proj, pos_ids, segment_ids, ...)
-
-      It takes the previous hidden state and target embedding as input and outputs the
-      processed hidden state from its internal transformer block.
-  """
 
   config: Config
   mesh: Mesh
@@ -103,34 +75,11 @@ class MultiTokenPredictionLayer(nn.Module):
       rolled_input_ids: jnp.ndarray = None,
       model_mode: str = MODEL_MODE_TRAIN,
   ) -> jnp.ndarray:
-    """
-    Applies the MTP combination, projection, and internal transformer processing.
-
-    Args:
-        prev_hidden_state: Hidden state from the previous step/layer.
-                           Shape: [batch, seq_len, hidden_size]
-        target_token_embedding: Embedding of the target token. In the context of MTP,
-                                this often refers to a token at a position relative
-                                to the current step, where the offset is determined
-                                by the layer number `k` (i.e., token t+k).
-                                Shape: [batch, seq_len, embed_dim]
-        position_ids: Original position IDs for the sequence.
-                      Shape: [batch, seq_len]
-        decoder_segment_ids: Original segment IDs for the sequence (for attention mask).
-                             Shape: [batch, seq_len]
-        deterministic: If true, disable dropout.
-        model_mode: The current operational mode (train, eval, decode).
-
-    Returns:
-        next_hidden_state: The hidden state produced by this MTP step's internal transformer.
-                           Shape: [batch, seq_len, hidden_size]
-    """
     cfg = self.config
     mesh = self.mesh
     k = self.layer_number
 
     projected_features = []
-    # --- 1. Normalize Hidden State and Embedding ---
     embedding_norm_layer = rms_norm(
         # num_features=target_token_embedding.shape[-1],
         dtype=cfg.dtype,
@@ -150,18 +99,11 @@ class MultiTokenPredictionLayer(nn.Module):
         kernel_axes=("norm",),
     )
     hidden_state_norm = hidden_state_norm_layer(prev_hidden_state)
-
-    # --- 2. Concatenate Normalized Representations ---
-    # Shape: [B, S, 2*H]
     concatenated_features = jnp.concatenate([embedding_norm, hidden_state_norm], axis=-1)
-    # --- 3. Project Concatenated Features ---
-    # Projects from 2*H back down to H
-    # Shape: [B, S, H]
     projected_features = jnp.einsum('btH,Hh->bth', concatenated_features, self.projection_layer, 
         _dot_general=dot_general_int8.__call__ 
         if cfg.quantization == 'int8' and cfg.mtp_head_int8 else jax.lax.dot_general
         )
-    # --- 4. Pass through MTP Transformer Block ---
     sliding_window_size = cfg.sliding_window_size[-1] if isinstance(cfg.sliding_window_size, list) \
                                                   else cfg.sliding_window_size
     y = self.transformer_layer_module(
@@ -178,8 +120,6 @@ class MultiTokenPredictionLayer(nn.Module):
           hids=hids,
     )
     next_hidden_state, hids = y
-    # Shape: [B, S, H]
-    # --- Return Processed Hidden State ---
     return next_hidden_state, hids
 
 
@@ -207,25 +147,17 @@ class MultiTokenPredictionBlock(nn.Module):
       hids=None,
   ):
     cfg = self.config
-    # The initial hidden state for the MTP chain is the raw output from the main model.
     mtp_hidden_state = main_hidden_state
 
-    # These variables are updated sequentially in each loop iteration,
-    # moving the prediction window one token to the right each time.
     rolled_input_ids = input_ids
     rolled_target_ids = target_ids
     rolled_target_mask = target_mask
-    # rolled_position_id = position_ids
 
-    # Range chosen to align with the naming convention of the paper
     for k in range(1, cfg.mtp_num_layers + 1):
-      # Sequentially roll all tensors to prepare data for predicting the k-th future token.
       rolled_input_ids = roll_and_mask(rolled_input_ids)
       rolled_target_ids = roll_and_mask(rolled_target_ids)
       rolled_target_mask = roll_and_mask(rolled_target_mask)
-    #   rolled_position_id = roll_and_mask(rolled_position_id)
 
-      # Embed the k-th future input tokens using the shared embedding module
       target_token_embedding = self.shared_embedding(rolled_input_ids)
       if cfg.mtp_use_remat: # 和外面一起使用可以节省一个logits显存
         RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
@@ -251,51 +183,46 @@ class MultiTokenPredictionBlock(nn.Module):
       next_mtp_hidden_state, hids = mtp_layer(
           mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids, rolled_input_ids
       )
-      # Project to logits using the shared embedding transpose
-      mtp_logits = output_layer(
-        next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state, 
-        deterministic,
-        int8=cfg.mtp_head_int8,
-        )
-
-      # Calculate cross-entropy loss for this specific layer's prediction
-      mtp_xent, _ = max_utils.cross_entropy_with_logits(mtp_logits, jax.nn.one_hot(rolled_target_ids, cfg.vocab_size), 0.0)
-      mtp_xent_masked = mtp_xent * rolled_target_mask # BL
+      
+      mtp_head_inputs = next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state
+      mtp_xent, mtp_correct, mtp_model_preds = max_utils.compute_loss_chunked(
+        output_head_layer=output_layer,
+        inputs=mtp_head_inputs,
+        target_tokens=rolled_target_ids,
+        target_mask=rolled_target_mask,
+        vocab_size=cfg.vocab_size,
+        chunk_size=4096,
+        deterministic=deterministic,
+      )
+      # mtp_xent_masked = mtp_xent * rolled_target_mask # BL
 
       # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.
-      if not self.is_initializing(): # don't excute here when model.init
-        max_logging.log(f'MTP loss record.....')
-        # For evaluation, save the top prediction and a valid token mask.
-        # This is only active for the target layer during an eval run.
-        if cfg.mtp_eval_target_module == k:
-          max_logging.log(f'mtp_eval_target_module={k}, compute mtp preds and masks......')
-          mtp_top_1_pred = jnp.argmax(mtp_logits, axis=-1) # blv -> bl
-          self.sow("intermediates", "mtp_preds", mtp_top_1_pred)
-          self.sow("intermediates", "mtp_mask", rolled_target_mask)
+      # if not self.is_initializing(): # don't excute here when model.init
+      #   max_logging.log(f'MTP loss record.....')
+      #   # For evaluation, save the top prediction and a valid token mask.
+      #   # This is only active for the target layer during an eval run.
+      #   if cfg.mtp_eval_target_module == k:
+      #     max_logging.log(f'mtp_eval_target_module={k}, compute mtp preds and masks......')
+      #     mtp_top_1_pred = jnp.argmax(mtp_logits, axis=-1) # blv -> bl
+      #     self.sow("intermediates", "mtp_preds", mtp_top_1_pred)
+      #     self.sow("intermediates", "mtp_mask", rolled_target_mask)
 
-        # For training, save the loss components for this MTP head.
-        # This is only active during a training run.
-        # if self.is_mutable_collection("mtp_losses"):
-        self.sow("intermediates", "mtp_losses", jnp.sum(mtp_xent_masked))
-        self.sow("intermediates", "mtp_weights", jnp.sum(rolled_target_mask))
+      #   self.sow("intermediates", "mtp_losses", jnp.sum(mtp_xent_masked))
+      #   self.sow("intermediates", "mtp_weights", jnp.sum(rolled_target_mask))
 
-      # The output of this layer is the input for the next, maintaining the causal chain.
-      mtp_hidden_state = next_mtp_hidden_state
+      # mtp_hidden_state = next_mtp_hidden_state
+      return mtp_xent
 
 
 def calculate_mtp_loss(intermediate_outputs, config):
-  """Calculates the Multi Token Prediction loss from intermediate outputs."""
   losses_path = ("intermediates", "decoder", "mtp_block", "mtp_losses")
   weights_path = ("intermediates","decoder", "mtp_block", "mtp_weights")
   mtp_losses = maxtext_utils.get_nested_value(intermediate_outputs, losses_path, default=())
   mtp_weights = maxtext_utils.get_nested_value(intermediate_outputs, weights_path, default=())
-
-  if not mtp_losses:  # MTP heads did not run
+  if not mtp_losses: 
     return 0.0
-
   sum_of_all_mtp_losses = jnp.sum(jnp.array(mtp_losses))
   sum_of_all_mtp_weights = jnp.sum(jnp.array(mtp_weights))
-
   avg_mtp_loss = sum_of_all_mtp_losses / (sum_of_all_mtp_weights + EPS)
   scaled_mtp_loss = avg_mtp_loss * config.mtp_loss_scaling_factor
   return scaled_mtp_loss
@@ -305,31 +232,15 @@ def calculate_mtp_acceptance_rate(intermediate_outputs, config, logits):
   """Calculates the MTP acceptance rate from intermediate outputs."""
   preds_path = ("intermediates", "decoder", "mtp_block", "mtp_preds")
   masks_path = ("intermediates","decoder", "mtp_block", "mtp_mask")
-
   mtp_preds = maxtext_utils.get_nested_value(intermediate_outputs, preds_path, default=())[0]
   valid_mask = maxtext_utils.get_nested_value(intermediate_outputs, masks_path, default=())[0]
-
-  # These values are only "sown" (saved) during an evaluation run and only for the specific
-  # MTP layer specified by `config.mtp_eval_target_module`. This check handles cases
-  # where the required data is absent (e.g., during a training step) and prevents errors.
   if mtp_preds is None or valid_mask is None:
     max_logging.log(f'mtp_preds or valid_mask is None....')
     return 0.0
-#   main_logits_path =  ("intermediates","decoder", "logits") # lsp
-#   main_logits = maxtext_utils.get_nested_value(intermediate_outputs, main_logits_path, default=())[0] # tuple type, such as (main_logits, )
-  # Get the main model's greedy predictions from the logits.
   main_model_preds = jnp.argmax(logits, axis=-1)
-
-  # Roll the main model's predictions to align them in time with the MTP head's target.
   rolled_main_preds = main_model_preds
   for _ in range(config.mtp_eval_target_module):
     rolled_main_preds = roll_and_mask(rolled_main_preds)
-
-  # Compare the aligned predictions. The `valid_mask` ensures that the comparison
-  # only happens on valid tokens, ignoring the placeholder values introduced at the
-  # end of the sequence by the `roll_and_mask` operation.
   correct_predictions = jnp.sum((mtp_preds == rolled_main_preds) * valid_mask)
   total_valid_tokens = jnp.sum(valid_mask)
-
-  # Return acceptance rate as a percentage
   return (correct_predictions / (total_valid_tokens + EPS)) * 100

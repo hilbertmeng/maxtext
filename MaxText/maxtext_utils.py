@@ -373,7 +373,7 @@ def pax_apply_gradient_clipping(raw_grads, state, clipping_threshold):
         jnp.array(1, grad.dtype),
         jnp.array(clipping_threshold, grad.dtype) / jnp.sqrt(jnp.sum(grad * grad)),
     )
-  grads = jax.tree_map(scale_gradient, raw_grads)
+  grads = jax.tree.map(scale_gradient, raw_grads)
   return grads
 
 
@@ -411,7 +411,7 @@ def clip_by_global_norm(grads, clipping_threshold):
   norm = global_norm(grads)
   
   scale = jnp.minimum(1.0, clipping_threshold / (norm + 1e-6))
-  return jax.tree_map(lambda g: g * scale, grads)
+  return jax.tree.map(lambda g: g * scale, grads)
 
 
 def get_nested_value(dictionary, nested_key, default=None):

@@ -738,7 +738,7 @@ def train_step(model, config, state_mesh_shardings, mesh, state, data, dropout_r
         + grad_and_loss["mtp_loss"] / config.gradient_accumulation_steps
     )
     raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], grad_and_loss["grad"])
-    aux = jax.tree_map(lambda x: jnp.sum(x, axis=0), aux)
+    aux = jax.tree.map(lambda x: jnp.sum(x, axis=0), aux)
     aux['accuracy'] = grad_and_loss["accuracy"] / config.gradient_accumulation_steps # lsp
   else:
     if config.optimizer_memory_host_offload:

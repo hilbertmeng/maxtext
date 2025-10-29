@@ -149,6 +149,11 @@ class QChunk(nn.Module):
       sinks=None,
   ):
     """Apply Attention."""
+    if self.config.outer_dc and pre_proj_dw_args is not None:
+      pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args  # w: BTGIM, dd: BTGM
+      query_inter = jnp.einsum('btnd,btin->btid', query, pre_qw1[:,:,0]) # BTGIM
+      query = query + jnp.einsum('btid,btin->btnd', query_inter, pre_qw2[:,:,0]) + jnp.einsum('btnd,btn->btnd', query, pre_qdd[:,:,0])
+
     if self.float32_qk_product:
       query = query.astype(jnp.float32)
       key = key.astype(jnp.float32)
@@ -156,7 +161,7 @@ class QChunk(nn.Module):
     attn_weights = self.qk_product(query, key)
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
    
-    if self.config.pre_compose and pre_proj_dw_args is not None:
+    if self.config.pre_compose and pre_proj_dw_args is not None and not self.config.outer_dc:
        # 5 demonsion
       pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
       attn_weights = pre_proj_layer(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
@@ -199,7 +204,7 @@ class QChunk(nn.Module):
     
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'heads', 'activation_length', None),)
 
-    if self.config.post_compose and post_proj_dw_args is not None:
+    if self.config.post_compose and post_proj_dw_args is not None and not self.config.outer_dc:
       post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
       probs = post_proj_layer(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
 
@@ -209,6 +214,12 @@ class QChunk(nn.Module):
     if attn_mask is not None:
       probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
     output = jnp.einsum('bnts,bsnh->btnh', probs, value)
+
+    if self.config.outer_dc and post_proj_dw_args is not None:
+      post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
+      output_inter = jnp.einsum('btnd,btin->btid', output, post_qw1[:,:,0])
+      output = output + jnp.einsum('btid,btin->btnd', output_inter, post_qw2[:,:,0]) + jnp.einsum('btnd,btn->btnd', output, post_qdd[:,:,0])
+      
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
     return output
 

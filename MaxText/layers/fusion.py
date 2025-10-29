@@ -156,12 +156,12 @@ class SubDecoderLayer(nn.Module):
     norm_class = models.RMSNorm if self.config.norm_type == 'rmsnorm' else Gpt3LayerNorm
     raw_inputs = inputs
 
-    if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm': # lsp
+    if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm' and isinstance(inputs, (list, tuple)): # lsp
       lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
       inputs = inputs[3]
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
-      inputs = checkpoint_name(inputs, "decoder_layer_input")
+      # inputs = checkpoint_name(inputs, "decoder_layer_input")
       lnx_rms = norm_class(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
@@ -174,6 +174,8 @@ class SubDecoderLayer(nn.Module):
         normed_hidden_states = lnx = lnx_rms(inputs)
       else:
         lnx = lnx_rms(inputs)
+      
+      lnx_kv = (lnx, lnx,)
 
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
@@ -224,7 +226,7 @@ class SubDecoderLayer(nn.Module):
       )
       lnx = lnx_rms(lnx)
 
-    max_logging.log(f'Attention inputs: {inputs.shape}', debug=self.config.debug)
+    # max_logging.log(f'Attention inputs: {inputs.shape}', debug=self.config.debug)
     # Self-attention block
 
     if cfg.attention_type == 'mla':
@@ -518,7 +520,7 @@ class SubDecoderLayer(nn.Module):
       intermediate_inputs = None
 
     dyn_dense_w = self.mudd_mlp(layer_output) if not self.config.mudd_in_layer else None# lsp
-    if self.config.value_residual_learning:
+    if self.config.value_residual_learning or self.config.value_mudd_learning:
       return layer_output, dyn_dense_w, value_residual
     else:
       return layer_output, dyn_dense_w, intermediate_inputs
@@ -569,8 +571,9 @@ class FusionDecoderLayer(nn.Module):
         else:
             inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, layer_inx-1, name=f'compose_{layer_inx-1}')(inputs, hids) # lsp
 
+    intermediate_inputs = None
     for layer in self.subs:
-        if self.config.value_residual_learning:
+        if self.config.value_residual_learning or self.config.value_mudd_learning:
           inputs, dyn_dense_w, value_residual = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, value_residual=value_residual)
         else:
           inputs, dyn_dense_w, intermediate_inputs = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode,)
@@ -581,6 +584,7 @@ class FusionDecoderLayer(nn.Module):
         return inputs, hids, value_residual, intermediate_inputs
     
     if self.config.scan_layers:
+      assert False  # XD debug for value_mudd_learning
       return inputs, dyn_dense_w
     else:
       return inputs, dyn_dense_w, value_residual, intermediate_inputs

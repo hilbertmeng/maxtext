@@ -420,7 +420,7 @@ class AttentionOp(nn.Module):
       assert self.config.seperate_qk_dw_proj
 
     input_dim = self.num_query_heads * self.head_dim
-    I = 2
+    I = 2 if self.config.dc_rank is None else self.config.dc_rank
     num_heads_per_group = self.num_query_heads // self.num_groups
     dynamic_w_hidden_dim = num_heads_per_group * I * 2
     if cfg.pre_compose or cfg.post_compose:
@@ -548,7 +548,15 @@ class AttentionOp(nn.Module):
       else:
         pre_proj_dw_args = pre_proj_dw_args[:2] + (None, None,) + pre_proj_dw_args[-2:]
         post_proj_dw_args = post_proj_dw_args[:2] + (None, None,) + post_proj_dw_args[-2:]
+    
+    if self.config.ablate_qdd:
+      pre_proj_dw_args = pre_proj_dw_args[:4] + (None,) + pre_proj_dw_args[-1:]
+      post_proj_dw_args = post_proj_dw_args[:4] + (None,) + post_proj_dw_args[-1:]
 
+    if self.config.ablate_global_dc:
+      if self.sliding_window_size is None or self.sliding_window_size == self.config.max_target_length:
+        pre_proj_dw_args = None
+        post_proj_dw_args = None
     # if self.config.kdd_only:
     #   # pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd
     #   if self.config.pre_compose:

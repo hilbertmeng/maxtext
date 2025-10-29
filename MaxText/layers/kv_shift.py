@@ -133,8 +133,9 @@ class KVshift(nn.Module):
     else:
       if self.kv_shift_hidden_way in ['kv', 'qkv']:
         for mode in self.kv_shift_hidden_way:
+          num_heads = num_kv_heads if mode in 'kv' else self.config.num_query_heads
           setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
-                                      (num_kv_heads, 1),
+                                      (num_heads, 1),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads", None),
                                       use_bias=False,
@@ -193,7 +194,7 @@ class KVshift(nn.Module):
         else:
           dw = jax.nn.sigmoid(self.dw_proj(inputs)) # B(T-1)D, DN2->B(T-1)N2
         if self.q_shift:
-          kg, vg, qg = dw[...,:1], dw[...,1:2],dw[...,2:] 
+          kg, vg, qg = dw[...,:1], dw[...,1:2], dw[...,2:] 
         else: 
           kg, vg = dw[...,:1], dw[...,1:] # B(T-1)N1
     else:
@@ -217,6 +218,37 @@ class KVshift(nn.Module):
 
     return query, key, value, inputs_k, inputs_v    
 
+class OShift(nn.Module):
+  config: Any
+  mesh: Mesh
+  quant: Optional[Quant] = None
+  kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+  num_heads: int | None = None
+  offset: int | None = None
+  
+  def setup(self):
+    cfg = self.config
+    kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
+    if self.offset is None: self.offset = 1
+    setattr(self, f'dw_proj_o', linears.DenseGeneral(
+                                      (self.num_heads, self.offset),
+                                      kernel_init=initializers.contant_dense_init(0.0),
+                                      kernel_axes=('embed', "heads", None),
+                                      use_bias=False,
+                                      name=f'o_shift_proj',
+                                      **kwargs))
+  @nn.compact
+  def __call__(self,
+      out, # BTNd
+      inputs_m=None, # BTD
+  ):
+    og = jax.nn.sigmoid(self.dw_proj_o(inputs_m))  # BTD,DNk->BTNk
+    if self.offset == 1:
+      out = out * og + (1-og) * shift_1d(out, offset=1, axis=1)  # BTNd, BTN1->BTNd
+    else:
+      out = sum(out * og[..., i:i+1] + (1-og[..., i:i+1]) * shift_1d(out, offset=i+1, axis=1) 
+               for i in range(self.offset))
+    return out
 
 class Hiddenshift(nn.Module):
   config: Any

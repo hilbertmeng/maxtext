@@ -63,6 +63,8 @@ class Mlp(nn.Module):
   quant: Optional[Quant] = None
   layer_inx: int = None
   use_bias: bool = True
+  for_vmudd: bool = False
+  num_kv_heads: int = None
 
   def setup(self):
     cfg = self.config
@@ -82,7 +84,11 @@ class Mlp(nn.Module):
     layer_inx = self.layer_inx 
     layer_expansion = 1 if not self.config.mudd_comp_attn else 2
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
-    if self.config.mudd_num_heads is not None:
+    if self.for_vmudd:
+      C = self.num_kv_heads
+      assert len(self.config.sliding_window_size) == 4, f'{len(self.config.sliding_window_size)} != 4'
+      dw_shape = (C, layer_inx // len(self.config.sliding_window_size) + 1)
+    elif self.config.mudd_num_heads is not None:
       # init ov vectors 
       N = cfg.mudd_num_heads or 1
       self.ov_vectors = self.param('ov_vectors', nn.with_logical_partitioning(initializers.constant_init(1), (None,None,"embed",)), (C, N, cfg.base_emb_dim,), cfg.weight_dtype)
@@ -91,6 +97,7 @@ class Mlp(nn.Module):
       dw_shape = (C, ((layer_inx * layer_expansion + 1) * factor + 1))
 
     dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 else 1
+    if self.for_vmudd: dynamic_dense_hidden_expand = 1
     max_logging.log(f'dynamic_dense_hidden_expand-{layer_inx}: {dynamic_dense_hidden_expand}', debug=self.config.debug)
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
 
@@ -99,13 +106,14 @@ class Mlp(nn.Module):
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
 
     kwargs = dict(weight_dtype=cfg.weight_dtype, quant=self.quant)
+    suffix = '_vmudd' if self.for_vmudd else ''
     self.dense_proj1 = linears.DenseGeneral(
                                     dynamic_dense_inter_dim,
                                     kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
                                     kernel_axes=('embed', 'kv'),
                                     use_bias=False,
                                     dtype=jnp.float32 if cfg.mudd_in_fp32 else cfg.dtype,
-                                    name='dynamic_dense_conn1',
+                                    name='dynamic_dense_conn1' + suffix,
                                     **kwargs)
     self.dense_activation = linears._convert_to_activation_function(cfg.dynamic_dense_act_cls)
     
@@ -114,13 +122,14 @@ class Mlp(nn.Module):
                                     kernel_axes=('kv', None), 
                                     use_bias=False, 
                                     dtype=jnp.float32 if cfg.mudd_in_fp32 else cfg.dtype,
-                                    name='dynamic_dense_conn2', 
+                                    name='dynamic_dense_conn2' + suffix, 
                                     **kwargs)
     if self.use_bias:
-      self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
-      init_v = jnp.array([0] * ((layer_inx * layer_expansion + 1) * factor) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
+      self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm and not self.for_vmudd else 1.0
+      l = layer_inx // len(self.config.sliding_window_size) if self.for_vmudd else (layer_inx * layer_expansion + 1) * factor
+      init_v = jnp.array([0] * l + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
       init_v = init_v[None].repeat(C, 0)
-      self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
+      self.dense_proj2_bias = self.param(f"dense_proj2{suffix}.bias", init_fn=lambda rng: init_v)
 
   @nn.compact
   def __call__(
@@ -130,7 +139,14 @@ class Mlp(nn.Module):
     cfg = self.config
     mesh = self.mesh
     dyn_dense_w = None
-    if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
+    query_layers = list(range(cfg.num_decoder_layers))
+    if self.config.mudd_query_dilation is not None:
+      if self.config.mudd_comp_last_layer:
+        query_layers = query_layers[::self.config.mudd_query_dilation] + query_layers[-1:]
+      else:
+        query_layers = query_layers[self.config.mudd_query_dilation-1:][::self.config.mudd_query_dilation]
+      # print(f'query_layers: {query_layers}')
+    if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn and self.layer_inx in query_layers:
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
@@ -175,20 +191,19 @@ class Compose(nn.Module):
             shift_dw = self.shift_mlp(layer_output)
     else:     
         y, dyn_dense_w = layer_output
-        if dyn_dense_w is None: 
+        if dyn_dense_w is None and not self.config.dense_conn: 
           max_logging.log(f'Compose dyn_dense_w is None', debug=self.config.debug)
           return y, hids
 
     if self.config.mudd_num_heads is not None:
         dyn_dense_w, ov_vectors = dyn_dense_w
 
-
     max_logging.log(f'Compose history hidden states.', debug=self.config.debug)
     layer_inx = self.layer_inx
     cfg = self.config
     layer_expansion = 1 if not self.config.mudd_comp_attn else 2
 
-    if self.config.record_internal_nn_metrics:
+    if self.config.record_internal_nn_metrics and dyn_dense_w is not None:
         _dyn_dense_w = dyn_dense_w.astype(jnp.float32)
         self.sow('intermediates', f'dyn_dense_w/max/layer_{layer_inx}', jnp.max(_dyn_dense_w))
         self.sow('intermediates', f'dyn_dense_w/mean/layer_{layer_inx}', jnp.mean(_dyn_dense_w))
@@ -204,6 +219,9 @@ class Compose(nn.Module):
 
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
+    if dyn_dense_w is None:
+      # max_logging.log(f'Compose dyn_dense_w is None at layer_inx: {layer_inx}')
+      return y, hids
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 else len(cfg.dynamic_dense_type)
     max_logging.log(f'Compose dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}', debug=self.config.debug)
     if self.config.mudd_num_heads is not None:
@@ -237,4 +255,32 @@ class Compose(nn.Module):
     if layer_inx == cfg.num_decoder_layers - 1:
       del hids
       return y[0], []
+    return y, hids
+
+class ComposeValue(nn.Module):
+  config: Any
+  mesh: Mesh
+  quant: Optional[Quant] = None
+  layer_inx: int = None
+  num_kv_heads: int = None
+  
+  def setup(self):
+    self.mudd_mlp = Mlp(self.config, self.mesh, self.quant, self.layer_inx, for_vmudd=True, num_kv_heads=self.num_kv_heads)
+
+  @nn.compact
+  def __call__(self, layer_output, hids, inputs=None):
+    y, dyn_dense_w = layer_output, self.mudd_mlp(inputs)
+
+    max_logging.log(f'Compose history values.', debug=self.config.debug)
+    layer_inx = self.layer_inx
+    cfg = self.config
+
+    y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
+    hids.append(y_normed)
+    max_logging.log(f'Compose dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}', debug=self.config.debug)
+    dyn_dense_w = rearrange(dyn_dense_w, 'B T N L -> L B T N 1')
+    
+    max_logging.log(f'ddw_gen_pattern: {cfg.ddw_gen_pattern} mudd_postnorm is {cfg.vmudd_postnorm}....', debug=self.config.debug)
+    assert len(hids) == dyn_dense_w.shape[0], f'{len(hids)} != {dyn_dense_w.shape[0]}'
+    y = sum(hids[lidx] * dyn_dense_w[lidx] for lidx in range(len(hids)))  # [BTND,BTN1->BTND]*L->BTND
     return y, hids

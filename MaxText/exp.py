@@ -905,6 +905,12 @@ class DC2MuddLlamaMediumKV4QO16LGLLKVshiftFp32Normv5p(DC2MuddLlamaMediumKV4QO16L
 class DC2MuddLlamaMediumKV4QO16LGLLFixDCv5p(DC2MuddLlamaMediumKV4QO16LGLL):
     pass
 
+class DC2MuddLlamaMediumKV4QO16LGLLFixDCv5pEast(DC2MuddLlamaMediumKV4QO16LGLL):
+    pass
+
+class DC2MuddLlamaMediumKV4QO16LGLLFixDCv5pWest(DC2MuddLlamaMediumKV4QO16LGLL):
+    pass
+
 class DC2MuddLlamaMediumKV4QO16LGLLv5pWoDC(DC2MuddLlamaMediumKV4QO16LGLL):
     pre_compose = False
     post_compose = False
@@ -1046,9 +1052,27 @@ class DC2LlamaMediumKV4QO16LGLLv6e(DC2MuddLlamaMediumKV4QO16LGLLv6e):
     scan_layers = True
     num_layers_per_block = 4
 
-class DC2MuddLlamaMediumKV4QO16LGLLKVshift(KVshift, DC2MuddLlamaMediumKV4QO16LGLL):  # 0.527
+class DC2MuddLlamaMediumKV4QO16LGLLKVshift(KVshift, DC2MuddLlamaMediumKV4QO16LGLL):  # 0.527, _rerun 0.559
     kv_shift_mlp = False
     kv_shift_skip_knorm = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVOshift(DC2MuddLlamaMediumKV4QO16LGLLKVshift): # 0.545
+    o_shift_before_gate = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVOshift2(DC2MuddLlamaMediumKV4QO16LGLLKVOshift): # 0.545
+    o_shift_offset = 2
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVOshift3(DC2MuddLlamaMediumKV4QO16LGLLKVOshift):  # 0.542
+    o_shift_offset = 3
+
+class DC2MuddLlamaMediumKV4QO16LGLLOshift(DC2MuddLlamaMediumKV4QO16LGLL):
+    o_shift_before_gate = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftVMudd(DC2MuddLlamaMediumKV4QO16LGLLKVshift):  # 0.555
+    value_mudd_learning = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVshiftVMuddInpM(DC2MuddLlamaMediumKV4QO16LGLLKVshiftVMudd):
+    vmudd_inputs_m = True
 
 class DC2MuddLlamaMediumKV4QO16LGLLKVshiftv6e(DC2MuddLlamaMediumKV4QO16LGLLKVshift):  # nan at step 990
     query_chunk_size = 256 * 2
@@ -1100,6 +1124,7 @@ class DC2MuddLlamaMediumKV4QO16LGLLKVshiftmlpTanh(DC2MuddLlamaMediumKV4QO16LGLLK
 
 class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64A(DC2MuddLlamaMediumKV4QO16LGLL):
     o_gate_hidden_dim = 64
+    o_gate_act = 'sigmoid'  # added in _fixact
     base_mlp_dim = 2816 + int(512/4) - 43
 
 class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6e(DC2MuddLlamaMediumKV4QO16LGLLOgateHid64A):  # 0.554 nan at step 2. NaN or Inf found in input tensor  compile 2h17m
@@ -1144,9 +1169,12 @@ class DC2MuddLlamaMediumKV4QO16LGLLOgateHid64Av6eQChunkParallel(DC2MuddLlamaMedi
 class DC2MuddLlamaMediumKV4QO16LGLLKVshiftOgateHid64A(KVshift, DC2MuddLlamaMediumKV4QO16LGLLOgateHid64A):
     kv_shift_mlp = False
     kv_shift_skip_knorm = True
-    o_gate_hidden_dim = 64
-    base_mlp_dim = 2816 - 43
-    base_mlp_dim = 2816 + int(512/4) - 43
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVOshiftBeforeOgateHid64A(DC2MuddLlamaMediumKV4QO16LGLLKVshiftOgateHid64A):
+    o_shift_before_gate = True
+
+class DC2MuddLlamaMediumKV4QO16LGLLKVOshiftAfterOgateHid64A(DC2MuddLlamaMediumKV4QO16LGLLKVshiftOgateHid64A):
+    o_shift_after_gate = True
 
 class DC2MuddLlamaMediumKV4QO16VgateTanhBias(DC2MuddLlamaMediumKV4QO16VgateTanh):
     use_v_gate_bias = True
@@ -2233,6 +2261,10 @@ class LlamaXLGGQA4LGLL(LGLLWindow, TrainXL, LlamaXL):
     sharding_tolerance = 0.05
     record_internal_nn_metrics = 0
 
+class LlamaXLGGQA4LGLL36L(LlamaXLGGQA4LGLL): # 0.629 step/s
+    base_num_decoder_layers = 36
+    base_mlp_dim = 2816 + 256 
+
 class LlamaXLGGQA4LGLLKVshift(KVshift, LlamaXLGGQA4LGLL):
     kv_shift_mlp = False
     kv_shift_skip_knorm = False
@@ -2253,6 +2285,82 @@ class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p(KVshift, DC3MuddLlamaXLGQA4DC
     dc_in_fp32 = True
     mudd_postnorm = True
     mudd_prenorm = True
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p): # 0.272 step/s
+    base_num_decoder_layers = 36
+    base_mlp_dim = 2816 + 256
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L): # 0.357 step/s 
+    ablate_global_dc = True # no global dc
+    mudd_query_dilation = 2 # 
+    mudd_comp_last_layer = True
+    loop_over_dynamic_hd = True
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKH(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus):
+    knocking_heads = True 
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKW(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus): # 0.312
+    key_wise = [True, False, True, True]
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKWSW(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKW): # 0.278
+    static_proj = True
+    sw_squeeze_ratio = 8
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusOshift(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus): # 0.350
+    o_shift_before_gate = True
+    o_shift_offset = 1
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoGlobalDC(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L): # 0.321 step/s
+    ablate_global_dc = True
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoGlobalDCQshiftOgate(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoGlobalDC): # 0.312 step/s global layer: GQA+Qshift+Ogate + kvshift, local layer: MHA + dc + kvshift
+    loop_over_dynamic_hd = True
+    o_gate_act = 'sigmoid'
+    o_gate_hidden_dim = 128
+    base_mlp_dim = 2816 + 256 - 85 # 128 * 2 / 3 = 85.33
+    use_q_shift = True
+    kv_shift_hidden_way = 'qkv'
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LDCRank1(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L): # dc rank 1: 0.295 step/s 
+    dc_rank = 1
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPostCompose(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L): # 0.321 step/s without dc pre-compose
+    pre_compose = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LOgateWoQddFix(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L): # replace qdd by ogate: 0.277 step/s
+    ablate_qdd = True
+    o_gate_act = 'sigmoid'
+    o_gate_hidden_dim = 128
+    base_mlp_dim = 2816 + 256 - 85 # 128 * 2 / 3 = 85.33
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDC(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L): # 0.422 steps/s  / 0.586 = 72% , / 0.629 = 67%
+    pre_compose = False
+    post_compose = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDCQD2(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDC): # 0.479 step/s / 0.586 = 81.7%
+    mudd_query_dilation = 2 
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDCQD2LastLayer(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDCQD2): # 0.470 step/s / 0.586  = 80.2%
+    mudd_comp_last_layer = True
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDCSpeedTest(Trace, SpeedTest, DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDC): # 0.425
+    mudd_in_fp32 = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDCWoMuddSpeedTest(SpeedTest, DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDC): # 0.586 / 0.629 = 93% 
+    dense_conn = False
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDCOgateQshift(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDC): # 0.406 step/s
+    o_gate_act = 'sigmoid'
+    o_gate_hidden_dim = 128
+    base_mlp_dim = 2816 + 256 - 85 # 128 * 2 / 3 = 85.33
+    use_q_shift = True
+    kv_shift_hidden_way = 'qkv'
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDCOgateQshiftOuterDC(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LWoDCOgateQshift): # 0.312 step/s
+    outer_dc = True
+    dc_num_groups = 1
+    pre_compose = True
+    post_compose = True
 
 class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5pLkw(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p): # Local key-wise DC
     key_wise = [True, False, True, True]

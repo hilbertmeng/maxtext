@@ -41,6 +41,7 @@ from layers import accelerator
 from layers import normalizations
 from layers import kv_shift
 from layers import head_pool
+from layers import mudd
 
 import maxtext_utils
 import max_logging
@@ -1222,6 +1223,9 @@ class Attention(nn.Module):
       if self.use_kv_shift:
         self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init,
                                          num_kv_heads=self.num_kv_heads)
+      if self.config.o_shift_before_gate or self.config.o_shift_after_gate:
+        self.o_shift = kv_shift.OShift(config=self.config, mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init,
+                                       num_heads=self.num_query_heads, offset=self.config.o_shift_offset)
       
       if self.config.value_residual_learning:
         self.value_residual = kv_shift.ValueResidual(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
@@ -1504,6 +1508,11 @@ class Attention(nn.Module):
       value = self.kv_projection(inputs_kv, proj_name="value")
       inputs_k = inputs_v = inputs_kv
 
+    if self.config.knocking_heads:
+      shape = (self.head_dim,self.head_dim)
+      static_proj = self.param('kh_sw',nn.with_logical_partitioning(initializers.constant_init(0.0), ('data', None)), shape, self.weight_dtype)
+      value = jnp.einsum('BTNd,dk->BTNk', value, static_proj + jnp.eye(self.head_dim))
+
     if self.config.merge_kvshift_vr:
       if self.layer_inx == 0:
           value_residual = value
@@ -1516,6 +1525,15 @@ class Attention(nn.Module):
         else:
           inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
           value = self.value_residual(inputs_v, value, value_residual, inputs_m=hidden_states)
+      elif self.config.value_mudd_learning and self.sliding_window_size is None: # value_residual passes through SWA layers
+        if value_residual is None:
+          assert self.layer_inx == 1, f'{self.layer_inx}'  # XD debug: for LGLL
+          value_residual = [value]
+        else:
+          assert (self.layer_inx - 1) % 4 == 0, f'{self.layer_inx}'  # XD debug: for LGLL
+          value, value_residual = mudd.ComposeValue(
+            config=self.config, mesh=self.mesh, quant=self.quant, layer_inx=self.layer_inx, num_kv_heads=self.num_kv_heads)(
+            value, value_residual, inputs=hidden_states if self.config.vmudd_inputs_m else inputs_v)
 
       if self.use_kv_shift:
         inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
@@ -1629,6 +1647,8 @@ class Attention(nn.Module):
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv,
                             hidden_states=hidden_states, attn_bias=attn_bias, sinks=self.sinks)
 
+    if self.config.o_shift_before_gate: out = self.o_shift(out, inputs_m=hidden_states)
+
     if self.config.use_o_gate:
       o_gate = DenseGeneral((self.config.num_out_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
             kernel_init=self.kernel_init,kernel_axes=('embed', None),name="o_gate",)(inputs_q) # BTD,DN->BTN
@@ -1643,8 +1663,11 @@ class Attention(nn.Module):
       if self.config.o_gate_hidden_act == 'sigmoid': o_gate_hidden = jax.nn.sigmoid(o_gate_hidden)
       o_gate = DenseGeneral((inputs_q.shape[-1],),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
             kernel_init=self.kernel_init,kernel_axes=(None, 'embed'), name="o_gate_proj_2",)(o_gate_hidden)
+      assert self.config.o_gate_act
       if self.config.o_gate_act == 'sigmoid': o_gate = jax.nn.sigmoid(o_gate)
       out = out * rearrange(o_gate, 'B T (N D) -> B T N D', N=self.config.num_query_heads)
+
+    if self.config.o_shift_after_gate: out = self.o_shift(out, inputs_m=hidden_states)
 
     mixed_v = out
     if self.config.use_head_pool:

@@ -688,3 +688,6 @@ mtp_use_remat: False
 use_kv_shift: False
 
 loss_chunk_size: 1024
+
+use_embed_chunk: False
+embed_chunk_size: 512  # Chunk size for embedding dimension when use_embed_chunk is True

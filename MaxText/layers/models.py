@@ -334,10 +334,11 @@ class OutputHead(nn.Module):
     self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
   
   @nn.compact
-  def __call__(self, y, deterministic, int8=False):
+  def __call__(self, y, deterministic, int8=False, embed_chunk_size=None):
     cfg = self.config
     y = self.norm(y) # 20250925 fix, this bug occurred at MTP experiment.
     y = self.dropout(y, deterministic=deterministic)
+    
     if cfg.logits_via_embedding: # false
         max_logging.log(f'Word embedding shared: {cfg.logits_via_embedding}')
         # Use the transpose of embedding matrix for logit transform.
@@ -349,12 +350,39 @@ class OutputHead(nn.Module):
             logits = logits / cfg.final_logits_soft_cap
             logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
-      logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
-                        _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' and int8 else jax.lax.dot_general)
-      # logits = self.logits_dense(y)
+      # If embed_chunk_size is specified, split computation on embed dimension
+      if embed_chunk_size is not None and embed_chunk_size > 0:
+        embed_dim = y.shape[-1]
+        logits = None
+        num_chunks = (embed_dim + embed_chunk_size - 1) // embed_chunk_size
+        max_logging.log(f'Using embed chunking: embed_dim={embed_dim}, chunk_size={embed_chunk_size}, num_chunks={num_chunks}')
+        
+        # Split along embed dimension and accumulate results
+        for start_idx in range(0, embed_dim, embed_chunk_size):
+          end_idx = min(start_idx + embed_chunk_size, embed_dim)
+          chunk_slice = slice(start_idx, end_idx)
+          
+          # Compute partial logits: y[:,:,start:end] @ logits_dense[start:end,:]
+          y_chunk = y[..., chunk_slice]
+          weight_chunk = self.logits_dense[chunk_slice, :]
+          
+          logits_chunk = jnp.einsum('btd,dv->btv', y_chunk, weight_chunk,
+                                   _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' and int8 else jax.lax.dot_general)
+          
+          # Accumulate partial results
+          if logits is None:
+            logits = logits_chunk
+          else:
+            logits = logits + logits_chunk
+      else:
+        # Original non-chunked computation
+        logits = jnp.einsum('btd,dv->btv', y, self.logits_dense, 
+                          _dot_general=dot_general_int8.__call__ if self.config.quantization == 'int8' and int8 else jax.lax.dot_general)
+      
       logits = nn.with_logical_constraint(
           logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
       )
+    
     if cfg.cast_logits_to_fp32:
         logits = logits.astype(jnp.float32)
     return logits
@@ -677,15 +705,31 @@ class Decoder(nn.Module):
 
 
     # ============================ compute loss and accuracy ============================
-    xent, correct, main_model_preds = max_utils.compute_loss_chunked(
-      output_head_layer=OutputHeadLayer,
-      inputs=main_head_inputs,
-      target_tokens=decoder_target_tokens,
-      target_mask=decoder_target_mask,
-      vocab_size=cfg.vocab_size,
-      chunk_size=cfg.loss_chunk_size,
-      deterministic=deterministic,
-    )
+    # Choose chunking strategy based on config
+    if cfg.use_embed_chunk:
+      # Chunk on embedding dimension to save memory
+      max_logging.log(f'Using embed dimension chunking with embed_chunk_size={cfg.embed_chunk_size}')
+      xent, correct, main_model_preds = max_utils.compute_loss_chunked_embed_dim(
+        output_head_layer=OutputHeadLayer,
+        inputs=main_head_inputs,
+        target_tokens=decoder_target_tokens,
+        target_mask=decoder_target_mask,
+        vocab_size=cfg.vocab_size,
+        embed_chunk_size=cfg.embed_chunk_size,
+        deterministic=deterministic,
+      )
+    else:
+      # Chunk on sequence length dimension (original behavior)
+      max_logging.log(f'Using sequence length chunking with loss_chunk_size={cfg.loss_chunk_size}')
+      xent, correct, main_model_preds = max_utils.compute_loss_chunked(
+        output_head_layer=OutputHeadLayer,
+        inputs=main_head_inputs,
+        target_tokens=decoder_target_tokens,
+        target_mask=decoder_target_mask,
+        vocab_size=cfg.vocab_size,
+        chunk_size=cfg.loss_chunk_size,
+        deterministic=deterministic,
+      )
     mtp_xent = 0.0
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'

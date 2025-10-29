@@ -106,6 +106,52 @@ def compute_loss_chunked(
   return xents, correct, preds
 
 
+def compute_loss_chunked_embed_dim(
+    output_head_layer: Callable,
+    inputs: Array,
+    target_tokens: Array,
+    target_mask: Array,
+    vocab_size: int,
+    embed_chunk_size: int = 512,
+    deterministic: bool = True,
+) -> tuple[Array, Array, Array]:
+  """
+  Compute loss with chunking on the embedding dimension to save memory.
+  
+  This function splits the logits_dense parameter along the embed dimension (not vocab),
+  computes partial logits for each chunk, accumulates them, then calculates loss.
+  
+  Args:
+    output_head_layer: The output head layer with chunked_forward method
+    inputs: Input tensor of shape [batch, seq_len, embed_dim]
+    target_tokens: Target tokens of shape [batch, seq_len]
+    target_mask: Target mask of shape [batch, seq_len]
+    vocab_size: Vocabulary size
+    embed_chunk_size: Chunk size for embedding dimension
+    deterministic: Whether to use deterministic mode
+    
+  Returns:
+    Tuple of (cross_entropy_loss, correct_predictions, predictions)
+  """
+  # Call the chunked forward method that splits on embed dimension
+  logits = output_head_layer(inputs, deterministic=deterministic, embed_chunk_size=embed_chunk_size)
+  
+  # Compute predictions and correctness
+  preds = jnp.argmax(logits, axis=-1)
+  one_hot_targets = jax.nn.one_hot(target_tokens, vocab_size)
+  predictions_match = preds == target_tokens
+  correct = jnp.where(target_mask > 0.0, predictions_match, jnp.array(False))
+  correct = jnp.sum(correct)
+  
+  # Compute cross entropy loss
+  xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
+  xent = nn.with_logical_constraint(
+      xent, ("activation_embed_and_logits_batch", "activation_length")
+  )
+  
+  return xent, correct, preds
+
+
 def calculate_q_split_points_final(q_length: int, n: int, block_size: int = 128, power: float = 2/3) -> list[int]:
     """
     为Q序列计算分块位置，旨在均衡每个块的计算量。

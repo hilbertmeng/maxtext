@@ -185,15 +185,32 @@ class MultiTokenPredictionBlock(nn.Module):
       )
       
       mtp_head_inputs = next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state
-      mtp_xent, mtp_correct, mtp_model_preds = max_utils.compute_loss_chunked(
-        output_head_layer=output_layer,
-        inputs=mtp_head_inputs,
-        target_tokens=rolled_target_ids,
-        target_mask=rolled_target_mask,
-        vocab_size=cfg.vocab_size,
-        chunk_size=4096,
-        deterministic=deterministic,
-      )
+      
+      # Choose chunking strategy based on config (same as main model)
+      if cfg.use_embed_chunk:
+        # Chunk on embedding dimension to save memory
+        max_logging.log(f'MTP using embed dimension chunking with embed_chunk_size={cfg.embed_chunk_size}')
+        mtp_xent, mtp_correct, mtp_model_preds = max_utils.compute_loss_chunked_embed_dim(
+          output_head_layer=output_layer,
+          inputs=mtp_head_inputs,
+          target_tokens=rolled_target_ids,
+          target_mask=rolled_target_mask,
+          vocab_size=cfg.vocab_size,
+          embed_chunk_size=cfg.embed_chunk_size,
+          deterministic=deterministic,
+        )
+      else:
+        # Chunk on sequence length dimension (original behavior)
+        max_logging.log(f'MTP using sequence length chunking with chunk_size=2048')
+        mtp_xent, mtp_correct, mtp_model_preds = max_utils.compute_loss_chunked(
+          output_head_layer=output_layer,
+          inputs=mtp_head_inputs,
+          target_tokens=rolled_target_ids,
+          target_mask=rolled_target_mask,
+          vocab_size=cfg.vocab_size,
+          chunk_size=2048,
+          deterministic=deterministic,
+        )
       # mtp_xent_masked = mtp_xent * rolled_target_mask # BL
 
       # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.

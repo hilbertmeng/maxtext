@@ -230,6 +230,8 @@ class AttentionOp(nn.Module):
   ):
     self.check_attention_inputs(query, key, value)
     length = query.shape[-3]
+    sliding_window_size = self.sliding_window_size if self.sliding_window_size is not None else self.config.max_target_length
+    print(f'Attention sliding_window_size: {sliding_window_size}')
     if use_ragged_attention and model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
       if lengths is None:
         lengths = jnp.sum(decoder_segment_ids, axis=-1)
@@ -1144,61 +1146,13 @@ class Attention(nn.Module):
   use_kv_shift: bool = False
 
   def setup(self):
-    # When using dynamic pre/post composition with flash kernels, keep the
-    # standard AttentionOp (flash path) and fold compositions around it.
-    use_flash_like = self.config.attention in ("flash", "cudnn_flash_te", "autoselected")
-    if (self.config.pre_compose or self.config.post_compose) and use_flash_like:
-      self.attention_op = AttentionOp(
-        config=self.config,
-        mesh=self.mesh,
-        attention_kernel=self.attention_kernel,
-        max_target_length=self.max_target_length,
-        max_prefill_predict_length=self.max_prefill_predict_length,
-        float32_qk_product=self.float32_qk_product,
-        float32_logits=self.float32_logits,
-        quant=self.quant,
-        kv_quant=self.kv_quant,
-        num_query_heads=self.num_query_heads,
-        num_kv_heads=self.num_kv_heads,
-        dropout_rate=self.dropout_rate,
-        dtype=self.dtype,
-        prefill_cache_axis_order=self.prefill_cache_axis_order,
-        ar_cache_axis_order=self.ar_cache_axis_order,
-        compute_axis_order=self.compute_axis_order,
-        reshape_q=self.reshape_q,
-        attention_type=self.attention_type,
-        attn_logits_soft_cap=self.attn_logits_soft_cap,
-        sliding_window_size=self.sliding_window_size,
-        use_ragged_attention=self.use_ragged_attention,
-        ragged_block_size=self.ragged_block_size,
-      )
-      # Build dynamic-weight generator to produce query-wise composition weights.
-      # We only use the query-wise parts in flash-compatible mode.
-      num_groups = max(1, self.num_query_heads // max(1, self.num_kv_heads))
-      num_heads_per_group = self.num_query_heads // num_groups
-      I = 2
-      dynamic_w_hidden_dim = num_heads_per_group * I * 2
-      dyn_w_kwargs = {
-        'num_heads': self.num_query_heads,
-        'num_groups': num_groups,
-        'input_dim': self.num_query_heads * self.head_dim,
-        'n_splits': 4,
-        'dynamic_w_init': math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
-        'dynamic_d_init': math.sqrt(2 / (self.num_query_heads * self.head_dim + num_heads_per_group)) * 0.005,
-        'dynamic_squeeze_ratio': num_heads_per_group // I,
-        'dynamic_w_hidden_dim': dynamic_w_hidden_dim,
-        'dtype': self.dtype,
-        'weight_dtype': self.weight_dtype,
-        'precision': None,
-        'deterministic': False,
-        'dynamic_dropout_rate': 0.0,
-        'quant': self.quant,
-        'dc_use_muon': getattr(self.config, 'dc_use_muon', False),
-      }
-      self.dyn_w_proj = dc.DynamicWeightProjection(**dyn_w_kwargs)
-    elif self.config.pre_compose or self.config.post_compose:
+    # lsp: only use dc when sliding_window_size < max_target_length
+    if (self.config.pre_compose or self.config.post_compose) \
+      and (self.sliding_window_size < self.config.max_target_length or self.attention_kernel == "dot_product_chunk"):
+      max_logging.log(f'sws: {self.sliding_window_size} use dc chunk-{self.config.query_chunk_size} attn.')
       self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size)
     else:
+      max_logging.log(f'sws: {self.sliding_window_size} use {self.attention_kernel} attn.')
       self.attention_op = AttentionOp(
         config=self.config,
         mesh=self.mesh,
@@ -1376,16 +1330,6 @@ class Attention(nn.Module):
     return out_proj
 
   def apply_rotary_embedding(self, inputs: Array, inputs_positions: Array, name: str):
-    """Applies rotary embeddings, handling different model types.
-
-    Args:
-      inputs: The input tensor to apply rotary embeddings to.
-      inputs_positions: The positions of the inputs.
-      name: A name for the embedding layer.
-
-    Returns:
-      The input tensor with rotary embeddings applied.
-    """
     if self.config.attention_type == AttentionType.MLA.value:
       # For MLA attention RoPE is applied to only `self.qk_rope_head_dim` portion the heads.
       rope_embedding_dims = self.qk_rope_head_dim
@@ -1438,28 +1382,6 @@ class Attention(nn.Module):
       decoder_input_tokens: Array | None = None,
       deep_embedding: Array | None = None,
   ):
-    """Applies Attention on the input data.
-
-    Projects the inputs into multi-headed query, key, and value vectors,
-    applies dot-product attention and project the results to an output vector.
-
-    There are three modes: training, prefill and autoregression. During training, the KV cache
-    is ignored. During prefill, the cache is filled. During autoregression the cache is used.
-
-    In the cache initialization call, `inputs_q` has a shape [batch, length,
-    q_features] and `inputs_kv`: [batch, length, kv_features]. During the
-    incremental decoding stage, query, key and value all have the shape [batch,
-    1, qkv_features] corresponding to a single step.
-
-    Args:
-      inputs_q: input queries of shape `[batch, q_length, q_features]`.
-      inputs_kv: key/values of shape `[batch, kv_length, kv_features]`.
-      model_mode: corresponding to train, prefill and decode.
-      deterministic: Disables dropout if set to True.
-
-    Returns:
-      output of shape `[batch, length, q_features]`.
-    """
     cfg = self.config
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)

@@ -109,7 +109,6 @@ class DC:
 class KVshift:
     use_kv_shift = True
     kv_shift_flash = True
-    kv_shift_mlp = False
     kv_shift_hidden_way = 'kv'
     kv_shift_skip_knorm = True # remove knorm, duplicated when using qknorm 
 
@@ -806,6 +805,9 @@ class MTP1KVshiftOgateLama8BSlim(MTP1KVshiftLama8BSlim):
     o_gate_hidden_dim = 64
 
 class MuonMTP1KVshiftOgateLama8BSlim(Muon, MTP1KVshiftOgateLama8BSlim):
+    pass
+
+class MuonDEMTP1KVshiftOgateLama8BSlim(Muon, DE, MTP1KVshiftOgateLama8BSlim):
     pass
 
 class MuonMTP1KVshiftOgateMuddLama8BSlim(Mudd, MuonMTP1KVshiftOgateLama8BSlim):

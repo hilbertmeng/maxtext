@@ -92,7 +92,7 @@ class Mlp(nn.Module):
     self.dense_proj1 = linears.DenseGeneral(
                                     dynamic_dense_inter_dim,
                                     kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
-                                    kernel_axes=('embed', 'kv'),
+                                    kernel_axes=('embed', None),
                                     use_bias=False,
                                     name='dynamic_dense_conn1',
                                     **kwargs)
@@ -101,7 +101,7 @@ class Mlp(nn.Module):
     self.dense_proj2 = linears.DenseGeneral(
                                     dw_shape if not cfg.mudd_use_muon else np.prod(dw_shape), 
                                     kernel_init=initializers.contant_dense_init(0.0), 
-                                    kernel_axes=('kv', None, 'mlp') if not cfg.mudd_use_muon else ('kv', 'mlp'), 
+                                    kernel_axes=('kv', None, None) if not cfg.mudd_use_muon else ('kv', None), 
                                     use_bias=False, 
                                     # lsp：这个参数相当于scale的作用，感觉不适合muon
                                     name='dynamic_dense_conn2', 

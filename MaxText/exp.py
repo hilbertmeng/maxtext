@@ -756,6 +756,8 @@ class Lama8BSlimTest(Llama2Medium):
     model_name = 'Lama-8B-slim'
     attention = 'flash'
 
+
+
 class MuddLama8BSlim(Mudd, Lama8BSlimTest):
     pass
 
@@ -770,10 +772,16 @@ class DCLama8BSlim(DC, LGWindow, Lama8BSlimTest):
 class MTP1Lama8BSlim(MTP1Layer, Lama8BSlimTest):
     base_num_decoder_layers = 15
 
+class DEMTP1Lama8BSlim(DE, MTP1Lama8BSlim):
+    pass
+
 class MuddMTP1Lama8BSlim(Mudd, MTP1Lama8BSlim):
     pass
 
 class DELama8BSlim(DE, Lama8BSlimTest):
+    pass
+
+class MuonDELlama8BSlim(Muon, DELama8BSlim):
     pass
 
 class DEOsLama8BSlim(DE, Lama8BSlimTest):

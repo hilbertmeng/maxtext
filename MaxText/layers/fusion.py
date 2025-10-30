@@ -96,7 +96,7 @@ class SubDecoderLayer(nn.Module):
   ):
     cfg = self.config
     mesh = self.mesh
-    if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm': # lsp
+    if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm' and isinstance(inputs, tuple|list): # lsp
       lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
       inputs = inputs[3]
     else:
@@ -110,8 +110,8 @@ class SubDecoderLayer(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
     )
       lnx = lnx_rms(inputs)
-
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+      lnx_kv = [lnx, lnx]
 
     # Self-attention block
     attention_layer = Attention(
@@ -349,6 +349,7 @@ class FusionDecoderLayer(nn.Module):
             layer_inx=len(hids), 
             name='compose',
             C=4,
+            compose=True if self.layer_inx in cfg.compose_layers else False,
             )(
               layer_output=inputs, 
               hids=hids,
@@ -371,6 +372,7 @@ class FusionDecoderLayer(nn.Module):
         inputs, hids = mudd.Compose(
           cfg, self.mesh, self.quant, 
           layer_inx=len(hids), 
+          compose=True,
           name=f'compose_break',
           C=C,
           )(

@@ -95,6 +95,7 @@ class Mudd:
     dynamic_dense_scale_dw = False
     scan_layers = False
     mudd_in_layer = True
+    compose_layers = range(1, 60, 1)
 
 class DC:
     pre_compose = True

@@ -205,6 +205,7 @@ class Compose(nn.Module):
   quant: Optional[Quant] = None
   layer_inx: int = None
   C: int = 4
+  compose: bool = False
           
   @nn.compact
   def __call__(
@@ -217,15 +218,17 @@ class Compose(nn.Module):
     
     y = layer_output
     C = self.C
-    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=C)(layer_output, decoder_input_tokens)
+    y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
+    hids.append(y_normed)
+    if not self.compose:
+      return y, hids
 
+    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=C)(layer_output, decoder_input_tokens)
     if self.config.record_internal_nn_metrics:
       for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
         self.sow('intermediates', f'dyn_dense_w/{op.__name__}', op(dyn_dense_w.astype(jnp.float32)))
       self.sow('intermediates', f'layer_output/norm', l2norm(y.astype(jnp.float32)))
 
-    y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
-    hids.append(y_normed)
     max_logging.log(f'C: {C} hids length: {len(hids)}')
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm", cfg=cfg, scale_init=nn.initializers.constant(0.001))

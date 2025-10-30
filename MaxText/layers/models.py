@@ -662,7 +662,7 @@ class Decoder(nn.Module):
             )
     max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}')
     if cfg.dense_conn:
-      main_head_inputs, mtp_head_inputs = y if cfg.mtp_num_layers > 0 else [y, None]
+      main_head_inputs, mtp_head_inputs = y if cfg.mtp_num_layers > 0 else [y[0], None]
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
 
@@ -673,7 +673,6 @@ class Decoder(nn.Module):
                         quant=self.quant,
                         name='lm_head')
     max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
-
 
     # ============================ compute loss and accuracy ============================
     # Choose chunking strategy based on config

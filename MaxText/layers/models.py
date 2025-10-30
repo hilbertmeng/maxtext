@@ -426,42 +426,13 @@ class Decoder(nn.Module):
       return [DecoderLayer]
     elif self.config.decoder_block == "llama2":
       from layers import llama2
-
       return [llama2.LlamaDecoderLayer]
-    elif self.config.decoder_block == "mistral":
-      # TODO(ranran): update to Mistral with sliding window attention
-      from layers import mistral
-
-      return [mistral.MistralDecoderLayer]
     elif self.config.decoder_block == "deepseek":
       from layers import deepseek
-
       return [deepseek.DeepSeekDenseLayer, deepseek.DeepSeekMoELayer]
-    elif self.config.decoder_block == "gemma":
-      from layers import gemma
-
-      return [gemma.GemmaDecoderLayer]
-    elif self.config.decoder_block == "gemma2":
-      from layers import gemma2
-
-      return [gemma2.Gemma2DecoderLayer]
-    elif self.config.decoder_block == "gpt3":
-      from layers import gpt3
-
-      return [gpt3.Gpt3DecoderLayer]
-    elif self.config.decoder_block == "simple":
-      from layers import simple_layer
-
-      return [simple_layer.SimpleDecoderLayer]
-    elif self.config.decoder_block == "simple_mlp":
-      from layers import simple_layer
-
-      return [simple_layer.SimpleMlpDecoderLayer]
-
     elif self.config.decoder_block == "fusion": # lsp
       from layers import fusion
       return [fusion.FusionDecoderLayer]
-
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
@@ -706,7 +677,7 @@ class Decoder(nn.Module):
 
     # ============================ compute loss and accuracy ============================
     # Choose chunking strategy based on config
-    if cfg.use_embed_chunk:
+    if cfg.use_embed_chunk: # 更快，但显存更大
       # Chunk on embedding dimension to save memory
       max_logging.log(f'Using embed dimension chunking with embed_chunk_size={cfg.embed_chunk_size}')
       xent, correct, main_model_preds = max_utils.compute_loss_chunked_embed_dim(
@@ -745,27 +716,34 @@ class Decoder(nn.Module):
       else:
         RematMTPLayer = mtp.MultiTokenPredictionBlock
         transformer_layer_module = RemattedBlockLayers[0]
+        # transformer_layer_module = self.decoder_layer[0]
 
-      mtp_xent = RematMTPLayer(
-        config=cfg,
-        mesh=mesh,
-        quant=self.quant,
-        name="mtp_block",
-        transformer_layer_module=transformer_layer_module,
-        shared_embedding=self.shared_embedding,
-      )(
-        OutputHeadLayer,
-        mtp_head_inputs,
-        decoder_input_tokens,
-        decoder_target_tokens,
-        decoder_target_mask,
-        decoder_positions,
-        decoder_segment_ids,
-        deterministic,
-        model_mode,
-        hids=hids,
-        # main_model_preds=main_model_preds,
-      )
+      mtp_block = RematMTPLayer(
+          config=cfg,
+          mesh=mesh,
+          quant=self.quant,
+          name="mtp_block",
+          transformer_layer_module=transformer_layer_module,
+          shared_embedding=self.shared_embedding,
+        )
+      chunks = 2 # reduce half logits memory
+      bcs = mtp_head_inputs.shape[0] // chunks
+      for b in range(0, mtp_head_inputs.shape[0], bcs):
+        _mtp_xent = mtp_block(
+          OutputHeadLayer,
+          mtp_head_inputs[b:b+bcs],
+          decoder_input_tokens[b:b+bcs],
+          decoder_target_tokens[b:b+bcs],
+          decoder_target_mask[b:b+bcs],
+          decoder_positions[b:b+bcs],
+          decoder_segment_ids[b:b+bcs] if decoder_segment_ids is not None else None,
+          deterministic,
+          model_mode,
+          hids=hids,
+        )
+        print(f'_mtp_xent: {_mtp_xent.shape}')
+        mtp_xent += _mtp_xent
+      mtp_xent = mtp_xent / chunks
 
     return xent, correct, mtp_xent
 

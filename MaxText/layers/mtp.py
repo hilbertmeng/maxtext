@@ -188,7 +188,6 @@ class MultiTokenPredictionBlock(nn.Module):
       
       # Choose chunking strategy based on config (same as main model)
       if cfg.use_embed_chunk:
-        # Chunk on embedding dimension to save memory
         max_logging.log(f'MTP using embed dimension chunking with embed_chunk_size={cfg.embed_chunk_size}')
         mtp_xent, mtp_correct, mtp_model_preds = max_utils.compute_loss_chunked_embed_dim(
           output_head_layer=output_layer,
@@ -196,7 +195,7 @@ class MultiTokenPredictionBlock(nn.Module):
           target_tokens=rolled_target_ids,
           target_mask=rolled_target_mask,
           vocab_size=cfg.vocab_size,
-          embed_chunk_size=cfg.embed_chunk_size,
+          embed_chunk_size=4096,
           deterministic=deterministic,
         )
       else:
@@ -208,7 +207,7 @@ class MultiTokenPredictionBlock(nn.Module):
           target_tokens=rolled_target_ids,
           target_mask=rolled_target_mask,
           vocab_size=cfg.vocab_size,
-          chunk_size=2048,
+          chunk_size=4096, # 如果显存不够可以设置为2048
           deterministic=deterministic,
         )
       # mtp_xent_masked = mtp_xent * rolled_target_mask # BL

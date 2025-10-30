@@ -738,7 +738,7 @@ class Decoder(nn.Module):
           decoder_segment_ids[b:b+bcs] if decoder_segment_ids is not None else None,
           deterministic,
           model_mode,
-          hids=hids,
+          hids=[h[b:b+bcs] for h in hids],
         )
         print(f'_mtp_xent: {_mtp_xent.shape}')
         mtp_xent += _mtp_xent

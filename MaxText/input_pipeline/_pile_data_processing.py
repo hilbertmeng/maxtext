@@ -12,9 +12,35 @@ from jax import numpy as jnp
 import multihost_dataloading
 from google.cloud import storage
 from etils import epath
-from jax.interpreters import pxla
-from functools import partial
-from jax.sharding import PartitionSpec as PS
+
+
+def names_in_current_mesh(*names):
+    """ Check if current mesh axes contain these names. """
+    mesh_axis_names = pxla.thread_resources.env.physical_mesh.axis_names
+    return set(names) <= set(mesh_axis_names)
+
+
+def get_names_from_parition_spec(partition_specs):
+    """ Return axis names from partition specs. """
+    names = set()
+    if isinstance(partition_specs, dict):
+        partition_specs = partition_specs.values()
+    for item in partition_specs:
+        if item is None:
+            continue
+        elif isinstance(item, str):
+            names.add(item)
+        else:
+            names.update(get_names_from_parition_spec(item))
+
+    return list(names)
+
+
+def with_sharding_constraint(x, partition_specs):
+    axis_names = get_names_from_parition_spec(partition_specs)
+    if names_in_current_mesh(*axis_names):
+        x = jax.lax.with_sharding_constraint(x, partition_specs)
+    return x
 
 class PileDatasets():
     def __init__(self,
@@ -112,7 +138,6 @@ class PileDatasets():
           return output
         unpadded = next(self.dataset)
         pad_size = int(self.batch_padding_size)
-        print(f'pad_size: {pad_size}')
         if pad_size == 0:
             return unpadded
         return jax.tree_util.tree_map(
@@ -169,12 +194,14 @@ class PileDatasets():
             max_logging.log(f'This eval mode......')
             ds = ds.batch(self.num_infeed_hosts, drop_remainder=True)
             ds = ds.unbatch()
-        # process_index = jax.process_index()
-        # ds = ds.shard(self.num_infeed_hosts, process_index) # 不保证每台机器数据一样多。
+        process_index = jax.process_index()
+        ds = ds.shard(self.num_infeed_hosts, process_index) # 不保证每台机器数据一样多。
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE) # 取 seq_len + 1
         max_logging.log(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
+        
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
+
         padded_shapes = {key: self.seq_len + 1 for key in self.task_features}
         padding_values = {key: 0 if key == 'input_ids' else -100 for key in self.task_features}
         ds = ds.padded_batch(
@@ -185,9 +212,13 @@ class PileDatasets():
         )
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size // self.batch_size)
+
         ds = ds.map(self.convert)
         ds = ds.prefetch(tf.data.AUTOTUNE)
-        if self.step_in_file: ds = ds.skip(self.step_in_file) 
+        if self.step_in_file: ds = ds.skip(self.step_in_file)  # XD fix
+        # local data to global data
+        ds = multihost_dataloading.MultiHostDataLoadIterator(ds, self.mesh)
+
         return ds
 
     def load_tfrecord_dataset(self, fnames):
@@ -201,15 +232,10 @@ class PileDatasets():
             fname = repeat_fnames[n * self.iter_file_nums : (n + 1) * self.iter_file_nums]
             self.meta_dict["cur_files"] = fname
             ds = self._load_file_dataset(fname)
-            ds = ds.as_numpy_iterator()
             for batch in ds:
                 self.meta_dict["step_in_file"] += 1
                 self.step_in_file += 1
-                sharded_batch = jax.tree_util.tree_map(
-                    lambda v: jax.lax.with_sharding_constraint(v, PS(('fsdp', 'data'))),
-                    batch
-                )
-                yield sharded_batch
+                yield batch
             self.meta_dict["file_in_data"] += 1
             self.meta_dict["step_in_file"] = 0
             self.step_in_file = 0

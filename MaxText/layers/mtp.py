@@ -200,7 +200,7 @@ class MultiTokenPredictionBlock(nn.Module):
         )
       else:
         # Chunk on sequence length dimension (original behavior)
-        max_logging.log(f'MTP using sequence length chunking with chunk_size=2048')
+        max_logging.log(f'MTP using sequence length chunking')
         mtp_xent, mtp_correct, mtp_model_preds = max_utils.compute_loss_chunked(
           output_head_layer=output_layer,
           inputs=mtp_head_inputs,

@@ -1093,11 +1093,11 @@ def train_loop(config, state=None):
         prof.activate(blocking_object=state, optional_postfix=optional_postfix)
 
       with jax.profiler.StepTraceAnnotation("train", step_num=step):
-        example_batch = load_next_batch(data_iterator, example_batch, config)
-        check_example_batch(config, example_batch=example_batch)
-        # pylint: disable=not-callable
         nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+          example_batch = load_next_batch(data_iterator, example_batch, config)
+          check_example_batch(config, example_batch=example_batch)
+          # pylint: disable=not-callable
           state, metrics = p_train_step(state, example_batch, nextrng)
 
       step_time_delta = datetime.datetime.now() - last_step_completion
@@ -1148,17 +1148,17 @@ def train_loop(config, state=None):
       correct, accuracy, mean_b_loss, mtp_loss, mtp_accept_rate = 0, 0, 0, 0, 0 # lsp
       start_step = step_in_file
       for _ in range(eval_steps):
-        try: eval_batch = next(eval_data_iterator)
-        except:
-          max_logging.log('Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.')
-          eval_data_iterator.reset()
-          # -1 means eval whole dataset, otherwise must eval eval_steps examples
-          if config.eval_steps == -1 or start_step == 0: break # 意味着从头到尾都评测完了，不需要继续了。
-          else: eval_batch = next(eval_data_iterator)
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-          if config.only_eval: # lsp
-            nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
-          eval_metrics = p_eval_step(state, eval_batch, nextrng)
+          try: eval_batch = next(eval_data_iterator)
+          except:
+            max_logging.log('Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.')
+            eval_data_iterator.reset()
+            # -1 means eval whole dataset, otherwise must eval eval_steps examples
+            if config.eval_steps == -1 or start_step == 0: break # 意味着从头到尾都评测完了，不需要继续了。
+            else: eval_batch = next(eval_data_iterator)
+        if config.only_eval: # lsp
+          nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
+        eval_metrics = p_eval_step(state, eval_batch, nextrng)
         cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
         cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
         cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])

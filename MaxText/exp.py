@@ -118,7 +118,7 @@ class MTP1Layer:
     mtp_eval_target_module = 1
     mtp_loss_scaling_factor = 0.1
     mtp_use_compose = False
-    mtp_use_remat = True
+    mtp_use_remat = False
 
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     base_emb_dim = 1024
@@ -769,6 +769,22 @@ class DCLama8BSlim(DC, LGWindow, Lama8BSlimTest):
     key_wise = False
     ggqa = 4
 
+class DCMuddLama8BSlim(DC, LGWindow, MuddPNFLama8BSlim):
+    key_wise = False
+    ggqa = 4
+
+class DEDCMuddLama8BSlim(DE, DCMuddLama8BSlim):
+    pass
+
+class MtpOgateDEDCMuddLama8BSlim(MTP1Layer, DEDCMuddLama8BSlim):
+    o_gate_hidden_dim = 64
+
+class MtpOgateKVshiftDEDCMuddLama8BSlim(KVshift, MtpOgateDEDCMuddLama8BSlim):
+    pass
+
+class MuonMtpOgateKVshiftDEDCMuddLama8BSlim(Muon, MtpOgateKVshiftDEDCMuddLama8BSlim):
+    pass
+
 class MTP1Lama8BSlim(MTP1Layer, Lama8BSlimTest):
     base_num_decoder_layers = 15
 
@@ -818,7 +834,9 @@ class MuonDeMTP1KVshiftOgateMuddLama8BSlim(DE, MuonMTP1KVshiftOgateMuddLama8BSli
     pass
 
 class MuonMTP1KVshiftOgateDcMuddLama8BSlim(DC, LGLLWindow, MuonDeMTP1KVshiftOgateMuddLama8BSlim):
-    pass
+    ggqa = 4
+    key_wise = False
+    mtp_use_remat = False
 
 class MuonDeDcMuddMtp1KvshiftOgateLgllGgqa4(Muon, MTP1Layer, KVshift, LGLLWindow, DCMuddLlama2Medium):
     base_emb_dim = 4096

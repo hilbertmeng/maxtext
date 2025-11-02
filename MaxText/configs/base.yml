@@ -685,9 +685,13 @@ bucket_log_buffer_size: 500   # Maximum buffer size before forced upload (defaul
 remat_prevent_cse: True
 mtp_use_remat: False
 
-use_kv_shift: False
-
 loss_chunk_size: 1024
 
 use_embed_chunk: False
 embed_chunk_size: 512  # Chunk size for embedding dimension when use_embed_chunk is True
+
+# kv_shift params
+use_kv_shift: False
+kv_shift_flash: True
+kv_shift_hidden_way: 'kv'
+kv_shift_skip_knorm: True # remove knorm, duplicated when using qknorm 

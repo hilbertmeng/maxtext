@@ -1183,8 +1183,7 @@ class Attention(nn.Module):
         config=self.config,
         mesh=self.mesh, 
         quant=self.quant, 
-        kernel_init=
-        self.kernel_init, 
+        kernel_init=self.kernel_init, 
         num_kv_heads=self.num_kv_heads // ggqa
         )
 
@@ -1402,6 +1401,7 @@ class Attention(nn.Module):
 
     if self.use_kv_shift:
       inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
+      print(f'Attention use_kv_shift')
       query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v)
 
     if self.config.qk_norm:

@@ -24,19 +24,28 @@ def shift_1d(inputs, offset: int, axis: int):
       ((max(offset, 0), -min(offset, 0)) if i == axis else (0, 0))
       for i in range(len(inputs.shape))
   ]
-  input_length = jnp.shape(inputs)[axis]
-  padded_inputs = jnp.pad(inputs, paddings, mode='edge')
-  if offset > 0:
-    output = jax.lax.slice_in_dim(
-        padded_inputs, start_index=0, limit_index=input_length, axis=axis
-    )
-  else:
-    output = jax.lax.slice_in_dim(
-        padded_inputs,
-        start_index=-offset,
-        limit_index=input_length - offset,
-        axis=axis,
-    )
+  print(f'paddings: {paddings}')
+  # Use static shape instead of dynamic shape for JAX 0.6.2+ compatibility
+  # input_length = inputs.shape[axis]
+  # padded_inputs = jnp.pad(inputs, paddings)
+  # print(f'padded_inputs shape: {padded_inputs.shape}')
+  # if offset > 0:
+  # output = jax.lax.slice_in_dim(
+  #     padded_inputs, start_index=0, limit_index=4096, axis=1
+  # )
+  output = inputs[:, :4096]
+  # output = jax.lax.dynamic_slice_in_dim(
+  #     padded_inputs, start_index=0, slice_size=4096, axis=1
+  # )
+  print(f'output shape: {output.shape}')
+
+  # else:
+  #   output = jax.lax.slice_in_dim(
+  #       padded_inputs,
+  #       start_index=-offset,
+  #       limit_index=input_length - offset,
+  #       axis=axis,
+  #   )
   return output
 
 class KVshift(nn.Module):
@@ -63,17 +72,30 @@ class KVshift(nn.Module):
     self.num_shifts = 2 if not self.q_shift else 3
     self.kv_shift_hidden_way = cfg.kv_shift_hidden_way
     
-    if self.kv_shift_hidden_way in ['kv', 'qkv'] and cfg.kv_shift_flash: # kv
-      for mode in self.kv_shift_hidden_way:
-        setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
-                                    (self.num_kv_heads, ),
-                                    kernel_init=initializers.contant_dense_init(0.0),
-                                    kernel_axes=('embed', "kv_heads"),
-                                    use_bias=False,
-                                    name=f'kv_shift_proj_{mode}',
-                                    **kwargs))
-    else:
-      self.dw_proj = linears.DenseGeneral(
+    for mode in self.kv_shift_hidden_way:
+      # self.dw_proj_k = linears.DenseGeneral(
+      #                             (self.num_kv_heads, ),
+      #                             kernel_init=initializers.contant_dense_init(0.0),
+      #                             kernel_axes=('embed', "kv_heads"),
+      #                             use_bias=False,
+      #                             name=f'kv_shift_proj_{mode}',
+      #                             **kwargs)
+      # self.dw_proj_v = linears.DenseGeneral(
+      #                             (self.num_kv_heads, ),
+      #                             kernel_init=initializers.contant_dense_init(0.0),
+      #                             kernel_axes=('embed', "kv_heads"),
+      #                             use_bias=False,
+      #                             name=f'kv_shift_proj_{mode}',
+      #                             **kwargs)
+      setattr(self, f'dw_proj_{mode}', linears.DenseGeneral(
+                                  (self.num_kv_heads, ),
+                                  kernel_init=initializers.contant_dense_init(0.0),
+                                  kernel_axes=('embed', "kv_heads"),
+                                  use_bias=False,
+                                  name=f'kv_shift_proj_{mode}',
+                                  **kwargs))
+
+    self.dw_proj = linears.DenseGeneral(
                                     (self.num_kv_heads * self.num_shifts, ),
                                       kernel_init=initializers.contant_dense_init(0.0),
                                       kernel_axes=('embed', "kv_heads"),
@@ -95,12 +117,24 @@ class KVshift(nn.Module):
     inputs = inputs_q
 
     if self.config.kv_shift_flash:
-      kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))[..., jnp.newaxis]
-      vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))[..., jnp.newaxis]
-      key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
-      value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
+      print(f'kv flash')
+      # kg = jax.nn.sigmoid(self.dw_proj_k(inputs))[..., jnp.newaxis]
+      # vg = jax.nn.sigmoid(self.dw_proj_v(inputs))[..., jnp.newaxis]
+      # # dw = jax.nn.sigmoid(self.dw_proj(inputs[:,1:]))
+      # # dw = dw.reshape(*dw.shape[:-1], -1, self.num_shifts)
+      # # key = key * kg + (1-kg) * key
+      # # value = value * vg + (1-vg) * value
+      # key = key.at[:, :].set( key[:,:] * kg + (1-kg) * key[:,:]) 
+      # value = value.at[:, :].set( value[:,:] * vg + (1-vg) * value[:,:])
+      print(f'kv not flash')
+      dw = jax.nn.sigmoid(self.dw_proj(inputs[:,1:]))
+      dw = dw.reshape(*dw.shape[:-1], -1, self.num_shifts)
+      kg, vg = dw[...,:1], dw[...,1:] # B(T-1)N1
+      key = key.at[:, 1:].set( key[:,1:] * kg + (1-kg) * key[:,:-1]) 
+      value = value.at[:, 1:].set( value[:,1:] * vg + (1-vg) * value[:,:-1])
 
     else:
+      print(f'kv not flash')
       dw = jax.nn.sigmoid(self.dw_proj(inputs[:,1:]))
       dw = dw.reshape(*dw.shape[:-1], -1, self.num_shifts)
       kg, vg = dw[...,:1], dw[...,1:] # B(T-1)N1

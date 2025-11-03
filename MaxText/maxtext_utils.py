@@ -66,8 +66,15 @@ def get_functional_eval_step(eval_step, model, config):
   return functools.partial(eval_step, model, config)
 
 
-def load_compiled(config, partial_train, state):
-  """# Loading a serialized compiled train step function."""
+def load_compiled(config, partial_train, state, mesh):
+  """# Loading a serialized compiled train step function.
+  
+  Args:
+    config: Configuration object
+    partial_train: Partial train function
+    state: Training state
+    mesh: Mesh object containing the actual devices for execution
+  """
 
   # Currently partial_train and state  are needed to reconstruct
   # input/output shapes to construct the in_trees and out_trees for load API
@@ -89,7 +96,15 @@ def load_compiled(config, partial_train, state):
   shaped_input_args = (state, shaped_batch, example_rng)
   shaped_input_kwargs = {}
   in_tree, out_tree = get_train_input_output_trees(partial_train, shaped_input_args, shaped_input_kwargs)
-  p_train_step = deserialize_and_load(serialized_compiled, in_tree, out_tree)
+  
+  # In JAX 0.6.2+, we need to explicitly provide execution_devices to map
+  # the compiled function to the actual runtime devices.
+  # Use devices from the mesh to ensure correct multi-process device mapping.
+  execution_devices = mesh.devices.flatten().tolist()
+  print(f"[DEBUG] Loading compiled function with {len(execution_devices)} execution_devices:", flush=True)
+  for i, d in enumerate(execution_devices):
+    print(f"  Device {i}: {d} (id={d.id}, process={d.process_index}, coords={getattr(d, 'coords', 'N/A')})", flush=True)
+  p_train_step = deserialize_and_load(serialized_compiled, in_tree, out_tree, execution_devices=execution_devices)
   return p_train_step
 
 

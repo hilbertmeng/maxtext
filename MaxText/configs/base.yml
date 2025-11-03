@@ -364,6 +364,7 @@ dataset_path: "" # your path given as argument in download_dataset.sh, e.g. "gs:
 dataset_name: 'c4/en:3.0.1'
 eval_dataset_name: 'c4/en:3.0.1'
 eval_split: 'validation'
+iter_file_nums: 20
 # for HuggingFace input pipeline (dataset_type=hf)
 hf_path: ''
 hf_data_dir: ''

@@ -680,7 +680,7 @@ def compute_params_norm(params, config): # lsp
     newk = k.replace('params', 'total_params')
     if config.scan_layers and ('layers' in k and 'mtp' not in k): # lsp: mtp heads no scan
       axis = list(range(v.ndim))
-      max_logging.log(f'axis: {axis}, k: {k}, v.shape: {v.shape}')
+      # max_logging.log(f'axis: {axis}, k: {k}, v.shape: {v.shape}')  # Cannot use in jit function
       axis.pop(config.param_scan_axis)
       normv = jnp.sqrt(jnp.sum(jnp.square(v), axis=axis))
       for lyr in range(normv.shape[0]):
@@ -759,7 +759,7 @@ def train_step(model, config, state_mesh_shardings, mesh, state, data, dropout_r
   
   attn_smax = _extract_attn_smax(intermediate_outputs)
   tau = getattr(config, 'attn_logit_threshold', None)
-  max_logging.log(f'attn_smax: {attn_smax} tau: {tau}')
+  # max_logging.log(f'attn_smax: {attn_smax} tau: {tau}')  # Cannot use in jit function
   if tau and attn_smax is not None:
     qk_scale_c = jnp.where(attn_smax > tau, jnp.sqrt(tau / (attn_smax + 1e-12)), 1.0)
   else:
@@ -780,7 +780,7 @@ def train_step(model, config, state_mesh_shardings, mesh, state, data, dropout_r
   
   if tau: # not none and > 0
     # Apply scaling only if the feature is enabled (tau provided)
-    max_logging.log(f'qk_scale_c: {qk_scale_c}')
+    # max_logging.log(f'qk_scale_c: {qk_scale_c}')  # Cannot use in jit function
     scaled_params = dict(new_state.params)
     scaled_params['params'] = _scale_qk_params(new_state.params['params'], qk_scale_c)
     new_state = new_state.replace(params=scaled_params)
@@ -875,6 +875,10 @@ def setup_mesh_and_model(config):
 
   # Mesh definition
   devices_array = max_utils.create_device_mesh(config)
+  devices_flat = devices_array.flatten()
+  print(f"[DEBUG TRAIN] Using {len(devices_flat)} devices for training:", flush=True)
+  for i, d in enumerate(devices_flat):
+    print(f"  Device {i}: {d} (id={d.id}, process={d.process_index}, coords={getattr(d, 'coords', 'N/A')})", flush=True)
   mesh = Mesh(devices_array, config.mesh_axes)
 
   # Model and Optimizer definition
@@ -1037,7 +1041,7 @@ def train_loop(config, state=None):
   if config.compiled_trainstep_file != "":
     max_logging.log("Loading the compiled function...")
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
-    p_train_step = maxtext_utils.load_compiled(config, functional_train, state)
+    p_train_step = maxtext_utils.load_compiled(config, functional_train, state, mesh)
     # TODO: p_eval_step is not yet supported in load_compiled
     p_eval_step = None
     max_logging.log("Loaded compiled function!")

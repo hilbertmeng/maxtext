@@ -661,3 +661,5 @@ muon_decay_ratio: 0.075 # for medium, can get better result with 0.1, maybe < 0.
 
 kv_shift_flash: True
 decay_method: 'cosine'
+
+iter_file_nums: 20

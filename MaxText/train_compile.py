@@ -23,6 +23,8 @@ before having to use the target hardware - you will see the same OOM error messa
 as you would on the target hardware.
 """
 
+import os
+
 import jax
 from jax.experimental.topologies import get_topology_desc
 from jax.sharding import Mesh
@@ -36,7 +38,6 @@ from layers import models
 from layers import quantizations
 from typing import Sequence
 from absl import app
-import os
 import pickle
 import accelerator_to_spec_map
 import train
@@ -65,6 +66,7 @@ def get_topology_mesh(config):
     jax.config.update("mock_num_gpu_processes", config.compile_topology_num_slices)
     topology_devices = jax.devices()
   else:
+    # Uncomment below if you need to compile for different topology than current hardware:
     topology_devices = get_topology_desc(
         platform=target_hardware.platform,
         topology_name=target_hardware.topology_name,
@@ -73,7 +75,12 @@ def get_topology_mesh(config):
         num_slices=config.compile_topology_num_slices,
         wrap=target_hardware.wrap,
     ).devices
+    print(f"[DEBUG COMPILE] Using {len(topology_devices)} devices for compilation:", flush=True)
+    for i, d in enumerate(topology_devices):
+      print(f"  Device {i}: {d} (id={d.id}, process={getattr(d, 'process_index', 'N/A')}, coords={getattr(d, 'coords', 'N/A')})", flush=True)
+
   topology_device_mesh = max_utils.create_device_mesh(config, topology_devices)
+  print(f"[DEBUG COMPILE] Device mesh shape: {topology_device_mesh.shape}", flush=True)
   topology_mesh = Mesh(topology_device_mesh, config.mesh_axes)
   return topology_mesh
 
@@ -123,7 +130,7 @@ def jit_and_compile(
         donate_argnums=donate_argnums,
     )
     lowered = jitted.lower(*func_input_args, **func_input_kwargs)
-  compiled = lowered.compile(compiler_options={"xla_embed_ir_in_executable": False})
+  compiled = lowered.compile()
   return compiled
 
 
@@ -136,6 +143,9 @@ def save_compiled(compiled, save_name):
 
 def main(argv: Sequence[str]) -> None:
   jax.config.update("jax_default_prng_impl", "unsafe_rbg")
+  jax.config.update("jax_enable_compilation_cache", False)
+  os.environ["JAX_ENABLE_COMPILATION_CACHE"] = "0"
+
   os.environ["LIBTPU_INIT_ARGS"] = os.environ.get("LIBTPU_INIT_ARGS", "") + " --xla_tpu_spmd_rng_bit_generator_unsafe=true"
   print("Starting train_compile.py...", flush=True)
 

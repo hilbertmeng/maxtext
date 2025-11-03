@@ -815,6 +815,10 @@ def setup_mesh_and_model(config):
 
   # Mesh definition
   devices_array = max_utils.create_device_mesh(config)
+  devices_flat = devices_array.flatten()
+  print(f"[DEBUG TRAIN] Using {len(devices_flat)} devices for training:", flush=True)
+  for i, d in enumerate(devices_flat):
+    print(f"  Device {i}: {d} (id={d.id}, process={d.process_index}, coords={getattr(d, 'coords', 'N/A')})", flush=True)
   mesh = Mesh(devices_array, config.mesh_axes)
 
   # Model and Optimizer definition
@@ -1009,7 +1013,8 @@ def train_loop(config, state=None):
   if config.compiled_trainstep_file != "":
     print("Loading the compiled function...", flush=True)
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
-    p_train_step = maxtext_utils.load_compiled(config, functional_train, state)
+    # Pass mesh to ensure correct device mapping in multi-process scenarios
+    p_train_step = maxtext_utils.load_compiled(config, functional_train, state, mesh)
     # TODO: p_eval_step is not yet supported in load_compiled
     p_eval_step = None
     print("Loaded compiled function!", flush=True)
@@ -1073,7 +1078,6 @@ def train_loop(config, state=None):
         record_goodput(recorder, config, recorder.record_step_start_time if recorder else None, step)
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
           state, metrics = p_train_step(state, example_batch, nextrng)
-
       step_time_delta = datetime.datetime.now() - last_step_completion
       last_step_completion = datetime.datetime.now()
       record_scalar_metrics(metrics, step_time_delta, per_device_tflops, learning_rate_schedule(step), per_device_tokens)

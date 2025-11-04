@@ -35,7 +35,7 @@ import max_logging
 import max_utils
 from aqt.jax.v2 import aqt_tensor
 from kernels import megablox as mblx
-
+from layers import embeddings
 
 Array = common_types.Array
 Config = common_types.Config
@@ -174,6 +174,75 @@ class DenseGeneral(nn.Module):
     return output
 
 
+class DeepEmbedBlock(nn.Module):
+  """Transformer Deep Embed Block."""
+  config: Config
+  kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "truncated_normal")
+  weight_dtype: DType = jnp.float32
+  dtype: DType = jnp.float32
+  input_dim: int = None
+  output_dim: int = None
+  de_d1_d2_dims: tuple = None # suggesgt fix first dimension to 32
+
+  def setup(self):
+    if 'gemma3n' in self.config.deep_embed_type:
+      return
+    self.d1, self.d2 = self.de_d1_d2_dims
+    s1_axes = ("embed", None)
+    s2_axes = (None, "embed")
+    s2_bias_axes = (None, None)
+    s1_kernel_init = nn.with_logical_partitioning(self.kernel_init, s1_axes)
+    s2_kernel_init = nn.with_logical_partitioning(self.kernel_init, s2_axes)
+    s2_bias_kernel_init = nn.with_logical_partitioning(self.kernel_init, s2_bias_axes)
+    self.s1 = self.param('s1', s1_kernel_init, (self.input_dim, self.d1), self.weight_dtype)
+    self.s2 = self.param('s2', s2_kernel_init, (self.d2, self.output_dim), self.weight_dtype)
+    self.s2_bias = None
+    if self.config.use_s2_bias:
+      self.s2_bias = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
+    max_logging.log(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias} de_d1_d2_dims: {self.de_d1_d2_dims}')
+
+  @nn.compact
+  def __call__(self, inputs, output, decoder_input_tokens, deep_embedding=None):
+    cfg = self.config
+    if deep_embedding is None:
+      max_logging.log(f'Inside DE, decoder_input_tokens: {decoder_input_tokens.shape}')
+      deep_embedding = embeddings.Embed(
+            name="token_embedder",
+            num_embeddings=cfg.vocab_size,
+            features=self.d1 * self.d2, # Don't need to follow mudd mlp dim.
+            dtype=cfg.dtype,
+            embedding_init=initializers.get_init_method(cfg.init_method),
+            config=cfg,
+          )(decoder_input_tokens.astype("int32"))
+      deep_embedding = deep_embedding.reshape(*output.shape[:2], self.d1, self.d2)
+    max_logging.log(f'inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
+    max_logging.log(f'DeepEmbedBlock deep_embed_type: {self.config.deep_embed_type}')
+
+    deep_embedding = checkpoint_name(deep_embedding, "de_embedding")
+    # btD x Dd -> btd -> bt1d
+    deep_w = jnp.expand_dims(inputs @ self.s1, axis=2)
+    # bt1d @ btdd -> bt1d @ dD -> bt1D + bt1D -> bt1D
+    deep_w = deep_w @ deep_embedding
+  
+    if self.s2_bias is not None:
+      deep_w = (deep_w @ self.s2 + self.s2_bias).reshape(*output.shape)
+    else:
+      deep_w = (deep_w @ self.s2).reshape(*output.shape)
+
+    output *= deep_w
+
+    if cfg.deep_embed_norm or cfg.mlp_post_norm:
+      output = RMSNorm(
+          name="norm",
+          dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype,
+          kernel_axes=("norm", ),
+          epsilon=cfg.normalization_layer_epsilon,
+      )(output) # suggest to use post_norm
+
+    return output
+
+
 class MlpBlock(nn.Module):
   """Transformer MLP / feed-forward block.
 
@@ -202,6 +271,33 @@ class MlpBlock(nn.Module):
   use_pre_norm: bool = False
   quant: Optional[Quant] = None
 
+  def setup(self):
+    cfg = self.config
+    if '1xmlp' in cfg.deep_embed_type:
+      output_dim = cfg.emb_dim
+      de_embed_dim = cfg.emb_dim
+      suffix = '1xmlp'
+    elif '4xmlp' in cfg.deep_embed_type:
+      output_dim = self.intermediate_dim
+      de_embed_dim = cfg.mlp_dim
+      suffix = '4xmlp'
+    else:
+       output_dim, de_embed_dim = None, None
+
+    self.deep_embed_block = None
+    if output_dim is not None and de_embed_dim is not None:
+      d1 = 32 if cfg.mlp_dim < 4096 else 64 
+      print(f'd1: {d1}')
+      self.deep_embed_block = DeepEmbedBlock(
+        name=f'{suffix}_deep_embed',
+        config=self.config, 
+        kernel_init=self.kernel_init, 
+        weight_dtype=self.weight_dtype, 
+        dtype=self.dtype, 
+        input_dim=cfg.emb_dim,
+        output_dim=output_dim,
+        de_d1_d2_dims=(d1, de_embed_dim // d1)) # fix first dimension to 32, and don't need to follow mudd mlp dim.
+
   def get_norm_layer(self):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "deepseek"):
       return RMSNorm
@@ -213,7 +309,7 @@ class MlpBlock(nn.Module):
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
   @nn.compact
-  def __call__(self, inputs, decode: bool = False, deterministic: bool = False):
+  def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -282,6 +378,10 @@ class MlpBlock(nn.Module):
               name='mgate',
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
+    if '4xmlp' in cfg.deep_embed_type:
+      max_logging.log(f'Inside 4xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}')
+      x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
+
     output = DenseGeneral(
         inputs.shape[-1],
         dtype=self.dtype,
@@ -293,6 +393,10 @@ class MlpBlock(nn.Module):
         use_bias=self.use_bias,
         matmul_precision=self.config.matmul_precision,
     )(x)
+
+    if '1xmlp' in cfg.deep_embed_type:
+      max_logging.log(f'Inside 1xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}')
+      output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")
     return output

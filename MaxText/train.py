@@ -122,8 +122,13 @@ def model_init(model, config, key):
   input_shape = (config.global_batch_size_to_load, config.max_target_length)
   params = model.init(
       {"params": key, "dropout": key, "aqt": key},
-      jnp.ones(input_shape, dtype=jnp.int32),
-      jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_input_tokens=jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_positions=jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_target_tokens=jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_target_mask=jnp.ones(input_shape, dtype=jnp.int32),
+      decoder_segment_ids=None,
+      enable_dropout=True,
+      model_mode='train',
   )
   return params
 
@@ -556,23 +561,23 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
     for k, v in data.items():
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
-  logits, intermediate_outputs = model.apply(
+  mutable_collections = ["intermediates"]
+  (xent, correct, mtp_xent), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
       decoder_segment_ids=data["inputs_segmentation"],
+      decoder_target_mask=data["targets_segmentation"],
+      decoder_target_tokens=data["targets"],
       enable_dropout=config.enable_dropout if is_train else False,
       rngs={"dropout": rng1, "params": aqt_rng},
-      mutable="intermediates",
+      mutable=mutable_collections,
   )
-  correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
-  one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
-  xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
-  xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
-  # Mask out paddings at the end of each example.
-  xent = xent * (data["targets_segmentation"] != 0)
+  mask = data["targets_segmentation"] != 0
+  xent *= mask
   total_loss = jnp.sum(xent)
-  total_weights = jnp.sum(data["targets_segmentation"] != 0)
+  total_weights = jnp.sum(mask)
+  accuracy = correct / total_weights
   loss = total_loss / (total_weights + EPS)
   # get moe load balance loss
   moe_lb_loss = 0.0

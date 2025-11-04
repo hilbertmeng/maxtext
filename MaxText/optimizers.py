@@ -70,9 +70,10 @@ def muon(
       k = "/".join(_k)
       ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
       label = 'adam_default'
-      # if 'bias' in k or (ndim == 1 and 'scale' in k) or 'dynamic_dense_conn2' in k: # rms no wd better(0.002), but muon paper suggest wd
-      if 'bias' in k or (ndim == 1 and 'scale' in k): # rms no wd better(0.002), but muon paper suggest wd
+      if 'bias' in k or (ndim == 1 and 'scale' in k):
         label = 'adam_one_dim'
+      elif 'embedding' in k or 'logits_dense' in k: # Both embedding and logits_dense use adam default
+        label = 'adam_default'
       elif 'dyn_w_proj' in k:
         if config.dc_use_muon:
           label = 'muon_attn'

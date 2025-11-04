@@ -646,6 +646,9 @@ train_shuffle_buffer_size: 200
 query_chunk_method: ''
 sub_remat: False
 mix_attn: False # 32k and 4k global attention
+iter_file_nums: 20
+init_method: '006normal'
+loss_chunk_size: 1024
 
 # Bucket logging configuration
 bucket_logging_enabled: True  # Whether to enable logging to GCS bucket
@@ -662,4 +665,15 @@ muon_decay_ratio: 0.075 # for medium, can get better result with 0.1, maybe < 0.
 kv_shift_flash: True
 decay_method: 'cosine'
 
-iter_file_nums: 20
+# deepembed params
+deep_embed_type: 'none' # choices: [none,  1xmlp, 4xmlp], alse combine with other types
+deep_embed_init: 'inside' # choices: [inside, outside]
+deep_embed_norm: True
+use_s2_bias: True
+
+# mtp params
+mtp_num_layers: 0
+mtp_eval_target_module: 0
+mtp_loss_scaling_factor: 0.1
+mtp_use_compose: False
+mtp_head_int8: False

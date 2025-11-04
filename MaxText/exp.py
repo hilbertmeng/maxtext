@@ -71,7 +71,13 @@ class LGWindow:
 class LGLLWindow:
     sliding_window_size = [256, None, 256, 256]
     num_layers_per_block = 4
-    
+
+class DE:
+    deep_embed_type = '4xmlp'
+    deep_embed_norm = True
+    deep_embed_init = 'inside' 
+    use_s2_bias = True
+ 
 class Mudd:
     dense_conn = True # dense_proj1 and dense_proj2
     dynamic_dense_type = 'qkvm'
@@ -539,3 +545,15 @@ class DC2MuddLlamaMediumLGL4LSPDebug(LGWindow, MuddLlama2Medium):  # mqy
 class DC2MuddLlamaMediumKV4QO16LGLLMqyDevQchunk512KVshift(SpeedTest, KVshift, DC2MuddLlamaMediumKV4QO16LGLLMqyDevQchunk512):
     kv_shift_mlp = False
     kv_shift_skip_knorm = True
+
+class ModelV4p5(Llama2Medium):
+    num_decoder_layers = 56
+    base_emb_dim = 4096
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 5120
+    head_dim = 128
+    vocab_size = 151936
+
+class DEV4p5(DE, ModelV4p5):
+    pass

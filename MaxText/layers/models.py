@@ -33,6 +33,8 @@ from layers import pipeline
 from layers import mudd
 from layers import initializers
 import max_logging
+import re
+import max_utils
 
 Array = common_types.Array
 Config = common_types.Config
@@ -49,6 +51,32 @@ Quant = quantizations.AqtQuantization
 # ------------------------------------------------------------------------------
 # The network: Decoder & Transformer Definitions
 # ------------------------------------------------------------------------------
+
+def get_deep_embedding(cfg, deep_embedding):
+  max_logging.log(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}')
+  if '4xmlp' in cfg.deep_embed_type:
+    assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
+    start_idx = 0
+    deep_embeddings = []
+    for layer_inx in range(cfg.num_decoder_layers):
+      # updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 if cfg.dynamic_mlp_dim else cfg.mlp_dim
+      updated_mlp_dim = cfg.mlp_dim # dynamic_mlp_dim loss higher than static mlp_dim, about 0.003 gap
+      d1 = 32 if updated_mlp_dim < 4096 else 64
+      d2 = updated_mlp_dim // d1
+      cur_layer_deep_embedding = deep_embedding[..., start_idx: start_idx + updated_mlp_dim]
+      start_idx += updated_mlp_dim
+      cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*deep_embedding.shape[:2], d1, d2)
+      deep_embeddings.append(cur_layer_deep_embedding)
+      max_logging.log(f'4xmlp layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
+  elif re.findall(r'1xmlp|1xattn', cfg.deep_embed_type):
+    d1 = 32 if cfg.emb_dim < 4096 else 64
+    d2 = cfg.emb_dim // d1
+    deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
+    max_logging.log(f'1xmlp|1xattn deep_embeddings: {deep_embeddings.shape}')
+  else:
+    raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type}')
+  return deep_embeddings
+
 
 def get_remat_policy(cfg):
   if cfg.remat_policy != "none":
@@ -244,11 +272,62 @@ class SequentialBlockDecoderLayers(nn.Module):
     return inputs
 
 
+class OutputHead(nn.Module):
+
+  config: Config
+  shared_embedding: nn.Module
+  mesh: Mesh
+  quant: Optional[Quant] = None
+
+  def setup(self):
+    cfg = self.config
+    self.norm = RMSNorm(dtype=cfg.dtype,
+        weight_dtype=cfg.weight_dtype,
+        name="decoder_norm",
+        epsilon=cfg.normalization_layer_epsilon,
+        kernel_axes=("norm",),
+        )
+    
+    dense_kernel = self.param(
+                            "logits_dense",
+                            nn.with_logical_partitioning(initializers.get_init_method(cfg.init_method), ("embed", "vocab")),
+                            (cfg.emb_dim, cfg.vocab_size),
+                            cfg.weight_dtype,
+                        ) # int use 888 more quick，but more memory
+    self.logits_dense = dense_kernel.astype(cfg.dtype)
+    self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
+  
+  @nn.compact
+  def __call__(self, y, deterministic, int8=False, embed_chunk_size=None):
+    cfg = self.config
+    y = self.norm(y) # 20250925 fix, this bug occurred at MTP experiment.
+    y = self.dropout(y, deterministic=deterministic)
+    
+    if cfg.logits_via_embedding: # false
+        max_logging.log(f'Word embedding shared: {cfg.logits_via_embedding}')
+        logits = self.shared_embedding.attend(y)
+        if cfg.normalize_embedding_logits:
+            logits = logits / jnp.sqrt(y.shape[-1])
+        if cfg.final_logits_soft_cap:
+            logits = logits / cfg.final_logits_soft_cap
+            logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
+    else:
+      # Original non-chunked computation
+      logits = jnp.einsum('btd,dv->btv', y, self.logits_dense)
+      logits = nn.with_logical_constraint(
+          logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
+      )
+    if cfg.cast_logits_to_fp32:
+        logits = logits.astype(jnp.float32)
+    return logits
+
+
 class Decoder(nn.Module):
   """A stack of decoder layers as a part of an encoder-decoder architecture."""
 
   config: Config
   shared_embedding: nn.Module
+  deep_embedding: nn.Module
   mesh: Mesh
   quant: Optional[Quant] = None
 
@@ -268,9 +347,10 @@ class Decoder(nn.Module):
     for block_layer in block_layers:
       layer = nn.remat(  # pylint: disable=invalid-name
           block_layer,
-          prevent_cse=not self.config.scan_layers,
+          prevent_cse=self.config.remat_prevent_cse, # lsp, default false
           policy=policy,
-          static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+          static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
+          rngs={"params": True, "aqt": True, "dropout": True},
       )
       RemattedBlockLayers.append(layer)
     return RemattedBlockLayers
@@ -350,7 +430,9 @@ class Decoder(nn.Module):
             nn.broadcast,
             nn.broadcast,
             nn.broadcast,
+            0, # deep_embedding
             nn.broadcast,
+            nn.broadcast, # 关键字参数不在这个范围内
         ),
         length=length,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
@@ -383,6 +465,8 @@ class Decoder(nn.Module):
       self,
       decoder_input_tokens,
       decoder_positions,
+      decoder_target_tokens,
+      decoder_target_mask,
       decoder_segment_ids=None,
       deterministic=False,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -407,6 +491,14 @@ class Decoder(nn.Module):
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
+
+    if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp', cfg.deep_embed_type):
+      deep_embeddings = self.deep_embedding(decoder_input_tokens.astype("int32"))
+      deep_embeddings = get_deep_embedding(cfg, deep_embeddings)
+      max_logging.log(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}')
+    
+    else:
+      deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
 
     if cfg.use_untrainable_positional_embedding:
       y = PositionalEmbedding(cfg.base_emb_dim)(y, decoder_positions)
@@ -473,11 +565,17 @@ class Decoder(nn.Module):
               model_mode,
           )
         else:
+          if isinstance(cfg.sliding_window_size, list):
+            assert len(cfg.sliding_window_size) == cfg.num_layers_per_block
+          else:
+            assert cfg.num_layers_per_block == 1
           RemattedBlockLayer = RemattedBlockLayers[0]
           y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
               y,
               decoder_segment_ids,
               decoder_positions,
+              decoder_input_tokens,
+              deep_embeddings,
               deterministic,
               model_mode,
               eos_sum=eos_sum,
@@ -501,66 +599,107 @@ class Decoder(nn.Module):
                             model_mode,
                         )
         else:
-          n = cfg.num_decoder_layers // cfg.num_layers_per_block
-          sliding_window_sizes = n * cfg.sliding_window_size if isinstance(cfg.sliding_window_size, list) else n * [cfg.sliding_window_size]
-          max_logging.log(f'sliding_window_sizes: {sliding_window_sizes}', debug=cfg.debug)
+          assert cfg.num_layers_per_block == 1, f"num_layers_per_block: {cfg.num_layers_per_block} != 1"
+          if isinstance(cfg.sliding_window_size, list):
+            max_logging.log(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
+            if len(cfg.sliding_window_size) != cfg.num_decoder_layers + cfg.mtp_num_layers:
+              n = (cfg.num_decoder_layers + cfg.mtp_num_layers) // len(cfg.sliding_window_size)
+              sliding_window_sizes = cfg.sliding_window_size * n
+            else:
+              sliding_window_sizes = cfg.sliding_window_size
+            assert len(sliding_window_sizes) == cfg.num_decoder_layers + cfg.mtp_num_layers, f"sliding_window_sizes: {sliding_window_sizes} != num_decoder_layers: {cfg.num_decoder_layers + cfg.mtp_num_layers}"
+          else:
+            sliding_window_sizes = (cfg.num_decoder_layers + cfg.mtp_num_layers) * [cfg.sliding_window_size]
           for lyr in range(cfg.num_decoder_layers):
-            RemattedBlockLayer = RemattedBlockLayers[0]
-            y = RemattedBlockLayer(config=cfg, mesh=mesh, name=f"layers_{lyr}", quant=self.quant, sliding_window_size=sliding_window_sizes[lyr])(
+            max_logging.log(f'\n=================decoder layer: {lyr}=====================\n')
+            
+            RemattedBlockLayer = RemattedBlockLayers[0] if lyr != cfg.num_decoder_layers - 1 else self.decoder_layer[0]
+            y, hids = RemattedBlockLayer(
+              config=cfg, 
+              mesh=mesh, 
+              name=f"layers_{lyr}", 
+              quant=self.quant, 
+              sliding_window_size=sliding_window_sizes[lyr])(
                 y,
                 decoder_segment_ids,
                 decoder_positions,
+                decoder_input_tokens,
+                deep_embeddings[lyr],
                 deterministic,
                 model_mode,
                 hids=hids,
                 eos_sum=eos_sum,
             )
-            if self.config.mudd_in_layer:
-              y, hids = y
-            if not self.config.mudd_in_layer:
-              y, hids = mudd.Compose(cfg, mesh, self.quant, lyr, name=f'compose_{lyr}')(y, hids) # lsp
             
-    y = self.get_norm_layer()(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="decoder_norm",
-        epsilon=cfg.normalization_layer_epsilon,
-        kernel_axes=("norm",),
-    )(y)
-    y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
-
-    # [batch, length, emb_dim] -> [batch, length, vocab_size]
-    if cfg.logits_via_embedding:
-      print(f'logits_via_embedding11: {cfg.logits_via_embedding}')
-      # Use the transpose of embedding matrix for logit transform.
-      logits = self.shared_embedding.attend(y)  # lsp：权重共享
-      if self.config.normalize_embedding_logits:
-        # Correctly normalize pre-softmax logits for this shared case.
-        logits = logits / jnp.sqrt(y.shape[-1])
-      if cfg.final_logits_soft_cap:
-        logits = logits / cfg.final_logits_soft_cap
-        logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
+    max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}')
+    if cfg.dense_conn:
+      main_head_inputs, mtp_head_inputs = y if cfg.mtp_num_layers > 0 else [y[0], None]
     else:
-      print(f'logits_via_embedding22: {cfg.logits_via_embedding}')
-      logits = linears.DenseGeneral(
-          cfg.vocab_size,
-          weight_dtype=cfg.weight_dtype,
-          dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-          kernel_axes=("embed", "vocab"),
-          name="logits_dense",
-          matmul_precision=self.config.matmul_precision,
-          kernel_init=initializers.nd_dense_init_normal(0.006), #lsp
-          # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), #lsp
-      )(
-          y
-      )  # We do not quantize the logits matmul.
-    max_logging.log(f'logits: {logits.shape}', debug=cfg.debug)
-    logits = nn.with_logical_constraint(
-        logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
+      main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
+
+    # mtp share llm head params
+    OutputHeadLayer = OutputHead(config=cfg, 
+                        shared_embedding=self.shared_embedding,
+                        mesh=mesh,
+                        quant=self.quant,
+                        name='lm_head')
+    max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
+   
+    max_logging.log(f'Using sequence length chunking with loss_chunk_size={cfg.loss_chunk_size}')
+    xent, correct, main_model_preds = max_utils.compute_loss_chunked(
+      output_head_layer=OutputHeadLayer,
+      inputs=main_head_inputs,
+      target_tokens=decoder_target_tokens,
+      target_mask=decoder_target_mask,
+      vocab_size=cfg.vocab_size,
+      chunk_size=cfg.loss_chunk_size,
+      deterministic=deterministic,
     )
-    if self.config.cast_logits_to_fp32:
-      logits = logits.astype(jnp.float32)
-    return logits
+    mtp_xent = 0.0
+    if cfg.mtp_num_layers > 0:
+      assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
+      if cfg.mtp_use_remat:
+        RematMTPLayer = nn.remat(
+              mtp.MultiTokenPredictionBlock,
+              prevent_cse=cfg.remat_prevent_cse,
+              policy=None,
+              static_argnums=(8, 9), # remat传入的关键字参数不计入static_argnums的索引
+              rngs={"params": True, "aqt": True, "dropout": True},
+          )
+        transformer_layer_module = self.decoder_layer[0]
+      else:
+        RematMTPLayer = mtp.MultiTokenPredictionBlock
+        transformer_layer_module = RemattedBlockLayers[0]
+        # transformer_layer_module = self.decoder_layer[0]
+
+      mtp_block = RematMTPLayer(
+          config=cfg,
+          mesh=mesh,
+          quant=self.quant,
+          name="mtp_block",
+          transformer_layer_module=transformer_layer_module,
+          shared_embedding=self.shared_embedding,
+        )
+      chunks = 2 # reduce half logits memory
+      bcs = mtp_head_inputs.shape[0] // chunks
+      for b in range(0, mtp_head_inputs.shape[0], bcs):
+        _mtp_xent = mtp_block(
+          OutputHeadLayer,
+          mtp_head_inputs[b:b+bcs],
+          decoder_input_tokens[b:b+bcs],
+          decoder_target_tokens[b:b+bcs],
+          decoder_target_mask[b:b+bcs],
+          decoder_positions[b:b+bcs],
+          decoder_segment_ids[b:b+bcs] if decoder_segment_ids is not None else None,
+          deterministic,
+          model_mode,
+          hids=[h[b:b+bcs] for h in hids],
+        )
+        print(f'_mtp_xent: {_mtp_xent.shape}')
+        mtp_xent += _mtp_xent
+      mtp_xent = mtp_xent / chunks
+
+    return xent, correct, mtp_xent
 
 
 class Transformer(nn.Module):
@@ -577,23 +716,56 @@ class Transformer(nn.Module):
 
     cfg = self.config
     mesh = self.mesh
+    de_dim = 0
+    if cfg.deep_embed_init == 'outside':
+      if '1xattn' in cfg.deep_embed_type or 'devalue' in cfg.deep_embed_type.lower():
+        de_dim += cfg.num_decoder_layers * cfg.emb_dim
+      elif '1xmlp' in cfg.deep_embed_type.lower():
+        de_dim  += cfg.num_decoder_layers * cfg.emb_dim
+      elif '4xmlp' in cfg.deep_embed_type.lower():
+        de_dim +=  cfg.num_decoder_layers * cfg.mlp_dim
+      else:
+        # Multi deep embed don't support outside init
+        raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')
+     
+    max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {de_dim}')
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
         features=cfg.emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
-        embedding_init=initializers.nd_dense_init_normal(0.006), # lsp
-        # embedding_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
+        embedding_init=initializers.get_init_method(cfg.init_method), # lsp
         name="token_embedder",
         config=cfg,
     )
-
-    self.decoder = Decoder(config=cfg, shared_embedding=self.shared_embedding, mesh=mesh, quant=self.quant)
+    if de_dim > 0:
+      self.deep_embedding = Embed(
+          num_embeddings=cfg.vocab_size,
+          features=de_dim,
+          dtype=cfg.dtype,
+          attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,
+          embedding_init=initializers.get_init_method(cfg.init_method), # lsp
+          name="de_token_embedder",
+          config=cfg,
+      )
+    else:
+      self.deep_embedding = None
+      
+    self.decoder = Decoder(
+        config=cfg, 
+        shared_embedding=self.shared_embedding,
+        deep_embedding=self.deep_embedding,
+        mesh=mesh, 
+        quant=self.quant, 
+        name='decoder'
+    )
 
   def __call__(
       self,
       decoder_input_tokens,
       decoder_positions,
+      decoder_target_tokens,
+      decoder_target_mask,
       decoder_segment_ids=None,
       enable_dropout=True,
       model_mode=common_types.MODEL_MODE_TRAIN,
@@ -610,6 +782,8 @@ class Transformer(nn.Module):
         decoder_input_tokens=decoder_input_tokens,
         decoder_positions=decoder_positions,
         decoder_segment_ids=decoder_segment_ids,
+        decoder_target_tokens=decoder_target_tokens,
+        decoder_target_mask=decoder_target_mask,
         deterministic=not enable_dropout,
         model_mode=model_mode,
     )

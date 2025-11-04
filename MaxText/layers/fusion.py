@@ -17,7 +17,7 @@ limitations under the License.
 """Transformer model definition."""
 # pylint: disable=arguments-differ
 # pylint: disable=no-name-in-module
-
+import jax
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
@@ -58,9 +58,6 @@ RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 
 
-# -----------------------------------------
-# The Decoder Layer specific for llama2
-# -----------------------------------------
 class SubDecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
 
@@ -71,15 +68,14 @@ class SubDecoderLayer(nn.Module):
   layer_inx: int|None = None
 
   def setup(self):
-    max_logging.log(f'SubDecoderLayer layer_inx: {self.layer_inx} sliding_window_size: {self.sliding_window_size}', debug=self.config.debug)
-    self.mudd_mlp = mudd.Mlp(self.config, self.mesh, self.quant, self.layer_inx)
-    self.mudd_qkvnorm = mudd.Norm(self.config, self.mesh, self.quant)
+    cfg = self.config
+    self.mudd_qkvnorm = mudd.Norm(cfg, self.mesh, self.quant)
 
-    if self.config.dynamic_mlp_dim:
-      self.updated_mlp_dim = round(self.config.mlp_dim * (self.layer_inx / (self.config.num_decoder_layers - 1) + 0.5) / 128) * 128 
+    if cfg.dynamic_mlp_dim:
+      self.updated_mlp_dim = round(cfg.mlp_dim * (self.layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
-      self.updated_mlp_dim = self.config.mlp_dim
-    max_logging.log(f'updated_mlp_dim: {self.updated_mlp_dim}', debug=self.config.debug)
+      self.updated_mlp_dim = cfg.mlp_dim
+    max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
 
 
   @nn.compact
@@ -88,13 +84,15 @@ class SubDecoderLayer(nn.Module):
       inputs,
       decoder_segment_ids,
       decoder_positions,
+      decoder_input_tokens,
+      deep_embedding,
       deterministic,
       model_mode,
       eos_sum,
   ):
     cfg = self.config
     mesh = self.mesh
-    if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm': # lsp
+    if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm' and isinstance(inputs, tuple|list): # lsp
       lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
       inputs = inputs[3]
     else:
@@ -108,15 +106,14 @@ class SubDecoderLayer(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
     )
       lnx = lnx_rms(inputs)
-
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+      lnx_kv = [lnx, lnx]
 
-    max_logging.log(f'Attention inputs: {inputs.shape}', debug=self.config.debug)
     # Self-attention block
     attention_layer = Attention(
         config=cfg,
         num_query_heads=cfg.num_query_heads,
-        num_kv_heads=cfg.num_kv_heads[self.layer_inx % len(cfg.num_kv_heads)] if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads,
+        num_kv_heads=cfg.num_kv_heads,
         head_dim=cfg.head_dim,
         max_target_length=cfg.max_target_length,
         max_prefill_predict_length=cfg.max_prefill_predict_length,
@@ -136,8 +133,7 @@ class SubDecoderLayer(nn.Module):
         reshape_q=cfg.reshape_q,
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
-        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-        # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
+        kernel_init=initializers.get_init_method(cfg.init_method), # lsp
         sliding_window_size=self.sliding_window_size,
         use_kv_shift=cfg.use_kv_shift,
     )
@@ -151,6 +147,10 @@ class SubDecoderLayer(nn.Module):
         model_mode=model_mode,
         eos_sum=eos_sum,
     )
+   
+    if cfg.record_internal_nn_metrics:
+        attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))
+        self.sow('intermediates', 'attn_lnx/l2norm', attention_lnx_l2norm)
 
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
@@ -170,8 +170,7 @@ class SubDecoderLayer(nn.Module):
     )
     
     mlp_lnx = None
-    if cfg.shared_experts == 1 and (cfg.scan_layers or self.layer_inx not in cfg.insert_moe_indexes):
-      max_logging.log(f'into mlp layer, layer_inx is {self.layer_inx}', debug=cfg.debug)
+    if cfg.shared_experts == 1:
       # MLP block.
       mlp_lnx = linears.MlpBlock(
           intermediate_dim=self.updated_mlp_dim, # lsp
@@ -182,25 +181,22 @@ class SubDecoderLayer(nn.Module):
           name="mlp",
           config=cfg,
           quant=self.quant,
-          kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
-          # kernel_init=initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06) # lsp
-      )(hidden_states, deterministic=deterministic)
+          kernel_init=initializers.get_init_method(cfg.init_method), # lsp
+      )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:
-            mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))
-            self.sow('intermediates', 'mlp_lnx/l2norm', mlp_l2norm)
+        mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(mlp_lnx)))
+        self.sow('intermediates', 'mlp_lnx/l2norm', mlp_l2norm)
 
     # lsp: moe
     moe_lnx = None
     load_balance_loss = 0.0
-    if cfg.num_experts > 1 and (cfg.scan_layers or self.layer_inx in cfg.insert_moe_indexes):
-      max_logging.log(f'into moe layer, layer_inx is {self.layer_inx}', debug=cfg.debug)
+    if cfg.num_experts > 1:
       kwargs = {
         'config': cfg,
         'mesh': mesh,
-        'kernel_init': initializers.nd_dense_init_normal(0.006),
-        # 'kernel_init': initializers.nd_dense_init_normal(0.02, min_val=-0.06, max_val=0.06), # lsp
+        'kernel_init': initializers.get_init_method(cfg.init_method), # lsp
         'kernel_axes': ("embed", None),
         'dtype': cfg.dtype,
         'weight_dtype': cfg.weight_dtype,
@@ -215,20 +211,26 @@ class SubDecoderLayer(nn.Module):
       if cfg.moe_type == 'open': # with capacity and noise and balance loss
         moe_layer = linears.OpenMoeBlock
         kwargs.update(extra_kwargs)
-      elif cfg.moe_type == 'open_v2': # slowly, maybe have bug
-        moe_layer = linears.OpenMoeBlockV2
         kwargs.update(extra_kwargs)
       elif cfg.moe_type == 'deepseek': # model performance bad
         moe_layer = linears.DeepSeekMoeBlock
-      elif cfg.moe_type == 'ol': # todo: don't run, can't compile
-        moe_layer = linears.JaxQwenSparseMoeBlock
       elif cfg.moe_type == 'dropless': # no capacity and nosie, maybe have balance loss, bug no imporve with balance loss 0.01
         kwargs.update(extra_kwargs)
         moe_layer = linears.MoeBlock
       else:
         raise ValueError(f'Unknow moe type: {cfg.moe_type}, it must be in [open, deepseek, ol, dropless]')
-      moe_lnx, load_balance_loss = moe_layer(**kwargs)(hidden_states, paddings=decoder_segment_ids, deterministic=deterministic)
-      max_logging.log(f'moe_lnx: {moe_lnx.shape}', debug=cfg.debug)
+      if cfg.moe_type == 'dropless':
+        moe_lnx, load_balance_loss = moe_layer(**kwargs)(
+          hidden_states, 
+          decoder_input_tokens=decoder_input_tokens, 
+          paddings=decoder_segment_ids, 
+          deterministic=deterministic
+          )
+      else:
+        moe_lnx, load_balance_loss = moe_layer(**kwargs)(
+          hidden_states, 
+          paddings=decoder_segment_ids, 
+          deterministic=deterministic)
 
       if cfg.record_internal_nn_metrics: # lsp
             moe_mlp_l2norm = jnp.sqrt(jnp.sum(jnp.square(moe_lnx)))
@@ -239,13 +241,10 @@ class SubDecoderLayer(nn.Module):
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     if mlp_lnx is not None and moe_lnx is not None:
-      max_logging.log('mlp_lnx is not None and moe_lnx is not None.', debug=cfg.debug)
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx
     elif mlp_lnx is not None and moe_lnx is None:
-      max_logging.log('mlp_lnx is not None and moe_lnx is None.', debug=cfg.debug)
       layer_output = mlp_lnx + intermediate_inputs
     elif mlp_lnx is None and moe_lnx is not None:
-      max_logging.log('mlp_lnx is None and moe_lnx is not None.', debug=cfg.debug)
       layer_output = intermediate_inputs + moe_lnx
     else:
       raise ValueError("Both mlp_lnx and moe_lnx is None, it's not allowed.")
@@ -256,18 +255,7 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
-
-    if 0 and cfg.record_internal_nn_metrics: # lsp: unused
-      self.sow("intermediates", "activation_mean", jnp.mean(layer_output))
-      self.sow("intermediates", "activation_stdev", jnp.std(layer_output))
-      self.sow(
-          "intermediates",
-          "activation_fraction_zero",
-          jnp.sum(layer_output == 0) / jnp.size(layer_output),
-      )
-
-    dyn_dense_w = self.mudd_mlp(layer_output) if not self.config.mudd_in_layer else None# lsp
-    return layer_output, dyn_dense_w
+    return layer_output
 
 
 class FusionDecoderLayer(nn.Module):
@@ -279,51 +267,96 @@ class FusionDecoderLayer(nn.Module):
   sliding_window_size: list|int|None = -1 # lsp
 
   def setup(self):
-    self.layer_inx = None if self.config.scan_layers else int(self.name.split('_')[-1])
+    cfg = self.config
+    layer_inx = None if cfg.scan_layers else int(self.name.split('_')[-1])
+    self.layer_inx = layer_inx
     # When no sliding_window_size is passed in, the sliding_window_size in config is used, otherwise the passed in sliding_window_size is used.
-    sliding_window_size = self.config.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
+    sliding_window_size = cfg.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
     if not isinstance(sliding_window_size, (list, tuple)):
         sliding_window_size = [sliding_window_size]
+    sliding_window_size = [s or cfg.max_target_length for s in sliding_window_size]
 
-    sliding_window_size = [self.config.max_target_length if s is None else s for s in sliding_window_size  ]
-    max_logging.log(f'FusionDecoderLayer layer_inx: {self.layer_inx} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
-
-    if self.config.num_layers_per_block > 1:
-      assert not self.config.dense_conn
-      # prevent_cse设置为true时更节省显存，设置为false速度更快，具体怎么设置需要测试
+    if cfg.dense_conn and not cfg.mudd_in_layer:
       RematSubDecoderLayer = nn.remat(SubDecoderLayer,
-                                      prevent_cse=False,
-                                      policy=models.get_remat_policy(self.config),
-                                      static_argnums=(4, 5),  # Deterministic and model mode are static arguments.
+                                      prevent_cse=cfg.remat_prevent_cse,
+                                      policy=models.get_remat_policy(cfg),
+                                      static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
                                       )
     else:
-       RematSubDecoderLayer = SubDecoderLayer
-
-    self.subs = [RematSubDecoderLayer(self.config, self.mesh, self.quant, sws, self.layer_inx, name=f'sub_{i}')
+      RematSubDecoderLayer = SubDecoderLayer
+    self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
                                       for i, sws in enumerate(sliding_window_size)]
+                                    
+    self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
 
+  def get_C(self, cfg):
+    if self.layer_inx == cfg.num_decoder_layers - 1:
+      C = 2 if cfg.mtp_num_layers > 0 else 1 # if use mtp, return 2 tensors, otherwise return 1 tensor
+    elif self.layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers - 1:
+      C = 1 # last layer return 1 tensor
+    else:
+      C = 4 # other layer return 4 tensors
+    return C
+    
   @nn.compact
   def __call__(
       self,
       inputs,
       decoder_segment_ids,
       decoder_positions,
+      decoder_input_tokens,
+      deep_embedding,
       deterministic,
       model_mode,
       hids=None,
       eos_sum=None,
   ):
-    if self.config.mudd_in_layer:
-        if self.layer_inx == 0: # first layer
-            inputs = [inputs] * len(self.config.dynamic_dense_type)
+    cfg = self.config
+    for layer in self.subs: # subs length must be 1 when train mudd.
+      if cfg.dense_conn:
+        if self.layer_inx == 0:
+          y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(inputs) if cfg.mudd_prenorm else inputs
+          inputs = [inputs] * len(cfg.dynamic_dense_type)
+          hids.append(y_normed)
+        elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:
+          inputs = [inputs] * len(cfg.dynamic_dense_type) # mtp
         else:
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx-1, name=f'compose_{self.layer_inx-1}')(inputs, hids) # lsp
-    
-    for layer in self.subs:
-        inputs, dyn_dense_w = layer(inputs, decoder_segment_ids, decoder_positions, deterministic, model_mode, eos_sum)
-    
-    if self.config.mudd_in_layer:
-        if self.layer_inx == self.config.base_num_decoder_layers-1: # last layer
-            inputs, hids = mudd.Compose(self.config, self.mesh, self.quant, self.layer_inx, name=f'compose_{self.layer_inx}')(inputs, hids) # lsp
-        return inputs, hids
-    return inputs, dyn_dense_w
+          # return's inputs length is 4
+          inputs, hids = mudd.Compose(
+            cfg, self.mesh, self.quant, 
+            layer_inx=len(hids), 
+            name='compose',
+            C=4,
+            compose=True if self.layer_inx in cfg.compose_layers else False,
+            )(
+              layer_output=inputs, 
+              hids=hids,
+              decoder_input_tokens=decoder_input_tokens,
+            )
+      # return's inputs length is 1
+      inputs = layer(
+          inputs,
+          decoder_segment_ids,
+          decoder_positions,
+          decoder_input_tokens,
+          deep_embedding,
+          deterministic,
+          model_mode,
+          eos_sum,
+      )
+      max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}')
+      if cfg.dense_conn and self.layer_inx in self.break_layers:
+        C = self.get_C(cfg)
+        inputs, hids = mudd.Compose(
+          cfg, self.mesh, self.quant, 
+          layer_inx=len(hids), 
+          compose=True,
+          name=f'compose_break',
+          C=C,
+          )(
+            layer_output=inputs, 
+            hids=hids,
+            decoder_input_tokens=decoder_input_tokens,
+          )
+        
+    return inputs, hids

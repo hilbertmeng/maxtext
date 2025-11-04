@@ -15,6 +15,8 @@ from optax._src import base
 from optax._src import transform
 
 import max_utils
+import max_logging
+
 
 def scale_by_learning_rate(
     learning_rate: Optional[base.ScalarOrSchedule] = None,
@@ -28,18 +30,6 @@ def scale_by_learning_rate(
   if callable(learning_rate):
     return transform.scale_by_schedule(lambda count: m * learning_rate(count) * scale)
   return transform.scale(m * learning_rate)
-
-
-def _build_wd_bool_mask_from_tree(wd_tree):
-  """Converts a weight-decay coefficient tree into a boolean mask tree.
-
-  Any value equal to 0.0 becomes False, otherwise True. If `wd_tree` is None,
-  returns None.
-  """
-  if wd_tree is None:
-    return None
-  return jax.tree_util.tree_map(lambda x: False if x == 0.0 else True, wd_tree)
-
 
 # muon must decay
 def muon(
@@ -68,7 +58,12 @@ def muon(
     param_labels = {}
     for _k, v in flat_params.items():
       k = "/".join(_k)
-      ndim = v.ndim if hasattr(v, 'ndim') else v.value.ndim
+      if hasattr(v, 'ndim'):
+        ndim = v.ndim
+      elif hasattr(v, 'value'):
+        ndim = v.value.ndim
+      else:
+        ndim = 1
       label = 'adam_default'
       if 'bias' in k or (ndim == 1 and 'scale' in k):
         label = 'adam_one_dim'
@@ -88,32 +83,38 @@ def muon(
         label = 'muon_attn'
       elif ndim == 2 and 'mlp' in k and 'compose' not in k: # remove mudd params
         label = 'muon_mlp'
-     
-      print(f'k: {k}, label: {label} ndim: {ndim}')
+      max_logging.log(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
+  def weight_dim_nums_fn(params): # optax>=0.2.6
+    return jax.tree.map(lambda x: optax.contrib.MuonDimensionNumbers((0,), (1,)), params)
+
   # muon_mask = _build_wd_bool_mask_from_tree(weight_decay_mask)
-  muon_base = scale_by_muon(
-                  ns_coeffs=ns_coeffs,
-                  ns_steps=ns_steps,
-                  beta=beta,
-                  eps=eps,
-                  mu_dtype=mu_dtype,
-                  nesterov=nesterov,
-                  adaptive=adaptive,
-              )
+  muon_kwargs = {
+    'ns_coeffs': ns_coeffs,
+    'ns_steps': ns_steps,
+    'beta': beta,
+    'eps': eps,
+    'mu_dtype': mu_dtype,
+    'nesterov': nesterov,
+    'adaptive': adaptive,
+  }
+  if optax.__version__ >= '0.2.6': # speed up
+    muon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
+  muon_base = scale_by_muon(**muon_kwargs)
+
   default_scale = 1.0
   attn_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim)) * config.muon_scale
   mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
-  print(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
+  max_logging.log(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
 
   if config.muon_decay_ratio and config.muon_decay_ratio > 0.0:
     muon_final_lr = config.muon_decay_ratio * config.learning_rate * 0.2 / config.muon_scale # 不论muon_scale是多少，均按照 muon_scale=0.1 计算的最终学习率
     muon_learning_rate_schedule = max_utils.create_learning_rate_schedule(config, final_lr=muon_final_lr)
-    print(f'muon_final_lr: {muon_final_lr}')
+    max_logging.log(f'muon_final_lr: {muon_final_lr}')
   else:
-    muon_learning_rate_schedule = learning_rate_schedule   
+    muon_learning_rate_schedule = learning_rate_schedule     
 
   return combine.partition(
       transforms={
@@ -147,7 +148,7 @@ def _build_adamw(config, learning_rate_schedule, wd_tree):
       label = 'adam_default'
       if 'deep' in k:
         label = 'adam_deep'
-      print(f'k: {k}, label: {label} ndim: {ndim}')
+      max_logging.log(f'k: {k}, label: {label} ndim: {ndim}')
       param_labels[_k] = label
     return traverse_util.unflatten_dict(param_labels)
 
@@ -232,7 +233,7 @@ _OPTIMIZER_BUILDERS = {
 
 
 def get_optimizer(config, learning_rate_schedule, wd_tree=None):
-  print(f'opt_type: {config.opt_type}')
+  max_logging.log(f'opt_type: {config.opt_type}')
   try:
     optimizer_builder = _OPTIMIZER_BUILDERS[config.opt_type]
   except KeyError:

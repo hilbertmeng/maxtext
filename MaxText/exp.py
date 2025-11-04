@@ -120,8 +120,8 @@ class DC2(DC):
 class KVshift:
     use_kv_shift = True
     kv_shift_flash = True
-    kv_shift_mlp = False
     kv_shift_hidden_way = 'kv'
+    kv_shift_skip_knorm = True
 
 class SpeedTest:
     enable_checkpointing = False 
@@ -583,4 +583,9 @@ class DEMuddMTP1KVshiftV4p5(KVshift, DEMuddMTP1V4p5):
     pass
 
 class MuonDEMuddMTP1KVshiftV4p5(Muon, DEMuddMTP1KVshiftV4p5):
+    muon_scale = 0.35
+    dc_use_muon = False
+    mudd_use_muon = False
+
+class MuonModelV4p5(Muon, ModelV4p5):
     muon_scale = 0.35

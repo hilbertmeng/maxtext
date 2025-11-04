@@ -425,7 +425,6 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
         keep_period = 1000
         mix_attn = True
         query_chunk_method='remat'
-        sub_remat=False
     
     elif train_stage == 4: # v5p-128/v6e-512
         per_device_batch_size = 16.0 # total 1024
@@ -557,3 +556,8 @@ class ModelV4p5(Llama2Medium):
 
 class DEV4p5(DE, ModelV4p5):
     pass
+
+class MuddV4p5(Mudd, ModelV4p5):
+    compose_layers = range(1, 60, 2)
+    mudd_prenorm = False
+    dynamic_mlp_dim = False

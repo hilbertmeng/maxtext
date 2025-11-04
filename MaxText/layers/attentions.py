@@ -1389,6 +1389,7 @@ class Attention(nn.Module):
     elif self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm':
         assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
         inputs_k, inputs_v = inputs_kv
+        print(f'inputs_q: {inputs_q.shape} inputs_k: {inputs_k.shape} inputs_v: {inputs_v.shape}')
         query = self.query_projection(inputs_q)
         key = self.kv_projection(inputs_k, proj_name="key")
         value = self.kv_projection(inputs_v, proj_name="value")

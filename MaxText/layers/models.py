@@ -513,24 +513,12 @@ class Decoder(nn.Module):
           config=cfg,
       )(decoder_positions)
 
-    if cfg.dense_conn: # lsp
-      if cfg.mudd_prenorm:
-        assert cfg.ddw_gen_pattern == 'q,k,v,m', max_logging.log(f'Error: ddw_gen_pattern must be ‘q,k,v,m’ when mudd_prenorm is true.')
-        y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(y)
-      else:
-        y_normed = y
-      if cfg.mudd_in_layer:
-        y, hids = y, [y_normed]
-      else:
-        y, hids = [y] * len(cfg.dynamic_dense_type), [y_normed]
-    else:
-      hids = []
-
-    if cfg.num_layers_per_block > 1: # sub layer num > 1 should use sub remat
-      assert cfg.sub_remat
+    hids = []
+    if cfg.dense_conn and not cfg.mudd_in_layer:
+      max_logging.log(f'Outside layers don\'t use remat')
       RemattedBlockLayers = self.decoder_layer
     else:
-      assert not cfg.sub_remat
+      max_logging.log(f'Outside layers use remat')
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
 
     if cfg.using_pipeline_parallelism:

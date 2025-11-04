@@ -316,7 +316,7 @@ class FusionDecoderLayer(nn.Module):
       if cfg.dense_conn:
         if self.layer_inx == 0:
           y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(inputs) if cfg.mudd_prenorm else inputs
-          inputs = [inputs] * len(cfg.dynamic_dense_type)
+          # inputs = [inputs] * len(cfg.dynamic_dense_type) # 0层要不要分4路？
           hids.append(y_normed)
         elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:
           inputs = [inputs] * len(cfg.dynamic_dense_type) # mtp
@@ -358,5 +358,5 @@ class FusionDecoderLayer(nn.Module):
             hids=hids,
             decoder_input_tokens=decoder_input_tokens,
           )
-        
+   
     return inputs, hids

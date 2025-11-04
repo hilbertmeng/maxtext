@@ -27,6 +27,8 @@ from layers import linears
 from layers import quantizations
 
 from typing import Optional
+from flax.linen.partitioning import ScanIn
+from jax.sharding import Mesh
 
 Embed = embeddings.Embed
 RMSNorm = normalizations.RMSNorm
@@ -35,8 +37,6 @@ Attention = attentions.Attention
 MlpBlock = linears.MlpBlock
 Config = common_types.Config
 AxisNames = common_types.AxisNames
-Mesh = common_types.Mesh
-ScanIn = common_types.ScanIn
 DType = common_types.DType
 Array = common_types.Array
 BATCH = common_types.BATCH

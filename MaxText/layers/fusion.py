@@ -36,12 +36,11 @@ import max_logging
 
 import common_types
 from typing import Optional, Any
+from flax.linen.partitioning import ScanIn
 
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
-Mesh = common_types.Mesh
-ScanIn = common_types.ScanIn
 
 AxisNames = common_types.AxisNames
 BATCH = common_types.BATCH

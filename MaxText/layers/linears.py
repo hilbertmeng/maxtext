@@ -36,11 +36,12 @@ import max_utils
 from aqt.jax.v2 import aqt_tensor
 from kernels import megablox as mblx
 from layers import embeddings
+from jax.sharding import NamedSharding, Mesh
 
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
-Mesh = common_types.Mesh
+
 NdInitializer = initializers.NdInitializer
 
 nd_dense_init = initializers.nd_dense_init

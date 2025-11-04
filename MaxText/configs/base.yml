@@ -696,3 +696,5 @@ use_kv_shift: False
 kv_shift_flash: True
 kv_shift_hidden_way: 'kv'
 kv_shift_skip_knorm: True # remove knorm, duplicated when using qknorm 
+
+num_vocab_tiling: 1

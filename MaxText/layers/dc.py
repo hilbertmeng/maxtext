@@ -15,11 +15,11 @@ import max_logging
 import common_types
 from flax.linen.linear import PrecisionLike
 from layers import accelerator
+from jax.sharding import Mesh
 
 Dtype = Any
 Array = common_types.Array
 DType = common_types.DType
-Mesh = common_types.Mesh
 RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 DEFAULT_MASK_VALUE = -0.7 * float(jnp.finfo(jnp.dtype("float32")).max)

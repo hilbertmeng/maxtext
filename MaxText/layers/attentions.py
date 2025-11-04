@@ -39,9 +39,7 @@ from layers import accelerator
 from einops import rearrange
 import max_logging
 from layers import kv_shift
-
-# pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
-# pytype: disable=attribute-error
+from jax.sharding import Mesh
 
 
 class AttentionType(enum.Enum):
@@ -53,7 +51,6 @@ class AttentionType(enum.Enum):
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
-Mesh = common_types.Mesh
 PRNGKey = common_types.PRNGKey
 
 DenseGeneral = linears.DenseGeneral

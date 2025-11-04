@@ -34,12 +34,11 @@ from layers import normalizations
 from layers import models
 import common_types
 import max_logging
+from flax.linen.partitioning import ScanIn
 
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
-Mesh = common_types.Mesh
-ScanIn = common_types.ScanIn
 
 Embed = embeddings.Embed
 Attention = attentions.Attention

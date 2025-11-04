@@ -23,7 +23,7 @@ from flax import linen as nn
 import common_types
 import functools
 from typing import Any
-
+from jax.sharding import Mesh
 
 class Pipeline(nn.Module):
   """Module that implements pipelining across stages.
@@ -44,7 +44,7 @@ class Pipeline(nn.Module):
 
   config: common_types.Config
   layers: nn.Module  # The name of this property (layers) is reflected in the state pytree and thus also checkpoints.
-  mesh: common_types.Mesh
+  mesh: Mesh
   remat_policy: Any = None
 
   def setup(self):

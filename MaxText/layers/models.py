@@ -33,15 +33,15 @@ from layers import pipeline
 from layers import initializers
 import max_logging
 import aqt.jax.v2.aqt_dot_general as aqt
+from flax.linen.partitioning import ScanIn
 
 from layers import mtp
 import max_utils
+from jax.sharding import Mesh
 
 Array = common_types.Array
 Config = common_types.Config
 DType = common_types.DType
-Mesh = common_types.Mesh
-ScanIn = common_types.ScanIn
 
 Embed = embeddings.Embed
 Attention = attentions.Attention

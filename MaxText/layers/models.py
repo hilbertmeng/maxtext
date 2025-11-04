@@ -666,6 +666,7 @@ class Decoder(nn.Module):
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
 
+
     # mtp share llm head params
     OutputHeadLayer = OutputHead(config=cfg, 
                         shared_embedding=self.shared_embedding,
@@ -673,33 +674,8 @@ class Decoder(nn.Module):
                         quant=self.quant,
                         name='lm_head')
     max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
+    logits = OutputHeadLayer(main_head_inputs, deterministic=deterministic)
 
-    # ============================ compute loss and accuracy ============================
-    # Choose chunking strategy based on config
-    if cfg.use_embed_chunk: # 更快，但显存更大
-      # Chunk on embedding dimension to save memory
-      max_logging.log(f'Using embed dimension chunking with embed_chunk_size={cfg.embed_chunk_size}')
-      xent, correct, main_model_preds = max_utils.compute_loss_chunked_embed_dim(
-        output_head_layer=OutputHeadLayer,
-        inputs=main_head_inputs,
-        target_tokens=decoder_target_tokens,
-        target_mask=decoder_target_mask,
-        vocab_size=cfg.vocab_size,
-        embed_chunk_size=cfg.embed_chunk_size,
-        deterministic=deterministic,
-      )
-    else:
-      # Chunk on sequence length dimension (original behavior)
-      max_logging.log(f'Using sequence length chunking with loss_chunk_size={cfg.loss_chunk_size}')
-      xent, correct, main_model_preds = max_utils.compute_loss_chunked(
-        output_head_layer=OutputHeadLayer,
-        inputs=main_head_inputs,
-        target_tokens=decoder_target_tokens,
-        target_mask=decoder_target_mask,
-        vocab_size=cfg.vocab_size,
-        chunk_size=cfg.loss_chunk_size,
-        deterministic=deterministic,
-      )
     mtp_xent = 0.0
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
@@ -744,7 +720,7 @@ class Decoder(nn.Module):
         mtp_xent += _mtp_xent
       mtp_xent = mtp_xent / chunks
 
-    return xent, correct, mtp_xent
+    return logits, mtp_xent
 
 
 class Transformer(nn.Module):

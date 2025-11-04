@@ -77,6 +77,8 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
 from layers.mtp import calculate_mtp_acceptance_rate, calculate_mtp_loss
 # from jax.experimental import shard_map
+from vocabulary_tiling import vocab_tiling_linen_loss
+import sharding
 
 # pylint: disable=too-many-positional-arguments
 
@@ -585,24 +587,9 @@ def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_t
 
 
 def loss_fn(model, config, data, dropout_rng, params, is_train=True):
-  """loss_fn for both train and eval.
-
-  Args:
-    model: A nn.Module
-    config: Config of parameters
-    data: Batch of data to apply to the model
-    dropout_rng: A key to use to generate rng for dropout
-    params: Model params
-    is_train: True for train_step and False for eval_step
-
-  Returns:
-    loss: average loss
-    aux: a dictionary including intermediate_outputs, total_loss, and total_weights
-  """
-  # inputs, targets, segments, positions = apply_args
+ 
   rng1, aqt_rng = jax.random.split(dropout_rng)
 
-  # decimate proportion of data when per_device_batch_size<1
   if is_train:
     for k, v in data.items():
       data[k] = v[: config.micro_batch_size_to_train_on, :]
@@ -611,7 +598,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
   mutable_collections = ["intermediates"]
-  (xent, correct, mtp_xent), intermediate_outputs = model.apply(
+  (logits, mtp_xent), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
@@ -622,18 +609,30 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       rngs={"dropout": rng1, "params": aqt_rng},
       mutable=mutable_collections,
   )
+  if config.num_vocab_tiling > 1:
+    hidden_state_key = ("intermediates", "decoder", "hidden_states")
+    hidden_states = maxtext_utils.get_nested_value(intermediate_outputs, hidden_state_key)[0]
+    total_loss = vocab_tiling_linen_loss(hidden_states, data, config, model, params, is_train)
+  else:
+    one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
+    xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets)
+    xent = sharding.maybe_shard_with_logical(
+        xent,
+        ("activation_embed_and_logits_batch", "activation_length"),
+        model.mesh,
+        config.shard_mode,
+    )
+    xent = xent * (data["targets_segmentation"] != 0)
+    total_loss = jnp.sum(xent)
 
-  # correct, accuracy = compute_accuracy(logits, data["targets"], data["targets_segmentation"]) # lsp
-  # one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
-  # xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
-  # xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
-  # Mask out paddings at the end of each example.
-  mask = data["targets_segmentation"] != 0
-  xent *= mask
-  total_loss = jnp.sum(xent)
-  total_weights = jnp.sum(mask)
-  accuracy = correct / total_weights
-  loss = total_loss / (total_weights + EPS)
+  total_weights = jnp.sum(data["targets_segmentation"] != 0)
+  if config.gradient_accumulation_steps > 1:
+    loss = total_loss
+  else:
+    loss = total_loss / (total_weights + EPS)
+
+  correct = 0
+  accuracy = 0.0
 
   # Calculate and Add MTP Loss
   mtp_loss, mtp_accept_rate = 0.0, 0.0

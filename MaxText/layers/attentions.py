@@ -39,7 +39,7 @@ from layers import accelerator
 from layers import normalizations
 from layers import kv_shift
 
-import maxtext_utils
+import max_logging
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
 # pytype: disable=attribute-error
@@ -1144,10 +1144,13 @@ class Attention(nn.Module):
   use_kv_shift: bool = False
 
   def setup(self):
-    print(f'num_kv_heads: {self.num_kv_heads}')
-    if self.config.pre_compose or self.config.post_compose:
-      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size, num_kv_heads=self.num_kv_heads)
+    max_logging.log(f'num_kv_heads: {self.num_kv_heads}')
+    if (self.config.pre_compose or self.config.post_compose) \
+      and (self.sliding_window_size < self.config.max_target_length or self.attention_kernel == "dot_product_chunk"):
+      max_logging.log(f'sws: {self.sliding_window_size} use dc chunk-{self.config.query_chunk_size} attn.')
+      self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size)
     else:
+      max_logging.log(f'sws: {self.sliding_window_size} use {self.attention_kernel} attn.')
       self.attention_op = AttentionOp(
         config=self.config,
         mesh=self.mesh,

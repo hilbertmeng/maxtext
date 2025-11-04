@@ -30,11 +30,11 @@ from layers import embeddings
 from layers import linears
 from layers import normalizations, quantizations
 from layers import pipeline
-from layers import mudd
 from layers import initializers
 import max_logging
 import re
 import max_utils
+from layers import mtp
 
 Array = common_types.Array
 Config = common_types.Config

@@ -78,6 +78,13 @@ class DE:
     deep_embed_init = 'inside' 
     use_s2_bias = True
  
+class MTP1Layer:
+    mtp_num_layers = 1
+    mtp_eval_target_module = 1
+    mtp_loss_scaling_factor = 0.1
+    mtp_use_compose = False
+    mtp_use_remat = False
+    
 class Mudd:
     dense_conn = True # dense_proj1 and dense_proj2
     dynamic_dense_type = 'qkvm'
@@ -91,6 +98,7 @@ class Mudd:
     dynamic_mlp_dim = True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
     dynamic_dense_scale_dw = False
     scan_layers = False
+    compose_layers = range(0, 60, 1)
 
 class DC:
     pre_compose = True
@@ -112,7 +120,7 @@ class DC2(DC):
 class KVshift:
     use_kv_shift = True
     kv_shift_flash = True
-    kv_shift_mlp = True
+    kv_shift_mlp = False
     kv_shift_hidden_way = 'kv'
 
 class SpeedTest:
@@ -561,3 +569,18 @@ class MuddV4p5(Mudd, ModelV4p5):
     compose_layers = range(1, 60, 2)
     mudd_prenorm = False
     dynamic_mlp_dim = False
+
+class MTP1V4p5(MTP1Layer, ModelV4p5):
+    pass
+
+class MuddMTP1V4p5(Mudd, MTP1V4p5):
+    pass
+
+class DEMuddMTP1V4p5(DE, MuddMTP1V4p5):
+    pass
+
+class DEMuddMTP1KVshiftV4p5(KVshift, DEMuddMTP1V4p5):
+    pass
+
+class MuonDEMuddMTP1KVshiftV4p5(Muon, DEMuddMTP1KVshiftV4p5):
+    muon_scale = 0.35

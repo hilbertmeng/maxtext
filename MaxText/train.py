@@ -579,6 +579,16 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   total_weights = jnp.sum(mask)
   accuracy = correct / total_weights
   loss = total_loss / (total_weights + EPS)
+
+  # Calculate and Add MTP Loss
+  mtp_loss, mtp_accept_rate = 0.0, 0.0
+  if config.mtp_num_layers > 0:
+    # mtp_loss = calculate_mtp_loss(intermediate_outputs, config)
+    # mtp_accept_rate = calculate_mtp_acceptance_rate(intermediate_outputs, config, logits)
+    mtp_loss = mtp_xent.mean() * config.mtp_loss_scaling_factor
+    mtp_accept_rate = 0.0
+    loss += mtp_loss
+
   # get moe load balance loss
   moe_lb_loss = 0.0
   if config.num_experts > 1:
@@ -595,13 +605,16 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
 
     moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
     loss += moe_lb_loss
+
   aux = {
       "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
       "moe_lb_loss": moe_lb_loss,
-      "accuracy": accuracy, # lsp
-      "correct": jnp.sum(correct), # lsp
+      "accuracy": accuracy,
+      "correct": correct,
+      "mtp_loss": mtp_loss,
+      "mtp_accept_rate": mtp_accept_rate,
   }
   return loss, aux
 
@@ -694,8 +707,11 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   intermediate_outputs = aux["intermediate_outputs"]
   if config.debug:
     print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
+
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
+  mtp_loss = aux["mtp_loss"]
+  mtp_accept_rate = aux["mtp_accept_rate"]
 
   if config.gradient_clipping_threshold > 0:
     grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
@@ -711,10 +727,12 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   new_state = state.apply_gradients(grads=grads)
   scalar_metrics = {
-      "learning/loss": loss - moe_lb_loss, # lsp: remove moe_lb_loss
+      "learning/loss": loss - mtp_loss - moe_lb_loss,
       "learning/moe_lb_loss": moe_lb_loss,
+      "learning/mtp_loss": mtp_loss,
+      "learning/mtp_accept_rate": mtp_accept_rate,
       "learning/total_weights": total_weights,
-      "learning/accuracy": aux['accuracy'], # lsp
+      "learning/accuracy": aux['accuracy'],
   }
   # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
   params_scalar_values = compute_params_norm(state.params, config=config)
@@ -751,17 +769,27 @@ def eval_step(model, config, state, data, dropout_rng):
 
   eval_loss_fn = functools.partial(_loss_fn, model, config, data, dropout_rng, is_train=False)
   loss, aux = eval_loss_fn(state.params, *extra_dpo_args)
+
+  mtp_acceptance_rate = 0.0
+  if config.mtp_eval_target_module > 0:
+    mtp_acceptance_rate = aux['mtp_accept_rate']
+  mtp_loss = aux["mtp_loss"]
+  mtp_accept_rate = aux["mtp_accept_rate"]
+
   total_loss = aux["total_loss"]
   total_weights = aux["total_weights"]
   moe_lb_loss = aux["moe_lb_loss"]
+  
   metrics = {
       "scalar": {
           "evaluation/loss": loss,
           "evaluation/total_loss": total_loss,
           "evaluation/total_weights": total_weights,
           "evaluation/moe_lb_loss": moe_lb_loss,
-          "evaluation/accuracy": aux["accuracy"], # lsp
-          "evaluation/correct": aux["correct"], # lsp
+          "evaluation/accuracy": aux["accuracy"],
+          "evaluation/correct": aux["correct"],
+          "evaluation/mtp_loss": mtp_loss,
+          "evaluation/mtp_accept_rate": mtp_acceptance_rate,
       },
   }
   if config.use_dpo:
@@ -1120,14 +1148,16 @@ def train_loop(config, state=None):
               "eval/total_weights": 0.0,
               "eval/avg_loss": 0.0,
               "eval/moe_lb_loss": 0.0,
+              "eval/mtp_loss": 0.0,
+              "eval/mtp_accept_rate": 0.0,
           }
       }
       eval_dpo_reward_accuracy = 0.0
       eval_step_count = 0
       # pylint: disable=not-callable
       eval_start_time = time.time()
-      eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000# 设置一个很大的数，自动停止
-      correct, accuracy, mean_b_loss = 0, 0, 0 # lsp
+      eval_steps = config.eval_steps if config.eval_steps != -1 else 1000000
+      correct, accuracy, mean_b_loss, mtp_loss, mtp_accept_rate = 0, 0, 0, 0, 0
       start_step = step_in_file
       for _ in range(eval_steps):
         try: eval_batch = next(eval_data_iterator)
@@ -1144,13 +1174,19 @@ def train_loop(config, state=None):
         cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
         cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
         cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
+        cumulative_eval_metrics["scalar"]["eval/mtp_loss"] += float(eval_metrics["scalar"]["evaluation/mtp_loss"])
+        cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] += float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"])
         # lsp
         _correct = float(eval_metrics['scalar']['evaluation/correct'])
         _accuracy = float(eval_metrics["scalar"]["evaluation/accuracy"])
         _mean_b_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) /  float(eval_metrics["scalar"]["evaluation/total_weights"])
+        _mtp_loss = float(eval_metrics["scalar"]["evaluation/mtp_loss"])
+        _mtp_accept_rate = float(eval_metrics["scalar"]["evaluation/mtp_accept_rate"])
         correct += _correct
         accuracy += _accuracy
         mean_b_loss += _mean_b_loss
+        mtp_loss += _mtp_loss
+        mtp_accept_rate += _mtp_accept_rate
         
         eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
         # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
@@ -1158,10 +1194,17 @@ def train_loop(config, state=None):
 
         total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])
         per_step_loss = float(eval_metrics["scalar"]["evaluation/total_loss"]) / (total_weights + EPS)
-        max_logging.log(
-          f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}, '
-          f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
-          )
+
+        step_loss_message = f'[Eval] completed step: {eval_step_count} loss: {per_step_loss:.3f} accuracy: {_accuracy * 1e2:.3f}'
+        weight_message = f'total_weights: {int(total_weights)} take: {time.time() - eval_start_time:.3f}s'
+        print_messages = [step_loss_message, weight_message]
+
+        if config.mtp_num_layers > 0 and config.mtp_eval_target_module > 0:
+          print_messages.append(f"mtp_loss: {_mtp_loss:.3f}")
+          print_messages.append(f"mtp_accept_rate: {_mtp_accept_rate:.3f}")
+        print_messages = ' '.join(print_messages)
+        max_logging.log(print_messages)
+      
 
       eval_loss = cumulative_eval_metrics["scalar"]["eval/total_loss"] / (
           cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS
@@ -1170,13 +1213,18 @@ def train_loop(config, state=None):
       cumulative_eval_metrics["scalar"]["eval/avg_moe_lb_loss"] = (
           cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / eval_step_count
       )
+      cumulative_eval_metrics["scalar"]["eval/avg_mtp_loss"] = (
+          cumulative_eval_metrics["scalar"]["eval/mtp_loss"] / eval_step_count
+      )
+      cumulative_eval_metrics["scalar"]["eval/avg_mtp_accept_rate"] = (
+          cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] / eval_step_count
+      )
       # lsp: batch mean loss, token/batch mean acc
       cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
       cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / cumulative_eval_metrics["scalar"]["eval/total_weights"] 
       cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
       if config.only_eval:
         step = checkpoint_manager.latest_step() if config.eval_model_step == -1 and checkpoint_manager is not None else config.eval_model_step
-        if step is None: step = 1
       if config.use_dpo:
         cumulative_eval_metrics["scalar"]["eval/dpo_reward_accuracy"] = eval_dpo_reward_accuracy / eval_step_count
       write_metrics(
@@ -1185,7 +1233,9 @@ def train_loop(config, state=None):
       max_logging.log(
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=},"
           f" avg_accuracy={cumulative_eval_metrics['scalar']['eval/avg_accuracy']*1e2:.3f}," # lsp
-          f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
+          f" total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']},"
+          f" avg_mtp_loss={cumulative_eval_metrics['scalar']['eval/avg_mtp_loss']:.3f}," # lsp
+          f" avg_mtp_accept_rate={cumulative_eval_metrics['scalar']['eval/mtp_accept_rate']:.3f}," # lsp
       )
       save_eval_result(config, step, cumulative_eval_metrics) # lsp
       

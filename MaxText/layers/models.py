@@ -347,7 +347,7 @@ class Decoder(nn.Module):
     for block_layer in block_layers:
       layer = nn.remat(  # pylint: disable=invalid-name
           block_layer,
-          prevent_cse=self.config.remat_prevent_cse, # lsp, default false
+          prevent_cse=self.config.remat_prevent_cse, # lsp, default false, set to True can save some memory
           policy=policy,
           static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
           rngs={"params": True, "aqt": True, "dropout": True},

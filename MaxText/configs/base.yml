@@ -610,7 +610,6 @@ mudd_prenorm: False
 mudd_postnorm: False
 dynamic_mlp_dim: False # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
 dynamic_dense_scale_dw: False
-debug: False
 
 # other
 epoch: 1
@@ -648,6 +647,8 @@ mix_attn: False # 32k and 4k global attention
 iter_file_nums: 20
 init_method: '006normal'
 loss_chunk_size: 1024
+remat_prevent_cse: True # set to True can save some memory
+debug: False
 
 # Bucket logging configuration
 bucket_logging_enabled: True  # Whether to enable logging to GCS bucket

@@ -122,15 +122,15 @@ class DynamicWeightProjection(nn.Module):
       if self.dc_dw2_zero_init:
         shape = (shape[0], shape[1], shape[2], shape[3]//2, shape[4]) 
         self.qkw1 = self.param('qkw1',kernel_init_shard, shape, self.weight_dtype)
-        self.qkw2 = self.param('qkw2',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, 'data', 'fsdp', None, 'tensor')), shape, self.weight_dtype)
+        self.qkw2 = self.param('qkw2',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None, 'data', 'fsdp', None, 'tensor')), shape, self.weight_dtype)
       else:
         self.qkw = self.param('qkw', kernel_init_shard, shape if not self.dc_use_muon else two_dim_shape, self.weight_dtype)
       
       if self.use_dw_bias:
         assert self.dc_share_prepost_dw_hidden
         bias_shape = [self.n_splits, I // 2, M] # CIM
-        self.w1_bias =  self.param('w1_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
-        self.w2_bias =  self.param('w2_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
+        self.w1_bias =  self.param('w1_bias',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
+        self.w2_bias =  self.param('w2_bias',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None, None, 'kv_heads')), bias_shape, self.weight_dtype)
   
     if self.dynamic_d_init is not None:
       self.dd = linears.DenseGeneral(
@@ -145,7 +145,7 @@ class DynamicWeightProjection(nn.Module):
 
       if self.use_dd_bias: 
         bias_shape = [self.num_heads_per_group * self.n_splits]
-        self.dd_bias =  self.param('dd_bias',nn.with_logical_partitioning(initializers.constant_init(0.0), (None,)), bias_shape, self.weight_dtype)
+        self.dd_bias =  self.param('dd_bias',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None,)), bias_shape, self.weight_dtype)
 
     self.dw_activation = nn.tanh
     # RMSNormScale, compare to RMSNorm. it remove scale

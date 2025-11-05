@@ -93,12 +93,14 @@ class Mudd:
     dynamic_dense_hidden_round = True
     ddw_gen_pattern = 'q,k,v,m'
     ddw_gen_chunk_size = None
-    mudd_prenorm = False
+    mudd_prenorm = False # false can save some memory
     mudd_postnorm = False
     dynamic_mlp_dim = True # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
     dynamic_dense_scale_dw = False
     scan_layers = False
     compose_layers = range(0, 60, 1)
+    mudd_in_layer = True
+    num_layers_per_block = 1
 
 class DC:
     pre_compose = True
@@ -114,8 +116,9 @@ class DC2(DC):
     seperate_qk_dw_proj = True # generate qw from query-way hidden state
     dc_share_prepost_dw_hidden = True # share prepost mlp, likewise mudd
     use_dw_bias = True
-    use_dd_bias = True # harm performance 
+    use_dd_bias = False # harm performance 
     static_proj = False
+    num_layers_per_block = 1
 
 class KVshift:
     use_kv_shift = True
@@ -557,18 +560,19 @@ class ModelV4p5(Llama2Medium):
     num_decoder_layers = 56
     base_emb_dim = 4096
     base_num_query_heads = 32
-    base_num_kv_heads = 32
     base_mlp_dim = 5120
     head_dim = 128
     vocab_size = 151936
+    G = 4
+    base_num_kv_heads = [base_num_query_heads, base_num_query_heads // G, base_num_query_heads, base_num_query_heads]
 
 class DEV4p5(DE, ModelV4p5):
     pass
 
 class MuddV4p5(Mudd, ModelV4p5):
-    compose_layers = range(1, 60, 2)
+    compose_layers = range(1, 60, 2) # interval of 2 to compose
     mudd_prenorm = False
-    dynamic_mlp_dim = False
+    mudd_in_layer = True
 
 class MTP1V4p5(MTP1Layer, ModelV4p5):
     pass
@@ -584,8 +588,20 @@ class DEMuddMTP1KVshiftV4p5(KVshift, DEMuddMTP1V4p5):
 
 class MuonDEMuddMTP1KVshiftV4p5(Muon, DEMuddMTP1KVshiftV4p5):
     muon_scale = 0.35
-    dc_use_muon = False
-    mudd_use_muon = False
+    dc_use_muon = True
+    mudd_use_muon = True
 
 class MuonModelV4p5(Muon, ModelV4p5):
     muon_scale = 0.35
+
+class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
+    num_layers_per_block = 1
+    
+class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
+    vocab_size = 100352
+    base_emb_dim = 2048
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    base_mlp_dim = 2560
+    base_num_decoder_layers = 33
+    head_dim = 64

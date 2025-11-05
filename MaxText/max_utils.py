@@ -922,7 +922,7 @@ def create_learning_rate_schedule(config, final_lr=None):
 # Cross entropy implementation is taken from original T5X codebase:
 # https://github.com/google-research/t5x/blob/ace831eea1e2742b4299cd1a9af7e4f302038351/t5x/losses.py#L25-L101
 @jax.custom_vjp
-def cross_entropy_with_logits(logits: jnp.ndarray, targets: jnp.ndarray, z_loss: float) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def cross_entropy_with_logits(logits: jnp.ndarray, targets: jnp.ndarray, z_loss: float = 0.0) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Computes cross entropy loss with stable custom gradient.
   Computes a stabilized-gradient version of:
     -jnp.sum(targets * nn.log_softmax(logits), axis=-1)
@@ -1172,7 +1172,7 @@ def print_system_information():
   Note that this will initialize the JAX backend."""
   max_logging.log(f"System Information: Jax Version: {jax.__version__}")
   max_logging.log(f"System Information: Jaxlib Version: {jax.lib.__version__}")
-  max_logging.log(f"System Information: Jax Backend: {jax.lib.xla_bridge.get_backend().platform_version}")
+  max_logging.log(f"System Information: Jax Backend: {jax.extend.backend.get_backend().platform_version}")
 
 
 def permute_to_match_maxtext_rope(arr):

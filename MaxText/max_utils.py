@@ -1194,38 +1194,3 @@ def unpermute_from_match_maxtext_rope(arr, model_size):
   evens = arr[..., ::2]
   odds = arr[..., 1::2]
   return jax.numpy.concatenate((evens, odds), axis=arr.ndim - 1)
-
-
-def compute_loss_chunked(
-    output_head_layer: Callable,
-    inputs: Array,
-    target_tokens: Array,
-    target_mask: Array,
-    vocab_size: int,
-    chunk_size: int = 1024,
-    deterministic: bool = True,
-) -> tuple[Array, Array, Array]:
-  seq_len = inputs.shape[1]
-  xents = []
-  correct = 0
-  preds = []
-  for start_idx in range(0, seq_len, chunk_size):
-    end_idx = min(start_idx + chunk_size, seq_len)
-    chunk_slice = slice(start_idx, end_idx)
-    logits_chunk = output_head_layer(inputs[:, chunk_slice], deterministic=deterministic)
-    preds_chunk = jnp.argmax(logits_chunk, axis=-1)
-    mask_chunk = target_mask[:, chunk_slice]
-    targets_chunk = target_tokens[:, chunk_slice]
-    one_hot_targets_chunk = jax.nn.one_hot(targets_chunk, vocab_size) # must chunk
-    predictions_match = jnp.argmax(logits_chunk, axis=-1) == targets_chunk
-    correct_chunk = jnp.where(mask_chunk > 0.0, predictions_match, jnp.array(False))
-    correct += jnp.sum(correct_chunk)
-    xent, _ = cross_entropy_with_logits(logits_chunk, one_hot_targets_chunk, 0.0)
-    xent = nn.with_logical_constraint(
-        xent, ("activation_embed_and_logits_batch", "activation_length")
-    )
-    xents.append(xent)
-    preds.append(preds_chunk)
-  xents = jnp.concatenate(xents, axis=1)
-  preds = jnp.concatenate(preds, axis=1)
-  return xents, correct, preds

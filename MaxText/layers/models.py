@@ -287,39 +287,68 @@ class OutputHead(nn.Module):
         epsilon=cfg.normalization_layer_epsilon,
         kernel_axes=("norm",),
         )
-    
     dense_kernel = self.param(
-                            "logits_dense",
-                            nn.with_logical_partitioning(initializers.get_init_method(cfg.init_method), ("embed", "vocab")),
-                            (cfg.emb_dim, cfg.vocab_size),
-                            cfg.weight_dtype,
-                        ) # int use 888 more quick，but more memory
+      "logits_dense",
+      nn.with_logical_partitioning(initializers.get_init_method(cfg.init_method), ("embed", "vocab")),
+      (cfg.emb_dim, cfg.vocab_size),
+      cfg.weight_dtype,
+      ) # int use 888 more quick，but more memory
     self.logits_dense = dense_kernel.astype(cfg.dtype)
     self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
   
   @nn.compact
-  def __call__(self, y, deterministic, int8=False, embed_chunk_size=None):
+  def __call__(
+    self,
+    inputs: Array,
+    target_tokens: Array,
+    target_mask: Array,
+    chunk_size: int = 1024,
+    deterministic: bool = True,
+    mtp_layer: bool = False,
+  ) -> tuple[Array, Array, Array]:
+
     cfg = self.config
-    y = self.norm(y) # 20250925 fix, this bug occurred at MTP experiment.
-    y = self.dropout(y, deterministic=deterministic)
-    
-    if cfg.logits_via_embedding: # false
-        max_logging.log(f'Word embedding shared: {cfg.logits_via_embedding}')
-        logits = self.shared_embedding.attend(y)
+    seq_len = inputs.shape[1]
+    xents = []
+    correct = 0
+    preds = []
+    # chunk_size = cfg.loss_chunk_size
+    dense_kernel = nn.with_logical_constraint(
+          self.logits_dense, (None, "vocab")
+      ) # manual shard to speed up, about 1%
+    # dense_kernel = self.logits_dense
+    if not mtp_layer:
+      inputs = self.norm(inputs)
+      inputs = self.dropout(inputs, deterministic=deterministic)
+
+    for start_idx in range(0, seq_len, chunk_size):
+      end_idx = min(start_idx + chunk_size, seq_len)
+      chunk_slice = slice(start_idx, end_idx)
+      if cfg.logits_via_embedding: # false
+        logits_chunk = self.shared_embedding.attend(inputs[:, chunk_slice])
         if cfg.normalize_embedding_logits:
-            logits = logits / jnp.sqrt(y.shape[-1])
+            logits_chunk = logits_chunk / jnp.sqrt(inputs[:, chunk_slice].shape[-1])
         if cfg.final_logits_soft_cap:
-            logits = logits / cfg.final_logits_soft_cap
-            logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
-    else:
-      # Original non-chunked computation
-      logits = jnp.einsum('btd,dv->btv', y, self.logits_dense)
-      logits = nn.with_logical_constraint(
-          logits, ("activation_embed_and_logits_batch", "activation_length", "activation_vocab")
+            logits_chunk = logits_chunk / cfg.final_logits_soft_cap
+            logits_chunk = jnp.tanh(logits_chunk) * cfg.final_logits_soft_cap
+      else:
+        logits_chunk = jnp.einsum('btd,dv->btv', inputs[:, chunk_slice], dense_kernel)
+      preds_chunk = jnp.argmax(logits_chunk, axis=-1)
+      mask_chunk = target_mask[:, chunk_slice]
+      targets_chunk = target_tokens[:, chunk_slice]
+      one_hot_targets_chunk = jax.nn.one_hot(targets_chunk, cfg.vocab_size) # must chunk
+      predictions_match = jnp.argmax(logits_chunk, axis=-1) == targets_chunk
+      correct_chunk = jnp.where(mask_chunk > 0.0, predictions_match, jnp.array(False))
+      correct += jnp.sum(correct_chunk)
+      xent, _ = max_utils.cross_entropy_with_logits(logits_chunk, one_hot_targets_chunk, 0.0)
+      xent = nn.with_logical_constraint(
+          xent, ("activation_embed_and_logits_batch", "activation_length")
       )
-    if cfg.cast_logits_to_fp32:
-        logits = logits.astype(jnp.float32)
-    return logits
+      xents.append(xent)
+      preds.append(preds_chunk)
+    xents = jnp.concatenate(xents, axis=1)
+    preds = jnp.concatenate(preds, axis=1)
+    return xents, correct, preds
 
 
 class Decoder(nn.Module):
@@ -632,17 +661,14 @@ class Decoder(nn.Module):
                         quant=self.quant,
                         name='lm_head')
     max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
-   
-    max_logging.log(f'Using sequence length chunking with loss_chunk_size={cfg.loss_chunk_size}')
-    xent, correct, main_model_preds = max_utils.compute_loss_chunked(
-      output_head_layer=OutputHeadLayer,
-      inputs=main_head_inputs,
-      target_tokens=decoder_target_tokens,
-      target_mask=decoder_target_mask,
-      vocab_size=cfg.vocab_size,
-      chunk_size=cfg.loss_chunk_size,
-      deterministic=deterministic,
-    )
+    xent, correct, main_model_preds = OutputHeadLayer(
+      main_head_inputs, 
+      decoder_target_tokens, 
+      decoder_target_mask, 
+      cfg.loss_chunk_size, # set 1k better than 4k
+      deterministic, 
+      mtp_layer=False
+      )
     mtp_xent = 0.0
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'

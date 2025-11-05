@@ -144,6 +144,7 @@ class MultiTokenPredictionBlock(nn.Module):
       model_mode,
       hids=None,
   ):
+    max_logging.log(f'Enter MTP Block......')
     cfg = self.config
     mtp_hidden_state = main_hidden_state
 
@@ -181,20 +182,11 @@ class MultiTokenPredictionBlock(nn.Module):
       next_mtp_hidden_state, hids = mtp_layer(
           mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids, rolled_input_ids
       )
-      
       mtp_head_inputs = next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state
-        # Chunk on sequence length dimension (original behavior)
-      max_logging.log(f'MTP using sequence length chunking')
-      mtp_xent, _, _ = max_utils.compute_loss_chunked(
-            output_head_layer=output_layer,
-            inputs=mtp_head_inputs,
-            target_tokens=rolled_target_ids,
-            target_mask=rolled_target_mask,
-            vocab_size=cfg.vocab_size,
-            chunk_size=4096, # if have no enough memory, can set to 2048
-            deterministic=deterministic,
-        )
+      # mtp chunk size set 4k better than 1k
+      mtp_xent, _, _ = output_layer(mtp_head_inputs, rolled_target_ids, rolled_target_mask, 4096, deterministic, mtp_layer=True)
       mtp_xent += mtp_xent
+
       return mtp_xent
 
 

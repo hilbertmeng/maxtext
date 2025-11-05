@@ -12,40 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This sentinel is a reminder to choose a real run name.
-# If there is already a checkpoint under this run, that checkpoint will auto-resume.
-run_name: ""
-
-model_name: "default" # override config settings to match a specific model. other than the override, nothing should use this!
-normalization_layer_epsilon: 1.e-05
-
-################################## CHECKPOINTING ##################################
-# Checkpointing makes the following choices in the following order, starting with (1):
-#   (1) If there is already a checkpoint for this run_name, we load the latest entire checkpoint.
-#     This ensures if we're resuming a run after preemption or hardware failure we lose minimum state.
-#   (2) Same priority and mutually exclusive -- you can't set both!
-#      * If load_parameters_path is set, we load a parameter only checkpoint from that path.
-#      * If load_full_state_path is set, we load a full state checkpoint from that path.
-#   (3) We don't load a checkpoint and initialize state instead!
-
-# Loads a just parameters from a specific directory
-# e.g. gs://my-base-output-directory/my-previous-run-name/checkpoints/items/NUMBER or NUMBER/items
-load_parameters_path: ""
-# Loads a full checkpoint including optimizer state and step count from a specific directory
-# e.g. gs://my-base-output-directory/my-previous-run-name/checkpoints/items/NUMBER or NUMBER/items
-load_full_state_path: ""
-
-# If enable_checkpointing is true, an asynchronous checkpointer will be used if
-# async_checkpointing is true, else a synchronous one is used. If you have
-# problems with the checkpointer we recommend trying the synchronous one.
-enable_checkpointing: True
-async_checkpointing: True
-checkpoint_period: 10_000
-# enables one replica to read the ckpt then broadcast to the rest
 enable_single_replica_ckpt_restoring: False
-
 force_unroll: False # during generate_param_only_checkpoint should we unroll the loop?
-
 # checkpointing using orbax has two important parameters: array driver
 # and its underlying storage - the kvstore (preferably ocdbt)
 # orbax supports setting a target file size, chunking a single
@@ -55,7 +23,6 @@ checkpoint_storage_target_data_file_size_bytes: 2147483648
 checkpoint_storage_use_ocdbt: True
 checkpoint_storage_use_zarr3: True
 ############################### END CHECKPOINTING ##################################
-
 
 reuse_example_batch: 0 # for testing TPU performance, this options repeated uses the same batch.
 
@@ -74,7 +41,6 @@ dtype: "bfloat16"
 # 'int8' for dynamic range quantization using 8-bits
 # 'intmp' for mixed precision quantization for inference as described here: MaxText/configs/quantization/README.md
 # 'fp8' for 8-bit floating-point GeMMs on NVIDIA GPUs.
-quantization: "" # "int8"
 # Choose one of default, high, and highest.
 # https://kolonist26-jax-kr.readthedocs.io/en/latest/jax.lax.html#jax.lax.Precision
 matmul_precision: "default"
@@ -109,12 +75,6 @@ decoder_block: "llama2" # which style of DecoderBlock to use.
 # base_mlp_dim, base_num_decoder_layers and/or head_dim.
 weight_dtype: float32
 global_parameter_scale: 1
-base_emb_dim: 2048
-base_num_query_heads: 16
-base_num_kv_heads: 16
-base_mlp_dim: 7168
-base_num_decoder_layers: 16
-head_dim: 128
 mlp_activations: ["silu", "linear"]
 dropout_rate: 0.0
 logits_via_embedding: False
@@ -123,14 +83,6 @@ logits_dot_in_fp32: False  # whether to use fp32 in logits_dense or shared_embed
 cast_logits_to_fp32: True # whether to cast the logits to fp32. The higher precision is generally beneficial, but it can vary slightly.
 float32_qk_product: False # in dot_product attention, whether to cast to fp32 the inputs to qk product
 float32_logits: True # in dot_product attention, whether to cast to fp32 the inputs to softmax
-
-# mixture of experts (moe)
-num_experts: 1
-num_experts_per_tok: 2
-megablox: True
-sparse_matmul: True
-capacity_factor: -1.0 # a factor to decide expert capacity for token dropping, and no dropping by default
-load_balance_loss_weight: 0.01 # weight for the load balance loss
 
 # deepseek moe
 base_moe_mlp_dim: 7168 # intermediate dimension at MoE layer (use base_mlp_dim if not DeepSeek style)
@@ -198,12 +150,9 @@ qkv_proj: 'remat'
 out_proj: 'remat'
 
 optimizer_memory_host_offload: False
-scan_layers: True # We recommend setting this to false when using pipeline parallelism, instead scanning the PP iterations.
-param_scan_axis: 1
 
 # The attention parameter dictates the specific algorithm/methodology used to compute the attention scores
 # The attention_type parameter determines the variants of attention, e.g. global or local_sliding
-attention: 'autoselected' # Supported attention: autoselected, dot_product, flash, cudnn_flash_te
 attention_type: 'global' # Supported attention_type: global, local_sliding, mla
 sliding_window_size: null
 attn_logits_soft_cap: 0.0
@@ -302,9 +251,6 @@ logical_axis_rules: [
 # Axes used for DCN must be earlier in this list than ICI, see (b/339009148) for details
 data_sharding: [['data', 'stage', 'fsdp', 'fsdp_transpose', 'sequence', 'tensor', 'tensor_transpose', 'tensor_sequence', 'expert', 'autoregressive']]
 
-# sharding tolerance: float between 0.0 and 1.0 representing the allowed percentage of non-sharded parameters.
-sharding_tolerance: 0.02
-
 # One axis for each parallelism type may hold a placeholder (-1)
 # value to auto-shard based on available slices and devices.
 # By default, product of the DCN axes should equal number of slices
@@ -344,9 +290,7 @@ add_bos: True
 add_eos: True
 
 # Dataset
-per_device_batch_size: 12.0
 expansion_factor_real_data: -1 # if -1 then all hosts will load real data, else total_hosts//expansion_factor_real_data will pull data from GCS.
-eval_per_device_batch_size: 0.0
 max_corpus_chars: 10_000_000
 train_data_columns: ['text'] # for DPO dataset containing "chosen" and "rejected"
 eval_data_columns: ['text'] # for DPO dataset containing "chosen" and "rejected"
@@ -358,12 +302,8 @@ dpo_beta: 0.1
 
 # dataset_type must be synthetic, hf, grain, tfds
 # details in: https://github.com/google/maxtext/blob/main/getting_started/Data_Input_Pipeline.md
-dataset_type: tfds
-# for TFDS input pipeline (dataset_type=tfds)
-dataset_path: "" # your path given as argument in download_dataset.sh, e.g. "gs://my-maxtext-dataset/"
 dataset_name: 'c4/en:3.0.1'
 eval_dataset_name: 'c4/en:3.0.1'
-eval_split: 'validation'
 # for HuggingFace input pipeline (dataset_type=hf)
 hf_path: ''
 hf_data_dir: ''
@@ -376,10 +316,6 @@ grain_train_files: ''
 grain_eval_files: ''
 grain_worker_count: 1
 
-# Training loop
-steps: 1000000 # If set to -1 then will inherit value from learning_rate_schedule_steps
-log_period: 25 # Flushes Tensorboard
-
 jax_distributed_initialization_timeout: 300 # This is the default timeout in https://github.com/jax-ml/jax/blob/main/jax/_src/distributed.py
 # Note there are two separate initializations - the jax coordination service (aka jax.distributed.initialize) and the backend (e.g. PjRT), the timeout above refers
 # only to the jax coordination service.
@@ -389,20 +325,6 @@ skip_jax_distributed_system: False # If True we will not initialize the jax dist
 # However when run on google internal TPUs the coordination service is started automatically
 # and we should set this to True so we won't try to initialize a second time manually.
 
-# We take inspiration from Llama2's learning rate (LR) schedule, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
-# Learning rate schedule has either two or three parts:
-# 1) Linear warmup from 0 to [learning_rate] over steps 0 to [learning_rate_schedule_steps * warmup_steps_fraction]
-# 2) Cosine decay from [learning_rate] to [learning_rate * cosine_learning_rate_final_fraction] from warmup to learning_rate_schedule_steps
-# 3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
-# The zero learning rate section can be used to more accurately measure the fully trained model's performance.
-learning_rate: 3.e-5
-cosine_learning_rate_final_fraction: 0.1 # 也可以作为wsd decay的结束学习率
-warmup_steps_fraction: 0.1 # cosine and wsd warmup steps fraction
-learning_rate_schedule_steps: -1 # By default the length of the schedule is set to the number of steps.
-# However you may choose a longer schedule (learning_rate_schedule_steps > steps), in which case the training will end before
-# dropping fully down. Or you may choose a shorter schedule, where the unspecified steps will have a learning rate of 0.
-
-max_target_length: 2048 # Maximum sequence length
 max_prefill_predict_length: 64 # Maximum length for the prefill when doing autoregression
 prompt: "I love to" # Prompt for language model sampling.
 load_from_prefill_dir: False # If true, decode.py doesn't "prefill" but just reads from directory
@@ -423,7 +345,6 @@ profile_cleanly: True # If set to true, adds a block_until_ready on train state 
 profile_periodically_period: -1 # If set to a positive integer, profile every profile_periodically_period steps.
 # This is useful to debug scenarios where performance is changing.
 
-
 # Dump HLO options
 dump_hlo: False
 dump_hlo_local_dir: "/tmp/xla_dump/"
@@ -442,22 +363,6 @@ enable_data_shuffling: True
 data_shuffle_seed: 0
 init_weights_seed: 0
 
-# You may disable clipping by setting gradient_clipping_threshold to zero.
-gradient_clipping_threshold: 1.0
-
-# Instead of updating the weights every step, you may effectively use a larger
-# batch by accumulating the gradient over a set of steps.
-gradient_accumulation_steps: 1
-
-# AdamW optimizer parameters
-# We use AdamW following Llama2's training details, see https://arxiv.org/pdf/2307.09288.pdf section 2.2
-opt_type: "adamw"  # one of "adam_pax" or "adamw"
-adam_b1: 0.9 # Exponential decay rate to track the first moment of past gradients.
-adam_b2: 0.95 # Exponential decay rate to track the second moment of past gradients.
-adam_eps: 1.e-8 # A small constant applied to denominator outside of the square root.
-adam_eps_root: 0. # A small constant applied to denominator inside the square root.
-adam_weight_decay: 0.1 # AdamW Weight decay
-
 # Stack trace parameters
 collect_stack_trace: False
 stack_trace_to_cloud: False  # Uploads to cloud logging if True, else to the console if False.
@@ -468,10 +373,6 @@ use_iota_embed: False
 # use positional embedding
 use_untrainable_positional_embedding: False
 trainable_position_size: -1  # enable gpt3 position embedding with a positive trainable_position_size
-# RoPE parameters
-rope_type: "default" # one of "default", "llama3.1" or "yarn"
-rope_min_timescale: 1
-rope_max_timescale: 10_000
 
 # yarn RoPE parameters
 original_seq_len: 4096
@@ -492,8 +393,6 @@ decode_sampling_nucleus_p: -1 # set if you're doing nucleus / top-p
 decode_sampling_top_k: 0 # set if you're doing top-k
 decode_sampling_temperature: 1.
 
-eval_interval: -1  # the specific number of train step between eval_step
-eval_steps: -1  # only run this number of batches for eval, for debugging use
 target_eval_loss: 0.  # early stop once reaching target eval_loss
 
 # Goodput parameters
@@ -591,14 +490,43 @@ sa_q_layout: "HEAD_DIM_MINOR"
 sa_k_layout: "HEAD_DIM_MINOR"
 sa_v_layout: "HEAD_DIM_MINOR"
 
-# dc
+upload_param_act_tb_period: 25 # upload param, activation to tensorboard interval steps
+upload_loss_tb_period: 5 # # upload loss,acc,lr etc. to tensorboard interval steps
+
+# ================================================================== 【常用参数】==================================================================
+
+
+# ================================= [dataset] =================================
+epoch: 1
+dataset_type: tfds
+eval_split: 'validation'
+# for TFDS input pipeline (dataset_type=tfds)
+dataset_path: "" # your path given as argument in download_dataset.sh, e.g. "gs://my-maxtext-dataset/"
+task_features: ['input_ids']
+training_num_batches_to_skip: 0
+steps: 1000000 # If set to -1 then will inherit value from learning_rate_schedule_steps
+train_shuffle_buffer_size: 200
+iter_file_nums: 20
+
+# ================================= [dc] =================================
 exp_class: 'Llama2Medium'
 pre_compose: False
 post_compose: False
 qk_norm: False
 query_chunk_size: 512
+query_wise: True
+key_wise: True
+num_layers_per_block: 1
+qkv_bias: False
+use_dw_bias: False
+use_dd_bias: False
+dc_share_prepost_dw_hidden: False
+seperate_qk_dw_proj: True
+query_chunk_method: ''
+static_proj: False
+init_method: '006normal'
 
-# mudd
+# ================================= [mudd] =================================
 dense_conn: False
 dynamic_dense_type: 'qkvm'
 dynamic_dense_act_cls: 'gelu'
@@ -610,11 +538,10 @@ mudd_prenorm: False
 mudd_postnorm: False
 dynamic_mlp_dim: False # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
 dynamic_dense_scale_dw: False
+mudd_in_layer: False
 
-# other
-epoch: 1
-task_features: ['input_ids']
-mgate_dim: 0
+# ================================= [moe] =================================
+capacity_factor: -1.0 # Don't change this value
 moe_type: 'openmoe'
 expert_capacity_factor: 1.5
 expert_chunk_size: 8
@@ -622,58 +549,106 @@ router_z_loss_coef: 0.01
 gate_noise_coef: 0.5
 sfm_after_topn: True
 num_groups: 1
-keep_period: 1000 # step / keep_period would not be deleted
-max_to_keep: 4 # max save checkpoint nums nearby
-only_eval: False
-static_proj: False
-eval_model_step: -1 # evaluate certain step checkpoint, if -1, auto select latest step.
-tensorboard_dir: ''
-upload_param_act_tb_period: 25 # upload param, activation to tensorboard interval steps
-upload_loss_tb_period: 5 # # upload loss,acc,lr etc. to tensorboard interval steps
-training_num_batches_to_skip: 0
-query_wise: True
-key_wise: True
-num_layers_per_block: 1
-qkv_bias: False
-stable_steps_fraction: 0.0
-mudd_in_layer: False
-use_dw_bias: False
-use_dd_bias: False
-dc_share_prepost_dw_hidden: False
-seperate_qk_dw_proj: True
-train_shuffle_buffer_size: 200
-query_chunk_method: ''
-mix_attn: False # 32k and 4k global attention
-iter_file_nums: 20
-init_method: '006normal'
-loss_chunk_size: 1024
-remat_prevent_cse: True # set to True can save some memory
-debug: False
+num_experts: 1
+num_experts_per_tok: 2
+megablox: True
+sparse_matmul: True
+load_balance_loss_weight: 0.01
 
-# Bucket logging configuration
+# ================================= [Bucket logging configuration] =================================
 bucket_logging_enabled: True  # Whether to enable logging to GCS bucket
 bucket_logging_dir: "logs"        # GCS bucket path for logs, e.g., "gs://my-bucket/logs"
 bucket_log_upload_interval: 300 # Upload interval in seconds (default: 300)
 bucket_log_buffer_size: 500   # Maximum buffer size before forced upload (default: 150)
 
-# muon
+# ================================= [muon] =================================
 dc_use_muon: False
 mudd_use_muon: False
-muon_scale: 0.2
+muon_scale: 0.35
 muon_decay_ratio: 0.075 # for medium, can get better result with 0.1, maybe < 0.1 for larger model
 
+# ================================= [kv shift] =================================
 kv_shift_flash: True
-decay_method: 'cosine'
+use_kv_shift: False
+kv_shift_hidden_way: 'kv'
+kv_shift_skip_knorm: True
 
-# deepembed params
+# ================================= [deepembed] =================================
 deep_embed_type: 'none' # choices: [none,  1xmlp, 4xmlp], alse combine with other types
 deep_embed_init: 'inside' # choices: [inside, outside]
 deep_embed_norm: True
 use_s2_bias: True
 
-# mtp params
+# ================================= [mtp] =================================
 mtp_num_layers: 0
 mtp_eval_target_module: 0
 mtp_loss_scaling_factor: 0.1
 mtp_use_compose: False
 mtp_head_int8: False
+mtp_use_remat: False
+
+# ================================= [checkpoint saving] =================================
+# e.g. gs://my-base-output-directory/my-previous-run-name/checkpoints/items/NUMBER or NUMBER/items
+load_parameters_path: ""
+# Loads a full checkpoint including optimizer state and step count from a specific directory
+# e.g. gs://my-base-output-directory/my-previous-run-name/checkpoints/items/NUMBER or NUMBER/items
+load_full_state_path: ""
+enable_checkpointing: True
+async_checkpointing: True
+keep_period: 1000 # step / keep_period would not be deleted
+checkpoint_period: 10_000
+max_to_keep: 4 # max save checkpoint nums nearby
+
+# ================================= [learning rate schedule] =================================
+adam_b1: 0.9
+adam_b2: 0.95 
+adam_eps: 1.e-8
+adam_eps_root: 0.
+adam_weight_decay: 0.1
+stable_steps_fraction: 0.0
+opt_type: "adamw"  # one of "adam_pax" or "adamw" or "muon"
+decay_method: 'cosine'
+learning_rate: 3.e-5
+cosine_learning_rate_final_fraction: 0.1 # 也可以作为wsd decay的结束学习率
+warmup_steps_fraction: 0.1 # cosine and wsd warmup steps fraction
+learning_rate_schedule_steps: -1 # By default the length of the schedule is set to the number of steps.
+gradient_clipping_threshold: 1.0
+gradient_accumulation_steps: 1
+
+# ================================= [model] =================================
+quantization: "" # "int8"
+model_name: "default" # override config settings to match a specific model. other than the override, nothing should use this!
+normalization_layer_epsilon: 1.e-06
+base_emb_dim: 2048
+base_num_query_heads: 16
+base_num_kv_heads: 16
+base_mlp_dim: 7168
+base_num_decoder_layers: 16
+head_dim: 128
+max_target_length: 2048 # Maximum sequence length
+per_device_batch_size: 12.0
+eval_per_device_batch_size: 12.0
+eval_interval: 1000  # the specific number of train step between eval_step
+eval_steps: -1  # only run this number of batches for eval, for debugging use
+mix_attn: False # 32k and 4k global attention
+
+# ================================= [other] =================================
+# RoPE parameters
+rope_type: "default" # one of "default", "llama3.1" or "yarn"
+rope_min_timescale: 1
+rope_max_timescale: 10_000
+debug: False
+mgate_dim: 0
+eval_model_step: -1 # evaluate certain step checkpoint, if -1, auto select latest step.
+tensorboard_dir: ''
+loss_chunk_size: 1024
+remat_prevent_cse: True # set to True can save some memory
+log_period: 25 # Flushes Tensorboard
+attention: 'autoselected' # ['autoselected', 'dot_product', 'flash', 'cudnn_flash_te']
+only_eval: False
+# sharding tolerance: float between 0.0 and 1.0 representing the allowed percentage of non-sharded parameters.
+sharding_tolerance: 0.02
+scan_layers: True # We recommend setting this to false when using pipeline parallelism, instead scanning the PP iterations.
+param_scan_axis: 1
+run_name: ""
+shard_mode: "auto" # choices: [auto, explicit]

@@ -37,9 +37,6 @@ PyTreeCheckpointHandler = ocp.PyTreeCheckpointHandler
 LocalCheckpointOptions = emergency_checkpoint_manager.LocalCheckpointOptions
 PersistentCheckpointOptions = emergency_checkpoint_manager.PersistentCheckpointOptions
 
-abstract_logger = ocp.logging.abstract_logger
-cloud_logger = ocp.logging.cloud_logger
-
 
 def create_orbax_checkpoint_manager(
     checkpoint_dir: str,
@@ -47,7 +44,7 @@ def create_orbax_checkpoint_manager(
     use_async: bool,
     save_interval_steps: int,
     dataset_type: Optional[str] = "tfds",
-    orbax_logger: Optional[abstract_logger.AbstractLogger] = None,
+    orbax_logger: Any = None,  # pytype: disable=attribute-error
     use_ocdbt: bool = True,
     use_zarr3: bool = True,
     config = None,
@@ -93,7 +90,7 @@ def create_orbax_emergency_checkpoint_manager(
     abstract_state: Any,
     local_save_interval_steps: int,
     persistent_save_interval_steps: int,
-    orbax_logger: Optional[abstract_logger.AbstractLogger] = None,
+    orbax_logger: Any = None,  # pytype: disable=attribute-error
 ):
   """Returns an emergency checkpoint manager."""
   flags.FLAGS.experimental_orbax_use_distributed_process_id = True
@@ -309,7 +306,7 @@ def load_state_if_possible(
     return None, None
 
 
-def setup_checkpoint_logger(config) -> cloud_logger.CloudLogger | None:
+def setup_checkpoint_logger(config) -> Any | None:  # pytype: disable=attribute-error
   """Setup checkpoint logger.
   Args:
     config
@@ -320,10 +317,10 @@ def setup_checkpoint_logger(config) -> cloud_logger.CloudLogger | None:
   max_logging.log("Setting up checkpoint logger...")
   if config.enable_checkpoint_cloud_logger:
     logger_name = f"goodput_{config.run_name}"
-    options = cloud_logger.CloudLoggerOptions(job_name=config.run_name, logger_name=logger_name)
-    orbax_cloud_logger = cloud_logger.CloudLogger(options=options)
+    orbax_cloud_logger = ocp.logging.CloudLogger(
+        options=ocp.logging.CloudLoggerOptions(job_name=config.run_name, logger_name=logger_name)
+    )
     max_logging.log("Successfully set up checkpoint cloud logger.")
-    return orbax_cloud_logger
 
   return orbax_cloud_logger
 

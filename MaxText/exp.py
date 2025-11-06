@@ -596,6 +596,7 @@ class MuonModelV4p5(Muon, ModelV4p5):
 
 class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
     num_layers_per_block = 1
+    compose_layers = range(1, 60, 2) # interval of 2 to compose # v5p-256 interval 1 speed: 0.034.
     
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     vocab_size = 100352

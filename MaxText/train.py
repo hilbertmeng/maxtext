@@ -46,7 +46,6 @@ import max_logging
 import optimizers
 import profiler
 import pyconfig
-import pathwaysutils  # pylint: disable=unused-import
 import tensorflow as tf
 from contextlib import nullcontext
 
@@ -71,7 +70,6 @@ from cloud_tpu_diagnostics.configuration import stack_trace_configuration
 
 from layers import quantizations
 
-from ml_goodput_measurement import goodput
 from ml_goodput_measurement import monitoring
 
 import json
@@ -791,25 +789,6 @@ def eval_step(model, config, state, data, dropout_rng):
   return metrics
 
 
-def create_goodput_recorder(config):
-  if config.enable_goodput_recording:
-    logger_name = f"goodput_{config.run_name}"
-    recorder = goodput.GoodputRecorder(config.run_name, logger_name, jax.process_index() == 0)
-    return recorder
-  return None
-
-
-def record_goodput(
-    recorder,
-    config,
-    record_func,
-    *args,
-):
-  """Record data for Goodput and Badput computation."""
-  if recorder and config.enable_goodput_recording:
-    record_func(*args)
-
-
 def check_example_batch(config, example_batch):
   if config.max_checkify:
     jittable_f = checkify.checkify(lambda x: checkify.check(jnp.any(x > -1), "Batch contains bad synthetic data!"))
@@ -920,11 +899,7 @@ def setup_train_loop(config):
     data_iterator:
     state: the initialized train state
   """
-  recorder = create_goodput_recorder(config)
-  record_goodput(recorder, config, recorder.record_tpu_init_start_time if recorder else None)
   init_rng, writer, checkpoint_manager, mesh, model, learning_rate_schedule, tx = setup_mesh_and_model(config)
-  record_goodput(recorder, config, recorder.record_tpu_init_end_time if recorder else None)
-  record_goodput(recorder, config, recorder.record_training_preparation_start_time if recorder else None)
   data_iterator, eval_data_iterator = create_data_iterator(config, mesh)
 
   state, _, state_mesh_shardings, data_iterator = max_utils.setup_training_state(
@@ -959,7 +934,6 @@ def setup_train_loop(config):
           f"Could not restore reference parameters for DPO from '{os.path.join(str(config.checkpoint_dir), str(0))}'"
       )
 
-  record_goodput(recorder, config, recorder.record_training_preparation_end_time if recorder else None)
   return (
       init_rng,
       writer,
@@ -982,10 +956,6 @@ def train_loop(config, state=None):
     ckpt_path:
   Returns:
   """
-  # Create a GoodputRecorder to log information
-  recorder = create_goodput_recorder(config)
-  record_goodput(recorder, config, recorder.record_job_start_time if recorder else None)
-
   (
       init_rng,
       writer,
@@ -1095,13 +1065,9 @@ def train_loop(config, state=None):
         prof.activate(blocking_object=state, optional_postfix=optional_postfix)
 
       with jax.profiler.StepTraceAnnotation("train", step_num=step):
-        record_goodput(recorder, config, recorder.record_data_loading_start_time if recorder else None)
         example_batch = load_next_batch(data_iterator, example_batch, config)
-        record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
         check_example_batch(config, example_batch=example_batch)
-        # pylint: disable=not-callable
         nextrng = jax.jit(jax.random.fold_in)(init_rng, step)
-        record_goodput(recorder, config, recorder.record_step_start_time if recorder else None, step)
         with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
           state, metrics = p_train_step(state, example_batch, nextrng)
       step_time_delta = datetime.datetime.now() - last_step_completion
@@ -1247,7 +1213,6 @@ def train_loop(config, state=None):
     checkpoint_manager.wait_until_finished()
   write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, config.steps - 1, config)  # final step metrics
   max_utils.close_summary_writer(writer)
-  record_goodput(recorder, config, recorder.record_job_end_time if recorder else None)
   clear_buffered_metrics()
   with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
     # pytype: disable=attribute-error

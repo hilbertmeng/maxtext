@@ -43,8 +43,7 @@ class QKNorm(nn.Module):
 
 
 class DynamicWeightProjection(nn.Module):
-  weight_dtype: Optional[Dtype] = jnp.float32
-  dtype: Optional[Dtype] = None
+  config: Any = None
   precision: PrecisionLike = None
   n_splits: int = None  # 可以理解为pre_w1, pre_w2, post_w1, post_w2
   num_heads: int = 0
@@ -59,15 +58,19 @@ class DynamicWeightProjection(nn.Module):
   deterministic: bool = False
   dynamic_dropout_rate: Optional[float] = None
   quant: Optional[Quant] = None
-  dc_share_all_dw_hidden: bool = False
-  dc_share_prepost_dw_hidden: bool = False
-  dc_dw2_zero_init: bool = False
-  use_dw_bias: bool = False
-  use_dd_bias: bool = False
-  dc_use_muon: bool = False
 
   def setup(self) -> None:
+    cfg = self.config
     self.num_heads_per_group = self.num_heads // self.num_groups
+    self.dtype = cfg.dtype
+    self.weight_dtype = cfg.weight_dtype
+    self.use_dw_bias = cfg.use_dw_bias
+    self.use_dd_bias = cfg.use_dd_bias
+    self.dc_use_muon = cfg.dc_use_muon
+    self.dc_share_all_dw_hidden = cfg.dc_share_all_dw_hidden
+    self.dc_share_prepost_dw_hidden = cfg.dc_share_prepost_dw_hidden
+    self.dc_dw2_zero_init = cfg.dc_dw2_zero_init
+
     kwargs = dict(
       dtype=self.dtype,
       weight_dtype=self.weight_dtype, 
@@ -437,41 +440,35 @@ class AttentionOp(nn.Module):#
         for name, use in [('q_dyn_w_proj', cfg.query_wise), ('k_dyn_w_proj', cfg.key_wise)]:
           if not use: continue
           setattr(self, name, DynamicWeightProjection(
-            num_heads=self.num_query_heads, num_groups=self.num_groups,
-            input_dim=self.num_query_heads * self.head_dim, n_splits=2,
+            config=self.config,
+            n_splits=2,
+            num_heads=self.num_query_heads, 
+            num_groups=self.num_groups,
+            input_dim=self.num_query_heads * self.head_dim, 
             dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
             dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
             dynamic_squeeze_ratio=num_heads_per_group // I,
             dynamic_w_hidden_dim=dynamic_w_hidden_dim,
-            dtype=self.dtype, weight_dtype=self.weight_dtype, precision=self.precision,
+            precision=self.precision,
             deterministic=self.deterministic,
             dynamic_dropout_rate=self.dynamic_dropout_rate,
             quant=self.quant,
-            dc_share_all_dw_hidden=self.config.dc_share_all_dw_hidden,
-            dc_share_prepost_dw_hidden=self.config.dc_share_prepost_dw_hidden,
-            dc_dw2_zero_init=self.config.dc_dw2_zero_init,
-            use_dw_bias=self.config.use_dw_bias,
-            use_dd_bias=self.config.use_dd_bias,
-            dc_use_muon=cfg.dc_use_muon,
           ))
       else:
         self.dyn_w_proj = DynamicWeightProjection(
-          num_heads=self.num_query_heads, num_groups=self.num_groups,
-          input_dim=self.num_query_heads * self.head_dim, n_splits=4,
+          config=self.config,
+          n_splits=4,
+          num_heads=self.num_query_heads, 
+          num_groups=self.num_groups,
+          input_dim=self.num_query_heads * self.head_dim, 
           dynamic_w_init=math.sqrt(1 / dynamic_w_hidden_dim) * 2 / (num_heads_per_group + I) * 0.01,
           dynamic_d_init=math.sqrt(2 / (input_dim + num_heads_per_group)) * 0.005,
           dynamic_squeeze_ratio=num_heads_per_group // I,
           dynamic_w_hidden_dim=dynamic_w_hidden_dim,
-          dtype=self.dtype, weight_dtype=self.weight_dtype, precision=self.precision,
+          precision=self.precision,
           deterministic=self.deterministic,
           dynamic_dropout_rate=self.dynamic_dropout_rate,
           quant=self.quant,
-          dc_share_all_dw_hidden=self.config.dc_share_all_dw_hidden,
-          dc_share_prepost_dw_hidden=self.config.dc_share_prepost_dw_hidden,
-          dc_dw2_zero_init=self.config.dc_dw2_zero_init,
-          use_dw_bias=self.config.use_dw_bias,
-          use_dd_bias=self.config.use_dd_bias,
-          dc_use_muon=cfg.dc_use_muon,
           )
 
       self.pre_proj = CrossHeadProjection(
@@ -542,9 +539,10 @@ class AttentionOp(nn.Module):#
           if hasattr(self, 'dyn_w_post_proj'):
               post_proj_dw_args = self.dyn_w_post_proj(input_kv)    
 
-    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, self.kv_quant)(query, key, value, decoder_segment_ids, model_mode, eos_sum,
-                            pre_proj_dw_args, post_proj_dw_args, 
-                            pre_proj_layer=self.pre_proj,
-                            post_proj_layer=self.post_proj,
-                            )
+    outputs, _, _ = accelerator.QChunk(cfg, self.sliding_window_size, self.kv_quant)(
+        query, key, value, decoder_segment_ids, model_mode, eos_sum,
+        pre_proj_dw_args, post_proj_dw_args, 
+        pre_proj_layer=self.pre_proj,
+        post_proj_layer=self.post_proj,
+        )
     return outputs

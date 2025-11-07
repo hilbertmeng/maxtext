@@ -103,16 +103,18 @@ class SubDecoderLayer(nn.Module):
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       lnx_kv = [lnx, lnx]
 
+    num_kv_heads = cfg.num_kv_heads[self.layer_inx % len(cfg.num_kv_heads)] \
+      if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads
+    head_dim = cfg.global_attn_head_dim \
+      if self.sliding_window_size == cfg.max_target_length and cfg.global_attn_head_dim > 0 \
+      else cfg.head_dim
+    max_logging.log(f'sliding_window_size: {self.sliding_window_size} num_kv_heads: {num_kv_heads} head_dim: {head_dim} ')
     # Self-attention block
     attention_layer = Attention(
         config=cfg,
         num_query_heads=cfg.num_query_heads,
-        num_kv_heads=(
-        cfg.num_kv_heads[self.layer_inx % len(cfg.num_kv_heads)]
-          if isinstance(cfg.num_kv_heads, list)
-          else cfg.num_kv_heads
-        ),
-        head_dim=cfg.head_dim,
+        num_kv_heads=num_kv_heads,
+        head_dim=head_dim,
         max_target_length=cfg.max_target_length,
         max_prefill_predict_length=cfg.max_prefill_predict_length,
         attention_kernel=cfg.attention,
@@ -269,11 +271,12 @@ class FusionDecoderLayer(nn.Module):
     sliding_window_size = [s or cfg.max_target_length for s in sliding_window_size]
 
     if cfg.dense_conn and not cfg.mudd_in_layer:
-      RematSubDecoderLayer = nn.remat(SubDecoderLayer,
-                                      prevent_cse=cfg.remat_prevent_cse,
-                                      policy=models.get_remat_policy(cfg),
-                                      static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
-                                      )
+      RematSubDecoderLayer = nn.remat(
+        SubDecoderLayer,
+        prevent_cse=cfg.remat_prevent_cse,
+        policy=models.get_remat_policy(cfg),
+        static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
+        )
     else:
       RematSubDecoderLayer = SubDecoderLayer
     self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
@@ -307,7 +310,8 @@ class FusionDecoderLayer(nn.Module):
     for layer in self.subs: # subs length must be 1 when train mudd.
       if cfg.dense_conn:
         if self.layer_inx == 0:
-          y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(inputs) if cfg.mudd_prenorm else inputs
+          y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(inputs) \
+            if cfg.mudd_prenorm else inputs
           # inputs = [inputs] * len(cfg.dynamic_dense_type) # 0层要不要分4路？
           hids.append(y_normed)
         elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:

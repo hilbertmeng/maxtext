@@ -591,17 +591,23 @@ class Decoder(nn.Module):
                             model_mode,
                         )
         else:
+          def format_mtp_sws(sws, num_decoder_layers, mtp_num_layers):
+              sws = sws * (num_decoder_layers // len(sws) + 1)
+              sws = sws[ :num_decoder_layers]
+              if mtp_num_layers > 0:
+                sws += sws[-1:] # mtp layer's sws must be the same as the last layer
+              return sws
+
           assert cfg.num_layers_per_block == 1, f"num_layers_per_block: {cfg.num_layers_per_block} != 1"
           if isinstance(cfg.sliding_window_size, list):
-            max_logging.log(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
             if len(cfg.sliding_window_size) != cfg.num_decoder_layers + cfg.mtp_num_layers:
-              n = (cfg.num_decoder_layers + cfg.mtp_num_layers) // len(cfg.sliding_window_size)
-              sliding_window_sizes = cfg.sliding_window_size * n
+              sliding_window_sizes = format_mtp_sws(cfg.sliding_window_size, cfg.num_decoder_layers, cfg.mtp_num_layers)
             else:
               sliding_window_sizes = cfg.sliding_window_size
             assert len(sliding_window_sizes) == cfg.num_decoder_layers + cfg.mtp_num_layers, f"sliding_window_sizes: {sliding_window_sizes} != num_decoder_layers: {cfg.num_decoder_layers + cfg.mtp_num_layers}"
           else:
             sliding_window_sizes = (cfg.num_decoder_layers + cfg.mtp_num_layers) * [cfg.sliding_window_size]
+          max_logging.log(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
           for lyr in range(cfg.num_decoder_layers):
             max_logging.log(f'\n=================decoder layer: {lyr}=====================\n')
             

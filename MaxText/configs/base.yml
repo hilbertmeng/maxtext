@@ -525,7 +525,7 @@ seperate_qk_dw_proj: True
 query_chunk_method: ''
 static_proj: False
 init_method: '006normal'
-
+global_attn_head_dim: 0
 # ================================= [mudd] =================================
 dense_conn: False
 dynamic_dense_type: 'qkvm'

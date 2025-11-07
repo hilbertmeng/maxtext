@@ -605,15 +605,13 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     base_mlp_dim = 2560
     base_num_decoder_layers = 32 # 33 -> 32
     head_dim = 64
-    sliding_window_size = [256, None, 256, 256] * (base_num_decoder_layers // 4 + 1)
-    sliding_window_size = sliding_window_size[ :base_num_decoder_layers]
-    sliding_window_size = sliding_window_size + sliding_window_size[-1:] # mtp layer's sws must be the same as the last layer
+    sliding_window_size = [256, None, 256, 256]
     attention = 'dot_product_chunk' # head_dim < 128 can't use flash
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
     base_num_query_heads = 32
+    global_attn_head_dim = 128
     base_num_kv_heads = [base_num_query_heads, 4, base_num_query_heads, base_num_query_heads]
-
 
 # todo:
 # 1、rotary use half inputs compute

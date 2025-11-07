@@ -58,7 +58,6 @@ Mesh = common_types.Mesh
 PRNGKey = common_types.PRNGKey
 
 DenseGeneral = linears.DenseGeneral
-RMSNorm = linears.RMSNorm
 RotaryEmbedding = embeddings.RotaryEmbedding
 YarnRotaryEmbedding = embeddings.YarnRotaryEmbedding
 NdInitializer = initializers.NdInitializer
@@ -1344,6 +1343,7 @@ class Attention(nn.Module):
           max_timescale=self.config.rope_max_timescale,
           embedding_dims=rope_embedding_dims,
           fprop_dtype=self.dtype,
+          rope_half=self.config.rope_half,
           name=name,
       )
     inputs = rotary_embedding(inputs, inputs_positions)
@@ -1512,13 +1512,7 @@ class MLA(Attention):
           quant=self.quant,
           matmul_precision=self.config.matmul_precision,
       )
-      self.q_norm = RMSNorm(
-          dtype=self.config.dtype,
-          weight_dtype=self.config.weight_dtype,
-          name="q_norm",
-          epsilon=self.config.normalization_layer_epsilon,
-          kernel_axes=("norm",),
-      )
+      self.q_norm = normalizations.get_rmsnorm("q_norm", self.config)
       self.wq_b = DenseGeneral(
           features=(self.num_query_heads, self.qk_head_dim),
           axis=-1,
@@ -1544,13 +1538,7 @@ class MLA(Attention):
         quant=self.quant,
         matmul_precision=self.config.matmul_precision,
     )
-    self.kv_norm = RMSNorm(
-        dtype=self.config.dtype,
-        weight_dtype=self.config.weight_dtype,
-        name="kv_norm",
-        epsilon=self.config.normalization_layer_epsilon,
-        kernel_axes=("norm",),
-    )
+    self.kv_norm = normalizations.get_rmsnorm("kv_norm", self.config)
     self.wkv_b = DenseGeneral(
         features=(self.num_query_heads, (self.qk_nope_head_dim + self.v_head_dim)),
         axis=-1,

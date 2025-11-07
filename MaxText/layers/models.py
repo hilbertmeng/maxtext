@@ -44,7 +44,6 @@ ScanIn = common_types.ScanIn
 
 Embed = embeddings.Embed
 Attention = attentions.Attention
-RMSNorm = normalizations.RMSNorm
 PositionalEmbedding = embeddings.PositionalEmbedding
 Quant = quantizations.AqtQuantization
 
@@ -169,15 +168,7 @@ class DecoderLayer(nn.Module):
 
     inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_length", "activation_embed"))
     inputs = checkpoint_name(inputs, "decoder_layer_input")
-    # inputs: embedded inputs to the decoder with shape [batch, length, emb_dim]
-    lnx = RMSNorm(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="pre_self_attention_norm",
-        epsilon=cfg.normalization_layer_epsilon,
-        kernel_axes=("norm",),
-    )(inputs)
-    lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_length", "activation_embed"))
+    lnx = normalizations.get_rmsnorm("pre_self_attention_norm", cfg)(inputs)
 
     attention_layer = Attention(
         config=self.config,
@@ -281,12 +272,7 @@ class OutputHead(nn.Module):
 
   def setup(self):
     cfg = self.config
-    self.norm = RMSNorm(dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="decoder_norm",
-        epsilon=cfg.normalization_layer_epsilon,
-        kernel_axes=("norm",),
-        )
+    self.norm = normalizations.get_rmsnorm("decoder_norm", cfg)
     dense_kernel = self.param(
       "logits_dense",
       nn.with_logical_partitioning(initializers.get_init_method(cfg.init_method), ("embed", "vocab")),
@@ -363,7 +349,6 @@ class Decoder(nn.Module):
   def setup(self):
     """Initialize decoder layer."""
     self.decoder_layer = self.get_decoder_layers()
-    # self.norm_layer = self.get_norm_layer()
     if self.config.using_pipeline_parallelism:
       pipeline_stage_module = self.get_pipeline_stage_module(self.decoder_layer[0])
       remat_policy = get_remat_policy(self.config)
@@ -425,16 +410,6 @@ class Decoder(nn.Module):
       from layers import fusion
       return [fusion.FusionDecoderLayer]
 
-    else:
-      raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
-
-  def get_norm_layer(self): # lsp
-    if self.config.decoder_block in ("default", "llama2", "mistral", "deepseek", "gemma", "gemma2", "simple", "simple_mlp", "fusion"):
-      return RMSNorm
-    elif self.config.decoder_block == "gpt3":
-      from layers import gpt3
-
-      return functools.partial(gpt3.Gpt3LayerNorm, reductions_in_fp32=False, use_bias=True)
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 

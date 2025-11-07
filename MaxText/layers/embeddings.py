@@ -109,7 +109,7 @@ class RotaryEmbedding(nn.Module):
   """Rotary Position Embedding.
 
   Attributes:
-    min_timescale: Start of the geometric index. Determines the periodicity of
+  min_timescale: Start of the geometric index. Determines the periodicity of
       the added signal.
     max_timescale: End of the geometric index. Determines the frequency of the
       added signal.
@@ -121,6 +121,7 @@ class RotaryEmbedding(nn.Module):
   embedding_dims: int = 0
   cast_as_fprop_dtype: bool = True
   fprop_dtype: DType = jnp.bfloat16
+  rope_half: bool = False
 
   def setup(self) -> None:
     if self.embedding_dims % 2:
@@ -160,18 +161,21 @@ class RotaryEmbedding(nn.Module):
       raise ValueError(
           "The embedding dims of the rotary position embedding" "must match the hidden dimension of the inputs."
       )
+    rope_dims = self.embedding_dims // 2 if self.rope_half else self.embedding_dims
+    rope_inputs = inputs[..., :rope_dims]
+    pass_through = inputs[..., rope_dims:]
 
     position = position[:, :, jnp.newaxis, jnp.newaxis]
     sinusoid_inp = position / self.timescale
     sin = jnp.sin(sinusoid_inp).astype(inputs.dtype)
     cos = jnp.cos(sinusoid_inp).astype(inputs.dtype)
-    first_half, second_half = jnp.split(inputs, 2, axis=-1)
+    first_half, second_half = jnp.split(rope_inputs, 2, axis=-1)
     first_part = first_half * cos - second_half * sin
     second_part = second_half * cos + first_half * sin
     if self.cast_as_fprop_dtype:
       first_part = first_part.astype(self.fprop_dtype)
       second_part = second_part.astype(self.fprop_dtype)
-    x_out = jnp.concatenate((first_part, second_part), axis=-1)
+    x_out = jnp.concatenate((first_part, second_part, pass_through), axis=-1)
     return x_out
 
 

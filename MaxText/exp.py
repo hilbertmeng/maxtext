@@ -559,12 +559,11 @@ class DC2MuddLlamaMediumKV4QO16LGLLMqyDevQchunk512KVshift(SpeedTest, KVshift, DC
 class ModelV4p5(Llama2Medium):
     num_decoder_layers = 56
     base_emb_dim = 4096
-    base_num_query_heads = 32
     base_mlp_dim = 5120
     head_dim = 128
     vocab_size = 151936
-    G = 4
-    base_num_kv_heads = [base_num_query_heads, base_num_query_heads // G, base_num_query_heads, base_num_query_heads]
+    base_num_query_heads = 32
+    base_num_kv_heads = [base_num_query_heads, 8, base_num_query_heads, base_num_query_heads]
 
 class DEV4p5(DE, ModelV4p5):
     pass
@@ -587,7 +586,7 @@ class DEMuddMTP1KVshiftV4p5(KVshift, DEMuddMTP1V4p5):
     pass
 
 class MuonDEMuddMTP1KVshiftV4p5(Muon, DEMuddMTP1KVshiftV4p5):
-    muon_scale = 0.35
+    muon_scale = 0.35 # decay to 0.1
     dc_use_muon = True
     mudd_use_muon = True
 
@@ -595,6 +594,8 @@ class MuonModelV4p5(Muon, ModelV4p5):
     muon_scale = 0.35
 
 class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
+    mudd_postnorm = True
+    attention = 'flash' 
     num_layers_per_block = 1
     compose_layers = range(1, 60, 2) # interval of 2 to compose # v5p-256 interval 1 speed: 0.034.
     
@@ -602,9 +603,20 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     vocab_size = 100352
     base_emb_dim = 2048
     base_mlp_dim = 2560
-    base_num_decoder_layers = 33
+    base_num_decoder_layers = 32 # 33 -> 32
     head_dim = 64
     sliding_window_size = [256, None, 256, 256] * (base_num_decoder_layers // 4 + 1)
     sliding_window_size = sliding_window_size[ :base_num_decoder_layers]
     sliding_window_size = sliding_window_size + sliding_window_size[-1:] # mtp layer's sws must be the same as the last layer
     attention = 'dot_product_chunk' # head_dim < 128 can't use flash
+
+class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
+    base_num_query_heads = 32
+    base_num_kv_heads = [base_num_query_heads, 4, base_num_query_heads, base_num_query_heads]
+
+
+# todo:
+# 1、rotary use half inputs compute
+# 2、rms 改为 1 + scale 并decay
+# 3、mtp updated_mlp_dim adjust
+# 4、global head dim set 128, 对应的head个数减半, local head dim keep 64.

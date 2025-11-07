@@ -25,47 +25,41 @@ Initializer = initializers.Initializer
 
 
 class RMSNorm(nn.Module):
-  """RMS normalization."""
+    """RMS normalization."""
 
-  epsilon: float = 1e-6
-  dtype: Any = jnp.float32
-  weight_dtype: Any = jnp.float32
-  kernel_axes: Tuple[Optional[str], ...] = ()
-  scale_init: Initializer = nn.initializers.ones
+    epsilon: float = 1e-6
+    dtype: Any = jnp.float32
+    weight_dtype: Any = jnp.float32
+    kernel_axes: Tuple[Optional[str], ...] = ()
+    scale_init: Initializer = nn.initializers.zeros
+    direct_scale: bool = False
 
-  @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-    """Applies layer normalization on the input."""
-    x = jnp.asarray(x, jnp.float32)
-    features = x.shape[-1]
-    mean2 = jnp.mean(lax.square(x), axis=-1, keepdims=True)
-    y = jnp.asarray(x * lax.rsqrt(mean2 + self.epsilon), self.dtype)
-    if not self.scale_init: return y # lsp
-    scale = self.param(
-        "scale",
-        nn.with_logical_partitioning(self.scale_init, self.kernel_axes),
-        (features,),
-        self.weight_dtype,
-    )
+    @nn.compact
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        """Applies layer normalization on the input."""
+        x = jnp.asarray(x, jnp.float32)
+        features = x.shape[-1]
+        mean2 = jnp.mean(lax.square(x), axis=-1, keepdims=True)
+        y = jnp.asarray(x * lax.rsqrt(mean2 + self.epsilon), self.dtype)
+        if not self.scale_init:
+            return y
+        scale = self.param(
+            "scale",
+            nn.with_logical_partitioning(self.scale_init, self.kernel_axes),
+            (features,),
+            self.weight_dtype,
+        )
+        scale = jnp.asarray(scale, self.dtype)
+        if not self.direct_scale:
+            assert self.scale_init == nn.initializers.zeros
+        return y * scale if self.direct_scale else y * (scale + 1.0)
 
-    scale = jnp.asarray(scale, self.dtype)
-    return y * scale
 
-
-def get_rmsnorm(name, cfg=None, **kwargs):
-  if cfg is None:
-    dtype = kwargs.get('dtype', jnp.bfloat16)
-    weight_dtype = kwargs.get('weight_dtype', jnp.float32)
-    epsilon = kwargs.get('normalization_layer_epsilon', 1.e-6)
-  else:
-    dtype = getattr(cfg, 'dtype', jnp.bfloat16)
-    weight_dtype = getattr(cfg, 'weight_dtype', jnp.float32)
-    epsilon = getattr(cfg, 'normalization_layer_epsilon', 1.e-6)
-  scale_init = kwargs['scale_init'] if 'scale_init' in kwargs else nn.initializers.ones
-  # max_logging.log(f'\nnorm name: {name} dtype: {dtype} weight_dtype: {weight_dtype} epsilon: {epsilon} scale_init: {scale_init}\n')
-  return RMSNorm(name=name,
-                dtype=dtype,
-                weight_dtype=weight_dtype,
-                epsilon=epsilon,
-                kernel_axes=("norm",),
-                scale_init=scale_init) # use scale default is true.
+def get_rmsnorm(name, cfg, **kwargs):
+    rms_kwargs = {'kernel_axes': ('norm',),}
+    for item in ['dtype', 'weight_dtype', 'normalization_layer_epsilon', 'direct_scale']:
+        key = 'epsilon' if item == 'normalization_layer_epsilon' else item
+        rms_kwargs[key] = kwargs.get(key, getattr(cfg, item))
+    base_scale_init = nn.initializers.ones if rms_kwargs['direct_scale'] else nn.initializers.zeros
+    rms_kwargs['scale_init'] = kwargs.get("scale_init", base_scale_init)
+    return RMSNorm(name=name, **rms_kwargs)

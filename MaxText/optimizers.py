@@ -56,35 +56,36 @@ def muon(
   def build_param_labels(params):
     flat_params = traverse_util.flatten_dict(params)
     param_labels = {}
+
+    def get_ndim(v):
+        if hasattr(v, "ndim"):
+            return v.ndim
+        if hasattr(v, "value"):
+            return getattr(v.value, "ndim", 1)
+        return 1
+
+    def get_label(k, ndim):
+        if 'bias' in k or (ndim == 1 and 'scale' in k):
+            return 'adam_one_dim'
+        if any(x in k for x in ['embedding', 'logits_dense']):
+            return 'adam_default'
+        if 'dyn_w_proj' in k:
+            return 'muon_attn' if config.dc_use_muon else 'adam_default'
+        if 'compose' in k:
+            return 'muon_attn' if config.mudd_use_muon else 'adam_default'
+        if ndim == 2 and 'attention' in k:
+            return 'muon_attn'
+        if ndim == 2 and 'mlp' in k and 'compose' not in k:
+            return 'muon_mlp'
+        return 'adam_default'
+
     for _k, v in flat_params.items():
-      k = "/".join(_k)
-      if hasattr(v, 'ndim'):
-        ndim = v.ndim
-      elif hasattr(v, 'value'):
-        ndim = v.value.ndim
-      else:
-        ndim = 1
-      label = 'adam_default'
-      if 'bias' in k or (ndim == 1 and 'scale' in k):
-        label = 'adam_one_dim'
-      elif 'embedding' in k or 'logits_dense' in k: # Both embedding and logits_dense use adam default
-        label = 'adam_default'
-      elif 'dyn_w_proj' in k:
-        if config.dc_use_muon:
-          label = 'muon_attn'
-        else:
-          label = 'adam_default'
-      elif 'compose' in k:
-        if config.mudd_use_muon:
-          label = 'muon_attn'
-        else:
-          label = 'adam_default'
-      elif ndim == 2 and 'attention' in k:
-        label = 'muon_attn'
-      elif ndim == 2 and 'mlp' in k and 'compose' not in k: # remove mudd params
-        label = 'muon_mlp'
-      max_logging.log(f'k: {k}, label: {label} ndim: {ndim}')
-      param_labels[_k] = label
+        k = "/".join(_k)
+        ndim = get_ndim(v)
+        label = get_label(k, ndim)
+        max_logging.log(f"k: {k}, label: {label}, ndim: {ndim}")
+        param_labels[_k] = label
+
     return traverse_util.unflatten_dict(param_labels)
 
   def weight_dim_nums_fn(params): # optax>=0.2.6
@@ -109,12 +110,9 @@ def muon(
   mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
   max_logging.log(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
 
-  if config.muon_decay_ratio and config.muon_decay_ratio > 0.0:
-    muon_final_lr = config.muon_decay_ratio * config.learning_rate * 0.2 / config.muon_scale # 不论muon_scale是多少，均按照 muon_scale=0.1 计算的最终学习率
-    muon_learning_rate_schedule = max_utils.create_learning_rate_schedule(config, final_lr=muon_final_lr)
-    max_logging.log(f'muon_final_lr: {muon_final_lr}')
-  else:
-    muon_learning_rate_schedule = learning_rate_schedule     
+  muon_final_lr = config.final_muon_scale * config.learning_rate * config.cosine_learning_rate_final_fraction
+  muon_learning_rate_schedule = max_utils.create_learning_rate_schedule(config, final_lr=muon_final_lr)
+  max_logging.log(f'final_muon_scal: {config.final_muon_scale} muon_final_lr: {muon_final_lr}')
 
   return combine.partition(
       transforms={

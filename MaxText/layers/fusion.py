@@ -54,7 +54,6 @@ KV_HEAD_DIM = common_types.KV_HEAD_DIM
 
 Embed = embeddings.Embed
 Attention = attentions.Attention
-RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 
 
@@ -72,7 +71,9 @@ class SubDecoderLayer(nn.Module):
     self.mudd_qkvnorm = mudd.Norm(cfg, self.mesh, self.quant)
 
     if cfg.dynamic_mlp_dim:
-      self.updated_mlp_dim = round(cfg.mlp_dim * (self.layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
+      # consider mtp layer, mtp layer's mlp_dim is the same as the last layer
+      layer_inx = self.layer_inx if self.layer_inx <= cfg.num_decoder_layers else self.layer_inx - 1
+      self.updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
       self.updated_mlp_dim = cfg.mlp_dim
     max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
@@ -98,14 +99,7 @@ class SubDecoderLayer(nn.Module):
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
-      lnx_rms = models.RMSNorm(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="pre_self_attention_layer_norm",
-        kernel_axes=("norm",),
-        epsilon=cfg.normalization_layer_epsilon,
-    )
-      lnx = lnx_rms(inputs)
+      lnx = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)(inputs)
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       lnx_kv = [lnx, lnx]
 
@@ -162,13 +156,7 @@ class SubDecoderLayer(nn.Module):
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
-    hidden_states = models.RMSNorm(
-        dtype=cfg.dtype,
-        weight_dtype=cfg.weight_dtype,
-        name="post_self_attention_layer_norm",
-        kernel_axes=("norm",),
-        epsilon=cfg.normalization_layer_epsilon,
-    )(intermediate_inputs)
+    hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs)
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
@@ -319,7 +307,7 @@ class FusionDecoderLayer(nn.Module):
     for layer in self.subs: # subs length must be 1 when train mudd.
       if cfg.dense_conn:
         if self.layer_inx == 0:
-          y_normed = normalizations.get_rmsnorm(name="mudd_prenorm", cfg=cfg)(inputs) if cfg.mudd_prenorm else inputs
+          y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(inputs) if cfg.mudd_prenorm else inputs
           # inputs = [inputs] * len(cfg.dynamic_dense_type) # 0层要不要分4路？
           hids.append(y_normed)
         elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:

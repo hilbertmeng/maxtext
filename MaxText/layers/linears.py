@@ -46,7 +46,6 @@ NdInitializer = initializers.NdInitializer
 nd_dense_init = initializers.nd_dense_init
 bias_init = initializers.default_bias_init
 
-RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 QTensor = aqt_tensor.QTensor
 
@@ -232,13 +231,7 @@ class DeepEmbedBlock(nn.Module):
     output *= deep_w
 
     if cfg.deep_embed_norm or cfg.mlp_post_norm:
-      output = RMSNorm(
-          name="norm",
-          dtype=cfg.dtype,
-          weight_dtype=cfg.weight_dtype,
-          kernel_axes=("norm", ),
-          epsilon=cfg.normalization_layer_epsilon,
-      )(output) # suggest to use post_norm
+      output = normalizations.get_rmsnorm("norm", cfg)(output)
 
     return output
 
@@ -298,29 +291,13 @@ class MlpBlock(nn.Module):
         output_dim=output_dim,
         de_d1_d2_dims=(d1, de_embed_dim // d1)) # fix first dimension to 32, and don't need to follow mudd mlp dim.
 
-  def get_norm_layer(self):
-    if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "deepseek"):
-      return RMSNorm
-    elif self.config.decoder_block == "gpt3":
-      from layers import gpt3
-
-      return functools.partial(gpt3.Gpt3LayerNorm, reductions_in_fp32=False, use_bias=self.use_bias)
-    else:
-      raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
-
   @nn.compact
   def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
     if self.use_pre_norm:
-      inputs = self.get_norm_layer()(
-          name="mlp_layer_norm",
-          dtype=cfg.dtype,
-          weight_dtype=cfg.weight_dtype,
-          kernel_axes=("norm",),
-          epsilon=cfg.normalization_layer_epsilon,
-      )(inputs)
+      inputs = normalizations.get_rmsnorm("mlp_layer_norm", cfg)(inputs)
 
     # Iterate over specified MLP input activation functions.
     # e.g. ('relu',) or ('gelu', 'linear') for gated-gelu.

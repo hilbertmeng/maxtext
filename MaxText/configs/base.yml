@@ -564,8 +564,8 @@ bucket_log_buffer_size: 500   # Maximum buffer size before forced upload (defaul
 # ================================= [muon] =================================
 dc_use_muon: False
 mudd_use_muon: False
-muon_scale: 0.35
-muon_decay_ratio: 0.075 # for medium, can get better result with 0.1, maybe < 0.1 for larger model
+muon_scale: 0.35 # for medium, can get better result with 0.6, 0.35 for xl model, maybe < 0.35 for larger model
+final_muon_scale: 0.1 # for medium, can get better result with 0.1, maybe < 0.1 for larger model
 
 # ================================= [kv shift] =================================
 kv_shift_flash: True
@@ -619,6 +619,7 @@ gradient_accumulation_steps: 1
 quantization: "" # "int8"
 model_name: "default" # override config settings to match a specific model. other than the override, nothing should use this!
 normalization_layer_epsilon: 1.e-06
+normalization_direct_scale: False
 base_emb_dim: 2048
 base_num_query_heads: 16
 base_num_kv_heads: 16
@@ -632,11 +633,14 @@ eval_interval: 1000  # the specific number of train step between eval_step
 eval_steps: -1  # only run this number of batches for eval, for debugging use
 mix_attn: False # 32k and 4k global attention
 
-# ================================= [other] =================================
+# ================================= [RoPE] =================================
 # RoPE parameters
 rope_type: "default" # one of "default", "llama3.1" or "yarn"
 rope_min_timescale: 1
 rope_max_timescale: 10_000
+rope_half: False
+
+# ================================= [other] =================================
 debug: False
 mgate_dim: 0
 eval_model_step: -1 # evaluate certain step checkpoint, if -1, auto select latest step.

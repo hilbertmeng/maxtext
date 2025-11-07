@@ -21,7 +21,6 @@ Dtype = Any
 Array = common_types.Array
 DType = common_types.DType
 Mesh = common_types.Mesh
-RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 DEFAULT_MASK_VALUE = -0.7 * float(jnp.finfo(jnp.dtype("float32")).max)
 NormalInitializer = initializers.nd_dense_init_normal
@@ -38,20 +37,8 @@ class QKNorm(nn.Module):
   def __call__(self, query, key):
     if self.config.qk_norm:
       max_logging.log('qk norm is True', debug=self.config.debug)
-      query = RMSNorm(
-        weight_dtype=self.config.weight_dtype,
-        dtype=self.config.dtype,
-        name=f'q_norm',
-        kernel_axes=('norm',),
-        epsilon=self.config.normalization_layer_epsilon,
-        )(query)
-      key = RMSNorm(
-        weight_dtype=self.config.weight_dtype,
-        dtype=self.config.dtype,
-        name=f'k_norm',
-        kernel_axes=('norm',),
-        epsilon=self.config.normalization_layer_epsilon,
-        )(key)
+      query = normalizations.get_rmsnorm("q_norm", self.config)(query)
+      key = normalizations.get_rmsnorm("k_norm", self.config)(key)
     return query, key
 
 
@@ -148,17 +135,15 @@ class DynamicWeightProjection(nn.Module):
         self.dd_bias =  self.param('dd_bias',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None,)), bias_shape, self.weight_dtype)
 
     self.dw_activation = nn.tanh
-    # RMSNormScale, compare to RMSNorm. it remove scale
-    self.dw1_norm = nn.RMSNorm(
-                      use_scale=False,
-                      param_dtype=self.weight_dtype,
-                      dtype=self.dtype,
-                       )
+    self.dw1_norm = normalizations.get_rmsnorm("dw1_norm", self.config)
     if self.dynamic_dropout_rate is not None:
       self.dropout = nn.Dropout(self.dynamic_dropout_rate)
 
   def __call__(self, query_vec):
-    qkw_kernel = jnp.asarray(self.qkw, self.dtype) if not self.dc_dw2_zero_init else jnp.asarray(jnp.concatenate([self.qkw1, self.qkw2], axis=-2), self.dtype) # lsp
+    qkw_kernel = jnp.asarray(self.qkw, self.dtype) \
+      if not self.dc_dw2_zero_init \
+      else jnp.asarray(jnp.concatenate([self.qkw1, self.qkw2], axis=-2), self.dtype
+      )
     if self.dc_use_muon:
       if self.dc_share_all_dw_hidden:
         qkw_kernel = qkw_kernel.reshape(self.G, 1, self.K * self.n_splits, self.I * self.n_splits, self.M)

@@ -52,8 +52,8 @@ class KVshift(nn.Module):
                 "epsilon": cfg.normalization_layer_epsilon,
                 }
     if not cfg.kv_shift_skip_knorm:
-      self.kv_shift_norm = normalizations.get_rmsnorm(name="kv_shift_knorm", **norm_kwargs)
-    self.kv_shift_prenorm = normalizations.get_rmsnorm(name="kv_shift_prenorm", **norm_kwargs)
+      self.kv_shift_norm = normalizations.get_rmsnorm("kv_shift_knorm", cfg)
+    self.kv_shift_prenorm = normalizations.get_rmsnorm("kv_shift_prenorm", cfg)
     
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
     self.q_shift = cfg.use_q_shift

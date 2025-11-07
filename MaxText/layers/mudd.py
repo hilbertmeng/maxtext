@@ -44,11 +44,7 @@ class Norm(nn.Module):
     cfg = self.config
     assert isinstance(inputs, (tuple, list, jnp.ndarray)) and len(inputs) == 3
     name = 'pre_self_attention_layer_norm'
-    lnx_q, lnx_k, lnx_v = [nn.with_logical_constraint(
-                          normalizations.get_rmsnorm(f'{name}_{suffix}', cfg)(inp), 
-                          ("activation_batch", "activation_norm_length", "activation_embed")
-                          )
-                          for inp, suffix in zip(inputs, 'qkv')]
+    lnx_q, lnx_k, lnx_v = [normalizations.get_rmsnorm(f'{name}_{suffix}', cfg)(inp) for inp, suffix in zip(inputs, 'qkv')]
     return lnx_q, lnx_k, lnx_v
 
 
@@ -63,15 +59,11 @@ class Mlp(nn.Module):
   def setup(self):
     cfg = self.config
     if not cfg.dense_conn: return
-    norm_kwargs = {
-                "dtype": cfg.dtype,
-                "weight_dtype": cfg.weight_dtype,
-                "name": "pre_dense_proj1_norm",
-                "epsilon": cfg.normalization_layer_epsilon,
-                }
+
     if not getattr(cfg, 'mudd_prenorm', False):
-        norm_kwargs['scale_init'] = None # it means use scale is false
-    self.pre_dense_proj1_norm = normalizations.get_rmsnorm(**norm_kwargs)
+        self.pre_dense_proj1_norm = normalizations.get_rmsnorm("pre_dense_proj1_norm", cfg, scale_init=None)
+    else:
+      self.pre_dense_proj1_norm = normalizations.get_rmsnorm("pre_dense_proj1_norm", cfg)
     
     factor = 1
     layer_inx = self.layer_inx
@@ -157,7 +149,7 @@ class Compose(nn.Module):
     
     y = layer_output
     C = self.C
-    y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm", cfg=cfg)(y) if cfg.mudd_prenorm else y
+    y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
     if not self.compose:
       return y, hids
@@ -170,7 +162,7 @@ class Compose(nn.Module):
 
     max_logging.log(f'C: {C} hids length: {len(hids)}')
     if cfg.mudd_postnorm:
-      post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm", cfg=cfg, scale_init=nn.initializers.constant(0.001))
+      post_norm = normalizations.get_rmsnorm("mudd_postnorm", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
       print(f'dyn_dense_w: {dyn_dense_w.shape} C: {C}')
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
       y = tuple([y + (post_norm(

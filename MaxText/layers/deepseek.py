@@ -43,7 +43,6 @@ ScanIn = common_types.ScanIn
 
 Embed = embeddings.Embed
 Attention = attentions.Attention
-RMSNorm = normalizations.RMSNorm
 Quant = quantizations.AqtQuantization
 
 # -----------------------------------------
@@ -54,15 +53,7 @@ Quant = quantizations.AqtQuantization
 
 def self_attention_with_norm(inputs, cfg, mesh, quant, decoder_segment_ids, decoder_positions, deterministic, model_mode):
   # Normalization
-  lnx_rms = models.RMSNorm(
-      dtype=cfg.dtype,
-      weight_dtype=cfg.weight_dtype,
-      name="pre_self_attention_layer_norm",
-      kernel_axes=("norm",),
-      epsilon=cfg.normalization_layer_epsilon,
-  )
-  lnx = lnx_rms(inputs)
-  lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
+  lnx = normalizations.get_rmsnorm(name="pre_self_attention_norm", cfg=cfg)(inputs)
   kwargs = {
         "config": cfg,
         "num_query_heads": cfg.num_query_heads,
@@ -125,16 +116,8 @@ def self_attention_with_norm(inputs, cfg, mesh, quant, decoder_segment_ids, deco
   intermediate_inputs = inputs + attention_lnx
 
   # Normalization
-  hidden_states = models.RMSNorm(
-      dtype=cfg.dtype,
-      weight_dtype=cfg.weight_dtype,
-      name="post_self_attention_layer_norm",
-      kernel_axes=("norm",),
-      epsilon=cfg.normalization_layer_epsilon,
-  )(intermediate_inputs)
-  hidden_states = nn.with_logical_constraint(
-      hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
-  )
+  hidden_states = normalizations.get_rmsnorm(name="post_self_attention_layer_norm", cfg=cfg)(intermediate_inputs)
+  hidden_states = nn.with_logical_constraint(hidden_states, ("activation_batch", "activation_norm_length", "activation_embed"))
   return hidden_states, intermediate_inputs
 
 

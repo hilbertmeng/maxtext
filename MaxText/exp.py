@@ -564,6 +564,9 @@ class ModelV4p5(Llama2Medium):
     vocab_size = 151936
     base_num_query_heads = 32
     base_num_kv_heads = [base_num_query_heads, 8, base_num_query_heads, base_num_query_heads]
+    rope_half = True
+    normalization_direct_scale = False # false:(1+scale)rms -> rmsnorm, true:rms -> rmsnorm
+    global_attn_head_dim = 128
 
 class DEV4p5(DE, ModelV4p5):
     pass

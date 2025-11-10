@@ -118,7 +118,7 @@ class RotaryEmbedding(nn.Module):
 
   min_timescale: int
   max_timescale: int
-  embedding_dims: int = 0
+  embedding_dims: int = 0 # head_dim
   cast_as_fprop_dtype: bool = True
   fprop_dtype: DType = jnp.bfloat16
   rope_half: bool = False
@@ -127,11 +127,7 @@ class RotaryEmbedding(nn.Module):
     if self.embedding_dims % 2:
       raise ValueError("Embedding dim for rotary position embedding must be a multiple of 2.")
 
-    half_embedding_dim = self.embedding_dims // 2
-    fraction = 2 * jnp.arange(0, half_embedding_dim) / self.embedding_dims
-    self.timescale = self.min_timescale * (self.max_timescale / self.min_timescale) ** fraction
-
-    half_embedding_dim = self.embedding_dims // 2
+    half_embedding_dim = self.embedding_dims // 4 if self.rope_half else self.embedding_dims // 2
     fraction = 2 * jnp.arange(0, half_embedding_dim) / self.embedding_dims
     self.timescale = self.min_timescale * (self.max_timescale / self.min_timescale) ** fraction
 

@@ -338,9 +338,9 @@ profiler: "" # Supported profiler: '', xplane, nsys
 upload_all_profiler_results: False
 # Skip first n steps for profiling, to omit things like compilation and to give
 # the iteration time a chance to stabilize.
-skip_first_n_steps_for_profiler: 1
+skip_first_n_steps_for_profiler: 3
 # Profile for a small number of steps to avoid a large profile file size.
-profiler_steps: 5
+profiler_steps: 2
 profile_cleanly: True # If set to true, adds a block_until_ready on train state which aligns the profile for each step.
 profile_periodically_period: -1 # If set to a positive integer, profile every profile_periodically_period steps.
 # This is useful to debug scenarios where performance is changing.

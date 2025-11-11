@@ -6,7 +6,7 @@ class Common:
     monitor_goodput = False
     monitor_step_time_deviation = False
     profiler = '' # '' or xplane.   nsys isn't supported
-    profiler_steps = 5
+    profiler_steps = 2
     data_shuffle_seed = 9876
     init_weights_seed = 9876
     load_parameters_path = ""

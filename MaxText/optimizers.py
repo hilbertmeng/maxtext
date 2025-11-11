@@ -127,7 +127,8 @@ def muon(
               scale_by_learning_rate(muon_learning_rate_schedule, scale=mlp_scale),
           ),
           # Small model rms wd set 0.0 better, bigger model unknow. but muon paper suggest wd=0.1
-          'adam_one_dim': adam_optimizer(weight_decay=0.0, lr_coef=default_scale),
+          # 1+scale mode need wd, other not need.
+          'adam_one_dim': adam_optimizer(weight_decay=0.0 if config.direct_scale else weight_decay, lr_coef=default_scale),
           'adam_default': adam_optimizer(weight_decay=weight_decay, lr_coef=default_scale),
       },
       # lsp: Only two dims use muon, other use adam

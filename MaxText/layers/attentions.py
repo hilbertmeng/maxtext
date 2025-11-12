@@ -1650,22 +1650,33 @@ class Attention(nn.Module):
     if self.config.o_shift_before_gate: out = self.o_shift(out, inputs_m=hidden_states)
 
     if self.config.use_o_gate:
-      o_gate = DenseGeneral((self.config.num_out_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
-            kernel_init=self.kernel_init,kernel_axes=('embed', None),name="o_gate",)(inputs_q) # BTD,DN->BTN
-      o_gate = jax.nn.tanh(o_gate) + 1  if self.config.o_gate_tanh else jax.nn.sigmoid(o_gate)
-      out = jnp.repeat(out, self.config.num_out_heads // out.shape[-2] , axis=-2) 
-      out = out * o_gate[...,None] # BSND, BSN1->BSND
+      global_layer = self.layer_inx % 4 == 1 # LGLL
+      if self.config.o_gate_global_only and not global_layer:
+        pass
+      else:
+        o_gate = DenseGeneral((self.config.num_out_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+              kernel_init=self.kernel_init,kernel_axes=('embed', None),name="o_gate",)(inputs_q) # BTD,DN->BTN
+        o_gate = jax.nn.tanh(o_gate) + 1  if self.config.o_gate_tanh else jax.nn.sigmoid(o_gate)
+        out = jnp.repeat(out, self.config.num_out_heads // out.shape[-2] , axis=-2) 
+        out = out * o_gate[...,None] # BSND, BSN1->BSND
 
-    if self.config.o_gate_hidden_dim:
-      o_gate_hidden = DenseGeneral((self.config.o_gate_hidden_dim,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
-            kernel_init=self.kernel_init,kernel_axes=('embed', None), name="o_gate_proj_1",)(
-            hidden_states if self.config.o_gate_use_inputs_m else inputs_q)
-      if self.config.o_gate_hidden_act == 'sigmoid': o_gate_hidden = jax.nn.sigmoid(o_gate_hidden)
-      o_gate = DenseGeneral((inputs_q.shape[-1],),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
-            kernel_init=self.kernel_init,kernel_axes=(None, 'embed'), name="o_gate_proj_2",)(o_gate_hidden)
-      assert self.config.o_gate_act
-      if self.config.o_gate_act == 'sigmoid': o_gate = jax.nn.sigmoid(o_gate)
-      out = out * rearrange(o_gate, 'B T (N D) -> B T N D', N=self.config.num_query_heads)
+    if self.config.o_gate_hidden_dim: 
+      global_layer = self.layer_inx % 4 == 1 # LGLL
+      if self.config.o_gate_global_only and not global_layer:
+        pass
+      else:
+        o_gate_hidden = DenseGeneral((self.config.o_gate_hidden_dim,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+              kernel_init=self.kernel_init,kernel_axes=('embed', None), name="o_gate_proj_1",)(
+              hidden_states if self.config.o_gate_use_inputs_m else inputs_q)
+        if self.config.o_gate_hidden_act == 'sigmoid': o_gate_hidden = jax.nn.sigmoid(o_gate_hidden)
+        if self.config.o_gate_hidden_dim == self.config.emb_dim:
+          o_gate = o_gate_hidden
+        else:
+          o_gate = DenseGeneral((inputs_q.shape[-1],),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
+                kernel_init=self.kernel_init,kernel_axes=(None, 'embed'), name="o_gate_proj_2",)(o_gate_hidden)
+        assert self.config.o_gate_act
+        if self.config.o_gate_act == 'sigmoid': o_gate = jax.nn.sigmoid(o_gate)
+        out = out * rearrange(o_gate, 'B T (N D) -> B T N D', N=self.config.num_query_heads)
 
     if self.config.o_shift_after_gate: out = self.o_shift(out, inputs_m=hidden_states)
 
@@ -1693,6 +1704,12 @@ class Attention(nn.Module):
       vgate = jax.nn.silu(self.vgate_projection(inputs_q)) # BTNG
       out = rearrange(out, 'B T N (G D) -> B T N G D', G=vgate.shape[-1]) * vgate[..., None]
       out = rearrange(out, 'B T N G D -> B T N (G D)')
+
+    if self.config.knocking_heads and self.config.knocking_heads_out:
+      shape = (self.head_dim,self.head_dim)
+      static_proj = self.param('kh_sw_o',nn.with_logical_partitioning(initializers.constant_init(0.0), ('data', None)), shape, self.weight_dtype)
+      out = jnp.einsum('BTNd,dk->BTNk', out, static_proj + jnp.eye(self.head_dim))
+
 
     # apply output projection,  output dim is set to the input dim.
     out = self.out_projection(inputs_q.shape[-1], out)

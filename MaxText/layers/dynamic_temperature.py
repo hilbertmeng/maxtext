@@ -29,6 +29,7 @@ class DynamicTemperature(nn.Module):
                 "dtype": cfg.dtype,
                 "weight_dtype": cfg.weight_dtype,
                 "epsilon": cfg.normalization_layer_epsilon,
+                "scale_init": None,
                 }
     self.dt_prenorm = normalizations.get_rmsnorm(name="dt_prenorm", **norm_kwargs)
     self.dt_postnorm = normalizations.get_rmsnorm(name="dt_postnorm", **norm_kwargs)
@@ -63,6 +64,7 @@ class DynamicTemperature(nn.Module):
       normed_hid, # BTD after last norm
   ):
     dt = self.dt_down_proj(jax.nn.gelu(self.dt_up_proj(self.dt_prenorm(hid))))
+    dt = dt + 1 
     if self.dt_tanh:
       out = normed_hid + jnp.tanh(normed_hid * dt * self.alpha) * self.gamma
     else:

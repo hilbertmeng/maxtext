@@ -169,6 +169,11 @@ class Llama2MediumBase(Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
+class Llama2MediumBaseKH(Llama2MediumBase):
+    knocking_heads = True 
+    scan_layers = False
+    record_internal_nn_metrics = 0  
+
 class Llama2MediumBasev5p(Llama2MediumBase):
     per_device_batch_size = 32.0
     eval_per_device_batch_size = 128.0
@@ -2286,9 +2291,17 @@ class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p(KVshift, DC3MuddLlamaXLGQA4DC
     mudd_postnorm = True
     mudd_prenorm = True
 
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5pOshift(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p):
+    o_shift_before_gate = True
+    o_shift_offset = 1
+
 class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p): # 0.272 step/s
     base_num_decoder_layers = 36
     base_mlp_dim = 2816 + 256
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LOshift(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L):
+    o_shift_before_gate = True
+    o_shift_offset = 1
 
 class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36L): # 0.357 step/s 
     ablate_global_dc = True # no global dc
@@ -2296,8 +2309,41 @@ class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus(DC3MuddLlamaXLGQA4DCG2
     mudd_comp_last_layer = True
     loop_over_dynamic_hd = True
 
-class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKH(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus):
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusDT2(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus): # 0.358
+    use_dynamic_temp = True
+
+# class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusDTDebug2(SpeedTest, DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusDT):
+#     # record_internal_nn_metrics = 1  
+#     upload_param_act_tb_period = 1
+#     upload_loss_tb_period = 1
+#     record_raw_grad_per_param = True
+#     base_num_decoder_layers = 12
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusGOgate(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus):
+    o_gate_act = 'sigmoid'
+    o_gate_hidden_dim = 128
+    base_mlp_dim = 2816 + 256 - 21 # 128 * 2 / 3 / 4 = 21.33
+    o_gate_global_only = True
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusGOgatefull(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusGOgate): # 0.358
+    o_gate_hidden_dim = 2048
+    base_mlp_dim = 2816 + 256 - 170 # 2048 / 3 / 4 = 170
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusGOgate256(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusGOgate): # 0.354
+    o_gate_hidden_dim = 256
+    base_mlp_dim = 2816 + 256 - 42 # 256 * 2 / 3 / 4 = 42.67
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusGOgateHeadwise(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus): # 0.356
+    use_o_gate = True
+    o_gate_global_only = True
+    o_gate_tanh = True
+    num_out_heads = 32
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKH(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus): # 0.350 step/s
     knocking_heads = True 
+
+class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKHOut(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKH):
+    knocking_heads_out = True
 
 class DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlusKW(DC3MuddLlamaXLGQA4DCG2LGLLKVshiftFp32Normv5p36LPlus): # 0.312
     key_wise = [True, False, True, True]

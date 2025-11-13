@@ -232,27 +232,36 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
 
 def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True):
   """Writes metrics to tensorboard"""
+  # with jax.spmd_mode("allow_all"):
   if jax.process_index() == 0 and (step % config.upload_loss_tb_period == 0 or not is_training): # lsp
     for metric_name in metrics.get("scalar", []):
       if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
         continue
       writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name]), step)
-    # for metric_name in metrics.get("scalars", []):
-    #   writer.add_scalars(metric_name, metrics["scalars"][metric_name], step)
 
   if is_training:
     full_log = step % config.log_period == 0
+    step_message = f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}"
+    flops_message = f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}"
+    weight_message = f"total_weights: {metrics['scalar']['learning/total_weights']}"
+    loss_message = f"loss: {metrics['scalar']['learning/loss']:.3f}"
+    accuracy_message = f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}"
+    lr_message = f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
+    print_messages = [step_message, flops_message,weight_message, loss_message, accuracy_message, lr_message]
 
-    max_logging.log(
-        f"completed step: {step}, steps/s: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
-        f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
-        # f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
-        f"total_weights: {metrics['scalar']['learning/total_weights']}, "
-        f"loss: {metrics['scalar']['learning/loss']:.3f}, "
-        f"moe_lb_loss: {metrics['scalar']['learning/moe_lb_loss']:.3f}, "
-        f"accuracy: {metrics['scalar']['learning/accuracy'] * 1e2:.3f}, "
-        f"lr: {metrics['scalar']['learning/current_learning_rate'] * 1e5:.3f}e-5"
-    )
+    if config.mtp_num_layers > 0 and config.mtp_eval_target_module > 0:
+      print_messages.append(f"mtp_loss: {metrics['scalar']['learning/mtp_loss']:.3f}")
+      print_messages.append(f"mtp_accept_rate: {metrics['scalar']['learning/mtp_accept_rate']:.3f}")
+
+    if config.num_experts > 1:
+      moe_lb_loss = np.array(metrics['scalar']['learning/moe_lb_loss'])
+      if not isinstance(moe_lb_loss, float):
+        moe_lb_loss = moe_lb_loss.item()
+      print_messages.append(f"moe_lb_loss: {moe_lb_loss:.3f}")
+
+    print_messages = ' '.join(print_messages)
+    max_logging.log(print_messages)
+
     if full_log and jax.process_index() == 0:
       max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
       writer.flush()

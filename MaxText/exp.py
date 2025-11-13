@@ -567,21 +567,30 @@ class ModelV4p5(Llama2Medium):
     rope_half = True
     normalization_direct_scale = False # false:(1+scale)rms -> rmsnorm, true:rms -> rmsnorm
     global_attn_head_dim = 128
+    attention = 'flash'
 
-class DCModelV4p5(DC, LGLLWindow, ModelV4p5):
-    attention = 'flash' 
+# ========================v4.5 + single module start=======================
+class DCModelV4p5(DC2, LGLLWindow, ModelV4p5):
     num_layers_per_block = 1
+
+class MuddV4p5(Mudd, ModelV4p5):
+    compose_layers = range(1, 60, 2) # interval of 2 to compose
+    mudd_in_layer = True
 
 class DEV4p5(DE, ModelV4p5):
     pass
 
-class MuddV4p5(Mudd, ModelV4p5):
-    compose_layers = range(1, 60, 2) # interval of 2 to compose
-    mudd_prenorm = False
-    mudd_in_layer = True
-
 class MTP1V4p5(MTP1Layer, ModelV4p5):
     pass
+
+class MuonV4p5(Muon, ModelV4p5):
+    muon_scale = 0.35
+
+class KVshiftV4p5(KVshift, ModelV4p5):
+    pass
+
+# ========================v4.5 + single module end=======================
+
 
 class MuddMTP1V4p5(Mudd, MTP1V4p5):
     pass
@@ -603,9 +612,9 @@ class MuonModelV4p5(Muon, ModelV4p5):
 class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
     mudd_postnorm = True
     attention = 'flash' 
-    num_layers_per_block = 1
     compose_layers = range(1, 60, 2) # interval of 2 to compose # v5p-256 interval 1 speed: 0.034.
     
+
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     vocab_size = 100352
     base_emb_dim = 2048

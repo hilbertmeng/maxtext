@@ -110,7 +110,7 @@ def muon(
   mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
   max_logging.log(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
 
-  muon_final_lr = config.final_muon_scale * config.learning_rate * config.cosine_learning_rate_final_fraction
+  muon_final_lr = config.final_muon_scale * config.learning_rate * config.cosine_learning_rate_final_fraction / config.muon_scale
   muon_learning_rate_schedule = max_utils.create_learning_rate_schedule(config, final_lr=muon_final_lr)
   max_logging.log(f'final_muon_scal: {config.final_muon_scale} muon_final_lr: {muon_final_lr}')
 

@@ -99,6 +99,18 @@ def get_remat_policy(cfg):
           "out_proj",
           "mlpwo",
       )
+    elif cfg.remat_policy == "save_all":
+      policy = jax.checkpoint_policies.save_only_these_names(
+          "query_proj",
+          "value_proj",
+          "key_proj",
+          "qkv_proj",
+          "out_proj",
+          "mlpwo",
+          "context",
+          "mlpwi_0",
+          "mlpwi_1",
+      )
     elif cfg.remat_policy == "save_dot_except_mlp":
       policy = jax.checkpoint_policies.save_only_these_names(
           "query_proj",
@@ -610,8 +622,7 @@ class Decoder(nn.Module):
           max_logging.log(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
           for lyr in range(cfg.num_decoder_layers):
             max_logging.log(f'\n=================decoder layer: {lyr}=====================\n')
-            
-            RemattedBlockLayer = RemattedBlockLayers[0] if lyr != cfg.num_decoder_layers - 1 else self.decoder_layer[0]
+            RemattedBlockLayer = RemattedBlockLayers[0]
             y, hids = RemattedBlockLayer(
               config=cfg, 
               mesh=mesh, 
@@ -650,51 +661,30 @@ class Decoder(nn.Module):
       deterministic, 
       mtp_layer=False
       )
-    mtp_xent = 0.0
     if cfg.mtp_num_layers > 0:
       assert mtp_head_inputs is not None, 'mtp_head_inputs is None'
-      if cfg.mtp_use_remat:
-        RematMTPLayer = nn.remat(
-              mtp.MultiTokenPredictionBlock,
-              prevent_cse=cfg.remat_prevent_cse,
-              policy=None,
-              static_argnums=(8, 9), # remat传入的关键字参数不计入static_argnums的索引
-              rngs={"params": True, "aqt": True, "dropout": True},
-          )
-        transformer_layer_module = self.decoder_layer[0]
-      else:
-        RematMTPLayer = mtp.MultiTokenPredictionBlock
-        transformer_layer_module = RemattedBlockLayers[0]
-        # transformer_layer_module = self.decoder_layer[0]
-
-      mtp_block = RematMTPLayer(
-          config=cfg,
-          mesh=mesh,
-          quant=self.quant,
-          name="mtp_block",
-          transformer_layer_module=transformer_layer_module,
-          shared_embedding=self.shared_embedding,
-        )
-      chunks = 2 # reduce half logits memory
-      bcs = mtp_head_inputs.shape[0] // chunks
-      for b in range(0, mtp_head_inputs.shape[0], bcs):
-        _mtp_xent = mtp_block(
-          OutputHeadLayer,
-          mtp_head_inputs[b:b+bcs],
-          decoder_input_tokens[b:b+bcs],
-          decoder_target_tokens[b:b+bcs],
-          decoder_target_mask[b:b+bcs],
-          decoder_positions[b:b+bcs],
-          decoder_segment_ids[b:b+bcs] if decoder_segment_ids is not None else None,
-          deterministic,
-          model_mode,
-          hids=[h[b:b+bcs] for h in hids],
-        )
-        print(f'_mtp_xent: {_mtp_xent.shape}')
-        mtp_xent += _mtp_xent
-      mtp_xent = mtp_xent / chunks
-
-    return xent, correct, mtp_xent
+      # lsp: Don't to use remat in here where will lead to decrease performance and inscrease hbm significantly.
+      mtp.MultiTokenPredictionBlock(
+        config=cfg,
+        mesh=mesh,
+        quant=self.quant,
+        name="mtp_block",
+        # transformer_layer_module=self.decoder_layer[0] if cfg.mtp_use_remat else RemattedBlockLayers[0],
+        transformer_layer_module=self.decoder_layer[0],
+        shared_embedding=self.shared_embedding,
+      )(
+        OutputHeadLayer,
+        main_hidden_state=mtp_head_inputs,
+        input_ids=decoder_input_tokens,
+        target_ids=decoder_target_tokens,
+        target_mask=decoder_target_mask,
+        position_ids=decoder_positions,
+        decoder_segment_ids=decoder_segment_ids,
+        deterministic=deterministic,
+        model_mode=model_mode,
+        hids=hids,
+      )
+    return xent, correct, main_model_preds
 
 
 class Transformer(nn.Module):

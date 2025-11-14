@@ -569,6 +569,9 @@ class ModelV4p5(Llama2Medium):
     global_attn_head_dim = 128
     attention = 'flash'
 
+class LamaModelV4p5(ModelV4p5):
+    base_num_kv_heads = 32
+
 # ========================v4.5 + single module start=======================
 class DCModelV4p5(DC2, LGLLWindow, ModelV4p5):
     num_layers_per_block = 1
@@ -636,6 +639,12 @@ class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400
     base_num_kv_heads = [base_num_query_heads, 4, base_num_query_heads, base_num_query_heads]
     base_mlp_dim = 1920
     base_num_decoder_layers = 31
+    num_layers_per_block = 1
+
+class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
+    base_num_decoder_layers = 32
+    mtp_num_layers = 0
+    num_layers_per_block = 1
 
 # todo:
 # 1、rotary use half inputs compute

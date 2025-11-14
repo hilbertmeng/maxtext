@@ -77,6 +77,7 @@ from etils import epath
 from flax.traverse_util import flatten_dict, unflatten_dict
 from input_pipeline._pile_data_processing import record_file_and_step
 # pylint: disable=too-many-positional-arguments
+from layers import mtp
 
 Transformer = models.Transformer
 EPS = 1e-8
@@ -562,7 +563,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       data[k] = v[: config.micro_batch_size_to_eval_on, :]
 
   mutable_collections = ["intermediates"]
-  (xent, correct, mtp_xent), intermediate_outputs = model.apply(
+  (xent, correct, preds), intermediate_outputs = model.apply(
       params,
       data["inputs"],
       data["inputs_position"],
@@ -582,11 +583,11 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
 
   # Calculate and Add MTP Loss
   mtp_loss, mtp_accept_rate = 0.0, 0.0
+  # Calculate and Add MTP Loss
+  mtp_loss, mtp_accept_rate = 0.0, 0.0
   if config.mtp_num_layers > 0:
-    # mtp_loss = calculate_mtp_loss(intermediate_outputs, config)
-    # mtp_accept_rate = calculate_mtp_acceptance_rate(intermediate_outputs, config, logits)
-    mtp_loss = mtp_xent.mean() * config.mtp_loss_scaling_factor
-    mtp_accept_rate = 0.0
+    mtp_loss = mtp.calculate_mtp_loss(intermediate_outputs, config)
+    mtp_accept_rate = mtp.calculate_mtp_acceptance_rate(intermediate_outputs, config, preds)
     loss += mtp_loss
 
   # get moe load balance loss

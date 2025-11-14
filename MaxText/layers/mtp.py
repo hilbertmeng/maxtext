@@ -144,26 +144,33 @@ class MultiTokenPredictionBlock(nn.Module):
       model_mode,
       hids=None,
   ):
-    max_logging.log(f'Enter MTP Block......')
     cfg = self.config
+    # The initial hidden state for the MTP chain is the raw output from the main model.
     mtp_hidden_state = main_hidden_state
 
+    # These variables are updated sequentially in each loop iteration,
+    # moving the prediction window one token to the right each time.
     rolled_input_ids = input_ids
     rolled_target_ids = target_ids
     rolled_target_mask = target_mask
-    mtp_xent = 0.0
+    # rolled_position_id = position_ids
+
+    # Range chosen to align with the naming convention of the paper
     for k in range(1, cfg.mtp_num_layers + 1):
+      # Sequentially roll all tensors to prepare data for predicting the k-th future token.
       rolled_input_ids = roll_and_mask(rolled_input_ids)
       rolled_target_ids = roll_and_mask(rolled_target_ids)
       rolled_target_mask = roll_and_mask(rolled_target_mask)
+    #   rolled_position_id = roll_and_mask(rolled_position_id)
 
+      # Embed the k-th future input tokens using the shared embedding module
       target_token_embedding = self.shared_embedding(rolled_input_ids)
       if cfg.mtp_use_remat:
         RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
             MultiTokenPredictionLayer,
             prevent_cse=cfg.remat_prevent_cse,
             policy=None,
-            static_argnums=(5, ),
+            static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
             rngs={"params": True, "aqt": True, "dropout": True},
         )
       else:
@@ -171,10 +178,10 @@ class MultiTokenPredictionBlock(nn.Module):
        # Instantiate and apply the MTP layer for this step
       mtp_layer = RematMTPLayer(
           config=cfg,
-          mesh=self.mesh,
           quant=self.quant,
+          mesh=self.mesh,
           layer_number=k,
-          name=f"mtp_{k-1}",
+          name=f"mtp_{k}",
           # lsp: Should get prev token's history status in unmtp layers when use mudd, because cur token no history status.
           # but in mtp layers, should get current token's history status. in fact, we can get the position correspond to generated token directly.
           transformer_layer_module=self.transformer_layer_module,
@@ -182,41 +189,75 @@ class MultiTokenPredictionBlock(nn.Module):
       next_mtp_hidden_state, hids = mtp_layer(
           mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids, rolled_input_ids
       )
-      mtp_head_inputs = next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state
-      # mtp chunk size set 4k better than 1k
-      mtp_xent, _, _ = output_layer(mtp_head_inputs, rolled_target_ids, rolled_target_mask, 4096, deterministic, mtp_layer=True)
-      mtp_xent += mtp_xent
+      # Project to logits using the shared embedding transpose
+      mtp_xent, correct, mtp_top_1_pred = output_layer(
+        next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state, 
+        rolled_target_ids,
+        rolled_target_mask,
+        cfg.max_target_length,
+        deterministic,
+        mtp_layer=True
+        )
+      mtp_xent_masked = mtp_xent * rolled_target_mask # BL
 
-      return mtp_xent
+      # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.
+      if not self.is_initializing(): # don't excute here when model.init
+        print(f'MTP loss record.....')
+        # For evaluation, save the top prediction and a valid token mask.
+        # This is only active for the target layer during an eval run.
+        if cfg.mtp_eval_target_module == k:
+          print(f'mtp_eval_target_module={k}, compute mtp preds and masks......')
+          self.sow("intermediates", "mtp_preds", mtp_top_1_pred)
+          self.sow("intermediates", "mtp_mask", rolled_target_mask)
+
+        # For training, save the loss components for this MTP head.
+        # This is only active during a training run.
+        # if self.is_mutable_collection("mtp_losses"):
+        self.sow("intermediates", "mtp_losses", jnp.sum(mtp_xent_masked))
+        self.sow("intermediates", "mtp_weights", jnp.sum(rolled_target_mask))
+
+      # The output of this layer is the input for the next, maintaining the causal chain.
+      mtp_hidden_state = next_mtp_hidden_state
 
 
 def calculate_mtp_loss(intermediate_outputs, config):
+  """Calculates the Multi Token Prediction loss from intermediate outputs."""
   losses_path = ("intermediates", "decoder", "mtp_block", "mtp_losses")
   weights_path = ("intermediates","decoder", "mtp_block", "mtp_weights")
   mtp_losses = maxtext_utils.get_nested_value(intermediate_outputs, losses_path, default=())
   mtp_weights = maxtext_utils.get_nested_value(intermediate_outputs, weights_path, default=())
-  if not mtp_losses: 
+
+  if not mtp_losses:  # MTP heads did not run
     return 0.0
+
   sum_of_all_mtp_losses = jnp.sum(jnp.array(mtp_losses))
   sum_of_all_mtp_weights = jnp.sum(jnp.array(mtp_weights))
+
   avg_mtp_loss = sum_of_all_mtp_losses / (sum_of_all_mtp_weights + EPS)
   scaled_mtp_loss = avg_mtp_loss * config.mtp_loss_scaling_factor
   return scaled_mtp_loss
 
 
-def calculate_mtp_acceptance_rate(intermediate_outputs, config, logits):
+def calculate_mtp_acceptance_rate(intermediate_outputs, config, main_model_preds):
   """Calculates the MTP acceptance rate from intermediate outputs."""
   preds_path = ("intermediates", "decoder", "mtp_block", "mtp_preds")
   masks_path = ("intermediates","decoder", "mtp_block", "mtp_mask")
+
   mtp_preds = maxtext_utils.get_nested_value(intermediate_outputs, preds_path, default=())[0]
   valid_mask = maxtext_utils.get_nested_value(intermediate_outputs, masks_path, default=())[0]
+
   if mtp_preds is None or valid_mask is None:
-    max_logging.log(f'mtp_preds or valid_mask is None....')
+    print(f'mtp_preds or valid_mask is None....')
     return 0.0
-  main_model_preds = jnp.argmax(logits, axis=-1)
+  # main_model_preds = jnp.argmax(logits, axis=-1)
+  # Roll the main model's predictions to align them in time with the MTP head's target.
   rolled_main_preds = main_model_preds
   for _ in range(config.mtp_eval_target_module):
     rolled_main_preds = roll_and_mask(rolled_main_preds)
+
+  # end of the sequence by the `roll_and_mask` operation.
   correct_predictions = jnp.sum((mtp_preds == rolled_main_preds) * valid_mask)
   total_valid_tokens = jnp.sum(valid_mask)
+
+  # Return acceptance rate as a percentage
   return (correct_predictions / (total_valid_tokens + EPS)) * 100

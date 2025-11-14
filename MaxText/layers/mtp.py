@@ -53,6 +53,7 @@ class MultiTokenPredictionLayer(nn.Module):
   quant: None
   layer_number: int
   transformer_layer_module: None
+  sliding_window_size: int
 
   def setup(self):
     cfg = self.config
@@ -102,11 +103,13 @@ class MultiTokenPredictionLayer(nn.Module):
         _dot_general=dot_general_int8.__call__ 
         if cfg.quantization == 'int8' and cfg.mtp_head_int8 else jax.lax.dot_general
         )
-    sliding_window_size = cfg.sliding_window_size[-1] if isinstance(cfg.sliding_window_size, list) \
-                                                  else cfg.sliding_window_size
-    y = self.transformer_layer_module(
+
+    if cfg.dense_conn and cfg.partial_scan_layers:
+      projected_features = [projected_features] * len(cfg.dynamic_dense_type)
+
+    y, hids = self.transformer_layer_module(
         config=cfg, mesh=mesh, quant=self.quant,
-        sliding_window_size=sliding_window_size,
+        sliding_window_size=self.sliding_window_size,
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
           projected_features,
           decoder_segment_ids,
@@ -117,7 +120,20 @@ class MultiTokenPredictionLayer(nn.Module):
           model_mode,
           hids=hids,
     )
-    next_hidden_state, hids = y
+
+    if cfg.dense_conn and cfg.partial_scan_layers:
+      y, hids = mudd.Compose(
+        cfg, self.mesh, self.quant, 
+        layer_inx=len(hids), 
+        name=f'compose_{k - 1 + cfg.num_decoder_layers}',
+        C=1,
+        compose=True,
+      )(
+        layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
+        hids=hids,
+      )
+      
+    next_hidden_state = y if isinstance(y, jnp.ndarray) else y[0]
     return next_hidden_state, hids
 
 
@@ -129,6 +145,7 @@ class MultiTokenPredictionBlock(nn.Module):
   quant: None
   transformer_layer_module: None
   shared_embedding: None
+  sliding_window_size: int
 
   @nn.compact
   def __call__(
@@ -181,7 +198,8 @@ class MultiTokenPredictionBlock(nn.Module):
           quant=self.quant,
           mesh=self.mesh,
           layer_number=k,
-          name=f"mtp_{k}",
+          name=f"mtp_{k - 1}",
+          sliding_window_size=self.sliding_window_size,
           # lsp: Should get prev token's history status in unmtp layers when use mudd, because cur token no history status.
           # but in mtp layers, should get current token's history status. in fact, we can get the position correspond to generated token directly.
           transformer_layer_module=self.transformer_layer_module,
@@ -202,11 +220,11 @@ class MultiTokenPredictionBlock(nn.Module):
 
       # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.
       if not self.is_initializing(): # don't excute here when model.init
-        print(f'MTP loss record.....')
+        max_logging.log(f'MTP loss record.....', debug=cfg.debug)
         # For evaluation, save the top prediction and a valid token mask.
         # This is only active for the target layer during an eval run.
         if cfg.mtp_eval_target_module == k:
-          print(f'mtp_eval_target_module={k}, compute mtp preds and masks......')
+          max_logging.log(f'mtp_eval_target_module={k}, compute mtp preds and masks......', debug=cfg.debug)
           self.sow("intermediates", "mtp_preds", mtp_top_1_pred)
           self.sow("intermediates", "mtp_mask", rolled_target_mask)
 
@@ -247,7 +265,7 @@ def calculate_mtp_acceptance_rate(intermediate_outputs, config, main_model_preds
   valid_mask = maxtext_utils.get_nested_value(intermediate_outputs, masks_path, default=())[0]
 
   if mtp_preds is None or valid_mask is None:
-    print(f'mtp_preds or valid_mask is None....')
+    max_logging.log(f'mtp_preds or valid_mask is None....', debug=config.debug)
     return 0.0
   # main_model_preds = jnp.argmax(logits, axis=-1)
   # Roll the main model's predictions to align them in time with the MTP head's target.

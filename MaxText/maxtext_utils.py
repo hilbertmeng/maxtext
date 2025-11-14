@@ -100,9 +100,9 @@ def load_compiled(config, partial_train, state, mesh):
   # the compiled function to the actual runtime devices.
   # Use devices from the mesh to ensure correct multi-process device mapping.
   execution_devices = mesh.devices.flatten().tolist()
-  print(f"[DEBUG] Loading compiled function with {len(execution_devices)} execution_devices:", flush=True)
-  for i, d in enumerate(execution_devices):
-    print(f"  Device {i}: {d} (id={d.id}, process={d.process_index}, coords={getattr(d, 'coords', 'N/A')})", flush=True)
+  # print(f"[DEBUG] Loading compiled function with {len(execution_devices)} execution_devices:", flush=True)
+  # for i, d in enumerate(execution_devices):
+  #   print(f"  Device {i}: {d} (id={d.id}, process={d.process_index}, coords={getattr(d, 'coords', 'N/A')})", flush=True)
   p_train_step = deserialize_and_load(serialized_compiled, in_tree, out_tree, execution_devices=execution_devices)
   return p_train_step
 

@@ -35,6 +35,7 @@ import max_logging
 import re
 import max_utils
 from layers import mtp
+from layers import mudd
 
 Array = common_types.Array
 Config = common_types.Config
@@ -52,7 +53,7 @@ Quant = quantizations.AqtQuantization
 # ------------------------------------------------------------------------------
 
 def get_deep_embedding(cfg, deep_embedding):
-  max_logging.log(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}')
+  max_logging.log(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}', debug=cfg.debug)
   if '4xmlp' in cfg.deep_embed_type:
     assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
     start_idx = 0
@@ -66,12 +67,13 @@ def get_deep_embedding(cfg, deep_embedding):
       start_idx += updated_mlp_dim
       cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*deep_embedding.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
-      max_logging.log(f'4xmlp layer_inx: {layer_inx} updated_mlp_dim: {updated_mlp_dim} cur_layer_deep_embedding: {cur_layer_deep_embedding.shape}')
+    deep_embeddings = jnp.stack(deep_embeddings, axis=0)
+    max_logging.log(f'4xmlp deep_embeddings: {deep_embeddings.shape}', debug=cfg.debug)
   elif re.findall(r'1xmlp|1xattn', cfg.deep_embed_type):
     d1 = 32 if cfg.emb_dim < 4096 else 64
     d2 = cfg.emb_dim // d1
-    deep_embeddings = deep_embedding.reshape(*y.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
-    max_logging.log(f'1xmlp|1xattn deep_embeddings: {deep_embeddings.shape}')
+    deep_embeddings = deep_embedding.reshape(*deep_embedding.shape[:2], cfg.num_decoder_layers, d1, d2).transpose(2, 0, 1, 3, 4)
+    max_logging.log(f'1xmlp|1xattn deep_embeddings: {deep_embeddings.shape}', debug=cfg.debug)
   else:
     raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type}')
   return deep_embeddings
@@ -371,13 +373,21 @@ class Decoder(nn.Module):
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
     for block_layer in block_layers:
-      layer = nn.remat(  # pylint: disable=invalid-name
+      layer = nn.remat(
           block_layer,
-          prevent_cse=self.config.remat_prevent_cse, # lsp, default false, set to True can save some memory
+          prevent_cse=True, # scan_layers is True
           policy=policy,
-          static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
+          static_argnums=(6, 7),
           rngs={"params": True, "aqt": True, "dropout": True},
       )
+      layer1 = nn.remat(
+          block_layer,
+          prevent_cse=True,# scan_layers is False
+          policy=policy,
+          static_argnums=(6, 7),
+          rngs={"params": True, "aqt": True, "dropout": True},
+      )
+      RemattedBlockLayers.append(layer1)
       RemattedBlockLayers.append(layer)
     return RemattedBlockLayers
 
@@ -425,7 +435,7 @@ class Decoder(nn.Module):
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
-  def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh):
+  def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh, sliding_window_size=None):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
@@ -453,7 +463,7 @@ class Decoder(nn.Module):
         length=length,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
-    return scan_fn(config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant)
+    return scan_fn(config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant, sliding_window_size=sliding_window_size)
 
   def get_pipeline_stage_module(self, base_stage):
     cfg = self.config
@@ -494,7 +504,7 @@ class Decoder(nn.Module):
     if cfg.mix_attn and decoder_segment_ids is not None:
       # ======================================32k long context max window size set==================================================
       eos_sum = (decoder_segment_ids == 0).sum(1)  # 3.5 mini train
-      print(f'[lsp]decoder_segment_ids: {decoder_segment_ids.shape}')
+      max_logging.log(f'[lsp]decoder_segment_ids: {decoder_segment_ids.shape}', debug=cfg.debug)
       # eos_sum = (decoder_input_tokens == 151643).sum(1) # v4 moe
       eos_sum = jnp.where(eos_sum > 0, 1, 0) # batch
       if cfg.record_internal_nn_metrics:
@@ -511,7 +521,7 @@ class Decoder(nn.Module):
     if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp', cfg.deep_embed_type):
       deep_embeddings = self.deep_embedding(decoder_input_tokens.astype("int32"))
       deep_embeddings = get_deep_embedding(cfg, deep_embeddings)
-      max_logging.log(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}')
+      max_logging.log(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}', debug=cfg.debug)
     
     else:
       deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
@@ -531,10 +541,10 @@ class Decoder(nn.Module):
 
     hids = []
     if cfg.dense_conn and not cfg.mudd_in_layer:
-      max_logging.log(f'Outside layers don\'t use remat')
+      max_logging.log(f'Outside layers don\'t use remat', debug=cfg.debug)
       RemattedBlockLayers = self.decoder_layer
     else:
-      max_logging.log(f'Outside layers use remat')
+      max_logging.log(f'Outside layers use remat', debug=cfg.debug)
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
 
     if cfg.using_pipeline_parallelism:
@@ -548,6 +558,21 @@ class Decoder(nn.Module):
           y, decoder_segment_ids, decoder_positions, deterministic, model_mode, partition_spec=partition_spec
       )
     else:
+      assert isinstance(cfg.sliding_window_size, list), f"sliding_window_size must be a list"
+      def format_swss():
+        sws = [cfg.max_target_length if s is None else s for s in cfg.sliding_window_size]
+        if len(sws) == cfg.num_decoder_layers + cfg.mtp_num_layers:
+          return sws
+        sws = sws * (cfg.num_decoder_layers // len(sws) + 1)
+        sws = sws[:cfg.num_decoder_layers]
+        if cfg.mtp_num_layers > 0:
+          sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
+        return sws
+      
+      if cfg.dense_conn:
+        y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
+        hids.append(y)
+
       if cfg.scan_layers:
         if cfg.decoder_block == "deepseek":
           assert len(RemattedBlockLayers) == 2, f"Scanned layers must have a length of 2 using deepseek."
@@ -573,7 +598,7 @@ class Decoder(nn.Module):
             assert len(cfg.sliding_window_size) == cfg.num_layers_per_block
           else:
             assert cfg.num_layers_per_block == 1
-          RemattedBlockLayer = RemattedBlockLayers[0]
+          RemattedBlockLayer = RemattedBlockLayers[1]
           y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
               y,
               decoder_segment_ids,
@@ -584,6 +609,93 @@ class Decoder(nn.Module):
               model_mode,
               eos_sum=eos_sum,
           )
+
+      elif cfg.partial_scan_layers:
+
+        def get_C(lyr):
+          if lyr == cfg.num_decoder_layers - 1:
+            C = 2 if cfg.mtp_num_layers > 0 else 1 # if use mtp, return 2 tensors, otherwise return 1 tensor
+          elif lyr == cfg.num_decoder_layers + cfg.mtp_num_layers - 1:
+            C = 1 # last layer return 1 tensor
+          else:
+            C = 4 # other layer return 4 tensors
+          return C
+        swss = format_swss()
+        max_logging.log(f'partial_scan_layers: swss: {swss}', debug=cfg.debug)
+        lyr = 0
+        while lyr < cfg.num_decoder_layers:
+          current_sws = swss[lyr]
+          scan_start = lyr
+          scan_length = 1
+          while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
+            scan_length += 1
+          
+          if scan_length == 1:
+            max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
+            
+            y, _ = RemattedBlockLayers[0](
+              config=cfg, 
+              mesh=mesh, 
+              name=f"layers_{lyr}", 
+              quant=self.quant, 
+              sliding_window_size=current_sws)(
+                y,
+                decoder_segment_ids,
+                decoder_positions,
+                decoder_input_tokens,
+                None if deep_embeddings is None else deep_embeddings[lyr],
+                deterministic,
+                model_mode,
+                eos_sum=eos_sum,
+            )
+
+            if cfg.dense_conn:
+              C = get_C(lyr)
+              # return's inputs length is 4
+              y, hids = mudd.Compose(
+                cfg, self.mesh, self.quant, 
+                layer_inx=len(hids), 
+                name=f'compose_{lyr}',
+                C=C,
+                compose=True,
+                )(
+                  layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
+                  hids=hids,
+                )
+            lyr += 1
+          else:
+            max_logging.log(f'Scanning layers {scan_start} to {scan_start + scan_length - 1} with sws={current_sws}', debug=cfg.debug)
+            # scan_deep_embeddings = deep_embeddings[scan_start:scan_start + scan_length]
+            y, _ = self.scan_decoder_layers(
+                cfg, 
+                RemattedBlockLayers[1], 
+                scan_length, 
+                f"layers_{scan_start}", 
+                mesh,
+                sliding_window_size=current_sws,
+            )(
+                y,
+                decoder_segment_ids,
+                decoder_positions,
+                decoder_input_tokens,
+                None if deep_embeddings is None else deep_embeddings[scan_start:scan_start + scan_length],
+                deterministic,
+                model_mode,
+                eos_sum=eos_sum,
+            )
+            if cfg.dense_conn:
+              C = get_C(lyr=scan_start + scan_length - 1)
+              y, hids = mudd.Compose(
+                cfg, self.mesh, self.quant, 
+                layer_inx=len(hids), 
+                name=f'compose_{scan_start}',
+                C=C,
+                compose=True,
+              )(
+                layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
+                hids=hids,
+              )
+            lyr += scan_length
       else:
         if cfg.decoder_block == "deepseek":
           assert len(RemattedBlockLayers) == 2, f"Unscanned layers must have a length of 2 using deepseek."
@@ -603,32 +715,18 @@ class Decoder(nn.Module):
                             model_mode,
                         )
         else:
-          def format_mtp_sws(sws, num_decoder_layers, mtp_num_layers):
-              sws = sws * (num_decoder_layers // len(sws) + 1)
-              sws = sws[ :num_decoder_layers]
-              if mtp_num_layers > 0:
-                sws += sws[-1:] # mtp layer's sws must be the same as the last layer
-              return sws
-
           assert cfg.num_layers_per_block == 1, f"num_layers_per_block: {cfg.num_layers_per_block} != 1"
-          if isinstance(cfg.sliding_window_size, list):
-            if len(cfg.sliding_window_size) != cfg.num_decoder_layers + cfg.mtp_num_layers:
-              sliding_window_sizes = format_mtp_sws(cfg.sliding_window_size, cfg.num_decoder_layers, cfg.mtp_num_layers)
-            else:
-              sliding_window_sizes = cfg.sliding_window_size
-            assert len(sliding_window_sizes) == cfg.num_decoder_layers + cfg.mtp_num_layers, f"sliding_window_sizes: {sliding_window_sizes} != num_decoder_layers: {cfg.num_decoder_layers + cfg.mtp_num_layers}"
-          else:
-            sliding_window_sizes = (cfg.num_decoder_layers + cfg.mtp_num_layers) * [cfg.sliding_window_size]
-          max_logging.log(f'sliding_window_size: {cfg.sliding_window_size}, num_decoder_layers: {cfg.num_decoder_layers}')
+          swss = format_swss()
+          max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)
           for lyr in range(cfg.num_decoder_layers):
-            max_logging.log(f'\n=================decoder layer: {lyr}=====================\n')
+            max_logging.log(f'\n=================decoder layer: {lyr}=====================\n', debug=cfg.debug)
             RemattedBlockLayer = RemattedBlockLayers[0]
             y, hids = RemattedBlockLayer(
               config=cfg, 
               mesh=mesh, 
               name=f"layers_{lyr}", 
               quant=self.quant, 
-              sliding_window_size=sliding_window_sizes[lyr])(
+              sliding_window_size=swss[lyr])(
                 y,
                 decoder_segment_ids,
                 decoder_positions,
@@ -640,7 +738,7 @@ class Decoder(nn.Module):
                 eos_sum=eos_sum,
             )
             
-    max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}')
+    max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}', debug=cfg.debug)
     if cfg.dense_conn:
       main_head_inputs, mtp_head_inputs = y if cfg.mtp_num_layers > 0 else [y[0], None]
     else:
@@ -652,7 +750,7 @@ class Decoder(nn.Module):
                         mesh=mesh,
                         quant=self.quant,
                         name='lm_head')
-    max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}')
+    max_logging.log(f'OutputHeadLayer input: {main_head_inputs.shape}', debug=cfg.debug)
     xent, correct, main_model_preds = OutputHeadLayer(
       main_head_inputs, 
       decoder_target_tokens, 
@@ -669,9 +767,9 @@ class Decoder(nn.Module):
         mesh=mesh,
         quant=self.quant,
         name="mtp_block",
-        # transformer_layer_module=self.decoder_layer[0] if cfg.mtp_use_remat else RemattedBlockLayers[0],
-        transformer_layer_module=self.decoder_layer[0],
+        transformer_layer_module=self.decoder_layer[0] if cfg.mtp_use_remat else RemattedBlockLayers[0],
         shared_embedding=self.shared_embedding,
+        sliding_window_size=swss[-1],
       )(
         OutputHeadLayer,
         main_hidden_state=mtp_head_inputs,
@@ -713,7 +811,7 @@ class Transformer(nn.Module):
         # Multi deep embed don't support outside init
         raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')
      
-    max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {de_dim}')
+    max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {de_dim}', debug=cfg.debug)
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
         features=cfg.emb_dim,

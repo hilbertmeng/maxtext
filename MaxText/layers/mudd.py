@@ -78,7 +78,7 @@ class Mlp(nn.Module):
       dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
 
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
-    max_logging.log(f'layer_inx: {layer_inx} dw_shape: {dw_shape} dynamic_dense_inter_dim: {dynamic_dense_inter_dim}')
+    max_logging.log(f'layer_inx: {layer_inx} dw_shape: {dw_shape} dynamic_dense_inter_dim: {dynamic_dense_inter_dim}', debug=cfg.debug)
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
     # (model_dim, inter_dim), inter_dim << model_dim
     self.dense_proj1 = linears.DenseGeneral(
@@ -107,7 +107,6 @@ class Mlp(nn.Module):
   def __call__(
       self,
       layer_output,
-      decoder_input_tokens,
   ):
     cfg = self.config
     dyn_dense_w = None
@@ -143,7 +142,6 @@ class Compose(nn.Module):
       self,
       layer_output,
       hids,
-      decoder_input_tokens,
   ):
     cfg = self.config
     
@@ -154,16 +152,14 @@ class Compose(nn.Module):
     if not self.compose:
       return y, hids
 
-    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=C)(layer_output, decoder_input_tokens)
+    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=C)(layer_output)
     if self.config.record_internal_nn_metrics:
       for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
         self.sow('intermediates', f'dyn_dense_w/{op.__name__}', op(dyn_dense_w.astype(jnp.float32)))
       self.sow('intermediates', f'layer_output/norm', l2norm(y.astype(jnp.float32)))
 
-    max_logging.log(f'C: {C} hids length: {len(hids)}')
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm("mudd_postnorm", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
-      print(f'dyn_dense_w: {dyn_dense_w.shape} C: {C}')
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
       y = tuple([y + (post_norm(
           wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)

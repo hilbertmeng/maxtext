@@ -526,6 +526,8 @@ query_chunk_method: ''
 static_proj: False
 init_method: '006normal'
 global_attn_head_dim: 0
+partial_scan_layers: False
+
 # ================================= [mudd] =================================
 dense_conn: False
 dynamic_dense_type: 'qkvm'

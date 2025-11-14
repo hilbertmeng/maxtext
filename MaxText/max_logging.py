@@ -133,9 +133,9 @@ def initialize_bucket_logging(bucket_dir: Optional[str] = None, upload_interval:
 
 def log(user_str, debug=True, save_to_bucket=True):
     """Enhanced logging function that supports both console and bucket output"""
-    if debug:
-        print(user_str, flush=True)
-    
+    if not debug:
+        return
+    print(user_str, flush=True)
     # Also save to bucket if enabled
     if save_to_bucket and _bucket_logger:
         _bucket_logger.log_to_bucket(user_str)

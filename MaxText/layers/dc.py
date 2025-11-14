@@ -274,7 +274,7 @@ class CrossHeadProjection(nn.Module):
       else:
         assert False, f'[{in_dim}, {out_dim}]'
       return math.sqrt(2.0 / (in_dim + out_dim)) * relative_scale
-    print(f'key_wise: {self.key_wise} static_proj: {self.static_proj}')
+    max_logging.log(f'key_wise: {self.key_wise} static_proj: {self.static_proj}', debug=self.config.debug)
     if self.static_proj: 
       cfg = self.config
       self.sw_quant = self.config.sw_quant

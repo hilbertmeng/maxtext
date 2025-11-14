@@ -576,6 +576,18 @@ class LamaModelV4p5(ModelV4p5):
 class DCModelV4p5(DC2, LGLLWindow, ModelV4p5):
     num_layers_per_block = 1
 
+class DCMuddModelV4p5(Mudd, DCModelV4p5):
+    num_layers_per_block = 1
+
+class DCMuddMTP1ModelV4p5(MTP1Layer, DCMuddModelV4p5):
+    pass
+
+class DEDCMuddMTP1ModelV4p5(DE, DCMuddMTP1ModelV4p5):
+    pass
+
+class DEDCMuddMTP1KVshiftModelV4p5(KVshift, DEDCMuddMTP1ModelV4p5):
+    pass
+
 class MuddV4p5(Mudd, ModelV4p5):
     compose_layers = range(1, 60, 2) # interval of 2 to compose
     mudd_in_layer = True

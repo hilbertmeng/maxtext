@@ -15,14 +15,11 @@ limitations under the License.
 """
 
 """Transformer model definition."""
-# pylint: disable=arguments-differ
-# pylint: disable=no-name-in-module
 import jax
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
 from jax.ad_checkpoint import checkpoint_name
-# from jax.experimental.pallas.ops.tpu import flash_attention
 from layers import attentions
 from layers import embeddings
 from layers import linears
@@ -108,7 +105,7 @@ class SubDecoderLayer(nn.Module):
     head_dim = cfg.global_attn_head_dim \
       if self.sliding_window_size == cfg.max_target_length and cfg.global_attn_head_dim > 0 \
       else cfg.head_dim
-    max_logging.log(f'sliding_window_size: {self.sliding_window_size} num_kv_heads: {num_kv_heads} head_dim: {head_dim} ')
+    max_logging.log(f'sliding_window_size: {self.sliding_window_size} num_kv_heads: {num_kv_heads} head_dim: {head_dim}', debug=cfg.debug)
     # Self-attention block
     attention_layer = Attention(
         config=cfg,
@@ -257,19 +254,17 @@ class FusionDecoderLayer(nn.Module):
 
   config: Any
   mesh: Mesh
+  sliding_window_size: int # lsp
   quant: Optional[Quant] = None
-  sliding_window_size: list|int|None = -1 # lsp
 
   def setup(self):
     cfg = self.config
-    layer_inx = None if cfg.scan_layers else int(self.name.split('_')[-1])
-    self.layer_inx = layer_inx
-    # When no sliding_window_size is passed in, the sliding_window_size in config is used, otherwise the passed in sliding_window_size is used.
-    sliding_window_size = cfg.sliding_window_size if self.sliding_window_size == -1 else self.sliding_window_size
-    if not isinstance(sliding_window_size, (list, tuple)):
-        sliding_window_size = [sliding_window_size]
-    sliding_window_size = [s or cfg.max_target_length for s in sliding_window_size]
+    self.layer_inx = None if cfg.scan_layers else int(self.name.split('_')[-1])
+    sws = self.sliding_window_size
+    max_logging.log(f'fusion layer sws: {sws}', debug=cfg.debug)
+    assert isinstance(sws, int)
 
+    RematSubDecoderLayer = SubDecoderLayer
     if cfg.dense_conn and not cfg.mudd_in_layer:
       RematSubDecoderLayer = nn.remat(
         SubDecoderLayer,
@@ -277,11 +272,8 @@ class FusionDecoderLayer(nn.Module):
         policy=models.get_remat_policy(cfg),
         static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
         )
-    else:
-      RematSubDecoderLayer = SubDecoderLayer
-    self.subs = [RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, layer_inx, name=f'sub_{i}')
-                                      for i, sws in enumerate(sliding_window_size)]
-                                    
+
+    self.layer = RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, self.layer_inx, name=f'block')
     self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
 
   def get_C(self, cfg):
@@ -307,52 +299,94 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
-    for layer in self.subs: # subs length must be 1 when train mudd.
-      if cfg.dense_conn:
-        if self.layer_inx == 0:
-          y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(inputs) \
-            if cfg.mudd_prenorm else inputs
-          # inputs = [inputs] * len(cfg.dynamic_dense_type) # 0层要不要分4路？
-          hids.append(y_normed)
-        elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:
-          inputs = [inputs] * len(cfg.dynamic_dense_type) # mtp
-        else:
-          # return's inputs length is 4
-          inputs, hids = mudd.Compose(
-            cfg, self.mesh, self.quant, 
-            layer_inx=len(hids), 
-            name='compose',
-            C=4,
-            compose=True if self.layer_inx in cfg.compose_layers else False,
-            )(
-              layer_output=inputs, 
-              hids=hids,
-              decoder_input_tokens=decoder_input_tokens,
-            )
-      # return's inputs length is 1
-      inputs = layer(
-          inputs,
-          decoder_segment_ids,
-          decoder_positions,
-          decoder_input_tokens,
-          deep_embedding,
-          deterministic,
-          model_mode,
-          eos_sum,
+    if cfg.partial_scan_layers:
+      return self.partial_scan_call(
+        inputs,
+        decoder_segment_ids,
+        decoder_positions,
+        decoder_input_tokens,
+        deep_embedding,
+        deterministic,
+        model_mode,
+        hids,
+        eos_sum,
       )
-      max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}')
-      if cfg.dense_conn and self.layer_inx in self.break_layers:
-        C = self.get_C(cfg)
+
+    if cfg.dense_conn:
+      if self.layer_inx == 0:
+        y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(inputs) \
+          if cfg.mudd_prenorm else inputs
+        # inputs = [inputs] * len(cfg.dynamic_dense_type) # 0层要不要分4路？
+        hids.append(y_normed)
+      elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:
+        inputs = [inputs] * len(cfg.dynamic_dense_type) # mtp
+      else:
+        # return's inputs length is 4
         inputs, hids = mudd.Compose(
           cfg, self.mesh, self.quant, 
           layer_inx=len(hids), 
-          compose=True,
-          name=f'compose_break',
-          C=C,
+          name='compose',
+          C=4,
+          compose=True if self.layer_inx in cfg.compose_layers else False,
           )(
             layer_output=inputs, 
             hids=hids,
             decoder_input_tokens=decoder_input_tokens,
           )
+    # return's inputs length is 1
+    inputs = self.layer(
+        inputs,
+        decoder_segment_ids,
+        decoder_positions,
+        decoder_input_tokens,
+        deep_embedding,
+        deterministic,
+        model_mode,
+        eos_sum,
+    )
+    max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
+    if cfg.dense_conn and self.layer_inx in self.break_layers:
+      C = self.get_C(cfg)
+      inputs, hids = mudd.Compose(
+        cfg, self.mesh, self.quant, 
+        layer_inx=len(hids), 
+        compose=True,
+        name=f'compose_break',
+        C=C,
+        )(
+          layer_output=inputs, 
+          hids=hids,
+          decoder_input_tokens=decoder_input_tokens,
+        )
    
     return inputs, hids
+
+  def partial_scan_call(
+      self,
+      inputs,
+      decoder_segment_ids,
+      decoder_positions,
+      decoder_input_tokens,
+      deep_embedding,
+      deterministic,
+      model_mode,
+      hids=None,
+      eos_sum=None,
+  ):
+    cfg = self.config
+    # return's inputs length is 1
+    output = self.layer(
+        inputs,
+        decoder_segment_ids,
+        decoder_positions,
+        decoder_input_tokens,
+        deep_embedding,
+        deterministic,
+        model_mode,
+        eos_sum,
+    )
+    if isinstance(inputs, list):
+      return [output] * len(inputs), hids
+    elif isinstance(inputs, tuple):
+      return (output,) * len(inputs), hids
+    return output, hids

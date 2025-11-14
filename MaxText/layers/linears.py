@@ -198,13 +198,13 @@ class DeepEmbedBlock(nn.Module):
     self.s2_bias = None
     if self.config.use_s2_bias:
       self.s2_bias = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
-    max_logging.log(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias} de_d1_d2_dims: {self.de_d1_d2_dims}')
+    max_logging.log(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias} de_d1_d2_dims: {self.de_d1_d2_dims}', debug=self.config.debug)
 
   @nn.compact
   def __call__(self, inputs, output, decoder_input_tokens, deep_embedding=None):
     cfg = self.config
     if deep_embedding is None:
-      max_logging.log(f'Inside DE, decoder_input_tokens: {decoder_input_tokens.shape}')
+      max_logging.log(f'Inside DE, decoder_input_tokens: {decoder_input_tokens.shape}', debug=self.config.debug)
       deep_embedding = embeddings.Embed(
             name="token_embedder",
             num_embeddings=cfg.vocab_size,
@@ -214,8 +214,8 @@ class DeepEmbedBlock(nn.Module):
             config=cfg,
           )(decoder_input_tokens.astype("int32"))
       deep_embedding = deep_embedding.reshape(*output.shape[:2], self.d1, self.d2)
-    max_logging.log(f'inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}')
-    max_logging.log(f'DeepEmbedBlock deep_embed_type: {self.config.deep_embed_type}')
+    max_logging.log(f'inputs: {inputs.shape} output: {output.shape} deep_embedding: {deep_embedding.shape}', debug=self.config.debug)
+    max_logging.log(f'DeepEmbedBlock deep_embed_type: {self.config.deep_embed_type}', debug=self.config.debug)
 
     deep_embedding = checkpoint_name(deep_embedding, "de_embedding")
     # btD x Dd -> btd -> bt1d
@@ -280,7 +280,7 @@ class MlpBlock(nn.Module):
     self.deep_embed_block = None
     if output_dim is not None and de_embed_dim is not None:
       d1 = 32 if cfg.mlp_dim < 4096 else 64 
-      print(f'd1: {d1}')
+      max_logging.log(f'd1: {d1}', debug=self.config.debug)
       self.deep_embed_block = DeepEmbedBlock(
         name=f'{suffix}_deep_embed',
         config=self.config, 
@@ -356,7 +356,7 @@ class MlpBlock(nn.Module):
             )(layer_inputs=inputs, hidden=x, unsqueeze=True)
 
     if '4xmlp' in cfg.deep_embed_type:
-      max_logging.log(f'Inside 4xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}')
+      max_logging.log(f'Inside 4xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}', debug=self.config.debug)
       x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
 
     output = DenseGeneral(
@@ -372,7 +372,7 @@ class MlpBlock(nn.Module):
     )(x)
 
     if '1xmlp' in cfg.deep_embed_type:
-      max_logging.log(f'Inside 1xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}')
+      max_logging.log(f'Inside 1xmlp, deep_embedding: {deep_embedding.shape if deep_embedding is not None else None}', debug=self.config.debug)
       output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")
@@ -482,7 +482,7 @@ class MoeBlock(nn.Module):
     inputs_2d = jnp.reshape(inputs, (inputs_shape[0] * inputs_shape[1], inputs_shape[2]))
     weights, selected_experts = jax.lax.top_k(gate_logits, self.num_experts_per_tok)
     if self.config.decoder_block == "deepseek" or self.config.routed_score_func == "sigmoid":
-      print(f'Enter permute sigmoid function......')
+      max_logging.log(f'Enter permute sigmoid function......', debug=self.config.debug)
       weights = self.deepseek_scale_weights(weights)
     else:
       weights = jax.nn.softmax(weights.astype(jnp.float32), axis=-1).astype(self.dtype)
@@ -521,7 +521,7 @@ class MoeBlock(nn.Module):
       router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
       _gate_logits = gate_logits + router_mask
       if self.config.routed_score_func == 'sigmoid':
-        print(f'Enter sigmoid function......')
+        max_logging.log(f'Enter sigmoid function......', debug=self.config.debug)
         router_probs = nn.sigmoid(_gate_logits) # lsp
         router_probs /= router_probs.sum(-1, keepdims=True)
       else:
@@ -572,7 +572,6 @@ class MoeBlock(nn.Module):
         #     break
         # # if too large, will exceed vmem.
         # tile_size = (min(1024, m), min(1024, k), min(kd, n)) # 3d suggest 384~768，2d suggest 512~1024，1d suggest 1024
-        # print(f'tile_size: {tile_size}')
         output = mblx.gmm(
             lhs=inputs,
             rhs=kernel,
@@ -1005,7 +1004,7 @@ class Mgate(nn.Module):
 
     if self.config.mgate_dim < 2: return hidden
 
-    print(f'mgate layer_inputs: {layer_inputs.shape} hidden: {hidden.shape} expert_index: {expert_index} compute_n_expert: {compute_n_expert}')
+    max_logging.log(f'mgate layer_inputs: {layer_inputs.shape} hidden: {hidden.shape} expert_index: {expert_index} compute_n_expert: {compute_n_expert}', debug=self.config.debug)
     if unsqueeze:
       layer_inputs = layer_inputs[:, None] # add a dimension when not moe 
       hidden = hidden[:, None] # add a dimension when not moe 
@@ -1014,7 +1013,7 @@ class Mgate(nn.Module):
     # x = jnp.einsum('BTE,BTEM->BTEM', gate_scores, x)  # 这里是多个专家一起计算mgate分数
     mgate_scores = jnp.einsum('gecm,emi->geci', layer_inputs, inner_gate)
     # mgate_scores = nn.with_logical_constraint(mgate_scores, ("activation_batch", "exp", "activation_length", None))
-    max_logging.log(f'mgate is True  mgate_scores: {mgate_scores.shape}')
+    max_logging.log(f'mgate is True  mgate_scores: {mgate_scores.shape}', debug=self.config.debug)
     mgate_scores = jax.nn.softmax(mgate_scores.astype(jnp.float32), axis=-1)
     mgate_scores = mgate_scores.astype(self.dtype)
     # if self.config.record_internal_nn_metrics:
@@ -1225,7 +1224,7 @@ class OpenMoeBlock(nn.Module):
         # expert_inputs = nn.with_logical_constraint(expert_inputs, ("activation_batch", "exp", "activation_length", "tensor"))
 
         if self._is_ffn1_gated:
-            max_logging.log(f'expert_inputs: {expert_inputs.shape} theta_wi: {theta_wi.shape}')
+            max_logging.log(f'expert_inputs: {expert_inputs.shape} theta_wi: {theta_wi.shape}', debug=self.config.debug)
             hidden0 = jnp.einsum("gecm,emh->gech", expert_inputs, theta_wi)
             hidden1 = jnp.einsum("gecm,emh->gech", expert_inputs, theta_wi_gated)
             hidden1 = self.activation(hidden1)
@@ -1249,7 +1248,7 @@ class OpenMoeBlock(nn.Module):
         
     def _dispatch_and_combine_expert_outputs_openmoe(self, inputs, paddings, deterministic=False):
 
-        max_logging.log(f'Enter openmoe top2 router.....')
+        max_logging.log(f'Enter openmoe top2 router.....', debug=self.config.debug)
         topn = self.num_experts_per_tok
         token_shape = inputs.shape[:-1]
         num_tokens = np.prod(token_shape)
@@ -1261,19 +1260,19 @@ class OpenMoeBlock(nn.Module):
         tokens_per_group = num_tokens // num_groups
         assert num_tokens % num_groups == 0, max_logging.log(f'‘num_tokens % num_groups -> {num_tokens} % {num_groups} != 0’')
 
-        max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}')
+        max_logging.log(f'expert_capacity_factor: {self.expert_capacity_factor}', debug=self.config.debug)
         # lsp： 因为在这里的实现是num_experts_per_tok合在一起计算的，因此，每个专家的容量应该是需要 * num_experts_per_tok
         # num_experts_per_tok分开算的可以看https://github.com/lucidrains/st-moe-pytorch/blob/d94e65d8a1f50eb5b41efa5317b0d1b17c9dbfad/st_moe_pytorch/st_moe_pytorch.py#L485。这里的容量计算就不需要 * num_experts_per_tok
         expert_capacity = math.ceil(self.expert_capacity_factor * tokens_per_group * self.num_experts_per_tok / self.num_experts)
         max_group_size = int(inputs.shape[1])
         expert_capacity = min(expert_capacity, max_group_size)
         expert_capacity = max(expert_capacity, self.min_group_size)
-        max_logging.log(f'expert_capacity: {expert_capacity}')
+        max_logging.log(f'expert_capacity: {expert_capacity}', debug=self.config.debug)
        
         # gsm
         grouped_inputs = jnp.reshape(inputs, (num_groups, tokens_per_group, self.config.base_emb_dim))
         token_inputs = jax.lax.convert_element_type(grouped_inputs, jnp.float32)
-        max_logging.log(f'token_inputs: {token_inputs.shape}')
+        max_logging.log(f'token_inputs: {token_inputs.shape}', debug=self.config.debug)
 
         router_logits = DenseGeneral(
                 self.num_experts,
@@ -1288,7 +1287,7 @@ class OpenMoeBlock(nn.Module):
         #   self.sow('intermediates', 'router_logits/noiso_before/min', router_logits.min())
 
         if self.config.gate_noise_coef > 0.0 and not deterministic: # lsp: use when train, also is deterministic=False
-          max_logging.log(f'gate_noise_coef: {self.config.gate_noise_coef}')
+          max_logging.log(f'gate_noise_coef: {self.config.gate_noise_coef}', debug=self.config.debug)
           noise = gumbel_noise(router_logits, seed=self.config.init_weights_seed)
           router_logits += noise * self.config.gate_noise_coef
 
@@ -1306,7 +1305,7 @@ class OpenMoeBlock(nn.Module):
 
         if self.config.sfm_after_topn:
           assert one_hot_indices is not None
-          max_logging.log(f'one_hot_indices is not None and sfm_after_topn is {self.config.sfm_after_topn}')
+          max_logging.log(f'one_hot_indices is not None and sfm_after_topn is {self.config.sfm_after_topn}', debug=self.config.debug)
           router_mask = (1 - one_hot_indices) * jnp.finfo(self.dtype).min
           _router_logits = router_logits + router_mask
           router_probs = jax.nn.softmax(_router_logits.astype(jnp.float32), axis=-1)
@@ -1336,8 +1335,8 @@ class OpenMoeBlock(nn.Module):
         
         # 有padding的时候放开, 一般预训练没有pad
         if paddings is not None:
-            max_logging.log(f'paddings: {paddings.shape}')
-            max_logging.log(f'token_shape: {token_shape}')
+            max_logging.log(f'paddings: {paddings.shape}', debug=self.config.debug)
+            max_logging.log(f'token_shape: {token_shape}', debug=self.config.debug)
             
             assert paddings.shape == token_shape
             # 如果paddings中的0表示保留，则 nonpaddings = 1.0 - paddings  
@@ -1405,7 +1404,7 @@ class OpenMoeBlock(nn.Module):
             assert self.num_experts % self.expert_chunk_size == 0
 
         combined_outputs = None
-        max_logging.log(f'compute_n_expert: {compute_n_expert}')
+        max_logging.log(f'compute_n_expert: {compute_n_expert}', debug=self.config.debug)
         for expert_index in range(0, token_priority.shape[2], compute_n_expert):
             # max_logging.log(f'expert_index: {expert_index}')
             _token_priority = token_priority[..., expert_index: expert_index+compute_n_expert]
@@ -1423,7 +1422,6 @@ class OpenMoeBlock(nn.Module):
             _expert_inputs = jnp.einsum('gsd,gsec->gecd', token_inputs, _dispatch_mask)
             _expert_inputs = jax.lax.convert_element_type(_expert_inputs, self.dtype)
             # gecm
-            # max_logging.log(f'_expert_inputs: {_expert_inputs.shape}')
             # g * e * c * m
             _expert_outputs = self._call_experts(_expert_inputs, expert_index, compute_n_expert, deterministic=deterministic)
             # _expert_outputs = nn.with_logical_constraint(_expert_outputs, ("activation_batch", "exp", "activation_length", None))
@@ -1431,7 +1429,6 @@ class OpenMoeBlock(nn.Module):
             _combined_outputs = jnp.einsum('gecd,gsec->gsd', _expert_outputs, _combine_array)
 
             combined_outputs = _combined_outputs if combined_outputs is None else combined_outputs + _combined_outputs
-            # max_logging.log(f'combined_outputs-{expert_index}: {combined_outputs}')
 
         # Return to batched shape.
         combined_outputs = combined_outputs.reshape(*inputs.shape)

@@ -500,7 +500,7 @@ class AttentionOp(nn.Module):
 
     q_seq_len = query.shape[1]
     attn_weights = self.qk_product(query, key, q_seq_len, model_mode)
-    print(f'attn_weights: {attn_weights.shape}')
+    max_logging.log(f'attn_weights: {attn_weights.shape}', debug=self.config.debug)
 
     if self.attn_logits_soft_cap:
       attn_weights = jnp.tanh(attn_weights / self.attn_logits_soft_cap)
@@ -1143,13 +1143,12 @@ class Attention(nn.Module):
   use_kv_shift: bool = False
 
   def setup(self):
-    max_logging.log(f'num_kv_heads: {self.num_kv_heads}')
     if (self.config.pre_compose or self.config.post_compose) \
       and (self.sliding_window_size < self.config.max_target_length or self.attention_kernel == "dot_product_chunk"):
-      max_logging.log(f'sws: {self.sliding_window_size} use dc chunk-{self.config.query_chunk_size} attn.')
+      max_logging.log(f'sws: {self.sliding_window_size} use dc chunk-{self.config.query_chunk_size} attn.', debug=self.config.debug)
       self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size)
     else:
-      max_logging.log(f'sws: {self.sliding_window_size} use {self.attention_kernel} attn.')
+      max_logging.log(f'sws: {self.sliding_window_size} use {self.attention_kernel} attn.', debug=self.config.debug)
       self.attention_op = AttentionOp(
         config=self.config,
         mesh=self.mesh,
@@ -1203,7 +1202,7 @@ class Attention(nn.Module):
         use_bias=self.config.qkv_bias,
     )
     output = query_proj(inputs_q)
-    print(f'output: {output.shape}')
+    max_logging.log(f'output: {output.shape}', debug=self.config.debug)
     if self.config.opt_type == 'muon':
       output = output.reshape(b, t, self.num_query_heads, self.head_dim)
     return output
@@ -1392,7 +1391,7 @@ class Attention(nn.Module):
     elif self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm':
         assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
         inputs_k, inputs_v = inputs_kv
-        print(f'inputs_q: {inputs_q.shape} inputs_k: {inputs_k.shape} inputs_v: {inputs_v.shape}')
+        max_logging.log(f'inputs_q: {inputs_q.shape} inputs_k: {inputs_k.shape} inputs_v: {inputs_v.shape}', debug=self.config.debug)
         query = self.query_projection(inputs_q)
         key = self.kv_projection(inputs_k, proj_name="key")
         value = self.kv_projection(inputs_v, proj_name="value")

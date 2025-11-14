@@ -266,7 +266,7 @@ class QChunk(nn.Module):
     w  = self.query_chunk_size
     assert t % w == 0, f"{t} % {w} != 0"
     num_steps = t // w
-    print(f'sliding_window_size: {sliding_window_size} query_chunk_sizes: {w}')
+    max_logging.log(f'sliding_window_size: {sliding_window_size} query_chunk_sizes: {w}', debug=self.config.debug)
     # encoded0传入chunk_attn比append再cat更省1G显存
     encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
     def chunk_attn(i, carry):
@@ -326,13 +326,13 @@ class QChunk(nn.Module):
 
     b, t, n, h = query.shape
     sliding_window_size = t if self.sliding_window_size is None else min(t, self.sliding_window_size)
-    print(f'sliding_window_size: {sliding_window_size} query_chunk_method: {self.config.query_chunk_method} eos_sum: {eos_sum}')
+    max_logging.log(f'sliding_window_size: {sliding_window_size} query_chunk_method: {self.config.query_chunk_method} eos_sum: {eos_sum}', debug=self.config.debug)
     if sliding_window_size < t:
       if 'parallel' in self.config.query_chunk_method:
         attn_mask = make_fix_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
       else:
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
-      print(f'global attn_mask: {attn_mask.shape} query_chunk_method: {self.config.query_chunk_method}')
+      max_logging.log(f'global attn_mask: {attn_mask.shape} query_chunk_method: {self.config.query_chunk_method}', debug=self.config.debug)
     else: # global split into 2 kind of attn_mask, 4k and 32k
       if eos_sum is None:
         attn_mask = _compute_slide_attn_mask(self.query_chunk_size, sliding_window_size, t, query.dtype)
@@ -344,10 +344,10 @@ class QChunk(nn.Module):
         attn_mask = jax.vmap(update_mask, in_axes=0, out_axes=0)(eos_sum_mask, attn_mask)
         attn_mask = nn.with_logical_constraint(attn_mask, ('activation_batch', 'activation_length', None),)
         attn_mask = attn_mask[:, jnp.newaxis, jnp.newaxis, ...] # bts -> bnts #  (4, 1, 512, 2048)
-      print(f'global attn_mask: {attn_mask.shape} eos_sum: {eos_sum}')
+      max_logging.log(f'global attn_mask: {attn_mask.shape} eos_sum: {eos_sum}', debug=self.config.debug)
 
     if self.query_chunk_size is None:
-      print(f'query_chunk_size is None')
+      max_logging.log(f'query_chunk_size is None', debug=self.config.debug)
       encoded = self._apply_attention_dot(
                                       query, key, value, attn_mask,  
                                       pre_proj_dw_args=pre_proj_dw_args, 
@@ -358,12 +358,12 @@ class QChunk(nn.Module):
     else:
       args = (query, key, value, attn_mask, sliding_window_size, pre_proj_dw_args, post_proj_dw_args, pre_proj_layer, post_proj_layer)
       remat = True if 'remat' in self.config.query_chunk_method else False
-      print(f'query_chunk_method: {self.config.query_chunk_method} t: {t}')
+      max_logging.log(f'query_chunk_method: {self.config.query_chunk_method} t: {t}', debug=self.config.debug)
       if 'parallel' in self.config.query_chunk_method and sliding_window_size < t:
-        print(f'Local Attn Parallel.... remat is {remat} sliding_window_size: {sliding_window_size}')
+        max_logging.log(f'Local Attn Parallel.... remat is {remat} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
         encoded = self._attention_parallel_remat(*args, remat=remat, parallel_method='scan')
       else:
-        print(f'Global|Local Attn.... remat is {remat} sliding_window_size: {sliding_window_size}')
+        max_logging.log(f'Global|Local Attn.... remat is {remat} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
         encoded = self._attention_for_remat(*args, remat=remat)
     return encoded, None, None
   

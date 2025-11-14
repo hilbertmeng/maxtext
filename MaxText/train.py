@@ -89,9 +89,10 @@ def print_tree_struct(name, tree, shape=False): # lsp
   for k, v in flatten_dict(tree).items():
     k = '/'.join(k)
     if shape:
-      max_logging.log(f'{k}: {v.shape}')
+      ps = f'{k}: {v.shape} sum: {v.sum()}' if hasattr(v, 'sum') else f'{k}: {v.shape} =========No Sum============'  
+      max_logging.log(ps)
     else:
-      max_logging.log(f'{k}')
+      max_logging.log(f'{k} =========No Shape============')
 
 
 def get_wd_tree(config, params):
@@ -145,7 +146,7 @@ def save_eval_result(config, step, cumulative_eval_metrics):
   with eval_result_path.open('w') as f:
     write_str = json.dumps(cumulative_eval_metrics)
     f.write(json.dumps(write_str, ensure_ascii=False))
-  print(f'Save eval result to `{eval_result_path}` finished.')
+  max_logging.log(f'Save eval result to `{eval_result_path}` finished.')
   if config.only_eval: exit(0)  # lsp
 
 
@@ -831,9 +832,9 @@ def setup_mesh_and_model(config):
   # Mesh definition
   devices_array = max_utils.create_device_mesh(config)
   devices_flat = devices_array.flatten()
-  print(f"[DEBUG TRAIN] Using {len(devices_flat)} devices for training:", flush=True)
+  max_logging.log(f"[DEBUG TRAIN] Using {len(devices_flat)} devices for training:", debug=config.debug)
   for i, d in enumerate(devices_flat):
-    print(f"  Device {i}: {d} (id={d.id}, process={d.process_index}, coords={getattr(d, 'coords', 'N/A')})", flush=True)
+    max_logging.log(f"  Device {i}: {d} (id={d.id}, process={d.process_index}, coords={getattr(d, 'coords', 'N/A')})", debug=config.debug)
   mesh = Mesh(devices_array, config.mesh_axes)
 
   # Model and Optimizer definition
@@ -844,7 +845,7 @@ def setup_mesh_and_model(config):
    # lsp: add rule param weight decay
   if config.wd_mults:
     params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
-    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}')
+    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}', debug=config.debug)
     wd_tree = get_wd_tree(config=config, params=params_shape)
   else:
     wd_tree = None
@@ -1017,13 +1018,13 @@ def train_loop(config, state=None):
 
   # Define the compilation of functional_train, either by loading the compiled version or wrapping a new one in a jit
   if config.compiled_trainstep_file != "":
-    print("Loading the compiled function...", flush=True)
+    max_logging.log("Loading the compiled function...")
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
     # Pass mesh to ensure correct device mapping in multi-process scenarios
     p_train_step = maxtext_utils.load_compiled(config, functional_train, state, mesh)
     # TODO: p_eval_step is not yet supported in load_compiled
     p_eval_step = None
-    print("Loaded compiled function!", flush=True)
+    max_logging.log("Loaded compiled function!")
   else:
     if config.only_eval:
       p_train_step = None
@@ -1110,7 +1111,7 @@ def train_loop(config, state=None):
     if config.eval_interval > 0 and step > start_step and step % config.eval_interval == 0 or config.only_eval:
       assert eval_data_iterator
       step_in_file = eval_data_iterator.step_in_file
-      print(f'eval_data_iterator: {eval_data_iterator} step_in_file: {step_in_file}')
+      max_logging.log(f'eval_data_iterator: {eval_data_iterator} step_in_file: {step_in_file}', debug=config.debug)
       cumulative_eval_metrics = {
           "scalar": {
               "eval/total_loss": 0.0,
@@ -1131,7 +1132,8 @@ def train_loop(config, state=None):
       for _ in range(eval_steps):
         try: eval_batch = next(eval_data_iterator)
         except:
-          print('Eval whole valid dataset finished.' if eval_step_count > 0 else 'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.')
+          max_logging.log('Eval whole valid dataset finished.' if eval_step_count > 0 else 
+            'ERROR: next(eval_data_iterator) exceed max iter length, please check valid dataset.')
           eval_data_iterator.reset()
           # -1 means eval whole dataset, otherwise must eval eval_steps examples
           if config.eval_steps == -1 or start_step == 0: break # 意味着从头到尾都评测完了，不需要继续了。
@@ -1158,7 +1160,6 @@ def train_loop(config, state=None):
         mtp_accept_rate += _mtp_accept_rate
         
         eval_dpo_reward_accuracy += float(eval_metrics["scalar"].get("evaluation/dpo_reward_accuracy", 0.0))  # for dpo only
-        # max_logging.log(f"Completed eval step {eval_step_count}") # lsp
         eval_step_count += 1
 
         total_weights = float(eval_metrics["scalar"]["evaluation/total_weights"])

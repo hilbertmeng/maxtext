@@ -57,41 +57,60 @@ def muon(
     flat_params = traverse_util.flatten_dict(params)
     param_labels = {}
 
-    def get_ndim(v):
+    def get_ndim_shape(v):
         if hasattr(v, "ndim"):
-            return v.ndim
+            return v.ndim, v.shape
         if hasattr(v, "value"):
-            return getattr(v.value, "ndim", 1)
+            return getattr(v.value, "ndim", 1), v.value.shape
         return 1
 
-    def get_label(k, ndim):
+    def get_label(k, ndim, vshape):
         if 'bias' in k:
-            return 'adam_nowd'
+          return 'adam_nowd'
         elif (ndim == 1 and 'scale' in k):
-            return 'adam_nowd' if config.direct_scale else 'adam_default'
+          return 'adam_nowd' if config.direct_scale else 'adam_default'
+        elif (ndim == 2 and 'scale' in k and vshape[1] in [2, 3] and config.partial_scan_layers):
+          return 'adam_nowd' if config.direct_scale else 'adam_default'
         if any(x in k for x in ['embedding', 'logits_dense']):
-            return 'adam_default'
+          return 'adam_default'
         if 'dyn_w_proj' in k:
-            return 'muon_attn' if config.dc_use_muon else 'adam_default'
+          return 'muon_attn' if config.dc_use_muon else 'adam_default'
         if 'compose' in k:
-            return 'muon_attn' if config.mudd_use_muon else 'adam_default'
+          return 'muon_attn' if config.mudd_use_muon else 'adam_default'
         if ndim == 2 and 'attention' in k:
-            return 'muon_attn'
+          return 'muon_attn'
         if ndim == 2 and 'mlp' in k and 'compose' not in k:
+          return 'muon_mlp'
+        if config.partial_scan_layers and ndim == 3 and vshape[1] in [2, 3]:
+          if 'attention' in k:
+            return 'muon_attn'
+          if 'mlp' in k and 'compose' not in k:
             return 'muon_mlp'
+
         return 'adam_default'
 
     for _k, v in flat_params.items():
         k = "/".join(_k)
-        ndim = get_ndim(v)
-        label = get_label(k, ndim)
+        ndim, vshape = get_ndim_shape(v)
+        label = get_label(k, ndim, vshape)
         max_logging.log(f"k: {k}, label: {label}, ndim: {ndim}")
         param_labels[_k] = label
 
     return traverse_util.unflatten_dict(param_labels)
 
   def weight_dim_nums_fn(params): # optax>=0.2.6
-    return jax.tree.map(lambda x: optax.contrib.MuonDimensionNumbers((0,), (1,)), params)
+    def get_dim_nums(x):
+        if x.ndim == 2:
+          # Standard 2D matrix: [dim1, dim2]
+          return optax.contrib.MuonDimensionNumbers(reduction_axis=0, output_axis=1)
+        elif x.ndim == 3:
+          # Scanned layers: [dim1, L, dim2], L will be treated as batch axis
+          # lsp: reduction_axis: row, output_axis: column, other axis will be treated as batch axis
+          return optax.contrib.MuonDimensionNumbers(reduction_axis=0, output_axis=2)
+        else:
+          raise ValueError(f'Unsupported dimension: {x.ndim}')
+    
+    return jax.tree.map(get_dim_nums, params)
 
   # muon_mask = _build_wd_bool_mask_from_tree(weight_decay_mask)
   muon_kwargs = {

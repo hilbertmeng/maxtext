@@ -588,6 +588,9 @@ class DEDCMuddMTP1ModelV4p5(DE, DCMuddMTP1ModelV4p5):
 class DEDCMuddMTP1KVshiftModelV4p5(KVshift, DEDCMuddMTP1ModelV4p5):
     pass
 
+class MuonDEDCMuddMTP1KVshiftModelV4p5(Muon, DEDCMuddMTP1KVshiftModelV4p5):
+    pass
+
 class MuddV4p5(Mudd, ModelV4p5):
     compose_layers = range(1, 60, 2) # interval of 2 to compose
     mudd_in_layer = True
@@ -657,6 +660,7 @@ class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
     base_num_decoder_layers = 32
     mtp_num_layers = 0
     num_layers_per_block = 1
+    partial_scan_layers = True
 
 # todo:
 # 1、rotary use half inputs compute

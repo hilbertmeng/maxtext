@@ -543,6 +543,7 @@ class Decoder(nn.Module):
     if cfg.dense_conn and not cfg.mudd_in_layer:
       max_logging.log(f'Outside layers don\'t use remat', debug=cfg.debug)
       RemattedBlockLayers = self.decoder_layer
+      assert not cfg.partial_scan_layers, f'partial_scan_layers is not supported with mudd_in_layer=False'
     else:
       max_logging.log(f'Outside layers use remat', debug=cfg.debug)
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 

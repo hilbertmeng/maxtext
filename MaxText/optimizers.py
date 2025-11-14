@@ -65,8 +65,10 @@ def muon(
         return 1
 
     def get_label(k, ndim):
-        if 'bias' in k or (ndim == 1 and 'scale' in k):
-            return 'adam_one_dim'
+        if 'bias' in k:
+            return 'adam_nowd'
+        elif (ndim == 1 and 'scale' in k):
+            return 'adam_nowd' if config.direct_scale else 'adam_default'
         if any(x in k for x in ['embedding', 'logits_dense']):
             return 'adam_default'
         if 'dyn_w_proj' in k:
@@ -128,8 +130,8 @@ def muon(
           ),
           # Small model rms wd set 0.0 better, bigger model unknow. but muon paper suggest wd=0.1
           # 1+scale mode need wd, other not need.
-          'adam_one_dim': adam_optimizer(weight_decay=0.0 if config.direct_scale else weight_decay, lr_coef=default_scale),
-          'adam_default': adam_optimizer(weight_decay=weight_decay, lr_coef=default_scale),
+          'adam_nowd': adam_optimizer(weight_decay=0.0),
+          'adam_default': adam_optimizer(weight_decay=weight_decay),
       },
       # lsp: Only two dims use muon, other use adam
       param_labels=lambda params: build_param_labels(params),

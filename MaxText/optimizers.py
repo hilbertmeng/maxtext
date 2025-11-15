@@ -93,7 +93,7 @@ def muon(
         k = "/".join(_k)
         ndim, vshape = get_ndim_shape(v)
         label = get_label(k, ndim, vshape)
-        max_logging.log(f"k: {k}, label: {label}, ndim: {ndim}")
+        max_logging.log(f"k: {k} label: {label} ndim: {ndim} vshape: {vshape}")
         param_labels[_k] = label
 
     return traverse_util.unflatten_dict(param_labels)

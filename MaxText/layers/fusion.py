@@ -262,7 +262,8 @@ class FusionDecoderLayer(nn.Module):
     self.layer_inx = None if cfg.scan_layers else int(self.name.split('_')[-1])
     sws = self.sliding_window_size
     max_logging.log(f'fusion layer sws: {sws}', debug=cfg.debug)
-    assert isinstance(sws, int)
+    if sws is None:
+      sws = cfg.max_target_length
 
     RematSubDecoderLayer = SubDecoderLayer
     if cfg.dense_conn and not cfg.mudd_in_layer:
@@ -331,7 +332,6 @@ class FusionDecoderLayer(nn.Module):
           )(
             layer_output=inputs, 
             hids=hids,
-            decoder_input_tokens=decoder_input_tokens,
           )
     # return's inputs length is 1
     inputs = self.layer(
@@ -356,7 +356,6 @@ class FusionDecoderLayer(nn.Module):
         )(
           layer_output=inputs, 
           hids=hids,
-          decoder_input_tokens=decoder_input_tokens,
         )
    
     return inputs, hids

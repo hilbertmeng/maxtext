@@ -559,9 +559,13 @@ class Decoder(nn.Module):
           y, decoder_segment_ids, decoder_positions, deterministic, model_mode, partition_spec=partition_spec
       )
     else:
-      assert isinstance(cfg.sliding_window_size, list), f"sliding_window_size must be a list"
-      def format_swss():
-        sws = [cfg.max_target_length if s is None else s for s in cfg.sliding_window_size]
+      if not isinstance(cfg.sliding_window_size, list):
+        sws_list = [cfg.sliding_window_size]
+      else:
+        sws_list = cfg.sliding_window_size
+        
+      def format_swss(sws_list):
+        sws = [cfg.max_target_length if s is None else s for s in sws_list]
         if len(sws) == cfg.num_decoder_layers + cfg.mtp_num_layers:
           return sws
         sws = sws * (cfg.num_decoder_layers // len(sws) + 1)
@@ -621,7 +625,7 @@ class Decoder(nn.Module):
           else:
             C = 4 # other layer return 4 tensors
           return C
-        swss = format_swss()
+        swss = format_swss(sws_list)
         max_logging.log(f'partial_scan_layers: swss: {swss}', debug=cfg.debug)
         lyr = 0
         while lyr < cfg.num_decoder_layers:
@@ -717,7 +721,7 @@ class Decoder(nn.Module):
                         )
         else:
           assert cfg.num_layers_per_block == 1, f"num_layers_per_block: {cfg.num_layers_per_block} != 1"
-          swss = format_swss()
+          swss = format_swss(sws_list)
           max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)
           for lyr in range(cfg.num_decoder_layers):
             max_logging.log(f'\n=================decoder layer: {lyr}=====================\n', debug=cfg.debug)

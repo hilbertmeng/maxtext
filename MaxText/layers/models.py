@@ -563,7 +563,7 @@ class Decoder(nn.Module):
         sws_list = [cfg.sliding_window_size]
       else:
         sws_list = cfg.sliding_window_size
-        
+
       def format_swss(sws_list):
         sws = [cfg.max_target_length if s is None else s for s in sws_list]
         if len(sws) == cfg.num_decoder_layers + cfg.mtp_num_layers:
@@ -659,7 +659,6 @@ class Decoder(nn.Module):
               # return's inputs length is 4
               y, hids = mudd.Compose(
                 cfg, self.mesh, self.quant, 
-                layer_inx=len(hids), 
                 name=f'compose_{lyr}',
                 C=C,
                 compose=True,
@@ -692,7 +691,6 @@ class Decoder(nn.Module):
               C = get_C(lyr=scan_start + scan_length - 1)
               y, hids = mudd.Compose(
                 cfg, self.mesh, self.quant, 
-                layer_inx=len(hids), 
                 name=f'compose_{scan_start}',
                 C=C,
                 compose=True,

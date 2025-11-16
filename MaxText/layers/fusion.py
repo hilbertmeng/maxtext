@@ -325,7 +325,6 @@ class FusionDecoderLayer(nn.Module):
         # return's inputs length is 4
         inputs, hids = mudd.Compose(
           cfg, self.mesh, self.quant, 
-          layer_inx=len(hids), 
           name='compose',
           C=4,
           compose=True if self.layer_inx in cfg.compose_layers else False,
@@ -349,7 +348,6 @@ class FusionDecoderLayer(nn.Module):
       C = self.get_C(cfg)
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
-        layer_inx=len(hids), 
         compose=True,
         name=f'compose_break',
         C=C,

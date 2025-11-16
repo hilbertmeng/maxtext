@@ -124,7 +124,6 @@ class MultiTokenPredictionLayer(nn.Module):
     if cfg.dense_conn and cfg.partial_scan_layers:
       y, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
-        layer_inx=len(hids), 
         name=f'compose_{k - 1 + cfg.num_decoder_layers}',
         C=1,
         compose=True,

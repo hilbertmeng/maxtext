@@ -52,7 +52,7 @@ class Mlp(nn.Module):
   config: Any
   mesh: Mesh
   quant: Optional[Quant] = None
-  layer_inx: int = None
+  hids_length: int = None
   use_bias: bool = True
   C: int = 4
 
@@ -65,20 +65,19 @@ class Mlp(nn.Module):
     else:
       self.pre_dense_proj1_norm = normalizations.get_rmsnorm("pre_dense_proj1_norm", cfg)
     
-    factor = 1
-    layer_inx = self.layer_inx
+    hids_length = self.hids_length
     C = self.C
-    dw_shape = (C, layer_inx * factor + 1) # lsp
+    dw_shape = (C, hids_length) # lsp
     self.dw_shape = dw_shape
     # lsp
-    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if layer_inx == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else 1
+    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if hids_length == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else 1
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
 
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
       dynamic_dense_inter_dim = (dynamic_dense_inter_dim// 64 + 1) * 64
 
     self.dynamic_dense_inter_dim = dynamic_dense_inter_dim
-    max_logging.log(f'layer_inx: {layer_inx} dw_shape: {dw_shape} dynamic_dense_inter_dim: {dynamic_dense_inter_dim}', debug=cfg.debug)
+    max_logging.log(f'hids length: {hids_length} dw_shape: {dw_shape} dynamic_dense_inter_dim: {dynamic_dense_inter_dim}', debug=cfg.debug)
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
     # (model_dim, inter_dim), inter_dim << model_dim
     self.dense_proj1 = linears.DenseGeneral(
@@ -133,7 +132,6 @@ class Compose(nn.Module):
   config: Any
   mesh: Mesh
   quant: Optional[Quant] = None
-  layer_inx: int = None
   C: int = 4
   compose: bool = False
           
@@ -152,7 +150,7 @@ class Compose(nn.Module):
     if not self.compose:
       return y, hids
 
-    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, self.layer_inx, name='mlp', C=C)(layer_output)
+    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, len(hids), name='mlp', C=C)(layer_output)
     if self.config.record_internal_nn_metrics:
       for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
         self.sow('intermediates', f'dyn_dense_w/{op.__name__}', op(dyn_dense_w.astype(jnp.float32)))

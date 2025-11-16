@@ -256,6 +256,8 @@ class FusionDecoderLayer(nn.Module):
   mesh: Mesh
   sliding_window_size: int # lsp
   quant: Optional[Quant] = None
+  mudd_in_layer: bool = False
+  C: int = 0
 
   def setup(self):
     cfg = self.config
@@ -266,10 +268,10 @@ class FusionDecoderLayer(nn.Module):
       sws = cfg.max_target_length
 
     RematSubDecoderLayer = SubDecoderLayer
-    if cfg.dense_conn and not cfg.mudd_in_layer:
+    if cfg.dense_conn and not self.mudd_in_layer:
       RematSubDecoderLayer = nn.remat(
         SubDecoderLayer,
-        prevent_cse=cfg.remat_prevent_cse,
+        prevent_cse=True,
         policy=models.get_remat_policy(cfg),
         static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
         )
@@ -277,7 +279,8 @@ class FusionDecoderLayer(nn.Module):
     self.layer = RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, self.layer_inx, name=f'block')
     self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
 
-  def get_C(self, cfg):
+  def get_C(self):
+    cfg = self.config
     if self.layer_inx == cfg.num_decoder_layers - 1:
       C = 2 if cfg.mtp_num_layers > 0 else 1 # if use mtp, return 2 tensors, otherwise return 1 tensor
     elif self.layer_inx == cfg.num_decoder_layers + cfg.mtp_num_layers - 1:
@@ -345,7 +348,7 @@ class FusionDecoderLayer(nn.Module):
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
-      C = self.get_C(cfg)
+      C = self.get_C()
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
         compose=True,
@@ -360,7 +363,7 @@ class FusionDecoderLayer(nn.Module):
 
   def partial_scan_call(
       self,
-      inputs,
+      inputs, # len 1 or 4
       decoder_segment_ids,
       decoder_positions,
       decoder_input_tokens,
@@ -382,8 +385,24 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         eos_sum,
     )
+    if cfg.dense_conn:
+      # return's inputs length is 4
+      output, hids = mudd.Compose(
+        cfg, self.mesh, self.quant, 
+        name=f'compose_{self.layer_inx}',
+        C=self.C,
+        compose=True,
+        )(
+          layer_output=output if isinstance(output, jnp.ndarray) else output[0], 
+          hids=hids,
+        )
+      print(f'Fusion decoder inputs: {len(inputs)} output: {len(output)}')
+      return output, hids
+    
+    # 没组合的时候将输出拓展到与输入相同的形状
     if isinstance(inputs, list):
       return [output] * len(inputs), hids
     elif isinstance(inputs, tuple):
       return (output,) * len(inputs), hids
+
     return output, hids

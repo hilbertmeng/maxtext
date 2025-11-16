@@ -105,33 +105,23 @@ class MultiTokenPredictionLayer(nn.Module):
         )
 
     if cfg.dense_conn and cfg.partial_scan_layers:
-      projected_features = [projected_features] * len(cfg.dynamic_dense_type)
+      y = [projected_features] * len(cfg.dynamic_dense_type)
+    else:
+      y = projected_features
 
     y, hids = self.transformer_layer_module(
-        config=cfg, mesh=mesh, quant=self.quant,
+        config=cfg, mesh=mesh, quant=self.quant, mudd_in_layer=cfg.mudd_in_layer, C=1,
         sliding_window_size=self.sliding_window_size,
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
-          projected_features,
+          y,
           decoder_segment_ids,
           position_ids,
           rolled_input_ids,
           None,
           deterministic,
           model_mode,
-          hids=hids,
+          hids + [jnp.empty_like(y if isinstance(y, jnp.ndarray) else y[0])],
     )
-
-    if cfg.dense_conn and cfg.partial_scan_layers:
-      y, hids = mudd.Compose(
-        cfg, self.mesh, self.quant, 
-        name=f'compose_{k - 1 + cfg.num_decoder_layers}',
-        C=1,
-        compose=True,
-      )(
-        layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
-        hids=hids,
-      )
-      
     next_hidden_state = y if isinstance(y, jnp.ndarray) else y[0]
     return next_hidden_state, hids
 

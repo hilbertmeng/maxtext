@@ -146,7 +146,10 @@ class Compose(nn.Module):
     y = layer_output
     C = self.C
     y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
-    hids.append(y_normed)
+    if cfg.partial_scan_layers:
+      hids[-1] = y_normed
+    else:
+      hids.append(y_normed)
     if not self.compose:
       return y, hids
 

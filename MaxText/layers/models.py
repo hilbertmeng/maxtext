@@ -312,10 +312,8 @@ class OutputHead(nn.Module):
     xents = []
     correct = 0
     preds = []
-    # chunk_size = cfg.loss_chunk_size
-    dense_kernel = nn.with_logical_constraint(
-          self.logits_dense, (None, "vocab")
-      ) # manual shard to speed up, about 1%
+    # chunk_size = cfg.loss_chunk_size  # manual shard to speed up, about 1%
+    dense_kernel = nn.with_logical_constraint(self.logits_dense, (None, "vocab"))
     # dense_kernel = self.logits_dense
     if not mtp_layer:
       inputs = self.norm(inputs)
@@ -524,7 +522,7 @@ class Decoder(nn.Module):
       max_logging.log(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}', debug=cfg.debug)
     
     else:
-      deep_embeddings = None if cfg.scan_layers else [None] * cfg.num_decoder_layers
+      deep_embeddings = None if cfg.scan_layers or cfg.partial_scan_layers else [None] * cfg.num_decoder_layers
 
     if cfg.use_untrainable_positional_embedding:
       y = PositionalEmbedding(cfg.base_emb_dim)(y, decoder_positions)

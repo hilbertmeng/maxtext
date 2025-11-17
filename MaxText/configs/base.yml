@@ -516,7 +516,6 @@ qk_norm: False
 query_chunk_size: 512
 query_wise: True
 key_wise: True
-num_layers_per_block: 1
 qkv_bias: False
 use_dw_bias: False
 use_dd_bias: False

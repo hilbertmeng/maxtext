@@ -26,7 +26,6 @@ class Common:
     tensorboard_dir = '' # tensorboard dir, final path is tensorboard_dir + run_name
     insert_moe_indexes = []
     training_num_batches_to_skip = None
-    num_layers_per_block = 1
     qkv_bias = False
 
 class Optimizer:
@@ -62,15 +61,12 @@ class PileDataset:
 
 class GWindow:
     sliding_window_size = None
-    num_layers_per_block = 1
 
 class LGWindow:
     sliding_window_size = [256, None]
-    num_layers_per_block = 2
 
 class LGLLWindow:
     sliding_window_size = [256, None, 256, 256]
-    num_layers_per_block = 4
 
 class DE:
     deep_embed_type = '4xmlp'
@@ -100,7 +96,6 @@ class Mudd:
     scan_layers = False
     compose_layers = range(0, 60, 1)
     mudd_in_layer = True
-    num_layers_per_block = 1
 
 class DC:
     pre_compose = True
@@ -118,7 +113,6 @@ class DC2(DC):
     use_dw_bias = True
     use_dd_bias = False # harm performance 
     static_proj = False
-    num_layers_per_block = 1
 
 class KVshift:
     use_kv_shift = True
@@ -234,7 +228,6 @@ class DC2MuddLlamaMediumLGL4DebugMini2(LGWindow, MuddLlama2Medium):  # mqy
     static_proj = False
     query_chunk_size = 1024
     base_num_decoder_layers = 4
-    num_layers_per_block = 1
     sharding_tolerance = 0.05
     attention='dot_product_chunk'
     per_device_batch_size = 16.0
@@ -333,7 +326,6 @@ class Llama33B(Llama2Medium):
 
 class DC2MuddLlamaMediumKV4QO16LGLLMqyDev(DC2, LGLLWindow, MuddLlama2Medium):  # mqy 
     query_chunk_size = 256
-    num_layers_per_block = 1
     base_num_query_heads = 16
     base_num_kv_heads = [16,4,16,16] # L: MHA + Vgate (w/o KW); G: GQA + KW(w/o Vgate)
     base_mlp_dim = 2816 + int(512/4)
@@ -407,7 +399,6 @@ class DreamMiniXL(DreamMini, TrainXL, LlamaXL):
     eval_steps = 55
     base_lr = 4.0e-4
     stable_steps_fraction= 0.99 - 27400 / 177400 # decay steps / total train steps
-    num_layers_per_block = 1
     m_kn_tile_size = (512, 128)
 
     # 每个阶段的结尾都是250的倍数，因此设置 keep_period=3000.
@@ -525,7 +516,6 @@ class DCMuddXLamaLGLLGgqa(LlamaXL, DreamMini):
     mudd_prenorm = True
     mudd_postnorm = True
     sliding_window_size = [256, None, 256, 256]
-    num_layers_per_block = 1
 
 class MuonDCMuddXLamaLGLLGgqa(Muon, DCMuddXLamaLGLLGgqa):
     dc_use_muon = False
@@ -546,7 +536,6 @@ class DC2MuddLlamaMediumLGL4LSPDebug(LGWindow, MuddLlama2Medium):  # mqy
     static_proj = False
     query_chunk_size = 1024
     base_num_decoder_layers = 4
-    num_layers_per_block = 1
     sharding_tolerance = 0.05
     attention='dot_product_chunk'
     per_device_batch_size = 16.0
@@ -574,10 +563,10 @@ class LamaModelV4p5(ModelV4p5):
 
 # ========================v4.5 + single module start=======================
 class DCModelV4p5(DC2, LGLLWindow, ModelV4p5):
-    num_layers_per_block = 1
+    pass
 
 class DCMuddModelV4p5(Mudd, DCModelV4p5):
-    num_layers_per_block = 1
+    pass
 
 class DCMuddMTP1ModelV4p5(MTP1Layer, DCMuddModelV4p5):
     pass
@@ -596,6 +585,9 @@ class MuddV4p5(Mudd, ModelV4p5):
     mudd_in_layer = True
 
 class DEV4p5(DE, ModelV4p5):
+    pass
+
+class DCDEV4p5(LGLLWindow, DC2, DE, ModelV4p5):
     pass
 
 class MTP1V4p5(MTP1Layer, ModelV4p5):
@@ -654,12 +646,10 @@ class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400
     base_num_kv_heads = [base_num_query_heads, 4, base_num_query_heads, base_num_query_heads]
     base_mlp_dim = 1920
     base_num_decoder_layers = 31
-    num_layers_per_block = 1
 
 class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
     base_num_decoder_layers = 32
     mtp_num_layers = 0
-    num_layers_per_block = 1
     partial_scan_layers = True
 
 # todo:

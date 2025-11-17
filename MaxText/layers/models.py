@@ -542,8 +542,8 @@ class Decoder(nn.Module):
     hids = []
     if cfg.dense_conn and not cfg.mudd_in_layer:
       max_logging.log(f'Outside layers don\'t use remat', debug=cfg.debug)
-      RemattedBlockLayers = self.decoder_layer
-      assert not cfg.partial_scan_layers, f'partial_scan_layers is not supported with mudd_in_layer=False'
+      RemattedBlockLayers = self.decoder_layer * 2
+      # assert not cfg.partial_scan_layers, f'partial_scan_layers is not supported with mudd_in_layer=False'
     else:
       max_logging.log(f'Outside layers use remat', debug=cfg.debug)
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
@@ -599,12 +599,8 @@ class Decoder(nn.Module):
               model_mode,
           )
         else:
-          if isinstance(cfg.sliding_window_size, list):
-            assert len(cfg.sliding_window_size) == cfg.num_layers_per_block
-          else:
-            assert cfg.num_layers_per_block == 1
           RemattedBlockLayer = RemattedBlockLayers[1]
-          y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers // cfg.num_layers_per_block, "layers", mesh)(
+          y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
               y,
               decoder_segment_ids,
               decoder_positions,
@@ -718,7 +714,6 @@ class Decoder(nn.Module):
                             model_mode,
                         )
         else:
-          assert cfg.num_layers_per_block == 1, f"num_layers_per_block: {cfg.num_layers_per_block} != 1"
           swss = format_swss(sws_list)
           max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)
           for lyr in range(cfg.num_decoder_layers):

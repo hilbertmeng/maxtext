@@ -24,7 +24,6 @@ def l2norm(x: jnp.ndarray) -> jnp.ndarray:
 
 def wsum(w: jnp.ndarray, # CBTL1
          hids: list[jnp.ndarray], # list of BTD
-         seq_chunk_size: int = None
          ) -> jnp.ndarray:  # CBTD
   C, B, T, L, _ = w.shape
   D = hids[0].shape[-1]
@@ -159,14 +158,14 @@ class Compose(nn.Module):
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm("mudd_postnorm", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-      y = tuple([y + (post_norm(
-          wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
-                                ) if cidx == C - 1 else 
-          wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
-                      ) for cidx in range(C)])
+      y = tuple(
+        [y + (post_norm(wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0))
+          if cidx == C - 1 else 
+        wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0))
+          for cidx in range(C)])
     else:
         # (btl, btl, btl, btl)
         dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-        y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
+        y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0) for cidx in range(C)])
         
     return y, hids

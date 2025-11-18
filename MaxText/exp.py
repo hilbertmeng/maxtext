@@ -595,6 +595,9 @@ class MuddV4p5(Mudd, ModelV4p5):
     compose_layers = range(1, 60, 2) # interval of 2 to compose
     mudd_in_layer = True
 
+class LGLLMuddV4p5(LGLLWindow, MuddV4p5):
+    compose_all_layers = False
+
 class DEV4p5(DE, ModelV4p5):
     pass
 

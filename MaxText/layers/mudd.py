@@ -29,8 +29,14 @@ def wsum(w: jnp.ndarray, # CBTL1
   C, B, T, L, _ = w.shape
   D = hids[0].shape[-1]
   out = jnp.zeros((C, B, T, D), dtype=hids[0].dtype)
+  print(f'out000: {out.shape} w: {w.shape}')
+  for i,h in enumerate(hids):
+    print(f'h{i}: {h.shape}')
+
   for l in range(L): # 每层
     out += w[..., l, :] * hids[l]
+  # __import__('ipdb').set_trace()
+  print(f'out: {out.shape}')
   return out
 
 
@@ -170,6 +176,7 @@ class Compose(nn.Module):
     else:
         # (btl, btl, btl, btl)
         dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
+        print(f'dyn_dense_w: {dyn_dense_w.shape}')
         y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
         
     return y, hids

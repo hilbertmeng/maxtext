@@ -258,6 +258,7 @@ class FusionDecoderLayer(nn.Module):
   quant: Optional[Quant] = None
   mudd_in_layer: bool = False
   C: int = 0
+  scan_length: int = 1
 
   def setup(self):
     cfg = self.config
@@ -374,6 +375,21 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
+
+    if self.C > 0:
+      # return's inputs length is 4
+      print(f'self.layer_inx: {self.layer_inx} self.C: {self.C}')
+      inputs, hids = mudd.Compose(
+        cfg, self.mesh, self.quant, 
+        name=f'compose_{self.layer_inx}',
+        C=self.C,
+        compose=True,
+        )(
+          layer_output=inputs, 
+          hids=hids,
+        )
+      print(f'Fusion decoder inputs: {len(inputs)} hids: {len(hids)}')
+
     # return's inputs length is 1
     output = self.layer(
         inputs,
@@ -385,24 +401,11 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         eos_sum,
     )
-    if cfg.dense_conn:
-      # return's inputs length is 4
-      output, hids = mudd.Compose(
-        cfg, self.mesh, self.quant, 
-        name=f'compose_{self.layer_inx}',
-        C=self.C,
-        compose=True,
-        )(
-          layer_output=output if isinstance(output, jnp.ndarray) else output[0], 
-          hids=hids,
-        )
-      print(f'Fusion decoder inputs: {len(inputs)} output: {len(output)}')
-      return output, hids
-    
-    # 没组合的时候将输出拓展到与输入相同的形状
-    if isinstance(inputs, list):
-      return [output] * len(inputs), hids
-    elif isinstance(inputs, tuple):
-      return (output,) * len(inputs), hids
-
+    if self.scan_length > 1:
+      return output, output
+    # # 没组合的时候将输出拓展到与输入相同的形状
+    # if isinstance(inputs, list):
+    #   return [output] * len(inputs), hids
+    # elif isinstance(inputs, tuple):
+    #   return (output,) * len(inputs), hids
     return output, hids

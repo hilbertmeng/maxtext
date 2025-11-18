@@ -437,7 +437,7 @@ class Decoder(nn.Module):
 
   def scan_decoder_layers(
     self, cfg, decoder_layer, length, metdata_axis_name, mesh, 
-    sliding_window_size=None, C=0,
+    sliding_window_size=None, C=0, scan_length=1,
     ):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
@@ -468,7 +468,7 @@ class Decoder(nn.Module):
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
     return scan_fn(
-      config=cfg, mesh=mesh, name=metdata_axis_name, C=C,
+      config=cfg, mesh=mesh, name=metdata_axis_name, C=C, scan_length=scan_length,
       quant=self.quant, sliding_window_size=sliding_window_size,
       )
 
@@ -644,12 +644,12 @@ class Decoder(nn.Module):
           
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
-            y, _ = RemattedBlockLayers[0](
+            y, hids = RemattedBlockLayers[0](
               config=cfg, 
               mesh=mesh, 
               name=f"layers_{lyr}", 
               quant=self.quant, 
-              C=get_C(lyr),
+              C=4,
               mudd_in_layer=mudd_in_layer,
               sliding_window_size=current_sws)(
                 y,
@@ -662,29 +662,19 @@ class Decoder(nn.Module):
                 hids + [jnp.empty_like(y if isinstance(y, jnp.ndarray) else y[0])],
                 eos_sum=eos_sum,
             )
-            # if not mudd_in_layer:
-            #   C = get_C(lyr)
-            #   y, hids = mudd.Compose(
-            #     cfg, self.mesh, self.quant, 
-            #     name=f'compose_{lyr}',
-            #     C=C,
-            #     compose=True,
-            #     )(
-            #       layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
-            #       hids=hids,
-            #     )
             lyr += 1
           else:
             max_logging.log(f'Scanning layers {scan_start} to {scan_start + scan_length - 1} with sws={current_sws}', debug=cfg.debug)
             # scan_deep_embeddings = deep_embeddings[scan_start:scan_start + scan_length]
-            y, _ = self.scan_decoder_layers(
+            y, outputs = self.scan_decoder_layers(
                 cfg, 
                 RemattedBlockLayers[1], 
                 scan_length,
                 f"layers_{scan_start}", 
                 mesh,
                 sliding_window_size=current_sws,
-                C=get_C(lyr=scan_start + scan_length - 1),
+                C=4,
+                scan_length=scan_length,
             )(
                 y,
                 decoder_segment_ids,
@@ -696,17 +686,9 @@ class Decoder(nn.Module):
                 hids + [jnp.empty_like(y if isinstance(y, jnp.ndarray) else y[0])],
                 eos_sum=eos_sum,
             )
-            # if cfg.dense_conn:
-            #   C = get_C(lyr=scan_start + scan_length - 1)
-            #   y, hids = mudd.Compose(
-            #     cfg, self.mesh, self.quant, 
-            #     name=f'compose_{scan_start}',
-            #     C=C,
-            #     compose=True,
-            #   )(
-            #     layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
-            #     hids=hids,
-            #   )
+            for i, output in enumerate(outputs):
+              hids.append(output)
+
             lyr += scan_length
       else:
         if cfg.decoder_block == "deepseek":
@@ -750,6 +732,18 @@ class Decoder(nn.Module):
                 hids=hids,
                 eos_sum=eos_sum,
             )
+
+      if cfg.dense_conn:
+        C = 2 if cfg.mtp_num_layers > 0 else 1
+        y, hids = mudd.Compose(
+          cfg, self.mesh, self.quant, 
+          name=f'compose_last_layer',
+          C=C,
+          compose=True,
+        )(
+          layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
+          hids=hids,
+        )
             
     max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}', debug=cfg.debug)
     if cfg.dense_conn:

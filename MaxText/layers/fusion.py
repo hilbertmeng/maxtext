@@ -100,16 +100,22 @@ class SubDecoderLayer(nn.Module):
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       lnx_kv = [lnx, lnx]
 
-    num_kv_heads = cfg.num_kv_heads[self.layer_inx % len(cfg.num_kv_heads)] \
-      if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads
-    head_dim = cfg.global_attn_head_dim \
-      if self.sliding_window_size == cfg.max_target_length and cfg.global_attn_head_dim > 0 \
-      else cfg.head_dim
+    if cfg.global_attn_head_dim \
+      and cfg.global_attn_head_dim > 0 \
+      and self.sliding_window_size == cfg.max_target_length:
+      head_dim = cfg.global_attn_head_dim
+      n = cfg.global_attn_head_dim / cfg.head_dim
+      num_kv_heads = int(num_kv_heads // n)
+      num_query_heads = int(cfg.num_query_heads // n)
+    else:
+      head_dim = cfg.head_dim
+      num_query_heads = cfg.num_query_heads
+
     max_logging.log(f'sliding_window_size: {self.sliding_window_size} num_kv_heads: {num_kv_heads} head_dim: {head_dim}', debug=cfg.debug)
     # Self-attention block
     attention_layer = Attention(
         config=cfg,
-        num_query_heads=cfg.num_query_heads,
+        num_query_heads=num_query_heads,
         num_kv_heads=num_kv_heads,
         head_dim=head_dim,
         max_target_length=cfg.max_target_length,

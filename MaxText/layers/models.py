@@ -623,15 +623,6 @@ class Decoder(nn.Module):
           )
 
       elif cfg.partial_scan_layers:
-
-        def get_C(lyr):
-          if lyr == cfg.num_decoder_layers - 1:
-            C = 2 if cfg.mtp_num_layers > 0 else 1 # if use mtp, return 2 tensors, otherwise return 1 tensor
-          elif lyr == cfg.num_decoder_layers + cfg.mtp_num_layers - 1:
-            C = 1 # last layer return 1 tensor
-          else:
-            C = 4 # other layer return 4 tensors
-          return C
         swss = format_swss(sws_list)
         max_logging.log(f'partial_scan_layers: swss: {swss}', debug=cfg.debug)
         lyr = 0
@@ -686,7 +677,7 @@ class Decoder(nn.Module):
                 hids + [jnp.empty_like(y if isinstance(y, jnp.ndarray) else y[0])],
                 eos_sum=eos_sum,
             )
-            for i, output in enumerate(outputs):
+            for _, output in enumerate(outputs[:-1]): # last output would be composed in next layer
               hids.append(output)
 
             lyr += scan_length

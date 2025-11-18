@@ -68,6 +68,9 @@ class LGWindow:
 class LGLLWindow:
     sliding_window_size = [256, None, 256, 256]
 
+class LLGLWindow:
+    sliding_window_size = [256, 256, None, 256]
+
 class DE:
     deep_embed_type = '4xmlp'
     deep_embed_norm = True
@@ -655,6 +658,8 @@ class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
     mtp_num_layers = 0
     partial_scan_layers = True
 
+class MuonDEDcMuddKVshiftV4p5MediumH128LLGL(LLGLWindow, MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
+    partial_scan_layers = True
 # todo:
 # 1、rotary use half inputs compute
 # 2、rms 改为 1 + scale 并decay

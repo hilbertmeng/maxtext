@@ -373,14 +373,14 @@ class Decoder(nn.Module):
     for block_layer in block_layers:
       layer = nn.remat(
           block_layer,
-          prevent_cse=True, # scan_layers is True
+          prevent_cse=True, #lsp: scan_layers is True, 该参数务必注意，设置为False可能会卡住
           policy=policy,
           static_argnums=(6, 7),
           rngs={"params": True, "aqt": True, "dropout": True},
       )
       layer1 = nn.remat(
           block_layer,
-          prevent_cse=True,# scan_layers is False
+          prevent_cse=True,#lsp: scan_layers is False，该参数务必注意，设置为False可能会卡住
           policy=policy,
           static_argnums=(6, 7),
           rngs={"params": True, "aqt": True, "dropout": True},

@@ -581,6 +581,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   total_loss = jnp.sum(xent)
   total_weights = jnp.sum(mask)
   accuracy = correct / total_weights
+
   loss = total_loss / (total_weights + EPS)
 
   # Calculate and Add MTP Loss
@@ -684,10 +685,10 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   if config.debug:
     print_tree_struct(name='intermediate_outputs', tree=intermediate_outputs, shape=False) # lsp
 
-  total_weights = aux["total_weights"]
-  moe_lb_loss = aux["moe_lb_loss"]
-  mtp_loss = aux["mtp_loss"]
-  mtp_accept_rate = aux["mtp_accept_rate"]
+  moe_lb_loss = aux["moe_lb_loss"] / config.gradient_accumulation_steps
+  mtp_loss = aux["mtp_loss"] / config.gradient_accumulation_steps
+  mtp_accept_rate = aux["mtp_accept_rate"] / config.gradient_accumulation_steps
+  accuracy = aux["correct"] / aux["total_weights"]
 
   if config.gradient_clipping_threshold > 0:
     grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
@@ -700,15 +701,15 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
             jax.tree_util.tree_map(lambda x: x.with_memory_kind(kind="device"), state_mesh_shardings.opt_state),
         )
     )
-
   new_state = state.apply_gradients(grads=grads)
+  loss = (loss - mtp_loss - moe_lb_loss) if config.gradient_accumulation_steps == 1 else loss
   scalar_metrics = {
-      "learning/loss": loss - mtp_loss - moe_lb_loss,
-      "learning/moe_lb_loss": moe_lb_loss,
-      "learning/mtp_loss": mtp_loss,
-      "learning/mtp_accept_rate": mtp_accept_rate,
-      "learning/total_weights": total_weights,
-      "learning/accuracy": aux['accuracy'],
+      "learning/loss": loss, # mean
+      "learning/moe_lb_loss": moe_lb_loss, # mean
+      "learning/mtp_loss": mtp_loss, # mean
+      "learning/mtp_accept_rate": mtp_accept_rate, # mean
+      "learning/total_weights": aux["total_weights"], # sum
+      "learning/accuracy": accuracy, # mean
   }
   # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
   params_scalar_values = compute_params_norm(state.params, config=config)

@@ -95,12 +95,11 @@ def gradient_accumulation_loss_and_grad(
   def accumulate_gradient(acc_grad_and_loss, data):
     ga_params = acc_grad_and_loss["ga_params"]
     (_, aux), cur_batch_gradient = grad_func(model, config, data, dropout_rng, ga_params, *extra_dpo_args, is_train=True)
-    acc_grad_and_loss["loss"] += aux["total_loss"]
+    acc_grad_and_loss["total_loss"] += aux["total_loss"]
     acc_grad_and_loss["moe_lb_loss"] += aux["moe_lb_loss"]
     acc_grad_and_loss["mtp_loss"] += aux["mtp_loss"]
-    acc_grad_and_loss["grad"] = jax.tree_util.tree_map(lambda x, y: x + y, cur_batch_gradient, acc_grad_and_loss["grad"])
+    acc_grad_and_loss["grad"] = jax.tree_util.tree_map(lambda x, y: x / config.gradient_accumulation_steps + y, cur_batch_gradient, acc_grad_and_loss["grad"])
     acc_grad_and_loss["total_weights"] += aux["total_weights"]
-    acc_grad_and_loss["accuracy"] += aux["accuracy"]
 
     return acc_grad_and_loss, aux
 
@@ -116,30 +115,26 @@ def gradient_accumulation_loss_and_grad(
   init_grad = jax.tree_util.tree_map(jnp.zeros_like, ga_params)
   init_grad = jax.tree.map(_maybe_shard_with_name, init_grad, grad_shardings)
   init_grad_and_loss = {
-      "loss": 0.0,
+      "total_loss": 0.0,
       "grad": init_grad,
       "total_weights": 0,
       "moe_lb_loss": 0.0,
       "mtp_loss": 0.0,
       "ga_params": ga_params,
-      "accuracy": 0.0,
   }
 
   grad_and_loss, aux = jax.lax.scan(
       accumulate_gradient, init_grad_and_loss, data, length=config.gradient_accumulation_steps
   )
-  loss = (
-      grad_and_loss["loss"] / grad_and_loss["total_weights"]
-      + grad_and_loss["moe_lb_loss"] / config.gradient_accumulation_steps
-      + grad_and_loss["mtp_loss"] / config.gradient_accumulation_steps
-      + grad_and_loss["accuracy"] / config.gradient_accumulation_steps
-  )
-  raw_grads = grad_and_loss["grad"]
-  raw_grads = jax.tree.map(_maybe_shard_with_name, raw_grads, params_shardings)
-  raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], raw_grads)
+  # lsp
+  loss = grad_and_loss["total_loss"] / grad_and_loss["total_weights"]
+#   raw_grads = grad_and_loss["grad"]
+#   raw_grads = jax.tree.map(_maybe_shard_with_name, raw_grads, params_shardings)
+  # lsp: raw_grads means the gradient of total_loss, so it needs to be divided by total_weights.
+#   raw_grads = jax.tree_util.tree_map(lambda arr: arr / grad_and_loss["total_weights"], raw_grads)
   aux = jax.tree.map(lambda x: jnp.sum(x, axis=0), aux)  # pytype: disable=module-attr
 
-  return loss, aux, raw_grads
+  return loss, aux, grad_and_loss["grad"]
 
 
 # GA helper functions

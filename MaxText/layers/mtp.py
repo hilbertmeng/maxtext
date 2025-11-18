@@ -107,7 +107,7 @@ class MultiTokenPredictionLayer(nn.Module):
     if cfg.dense_conn and cfg.partial_scan_layers:
       projected_features = [projected_features] * len(cfg.dynamic_dense_type)
 
-    y, hids = self.transformer_layer_module(
+    y, _ = self.transformer_layer_module(
         config=cfg, mesh=mesh, quant=self.quant,
         sliding_window_size=self.sliding_window_size,
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(

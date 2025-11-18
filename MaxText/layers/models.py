@@ -685,7 +685,7 @@ class Decoder(nn.Module):
             print(f'outputs: {outputs.shape}')
 
             if cfg.compose_all_layers:
-              for output in outputs:
+              for output in outputs[:-1]:
                 hids.append(output)
            
             if cfg.dense_conn:

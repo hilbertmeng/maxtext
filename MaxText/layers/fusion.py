@@ -392,7 +392,7 @@ class FusionDecoderLayer(nn.Module):
         eos_sum,
     )
     if isinstance(inputs, list):
-      return [output] * len(inputs), hids
+      return [output] * len(inputs), output
     elif isinstance(inputs, tuple):
-      return (output,) * len(inputs), hids
-    return output, hids
+      return (output,) * len(inputs), output
+    return output, output

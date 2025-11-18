@@ -664,7 +664,8 @@ class Decoder(nn.Module):
           else:
             max_logging.log(f'Scanning layers {scan_start} to {scan_start + scan_length - 1} with sws={current_sws}', debug=cfg.debug)
             # scan_deep_embeddings = deep_embeddings[scan_start:scan_start + scan_length]
-            y, _ = self.scan_decoder_layers(
+            # outputs: [scan_length, batch, length, emb_dim]
+            y, outputs = self.scan_decoder_layers(
                 cfg, 
                 RemattedBlockLayers[1], 
                 scan_length, 
@@ -681,6 +682,12 @@ class Decoder(nn.Module):
                 model_mode,
                 eos_sum=eos_sum,
             )
+            print(f'outputs: {outputs.shape}')
+
+            if cfg.compose_all_layers:
+              for output in outputs:
+                hids.append(output)
+           
             if cfg.dense_conn:
               C = get_C(lyr=scan_start + scan_length - 1)
               y, hids = mudd.Compose(

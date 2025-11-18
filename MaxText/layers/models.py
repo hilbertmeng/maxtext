@@ -437,7 +437,7 @@ class Decoder(nn.Module):
 
   def scan_decoder_layers(
     self, cfg, decoder_layer, length, metdata_axis_name, mesh, 
-    sliding_window_size=None, C=0, scan_length=1,
+    sliding_window_size=None, C=0, scan_length=1, compose_type='none',
     ):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
@@ -468,8 +468,9 @@ class Decoder(nn.Module):
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
     return scan_fn(
-      config=cfg, mesh=mesh, name=metdata_axis_name, C=C, scan_length=scan_length,
+      config=cfg, mesh=mesh, name=metdata_axis_name, C=C, scan_length=length,
       quant=self.quant, sliding_window_size=sliding_window_size,
+      compose_type=compose_type,
       )
 
   def get_pipeline_stage_module(self, base_stage):
@@ -619,20 +620,51 @@ class Decoder(nn.Module):
               deep_embeddings,
               deterministic,
               model_mode,
+              hids,
               eos_sum=eos_sum,
           )
 
       elif cfg.partial_scan_layers:
         swss = format_swss(sws_list)
         max_logging.log(f'partial_scan_layers: swss: {swss}', debug=cfg.debug)
+        # =============================compute scan_lengths=============================
         lyr = 0
+        scan_lengths = []
         while lyr < cfg.num_decoder_layers:
           current_sws = swss[lyr]
-          scan_start = lyr
           scan_length = 1
           while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
             scan_length += 1
-          
+          scan_lengths.append(scan_length)
+          lyr += scan_length
+
+        def mark_labels(seq):
+          result = []
+          n = len(seq)
+          for i in range(n):
+              curr = seq[i]
+              prev = seq[i-1] if i > 0 else 0
+              label = "none"
+              if curr == 1:
+                  if prev > 1:
+                      # scan for X
+                      label = "start&end"
+                  else:
+                      # None for X  或 for for X
+                      label = "end"
+              elif curr > 1:
+                  label = "none"
+              result.append(label)
+          return result
+
+        compose_types = mark_labels(scan_lengths)
+        print(f'compose_types: {compose_types}')
+
+        # =============================compute compose_type to determine the composed location=============================
+        lyr = 0
+        y = (y, ) * 4
+        for scan_idx, scan_length in enumerate(scan_lengths):
+          compose_type = compose_types[scan_idx]
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
             y, hids = RemattedBlockLayers[0](
@@ -642,6 +674,7 @@ class Decoder(nn.Module):
               quant=self.quant, 
               C=4,
               mudd_in_layer=mudd_in_layer,
+              compose_type=compose_type,
               sliding_window_size=current_sws)(
                 y,
                 decoder_segment_ids,
@@ -650,31 +683,30 @@ class Decoder(nn.Module):
                 None if deep_embeddings is None else deep_embeddings[lyr],
                 deterministic,
                 model_mode,
-                hids + [jnp.empty_like(y if isinstance(y, jnp.ndarray) else y[0])],
+                hids,
                 eos_sum=eos_sum,
             )
             lyr += 1
           else:
-            max_logging.log(f'Scanning layers {scan_start} to {scan_start + scan_length - 1} with sws={current_sws}', debug=cfg.debug)
-            # scan_deep_embeddings = deep_embeddings[scan_start:scan_start + scan_length]
+            max_logging.log(f'Scanning layers {lyr} to {lyr + scan_length - 1} with sws={current_sws}', debug=cfg.debug)
             y, outputs = self.scan_decoder_layers(
                 cfg, 
                 RemattedBlockLayers[1], 
                 scan_length,
-                f"layers_{scan_start}", 
+                f"layers_{lyr}", 
                 mesh,
                 sliding_window_size=current_sws,
                 C=4,
-                scan_length=scan_length,
+                compose_type=compose_type,
             )(
                 y,
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
-                None if deep_embeddings is None else deep_embeddings[scan_start:scan_start + scan_length],
+                None if deep_embeddings is None else deep_embeddings[lyr: lyr + scan_length],
                 deterministic,
                 model_mode,
-                hids + [jnp.empty_like(y if isinstance(y, jnp.ndarray) else y[0])],
+                hids,
                 eos_sum=eos_sum,
             )
             for _, output in enumerate(outputs[:-1]): # last output would be composed in next layer

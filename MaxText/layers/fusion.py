@@ -100,6 +100,8 @@ class SubDecoderLayer(nn.Module):
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       lnx_kv = [lnx, lnx]
 
+    num_kv_heads = cfg.num_kv_heads[self.layer_inx % len(cfg.num_kv_heads)] \
+      if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads
     if cfg.global_attn_head_dim \
       and cfg.global_attn_head_dim > 0 \
       and self.sliding_window_size == cfg.max_target_length:
@@ -265,7 +267,8 @@ class FusionDecoderLayer(nn.Module):
   mudd_in_layer: bool = False
   C: int = 0
   scan_length: int = 1
-
+  compose_type: str = 'none'
+  
   def setup(self):
     cfg = self.config
     self.layer_inx = None if cfg.scan_layers else int(self.name.split('_')[-1])
@@ -381,20 +384,18 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
-
-    if self.C > 0:
+    
+    if self.C > 0 and 'start' in self.compose_type:
       # return's inputs length is 4
-      print(f'self.layer_inx: {self.layer_inx} self.C: {self.C}')
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
-        name=f'compose_{self.layer_inx}',
+        name=f'compose_start_{self.layer_inx}',
         C=self.C,
         compose=True,
         )(
-          layer_output=inputs, 
+          layer_output=inputs if isinstance(inputs, jnp.ndarray) else inputs[0], 
           hids=hids,
         )
-      print(f'Fusion decoder inputs: {len(inputs)} hids: {len(hids)}')
 
     # return's inputs length is 1
     output = self.layer(
@@ -407,11 +408,31 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         eos_sum,
     )
+
+    if self.C > 0 and 'end' in self.compose_type:
+      # return's inputs length is 4
+      output, hids = mudd.Compose(
+        cfg, self.mesh, self.quant, 
+        name=f'compose_end_{self.layer_inx}',
+        C=self.C,
+        compose=True,
+        )(
+          layer_output=output, 
+          hids=hids,
+        )
     if self.scan_length > 1:
-      return output, output
-    # # 没组合的时候将输出拓展到与输入相同的形状
-    # if isinstance(inputs, list):
-    #   return [output] * len(inputs), hids
-    # elif isinstance(inputs, tuple):
-    #   return (output,) * len(inputs), hids
-    return output, hids
+      if isinstance(inputs, list|tuple):
+        assert isinstance(output, jnp.ndarray)
+        return (output,) * len(inputs), output
+      else:
+        return output, output
+    else:
+      if isinstance(inputs, list|tuple):
+        if isinstance(output, list|tuple):
+          assert len(inputs) == len(output), f"Inputs and output length mismatch: {len(inputs)} != {len(output)}"
+          return output, hids
+        else:
+          return (output,) * len(inputs), hids
+      else:
+        assert isinstance(output, jnp.ndarray)
+        return output, hids

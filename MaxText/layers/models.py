@@ -433,7 +433,8 @@ class Decoder(nn.Module):
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
-  def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh, sliding_window_size=None):
+  def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh, 
+   sliding_window_size=None, scan_length=1):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
@@ -461,7 +462,8 @@ class Decoder(nn.Module):
         length=length,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
-    return scan_fn(config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant, sliding_window_size=sliding_window_size)
+    return scan_fn(config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant, 
+      sliding_window_size=sliding_window_size, scan_length=scan_length)
 
   def get_pipeline_stage_module(self, base_stage):
     cfg = self.config
@@ -611,14 +613,6 @@ class Decoder(nn.Module):
 
       elif cfg.partial_scan_layers:
 
-        def get_C(lyr):
-          if lyr == cfg.num_decoder_layers - 1:
-            C = 2 if cfg.mtp_num_layers > 0 else 1 # if use mtp, return 2 tensors, otherwise return 1 tensor
-          elif lyr == cfg.num_decoder_layers + cfg.mtp_num_layers - 1:
-            C = 1 # last layer return 1 tensor
-          else:
-            C = 4 # other layer return 4 tensors
-          return C
         swss = format_swss(sws_list)
         max_logging.log(f'partial_scan_layers: swss: {swss}', debug=cfg.debug)
         lyr = 0
@@ -632,7 +626,7 @@ class Decoder(nn.Module):
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
             
-            y, _ = RemattedBlockLayers[0](
+            y, hids = RemattedBlockLayers[0](
               config=cfg, 
               mesh=mesh, 
               name=f"layers_{lyr}", 
@@ -646,24 +640,13 @@ class Decoder(nn.Module):
                 deterministic,
                 model_mode,
                 eos_sum=eos_sum,
+                hids=hids,
             )
+            hids.append(y)
 
-            if cfg.dense_conn:
-              C = get_C(lyr)
-              # return's inputs length is 4
-              y, hids = mudd.Compose(
-                cfg, self.mesh, self.quant, 
-                name=f'compose_{lyr}',
-                C=C,
-                compose=True,
-                )(
-                  layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
-                  hids=hids,
-                )
             lyr += 1
           else:
             max_logging.log(f'Scanning layers {scan_start} to {scan_start + scan_length - 1} with sws={current_sws}', debug=cfg.debug)
-            # scan_deep_embeddings = deep_embeddings[scan_start:scan_start + scan_length]
             # outputs: [scan_length, batch, length, emb_dim]
             y, outputs = self.scan_decoder_layers(
                 cfg, 
@@ -672,6 +655,7 @@ class Decoder(nn.Module):
                 f"layers_{scan_start}", 
                 mesh,
                 sliding_window_size=current_sws,
+                scan_length=scan_length,
             )(
                 y,
                 decoder_segment_ids,
@@ -684,22 +668,12 @@ class Decoder(nn.Module):
             )
             print(f'outputs: {outputs.shape}')
 
-            if cfg.compose_all_layers:
+            if cfg.dense_conn and cfg.compose_all_layers:
               for output in outputs[:-1]:
                 hids.append(output)
-           
-            if cfg.dense_conn:
-              C = get_C(lyr=scan_start + scan_length - 1)
-              y, hids = mudd.Compose(
-                cfg, self.mesh, self.quant, 
-                name=f'compose_{scan_start}',
-                C=C,
-                compose=True,
-              )(
-                layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
-                hids=hids,
-              )
+          
             lyr += scan_length
+
       else:
         if cfg.decoder_block == "deepseek":
           assert len(RemattedBlockLayers) == 2, f"Unscanned layers must have a length of 2 using deepseek."
@@ -740,6 +714,18 @@ class Decoder(nn.Module):
                 hids=hids,
                 eos_sum=eos_sum,
             )
+
+    if cfg.dense_conn:
+      C = 2 if cfg.mtp_num_layers > 0 else 1
+      y, hids = mudd.Compose(
+        cfg, self.mesh, self.quant, 
+        compose=True,
+        name=f'compose_final',
+        C=C,
+        )(
+          layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
+          hids=hids,
+        )
             
     max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}', debug=cfg.debug)
     if cfg.dense_conn:

@@ -267,15 +267,16 @@ class FusionDecoderLayer(nn.Module):
   mesh: Mesh
   sliding_window_size: int # lsp
   quant: Optional[Quant] = None
+  scan_length: int = 1
 
   def setup(self):
     cfg = self.config
-    self.layer_inx = None if cfg.scan_layers else int(self.name.split('_')[-1])
+    self.layer_inx = 0 if cfg.scan_layers else int(self.name.split('_')[-1])
     sws = self.sliding_window_size
     max_logging.log(f'fusion layer sws: {sws}', debug=cfg.debug)
     if sws is None:
       sws = cfg.max_target_length
-
+    self.sws = sws
     RematSubDecoderLayer = SubDecoderLayer
     if cfg.dense_conn and not cfg.mudd_in_layer:
       RematSubDecoderLayer = nn.remat(
@@ -382,6 +383,18 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
+    if cfg.dense_conn and self.sws == cfg.max_target_length:
+      # return's inputs length is 4
+      inputs, hids = mudd.Compose(
+        cfg, self.mesh, self.quant, 
+        name=f'compose_start',
+        C=4,
+        compose=True,
+        )(
+          layer_output=inputs if isinstance(inputs, jnp.ndarray) else inputs[0], 
+          hids=hids,
+        )
+            
     # return's inputs length is 1
     output = self.layer(
         inputs,
@@ -393,8 +406,25 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         eos_sum,
     )
-    if isinstance(inputs, list):
-      return [output] * len(inputs), output
-    elif isinstance(inputs, tuple):
-      return (output,) * len(inputs), output
-    return output, output
+    return output, output if self.scan_length > 1 else hids
+
+    # if cfg.dense_conn and self.sws == cfg.max_target_length:
+    #   hids.append(output)
+      # C = 4
+      # # return's inputs length is 4
+      # output, hids = mudd.Compose(
+      #   cfg, self.mesh, self.quant, 
+      #   name=f'compose_end',
+      #   C=C,
+      #   compose=True,
+      #   )(
+      #     layer_output=output if isinstance(output, jnp.ndarray) else output[0], 
+      #     hids=hids,
+      #   )
+      # return output, hids
+
+    # if isinstance(inputs, list):
+    #   return [output] * len(inputs), output if self.scan_length > 1 else hids
+    # elif isinstance(inputs, tuple):
+    #   return (output,) * len(inputs), output if self.scan_length > 1 else hids
+    # return output, output if self.scan_length > 1 else hids

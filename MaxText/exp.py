@@ -71,6 +71,12 @@ class LGLLWindow:
 class LLGLWindow:
     sliding_window_size = [256, 256, None, 256]
 
+class LLGWindow:
+    sliding_window_size = [256, 256, None]
+
+class GLLWindow:
+    sliding_window_size = [None, 256, 256]
+
 class DE:
     deep_embed_type = '4xmlp'
     deep_embed_norm = True
@@ -628,8 +634,10 @@ class MuonModelV4p5(Muon, ModelV4p5):
 class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
     mudd_postnorm = True
     attention = 'flash' 
-    compose_layers = range(1, 60, 2) # interval of 2 to compose # v5p-256 interval 1 speed: 0.034.
-    
+    compose_layers = range(1, 60, 2) # interval of 2 to compose # v5p-256 interval 1 speed: 0.034. 
+
+class MuonDEDcMuddMTP1KVshiftV4p5GLL(GLLWindow, MuonDEDcMuddMTP1KVshiftV4p5):
+    pass
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     vocab_size = 100352
@@ -663,6 +671,11 @@ class MuonDEDcMuddKVshiftV4p5MediumH128LLGL(LLGLWindow, MuonDEDcMuddMTP1KVshiftV
     base_num_query_heads = 16
     base_num_kv_heads = [base_num_query_heads, base_num_query_heads, 4, base_num_query_heads] * 8
     base_num_kv_heads = base_num_kv_heads[:-1] + [4]
+
+class MuonDEDcMuddKVshiftV4p5MediumH128LLG(LLGWindow, MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
+    partial_scan_layers = True
+    base_num_query_heads = 16
+    base_num_kv_heads = [4, base_num_query_heads, base_num_query_heads] * 10 + [base_num_query_heads] * 2
 
 # todo:
 # 1、rotary use half inputs compute

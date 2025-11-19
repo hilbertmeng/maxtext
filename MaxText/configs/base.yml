@@ -541,6 +541,7 @@ mudd_postnorm: False
 dynamic_mlp_dim: False # if true: [round( default_dim* (i/(num_layers-1) +0.5) / 128) * 128 for i in range(num_layers)]
 dynamic_dense_scale_dw: False
 mudd_in_layer: False
+compose_all_layers: False
 
 # ================================= [moe] =================================
 capacity_factor: -1.0 # Don't change this value

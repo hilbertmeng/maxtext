@@ -709,8 +709,9 @@ class Decoder(nn.Module):
                 hids,
                 eos_sum=eos_sum,
             )
-            for _, output in enumerate(outputs[:-1]): # last output would be composed in next layer
-              hids.append(output)
+            if cfg.dense_conn and cfg.compose_all_layers:
+              for _, output in enumerate(outputs[:-1]):
+                hids.append(output)
 
             lyr += scan_length
       else:

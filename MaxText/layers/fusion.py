@@ -113,8 +113,10 @@ class SubDecoderLayer(nn.Module):
     else:
       head_dim = cfg.head_dim
       num_query_heads = cfg.num_query_heads
+      n = 1
 
-    max_logging.log(f'sliding_window_size: {self.sliding_window_size} num_kv_heads: {num_kv_heads} head_dim: {head_dim}', debug=cfg.debug)
+    max_logging.log(f'layer_inx: {self.layer_inx} sliding window size: {self.sliding_window_size} n: {n}', debug=cfg.debug)
+    max_logging.log(f'query heads: {num_query_heads} kv heads: {num_kv_heads} head_dim: {head_dim}', debug=cfg.debug)
     # Self-attention block
     attention_layer = Attention(
         config=cfg,

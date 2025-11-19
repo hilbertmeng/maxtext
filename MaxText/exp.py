@@ -660,6 +660,10 @@ class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
 
 class MuonDEDcMuddKVshiftV4p5MediumH128LLGL(LLGLWindow, MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
     partial_scan_layers = True
+    base_num_query_heads = 16
+    base_num_kv_heads = [base_num_query_heads, base_num_query_heads, 4, base_num_query_heads] * 8
+    base_num_kv_heads = base_num_kv_heads[:-1] + [4]
+
 # todo:
 # 1、rotary use half inputs compute
 # 2、rms 改为 1 + scale 并decay

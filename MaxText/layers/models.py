@@ -620,9 +620,14 @@ class Decoder(nn.Module):
           current_sws = swss[lyr]
           scan_start = lyr
           scan_length = 1
-          while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
-            scan_length += 1
-          
+          # L, G, L, LL, G, L, LL
+          if lyr > 0 and swss[lyr - 1] != current_sws:
+            scan_length = 1
+          else:
+            while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
+              scan_length += 1
+          print(f'lyr: {lyr}, scan_length: {scan_length}')
+            
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
             

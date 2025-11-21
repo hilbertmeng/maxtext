@@ -574,6 +574,16 @@ class Decoder(nn.Module):
           sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
         return sws
       
+      def format_roll_swss(num_layers, local_ws=256):
+        ratio_pattern = ["LGLL", "LLGL", "LLLG", "GLLL"]
+        ws_list = []
+        num_cycles = (num_layers + 3) // 4
+        for cycle_idx in range(num_cycles):
+            pattern = ratio_pattern[cycle_idx % len(ratio_pattern)]
+            for c in pattern:
+                ws_list.append(local_ws if c == 'L' else cfg.max_target_length)
+        return ws_list[:num_layers]
+      
       if cfg.dense_conn:
         y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
         hids.append(y)
@@ -612,9 +622,13 @@ class Decoder(nn.Module):
           )
 
       elif cfg.partial_scan_layers:
+        if cfg.roll_sws:
+          # LGLL LLGL LLLG GLLL......
+          swss = format_roll_swss(cfg.num_decoder_layers, local_ws=256)
+        else:
+          swss = format_swss(sws_list)
 
-        swss = format_swss(sws_list)
-        max_logging.log(f'partial_scan_layers: swss: {swss}', debug=cfg.debug)
+        max_logging.log(f'[partial_scan_layers] roll_window_size: {cfg.roll_sws} swss: {swss}', debug=cfg.debug)
         lyr = 0
         while lyr < cfg.num_decoder_layers:
           current_sws = swss[lyr]

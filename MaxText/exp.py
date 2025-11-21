@@ -637,7 +637,10 @@ class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
     compose_layers = range(1, 60, 2) # interval of 2 to compose # v5p-256 interval 1 speed: 0.034. 
 
 class MuonDEDcMuddMTP1KVshiftV4p5GLL(GLLWindow, MuonDEDcMuddMTP1KVshiftV4p5):
-    pass
+    pass 
+    # 均仅在G前面组合
+    # GLL: v5p-128, bsz=9, 0.079 steps/s
+    # LGLL: v5p-128, bsz=9, 0.081 steps/s
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     vocab_size = 100352
@@ -676,6 +679,9 @@ class MuonDEDcMuddKVshiftV4p5MediumH128LLG(LLGWindow, MuonDEDcMuddMTP1KVshiftV4p
     partial_scan_layers = True
     base_num_query_heads = 16
     base_num_kv_heads = [4, base_num_query_heads, base_num_query_heads] * 10 + [base_num_query_heads] * 2
+
+class MuonDEDcMuddKVshiftV4p5MediumH128RollSws(MuonDEDcMuddKVshiftV4p5MediumH128):
+    roll_sws = True
 
 # todo:
 # 1、rotary use half inputs compute

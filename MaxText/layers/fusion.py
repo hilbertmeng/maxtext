@@ -406,7 +406,7 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         eos_sum,
     )
-    return output, output if self.scan_length > 1 else hids
+    return output, hids if self.scan_length == 1 else output
 
     # if cfg.dense_conn and self.sws == cfg.max_target_length:
     #   hids.append(output)

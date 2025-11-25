@@ -383,7 +383,7 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
-    if cfg.dense_conn and self.scan_length == 1:
+    if cfg.dense_conn and self.scan_length == 1 and self.layer_inx > 0:
       # return's inputs length is 4
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 

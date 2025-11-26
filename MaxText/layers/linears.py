@@ -181,12 +181,11 @@ class DeepEmbedBlock(nn.Module):
   dtype: DType = jnp.float32
   input_dim: int = None
   output_dim: int = None
-  de_d1_d2_dims: tuple = None # suggesgt fix first dimension to 32
 
   def setup(self):
-    if 'gemma3n' in self.config.deep_embed_type:
-      return
-    self.d1, self.d2 = self.de_d1_d2_dims
+    self.d1 = 32 if self.output_dim < 4096 else 64
+    self.d2 = self.output_dim // self.d1
+    max_logging.log(f'[DEshape] d1: {self.d1} d2: {self.d2}', debug=self.config.debug)
     s1_axes = ("embed", None)
     s2_axes = (None, "embed")
     s2_bias_axes = (None, None)
@@ -198,7 +197,7 @@ class DeepEmbedBlock(nn.Module):
     self.s2_bias = None
     if self.config.use_s2_bias:
       self.s2_bias = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
-    max_logging.log(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias} de_d1_d2_dims: {self.de_d1_d2_dims}', debug=self.config.debug)
+    max_logging.log(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias}', debug=self.config.debug)
 
   @nn.compact
   def __call__(self, inputs, output, decoder_input_tokens, deep_embedding=None):
@@ -279,8 +278,6 @@ class MlpBlock(nn.Module):
 
     self.deep_embed_block = None
     if output_dim is not None and de_embed_dim is not None:
-      d1 = 32 if cfg.mlp_dim < 4096 else 64 
-      max_logging.log(f'd1: {d1}', debug=self.config.debug)
       self.deep_embed_block = DeepEmbedBlock(
         name=f'{suffix}_deep_embed',
         config=self.config, 
@@ -288,8 +285,8 @@ class MlpBlock(nn.Module):
         weight_dtype=self.weight_dtype, 
         dtype=self.dtype, 
         input_dim=cfg.emb_dim,
-        output_dim=output_dim,
-        de_d1_d2_dims=(d1, de_embed_dim // d1)) # fix first dimension to 32, and don't need to follow mudd mlp dim.
+        output_dim=output_dim
+        )
 
   @nn.compact
   def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):

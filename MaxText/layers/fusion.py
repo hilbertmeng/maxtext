@@ -152,8 +152,10 @@ class SubDecoderLayer(nn.Module):
         decoder_positions,
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
+        decoder_input_tokens=decoder_input_tokens,
         model_mode=model_mode,
         eos_sum=eos_sum,
+        deep_embedding=deep_embedding,
     )
    
     if cfg.record_internal_nn_metrics:

@@ -1355,10 +1355,12 @@ class Attention(nn.Module):
       inputs_kv: Array,
       inputs_positions: Array,
       decoder_segment_ids: Array | None = None,
+      decoder_input_tokens: Array | None = None,
       *,
       model_mode: str = common_types.MODEL_MODE_TRAIN,
       deterministic: bool = False,
       eos_sum: Array | None = None,
+      deep_embedding: Array | None = None,
   ):
     """Applies Attention on the input data.
 
@@ -1382,16 +1384,17 @@ class Attention(nn.Module):
     Returns:
       output of shape `[batch, length, q_features]`.
     """
+    cfg = self.config
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
     # apply projection.
-    if self.config.fused_qkv:
+    if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
-    elif self.config.dense_conn and self.config.dynamic_dense_type == 'qkvm':
+    elif cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm':
         assert isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2
         inputs_k, inputs_v = inputs_kv
-        max_logging.log(f'inputs_q: {inputs_q.shape} inputs_k: {inputs_k.shape} inputs_v: {inputs_v.shape}', debug=self.config.debug)
+        max_logging.log(f'inputs_q: {inputs_q.shape} inputs_k: {inputs_k.shape} inputs_v: {inputs_v.shape}', debug=cfg.debug)
         query = self.query_projection(inputs_q)
         key = self.kv_projection(inputs_k, proj_name="key")
         value = self.kv_projection(inputs_v, proj_name="value")
@@ -1404,7 +1407,7 @@ class Attention(nn.Module):
       inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
       query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v)
     
-    query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
+    query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp
 
     # apply ROPE
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
@@ -1422,7 +1425,29 @@ class Attention(nn.Module):
     key = checkpoint_name(key, "key_proj")
     value = checkpoint_name(value, "value_proj")
 
-    assert not self.config.quantize_kvcache or self.kv_quant
+    # DE value
+    if 'devalue' in cfg.deep_embed_type.lower():
+      b, t, n, d = value.shape
+      de_value = value.reshape(b, t, n * d)
+      de_inputs = inputs_kv if isinstance(inputs_kv, jnp.ndarray) else inputs_kv[1]
+      de_inputs = de_inputs.reshape(*de_inputs.shape[:2], -1)
+      value = linears.DeepEmbedBlock(
+        name='value_deep_embed',
+        config=cfg, 
+        kernel_init=initializers.get_init_method(cfg.init_method),
+        weight_dtype=cfg.weight_dtype, 
+        dtype=cfg.dtype, 
+        input_dim=cfg.emb_dim,
+        output_dim=n * d,
+        )(de_inputs, 
+          de_value, 
+          decoder_input_tokens, 
+          deep_embedding=deep_embedding
+          )
+      value = value.reshape(b, t, n, d)
+      max_logging.log(f'Outside DE is None, inside value DE')
+
+    assert not cfg.quantize_kvcache or self.kv_quant
 
      # lsp
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)

@@ -63,12 +63,30 @@ def get_deep_embedding(cfg, deep_embedding):
       updated_mlp_dim = cfg.mlp_dim # dynamic_mlp_dim loss higher than static mlp_dim, about 0.003 gap
       d1 = 32 if updated_mlp_dim < 4096 else 64
       d2 = updated_mlp_dim // d1
-      cur_layer_deep_embedding = deep_embedding[..., start_idx: start_idx + updated_mlp_dim]
+      end_idx = start_idx + updated_mlp_dim
+      assert end_idx <= total_de_dim, f'end_idx: {end_idx} > total_de_dim: {total_de_dim}'
+      cur_layer_deep_embedding = deep_embedding[..., start_idx: end_idx]
       start_idx += updated_mlp_dim
       cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*deep_embedding.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
     deep_embeddings = jnp.stack(deep_embeddings, axis=0)
     max_logging.log(f'4xmlp deep_embeddings: {deep_embeddings.shape}', debug=cfg.debug)
+  elif 'devalue' in cfg.deep_embed_type.lower():
+    start_idx = 0
+    deep_embeddings = []
+    total_de_dim = deep_embedding.shape[-1]
+    for layer_inx in range(cfg.num_decoder_layers):
+      num_kv_heads = cfg.num_kv_heads[layer_inx % len(cfg.num_kv_heads)] \
+      if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads
+      de_dim = num_kv_heads * cfg.head_dim
+      d1 = 32 if de_dim < 4096 else 64
+      d2 = de_dim // d1
+      end_idx = start_idx + de_dim
+      assert end_idx <= total_de_dim, f'end_idx: {end_idx} > total_de_dim: {total_de_dim}'
+      cur_layer_deep_embedding = deep_embedding[..., start_idx: end_idx]
+      start_idx += de_dim
+      cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*deep_embedding.shape[:2], d1, d2)
+      deep_embeddings.append(cur_layer_deep_embedding)
   elif re.findall(r'1xmlp|1xattn', cfg.deep_embed_type):
     d1 = 32 if cfg.emb_dim < 4096 else 64
     d2 = cfg.emb_dim // d1
@@ -518,7 +536,7 @@ class Decoder(nn.Module):
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
-    if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp', cfg.deep_embed_type):
+    if cfg.deep_embed_init == 'outside' and re.findall(r'1xmlp|1xattn|4xmlp|devalue', cfg.deep_embed_type):
       deep_embeddings = self.deep_embedding(decoder_input_tokens.astype("int32"))
       deep_embeddings = get_deep_embedding(cfg, deep_embeddings)
       max_logging.log(f'deep_embeddings: {deep_embeddings[0].shape} length:{len(deep_embeddings)} y: {y.shape}', debug=cfg.debug)
@@ -574,16 +592,6 @@ class Decoder(nn.Module):
           sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
         return sws
       
-      def format_roll_swss(num_layers, local_ws=256):
-        ratio_pattern = ["LGLL", "LLGL", "LLLG", "GLLL"]
-        ws_list = []
-        num_cycles = (num_layers + 3) // 4
-        for cycle_idx in range(num_cycles):
-            pattern = ratio_pattern[cycle_idx % len(ratio_pattern)]
-            for c in pattern:
-                ws_list.append(local_ws if c == 'L' else cfg.max_target_length)
-        return ws_list[:num_layers]
-      
       if cfg.dense_conn:
         y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
         hids.append(y)
@@ -622,16 +630,13 @@ class Decoder(nn.Module):
           )
 
       elif cfg.partial_scan_layers:
-        if cfg.roll_sws:
-          # LGLL LLGL LLLG GLLL......
-          swss = format_roll_swss(cfg.num_decoder_layers, local_ws=256)
-        else:
-          swss = format_swss(sws_list)
 
+        swss = format_swss(sws_list)
         max_logging.log(f'[partial_scan_layers] roll_window_size: {cfg.roll_sws} swss: {swss}', debug=cfg.debug)
         lyr = 0
         while lyr < cfg.num_decoder_layers:
           current_sws = swss[lyr]
+          max_logging.log(f'\n=================partial scan layers: {lyr}=====================\n', debug=cfg.debug)
           scan_start = lyr
           scan_length = 1
           # L, G, L, LL, G, L, LL
@@ -640,11 +645,11 @@ class Decoder(nn.Module):
           else:
             while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
               scan_length += 1
-          print(f'lyr: {lyr}, scan_length: {scan_length}')
-            
+
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
-            
+            de = None if deep_embeddings is None else deep_embeddings[lyr]
+            max_logging.log(f'de: {de}', debug=cfg.debug)
             y, hids = RemattedBlockLayers[0](
               config=cfg, 
               mesh=mesh, 
@@ -655,7 +660,7 @@ class Decoder(nn.Module):
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
-                None if deep_embeddings is None else deep_embeddings[lyr],
+                de,
                 deterministic,
                 model_mode,
                 eos_sum=eos_sum,
@@ -666,6 +671,9 @@ class Decoder(nn.Module):
             lyr += 1
           else:
             max_logging.log(f'Scanning layers {scan_start} to {scan_start + scan_length - 1} with sws={current_sws}', debug=cfg.debug)
+            de = None if deep_embeddings is None else deep_embeddings[scan_start:scan_start + scan_length]
+            de = jnp.stack(de, axis=0) if de is not None and isinstance(de, list) else de
+            max_logging.log(f'de: {de}', debug=cfg.debug)
             # outputs: [scan_length, batch, length, emb_dim]
             y, outputs = self.scan_decoder_layers(
                 cfg, 
@@ -680,13 +688,11 @@ class Decoder(nn.Module):
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
-                None if deep_embeddings is None else deep_embeddings[scan_start:scan_start + scan_length],
+                de,
                 deterministic,
                 model_mode,
                 eos_sum=eos_sum,
             )
-            print(f'outputs: {outputs.shape}')
-
             if cfg.dense_conn and cfg.compose_all_layers:
               for output in outputs[:-1]:
                 hids.append(output)
@@ -809,8 +815,14 @@ class Transformer(nn.Module):
     mesh = self.mesh
     de_dim = 0
     if cfg.deep_embed_init == 'outside':
-      if '1xattn' in cfg.deep_embed_type or 'devalue' in cfg.deep_embed_type.lower():
+      if '1xattn' in cfg.deep_embed_type:
         de_dim += cfg.num_decoder_layers * cfg.emb_dim
+      elif 'devalue' in cfg.deep_embed_type.lower():
+        if isinstance(cfg.num_kv_heads, list):
+          head_nums_mean = sum(cfg.num_kv_heads) // len(cfg.num_kv_heads)
+        else:
+          head_nums_mean = cfg.num_kv_heads
+        de_dim = head_nums_mean * cfg.num_decoder_layers * cfg.head_dim
       elif '1xmlp' in cfg.deep_embed_type.lower():
         de_dim  += cfg.num_decoder_layers * cfg.emb_dim
       elif '4xmlp' in cfg.deep_embed_type.lower():
@@ -819,7 +831,7 @@ class Transformer(nn.Module):
         # Multi deep embed don't support outside init
         raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')
      
-    max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} emb_dim: {de_dim}', debug=cfg.debug)
+    max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} de_dim: {de_dim}', debug=cfg.debug)
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
         features=cfg.emb_dim,

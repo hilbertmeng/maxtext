@@ -53,11 +53,12 @@ Quant = quantizations.AqtQuantization
 # ------------------------------------------------------------------------------
 
 def get_deep_embedding(cfg, deep_embedding):
+  total_de_dim = deep_embedding.shape[-1]
+  start_idx = 0
+  deep_embeddings = []
   max_logging.log(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}', debug=cfg.debug)
   if '4xmlp' in cfg.deep_embed_type:
     assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
-    start_idx = 0
-    deep_embeddings = []
     for layer_inx in range(cfg.num_decoder_layers):
       # updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 if cfg.dynamic_mlp_dim else cfg.mlp_dim
       updated_mlp_dim = cfg.mlp_dim # dynamic_mlp_dim loss higher than static mlp_dim, about 0.003 gap
@@ -72,9 +73,6 @@ def get_deep_embedding(cfg, deep_embedding):
     deep_embeddings = jnp.stack(deep_embeddings, axis=0)
     max_logging.log(f'4xmlp deep_embeddings: {deep_embeddings.shape}', debug=cfg.debug)
   elif 'devalue' in cfg.deep_embed_type.lower():
-    start_idx = 0
-    deep_embeddings = []
-    total_de_dim = deep_embedding.shape[-1]
     for layer_inx in range(cfg.num_decoder_layers):
       num_kv_heads = cfg.num_kv_heads[layer_inx % len(cfg.num_kv_heads)] \
       if isinstance(cfg.num_kv_heads, list) else cfg.num_kv_heads

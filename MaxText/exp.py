@@ -633,6 +633,10 @@ class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
     attention = 'flash' 
     compose_layers = range(1, 60, 2) # interval of 2 to compose # v5p-256 interval 1 speed: 0.034. 
 
+class MuonDEDcMuddMTP1KVshiftV4p5PScanGLLL(GLLLWindow, MuonDEDcMuddMTP1KVshiftV4p5):
+    base_num_query_heads = 32
+    base_num_kv_heads = [8, base_num_query_heads, base_num_query_heads, base_num_query_heads]
+
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     vocab_size = 100352
     base_emb_dim = 2048

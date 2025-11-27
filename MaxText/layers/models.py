@@ -473,6 +473,7 @@ class Decoder(nn.Module):
             nn.broadcast,
             0, # deep_embedding
             nn.broadcast,
+            nn.broadcast, # hids
             nn.broadcast, # 关键字参数不在这个范围内
         ),
         length=length,
@@ -638,7 +639,7 @@ class Decoder(nn.Module):
           scan_start = lyr
           scan_length = 1
           # L, G, L, LL, G, L, LL
-          if lyr > 0 and swss[lyr - 1] != current_sws:
+          if lyr > 0 and swss[lyr - 1] != current_sws and not cfg.scan_use_mudd:
             scan_length = 1
           else:
             while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
@@ -689,6 +690,7 @@ class Decoder(nn.Module):
                 de,
                 deterministic,
                 model_mode,
+                hids if cfg.scan_use_mudd else None,
                 eos_sum=eos_sum,
             )
             if cfg.dense_conn and cfg.compose_all_layers:

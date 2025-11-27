@@ -632,6 +632,8 @@ class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
     mudd_postnorm = True
     attention = 'flash' 
     compose_layers = range(1, 60, 2) # interval of 2 to compose # v5p-256 interval 1 speed: 0.034. 
+    # note: 1、roll sws: LGLLLLGLLLLG....., 3个L用scan loss 速度比G L LL略快，loss高0.003左右，但是编译时间减半
+    # 2、scan_use_mudd: LGLLLGLLLG...，LLL用C=2进行compose，G用C=4进行compose，速度和G L LL差不多，loss也差不多，但是编译时间减半
 
 class MuonDEDcMuddMTP1KVshiftV4p5PScanGLLL(GLLLWindow, MuonDEDcMuddMTP1KVshiftV4p5):
     base_num_query_heads = 32
@@ -667,6 +669,7 @@ class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
 class MuonDEDcMuddKVshiftV4p5MediumH128GLLL(GLLLWindow, MuonDEDcMuddKVshiftV4p5MediumH128):
     base_num_query_heads = 16
     base_num_kv_heads = [4, base_num_query_heads, base_num_query_heads, base_num_query_heads]
+
 
 
 # todo:

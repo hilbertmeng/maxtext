@@ -91,8 +91,13 @@ class SubDecoderLayer(nn.Module):
     cfg = self.config
     mesh = self.mesh
     if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm' and isinstance(inputs, tuple|list): # lsp
-      lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
-      inputs = inputs[3]
+      if cfg.scan_use_mudd and len(inputs) == 2: # scan use mudd
+        lnx = normalizations.get_rmsnorm("muddnorm", cfg)(inputs[0])
+        lnx_kv = [lnx, lnx]
+        inputs = inputs[1]
+      else:
+        lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
+        inputs = inputs[3]
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
@@ -385,15 +390,16 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
-    if cfg.dense_conn and self.scan_length == 1 and self.layer_inx > 0:
-      # return's inputs length is 4
+    if cfg.dense_conn and self.layer_inx > 0:
+      C = 4 if self.scan_length == 1 else 2
+      # inputs length: 2 or 4
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
         name=f'compose_start',
-        C=4,
+        C=C,
         compose=True,
         )(
-          layer_output=inputs if isinstance(inputs, jnp.ndarray) else inputs[0], 
+          layer_output=inputs, 
           hids=hids,
         )
             

@@ -108,7 +108,7 @@ class MultiTokenPredictionLayer(nn.Module):
       projected_features = [projected_features] * len(cfg.dynamic_dense_type)
 
     y, _ = self.transformer_layer_module(
-        config=cfg, mesh=mesh, quant=self.quant,
+        config=cfg, mesh=mesh, quant=self.quant, scan_length=2, # scan_length set >1 means no compose before layer
         sliding_window_size=self.sliding_window_size,
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
           projected_features,
@@ -118,11 +118,11 @@ class MultiTokenPredictionLayer(nn.Module):
           None,
           deterministic,
           model_mode,
-          hids=hids,
+          hids=None, # mtp compose after layer
     )
 
     if cfg.dense_conn and cfg.partial_scan_layers:
-      y, _ = mudd.Compose(
+      y, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
         name=f'compose_final',
         C=1,

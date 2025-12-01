@@ -69,7 +69,7 @@ def muon(
           return 'adam_nowd'
         elif (ndim == 1 and 'scale' in k):
           return 'adam_nowd' if config.direct_scale else 'adam_default'
-        elif (ndim == 2 and 'scale' in k and vshape[1] in [2, 3] and config.partial_scan_layers):
+        elif (ndim == 2 and 'scale' in k and vshape[1] in [1, 2, 3] and config.partial_scan_layers):
           return 'adam_nowd' if config.direct_scale else 'adam_default'
         if any(x in k for x in ['embedding', 'logits_dense']):
           return 'adam_default'
@@ -81,7 +81,7 @@ def muon(
           return 'muon_attn'
         if ndim == 2 and 'mlp' in k and 'compose' not in k:
           return 'muon_mlp'
-        if config.partial_scan_layers and ndim == 3 and vshape[1] in [2, 3]:
+        if config.partial_scan_layers and ndim == 3 and vshape[1] in [1, 2, 3]:
           if 'attention' in k:
             return 'muon_attn'
           if 'mlp' in k and 'compose' not in k:

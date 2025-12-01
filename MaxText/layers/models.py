@@ -700,9 +700,10 @@ class Decoder(nn.Module):
                 hids.append(output)
           
             lyr += scan_length
-          
-          y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
-          hids.append(y) # 可以考虑不添加scan的输出。
+
+          if scan_length == 1: # scan output no compose
+            y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
+            hids.append(y) # 可以考虑不添加scan的输出。
 
       else:
         if cfg.decoder_block == "deepseek":
@@ -715,13 +716,13 @@ class Decoder(nn.Module):
           num_layers = [cfg.first_num_dense_layers, num_moe_layers]
           for index in range(len(layers)):
               for index_j in range(num_layers[index]):
-                        y = layers[index](config=cfg, mesh=mesh, name=f"{layer_prefix[index]}_{index_j}", quant=self.quant)(
-                            y,
-                            decoder_segment_ids,
-                            decoder_positions,
-                            deterministic,
-                            model_mode,
-                        )
+                  y = layers[index](config=cfg, mesh=mesh, name=f"{layer_prefix[index]}_{index_j}", quant=self.quant)(
+                      y,
+                      decoder_segment_ids,
+                      decoder_positions,
+                      deterministic,
+                      model_mode,
+                  )
         else:
           swss = format_swss(sws_list)
           max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)

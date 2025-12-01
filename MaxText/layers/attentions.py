@@ -41,6 +41,7 @@ from layers import accelerator
 from layers import normalizations
 from layers import kv_shift
 from layers import head_pool
+from layers import dynamic_temperature
 
 import maxtext_utils
 import max_logging
@@ -1516,6 +1517,11 @@ class Attention(nn.Module):
       query, key, value, o_out, ow = self.head_pool(inputs_q, query, key, value, inputs_m=hidden_states, ffn_act=ffn_act)
 
     query, key = dc.QKNorm(self.config, name='qk_norm')(query, key) # lsp
+
+    # dynamic temperature for q 
+    if self.config.use_dynamic_attn_temp:
+      dynamic_attn_temperature = dynamic_temperature.DynamicAttnTemperature(config=self.config, mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init)
+      query = dynamic_attn_temperature(query, inputs_q)
 
     # apply ROPE
     if not self.use_alibi:

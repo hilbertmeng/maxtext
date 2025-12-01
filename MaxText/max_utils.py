@@ -888,8 +888,9 @@ def create_learning_rate_schedule(config):
   cos_final_lr = lr * config.cosine_learning_rate_final_fraction
 
   schedule_len = config.learning_rate_schedule_steps
+  init_blank_steps = config.init_blank_steps if config.init_blank_steps is not None else 0
   warmup_steps = int(schedule_len * config.warmup_steps_fraction)
-  remaining_after_warmup = max(schedule_len - warmup_steps, 0)
+  remaining_after_warmup = max(schedule_len - warmup_steps - init_blank_steps, 0)
 
   # Detect WSD schedule type (default to 'cosine' for backward compatibility)
   lr_schedule_type = getattr(config, "lr_schedule_type", "cosine")
@@ -929,8 +930,12 @@ def create_learning_rate_schedule(config):
   cos_schedule = make_cos_schedule(lr, cos_final_lr, max(cos_steps, 1))
   constant_schedule = optax.constant_schedule(0.0)
 
-  pieces = [warmup_schedule, cos_schedule]
-  boundaries = [warmup_steps, warmup_steps + cos_steps]
+  if init_blank_steps > 0:
+    pieces = [constant_schedule, warmup_schedule, cos_schedule]
+    boundaries = [init_blank_steps, init_blank_steps + warmup_steps, init_blank_steps + warmup_steps + cos_steps]
+  else:
+    pieces = [warmup_schedule, cos_schedule]
+    boundaries = [warmup_steps, warmup_steps + cos_steps]
 
   if constant_zero_steps > 0:
     pieces.append(constant_schedule)

@@ -130,7 +130,14 @@ class Mlp(nn.Module):
     cfg = self.config
     mesh = self.mesh
     dyn_dense_w = None
-    if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn:
+    query_layers = list(range(cfg.num_decoder_layers))
+    if self.config.mudd_query_dilation is not None:
+      if self.config.mudd_comp_last_layer:
+        query_layers = query_layers[::self.config.mudd_query_dilation] + query_layers[-1:]
+      else:
+        query_layers = query_layers[self.config.mudd_query_dilation-1:][::self.config.mudd_query_dilation]
+      print(f'query_layers: {query_layers}')
+    if cfg.dynamic_dense_type == 'qkvm' and cfg.dense_conn and self.layer_inx in query_layers:
       x_out_normed = self.pre_dense_proj1_norm(layer_output)
       dense_w_inner = self.dense_activation(self.dense_proj1(x_out_normed))
       dyn_dense_kernel_out = self.dense_proj2(dense_w_inner)
@@ -187,7 +194,7 @@ class Compose(nn.Module):
     cfg = self.config
     layer_expansion = 1 if not self.config.mudd_comp_attn else 2
 
-    if self.config.record_internal_nn_metrics:
+    if self.config.record_internal_nn_metrics and dyn_dense_w is not None:
         _dyn_dense_w = dyn_dense_w.astype(jnp.float32)
         self.sow('intermediates', f'dyn_dense_w/max/layer_{layer_inx}', jnp.max(_dyn_dense_w))
         self.sow('intermediates', f'dyn_dense_w/mean/layer_{layer_inx}', jnp.mean(_dyn_dense_w))
@@ -203,6 +210,9 @@ class Compose(nn.Module):
 
     y_normed = normalizations.get_rmsnorm(name=f"mudd_prenorm_{layer_inx}", cfg=cfg)(y) if cfg.mudd_prenorm else y
     hids.append(y_normed)
+    if dyn_dense_w is None:
+      max_logging.log(f'Compose dyn_dense_w is None')
+      return y, hids
     num_skip_layers = 0 if self.config.skip_layers is None else ( 0 if self.config.skip_layers[self.pat_idx] is None else len(self.config.skip_layers[self.pat_idx])) 
     C = 1 if cfg.dynamic_dense_fix_last_layer and layer_inx == cfg.num_decoder_layers - 1 - num_skip_layers else len(cfg.dynamic_dense_type)
     max_logging.log(f'Compose dyn_dense_w: {dyn_dense_w.shape} layer_inx: {layer_inx}', debug=self.config.debug)

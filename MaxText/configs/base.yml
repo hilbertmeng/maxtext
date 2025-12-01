@@ -648,3 +648,4 @@ eval_model_step: -1 # evaluate certain step checkpoint, if -1, auto select lates
 tensorboard_dir: ''
 upload_param_act_tb_period: 25 # upload param, activation to tensorboard interval steps
 upload_loss_tb_period: 5 # # upload loss,acc,lr etc. to tensorboard interval steps
+save_config: True # save config to GCS in {base_output_directory}/{run_name}/

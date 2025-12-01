@@ -19,6 +19,7 @@ limitations under the License.
 # pylint: disable=no-name-in-module
 
 import jax
+import math
 from flax import linen as nn
 from jax.sharding import Mesh
 import jax.numpy as jnp
@@ -162,7 +163,11 @@ class SubDecoderLayer(nn.Module):
     raw_inputs = inputs
 
     if cfg.dense_conn and cfg.dynamic_dense_type == 'qkvm': # lsp
-      lnx, *lnx_kv = self.mudd_qkvnorm(inputs[:3])
+      if cfg.sep_norm_for_pat:
+        mudd_qkvnorm = mudd.Norm(self.config, self.mesh, self.quant, name=f'mudd_qkvnorm_{pat_idx}')
+      else:
+        mudd_qkvnorm = self.mudd_qkvnorm
+      lnx, *lnx_kv = mudd_qkvnorm(inputs[:3])
       inputs = inputs[3]
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
@@ -273,7 +278,7 @@ class SubDecoderLayer(nn.Module):
         reshape_q=cfg.reshape_q,
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
-        kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+        kernel_init=initializers.nd_dense_init_normal(0.006) if not cfg.neox_init else initializers.nd_dense_init_normal(math.sqrt(2/(5*cfg.emb_dim))), # lsp
         sliding_window_size=self.sliding_window_size,
         layer_inx=self.layer_inx,
         use_kv_shift=cfg.use_kv_shift,
@@ -405,10 +410,11 @@ class SubDecoderLayer(nn.Module):
     else:
       mlp_inputs = intermediate_inputs
     # Fully Connected
+    ffn_norm_name = f'post_self_attention_layer_norm_{pat_idx}' if cfg.sep_norm_for_pat else 'post_self_attention_layer_norm'
     hidden_states = norm_class(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
-        name="post_self_attention_layer_norm",
+        name=ffn_norm_name,
         # kernel_axes=("norm",),
         kernel_axes=("embed",),
         epsilon=cfg.normalization_layer_epsilon,
@@ -435,7 +441,7 @@ class SubDecoderLayer(nn.Module):
           config=cfg,
           quant=self.quant,
           use_bias=cfg.use_bias,
-          kernel_init=initializers.nd_dense_init_normal(0.006), # lsp
+          kernel_init=initializers.nd_dense_init_normal(0.006) if not cfg.neox_init else initializers.nd_dense_init_normal(1 / (self.layer_inx+1) / math.sqrt(cfg.emb_dim)), # lsp
       )(hidden_states, deterministic=deterministic, layer_inx=None if self.config.lora_layers is not None and layer_inx not in self.config.lora_layers else layer_inx) # layer_inx filtered by lora_layers: None for non-lora layers
       if cfg.mlp_postnorm:
         lnx_rms = norm_class(

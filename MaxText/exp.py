@@ -171,6 +171,164 @@ class Llama2MediumBase(Llama2Medium):
     query_chunk_size=512
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/"
 
+class Llama2MediumBaseDT(Llama2MediumBase):
+    use_dynamic_temp = True
+    scan_layers = False
+    record_internal_nn_metrics = 0
+
+class Llama2MediumBaseDTHighTemp(Llama2MediumBaseDT):
+    dynamic_high_temp = True  # dt + 1
+
+class Llama2MediumBaseQKNorm(Llama2MediumBase):
+    qk_norm = True
+    scan_layers = False
+    record_internal_nn_metrics = 0
+
+class Llama2MediumBaseQKNormAttnTempFix2(Llama2MediumBaseQKNorm):
+    use_dynamic_attn_temp = True
+
+class Llama2MediumBaseFFNshift(Llama2MediumBase):
+    use_ffn_shift = True
+    scan_layers = False
+    record_internal_nn_metrics = 0
+
+class DC3Llama2MediumBase(DC3, LGWindow, Llama2MediumBase):
+    scan_layers = False
+    record_internal_nn_metrics = 0
+
+class DC3Llama2MediumBaseDgate(DC3Llama2MediumBase):
+    dc_dd_as_gate = True
+
+class Llama2MediumBase2M(Llama2MediumBase): # reproduce 410M baseline in Stacking your transformers 
+    per_device_batch_size = 64 # 2M tokens, v5p-32 
+    learning_rate_schedule_steps = 300000 # 3M steps, 600B tokens
+    learning_rate = 6e-4 #
+    scan_layers = False
+    record_internal_nn_metrics = 0
+
+class Llama2MediumBase2MNeox(Llama2MediumBase2M):
+    neox_init = True
+
+class Llama2MediumBase2M6L(Llama2MediumBase2M): 
+    base_num_decoder_layers = 6
+    learning_rate = 1e-3
+    # keep_period = 1000 # 10B tokens / 2M tokens = 5k steps
+
+class Llama2MediumBase2M6LNeox(Llama2MediumBase2M6L):
+    neox_init = True
+
+class Llama2MediumBase2MGrowth5k(Llama2MediumBase2M): # growth from 6 to 24 layers, based on Llama2MediumBase2M6L, discard optimizer state
+    pass 
+
+class Llama2MediumBase2MGrowth5kNeox(Llama2MediumBase2MNeox): # growth from 6 to 24 layers, based on Llama2MediumBase2M6LNeox, discard optimizer state
+    pass
+
+class Llama2MediumBaseL6(Llama2MediumBase):
+    base_num_decoder_layers = 6
+    scan_layers = False
+    record_internal_nn_metrics = 0
+
+class Llama2MediumBaseL6Tokens5X(Llama2MediumBaseL6):
+    learning_rate_schedule_steps = int(13500 * 5)
+    eval_interval = int(13500 * 5)
+
+class Llama2MediumBaseL12Tokens5X(Llama2MediumBaseL6):
+    base_num_decoder_layers = 12
+    learning_rate_schedule_steps = int(13500 * 5)
+    eval_interval = int(13500 * 5)
+
+class Llama2MediumBaseL12Tokens5XInterval100(Llama2MediumBaseL12Tokens5X):
+    keep_period = 100
+    checkpoint_period = 100
+
+class Llama2MediumBaseTokens5XGrowthSteps1kF2(Llama2MediumBaseL12Tokens5X): # growth from 12 to 24 layers, based on Llama2MediumBaseL12Tokens5X, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseTokens5XGrowthSteps3kF2(Llama2MediumBaseL12Tokens5X): # growth from 12 to 24 layers, based on Llama2MediumBaseL12Tokens5X, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseTokens5XGrowthSteps0p2kF2(Llama2MediumBaseL6Tokens5X): # growth from 6 to 24 layers, based on Llama2MediumBaseL6Tokens5XInterval100, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseTokens5XGrowthSteps0p5kF2(Llama2MediumBaseL6Tokens5X): # growth from 6 to 24 layers, based on Llama2MediumBaseL6Tokens5XInterval100, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseTokens5XGrowthSteps2kF2(Llama2MediumBaseL6Tokens5X): # growth from 6 to 24 layers, based on Llama2MediumBaseL6Tokens5XInterval100, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseTokens5XGrowthSteps1k(Llama2MediumBaseL6Tokens5X): # growth from 6 to 24 layers, based on Llama2MediumBaseL6Tokens5X, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseTokens5XGrowthSteps3k(Llama2MediumBaseL6Tokens5X): # growth from 6 to 24 layers, based on Llama2MediumBaseL6Tokens5X, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseTokens5XGrowthSteps5k(Llama2MediumBaseL6Tokens5X): # growth from 6 to 24 layers, based on Llama2MediumBaseL6Tokens5X, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseTokens5XGrowthSteps7k(Llama2MediumBaseL6Tokens5X): # growth from 6 to 24 layers, based on Llama2MediumBaseL6Tokens5X, keep all training states and optimizer states
+    base_num_decoder_layers = 24 
+
+class Llama2MediumBaseL6WSDLr1e3(Llama2MediumBaseL6):
+    lr_schedule_type = 'wsd'
+    stable_steps_fraction = 0.89
+    learning_rate_schedule_steps = int(13500) # 
+    eval_interval = int(13500)
+    learning_rate = 1e-3
+    steps = -1 
+
+class Llama2MediumBaseL6WSDLr1e3Interval100(Llama2MediumBaseL6WSDLr1e3):
+    keep_period = 100
+    checkpoint_period = 100
+
+class Llama2MediumBase5xTokens(Llama2MediumBase): # growth from 6 to 24 layers, based on Llama2MediumBaseL6
+    scan_layers = False
+    record_internal_nn_metrics = 0
+    learning_rate_schedule_steps = int(13500 * 5)
+    eval_interval = int(13500 * 5)
+
+class DC3MuddLlama2MediumBase5xTokens(Mudd, DC3, LGWindow, Llama2MediumBase5xTokens):
+    dynamic_mlp_dim = False
+
+class DC3MuddLlama2MediumBase5xTokensGrowth1k(DC3MuddLlama2MediumBase5xTokens): # growth from 12 to 24 layers, based on DC3MuddLlama2MediumBase5xTokensL12
+    pass
+
+class DC3MuddLlama2MediumBase5xTokensGrowth2k(DC3MuddLlama2MediumBase5xTokens): # growth from 12 to 24 layers, based on DC3MuddLlama2MediumBase5xTokensL12
+    pass
+
+class DC3MuddLlama2MediumBase5xTokensL12(DC3MuddLlama2MediumBase5xTokens):
+    base_num_decoder_layers = 12 
+
+class Llama2MediumBaseGrowth5xTokens(Llama2MediumBase): # growth from 6 to 24 layers, based on Llama2MediumBaseL6
+    scan_layers = False
+    record_internal_nn_metrics = 0
+    init_blank_steps = 13500 # continue training from 13500 steps, warmup and cosine decay
+    learning_rate_schedule_steps = int(13500 * 5)
+    eval_interval = int(13500 * 5)
+
+class Llama2MediumBaseGrowth5xTokensDisOpt(Llama2MediumBaseGrowth5xTokens): # discard optimizer state
+    init_blank_steps = 0
+
+class Llama2MediumBaseGrowth5xTokensDisOptBaseLr1e3Step7k(Llama2MediumBaseGrowth5xTokens): # discard optimizer state based on Llama2MediumBaseL6WSDLr1e3
+    init_blank_steps = 0
+
+class Llama2MediumBaseGrowth5xTokensDisOptBaseLr1e3Step4k(Llama2MediumBaseGrowth5xTokens): # discard optimizer state based on Llama2MediumBaseL6WSDLr1e3
+    init_blank_steps = 0
+
+class Llama2MediumBaseGrowth5xTokensDisOptBaseLr1e3Step1k(Llama2MediumBaseGrowth5xTokens): # discard optimizer state based on Llama2MediumBaseL6WSDLr1e3
+    init_blank_steps = 0
+
+class Llama2MediumBaseGrowth5xTokensDisOptBaseLr1e3Step0p5k(Llama2MediumBaseGrowth5xTokens): # discard optimizer state based on Llama2MediumBaseL6WSDLr1e3
+    init_blank_steps = 0
+
+class Llama2MediumBaseGrowth5xTokensDisOptBaseLr1e3Step0p2k(Llama2MediumBaseGrowth5xTokens): # discard optimizer state based on Llama2MediumBaseL6WSDLr1e3
+    init_blank_steps = 0
+
+class Llama2MediumBaseGrowth5xTokensDisOptBaseLr1e3Step0p8k(Llama2MediumBaseGrowth5xTokens): # discard optimizer state based on Llama2MediumBaseL6WSDLr1e3
+    init_blank_steps = 0
+
+class Llama2MediumBaseGrowth5xTokensDisOptBaseLr1e3Step10k(Llama2MediumBaseGrowth5xTokens): # discard optimizer state based on Llama2MediumBaseL6WSDLr1e3
+    init_blank_steps = 0
+
 class Llama2MediumBaseModSparseGate(Llama2MediumBase): 
     mod_sparse_gate = True  
     sparse_loss_weight = 1
@@ -812,6 +970,9 @@ class DC2MuddLlamaMedium24LSandwichAAABStochP0825xTokensAdapter(DC2MuddLlamaMedi
     eval_interval = int(13500 * 0.5 * 5)
     steps = -1 
     use_rins_linear_adapters = True
+
+class DC2MuddLlamaMedium24LSandwichAAABStochP0825xTokensAdapterSepNorm(DC2MuddLlamaMedium24LSandwichAAABStochP0825xTokensAdapter):
+    sep_norm_for_pat = True # individual attn norm and ffn norm for each pattern
 
 class DC2MuddLlamaMedium24LSandwichAAABStochP0825xTokensAdapterSepQProjFix(DC2MuddLlamaMedium24LSandwichAAABStochP0825xTokensAdapter):
     seperate_q_proj = True

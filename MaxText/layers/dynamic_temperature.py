@@ -29,6 +29,7 @@ class DynamicTemperature(nn.Module):
                 "dtype": cfg.dtype,
                 "weight_dtype": cfg.weight_dtype,
                 "epsilon": cfg.normalization_layer_epsilon,
+                "scale_init": None,
                 }
     self.dt_prenorm = normalizations.get_rmsnorm(name="dt_prenorm", **norm_kwargs)
     self.dt_postnorm = normalizations.get_rmsnorm(name="dt_postnorm", **norm_kwargs)
@@ -63,8 +64,47 @@ class DynamicTemperature(nn.Module):
       normed_hid, # BTD after last norm
   ):
     dt = self.dt_down_proj(jax.nn.gelu(self.dt_up_proj(self.dt_prenorm(hid))))
+    if self.config.dynamic_high_temp:
+      dt = dt + 1
     if self.dt_tanh:
       out = normed_hid + jnp.tanh(normed_hid * dt * self.alpha) * self.gamma
     else:
       out = normed_hid + self.dt_postnorm(normed_hid * dt)
     return out
+
+
+class DynamicAttnTemperature(nn.Module):
+  config: Any
+  mesh: Mesh
+  quant: Optional[Quant] = None
+  kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+  
+  def setup(self):
+    cfg = self.config
+    norm_kwargs = {
+                "dtype": cfg.dtype,
+                "weight_dtype": cfg.weight_dtype,
+                "epsilon": cfg.normalization_layer_epsilon,
+                "scale_init": None,
+                }
+    self.dt_postnorm = normalizations.get_rmsnorm(name="dt_postnorm", **norm_kwargs)
+
+    kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
+    self.dt_proj = linears.DenseGeneral(
+                                      (self.config.num_query_heads,),
+                                      kernel_init=initializers.contant_dense_init(0.0),
+                                      kernel_axes=('embed', None),
+                                      use_bias=True,
+                                      name='dt_proj',
+                                      **kwargs)
+
+  @nn.compact
+  def __call__(
+      self,
+      query,
+      hidden_states, # 
+  ):
+    dt = self.dt_proj(hidden_states)[..., None] # BTD, DN-> BTN1
+    query = query + self.dt_postnorm(query * dt)
+    query = query / 2
+    return query

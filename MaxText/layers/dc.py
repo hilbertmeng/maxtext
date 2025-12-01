@@ -247,6 +247,7 @@ class CrossHeadProjection(nn.Module):
   dynamic_w_hidden_dim: int = None # medium: 64
   loop_over_dynamic_hd: bool = True
   decompose_dynamic_w: bool = True
+  dc_dd_as_gate: bool = False
 
   def setup(self) -> None:
     self.num_heads_per_group = self.num_heads // self.num_groups
@@ -372,8 +373,12 @@ class CrossHeadProjection(nn.Module):
         if sym == 'T' and self.query_wise or sym == 'S' and self.key_wise or \
               not self.query_wise and not self.key_wise:
           # 'BGMTS', B(T/S)GM
-          dout = jnp.einsum(f'{inputs_label},{dd_label}->{inputs_label}', inputs, dd)
-          ret = ret + dout
+          if self.dc_dd_as_gate:
+            assert kdd is None
+            ret = jnp.einsum(f'{inputs_label},{dd_label}->{inputs_label}', ret, dd+1)
+          else:
+            dout = jnp.einsum(f'{inputs_label},{dd_label}->{inputs_label}', inputs, dd)
+            ret = ret + dout
     return jnp.reshape(ret, shape)  # BGMTS->BNTS
 
 
@@ -476,6 +481,7 @@ class AttentionOp(nn.Module):
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
         loop_over_dynamic_hd=self.loop_over_dynamic_hd,
         squeeze_ratio=self.config.sw_squeeze_ratio,
+        dc_dd_as_gate=self.config.dc_dd_as_gate,
         )
 
       self.post_proj = CrossHeadProjection(
@@ -492,6 +498,7 @@ class AttentionOp(nn.Module):
         dynamic_w_hidden_dim=dynamic_w_hidden_dim,
         loop_over_dynamic_hd=self.loop_over_dynamic_hd,
         squeeze_ratio=self.config.sw_squeeze_ratio,
+        dc_dd_as_gate=self.config.dc_dd_as_gate,
         )
 
   @nn.compact

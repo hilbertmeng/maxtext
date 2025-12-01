@@ -410,14 +410,16 @@ class _HyperParameters:
     # lsp
     config_name = 'train.config.txt' if not raw_keys['only_eval'] else 'only_eval.config.txt'
     config_path = epath.Path(os.path.join(raw_keys["base_output_directory"], raw_keys["run_name"], config_name))
-    if config_path.exists():
-      max_logging.log(f'config_path: {config_path} has existed!!!, it would be overwrited......')
-    else:
-      max_logging.log(f'config_path: {config_path} do not existed, now start to create.....')
-    with config_path.open('w') as f:
-      for k in keys:
-        s = f'{k}: {raw_keys[k]}\n'
-        f.write(s)
+    print('save_config: ', raw_keys.get('save_config', True), type(raw_keys.get('save_config', True)))
+    if raw_keys.get('save_config', True):
+      if config_path.exists():
+        max_logging.log(f'config_path: {config_path} has existed!!!, it would be overwrited......')
+      else:
+        max_logging.log(f'config_path: {config_path} do not existed, now start to create.....')
+      with config_path.open('w') as f:
+        for k in keys:
+          s = f'{k}: {raw_keys[k]}\n'
+          f.write(s)
         
   @staticmethod
   def user_init(raw_keys):

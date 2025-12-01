@@ -286,6 +286,34 @@ class ValueResidual(nn.Module):
     return value 
 
 
+class FFNshift(nn.Module):
+  config: Any
+  # mesh: Mesh
+  quant: Optional[Quant] = None
+  # kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+  
+  def setup(self):
+    cfg = self.config
+    
+    kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant) 
+    self.dw_proj = linears.DenseGeneral(
+                                  (1,), # DN
+                                  kernel_init=initializers.contant_dense_init(0.0),
+                                  kernel_axes=('embed', None),
+                                  use_bias=True,
+                                  name='ffn_shift',
+                                  **kwargs)
+
+  @nn.compact
+  def __call__(
+      self,
+      ffn_hidden, # BTK
+      ffn_inputs, # hidden states BTD
+  ):
+    gate = jax.nn.sigmoid(self.dw_proj(ffn_inputs)) # BTD, D1->BT1
+    ffn_hidden = (1-gate) * ffn_hidden + gate * shift_1d(ffn_hidden, offset=1, axis=1) # BTK
+    return ffn_hidden 
+
 class KVshiftVR(nn.Module):
   config: Any
   mesh: Mesh

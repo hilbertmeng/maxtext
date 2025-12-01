@@ -36,6 +36,7 @@ import max_utils
 from aqt.jax.v2 import aqt_tensor
 from kernels import megablox as mblx
 # from layers.take_kernel import my_take, my_take_sum 
+from layers.kv_shift import FFNshift
 
 
 Array = common_types.Array
@@ -288,13 +289,14 @@ class MlpBlock(nn.Module):
 
     # Iterate over specified MLP input activation functions.
     # e.g. ('relu',) or ('gelu', 'linear') for gated-gelu.
+    input_kernel_init = self.kernel_init if not cfg.neox_init else initializers.nd_dense_init_normal(math.sqrt(2/(5*cfg.emb_dim))) # lsp
     activations = []
     if cfg.fused_mlp:
       x = DenseGeneral(
           (len(self.activations), self.intermediate_dim),
           dtype=self.dtype,
           weight_dtype=self.weight_dtype,
-          kernel_init=self.kernel_init,
+          kernel_init=input_kernel_init,
           kernel_axes=("embed", "num_activations", "mlp"),
           name="wi",
           quant=self.quant,
@@ -313,7 +315,7 @@ class MlpBlock(nn.Module):
             self.intermediate_dim,
             dtype=self.dtype,
             weight_dtype=self.weight_dtype,
-            kernel_init=self.kernel_init,
+            kernel_init=input_kernel_init,
             kernel_axes=("embed", "mlp"),
             name=dense_name,
             quant=self.quant,
@@ -335,6 +337,13 @@ class MlpBlock(nn.Module):
         x, deterministic=deterministic
     )  # Broadcast along length.
     x = nn.with_logical_constraint(x, ("activation_batch", "activation_length", "activation_mlp"))
+
+    # FFN shift hidden state
+    if self.config.use_ffn_shift:
+      x = FFNshift(config=self.config,
+                  quant=self.quant,
+                  name='ffn_shift',
+                )(x, inputs)  
 
     # lsp mgate
     x = Mgate(config=self.config,

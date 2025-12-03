@@ -346,6 +346,7 @@ def extract_v3p5_data_files(dataset_path, eval_split):
     print(f'valid_files: {valid_files}')
     return train_files, valid_files
 
+
 def extract_v3p5mini_data_files_qwen(dataset_path, eval_split, train_stage):
 
     random.seed(9876)
@@ -467,55 +468,38 @@ def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
     return train_files, valid_files
 
 
-def extract_role_play_instruct_data(dataset_paths, eval_split):
+def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
     random.seed(9876)
     client = storage.Client()
-    print(f'dataset_paths0: {dataset_paths}')
-    dataset_paths = dataset_paths.split('@')
-    print(f'dataset_paths1: {dataset_paths}')
-    print(f'Dataset from {len(dataset_paths)} source')
+    path = dataset_path.replace('gs://', '')
+    path_parts = path.split('/')
+    bucket_name = path_parts[0]
+    directory_path = '/'.join(path_parts[1:])
+    directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
+    print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
     total_train_files, total_valid_files = [], []
-    for dataset_path in dataset_paths:
-        path = dataset_path.replace('gs://', '')
-        path_parts = path.split('/')
-        bucket_name = path_parts[0]
-        directory_path = '/'.join(path_parts[1:])
-        directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
-        train_files, valid_files = [], []
-        for blob in client.list_blobs(bucket_name, prefix=directory_path):
-            path = f'gs://{os.path.join(bucket_name, blob.name)}'
-            if eval_split in path:
-                valid_files.append(path)
+    train_files = defaultdict(list)
+    for blob in client.list_blobs(bucket_name, prefix=directory_path):
+        path = f'gs://{os.path.join(bucket_name, blob.name)}'
+        if 'packed' in path or '4k' in path:
+            if 'dclm' in path: # 已经是1/10数据了
+                total_train_files.append(path)
             else:
-                train_files.append(path)
-         # 中文小说总共15万 取0.3
-        if 'zh_data_Qwen' in dataset_path:
-            train_files = random.sample(train_files, k=int(len(train_files) * 0.15))
-            if not valid_files:
-                valid_files = train_files[ :2]
-            train_files = train_files[2: ]
-        # 英文小说总共45万 取0.1
-        elif 'en_data_Qwen' in dataset_path:
-            train_files = random.sample(train_files, k=int(len(train_files) * 0.05))
-            if not valid_files:
-                valid_files = train_files[ :1]
-            train_files = train_files[1: ]
+                train_files['4k_or_obfd_packed'].append(path) # 全量数据，因此之后需要shuffle 1/10数据
+    
+    for name, pathes in train_files.items():
+        random.shuffle(pathes)
+        sample_pathes = pathes[:len(pathes) // 10]
 
-        elif 'processed_general_1016_v2' in dataset_path:
-            if not valid_files:
-                valid_files = train_files[ :1]
-            train_files = train_files[1: ]
-        
-        print(f'dataset_path: {dataset_path} train nums: {len(train_files)} valid nums: {len(valid_files)} valid files: {valid_files}')
+        total_train_files.extend(sample_pathes) # add 1/10 data into total_train_files
+        total_valid_files.append(pathes[-1]) # add last file as valid_files
 
-        total_train_files.extend(train_files)
-        total_valid_files.extend(valid_files)
     random.shuffle(total_train_files)
-    random.seed(9875) # 文件多次shuffle，让文件之间shuffle更彻底
-    random.shuffle(total_train_files)
-    print(f'Total train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
-    print(f'First 10 train files: {total_train_files[:20]}')
-    print(f'Total valid files: {total_valid_files}')
+    random.shuffle(total_valid_files) # 不要dclm的验证集
+
+    print(f'Train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
+    print(f'first 10 train files: {total_train_files[:10]}')
+    print(f'valid_files: {total_valid_files}')
     return total_train_files, total_valid_files
 
 

@@ -653,6 +653,7 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLDa
     global_attn_head_dim = 128
     base_num_kv_heads = [base_num_query_heads, 4, base_num_query_heads, base_num_query_heads]
     attention = 'flash'
+    learning_rate = 4e-4 # olmo2-1B learning rate 2e-4, batch size 512
 
 class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
     base_emb_dim = 1024

@@ -54,6 +54,7 @@ class MultiTokenPredictionLayer(nn.Module):
   layer_number: int
   transformer_layer_module: None
   sliding_window_size: int
+  mtp_de: jnp.ndarray
 
   def setup(self):
     cfg = self.config
@@ -103,10 +104,16 @@ class MultiTokenPredictionLayer(nn.Module):
         _dot_general=dot_general_int8.__call__ 
         if cfg.quantization == 'int8' and cfg.mtp_head_int8 else jax.lax.dot_general
         )
+    if self.mtp_de is not None:
+      d1 = 32 if cfg.mlp_dim < 4096 else 64
+      d2 = cfg.mlp_dim // d1
+      mtp_de = self.mtp_de.reshape(*projected_features.shape[:2], d1, d2)
+    else:
+      mtp_de = None
 
     if cfg.dense_conn and cfg.partial_scan_layers:
       projected_features = [projected_features] * len(cfg.dynamic_dense_type)
-
+    
     y, _ = self.transformer_layer_module(
         config=cfg, mesh=mesh, quant=self.quant, scan_length=2, # scan_length set >1 means no compose before layer
         sliding_window_size=self.sliding_window_size,
@@ -115,7 +122,7 @@ class MultiTokenPredictionLayer(nn.Module):
           decoder_segment_ids,
           position_ids,
           rolled_input_ids,
-          None,
+          mtp_de,
           deterministic,
           model_mode,
           hids=None, # mtp compose after layer
@@ -180,7 +187,7 @@ class MultiTokenPredictionBlock(nn.Module):
     #   rolled_position_id = roll_and_mask(rolled_position_id)
 
       # Embed the k-th future input tokens using the shared embedding module
-      target_token_embedding = self.shared_embedding(rolled_input_ids)
+      target_token_embedding, mtp_de = self.shared_embedding
       if cfg.mtp_use_remat:
         RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
             MultiTokenPredictionLayer,
@@ -202,6 +209,7 @@ class MultiTokenPredictionBlock(nn.Module):
           # lsp: Should get prev token's history status in unmtp layers when use mudd, because cur token no history status.
           # but in mtp layers, should get current token's history status. in fact, we can get the position correspond to generated token directly.
           transformer_layer_module=self.transformer_layer_module,
+          mtp_de=mtp_de,
       )
       next_mtp_hidden_state, hids = mtp_layer(
           mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids, rolled_input_ids

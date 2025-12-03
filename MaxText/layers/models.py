@@ -535,6 +535,11 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
+    y, mtp_de = jnp.split(y, [cfg.emb_dim], axis=-1)
+    print(f'mtp_de: {mtp_de}')
+    # mtp need to roll_input_ids embedding, it can reduce 12ms time to extract in here.
+    rolled_y = jnp.pad(y[:, 1:], ((0, 0), (0, 1), (0, 0)), mode='constant', constant_values=0)
+
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
 
@@ -667,11 +672,11 @@ class Decoder(nn.Module):
           scan_start = lyr
           scan_length = 1
           # L, G, L, LL, G, L, LL
-          if lyr > 0 and swss[lyr - 1] != current_sws:
-            scan_length = 1
-          else:
-            while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
-              scan_length += 1
+          # if lyr > 0 and swss[lyr - 1] != current_sws:
+          #   scan_length = 1
+          # else:
+          while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
+            scan_length += 1
 
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
@@ -703,6 +708,22 @@ class Decoder(nn.Module):
                 hids,
                 eos_sum=eos_sum,
             )
+            # y, hids = RemattedBlockLayers[0](
+            #   config=cfg, 
+            #   mesh=mesh, 
+            #   name=f"layers_{lyr}", 
+            #   quant=self.quant, 
+            #   sliding_window_size=current_sws)(
+            #     y,
+            #     decoder_segment_ids,
+            #     decoder_positions,
+            #     decoder_input_tokens,
+            #     de,
+            #     deterministic,
+            #     model_mode,
+            #     eos_sum=eos_sum,
+            #     hids=hids,
+            # )
             lyr += 1
 
           else:
@@ -741,9 +762,9 @@ class Decoder(nn.Module):
           
             lyr += scan_length
 
-          if scan_length == 1: # scan output no compose
-            y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
-            hids.append(y) # 可以考虑不添加scan的输出。
+          # if scan_length == 1: # scan output no compose
+          y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
+          hids.append(y) # 可以考虑不添加scan的输出。
 
       else:
         if cfg.decoder_block == "deepseek":
@@ -828,7 +849,7 @@ class Decoder(nn.Module):
         quant=self.quant,
         name="mtp_block",
         transformer_layer_module=self.decoder_layer[0] if cfg.mtp_use_remat else RemattedBlockLayers[0],
-        shared_embedding=self.shared_embedding,
+        shared_embedding=[rolled_y, mtp_de],
         sliding_window_size=swss[-1],
       )(
         OutputHeadLayer,
@@ -881,9 +902,14 @@ class Transformer(nn.Module):
         raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')
      
     max_logging.log(f'deep_embed_init: {cfg.deep_embed_init} de_dim: {de_dim}', debug=cfg.debug)
+    if cfg.mtp_num_layers > 0: # mtp de 和 word emb 一起是最快的，mtp de 和普通层放一起第二，word emb和mtp和普通层放一起最慢
+      emb_dim = cfg.emb_dim + de_dim // cfg.num_decoder_layers
+    else:
+      emb_dim = cfg.emb_dim
+
     self.shared_embedding = Embed(
         num_embeddings=cfg.vocab_size,
-        features=cfg.emb_dim,
+        features=emb_dim,
         dtype=cfg.dtype,
         attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,  # for logit training stability
         embedding_init=initializers.get_init_method(cfg.init_method), # lsp

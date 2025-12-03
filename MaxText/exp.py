@@ -661,10 +661,50 @@ class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400
     base_mlp_dim = 1920
     base_num_decoder_layers = 31
 
-class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
+class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128): # medium v4.5 baseline model
     base_num_decoder_layers = 32
     mtp_num_layers = 0
     partial_scan_layers = True
+
+class MuonDEDcMuddKVshiftV4p5MediumH128BS32(MuonDEDcMuddKVshiftV4p5MediumH128):
+    dynamic_mlp_dim = False # 0.367 steps/s
+    per_device_batch_size = 32
+    deep_embed_init = "outside"
+    record_internal_nn_metrics = False
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
+
+class MuonDEDcMuddKVshiftV4p5MediumH128BS32EFLayers8(MuonDEDcMuddKVshiftV4p5MediumH128BS32):
+    deep_embed_effective_layers = 8
+
+class MuonDEDcMuddKVshiftV4p5MediumH128BS32ExtraEmb8X(MuonDEDcMuddKVshiftV4p5MediumH128BS32):
+    mudd_num_extra_emb = 7 
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoneDE(MuonDEDcMuddKVshiftV4p5MediumH128BS32):
+    deep_embed_type = 'none' # 0.482 steps/s
+    deep_embed_init = 'none' 
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb8X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDE):
+    mudd_num_extra_emb = 7 # 0.450 steps/s
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDE):
+    mudd_num_extra_emb = 15 # 0.417 steps/s
+    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16XD2(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
+    mudd_emb_dilation = 2  # 0.445 steps/s
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb64XD8(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
+    mudd_emb_dilation = 8  # 0.367 steps/s
+    mudd_num_extra_emb = 63
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb64X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
+    mudd_num_extra_emb = 63 # 0.268 steps/s
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb8XPrefixMixCat(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb8X):
+    mudd_num_prefix = 7 # 0.424 steps/s
+    mudd_cat_prefix_emb = True
 
 class MuonDEDcMuddKVshiftV4p5MediumH128GLLL(GLLLWindow, MuonDEDcMuddKVshiftV4p5MediumH128):
     base_num_query_heads = 16

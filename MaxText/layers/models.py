@@ -36,6 +36,7 @@ import re
 import max_utils
 from layers import mtp
 from layers import mudd
+from layers.kv_shift import shift_1d
 
 Array = common_types.Array
 Config = common_types.Config
@@ -59,7 +60,8 @@ def get_deep_embedding(cfg, deep_embedding):
   max_logging.log(f'Use outside DE, deep_embed_type: {cfg.deep_embed_type}', debug=cfg.debug)
   if '4xmlp' in cfg.deep_embed_type:
     assert not cfg.scan_layers, f'dynamic_mlp_dim is not supported with scan_layers'
-    for layer_inx in range(cfg.num_decoder_layers):
+    num_decoder_layers = cfg.num_decoder_layers if cfg.deep_embed_effective_layers is None else cfg.deep_embed_effective_layers
+    for layer_inx in range(num_decoder_layers):
       # updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 if cfg.dynamic_mlp_dim else cfg.mlp_dim
       updated_mlp_dim = cfg.mlp_dim # dynamic_mlp_dim loss higher than static mlp_dim, about 0.003 gap
       d1 = 32 if updated_mlp_dim < 4096 else 64
@@ -68,7 +70,8 @@ def get_deep_embedding(cfg, deep_embedding):
       assert end_idx <= total_de_dim, f'end_idx: {end_idx} > total_de_dim: {total_de_dim}'
       cur_layer_deep_embedding = deep_embedding[..., start_idx: end_idx]
       start_idx += updated_mlp_dim
-      cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*deep_embedding.shape[:2], d1, d2)
+      if cfg.deep_embed_effective_layers is None:
+        cur_layer_deep_embedding = cur_layer_deep_embedding.reshape(*deep_embedding.shape[:2], d1, d2)
       deep_embeddings.append(cur_layer_deep_embedding)
     deep_embeddings = jnp.stack(deep_embeddings, axis=0)
     max_logging.log(f'4xmlp deep_embeddings: {deep_embeddings.shape}', debug=cfg.debug)
@@ -471,7 +474,7 @@ class Decoder(nn.Module):
             nn.broadcast,
             nn.broadcast,
             nn.broadcast,
-            0, # deep_embedding
+            0 if cfg.deep_embed_effective_layers is None else nn.broadcast, # deep_embedding
             nn.broadcast,
             nn.broadcast, # hids
             nn.broadcast, # 关键字参数不在这个范围内
@@ -591,6 +594,31 @@ class Decoder(nn.Module):
           sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
         return sws
       
+      if cfg.mudd_cat_prefix_emb:
+        for i in range(cfg.mudd_num_extra_emb):
+          hids.insert(0, shift_1d(y, offset=i+1, axis=1))
+
+      if cfg.mudd_num_extra_emb is not None:
+        mudd_num_prefix = (cfg.mudd_num_prefix // 128 + 1) * 128 if cfg.mudd_num_prefix is not None else 0 # round to 128 for better shard size
+        mudd_emb = Embed(
+            num_embeddings=cfg.vocab_size,
+            features=cfg.emb_dim * cfg.mudd_num_extra_emb + mudd_num_prefix,
+            dtype=cfg.dtype,
+            attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,
+            embedding_init=initializers.get_init_method(cfg.init_method), # lsp
+            name="mudd_embedder",
+            config=cfg,
+        )
+        extra_embs = mudd_emb(decoder_input_tokens.astype("int32"))
+        if mudd_num_prefix > 0 and not cfg.mudd_cat_prefix_emb:
+          prefix_mix_w = jax.nn.sigmoid(extra_embs[..., -mudd_num_prefix:])
+        for i in range(cfg.mudd_num_extra_emb):
+          extra_emb = extra_embs[:, :, i*cfg.emb_dim:(i+1)*cfg.emb_dim]
+          if mudd_num_prefix > 0 and not cfg.mudd_cat_prefix_emb: 
+            shifted_emb = shift_1d(y, offset=i+1, axis=1)
+            extra_emb = extra_emb * prefix_mix_w[:, :, i:i+1] + shifted_emb * (1 - prefix_mix_w[:, :, i:i+1])
+          hids.insert(0, extra_emb)
+
       if cfg.dense_conn:
         y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
         hids.append(y)
@@ -647,7 +675,14 @@ class Decoder(nn.Module):
 
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
-            de = None if deep_embeddings is None else deep_embeddings[scan_start]
+            if deep_embeddings is None:
+              de = None
+            elif cfg.deep_embed_effective_layers is not None:
+              de = deep_embeddings
+            else:
+              de = deep_embeddings[scan_start][None]
+            de = jnp.stack(de, axis=0) if de is not None and isinstance(de, list) else de
+            max_logging.log(f'de: {de}', debug=cfg.debug)
             # if current_sws != cfg.max_target_length: # local use scan. but globlal no scan.
             y, _ = self.scan_decoder_layers(
                 cfg, 
@@ -662,7 +697,7 @@ class Decoder(nn.Module):
                 decoder_segment_ids,
                 decoder_positions,
                 decoder_input_tokens,
-                de[None], # scan need to add a dimension
+                de, # scan need to add a dimension
                 deterministic,
                 model_mode,
                 hids,
@@ -672,7 +707,12 @@ class Decoder(nn.Module):
 
           else:
             max_logging.log(f'Scanning layers {scan_start} to {scan_start + scan_length - 1} with sws={current_sws}', debug=cfg.debug)
-            de = None if deep_embeddings is None else deep_embeddings[scan_start:scan_start + scan_length]
+            if deep_embeddings is None:
+              de = None
+            elif cfg.deep_embed_effective_layers is not None:
+              de = deep_embeddings
+            else:
+              de = deep_embeddings[scan_start:scan_start + scan_length]    
             de = jnp.stack(de, axis=0) if de is not None and isinstance(de, list) else de
             max_logging.log(f'de: {de}', debug=cfg.debug)
             # outputs: [scan_length, batch, length, emb_dim]
@@ -832,7 +872,10 @@ class Transformer(nn.Module):
       elif '1xmlp' in cfg.deep_embed_type.lower():
         de_dim  += cfg.num_decoder_layers * cfg.emb_dim
       elif '4xmlp' in cfg.deep_embed_type.lower():
-        de_dim +=  cfg.num_decoder_layers * cfg.mlp_dim
+        if cfg.deep_embed_effective_layers is not None:
+          de_dim +=  cfg.deep_embed_effective_layers * cfg.mlp_dim
+        else:
+          de_dim +=  cfg.num_decoder_layers * cfg.mlp_dim
       else:
         # Multi deep embed don't support outside init
         raise ValueError(f'Invalid deep_embed_type: {cfg.deep_embed_type} for outside init')

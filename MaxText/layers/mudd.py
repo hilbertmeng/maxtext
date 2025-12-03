@@ -24,12 +24,19 @@ def l2norm(x: jnp.ndarray) -> jnp.ndarray:
 
 def wsum(w: jnp.ndarray, # CBTL1
          hids: list[jnp.ndarray], # list of BTD
+         mask: Optional[list[bool]] = None,
          ) -> jnp.ndarray:  # CBTD
   C, B, T, L, _ = w.shape
   D = hids[0].shape[-1]
   out = jnp.zeros((C, B, T, D), dtype=hids[0].dtype)
-  for l in range(L): # 每层
-    out += w[..., l, :] * hids[l]
+  idx = 0 
+  if mask is not None:
+    assert len(mask) == len(hids)
+  for hidx in range(len(hids)): # 每层
+    if mask is not None and not mask[hidx]:
+      continue
+    out += w[..., idx, :] * hids[hidx]
+    idx += 1
   return out
 
 
@@ -65,11 +72,17 @@ class Mlp(nn.Module):
       self.pre_dense_proj1_norm = normalizations.get_rmsnorm("pre_dense_proj1_norm", cfg)
     
     hids_length = self.hids_length
+    num_extra_emb = cfg.mudd_num_extra_emb + 1 if cfg.mudd_num_extra_emb is not None else 0
+    num_extra_emb = num_extra_emb + cfg.mudd_num_extra_emb if cfg.mudd_cat_prefix_emb else num_extra_emb
+    is_last_layer = hids_length == num_extra_emb + cfg.num_decoder_layers - 1 + cfg.mtp_num_layers
+
     C = self.C
-    dw_shape = (C, hids_length) # lsp
+    compose_length = hids_length - (cfg.mudd_num_extra_emb + 1)//cfg.mudd_emb_dilation * (cfg.mudd_emb_dilation -1) if cfg.mudd_emb_dilation is not None and not is_last_layer else hids_length
+    dw_shape = (C, compose_length) # lsp
     self.dw_shape = dw_shape
     # lsp
-    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if hids_length == cfg.num_decoder_layers - 1 + cfg.mtp_num_layers else 1
+    
+    dynamic_dense_hidden_expand = len(cfg.dynamic_dense_type) if is_last_layer else 1
     dynamic_dense_inter_dim = int(np.prod(dw_shape) * dynamic_dense_hidden_expand)
 
     if cfg.dynamic_dense_hidden_round:  # default: round to 64 or 128
@@ -133,12 +146,28 @@ class Compose(nn.Module):
   quant: Optional[Quant] = None
   C: int = 4
   compose: bool = False
-          
+
+  def get_compose_mask(self, lidx, cfg, hids_length):
+    if lidx is None or cfg.mudd_emb_dilation is None:
+      return None
+    mask = []
+    for i in range(hids_length):
+      if i < cfg.mudd_num_extra_emb + 1: # prefix embeddings
+        group_idx = lidx % cfg.mudd_emb_dilation
+        if i % cfg.mudd_emb_dilation == group_idx: 
+          mask.append(True)
+        else:
+          mask.append(False)
+      else: # layer outputs
+        mask.append(True)
+    return mask
+    
   @nn.compact
   def __call__(
       self,
       layer_output,
       hids,
+      lidx=None, # if layer index is None, compose all layers
   ):
     cfg = self.config
     
@@ -149,6 +178,7 @@ class Compose(nn.Module):
     if not self.compose:
       return y, hids
 
+    mask = self.get_compose_mask(lidx, cfg, len(hids))
     dyn_dense_w = Mlp(self.config, self.mesh, self.quant, len(hids), name='mlp', C=C)(layer_output)
     if self.config.record_internal_nn_metrics:
       for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
@@ -159,13 +189,13 @@ class Compose(nn.Module):
       post_norm = normalizations.get_rmsnorm("mudd_postnorm", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
       y = tuple(
-        [y + (post_norm(wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0))
+        [y + (post_norm(wsum(dyn_dense_w[cidx: cidx + 1], hids, mask=mask).squeeze(0))
           if cidx == C - 1 else 
-        wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0))
+        wsum(dyn_dense_w[cidx: cidx + 1], hids, mask=mask).squeeze(0))
           for cidx in range(C)])
     else:
         # (btl, btl, btl, btl)
         dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-        y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0) for cidx in range(C)])
+        y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, mask=mask).squeeze(0) for cidx in range(C)])
         
     return y, hids

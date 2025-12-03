@@ -350,6 +350,7 @@ class FusionDecoderLayer(nn.Module):
           )(
             layer_output=inputs, 
             hids=hids,
+            lidx=self.layer_inx,
           )
     # return's inputs length is 1
     inputs = self.layer(
@@ -372,7 +373,8 @@ class FusionDecoderLayer(nn.Module):
         C=C,
         )(
           layer_output=inputs, 
-          hids=hids,
+          hids=hids,  
+          lidx=self.layer_inx,
         )
    
     return inputs, hids
@@ -390,7 +392,7 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
-    if cfg.dense_conn and self.layer_inx > 0 and self.scan_length == 1:
+    if cfg.dense_conn and (self.layer_inx > 0 or self.config.mudd_num_extra_emb is not None) and self.scan_length == 1:  # compose for the first layer when mudd has extra embeddings
       C = 4
       # inputs length: 2 or 4
       inputs, hids = mudd.Compose(
@@ -401,6 +403,7 @@ class FusionDecoderLayer(nn.Module):
         )(
           layer_output=inputs, 
           hids=hids,
+          lidx=self.layer_inx,
         )
             
     # return's inputs length is 1

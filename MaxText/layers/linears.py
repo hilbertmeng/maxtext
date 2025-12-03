@@ -199,9 +199,23 @@ class DeepEmbedBlock(nn.Module):
       self.s2_bias = self.param('s2.bias', s2_bias_kernel_init, (1, self.output_dim), self.weight_dtype)
     max_logging.log(f'[DEshape] s1: {self.s1.shape} s2: {self.s2.shape} s2_bias: {self.s2_bias}', debug=self.config.debug)
 
+    self.l = self.config.deep_embed_effective_layers 
+    if self.config.deep_embed_effective_layers is not None: # dw 
+      self.dw1 = self.param('w1', nn.with_logical_partitioning(self.kernel_init, ('embed', None)), (self.input_dim, self.l), self.weight_dtype) # DL
+      self.dw2 = self.param('w2', nn.with_logical_partitioning(self.kernel_init, (None, None)), (self.l, self.l), self.weight_dtype) # LL
+      self.dw2_bias = self.param('w2.bias', nn.with_logical_partitioning(bias_init, (None,)), (self.l,), self.weight_dtype) # L
+
   @nn.compact
   def __call__(self, inputs, output, decoder_input_tokens, deep_embedding=None):
     cfg = self.config
+
+    if cfg.deep_embed_effective_layers is not None:
+      dw_hidden = jax.nn.gelu(inputs @ self.dw1) # BTD, DL-> BTL
+      dw = dw_hidden @ self.dw2 + self.dw2_bias # BTL, LL-> BTL 
+      # deep_embedding = jax.einsum('LBTD,BTL->BTD', deep_embedding, dw) # LBTD, L1-> BTD
+      deep_embedding = sum([deep_embedding[idx] * dw[..., idx:idx+1] for idx in range(deep_embedding.shape[0])])
+      deep_embedding = deep_embedding.reshape(*output.shape[:2], self.d1, self.d2)
+
     if deep_embedding is None:
       max_logging.log(f'Inside DE, decoder_input_tokens: {decoder_input_tokens.shape}', debug=self.config.debug)
       deep_embedding = embeddings.Embed(

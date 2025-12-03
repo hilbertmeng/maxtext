@@ -104,7 +104,8 @@ class MultiTokenPredictionLayer(nn.Module):
         _dot_general=dot_general_int8.__call__ 
         if cfg.quantization == 'int8' and cfg.mtp_head_int8 else jax.lax.dot_general
         )
-    if self.mtp_de is not None:
+    if self.mtp_de is not None and self.mtp_de.shape[-1] == cfg.mlp_dim:
+      print(f'mtp_de: {self.mtp_de.shape}')
       d1 = 32 if cfg.mlp_dim < 4096 else 64
       d2 = cfg.mlp_dim // d1
       mtp_de = self.mtp_de.reshape(*projected_features.shape[:2], d1, d2)

@@ -672,11 +672,11 @@ class Decoder(nn.Module):
           scan_start = lyr
           scan_length = 1
           # L, G, L, LL, G, L, LL
-          # if lyr > 0 and swss[lyr - 1] != current_sws:
-          #   scan_length = 1
-          # else:
-          while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
-            scan_length += 1
+          if lyr > 0 and swss[lyr - 1] != current_sws:
+            scan_length = 1
+          else:
+            while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
+              scan_length += 1
 
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
@@ -708,22 +708,6 @@ class Decoder(nn.Module):
                 hids,
                 eos_sum=eos_sum,
             )
-            # y, hids = RemattedBlockLayers[0](
-            #   config=cfg, 
-            #   mesh=mesh, 
-            #   name=f"layers_{lyr}", 
-            #   quant=self.quant, 
-            #   sliding_window_size=current_sws)(
-            #     y,
-            #     decoder_segment_ids,
-            #     decoder_positions,
-            #     decoder_input_tokens,
-            #     de,
-            #     deterministic,
-            #     model_mode,
-            #     eos_sum=eos_sum,
-            #     hids=hids,
-            # )
             lyr += 1
 
           else:
@@ -762,9 +746,9 @@ class Decoder(nn.Module):
           
             lyr += scan_length
 
-          # if scan_length == 1: # scan output no compose
-          y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
-          hids.append(y) # 可以考虑不添加scan的输出。
+          if scan_length == 1: # scan output no compose
+            y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
+            hids.append(y) # 可以考虑不添加scan的输出。
 
       else:
         if cfg.decoder_block == "deepseek":

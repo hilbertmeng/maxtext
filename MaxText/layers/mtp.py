@@ -138,6 +138,7 @@ class MultiTokenPredictionLayer(nn.Module):
       )(
         layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
         hids=hids,
+        lidx=k - 1 + cfg.num_decoder_layers,
       )
       
     next_hidden_state = y if isinstance(y, jnp.ndarray) else y[0]

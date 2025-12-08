@@ -542,6 +542,8 @@ dynamic_dense_scale_dw: False
 mudd_in_layer: False
 compose_all_layers: False
 scan_use_mudd: False
+mudd_num_extra_emb: 0
+mudd_emb_dilation: 0
 
 # ================================= [moe] =================================
 capacity_factor: -1.0 # Don't change this value

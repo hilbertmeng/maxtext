@@ -13,6 +13,7 @@ from jax import numpy as jnp
 import multihost_dataloading
 from google.cloud import storage
 from etils import epath
+from collections import defaultdict
 
 
 class PileDatasets():
@@ -477,25 +478,36 @@ def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
     directory_path = '/'.join(path_parts[1:])
     directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
     print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
-    total_train_files, total_valid_files = [], []
     train_files = defaultdict(list)
+    error_pathes = []
     for blob in client.list_blobs(bucket_name, prefix=directory_path):
         path = f'gs://{os.path.join(bucket_name, blob.name)}'
+        print(f'path: {path}')
         if 'packed' in path or '4k' in path:
-            if 'dclm' in path: # 已经是1/10数据了
-                total_train_files.append(path)
-            else:
-                train_files['4k_or_obfd_packed'].append(path) # 全量数据，因此之后需要shuffle 1/10数据
-    
-    for name, pathes in train_files.items():
+            flag = False
+            for dataset_name in ['algebraic-stack', 'arxiv', 'dclm', 'open-web-math', 'pes2o', 'starcoder', 'wiki']:
+                if dataset_name in path:
+                    flag = True
+                    train_files[dataset_name].append(path) # 全量数据，因此之后需要shuffle 1/10数据
+            if not flag:
+                error_pathes.append(path)
+                
+    print(f'error_pathes: {len(error_pathes)} first 10 error_pathes: {error_pathes[:10]}')
+    total_train_files, total_valid_files = [], []
+    for dataset_name, pathes in train_files.items():
         random.shuffle(pathes)
-        sample_pathes = pathes[:len(pathes) // 10]
+        if dataset_name == 'dclm':
+            sample_pathes = pathes[: -2]
+            total_valid_files.extend(pathes[-2:]) # add last file as valid_files
+        else:
+            sample_pathes = pathes[: math.ceil(len(pathes) / 10)]
+            total_valid_files.append(pathes[-1]) # add last file as valid_files
 
+        print(f'dataset_name: {dataset_name}, pathes: {len(pathes)} sample_pathes: {len(sample_pathes)}')
         total_train_files.extend(sample_pathes) # add 1/10 data into total_train_files
-        total_valid_files.append(pathes[-1]) # add last file as valid_files
 
     random.shuffle(total_train_files)
-    random.shuffle(total_valid_files) # 不要dclm的验证集
+    random.shuffle(total_valid_files)
 
     print(f'Train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
     print(f'first 10 train files: {total_train_files[:10]}')
@@ -541,8 +553,8 @@ def make_pile_train_iterator(config, mesh):  # lsp
     train_pathes, eval_pathes = extract_v3p5_data_files(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'xm3.5mini':
     train_pathes, eval_pathes = extract_v3p5mini_data_files(config.dataset_path, config.eval_split, config.train_stage)
-  elif config.dataset_type == 'instruct':
-     train_pathes, eval_pathes = extract_role_play_instruct_data(config.dataset_path, config.eval_split)
+  elif config.dataset_type == 'v4.5_1.5B':
+     train_pathes, eval_pathes = extract_v4p5_1p5B_data_files(config.dataset_path, config.eval_split)
   else:
     raise ValueError(f'Unknow ‘config.datase_dtype’={config.datase_dtype}')
 

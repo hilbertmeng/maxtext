@@ -185,7 +185,7 @@ def create_data_iterator(config, mesh):
   elif config.dataset_type == "c4_mlperf":
     train_iterator_fn = functools.partial(make_c4_mlperf_train_iterator, config, mesh, process_indices_train)
     eval_iterator_fn = functools.partial(make_c4_mlperf_eval_iterator, config, mesh, process_indices_eval)
-  elif config.dataset_type in ["pile", "novel_4_32k", "pretrain_4k", "instruct", 'xm3.5mini']: # lsp
+  elif config.dataset_type in ["pile", "novel_4_32k", "pretrain_4k", "instruct", 'xm3.5mini', 'v4.5_1.5B']: # lsp
       train_iterator_fn, eval_iterator_fn = make_pile_train_iterator(config, mesh)
   else:
     assert False, f"Unknown dataset_type {config.dataset_type}, dataset_type must be synthetic, tfds, grain, hf or c4_mlperf"

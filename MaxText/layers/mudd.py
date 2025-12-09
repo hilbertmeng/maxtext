@@ -151,13 +151,28 @@ class Compose(nn.Module):
     if lidx is None or cfg.mudd_emb_dilation is None:
       return None
     mask = []
+    mode = getattr(cfg, 'mudd_emb_dilation_mode', 'interleaved')
     for i in range(hids_length):
       if i < cfg.mudd_num_extra_emb + 1: # prefix embeddings
-        group_idx = lidx % cfg.mudd_emb_dilation
-        if i % cfg.mudd_emb_dilation == group_idx: 
-          mask.append(True)
+        if mode == 'interleaved': # 10101010 
+          group_idx = (hids_length-cfg.mudd_num_extra_emb-1) % cfg.mudd_emb_dilation # calculate lidx in compose layers
+          if i % cfg.mudd_emb_dilation == group_idx: 
+            mask.append(True)
+          else:
+            mask.append(False)
+        elif mode == 'continuous': # 00110011, dilation=2, num_extra_emb=7 
+          num_groups = cfg.mudd_emb_dilation
+          emb_group_size = (cfg.mudd_num_extra_emb + 1) // num_groups            
+          emb_group_idx = i // emb_group_size
+          total_layers = cfg.num_decoder_layers + cfg.mtp_num_layers
+          layer_group_size = total_layers // num_groups
+          layer_group_idx = lidx // layer_group_size
+          if layer_group_idx == emb_group_idx:
+            mask.append(True)
+          else:
+            mask.append(False)
         else:
-          mask.append(False)
+          raise ValueError(f'Invalid mudd_emb_dilation_mode: {mode}')
       else: # layer outputs
         mask.append(True)
     return mask

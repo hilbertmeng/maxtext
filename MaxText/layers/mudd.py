@@ -178,6 +178,10 @@ class Compose(nn.Module):
     if not self.compose:
       return y, hids
 
+    if cfg.mudd_num_extra_emb and lidx == cfg.num_decoder_layers:
+      start_idx = cfg.mudd_num_extra_emb // cfg.mudd_emb_dilation
+      hids = hids[start_idx: ] # mtp layer no use prefix embeddings
+
     mask = self.get_compose_mask(lidx, cfg, len(hids))
     dyn_dense_w = Mlp(self.config, self.mesh, self.quant, len(hids), name='mlp', C=C)(layer_output)
     if self.config.record_internal_nn_metrics:

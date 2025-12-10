@@ -635,10 +635,6 @@ class MuonDEDcMuddMTP1KVshiftV4p5(LGLLWindow, DC2, MuonDEMuddMTP1KVshiftV4p5):
     # note: 1、roll sws: LGLLLLGLLLLG....., 3个L用scan loss 速度比G L LL略快，loss高0.003左右，但是编译时间减半
     # 2、scan_use_mudd: LGLLLGLLLG...，LLL用C=2进行compose，G用C=4进行compose，速度和G L LL差不多，loss也差不多，但是编译时间减半
 
-class MuonDEDcMuddMTP1KVshiftV4p5PScanGLLL(GLLLWindow, MuonDEDcMuddMTP1KVshiftV4p5):
-    base_num_query_heads = 32
-    base_num_kv_heads = [8, base_num_query_heads, base_num_query_heads, base_num_query_heads]
-
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     vocab_size = 100352
     base_emb_dim = 2048
@@ -659,12 +655,14 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLDa
     dataset_type = 'v4.5_1.5B'
     eval_steps = 156
     
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128MuddEmbedT20A5(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
     mudd_emb_dilation = 4
     mudd_num_extra_emb = 19
     mudd_emb_dilation_mode = 'continuous'
     deep_embed_type = 'none'
-    deep_embed_init = 'none' 
+    deep_embed_init = 'none'
+    per_device_batch_size = 8.0
+    eval_per_device_batch_size = 8.0 # v5p-128, total batch size 512
 
 class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
     base_emb_dim = 1024

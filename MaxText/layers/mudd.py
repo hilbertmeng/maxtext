@@ -12,7 +12,6 @@ from layers import linears
 from layers import quantizations
 from layers import embeddings
 import max_logging
-import jax
 
 # Type alias for quantization
 Quant = quantizations.AqtQuantization
@@ -23,7 +22,7 @@ def l2norm(x: jnp.ndarray) -> jnp.ndarray:
   return jnp.sqrt(jnp.sum(jnp.square(x)))
 
 
-def wsum2_qy(w: jnp.ndarray, # CBTL1
+def wsum(w: jnp.ndarray, # CBTL1
          hids: list[jnp.ndarray], # list of BTD
          mask: Optional[list[bool]] = None,
          ) -> jnp.ndarray:  # CBTD
@@ -38,30 +37,6 @@ def wsum2_qy(w: jnp.ndarray, # CBTL1
       continue
     out += w[..., idx, :] * hids[hidx]
     idx += 1
-  return out
-
-
-def wsum_for(w: jnp.ndarray, # CBTL1
-         hids: list[jnp.ndarray], # list of BTD
-         mask: int = None
-         ) -> jnp.ndarray:  # CBTD
-  C, B, T, L, _ = w.shape
-  D = hids[0].shape[-1]
-  out = jnp.zeros((C, B, T, D), dtype=hids[0].dtype)
-  for l in range(L): # 每层
-    out += w[..., l, :] * hids[l]
-  return out
-
-
-def wsum_muddde(w: jnp.ndarray, # CBTL1
-         hids: list[jnp.ndarray], # list of BTD
-         seq_chunk_size: int = None
-         ) -> jnp.ndarray:  # CBTD
-  L = w.shape[-2]
-  de_layer_num = hids[0].shape[-1]
-  out = jnp.einsum('cbtl,btdl->cbtd', w[..., :de_layer_num, 0], hids[0])
-  for l in range(de_layer_num, L): # 每层
-    out += w[..., l, :] * hids[l - de_layer_num + 1]
   return out
 
 
@@ -139,7 +114,6 @@ class Mlp(nn.Module):
       init_v = init_v[None].repeat(C, 0)
       self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
 
-    
   @nn.compact
   def __call__(
       self,
@@ -177,39 +151,31 @@ class Compose(nn.Module):
     if lidx is None or cfg.mudd_emb_dilation is None:
       return None
     mask = []
+    mode = getattr(cfg, 'mudd_emb_dilation_mode', 'interleaved')
     for i in range(hids_length):
       if i < cfg.mudd_num_extra_emb + 1: # prefix embeddings
-        group_idx = lidx % cfg.mudd_emb_dilation
-        if i % cfg.mudd_emb_dilation == group_idx: 
-          mask.append(True)
+        if mode == 'interleaved': # 10101010 
+          group_idx = (hids_length-cfg.mudd_num_extra_emb-1) % cfg.mudd_emb_dilation # calculate lidx in compose layers
+          if i % cfg.mudd_emb_dilation == group_idx: 
+            mask.append(True)
+          else:
+            mask.append(False)
+        elif mode == 'continuous': # 00110011, dilation=2, num_extra_emb=7 
+          num_groups = cfg.mudd_emb_dilation
+          emb_group_size = (cfg.mudd_num_extra_emb + 1) // num_groups            
+          emb_group_idx = i // emb_group_size
+          total_layers = cfg.num_decoder_layers + cfg.mtp_num_layers
+          layer_group_size = total_layers // num_groups
+          layer_group_idx = lidx // layer_group_size
+          if layer_group_idx == emb_group_idx:
+            mask.append(True)
+          else:
+            mask.append(False)
         else:
-          mask.append(False)
+          raise ValueError(f'Invalid mudd_emb_dilation_mode: {mode}')
       else: # layer outputs
         mask.append(True)
     return mask
-
-  def gate_fn(self, inputs, embeds):
-    # ---------------------------------------------------------
-    # B, T, D, L = embeds.shape
-    K = self.config.mudd_embed_topk
-    kwargs = dict(dtype=self.config.dtype, weight_dtype=self.config.weight_dtype, quant=self.quant)
-    logits = linears.DenseGeneral(
-      self.config.mudd_embed_topk,
-      kernel_init=initializers.nd_dense_init(1.0, "fan_in", "normal"),
-      kernel_axes=('embed', None),
-      use_bias=False,
-      name='gate',
-      **kwargs)(inputs)
-    scores = nn.sigmoid(logits)
-    top_scores, indexes = jax.lax.top_k(scores, k=K)   # (B,T,K), (B,T,K)
-    # jnp.take_along_axis requires matching dims, so expand indexes
-    expanded_idx = indexes[..., None, :]    
-    print(f'logits: {logits.shape} embeds: {embeds.shape} expanded_idx: {expanded_idx.shape}')
-                    # (B, T, K, 1)
-    topk_embeds = jnp.take_along_axis(embeds, expanded_idx, axis=-1)  # (B, T, D, K)
-    topk_embeds = topk_embeds * top_scores[..., None, :]
-
-    return topk_embeds
     
   @nn.compact
   def __call__(
@@ -222,47 +188,31 @@ class Compose(nn.Module):
     
     y = layer_output
     C = self.C
-    # y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
-    # hids.append(y_normed)
     if not self.compose:
       return y, hids
 
-    # # lsp: mudd embed gate
-    # topk_embeds = self.gate_fn(layer_output, hids[0])
-    # print(f'topk_embeds: {topk_embeds.shape}'
-    # )
-    # hids = [topk_embeds] + hids[1:]
+    if cfg.mudd_num_extra_emb and lidx == cfg.num_decoder_layers:
+      start_idx = cfg.mudd_num_extra_emb // cfg.mudd_emb_dilation
+      hids = hids[start_idx: ] # mtp layer no use prefix embeddings
 
-    # mask = self.get_compose_mask(lidx, cfg, len(hids))
-    mask = None
-    if (cfg.mudd_num_extra_emb and lidx < cfg.num_decoder_layers):
-      mudd_emb_length = hids[0].shape[-1] - 1
-    else:
-      mudd_emb_length = 0
-      hids = hids[1:] # mtp layer no use prefix embeddings
-
-    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, mudd_emb_length + len(hids), name='mlp', C=C)(layer_output)
-    
+    mask = self.get_compose_mask(lidx, cfg, len(hids))
+    dyn_dense_w = Mlp(self.config, self.mesh, self.quant, len(hids), name='mlp', C=C)(layer_output)
     if self.config.record_internal_nn_metrics:
       for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
         self.sow('intermediates', f'dyn_dense_w/{op.__name__}', op(dyn_dense_w.astype(jnp.float32)))
       self.sow('intermediates', f'layer_output/norm', l2norm(y.astype(jnp.float32)))
 
-    max_logging.log(f'C: {C} hids length: {len(hids)}')
-    wsum = wsum_muddde if cfg.mudd_num_extra_emb and lidx < cfg.num_decoder_layers else wsum_for
-
     if cfg.mudd_postnorm:
-      post_norm = normalizations.get_rmsnorm(name=f"mudd_postnorm", cfg=cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
-      print(f'dyn_dense_w: {dyn_dense_w.shape} C: {C}')
+      post_norm = normalizations.get_rmsnorm("mudd_postnorm", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-      y = tuple([y + (post_norm(
-          wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
-                                ) if cidx == C - 1 else 
-          wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0)
-                      ) for cidx in range(C)])
+      y = tuple(
+        [y + (post_norm(wsum(dyn_dense_w[cidx: cidx + 1], hids, mask=mask).squeeze(0))
+          if cidx == C - 1 else 
+        wsum(dyn_dense_w[cidx: cidx + 1], hids, mask=mask).squeeze(0))
+          for cidx in range(C)])
     else:
         # (btl, btl, btl, btl)
         dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
-        y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, cfg.ddw_gen_chunk_size).squeeze(0) for cidx in range(C)])
+        y = tuple([wsum(dyn_dense_w[cidx: cidx + 1], hids, mask=mask).squeeze(0) for cidx in range(C)])
         
     return y, hids

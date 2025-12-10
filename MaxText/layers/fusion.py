@@ -392,7 +392,7 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
-    if cfg.dense_conn and (self.layer_inx > 0 or self.config.mudd_num_extra_emb is not None) and self.scan_length == 1:  # compose for the first layer when mudd has extra embeddings
+    if cfg.dense_conn and self.scan_length == 1:  # compose for the first layer when mudd has extra embeddings
       C = 4
       # inputs length: 2 or 4
       inputs, hids = mudd.Compose(
@@ -418,24 +418,3 @@ class FusionDecoderLayer(nn.Module):
         eos_sum,
     )
     return output, hids if self.scan_length == 1 else output
-
-    # if cfg.dense_conn and self.sws == cfg.max_target_length:
-    #   hids.append(output)
-      # C = 4
-      # # return's inputs length is 4
-      # output, hids = mudd.Compose(
-      #   cfg, self.mesh, self.quant, 
-      #   name=f'compose_end',
-      #   C=C,
-      #   compose=True,
-      #   )(
-      #     layer_output=output if isinstance(output, jnp.ndarray) else output[0], 
-      #     hids=hids,
-      #   )
-      # return output, hids
-
-    # if isinstance(inputs, list):
-    #   return [output] * len(inputs), output if self.scan_length > 1 else hids
-    # elif isinstance(inputs, tuple):
-    #   return (output,) * len(inputs), output if self.scan_length > 1 else hids
-    # return output, output if self.scan_length > 1 else hids

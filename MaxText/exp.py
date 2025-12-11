@@ -27,6 +27,8 @@ class Common:
     insert_moe_indexes = []
     training_num_batches_to_skip = None
     qkv_bias = False
+    mudd_emb_dilation = None
+    mudd_num_extra_emb = None
 
 class Optimizer:
     learning_rate_schedule_steps = 13500
@@ -654,6 +656,14 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLDa
     partial_scan_layers = True
     dataset_type = 'v4.5_1.5B'
     eval_steps = 156
+    eval_interval = 5000
+    keep_period = 2000
+    train_shuffle_buffer_size = 200000
+    iter_file_nums = 100
+    dynamic_mlp_dim = False
+    deep_embed_type = 'outside'
+    deep_embed_init = '4xmlp'
+    loss_chunk_size = 4096
     
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
     mudd_emb_dilation = 4

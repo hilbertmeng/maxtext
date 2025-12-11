@@ -832,7 +832,8 @@ class Decoder(nn.Module):
         mesh=mesh,
         quant=self.quant,
         name="mtp_block",
-        transformer_layer_module=self.decoder_layer[0] if cfg.mtp_use_remat else RemattedBlockLayers[0],
+        # transformer_layer_module=self.decoder_layer[0] if cfg.mtp_use_remat else RemattedBlockLayers[0],
+        transformer_layer_module=self.decoder_layer[0], # v4.5-1.5B显存够了，mtp可以不用remat
         shared_embedding=[rolled_y, mtp_de],
         sliding_window_size=swss[-1],
       )(

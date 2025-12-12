@@ -482,7 +482,7 @@ def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
     error_pathes = []
     for blob in client.list_blobs(bucket_name, prefix=directory_path):
         path = f'gs://{os.path.join(bucket_name, blob.name)}'
-        print(f'path: {path}')
+        # print(f'path: {path}')
         if 'packed' in path or '4k' in path:
             flag = False
             for dataset_name in ['algebraic-stack', 'arxiv', 'dclm', 'open-web-math', 'pes2o', 'starcoder', 'wiki']:

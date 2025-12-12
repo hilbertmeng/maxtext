@@ -658,11 +658,11 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLDa
     eval_steps = 156
     eval_interval = 5000
     keep_period = 2000
-    train_shuffle_buffer_size = 200000
+    train_shuffle_buffer_size = 50000
     iter_file_nums = 100
     dynamic_mlp_dim = False
-    deep_embed_type = 'outside'
-    deep_embed_init = '4xmlp'
+    deep_embed_type = '4xmlp'
+    deep_embed_init = 'outside'
     loss_chunk_size = 4096
     
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):

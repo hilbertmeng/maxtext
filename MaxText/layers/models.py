@@ -622,6 +622,11 @@ class Decoder(nn.Module):
           if mudd_num_prefix > 0 and not cfg.mudd_cat_prefix_emb: 
             shifted_emb = shift_1d(y, offset=i+1, axis=1)
             extra_emb = extra_emb * prefix_mix_w[:, :, i:i+1] + shifted_emb * (1 - prefix_mix_w[:, :, i:i+1])
+          
+          if cfg.mudd_embed_prenorm:
+            max_logging.log(f'mudd_embed_prenorm is true.', debug=cfg.debug)
+            extra_emb = normalizations.get_rmsnorm(f"mudd_embed_prenorm_{i}", cfg)(extra_emb)
+
           hids.insert(0, extra_emb)
 
       if cfg.dense_conn:

@@ -666,7 +666,9 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLDa
     learning_rate_schedule_steps = 190735
     zero_loss = True # olmo2-1B zero means '!'
     eval_split = 'validation'
-    
+    pad_id = 100277
+    mudd_embed_prenorm = False
+
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
     mudd_emb_dilation = 4
     mudd_num_extra_emb = 19
@@ -675,7 +677,7 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshif
     deep_embed_init = 'none'
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 8.0 # v5p-128, total batch size 512
-    pad_id = 100277
+    mudd_embed_prenorm = True
 
 class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
     base_emb_dim = 1024

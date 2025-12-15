@@ -644,7 +644,6 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     base_num_decoder_layers = 32 # 33 -> 32
     head_dim = 64
     sliding_window_size = [256, None, 256, 256]
-    attention = 'dot_product_chunk' # head_dim < 128 can't use flash
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
     base_num_query_heads = 32
@@ -676,13 +675,33 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshif
     deep_embed_init = 'none'
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 8.0 # v5p-128, total batch size 512
+    pad_id = 100277
 
-class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
+class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
     base_emb_dim = 1024
     base_num_query_heads = 16
     base_num_kv_heads = [base_num_query_heads, 4, base_num_query_heads, base_num_query_heads]
     base_mlp_dim = 1920
     base_num_decoder_layers = 31
+
+class MuonDEDcMuddMTP1KVshiftV4p5MediumH128T32A8(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
+    mudd_emb_dilation = 4
+    mudd_num_extra_emb = 31
+    mudd_emb_dilation_mode = 'continuous'
+    deep_embed_type = 'none'
+    deep_embed_init = 'none'
+    per_device_batch_size = 32.0
+    eval_per_device_batch_size = 32.0
+    mtp_num_layers = 1
+    attention = 'flash'
+    keep_period = 1500
+    eval_steps = 642
+    global_attn_head_dim = 128
+    learning_rate_schedule_steps = 13500
+    eval_interval = 13500
+    train_shuffle_buffer_size = None
+    vocab_size = 50432
+    iter_file_nums = 2
 
 class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128): # medium v4.5 baseline model
     base_num_decoder_layers = 32

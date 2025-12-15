@@ -152,7 +152,8 @@ class PileDatasets():
         model_needed_inputs['inputs'] = data["input_ids"][:, : seq_len]
         model_needed_inputs['targets'] = data["input_ids"][:, 1: seq_len + 1]
         key = 'labels' if "labels" in data else 'input_ids'
-        weights = data[key] >= 0 if self.zero_loss else data[key] > 0
+        # weights = data[key] >= 0 if self.zero_loss else data[key] > 0
+        weights = data[key] != self.pad_id
         # print(f'key: {key}')
         # print(f'weights: {weights.sum()}')
         # label loss mask, origin bool type, but due the complie is int32
@@ -181,7 +182,7 @@ class PileDatasets():
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
 
         padded_shapes = {key: self.seq_len + 1 for key in self.task_features}
-        padding_values = {key: 0 if key == 'input_ids' else -100 for key in self.task_features}
+        padding_values = {key: self.pad_id if key == 'input_ids' else -100 for key in self.task_features}
         ds = ds.padded_batch(
             batch_size=np.prod(self.batch_size),
             padded_shapes=padded_shapes,
@@ -469,7 +470,7 @@ def extract_v3p5mini_data_files(dataset_path, eval_split, train_stage):
     return train_files, valid_files
 
 
-def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
+def extract_v4p5_1p5B_data_files2(dataset_path, eval_split):
     random.seed(9876)
     client = storage.Client()
     path = dataset_path.replace('gs://', '')
@@ -508,6 +509,31 @@ def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
 
     random.shuffle(total_train_files)
     random.shuffle(total_valid_files)
+
+    print(f'Train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
+    print(f'first 10 train files: {total_train_files[:10]}')
+    print(f'valid_files: {total_valid_files}')
+    return total_train_files, total_valid_files
+
+
+def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
+    random.seed(9876)
+    client = storage.Client()
+    path = dataset_path.replace('gs://', '')
+    path_parts = path.split('/')
+    bucket_name = path_parts[0]
+    directory_path = '/'.join(path_parts[1:])
+    directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
+    print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+    total_valid_files = []
+    total_train_files = []
+    for blob in client.list_blobs(bucket_name, prefix=directory_path):
+        path = f'gs://{os.path.join(bucket_name, blob.name)}'
+        if eval_split in path:
+            total_valid_files.append(path)
+        else:
+            total_train_files.append(path)
+    total_train_files.sort()
 
     print(f'Train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
     print(f'first 10 train files: {total_train_files[:10]}')
@@ -586,6 +612,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             zero_loss=config.zero_loss,
                             iter_file_nums=config.iter_file_nums,
                             mix_attn=config.mix_attn,
+                            pad_id=config.pad_id,
                             )
   eval_dataloader = None
   if eval_pathes:
@@ -605,6 +632,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             zero_loss=config.zero_loss,
                             iter_file_nums=config.iter_file_nums,
                             mix_attn=config.mix_attn,
+                            pad_id=config.pad_id,
                             )
   def train_dataloader_fn():
     return train_dataloader

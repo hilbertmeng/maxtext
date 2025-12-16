@@ -630,7 +630,7 @@ class Decoder(nn.Module):
           hids.insert(0, extra_emb)
 
       if cfg.dense_conn:
-        y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
+        y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm or cfg.mudd_embed_prenorm else y
         hids.append(y)
 
       if cfg.scan_layers:

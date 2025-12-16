@@ -240,7 +240,10 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
     for metric_name in metrics.get("scalar", []):
       if step % config.upload_param_act_tb_period != 0 and any(['total_params' in metric_name, ]): # lsp
         continue
-      writer.add_scalar(metric_name, np.array(metrics["scalar"][metric_name]), step)
+      scalar_value = np.array(metrics["scalar"][metric_name])
+      if scalar_value.ndim > 0:
+        scalar_value = scalar_value.mean()
+      writer.add_scalar(metric_name, scalar_value, step)
 
   if is_training:
     full_log = step % config.log_period == 0

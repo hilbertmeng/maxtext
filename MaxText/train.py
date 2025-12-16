@@ -375,9 +375,13 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
   elif config.partial_scan_layers:
-    for layer_num in range(0, config.num_decoder_layers, l_step_len):
-      layer = intermediate_outputs["intermediates"]["decoder"][f'layers_{layer_num}']
-      if config.dense_conn:
+    for layer_num in range(0, config.num_decoder_layers, 3):
+      decoder = intermediate_outputs["intermediates"]["decoder"]
+      layer_name = f'layers_{layer_num}'
+      if layer_name not in decoder:
+        continue
+      layer = intermediate_outputs["intermediates"]["decoder"][layer_name]
+      if config.dense_conn and 'compose_start' in layer:
         for op in ['max', 'mean', 'min', 'std', 'l2norm']:
           output_metrics["scalar"][f"mudd/dyn_dense_kernel_out/{op}/layer_{layer_num:03d}"] = layer["compose_start"]['mlp'][f"dyn_dense_kernel_out/{op}"]
         if config.mudd_use_scale:
@@ -385,10 +389,11 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
           output_metrics["scalar"][f"mudd/mudd_scale/mean/layer_{layer_num:03d}"] = layer["compose_start"]['mlp'][f"mudd_scale/mean"]
 
       if config.shared_experts > 0:
-        output_metrics["scalar"][f"block/attn_lnx/l2norm/layer_{layer_num:03d}"] = layer["block"]["attn_lnx/l2norm"]
-        output_metrics["scalar"][f"block/mlp_lnx/l2norm/layer_{layer_num:03d}"] = layer["block"]["mlp_lnx/l2norm"]
+        print(f'attn_lnx: {layer["block"]["attn_lnx/l2norm"]}')
+        output_metrics["scalar"][f"block/attn_lnx/l2norm/layer_{layer_num:03d}"] = layer["block"]["attn_lnx/l2norm"][0] # scan layer get 0 index
+        output_metrics["scalar"][f"block/mlp_lnx/l2norm/layer_{layer_num:03d}"] = layer["block"]["mlp_lnx/l2norm"][0]
       
-      output_metrics["scalar"][f"block/layer_output/l2norm/layer_{layer_num:03d}"] = layer["layer_output/l2norm"]
+      output_metrics["scalar"][f"block/layer_output/l2norm/layer_{layer_num:03d}"] = layer["layer_output/l2norm"][0]
 
   else:
     for layer_num in range(0, config.num_decoder_layers, l_step_len):

@@ -417,4 +417,8 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         eos_sum,
     )
+    if cfg.record_internal_nn_metrics:
+      layer_output_l2norm = jnp.sqrt(jnp.sum(jnp.square(output)))
+      self.sow('intermediates', 'layer_output/l2norm', layer_output_l2norm)
+      
     return output, hids if self.scan_length == 1 else output

@@ -374,8 +374,23 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
       if config.shared_experts > 0 and layer_num not in config.insert_moe_indexes:
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
-  else:
+  elif config.partial_scan_layers:
+    for layer_num in range(0, config.num_decoder_layers, l_step_len):
+      layer = intermediate_outputs["intermediates"]["decoder"][f'layers_{layer_num}']
+      if config.dense_conn:
+        for op in ['max', 'mean', 'min', 'std', 'l2norm']:
+          output_metrics["scalar"][f"mudd/dyn_dense_kernel_out/{op}/layer_{layer_num:03d}"] = layer["compose_start"]['mlp'][f"dyn_dense_kernel_out/{op}"]
+        if config.mudd_use_scale:
+          output_metrics["scalar"][f"mudd/mudd_scale/std/layer_{layer_num:03d}"] = layer["compose_start"]['mlp'][f"mudd_scale/std"]
+          output_metrics["scalar"][f"mudd/mudd_scale/mean/layer_{layer_num:03d}"] = layer["compose_start"]['mlp'][f"mudd_scale/mean"]
 
+      if config.shared_experts > 0:
+        output_metrics["scalar"][f"block/attn_lnx/l2norm/layer_{layer_num:03d}"] = layer["block"]["attn_lnx/l2norm"]
+        output_metrics["scalar"][f"block/mlp_lnx/l2norm/layer_{layer_num:03d}"] = layer["block"]["mlp_lnx/l2norm"]
+      
+      output_metrics["scalar"][f"block/layer_output/l2norm/layer_{layer_num:03d}"] = layer["layer_output/l2norm"]
+
+  else:
     for layer_num in range(0, config.num_decoder_layers, l_step_len):
       if config.dense_conn:
         if config.mudd_in_layer:
@@ -383,11 +398,11 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
           layer = intermediate_outputs["intermediates"]["decoder"][f'layers_{l}'][f"compose_{layer_num}"]
         else:
           layer = intermediate_outputs["intermediates"]["decoder"][f"compose_{layer_num}"]
-          output_metrics["scalar"][f"mudd/dyn_dense_w/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/max/layer_{layer_num}"]
-          output_metrics["scalar"][f"mudd/dyn_dense_w/mean/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/mean/layer_{layer_num}"]
-          output_metrics["scalar"][f"mudd/dyn_dense_w/min/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/min/layer_{layer_num}"]
-          output_metrics["scalar"][f"mudd/dyn_dense_w/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/std/layer_{layer_num}"]
-          output_metrics["scalar"][f"mudd/dyn_dense_w/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_w/norm/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_kernel_out/max/layer_{layer_num:03d}"] = layer[f"dyn_dense_kernel_out/max/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_kernel_out/mean/layer_{layer_num:03d}"] = layer[f"dyn_dense_kernel_out/mean/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_kernel_out/min/layer_{layer_num:03d}"] = layer[f"dyn_dense_kernel_out/min/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_kernel_out/std/layer_{layer_num:03d}"] = layer[f"dyn_dense_kernel_out/std/layer_{layer_num}"]
+          output_metrics["scalar"][f"mudd/dyn_dense_kernel_out/norm/layer_{layer_num:03d}"] = layer[f"dyn_dense_kernel_out/norm/layer_{layer_num}"]
           output_metrics["scalar"][f"mudd/layer_output/norm/layer_{layer_num:03d}"] = layer[f"layer_output/norm/layer_{layer_num}"]
 
       metrics_dict = intermediate_outputs["intermediates"]["decoder"][f"layers_{layer_num}"]['sub_0']
@@ -621,12 +636,12 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   return loss, aux
 
 
-def compute_params_norm(params, config): # lsp
+def compute_params_norm(params, config, prefix='total_params'): # lsp
   flat_param_norms = flatten_dict(params)
   scalar_vales = {}
   for k, v in flat_param_norms.items():
     k = '/'.join(k)
-    newk = k.replace('params', 'total_params')
+    newk = k.replace('params', prefix)
     if config.scan_layers and 'layers' in k:
       axis = list(range(v.ndim))
       axis.pop(config.param_scan_axis)
@@ -719,6 +734,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
     scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
+    raw_grads_norms = compute_params_norm(raw_grads, config, prefix='raw_grads')
+    scalar_metrics.update(raw_grads_norms)
   if config.use_dpo:
     scalar_metrics["learning/dpo_reward_accuracy"] = aux["reward_accuracy"]
   metrics = {

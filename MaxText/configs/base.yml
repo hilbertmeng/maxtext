@@ -545,6 +545,9 @@ compose_all_layers: False
 scan_use_mudd: False
 mudd_num_extra_emb: null
 mudd_emb_dilation: null
+mudd_cap: 0.0
+mudd_use_scale: False
+mudd_embed_prenorm: False
 
 # ================================= [moe] =================================
 capacity_factor: -1.0 # Don't change this value

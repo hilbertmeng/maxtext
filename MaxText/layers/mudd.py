@@ -113,6 +113,9 @@ class Mlp(nn.Module):
       init_v = jnp.array([0] * (dw_shape[1] - 1) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
       init_v = init_v[None].repeat(C, 0)
       self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
+    
+    if cfg.mudd_use_scale:
+      self.mudd_scale = self.param(f"mudd_scale", init_fn=lambda rng: jnp.ones_like(init_v))
 
   @nn.compact
   def __call__(
@@ -131,11 +134,27 @@ class Mlp(nn.Module):
 
       if cfg.dynamic_dense_scale_dw:
         dyn_dense_kernel_out /= jnp.sqrt(self.dynamic_dense_inter_dim)
+
+      if cfg.record_internal_nn_metrics:
+
+        for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
+          self.sow('intermediates', f'dyn_dense_kernel_out/{op.__name__}', op(dyn_dense_kernel_out.astype(jnp.float32)))
+
+        if cfg.mudd_use_scale:
+          self.sow('intermediates', 'mudd_scale/std', jnp.std(self.mudd_scale))
+          self.sow('intermediates', 'mudd_scale/mean', jnp.mean(self.mudd_scale))
+
+      max_logging.log(f'mudd_cap: {cfg.mudd_cap} mudd_use_scale: {cfg.mudd_use_scale} ', debug=cfg.debug)
+      if cfg.mudd_cap:
+        dyn_dense_kernel_out = jnp.tanh(dyn_dense_kernel_out / cfg.mudd_cap) * cfg.mudd_cap
+      elif cfg.mudd_use_scale:
+        # mudd_scale: cl, dyn_dense_kernel_out: btcl
+        dyn_dense_kernel_out = jnp.tanh(dyn_dense_kernel_out) * self.mudd_scale
+       
       if self.use_bias:
         dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)
       else:
         dyn_dense_w = dyn_dense_kernel_out
-
 
     return dyn_dense_w
 
@@ -197,11 +216,7 @@ class Compose(nn.Module):
 
     mask = self.get_compose_mask(lidx, cfg, len(hids))
     dyn_dense_w = Mlp(self.config, self.mesh, self.quant, len(hids), name='mlp', C=C)(layer_output)
-    if self.config.record_internal_nn_metrics:
-      for op in [jnp.max, jnp.mean, jnp.min, jnp.std, l2norm]:
-        self.sow('intermediates', f'dyn_dense_w/{op.__name__}', op(dyn_dense_w.astype(jnp.float32)))
-      self.sow('intermediates', f'layer_output/norm', l2norm(y.astype(jnp.float32)))
-
+    
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm("mudd_postnorm", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)

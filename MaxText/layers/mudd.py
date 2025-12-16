@@ -115,7 +115,7 @@ class Mlp(nn.Module):
       self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)
     
     if cfg.mudd_use_scale:
-      self.mudd_scale = self.param(f"mudd_scale", init_fn=lambda rng: jnp.ones_like(init_v))
+      self.mudd_scale = self.param(f"mudd_scale", init_fn=lambda rng: jnp.ones_like(init_v.reshape(-1)))
 
   @nn.compact
   def __call__(
@@ -149,7 +149,7 @@ class Mlp(nn.Module):
         dyn_dense_kernel_out = jnp.tanh(dyn_dense_kernel_out / cfg.mudd_cap) * cfg.mudd_cap
       elif cfg.mudd_use_scale:
         # mudd_scale: cl, dyn_dense_kernel_out: btcl
-        dyn_dense_kernel_out = jnp.tanh(dyn_dense_kernel_out) * self.mudd_scale
+        dyn_dense_kernel_out = jnp.tanh(dyn_dense_kernel_out) * self.mudd_scale.reshape(self.dw_shape)
        
       if self.use_bias:
         dyn_dense_w = dyn_dense_kernel_out + self.dense_proj2_bias.astype(dyn_dense_kernel_out.dtype)

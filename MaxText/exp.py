@@ -678,7 +678,7 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshif
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 8.0 # v5p-128, total batch size 512
 
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T40A5Cap10(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T40A5Cap10(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     mudd_emb_dilation = 8
     mudd_num_extra_emb = 39
     mudd_embed_prenorm = False

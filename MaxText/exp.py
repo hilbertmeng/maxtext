@@ -663,11 +663,12 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLDa
     deep_embed_type = '4xmlp'
     deep_embed_init = 'outside'
     loss_chunk_size = 4096
-    learning_rate_schedule_steps = 190735
+    learning_rate_schedule_steps = 238036 # 190735
     zero_loss = True # olmo2-1B zero means '!'
     eval_split = 'validation'
     pad_id = 100277
     mudd_embed_prenorm = False
+    warmup_steps_fraction = 0.008012 # Trained 400B when steps=190735, align with olmo2-1B first stage end lr.
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
     mudd_emb_dilation = 4

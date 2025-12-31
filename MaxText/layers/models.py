@@ -599,15 +599,10 @@ class Decoder(nn.Module):
           sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
         return sws
       
-      if cfg.mudd_cat_prefix_emb:
-        for i in range(cfg.mudd_num_extra_emb):
-          hids.insert(0, shift_1d(y, offset=i+1, axis=1))
-
       if cfg.mudd_num_extra_emb is not None:
-        mudd_num_prefix = (cfg.mudd_num_prefix // 128 + 1) * 128 if cfg.mudd_num_prefix is not None else 0 # round to 128 for better shard size
         mudd_emb = Embed(
             num_embeddings=cfg.vocab_size,
-            features=cfg.emb_dim * cfg.mudd_num_extra_emb + mudd_num_prefix,
+            features=cfg.emb_dim * cfg.mudd_num_extra_emb,
             dtype=cfg.dtype,
             attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,
             embedding_init=initializers.get_init_method(cfg.init_method), # lsp
@@ -615,18 +610,11 @@ class Decoder(nn.Module):
             config=cfg,
         )
         extra_embs = mudd_emb(decoder_input_tokens.astype("int32"))
-        if mudd_num_prefix > 0 and not cfg.mudd_cat_prefix_emb:
-          prefix_mix_w = jax.nn.sigmoid(extra_embs[..., -mudd_num_prefix:])
         for i in range(cfg.mudd_num_extra_emb):
-          extra_emb = extra_embs[:, :, i*cfg.emb_dim:(i+1)*cfg.emb_dim]
-          if mudd_num_prefix > 0 and not cfg.mudd_cat_prefix_emb: 
-            shifted_emb = shift_1d(y, offset=i+1, axis=1)
-            extra_emb = extra_emb * prefix_mix_w[:, :, i:i+1] + shifted_emb * (1 - prefix_mix_w[:, :, i:i+1])
-          
+          extra_emb = extra_embs[:, :, i*cfg.emb_dim:(i+1)*cfg.emb_dim]          
           if cfg.mudd_embed_prenorm:
             max_logging.log(f'mudd_embed_prenorm is true.', debug=cfg.debug)
             extra_emb = normalizations.get_rmsnorm(f"mudd_embed_prenorm_{i}", cfg)(extra_emb)
-
           hids.insert(0, extra_emb)
 
       if cfg.dense_conn:

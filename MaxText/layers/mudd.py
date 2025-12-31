@@ -73,11 +73,12 @@ class Mlp(nn.Module):
     
     hids_length = self.hids_length
     num_extra_emb = cfg.mudd_num_extra_emb + 1 if cfg.mudd_num_extra_emb is not None else 0
-    num_extra_emb = num_extra_emb + cfg.mudd_num_extra_emb if cfg.mudd_cat_prefix_emb else num_extra_emb
     is_last_layer = hids_length == num_extra_emb + cfg.num_decoder_layers - 1 + cfg.mtp_num_layers
 
     C = self.C
     compose_length = hids_length - (cfg.mudd_num_extra_emb + 1)//cfg.mudd_emb_dilation * (cfg.mudd_emb_dilation -1) if cfg.mudd_emb_dilation is not None and not is_last_layer else hids_length
+    if cfg.mudd_emb_share:
+      compose_length = compose_length + 1
     dw_shape = (C, compose_length) # lsp
     self.dw_shape = dw_shape
     # lsp
@@ -173,6 +174,9 @@ class Compose(nn.Module):
     mode = getattr(cfg, 'mudd_emb_dilation_mode', 'interleaved')
     for i in range(hids_length):
       if i < cfg.mudd_num_extra_emb + 1: # prefix embeddings
+        if cfg.mudd_emb_share and i == cfg.mudd_num_extra_emb:
+          mask.append(True)
+          continue
         if mode == 'interleaved': # 10101010 
           group_idx = (hids_length-cfg.mudd_num_extra_emb-1) % cfg.mudd_emb_dilation # calculate lidx in compose layers
           if i % cfg.mudd_emb_dilation == group_idx: 

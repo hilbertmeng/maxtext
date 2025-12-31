@@ -29,6 +29,7 @@ from layers.normalizations import RMSNorm as rms_norm
 import max_utils
 import maxtext_utils
 from layers import initializers
+from layers import normalizations
 from layers import linears
 from layers import mudd
 import max_logging
@@ -216,6 +217,9 @@ class MultiTokenPredictionBlock(nn.Module):
       next_mtp_hidden_state, hids = mtp_layer(
           mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids, rolled_input_ids
       )
+      if cfg.mtp_norm:
+        mtp_norm = normalizations.get_rmsnorm("mtp_norm", cfg)
+        next_mtp_hidden_state = [mtp_norm(next_mtp_hidden_state[0])] if isinstance(next_mtp_hidden_state, tuple|list) else mtp_norm(next_mtp_hidden_state)
       # Project to logits using the shared embedding transpose
       mtp_xent, correct, mtp_top_1_pred = output_layer(
         next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state, 

@@ -543,11 +543,11 @@ dynamic_dense_scale_dw: False
 mudd_in_layer: False
 compose_all_layers: False
 scan_use_mudd: False
-mudd_num_extra_emb: null
-mudd_emb_dilation: null
-mudd_cap: 0.0
+me_nums: null # mudd embeddings nums
+me_dilation: null # mudd embeddings dilation
+mudd_cap: 0.0 # mudd soft cap
 mudd_use_scale: False
-mudd_embed_prenorm: False
+me_prenorm: False # mudd embeddings prenorm
 
 # ================================= [moe] =================================
 capacity_factor: -1.0 # Don't change this value
@@ -595,6 +595,7 @@ mtp_loss_scaling_factor: 0.1
 mtp_use_compose: False
 mtp_head_int8: False
 mtp_use_remat: False
+mtp_norm: True
 
 # ================================= [checkpoint saving] =================================
 # e.g. gs://my-base-output-directory/my-previous-run-name/checkpoints/items/NUMBER or NUMBER/items

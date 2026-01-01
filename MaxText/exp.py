@@ -26,8 +26,8 @@ class Common:
     insert_moe_indexes = []
     training_num_batches_to_skip = None
     qkv_bias = False
-    mudd_emb_dilation = None
-    mudd_num_extra_emb = None
+    me_dilation = None
+    me_nums = None
 
 class Optimizer:
     learning_rate_schedule_steps = 13500
@@ -564,6 +564,9 @@ class ModelV4p5(Llama2Medium):
     normalization_direct_scale = False # false:(1+scale)rms -> rmsnorm, true:rms -> rmsnorm
     global_attn_head_dim = 128
     attention = 'flash'
+    use_dd_bias = False
+    use_dw_bias = True
+    mtp_norm = True
 
 class LamaModelV4p5(ModelV4p5):
     base_num_kv_heads = 32
@@ -659,31 +662,27 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLDa
     train_shuffle_buffer_size = 200000
     iter_file_nums = 500
     dynamic_mlp_dim = False
-    deep_embed_type = '4xmlp'
+    deep_embed_type = '4xmlp' 
     deep_embed_init = 'outside'
     loss_chunk_size = 4096
-    learning_rate_schedule_steps = 238036 # 190735
+    learning_rate_schedule_steps = 238438 # 190735
     zero_loss = True # olmo2-1B zero means '!'
     eval_split = 'validation'
     pad_id = 100277
-    mudd_embed_prenorm = False
-    warmup_steps_fraction = 0.008012 # Trained 400B when steps=190735, align with olmo2-1B first stage end lr.
+    me_prenorm = False
+    warmup_steps_fraction = 0.0012582 # warmup steps = 300
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128):
-    mudd_emb_dilation = 4
-    mudd_num_extra_emb = 19
-    mudd_emb_dilation_mode = 'continuous'
+    me_dilation = 4
+    me_nums = 20
     deep_embed_type = 'none'
     deep_embed_init = 'none'
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 8.0 # v5p-128, total batch size 512
+    mtp_loss_scaling_factor = 0.3 # 前期用0.3，后期用0.1
 
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T40A5Cap10(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
-    mudd_emb_dilation = 8
-    mudd_num_extra_emb = 39
-    mudd_embed_prenorm = False
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     mudd_cap = 10.0
-    mudd_use_scale = False
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Pile(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     per_device_batch_size = 16.0  # total 256 for v5p-32
@@ -706,14 +705,14 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Pile(MuonMuddDEDcMuddMT
     zero_loss = False
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNorm(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Pile):
-    mudd_embed_prenorm = False # 0.361 step/s eval loss: 2.0027
+    me_prenorm = False # 0.361 step/s eval loss: 2.0027
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNormShare(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNorm):
     mudd_emb_share = True # 0.362 step/s
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileShareMTPNormCapv6e(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNormShare):
     mtp_norm = True # 0.920 step/s eval loss: 1.997147
-    mudd_embed_prenorm = False
+    me_prenorm = False
     # no decay 
     remat_policy = 'save_all'
     per_device_batch_size = 4.0 # 256 for v6e-64 
@@ -724,8 +723,8 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileShareMTPNormCapv6e(
     mudd_use_scale = False
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T40A2PileNoNorm(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNorm):
-    mudd_num_extra_emb = 39 # 0. 350 step/s
-    mudd_emb_dilation = 20 
+    me_nums = 39 # 0. 350 step/s
+    me_dilation = 20 
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5TrainXL(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     per_device_batch_size = 16.0  # total 256 for v5p-32
@@ -740,20 +739,20 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5TrainXL(MuonMuddDEDcMud
 
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5TrainXLDE(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5TrainXL):
-    mudd_emb_dilation = None # 0.161 step/s
-    mudd_num_extra_emb = None
+    me_dilation = None # 0.161 step/s
+    me_nums = None
     deep_embed_type = '4xmlp'
     deep_embed_init = 'outside'
 
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDE(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Pile):
-    mudd_emb_dilation = None # 0.323 step/s
-    mudd_num_extra_emb = None
+    me_dilation = None # 0.323 step/s
+    me_nums = None
     deep_embed_type = '4xmlp'
     deep_embed_init = 'outside'
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDENDv6e(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDE):
-    mudd_embed_prenorm = False
+    me_prenorm = False
     deep_embed_nowd = True # 0.853 step/s eval loss: 2.0047
     # no decay 
     remat_policy = 'save_all'
@@ -766,12 +765,7 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDEv6eMTPNorm(MuonMu
     deep_embed_nowd = False
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDENoNormFix(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDE):
-    mudd_embed_prenorm = False # 0.323 step/s eval loss: 2.0034
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
-    mudd_embed_prenorm = False
-    mudd_cap = 10.0
-    mudd_use_scale = False
+    me_prenorm = False # 0.323 step/s eval loss: 2.0034
 
 class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
     base_emb_dim = 1024
@@ -781,9 +775,8 @@ class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400
     base_num_decoder_layers = 31
 
 class MuonDEDcMuddMTP1KVshiftV4p5MediumH128T32A8(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
-    mudd_emb_dilation = 4
-    mudd_num_extra_emb = 31
-    mudd_emb_dilation_mode = 'continuous'
+    me_dilation = 4
+    me_nums = 31
     deep_embed_type = 'none'
     deep_embed_init = 'none'
     per_device_batch_size = 32.0
@@ -815,7 +808,7 @@ class MuonDEDcMuddKVshiftV4p5MediumH128BS32EFLayers8(MuonDEDcMuddKVshiftV4p5Medi
     deep_embed_effective_layers = 8
 
 class MuonDEDcMuddKVshiftV4p5MediumH128BS32ExtraEmb8X(MuonDEDcMuddKVshiftV4p5MediumH128BS32):
-    mudd_num_extra_emb = 7 
+    me_nums = 7 
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDE(MuonDEDcMuddKVshiftV4p5MediumH128BS32):
@@ -823,26 +816,24 @@ class MuonDEDcMuddKVshiftV4p5MediumH128NoneDE(MuonDEDcMuddKVshiftV4p5MediumH128B
     deep_embed_init = 'none' 
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb8X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDE):
-    mudd_num_extra_emb = 7 # 0.450 steps/s
+    me_nums = 7 # 0.450 steps/s
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDE):
-    mudd_num_extra_emb = 15 # 0.417 steps/s
+    me_nums = 15 # 0.417 steps/s
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    mudd_emb_dilation = 4  # 0.429 steps/s
-    mudd_num_extra_emb = 31
-    mudd_emb_dilation_mode = 'continuous'
+    me_dilation = 4  # 0.429 steps/s
+    me_nums = 31
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb64XD16Cont(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont):
-    mudd_emb_dilation = 16 # 0.375 steps/s
-    mudd_num_extra_emb = 63
-    mudd_emb_dilation_mode = 'continuous'
+    me_dilation = 16 # 0.375 steps/s
+    me_nums = 63
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4ContNorm2(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont):
-    mudd_embed_prenorm = True
+    me_prenorm = True
     mudd_prenorm = True
     tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
 
@@ -853,7 +844,7 @@ class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4ContSoftCap10(MuonDEDc
 
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16XD2(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    mudd_emb_dilation = 2  # 0.445 steps/s
+    me_dilation = 2  # 0.445 steps/s
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4ContSoftCap10(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont):
     mudd_cap = 10.0
@@ -861,20 +852,32 @@ class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4ContSoftCap10(MuonDEDc
 
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16XD2(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    mudd_emb_dilation = 2  # 0.445 steps/s
+    me_dilation = 2  # 0.445 steps/s
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb64XD8(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    mudd_emb_dilation = 8  # 0.367 steps/s
-    mudd_num_extra_emb = 63
+    me_dilation = 8  # 0.367 steps/s
+    me_nums = 63
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb64X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    mudd_num_extra_emb = 63 # 0.268 steps/s
+    me_nums = 63 # 0.268 steps/s
 
 class MuonDEDcMuddKVshiftV4p5MediumH128GLLL(GLLLWindow, MuonDEDcMuddKVshiftV4p5MediumH128):
     base_num_query_heads = 16
     base_num_kv_heads = [4, base_num_query_heads, base_num_query_heads, base_num_query_heads]
 
 
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Align(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
+    # 配置文件需要更改的几个地方：
+    base_output_directory = 'gs://newproject-1-llm_base_models_us-east5/v4.5-1.5B'
+    run_name = 'align'
+    query_chunk_size = None # 如果传了这个参数，forward需要是query_chunk_size的整数倍
+    attention = 'flash'
+    # exp_class set your model class
+    per_device_batch_size = 1 # 可以根据测试的batch size定，设小一点主要是为了节省显存
+    max_target_length = 4096 # 可以根据测试的长度定，设小一点主要是为了节省显存
+    zero_loss = True
+    record_internal_nn_metrics = 0
+    bucket_logging_enabled = False
 
 # todo:
 # 1、rotary use half inputs compute

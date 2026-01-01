@@ -180,6 +180,33 @@ def get_remat_policy(cfg):
     return policy
   
 
+def get_group_index(n, groups, i, include_first_L=True):
+  '''
+  仅适用LGLL的window:
+  n: 总层数;
+  groups: dilation;
+  i: 当前层索引;
+  include_first_L: 是否包含第一层L;
+  '''
+  cll = (n - 1) // 4
+  if not include_first_L and i == 0:
+      return -1
+  if i >= 3 and i % 4 == 3 and (i - 3) // 4 < cll:
+      return -1
+  if i >= 4 and i % 4 == 0 and i // 4 - 1 < cll:
+      return -1
+  d3 = min(cll, (i - 4) // 4 + 1) if i > 3 else 0
+  d4 = min(cll, (i - 5) // 4 + 1) if i > 4 else 0
+  deleted = d3 + d4
+  if not include_first_L:
+      deleted += 1
+  rem_idx = i - deleted
+  total = n - 2 * cll - (0 if include_first_L else 1)
+  base, r = divmod(total, groups)
+  thresh = r * (base + 1)
+  return rem_idx // (base + 1) if rem_idx < thresh else r + (rem_idx - thresh) // max(1, base)
+
+
 class DecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
 
@@ -536,7 +563,7 @@ class Decoder(nn.Module):
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y, mtp_de = jnp.split(y, [cfg.emb_dim], axis=-1)
-    print(f'mtp_de: {mtp_de}')
+    max_logging.log(f'mtp_de: {mtp_de}', debug=cfg.debug)
     # mtp need to roll_input_ids embedding, it can reduce 12ms time to extract in here.
     rolled_y = jnp.pad(y[:, 1:], ((0, 0), (0, 1), (0, 0)), mode='constant', constant_values=0)
 
@@ -599,26 +626,31 @@ class Decoder(nn.Module):
           sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
         return sws
       
-      if cfg.mudd_num_extra_emb is not None:
+      if cfg.me_nums is not None:
+        me_list = []
         mudd_emb = Embed(
             num_embeddings=cfg.vocab_size,
-            features=cfg.emb_dim * cfg.mudd_num_extra_emb,
+            features=cfg.emb_dim * cfg.me_nums,
             dtype=cfg.dtype,
             attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,
             embedding_init=initializers.get_init_method(cfg.init_method), # lsp
             name="mudd_embedder",
             config=cfg,
         )
-        extra_embs = mudd_emb(decoder_input_tokens.astype("int32"))
-        for i in range(cfg.mudd_num_extra_emb):
-          extra_emb = extra_embs[:, :, i*cfg.emb_dim:(i+1)*cfg.emb_dim]          
-          if cfg.mudd_embed_prenorm:
-            max_logging.log(f'mudd_embed_prenorm is true.', debug=cfg.debug)
-            extra_emb = normalizations.get_rmsnorm(f"mudd_embed_prenorm_{i}", cfg)(extra_emb)
-          hids.insert(0, extra_emb)
+        mes = mudd_emb(decoder_input_tokens.astype("int32"))
+        for i in range(cfg.me_nums):
+          me = mes[:, :, i*cfg.emb_dim:(i+1)*cfg.emb_dim]          
+          if cfg.me_prenorm:
+            max_logging.log(f'me_prenorm is true.', debug=cfg.debug)
+            me = normalizations.get_rmsnorm(f"me_prenorm_{i}", cfg)(me)
+          me_list.append(me)
+        me_nums_per_group = cfg.me_nums // cfg.me_dilation
+      else:
+        me_list = []
+        me_nums_per_group = 0
 
       if cfg.dense_conn:
-        y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm or cfg.mudd_embed_prenorm else y
+        y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm or cfg.me_prenorm else y
         hids.append(y)
 
       if cfg.scan_layers:
@@ -673,6 +705,15 @@ class Decoder(nn.Module):
 
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
+            me_group_idx = -1
+            me = []
+            if cfg.me_nums and swss[1] == cfg.max_target_length: # LGLL
+              me_group_idx = get_group_index(cfg.num_decoder_layers, cfg.me_dilation, lyr, include_first_L=False)
+              if me_group_idx >= 0:
+                me = me_list[me_group_idx * me_nums_per_group: (me_group_idx + 1) * me_nums_per_group]
+                assert len(me) == me_nums_per_group, f'me: {len(me)} != me_nums_per_group: {me_nums_per_group}'
+
+            max_logging.log(f'me_len: {len(me)} me_group_idx: {me_group_idx} me_nums_per_group: {me_nums_per_group}', debug=cfg.debug)
             if deep_embeddings is None:
               de = None
             elif cfg.deep_embed_effective_layers is not None:
@@ -681,7 +722,6 @@ class Decoder(nn.Module):
               de = deep_embeddings[scan_start][None]
             de = jnp.stack(de, axis=0) if de is not None and isinstance(de, list) else de
             max_logging.log(f'de: {de}', debug=cfg.debug)
-            # if current_sws != cfg.max_target_length: # local use scan. but globlal no scan.
             y, _ = self.scan_decoder_layers(
                 cfg, 
                 RemattedBlockLayers[1], 
@@ -698,7 +738,7 @@ class Decoder(nn.Module):
                 de, # scan need to add a dimension
                 deterministic,
                 model_mode,
-                hids,
+                me + hids,
                 eos_sum=eos_sum,
             )
             lyr += 1
@@ -785,6 +825,7 @@ class Decoder(nn.Module):
             )
 
     if cfg.dense_conn:
+      print(f'me: {len(me)} hids: {len(hids)}')
       C = 2 if cfg.mtp_num_layers > 0 else 1
       y, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
@@ -793,7 +834,7 @@ class Decoder(nn.Module):
         C=C,
         )(
           layer_output=y if isinstance(y, jnp.ndarray) else y[0], 
-          hids=hids,
+          hids=me + hids,
         )
             
     max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}', debug=cfg.debug)
@@ -839,7 +880,7 @@ class Decoder(nn.Module):
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
         model_mode=model_mode,
-        hids=hids,
+        hids=hids[len(me): ] if me else hids, # mtp layer no use prefix embeddings
       )
     return xent, correct, main_model_preds
 

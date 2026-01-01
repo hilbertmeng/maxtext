@@ -138,7 +138,7 @@ class DynamicWeightProjection(nn.Module):
         self.dd_bias =  self.param('dd_bias',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None,)), bias_shape, self.weight_dtype)
 
     self.dw_activation = nn.tanh
-    self.dw1_norm = normalizations.get_rmsnorm("dw1_norm", self.config)
+    self.dw1_norm = normalizations.get_rmsnorm("dw1_norm", self.config, scale_init=None)
     if self.dynamic_dropout_rate is not None:
       self.dropout = nn.Dropout(self.dynamic_dropout_rate)
 

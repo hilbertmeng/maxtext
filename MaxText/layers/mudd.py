@@ -171,10 +171,16 @@ class Compose(nn.Module):
     
     if cfg.mudd_postnorm:
       post_norm = normalizations.get_rmsnorm("mudd_postnorm", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
+      if C == 2:
+        mudd_postnorm_mtp = normalizations.get_rmsnorm("mudd_postnorm_mtp", cfg, scale_init=nn.initializers.constant(0.001), direct_scale=True)
+        post_norms = [mudd_postnorm_mtp, post_norm]
+      else:
+        post_norms = [None] * (C - 1) + [post_norm]
+
       dyn_dense_w = rearrange(dyn_dense_w, 'B T C L -> C B T L 1', C=C)
       y = tuple(
-        [y + (post_norm(wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0))
-          if cidx == C - 1 else 
+        [y + (post_norms[cidx](wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0))
+          if cidx == C - 1 or C == 2 else   # C == 2 means mtp_num_layers > 0
         wsum(dyn_dense_w[cidx: cidx + 1], hids).squeeze(0))
           for cidx in range(C)])
     else:

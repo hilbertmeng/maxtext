@@ -839,7 +839,7 @@ class Decoder(nn.Module):
             
     max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}', debug=cfg.debug)
     if cfg.dense_conn:
-      main_head_inputs, mtp_head_inputs = y if cfg.mtp_num_layers > 0 else [y[0], None]
+      mtp_head_inputs, main_head_inputs = y if cfg.mtp_num_layers > 0 else [y[0], None]
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
 

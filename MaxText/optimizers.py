@@ -31,6 +31,18 @@ def scale_by_learning_rate(
     return transform.scale_by_schedule(lambda count: m * learning_rate(count) * scale)
   return transform.scale(m * learning_rate)
 
+
+def muon_scale_schedule(config):
+  def schedule(step):
+      # 务必注意，这个传入的step不是实际的步数，是从0开始的
+      pct = (step) / max(1, config.learning_rate_schedule_steps)
+      a = 0.5 * (jnp.cos(jnp.pi * pct) + 1)
+      # lr * a + final_lr * (1 - a)
+      scale = config.muon_scale * a + config.final_muon_scale * (1 - a)
+      return scale
+  return schedule
+    
+
 # muon must decay
 def muon(
     learning_rate_schedule: base.ScalarOrSchedule,
@@ -98,6 +110,8 @@ def muon(
 
     return traverse_util.unflatten_dict(param_labels)
 
+
+
   def weight_dim_nums_fn(params): # optax>=0.2.6
     def get_dim_nums(x):
         if x.ndim == 2:
@@ -126,26 +140,26 @@ def muon(
     muon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
   muon_base = scale_by_muon(**muon_kwargs)
 
-  default_scale = 1.0
-  attn_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim)) * config.muon_scale
-  mlp_scale = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim)) * config.muon_scale
-  max_logging.log(f'attn_scale: {attn_scale}, mlp_scale: {mlp_scale} weight_decay: {weight_decay}')
+  attn_dim_sqrt = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim))
+  mlp_dim_sqrt = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim))
+  max_logging.log(f'attn_dim_sqrt: {attn_dim_sqrt}, mlp_dim_sqrt: {mlp_dim_sqrt} weight_decay: {weight_decay}')
 
   muon_final_lr = config.final_muon_scale * config.learning_rate * config.cosine_learning_rate_final_fraction / config.muon_scale
-  muon_learning_rate_schedule = max_utils.create_learning_rate_schedule(config, final_lr=muon_final_lr)
   max_logging.log(f'final_muon_scal: {config.final_muon_scale} muon_final_lr: {muon_final_lr}')
 
   return combine.partition(
       transforms={
           'muon_attn': combine.chain(
               muon_base,
+              scale_by_learning_rate(muon_scale_schedule, scale=attn_dim_sqrt, flip_sign=False),
               transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
-              scale_by_learning_rate(muon_learning_rate_schedule, scale=attn_scale),
+              scale_by_learning_rate(learning_rate_schedule),
           ),
           'muon_mlp': combine.chain(
               muon_base,
+              scale_by_learning_rate(muon_scale_schedule, scale=mlp_dim_sqrt, flip_sign=False),
               transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
-              scale_by_learning_rate(muon_learning_rate_schedule, scale=mlp_scale),
+              scale_by_learning_rate(learning_rate_schedule),
           ),
           # Small model rms wd set 0.0 better, bigger model unknow. but muon paper suggest wd=0.1
           # 1+scale mode need wd, other not need.

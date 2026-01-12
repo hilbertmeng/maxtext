@@ -151,13 +151,13 @@ def muon(
       transforms={
           'muon_attn': combine.chain(
               muon_base,
-              scale_by_learning_rate(muon_scale_schedule, scale=attn_dim_sqrt, flip_sign=False),
+              scale_by_learning_rate(muon_scale_schedule(config), scale=attn_dim_sqrt, flip_sign=False),
               transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
               scale_by_learning_rate(learning_rate_schedule),
           ),
           'muon_mlp': combine.chain(
               muon_base,
-              scale_by_learning_rate(muon_scale_schedule, scale=mlp_dim_sqrt, flip_sign=False),
+              scale_by_learning_rate(muon_scale_schedule(config), scale=mlp_dim_sqrt, flip_sign=False),
               transform.add_decayed_weights(weight_decay, mask=None), # Can use muon_mask to control wd
               scale_by_learning_rate(learning_rate_schedule),
           ),

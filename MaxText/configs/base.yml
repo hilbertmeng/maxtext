@@ -619,8 +619,8 @@ stable_steps_fraction: 0.0
 opt_type: "adamw"  # one of "adam_pax" or "adamw" or "muon"
 decay_method: 'cosine'
 learning_rate: 3.e-5
-cosine_learning_rate_final_fraction: 0.1 # 也可以作为wsd decay的结束学习率
-warmup_steps_fraction: 0.1 # cosine and wsd warmup steps fraction
+cosine_learning_rate_final_fraction: 0.1
+warmup_steps_fraction: 0.1
 learning_rate_schedule_steps: -1 # By default the length of the schedule is set to the number of steps.
 gradient_clipping_threshold: 1.0
 gradient_accumulation_steps: 1

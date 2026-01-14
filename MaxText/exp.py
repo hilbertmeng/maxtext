@@ -698,6 +698,7 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage(MuonMuddD
     cosine_learning_rate_final_fraction = 0.0 # decay to 0
     adam_weight_decay = 0.02
     mtp_loss_scaling_factor = 0.1
+    dataset_type = 'v4.5_1.5B_sec_stage'
     # 50B第二阶段比例，1250000条
     # {'dclm': 0.472, 'flan': 0.166,  'pes2o': 0.0585, 'wiki': 0.0711, 'stack': 0.0245, 'math': 0.208}
     # ↓

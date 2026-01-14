@@ -870,21 +870,22 @@ def create_learning_rate_schedule(config, final_lr=None):
   3) Constant learning rate of 0 from learning_rate_schedule_steps to steps.
   The zero learning rate section can be used to more accurately measure the fully trained model's performance.
   """
-  def make_wsd_decay_schedule(init_lr, final_lr, len_steps):
-    # 0.5**((step - S) / T), S means decay start step.  T 根据decay结束开始和结束学习率 反推出来的一个值。
-    T = np.log(0.5) * len_steps /  np.log(final_lr / init_lr)
-    def schedule(step):
-      # 务必注意，这个传入的step不是实际的步数，是从0开始的, 应该是optax进一步处理了。正好是公式中的step - S
-      lr = init_lr * 0.5**(step / T)
-      return lr
-    return schedule
-
   def make_cos_schedule(init_lr, final_lr, len_steps):
     def schedule(step):
-      # 务必注意，这个传入的step不是实际的步数，是从0开始的
+      # 务必注意，这个传入的step不是实际的步数，是从0/或者负数开始的。意思就是说，这个函数接收的值可以认为是从0开始的。
       pct = (step) / max(1, len_steps)
       a = 0.5 * (jnp.cos(jnp.pi * pct) + 1)
       lr = init_lr * a + final_lr * (1 - a)
+      return lr
+
+    return schedule
+
+  def make_linear_schedule(init_lr, final_lr, len_steps):
+    def schedule(step):
+      # 务必注意，这个传入的step不是实际的步数，是从0/或者负数开始的。意思就是说，这个函数接收的值可以认为是从0开始的。
+      # 线性从 init_lr 衰减到 final_lr
+      pct = (step) / max(1, len_steps)
+      lr = init_lr + (final_lr - init_lr) * pct
       return lr
 
     return schedule
@@ -903,8 +904,14 @@ def create_learning_rate_schedule(config, final_lr=None):
   # 应对无warmup情况，直接从lr开始，一直保持常量学习率lr训练
   warmup_schedule = optax.linear_schedule(init_value=0.0 if warmup_steps > 0 else lr, end_value=lr, transition_steps=warmup_steps)
   # decay_ratio = 1 - stable_steps_fraction - config.warmup_steps_fraction
-  cos_schedule = make_wsd_decay_schedule(lr, final_lr, cos_steps) if stable_steps_fraction > 0 and config.decay_method == 'wsd' \
-                                                            else make_cos_schedule(lr, final_lr, cos_steps)
+  print(f'decay_method: {config.decay_method}')
+  print(f'warmup_steps: {warmup_steps} stable_steps: {stable_steps} cos_steps: {cos_steps} constant_zero_steps: {constant_zero_steps}')
+  if config.decay_method == 'cosine':
+    cos_schedule = make_cos_schedule(lr, final_lr, cos_steps)
+  elif config.decay_method == 'linear':
+    cos_schedule = make_linear_schedule(lr, final_lr, cos_steps)
+  else:
+    raise ValueError(f'Invalid decay method: {config.decay_method}')
   constant_schedule = optax.constant_schedule(final_lr) # finally set final_lr
   pieces = [warmup_schedule, cos_schedule]
   boundaries = [

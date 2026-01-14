@@ -541,6 +541,61 @@ def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
     return total_train_files, total_valid_files
 
 
+def extract_v4p5_1p5B_data_files_sec_stage(dataset_path, eval_split):
+    random.seed(9876)
+    client = storage.Client()
+    path = dataset_path.replace('gs://', '')
+    path_parts = path.split('/')
+    bucket_name = path_parts[0]
+    directory_path = '/'.join(path_parts[1:])
+    directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
+    print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
+    total_valid_files = []
+    train_files = defaultdict(list)
+    dataset_names = ['dclm', 'flan', 'math', 'pes2o', 'stackexchange', 'wiki']
+    for blob in client.list_blobs(bucket_name, prefix=directory_path):
+        path = f'gs://{os.path.join(bucket_name, blob.name)}'
+        if 'obfd_packed' not in path:
+            continue
+        if eval_split in path:
+            total_valid_files.append(path)
+        else:
+            for dataset_name in dataset_names:
+                if dataset_name in path:
+                    train_files[dataset_name].append(path)
+                    break
+    total_train_files = []
+    for dataset_name, pathes in train_files.items():
+        sorted_pathes = sorted(pathes)
+        total_valid_files.append(sorted_pathes[-2]) # add last 2th file as valid_files
+        if 'dclm' in dataset_name:
+            selected_pathes = random.sample(sorted_pathes[:-2], k=59) # 590000
+        elif 'flan' in dataset_name:
+            selected_pathes = random.sample(sorted_pathes[:-2], k=20) # 207500
+            selected_pathes.append(sorted_pathes[-1])
+        elif 'math' in dataset_name:
+            selected_pathes = random.sample(sorted_pathes[:-2], k=26) # 260000
+        elif 'pes2o' in dataset_name:
+            selected_pathes = random.sample(sorted_pathes[:-2], k=7) # 73125
+            selected_pathes.append(sorted_pathes[-1])
+        elif 'stackexchange' in dataset_name:
+            selected_pathes = random.sample(sorted_pathes[:-2], k=3) # 30625
+            selected_pathes.append(sorted_pathes[-1])
+        elif 'wiki' in dataset_name:
+            selected_pathes = random.sample(sorted_pathes[:-2], k=9) # 88875
+        else:
+            raise ValueError(f'Unknown dataset name: {dataset_name}')
+        print(f'dataset_name: {dataset_name}, selected_pathes: {len(selected_pathes)}')
+        total_train_files.extend(selected_pathes)
+
+    random.shuffle(total_train_files)
+
+    print(f'Train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
+    print(f'first 10 train files: {total_train_files[:10]}')
+    print(f'valid_files: {total_valid_files}')
+    return total_train_files, total_valid_files
+
+
 def extract_train_skip_step(model_dir, step, only_eval=False):  # lsp
     if model_dir is None:
         return {}
@@ -581,6 +636,8 @@ def make_pile_train_iterator(config, mesh):  # lsp
     train_pathes, eval_pathes = extract_v3p5mini_data_files(config.dataset_path, config.eval_split, config.train_stage)
   elif config.dataset_type == 'v4.5_1.5B':
      train_pathes, eval_pathes = extract_v4p5_1p5B_data_files(config.dataset_path, config.eval_split)
+  elif config.dataset_type == 'v4.5_1.5B_sec_stage':
+     train_pathes, eval_pathes = extract_v4p5_1p5B_data_files_sec_stage(config.dataset_path, config.eval_split)
   else:
     raise ValueError(f'Unknow ‘config.datase_dtype’={config.datase_dtype}')
 

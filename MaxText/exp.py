@@ -704,16 +704,9 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage(MuonMuddD
     # ↓
     # {'dclm': 590000, 'flan': 207500, 'pes2o': 73125, 'wiki': 88875, 'stack': 30625, 'math': 260000}
 
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10):
-    learning_rate = 8.7232e-5
-    learning_rate_schedule_steps = 189500
-    warmup_steps_fraction = 0.0
-    stable_steps_fraction = 0.961742 # 182250
-    decay_method = 'linear'
-    cosine_learning_rate_final_fraction = 0.0 # decay to 0
-    adam_weight_decay = 0.3
-    mtp_loss_scaling_factor = 0.1
-    dataset_type = 'v4.5_1.5B_sec_stage'
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15BNormBug(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage):
+    learning_rate_schedule_steps = 167250
+    stable_steps_fraction = 0.956652 # 160000
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Pile(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     per_device_batch_size = 16.0  # total 256 for v5p-32

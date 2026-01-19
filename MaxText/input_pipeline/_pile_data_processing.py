@@ -551,45 +551,15 @@ def extract_v4p5_1p5B_data_files_sec_stage(dataset_path, eval_split):
     directory_path = directory_path if directory_path.endswith('/') else directory_path + '/'
     print(f'bucket_name = {bucket_name}, directory_path = {directory_path}')
     total_valid_files = []
-    train_files = defaultdict(list)
-    dataset_names = ['dclm', 'flan', 'math', 'pes2o', 'stackexchange', 'wiki']
+    total_train_files = []
     for blob in client.list_blobs(bucket_name, prefix=directory_path):
         path = f'gs://{os.path.join(bucket_name, blob.name)}'
-        if 'obfd_packed' not in path:
-            continue
         if eval_split in path:
             total_valid_files.append(path)
         else:
-            for dataset_name in dataset_names:
-                if dataset_name in path:
-                    train_files[dataset_name].append(path)
-                    break
-    total_train_files = []
-    for dataset_name, pathes in train_files.items():
-        sorted_pathes = sorted(pathes)
-        total_valid_files.append(sorted_pathes[-2]) # add last 2th file as valid_files
-        if 'dclm' in dataset_name:
-            selected_pathes = random.sample(sorted_pathes[:-2], k=59) # 590000
-        elif 'flan' in dataset_name:
-            selected_pathes = random.sample(sorted_pathes[:-2], k=20) # 207500
-            selected_pathes.append(sorted_pathes[-1])
-        elif 'math' in dataset_name:
-            selected_pathes = random.sample(sorted_pathes[:-2], k=26) # 260000
-        elif 'pes2o' in dataset_name:
-            selected_pathes = random.sample(sorted_pathes[:-2], k=7) # 73125
-            selected_pathes.append(sorted_pathes[-1])
-        elif 'stackexchange' in dataset_name:
-            selected_pathes = random.sample(sorted_pathes[:-2], k=3) # 30625
-            selected_pathes.append(sorted_pathes[-1])
-        elif 'wiki' in dataset_name:
-            selected_pathes = random.sample(sorted_pathes[:-2], k=9) # 88875
-        else:
-            raise ValueError(f'Unknown dataset name: {dataset_name}')
-        print(f'dataset_name: {dataset_name}, selected_pathes: {len(selected_pathes)}')
-        total_train_files.extend(selected_pathes)
+            total_train_files.append(path)
 
     random.shuffle(total_train_files)
-
     print(f'Train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
     print(f'first 10 train files: {total_train_files[:10]}')
     print(f'valid_files: {total_valid_files}')

@@ -57,7 +57,7 @@ class Config:
     """全局配置"""
     # GCS 配置
     BUCKET_NAME = "newproject-1-data-xm4d5"
-    PROJECT_ROOT = f"gs://newproject-1-llm_base_models_us-east5/data/v4.5-1.5B/{DATASET_NAME}-processed0113"
+    PROJECT_ROOT = f"gs://newproject-1-llm_base_models_us-east5/data/v4.5-1.5B/{DATASET_NAME}-processed0119"
     
     # 模型配置
     TOKENIZER_NAME = "allenai/OLMo-2-0425-1B"
@@ -101,17 +101,40 @@ class Config:
     PACKED_SAMPLES_PER_FILE = 10000
     
     # Sample 步骤配置
-    # 每个数据集的采样数量
+    # 每个数据集的采样数量 5B
+    # DATASET_SAMPLE_SIZES = {
+    #     'dclm': 590000,
+    #     'flan': 207500,
+    #     'math': 260000,
+    #     'pes2o': 73125,
+    #     'stackexchange': 30625,
+    #     'wiki': 88875,
+    # }
+    # 15B
     DATASET_SAMPLE_SIZES = {
-        'dclm': 590000,
-        'flan': 207500,
-        'math': 260000,
-        'pes2o': 73125,
-        'stackexchange': 30625,
-        'wiki': 88875,
+        'dclm': 1770000,
+        'flan': 622500, # 
+        'math': 780000, # 
+        'pes2o': 220000,
+        'stackexchange': 91000, #
+        'wiki': 266625,
     }
     SAMPLE_OUTPUT_SAMPLES_PER_FILE = 10000  # 每个输出文件的样本数
     SAMPLE_SEED = 1234  # 随机种子，保证可复现性
+    
+    # 按文件数量抽取配置 (用于 sample_files 步骤)
+    # 参考 _pile_data_processing.py 中的文件数配置
+    FILE_SAMPLE_SIZES = {
+        'dclm': 177,           # 590000 * 3 tokens
+        'flan': 63,            # 62 + 1 (最后一个文件)
+        'math': 78,            # 260000 * 3 tokens
+        'pes2o': 22,           # 73125 * 3 tokens
+        'stackexchange': 10,   # 9 + 1 (最后一个文件)
+        'wiki': 27,            # 88875 * 3 tokens
+    }
+    
+    # 混合输出目录
+    MIXED_TRAIN_DIR = "train_mixed"
     
     # 进程配置
     NUM_PROCESSES = 10
@@ -552,11 +575,13 @@ def run_tokenize_single_dataset(dataset_name: str, num_processes: int):
     # if re.search(r'flan|wiki|stackexchange|pes2o|math', dataset_name):
     # if 'dclm' not in dataset_name:
     if 'dclm' in dataset_name:
-        files = random.sample(files, max(1, len(files) // 8))
-    elif 'pes2o' in dataset_name or 'wiki' in dataset_name or 'flan' in dataset_name:
-        files = random.sample(files, max(1, len(files) // 10))
-    elif 'math' in dataset_name or 'stackexchange' in dataset_name: 
         files = random.sample(files, max(1, len(files) // 6))
+    elif 'pes2o' in dataset_name or 'flan' in dataset_name:
+        files = random.sample(files, max(1, len(files) // 2))
+    elif 'math' in dataset_name:
+        files = random.sample(files, max(1, len(files) // 3))
+    elif 'stackexchange' in dataset_name or 'wiki' in dataset_name: 
+        files = random.sample(files, max(1, len(files)))
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
@@ -1160,14 +1185,316 @@ def run_sample_per_dataset(num_processes: int, datasets: List[str] = None):
 
 
 # ==============================================================================
+# Step 4: Sample by Files (按文件数抽取，train 数据 shuffle，valid 数据不 shuffle)
+# ==============================================================================
+
+def shuffle_write_worker(output_dir: str, file_list: List[str], worker_id: int, do_shuffle: bool = True):
+    """
+    读取文件中的所有样本，shuffle 后写入新文件
+    
+    Args:
+        output_dir: 输出目录
+        file_list: 要处理的文件列表
+        worker_id: Worker ID
+        do_shuffle: 是否进行 shuffle
+    """
+    print(f"[Worker {worker_id}] Started. Files: {len(file_list)}, Shuffle: {do_shuffle}")
+    
+    if not file_list:
+        print(f"[Worker {worker_id}] No files to process. Done.")
+        return 0
+    
+    start_time = time.time()
+    
+    # Step 1: 读取所有样本到内存
+    all_samples = []
+    for i, file_path in enumerate(file_list):
+        ds = tf.data.TFRecordDataset([file_path])
+        ds = ds.map(parse_tfrecord_fn, num_parallel_calls=tf.data.AUTOTUNE)
+        
+        for tensor_ids in ds.as_numpy_iterator():
+            all_samples.append(tensor_ids.tolist())
+        
+        if (i + 1) % 20 == 0:
+            elapsed = (time.time() - start_time) / 60
+            print(f"[Worker {worker_id}] Read {i + 1}/{len(file_list)} files, samples: {len(all_samples)}, Time: {elapsed:.1f}m")
+    
+    total_samples = len(all_samples)
+    read_time = (time.time() - start_time) / 60
+    print(f"[Worker {worker_id}] Read completed. Total samples: {total_samples}, Time: {read_time:.1f}m")
+    
+    if total_samples == 0:
+        print(f"[Worker {worker_id}] No samples to write. Done.")
+        return 0
+    
+    # Step 2: Shuffle (如果需要)
+    if do_shuffle:
+        print(f"[Worker {worker_id}] Shuffling {total_samples} samples...")
+        random.shuffle(all_samples)
+    
+    # Step 3: 写入新文件
+    print(f"[Worker {worker_id}] Writing samples...")
+    write_start = time.time()
+    
+    writer_idx = 0
+    total_written = 0
+    writer = None
+    
+    def get_writer():
+        nonlocal writer_idx
+        fname = f"Rank{worker_id:03d}.{writer_idx:04d}.tfrecord"
+        fpath = os.path.join(output_dir, fname)
+        writer_idx += 1
+        return tf.io.TFRecordWriter(fpath)
+    
+    for sample in all_samples:
+        if writer is None:
+            writer = get_writer()
+        
+        write_to_tfrecord(writer, sample)
+        total_written += 1
+        
+        if total_written % Config.SAMPLE_OUTPUT_SAMPLES_PER_FILE == 0:
+            writer.close()
+            writer = get_writer()
+        
+        if total_written % 100000 == 0:
+            elapsed = (time.time() - write_start) / 60
+            print(f"[Worker {worker_id}] Written {total_written}/{total_samples} samples, Time: {elapsed:.1f}m")
+    
+    if writer:
+        writer.close()
+    
+    total_time = (time.time() - start_time) / 60
+    print(f"[Worker {worker_id}] Done. Total: {total_written}, Time: {total_time:.1f}m")
+    return total_written
+
+
+def run_sample_by_files(num_processes: int, datasets: List[str] = None):
+    """
+    按文件数量抽取数据，完全按照 extract_v4p5_1p5B_data_files_sec_stage 的逻辑
+    
+    流程:
+    1. 从每个数据集的 obfd_packed 中收集文件
+    2. 对每个数据集:
+       - 将倒数第2个文件加入 valid_files
+       - 按照各数据集的规则抽取 train files
+    3. 读取 train 数据，进行样本级别 shuffle，然后写入 train 文件夹
+    4. 读取 valid 数据，不 shuffle，直接写入 valid 文件夹
+    
+    抽取规则 (参考 _pile_data_processing.py):
+    - dclm: 从前 n-2 个中随机抽 177 个
+    - flan: 从前 62 个中随机抽 62 个，加上最后一个
+    - math: 从前 n-2 个中随机抽 78 个
+    - pes2o: 从前 n-2 个中随机抽 22 个
+    - stackexchange: 从前 n-2 个中随机抽 9 个，加上最后一个
+    - wiki: 从前 n-2 个中随机抽 27 个
+    
+    Args:
+        num_processes: 进程数
+        datasets: 要处理的数据集列表，None 表示所有数据集
+    """
+    print(f"\n{'='*20} Step: Sample by Files {'='*20}")
+    
+    if datasets is None:
+        datasets = Config.ALL_DATASETS
+    
+    print(f"Datasets to process: {datasets}")
+    print(f"File sample sizes: {Config.FILE_SAMPLE_SIZES}")
+    print(f"Random seed: {Config.SAMPLE_SEED}")
+    
+    # 设置随机种子
+    random.seed(Config.SAMPLE_SEED)
+    
+    # Step 1: 从每个数据集收集并抽取文件
+    total_train_files = []  # 存储所有抽取的训练文件路径
+    total_valid_files = []  # 存储所有验证文件路径
+    
+    for ds_name in datasets:
+        print(f"\n{'-'*40}")
+        print(f"Collecting files from dataset: {ds_name}")
+        print(f"{'-'*40}")
+        
+        # 获取该数据集的文件抽取数量
+        file_sample_size = Config.FILE_SAMPLE_SIZES.get(ds_name)
+        if file_sample_size is None:
+            print(f"  No file sample size configured for {ds_name}. Skipping.")
+            continue
+        
+        print(f"  Target file count: {file_sample_size}")
+        
+        paths = get_output_paths(ds_name)
+        
+        # 收集该数据集的 obfd_packed 文件
+        bucket_name, prefix = parse_gcs_path(paths['obfd_packed'])
+        all_files = list_gcs_files(bucket_name, prefix, suffix=".tfrecord")
+        
+        print(f"  Available files: {len(all_files)}")
+        
+        if not all_files:
+            print(f"  No files found for {ds_name}. Skipping.")
+            continue
+        
+        # 排序文件（保证可复现性）
+        sorted_files = sorted(all_files)
+        
+        # 将倒数第2个文件加入 valid_files
+        if len(sorted_files) >= 2:
+            total_valid_files.append(sorted_files[-2])
+            print(f"  Added valid file: {sorted_files[-2]}")
+        
+        # 按照 extract_v4p5_1p5B_data_files_sec_stage 的逻辑抽取 train files
+        if ds_name == 'dclm':
+            # dclm: 从前 n-2 个中随机抽 177 个
+            k = min(file_sample_size, len(sorted_files) - 2)
+            selected_files = random.sample(sorted_files[:-2], k=k)
+        elif ds_name == 'flan':
+            # flan: 从前 62 个中随机抽 62 个，加上最后一个
+            k = min(62, file_sample_size - 1, len(sorted_files) - 1)
+            selected_files = random.sample(sorted_files[:62], k=k)
+            selected_files.append(sorted_files[-1])
+        elif ds_name == 'math':
+            # math: 从前 n-2 个中随机抽 78 个
+            k = min(file_sample_size, len(sorted_files) - 2)
+            selected_files = random.sample(sorted_files[:-2], k=k)
+        elif ds_name == 'pes2o':
+            # pes2o: 从前 n-2 个中随机抽 22 个
+            k = min(file_sample_size, len(sorted_files) - 2)
+            selected_files = random.sample(sorted_files[:-2], k=k)
+        elif ds_name == 'stackexchange':
+            # stackexchange: 从前 n-2 个中随机抽 9 个，加上最后一个
+            k = min(file_sample_size - 1, len(sorted_files) - 2)
+            selected_files = random.sample(sorted_files[:-2], k=k)
+            selected_files.append(sorted_files[-1])
+        elif ds_name == 'wiki':
+            # wiki: 从前 n-2 个中随机抽 27 个
+            k = min(file_sample_size, len(sorted_files) - 2)
+            selected_files = random.sample(sorted_files[:-2], k=k)
+        else:
+            # 其他数据集: 从前 n-2 个中随机抽取
+            k = min(file_sample_size, len(sorted_files) - 2)
+            selected_files = random.sample(sorted_files[:-2], k=k)
+        
+        print(f"  Selected train files: {len(selected_files)}")
+        total_train_files.extend(selected_files)
+
+    random.shuffle(total_train_files)
+    
+    print(f"\n{'='*50}")
+    print(f"Total train files collected: {len(total_train_files)}")
+    print(f"Total valid files collected: {len(total_valid_files)}")
+    
+    if not total_train_files:
+        print("No train files to process. Exiting.")
+        return
+    
+    # Step 2: 准备输出目录
+    train_output_dir = f"{Config.PROJECT_ROOT}/{Config.MIXED_TRAIN_DIR}/train/"
+    valid_output_dir = f"{Config.PROJECT_ROOT}/{Config.MIXED_TRAIN_DIR}/valid/"
+    print(f"Train output directory: {train_output_dir}")
+    print(f"Valid output directory: {valid_output_dir}")
+    
+    # Step 3: 处理 train 文件 (读取 -> shuffle -> 写入)
+    print(f"\n{'='*50}")
+    print(f"Processing TRAIN files (with shuffle)...")
+    print(f"{'='*50}")
+    
+    # 将文件均匀分配给各个进程
+    actual_processes = min(num_processes, len(total_train_files))
+    if actual_processes > 0:
+        chunk_size = len(total_train_files) // actual_processes + 1
+        
+        worker_tasks = []
+        for i in range(actual_processes):
+            start = i * chunk_size
+            end = min((i + 1) * chunk_size, len(total_train_files))
+            if start < end:
+                files_chunk = total_train_files[start:end]
+                worker_tasks.append((train_output_dir, files_chunk, i, True))  # do_shuffle=True
+        
+        print(f"Starting {len(worker_tasks)} workers for train files...")
+        print(f"Each worker will read -> shuffle -> write its assigned files")
+        
+        start_time = time.time()
+        with multiprocessing.Pool(processes=len(worker_tasks)) as pool:
+            train_results = pool.starmap(shuffle_write_worker, worker_tasks)
+        
+        total_train_written = sum(train_results)
+        train_elapsed = (time.time() - start_time) / 60
+        print(f"Train samples written: {total_train_written}, Time: {train_elapsed:.1f}m")
+    else:
+        total_train_written = 0
+    
+    # Step 4: 处理 valid 文件 (读取 -> 不 shuffle -> 写入)
+    print(f"\n{'='*50}")
+    print(f"Processing VALID files (no shuffle)...")
+    print(f"{'='*50}")
+    
+    if total_valid_files:
+        actual_valid_processes = min(num_processes, len(total_valid_files))
+        if actual_valid_processes > 0:
+            chunk_size = len(total_valid_files) // actual_valid_processes + 1
+            
+            worker_tasks = []
+            for i in range(actual_valid_processes):
+                start = i * chunk_size
+                end = min((i + 1) * chunk_size, len(total_valid_files))
+                if start < end:
+                    files_chunk = total_valid_files[start:end]
+                    worker_tasks.append((valid_output_dir, files_chunk, i, False))  # do_shuffle=False
+            
+            print(f"Starting {len(worker_tasks)} workers for valid files...")
+            
+            start_time = time.time()
+            with multiprocessing.Pool(processes=len(worker_tasks)) as pool:
+                valid_results = pool.starmap(shuffle_write_worker, worker_tasks)
+            
+            total_valid_written = sum(valid_results)
+            valid_elapsed = (time.time() - start_time) / 60
+            print(f"Valid samples written: {total_valid_written}, Time: {valid_elapsed:.1f}m")
+        else:
+            total_valid_written = 0
+    else:
+        total_valid_written = 0
+    
+    # Step 5: 打印统计信息
+    print(f"\n{'='*50}")
+    print(f"Sample by Files completed!")
+    print(f"  Train:")
+    print(f"    - Input files: {len(total_train_files)}")
+    print(f"    - Output samples: {total_train_written}")
+    print(f"    - Shuffled: YES")
+    print(f"    - Output: {train_output_dir}")
+    print(f"  Valid:")
+    print(f"    - Input files: {len(total_valid_files)}")
+    print(f"    - Output samples: {total_valid_written}")
+    print(f"    - Shuffled: NO")
+    print(f"    - Output: {valid_output_dir}")
+    print(f"{'='*50}")
+    
+    # 打印各数据集的文件数统计
+    print(f"\nFiles per dataset in train:")
+    ds_train_counts = defaultdict(int)
+    for f in total_train_files:
+        for ds_name in Config.ALL_DATASETS:
+            if f"/{ds_name}/" in f:
+                ds_train_counts[ds_name] += 1
+                break
+    for ds_name, count in sorted(ds_train_counts.items()):
+        print(f"    {ds_name}: {count}")
+    
+    return total_train_files, total_valid_files
+
+
+# ==============================================================================
 # 主程序
 # ==============================================================================
 
 def main():
     parser = argparse.ArgumentParser(description='Data Processing Pipeline')
     parser.add_argument('--step', type=str, required=True,
-                        choices=['tokenize', 'obfd', 'sample', 'all'],
-                        help='Processing step: tokenize, obfd, sample, or all')
+                        choices=['tokenize', 'obfd', 'sample', 'sample_files', 'all'],
+                        help='Processing step: tokenize, obfd, sample, sample_files, or all')
     parser.add_argument('--dataset', type=str, default='all',
                         help='Dataset(s): single name, comma-separated list, or "all"')
     parser.add_argument('--num-processes', type=int, default=Config.NUM_PROCESSES,
@@ -1194,7 +1521,8 @@ def main():
     print(f"  - Datasets: {datasets}")
     print(f"  - Processes: {args.num_processes}")
     print(f"  - Files per OBFD group: {Config.FILES_PER_GROUP}")
-    print(f"  - Sample sizes: {Config.DATASET_SAMPLE_SIZES}")
+    print(f"  - Sample sizes (by samples): {Config.DATASET_SAMPLE_SIZES}")
+    print(f"  - Sample sizes (by files): {Config.FILE_SAMPLE_SIZES}")
     print(f"  - Sample seed: {Config.SAMPLE_SEED}")
     
     # Step 1: Tokenize (每个数据集单独处理)
@@ -1206,8 +1534,12 @@ def main():
         run_obfd_per_dataset(args.num_processes, datasets)
     
     # Step 3: Sample (从 4k 和 obfd_packed 中抽取数据到 train)
-    if args.step in ['sample', 'all']:
-        run_sample_per_dataset(args.num_processes, datasets)
+    # if args.step in ['sample', 'all']:
+    #     run_sample_per_dataset(args.num_processes, datasets)
+    
+    # Step 4: Sample by Files (按文件数抽取，train 数据 shuffle，valid 不 shuffle)
+    if args.step == 'sample_files':
+        run_sample_by_files(args.num_processes, datasets)
     
     print("\n" + "="*50)
     print("All processing completed!")
@@ -1219,26 +1551,29 @@ if __name__ == "__main__":
 
 # pip install orjson smart_open
 # 使用示例：
-# Tokenize：
-# python processed.py --step tokenize --dataset stackexchange --num-processes 2
-# python processed.py --step tokenize --dataset pes2o --num-processes 10
+# Tokenize： 15B
+
+# python processed.py --step tokenize --dataset stackexchange --num-processes 4 
 # python processed.py --step tokenize --dataset wiki --num-processes 50
-# python processed.py --step tokenize --dataset math --num-processes 50
-# python processed.py --step tokenize --dataset dclm --num-processes 100
-# python processed.py --step tokenize --dataset flan --num-processes 100
+# python processed.py --step tokenize --dataset math --num-processes 100
+# python processed.py --step tokenize --dataset dclm --num-processes 200
+# python processed.py --step tokenize --dataset pes2o --num-processes 20
+# python processed.py --step tokenize --dataset flan --num-processes 200
+
 
 # OBFD：
 # python processed.py --step obfd --dataset stackexchange --files-per-group 120 --num-processes 1
 
-# python processed.py --step obfd --dataset dclm --files-per-group 60 --num-processes 2
+# python processed.py --step obfd --dataset dclm --files-per-group 60 --num-processes 3
 # python processed.py --step obfd --dataset wiki --files-per-group 120 --num-processes 1
-# python processed.py --step obfd --dataset flan --files-per-group 200 --num-processes 1
 # python processed.py --step obfd --dataset math --files-per-group 200 --num-processes 1
+# python processed.py --step obfd --dataset flan --files-per-group 150 --num-processes 3
+
 # python processed.py --step obfd --dataset pes2o --files-per-group 200 --num-processes 1
 # python processed.py --step obfd --dataset stackexchange --files-per-group 200 --num-processes 1
 
+# sample (按样本数抽取)
+# python processed.py --step sample --dataset all
 
-# Sample # 获取手动配置的采样数量
-# python processed.py --step sample --dataset stackexchange
-# 完整流程：
-# python processed.py --step all --dataset all
+# sample_files (按文件数抽取，train 数据 shuffle，valid 不 shuffle)
+# python processed.py --step sample_files --dataset all --num-processes 6

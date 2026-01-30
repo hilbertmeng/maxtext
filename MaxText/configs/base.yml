@@ -548,7 +548,6 @@ me_dilation: null # mudd embeddings dilation
 mudd_cap: 0.0 # mudd soft cap
 mudd_use_scale: False
 me_prenorm: False # mudd embeddings prenorm
-scan_use_mudd: False
 
 # ================================= [moe] =================================
 capacity_factor: -1.0 # Don't change this value

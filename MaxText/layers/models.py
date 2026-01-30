@@ -775,7 +775,7 @@ class Decoder(nn.Module):
                 de,
                 deterministic,
                 model_mode,
-                me + hids[-4:] if cfg.scan_use_mudd else None, # me + local hids
+                hids[-4:] if cfg.scan_use_mudd else None, # me + local hids
                 eos_sum=eos_sum,
             )
             if cfg.dense_conn and cfg.compose_all_layers:
@@ -784,9 +784,9 @@ class Decoder(nn.Module):
           
             lyr += scan_length
 
-          # if scan_length == 1: # scan output no compose
-          y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
-          hids.append(y)
+          if scan_length == 1: # scan output no compose
+            y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
+            hids.append(y)
 
       else:
         if cfg.decoder_block == "deepseek":

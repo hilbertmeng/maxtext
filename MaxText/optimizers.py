@@ -1,5 +1,5 @@
 """Utils that are only interesting to MaxText. """
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, NamedTuple, Optional, Union
 import chex
 from functools import partial
 import math
@@ -16,6 +16,154 @@ from optax._src import transform
 
 import max_utils
 import max_logging
+
+
+# ================================= [NorMuon] =================================
+# NorMuon: Making Muon more efficient and scalable
+# Paper: https://arxiv.org/abs/2510.05491
+# Core idea: Add neuron-level adaptive learning rate after Muon's orthogonalization
+# to address the issue of non-uniform neuron norms caused by orthogonalization.
+
+class ScaleByNeuronNormState(NamedTuple):
+  """State for scale_by_neuron_norm."""
+  count: chex.Array  # step count
+  nu: base.Updates   # second moment (neuron-level, stored as per-row mean)
+
+
+def scale_by_neuron_norm(
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+    reduction_axis: int = -1,
+) -> base.GradientTransformation:
+  """NorMuon's neuron-level normalization after Muon orthogonalization.
+  
+  This transformation computes the second moment of the updates at the neuron
+  level (row-wise mean of squared updates) and normalizes each row accordingly.
+  
+  Args:
+    beta2: Decay rate for the second moment (EMA of squared updates).
+    eps: Small constant for numerical stability.
+    reduction_axis: Axis to compute the mean over (default -1, i.e., columns).
+  
+  Returns:
+    A GradientTransformation that applies neuron-level normalization.
+  """
+  
+  def init_fn(params):
+    # Initialize second moment as per-neuron (per-row) vectors
+    def _init_nu(p):
+      if p.ndim >= 2:
+        # For 2D: shape [rows, cols] -> nu shape [rows, 1]
+        # For 3D: shape [rows, batch, cols] -> nu shape [rows, batch, 1]
+        shape = list(p.shape)
+        shape[reduction_axis] = 1
+        return jnp.zeros(shape, dtype=p.dtype)
+      else:
+        # For 1D params, store scalar second moment
+        return jnp.zeros((), dtype=p.dtype)
+    
+    nu = jax.tree_util.tree_map(_init_nu, params)
+    return ScaleByNeuronNormState(count=jnp.zeros([], jnp.int32), nu=nu)
+  
+  def update_fn(updates, state, params=None):
+    del params
+    count = state.count
+    nu = state.nu
+    
+    # Bias correction for second moment
+    count_inc = count + 1
+    bias_correction = 1.0 - jnp.power(beta2, count_inc)
+    
+    def _update_neuron_norm(update, nu_prev):
+      if update.ndim >= 2:
+        # Compute per-row mean of squared updates: mean_cols(O_t ⊙ O_t)
+        sq_mean = jnp.mean(update ** 2, axis=reduction_axis, keepdims=True)
+        # EMA update: v_t = beta2 * v_{t-1} + (1 - beta2) * sq_mean
+        nu_new = beta2 * nu_prev + (1 - beta2) * sq_mean
+        # Bias-corrected second moment
+        nu_hat = nu_new / bias_correction
+        # Normalize: O_hat_t = O_t / sqrt(v_t + eps)
+        normalized = update / (jnp.sqrt(nu_hat) + eps)
+        return normalized, nu_new
+      else:
+        # For 1D params, apply scalar normalization
+        sq_mean = jnp.mean(update ** 2)
+        nu_new = beta2 * nu_prev + (1 - beta2) * sq_mean
+        nu_hat = nu_new / bias_correction
+        normalized = update / (jnp.sqrt(nu_hat) + eps)
+        return normalized, nu_new
+    
+    updates_and_nu = jax.tree_util.tree_map(_update_neuron_norm, updates, nu)
+    new_updates = jax.tree_util.tree_map(lambda x: x[0], updates_and_nu)
+    new_nu = jax.tree_util.tree_map(lambda x: x[1], updates_and_nu)
+    
+    return new_updates, ScaleByNeuronNormState(count=count_inc, nu=new_nu)
+  
+  return base.GradientTransformation(init_fn, update_fn)
+
+
+def scale_by_normuon(
+    ns_coeffs: Union[
+        tuple[float, float, float],
+        tuple[tuple[float, float, float], ...],
+    ] = (3.4445, -4.7750, 2.0315),
+    ns_steps: int = 5,
+    beta1: float = 0.95,
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+    mu_dtype: Optional[chex.ArrayDType] = None,
+    *,
+    nesterov: bool = True,
+    adaptive: bool = False,
+    weight_dimension_numbers: Optional[
+        Union[
+            optax.contrib.MuonDimensionNumbers,
+            Callable[[base.Params], optax.contrib.MuonDimensionNumbers],
+        ]
+    ] = None,
+) -> base.GradientTransformation:
+  """NorMuon optimizer: Muon with neuron-level normalization.
+  
+  NorMuon improves upon Muon by adding a neuron-level adaptive learning rate
+  after the orthogonalization step. This addresses the issue of non-uniform
+  neuron norms caused by Muon's orthogonalization.
+  
+  Algorithm:
+    1. First moment: M_t = beta1 * M_{t-1} + (1 - beta1) * G_t
+    2. Orthogonalization: O_t = NS5(M_t) (Newton-Schulz iteration)
+    3. Second moment (neuron-level): v_t = beta2 * v_{t-1} + (1 - beta2) * mean_cols(O_t ⊙ O_t)
+    4. Normalize: O_hat_t = O_t / sqrt(v_t + eps)
+  
+  Args:
+    ns_coeffs: Coefficients for Newton-Schulz iteration.
+    ns_steps: Number of Newton-Schulz iterations.
+    beta1: Decay rate for first moment (momentum).
+    beta2: Decay rate for second moment (neuron-level normalization).
+    eps: Small constant for numerical stability.
+    mu_dtype: Data type for momentum.
+    nesterov: Whether to use Nesterov momentum.
+    adaptive: Whether to use adaptive scaling (from original Muon).
+    weight_dimension_numbers: Dimension specification for Muon.
+  
+  Returns:
+    A GradientTransformation implementing NorMuon.
+  """
+  muon_kwargs = {
+      'ns_coeffs': ns_coeffs,
+      'ns_steps': ns_steps,
+      'beta': beta1,
+      'eps': eps,
+      'mu_dtype': mu_dtype,
+      'nesterov': nesterov,
+      'adaptive': adaptive,
+  }
+  if weight_dimension_numbers is not None:
+    muon_kwargs['weight_dimension_numbers'] = weight_dimension_numbers
+  
+  return combine.chain(
+      scale_by_muon(**muon_kwargs),
+      scale_by_neuron_norm(beta2=beta2, eps=eps, reduction_axis=-1),
+  )
 
 
 def scale_by_learning_rate(
@@ -63,6 +211,8 @@ def muon(
     adaptive: bool = False,
     adam_optimizer: Optional[Any] = None,
     config: Optional[Any] = None,
+    use_normuon: bool = False,
+    normuon_beta2: float = 0.999,
 ) -> base.GradientTransformation:
 
   def build_param_labels(params):
@@ -127,18 +277,37 @@ def muon(
     return jax.tree.map(get_dim_nums, params)
 
   # muon_mask = _build_wd_bool_mask_from_tree(weight_decay_mask)
-  muon_kwargs = {
-    'ns_coeffs': ns_coeffs,
-    'ns_steps': ns_steps,
-    'beta': beta,
-    'eps': eps,
-    'mu_dtype': mu_dtype,
-    'nesterov': nesterov,
-    'adaptive': adaptive,
-  }
-  if optax.__version__ >= '0.2.6': # speed up
-    muon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
-  muon_base = scale_by_muon(**muon_kwargs)
+  # Build base optimizer: either Muon or NorMuon
+  if use_normuon:
+    # NorMuon: Muon + neuron-level normalization
+    normuon_kwargs = {
+      'ns_coeffs': ns_coeffs,
+      'ns_steps': ns_steps,
+      'beta1': beta,
+      'beta2': normuon_beta2,
+      'eps': eps,
+      'mu_dtype': mu_dtype,
+      'nesterov': nesterov,
+      'adaptive': adaptive,
+    }
+    if optax.__version__ >= '0.2.6':
+      normuon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
+    muon_base = scale_by_normuon(**normuon_kwargs)
+    max_logging.log(f'Using NorMuon with beta2={normuon_beta2}')
+  else:
+    # Original Muon
+    muon_kwargs = {
+      'ns_coeffs': ns_coeffs,
+      'ns_steps': ns_steps,
+      'beta': beta,
+      'eps': eps,
+      'mu_dtype': mu_dtype,
+      'nesterov': nesterov,
+      'adaptive': adaptive,
+    }
+    if optax.__version__ >= '0.2.6': # speed up
+      muon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
+    muon_base = scale_by_muon(**muon_kwargs)
 
   attn_dim_sqrt = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim))
   mlp_dim_sqrt = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim))
@@ -247,6 +416,10 @@ def _build_muon(config, learning_rate_schedule, wd_tree):
       epsilon_root=config.adam_eps_root,
       wd_tree=None,
   )
+  # Check if NorMuon is enabled via config
+  use_normuon = getattr(config, 'use_normuon', False)
+  normuon_beta2 = getattr(config, 'normuon_beta2', 0.999)
+  
   return muon(
       learning_rate_schedule,
       eps=config.adam_eps,
@@ -255,6 +428,8 @@ def _build_muon(config, learning_rate_schedule, wd_tree):
       adaptive=False,
       adam_optimizer=adam_optimizer,
       config=config,
+      use_normuon=use_normuon,
+      normuon_beta2=normuon_beta2,
   )
 
 

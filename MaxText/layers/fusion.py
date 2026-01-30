@@ -392,7 +392,7 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
   ):
     cfg = self.config
-    if cfg.dense_conn and self.scan_length == 1 and self.layer_inx > 0:  # compose for the first layer when mudd has extra embeddings
+    if cfg.dense_conn and self.layer_inx > 0:  # compose for the first layer when mudd has extra embeddings
       C = 4
       # inputs length: 2 or 4
       inputs, hids = mudd.Compose(

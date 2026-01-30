@@ -576,6 +576,12 @@ mudd_use_muon: False
 muon_scale: 0.35 # for medium, can get better result with 0.6, 0.35 for xl model, maybe < 0.35 for larger model
 final_muon_scale: 0.1 # for medium, can get better result with 0.1, maybe < 0.1 for larger model
 
+# ================================= [NorMuon] =================================
+# NorMuon: Making Muon more efficient and scalable (https://arxiv.org/abs/2510.05491)
+# Adds neuron-level adaptive learning rate after Muon's orthogonalization
+use_normuon: False  # Enable NorMuon optimization on top of Muon
+normuon_beta2: 0.999  # Decay rate for neuron-level second moment (similar to Adam's beta2)
+
 # ================================= [kv shift] =================================
 kv_shift_flash: True
 use_kv_shift: False

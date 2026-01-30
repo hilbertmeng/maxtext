@@ -792,12 +792,13 @@ class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400
 
 class MuonDEDcMuddMTP1KVshiftV4p5MediumH128T32A8(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
     me_dilation = 4
-    me_nums = 31
+    me_nums = 20
     deep_embed_type = 'none'
     deep_embed_init = 'none'
-    per_device_batch_size = 32.0
-    eval_per_device_batch_size = 32.0
-    mtp_num_layers = 1
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 16.0
+    base_num_decoder_layers = 32
+    mtp_num_layers = 0
     attention = 'flash'
     keep_period = 1500
     eval_steps = 642
@@ -807,6 +808,13 @@ class MuonDEDcMuddMTP1KVshiftV4p5MediumH128T32A8(MuonDEDcMuddMTP1KVshiftV4p5Medi
     train_shuffle_buffer_size = None
     vocab_size = 50432
     iter_file_nums = 2
+    muon_scale = 0.2
+    final_muon_scale = 0.2
+    learning_rate = 3e-4
+    partial_scan_layers = True
+    dynamic_mlp_dim = False
+    loss_chunk_size = 4096
+    me_prenorm = False
 
 class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128): # medium v4.5 baseline model
     base_num_decoder_layers = 32

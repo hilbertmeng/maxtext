@@ -696,12 +696,9 @@ class Decoder(nn.Module):
           max_logging.log(f'\n=================partial scan layers: {lyr}=====================\n', debug=cfg.debug)
           scan_start = lyr
           scan_length = 1
-          # L, G, L, LL, G, L, LL
-          if lyr > 0 and swss[lyr - 1] != current_sws:
-            scan_length = 1
-          else:
-            while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
-              scan_length += 1
+          # 连续的2个及以上相同sws的层组成一个scan层
+          while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
+            scan_length += 1
 
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
@@ -770,7 +767,7 @@ class Decoder(nn.Module):
                 de,
                 deterministic,
                 model_mode,
-                None,
+                me + hids[-4:], # me + local hids
                 eos_sum=eos_sum,
             )
             if cfg.dense_conn and cfg.compose_all_layers:
@@ -779,9 +776,9 @@ class Decoder(nn.Module):
           
             lyr += scan_length
 
-          if scan_length == 1: # scan output no compose
-            y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
-            hids.append(y) # 可以考虑不添加scan的输出。
+          # if scan_length == 1: # scan output no compose
+          y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
+          hids.append(y)
 
       else:
         if cfg.decoder_block == "deepseek":

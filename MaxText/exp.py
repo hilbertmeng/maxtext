@@ -790,7 +790,7 @@ class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400
     base_mlp_dim = 1920
     base_num_decoder_layers = 31
 
-class MuonDEDcMuddMTP1KVshiftV4p5MediumH128T32A8(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
+class MuonDEDcMuddKVshiftV4p5MediumH128T20A4(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
     me_dilation = 4
     me_nums = 20
     deep_embed_type = 'none'
@@ -815,6 +815,7 @@ class MuonDEDcMuddMTP1KVshiftV4p5MediumH128T32A8(MuonDEDcMuddMTP1KVshiftV4p5Medi
     dynamic_mlp_dim = False
     loss_chunk_size = 4096
     me_prenorm = False
+    mudd_cap = 10.0
 
 class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128): # medium v4.5 baseline model
     base_num_decoder_layers = 32

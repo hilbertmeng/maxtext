@@ -393,18 +393,19 @@ class FusionDecoderLayer(nn.Module):
   ):
     cfg = self.config
     if cfg.dense_conn and self.layer_inx > 0:  # compose for the first layer when mudd has extra embeddings
-      C = 4
-      # inputs length: 2 or 4
-      inputs, hids = mudd.Compose(
-        cfg, self.mesh, self.quant, 
-        name=f'compose_start',
-        C=C,
-        compose=True,
-        )(
-          layer_output=inputs, 
-          hids=hids,
-          lidx=self.layer_inx,
-        )
+      if self.scan_length == 1 or cfg.scan_use_mudd:
+        C = 4
+        # inputs length: 2 or 4
+        inputs, hids = mudd.Compose(
+          cfg, self.mesh, self.quant, 
+          name=f'compose_start',
+          C=C,
+          compose=True,
+          )(
+            layer_output=inputs, 
+            hids=hids,
+            lidx=self.layer_inx,
+          )
             
     # return's inputs length is 1
     output = self.layer(

@@ -696,9 +696,17 @@ class Decoder(nn.Module):
           max_logging.log(f'\n=================partial scan layers: {lyr}=====================\n', debug=cfg.debug)
           scan_start = lyr
           scan_length = 1
-          # 连续的2个及以上相同sws的层组成一个scan层
-          while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
-            scan_length += 1
+          if cfg.scan_use_mudd:
+            # 连续的2个及以上相同sws的层组成一个scan层
+            while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
+              scan_length += 1
+          else:
+            # L, G, L, LL, G, L, LL
+            if lyr > 0 and swss[lyr - 1] != current_sws:
+              scan_length = 1
+            else:
+              while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
+                scan_length += 1
 
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
@@ -767,7 +775,7 @@ class Decoder(nn.Module):
                 de,
                 deterministic,
                 model_mode,
-                me + hids[-4:], # me + local hids
+                me + hids[-4:] if cfg.scan_use_mudd else None, # me + local hids
                 eos_sum=eos_sum,
             )
             if cfg.dense_conn and cfg.compose_all_layers:
@@ -836,7 +844,7 @@ class Decoder(nn.Module):
             
     max_logging.log(f'y: {y.shape if isinstance(y, jnp.ndarray) else y[0].shape}', debug=cfg.debug)
     if cfg.dense_conn:
-      mtp_head_inputs, main_head_inputs = y if cfg.mtp_num_layers > 0 else [y[0], None]
+      mtp_head_inputs, main_head_inputs = y if cfg.mtp_num_layers > 0 else [None, y[0]]
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
 

@@ -378,7 +378,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
         output_metrics["scalar"][f"mlp_lnx/l2norm/layer_{layer_num:03d}"] = metrics_dict["mlp_lnx/l2norm"][0][layer_num]
 
   elif config.partial_scan_layers:
-    for layer_num in range(0, config.num_decoder_layers, 3):
+    for layer_num in range(0, config.num_decoder_layers, 2):
       decoder = intermediate_outputs["intermediates"]["decoder"]
       layer_name = f'layers_{layer_num}'
       if layer_name not in decoder:

@@ -817,6 +817,9 @@ class MuonDEDcMuddKVshiftV4p5MediumH128T20A4(MuonDEDcMuddMTP1KVshiftV4p5MediumH1
     me_prenorm = False
     mudd_cap = 10.0
 
+class MuonDEDcMuddKVshiftV4p5MediumH128NoME(MuonDEDcMuddKVshiftV4p5MediumH128T20A4):
+    me_nums = None
+
 class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128): # medium v4.5 baseline model
     base_num_decoder_layers = 32
     mtp_num_layers = 0

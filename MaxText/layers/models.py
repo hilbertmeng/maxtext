@@ -727,6 +727,10 @@ class Decoder(nn.Module):
               de = deep_embeddings[scan_start][None]
             de = jnp.stack(de, axis=0) if de is not None and isinstance(de, list) else de
             max_logging.log(f'de: {de}', debug=cfg.debug)
+            if len(hids) > 4:
+              c_hids = hids[:-2]
+            else:
+              c_hids = hids
             y, _ = self.scan_decoder_layers(
                 cfg, 
                 RemattedBlockLayers[1], 
@@ -743,7 +747,7 @@ class Decoder(nn.Module):
                 de, # scan need to add a dimension
                 deterministic,
                 model_mode,
-                me + hids,
+                me + c_hids,
                 eos_sum=eos_sum,
             )
             lyr += 1
@@ -759,6 +763,13 @@ class Decoder(nn.Module):
             de = jnp.stack(de, axis=0) if de is not None and isinstance(de, list) else de
             max_logging.log(f'de: {de}', debug=cfg.debug)
             # outputs: [scan_length, batch, length, emb_dim]
+            if cfg.scan_use_mudd:
+              if len(hids) <= 4:
+                c_hids = hids
+              else:
+                c_hids = hids[:1] + hids[-3:]
+            else:
+              c_hids = None
             y, outputs = self.scan_decoder_layers(
                 cfg, 
                 RemattedBlockLayers[1], 
@@ -775,7 +786,7 @@ class Decoder(nn.Module):
                 de,
                 deterministic,
                 model_mode,
-                hids[-4:] if cfg.scan_use_mudd else None, # me + local hids
+                c_hids, # me + local hids
                 eos_sum=eos_sum,
             )
             if cfg.dense_conn and cfg.compose_all_layers:
@@ -785,8 +796,12 @@ class Decoder(nn.Module):
             lyr += scan_length
 
           if scan_length == 1: # scan output no compose
-            y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
-            hids.append(y)
+            y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm else y
+            hids.append(y_normed)
+          else:
+            if cfg.scan_use_mudd:
+              y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(outputs[0]) if cfg.mudd_prenorm else outputs[0]
+              hids.append(y_normed)
 
       else:
         if cfg.decoder_block == "deepseek":

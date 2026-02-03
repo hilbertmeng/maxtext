@@ -96,7 +96,7 @@ class Mlp(nn.Module):
                                     name='dynamic_dense_conn2', 
                                     **kwargs)
     if self.use_bias:
-      self.dense2_bias_init_value = 0.0 if cfg.mudd_prenorm and cfg.mudd_postnorm else 1.0
+      self.dense2_bias_init_value = 0.0 if cfg.mudd_postnorm else 1.0
       init_v = jnp.array([0] * (dw_shape[1] - 1) + [self.dense2_bias_init_value]).astype(cfg.weight_dtype)
       init_v = init_v[None].repeat(C, 0)
       self.dense_proj2_bias = self.param(f"dense_proj2.bias", init_fn=lambda rng: init_v)

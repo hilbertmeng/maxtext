@@ -689,6 +689,13 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     muon_scale = 0.5
     final_muon_scale = 0.5
     mtp_loss_scaling_factor = 0.1
+    eval_interval = 13500
+    keep_period = 1000
+    train_shuffle_buffer_size = 200000
+    iter_file_nums = 500
+    learning_rate_schedule_steps = 13500
+    learning_rate = 4e-4
+    vocab_size = 151936
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     use_compressed_vocab = True
@@ -701,6 +708,7 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p
     me_dilation = 4
     me_nums = 12
     pad_id = 0
+    loss_chunk_size = 1024
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim1k(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram):
     engram_embed_dim = 1024

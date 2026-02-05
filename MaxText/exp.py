@@ -686,8 +686,9 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10(MuonMuddDEDcMuddM
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10):
     adam_weight_decay = 0.3
-    muon_scale = 0.2
-    final_muon_scale = 0.2
+    muon_scale = 0.5
+    final_muon_scale = 0.5
+    mtp_loss_scaling_factor = 0.1
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     use_compressed_vocab = True
@@ -695,12 +696,15 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p
     tokenizer_path = "Qwen/Qwen-14B"
     engram_embed_dim = 512
     vocab_size = 151936
-    engram_base_vocab_size = 151936 * 5 # 5倍压缩前词表大小
-    engram_ngram_layers = [4, 4] # list: 2-gram和3-gram的层数
-    engram_ngram_sizes = [2, 3] # list: 2-gram和3-gram, 用这个控制是否使用2，3-gram，比如None表示不使用
+    engram_base_vocab_size = 873358 # 大约5倍压缩前词表大小
+    engram_sizes_layers = [(2, 4), (3, 4)] # list: 2-gram和3-gram的层数
     me_dilation = 4
     me_nums = 12
-    mtp_num_layers = 1
+    pad_id = 0
+
+class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim1k(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram):
+    engram_embed_dim = 1024
+    engram_base_vocab_size = 392410
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10):
     learning_rate = 8.7232e-5

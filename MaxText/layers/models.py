@@ -632,19 +632,20 @@ class Decoder(nn.Module):
         compressed_vocab_lookup = engram.CompressedVocabLookup(config=cfg, name="compressed_vocab_lookup")
         compressed_decoder_input_tokens, compressed_vocab_size = compressed_vocab_lookup(decoder_input_tokens.astype(jnp.int32))
         max_logging.log(f'Using compressed vocab for engram, compressed_vocab_size: {compressed_vocab_size}', debug=cfg.debug)
+        vocab_size = compressed_vocab_size
       else:
         compressed_decoder_input_tokens = decoder_input_tokens
+        vocab_size = cfg.vocab_size
 
-      if cfg.engram_ngram_sizes:
+      if cfg.engram_sizes_layers:
         engram_embeddings = defaultdict(list)
         engram_nums_per_group = defaultdict(int)
-        for idx, ngram_size in enumerate(cfg.engram_ngram_sizes):
-          ngram_layers = cfg.engram_ngram_layers[idx]
-          for i in range(ngram_layers):
+        for _, (ngram_size, ngram_layers) in enumerate(cfg.engram_sizes_layers):
+          for engram_idx in range(ngram_layers):
               engram_layer = engram.EngramNGram(
-                name=f"engram_{ngram_size}_{i}", 
+                name=f"engram_{ngram_size}_{engram_idx}", 
                 config=cfg, 
-                engram_idx=i, 
+                engram_idx=engram_idx, 
                 ngram_size=ngram_size,
                 compressed_vocab_size=compressed_vocab_size,
                 )
@@ -659,7 +660,7 @@ class Decoder(nn.Module):
       if cfg.me_nums is not None:
         me_list = []
         mudd_emb = Embed(
-            num_embeddings=cfg.vocab_size,
+            num_embeddings=vocab_size,
             features=cfg.emb_dim * cfg.me_nums,
             dtype=cfg.dtype,
             attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,
@@ -684,37 +685,17 @@ class Decoder(nn.Module):
         hids.append(y)
 
       if cfg.scan_layers:
-        if cfg.decoder_block == "deepseek":
-          assert len(RemattedBlockLayers) == 2, f"Scanned layers must have a length of 2 using deepseek."
-          dense_layer = RemattedBlockLayers[0]
-          moe_layer = RemattedBlockLayers[1]
-          y, _ = self.scan_decoder_layers(cfg, dense_layer, cfg.first_num_dense_layers, "dense_layers", mesh)(
-              y,
-              decoder_segment_ids,
-              decoder_positions,
-              deterministic,
-              model_mode,
-          )
-          num_moe_layers = cfg.num_decoder_layers - cfg.first_num_dense_layers
-          y, _ = self.scan_decoder_layers(cfg, moe_layer, num_moe_layers, "moe_layers", mesh)(
-              y,
-              decoder_segment_ids,
-              decoder_positions,
-              deterministic,
-              model_mode,
-          )
-        else:
-          RemattedBlockLayer = RemattedBlockLayers[1]
-          y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
-              y,
-              decoder_segment_ids,
-              decoder_positions,
-              decoder_input_tokens,
-              deep_embeddings,
-              deterministic,
-              model_mode,
-              eos_sum=eos_sum,
-          )
+        RemattedBlockLayer = RemattedBlockLayers[1]
+        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
+            y,
+            decoder_segment_ids,
+            decoder_positions,
+            decoder_input_tokens,
+            deep_embeddings,
+            deterministic,
+            model_mode,
+            eos_sum=eos_sum,
+        )
 
       elif cfg.partial_scan_layers:
 
@@ -835,45 +816,27 @@ class Decoder(nn.Module):
               hids.append(y_normed)
 
       else:
-        if cfg.decoder_block == "deepseek":
-          assert len(RemattedBlockLayers) == 2, f"Unscanned layers must have a length of 2 using deepseek."
-          dense_layer = RemattedBlockLayers[0]
-          moe_layer = RemattedBlockLayers[1]
-          num_moe_layers = cfg.num_decoder_layers - cfg.first_num_dense_layers
-          layers = [dense_layer, moe_layer]
-          layer_prefix = ["dense_layers", "moe_layers"]
-          num_layers = [cfg.first_num_dense_layers, num_moe_layers]
-          for index in range(len(layers)):
-              for index_j in range(num_layers[index]):
-                  y = layers[index](config=cfg, mesh=mesh, name=f"{layer_prefix[index]}_{index_j}", quant=self.quant)(
-                      y,
-                      decoder_segment_ids,
-                      decoder_positions,
-                      deterministic,
-                      model_mode,
-                  )
-        else:
-          swss = format_swss(sws_list)
-          max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)
-          for lyr in range(cfg.num_decoder_layers):
-            max_logging.log(f'\n=================decoder layer: {lyr}=====================\n', debug=cfg.debug)
-            RemattedBlockLayer = RemattedBlockLayers[0]
-            y, hids = RemattedBlockLayer(
-              config=cfg, 
-              mesh=mesh, 
-              name=f"layers_{lyr}", 
-              quant=self.quant, 
-              sliding_window_size=swss[lyr])(
-                y,
-                decoder_segment_ids,
-                decoder_positions,
-                decoder_input_tokens,
-                deep_embeddings[lyr],
-                deterministic,
-                model_mode,
-                hids=hids,
-                eos_sum=eos_sum,
-            )
+        swss = format_swss(sws_list)
+        max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)
+        for lyr in range(cfg.num_decoder_layers):
+          max_logging.log(f'\n=================decoder layer: {lyr}=====================\n', debug=cfg.debug)
+          RemattedBlockLayer = RemattedBlockLayers[0]
+          y, hids = RemattedBlockLayer(
+            config=cfg, 
+            mesh=mesh, 
+            name=f"layers_{lyr}", 
+            quant=self.quant, 
+            sliding_window_size=swss[lyr])(
+              y,
+              decoder_segment_ids,
+              decoder_positions,
+              decoder_input_tokens,
+              deep_embeddings[lyr],
+              deterministic,
+              model_mode,
+              hids=hids,
+              eos_sum=eos_sum,
+          )
 
     if cfg.dense_conn:
       print(f'me: {len(me)} hids: {len(hids)}')

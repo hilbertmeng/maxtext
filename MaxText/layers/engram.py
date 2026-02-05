@@ -245,7 +245,7 @@ class EngramNGram(nn.Module):
         
         # Define output shape and dtype for the callback
         result_shape = jax.ShapeDtypeStruct(input_ids.shape, jnp.int32)
-        
+        # 直接用input_ids计算hash_ids，会报traced array错误，所以用jax.pure_callback
         hash_ids = jax.pure_callback(
             _compute_hash,
             result_shape,

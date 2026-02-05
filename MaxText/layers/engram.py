@@ -23,6 +23,7 @@ Only supports training (prefill) mode, no decoder cache.
 from typing import Any, Optional
 
 from flax import linen as nn
+import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -198,8 +199,7 @@ class EngramNGram(nn.Module):
         
         # Find the nth prime after base_vocab_size where n = engram_idx
         # This makes it deterministic and different for each layer
-        # self.engram_vocab_size = find_nth_prime_after(self.base_vocab_size - 1, self.engram_idx)
-        self.engram_vocab_size = find_nth_prime_after(self.base_vocab_size - 1)
+        self.engram_vocab_size = find_nth_prime_after(self.base_vocab_size - 1, self.engram_idx)
         
         # Compute multipliers (stored as numpy for exact int64 computation)
         self._multipliers_np = compute_multipliers(
@@ -230,17 +230,28 @@ class EngramNGram(nn.Module):
         Returns:
             hash_ids: [B, T] hashed indices
         """
-        # Convert to numpy for exact int64 computation
-        input_ids_np = np.asarray(input_ids, dtype=np.int64)
+        # Use jax.pure_callback to call numpy function during JIT
+        # This allows the numpy hash computation to work with traced arrays
+        def _compute_hash(ids):
+            ids_np = np.asarray(ids, dtype=np.int64)
+            hash_ids_np = compute_ngram_hash_np(
+                ids_np,
+                self._multipliers_np,
+                self.engram_vocab_size,
+                self.pad_id,
+            )
+            return hash_ids_np.astype(np.int32)
         
-        hash_ids_np = compute_ngram_hash_np(
-            input_ids_np,
-            self._multipliers_np,
-            self.engram_vocab_size,
-            self.pad_id,
+        # Define output shape and dtype for the callback
+        result_shape = jax.ShapeDtypeStruct(input_ids.shape, jnp.int32)
+        
+        hash_ids = jax.pure_callback(
+            _compute_hash,
+            result_shape,
+            input_ids,
         )
         
-        return jnp.array(hash_ids_np, dtype=jnp.int32)
+        return hash_ids
     
     def __call__(self, input_ids: Array) -> Array:
         """
@@ -255,7 +266,7 @@ class EngramNGram(nn.Module):
         
         # Lookup embedding
         gram_embed = jnp.asarray(self.gram_embedding, self.dtype)[hash_ids]
-        gram_embed = self.up_proj(gram_embed)
+        gram_embed = jnp.einsum('b t d, d e -> b t e', gram_embed, self.up_proj)
         return gram_embed
 
 
@@ -293,7 +304,7 @@ class CompressedVocabLookup(nn.Module):
                 f"Lookup table size {lookup_table.shape[0]} != vocab_size {cfg.vocab_size}"
         else:
             # Identity mapping (no compression)
-            lookup_table, self.length = create_compressed_vocab_lookup_table(cfg.tokenizer_name_or_path, 'compressed_vocab_lookup.npy')
+            lookup_table, self.length = create_compressed_vocab_lookup_table(cfg.tokenizer_path, 'compressed_vocab_lookup.npy')
         
         # Store as constant (not trainable)
         self.lookup_table = jnp.array(lookup_table, dtype=jnp.int32)

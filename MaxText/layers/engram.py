@@ -26,6 +26,7 @@ from flax import linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
+import os
 
 from layers import initializers
 
@@ -296,8 +297,9 @@ class CompressedVocabLookup(nn.Module):
         
         # Load lookup table from file or create identity mapping
         lookup_path = getattr(cfg, 'compressed_vocab_lookup_path', None)
+        default_lookup_path = '/home/lishengping/project/maxtext/compressed_vocab_lookup.npy'
         
-        if lookup_path is not None:
+        if lookup_path is not None or os.path.exists(default_lookup_path):
             # Load pre-built lookup table
             lookup_table = np.load(lookup_path)
             assert lookup_table.shape[0] == cfg.vocab_size, \

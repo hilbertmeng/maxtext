@@ -693,11 +693,13 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p
     use_compressed_vocab = True
     tokenizer_path = "allenai/OLMo-2-0425-1B"
     engram_embed_dim = 512
-    engram_base_vocab_size = 100352 * 5 # 5倍压缩前词表大小
+    vocab_size = 151936
+    engram_base_vocab_size = 151936 * 5 # 5倍压缩前词表大小
     engram_ngram_layers = [4, 4] # list: 2-gram和3-gram的层数
-    engram_ngram_sizes = [2, 3] # list: 2-gram和3-gram
+    engram_ngram_sizes = [2, 3] # list: 2-gram和3-gram, 用这个控制是否使用2，3-gram，比如None表示不使用
     me_dilation = 4
-    me_nums = 4
+    me_nums = 12
+    mtp_num_layers = 1
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10):
     learning_rate = 8.7232e-5

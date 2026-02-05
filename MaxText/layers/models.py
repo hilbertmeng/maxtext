@@ -751,8 +751,7 @@ class Decoder(nn.Module):
                   for ngram_size, engram_embeds in engram_embeddings.items():
                     engram_nums = engram_nums_per_group[ngram_size]
                     engram_embed = engram_embeds[me_group_idx * engram_nums: (me_group_idx + 1) * engram_nums]
-                    me.append(engram_embed)
-
+                    me.extend(engram_embed)
             max_logging.log(f'me_len: {len(me)} me_group_idx: {me_group_idx} me_nums_per_group: {me_nums_per_group}', debug=cfg.debug)
             if deep_embeddings is None:
               de = None

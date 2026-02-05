@@ -696,19 +696,17 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     learning_rate_schedule_steps = 13500
     learning_rate = 4e-4
     vocab_size = 151936
+    pad_id = 0
+    loss_chunk_size = 1024
+    tokenizer_path = "Qwen/Qwen-14B"
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     use_compressed_vocab = True
     # tokenizer_path = "allenai/OLMo-2-0425-1B"
-    tokenizer_path = "Qwen/Qwen-14B"
     engram_embed_dim = 512
-    vocab_size = 151936
     engram_base_vocab_size = 873358 # 大约5倍压缩前词表大小
     engram_sizes_layers = [(2, 4), (3, 4)] # list: 2-gram和3-gram的层数
-    me_dilation = 4
     me_nums = 12
-    pad_id = 0
-    loss_chunk_size = 1024
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim1k(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram):
     engram_embed_dim = 1024

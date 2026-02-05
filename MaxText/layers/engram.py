@@ -159,6 +159,47 @@ def compute_ngram_hash_np(
     return hash_ids
 
 
+def compute_ngram_hash_jax(
+    input_ids: Array,
+    multipliers: Array,
+    engram_vocab_size: int,
+    pad_id: int = 0,
+) -> Array:
+    """
+    Compute N-gram hash using pure JAX operations (for AOT compilation compatibility).
+    
+    Args:
+        input_ids: [B, T] token ids
+        multipliers: [ngram_size] multipliers (JAX array, int64)
+        engram_vocab_size: Vocab size for hash modulo
+        pad_id: Padding token id
+        
+    Returns:
+        hash_ids: [B, T] hashed indices (int32)
+    """
+    B, T = input_ids.shape[0], input_ids.shape[1]
+    ngram_size = multipliers.shape[0]
+    
+    # Cast to int64 for hash computation
+    input_ids_i64 = input_ids.astype(jnp.int64)
+    
+    # Compute hash: mix = (current * mult0) XOR (prev * mult1) [XOR (prev_prev * mult2) for 3-gram]
+    mix = input_ids_i64 * multipliers[0]
+    
+    # For 3-gram: need [prev] and [prev_prev]
+    for shift in range(1, ngram_size):
+        # shift=1: [pad, token0, ..., token_{T-2}] - prev
+        # shift=2: [pad, pad, token0, ..., token_{T-3}] - prev_prev
+        pad_token = jnp.full((B, shift), pad_id, dtype=jnp.int64)
+        shifted = jnp.concatenate([pad_token, input_ids_i64[:, :T-shift]], axis=1)
+        mix = jnp.bitwise_xor(mix, shifted * multipliers[shift])
+    
+    # Modulo to get final hash id
+    hash_ids = mix % engram_vocab_size
+    
+    return hash_ids.astype(jnp.int32)
+
+
 class EngramNGram(nn.Module):
     """
     N-gram Engram (supports 2-gram and 3-gram, consistent with engram_demo_v1.py):
@@ -202,10 +243,11 @@ class EngramNGram(nn.Module):
         # This makes it deterministic and different for each layer
         self.engram_vocab_size = find_nth_prime_after(self.base_vocab_size - 1, self.engram_idx)
         
-        # Compute multipliers (stored as numpy for exact int64 computation)
-        self._multipliers_np = compute_multipliers(
+        # Compute multipliers and store as JAX array for AOT compilation compatibility
+        multipliers_np = compute_multipliers(
             self.seed, self.engram_idx, self.ngram_size, self.compressed_vocab_size
         )
+        self._multipliers = jnp.array(multipliers_np, dtype=jnp.int64)
         
         # Single embedding table
         self.gram_embedding = self.param(
@@ -223,7 +265,7 @@ class EngramNGram(nn.Module):
     
     def compute_hash_ids(self, input_ids: Array) -> Array:
         """
-        Compute N-gram hash indices.
+        Compute N-gram hash indices using pure JAX operations.
         
         Args:
             input_ids: [B, T] token ids
@@ -231,27 +273,14 @@ class EngramNGram(nn.Module):
         Returns:
             hash_ids: [B, T] hashed indices
         """
-        # Use jax.pure_callback to call numpy function during JIT
-        # This allows the numpy hash computation to work with traced arrays
-        def _compute_hash(ids):
-            ids_np = np.asarray(ids, dtype=np.int64)
-            hash_ids_np = compute_ngram_hash_np(
-                ids_np,
-                self._multipliers_np,
-                self.engram_vocab_size,
-                self.pad_id,
-            )
-            return hash_ids_np.astype(np.int32)
-        
-        # Define output shape and dtype for the callback
-        result_shape = jax.ShapeDtypeStruct(input_ids.shape, jnp.int32)
-        # 直接用input_ids计算hash_ids，会报traced array错误，所以用jax.pure_callback
-        hash_ids = jax.pure_callback(
-            _compute_hash,
-            result_shape,
+        # Use pure JAX implementation for AOT compilation compatibility
+        # (jax.pure_callback creates non-serializable PyCapsule objects)
+        hash_ids = compute_ngram_hash_jax(
             input_ids,
+            self._multipliers,
+            self.engram_vocab_size,
+            self.pad_id,
         )
-        
         return hash_ids
     
     def __call__(self, input_ids: Array) -> Array:

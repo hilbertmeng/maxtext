@@ -672,3 +672,12 @@ scan_layers: True # We recommend setting this to false when using pipeline paral
 param_scan_axis: 1
 run_name: ""
 shard_mode: "auto" # choices: [auto, explicit]
+
+## engram parameters
+use_compressed_vocab: False
+compressed_vocab_lookup_path: null  # 压缩词表查找表路径 (.npy文件)，如果为null则使用恒等映射
+engram_embed_dim: 512
+engram_base_vocab_size: 160_000 # 5倍压缩前词表大小
+engram_tokenizer_vocab_size: 32_000 # 压缩后词表大小
+engram_ngram_layers: null # list: 2-gram和3-gram的层数
+engram_ngram_sizes: null # list: 2-gram和3-gram

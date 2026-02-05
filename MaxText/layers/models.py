@@ -36,7 +36,9 @@ import re
 import max_utils
 from layers import mtp
 from layers import mudd
+from layers import engram
 from layers.kv_shift import shift_1d
+from collections import defaultdict
 
 Array = common_types.Array
 Config = common_types.Config
@@ -625,6 +627,34 @@ class Decoder(nn.Module):
         if cfg.mtp_num_layers > 0:
           sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
         return sws
+
+      if cfg.use_compressed_vocab:
+        compressed_vocab_lookup = engram.CompressedVocabLookup(config=cfg, name="compressed_vocab_lookup")
+        compressed_decoder_input_tokens, compressed_vocab_size = compressed_vocab_lookup(decoder_input_tokens.astype(jnp.int32))
+        max_logging.log(f'Using compressed vocab for engram, compressed_vocab_size: {compressed_vocab_size}', debug=cfg.debug)
+      else:
+        compressed_decoder_input_tokens = decoder_input_tokens
+
+      if cfg.engram_ngram_sizes:
+        engram_embeddings = defaultdict(list)
+        engram_nums_per_group = defaultdict(int)
+        for idx, ngram_size in enumerate(cfg.engram_ngram_sizes):
+          ngram_layers = cfg.engram_ngram_layers[idx]
+          for i in range(ngram_layers):
+              engram_layer = engram.EngramNGram(
+                name=f"engram_{ngram_size}_{i}", 
+                config=cfg, 
+                engram_idx=i, 
+                ngram_size=ngram_size,
+                compressed_vocab_size=compressed_vocab_size,
+                )
+              engram_embed = engram_layer(compressed_decoder_input_tokens)
+              engram_embeddings[ngram_size].append(engram_embed)
+          ngram_nums = len(engram_embeddings[ngram_size])
+          engram_nums_per_group[ngram_size] = ngram_nums // cfg.me_dilation
+          max_logging.log(f'Engram embeddings-{ngram_size}: {ngram_nums} layers-0 shape: {engram_embeddings[ngram_size][0].shape}', debug=cfg.debug)
+        else:
+          engram_embeddings = None
       
       if cfg.me_nums is not None:
         me_list = []
@@ -637,7 +667,7 @@ class Decoder(nn.Module):
             name="mudd_embedder",
             config=cfg,
         )
-        mes = mudd_emb(decoder_input_tokens.astype("int32"))
+        mes = mudd_emb(compressed_decoder_input_tokens.astype("int32"))
         for i in range(cfg.me_nums):
           me = mes[:, :, i*cfg.emb_dim:(i+1)*cfg.emb_dim]          
           if cfg.me_prenorm:
@@ -717,6 +747,11 @@ class Decoder(nn.Module):
               if me_group_idx >= 0:
                 me = me_list[me_group_idx * me_nums_per_group: (me_group_idx + 1) * me_nums_per_group]
                 assert len(me) == me_nums_per_group, f'me: {len(me)} != me_nums_per_group: {me_nums_per_group}'
+                if engram_embeddings is not None:
+                  for ngram_size, engram_embeds in engram_embeddings.items():
+                    engram_nums = engram_nums_per_group[ngram_size]
+                    engram_embed = engram_embeds[me_group_idx * engram_nums: (me_group_idx + 1) * engram_nums]
+                    me.append(engram_embed)
 
             max_logging.log(f'me_len: {len(me)} me_group_idx: {me_group_idx} me_nums_per_group: {me_nums_per_group}', debug=cfg.debug)
             if deep_embeddings is None:
@@ -727,10 +762,7 @@ class Decoder(nn.Module):
               de = deep_embeddings[scan_start][None]
             de = jnp.stack(de, axis=0) if de is not None and isinstance(de, list) else de
             max_logging.log(f'de: {de}', debug=cfg.debug)
-            if len(hids) > 4:
-              c_hids = hids[:-2]
-            else:
-              c_hids = hids
+            c_hids = hids
             y, _ = self.scan_decoder_layers(
                 cfg, 
                 RemattedBlockLayers[1], 

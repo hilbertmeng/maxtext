@@ -647,6 +647,15 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400B(MuonDEDcMuddMTP1KVshiftV4p5):
     head_dim = 64
     sliding_window_size = [256, None, 256, 256]
 
+class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
+    use_compressed_vocab = True
+    tokenizer_path = "allenai/OLMo-2-0425-1B"
+    engram_embed_dim = 512
+    engram_base_vocab_size = 100352 * 5 # 5倍压缩前词表大小
+    engram_tokenizer_vocab_size: 32_000 # 压缩后词表大小
+    engram_ngram_layers = [4, 4] # list: 2-gram和3-gram的层数
+    engram_ngram_sizes = [2, 3] # list: 2-gram和3-gram
+
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BGH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
     base_num_query_heads = 32
     global_attn_head_dim = 128
@@ -819,6 +828,16 @@ class MuonDEDcMuddKVshiftV4p5MediumH128T20A4(MuonDEDcMuddMTP1KVshiftV4p5MediumH1
 
 class MuonDEDcMuddKVshiftV4p5MediumH128NoME(MuonDEDcMuddKVshiftV4p5MediumH128T20A4):
     me_nums = None
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03(MuonDEDcMuddKVshiftV4p5MediumH128NoME):
+    adam_weight_decay = 0.3
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03MS05(MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03):
+    muon_scale = 0.5
+    final_muon_scale = 0.5
+
+class MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03MS05To02(MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03MS05):
+    final_muon_scale = 0.2
 
 class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128): # medium v4.5 baseline model
     base_num_decoder_layers = 32

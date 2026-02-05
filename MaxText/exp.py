@@ -696,10 +696,11 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     learning_rate_schedule_steps = 13500
     learning_rate = 4e-4
     vocab_size = 151936
-    pad_id = 0
+    pad_id = 151850 # last token
     loss_chunk_size = 1024
     tokenizer_path = "Qwen/Qwen-14B"
     warmup_steps_fraction = 0.01
+    zero_loss = True
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     use_compressed_vocab = True

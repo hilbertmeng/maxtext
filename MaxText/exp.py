@@ -691,7 +691,8 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     use_compressed_vocab = True
-    tokenizer_path = "allenai/OLMo-2-0425-1B"
+    # tokenizer_path = "allenai/OLMo-2-0425-1B"
+    tokenizer_path = "Qwen/Qwen-14B"
     engram_embed_dim = 512
     vocab_size = 151936
     engram_base_vocab_size = 151936 * 5 # 5倍压缩前词表大小

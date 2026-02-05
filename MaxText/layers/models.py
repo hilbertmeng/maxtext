@@ -653,8 +653,8 @@ class Decoder(nn.Module):
           ngram_nums = len(engram_embeddings[ngram_size])
           engram_nums_per_group[ngram_size] = ngram_nums // cfg.me_dilation
           max_logging.log(f'Engram embeddings-{ngram_size}: {ngram_nums} layers-0 shape: {engram_embeddings[ngram_size][0].shape}', debug=cfg.debug)
-        else:
-          engram_embeddings = None
+      else:
+        engram_embeddings = None
       
       if cfg.me_nums is not None:
         me_list = []

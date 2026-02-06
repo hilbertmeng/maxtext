@@ -227,10 +227,12 @@ class EngramNGram(nn.Module):
     
     def setup(self):
         cfg = self.config
-        self.engram_embed_dim = getattr(cfg, 'engram_embed_dim', 512)
+        self.engram_embed_dim = getattr(cfg, 'engram_embed_dim', 0)
         # ngram的词表大小，ds建议5*vocab_size, 2-gram和3-gram的词表大小相同
         self.base_vocab_size = getattr(cfg, 'engram_base_vocab_size', cfg.vocab_size)
         self.output_dim = cfg.emb_dim
+        # Align engram compute dtype with model dtype (typically bfloat16) for speed.
+        self.compute_dtype = getattr(cfg, "dtype", jnp.bfloat16)
         
         # Get parameters from config
         pad_token_id = getattr(cfg, 'pad_id', None)
@@ -256,12 +258,13 @@ class EngramNGram(nn.Module):
             (self.engram_vocab_size, self.engram_embed_dim),
             getattr(cfg, 'weight_dtype', jnp.bfloat16),
         )
-        self.up_proj = self.param(
-            "up_proj",
-            with_logical_partitioning(initializers.get_init_method(cfg.init_method), ('mlp', "embed")),
-            (self.engram_embed_dim, cfg.emb_dim),
-            getattr(cfg, 'weight_dtype', jnp.bfloat16),
-        )
+        if self.engram_embed_dim != cfg.emb_dim:
+            self.up_proj = self.param(
+                "up_proj",
+                with_logical_partitioning(initializers.get_init_method(cfg.init_method), ('mlp', "embed")),
+                (self.engram_embed_dim, cfg.emb_dim),
+                getattr(cfg, 'weight_dtype', jnp.bfloat16),
+            )
     
     def compute_hash_ids(self, input_ids: Array) -> Array:
         """
@@ -295,8 +298,13 @@ class EngramNGram(nn.Module):
         hash_ids = self.compute_hash_ids(input_ids)
         
         # Lookup embedding
-        gram_embed = jnp.asarray(self.gram_embedding, self.dtype)[hash_ids]
-        gram_embed = jnp.einsum('b t d, d e -> b t e', gram_embed, self.up_proj)
+        gram_embed = jnp.asarray(self.gram_embedding, self.compute_dtype)[hash_ids]
+        if self.engram_embed_dim != self.config.emb_dim:
+            gram_embed = jnp.einsum(
+                'b t d, d e -> b t e',
+                gram_embed,
+                jnp.asarray(self.up_proj, self.compute_dtype),
+            )
         return gram_embed
 
 

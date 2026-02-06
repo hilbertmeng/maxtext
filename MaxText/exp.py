@@ -709,10 +709,10 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p
     engram_base_vocab_size = 873358 # 大约5倍压缩前词表大小
     engram_sizes_layers = [(2, 4), (3, 4)] # list: 2-gram和3-gram的层数
     me_nums = 12
-
+    
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim1k(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram):
     engram_embed_dim = 1024
-    engram_base_vocab_size = 392410
+    engram_base_vocab_size = 436679
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10):
     learning_rate = 8.7232e-5

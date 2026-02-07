@@ -718,7 +718,7 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k(MuonDEDcMuddMTP1KVshiftV
     engram_embed_dim = 2048
     engram_base_vocab_size = 218340
 
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k2ram(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k):
+class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k2gram(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k):
     engram_sizes_layers = [(2, 8)]
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramV100k(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram):

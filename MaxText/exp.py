@@ -702,6 +702,9 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     warmup_steps_fraction = 0.01
     zero_loss = True
 
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03LocalMudd(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
+    mudd_local_window = 2 # local mudd window size
+
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BCompressedVocab(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     use_compressed_vocab = True
     engram_embed_dim = 2048

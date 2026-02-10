@@ -719,6 +719,11 @@ class Decoder(nn.Module):
               while (lyr + scan_length < cfg.num_decoder_layers and swss[lyr + scan_length] == current_sws):
                 scan_length += 1
 
+          if cfg.mudd_local_window and current_sws != cfg.max_target_length:
+            start_index = -cfg.mudd_local_window
+          else:
+            start_index = -100
+
           if scan_length == 1:
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
             me_group_idx = -1
@@ -759,7 +764,7 @@ class Decoder(nn.Module):
                 de, # scan need to add a dimension
                 deterministic,
                 model_mode,
-                me + c_hids,
+                me + c_hids[start_index:],
                 eos_sum=eos_sum,
             )
             lyr += 1

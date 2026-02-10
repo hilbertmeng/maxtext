@@ -726,6 +726,11 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramV100k(MuonDEDcMuddMTP1KVshiftV4
     engram_base_vocab_size = 109170
     engram_sizes_layers = [(2, 8), (3, 8)]
 
+class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k2gram4(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k):
+    engram_sizes_layers = [(2, 4)]
+    engram_base_vocab_size = 329012
+    me_nums = 16
+
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10):
     learning_rate = 8.7232e-5
     learning_rate_schedule_steps = 189500

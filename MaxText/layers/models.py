@@ -691,7 +691,7 @@ class Decoder(nn.Module):
                 config=cfg, 
                 engram_idx=engram_idx, 
                 ngram_size=ngram_size,
-                compressed_vocab_size=compressed_vocab_size,
+                compressed_vocab_size=vocab_size,
                 )
               engram_embed = engram_layer(compressed_decoder_input_tokens)
               engram_embeddings[ngram_size].append(engram_embed)

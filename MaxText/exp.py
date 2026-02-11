@@ -712,6 +712,12 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BCompressedVocab(MuonMuddDEDcMuddMTP1K
     me_nums = 28
     me_dilation = 6
 
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03Pyramid(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
+    me_split_method = 'pyramid'
+
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03InversePyramid(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
+    me_split_method = 'inverse_pyramid'
+
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     use_compressed_vocab = True
     # tokenizer_path = "allenai/OLMo-2-0425-1B"

@@ -39,6 +39,7 @@ from layers import mudd
 from layers import engram
 from layers.kv_shift import shift_1d
 from collections import defaultdict
+from functools import partial
 
 Array = common_types.Array
 Config = common_types.Config
@@ -628,19 +629,48 @@ class Decoder(nn.Module):
           sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
         return sws
 
-      def split_layer_ranges(total_layers, num_groups):
+      def split_layer_ranges_uniform(total_layers, num_groups):
         base = total_layers // num_groups
         remainder = total_layers % num_groups
-        
         ranges = []
         start = 0
-        
         for i in range(num_groups):
             size = base + 1 if i < remainder else base
             end = start + size
             ranges.append((start, end))
             start = end
         return ranges
+
+      def split_layer_ranges_pyramid(total_layers, num_groups, pyramid=True):
+        if pyramid:
+            weights = [i + 1 for i in range(num_groups)]
+        else:
+            weights = [num_groups - i for i in range(num_groups)]
+        weight_sum = sum(weights)
+        sizes = [total_layers * w // weight_sum for w in weights]
+        remainder = total_layers - sum(sizes)
+        for i in range(remainder):
+            if pyramid:
+                sizes[-(i % num_groups) - 1] += 1  # 从后往前补
+            else:
+                sizes[i % num_groups] += 1  # 从前往后补
+        ranges = []
+        start = 0
+        for size in sizes:
+            end = start + size
+            ranges.append((start, end))
+            start = end
+        return ranges
+
+      if cfg.me_split_method == 'pyramid':
+        split_layer_ranges = partial(split_layer_ranges_pyramid, pyramid=True)
+        print(f'Using pyramid split method')
+      elif cfg.me_split_method == 'inverse_pyramid':
+        print(f'Using inverse pyramid split method')
+        split_layer_ranges = partial(split_layer_ranges_pyramid, pyramid=False)
+      else:
+        print(f'Using uniform split method')
+        split_layer_ranges = split_layer_ranges_uniform
 
       if cfg.use_compressed_vocab:
         compressed_vocab_lookup = engram.CompressedVocabLookup(config=cfg, name="compressed_vocab_lookup")
@@ -666,7 +696,7 @@ class Decoder(nn.Module):
               engram_embed = engram_layer(compressed_decoder_input_tokens)
               engram_embeddings[ngram_size].append(engram_embed)
           ngram_nums = len(engram_embeddings[ngram_size])
-          engram_nums_per_group[ngram_size] = ngram_nums // cfg.me_dilation
+          engram_nums_per_group[ngram_size] = split_layer_ranges(ngram_nums, cfg.me_dilation)
           max_logging.log(f'Engram embeddings-{ngram_size}: {ngram_nums} layers-0 shape: {engram_embeddings[ngram_size][0].shape}', debug=cfg.debug)
       else:
         engram_embeddings = None
@@ -740,18 +770,16 @@ class Decoder(nn.Module):
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
             me_group_idx = -1
             me = []
-            start, end = -1, -1
             if cfg.me_nums and swss[1] == cfg.max_target_length: # LGLL
               me_group_idx = get_group_index(cfg.num_decoder_layers, cfg.me_dilation, lyr, include_first_L=False)
               if me_group_idx >= 0:
-                start, end = me_rangs_per_group[me_group_idx]
-                me = me_list[start: end]
+                me = me_list[me_rangs_per_group[me_group_idx][0]: me_rangs_per_group[me_group_idx][1]]
                 if engram_embeddings is not None:
                   for ngram_size, engram_embeds in engram_embeddings.items():
-                    engram_nums = engram_nums_per_group[ngram_size]
-                    engram_embed = engram_embeds[me_group_idx * engram_nums: (me_group_idx + 1) * engram_nums]
+                    egram_rangs_per_group = engram_nums_per_group[ngram_size]
+                    engram_embed = engram_embeds[egram_rangs_per_group[me_group_idx][0]: egram_rangs_per_group[me_group_idx][1]]
                     me.extend(engram_embed)
-            max_logging.log(f'me_len: {len(me)} me_group_idx: {me_group_idx} start: {start} end: {end}', debug=cfg.debug)
+            max_logging.log(f'me_len: {len(me)} me_group_idx: {me_group_idx}', debug=cfg.debug)
             if deep_embeddings is None:
               de = None
             elif cfg.deep_embed_effective_layers is not None:

@@ -1453,21 +1453,23 @@ class Attention(nn.Module):
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
 
-    if self.num_query_heads > self.num_kv_heads: # GQA
+    if self.num_query_heads > self.num_kv_heads and self.sliding_window_size < cfg.max_target_length: # local laeyr GQA
       assert self.num_query_heads % self.num_kv_heads == 0
       n_expands = self.num_query_heads // self.num_kv_heads
       if key.shape[-2] < self.num_query_heads: # for K lora
         key = jnp.repeat(key, n_expands, axis=-2) # BSNd
       if value.shape[-2] < self.num_query_heads:  # for V lora
-        value = jnp.repeat(value, n_expands, axis=-2) 
-
+        value = jnp.repeat(value, n_expands, axis=-2)
+      
     if self.config.use_v_gate:
+      assert value.shape[-2] == self.num_query_heads
       v_gate = DenseGeneral((self.num_query_heads,),dtype=self.dtype,weight_dtype=self.weight_dtype,quant=self.quant,
             kernel_init=self.kernel_init,kernel_axes=('embed', None),name="v_gate", use_bias=False,
         )(inputs_q)
       v_gate = jax.nn.tanh(v_gate) + 1 
       value = value * v_gate[...,None] # BSND, BSN1->BSND
 
+    print(f'query: {query.shape} key: {key.shape} value: {value.shape}')
     out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
 
     out = nn.with_logical_constraint(out, self.out_axis_names)

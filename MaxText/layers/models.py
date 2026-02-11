@@ -628,6 +628,20 @@ class Decoder(nn.Module):
           sws += sws[-1:]  # mtp layer's sws must be the same as the last layer
         return sws
 
+      def split_layer_ranges(total_layers, num_groups):
+        base = total_layers // num_groups
+        remainder = total_layers % num_groups
+        
+        ranges = []
+        start = 0
+        
+        for i in range(num_groups):
+            size = base + 1 if i < remainder else base
+            end = start + size
+            ranges.append((start, end))
+            start = end
+        return ranges
+
       if cfg.use_compressed_vocab:
         compressed_vocab_lookup = engram.CompressedVocabLookup(config=cfg, name="compressed_vocab_lookup")
         compressed_decoder_input_tokens, compressed_vocab_size = compressed_vocab_lookup(decoder_input_tokens.astype(jnp.int32))
@@ -675,10 +689,8 @@ class Decoder(nn.Module):
             max_logging.log(f'me_prenorm is true.', debug=cfg.debug)
             me = normalizations.get_rmsnorm(f"me_prenorm_{i}", cfg)(me)
           me_list.append(me)
-        me_nums_per_group = cfg.me_nums // cfg.me_dilation
-      else:
-        me_list = []
-        me_nums_per_group = 0
+
+        me_rangs_per_group = split_layer_ranges(cfg.me_nums, cfg.me_dilation)
 
       if cfg.dense_conn:
         y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm or cfg.me_prenorm else y
@@ -728,17 +740,18 @@ class Decoder(nn.Module):
             max_logging.log(f'Processing layer {lyr} individually with sws={current_sws}', debug=cfg.debug)
             me_group_idx = -1
             me = []
+            start, end = -1, -1
             if cfg.me_nums and swss[1] == cfg.max_target_length: # LGLL
               me_group_idx = get_group_index(cfg.num_decoder_layers, cfg.me_dilation, lyr, include_first_L=False)
               if me_group_idx >= 0:
-                me = me_list[me_group_idx * me_nums_per_group: (me_group_idx + 1) * me_nums_per_group]
-                assert len(me) == me_nums_per_group, f'me: {len(me)} != me_nums_per_group: {me_nums_per_group}'
+                start, end = me_rangs_per_group[me_group_idx]
+                me = me_list[start: end]
                 if engram_embeddings is not None:
                   for ngram_size, engram_embeds in engram_embeddings.items():
                     engram_nums = engram_nums_per_group[ngram_size]
                     engram_embed = engram_embeds[me_group_idx * engram_nums: (me_group_idx + 1) * engram_nums]
                     me.extend(engram_embed)
-            max_logging.log(f'me_len: {len(me)} me_group_idx: {me_group_idx} me_nums_per_group: {me_nums_per_group}', debug=cfg.debug)
+            max_logging.log(f'me_len: {len(me)} me_group_idx: {me_group_idx} start: {start} end: {end}', debug=cfg.debug)
             if deep_embeddings is None:
               de = None
             elif cfg.deep_embed_effective_layers is not None:

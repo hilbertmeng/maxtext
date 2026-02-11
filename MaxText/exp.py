@@ -710,7 +710,7 @@ class MuonDEDcMuddMTP1KVshiftV4p5XLData400BCompressedVocab(MuonMuddDEDcMuddMTP1K
     engram_embed_dim = 2048
     engram_sizes_layers = None
     me_nums = 28
-    me_dilation = 7
+    me_dilation = 6
 
 class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     use_compressed_vocab = True

@@ -120,6 +120,7 @@ class DC2(DC):
     use_dw_bias = True
     use_dd_bias = False # harm performance 
     static_proj = False
+    dw2_norm = False
 
 class KVshift:
     use_kv_shift = True
@@ -701,6 +702,9 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     tokenizer_path = "Qwen/Qwen-14B"
     warmup_steps_fraction = 0.01
     zero_loss = True
+
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03DW2Norm(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
+    dc_w2_norm = True
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03LocalMudd(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     mudd_local_window = 2 # local mudd window size

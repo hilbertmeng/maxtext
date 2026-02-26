@@ -142,6 +142,9 @@ class DynamicWeightProjection(nn.Module):
     if self.dynamic_dropout_rate is not None:
       self.dropout = nn.Dropout(self.dynamic_dropout_rate)
 
+    if self.config.dc_w2_norm:
+      self.dw2_norm = normalizations.get_rmsnorm("dw2_norm", self.config, direct_scale=True, scale_init=initializers.contant_dense_init(0.001))
+
   def __call__(self, query_vec):
     qkw_kernel = jnp.asarray(self.qkw, self.dtype) \
       if not self.dc_dw2_zero_init \
@@ -177,6 +180,10 @@ class DynamicWeightProjection(nn.Module):
         w1 = w1 + self.w1_bias[None,None,None]
         w2 = w2 + self.w2_bias[None,None,None]
       w1 = self.dw1_norm(w1)
+
+      if self.config.dc_w2_norm:
+        w2 = self.dw2_norm(w2)
+        
       pre_w1, post_w1 = unbind(w1, 2, axis=3) # BTG2IM->[BTGIM]*2
       pre_w2, post_w2 = unbind(w2, 2, axis=3)
 

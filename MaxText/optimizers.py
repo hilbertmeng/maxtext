@@ -211,7 +211,6 @@ def muon(
     adaptive: bool = False,
     adam_optimizer: Optional[Any] = None,
     config: Optional[Any] = None,
-    use_normuon: bool = False,
     normuon_beta2: float = 0.999,
 ) -> base.GradientTransformation:
 
@@ -277,37 +276,19 @@ def muon(
     return jax.tree.map(get_dim_nums, params)
 
   # muon_mask = _build_wd_bool_mask_from_tree(weight_decay_mask)
-  # Build base optimizer: either Muon or NorMuon
-  if use_normuon:
-    # NorMuon: Muon + neuron-level normalization
-    normuon_kwargs = {
-      'ns_coeffs': ns_coeffs,
-      'ns_steps': ns_steps,
-      'beta1': beta,
-      'beta2': normuon_beta2,
-      'eps': eps,
-      'mu_dtype': mu_dtype,
-      'nesterov': nesterov,
-      'adaptive': adaptive,
-    }
-    if optax.__version__ >= '0.2.6':
-      normuon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
-    muon_base = scale_by_normuon(**normuon_kwargs)
-    max_logging.log(f'Using NorMuon with beta2={normuon_beta2}')
-  else:
-    # Original Muon
-    muon_kwargs = {
-      'ns_coeffs': ns_coeffs,
-      'ns_steps': ns_steps,
-      'beta': beta,
-      'eps': eps,
-      'mu_dtype': mu_dtype,
-      'nesterov': nesterov,
-      'adaptive': adaptive,
-    }
-    if optax.__version__ >= '0.2.6': # speed up
-      muon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
-    muon_base = scale_by_muon(**muon_kwargs)
+  # Original Muon
+  muon_kwargs = {
+    'ns_coeffs': ns_coeffs,
+    'ns_steps': ns_steps,
+    'beta': beta,
+    'eps': eps,
+    'mu_dtype': mu_dtype,
+    'nesterov': nesterov,
+    'adaptive': adaptive,
+  }
+  if optax.__version__ >= '0.2.6': # speed up
+    muon_kwargs['weight_dimension_numbers'] = weight_dim_nums_fn
+  muon_base = scale_by_muon(**muon_kwargs)
 
   attn_dim_sqrt = math.sqrt(max(config.num_query_heads * config.head_dim, config.emb_dim))
   mlp_dim_sqrt = math.sqrt(max(config.num_query_heads * config.head_dim, config.mlp_dim))
@@ -417,7 +398,6 @@ def _build_muon(config, learning_rate_schedule, wd_tree):
       wd_tree=None,
   )
   # Check if NorMuon is enabled via config
-  use_normuon = getattr(config, 'use_normuon', False)
   normuon_beta2 = getattr(config, 'normuon_beta2', 0.999)
   
   return muon(
@@ -428,7 +408,6 @@ def _build_muon(config, learning_rate_schedule, wd_tree):
       adaptive=False,
       adam_optimizer=adam_optimizer,
       config=config,
-      use_normuon=use_normuon,
       normuon_beta2=normuon_beta2,
   )
 

@@ -72,7 +72,7 @@ class MultiTokenPredictionLayer(nn.Module):
       prev_hidden_state: jnp.ndarray, # It is a list if use mudd.
       target_token_embedding: jnp.ndarray,
       position_ids: jnp.ndarray,
-      decoder_segment_ids: Optional[jnp.ndarray],
+      decoder_segment_ids: Optional[jnp.ndarray], # mask
       deterministic: bool,
       hids: list = None,
       rolled_input_ids: jnp.ndarray = None,
@@ -121,8 +121,8 @@ class MultiTokenPredictionLayer(nn.Module):
         sliding_window_size=self.sliding_window_size,
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
           projected_features,
-          decoder_segment_ids,
-          position_ids,
+          decoder_segment_ids, # mask
+          position_ids, # position
           rolled_input_ids,
           mtp_de,
           deterministic,
@@ -179,7 +179,7 @@ class MultiTokenPredictionBlock(nn.Module):
     rolled_input_ids = input_ids
     rolled_target_ids = target_ids
     rolled_target_mask = target_mask
-    # rolled_position_id = position_ids
+    rolled_position_id = position_ids
 
     # Range chosen to align with the naming convention of the paper
     for k in range(1, cfg.mtp_num_layers + 1):
@@ -187,7 +187,7 @@ class MultiTokenPredictionBlock(nn.Module):
       rolled_input_ids = roll_and_mask(rolled_input_ids)
       rolled_target_ids = roll_and_mask(rolled_target_ids)
       rolled_target_mask = roll_and_mask(rolled_target_mask)
-    #   rolled_position_id = roll_and_mask(rolled_position_id)
+      rolled_position_id = roll_and_mask(rolled_position_id)
 
       # Embed the k-th future input tokens using the shared embedding module
       target_token_embedding, mtp_de = self.shared_embedding
@@ -215,7 +215,7 @@ class MultiTokenPredictionBlock(nn.Module):
           mtp_de=mtp_de,
       )
       next_mtp_hidden_state, hids = mtp_layer(
-          mtp_hidden_state, target_token_embedding, position_ids, decoder_segment_ids, deterministic, hids, rolled_input_ids
+          mtp_hidden_state, target_token_embedding, rolled_position_id, decoder_segment_ids, deterministic, hids, rolled_input_ids
       )
       if cfg.mtp_norm:
         mtp_norm = normalizations.get_rmsnorm("mtp_norm", cfg)

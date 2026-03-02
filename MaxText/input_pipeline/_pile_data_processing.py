@@ -160,7 +160,7 @@ class PileDatasets():
         model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32) 
         model_needed_inputs['inputs_segmentation'] = self.build_attn_mask()
         pos = tf.range(seq_len)
-        model_needed_inputs['inputs_position'] = model_needed_inputs['inputs_segmentation'] * pos
+        model_needed_inputs['inputs_position'] = model_needed_inputs['inputs_segmentation'] * pos # rotary position, mtp use shift position
         model_needed_inputs['targets_position'] = model_needed_inputs['inputs_segmentation'] * pos  # no use, but complie have this key
         return model_needed_inputs
 

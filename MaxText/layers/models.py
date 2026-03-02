@@ -540,10 +540,10 @@ class Decoder(nn.Module):
   def __call__(
       self,
       decoder_input_tokens,
-      decoder_positions,
+      decoder_positions, # trained position or rotary position
       decoder_target_tokens,
       decoder_target_mask,
-      decoder_segment_ids=None,
+      decoder_segment_ids=None, # mask
       deterministic=False,
       model_mode=common_types.MODEL_MODE_TRAIN,
   ):

@@ -641,36 +641,8 @@ class Decoder(nn.Module):
             start = end
         return ranges
 
-      def split_layer_ranges_pyramid(total_layers, num_groups, pyramid=True):
-        if pyramid:
-            weights = [i + 1 for i in range(num_groups)]
-        else:
-            weights = [num_groups - i for i in range(num_groups)]
-        weight_sum = sum(weights)
-        sizes = [total_layers * w // weight_sum for w in weights]
-        remainder = total_layers - sum(sizes)
-        for i in range(remainder):
-            if pyramid:
-                sizes[-(i % num_groups) - 1] += 1  # 从后往前补
-            else:
-                sizes[i % num_groups] += 1  # 从前往后补
-        ranges = []
-        start = 0
-        for size in sizes:
-            end = start + size
-            ranges.append((start, end))
-            start = end
-        return ranges
-
-      if cfg.me_split_method == 'pyramid':
-        split_layer_ranges = partial(split_layer_ranges_pyramid, pyramid=True)
-        print(f'Using pyramid split method')
-      elif cfg.me_split_method == 'inverse_pyramid':
-        print(f'Using inverse pyramid split method')
-        split_layer_ranges = partial(split_layer_ranges_pyramid, pyramid=False)
-      else:
-        print(f'Using uniform split method')
-        split_layer_ranges = split_layer_ranges_uniform
+      print(f'Using uniform split method')
+      split_layer_ranges = split_layer_ranges_uniform
 
       if cfg.use_compressed_vocab:
         compressed_vocab_lookup = engram.CompressedVocabLookup(config=cfg, name="compressed_vocab_lookup")

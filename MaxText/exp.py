@@ -614,8 +614,6 @@ class KVshiftV4p5(KVshift, ModelV4p5):
     pass
 
 # ========================v4.5 + single module end=======================
-
-
 class MuddMTP1V4p5(Mudd, MTP1V4p5):
     pass
 
@@ -682,10 +680,8 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5(MuonDEDcMuddMTP1KVshif
     eval_per_device_batch_size = 8.0 # v5p-128, total batch size 512
     mtp_loss_scaling_factor = 0.3 # 前期用0.3，后期用0.1
 
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     mudd_cap = 10.0
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10):
     adam_weight_decay = 0.3
     muon_scale = 0.5
     final_muon_scale = 0.5
@@ -703,60 +699,8 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     warmup_steps_fraction = 0.01
     zero_loss = True
 
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03DW2Norm(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
-    dc_w2_norm = True
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03LocalMudd(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
-    mudd_local_window = 2 # local mudd window size
-
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BCompressedVocab(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
-    use_compressed_vocab = True
-    engram_embed_dim = 2048
-    engram_sizes_layers = None
-    me_nums = 28
-    me_dilation = 6
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03Pyramid(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
-    me_split_method = 'pyramid'
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03InversePyramid(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
-    me_split_method = 'inverse_pyramid'
-
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
-    use_compressed_vocab = True
-    # tokenizer_path = "allenai/OLMo-2-0425-1B"
-    engram_embed_dim = 512
-    engram_base_vocab_size = 873358 # 大约5倍压缩前词表大小
-    engram_sizes_layers = [(2, 4), (3, 4)] # list: 2-gram和3-gram的层数
-    me_nums = 12
-
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim1k(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram):
-    engram_embed_dim = 1024
-    engram_base_vocab_size = 436679
-
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram):
-    engram_embed_dim = 2048
-    engram_base_vocab_size = 218340
-
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k2gram(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k):
-    engram_sizes_layers = [(2, 8)]
-
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramV100k(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngram):
-    engram_embed_dim = 2048
-    engram_base_vocab_size = 109170
-    engram_sizes_layers = [(2, 8), (3, 8)]
-
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k2gram4(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k):
-    engram_sizes_layers = [(2, 4)]
-    engram_base_vocab_size = 329012
-    me_nums = 16
-
-class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k2gram4NoCompress(MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k2gram4):
-    use_compressed_vocab = False
-    engram_base_vocab_size = 303872
-    me_nums = 12
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10):
+class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
+    mudd_cap = 10.0
     learning_rate = 8.7232e-5
     learning_rate_schedule_steps = 189500
     warmup_steps_fraction = 0.0
@@ -767,208 +711,11 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMu
     mtp_loss_scaling_factor = 0.1
     dataset_type = 'v4.5_1.5B_sec_stage'
 
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Pile(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
-    per_device_batch_size = 16.0  # total 256 for v5p-32
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
-    record_internal_nn_metrics = False # 0.363 step/s
-    # train xl
-    learning_rate = 2e-4
-    learning_rate_schedule_steps = 50000
-    warmup_steps_fraction = 0.01
-    cosine_learning_rate_final_fraction = 0.1
-    eval_interval = 50000
-    # pile dataset 
-    vocab_size = 50432
-    max_target_length = 2048
-    train_shuffle_buffer_size = None
-    eval_shuffle_buffer_size = None
-    eval_steps = 162
-    iter_file_nums = 2
-    dataset_type = 'pile'
-    zero_loss = False
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNorm(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Pile):
-    me_prenorm = False # 0.361 step/s eval loss: 2.0027
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNormShare(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNorm):
-    mudd_emb_share = True # 0.362 step/s
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileShareMTPNormCapv6e(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNormShare):
-    mtp_norm = True # 0.920 step/s eval loss: 1.997147
-    me_prenorm = False
-    # no decay 
-    remat_policy = 'save_all'
-    per_device_batch_size = 4.0 # 256 for v6e-64 
-    eval_per_device_batch_size = 2.0
-    sharding_tolerance = 0.05
-    # mudd cap
-    mudd_cap = 10.0
-    mudd_use_scale = False
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T40A2PileNoNorm(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileNoNorm):
-    me_nums = 39 # 0. 350 step/s
-    me_dilation = 20 
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5TrainXL(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
-    per_device_batch_size = 16.0  # total 256 for v5p-32
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
-    record_internal_nn_metrics = False # 0.178 step/s
-    # train xl
-    learning_rate = 2e-4
-    learning_rate_schedule_steps = 50000
-    warmup_steps_fraction = 0.01
-    cosine_learning_rate_final_fraction = 0.1
-    eval_interval = 50000
-
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5TrainXLDE(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5TrainXL):
-    me_dilation = None # 0.161 step/s
-    me_nums = None
-    deep_embed_type = '4xmlp'
-    deep_embed_init = 'outside'
-
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDE(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Pile):
-    me_dilation = None # 0.323 step/s
-    me_nums = None
-    deep_embed_type = '4xmlp'
-    deep_embed_init = 'outside'
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDENDv6e(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDE):
-    me_prenorm = False
-    deep_embed_nowd = True # 0.853 step/s eval loss: 2.0047
-    # no decay 
-    remat_policy = 'save_all'
-    per_device_batch_size = 4.0 # 256 for v6e-64 
-    eval_per_device_batch_size = 2.0
-    sharding_tolerance = 0.05
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDEv6eMTPNorm(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDENDv6e):
-    mtp_norm = True #  eval loss: 1.99088
-    deep_embed_nowd = False
-
-class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDENoNormFix(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5PileDE):
-    me_prenorm = False # 0.323 step/s eval loss: 2.0034
-
-class MuonDEDcMuddMTP1KVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5XLData400B):
-    base_emb_dim = 1024
-    base_num_query_heads = 16
-    base_num_kv_heads = [base_num_query_heads, 4, base_num_query_heads, base_num_query_heads]
-    base_mlp_dim = 1920
-    base_num_decoder_layers = 31
-
-class MuonDEDcMuddKVshiftV4p5MediumH128T20A4(MuonDEDcMuddMTP1KVshiftV4p5MediumH128):
-    me_dilation = 4
-    me_nums = 20
-    deep_embed_type = 'none'
-    deep_embed_init = 'none'
-    per_device_batch_size = 16.0
-    eval_per_device_batch_size = 16.0
-    base_num_decoder_layers = 32
-    mtp_num_layers = 0
-    attention = 'flash'
-    keep_period = 1500
-    eval_steps = 642
-    global_attn_head_dim = 128
-    learning_rate_schedule_steps = 13500
-    eval_interval = 13500
-    train_shuffle_buffer_size = None
-    vocab_size = 50432
-    iter_file_nums = 2
-    muon_scale = 0.2
-    final_muon_scale = 0.2
-    learning_rate = 3e-4
-    partial_scan_layers = True
-    dynamic_mlp_dim = False
-    loss_chunk_size = 4096
-    me_prenorm = False
-    mudd_cap = 10.0
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoME(MuonDEDcMuddKVshiftV4p5MediumH128T20A4):
-    me_nums = None
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03(MuonDEDcMuddKVshiftV4p5MediumH128NoME):
-    adam_weight_decay = 0.3
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03MS05(MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03):
-    muon_scale = 0.5
-    final_muon_scale = 0.5
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03MS05To02(MuonDEDcMuddKVshiftV4p5MediumH128NoMEWd03MS05):
-    final_muon_scale = 0.2
-
-class MuonDEDcMuddKVshiftV4p5MediumH128(MuonDEDcMuddMTP1KVshiftV4p5MediumH128): # medium v4.5 baseline model
-    base_num_decoder_layers = 32
-    mtp_num_layers = 0
-    partial_scan_layers = True
-
-class MuonDEDcMuddKVshiftV4p5MediumH128BS32(MuonDEDcMuddKVshiftV4p5MediumH128):
-    dynamic_mlp_dim = False # 0.367 steps/s
-    per_device_batch_size = 32
-    deep_embed_init = "outside"
-    record_internal_nn_metrics = False
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
-
-class MuonDEDcMuddKVshiftV4p5MediumH128BS32EFLayers8(MuonDEDcMuddKVshiftV4p5MediumH128BS32):
-    deep_embed_effective_layers = 8
-
-class MuonDEDcMuddKVshiftV4p5MediumH128BS32ExtraEmb8X(MuonDEDcMuddKVshiftV4p5MediumH128BS32):
-    me_nums = 7 
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDE(MuonDEDcMuddKVshiftV4p5MediumH128BS32):
-    deep_embed_type = 'none' # 0.482 steps/s
-    deep_embed_init = 'none' 
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb8X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDE):
-    me_nums = 7 # 0.450 steps/s
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDE):
-    me_nums = 15 # 0.417 steps/s
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    me_dilation = 4  # 0.429 steps/s
-    me_nums = 31
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb64XD16Cont(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont):
-    me_dilation = 16 # 0.375 steps/s
-    me_nums = 63
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4ContNorm2(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont):
-    me_prenorm = True
-    mudd_prenorm = True
-    tensorboard_dir = "gs://newproject-1-llm_projects/log/summaries/train/" 
-
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4ContSoftCap10(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont):
-    mudd_cap = 10.0
-    record_internal_nn_metrics = True
-
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16XD2(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    me_dilation = 2  # 0.445 steps/s
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4ContSoftCap10(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb32XD4Cont):
-    mudd_cap = 10.0
-    record_internal_nn_metrics = True
-
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16XD2(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    me_dilation = 2  # 0.445 steps/s
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb64XD8(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    me_dilation = 8  # 0.367 steps/s
-    me_nums = 63
-
-class MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb64X(MuonDEDcMuddKVshiftV4p5MediumH128NoneDEExtraEmb16X):
-    me_nums = 63 # 0.268 steps/s
-
-class MuonDEDcMuddKVshiftV4p5MediumH128GLLL(GLLLWindow, MuonDEDcMuddKVshiftV4p5MediumH128):
-    base_num_query_heads = 16
-    base_num_kv_heads = [4, base_num_query_heads, base_num_query_heads, base_num_query_heads]
+class MuonDEDcMuddMTP1KVshiftV4p5XLData400BEngramEdim2k2gram4(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
+    engram_sizes_layers = [(2, 4)]
+    engram_base_vocab_size = 329012
+    me_nums = 16
+    engram_embed_dim = 2048
 
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Align(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):

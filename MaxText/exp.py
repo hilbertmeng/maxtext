@@ -120,7 +120,7 @@ class DC2(DC):
     use_dw_bias = True
     use_dd_bias = False # harm performance 
     static_proj = False
-    dw2_norm = False
+    dc_w2_norm = False
 
 class KVshift:
     use_kv_shift = True
@@ -704,7 +704,14 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     zero_loss = True
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03DW2Norm(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
-    dc_w2_norm = True
+    dc_w2_norm = True # v5p-128 faster than dw2_norm=False, about 1.5%
+
+class V4p5LongTest(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03DW2Norm):
+    base_num_decoder_layers = 4
+    train_shuffle_buffer_size = 1000
+    per_device_batch_size = 1.0
+    eval_per_device_batch_size = 1.0
+    max_target_length = 32000 # 32k, 64k, 128k
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03LocalMudd(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     mudd_local_window = 2 # local mudd window size

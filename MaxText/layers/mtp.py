@@ -16,6 +16,7 @@ limitations under the License.
 
 """JAX implementation of the Multi Token Predicition https://arxiv.org/pdf/2412.19437 """
 
+import functools
 from typing import Optional, Type
 
 import jax
@@ -28,6 +29,7 @@ from common_types import Config, MODEL_MODE_TRAIN
 from layers.normalizations import RMSNorm as rms_norm
 import max_utils
 import maxtext_utils
+import vocabulary_tiling
 from layers import initializers
 from layers import normalizations
 from layers import linears
@@ -220,20 +222,39 @@ class MultiTokenPredictionBlock(nn.Module):
       if cfg.mtp_norm:
         mtp_norm = normalizations.get_rmsnorm("mtp_norm", cfg)
         next_mtp_hidden_state = [mtp_norm(next_mtp_hidden_state[0])] if isinstance(next_mtp_hidden_state, tuple|list) else mtp_norm(next_mtp_hidden_state)
-      # Project to logits using the shared embedding transpose
-      mtp_xent, correct, mtp_top_1_pred = output_layer(
-        next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state, 
-        rolled_target_ids,
-        rolled_target_mask,
-        cfg.max_target_length,
-        deterministic,
-        mtp_layer=True
+      mtp_hidden_state_for_loss = (
+          next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state
+      )
+      if cfg.num_vocab_tiling > 1:
+        mtp_top_1_pred = None
+        if cfg.mtp_eval_target_module == k:
+          _, _, mtp_top_1_pred = output_layer(
+              mtp_hidden_state_for_loss,
+              rolled_target_ids,
+              rolled_target_mask,
+              cfg.max_target_length,
+              deterministic,
+              mtp_layer=True,
+          )
+      else:
+        # Project to logits using the shared embedding transpose
+        mtp_xent, _, mtp_top_1_pred = output_layer(
+            mtp_hidden_state_for_loss,
+            rolled_target_ids,
+            rolled_target_mask,
+            cfg.max_target_length,
+            deterministic,
+            mtp_layer=True,
         )
-      mtp_xent_masked = mtp_xent * rolled_target_mask # BL
+        mtp_xent_masked = mtp_xent * rolled_target_mask # BL
 
       # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.
       if not self.is_initializing(): # don't excute here when model.init
         max_logging.log(f'MTP loss record.....', debug=cfg.debug)
+        if cfg.num_vocab_tiling > 1:
+          self.sow("intermediates", "mtp_hidden_states", mtp_hidden_state_for_loss)
+          self.sow("intermediates", "mtp_targets", rolled_target_ids)
+          self.sow("intermediates", "mtp_masks", rolled_target_mask)
         # For evaluation, save the top prediction and a valid token mask.
         # This is only active for the target layer during an eval run.
         if cfg.mtp_eval_target_module == k:
@@ -244,15 +265,183 @@ class MultiTokenPredictionBlock(nn.Module):
         # For training, save the loss components for this MTP head.
         # This is only active during a training run.
         # if self.is_mutable_collection("mtp_losses"):
-        self.sow("intermediates", "mtp_losses", jnp.sum(mtp_xent_masked))
-        self.sow("intermediates", "mtp_weights", jnp.sum(rolled_target_mask))
+        if cfg.num_vocab_tiling == 1:
+          self.sow("intermediates", "mtp_losses", jnp.sum(mtp_xent_masked))
+          self.sow("intermediates", "mtp_weights", jnp.sum(rolled_target_mask))
 
       # The output of this layer is the input for the next, maintaining the causal chain.
       mtp_hidden_state = next_mtp_hidden_state
 
 
-def calculate_mtp_loss(intermediate_outputs, config):
+def vocab_tiling_mtp_loss(hidden_states, labels, segmentation, config, model, params):
+  """Calculates a tiled MTP loss from hidden states."""
+  param_spec = nn.get_partition_spec(params)
+  hidden_spec = jax.sharding.NamedSharding(
+      model.mesh,
+      nn.logical_to_mesh_axes(("activation_embed_and_logits_batch", "activation_length_no_exp", "activation_embed")),
+  )
+  label_spec = jax.sharding.NamedSharding(
+      model.mesh, nn.logical_to_mesh_axes(("activation_embed_and_logits_batch", "activation_length_no_exp"))
+  )
+  reshaped_hidden_spec = jax.sharding.NamedSharding(
+      model.mesh, nn.logical_to_mesh_axes(("num_tile", "activation_embed_and_logits_batch", "activation_embed"))
+  )
+  reshaped_data_spec = jax.sharding.NamedSharding(
+      model.mesh, nn.logical_to_mesh_axes(("num_tile", "activation_embed_and_logits_batch"))
+  )
+  chunked_hidden_spec = jax.sharding.NamedSharding(
+      model.mesh, nn.logical_to_mesh_axes(("activation_embed_and_logits_batch", "activation_embed"))
+  )
+  chunked_data_spec = jax.sharding.NamedSharding(
+      model.mesh, nn.logical_to_mesh_axes(("activation_embed_and_logits_batch",))
+  )
+  chunked_logits_spec = jax.sharding.NamedSharding(
+      model.mesh, nn.logical_to_mesh_axes(("activation_embed_and_logits_batch", "activation_vocab"))
+  )
+
+  _maybe_shard_with_name = functools.partial(
+      vocabulary_tiling.maybe_shard_with_name, shard_mode=config.shard_mode
+  )
+
+  def _reshape(inputs, out_shape, out_sharding):
+    reshape_out_sharding = out_sharding if config.shard_mode == vocabulary_tiling.ShardMode.EXPLICIT else None
+    inputs = jax.lax.reshape(inputs, out_shape, out_sharding=reshape_out_sharding)
+    return _maybe_shard_with_name(inputs, out_sharding)
+
+  hidden_states = _maybe_shard_with_name(hidden_states, hidden_spec)
+  labels = _maybe_shard_with_name(labels, label_spec)
+  segmentation = _maybe_shard_with_name(segmentation, label_spec)
+  gathered_params = vocabulary_tiling.all_gather_over_fsdp(params, param_spec, model.mesh, config.logical_axis_rules)
+
+  @jax.custom_vjp
+  def chunked_cross_entropy_loss(gathered_params, hidden_states, labels, segmentation):
+    total_loss, _ = _chunked_cross_entropy_loss_fwd(gathered_params, hidden_states, labels, segmentation)
+    return total_loss
+
+  def _chunked_cross_entropy_loss_fwd(gathered_params, hidden_states, labels, segmentation):
+    batch_size, seq_len, emb_dim = hidden_states.shape
+    vocab_tile_size = (batch_size * seq_len) // config.num_vocab_tiling
+
+    reshaped_hidden_states = _reshape(
+        hidden_states, (config.num_vocab_tiling, vocab_tile_size, emb_dim), reshaped_hidden_spec
+    )
+    reshaped_labels = _reshape(labels, (config.num_vocab_tiling, vocab_tile_size), reshaped_data_spec)
+    reshaped_segmentation = _reshape(segmentation, (config.num_vocab_tiling, vocab_tile_size), reshaped_data_spec)
+
+    def _fwd_scan_body(loss_accumulator, chunk_data):
+      hidden_chunk, label_chunk, segmentation_chunk = chunk_data
+      hidden_chunk = _maybe_shard_with_name(hidden_chunk, chunked_hidden_spec)
+      label_chunk = _maybe_shard_with_name(label_chunk, chunked_data_spec)
+      segmentation_chunk = _maybe_shard_with_name(segmentation_chunk, chunked_data_spec)
+
+      chunk_logits = model.apply(
+          {"params": gathered_params["params"]},
+          hidden_chunk,
+          deterministic=True,
+          mtp_layer=True,
+          method=model.logits_from_hidden_states,
+      )
+      chunk_logits = _maybe_shard_with_name(chunk_logits, chunked_logits_spec)
+      one_hot_label_chunk = jax.nn.one_hot(label_chunk, config.vocab_size)
+      chunk_xent, _ = max_utils.cross_entropy_with_logits(chunk_logits, one_hot_label_chunk)
+      masked_xent = jnp.sum(chunk_xent * (segmentation_chunk != 0))
+      loss_accumulator += masked_xent
+      return loss_accumulator, None
+
+    initial_loss = 0.0
+    total_loss, _ = jax.lax.scan(
+        _fwd_scan_body, initial_loss, (reshaped_hidden_states, reshaped_labels, reshaped_segmentation)
+    )
+    residuals = (
+        gathered_params,
+        reshaped_hidden_states,
+        reshaped_labels,
+        reshaped_segmentation,
+        batch_size,
+        seq_len,
+        emb_dim,
+    )
+    return total_loss, residuals
+
+  def _chunked_cross_entropy_loss_bwd(residuals, loss_cotangent):
+    gathered_params, reshaped_hidden_states, reshaped_labels, reshaped_segmentation, batch_size, seq_len, emb_dim = (
+        residuals
+    )
+
+    def _single_chunk_loss_fn(input_params, input_hidden_chunk, input_label_chunk, input_segmentation_chunk):
+      chunk_logits = model.apply(
+          {"params": input_params["params"]},
+          input_hidden_chunk,
+          deterministic=True,
+          mtp_layer=True,
+          method=model.logits_from_hidden_states,
+      )
+      chunk_logits = _maybe_shard_with_name(chunk_logits, chunked_logits_spec)
+      one_hot_label_chunk = jax.nn.one_hot(input_label_chunk, config.vocab_size)
+      xent, _ = max_utils.cross_entropy_with_logits(chunk_logits, one_hot_label_chunk)
+      return jnp.sum(xent * (input_segmentation_chunk != 0))
+
+    def _bwd_scan_body(grad_params_acc, chunk_data):
+      hidden_chunk, label_chunk, segmentation_chunk = chunk_data
+      hidden_chunk = _maybe_shard_with_name(hidden_chunk, chunked_hidden_spec)
+      label_chunk = _maybe_shard_with_name(label_chunk, chunked_data_spec)
+      segmentation_chunk = _maybe_shard_with_name(segmentation_chunk, chunked_data_spec)
+
+      loss_fn_for_vjp = lambda p, h: _single_chunk_loss_fn(p, h, label_chunk, segmentation_chunk)
+      _, vjp_fn = jax.vjp(loss_fn_for_vjp, gathered_params, hidden_chunk)
+      grad_params_update, grad_hidden_chunk = vjp_fn(1.0)
+      grad_hidden_chunk = _maybe_shard_with_name(grad_hidden_chunk, chunked_hidden_spec)
+
+      grad_params_acc = jax.tree_util.tree_map(
+          lambda acc, update: acc + update,
+          grad_params_acc,
+          grad_params_update,
+      )
+      return grad_params_acc, grad_hidden_chunk
+
+    initial_grad_params_acc = jax.tree_util.tree_map(jnp.zeros_like, gathered_params)
+    grad_params, grad_reshaped_hidden_states = jax.lax.scan(
+        _bwd_scan_body, initial_grad_params_acc, (reshaped_hidden_states, reshaped_labels, reshaped_segmentation)
+    )
+    grad_reshaped_hidden_states = _maybe_shard_with_name(grad_reshaped_hidden_states, reshaped_hidden_spec)
+    grad_params = jax.tree_util.tree_map(lambda g: g * loss_cotangent, grad_params)
+    grad_reshaped_hidden_states = _reshape(grad_reshaped_hidden_states, (batch_size, seq_len, emb_dim), hidden_spec)
+    return (
+        grad_params,
+        grad_reshaped_hidden_states.astype(reshaped_hidden_states.dtype),
+        None,
+        None,
+    )
+
+  chunked_cross_entropy_loss.defvjp(_chunked_cross_entropy_loss_fwd, _chunked_cross_entropy_loss_bwd)
+  return chunked_cross_entropy_loss(gathered_params, hidden_states, labels, segmentation)
+
+
+def calculate_mtp_loss(intermediate_outputs, config, model=None, params=None):
   """Calculates the Multi Token Prediction loss from intermediate outputs."""
+  if config.num_vocab_tiling > 1:
+    hidden_states_path = ("intermediates", "decoder", "mtp_block", "mtp_hidden_states")
+    targets_path = ("intermediates", "decoder", "mtp_block", "mtp_targets")
+    masks_path = ("intermediates", "decoder", "mtp_block", "mtp_masks")
+    mtp_hidden_states = maxtext_utils.get_nested_value(intermediate_outputs, hidden_states_path, default=())
+    mtp_targets = maxtext_utils.get_nested_value(intermediate_outputs, targets_path, default=())
+    mtp_masks = maxtext_utils.get_nested_value(intermediate_outputs, masks_path, default=())
+
+    if not mtp_hidden_states:
+      return 0.0
+    if model is None or params is None:
+      raise ValueError("model and params are required when num_vocab_tiling > 1 for MTP loss.")
+
+    sum_of_all_mtp_losses = 0.0
+    sum_of_all_mtp_weights = 0.0
+    for hidden_states, targets, mask in zip(mtp_hidden_states, mtp_targets, mtp_masks):
+      sum_of_all_mtp_losses += vocab_tiling_mtp_loss(hidden_states, targets, mask, config, model, params)
+      sum_of_all_mtp_weights += jnp.sum(mask)
+
+    avg_mtp_loss = sum_of_all_mtp_losses / (sum_of_all_mtp_weights + EPS)
+    scaled_mtp_loss = avg_mtp_loss * config.mtp_loss_scaling_factor
+    return scaled_mtp_loss
+
   losses_path = ("intermediates", "decoder", "mtp_block", "mtp_losses")
   weights_path = ("intermediates","decoder", "mtp_block", "mtp_weights")
   mtp_losses = maxtext_utils.get_nested_value(intermediate_outputs, losses_path, default=())

@@ -610,7 +610,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   # Calculate and Add MTP Loss
   mtp_loss, mtp_accept_rate = 0.0, 0.0
   if config.mtp_num_layers > 0:
-    mtp_loss = mtp.calculate_mtp_loss(intermediate_outputs, config)
+    mtp_loss = mtp.calculate_mtp_loss(intermediate_outputs, config, model=model, params=params)
     mtp_accept_rate = mtp.calculate_mtp_acceptance_rate(intermediate_outputs, config, preds)
     loss += mtp_loss
 

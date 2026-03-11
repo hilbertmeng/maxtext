@@ -344,6 +344,34 @@ class OutputHead(nn.Module):
       ) # int use 888 more quick，but more memory
     self.logits_dense = dense_kernel.astype(cfg.dtype)
     self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
+
+  def project_logits(self, inputs: Array) -> Array:
+    cfg = self.config
+    dense_kernel = nn.with_logical_constraint(self.logits_dense, (None, "vocab"))
+    if cfg.logits_via_embedding:
+      logits = self.shared_embedding.attend(inputs)
+      if cfg.normalize_embedding_logits:
+        logits = logits / jnp.sqrt(inputs.shape[-1])
+      if cfg.final_logits_soft_cap:
+        logits = logits / cfg.final_logits_soft_cap
+        logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
+    else:
+      logits = jnp.einsum('btd,dv->btv', inputs, dense_kernel)
+    if cfg.cast_logits_to_fp32:
+      logits = logits.astype(jnp.float32)
+    return logits
+
+  def logits_from_hidden_states(
+      self,
+      hidden_states: Array,
+      deterministic: bool = True,
+      mtp_layer: bool = False,
+  ) -> Array:
+    inputs = hidden_states
+    if not mtp_layer:
+      inputs = self.norm(inputs)
+      inputs = self.dropout(inputs, deterministic=deterministic)
+    return self.project_logits(inputs)
   
   @nn.compact
   def __call__(
@@ -362,8 +390,6 @@ class OutputHead(nn.Module):
     correct = 0
     preds = []
     # chunk_size = cfg.loss_chunk_size  # manual shard to speed up, about 1%
-    dense_kernel = nn.with_logical_constraint(self.logits_dense, (None, "vocab"))
-    # dense_kernel = self.logits_dense
     if not mtp_layer:
       inputs = self.norm(inputs)
       inputs = self.dropout(inputs, deterministic=deterministic)
@@ -371,15 +397,7 @@ class OutputHead(nn.Module):
     for start_idx in range(0, seq_len, chunk_size):
       end_idx = min(start_idx + chunk_size, seq_len)
       chunk_slice = slice(start_idx, end_idx)
-      if cfg.logits_via_embedding: # false
-        logits_chunk = self.shared_embedding.attend(inputs[:, chunk_slice])
-        if cfg.normalize_embedding_logits:
-            logits_chunk = logits_chunk / jnp.sqrt(inputs[:, chunk_slice].shape[-1])
-        if cfg.final_logits_soft_cap:
-            logits_chunk = logits_chunk / cfg.final_logits_soft_cap
-            logits_chunk = jnp.tanh(logits_chunk) * cfg.final_logits_soft_cap
-      else:
-        logits_chunk = jnp.einsum('btd,dv->btv', inputs[:, chunk_slice], dense_kernel)
+      logits_chunk = self.project_logits(inputs[:, chunk_slice])
       preds_chunk = jnp.argmax(logits_chunk, axis=-1)
       mask_chunk = target_mask[:, chunk_slice]
       targets_chunk = target_tokens[:, chunk_slice]
@@ -535,6 +553,26 @@ class Decoder(nn.Module):
           quant=self.quant,
       )
     return stage_module
+
+  @nn.compact
+  def logits_from_hidden_states(
+      self,
+      hidden_states,
+      deterministic,
+      mtp_layer: bool = False,
+  ):
+    output_head_layer = OutputHead(
+        config=self.config,
+        shared_embedding=self.shared_embedding,
+        mesh=self.mesh,
+        quant=self.quant,
+        name="lm_head",
+    )
+    return output_head_layer.logits_from_hidden_states(
+        hidden_states,
+        deterministic=deterministic,
+        mtp_layer=mtp_layer,
+    )
 
   @nn.compact
   def __call__(
@@ -1045,3 +1083,15 @@ class Transformer(nn.Module):
         model_mode=model_mode,
     )
     return logits
+
+  def logits_from_hidden_states(
+      self,
+      hidden_states,
+      deterministic: bool = True,
+      mtp_layer: bool = False,
+  ):
+    return self.decoder.logits_from_hidden_states(
+        hidden_states,
+        deterministic=deterministic,
+        mtp_layer=mtp_layer,
+    )

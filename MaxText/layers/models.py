@@ -356,9 +356,7 @@ class OutputHead(nn.Module):
         logits = logits / cfg.final_logits_soft_cap
         logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
-      logits = jnp.einsum('btd,dv->btv', inputs, dense_kernel)
-    if cfg.cast_logits_to_fp32:
-      logits = logits.astype(jnp.float32)
+      logits = jnp.tensordot(inputs, dense_kernel, axes=((-1,), (0,)))
     return logits
 
   def logits_from_hidden_states(

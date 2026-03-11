@@ -672,6 +672,7 @@ scan_layers: True # We recommend setting this to false when using pipeline paral
 param_scan_axis: 1
 run_name: ""
 shard_mode: "auto" # choices: [auto, explicit]
+num_vocab_tiling: 1
 
 ## engram parameters
 use_compressed_vocab: False

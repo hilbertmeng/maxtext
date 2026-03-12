@@ -721,6 +721,17 @@ class V4p5LongTest(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03D
     # base_emb_dim = 4096
     # base_mlp_dim = 5120
 
+class V4p5LongTest8B(V4p5LongTest):
+    base_emb_dim = 4096
+    base_mlp_dim = 5120
+    base_num_decoder_layers = 55
+    me_dilation = 8
+    me_nums = 40
+    max_target_length = 65536 # 32k, 64k, 128k
+    num_vocab_tiling = 16
+    query_chunk_method = 'parallel_remat'
+    query_chunk_size = 256
+
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03LocalMudd(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     mudd_local_window = 2 # local mudd window size
 

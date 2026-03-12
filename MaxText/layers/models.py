@@ -394,6 +394,7 @@ class OutputHead(nn.Module):
 
     for start_idx in range(0, seq_len, chunk_size):
       end_idx = min(start_idx + chunk_size, seq_len)
+      print(f'lm head chunk start_idx: {start_idx} end_idx: {end_idx}')
       chunk_slice = slice(start_idx, end_idx)
       logits_chunk = self.project_logits(inputs[:, chunk_slice])
       preds_chunk = jnp.argmax(logits_chunk, axis=-1)

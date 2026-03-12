@@ -256,7 +256,7 @@ class MultiTokenPredictionBlock(nn.Module):
             mtp_hidden_state_for_loss,
             rolled_target_ids,
             rolled_target_mask,
-            cfg.max_target_length,
+            cfg.mtp_loss_chunk_size,
             deterministic,
             mtp_layer=True,
         )

@@ -661,7 +661,8 @@ debug: False
 mgate_dim: 0
 eval_model_step: -1 # evaluate certain step checkpoint, if -1, auto select latest step.
 tensorboard_dir: ''
-loss_chunk_size: 1024
+loss_chunk_size: 4096 # v5p suggest 4096, v6p suggest 1024
+mtp_loss_chunk_size: 4096 # v5p suggest 4096, v6p suggest 1024
 remat_prevent_cse: True # set to True can save some memory
 log_period: 25 # Flushes Tensorboard
 attention: 'autoselected' # ['autoselected', 'dot_product', 'flash', 'cudnn_flash_te']

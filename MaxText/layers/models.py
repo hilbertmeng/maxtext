@@ -602,6 +602,7 @@ class Decoder(nn.Module):
 
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
+    y = nn.with_logical_constraint(y, ("activation_batch", "activation_length", "activation_embed"))
     y, mtp_de = jnp.split(y, [cfg.emb_dim], axis=-1)
     max_logging.log(f'mtp_de: {mtp_de}', debug=cfg.debug)
     # mtp need to roll_input_ids embedding, it can reduce 12ms time to extract in here.
@@ -740,8 +741,19 @@ class Decoder(nn.Module):
       
       me = []
       if cfg.me_nums is not None:
+        # Pad vocab_size for embedding table to be divisible by TP degree (vocab axis sharding).
+        # Compressed vocab sizes (e.g. 107667) may not be divisible by ici_tensor_parallelism.
+        # Extra padded rows are never accessed since token indices < original vocab_size.
+        _tp_degree = (
+            getattr(cfg, 'ici_tensor_parallelism', 1)
+            * getattr(cfg, 'ici_tensor_transpose_parallelism', 1)
+            * getattr(cfg, 'ici_tensor_sequence_parallelism', 1)
+            * getattr(cfg, 'ici_autoregressive_parallelism', 1)
+        )
+        _tp_degree = max(_tp_degree, 1)
+        padded_vocab_size = ((vocab_size + _tp_degree - 1) // _tp_degree) * _tp_degree
         mudd_emb = Embed(
-            num_embeddings=vocab_size,
+            num_embeddings=padded_vocab_size,
             features=cfg.emb_dim * cfg.me_nums,
             dtype=cfg.dtype,
             attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,

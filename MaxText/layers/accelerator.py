@@ -108,6 +108,14 @@ class QChunk(nn.Module):
     assert key.shape[-3] == value.shape[-3], "k, v lengths must match."
     assert query.shape[-1] == key.shape[-1], "q, k depths must match."
 
+  def _constrain_encoded(self, encoded: Array) -> Array:
+    return nn.with_logical_constraint(encoded, ('activation_batch', 'activation_length', 'heads', 'mlp'))
+
+  def _constrain_qkv(self, tensor: Array) -> Array:
+    return nn.with_logical_constraint(
+        tensor, ('activation_kv_batch', None,  'activation_length', 'activation_kv_head_dim')
+    )
+
   def qk_product(self, query: Array, key: Array) -> Array:
     einsum = jnp.einsum
     if self.kv_quant: # true when quantize_kvcache set true
@@ -165,7 +173,7 @@ class QChunk(nn.Module):
     output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
     b, t, n_kv, g, h = output.shape
     output = jnp.reshape(output, (b, t, n_kv * g, h))
-    output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
+    output = self._constrain_encoded(output)
     return output
 
   def _attention_parallel_remat(
@@ -179,6 +187,9 @@ class QChunk(nn.Module):
       remat = False,
       parallel_method: str = 'fori',
   ):
+    query = self._constrain_qkv(query)
+    key = self._constrain_qkv(key)
+    value = self._constrain_qkv(value)
     b, t, n, h = query.shape
     w  = self.query_chunk_size
     assert t % w == 0, f"{t} % {w} != 0"
@@ -191,13 +202,13 @@ class QChunk(nn.Module):
       else:
         carry, i = args
 
-      encoded = carry
+      encoded = self._constrain_encoded(carry)
       start, stop = i * w, (i + 1) * w
       kv_start = jnp.maximum(0, stop - w - sliding_window_size) if sliding_window_size < t else 0
       mask_start = jnp.minimum(i * w, sliding_window_size)
-      _query = lax.dynamic_slice(query, (0, start, 0, 0), (b, w, n, h))
-      _key   = lax.dynamic_slice_in_dim(key, kv_start, window_len, axis=1)
-      _value = lax.dynamic_slice_in_dim(value, kv_start, window_len, axis=1)
+      _query = self._constrain_qkv(lax.dynamic_slice_in_dim(query, start, w, axis=1))
+      _key   = self._constrain_qkv(lax.dynamic_slice_in_dim(key, kv_start, window_len, axis=1))
+      _value = self._constrain_qkv(lax.dynamic_slice_in_dim(value, kv_start, window_len, axis=1))
       _attn_mask = lax.dynamic_slice_in_dim(attn_mask, mask_start, w, axis=2)
 
       def _safe_slice(tensor, s, length):
@@ -231,6 +242,7 @@ class QChunk(nn.Module):
           return _encoded
       
       encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
+      encoded = self._constrain_encoded(encoded)
 
       if parallel_method == 'fori':
         return encoded
@@ -238,19 +250,20 @@ class QChunk(nn.Module):
       return encoded, None
     
     RematBody = jax.checkpoint(body, 
-                               prevent_cse=False if parallel_method == 'scan' else True, # attn scan prevent cse use False
+                              #  prevent_cse=False if parallel_method == 'scan' else True, # attn scan prevent cse use False
+                               prevent_cse=True,
                                policy=None) if remat else body
     if parallel_method == 'vmap':
        # (num_steps, b, t, n, h)
       encoded0 = jax.vmap(RematBody)(None, jnp.arange(num_steps, dtype=jnp.int32))
       encoded0 = rearrange(encoded0, 'n B T N H -> B (n T) N H ', n=num_steps)
     elif parallel_method == 'fori':
-      encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
+      encoded0 = self._constrain_encoded(jnp.zeros((b, t, n, h), dtype=jnp.bfloat16))
       encoded0 = lax.fori_loop(0, num_steps, RematBody, encoded0)
     else:
-      encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
+      encoded0 = self._constrain_encoded(jnp.zeros((b, t, n, h), dtype=jnp.bfloat16))
       encoded0, _ = lax.scan(f=RematBody, init=encoded0, xs=jnp.arange(num_steps))
-    return encoded0
+    return self._constrain_encoded(encoded0)
 
   def _attention_for_remat(
       self,
@@ -262,21 +275,25 @@ class QChunk(nn.Module):
       post_proj_layer = None,
       remat: bool = False
   ):
+    query = self._constrain_qkv(query)
+    key = self._constrain_qkv(key)
+    value = self._constrain_qkv(value)
     b, t, n, h = query.shape
     w  = self.query_chunk_size
     assert t % w == 0, f"{t} % {w} != 0"
     num_steps = t // w
     max_logging.log(f'sliding_window_size: {sliding_window_size} query_chunk_sizes: {w}', debug=self.config.debug)
     # encoded0传入chunk_attn比append再cat更省1G显存
-    encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
+    encoded0 = self._constrain_encoded(jnp.zeros((b, t, n, h), dtype=jnp.bfloat16))
     def chunk_attn(i, carry):
-        encoded = carry
+        encoded = self._constrain_encoded(carry)
         start, stop = i * w, (i + 1) * w
         kv_start = max(0, start - sliding_window_size) if sliding_window_size < t else 0
         kv_stop = stop
         _attn_mask = attn_mask[..., kv_start - stop:]
-        _query = query[:, start : stop]
-        _key, _value = key[:, kv_start : kv_stop], value[:, kv_start : kv_stop]
+        _query = self._constrain_qkv(query[:, start : stop])
+        _key = self._constrain_qkv(key[:, kv_start : kv_stop])
+        _value = self._constrain_qkv(value[:, kv_start : kv_stop])
 
         def slice_dw(qw1, qw2, kw1, kw2, qdd, kdd):
           return (qw1[:, start : stop] if qw1 is not None else None,
@@ -292,6 +309,7 @@ class QChunk(nn.Module):
                                               _pre_proj_dw_args, _post_proj_dw_args,
                                               pre_proj_layer, post_proj_layer)
         encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0)) # 比at性能稍好，但差不多
+        encoded = self._constrain_encoded(encoded)
         return encoded
     RematChunkAttn = jax.checkpoint(chunk_attn,
                         prevent_cse=True, # no scan, so suggest true, save more hbm memory
@@ -300,7 +318,7 @@ class QChunk(nn.Module):
                         ) if remat else chunk_attn
     for i in range(num_steps):
        encoded0 = RematChunkAttn(i, encoded0)
-    return encoded0
+    return self._constrain_encoded(encoded0)
 
   @nn.compact
   def __call__(
@@ -361,7 +379,7 @@ class QChunk(nn.Module):
       max_logging.log(f'query_chunk_method: {self.config.query_chunk_method} t: {t}', debug=self.config.debug)
       if 'parallel' in self.config.query_chunk_method and sliding_window_size < t:
         max_logging.log(f'Local Attn Parallel.... remat is {remat} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
-        encoded = self._attention_parallel_remat(*args, remat=remat, parallel_method='scan')
+        encoded = self._attention_parallel_remat(*args, remat=remat, parallel_method='fori')
       else:
         max_logging.log(f'Global|Local Attn.... remat is {remat} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
         encoded = self._attention_for_remat(*args, remat=remat)

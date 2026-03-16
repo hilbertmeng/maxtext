@@ -731,6 +731,18 @@ class V4p5LongTest8B(V4p5LongTest):
     num_vocab_tiling = 16
     query_chunk_method = 'parallel_remat'
     query_chunk_size = 256
+    head_dim = 128
+    base_num_query_heads = 32
+    base_num_kv_heads = [base_num_query_heads, 8, base_num_query_heads, base_num_query_heads]
+
+class V4p5Engram2LongTest8B(V4p5LongTest8B):
+    engram_embed_dim = 4096
+    engram_base_vocab_size = 329012
+    engram_sizes_layers = [(2, 8)]
+    me_nums = 32
+    max_target_length = 131072
+    num_vocab_tiling = 32
+    use_compressed_vocab = True
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03LocalMudd(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     mudd_local_window = 2 # local mudd window size

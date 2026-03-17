@@ -245,14 +245,13 @@ class EngramNGram(nn.Module):
         # This makes it deterministic and different for each layer
         self.engram_vocab_size = find_nth_prime_after(self.base_vocab_size - 1, self.engram_idx)
         
-        # Vocab dimension is replicated (not sharded) to avoid expensive all-gather
-        # in the backward scatter-add of embedding lookup with random hash indices.
-        # With ("vocab", "embed") partitioning, vocab is sharded on TP and the backward
-        # scatter-add forces XLA to all-gather the full gradient tensor (can be 64GB+).
-        # With (None, "embed"), each device holds all vocab rows locally, so the
-        # backward scatter-add is device-local followed by a small all-reduce.
-        # Memory overhead is minimal: ~20MB per engram layer on fsdp=128.
-        self.engram_embed_vocab_size = self.engram_vocab_size
+        # Pad embedding table size to be divisible by tensor parallelism degree.
+        # The 'vocab' logical axis is sharded across tensor/tensor_transpose/tensor_sequence/autoregressive,
+        # so the vocab dimension must be divisible by their product. Primes > 2 are always odd,
+        # so without padding they can never satisfy TP > 1. The hash function maps to
+        # [0, engram_vocab_size), so extra padded rows are never accessed.
+        tp_degree = 256
+        self.engram_embed_vocab_size = ((self.engram_vocab_size + tp_degree - 1) // tp_degree) * tp_degree
         
         # Compute multipliers and store as JAX array for AOT compilation compatibility
         multipliers_np = compute_multipliers(
@@ -260,12 +259,10 @@ class EngramNGram(nn.Module):
         )
         self._multipliers = jnp.array(multipliers_np, dtype=jnp.int64)
         
-        # Single embedding table with vocab replicated and embed sharded on fsdp.
-        # Using (None, "embed") instead of ("vocab", "embed") to avoid the expensive
-        # backward scatter-add all-gather when vocab is sharded on TP.
+        # Single embedding table (padded size for sharding, hash indices stay within engram_vocab_size)
         self.gram_embedding = self.param(
             "embedding",
-            with_logical_partitioning(initializers.get_init_method(cfg.init_method), (None, "embed")),
+            with_logical_partitioning(initializers.get_init_method(cfg.init_method), ("vocab", "embed")),
             (self.engram_embed_vocab_size, self.engram_embed_dim),
             getattr(cfg, 'weight_dtype', jnp.bfloat16),
         )
@@ -310,12 +307,6 @@ class EngramNGram(nn.Module):
         
         # Lookup embedding
         gram_embed = jnp.asarray(self.gram_embedding, self.compute_dtype)[hash_ids]
-        # Constrain output sharding: batch on fsdp, length on sequence, embed on tensor.
-        # This matches the model's activation convention and helps XLA avoid
-        # materializing large intermediate tensors in the backward pass.
-        gram_embed = nn.with_logical_constraint(
-            gram_embed, ('activation_batch', 'activation_length', 'activation_embed')
-        )
         if self.engram_embed_dim != self.config.emb_dim:
             gram_embed = jnp.einsum(
                 'b t d, d e -> b t e',

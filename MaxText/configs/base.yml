@@ -181,7 +181,7 @@ base_output_directory: ""
 # Emergency checkpoint is an experimental Orbax feature that: periodically saves to persistent storage and, with a larger invertal, saves to a local directory.
 # During restore, if a local copy is available in any slice, it will be broadcast to other slices without having to fetch from persistent storage.
 # See more details on https://github.com/google/orbax/tree/main/checkpoint/orbax/checkpoint/experimental/emergency.
-enable_emergency_checkpoint: False
+enable_emergency_checkpoint: Falsetensor_sequence
 
 # It should be specified when and only when `enable_emergency_checkpoint` is True.
 local_checkpoint_directory: ""
@@ -201,6 +201,16 @@ jax_cache_dir: "~/jax_cache"
 # Hardware
 hardware: 'tpu' # Supported hardware types are 'tpu', 'gpu', 'gpu_multiprocess' and 'cpu'
 
+# 所以核心点是：
+# activation_vocab 是“逻辑名字”，表示“这是 vocab 那个维度”
+# 后面的 tensor、sequence 等是“物理 mesh 轴”
+# 同名多条规则 = 给这个逻辑维度准备多种合法分片方式，按顺序择优
+# 你可以把它类比成：
+# activation_vocab：
+# -> 优先这样切                
+# -> 不行就那样切
+# -> 再不行就更保守地切
+
 # Parallelism
 mesh_axes: ['data', 'stage', 'fsdp', 'fsdp_transpose', 'sequence', 'tensor', 'tensor_transpose', 'tensor_sequence', 'expert', 'autoregressive']
 logical_axis_rules: [
@@ -217,7 +227,7 @@ logical_axis_rules: [
                       ['activation_prefill_kv_batch', ['data', 'fsdp', 'fsdp_transpose', 'expert']],
                       ['activation_kv_batch', ['data', 'fsdp', 'fsdp_transpose', 'expert']],
                       ['activation_kv_head_dim', ['tensor', 'tensor_transpose', 'tensor_sequence']],
-                      ['activation_vocab', ['tensor', 'tensor_transpose', 'sequence', 'tensor_sequence']],
+                      ['activation_vocab', ['tensor', 'tensor_transpose', 'sequence', '']],
                       ['activation_vocab', ['tensor', 'tensor_transpose']],
                       ['activation_vocab', 'tensor_sequence'],
                       ['activation_vocab', 'sequence'],

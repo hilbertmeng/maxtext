@@ -181,7 +181,7 @@ base_output_directory: ""
 # Emergency checkpoint is an experimental Orbax feature that: periodically saves to persistent storage and, with a larger invertal, saves to a local directory.
 # During restore, if a local copy is available in any slice, it will be broadcast to other slices without having to fetch from persistent storage.
 # See more details on https://github.com/google/orbax/tree/main/checkpoint/orbax/checkpoint/experimental/emergency.
-enable_emergency_checkpoint: Falsetensor_sequence
+enable_emergency_checkpoint: False
 
 # It should be specified when and only when `enable_emergency_checkpoint` is True.
 local_checkpoint_directory: ""
@@ -227,7 +227,7 @@ logical_axis_rules: [
                       ['activation_prefill_kv_batch', ['data', 'fsdp', 'fsdp_transpose', 'expert']],
                       ['activation_kv_batch', ['data', 'fsdp', 'fsdp_transpose', 'expert']],
                       ['activation_kv_head_dim', ['tensor', 'tensor_transpose', 'tensor_sequence']],
-                      ['activation_vocab', ['tensor', 'tensor_transpose', 'sequence', '']],
+                      ['activation_vocab', ['tensor', 'tensor_transpose', 'sequence', 'tensor_sequence']],
                       ['activation_vocab', ['tensor', 'tensor_transpose']],
                       ['activation_vocab', 'tensor_sequence'],
                       ['activation_vocab', 'sequence'],

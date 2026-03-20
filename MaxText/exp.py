@@ -699,6 +699,31 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     warmup_steps_fraction = 0.01
     zero_loss = True
 
+class V4p5x8B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
+    dc_w2_norm = True
+    base_num_decoder_layers = 16
+    train_shuffle_buffer_size = 1000
+    per_device_batch_size = 1.0
+    eval_per_device_batch_size = 1.0
+    max_target_length = 131072 # 32k, 64k, 128k
+    loss_chunk_size = 4096 # v5p
+    base_emb_dim = 4096
+    base_mlp_dim = 5120
+    base_num_decoder_layers = 55
+    me_dilation = 8
+    me_nums = 32
+    query_chunk_method = 'parallel_remat'
+    query_chunk_size = 256
+    head_dim = 128
+    base_num_query_heads = 32
+    base_num_kv_heads = [base_num_query_heads, 8, base_num_query_heads, base_num_query_heads]
+    engram_embed_dim = 4096
+    engram_base_vocab_size = 329012
+    engram_sizes_layers = [(2, 8)]
+    num_vocab_tiling = 32
+    use_compressed_vocab = True
+    learning_rate = 4e-4
+
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     mudd_cap = 10.0
     learning_rate = 8.7232e-5

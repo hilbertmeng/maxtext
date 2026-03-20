@@ -56,6 +56,7 @@ elif [[ $tpu_suffix == *v6e* ]]; then
 else  
   zone="europe-west4-b"
 #  zone='us-east5-a'
+  zone='us-central1-a'
 fi
 echo "Zone: $zone"
 

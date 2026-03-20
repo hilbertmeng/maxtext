@@ -245,17 +245,32 @@ class EngramNGram(nn.Module):
         # This makes it deterministic and different for each layer
         self.engram_vocab_size = find_nth_prime_after(self.base_vocab_size - 1, self.engram_idx)
         
+        # Pad embedding table size to be divisible by tensor parallelism degree.
+        # The 'vocab' logical axis is sharded across tensor/tensor_transpose/tensor_sequence/autoregressive,
+        # so the vocab dimension must be divisible by their product. Primes > 2 are always odd,
+        # so without padding they can never satisfy TP > 1. The hash function maps to
+        # [0, engram_vocab_size), so extra padded rows are never accessed.
+        tp_degree = (
+            getattr(cfg, 'ici_tensor_parallelism', 1)
+            * getattr(cfg, 'ici_tensor_transpose_parallelism', 1)
+            * getattr(cfg, 'ici_tensor_sequence_parallelism', 1)
+            * getattr(cfg, 'ici_autoregressive_parallelism', 1)
+        )
+        tp_degree = max(tp_degree, 1)
+        self.engram_embed_vocab_size = ((self.engram_vocab_size + tp_degree - 1) // tp_degree) * tp_degree
+        print(f'engram_embed_vocab_size: {self.engram_embed_vocab_size}')
+        
         # Compute multipliers and store as JAX array for AOT compilation compatibility
         multipliers_np = compute_multipliers(
             self.seed, self.engram_idx, self.ngram_size, self.compressed_vocab_size
         )
         self._multipliers = jnp.array(multipliers_np, dtype=jnp.int64)
         
-        # Single embedding table
+        # Single embedding table (padded size for sharding, hash indices stay within engram_vocab_size)
         self.gram_embedding = self.param(
             "embedding",
             with_logical_partitioning(initializers.get_init_method(cfg.init_method), ("vocab", "embed")),
-            (self.engram_vocab_size, self.engram_embed_dim),
+            (self.engram_embed_vocab_size, self.engram_embed_dim),
             getattr(cfg, 'weight_dtype', jnp.bfloat16),
         )
         if self.engram_embed_dim != cfg.emb_dim:

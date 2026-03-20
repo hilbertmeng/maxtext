@@ -16,7 +16,7 @@ limitations under the License.
 
 """JAX implementation of the Multi Token Predicition https://arxiv.org/pdf/2412.19437 """
 
-from typing import Optional, Type
+from typing import Optional
 
 import jax
 import jax.numpy as jnp
@@ -26,19 +26,29 @@ from flax import linen as nn
 
 from common_types import Config, MODEL_MODE_TRAIN
 from layers.normalizations import RMSNorm as rms_norm
-import max_utils
 import maxtext_utils
 from layers import initializers
 from layers import normalizations
-from layers import linears
 from layers import mudd
 import max_logging
 import aqt.jax.v2.aqt_dot_general as aqt
+from vocabulary_tiling import vocab_tiling_loss
 
 
 dot_general_int8 = aqt.dot_general_make(8, 8)
 
 EPS = 1e-8
+
+
+def _flatten_mtp_intermediates(values):
+  """Merges per-head `sow()` tuples into a single batch-major tensor."""
+  if isinstance(values, tuple):
+    if len(values) == 1:
+      return values[0]
+    return jnp.concatenate(values, axis=0)
+  return values
+
+
 def roll_and_mask(x: jnp.ndarray, shift: int = -1) -> jnp.ndarray:
   # If shift is 0, it's a no-op. Return the original array.
   if shift == 0:
@@ -72,7 +82,7 @@ class MultiTokenPredictionLayer(nn.Module):
       prev_hidden_state: jnp.ndarray, # It is a list if use mudd.
       target_token_embedding: jnp.ndarray,
       position_ids: jnp.ndarray,
-      decoder_segment_ids: Optional[jnp.ndarray], # mask
+      decoder_segment_ids: Optional[jnp.ndarray],
       deterministic: bool,
       hids: list = None,
       rolled_input_ids: jnp.ndarray = None,
@@ -121,8 +131,8 @@ class MultiTokenPredictionLayer(nn.Module):
         sliding_window_size=self.sliding_window_size,
         name=f"layers_{k - 1 + cfg.num_decoder_layers}")(
           projected_features,
-          decoder_segment_ids, # mask
-          position_ids, # position
+          decoder_segment_ids,
+          position_ids,
           rolled_input_ids,
           mtp_de,
           deterministic,
@@ -220,20 +230,32 @@ class MultiTokenPredictionBlock(nn.Module):
       if cfg.mtp_norm:
         mtp_norm = normalizations.get_rmsnorm("mtp_norm", cfg)
         next_mtp_hidden_state = [mtp_norm(next_mtp_hidden_state[0])] if isinstance(next_mtp_hidden_state, tuple|list) else mtp_norm(next_mtp_hidden_state)
-      # Project to logits using the shared embedding transpose
-      mtp_xent, correct, mtp_top_1_pred = output_layer(
-        next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state, 
-        rolled_target_ids,
-        rolled_target_mask,
-        cfg.max_target_length,
-        deterministic,
-        mtp_layer=True
+      mtp_hidden_state_for_loss = (
+          next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state
+      )
+      if cfg.num_vocab_tiling > 1:
+        print(f'num_vocab_tiling > 1, compute mtp preds and masks......')
+        mtp_top_1_pred = None
+      else:
+        print(f'num_vocab_tiling == 1, compute mtp loss......')
+        # Project to logits using the shared embedding transpose
+        mtp_xent, _, mtp_top_1_pred = output_layer(
+            mtp_hidden_state_for_loss,
+            rolled_target_ids,
+            rolled_target_mask,
+            cfg.mtp_loss_chunk_size,
+            deterministic,
+            mtp_layer=True,
         )
-      mtp_xent_masked = mtp_xent * rolled_target_mask # BL
+        mtp_xent_masked = mtp_xent * rolled_target_mask # BL
 
       # This logic doesn't run during model initialization to avoid unwated population of the mutable collections.
       if not self.is_initializing(): # don't excute here when model.init
         max_logging.log(f'MTP loss record.....', debug=cfg.debug)
+        if cfg.num_vocab_tiling > 1:
+          self.sow("intermediates", "mtp_hidden_states", mtp_hidden_state_for_loss)
+          self.sow("intermediates", "mtp_targets", rolled_target_ids)
+          self.sow("intermediates", "mtp_masks", rolled_target_mask)
         # For evaluation, save the top prediction and a valid token mask.
         # This is only active for the target layer during an eval run.
         if cfg.mtp_eval_target_module == k:
@@ -241,18 +263,41 @@ class MultiTokenPredictionBlock(nn.Module):
           self.sow("intermediates", "mtp_preds", mtp_top_1_pred)
           self.sow("intermediates", "mtp_mask", rolled_target_mask)
 
-        # For training, save the loss components for this MTP head.
-        # This is only active during a training run.
-        # if self.is_mutable_collection("mtp_losses"):
-        self.sow("intermediates", "mtp_losses", jnp.sum(mtp_xent_masked))
-        self.sow("intermediates", "mtp_weights", jnp.sum(rolled_target_mask))
+        if cfg.num_vocab_tiling == 1:
+          self.sow("intermediates", "mtp_losses", jnp.sum(mtp_xent_masked))
+          self.sow("intermediates", "mtp_weights", jnp.sum(rolled_target_mask))
 
       # The output of this layer is the input for the next, maintaining the causal chain.
       mtp_hidden_state = next_mtp_hidden_state
 
 
-def calculate_mtp_loss(intermediate_outputs, config):
+def calculate_mtp_loss(intermediate_outputs, config, model=None, params=None):
   """Calculates the Multi Token Prediction loss from intermediate outputs."""
+  if config.num_vocab_tiling > 1:
+    hidden_states_path = ("intermediates", "decoder", "mtp_block", "mtp_hidden_states")
+    targets_path = ("intermediates", "decoder", "mtp_block", "mtp_targets")
+    masks_path = ("intermediates", "decoder", "mtp_block", "mtp_masks")
+    mtp_hidden_states = maxtext_utils.get_nested_value(intermediate_outputs, hidden_states_path, default=())
+    mtp_targets = maxtext_utils.get_nested_value(intermediate_outputs, targets_path, default=())
+    mtp_masks = maxtext_utils.get_nested_value(intermediate_outputs, masks_path, default=())
+
+    if not mtp_hidden_states:
+      return 0.0
+    if model is None or params is None:
+      raise ValueError("model and params are required when num_vocab_tiling > 1 for MTP loss.")
+
+    # Flatten per-head sow() tuples into single batch-major tensors
+    mtp_hidden_states = _flatten_mtp_intermediates(mtp_hidden_states)
+    mtp_targets = _flatten_mtp_intermediates(mtp_targets)
+    mtp_masks = _flatten_mtp_intermediates(mtp_masks)
+
+    lm_head_params = params["params"]["decoder"]["lm_head"]
+    sum_of_all_mtp_losses = vocab_tiling_loss(mtp_hidden_states, mtp_targets, mtp_masks, config, model, lm_head_params)
+    avg_mtp_loss = sum_of_all_mtp_losses / (jnp.sum(mtp_masks) + EPS)
+    scaled_mtp_loss = avg_mtp_loss * config.mtp_loss_scaling_factor
+
+    return scaled_mtp_loss
+
   losses_path = ("intermediates", "decoder", "mtp_block", "mtp_losses")
   weights_path = ("intermediates","decoder", "mtp_block", "mtp_weights")
   mtp_losses = maxtext_utils.get_nested_value(intermediate_outputs, losses_path, default=())

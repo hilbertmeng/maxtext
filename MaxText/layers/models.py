@@ -344,6 +344,32 @@ class OutputHead(nn.Module):
       ) # int use 888 more quick，but more memory
     self.logits_dense = dense_kernel.astype(cfg.dtype)
     self.dropout = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))
+
+  def project_logits(self, inputs: Array) -> Array:
+    cfg = self.config
+    dense_kernel = nn.with_logical_constraint(self.logits_dense, (None, "vocab"))
+    if cfg.logits_via_embedding:
+      logits = self.shared_embedding.attend(inputs)
+      if cfg.normalize_embedding_logits:
+        logits = logits / jnp.sqrt(inputs.shape[-1])
+      if cfg.final_logits_soft_cap:
+        logits = logits / cfg.final_logits_soft_cap
+        logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
+    else:
+      logits = jnp.tensordot(inputs, dense_kernel, axes=((-1,), (0,)))
+    return logits
+
+  def logits_from_hidden_states(
+      self,
+      hidden_states: Array,
+      deterministic: bool = True,
+      mtp_layer: bool = False,
+  ) -> Array:
+    inputs = hidden_states
+    if not mtp_layer:
+      inputs = self.norm(inputs)
+      inputs = self.dropout(inputs, deterministic=deterministic)
+    return self.project_logits(inputs)
   
   @nn.compact
   def __call__(
@@ -362,24 +388,15 @@ class OutputHead(nn.Module):
     correct = 0
     preds = []
     # chunk_size = cfg.loss_chunk_size  # manual shard to speed up, about 1%
-    dense_kernel = nn.with_logical_constraint(self.logits_dense, (None, "vocab"))
-    # dense_kernel = self.logits_dense
     if not mtp_layer:
       inputs = self.norm(inputs)
       inputs = self.dropout(inputs, deterministic=deterministic)
 
     for start_idx in range(0, seq_len, chunk_size):
       end_idx = min(start_idx + chunk_size, seq_len)
+      print(f'lm head chunk start_idx: {start_idx} end_idx: {end_idx}')
       chunk_slice = slice(start_idx, end_idx)
-      if cfg.logits_via_embedding: # false
-        logits_chunk = self.shared_embedding.attend(inputs[:, chunk_slice])
-        if cfg.normalize_embedding_logits:
-            logits_chunk = logits_chunk / jnp.sqrt(inputs[:, chunk_slice].shape[-1])
-        if cfg.final_logits_soft_cap:
-            logits_chunk = logits_chunk / cfg.final_logits_soft_cap
-            logits_chunk = jnp.tanh(logits_chunk) * cfg.final_logits_soft_cap
-      else:
-        logits_chunk = jnp.einsum('btd,dv->btv', inputs[:, chunk_slice], dense_kernel)
+      logits_chunk = self.project_logits(inputs[:, chunk_slice])
       preds_chunk = jnp.argmax(logits_chunk, axis=-1)
       mask_chunk = target_mask[:, chunk_slice]
       targets_chunk = target_tokens[:, chunk_slice]
@@ -537,6 +554,26 @@ class Decoder(nn.Module):
     return stage_module
 
   @nn.compact
+  def logits_from_hidden_states(
+      self,
+      hidden_states,
+      deterministic,
+      mtp_layer: bool = False,
+  ):
+    output_head_layer = OutputHead(
+        config=self.config,
+        shared_embedding=self.shared_embedding,
+        mesh=self.mesh,
+        quant=self.quant,
+        name="lm_head",
+    )
+    return output_head_layer.logits_from_hidden_states(
+        hidden_states,
+        deterministic=deterministic,
+        mtp_layer=mtp_layer,
+    )
+
+  @nn.compact
   def __call__(
       self,
       decoder_input_tokens,
@@ -674,9 +711,19 @@ class Decoder(nn.Module):
         engram_embeddings = None
       
       if cfg.me_nums is not None:
+        _tp_degree = (
+            getattr(cfg, 'ici_tensor_parallelism', 1)
+            * getattr(cfg, 'ici_tensor_transpose_parallelism', 1)
+            * getattr(cfg, 'ici_tensor_sequence_parallelism', 1)
+            * getattr(cfg, 'ici_autoregressive_parallelism', 1)
+        )
+        _tp_degree = max(_tp_degree, 1)
+        padded_vocab_size = ((vocab_size + _tp_degree - 1) // _tp_degree) * _tp_degree
+        max_logging.log(f'me padded_vocab_size: {padded_vocab_size}', debug=cfg.debug)
+
         me_list = []
         mudd_emb = Embed(
-            num_embeddings=vocab_size,
+            num_embeddings=padded_vocab_size,
             features=cfg.emb_dim * cfg.me_nums,
             dtype=cfg.dtype,
             attend_dtype=jnp.float32 if cfg.logits_dot_in_fp32 else cfg.dtype,
@@ -1017,3 +1064,15 @@ class Transformer(nn.Module):
         model_mode=model_mode,
     )
     return logits
+
+  def logits_from_hidden_states(
+      self,
+      hidden_states,
+      deterministic: bool = True,
+      mtp_layer: bool = False,
+  ):
+    return self.decoder.logits_from_hidden_states(
+        hidden_states,
+        deterministic=deterministic,
+        mtp_layer=mtp_layer,
+    )

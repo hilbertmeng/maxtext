@@ -108,6 +108,9 @@ class QChunk(nn.Module):
     assert key.shape[-3] == value.shape[-3], "k, v lengths must match."
     assert query.shape[-1] == key.shape[-1], "q, k depths must match."
 
+  def _constrain_encoded(self, encoded: Array) -> Array:
+    return nn.with_logical_constraint(encoded, ('activation_batch', 'activation_length', 'heads', 'mlp'))
+
   def qk_product(self, query: Array, key: Array) -> Array:
     einsum = jnp.einsum
     if self.kv_quant: # true when quantize_kvcache set true
@@ -165,7 +168,7 @@ class QChunk(nn.Module):
     output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
     b, t, n_kv, g, h = output.shape
     output = jnp.reshape(output, (b, t, n_kv * g, h))
-    output = nn.with_logical_constraint(output, ('activation_batch', 'activation_length', 'heads', 'mlp'),)
+    output = self._constrain_encoded(output)
     return output
 
   def _attention_parallel_remat(
@@ -245,12 +248,12 @@ class QChunk(nn.Module):
       encoded0 = jax.vmap(RematBody)(None, jnp.arange(num_steps, dtype=jnp.int32))
       encoded0 = rearrange(encoded0, 'n B T N H -> B (n T) N H ', n=num_steps)
     elif parallel_method == 'fori':
-      encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
+      encoded0 = self._constrain_encoded(jnp.zeros((b, t, n, h), dtype=jnp.bfloat16))
       encoded0 = lax.fori_loop(0, num_steps, RematBody, encoded0)
     else:
-      encoded0 = jnp.zeros((b, t, n, h), dtype=jnp.bfloat16)
+      encoded0 = self._constrain_encoded(jnp.zeros((b, t, n, h), dtype=jnp.bfloat16))
       encoded0, _ = lax.scan(f=RematBody, init=encoded0, xs=jnp.arange(num_steps))
-    return encoded0
+    return self._constrain_encoded(encoded0)
 
   def _attention_for_remat(
       self,

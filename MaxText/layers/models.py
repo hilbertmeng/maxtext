@@ -710,7 +710,11 @@ class Decoder(nn.Module):
       else:
         engram_embeddings = None
       
+      me = []
       if cfg.me_nums is not None:
+        # Pad vocab_size for embedding table to be divisible by TP degree (vocab axis sharding).
+        # Compressed vocab sizes (e.g. 107667) may not be divisible by ici_tensor_parallelism.
+        # Extra padded rows are never accessed since token indices < original vocab_size.
         _tp_degree = (
             getattr(cfg, 'ici_tensor_parallelism', 1)
             * getattr(cfg, 'ici_tensor_transpose_parallelism', 1)
@@ -719,9 +723,6 @@ class Decoder(nn.Module):
         )
         _tp_degree = max(_tp_degree, 1)
         padded_vocab_size = ((vocab_size + _tp_degree - 1) // _tp_degree) * _tp_degree
-        max_logging.log(f'me padded_vocab_size: {padded_vocab_size}', debug=cfg.debug)
-
-        me_list = []
         mudd_emb = Embed(
             num_embeddings=padded_vocab_size,
             features=cfg.emb_dim * cfg.me_nums,
@@ -731,15 +732,30 @@ class Decoder(nn.Module):
             name="mudd_embedder",
             config=cfg,
         )
-        mes = mudd_emb(compressed_decoder_input_tokens.astype("int32"))
-        for i in range(cfg.me_nums):
-          me = mes[:, :, i*cfg.emb_dim:(i+1)*cfg.emb_dim]          
-          if cfg.me_prenorm:
-            max_logging.log(f'me_prenorm is true.', debug=cfg.debug)
-            me = normalizations.get_rmsnorm(f"me_prenorm_{i}", cfg)(me)
-          me_list.append(me)
-
         me_rangs_per_group = split_layer_ranges(cfg.me_nums, cfg.me_dilation)
+        me_group_cache = {}
+
+        def load_me_group(group_idx):
+          if group_idx < 0:
+            return []
+          if group_idx not in me_group_cache:
+            start, end = me_rangs_per_group[group_idx]
+            start_col = start * cfg.emb_dim
+            end_col = end * cfg.emb_dim
+            group_mes = jnp.asarray(mudd_emb.embedding, cfg.dtype)[:, start_col:end_col]
+            group_mes = group_mes[compressed_decoder_input_tokens.astype("int32")]
+            group_mes = nn.with_logical_constraint(
+                group_mes, ("activation_embed_and_logits_batch", "activation_length", "activation_embed")
+            )
+            cached_group = []
+            for i in range(start, end):
+              me_item = group_mes[:, :, (i - start) * cfg.emb_dim:(i - start + 1) * cfg.emb_dim]
+              if cfg.me_prenorm:
+                max_logging.log(f'me_prenorm is true.', debug=cfg.debug)
+                me_item = normalizations.get_rmsnorm(f"me_prenorm_{i}", cfg)(me_item)
+              cached_group.append(me_item)
+            me_group_cache[group_idx] = cached_group
+          return me_group_cache[group_idx]
 
       if cfg.dense_conn:
         y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm or cfg.me_prenorm else y
@@ -792,7 +808,7 @@ class Decoder(nn.Module):
             if cfg.me_nums and swss[1] == cfg.max_target_length: # LGLL
               me_group_idx = get_group_index(cfg.num_decoder_layers, cfg.me_dilation, lyr, include_first_L=False)
               if me_group_idx >= 0:
-                me = me_list[me_rangs_per_group[me_group_idx][0]: me_rangs_per_group[me_group_idx][1]]
+                me = list(load_me_group(me_group_idx))
                 if engram_embeddings is not None:
                   for ngram_size, engram_embeds in engram_embeddings.items():
                     egram_rangs_per_group = engram_nums_per_group[ngram_size]

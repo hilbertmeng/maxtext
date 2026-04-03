@@ -733,6 +733,7 @@ class V4p5x8BWarmupStage0(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap
     pad_id = 151645 #  <|im_end|>, <|endoftext|> be used in between docs
     eval_split = 'valid'
     dataset_type = 'v4.5_1.5B'
+    attention = 'flash'
     
 class V4p5x8BWarmupStage1(V4p5x8BWarmupStage0):
     # v5p-256 train, 4M batch size
@@ -744,14 +745,14 @@ class V4p5x8BWarmupStage1(V4p5x8BWarmupStage0):
     eval_per_device_batch_size = 8.0 # 1024
 
 class V4p5x8BPretrain(V4p5x8BWarmupStage1):
-    # v5p-512/1024 train, 8M batch size
+    # v5p-512/1024 train, 8M batch size # 79224个文件
     learning_rate = 4e-4
-    warmup_steps_fraction = 0.045
+    warmup_steps_fraction = 0.053 # 22500
     stable_steps_fraction = 0.0
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 4.0 # 1024
     remat_policy = None
-    learning_rate_schedule_steps = 500000
+    learning_rate_schedule_steps = 422500 # 3.2T
     cosine_learning_rate_final_fraction = 0.3
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):

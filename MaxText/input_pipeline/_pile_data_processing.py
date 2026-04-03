@@ -64,6 +64,7 @@ class PileDatasets():
     def __post_init__(self):
         if self.num_infeed_hosts == 0:
             self.num_infeed_hosts = jax.process_count()
+        self.global_batch_size = self.batch_size * self.num_infeed_hosts
 
         if not self.meta_dict or self.only_eval:
             self.meta_dict = {}
@@ -74,7 +75,15 @@ class PileDatasets():
                     f'iter_file_nums in meta_dict is not equal to cur args. => {self.meta_dict["iter_file_nums"]}≠'
                     f" {self.iter_file_nums}"
                 )
+            saved_global_batch_size = self.meta_dict.get("global_batch_size")
+            if saved_global_batch_size is not None:
+                assert saved_global_batch_size == self.global_batch_size, print(
+                    f"global_batch_size in meta_dict is not equal to cur args. => {saved_global_batch_size}≠"
+                    f" {self.global_batch_size}"
+                )
             self.step_in_file = self.meta_dict.get('step_in_file')  # XD fix
+            self.meta_dict["global_batch_size"] = self.global_batch_size
+            self.meta_dict["num_infeed_hosts"] = self.num_infeed_hosts
 
         print(f'meta_dict: {self.meta_dict}')
         self.seed = self.meta_dict['seed']
@@ -90,6 +99,8 @@ class PileDatasets():
                 "step_in_file": 0,
                 "iter_file_nums": self.iter_file_nums,
                 "checkpoint_step": self.meta_dict.get('checkpoint_step', None),
+                "global_batch_size": self.global_batch_size,
+                "num_infeed_hosts": self.num_infeed_hosts,
             }
         self.step_in_file = 0
 
@@ -124,6 +135,12 @@ class PileDatasets():
     def get_global_batch_size(self, train_input):
         return self.batch_size * self.num_infeed_hosts
 
+    def _slice_global_batch_for_host(self, data):
+        process_index = jax.process_index()
+        start = process_index * self.batch_size
+        end = start + self.batch_size
+        return {key: value[start:end] for key, value in data.items()}
+
     def _parse_function(self, example_proto):
         feature_desc = {key: tf.io.VarLenFeature(tf.int64) for key in self.task_features}
         example = tf.io.parse_single_example(example_proto, feature_desc)
@@ -154,8 +171,6 @@ class PileDatasets():
         key = 'labels' if "labels" in data else 'input_ids'
         # weights = data[key] >= 0 if self.zero_loss else data[key] > 0
         weights = data[key] != self.pad_id
-        # print(f'key: {key}')
-        # print(f'weights: {weights.sum()}')
         # label loss mask, origin bool type, but due the complie is int32
         model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32) 
         model_needed_inputs['inputs_segmentation'] = self.build_attn_mask()
@@ -168,14 +183,6 @@ class PileDatasets():
         tf.random.set_seed(self.seed)
         ds = tf.data.Dataset.from_tensor_slices(fname)
         ds = ds.apply(tf.data.TFRecordDataset)
-        if 'eval' in self.name: # 不然有时候eval数据集不均分会报错。
-            print(f'This eval mode......')
-            ds = ds.batch(self.num_infeed_hosts, drop_remainder=True)
-            ds = ds.unbatch()
-        # shard host data
-        process_index = jax.process_index()
-        # 在这里进行shard的话，不同的pod在相同的batch_size时，拿到的数据不一致
-        ds = ds.shard(self.num_infeed_hosts, process_index)
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE) # 取 seq_len + 1
         print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
@@ -184,19 +191,20 @@ class PileDatasets():
         padded_shapes = {key: self.seq_len + 1 for key in self.task_features}
         padding_values = {key: self.pad_id if key == 'input_ids' else -100 for key in self.task_features}
         ds = ds.padded_batch(
-            batch_size=np.prod(self.batch_size),
+            batch_size=self.global_batch_size,
             padded_shapes=padded_shapes,
             padding_values=padding_values,
             drop_remainder=True,
         )
         if self.shuffle_buffer_size is not None:
             # batch化之后继续进行shuffle，让batch之间shuffle更加彻底
-            ds = ds.shuffle(buffer_size=self.shuffle_buffer_size // self.batch_size)
-        # lsp: batch之后进行shard。如果不进行shuffle，在batch化之前shard也行
-        # ds = ds.shard(self.num_infeed_hosts, process_index)
-        ds = ds.map(self.convert)
+            ds = ds.shuffle(buffer_size=max(1, self.shuffle_buffer_size // self.global_batch_size))
+        if self.step_in_file:
+            ds = ds.skip(self.step_in_file)  # step_in_file is now the number of global batches already consumed
+        # Build a process-count-independent global batch stream, then slice each host's local batch from it.
+        ds = ds.map(self._slice_global_batch_for_host, num_parallel_calls=tf.data.AUTOTUNE)
+        ds = ds.map(self.convert, num_parallel_calls=tf.data.AUTOTUNE)
         ds = ds.prefetch(tf.data.AUTOTUNE)
-        if self.step_in_file: ds = ds.skip(self.step_in_file)  # XD fix
         # local data to global data
         ds = multihost_dataloading.MultiHostDataLoadIterator(ds, self.mesh)
 
@@ -533,8 +541,9 @@ def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
             total_valid_files.append(path)
         else:
             total_train_files.append(path)
-    total_train_files.sort()
-
+    # total_train_files.sort()
+    random.shuffle(total_train_files)
+    # random.shuffle(total_valid_files)
     print(f'Train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
     print(f'first 10 train files: {total_train_files[:10]}')
     print(f'valid_files: {total_valid_files}')

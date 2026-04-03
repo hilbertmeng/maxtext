@@ -699,20 +699,21 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03(MuonMuddDEDcM
     warmup_steps_fraction = 0.01
     zero_loss = True
 
-class V4p5x8B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
+class V4p5x8BWarmupStage0(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
+    # v5p-256 train 2M batch size
     dc_w2_norm = True
-    base_num_decoder_layers = 16
-    train_shuffle_buffer_size = 1000
-    per_device_batch_size = 1.0
-    eval_per_device_batch_size = 1.0
-    max_target_length = 131072 # 32k, 64k, 128k
+    base_num_decoder_layers = 55
+    train_shuffle_buffer_size = 200000
+    per_device_batch_size = 4.0
+    eval_per_device_batch_size = 16.0 # 1024
+    max_target_length = 4096 # 32k, 64k, 128k
     loss_chunk_size = 4096 # v5p
     base_emb_dim = 4096
     base_mlp_dim = 5120
     base_num_decoder_layers = 55
     me_dilation = 8
     me_nums = 32
-    query_chunk_method = 'parallel_remat'
+    query_chunk_method = 'ddd'
     query_chunk_size = 256
     head_dim = 128
     base_num_query_heads = 32
@@ -720,9 +721,38 @@ class V4p5x8B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10Wd03):
     engram_embed_dim = 4096
     engram_base_vocab_size = 329012
     engram_sizes_layers = [(2, 8)]
-    num_vocab_tiling = 32
+    num_vocab_tiling = 1
     use_compressed_vocab = True
+    learning_rate = 2e-4
+    remat_policy = 'save_all'
+    warmup_steps_fraction = 0.13334
+    stable_steps_fraction = 0.86667
+    # 第一阶段：4014.08B，第二阶段:81.92B
+    learning_rate_schedule_steps = 15000
+    record_internal_nn_metrics = 1
+    pad_id = 151645 #  <|im_end|>, <|endoftext|> be used in between docs
+    eval_split = 'valid'
+    dataset_type = 'v4.5_1.5B'
+    
+class V4p5x8BWarmupStage1(V4p5x8BWarmupStage0):
+    # v5p-256 train, 4M batch size
+    learning_rate = 2.8284e-4
+    warmup_steps_fraction = 0.0
+    stable_steps_fraction = 1.0
+    learning_rate_schedule_steps = 7500
+    per_device_batch_size = 8.0
+    eval_per_device_batch_size = 8.0 # 1024
+
+class V4p5x8BPretrain(V4p5x8BWarmupStage1):
+    # v5p-512/1024 train, 8M batch size
     learning_rate = 4e-4
+    warmup_steps_fraction = 0.045
+    stable_steps_fraction = 0.0
+    per_device_batch_size = 8.0
+    eval_per_device_batch_size = 4.0 # 1024
+    remat_policy = None
+    learning_rate_schedule_steps = 500000
+    cosine_learning_rate_final_fraction = 0.3
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     mudd_cap = 10.0

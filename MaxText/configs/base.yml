@@ -548,6 +548,7 @@ me_dilation: null # mudd embeddings dilation
 mudd_cap: 0.0 # mudd soft cap
 mudd_use_scale: False
 me_prenorm: False # mudd embeddings prenorm
+engram_sizes_layers: False
 
 # ================================= [moe] =================================
 capacity_factor: -1.0 # Don't change this value
@@ -602,6 +603,7 @@ mtp_use_compose: False
 mtp_head_int8: False
 mtp_use_remat: False
 mtp_norm: True
+mtp_loss_chunk_size: 4096
 
 # ================================= [checkpoint saving] =================================
 # e.g. gs://my-base-output-directory/my-previous-run-name/checkpoints/items/NUMBER or NUMBER/items

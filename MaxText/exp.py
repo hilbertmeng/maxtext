@@ -734,6 +734,7 @@ class V4p5x8BWarmupStage0(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap
     eval_split = 'valid'
     dataset_type = 'v4.5_1.5B'
     attention = 'flash'
+    eval_interval = 5000
     
 class V4p5x8BWarmupStage1(V4p5x8BWarmupStage0):
     # v5p-256 train, 4M batch size

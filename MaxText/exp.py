@@ -728,13 +728,13 @@ class V4p5x8BWarmupStage0(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap
     warmup_steps_fraction = 0.13334
     stable_steps_fraction = 0.86667
     # 第一阶段：4014.08B，第二阶段:81.92B
-    learning_rate_schedule_steps = 15000
+    learning_rate_schedule_steps = 20000 # 19500
     record_internal_nn_metrics = 1
     pad_id = 151645 #  <|im_end|>, <|endoftext|> be used in between docs
     eval_split = 'valid'
     dataset_type = 'v4.5_1.5B'
     attention = 'flash'
-    eval_interval = 5000
+    eval_interval = 3850
     iter_file_nums = 500
     
 class V4p5x8BWarmupStage1(V4p5x8BWarmupStage0):
@@ -742,22 +742,22 @@ class V4p5x8BWarmupStage1(V4p5x8BWarmupStage0):
     learning_rate = 2.8284e-4
     warmup_steps_fraction = 0.0
     stable_steps_fraction = 1.0
-    learning_rate_schedule_steps = 7500 # 7500 + 19250 = 26750
+    learning_rate_schedule_steps = 27000 # 7500 + 19500 = 27000
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 8.0 # 1024
     iter_file_nums = 384
-    eval_interval = 5350 # 结束的时候评测下 26750 / 5350 = 5
+    eval_interval = 3000 # 结束的时候评测下 27000 / 3000 = 9
     remat_policy = 'full'
 
 class V4p5x8BPretrain(V4p5x8BWarmupStage1):
     # v5p-512/1024 train, 8M batch size # 79224个文件
     learning_rate = 4e-4
-    warmup_steps_fraction = 0.053 # 22500
+    warmup_steps_fraction = 0.632319 # 27000
     stable_steps_fraction = 0.0
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 4.0 # 1024
     remat_policy = None
-    learning_rate_schedule_steps = 422500 # 3.2T
+    learning_rate_schedule_steps = 427000 # 3.2T
     cosine_learning_rate_final_fraction = 0.3
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):

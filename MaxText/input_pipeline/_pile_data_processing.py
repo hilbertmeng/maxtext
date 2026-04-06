@@ -547,6 +547,10 @@ def extract_v4p5_1p5B_data_files(dataset_path, eval_split):
     # total_valid_files = total_valid_files + total_train_files[-6:] # add last 6 files as valid_files
     # total_train_files = total_train_files[:-6]
     print(f'Train file: {len(total_train_files)},  test file: {len(total_valid_files)}')
+
+    total_train_files = total_train_files[1000: ] # remove first 2M batch trained 1000 files
+    print(f'Train file2: {len(total_train_files)},  test file: {len(total_valid_files)}')
+
     print(f'first 10 train files: {total_train_files[:10]}')
     print(f'valid_files: {total_valid_files}')
     return total_train_files, total_valid_files

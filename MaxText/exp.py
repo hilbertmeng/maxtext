@@ -735,15 +735,19 @@ class V4p5x8BWarmupStage0(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap
     dataset_type = 'v4.5_1.5B'
     attention = 'flash'
     eval_interval = 5000
+    iter_file_nums = 500
     
 class V4p5x8BWarmupStage1(V4p5x8BWarmupStage0):
     # v5p-256 train, 4M batch size
     learning_rate = 2.8284e-4
     warmup_steps_fraction = 0.0
     stable_steps_fraction = 1.0
-    learning_rate_schedule_steps = 7500
+    learning_rate_schedule_steps = 7500 # 7500 + 19250 = 26750
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 8.0 # 1024
+    iter_file_nums = 384
+    eval_interval = 5350 # 结束的时候评测下 26750 / 5350 = 5
+    remat_policy = 'full'
 
 class V4p5x8BPretrain(V4p5x8BWarmupStage1):
     # v5p-512/1024 train, 8M batch size # 79224个文件

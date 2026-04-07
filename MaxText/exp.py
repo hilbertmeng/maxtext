@@ -748,17 +748,31 @@ class V4p5x8BWarmupStage1(V4p5x8BWarmupStage0):
     iter_file_nums = 384
     eval_interval = 3000 # 结束的时候评测下 27000 / 3000 = 9
     remat_policy = 'full'
+    mtp_loss_scaling_factor = 0.3 # 前 20w steps 用0.3，后期用0.1
+    # remat_policy='save_qkv_proj' # save qk可以，但是qkv就oom。使用save_qkv_proj后，loss_chunk_size需要设置为2048
 
-class V4p5x8BPretrain(V4p5x8BWarmupStage1):
+class V4p5x8BTrainStage0(V4p5x8BWarmupStage1):
     # v5p-512/1024 train, 8M batch size # 79224个文件
     learning_rate = 4e-4
-    warmup_steps_fraction = 0.632319 # 27000
+    warmup_steps_fraction = 0.0632319 # 27000 / 427000
     stable_steps_fraction = 0.0
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 4.0 # 1024
-    remat_policy = None
-    learning_rate_schedule_steps = 427000 # 3.2T
+    learning_rate_schedule_steps = 427000 # 427000 = 27000 + 400000 # 70B + 3.2T
     cosine_learning_rate_final_fraction = 0.3
+    mtp_loss_scaling_factor = 0.3
+    # remat_policy = 'full'
+    remat_policy='save_qkv_proj' # save_dot_except_mlpwi， qkvo也不行
+    loss_chunk_size = 2048
+
+class V4p5x8BTrainStage1(V4p5x8BTrainStage0):
+    mtp_loss_scaling_factor = 0.1
+    learning_rate_schedule_steps = 502000 # 502000 = 427000 + 75000 # 70B + 3.2T + 600B
+    learning_rate = 1.2e-4
+    cosine_learning_rate_final_fraction = 0.25
+    stable_steps_fraction = 0.0
+    warmup_steps_fraction = 0.85059761 # 427000 / 502000
+
 
 class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Cap10SecStage15B(MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5):
     mudd_cap = 10.0

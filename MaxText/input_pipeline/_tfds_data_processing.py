@@ -190,6 +190,7 @@ def make_tfds_train_iterator(
       add_eos=config.add_eos,
       use_dpo=config.use_dpo,
       hf_access_token=config.hf_access_token,
+      shift=config.decoder_block != "llada",
   )
   return train_iter
 

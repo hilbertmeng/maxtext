@@ -167,6 +167,7 @@ def make_hf_train_iterator(
       add_eos=config.add_eos,
       generate_padding_example=True,
       use_dpo=config.use_dpo,
+      shift=config.decoder_block != "llada",
   )
   return train_iter
 

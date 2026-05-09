@@ -21,6 +21,7 @@ from flax import linen as nn
 import jax
 from jax import lax
 import jax.numpy as jnp
+import numpy as np
 from layers import initializers
 
 Config = Any
@@ -173,6 +174,106 @@ class RotaryEmbedding(nn.Module):
       second_part = second_part.astype(self.fprop_dtype)
     x_out = jnp.concatenate((first_part, second_part, pass_through), axis=-1)
     return x_out
+
+
+class GoldenGateRotaryEmbedding(nn.Module):
+  """Golden Gate RoPE from the ARChitects ARC solution (gg2m).
+
+  Maps sequential positions into a 4D multi-resolution grid and assigns
+  per-head directional frequencies spaced by the golden angle. ~38.1% of
+  head dimensions use 2D grid-aware frequencies so each attention head
+  "looks" along a different spatial direction in the ARC grid.
+
+  Reference: modeling_llada.py:378-504 in ARC-AGI-Diffusion/architects/
+  """
+
+  head_dim: int = 64
+  n_heads: int = 16
+  max_seq_len: int = 4096
+  min_freq: float = np.pi
+  max_freq: float = np.pi * 32
+  grid_frac: float = 0.381
+  rev: bool = True
+  tp: bool = True
+  sqrt: bool = True
+  direction_spacing: float = np.pi * (np.sqrt(5) - 1) / 2
+  cast_as_fprop_dtype: bool = True
+  fprop_dtype: DType = jnp.bfloat16
+
+  def setup(self):
+    cos_table, sin_table = self._build_table()
+    self._cos = jnp.array(cos_table)
+    self._sin = jnp.array(sin_table)
+
+  def _build_table(self):
+    """Build per-head cos/sin lookup table. Returns [max_pos, n_heads, head_dim]."""
+    dim = self.head_dim
+    half = dim // 2
+    n_grid = int(half * self.grid_frac)
+
+    exponents = [1, 1, 5, 5]
+    while np.prod(2 ** np.array(exponents)) < self.max_seq_len:
+      exponents[0] += 1
+
+    grids = np.meshgrid(*[np.arange(2**e) for e in exponents], indexing='ij')
+    pos_map = np.stack(grids, axis=-1).reshape(-1, 4).astype(np.float32)
+
+    # --- standard multi-resolution frequencies ---
+    freq_list = [(0.0, 0)] * n_grid
+    div = 2.0
+    exp_scaled = list(exponents)
+    if self.sqrt:
+      exp_scaled = [e * 2 for e in exponents]
+      div = np.sqrt(2)
+    for tgt, exp in list(enumerate(exp_scaled))[::-1][2:]:
+      count = exp if tgt else (half - len(freq_list))
+      for i in range(count):
+        freq_list.append((np.pi / div ** i, tgt))
+    vals, tgts = zip(*freq_list)
+    freqs = np.zeros((len(grids), half), dtype=np.float32)
+    freqs[list(tgts), np.arange(len(tgts))] = np.array(vals, dtype=np.float32)
+
+    # --- golden gate 2D directional frequencies ---
+    t = np.linspace(0, 1, n_grid).astype(np.float32)
+    omega = self.min_freq * (self.max_freq / self.min_freq) ** t
+    if self.rev:
+      omega = omega[::-1].copy()
+
+    phi = (np.arange(self.n_heads * n_grid, dtype=np.float32)
+           .reshape(self.n_heads, n_grid) * self.direction_spacing)
+    dirs = np.stack([np.cos(phi), np.sin(phi)], axis=-1)
+    if self.tp:
+      dirs = dirs[..., ::-1].copy()
+    freqs_hF2 = omega[np.newaxis, :, np.newaxis] * dirs
+
+    freqs = np.broadcast_to(freqs[np.newaxis], (self.n_heads, len(grids), half)).copy()
+    freqs[:, -2:, :n_grid] = np.swapaxes(freqs_hF2, -2, -1) / 32
+
+    # pos_map [P,4] x freqs [N,4,D] -> emb [P,N,D]
+    emb = np.einsum('pk,nkd->pnd', pos_map, freqs)
+    emb = np.concatenate([emb, emb], axis=-1)  # [P, N, head_dim]
+
+    return np.cos(emb).astype(np.float32), np.sin(emb).astype(np.float32)
+
+  def __call__(self, inputs: jax.Array, position: jax.Array) -> jax.Array:
+    """Apply Golden Gate RoPE.
+
+    Args:
+      inputs: [B, S, N, H]
+      position: [B, S]
+    Returns:
+      Rotated inputs [B, S, N, H].
+    """
+    cos = self._cos[position]  # [B, S, N, H]
+    sin = self._sin[position]
+    if self.cast_as_fprop_dtype:
+      cos = cos.astype(self.fprop_dtype)
+      sin = sin.astype(self.fprop_dtype)
+
+    # rotate_half: interleaved pairs (x0,x1) -> (-x1,x0)
+    x = inputs.reshape(*inputs.shape[:-1], inputs.shape[-1] // 2, 2)
+    rotated = jnp.stack([-x[..., 1], x[..., 0]], axis=-1).reshape(inputs.shape)
+    return (inputs * cos + rotated * sin).astype(inputs.dtype)
 
 
 class LLaMARotaryEmbedding(RotaryEmbedding):

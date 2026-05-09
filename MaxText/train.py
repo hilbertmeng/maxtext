@@ -561,6 +561,81 @@ def dpo_loss_fn(model, config, data, dropout_rng, params, reference_params, is_t
   return loss, aux
 
 
+def llada_loss_fn(model, config, data, dropout_rng, params, is_train=True):
+  """Masked diffusion loss for LLaDA.
+
+  Instead of teacher-forced next-token prediction, LLaDA:
+    1. Samples a mask rate t ~ Uniform(0, 1) per sequence
+    2. Randomly masks each non-padding token with probability t
+    3. Replaces masked tokens with mask_token_id in the input
+    4. Computes cross-entropy loss ONLY on masked positions
+  """
+  rng1, aqt_rng, mask_rng = jax.random.split(dropout_rng, 3)
+
+  if is_train:
+    for k, v in data.items():
+      data[k] = v[: config.micro_batch_size_to_train_on, :]
+  else:
+    for k, v in data.items():
+      data[k] = v[: config.micro_batch_size_to_eval_on, :]
+
+  # For LLaDA, inputs == targets (no shift). Both hold the original token sequence.
+  targets = data["targets"]
+  batch_size, seq_len = targets.shape
+
+  # Padding mask: non-padding positions (token != 0)
+  padding_mask = data["targets_segmentation"] != 0
+
+  mask_policy = getattr(config, 'train_llada_mask_policy', 'sqrt_uniform')
+  if not is_train or mask_policy == 'mask_all':
+    diffusion_mask = padding_mask
+  else:
+    t = jnp.sqrt(jax.random.uniform(mask_rng, shape=(batch_size, 1), minval=0.0, maxval=1.0))
+    rand_vals = jax.random.uniform(jax.random.fold_in(mask_rng, 1), shape=(batch_size, seq_len))
+    diffusion_mask = (rand_vals < t) & padding_mask
+
+  # Replace masked tokens with mask_token_id
+  mask_token_id = config.mask_token_id if hasattr(config, 'mask_token_id') else 79
+  masked_inputs = jnp.where(diffusion_mask, mask_token_id, data["inputs"])
+
+
+  # Forward pass with masked inputs
+  mutable_collections = ["intermediates"]
+  (xent, correct, preds), intermediate_outputs = model.apply(
+      params,
+      masked_inputs,
+      data["inputs_position"],
+      decoder_segment_ids=data["inputs_segmentation"],
+      decoder_target_mask=data["targets_segmentation"],
+      decoder_target_tokens=targets,
+      enable_dropout=config.enable_dropout if is_train else False,
+      rngs={"dropout": rng1, "params": aqt_rng},
+      mutable=mutable_collections,
+  )
+
+  # Per-sequence loss normalization (matches rank-2): each sequence contributes equally
+  masked_xent = xent * diffusion_mask
+  per_seq_count = jnp.sum(diffusion_mask, axis=1).clip(min=1)
+  per_seq_loss = jnp.sum(masked_xent, axis=1) / per_seq_count
+  loss = jnp.mean(per_seq_loss)
+
+  total_loss = jnp.sum(masked_xent)
+  total_weights = jnp.sum(diffusion_mask)
+  correct_masked = jnp.sum((preds == targets) & diffusion_mask)
+
+  aux = {
+      "intermediate_outputs": intermediate_outputs,
+      "total_loss": total_loss,
+      "total_weights": total_weights,
+      "moe_lb_loss": 0.0,
+      "accuracy": correct_masked / (total_weights + EPS),
+      "correct": correct_masked,
+      "mtp_loss": 0.0,
+      "mtp_accept_rate": 0.0,
+  }
+  return loss, aux
+
+
 def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   """loss_fn for both train and eval.
 
@@ -678,7 +753,11 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     rng2: A new rng key that can be used in future calls.
 
   """
-  reference_params, reference_params_sharding, extra_dpo_args, _loss_fn = [], [], [], loss_fn
+  if config.decoder_block == "llada":
+    _loss_fn = llada_loss_fn
+  else:
+    _loss_fn = loss_fn
+  reference_params, reference_params_sharding, extra_dpo_args = [], [], []
   if config.use_dpo:
     state, reference_params = _split_dpo_state(state)
     state_mesh_shardings, reference_params_sharding = _split_dpo_state(state_mesh_shardings)
@@ -764,7 +843,11 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 def eval_step(model, config, state, data, dropout_rng):
   """eval_step no backprop and new state compared with train_step."""
 
-  reference_params, extra_dpo_args, _loss_fn = [], [], loss_fn
+  if config.decoder_block == "llada":
+    _loss_fn = llada_loss_fn
+  else:
+    _loss_fn = loss_fn
+  reference_params, extra_dpo_args = [], []
   if config.use_dpo:
     state, reference_params = _split_dpo_state(state)
     extra_dpo_args = [reference_params]
@@ -1182,18 +1265,18 @@ def train_loop(config, state=None):
       )
       cumulative_eval_metrics["scalar"]["eval/avg_loss"] = eval_loss
       cumulative_eval_metrics["scalar"]["eval/avg_moe_lb_loss"] = (
-          cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / eval_step_count
+          cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / (eval_step_count + EPS)
       )
       cumulative_eval_metrics["scalar"]["eval/avg_mtp_loss"] = (
-          cumulative_eval_metrics["scalar"]["eval/mtp_loss"] / eval_step_count
+          cumulative_eval_metrics["scalar"]["eval/mtp_loss"] / (eval_step_count + EPS)
       )
       cumulative_eval_metrics["scalar"]["eval/avg_mtp_accept_rate"] = (
-          cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] / eval_step_count
+          cumulative_eval_metrics["scalar"]["eval/mtp_accept_rate"] / (eval_step_count + EPS)
       )
       # lsp: batch mean loss, token/batch mean acc
-      cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / eval_step_count
-      cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / cumulative_eval_metrics["scalar"]["eval/total_weights"] 
-      cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / eval_step_count  
+      cumulative_eval_metrics["scalar"]["eval/avg_b_loss"] = mean_b_loss / (eval_step_count + EPS)
+      cumulative_eval_metrics["scalar"]["eval/avg_accuracy"] = correct / (cumulative_eval_metrics["scalar"]["eval/total_weights"] + EPS)
+      cumulative_eval_metrics["scalar"]["eval/avg_b_accuracy"] = accuracy / (eval_step_count + EPS)  
       if config.only_eval:
         step = checkpoint_manager.latest_step() if config.eval_model_step == -1 and checkpoint_manager is not None else config.eval_model_step
       if config.use_dpo:

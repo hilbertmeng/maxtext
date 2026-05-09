@@ -70,6 +70,8 @@ model_call_mode: ""
 quantization_local_shard_count: -1
 
 decoder_block: "llama2" # which style of DecoderBlock to use.
+use_causal_mask: True # Set False for bidirectional models (e.g. LLaDA masked diffusion)
+mask_token_id: 79 # Token ID used for masking in diffusion models (LLaDA: <|mdm_mask|> = 79)
 # Global parameter scale needs to be a power of 2. If you want finer grained control of the model sizes
 # then you should explicitly set base_embed_dim, base_num_query_heads, base_num_kv_heads,
 # base_mlp_dim, base_num_decoder_layers and/or head_dim.
@@ -653,7 +655,12 @@ mix_attn: False # 32k and 4k global attention
 
 # ================================= [RoPE] =================================
 # RoPE parameters
-rope_type: "default" # one of "default", "llama3.1" or "yarn"
+rope_type: "default" # one of "default", "llama3.1", "yarn", "golden_gate"
+arc_grid_positions: False # ARC grid-aligned position IDs for Golden Gate RoPE
+train_llada_mask_policy: "sqrt_uniform" # "sqrt_uniform" or "mask_all"
+rope_max_position: 0 # RoPE table size (0 = use max_target_length)
+eval_max_target_length: 0 # Eval seq_len (0 = use max_target_length)
+eval_dataset_path: '' # Separate eval dataset path (overrides eval_split filtering)
 rope_min_timescale: 1
 rope_max_timescale: 10_000
 rope_half: False

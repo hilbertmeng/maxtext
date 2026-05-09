@@ -135,6 +135,7 @@ def make_grain_train_iterator(
       add_bos=config.add_bos,
       add_eos=config.add_eos,
       use_dpo=config.use_dpo,
+      shift=config.decoder_block != "llada",
   )
   return train_iter
 

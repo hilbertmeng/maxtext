@@ -806,8 +806,66 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Align(MuonMuddDEDcMuddM
     record_internal_nn_metrics = 0
     bucket_logging_enabled = False
 
-# todo:
-# 1、rotary use half inputs compute
-# 2、rms 改为 1 + scale 并decay
-# 3、mtp updated_mlp_dim adjust
-# 4、global head dim set 128, 对应的head个数减半, local head dim keep 64.
+class LLaDA400m_arc(Optimizer, Common):
+    decoder_block = "llada"
+    use_causal_mask = False
+    vocab_size = 86
+    base_emb_dim = 1024
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    base_mlp_dim = 4096
+    base_num_decoder_layers = 24
+    head_dim = 64
+    mlp_activations = ["silu", "linear"]
+    enable_dropout = False
+    dropout_rate = 0.0
+    rope_type = "golden_gate"
+    arc_grid_positions = True
+    rope_max_position = 16384
+    max_target_length = 4096
+    eval_max_target_length = 12288
+    tokenize_train_data = False
+    train_data_columns = ['text']
+    add_bos = False
+    add_eos = False
+    mask_token_id = 79
+    per_device_batch_size = 8.0
+    eval_per_device_batch_size = 8.0
+    model_name = 'LLaDA400m_arc'
+    dataset_type = 'pile'
+    task_features = ['text']
+    zero_loss = False
+    record_internal_nn_metrics = 0
+    sliding_window_size = None
+    scan_layers = True
+    query_chunk_size = None
+    epoch = 5
+    eval_interval = 200
+    dataset_path = ",".join([
+        "gs://newproject-1-common_datasets_us-east5/arc_tfrecord_demo",
+        "gs://newproject-1-common_datasets_us-east5/nvarc_training_tfrecord",
+        "gs://newproject-1-common_datasets_us-east5/nvarc_full_tfrecord",
+        "gs://newproject-1-common_datasets_us-east5/arc2_training_tfrecord",
+        "gs://newproject-1-common_datasets_us-east5/concept_tfrecord",
+        "gs://newproject-1-common_datasets_us-east5/mini_tfrecord",
+    ])
+    eval_dataset_path = "gs://newproject-1-common_datasets_us-east5/arc2_evaluation6_tfrecord"
+
+
+class LLaDA100m_arc(LLaDA400m_arc):
+    base_emb_dim = 768
+    base_num_query_heads = 12
+    base_num_kv_heads = 12
+    base_mlp_dim = 2048
+    base_num_decoder_layers = 12
+    head_dim = 64
+    model_name = 'LLaDA100m_arc'
+
+class LladaSmallQuarterArcData(LLaDA100m_arc):
+    learning_rate_schedule_steps = 13000 # 3255481/ (8*8) = 50866 steps per epoch for v5p-16
+    eval_interval = 1000
+    epoch = 1 # total samples: 3255481  
+
+class LladaSmallQuarterArcDataMaskall(LladaSmallQuarterArcData):
+    train_llada_mask_policy = 'mask_all'
+    max_target_length = 6144

@@ -189,8 +189,8 @@ class AttentionOp(nn.Module):
       mask = mask[:, None, None, :, :]
 
     causal_mask = None
-    # We enforce causality except for AUTOREGRESSION
-    if model_mode != common_types.MODEL_MODE_AUTOREGRESSIVE:
+    # We enforce causality except for AUTOREGRESSION or bidirectional models (e.g. LLaDA)
+    if model_mode != common_types.MODEL_MODE_AUTOREGRESSIVE and self.config.use_causal_mask:
       _, q_seq_len, _, _ = query.shape
       _, kv_seq_len, _, _ = key.shape
       mask_shape = (q_seq_len, kv_seq_len)
@@ -1321,6 +1321,15 @@ class Attention(nn.Module):
           min_timescale=self.config.rope_min_timescale,
           max_timescale=self.config.rope_max_timescale,
           embedding_dims=rope_embedding_dims,
+          fprop_dtype=self.dtype,
+          name=name,
+      )
+    elif rope_type == "golden_gate":
+      rope_max_pos = getattr(self.config, 'rope_max_position', self.config.max_target_length)
+      rotary_embedding = embeddings.GoldenGateRotaryEmbedding(
+          head_dim=rope_embedding_dims,
+          n_heads=self.num_kv_heads,
+          max_seq_len=rope_max_pos,
           fprop_dtype=self.dtype,
           name=name,
       )

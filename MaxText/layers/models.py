@@ -496,6 +496,10 @@ class Decoder(nn.Module):
       from layers import fusion
       return [fusion.FusionDecoderLayer]
 
+    elif self.config.decoder_block == "llada":
+      from layers import llada
+      return [llada.LLaDADecoderLayer]
+
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
@@ -771,6 +775,7 @@ class Decoder(nn.Module):
             deep_embeddings,
             deterministic,
             model_mode,
+            None,
             eos_sum=eos_sum,
         )
 

@@ -140,4 +140,6 @@ dmypy.json
 
 # Intellij IDEA setting folder
 .idea
-.vscode/*
+.vscode/*.git-credentials
+.gitconfig
+.git-credentials

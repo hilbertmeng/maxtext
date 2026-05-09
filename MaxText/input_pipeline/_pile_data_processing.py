@@ -36,7 +36,9 @@ class PileDatasets():
                 num_batches_to_skip: Optional[int] = None,
                 only_eval: bool = False,
                 zero_loss: bool = True,
-                mix_attn: bool = False
+                mix_attn: bool = False,
+                shift: bool = True,
+                arc_grid_positions: bool = False,
                 ):
         self.mesh = mesh
         self.name = name
@@ -58,6 +60,9 @@ class PileDatasets():
         self.zero_loss = zero_loss
         self.batch_padding_size = 0
         self.mix_attn = mix_attn
+        self.shift = shift
+        self.arc_grid_positions = arc_grid_positions
+        self.arc_compress = arc_grid_positions
         
         self.__post_init__()
         
@@ -144,11 +149,41 @@ class PileDatasets():
     def _parse_function(self, example_proto):
         feature_desc = {key: tf.io.VarLenFeature(tf.int64) for key in self.task_features}
         example = tf.io.parse_single_example(example_proto, feature_desc)
+        read_len = 16384 if self.arc_grid_positions else self.seq_len + 1
         for name in list(example.keys()):
             t = example[name]
             if t.dtype == tf.int64:
                 t = tf.cast(t, dtype=tf.int32)
-            example[name] = tf.sparse.to_dense(t, default_value=0)[:self.seq_len + 1]
+            example[name] = tf.sparse.to_dense(t, default_value=0)[:read_len]
+        return example
+
+    def _select_arc_pairs(self, example):
+        """Per-sample: if >4 pairs, randomly select 3 demos + last; otherwise keep all."""
+        PAIR_TOKENS = 2048
+        BOS, EOS = 75, 76
+        MAX_DEMOS = 3
+
+        feat_key = self.task_features[0]
+        tokens = example[feat_key]
+
+        inner = tokens[1:]  # skip BOS
+        inner = tf.where(tf.equal(inner, EOS), 0, inner)
+
+        content_len = tf.reduce_sum(tf.cast(inner != 0, tf.int32))
+        n_pairs = content_len // PAIR_TOKENS
+        n_demos = n_pairs - 1
+
+        pairs = tf.reshape(inner[:n_pairs * PAIR_TOKENS], [n_pairs, PAIR_TOKENS])
+        last_pair = pairs[-1:]
+        demo_pairs = pairs[:-1]
+
+        # Always select min(n_demos, 3) demos -- avoids tf.cond shape mismatch
+        n_select = tf.minimum(n_demos, MAX_DEMOS)
+        indices = tf.sort(tf.random.shuffle(tf.range(n_demos))[:n_select])
+        selected = tf.gather(demo_pairs, indices)
+
+        result = tf.concat([[BOS], tf.reshape(selected, [-1]), tf.reshape(last_pair, [-1]), [EOS]], axis=0)
+        example[feat_key] = result
         return example
 
     def build_attn_mask(self):
@@ -163,33 +198,138 @@ class PileDatasets():
         inputs_segmentation = tf.concat([body, last_column], axis=1)
         return inputs_segmentation
     
+    def _build_arc_position_ids(self, tokens):
+        """Build grid-aligned position IDs for ARC sequences.
+
+        Handles BOS/EOS: treats them as markers with reserved positions.
+        Assigns position IDs so grid content aligns with Golden Gate RoPE
+        4D grid: d0=pair, d1=input/output, d2=row, d3=column.
+
+        Returns (tokens, position_ids, loss_mask).
+        """
+        PAIR_TOKENS = 2048
+        OUTPUT_OFFSET = 1025
+        BOS, EOS = 75, 76
+        MAX_LEN = 8 * PAIR_TOKENS + 2  # max 8 pairs + BOS + EOS
+
+        tokens = tokens[:, :MAX_LEN]
+        L = tf.shape(tokens)[1]
+        seq_pos = tf.range(L)
+
+        # adj_pos = seq_pos - 1 to skip BOS at position 0
+        adj_pos = seq_pos - 1
+        p_in_pair = adj_pos % PAIR_TOKENS
+
+        # Markers: BOS, EOS, I (p_in_pair==0), O (p_in_pair==1024)
+        is_bos_eos = tf.equal(seq_pos, 0)  # BOS at pos 0
+        # EOS detected by token value (per-sequence, broadcast)
+        is_eos = tf.reduce_any(tf.equal(tokens, EOS), axis=0)  # approximate: just use token value below
+        is_io = tf.equal(p_in_pair, 0) | tf.equal(p_in_pair, 1024)
+        is_marker = is_bos_eos | is_io
+
+        marker_pos = L - 1
+        grid_pos = (adj_pos // PAIR_TOKENS) * PAIR_TOKENS + p_in_pair - 1
+        pos = tf.where(is_marker, marker_pos, grid_pos)
+
+        # Also mark BOS/EOS tokens as markers per-sequence (for position broadcast)
+        tokens_is_bos_eos = tf.equal(tokens, BOS) | tf.equal(tokens, EOS)
+        pos_b = tf.broadcast_to(pos[tf.newaxis], tf.shape(tokens))
+        pos_b = tf.where(tokens_is_bos_eos, marker_pos, pos_b)
+
+        # Loss mask: last pair's output only (counting from content after BOS)
+        non_special = tf.cast((tokens != self.pad_id) & ~tokens_is_bos_eos, tf.int32)
+        content_len = tf.reduce_sum(non_special, axis=1)
+        n_pairs = content_len // PAIR_TOKENS
+        # Last output in adj_pos space: (n_pairs-1)*2048 + 1025 .. n_pairs*2048
+        last_out_start = (n_pairs - 1) * PAIR_TOKENS + OUTPUT_OFFSET
+        last_out_end = n_pairs * PAIR_TOKENS
+
+        adj_pos_b = tf.broadcast_to(adj_pos[tf.newaxis], tf.shape(tokens))
+        loss_mask = tf.cast(
+            (adj_pos_b >= last_out_start[:, tf.newaxis]) &
+            (adj_pos_b < last_out_end[:, tf.newaxis]) &
+            ~tokens_is_bos_eos,
+            tf.int32,
+        )
+
+        return tokens, pos_b, loss_mask
+
+    def _compress_arc(self, tokens, pos, loss_mask):
+        """Remove dot padding tokens (id=5) except in the last output grid.
+
+        Keeps dots in the last output to avoid leaking the answer's shape.
+        Uses argsort trick for vectorized per-sequence compaction.
+        Zeros out positions beyond the kept count to prevent dot leakage.
+        """
+        DOT_TOKEN = 5
+        is_last_output = tf.cast(loss_mask, tf.bool)
+        keep = (tf.not_equal(tokens, DOT_TOKEN) | is_last_output) & tf.not_equal(tokens, self.pad_id)
+
+        indices = tf.argsort(tf.cast(~keep, tf.int32), axis=1, stable=True)
+        tokens = tf.gather(tokens, indices, batch_dims=1)
+        pos = tf.gather(pos, indices, batch_dims=1)
+        loss_mask = tf.gather(loss_mask, indices, batch_dims=1)
+
+        tokens = tokens[:, :self.seq_len]
+        pos = pos[:, :self.seq_len]
+        loss_mask = loss_mask[:, :self.seq_len]
+
+        # Zero out positions beyond kept count (removed dots are non-zero token 5)
+        num_kept = tf.reduce_sum(tf.cast(keep, tf.int32), axis=1)  # [B]
+        valid = tf.range(self.seq_len)[tf.newaxis] < num_kept[:, tf.newaxis]
+        tokens = tf.where(valid, tokens, 0)
+        pos = tf.where(valid, pos, 0)
+        loss_mask = tf.where(valid, loss_mask, 0)
+
+        return tokens, pos, loss_mask
+
     def convert(self, data):
         seq_len = self.seq_len
+        feat_key = self.task_features[0] if self.task_features[0] in data else 'input_ids'
         model_needed_inputs = {}
-        model_needed_inputs['inputs'] = data["input_ids"][:, : seq_len]
-        model_needed_inputs['targets'] = data["input_ids"][:, 1: seq_len + 1]
-        key = 'labels' if "labels" in data else 'input_ids'
-        # weights = data[key] >= 0 if self.zero_loss else data[key] > 0
-        weights = data[key] != self.pad_id
-        # label loss mask, origin bool type, but due the complie is int32
-        model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32) 
+        if self.shift:
+            model_needed_inputs['inputs'] = data[feat_key][:, : seq_len]
+            model_needed_inputs['targets'] = data[feat_key][:, 1: seq_len + 1]
+            key = 'labels' if "labels" in data else feat_key
+            weights = data[key] != self.pad_id
+            model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32)
+        else:
+            if self.arc_grid_positions:
+                tokens, pos, loss_mask = self._build_arc_position_ids(data[feat_key])
+                if getattr(self, 'arc_compress', False):
+                    tokens, pos, loss_mask = self._compress_arc(tokens, pos, loss_mask)
+                model_needed_inputs['inputs'] = tokens
+                model_needed_inputs['targets'] = tokens
+                model_needed_inputs['targets_segmentation'] = loss_mask
+                seg = tf.cast(tokens != self.pad_id, tf.int32)
+                model_needed_inputs['inputs_segmentation'] = seg
+                model_needed_inputs['inputs_position'] = seg * pos
+                model_needed_inputs['targets_position'] = seg * pos
+                return model_needed_inputs
+            model_needed_inputs['inputs'] = data[feat_key][:, : seq_len]
+            model_needed_inputs['targets'] = data[feat_key][:, : seq_len]
+            weights = data[feat_key] != self.pad_id
+            model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, : seq_len], dtype=tf.int32)
         model_needed_inputs['inputs_segmentation'] = self.build_attn_mask()
         pos = tf.range(seq_len)
-        model_needed_inputs['inputs_position'] = model_needed_inputs['inputs_segmentation'] * pos # rotary position, mtp use shift position
-        model_needed_inputs['targets_position'] = model_needed_inputs['inputs_segmentation'] * pos  # no use, but complie have this key
+        model_needed_inputs['inputs_position'] = model_needed_inputs['inputs_segmentation'] * pos
+        model_needed_inputs['targets_position'] = model_needed_inputs['inputs_segmentation'] * pos
         return model_needed_inputs
 
     def _load_file_dataset(self, fname):
         tf.random.set_seed(self.seed)
         ds = tf.data.Dataset.from_tensor_slices(fname)
         ds = ds.apply(tf.data.TFRecordDataset)
-        ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE) # 取 seq_len + 1
+        ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE)
+        if self.arc_grid_positions and 'eval' not in self.name:
+            ds = ds.map(self._select_arc_pairs, num_parallel_calls=tf.data.AUTOTUNE)
         print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
 
-        padded_shapes = {key: self.seq_len + 1 for key in self.task_features}
-        padding_values = {key: self.pad_id if key == 'input_ids' else -100 for key in self.task_features}
+        pad_len = 8 * 2048 + 1 if self.arc_grid_positions else self.seq_len + 1
+        padded_shapes = {key: pad_len for key in self.task_features}
+        padding_values = {key: self.pad_id for key in self.task_features}
         ds = ds.padded_batch(
             batch_size=self.global_batch_size,
             padded_shapes=padded_shapes,
@@ -213,7 +353,10 @@ class PileDatasets():
     def load_tfrecord_dataset(self, fnames):
         tf.random.set_seed(self.seed)
         assert isinstance(fnames, list)
-        repeat_fnames = fnames * self.repeat
+        import random as _random
+        shuffled = list(fnames)
+        _random.Random(self.seed).shuffle(shuffled)
+        repeat_fnames = shuffled * self.repeat
         N = math.ceil(len(repeat_fnames) / self.iter_file_nums)
         file_in_data = self.meta_dict["file_in_data"]
         print(f'file_in_data: {file_in_data} N: {N}')
@@ -611,7 +754,15 @@ def make_pile_train_iterator(config, mesh):  # lsp
   train_name = f'{config.dataset_type}.train'
   eval_name = f'{config.dataset_type}.eval'
   if config.dataset_type == 'pile':
-    train_pathes, eval_pathes = extract_pythia_datapath(config.dataset_path, config.eval_split)
+    dataset_paths = [p.strip() for p in config.dataset_path.split(',')]
+    train_pathes, eval_pathes = [], []
+    for dp in dataset_paths:
+      tp, ep = extract_pythia_datapath(dp, config.eval_split)
+      train_pathes.extend(tp)
+      eval_pathes.extend(ep)
+    eval_dataset_path = getattr(config, 'eval_dataset_path', '')
+    if eval_dataset_path:
+      eval_pathes, _ = extract_pythia_datapath(eval_dataset_path, '__none__')
   elif config.dataset_type == 'novel_4_32k':
     train_pathes, eval_pathes = extract_v3p5_longdata_files(config.dataset_path, config.eval_split)
   elif config.dataset_type == 'pretrain_4k':
@@ -654,6 +805,8 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             iter_file_nums=config.iter_file_nums,
                             mix_attn=config.mix_attn,
                             pad_id=config.pad_id,
+                            shift=config.decoder_block != "llada",
+                            arc_grid_positions=getattr(config, 'arc_grid_positions', False),
                             )
   eval_dataloader = None
   if eval_pathes:
@@ -663,7 +816,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             path=eval_pathes, 
                             meta_dict={},
                             batch_size=int(config.eval_per_device_batch_size * num_local_devices),
-                            seq_len=config.max_target_length,
+                            seq_len=getattr(config, 'eval_max_target_length', config.max_target_length),
                             repeat=config.epoch,
                             seed=config.data_shuffle_seed,
                             task_features=task_features,
@@ -674,6 +827,8 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             iter_file_nums=config.iter_file_nums,
                             mix_attn=config.mix_attn,
                             pad_id=config.pad_id,
+                            shift=config.decoder_block != "llada",
+                            arc_grid_positions=getattr(config, 'arc_grid_positions', False),
                             )
   def train_dataloader_fn():
     return train_dataloader

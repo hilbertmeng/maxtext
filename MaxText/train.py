@@ -613,26 +613,30 @@ def llada_loss_fn(model, config, data, dropout_rng, params, is_train=True):
       mutable=mutable_collections,
   )
 
-  # Per-sequence weighted loss normalization: each sequence contributes equally,
-  # while ARC output dot-padding tokens can be downweighted as a group.
-  loss_pad_token_id = getattr(config, "llada_loss_pad_token_id", 5)
-  padding_loss_fraction = getattr(config, "llada_padding_loss_fraction", 1.0)
-  output_pad_mask = diffusion_mask & (targets == loss_pad_token_id)
-  output_nonpad_mask = diffusion_mask & (targets != loss_pad_token_id)
+  padding_loss_fraction = getattr(config, "llada_padding_loss_fraction", 0.0)
+  if padding_loss_fraction > 0:
+    # Per-sequence weighted loss normalization: each sequence contributes equally,
+    # while ARC output dot-padding tokens can be downweighted as a group.
+    loss_pad_token_id = getattr(config, "llada_loss_pad_token_id", 5)
+    output_pad_mask = diffusion_mask & (targets == loss_pad_token_id)
+    output_nonpad_mask = diffusion_mask & (targets != loss_pad_token_id)
 
-  nonpad_count = jnp.sum(output_nonpad_mask, axis=1)
-  pad_count = jnp.sum(output_pad_mask, axis=1)
-  per_pad_weight = jnp.where(
-      pad_count > 0,
-      padding_loss_fraction * nonpad_count / pad_count.clip(min=1),
-      0.0,
-  )
-  loss_weights = output_nonpad_mask.astype(xent.dtype) + output_pad_mask.astype(xent.dtype) * per_pad_weight[:, None]
+    nonpad_count = jnp.sum(output_nonpad_mask, axis=1)
+    pad_count = jnp.sum(output_pad_mask, axis=1)
+    per_pad_weight = jnp.where(
+        pad_count > 0,
+        padding_loss_fraction * nonpad_count / pad_count.clip(min=1),
+        0.0,
+    )
+    loss_weights = output_nonpad_mask.astype(xent.dtype) + output_pad_mask.astype(xent.dtype) * per_pad_weight[:, None]
 
-  # If a sequence has no non-padding masked targets, fall back to the original
-  # unweighted mask so the loss remains finite.
-  has_nonpad = nonpad_count > 0
-  loss_weights = jnp.where(has_nonpad[:, None], loss_weights, diffusion_mask.astype(xent.dtype))
+    # If a sequence has no non-padding masked targets, fall back to the original
+    # unweighted mask so the loss remains finite.
+    has_nonpad = nonpad_count > 0
+    loss_weights = jnp.where(has_nonpad[:, None], loss_weights, diffusion_mask.astype(xent.dtype))
+  else:
+    # Fraction 0 disables padding reweighting and restores the original equal-token loss.
+    loss_weights = diffusion_mask.astype(xent.dtype)
 
   masked_xent = xent * loss_weights
   per_seq_count = jnp.sum(loss_weights, axis=1).clip(min=1)

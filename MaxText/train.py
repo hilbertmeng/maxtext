@@ -613,23 +613,45 @@ def llada_loss_fn(model, config, data, dropout_rng, params, is_train=True):
       mutable=mutable_collections,
   )
 
-  # Per-sequence loss normalization (matches rank-2): each sequence contributes equally
-  masked_xent = xent * diffusion_mask
-  per_seq_count = jnp.sum(diffusion_mask, axis=1).clip(min=1)
+  # Per-sequence weighted loss normalization: each sequence contributes equally,
+  # while ARC output dot-padding tokens can be downweighted as a group.
+  loss_pad_token_id = getattr(config, "llada_loss_pad_token_id", 5)
+  padding_loss_fraction = getattr(config, "llada_padding_loss_fraction", 1.0)
+  output_pad_mask = diffusion_mask & (targets == loss_pad_token_id)
+  output_nonpad_mask = diffusion_mask & (targets != loss_pad_token_id)
+
+  nonpad_count = jnp.sum(output_nonpad_mask, axis=1)
+  pad_count = jnp.sum(output_pad_mask, axis=1)
+  per_pad_weight = jnp.where(
+      pad_count > 0,
+      padding_loss_fraction * nonpad_count / pad_count.clip(min=1),
+      0.0,
+  )
+  loss_weights = output_nonpad_mask.astype(xent.dtype) + output_pad_mask.astype(xent.dtype) * per_pad_weight[:, None]
+
+  # If a sequence has no non-padding masked targets, fall back to the original
+  # unweighted mask so the loss remains finite.
+  has_nonpad = nonpad_count > 0
+  loss_weights = jnp.where(has_nonpad[:, None], loss_weights, diffusion_mask.astype(xent.dtype))
+
+  masked_xent = xent * loss_weights
+  per_seq_count = jnp.sum(loss_weights, axis=1).clip(min=1)
   per_seq_loss = jnp.sum(masked_xent, axis=1) / per_seq_count
   loss = jnp.mean(per_seq_loss)
 
   total_loss = jnp.sum(masked_xent)
-  total_weights = jnp.sum(diffusion_mask)
+  total_weights = jnp.sum(loss_weights)
   correct_masked = jnp.sum((preds == targets) & diffusion_mask)
+  correct_weighted = jnp.sum(((preds == targets) & diffusion_mask).astype(xent.dtype) * loss_weights)
 
   aux = {
       "intermediate_outputs": intermediate_outputs,
       "total_loss": total_loss,
       "total_weights": total_weights,
       "moe_lb_loss": 0.0,
-      "accuracy": correct_masked / (total_weights + EPS),
-      "correct": correct_masked,
+      "accuracy": correct_weighted / (total_weights + EPS),
+      "correct": correct_weighted,
+      "correct_unweighted": correct_masked,
       "mtp_loss": 0.0,
       "mtp_accept_rate": 0.0,
   }

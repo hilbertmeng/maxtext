@@ -829,6 +829,8 @@ class LLaDA400m_arc(Optimizer, Common):
     add_bos = False
     add_eos = False
     mask_token_id = 79
+    llada_loss_pad_token_id = 5
+    llada_padding_loss_fraction = 0.2
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 8.0
     model_name = 'LLaDA400m_arc'
@@ -869,3 +871,6 @@ class LladaSmallQuarterArcData(LLaDA100m_arc):
 class LladaSmallQuarterArcDataMaskall(LladaSmallQuarterArcData):
     train_llada_mask_policy = 'mask_all'
     max_target_length = 6144
+class LladaSmallQuarterArcDataMaskallReweight(LladaSmallQuarterArcDataMaskall):
+    llada_loss_pad_token_id = 5
+    llada_padding_loss_fraction = 0.2

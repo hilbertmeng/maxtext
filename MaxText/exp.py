@@ -871,12 +871,13 @@ class LLaDATinyArc(LLaDA400m_arc):
     base_num_decoder_layers = 6
     head_dim = 64
     model_name = 'LLaDATiny_arc'
-    eval_interval = 2000
-    learning_rate_schedule_steps = 508000
+    eval_interval = 5000
+    learning_rate_schedule_steps = 500000
     epoch = 10
     max_target_length = 4096
     llada_padding_loss_fraction = 0
     train_llada_mask_policy = 'sqrt_uniform'
+    keep_period = 5000
     
 class LladaSmallQuarterArcData(LLaDA100m_arc):
     learning_rate_schedule_steps = 13000 # 3255481/ (8*8) = 50866 steps per epoch for v5p-16

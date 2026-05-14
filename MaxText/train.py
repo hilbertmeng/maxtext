@@ -613,14 +613,14 @@ def llada_loss_fn(model, config, data, dropout_rng, params, is_train=True):
       mutable=mutable_collections,
   )
 
-  padding_loss_fraction = getattr(config, "llada_padding_loss_fraction", 0.0)
-  if padding_loss_fraction > 0:
+  loss_pad_token_id = getattr(config, "llada_loss_pad_token_id", 5)
+  output_pad_mask = diffusion_mask & (targets == loss_pad_token_id)
+  output_nonpad_mask = diffusion_mask & (targets != loss_pad_token_id)
+
+  padding_loss_fraction = getattr(config, "llada_padding_loss_fraction", -1)
+  if padding_loss_fraction >= 0:
     # Per-sequence weighted loss normalization: each sequence contributes equally,
     # while ARC output dot-padding tokens can be downweighted as a group.
-    loss_pad_token_id = getattr(config, "llada_loss_pad_token_id", 5)
-    output_pad_mask = diffusion_mask & (targets == loss_pad_token_id)
-    output_nonpad_mask = diffusion_mask & (targets != loss_pad_token_id)
-
     nonpad_count = jnp.sum(output_nonpad_mask, axis=1)
     pad_count = jnp.sum(output_pad_mask, axis=1)
     per_pad_weight = jnp.where(
@@ -635,7 +635,7 @@ def llada_loss_fn(model, config, data, dropout_rng, params, is_train=True):
     has_nonpad = nonpad_count > 0
     loss_weights = jnp.where(has_nonpad[:, None], loss_weights, diffusion_mask.astype(xent.dtype))
   else:
-    # Fraction 0 disables padding reweighting and restores the original equal-token loss.
+    # Negative fraction disables padding reweighting and restores the original equal-token loss.
     loss_weights = diffusion_mask.astype(xent.dtype)
 
   masked_xent = xent * loss_weights
@@ -647,6 +647,10 @@ def llada_loss_fn(model, config, data, dropout_rng, params, is_train=True):
   total_weights = jnp.sum(loss_weights)
   correct_masked = jnp.sum((preds == targets) & diffusion_mask)
   correct_weighted = jnp.sum(((preds == targets) & diffusion_mask).astype(xent.dtype) * loss_weights)
+  pad_total = jnp.sum(output_pad_mask)
+  nonpad_total = jnp.sum(output_nonpad_mask)
+  pad_correct = jnp.sum((preds == targets) & output_pad_mask)
+  nonpad_correct = jnp.sum((preds == targets) & output_nonpad_mask)
 
   aux = {
       "intermediate_outputs": intermediate_outputs,
@@ -656,6 +660,12 @@ def llada_loss_fn(model, config, data, dropout_rng, params, is_train=True):
       "accuracy": correct_weighted / (total_weights + EPS),
       "correct": correct_weighted,
       "correct_unweighted": correct_masked,
+      "padding_accuracy": pad_correct / (pad_total + EPS),
+      "nonpadding_accuracy": nonpad_correct / (nonpad_total + EPS),
+      "padding_correct": pad_correct,
+      "padding_total": pad_total,
+      "nonpadding_correct": nonpad_correct,
+      "nonpadding_total": nonpad_total,
       "mtp_loss": 0.0,
       "mtp_accept_rate": 0.0,
   }
@@ -817,7 +827,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   moe_lb_loss = aux["moe_lb_loss"] / config.gradient_accumulation_steps
   mtp_loss = aux["mtp_loss"] / config.gradient_accumulation_steps
   mtp_accept_rate = aux["mtp_accept_rate"] / config.gradient_accumulation_steps
-  accuracy = aux["correct"] / aux["total_weights"]
+  accuracy = aux["accuracy"]
 
   if config.gradient_clipping_threshold > 0:
     grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
@@ -840,6 +850,11 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/total_weights": aux["total_weights"], # sum
       "learning/accuracy": accuracy, # mean
   }
+  if "padding_accuracy" in aux:
+    scalar_metrics["learning/padding_accuracy"] = aux["padding_accuracy"]
+    scalar_metrics["learning/nonpadding_accuracy"] = aux["nonpadding_accuracy"]
+    scalar_metrics["learning/padding_total"] = aux["padding_total"]
+    scalar_metrics["learning/nonpadding_total"] = aux["nonpadding_total"]
   # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
   params_scalar_values = compute_params_norm(state.params, config=config)
   scalar_metrics.update(params_scalar_values)
@@ -904,6 +919,11 @@ def eval_step(model, config, state, data, dropout_rng):
           "evaluation/mtp_accept_rate": mtp_acceptance_rate,
       },
   }
+  if "padding_accuracy" in aux:
+    metrics["scalar"]["evaluation/padding_accuracy"] = aux["padding_accuracy"]
+    metrics["scalar"]["evaluation/nonpadding_accuracy"] = aux["nonpadding_accuracy"]
+    metrics["scalar"]["evaluation/padding_total"] = aux["padding_total"]
+    metrics["scalar"]["evaluation/nonpadding_total"] = aux["nonpadding_total"]
   if config.use_dpo:
     metrics["scalar"]["evaluation/dpo_reward_accuracy"] = aux["reward_accuracy"]
 

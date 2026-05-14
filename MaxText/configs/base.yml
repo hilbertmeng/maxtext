@@ -659,7 +659,7 @@ rope_type: "default" # one of "default", "llama3.1", "yarn", "golden_gate"
 arc_grid_positions: False # ARC grid-aligned position IDs for Golden Gate RoPE
 train_llada_mask_policy: "sqrt_uniform" # "sqrt_uniform" or "mask_all"
 llada_loss_pad_token_id: 5 # ARC dot-padding token id used for LLaDA loss downweighting
-llada_padding_loss_fraction: 0.0 # 0 disables reweighting; >0 sets total dot-padding loss weight as a fraction of non-padding target weight
+llada_padding_loss_fraction: -1 # negative number disables reweighting; >=0 sets total dot-padding loss weight as a fraction of non-padding target weight
 rope_max_position: 0 # RoPE table size (0 = use max_target_length)
 eval_max_target_length: 0 # Eval seq_len (0 = use max_target_length)
 eval_dataset_path: '' # Separate eval dataset path (overrides eval_split filtering)

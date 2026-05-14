@@ -830,7 +830,7 @@ class LLaDA400m_arc(Optimizer, Common):
     add_eos = False
     mask_token_id = 79
     llada_loss_pad_token_id = 5
-    llada_padding_loss_fraction = 0.2
+    llada_padding_loss_fraction = 0
     per_device_batch_size = 8.0
     eval_per_device_batch_size = 8.0
     model_name = 'LLaDA400m_arc'
@@ -863,6 +863,21 @@ class LLaDA100m_arc(LLaDA400m_arc):
     head_dim = 64
     model_name = 'LLaDA100m_arc'
 
+class LLaDATinyArc(LLaDA400m_arc):
+    base_emb_dim = 256
+    base_num_query_heads = 4
+    base_num_kv_heads = 4
+    base_mlp_dim = 768
+    base_num_decoder_layers = 6
+    head_dim = 64
+    model_name = 'LLaDATiny_arc'
+    eval_interval = 2000
+    learning_rate_schedule_steps = 508000
+    epoch = 10
+    max_target_length = 4096
+    llada_padding_loss_fraction = 0
+    train_llada_mask_policy = 'sqrt_uniform'
+    
 class LladaSmallQuarterArcData(LLaDA100m_arc):
     learning_rate_schedule_steps = 13000 # 3255481/ (8*8) = 50866 steps per epoch for v5p-16
     eval_interval = 1000

@@ -387,6 +387,7 @@ class OutputHead(nn.Module):
     xents = []
     correct = 0
     preds = []
+    logits = []
     # chunk_size = cfg.loss_chunk_size  # manual shard to speed up, about 1%
     if not mtp_layer:
       inputs = self.norm(inputs)
@@ -397,6 +398,8 @@ class OutputHead(nn.Module):
       print(f'lm head chunk start_idx: {start_idx} end_idx: {end_idx}')
       chunk_slice = slice(start_idx, end_idx)
       logits_chunk = self.project_logits(inputs[:, chunk_slice])
+      if cfg.return_logits:
+        logits.append(logits_chunk)
       preds_chunk = jnp.argmax(logits_chunk, axis=-1)
       mask_chunk = target_mask[:, chunk_slice]
       targets_chunk = target_tokens[:, chunk_slice]
@@ -412,6 +415,8 @@ class OutputHead(nn.Module):
       preds.append(preds_chunk)
     xents = jnp.concatenate(xents, axis=1)
     preds = jnp.concatenate(preds, axis=1)
+    if cfg.return_logits:
+      return jnp.concatenate(logits, axis=1), correct, preds
     return xents, correct, preds
 
 

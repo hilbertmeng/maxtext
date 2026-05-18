@@ -65,6 +65,8 @@ class LlamaDecoderLayer(nn.Module):
   config: models.Config
   mesh: Mesh
   quant: Optional[Quant] = None
+  sliding_window_size: Optional[int] = None
+  scan_length: int = 1
 
   @nn.compact
   def __call__(
@@ -72,20 +74,26 @@ class LlamaDecoderLayer(nn.Module):
       inputs,
       decoder_segment_ids,
       decoder_positions,
-      deterministic,
-      model_mode,
+      decoder_input_tokens=None,
+      deep_embedding=None,
+      deterministic=False,
+      model_mode="train",
+      hids=None,
+      eos_sum=None,
   ):
     cfg = self.config
     mesh = self.mesh
 
     inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
     inputs = checkpoint_name(inputs, "decoder_layer_input")
-    lnx_rms = models.RMSNorm(
+    lnx_rms = RMSNorm(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
         name="pre_self_attention_layer_norm",
         kernel_axes=("norm",),
         epsilon=cfg.normalization_layer_epsilon,
+        scale_init=nn.initializers.ones if cfg.direct_scale else nn.initializers.zeros,
+        direct_scale=cfg.direct_scale,
     )
     lnx = lnx_rms(inputs)
 
@@ -132,12 +140,14 @@ class LlamaDecoderLayer(nn.Module):
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
-    hidden_states = models.RMSNorm(
+    hidden_states = RMSNorm(
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,
         name="post_self_attention_layer_norm",
         kernel_axes=("norm",),
         epsilon=cfg.normalization_layer_epsilon,
+        scale_init=nn.initializers.ones if cfg.direct_scale else nn.initializers.zeros,
+        direct_scale=cfg.direct_scale,
     )(intermediate_inputs)
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")

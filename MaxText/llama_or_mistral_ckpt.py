@@ -37,6 +37,7 @@ import gc
 import re
 import logging
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 os.environ["JAX_PLATFORMS"] = "cpu"
 
@@ -47,9 +48,9 @@ from flax.training import train_state
 import torch
 import psutil
 from tqdm import tqdm
+import orbax.checkpoint as ocp
 
 import max_logging
-from train import save_checkpoint
 import checkpointing
 from safetensors import safe_open
 import max_utils
@@ -147,6 +148,17 @@ MODEL_PARAMS_DICT = {
         "base_mlp_dim": 16384,
         "num_experts": 8,
     },
+    "qwen3-0.6b": {
+        "num_layers": 28,
+        "num_heads": 16,
+        "num_kv_heads": 8,
+        "dims_per_head": 128,
+        "vocab": 151936,
+        "base_emb_dim": 1024,
+        "base_mlp_dim": 3072,
+        "tie_word_embeddings": True,
+        "qk_norm": True,
+    },
 }
 
 SIMULATED_CPU_DEVICES_COUNT = 16
@@ -188,6 +200,8 @@ def _hf_to_maxtext_mapping(layer_idx: int = -1, expert_idx: int = -1) -> dict:
       f"model.layers.{layer_idx}.self_attn.k_proj.weight": f"layers.{layer_idx}.attention.wk.weight",
       f"model.layers.{layer_idx}.self_attn.v_proj.weight": f"layers.{layer_idx}.attention.wv.weight",
       f"model.layers.{layer_idx}.self_attn.o_proj.weight": f"layers.{layer_idx}.attention.wo.weight",
+      f"model.layers.{layer_idx}.self_attn.q_norm.weight": f"layers.{layer_idx}.attention.q_norm.weight",
+      f"model.layers.{layer_idx}.self_attn.k_norm.weight": f"layers.{layer_idx}.attention.k_norm.weight",
       # MOE model
       f"model.layers.{layer_idx}.block_sparse_moe.gate.weight": f"layers.{layer_idx}.feed_forward.gate.weight",
       f"model.layers.{layer_idx}.block_sparse_moe.experts.{expert_idx}.w1.weight": f"layers.{layer_idx}.feed_forward.experts.{expert_idx}.w1.weight",
@@ -234,8 +248,11 @@ def _convert_huggingface_to_jax_weights(base_model_path, model_size, model_param
   base_num_query_heads = model_params["num_heads"]
   head_dim = model_params["dims_per_head"]
   base_num_kv_heads = model_params["num_kv_heads"]
+  base_emb_dim = model_params.get("base_emb_dim", base_num_query_heads * head_dim)
   vocab_size = model_params["vocab"]
   num_experts = model_params["num_experts"] if "num_experts" in model_params else None
+  torch_weight_dtype = torch.float32 if model_size.startswith("qwen3") else torch.float16
+  numpy_weight_dtype = np.float32 if model_size.startswith("qwen3") else np.float16
 
   ckpt_paths = sorted(pathlib.Path(base_model_path).glob("[!.]*.safetensors"))
   chkpt_vars = {}
@@ -261,25 +278,26 @@ def _convert_huggingface_to_jax_weights(base_model_path, model_size, model_param
               "post_self_attention_layer_norm": {},
               "self_attention": {},
           },
-          "decoder_norm": {"scale": None},
-          "logits_dense": {"kernel": None},
+          "lm_head": {
+              "decoder_norm": {"scale": None},
+              "logits_dense": None,
+          },
       },
       "token_embedder": {"embedding": None},
   }
 
   # decoder norm scale ###########################################
   max_logging.log("Processing decoder norm scale")
-  decoder_norm_scale = chkpt_vars["norm.weight"].to(torch.float16).numpy()
-  jax_weights["decoder"]["decoder_norm"]["scale"] = decoder_norm_scale
+  decoder_norm_scale = chkpt_vars["norm.weight"].to(torch_weight_dtype).numpy()
+  jax_weights["decoder"]["lm_head"]["decoder_norm"]["scale"] = decoder_norm_scale
 
   logging.debug("Memory usage: %f GB", mem_info.memory_info().rss / (1024**3))
 
   # logits dense #################################################
   max_logging.log("Processing logits dense")
 
-  jax_weights["decoder"]["logits_dense"]["kernel"] = (
-      chkpt_vars["output.weight"].to(torch.float16).numpy().transpose()[:, :vocab_size]
-  )
+  output_weight = chkpt_vars["output.weight"] if "output.weight" in chkpt_vars else chkpt_vars["tok_embeddings.weight"]
+  jax_weights["decoder"]["lm_head"]["logits_dense"] = output_weight.to(torch_weight_dtype).numpy().transpose()[:, :vocab_size]
 
   logging.debug("Memory usage: %f GB", mem_info.memory_info().rss / (1024**3))
 
@@ -287,10 +305,10 @@ def _convert_huggingface_to_jax_weights(base_model_path, model_size, model_param
   max_logging.log("Processing token embeddings")
 
   if model_size[:6] == "llama3":
-    jax_weights["token_embedder"]["embedding"] = chkpt_vars["tok_embeddings.weight"].to(torch.float16).numpy()
+    jax_weights["token_embedder"]["embedding"] = chkpt_vars["tok_embeddings.weight"].to(torch_weight_dtype).numpy()
   else:
     jax_weights["token_embedder"]["embedding"] = (
-        chkpt_vars["tok_embeddings.weight"].to(torch.float16).numpy()[:vocab_size, :]
+        chkpt_vars["tok_embeddings.weight"].to(torch_weight_dtype).numpy()[:vocab_size, :]
     )
 
   logging.debug("Memory usage: %f GB", mem_info.memory_info().rss / (1024**3))
@@ -303,34 +321,45 @@ def _convert_huggingface_to_jax_weights(base_model_path, model_size, model_param
       "value": {"kernel": None},
       "out": {"kernel": None},
   }
+  if model_params.get("qk_norm", False):
+    self_attention["qk_norm"] = {"q_norm": {"scale": None}, "k_norm": {"scale": None}}
   for layer_idx in tqdm(range(base_num_decoder_layers), desc="layers", leave=False):
-    wq = chkpt_vars[f"layers.{layer_idx}.attention.wq.weight"].to(torch.float16).numpy().transpose()
-    wk = chkpt_vars[f"layers.{layer_idx}.attention.wk.weight"].to(torch.float16).numpy().transpose()
-    wv = chkpt_vars[f"layers.{layer_idx}.attention.wv.weight"].to(torch.float16).numpy().transpose()
+    wq = chkpt_vars[f"layers.{layer_idx}.attention.wq.weight"].to(torch_weight_dtype).numpy().transpose()
+    wk = chkpt_vars[f"layers.{layer_idx}.attention.wk.weight"].to(torch_weight_dtype).numpy().transpose()
+    wv = chkpt_vars[f"layers.{layer_idx}.attention.wv.weight"].to(torch_weight_dtype).numpy().transpose()
 
-    wq = np.reshape(wq, [base_num_query_heads * head_dim, base_num_query_heads, head_dim])
-    wk = np.reshape(wk, [base_num_query_heads * head_dim, base_num_kv_heads, head_dim])
-    wv = np.reshape(wv, [base_num_query_heads * head_dim, base_num_kv_heads, head_dim])
+    wq = np.reshape(wq, [base_emb_dim, base_num_query_heads, head_dim])
+    wk = np.reshape(wk, [base_emb_dim, base_num_kv_heads, head_dim])
+    wv = np.reshape(wv, [base_emb_dim, base_num_kv_heads, head_dim])
 
     if model_size[:8] == "llama3.1":
       wq = max_utils.permute_to_match_maxtext_rope(wq)
       wk = max_utils.permute_to_match_maxtext_rope(wk)
 
-    w_post = chkpt_vars[f"layers.{layer_idx}.attention.wo.weight"].to(torch.float16).numpy()
+    w_post = chkpt_vars[f"layers.{layer_idx}.attention.wo.weight"].to(torch_weight_dtype).numpy()
 
-    w_post = np.reshape(w_post, [base_num_query_heads * head_dim, base_num_query_heads, head_dim])
+    w_post = np.reshape(w_post, [base_emb_dim, base_num_query_heads, head_dim])
 
     if self_attention["query"]["kernel"] is None:
       stack_shape = (base_num_decoder_layers,)
-      self_attention["query"]["kernel"] = np.zeros(stack_shape + wq.shape, dtype=np.float16)
-      self_attention["key"]["kernel"] = np.zeros(stack_shape + wk.shape, dtype=np.float16)
-      self_attention["value"]["kernel"] = np.zeros(stack_shape + wv.shape, dtype=np.float16)
-      self_attention["out"]["kernel"] = np.zeros(stack_shape + w_post.shape, dtype=np.float16)
+      self_attention["query"]["kernel"] = np.zeros(stack_shape + wq.shape, dtype=numpy_weight_dtype)
+      self_attention["key"]["kernel"] = np.zeros(stack_shape + wk.shape, dtype=numpy_weight_dtype)
+      self_attention["value"]["kernel"] = np.zeros(stack_shape + wv.shape, dtype=numpy_weight_dtype)
+      self_attention["out"]["kernel"] = np.zeros(stack_shape + w_post.shape, dtype=numpy_weight_dtype)
 
     self_attention["query"]["kernel"][layer_idx, ...] = wq  # pylint: disable=E1137
     self_attention["key"]["kernel"][layer_idx, ...] = wk  # pylint: disable=E1137
     self_attention["value"]["kernel"][layer_idx, ...] = wv  # pylint: disable=E1137
     self_attention["out"]["kernel"][layer_idx, ...] = w_post  # pylint: disable=E1137
+    if model_params.get("qk_norm", False):
+      q_norm = chkpt_vars[f"layers.{layer_idx}.attention.q_norm.weight"].to(torch_weight_dtype).numpy()
+      k_norm = chkpt_vars[f"layers.{layer_idx}.attention.k_norm.weight"].to(torch_weight_dtype).numpy()
+      if self_attention["qk_norm"]["q_norm"]["scale"] is None:
+        stack_shape = (base_num_decoder_layers,)
+        self_attention["qk_norm"]["q_norm"]["scale"] = np.zeros(stack_shape + q_norm.shape, dtype=numpy_weight_dtype)
+        self_attention["qk_norm"]["k_norm"]["scale"] = np.zeros(stack_shape + k_norm.shape, dtype=numpy_weight_dtype)
+      self_attention["qk_norm"]["q_norm"]["scale"][layer_idx, ...] = q_norm
+      self_attention["qk_norm"]["k_norm"]["scale"][layer_idx, ...] = k_norm
 
   self_attention["query"]["kernel"] = np.transpose(
       self_attention["query"]["kernel"], axes=(1, 0, 2, 3)
@@ -346,9 +375,18 @@ def _convert_huggingface_to_jax_weights(base_model_path, model_size, model_param
   self_attention["out"]["kernel"] = np.transpose(
       self_attention["out"]["kernel"], axes=(2, 0, 3, 1)
   )  # [q, layer, head_dim, embed]
+  if model_params.get("qk_norm", False):
+    self_attention["qk_norm"]["q_norm"]["scale"] = np.transpose(
+        self_attention["qk_norm"]["q_norm"]["scale"], axes=(1, 0)
+    )
+    self_attention["qk_norm"]["k_norm"]["scale"] = np.transpose(
+        self_attention["qk_norm"]["k_norm"]["scale"], axes=(1, 0)
+    )
 
-  # scale the query weights
-  self_attention["query"]["kernel"] = self_attention["query"]["kernel"] / np.sqrt(head_dim)
+  # This fork scales query activations inside Attention. Older Llama conversions
+  # also scaled the loaded query kernel; Qwen3 should only be scaled once.
+  if not model_params.get("qk_norm", False):
+    self_attention["query"]["kernel"] = self_attention["query"]["kernel"] / np.sqrt(head_dim)
 
   jax_weights["decoder"]["layers"]["self_attention"] = self_attention
   logging.debug("Memory usage: %f GB", mem_info.memory_info().rss / (1024**3))
@@ -359,15 +397,15 @@ def _convert_huggingface_to_jax_weights(base_model_path, model_size, model_param
 
   # self attention layer norm and swap the layer index
   for layer_idx in tqdm(range(base_num_decoder_layers), desc="layers", leave=False):
-    pre_self_attention_layernorm = chkpt_vars[f"layers.{layer_idx}.attention_norm.weight"].type(torch.float16).numpy()
-    post_self_attention_layernorm = chkpt_vars[f"layers.{layer_idx}.ffn_norm.weight"].type(torch.float16).numpy()
+    pre_self_attention_layernorm = chkpt_vars[f"layers.{layer_idx}.attention_norm.weight"].type(torch_weight_dtype).numpy()
+    post_self_attention_layernorm = chkpt_vars[f"layers.{layer_idx}.ffn_norm.weight"].type(torch_weight_dtype).numpy()
     if layer_weight["pre_self_attention_layer_norm"]["scale"] is None:
       stack_shape = (base_num_decoder_layers,)
       layer_weight["pre_self_attention_layer_norm"]["scale"] = np.zeros(
-          stack_shape + pre_self_attention_layernorm.shape, dtype=np.float16
+          stack_shape + pre_self_attention_layernorm.shape, dtype=numpy_weight_dtype
       )
       layer_weight["post_self_attention_layer_norm"]["scale"] = np.zeros(
-          stack_shape + post_self_attention_layernorm.shape, dtype=np.float16
+          stack_shape + post_self_attention_layernorm.shape, dtype=numpy_weight_dtype
       )
     layer_weight["pre_self_attention_layer_norm"]["scale"][layer_idx, ...] = pre_self_attention_layernorm  # pylint: disable=E1137
     layer_weight["post_self_attention_layer_norm"]["scale"][layer_idx, ...] = post_self_attention_layernorm  # pylint: disable=E1137
@@ -404,15 +442,15 @@ def _convert_huggingface_to_jax_weights(base_model_path, model_size, model_param
 
   for layer_idx in tqdm(range(base_num_decoder_layers), desc="layers", leave=False):
     if num_experts is None:
-      wi_0 = chkpt_vars[f"layers.{layer_idx}.feed_forward.w1.weight"].type(torch.float16).numpy().transpose()
-      wi_1 = chkpt_vars[f"layers.{layer_idx}.feed_forward.w3.weight"].type(torch.float16).numpy().transpose()
-      wo = chkpt_vars[f"layers.{layer_idx}.feed_forward.w2.weight"].type(torch.float16).numpy().transpose()
+      wi_0 = chkpt_vars[f"layers.{layer_idx}.feed_forward.w1.weight"].type(torch_weight_dtype).numpy().transpose()
+      wi_1 = chkpt_vars[f"layers.{layer_idx}.feed_forward.w3.weight"].type(torch_weight_dtype).numpy().transpose()
+      wo = chkpt_vars[f"layers.{layer_idx}.feed_forward.w2.weight"].type(torch_weight_dtype).numpy().transpose()
 
       if layer_weight["mlp"]["wi_0"]["kernel"] is None:
         stack_shape = (base_num_decoder_layers,)
-        layer_weight["mlp"]["wi_0"]["kernel"] = np.zeros(stack_shape + wi_0.shape, dtype=np.float16)
-        layer_weight["mlp"]["wi_1"]["kernel"] = np.zeros(stack_shape + wi_1.shape, dtype=np.float16)
-        layer_weight["mlp"]["wo"]["kernel"] = np.zeros(stack_shape + wo.shape, dtype=np.float16)
+        layer_weight["mlp"]["wi_0"]["kernel"] = np.zeros(stack_shape + wi_0.shape, dtype=numpy_weight_dtype)
+        layer_weight["mlp"]["wi_1"]["kernel"] = np.zeros(stack_shape + wi_1.shape, dtype=numpy_weight_dtype)
+        layer_weight["mlp"]["wo"]["kernel"] = np.zeros(stack_shape + wo.shape, dtype=numpy_weight_dtype)
       layer_weight["mlp"]["wi_0"]["kernel"][layer_idx, ...] = wi_0  # pytype: disable=unsupported-operands
       layer_weight["mlp"]["wi_1"]["kernel"][layer_idx, ...] = wi_1  # pytype: disable=unsupported-operands
       layer_weight["mlp"]["wo"]["kernel"][layer_idx, ...] = wo  # pytype: disable=unsupported-operands
@@ -786,7 +824,11 @@ def save_jax_weights_to_checkpoint(maxtext_model_path, jax_weights):
   save_interval_steps = 1
 
   checkpoint_manager = checkpointing.create_orbax_checkpoint_manager(
-      maxtext_model_path, enable_checkpointing, async_checkpointing, save_interval_steps
+      maxtext_model_path,
+      enable_checkpointing,
+      async_checkpointing,
+      save_interval_steps,
+      config=SimpleNamespace(max_to_keep=1, keep_period=None),
   )
 
   state_new = train_state.TrainState(
@@ -795,7 +837,15 @@ def save_jax_weights_to_checkpoint(maxtext_model_path, jax_weights):
 
   logging.debug("Memory usage: %f GB", mem_info.memory_info().rss / (1024**3))
   if checkpoint_manager is not None:
-    if save_checkpoint(checkpoint_manager, step_number_to_save_new_ckpt, state_new):
+    chunk_byte_size = 2147483648
+    save_args = jax.tree.map(lambda _: ocp.SaveArgs(chunk_byte_size=chunk_byte_size), state_new)
+    saved = checkpoint_manager.save(
+        step_number_to_save_new_ckpt,
+        args=ocp.args.Composite(
+            items=ocp.args.PyTreeSave(item=state_new, save_args=save_args, ocdbt_target_data_file_size=chunk_byte_size)
+        ),
+    )
+    if saved:
       max_logging.log(f"saved a checkpoint at step {step_number_to_save_new_ckpt}")
     # Upon preemption, exit when and only when all ongoing saves are complete.
     checkpoint_manager.wait_until_finished()

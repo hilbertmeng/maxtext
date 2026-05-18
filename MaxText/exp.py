@@ -181,6 +181,58 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
 
+class Qwen3_0_6B(GWindow, Optimizer, Common):
+    # Matches https://huggingface.co/Qwen/Qwen3-0.6B config.json.
+    model_name = 'qwen3-0.6b'
+    decoder_block = "llama2"
+    base_emb_dim = 1024
+    base_num_query_heads = 16
+    base_num_kv_heads = 8
+    base_mlp_dim = 3072
+    base_num_decoder_layers = 28
+    head_dim = 128
+    vocab_size = 151936
+    max_target_length = 4096
+    mlp_activations = ["silu", "linear"]
+    normalization_layer_epsilon = 1.0e-6
+    rope_max_timescale = 1_000_000
+    logits_via_embedding = True
+    normalize_embedding_logits = False
+    qk_norm = True
+    direct_scale = True
+    qkv_bias = False
+    enable_dropout = False
+    tokenizer_type = 'huggingface'
+    tokenizer_path = 'Qwen/Qwen3-0.6B'
+    per_device_batch_size = 1.0
+    eval_per_device_batch_size = 1.0
+    learning_rate = 1e-5
+    warmup_steps_fraction = 0.03
+    cosine_learning_rate_final_fraction = 0.1
+
+class Qwen3_0_6B_Arc(Qwen3_0_6B):
+    load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_ckpt_v4/0/items"
+    run_name = "Qwen3_0_6B_Arc"
+    dataset_type = 'pile'
+    task_features = ['text']
+    tokenize_train_data = False
+    tokenize_eval_data = False
+    train_data_columns = ['text']
+    eval_data_columns = ['text']
+    add_bos = False
+    add_eos = False
+    max_target_length = 4096
+    eval_max_target_length = 4096
+    per_device_batch_size = 1.0
+    eval_per_device_batch_size = 1.0
+    learning_rate = 1e-5
+    learning_rate_schedule_steps = 1000
+    eval_interval = 100
+    checkpoint_period = 100
+    epoch = 1
+    dataset_path = "gs://newproject-1-common_datasets_us-east5/arc_tfrecord_demo"
+    eval_dataset_path = "gs://newproject-1-common_datasets_us-east5/arc_tfrecord_demo"
+
 class Llama2Large(Llama2Medium):
     model_name = 'Llama2Large'
     base_emb_dim = 1536

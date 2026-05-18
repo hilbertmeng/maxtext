@@ -83,6 +83,7 @@ logits_via_embedding: False
 normalize_embedding_logits: True  # whether to normlize pre-softmax logits if logits_via_embedding is true
 logits_dot_in_fp32: False  # whether to use fp32 in logits_dense or shared_embedding dot product for stability
 cast_logits_to_fp32: True # whether to cast the logits to fp32. The higher precision is generally beneficial, but it can vary slightly.
+return_logits: False # Debug/alignment: return logits from OutputHead instead of xent as first output.
 float32_qk_product: False # in dot_product attention, whether to cast to fp32 the inputs to qk product
 float32_logits: True # in dot_product attention, whether to cast to fp32 the inputs to softmax
 
@@ -640,6 +641,7 @@ quantization: "" # "int8"
 model_name: "default" # override config settings to match a specific model. other than the override, nothing should use this!
 normalization_layer_epsilon: 1.e-06
 normalization_direct_scale: False
+direct_scale: False
 base_emb_dim: 2048
 base_num_query_heads: 16
 base_num_kv_heads: 16

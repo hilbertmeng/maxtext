@@ -1462,7 +1462,11 @@ class Attention(nn.Module):
     depth_scaling = jnp.sqrt(self.head_dim).astype(self.dtype)
     query /= depth_scaling
 
-    if self.num_query_heads > self.num_kv_heads and self.sliding_window_size < cfg.max_target_length: # local laeyr GQA
+    if (
+        self.num_query_heads > self.num_kv_heads
+        and self.sliding_window_size is not None
+        and self.sliding_window_size < cfg.max_target_length
+    ): # local laeyr GQA
       assert self.num_query_heads % self.num_kv_heads == 0
       n_expands = self.num_query_heads // self.num_kv_heads
       if key.shape[-2] < self.num_query_heads: # for K lora

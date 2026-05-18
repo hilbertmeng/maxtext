@@ -39,6 +39,10 @@ class PileDatasets():
                 mix_attn: bool = False,
                 shift: bool = True,
                 arc_grid_positions: bool = False,
+                arc_data_processing: bool = False,
+                arc_select_demo_pairs: bool = True,
+                arc_loss_on_all_outputs: bool = False,
+                arc_remove_output_padding: bool = False,
                 ):
         self.mesh = mesh
         self.name = name
@@ -62,7 +66,11 @@ class PileDatasets():
         self.mix_attn = mix_attn
         self.shift = shift
         self.arc_grid_positions = arc_grid_positions
-        self.arc_compress = arc_grid_positions
+        self.arc_data_processing = arc_grid_positions or arc_data_processing
+        self.arc_compress = self.arc_data_processing
+        self.arc_select_demo_pairs = arc_select_demo_pairs
+        self.arc_loss_on_all_outputs = arc_loss_on_all_outputs
+        self.arc_remove_output_padding = arc_remove_output_padding
         
         self.__post_init__()
         
@@ -149,7 +157,7 @@ class PileDatasets():
     def _parse_function(self, example_proto):
         feature_desc = {key: tf.io.VarLenFeature(tf.int64) for key in self.task_features}
         example = tf.io.parse_single_example(example_proto, feature_desc)
-        read_len = 16384 if self.arc_grid_positions else self.seq_len + 1
+        read_len = 8 * 2048 + 2 if self.arc_data_processing else self.seq_len + 1
         for name in list(example.keys()):
             t = example[name]
             if t.dtype == tf.int64:
@@ -236,47 +244,64 @@ class PileDatasets():
         pos_b = tf.broadcast_to(pos[tf.newaxis], tf.shape(tokens))
         pos_b = tf.where(tokens_is_bos_eos, marker_pos, pos_b)
 
-        # Loss mask: last pair's output only (counting from content after BOS)
+        # Loss mask: last pair's output only by default (counting from content after BOS).
         non_special = tf.cast((tokens != self.pad_id) & ~tokens_is_bos_eos, tf.int32)
         content_len = tf.reduce_sum(non_special, axis=1)
         n_pairs = content_len // PAIR_TOKENS
-        # Last output in adj_pos space: (n_pairs-1)*2048 + 1025 .. n_pairs*2048
-        last_out_start = (n_pairs - 1) * PAIR_TOKENS + OUTPUT_OFFSET
-        last_out_end = n_pairs * PAIR_TOKENS
 
         adj_pos_b = tf.broadcast_to(adj_pos[tf.newaxis], tf.shape(tokens))
+        output_pos = (p_in_pair >= OUTPUT_OFFSET) & (p_in_pair < PAIR_TOKENS)
+        output_pos_b = tf.broadcast_to(output_pos[tf.newaxis], tf.shape(tokens))
+        pair_idx_b = adj_pos_b // PAIR_TOKENS
+
+        if self.arc_loss_on_all_outputs:
+            loss_region = output_pos_b & (pair_idx_b >= 0) & (pair_idx_b < n_pairs[:, tf.newaxis])
+        else:
+            # Last output in adj_pos space: (n_pairs-1)*2048 + 1025 .. n_pairs*2048
+            last_out_start = (n_pairs - 1) * PAIR_TOKENS + OUTPUT_OFFSET
+            last_out_end = n_pairs * PAIR_TOKENS
+            loss_region = (
+                (adj_pos_b >= last_out_start[:, tf.newaxis]) &
+                (adj_pos_b < last_out_end[:, tf.newaxis])
+            )
+
         loss_mask = tf.cast(
-            (adj_pos_b >= last_out_start[:, tf.newaxis]) &
-            (adj_pos_b < last_out_end[:, tf.newaxis]) &
-            ~tokens_is_bos_eos,
+            loss_region & ~tokens_is_bos_eos,
             tf.int32,
         )
 
         return tokens, pos_b, loss_mask
 
-    def _compress_arc(self, tokens, pos, loss_mask):
-        """Remove dot padding tokens (id=5) except in the last output grid.
+    def _compress_arc(self, tokens, pos, loss_mask, seq_len=None):
+        """Remove dot padding tokens (id=5) and compact each ARC sequence.
 
-        Keeps dots in the last output to avoid leaking the answer's shape.
+        By default, keeps dots under the loss mask to preserve old last-output
+        behavior. arc_remove_output_padding=True removes those dots as well.
         Uses argsort trick for vectorized per-sequence compaction.
         Zeros out positions beyond the kept count to prevent dot leakage.
         """
+        if seq_len is None:
+            seq_len = self.seq_len
         DOT_TOKEN = 5
-        is_last_output = tf.cast(loss_mask, tf.bool)
-        keep = (tf.not_equal(tokens, DOT_TOKEN) | is_last_output) & tf.not_equal(tokens, self.pad_id)
+        is_loss_output = tf.cast(loss_mask, tf.bool)
+        if self.arc_remove_output_padding:
+            keep = tf.not_equal(tokens, DOT_TOKEN)
+        else:
+            keep = tf.not_equal(tokens, DOT_TOKEN) | is_loss_output
+        keep = keep & tf.not_equal(tokens, self.pad_id)
 
         indices = tf.argsort(tf.cast(~keep, tf.int32), axis=1, stable=True)
         tokens = tf.gather(tokens, indices, batch_dims=1)
         pos = tf.gather(pos, indices, batch_dims=1)
         loss_mask = tf.gather(loss_mask, indices, batch_dims=1)
 
-        tokens = tokens[:, :self.seq_len]
-        pos = pos[:, :self.seq_len]
-        loss_mask = loss_mask[:, :self.seq_len]
+        tokens = tokens[:, :seq_len]
+        pos = pos[:, :seq_len]
+        loss_mask = loss_mask[:, :seq_len]
 
         # Zero out positions beyond kept count (removed dots are non-zero token 5)
         num_kept = tf.reduce_sum(tf.cast(keep, tf.int32), axis=1)  # [B]
-        valid = tf.range(self.seq_len)[tf.newaxis] < num_kept[:, tf.newaxis]
+        valid = tf.range(seq_len)[tf.newaxis] < num_kept[:, tf.newaxis]
         tokens = tf.where(valid, tokens, 0)
         pos = tf.where(valid, pos, 0)
         loss_mask = tf.where(valid, loss_mask, 0)
@@ -288,16 +313,35 @@ class PileDatasets():
         feat_key = self.task_features[0] if self.task_features[0] in data else 'input_ids'
         model_needed_inputs = {}
         if self.shift:
+            if self.arc_data_processing:
+                tokens, pos, loss_mask = self._build_arc_position_ids(data[feat_key])
+                if self.arc_compress:
+                    tokens, pos, loss_mask = self._compress_arc(tokens, pos, loss_mask, seq_len + 1)
+                if not self.arc_grid_positions:
+                    pos = tf.broadcast_to(tf.range(tf.shape(tokens)[1])[tf.newaxis], tf.shape(tokens))
+                inputs = tokens[:, : seq_len]
+                input_seg = tf.cast(inputs != self.pad_id, tf.int32)
+                model_needed_inputs['inputs'] = inputs
+                model_needed_inputs['targets'] = tokens[:, 1: seq_len + 1]
+                model_needed_inputs['targets_segmentation'] = tf.cast(loss_mask[:, 1: seq_len + 1], dtype=tf.int32)
+                model_needed_inputs['inputs_segmentation'] = input_seg
+                model_needed_inputs['inputs_position'] = input_seg * pos[:, : seq_len]
+                model_needed_inputs['targets_position'] = (
+                    tf.cast(loss_mask[:, 1: seq_len + 1] != 0, tf.int32) * pos[:, 1: seq_len + 1]
+                )
+                return model_needed_inputs
             model_needed_inputs['inputs'] = data[feat_key][:, : seq_len]
             model_needed_inputs['targets'] = data[feat_key][:, 1: seq_len + 1]
             key = 'labels' if "labels" in data else feat_key
             weights = data[key] != self.pad_id
             model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32)
         else:
-            if self.arc_grid_positions:
+            if self.arc_data_processing:
                 tokens, pos, loss_mask = self._build_arc_position_ids(data[feat_key])
                 if getattr(self, 'arc_compress', False):
                     tokens, pos, loss_mask = self._compress_arc(tokens, pos, loss_mask)
+                if not self.arc_grid_positions:
+                    pos = tf.broadcast_to(tf.range(tf.shape(tokens)[1])[tf.newaxis], tf.shape(tokens))
                 model_needed_inputs['inputs'] = tokens
                 model_needed_inputs['targets'] = tokens
                 model_needed_inputs['targets_segmentation'] = loss_mask
@@ -321,13 +365,13 @@ class PileDatasets():
         ds = tf.data.Dataset.from_tensor_slices(fname)
         ds = ds.apply(tf.data.TFRecordDataset)
         ds = ds.map(self._parse_function, num_parallel_calls=tf.data.AUTOTUNE)
-        if self.arc_grid_positions and 'eval' not in self.name:
+        if self.arc_data_processing and self.arc_select_demo_pairs and 'eval' not in self.name:
             ds = ds.map(self._select_arc_pairs, num_parallel_calls=tf.data.AUTOTUNE)
         print(f'shuffle_buffer_size: {self.shuffle_buffer_size}')
         if self.shuffle_buffer_size is not None:
             ds = ds.shuffle(buffer_size=self.shuffle_buffer_size)
 
-        pad_len = 8 * 2048 + 1 if self.arc_grid_positions else self.seq_len + 1
+        pad_len = 8 * 2048 + 2 if self.arc_data_processing else self.seq_len + 1
         padded_shapes = {key: pad_len for key in self.task_features}
         padding_values = {key: self.pad_id for key in self.task_features}
         ds = ds.padded_batch(
@@ -807,6 +851,10 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             pad_id=config.pad_id,
                             shift=config.decoder_block != "llada",
                             arc_grid_positions=getattr(config, 'arc_grid_positions', False),
+                            arc_data_processing=getattr(config, 'arc_data_processing', False),
+                            arc_select_demo_pairs=getattr(config, 'arc_select_demo_pairs', True),
+                            arc_loss_on_all_outputs=getattr(config, 'arc_loss_on_all_outputs', False),
+                            arc_remove_output_padding=getattr(config, 'arc_remove_output_padding', False),
                             )
   eval_dataloader = None
   if eval_pathes:
@@ -829,6 +877,10 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             pad_id=config.pad_id,
                             shift=config.decoder_block != "llada",
                             arc_grid_positions=getattr(config, 'arc_grid_positions', False),
+                            arc_data_processing=getattr(config, 'arc_data_processing', False),
+                            arc_select_demo_pairs=getattr(config, 'arc_select_demo_pairs', True),
+                            arc_loss_on_all_outputs=getattr(config, 'arc_loss_on_all_outputs', False),
+                            arc_remove_output_padding=getattr(config, 'arc_remove_output_padding', False),
                             )
   def train_dataloader_fn():
     return train_dataloader

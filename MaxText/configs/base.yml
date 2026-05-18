@@ -659,6 +659,10 @@ mix_attn: False # 32k and 4k global attention
 # RoPE parameters
 rope_type: "default" # one of "default", "llama3.1", "yarn", "golden_gate"
 arc_grid_positions: False # ARC grid-aligned position IDs for Golden Gate RoPE
+arc_data_processing: False # Enable ARC preprocessing/compression without requiring grid-aligned position IDs
+arc_select_demo_pairs: True # ARC training preprocessing randomly keeps up to 3 demo pairs plus the final pair
+arc_loss_on_all_outputs: False # ARC loss mask covers every output grid instead of only the last output grid
+arc_remove_output_padding: False # ARC compression removes dot-padding tokens from output grids too
 train_llada_mask_policy: "sqrt_uniform" # "sqrt_uniform" or "mask_all"
 llada_loss_pad_token_id: 5 # ARC dot-padding token id used for LLaDA loss downweighting
 llada_padding_loss_fraction: -1 # negative number disables reweighting; >=0 sets total dot-padding loss weight as a fraction of non-padding target weight

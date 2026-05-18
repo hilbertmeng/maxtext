@@ -222,16 +222,27 @@ class Qwen3_0_6B_Arc(Qwen3_0_6B):
     add_bos = False
     add_eos = False
     max_target_length = 4096
-    eval_max_target_length = 4096
+    eval_max_target_length = 6144
+    arc_data_processing = True
+    arc_select_demo_pairs = False
+    arc_loss_on_all_outputs = True
+    arc_remove_output_padding = True
     per_device_batch_size = 1.0
     eval_per_device_batch_size = 1.0
     learning_rate = 1e-5
-    learning_rate_schedule_steps = 1000
-    eval_interval = 100
-    checkpoint_period = 100
+    learning_rate_schedule_steps = 13000
+    eval_interval = 1000
+    checkpoint_period = 1000
     epoch = 1
-    dataset_path = "gs://newproject-1-common_datasets_us-east5/arc_tfrecord_demo"
-    eval_dataset_path = "gs://newproject-1-common_datasets_us-east5/arc_tfrecord_demo"
+    dataset_path = ",".join([
+        "gs://newproject-1-common_datasets_us-east5/arc_tfrecord_demo",
+        "gs://newproject-1-common_datasets_us-east5/nvarc_training_tfrecord",
+        "gs://newproject-1-common_datasets_us-east5/nvarc_full_tfrecord",
+        "gs://newproject-1-common_datasets_us-east5/arc2_training_tfrecord",
+        "gs://newproject-1-common_datasets_us-east5/concept_tfrecord",
+        "gs://newproject-1-common_datasets_us-east5/mini_tfrecord",
+    ])
+    eval_dataset_path = "gs://newproject-1-common_datasets_us-east5/arc2_evaluation6_tfrecord"
 
 class Llama2Large(Llama2Medium):
     model_name = 'Llama2Large'

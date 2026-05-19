@@ -717,6 +717,33 @@ def init_training_state(apply_fn, params, tx):
   return state
 
 
+def merge_restored_params_into_initialized(initialized_params, restored_params):
+  """Merge a partial restored parameter tree into a fully initialized tree."""
+  initialized_was_frozen = isinstance(initialized_params, flax.core.FrozenDict)
+  merged = flax.core.unfreeze(initialized_params)
+  restored = flax.core.unfreeze(restored_params)
+
+  def merge(dst, src):
+    for key, value in src.items():
+      if isinstance(value, (dict, flax.core.FrozenDict)) and isinstance(dst.get(key), (dict, flax.core.FrozenDict)):
+        merge(dst[key], value)
+      else:
+        dst[key] = value
+
+  merge(merged, restored)
+  return flax.core.freeze(merged) if initialized_was_frozen else merged
+
+
+def embedding_param_paths_to_skip(config):
+  paths = [
+      ("params", "token_embedder", "embedding"),
+      ("params", "de_token_embedder", "embedding"),
+  ]
+  if not getattr(config, "logits_via_embedding", True):
+    paths.append(("params", "decoder", "logits_dense"))
+  return paths
+
+
 def init_initial_state(model, tx, config, is_training, key):
   """
   We pass in "static" objects like model, tx, config as JAX compares them by
@@ -817,9 +844,12 @@ def setup_initial_state(
   # Initialization
   with nn_partitioning.axis_rules(config.logical_axis_rules):
     load_parameters_path = config.load_parameters_path
+    load_params_skip_paths = None
     if is_training and getattr(config, "train_load_parameters_path", ""):
       load_parameters_path = config.train_load_parameters_path
       max_logging.log(f"Training init params configured from {load_parameters_path}")
+    if is_training and getattr(config, "train_reinit_embedding_params", False):
+      load_params_skip_paths = embedding_param_paths_to_skip(config)
     restored, raw_params = checkpointing.load_state_if_possible(
         checkpoint_manager,
         data_iterator,
@@ -829,6 +859,7 @@ def setup_initial_state(
         config.enable_single_replica_ckpt_restoring,
         config.dataset_type,
         config=config, # lsp
+        load_params_skip_paths=load_params_skip_paths,
     )
 
     if restored:
@@ -854,7 +885,10 @@ def setup_initial_state(
           out_shardings=state_mesh_shardings,
       )(rng)
       if raw_params:  # If we loaded a partial state, we need to merge it.
-        state = state.replace(params=raw_params)
+        if is_training and getattr(config, "train_reinit_embedding_params", False):
+          state = state.replace(params=merge_restored_params_into_initialized(state.params, raw_params))
+        else:
+          state = state.replace(params=raw_params)
 
   state = unbox_logicallypartioned(state)
 

@@ -10,6 +10,7 @@ class Common:
     init_weights_seed = 9876
     load_parameters_path = ""
     train_load_parameters_path = ""
+    train_reinit_embedding_params = False
     load_full_state_path = ""
     enable_checkpointing = True
     async_checkpointing = True
@@ -213,7 +214,9 @@ class Qwen3_0_6B(GWindow, Optimizer, Common):
 
 class Qwen3_0_6B_Arc(Qwen3_0_6B):
     train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_ckpt_v4/0/items"
+    train_reinit_embedding_params = True
     run_name = "Qwen3_0_6B_Arc"
+    vocab_size = 86
     dataset_type = 'pile'
     task_features = ['text']
     tokenize_train_data = False

@@ -613,6 +613,8 @@ mtp_loss_chunk_size: 4096
 load_parameters_path: ""
 # Parameter-only checkpoint used to initialize train.py. If set, this takes precedence over load_parameters_path for training only.
 train_load_parameters_path: ""
+# When loading train_load_parameters_path/load_parameters_path for train.py, keep freshly initialized token embedding params.
+train_reinit_embedding_params: False
 # Loads a full checkpoint including optimizer state and step count from a specific directory
 # e.g. gs://my-base-output-directory/my-previous-run-name/checkpoints/items/NUMBER or NUMBER/items
 load_full_state_path: ""

@@ -19,6 +19,7 @@ limitations under the License.
 from typing import Any, Optional, Union
 from absl import flags
 from etils import epath
+import flax
 from flax.training import train_state
 import grain.python as grain
 import jax
@@ -178,6 +179,7 @@ def load_state_if_possible(
     dataset_type: Optional[str] = "tfds",
     step: int = -1,  # -1 means latest
     config = False, # lsp
+    load_params_skip_paths: Optional[tuple[tuple[str, ...], ...]] = None,
 ):
   """Loads TrainState as possible from the inputs.
 
@@ -292,7 +294,7 @@ def load_state_if_possible(
         )
 
   if load_parameters_from_path != "":
-    restored_params = load_params_from_path(load_parameters_from_path, abstract_unboxed_pre_state.params)
+    restored_params = load_params_from_path(load_parameters_from_path, abstract_unboxed_pre_state.params, load_params_skip_paths)
     return None, restored_params
   elif load_full_state_from_path != "":
     max_logging.log(f"restoring full state from {load_full_state_from_path=}")
@@ -325,7 +327,22 @@ def setup_checkpoint_logger(config) -> Any | None:  # pytype: disable=attribute-
   return orbax_cloud_logger
 
 
-def load_params_from_path(load_parameters_from_path, abstract_unboxed_params):
+def _without_nested_paths(tree, paths):
+  tree_was_frozen = isinstance(tree, flax.core.FrozenDict)
+  result = flax.core.unfreeze(tree)
+  for path in paths or ():
+    cur = result
+    for key in path[:-1]:
+      if key not in cur:
+        cur = None
+        break
+      cur = cur[key]
+    if cur is not None:
+      cur.pop(path[-1], None)
+  return flax.core.freeze(result) if tree_was_frozen else result
+
+
+def load_params_from_path(load_parameters_from_path, abstract_unboxed_params, skip_paths=None):
   """Load decode params from checkpoint at specified path."""
   assert load_parameters_from_path, "load_parameters_from_path is not defined."
   max_logging.log(f"restoring params from {load_parameters_from_path}")
@@ -335,10 +352,15 @@ def load_params_from_path(load_parameters_from_path, abstract_unboxed_params):
   # Rather than pass the entire abstract state, which could unnecessarily restore opt_state and such and waste
   # memory, we instead specify here that we are just restoring the params field of the checkpoint
   # (which itself may be a dictionary containing a key named 'params').
+  if skip_paths:
+    max_logging.log(f"Skipping parameter restore for: {', '.join('/'.join(path) for path in skip_paths)}")
+    abstract_unboxed_params = _without_nested_paths(abstract_unboxed_params, skip_paths)
+
   restore_args = ocp.checkpoint_utils.construct_restore_args(abstract_unboxed_params)
-  restored = ckptr.restore(
-      ckpt, item={"params": abstract_unboxed_params}, transforms={}, restore_args={"params": restore_args}
-  )
+  restore_kwargs = {"item": {"params": abstract_unboxed_params}, "restore_args": {"params": restore_args}}
+  if skip_paths:
+    restore_kwargs["partial_restore"] = True
+  restored = ckptr.restore(ckpt, args=ocp.args.PyTreeRestore(**restore_kwargs))
   return restored["params"]
 
 

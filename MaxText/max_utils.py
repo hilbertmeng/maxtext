@@ -740,6 +740,7 @@ def embedding_param_paths_to_skip(config):
       ("params", "de_token_embedder", "embedding"),
   ]
   if not getattr(config, "logits_via_embedding", True):
+    paths.append(("params", "decoder", "lm_head", "logits_dense"))
     paths.append(("params", "decoder", "logits_dense"))
   return paths
 

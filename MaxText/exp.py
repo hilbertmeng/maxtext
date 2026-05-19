@@ -9,6 +9,7 @@ class Common:
     data_shuffle_seed = 9876
     init_weights_seed = 9876
     load_parameters_path = ""
+    train_load_parameters_path = ""
     load_full_state_path = ""
     enable_checkpointing = True
     async_checkpointing = True
@@ -211,7 +212,7 @@ class Qwen3_0_6B(GWindow, Optimizer, Common):
     cosine_learning_rate_final_fraction = 0.1
 
 class Qwen3_0_6B_Arc(Qwen3_0_6B):
-    load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_ckpt_v4/0/items"
+    train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_ckpt_v4/0/items"
     run_name = "Qwen3_0_6B_Arc"
     dataset_type = 'pile'
     task_features = ['text']
@@ -243,6 +244,17 @@ class Qwen3_0_6B_Arc(Qwen3_0_6B):
         "gs://newproject-1-common_datasets_us-east5/mini_tfrecord",
     ])
     eval_dataset_path = "gs://newproject-1-common_datasets_us-east5/arc2_evaluation6_tfrecord"
+
+class Qwen3LargeArcPostTrainTenth(Qwen3_0_6B_Arc): 
+    learning_rate = 3e-4 # 1e-4 for ARC Rank-1 solution 
+    cosine_learning_rate_final_fraction = 0.001
+    learning_rate_schedule_steps = 2500 # v5p-16 1/10 arc-dataset 3255481/ (8*16) * 0.1 = 25433 steps per epoch for v5p-16
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 32.0
+    epoch = 1
+    eval_interval = 500
+    max_target_length = 4096
+    model_name = 'Qwen3LargeArcPostTrainTenth'
 
 class Llama2Large(Llama2Medium):
     model_name = 'Llama2Large'

@@ -816,10 +816,14 @@ def setup_initial_state(
 
   # Initialization
   with nn_partitioning.axis_rules(config.logical_axis_rules):
+    load_parameters_path = config.load_parameters_path
+    if is_training and getattr(config, "train_load_parameters_path", ""):
+      load_parameters_path = config.train_load_parameters_path
+      max_logging.log(f"Training init params configured from {load_parameters_path}")
     restored, raw_params = checkpointing.load_state_if_possible(
         checkpoint_manager,
         data_iterator,
-        config.load_parameters_path,
+        load_parameters_path,
         config.load_full_state_path,
         unboxed_abstract_state,
         config.enable_single_replica_ckpt_restoring,

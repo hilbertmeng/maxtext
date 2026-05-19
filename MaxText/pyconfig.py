@@ -132,12 +132,16 @@ def validate_keys(keys):
   validate_prefill_and_target_lengths(keys["max_prefill_predict_length"], keys["max_target_length"])
   validate_rope_type(keys["rope_type"])
 
-  assert (keys["load_parameters_path"] == "" and keys["load_full_state_path"] == "") or keys[
-      "enable_checkpointing"
-  ], "You must set enable_checkpointing to load a checkpoint"
+  train_load_parameters_path = keys.get("train_load_parameters_path", "")
+  assert (
+      keys["load_parameters_path"] == "" and train_load_parameters_path == "" and keys["load_full_state_path"] == ""
+  ) or keys["enable_checkpointing"], "You must set enable_checkpointing to load a checkpoint"
   assert (
       keys["load_parameters_path"] == "" or keys["load_full_state_path"] == ""
   ), "At most one of `load_parameters_path` or `load_full_state_path` should be set"
+  assert (
+      train_load_parameters_path == "" or keys["load_full_state_path"] == ""
+  ), "At most one of `train_load_parameters_path` or `load_full_state_path` should be set"
   if keys["enable_emergency_checkpoint"]:
     assert (
         keys["local_checkpoint_directory"] != ""

@@ -863,8 +863,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
     scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
-    raw_grads_norms = compute_params_norm(raw_grads, config, prefix='raw_grads')
-    scalar_metrics.update(raw_grads_norms)
+    # raw_grads_norms = compute_params_norm(raw_grads, config, prefix='raw_grads')
+    # scalar_metrics.update(raw_grads_norms)
   if config.use_dpo:
     scalar_metrics["learning/dpo_reward_accuracy"] = aux["reward_accuracy"]
   metrics = {

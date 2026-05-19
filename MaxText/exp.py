@@ -231,6 +231,7 @@ class Qwen3_0_6B_Arc(Qwen3_0_6B):
     arc_select_demo_pairs = False
     arc_loss_on_all_outputs = True
     arc_remove_output_padding = True
+    record_internal_nn_metrics = 0
     per_device_batch_size = 1.0
     eval_per_device_batch_size = 1.0
     learning_rate = 1e-5

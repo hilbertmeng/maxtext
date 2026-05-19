@@ -260,6 +260,12 @@ class Qwen3LargeArcPostTrainTenth(Qwen3_0_6B_Arc):
     max_target_length = 4096
     model_name = 'Qwen3LargeArcPostTrainTenth'
 
+class Qwen3LargeArcTenthFromScratch(Qwen3LargeArcPostTrainTenth):
+    train_reinit_embedding_params = False
+    train_load_parameters_path = ''
+    run_name = 'Qwen3LargeArcTenthFromScratch'
+    model_name = 'Qwen3LargeArcTenthFromScratch'
+
 class Llama2Large(Llama2Medium):
     model_name = 'Llama2Large'
     base_emb_dim = 1536

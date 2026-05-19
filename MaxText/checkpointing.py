@@ -332,13 +332,21 @@ def _without_nested_paths(tree, paths):
   result = flax.core.unfreeze(tree)
   for path in paths or ():
     cur = result
+    parents = []
     for key in path[:-1]:
       if key not in cur:
         cur = None
         break
+      parents.append((cur, key))
       cur = cur[key]
     if cur is not None:
       cur.pop(path[-1], None)
+      for parent, key in reversed(parents):
+        child = parent.get(key)
+        if isinstance(child, (dict, flax.core.FrozenDict)) and not child:
+          parent.pop(key, None)
+        else:
+          break
   return flax.core.freeze(result) if tree_was_frozen else result
 
 

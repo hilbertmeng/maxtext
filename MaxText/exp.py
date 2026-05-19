@@ -198,7 +198,7 @@ class Qwen3_0_6B(GWindow, Optimizer, Common):
     mlp_activations = ["silu", "linear"]
     normalization_layer_epsilon = 1.0e-6
     rope_max_timescale = 1_000_000
-    logits_via_embedding = True
+    logits_via_embedding = False
     normalize_embedding_logits = False
     qk_norm = True
     direct_scale = True

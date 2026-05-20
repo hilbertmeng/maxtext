@@ -43,6 +43,7 @@ class PileDatasets():
                 arc_select_demo_pairs: bool = True,
                 arc_loss_on_all_outputs: bool = False,
                 arc_remove_output_padding: bool = False,
+                strictly_follow_nvarc_tokenizer: bool = False,
                 ):
         self.mesh = mesh
         self.name = name
@@ -71,6 +72,7 @@ class PileDatasets():
         self.arc_select_demo_pairs = arc_select_demo_pairs
         self.arc_loss_on_all_outputs = arc_loss_on_all_outputs
         self.arc_remove_output_padding = arc_remove_output_padding
+        self.strictly_follow_nvarc_tokenizer = strictly_follow_nvarc_tokenizer
         
         self.__post_init__()
         
@@ -308,12 +310,117 @@ class PileDatasets():
 
         return tokens, pos, loss_mask
 
+    @staticmethod
+    def _old_arc_grid_to_nvarc_compact(grid_tokens):
+        """Decode one old 32x31 bordered ARC grid into compact NVARC token ids."""
+        rows = []
+        for row_idx in range(32):
+            start = row_idx * 32
+            line = grid_tokens[start : start + 31]
+            if len(line) < 31:
+                break
+            plus_positions = np.where(line == 2)[0]
+            if plus_positions.size:
+                break
+            bar_positions = np.where(line == 73)[0]
+            if not bar_positions.size:
+                continue
+            raw = line[: bar_positions[0]]
+            digits = raw[(raw >= 7) & (raw <= 16)] - 7
+            if digits.size:
+                rows.append(digits.astype(np.int32))
+
+        if not rows:
+            return []
+
+        pieces = []
+        for i, row in enumerate(rows):
+            if i:
+                pieces.append(np.asarray([10], dtype=np.int32))
+            pieces.append(row)
+        return np.concatenate(pieces).astype(np.int32).tolist()
+
+    def _arc_to_nvarc_compact_numpy(self, batch_tokens, output_len):
+        """Convert old 86-token ARC records to compact 16-token NVARC chat records."""
+        old_bos, old_eos = 75, 76
+        pair_tokens = 2048
+        im_start, im_end, eot = 14, 15, 13
+        user, assistant, newline = 11, 12, 10
+
+        batch_tokens = np.asarray(batch_tokens, dtype=np.int32)
+        output_len = int(output_len)
+        out_tokens = np.full((batch_tokens.shape[0], output_len), eot, dtype=np.int32)
+        out_valid = np.zeros((batch_tokens.shape[0], output_len), dtype=np.int32)
+        out_loss = np.zeros((batch_tokens.shape[0], output_len), dtype=np.int32)
+
+        for batch_idx, sample in enumerate(batch_tokens):
+            eos_positions = np.where(sample == old_eos)[0]
+            eos_pos = int(eos_positions[0]) if eos_positions.size else len(sample)
+            start = 1 if len(sample) and sample[0] == old_bos else 0
+            inner = sample[start:eos_pos]
+            num_pairs = len(inner) // pair_tokens
+
+            compact = []
+            loss = []
+            for pair_idx in range(num_pairs):
+                pair = inner[pair_idx * pair_tokens : (pair_idx + 1) * pair_tokens]
+                input_grid = self._old_arc_grid_to_nvarc_compact(pair[1:1024])
+                output_grid = self._old_arc_grid_to_nvarc_compact(pair[1025:2048])
+                supervise_output = self.arc_loss_on_all_outputs or pair_idx == num_pairs - 1
+
+                user_prefix = [im_start, user, newline]
+                assistant_prefix = [im_end, im_start, assistant, newline]
+                compact.extend(user_prefix)
+                loss.extend([0] * len(user_prefix))
+                compact.extend(input_grid)
+                loss.extend([0] * len(input_grid))
+                compact.extend(assistant_prefix)
+                loss.extend([0] * len(assistant_prefix))
+                compact.extend(output_grid)
+                loss.extend([1 if supervise_output else 0] * len(output_grid))
+                compact.append(im_end)
+                loss.append(0)
+
+            compact.append(eot)
+            loss.append(0)
+
+            n = min(output_len, len(compact))
+            if n:
+                out_tokens[batch_idx, :n] = np.asarray(compact[:n], dtype=np.int32)
+                out_valid[batch_idx, :n] = 1
+                out_loss[batch_idx, :n] = np.asarray(loss[:n], dtype=np.int32)
+
+        return out_tokens, out_valid, out_loss
+
+    def _build_nvarc_compact_tokens(self, tokens, output_len):
+        out_tokens, out_valid, out_loss = tf.py_function(
+            func=lambda x: self._arc_to_nvarc_compact_numpy(x, output_len),
+            inp=[tokens],
+            Tout=[tf.int32, tf.int32, tf.int32],
+        )
+        out_tokens.set_shape([self.batch_size, output_len])
+        out_valid.set_shape([self.batch_size, output_len])
+        out_loss.set_shape([self.batch_size, output_len])
+        return out_tokens, out_valid, out_loss
+
     def convert(self, data):
         seq_len = self.seq_len
         feat_key = self.task_features[0] if self.task_features[0] in data else 'input_ids'
         model_needed_inputs = {}
         if self.shift:
             if self.arc_data_processing:
+                if self.strictly_follow_nvarc_tokenizer:
+                    tokens, valid, loss_mask = self._build_nvarc_compact_tokens(data[feat_key], seq_len + 1)
+                    pos = tf.broadcast_to(tf.range(seq_len + 1)[tf.newaxis], tf.shape(tokens))
+                    inputs = tokens[:, : seq_len]
+                    input_seg = valid[:, : seq_len]
+                    model_needed_inputs['inputs'] = inputs
+                    model_needed_inputs['targets'] = tokens[:, 1: seq_len + 1]
+                    model_needed_inputs['targets_segmentation'] = tf.cast(loss_mask[:, 1: seq_len + 1], dtype=tf.int32)
+                    model_needed_inputs['inputs_segmentation'] = input_seg
+                    model_needed_inputs['inputs_position'] = input_seg * pos[:, : seq_len]
+                    model_needed_inputs['targets_position'] = valid[:, 1: seq_len + 1] * pos[:, 1: seq_len + 1]
+                    return model_needed_inputs
                 tokens, pos, loss_mask = self._build_arc_position_ids(data[feat_key])
                 if self.arc_compress:
                     tokens, pos, loss_mask = self._compress_arc(tokens, pos, loss_mask, seq_len + 1)
@@ -337,6 +444,16 @@ class PileDatasets():
             model_needed_inputs['targets_segmentation'] = tf.cast(weights[:, 1: seq_len + 1], dtype=tf.int32)
         else:
             if self.arc_data_processing:
+                if self.strictly_follow_nvarc_tokenizer:
+                    tokens, valid, loss_mask = self._build_nvarc_compact_tokens(data[feat_key], seq_len)
+                    pos = tf.broadcast_to(tf.range(seq_len)[tf.newaxis], tf.shape(tokens))
+                    model_needed_inputs['inputs'] = tokens
+                    model_needed_inputs['targets'] = tokens
+                    model_needed_inputs['targets_segmentation'] = loss_mask
+                    model_needed_inputs['inputs_segmentation'] = valid
+                    model_needed_inputs['inputs_position'] = valid * pos
+                    model_needed_inputs['targets_position'] = valid * pos
+                    return model_needed_inputs
                 tokens, pos, loss_mask = self._build_arc_position_ids(data[feat_key])
                 if getattr(self, 'arc_compress', False):
                     tokens, pos, loss_mask = self._compress_arc(tokens, pos, loss_mask)
@@ -855,6 +972,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             arc_select_demo_pairs=getattr(config, 'arc_select_demo_pairs', True),
                             arc_loss_on_all_outputs=getattr(config, 'arc_loss_on_all_outputs', False),
                             arc_remove_output_padding=getattr(config, 'arc_remove_output_padding', False),
+                            strictly_follow_nvarc_tokenizer=getattr(config, 'strictly_follow_nvarc_tokenizer', False),
                             )
   eval_dataloader = None
   if eval_pathes:
@@ -881,6 +999,7 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             arc_select_demo_pairs=getattr(config, 'arc_select_demo_pairs', True),
                             arc_loss_on_all_outputs=getattr(config, 'arc_loss_on_all_outputs', False),
                             arc_remove_output_padding=getattr(config, 'arc_remove_output_padding', False),
+                            strictly_follow_nvarc_tokenizer=getattr(config, 'strictly_follow_nvarc_tokenizer', False),
                             )
   def train_dataloader_fn():
     return train_dataloader

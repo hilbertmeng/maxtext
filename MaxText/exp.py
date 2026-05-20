@@ -249,6 +249,17 @@ class Qwen3_0_6B_Arc(Qwen3_0_6B):
     ])
     eval_dataset_path = "gs://newproject-1-common_datasets_us-east5/arc2_evaluation6_tfrecord"
 
+class Qwen3_0_6B_ArcNVARC16(Qwen3_0_6B_Arc):
+    run_name = "Qwen3_0_6B_ArcNVARC16"
+    train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_nvarc16_ckpt/0/items"
+    train_reinit_embedding_params = False
+    vocab_size = 16
+    pad_id = 13
+    tokenizer_path = "models/Qwen3-0.6B"
+    strictly_follow_nvarc_tokenizer = True
+    arc_loss_on_all_outputs = True
+    arc_remove_output_padding = False
+
 class Qwen3LargeArcPostTrainTenth(Qwen3_0_6B_Arc): 
     learning_rate = 3e-4 # 1e-4 for ARC Rank-1 solution 
     cosine_learning_rate_final_fraction = 0.001
@@ -259,6 +270,16 @@ class Qwen3LargeArcPostTrainTenth(Qwen3_0_6B_Arc):
     eval_interval = 500
     max_target_length = 4096
     model_name = 'Qwen3LargeArcPostTrainTenth'
+
+class Qwen3LargeArcPostTrainTenthNVARC16(Qwen3LargeArcPostTrainTenth):
+    run_name = "Qwen3LargeArcPostTrainTenthNVARC16"
+    train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_large_nvarc16_ckpt/0/items"
+    train_reinit_embedding_params = False
+    vocab_size = 16
+    pad_id = 13
+    tokenizer_path = "models/Qwen3-0.6B"
+    strictly_follow_nvarc_tokenizer = True
+    arc_loss_on_all_outputs = True
 
 class Qwen3LargeArcTenthFromScratch(Qwen3LargeArcPostTrainTenth):
     train_reinit_embedding_params = False

@@ -273,13 +273,14 @@ class Qwen3LargeArcPostTrainTenth(Qwen3_0_6B_Arc):
 
 class Qwen3LargeArcPostTrainTenthNVARC16(Qwen3LargeArcPostTrainTenth):
     run_name = "Qwen3LargeArcPostTrainTenthNVARC16"
-    train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_large_nvarc16_ckpt/0/items"
+    train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_nvarc16_ckpt/0/items"
     train_reinit_embedding_params = False
     vocab_size = 16
     pad_id = 13
     tokenizer_path = "models/Qwen3-0.6B"
     strictly_follow_nvarc_tokenizer = True
     arc_loss_on_all_outputs = True
+    arc_remove_output_padding = False
 
 class Qwen3LargeArcTenthFromScratch(Qwen3LargeArcPostTrainTenth):
     train_reinit_embedding_params = False

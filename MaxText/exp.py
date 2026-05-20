@@ -282,12 +282,31 @@ class Qwen3LargeArcPostTrainTenthNVARC16(Qwen3LargeArcPostTrainTenth):
     arc_loss_on_all_outputs = True
     arc_remove_output_padding = False
 
+class Qwen3LargeArcPostTrainFullNVARC16(Qwen3LargeArcPostTrainTenthNVARC16):
+    learning_rate_schedule_steps = 26000 # v5p-16 1/10 arc-dataset 3255481/ (8*16) * 1 = 25433 steps per epoch for v5p-16
+    per_device_batch_size = 16.0
+    eval_per_device_batch_size = 32.0
+    epoch = 2
+    eval_interval = 1000
+
+class Qwen3LargeArcFromScratchFullNVARC16(Qwen3LargeArcPostTrainFullNVARC16):
+    train_reinit_embedding_params = False
+    train_load_parameters_path = ''
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16'
+
 class Qwen3LargeArcTenthFromScratch(Qwen3LargeArcPostTrainTenth):
     train_reinit_embedding_params = False
     train_load_parameters_path = ''
     run_name = 'Qwen3LargeArcTenthFromScratch'
     model_name = 'Qwen3LargeArcTenthFromScratch'
 
+class Qwen3LargeArcTenthFromScratchNVARC16(Qwen3LargeArcPostTrainTenthNVARC16):
+    train_reinit_embedding_params = False
+    train_load_parameters_path = ''
+    run_name = 'Qwen3LargeArcTenthFromScratchNVARC16'
+    model_name = 'Qwen3LargeArcTenthFromScratchNVARC16'
+    
 class Llama2Large(Llama2Medium):
     model_name = 'Llama2Large'
     base_emb_dim = 1536

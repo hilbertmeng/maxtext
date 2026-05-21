@@ -294,6 +294,19 @@ class Qwen3LargeArcPostTrainFullNVARC16(Qwen3LargeArcPostTrainTenthNVARC16):
     epoch = 2
     eval_interval = 1000
 
+class Qwen3LargeArcPostTrainFullNVARC16Shuffle(Qwen3LargeArcPostTrainFullNVARC16): # v5p-32
+    train_shuffle_buffer_size = 500000  # or 16384 / 32768 if host memory is ok
+    iter_file_nums = 1000
+    learning_rate_schedule_steps = 13000
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16Shuffle'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16Shuffle'
+
+class Qwen3LargeArcFromScratchFullNVARC16Shuffle(Qwen3LargeArcPostTrainFullNVARC16Shuffle):
+    train_reinit_embedding_params = False
+    train_load_parameters_path = ''
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16Shuffle'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16Shuffle'
+
 class Qwen3LargeArcFromScratchFullNVARC16(Qwen3LargeArcPostTrainFullNVARC16):
     train_reinit_embedding_params = False
     train_load_parameters_path = ''

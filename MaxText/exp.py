@@ -301,6 +301,18 @@ class Qwen3LargeArcPostTrainFullNVARC16Shuffle(Qwen3LargeArcPostTrainFullNVARC16
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16Shuffle'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16Shuffle'
 
+class Qwen3LargeArcPostTrainFullNVARC16Shuffle2(Qwen3LargeArcPostTrainFullNVARC16Shuffle): # align hyperparameters to NVARC
+    learning_rate = 1e-4
+    adam_b2 = 0.98 
+    gradient_clipping_threshold = 0.5
+    decay_method = "linear"
+    steps = 12716
+    learning_rate_schedule_steps = 12716
+    warmup_steps_fraction = 200 / 12716
+    cosine_learning_rate_final_fraction = 0.001
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16Shuffle2'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16Shuffle2'
+
 class Qwen3LargeArcFromScratchFullNVARC16Shuffle(Qwen3LargeArcPostTrainFullNVARC16Shuffle):
     train_reinit_embedding_params = False
     train_load_parameters_path = ''

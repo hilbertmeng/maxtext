@@ -31,6 +31,22 @@ class Common:
     me_dilation = None
     me_nums = None
 
+class NVARC:
+    nvarc_tfrecord_root = "gs://newproject-1-common_datasets_us-east5/nvarc_tfrecord_shuffled"
+    dataset_path = ",".join([
+        f"{nvarc_tfrecord_root}/rearc/tfrecord",
+        f"{nvarc_tfrecord_root}/nvarc_training/tfrecord",
+        f"{nvarc_tfrecord_root}/nvarc_full/tfrecord",
+        f"{nvarc_tfrecord_root}/arc2_training/tfrecord",
+        f"{nvarc_tfrecord_root}/concept/tfrecord",
+        f"{nvarc_tfrecord_root}/mini/tfrecord",
+    ])
+    eval_dataset_path = f"{nvarc_tfrecord_root}/arc2_evaluation6/tfrecord"
+
+class NVARC_Shuffled_One_File:
+    dataset_path = 'gs://newproject-1-common_datasets_us-east5/nvarc_tfrecord_shuffled_one_file/'
+    eval_dataset_path = 'gs://newproject-1-common_datasets_us-east5/nvarc_tfrecord_shuffled/arc2_evaluation6/tfrecord'
+
 class Optimizer:
     learning_rate_schedule_steps = 13500
     warmup_steps_fraction = 0.01
@@ -212,7 +228,7 @@ class Qwen3_0_6B(GWindow, Optimizer, Common):
     warmup_steps_fraction = 0.03
     cosine_learning_rate_final_fraction = 0.1
 
-class Qwen3_0_6B_Arc(Qwen3_0_6B):
+class Qwen3_0_6B_Arc(NVARC, Qwen3_0_6B):
     train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_ckpt_v4/0/items"
     train_reinit_embedding_params = True
     run_name = "Qwen3_0_6B_Arc"
@@ -239,15 +255,6 @@ class Qwen3_0_6B_Arc(Qwen3_0_6B):
     eval_interval = 1000
     checkpoint_period = 1000
     epoch = 1
-    dataset_path = ",".join([
-        "gs://newproject-1-common_datasets_us-east5/arc_tfrecord_demo",
-        "gs://newproject-1-common_datasets_us-east5/nvarc_training_tfrecord",
-        "gs://newproject-1-common_datasets_us-east5/nvarc_full_tfrecord",
-        "gs://newproject-1-common_datasets_us-east5/arc2_training_tfrecord",
-        "gs://newproject-1-common_datasets_us-east5/concept_tfrecord",
-        "gs://newproject-1-common_datasets_us-east5/mini_tfrecord",
-    ])
-    eval_dataset_path = "gs://newproject-1-common_datasets_us-east5/arc2_evaluation6_tfrecord"
 
 class Qwen3_0_6B_ArcNVARC16(Qwen3_0_6B_Arc):
     run_name = "Qwen3_0_6B_ArcNVARC16"
@@ -312,6 +319,18 @@ class Qwen3LargeArcPostTrainFullNVARC16Shuffle2(Qwen3LargeArcPostTrainFullNVARC1
     cosine_learning_rate_final_fraction = 0.001
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16Shuffle2'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16Shuffle2'
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile(NVARC_Shuffled_One_File, Qwen3LargeArcPostTrainFullNVARC16Shuffle): # align hyperparameters to NVARC
+    learning_rate = 1e-4
+    adam_b2 = 0.98 
+    gradient_clipping_threshold = 0.5
+    decay_method = "linear"
+    steps = 12716
+    learning_rate_schedule_steps = 12716
+    warmup_steps_fraction = 200 / 12716
+    cosine_learning_rate_final_fraction = 0.001
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile'
 
 class Qwen3LargeArcFromScratchFullNVARC16Shuffle(Qwen3LargeArcPostTrainFullNVARC16Shuffle):
     train_reinit_embedding_params = False
@@ -962,7 +981,7 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Align(MuonMuddDEDcMuddM
     record_internal_nn_metrics = 0
     bucket_logging_enabled = False
 
-class LLaDA400m_arc(Optimizer, Common):
+class LLaDA400m_arc(NVARC, Optimizer, Common):
     decoder_block = "llada"
     use_causal_mask = False
     vocab_size = 86
@@ -999,15 +1018,6 @@ class LLaDA400m_arc(Optimizer, Common):
     query_chunk_size = None
     epoch = 5
     eval_interval = 200
-    dataset_path = ",".join([
-        "gs://newproject-1-common_datasets_us-east5/arc_tfrecord_demo",
-        "gs://newproject-1-common_datasets_us-east5/nvarc_training_tfrecord",
-        "gs://newproject-1-common_datasets_us-east5/nvarc_full_tfrecord",
-        "gs://newproject-1-common_datasets_us-east5/arc2_training_tfrecord",
-        "gs://newproject-1-common_datasets_us-east5/concept_tfrecord",
-        "gs://newproject-1-common_datasets_us-east5/mini_tfrecord",
-    ])
-    eval_dataset_path = "gs://newproject-1-common_datasets_us-east5/arc2_evaluation6_tfrecord"
 
 
 class LLaDA100m_arc(LLaDA400m_arc):

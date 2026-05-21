@@ -332,6 +332,12 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile(NVARC_Shuffled_One_File, Q
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile'
 
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile):
+    train_reinit_embedding_params = False
+    train_load_parameters_path = ''
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile'
+
 class Qwen3LargeArcFromScratchFullNVARC16Shuffle(Qwen3LargeArcPostTrainFullNVARC16Shuffle):
     train_reinit_embedding_params = False
     train_load_parameters_path = ''

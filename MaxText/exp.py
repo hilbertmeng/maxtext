@@ -344,6 +344,12 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile(Qwen3LargeArcPostTrainFu
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile'
 
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile):
+    learning_rate = 3e-4
+    decay_method = "cosine"
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4'
+
 class Qwen3LargeArcFromScratchFullNVARC16Shuffle(Qwen3LargeArcPostTrainFullNVARC16Shuffle):
     train_reinit_embedding_params = False
     train_load_parameters_path = ''

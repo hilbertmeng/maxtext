@@ -338,6 +338,16 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTied(Qwen3LargeArcPostTrain
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTied'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTied'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap4(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTied):
+    final_logits_soft_cap = 4 
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap4'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap4'
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap8(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTied):
+    final_logits_soft_cap = 8 
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap8'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile):
     train_reinit_embedding_params = False
     train_load_parameters_path = ''
@@ -349,6 +359,15 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4(Qwen3LargeArcFr
     decay_method = "cosine"
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4'
+
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4DecoderNormWD(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4):
+    wd_mults = [
+        ('.*scale$', 0.0),
+        ('.*bias$', 0.0),
+        ('.*decoder/lm_head/decoder_norm/scale$', 0.1),
+    ]
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4DecoderNormWD'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4DecoderNormWD'
 
 class Qwen3LargeArcFromScratchFullNVARC16Shuffle(Qwen3LargeArcPostTrainFullNVARC16Shuffle):
     train_reinit_embedding_params = False

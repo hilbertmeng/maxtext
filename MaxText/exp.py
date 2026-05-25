@@ -353,6 +353,12 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30(Qwen3LargeArcPost
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30):
+    learning_rate = 3e-4
+    decay_method = "cosine"
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile):
     train_reinit_embedding_params = False
     train_load_parameters_path = ''

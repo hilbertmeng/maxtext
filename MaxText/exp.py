@@ -372,6 +372,11 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30(Qwen3Large
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30'
     final_logits_soft_cap = 30
 
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30Tied(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30):
+    logits_via_embedding = True 
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30Tied'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30Tied'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4DecoderNormWD(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4):
     wd_mults = [
         ('.*scale$', 0.0),

@@ -379,7 +379,9 @@ class PileDatasets():
                 compact.extend(output_grid)
                 loss.extend([1 if supervise_output else 0] * len(output_grid))
                 compact.append(im_end)
-                loss.append(0)
+                # Match NVARC TTT/eval completion labels: assistant <|im_end|>
+                # is part of the supervised assistant reply, unlike padding EOT.
+                loss.append(1 if supervise_output else 0)
 
             compact.append(eot)
             loss.append(0)

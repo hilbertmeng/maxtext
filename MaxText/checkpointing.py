@@ -366,8 +366,10 @@ def load_params_from_path(load_parameters_from_path, abstract_unboxed_params, sk
 
   restore_args = ocp.checkpoint_utils.construct_restore_args(abstract_unboxed_params)
   restore_kwargs = {"item": {"params": abstract_unboxed_params}, "restore_args": {"params": restore_args}}
-  if skip_paths:
-    restore_kwargs["partial_restore"] = True
+  # We intentionally pass only the params subtree here, while full training
+  # checkpoints may also contain opt_state and step. Tell Orbax this partial
+  # tree mismatch is expected.
+  restore_kwargs["partial_restore"] = True
   restored = ckptr.restore(ckpt, args=ocp.args.PyTreeRestore(**restore_kwargs))
   return restored["params"]
 

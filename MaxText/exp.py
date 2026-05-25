@@ -253,7 +253,7 @@ class Qwen3_0_6B_Arc(NVARC, Qwen3_0_6B):
     learning_rate = 1e-5
     learning_rate_schedule_steps = 13000
     eval_interval = 1000
-    checkpoint_period = 1000
+    checkpoint_period = 100
     epoch = 1
 
 class Qwen3_0_6B_ArcNVARC16(Qwen3_0_6B_Arc):

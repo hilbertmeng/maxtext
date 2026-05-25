@@ -456,6 +456,25 @@ class _HyperParameters:
     raw_keys["mlp_dim"] = 2**mlp_dim_scale * raw_keys["base_mlp_dim"]
     raw_keys["moe_mlp_dim"] = 2**mlp_dim_scale * raw_keys["base_moe_mlp_dim"]
     raw_keys["num_decoder_layers"] = 2**layer_scale * raw_keys["base_num_decoder_layers"]
+    if raw_keys["recurrent_block_repeats"] > 1:
+      recurrent_physical_num_layers = raw_keys["recurrent_physical_num_layers"] or raw_keys["num_decoder_layers"]
+      recurrent_start = raw_keys["recurrent_layer_start"]
+      recurrent_end = raw_keys["recurrent_layer_end"]
+      assert 0 <= recurrent_start < recurrent_end <= recurrent_physical_num_layers, (
+          "Layer recurrence requires 0 <= recurrent_layer_start < recurrent_layer_end "
+          "<= recurrent_physical_num_layers"
+      )
+      recurrent_virtual_layers = (
+          recurrent_physical_num_layers + (raw_keys["recurrent_block_repeats"] - 1) * (recurrent_end - recurrent_start)
+      )
+      if raw_keys["recurrent_total_layers"]:
+        assert raw_keys["recurrent_total_layers"] == recurrent_virtual_layers, (
+            f"recurrent_total_layers={raw_keys['recurrent_total_layers']} does not match "
+            f"the mapped virtual depth {recurrent_virtual_layers}"
+        )
+      raw_keys["recurrent_physical_num_layers"] = recurrent_physical_num_layers
+      raw_keys["recurrent_total_layers"] = recurrent_virtual_layers
+      raw_keys["num_decoder_layers"] = recurrent_virtual_layers
 
     # This is the first command that initializes the backend - it calls
     # jax.devices()

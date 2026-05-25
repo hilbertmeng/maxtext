@@ -377,6 +377,19 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30Tied(Qwen3L
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30Tied'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30Tied'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30Recurrent(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30):
+    # 10_18x2 Virtual order: 0..9, 10..17, 10..17, 18..27. This gives 36
+    # decoder applications while sharing the params of physical layers 10..17.
+    scan_layers = False
+    train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_nvarc16_recurrent10_18x2_ckpt/0/items"
+    recurrent_physical_num_layers = 28
+    recurrent_layer_start = 10
+    recurrent_layer_end = 18
+    recurrent_block_repeats = 2
+    recurrent_total_layers = 36
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30Recurrent'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30Recurrent'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4DecoderNormWD(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4):
     wd_mults = [
         ('.*scale$', 0.0),

@@ -770,7 +770,80 @@ class Decoder(nn.Module):
         y = normalizations.get_rmsnorm("mudd_prenorm", cfg)(y) if cfg.mudd_prenorm or cfg.me_prenorm else y
         hids.append(y)
 
-      if cfg.scan_layers:
+      if getattr(cfg, "recurrent_block_repeats", 1) > 1:
+        assert not cfg.scan_layers, "Shared recurrent layers are only supported with scan_layers=False."
+        assert not cfg.partial_scan_layers, "Shared recurrent layers are not supported with partial_scan_layers."
+        assert not cfg.using_pipeline_parallelism, "Shared recurrent layers are not supported with pipeline parallelism."
+        assert not cfg.dense_conn, "Shared recurrent layers are not supported with dense_conn."
+        assert cfg.mtp_num_layers == 0, "Shared recurrent layers are not supported with MTP."
+
+        physical_layers = cfg.recurrent_physical_num_layers or cfg.base_num_decoder_layers
+        recurrent_start = cfg.recurrent_layer_start
+        recurrent_end = cfg.recurrent_layer_end
+        recurrent_repeats = cfg.recurrent_block_repeats
+        assert 0 <= recurrent_start < recurrent_end <= physical_layers, (
+            "Layer recurrence requires 0 <= recurrent_layer_start < recurrent_layer_end "
+            "<= recurrent_physical_num_layers/base_num_decoder_layers."
+        )
+
+        layer_order = (
+            list(range(recurrent_start))
+            + list(range(recurrent_start, recurrent_end)) * recurrent_repeats
+            + list(range(recurrent_end, physical_layers))
+        )
+        assert len(layer_order) == cfg.num_decoder_layers, (
+            f"Recurrent layer order has {len(layer_order)} virtual layers, "
+            f"but config.num_decoder_layers={cfg.num_decoder_layers}."
+        )
+        max_logging.log(f"recurrent layer order: {layer_order}", debug=cfg.debug)
+
+        swss = format_swss(sws_list)
+        layer_sws = {}
+        for virtual_lyr, physical_lyr in enumerate(layer_order):
+          if physical_lyr in layer_sws:
+            assert layer_sws[physical_lyr] == swss[virtual_lyr], (
+                "A shared recurrent layer cannot be called with different sliding_window_size values."
+            )
+          else:
+            layer_sws[physical_lyr] = swss[virtual_lyr]
+
+        RecurrentBlockLayer = RemattedBlockLayers[0]
+        recurrent_layers = {
+            physical_lyr: RecurrentBlockLayer(
+                config=cfg,
+                mesh=mesh,
+                name=f"layers_{physical_lyr}",
+                quant=self.quant,
+                sliding_window_size=layer_sws[physical_lyr],
+            )
+            for physical_lyr in sorted(set(layer_order))
+        }
+
+        for virtual_lyr, physical_lyr in enumerate(layer_order):
+          max_logging.log(
+              f"\n=================decoder virtual layer: {virtual_lyr} "
+              f"(params layers_{physical_lyr})=====================\n",
+              debug=cfg.debug,
+          )
+          layer_output = recurrent_layers[physical_lyr](
+              y,
+              decoder_segment_ids,
+              decoder_positions,
+              decoder_input_tokens,
+              deep_embeddings[virtual_lyr],
+              deterministic,
+              model_mode,
+              hids=hids,
+              eos_sum=eos_sum,
+          )
+          if isinstance(layer_output, tuple):
+            y = layer_output[0]
+            if len(layer_output) > 1 and layer_output[1] is not None:
+              hids = layer_output[1]
+          else:
+            y = layer_output
+
+      elif cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]
         y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
             y,

@@ -651,6 +651,11 @@ base_num_query_heads: 16
 base_num_kv_heads: 16
 base_mlp_dim: 7168
 base_num_decoder_layers: 16
+recurrent_total_layers: 0 # 0 disables layer recurrence; otherwise validates the virtual decoder depth
+recurrent_physical_num_layers: 0 # 0 means use the normally derived non-recurrent layer count
+recurrent_layer_start: -1 # inclusive physical layer index for the recurrent block
+recurrent_layer_end: -1 # exclusive physical layer index for the recurrent block
+recurrent_block_repeats: 1 # number of times to apply [recurrent_layer_start, recurrent_layer_end)
 head_dim: 128
 max_target_length: 2048 # Maximum sequence length
 per_device_batch_size: 12.0

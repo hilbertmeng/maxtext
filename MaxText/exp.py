@@ -371,6 +371,24 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4(Qwen3LargeArcFr
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4'
 
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine1e3Cap30Tied(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile):
+    learning_rate = 1e-3
+    cosine_learning_rate_final_fraction = 0.0001
+    decay_method = "cosine"
+    logits_via_embedding = True 
+    final_logits_soft_cap = 30
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine1e3Cap30Tied'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine1e3Cap30Tied'
+
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine6e4Cap30Tied(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile):
+    learning_rate = 6e-4
+    cosine_learning_rate_final_fraction = 1e-7/6e-4
+    decay_method = "cosine"
+    logits_via_embedding = True 
+    final_logits_soft_cap = 30
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine6e4Cap30Tied'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine6e4Cap30Tied'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile):
     learning_rate = 3e-4
     decay_method = "cosine"

@@ -352,11 +352,12 @@ class OutputHead(nn.Module):
       logits = self.shared_embedding.attend(inputs)
       if cfg.normalize_embedding_logits:
         logits = logits / jnp.sqrt(inputs.shape[-1])
-      if cfg.final_logits_soft_cap:
-        logits = logits / cfg.final_logits_soft_cap
-        logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     else:
       logits = jnp.tensordot(inputs, dense_kernel, axes=((-1,), (0,)))
+      
+    if cfg.final_logits_soft_cap:
+        logits = logits / cfg.final_logits_soft_cap
+        logits = jnp.tanh(logits) * cfg.final_logits_soft_cap
     return logits
 
   def logits_from_hidden_states(

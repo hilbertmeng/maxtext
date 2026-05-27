@@ -340,10 +340,38 @@ class PileDatasets():
             pieces.append(row)
         return np.concatenate(pieces).astype(np.int32).tolist()
 
+    @staticmethod
+    def _old_arc_grid_to_nvarc_compact_with_positions(grid_tokens, base_position, marker_position):
+        """Decode one old ARC grid into compact NVARC ids and ARC-grid positions."""
+        tokens = []
+        positions = []
+        for row_idx in range(32):
+            start = row_idx * 32
+            line = grid_tokens[start : start + 31]
+            if len(line) < 31:
+                break
+            plus_positions = np.where(line == 2)[0]
+            if plus_positions.size:
+                break
+            bar_positions = np.where(line == 73)[0]
+            if not bar_positions.size:
+                continue
+            raw = line[: bar_positions[0]]
+            digit_cols = np.where((raw >= 7) & (raw <= 16))[0]
+            if not digit_cols.size:
+                continue
+            if tokens:
+                tokens.append(10)
+                positions.append(marker_position)
+            tokens.extend((raw[digit_cols] - 7).astype(np.int32).tolist())
+            positions.extend((base_position + row_idx * 32 + digit_cols).astype(np.int32).tolist())
+        return tokens, positions
+
     def _arc_to_nvarc_compact_numpy(self, batch_tokens, output_len):
         """Convert old 86-token ARC records to compact 16-token NVARC chat records."""
         old_bos, old_eos = 75, 76
         pair_tokens = 2048
+        marker_pos = 8 * pair_tokens - 1
         im_start, im_end, eot = 14, 15, 13
         user, assistant, newline = 11, 12, 10
 
@@ -352,6 +380,7 @@ class PileDatasets():
         out_tokens = np.full((batch_tokens.shape[0], output_len), eot, dtype=np.int32)
         out_valid = np.zeros((batch_tokens.shape[0], output_len), dtype=np.int32)
         out_loss = np.zeros((batch_tokens.shape[0], output_len), dtype=np.int32)
+        out_pos = np.zeros((batch_tokens.shape[0], output_len), dtype=np.int32)
 
         for batch_idx, sample in enumerate(batch_tokens):
             eos_positions = np.where(sample == old_eos)[0]
@@ -362,48 +391,65 @@ class PileDatasets():
 
             compact = []
             loss = []
+            positions = []
             for pair_idx in range(num_pairs):
                 pair = inner[pair_idx * pair_tokens : (pair_idx + 1) * pair_tokens]
-                input_grid = self._old_arc_grid_to_nvarc_compact(pair[1:1024])
-                output_grid = self._old_arc_grid_to_nvarc_compact(pair[1025:2048])
+                pair_base = pair_idx * pair_tokens
+                input_grid, input_pos = self._old_arc_grid_to_nvarc_compact_with_positions(
+                    pair[1:1024], pair_base, marker_pos
+                )
+                output_grid, output_pos = self._old_arc_grid_to_nvarc_compact_with_positions(
+                    pair[1025:2048], pair_base + 1024, marker_pos
+                )
                 supervise_output = self.arc_loss_on_all_outputs or pair_idx == num_pairs - 1
 
                 user_prefix = [im_start, user, newline]
                 assistant_prefix = [im_end, im_start, assistant, newline]
                 compact.extend(user_prefix)
                 loss.extend([0] * len(user_prefix))
+                positions.extend([marker_pos] * len(user_prefix))
                 compact.extend(input_grid)
                 loss.extend([0] * len(input_grid))
+                positions.extend(input_pos)
                 compact.extend(assistant_prefix)
                 loss.extend([0] * len(assistant_prefix))
+                positions.extend([marker_pos] * len(assistant_prefix))
                 compact.extend(output_grid)
                 loss.extend([1 if supervise_output else 0] * len(output_grid))
+                positions.extend(output_pos)
                 compact.append(im_end)
                 # Match NVARC TTT/eval completion labels: assistant <|im_end|>
                 # is part of the supervised assistant reply, unlike padding EOT.
                 loss.append(1 if supervise_output else 0)
+                positions.append(marker_pos)
 
             compact.append(eot)
             loss.append(0)
+            positions.append(marker_pos)
+
+            if len(compact) != len(loss) or len(compact) != len(positions):
+                raise ValueError("NVARC compact token/loss/position lengths are inconsistent.")
 
             n = min(output_len, len(compact))
             if n:
                 out_tokens[batch_idx, :n] = np.asarray(compact[:n], dtype=np.int32)
                 out_valid[batch_idx, :n] = 1
                 out_loss[batch_idx, :n] = np.asarray(loss[:n], dtype=np.int32)
+                out_pos[batch_idx, :n] = np.asarray(positions[:n], dtype=np.int32)
 
-        return out_tokens, out_valid, out_loss
+        return out_tokens, out_valid, out_loss, out_pos
 
     def _build_nvarc_compact_tokens(self, tokens, output_len):
-        out_tokens, out_valid, out_loss = tf.py_function(
+        out_tokens, out_valid, out_loss, out_pos = tf.py_function(
             func=lambda x: self._arc_to_nvarc_compact_numpy(x, output_len),
             inp=[tokens],
-            Tout=[tf.int32, tf.int32, tf.int32],
+            Tout=[tf.int32, tf.int32, tf.int32, tf.int32],
         )
         out_tokens.set_shape([self.batch_size, output_len])
         out_valid.set_shape([self.batch_size, output_len])
         out_loss.set_shape([self.batch_size, output_len])
-        return out_tokens, out_valid, out_loss
+        out_pos.set_shape([self.batch_size, output_len])
+        return out_tokens, out_valid, out_loss, out_pos
 
     def convert(self, data):
         seq_len = self.seq_len
@@ -412,8 +458,9 @@ class PileDatasets():
         if self.shift:
             if self.arc_data_processing:
                 if self.strictly_follow_nvarc_tokenizer:
-                    tokens, valid, loss_mask = self._build_nvarc_compact_tokens(data[feat_key], seq_len + 1)
-                    pos = tf.broadcast_to(tf.range(seq_len + 1)[tf.newaxis], tf.shape(tokens))
+                    tokens, valid, loss_mask, grid_pos = self._build_nvarc_compact_tokens(data[feat_key], seq_len + 1)
+                    seq_pos = tf.broadcast_to(tf.range(seq_len + 1)[tf.newaxis], tf.shape(tokens))
+                    pos = grid_pos if self.arc_grid_positions else seq_pos
                     inputs = tokens[:, : seq_len]
                     input_seg = valid[:, : seq_len]
                     model_needed_inputs['inputs'] = inputs
@@ -447,8 +494,9 @@ class PileDatasets():
         else:
             if self.arc_data_processing:
                 if self.strictly_follow_nvarc_tokenizer:
-                    tokens, valid, loss_mask = self._build_nvarc_compact_tokens(data[feat_key], seq_len)
-                    pos = tf.broadcast_to(tf.range(seq_len)[tf.newaxis], tf.shape(tokens))
+                    tokens, valid, loss_mask, grid_pos = self._build_nvarc_compact_tokens(data[feat_key], seq_len)
+                    seq_pos = tf.broadcast_to(tf.range(seq_len)[tf.newaxis], tf.shape(tokens))
+                    pos = grid_pos if self.arc_grid_positions else seq_pos
                     model_needed_inputs['inputs'] = tokens
                     model_needed_inputs['targets'] = tokens
                     model_needed_inputs['targets_segmentation'] = loss_mask

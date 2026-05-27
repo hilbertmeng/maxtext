@@ -266,13 +266,20 @@ class GoldenGateRotaryEmbedding(nn.Module):
     """
     cos = self._cos[position]  # [B, S, N, H]
     sin = self._sin[position]
+    if cos.shape[2] != inputs.shape[2]:
+      if inputs.shape[2] % cos.shape[2] != 0:
+        raise ValueError(
+            f"Golden Gate RoPE heads ({cos.shape[2]}) must divide input heads ({inputs.shape[2]})."
+        )
+      repeat = inputs.shape[2] // cos.shape[2]
+      cos = jnp.repeat(cos, repeat, axis=2)
+      sin = jnp.repeat(sin, repeat, axis=2)
     if self.cast_as_fprop_dtype:
       cos = cos.astype(self.fprop_dtype)
       sin = sin.astype(self.fprop_dtype)
 
-    # rotate_half: interleaved pairs (x0,x1) -> (-x1,x0)
-    x = inputs.reshape(*inputs.shape[:-1], inputs.shape[-1] // 2, 2)
-    rotated = jnp.stack([-x[..., 1], x[..., 0]], axis=-1).reshape(inputs.shape)
+    first_half, second_half = jnp.split(inputs, 2, axis=-1)
+    rotated = jnp.concatenate([-second_half, first_half], axis=-1)
     return (inputs * cos + rotated * sin).astype(inputs.dtype)
 
 

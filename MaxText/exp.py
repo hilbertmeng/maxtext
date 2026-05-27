@@ -408,6 +408,12 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRope(
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRope'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRope'
 
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMudd(
+    Mudd, Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRope
+):
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMudd'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMudd'
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30Recurrent(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30):
     # 10_18x2 Virtual order: 0..9, 10..17, 10..17, 18..27. This gives 36
     # decoder applications while sharing the params of physical layers 10..17.

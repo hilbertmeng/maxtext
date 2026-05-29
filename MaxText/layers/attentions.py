@@ -1175,6 +1175,8 @@ class Attention(nn.Module):
     )
     if self.use_kv_shift:
       self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init, num_kv_heads=self.num_kv_heads)
+    if self.config.use_o_shift:
+      self.o_shift = kv_shift.Oshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init, num_query_heads=self.num_query_heads)
       
 
   def query_projection(self, inputs_q: Array) -> Array:
@@ -1487,6 +1489,8 @@ class Attention(nn.Module):
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 
+    if cfg.use_o_shift:
+      out = self.o_shift(inputs_q, out)
     # apply output projection,  output dim is set to the input dim.
     out = self.out_projection(inputs_q.shape[-1], out)
     out = checkpoint_name(out, "out_proj")

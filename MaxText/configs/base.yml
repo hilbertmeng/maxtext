@@ -591,6 +591,7 @@ kv_shift_flash: True
 use_kv_shift: False
 kv_shift_hidden_way: 'kv'
 kv_shift_skip_knorm: True
+use_o_shift: False
 
 # ================================= [deepembed] =================================
 deep_embed_type: 'none' # choices: [none,  1xmlp, 4xmlp], alse combine with other types

@@ -107,4 +107,30 @@ class KVshift(nn.Module):
     if not self.config.kv_shift_skip_knorm:
       key = self.kv_shift_norm(key)
 
-    return query, key, value    
+    return query, key, value
+
+
+class Oshift(nn.Module):
+  config: Any
+  mesh: Mesh
+  quant: Optional[Quant] = None
+  num_query_heads: int = None
+  kernel_init: NdInitializer = nd_dense_init(1.0, "fan_in", "normal")
+
+  def setup(self):
+    cfg = self.config
+    kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
+    self.dw_proj_o = linears.DenseGeneral(
+        (self.num_query_heads,),
+        kernel_init=initializers.contant_dense_init(0.0),
+        kernel_axes=("embed", "heads"),
+        use_bias=False,
+        name="o_shift_proj",
+        **kwargs,
+    )
+
+  @nn.compact
+  def __call__(self, inputs_q, out):
+    og = jax.nn.sigmoid(self.dw_proj_o(inputs_q))[..., jnp.newaxis]
+    out = out * og + (1 - og) * shift_1d(out, offset=1, axis=1)
+    return out

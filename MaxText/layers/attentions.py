@@ -1372,6 +1372,7 @@ class Attention(nn.Module):
       deterministic: bool = False,
       eos_sum: Array | None = None,
       deep_embedding: Array | None = None,
+      kv_shift_plan=None,
   ):
     """Applies Attention on the input data.
 
@@ -1416,7 +1417,17 @@ class Attention(nn.Module):
 
     if self.use_kv_shift:
       inputs_k, inputs_v = inputs_kv if isinstance(inputs_kv, (tuple, list)) and len(inputs_kv) == 2 else (inputs_kv, inputs_kv)
-      query, key, value = self.kv_shift(inputs_q, query, key, value, inputs_k=inputs_k, inputs_v=inputs_v)
+      query, key, value = self.kv_shift(
+          inputs_q,
+          query,
+          key,
+          value,
+          inputs_k=inputs_k,
+          inputs_v=inputs_v,
+          inputs_positions=inputs_positions,
+          decoder_segment_ids=decoder_segment_ids,
+          kv_shift_plan=kv_shift_plan,
+      )
     
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp
 

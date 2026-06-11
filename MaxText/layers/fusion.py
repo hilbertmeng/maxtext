@@ -87,6 +87,7 @@ class SubDecoderLayer(nn.Module):
       deterministic,
       model_mode,
       eos_sum,
+      kv_shift_plan=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -161,6 +162,7 @@ class SubDecoderLayer(nn.Module):
         model_mode=model_mode,
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
+        kv_shift_plan=kv_shift_plan,
     )
    
     if cfg.record_internal_nn_metrics:
@@ -317,6 +319,7 @@ class FusionDecoderLayer(nn.Module):
       model_mode,
       hids=None,
       eos_sum=None,
+      kv_shift_plan=None,
   ):
     cfg = self.config
     if cfg.partial_scan_layers:
@@ -330,6 +333,7 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         hids,
         eos_sum,
+        kv_shift_plan,
       )
 
     if cfg.dense_conn:
@@ -362,6 +366,7 @@ class FusionDecoderLayer(nn.Module):
         deterministic,
         model_mode,
         eos_sum,
+        kv_shift_plan=kv_shift_plan,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
@@ -390,6 +395,7 @@ class FusionDecoderLayer(nn.Module):
       model_mode,
       hids=None,
       eos_sum=None,
+      kv_shift_plan=None,
   ):
     cfg = self.config
     if cfg.dense_conn and self.layer_inx > 0:  # compose for the first layer when mudd has extra embeddings
@@ -417,6 +423,7 @@ class FusionDecoderLayer(nn.Module):
         deterministic,
         model_mode,
         eos_sum,
+        kv_shift_plan=kv_shift_plan,
     )
     if cfg.record_internal_nn_metrics:
       layer_output_l2norm = jnp.sqrt(jnp.sum(jnp.square(output)))

@@ -143,8 +143,16 @@ class DC2(DC):
 class KVshift:
     use_kv_shift = True
     kv_shift_flash = True
+    kv_shift_mode = '1d'
     kv_shift_hidden_way = 'kv'
     kv_shift_skip_knorm = True
+
+class KVshift2D:
+    kv_shift_mode = 'arc_2d'
+    kv_shift_arc_row_stride = 32
+    kv_shift_arc_grid_size = 1024
+    kv_shift_arc_marker_position = 16383
+    kv_shift_arc_2d_softmax = True
 
 class SpeedTest:
     enable_checkpointing = False 
@@ -426,6 +434,20 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeM
     dataset_path = 'gs://newproject-1-common_datasets_us-east5/nvarc_tfrecord_enhanced/all_puzzle/'
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzle'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzle'
+
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift2DAllpuzzle(
+    KVshift2D, Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzle
+):
+    kv_shift_arc_2d_softmax = False
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift2DAllpuzzle'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift2DAllpuzzle'
+
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift2DAllpuzzleSoftmax(
+    KVshift2D, Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzle
+):
+    kv_shift_arc_2d_softmax = True
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift2DAllpuzzleSoftmax'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift2DAllpuzzleSoftmax'
 
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzleComplex(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzle):
     dataset_path = 'gs://newproject-1-common_datasets_us-east5/nvarc_tfrecord_enhanced/all_puzzle_complex/'

@@ -589,6 +589,12 @@ normuon_beta2: 0.999  # Decay rate for neuron-level second moment (similar to Ad
 # ================================= [kv shift] =================================
 kv_shift_flash: True
 use_kv_shift: False
+kv_shift_mode: '1d' # choices: ['1d', 'arc_2d']; arc_2d uses previous, top-left, top, top-right, self
+kv_shift_arc_row_stride: 32
+kv_shift_arc_grid_size: 1024
+kv_shift_arc_marker_position: 16383
+kv_shift_arc_max_position: 16384
+kv_shift_arc_2d_softmax: True
 kv_shift_hidden_way: 'kv'
 kv_shift_skip_knorm: True
 use_o_shift: False

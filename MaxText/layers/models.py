@@ -37,7 +37,7 @@ import max_utils
 from layers import mtp
 from layers import mudd
 from layers import engram
-from layers.kv_shift import shift_1d
+from layers.kv_shift import arc_2d_causal_shift_plan, shift_1d
 from collections import defaultdict
 from functools import partial
 
@@ -610,6 +610,17 @@ class Decoder(nn.Module):
     else:
       eos_sum = None
 
+    kv_shift_plan = None
+    if cfg.use_kv_shift and getattr(cfg, "kv_shift_mode", "1d") == "arc_2d":
+      kv_shift_plan = arc_2d_causal_shift_plan(
+          decoder_positions,
+          decoder_segment_ids=decoder_segment_ids,
+          row_stride=getattr(cfg, "kv_shift_arc_row_stride", 32),
+          grid_size=getattr(cfg, "kv_shift_arc_grid_size", 1024),
+          marker_position=getattr(cfg, "kv_shift_arc_marker_position", 16383),
+          max_position=getattr(cfg, "kv_shift_arc_max_position", getattr(cfg, "rope_max_position", 16384)),
+      )
+
     # [batch, length] -> [batch, length, emb_dim]
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y, mtp_de = jnp.split(y, [cfg.emb_dim], axis=-1)
@@ -836,6 +847,7 @@ class Decoder(nn.Module):
               model_mode,
               hids=hids,
               eos_sum=eos_sum,
+              kv_shift_plan=kv_shift_plan,
           )
           if isinstance(layer_output, tuple):
             y = layer_output[0]
@@ -1001,6 +1013,7 @@ class Decoder(nn.Module):
               model_mode,
               hids=hids,
               eos_sum=eos_sum,
+              kv_shift_plan=kv_shift_plan,
           )
 
     if cfg.dense_conn:

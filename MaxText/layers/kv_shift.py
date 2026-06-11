@@ -122,18 +122,21 @@ def arc_2d_causal_shift_plan(
 
 
 def apply_arc_2d_causal_shift(inputs, logits, source_indices, source_valid, softmax=True):
-  sources = jnp.stack(
-      [gather_by_seq_index(inputs, source_indices[..., i]) for i in range(source_indices.shape[-1])],
-      axis=-1,
-  )
   logits = logits.astype(jnp.float32)
+  num_sources = source_indices.shape[-1]
   if softmax:
     masked_logits = jnp.where(source_valid[:, :, None, :], logits, jnp.asarray(-1.0e9, dtype=jnp.float32))
     weights = jax.nn.softmax(masked_logits, axis=-1).astype(inputs.dtype)
-    out = jnp.sum(sources * weights[..., None, :], axis=-1)
+    out = jnp.zeros_like(inputs)
+    for i in range(num_sources):
+      source = inputs if i == num_sources - 1 else gather_by_seq_index(inputs, source_indices[..., i])
+      out = out + source * weights[..., i][..., None]
   else:
     weights = jnp.where(source_valid[:, :, None, :], logits, jnp.asarray(0.0, dtype=jnp.float32)).astype(inputs.dtype)
-    out = sources[..., -1] + jnp.sum(sources * weights[..., None, :], axis=-1)
+    out = inputs
+    for i in range(num_sources):
+      source = inputs if i == num_sources - 1 else gather_by_seq_index(inputs, source_indices[..., i])
+      out = out + source * weights[..., i][..., None]
   return out
 
 

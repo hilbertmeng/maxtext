@@ -45,6 +45,17 @@ def gather_by_seq_index(inputs, indices):
   return jnp.take_along_axis(inputs, indices, axis=1)
 
 
+def gather_sources_by_seq_index(inputs, indices):
+  """Gather [B, T, ...] inputs at per-example source indices [B, T, S]."""
+  batch, length = inputs.shape[:2]
+  indices = jnp.clip(indices, 0, length - 1)
+  batch_offsets = jnp.arange(batch, dtype=indices.dtype)[:, None, None] * length
+  flat_indices = indices + batch_offsets
+  flat_inputs = jnp.reshape(inputs, (batch * length,) + inputs.shape[2:])
+  sources = jnp.take(flat_inputs, flat_indices, axis=0)
+  return jnp.moveaxis(sources, 2, -1)
+
+
 def _position_to_seq_index_table(positions, token_valid, max_position):
   batch, length = positions.shape
   positions = positions.astype(jnp.int32)
@@ -122,21 +133,15 @@ def arc_2d_causal_shift_plan(
 
 
 def apply_arc_2d_causal_shift(inputs, logits, source_indices, source_valid, softmax=True):
+  sources = gather_sources_by_seq_index(inputs, source_indices)
   logits = logits.astype(jnp.float32)
-  num_sources = source_indices.shape[-1]
   if softmax:
     masked_logits = jnp.where(source_valid[:, :, None, :], logits, jnp.asarray(-1.0e9, dtype=jnp.float32))
     weights = jax.nn.softmax(masked_logits, axis=-1).astype(inputs.dtype)
-    out = jnp.zeros_like(inputs)
-    for i in range(num_sources):
-      source = inputs if i == num_sources - 1 else gather_by_seq_index(inputs, source_indices[..., i])
-      out = out + source * weights[..., i][..., None]
+    out = jnp.sum(sources * weights[..., None, :], axis=-1)
   else:
     weights = jnp.where(source_valid[:, :, None, :], logits, jnp.asarray(0.0, dtype=jnp.float32)).astype(inputs.dtype)
-    out = inputs
-    for i in range(num_sources):
-      source = inputs if i == num_sources - 1 else gather_by_seq_index(inputs, source_indices[..., i])
-      out = out + source * weights[..., i][..., None]
+    out = inputs + jnp.sum(sources * weights[..., None, :], axis=-1)
   return out
 
 

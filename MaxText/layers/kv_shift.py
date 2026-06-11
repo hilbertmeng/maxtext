@@ -151,14 +151,8 @@ def apply_arc_2d_causal_shift(inputs, logits, source_indices, source_valid, soft
   else:
     weights = jnp.where(source_valid[:, :, None, :], logits, jnp.asarray(0.0, dtype=jnp.float32)).astype(inputs.dtype)
     out = inputs
-  source_count = source_indices.shape[-1]
   for source in range(source_indices.shape[-1]):
-    if source_count == 5 and source == 0:
-      gathered = shift_1d(inputs, offset=1, axis=1)
-    elif source_count == 5 and source == 4:
-      gathered = inputs
-    else:
-      gathered = gather_flat_by_seq_index(inputs, source_indices[..., source])
+    gathered = gather_flat_by_seq_index(inputs, source_indices[..., source])
     out = out + gathered * weights[..., source, None]
   return out
 

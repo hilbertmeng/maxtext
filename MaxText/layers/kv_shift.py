@@ -56,6 +56,16 @@ def gather_sources_by_seq_index(inputs, indices):
   return jnp.moveaxis(sources, 2, -1)
 
 
+def gather_flat_by_seq_index(inputs, indices):
+  """Gather [B, T, ...] inputs at per-example sequence indices [B, T]."""
+  batch, length = inputs.shape[:2]
+  indices = jnp.clip(indices, 0, length - 1)
+  batch_offsets = jnp.arange(batch, dtype=indices.dtype)[:, None] * length
+  flat_indices = indices + batch_offsets
+  flat_inputs = jnp.reshape(inputs, (batch * length,) + inputs.shape[2:])
+  return jnp.take(flat_inputs, flat_indices, axis=0)
+
+
 def _position_to_seq_index_table(positions, token_valid, max_position):
   batch, length = positions.shape
   positions = positions.astype(jnp.int32)
@@ -133,15 +143,17 @@ def arc_2d_causal_shift_plan(
 
 
 def apply_arc_2d_causal_shift(inputs, logits, source_indices, source_valid, softmax=True):
-  sources = gather_sources_by_seq_index(inputs, source_indices)
   logits = logits.astype(jnp.float32)
   if softmax:
     masked_logits = jnp.where(source_valid[:, :, None, :], logits, jnp.asarray(-1.0e9, dtype=jnp.float32))
     weights = jax.nn.softmax(masked_logits, axis=-1).astype(inputs.dtype)
-    out = jnp.sum(sources * weights[..., None, :], axis=-1)
+    out = jnp.zeros_like(inputs)
   else:
     weights = jnp.where(source_valid[:, :, None, :], logits, jnp.asarray(0.0, dtype=jnp.float32)).astype(inputs.dtype)
-    out = inputs + jnp.sum(sources * weights[..., None, :], axis=-1)
+    out = inputs
+  for source in range(source_indices.shape[-1]):
+    gathered = gather_flat_by_seq_index(inputs, source_indices[..., source])
+    out = out + gathered * weights[..., source, None]
   return out
 
 
@@ -250,6 +262,10 @@ class KVshift(nn.Module):
                                       use_bias=False,
                                       name='kv_shift_proj',
                                       **kwargs)
+
+  def _touch_dense_params(self, dense, inputs):
+    dummy = jnp.zeros((1, 1, inputs.shape[-1]), dtype=inputs.dtype)
+    return dense(dummy)
       
   @nn.compact
   def __call__(
@@ -269,6 +285,10 @@ class KVshift(nn.Module):
     inputs = inputs_q
 
     if self.kv_shift_mode == "arc_2d":
+      if skip_shift:
+        self._touch_dense_params(self.dw_proj_k, inputs_k)
+        self._touch_dense_params(self.dw_proj_v, inputs_v)
+        return query, key, value
       if inputs_positions is None:
         raise ValueError("kv_shift_mode='arc_2d' requires inputs_positions.")
       kg = self.dw_proj_k(inputs_k)
@@ -285,8 +305,6 @@ class KVshift(nn.Module):
       )
       arc_2d_softmax = getattr(self.config, "kv_shift_arc_2d_softmax", True)
       arc_2d_softmax = True if arc_2d_softmax is None else arc_2d_softmax
-      if skip_shift:
-        return query, key, value
       if kv_shift_plan is None:
         key, value = arc_2d_causal_shift_kv(
             key,
@@ -303,17 +321,20 @@ class KVshift(nn.Module):
         key = apply_arc_2d_causal_shift(key, kg, source_indices, source_valid, softmax=arc_2d_softmax)
         value = apply_arc_2d_causal_shift(value, vg, source_indices, source_valid, softmax=arc_2d_softmax)
     elif self.config.kv_shift_flash:
+      if skip_shift:
+        self._touch_dense_params(self.dw_proj_k, inputs_k)
+        self._touch_dense_params(self.dw_proj_v, inputs_v)
+        return query, key, value
       kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))[..., jnp.newaxis]
       vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))[..., jnp.newaxis]
-      if skip_shift:
-        return query, key, value
       key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
       value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
 
     else:
-      dw = jax.nn.sigmoid(self.dw_proj(inputs[:,1:]))
       if skip_shift:
+        self._touch_dense_params(self.dw_proj, inputs)
         return query, key, value
+      dw = jax.nn.sigmoid(self.dw_proj(inputs[:,1:]))
       dw = dw.reshape(*dw.shape[:-1], -1, self.num_shifts)
       kg, vg = dw[...,:1], dw[...,1:] # B(T-1)N1
       key = key.at[:, 1:].set( key[:,1:] * kg + (1-kg) * key[:,:-1]) 

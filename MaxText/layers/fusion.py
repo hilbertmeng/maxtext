@@ -54,6 +54,25 @@ Attention = attentions.Attention
 Quant = quantizations.AqtQuantization
 
 
+def _parse_layer_list(layers):
+  if layers in (None, "", [], ()):
+    return None
+  if isinstance(layers, str):
+    return {int(x.strip()) for x in layers.split(",") if x.strip()}
+  return {int(x) for x in layers}
+
+
+def _uses_kv_shift_on_layer(cfg, layer_inx):
+  explicit_layers = _parse_layer_list(getattr(cfg, "kv_shift_layers", None))
+  if explicit_layers is not None:
+    return layer_inx in explicit_layers
+  period = int(getattr(cfg, "kv_shift_layer_period", 1) or 1)
+  offset = int(getattr(cfg, "kv_shift_layer_offset", 0) or 0)
+  if period <= 1:
+    return True
+  return (layer_inx - offset) % period == 0
+
+
 class SubDecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
 
@@ -123,6 +142,10 @@ class SubDecoderLayer(nn.Module):
 
     max_logging.log(f'layer_inx: {self.layer_inx} sliding window size: {self.sliding_window_size} n: {n}', debug=cfg.debug)
     max_logging.log(f'query heads: {num_query_heads} kv heads: {num_kv_heads} head_dim: {head_dim}', debug=cfg.debug)
+    apply_kv_shift = cfg.use_kv_shift and _uses_kv_shift_on_layer(cfg, self.layer_inx)
+    instantiate_kv_shift = apply_kv_shift or (
+        cfg.use_kv_shift and getattr(cfg, "kv_shift_keep_params_on_skipped_layers", False)
+    )
     # Self-attention block
     attention_layer = Attention(
         config=cfg,
@@ -149,7 +172,8 @@ class SubDecoderLayer(nn.Module):
         ragged_block_size=cfg.ragged_block_size,
         kernel_init=initializers.get_init_method(cfg.init_method), # lsp
         sliding_window_size=self.sliding_window_size,
-        use_kv_shift=cfg.use_kv_shift,
+        use_kv_shift=instantiate_kv_shift,
+        apply_kv_shift=apply_kv_shift,
     )
 
     attention_lnx = attention_layer(

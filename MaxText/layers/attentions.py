@@ -1141,6 +1141,7 @@ class Attention(nn.Module):
   compute_axis_order: AxisIdxes = (0, 1, 2, 3)
   reshape_q: bool = False
   use_kv_shift: bool = False
+  apply_kv_shift: bool = True
 
   def setup(self):
     if (self.config.pre_compose or self.config.post_compose) \
@@ -1427,6 +1428,7 @@ class Attention(nn.Module):
           inputs_positions=inputs_positions,
           decoder_segment_ids=decoder_segment_ids,
           kv_shift_plan=kv_shift_plan,
+          skip_shift=not self.apply_kv_shift,
       )
     
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key) # lsp

@@ -264,6 +264,7 @@ class KVshift(nn.Module):
       inputs_positions=None, # BT
       decoder_segment_ids=None, # BT
       kv_shift_plan=None, # (source_indices, source_valid)
+      skip_shift=False,
   ):
     inputs = inputs_q
 
@@ -284,6 +285,8 @@ class KVshift(nn.Module):
       )
       arc_2d_softmax = getattr(self.config, "kv_shift_arc_2d_softmax", True)
       arc_2d_softmax = True if arc_2d_softmax is None else arc_2d_softmax
+      if skip_shift:
+        return query, key, value
       if kv_shift_plan is None:
         key, value = arc_2d_causal_shift_kv(
             key,
@@ -302,11 +305,15 @@ class KVshift(nn.Module):
     elif self.config.kv_shift_flash:
       kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))[..., jnp.newaxis]
       vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))[..., jnp.newaxis]
+      if skip_shift:
+        return query, key, value
       key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
       value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
 
     else:
       dw = jax.nn.sigmoid(self.dw_proj(inputs[:,1:]))
+      if skip_shift:
+        return query, key, value
       dw = dw.reshape(*dw.shape[:-1], -1, self.num_shifts)
       kg, vg = dw[...,:1], dw[...,1:] # B(T-1)N1
       key = key.at[:, 1:].set( key[:,1:] * kg + (1-kg) * key[:,:-1]) 

@@ -434,6 +434,19 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeM
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
 
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMTP(MTP1Layer, Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
+    mtp_norm = True
+    mtp_num_layers = 4  # 4 MTP heads predict +2..+5; with NTP (+1) the model predicts 5 tokens per position
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMTP'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMTP'
+
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMuon(Muon, Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
+    muon_scale = 0.5       
+    final_muon_scale = 0.5
+    mudd_use_muon = True    # route Mudd compose weights through Muon
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMuon'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMuon'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftLGLL(LGLLWindow, Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftLGLL'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftLGLL'

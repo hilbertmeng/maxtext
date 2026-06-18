@@ -146,6 +146,14 @@ class SubDecoderLayer(nn.Module):
     instantiate_kv_shift = apply_kv_shift or (
         cfg.use_kv_shift and getattr(cfg, "kv_shift_keep_params_on_skipped_layers", False)
     )
+    # splash/flash and dot_product only apply the local window when attention_type is
+    # LOCAL_SLIDING. Derive it per layer so sliding-window layers (e.g. LGLL) take effect
+    # under splash; global layers (sws == max_target_length) stay GLOBAL.
+    attention_type = (
+        attentions.AttentionType.LOCAL_SLIDING
+        if self.sliding_window_size is not None and self.sliding_window_size < cfg.max_target_length
+        else attentions.AttentionType.GLOBAL
+    )
     # Self-attention block
     attention_layer = Attention(
         config=cfg,
@@ -155,6 +163,7 @@ class SubDecoderLayer(nn.Module):
         max_target_length=cfg.max_target_length,
         max_prefill_predict_length=cfg.max_prefill_predict_length,
         attention_kernel=cfg.attention,
+        attention_type=attention_type,
         mesh=mesh,
         dtype=cfg.dtype,
         weight_dtype=cfg.weight_dtype,

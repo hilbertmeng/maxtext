@@ -138,7 +138,7 @@ class MultiTokenPredictionLayer(nn.Module):
           mtp_de,
           deterministic,
           model_mode,
-          hids=None, # mtp compose after layer
+          hids=hids,
     )
 
     if cfg.dense_conn and cfg.partial_scan_layers and hids:

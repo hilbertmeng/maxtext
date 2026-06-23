@@ -436,6 +436,7 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeM
 
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMTP4(MTP1Layer, Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
     mtp_norm = True
+    mtp_use_compose = True
     mtp_num_layers = 4  # 4 MTP heads predict +2..+5; with NTP (+1) the model predicts 5 tokens per position
     mtp_eval_target_module = 4
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMTP4'

@@ -625,8 +625,9 @@ class Decoder(nn.Module):
     y = self.shared_embedding(decoder_input_tokens.astype("int32"))
     y, mtp_de = jnp.split(y, [cfg.emb_dim], axis=-1)
     max_logging.log(f'mtp_de: {mtp_de}', debug=cfg.debug)
-    # mtp need to roll_input_ids embedding, it can reduce 12ms time to extract in here.
-    rolled_y = jnp.pad(y[:, 1:], ((0, 0), (0, 1), (0, 0)), mode='constant', constant_values=0)
+    mtp_token_embedding = y
+    # MTP rolls the token embedding inside MultiTokenPredictionBlock so each
+    # head receives the matching +k future token embedding.
 
     y = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(y, deterministic=deterministic)
     y = y.astype(cfg.dtype)
@@ -1060,7 +1061,7 @@ class Decoder(nn.Module):
         name="mtp_block",
         transformer_layer_module=self.decoder_layer[0] \
           if cfg.mtp_use_remat or cfg.base_emb_dim <= 2048 else RemattedBlockLayers[0], # 模型小的时候，不使用remat
-        shared_embedding=[rolled_y, mtp_de],
+        shared_embedding=[mtp_token_embedding, mtp_de],
         sliding_window_size=swss[-1],
       )(
         OutputHeadLayer,

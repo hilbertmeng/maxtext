@@ -91,6 +91,7 @@ class MultiTokenPredictionLayer(nn.Module):
     cfg = self.config
     mesh = self.mesh
     k = self.layer_number
+    hids = [] if hids is None else hids
 
     projected_features = []
     embedding_norm_layer = rms_norm(
@@ -140,7 +141,7 @@ class MultiTokenPredictionLayer(nn.Module):
           hids=None, # mtp compose after layer
     )
 
-    if cfg.dense_conn and cfg.partial_scan_layers:
+    if cfg.dense_conn and cfg.partial_scan_layers and hids:
       y, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
         name=f'compose_final',
@@ -190,6 +191,7 @@ class MultiTokenPredictionBlock(nn.Module):
     rolled_target_ids = target_ids
     rolled_target_mask = target_mask
     rolled_position_id = position_ids
+    target_token_embedding, mtp_de = self.shared_embedding
 
     # Range chosen to align with the naming convention of the paper
     for k in range(1, cfg.mtp_num_layers + 1):
@@ -198,15 +200,16 @@ class MultiTokenPredictionBlock(nn.Module):
       rolled_target_ids = roll_and_mask(rolled_target_ids)
       rolled_target_mask = roll_and_mask(rolled_target_mask)
       rolled_position_id = roll_and_mask(rolled_position_id)
+      target_token_embedding = roll_and_mask(target_token_embedding)
+      mtp_de = roll_and_mask(mtp_de)
 
       # Embed the k-th future input tokens using the shared embedding module
-      target_token_embedding, mtp_de = self.shared_embedding
       if cfg.mtp_use_remat:
         RematMTPLayer = nn.remat(  # pylint: disable=invalid-name
             MultiTokenPredictionLayer,
             prevent_cse=cfg.remat_prevent_cse,
             policy=None,
-            static_argnums=(5, ), # 务必注意：参数中有默认值的不能作为静态参数
+            static_argnums=(4, 7),
             rngs={"params": True, "aqt": True, "dropout": True},
         )
       else:
@@ -225,7 +228,14 @@ class MultiTokenPredictionBlock(nn.Module):
           mtp_de=mtp_de,
       )
       next_mtp_hidden_state, hids = mtp_layer(
-          mtp_hidden_state, target_token_embedding, rolled_position_id, decoder_segment_ids, deterministic, hids, rolled_input_ids
+          mtp_hidden_state,
+          target_token_embedding,
+          rolled_position_id,
+          decoder_segment_ids,
+          deterministic,
+          hids,
+          rolled_input_ids,
+          model_mode,
       )
       if cfg.mtp_norm:
         mtp_norm = normalizations.get_rmsnorm("mtp_norm", cfg)

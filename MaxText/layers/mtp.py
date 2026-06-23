@@ -238,7 +238,7 @@ class MultiTokenPredictionBlock(nn.Module):
           model_mode,
       )
       if cfg.mtp_norm:
-        mtp_norm = normalizations.get_rmsnorm("mtp_norm", cfg)
+        mtp_norm = normalizations.get_rmsnorm(f"mtp_norm_{k - 1}", cfg)
         next_mtp_hidden_state = [mtp_norm(next_mtp_hidden_state[0])] if isinstance(next_mtp_hidden_state, tuple|list) else mtp_norm(next_mtp_hidden_state)
       mtp_hidden_state_for_loss = (
           next_mtp_hidden_state[0] if isinstance(next_mtp_hidden_state, tuple|list) else next_mtp_hidden_state

@@ -1524,36 +1524,53 @@ class Attention(nn.Module):
     b, t, n, d = query.shape
     assert n % 2 == 0, f"paired_head requires even num_query_heads, got {n}"
     kv_heads = key.shape[-2]
-    # GQA: bring K/V up to the query head count so pairs line up.
-    if kv_heads < n:
-      assert n % kv_heads == 0, f"paired_head requires query heads divisible by kv heads, got {n=} {kv_heads=}"
-      key = jnp.repeat(key, n // kv_heads, axis=-2)
-    if value.shape[-2] < n:
-      value = jnp.repeat(value, n // value.shape[-2], axis=-2)
-
-    inverse_head_order = None
     pairing = getattr(self.config, "paired_head_pairing", "adjacent")
-    if pairing == "cross_gqa" and kv_heads < n:
-      group_size = n // kv_heads
-      assert kv_heads % 2 == 0, f"cross_gqa paired_head requires even kv heads, got {kv_heads}"
-      head_order = []
-      for slot in range(group_size):
-        for kv_idx in range(0, kv_heads, 2):
-          head_order.extend([kv_idx * group_size + slot, (kv_idx + 1) * group_size + slot])
-      head_order = jnp.asarray(head_order, dtype=jnp.int32)
-      inverse_head_order = jnp.argsort(head_order)
-      query = jnp.take(query, head_order, axis=2)
-      key = jnp.take(key, head_order, axis=2)
-      value = jnp.take(value, head_order, axis=2)
-    elif pairing != "adjacent":
-      raise ValueError(f"Unexpected paired_head_pairing={pairing!r}")
 
     def interleave(x):  # [B, T, N, D] -> [B, 2T, N//2, D]; doubled pos 2t+slot, slot in {head 2j, head 2j+1}
       x = x.reshape(b, t, n // 2, 2, d)
       x = jnp.swapaxes(x, 2, 3)
       return x.reshape(b, t * 2, n // 2, d)
 
-    q2, k2, v2 = interleave(query), interleave(key), interleave(value)
+    inverse_head_order = None
+    if pairing == "cross_gqa" and kv_heads < n:
+      assert value.shape[-2] == kv_heads, f"cross_gqa paired_head requires matching key/value heads, got {kv_heads=} value_heads={value.shape[-2]}"
+      assert n % kv_heads == 0, f"paired_head requires query heads divisible by kv heads, got {n=} {kv_heads=}"
+      group_size = n // kv_heads
+      assert kv_heads % 2 == 0, f"cross_gqa paired_head requires even kv heads, got {kv_heads}"
+      head_order = []
+      left_kv_order = []
+      right_kv_order = []
+      for slot in range(group_size):
+        for kv_idx in range(0, kv_heads, 2):
+          head_order.extend([kv_idx * group_size + slot, (kv_idx + 1) * group_size + slot])
+          left_kv_order.append(kv_idx)
+          right_kv_order.append(kv_idx + 1)
+
+      head_order = jnp.asarray(head_order, dtype=jnp.int32)
+      inverse_head_order = jnp.argsort(head_order)
+      q2 = interleave(jnp.take(query, head_order, axis=2))
+
+      left_kv_order = jnp.asarray(left_kv_order, dtype=jnp.int32)
+      right_kv_order = jnp.asarray(right_kv_order, dtype=jnp.int32)
+
+      def interleave_cross_gqa_kv(x):
+        x_left = jnp.take(x, left_kv_order, axis=2)
+        x_right = jnp.take(x, right_kv_order, axis=2)
+        x = jnp.stack([x_left, x_right], axis=2)
+        return x.reshape(b, t * 2, n // 2, d)
+
+      k2, v2 = interleave_cross_gqa_kv(key), interleave_cross_gqa_kv(value)
+    else:
+      if pairing != "adjacent":
+        raise ValueError(f"Unexpected paired_head_pairing={pairing!r}")
+      # GQA: bring K/V up to the query head count so adjacent pairs line up.
+      if kv_heads < n:
+        assert n % kv_heads == 0, f"paired_head requires query heads divisible by kv heads, got {n=} {kv_heads=}"
+        key = jnp.repeat(key, n // kv_heads, axis=-2)
+      if value.shape[-2] < n:
+        value = jnp.repeat(value, n // value.shape[-2], axis=-2)
+      q2, k2, v2 = interleave(query), interleave(key), interleave(value)
+
     seg2 = jnp.repeat(decoder_segment_ids, 2, axis=1) if decoder_segment_ids is not None else None
 
     out2 = self.attention_op(q2, k2, v2, seg2, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)

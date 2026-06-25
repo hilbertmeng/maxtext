@@ -1498,7 +1498,10 @@ class Attention(nn.Module):
       value = value * v_gate[...,None] # BSND, BSN1->BSND
 
     print(f'query: {query.shape} key: {key.shape} value: {value.shape}')
-    out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
+    if getattr(cfg, "paired_head", False):
+      out = self.paired_head_attention(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum)
+    else:
+      out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 
@@ -1508,6 +1511,38 @@ class Attention(nn.Module):
     out = self.out_projection(inputs_q.shape[-1], out)
     out = checkpoint_name(out, "out_proj")
     return out
+
+  def paired_head_attention(self, query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum):
+    """Paired-head attention (modded-nanogpt train_gpt.py CausalSelfAttention(paired=True)).
+
+    Adjacent heads (2j, 2j+1) are interleaved into a single causal sequence of length 2T so
+    each head's query can attend to its partner head's keys. RoPE/scaling are already applied
+    per head upstream (golden-gate native); here we only build the interleaved sequence, run the
+    standard attention op (splash/chunked) over 2T, then de-interleave back to [B, T, N, D].
+    """
+    assert model_mode != common_types.MODEL_MODE_AUTOREGRESSIVE, "paired_head not supported for autoregressive decode"
+    b, t, n, d = query.shape
+    assert n % 2 == 0, f"paired_head requires even num_query_heads, got {n}"
+    # GQA: bring K/V up to the query head count so pairs line up.
+    if key.shape[-2] < n:
+      key = jnp.repeat(key, n // key.shape[-2], axis=-2)
+    if value.shape[-2] < n:
+      value = jnp.repeat(value, n // value.shape[-2], axis=-2)
+
+    def interleave(x):  # [B, T, N, D] -> [B, 2T, N//2, D]; doubled pos 2t+slot, slot in {head 2j, head 2j+1}
+      x = x.reshape(b, t, n // 2, 2, d)
+      x = jnp.swapaxes(x, 2, 3)
+      return x.reshape(b, t * 2, n // 2, d)
+
+    q2, k2, v2 = interleave(query), interleave(key), interleave(value)
+    seg2 = jnp.repeat(decoder_segment_ids, 2, axis=1) if decoder_segment_ids is not None else None
+
+    out2 = self.attention_op(q2, k2, v2, seg2, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
+
+    # de-interleave [B, 2T, N//2, D] -> [B, T, N, D]
+    out = out2.reshape(b, t, 2, n // 2, d)
+    out = jnp.swapaxes(out, 2, 3)
+    return out.reshape(b, t, n, d)
 
 
 class MLA(Attention):

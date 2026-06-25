@@ -704,6 +704,9 @@ num_vocab_tiling: 1
 remat_prevent_cse: True # set to True can save some memory
 log_period: 25 # Flushes Tensorboard
 attention: 'autoselected' # ['autoselected', 'dot_product', 'flash', 'cudnn_flash_te']
+# Paired-head attention (modded-nanogpt train_gpt.py): adjacent heads share attention via an
+# interleaved 2x-length causal sequence. Off by default; requires even num_query_heads.
+paired_head: False
 only_eval: False
 # sharding tolerance: float between 0.0 and 1.0 representing the allowed percentage of non-sharded parameters.
 sharding_tolerance: 0.02

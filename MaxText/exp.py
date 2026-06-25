@@ -434,6 +434,13 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeM
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
 
+class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftPairedHead(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
+    paired_head = True  # adjacent heads share attention via an interleaved 2T causal sequence
+    dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/arc/nvarc_tfrecord_shuffled_one_file/'
+    eval_dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/arc/nvarc_tfrecord_shuffled/arc2_evaluation6/tfrecord'
+    run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftPairedHead'
+    model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftPairedHead'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMTP4(MTP1Layer, Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
     mtp_norm = True
     mtp_use_compose = True

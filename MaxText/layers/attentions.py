@@ -1523,11 +1523,30 @@ class Attention(nn.Module):
     assert model_mode != common_types.MODEL_MODE_AUTOREGRESSIVE, "paired_head not supported for autoregressive decode"
     b, t, n, d = query.shape
     assert n % 2 == 0, f"paired_head requires even num_query_heads, got {n}"
+    kv_heads = key.shape[-2]
     # GQA: bring K/V up to the query head count so pairs line up.
-    if key.shape[-2] < n:
-      key = jnp.repeat(key, n // key.shape[-2], axis=-2)
+    if kv_heads < n:
+      assert n % kv_heads == 0, f"paired_head requires query heads divisible by kv heads, got {n=} {kv_heads=}"
+      key = jnp.repeat(key, n // kv_heads, axis=-2)
     if value.shape[-2] < n:
       value = jnp.repeat(value, n // value.shape[-2], axis=-2)
+
+    inverse_head_order = None
+    pairing = getattr(self.config, "paired_head_pairing", "adjacent")
+    if pairing == "cross_gqa" and kv_heads < n:
+      group_size = n // kv_heads
+      assert kv_heads % 2 == 0, f"cross_gqa paired_head requires even kv heads, got {kv_heads}"
+      head_order = []
+      for slot in range(group_size):
+        for kv_idx in range(0, kv_heads, 2):
+          head_order.extend([kv_idx * group_size + slot, (kv_idx + 1) * group_size + slot])
+      head_order = jnp.asarray(head_order, dtype=jnp.int32)
+      inverse_head_order = jnp.argsort(head_order)
+      query = jnp.take(query, head_order, axis=2)
+      key = jnp.take(key, head_order, axis=2)
+      value = jnp.take(value, head_order, axis=2)
+    elif pairing != "adjacent":
+      raise ValueError(f"Unexpected paired_head_pairing={pairing!r}")
 
     def interleave(x):  # [B, T, N, D] -> [B, 2T, N//2, D]; doubled pos 2t+slot, slot in {head 2j, head 2j+1}
       x = x.reshape(b, t, n // 2, 2, d)
@@ -1542,7 +1561,10 @@ class Attention(nn.Module):
     # de-interleave [B, 2T, N//2, D] -> [B, T, N, D]
     out = out2.reshape(b, t, 2, n // 2, d)
     out = jnp.swapaxes(out, 2, 3)
-    return out.reshape(b, t, n, d)
+    out = out.reshape(b, t, n, d)
+    if inverse_head_order is not None:
+      out = jnp.take(out, inverse_head_order, axis=2)
+    return out
 
 
 class MLA(Attention):

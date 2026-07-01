@@ -381,6 +381,18 @@ def _checkpoint_metadata_tree(checkpointer, checkpoint_path):
   return getattr(item_metadata, "tree", None)
 
 
+def _tree_structure_matches(tree, structure):
+  tree_is_mapping = isinstance(tree, (dict, flax.core.FrozenDict))
+  structure_is_mapping = isinstance(structure, (dict, flax.core.FrozenDict))
+  if tree_is_mapping or structure_is_mapping:
+    if not tree_is_mapping or not structure_is_mapping:
+      return False
+    if set(tree.keys()) != set(structure.keys()):
+      return False
+    return all(_tree_structure_matches(tree[key], structure[key]) for key in tree)
+  return True
+
+
 def _layers_i_keys(decoder):
   return sorted(
       (key for key in decoder if isinstance(key, str) and key.startswith("layers_") and key[7:].isdigit()),
@@ -445,12 +457,14 @@ def _unroll_restored_scanned_layers(restored_params, num_decoder_layers, param_s
   scanned_layers = decoder.pop("layers")
   for layer_idx in range(num_decoder_layers):
     decoder[f"layers_{layer_idx}"] = jax.tree_util.tree_map(
-        lambda x, idx=layer_idx: (
-            _with_removed_scan_axis(x, param_scan_axis)
-            if isinstance(x, jax.ShapeDtypeStruct)
-            else jnp.take(x, idx, axis=param_scan_axis)
-        ),
-        scanned_layers,
+      lambda x, idx=layer_idx: (
+          _with_removed_scan_axis(x, param_scan_axis)
+          if isinstance(x, jax.ShapeDtypeStruct)
+          else np.take(x, idx, axis=param_scan_axis)
+          if isinstance(x, np.ndarray)
+          else jnp.take(x, idx, axis=param_scan_axis)
+      ),
+      scanned_layers,
     )
   return flax.core.freeze(params) if params_was_frozen else params
 
@@ -490,6 +504,15 @@ def load_params_from_path(
     if checkpoint_tree is not None:
       restore_item = _filter_tree_to_structure(restore_item, checkpoint_tree)
       abstract_unboxed_params = restore_item["params"]
+      if not _tree_structure_matches(restore_item, checkpoint_tree):
+        max_logging.log(
+            "Scanned restore target does not match checkpoint metadata; restoring full params before unroll."
+        )
+        restored = ckptr.restore(ckpt)
+        restored_params = restored["params"]
+        if skip_paths:
+          restored_params = _without_nested_paths(restored_params, skip_paths)
+        return _unroll_restored_scanned_layers(restored_params, num_decoder_layers, param_scan_axis)
     else:
       max_logging.log("Checkpoint metadata tree unavailable; restoring with unfiltered target.")
 
@@ -498,7 +521,8 @@ def load_params_from_path(
   # We intentionally pass only the params subtree here, while full training
   # checkpoints may also contain opt_state and step. Tell Orbax this partial
   # tree mismatch is expected.
-  restore_kwargs["partial_restore"] = True
+  if not (unroll_scanned_layers and checkpoint_tree is not None):
+    restore_kwargs["partial_restore"] = True
   restored = ckptr.restore(ckpt, args=ocp.args.PyTreeRestore(**restore_kwargs))
   restored_params = restored["params"]
   if unroll_scanned_layers:

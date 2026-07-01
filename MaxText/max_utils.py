@@ -726,19 +726,23 @@ def merge_restored_params_into_initialized(initialized_params, restored_params):
   def place_like_initialized(initialized_value, restored_value):
     sharding = getattr(initialized_value, "sharding", None)
     if sharding is None or not hasattr(restored_value, "shape"):
-      return restored_value
+      return None
     if tuple(restored_value.shape) != tuple(initialized_value.shape):
-      return restored_value
+      return None
     return jax.device_put(restored_value, sharding)
 
   def merge(dst, src):
     for key, value in src.items():
+      if key not in dst:
+        continue
       if isinstance(value, (dict, flax.core.FrozenDict)) and isinstance(dst.get(key), (dict, flax.core.FrozenDict)):
         merge(dst[key], value)
       elif isinstance(value, jax.ShapeDtypeStruct):
         continue
       else:
-        dst[key] = place_like_initialized(dst.get(key), value)
+        placed_value = place_like_initialized(dst[key], value)
+        if placed_value is not None:
+          dst[key] = placed_value
 
   merge(merged, restored)
   return flax.core.freeze(merged) if initialized_was_frozen else merged

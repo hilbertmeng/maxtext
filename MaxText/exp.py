@@ -11,6 +11,7 @@ class Common:
     load_parameters_path = ""
     train_load_parameters_path = ""
     train_reinit_embedding_params = False
+    train_merge_loaded_params = False
     load_full_state_path = ""
     enable_checkpointing = True
     async_checkpointing = True
@@ -433,6 +434,19 @@ class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeM
     kv_shift_mlp = False 
     run_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
     model_name = 'Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift): # load pre-trained qwen params and add mudd, kvshift, ggrope then post-train
+    train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_nvarc16_ckpt/0/items"
+    train_reinit_embedding_params = False
+    train_merge_loaded_params = True
+    dynamic_mlp_dim = False
+    rope_type = "golden_gate"
+    arc_grid_positions = True
+    rope_max_position = 16384
+    dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/arc/nvarc_tfrecord_shuffled_one_file/'
+    eval_dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/arc/nvarc_tfrecord_shuffled/arc2_evaluation6/tfrecord'
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
 
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftPairedHead(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
     paired_head = True  # adjacent heads share attention via an interleaved 2T causal sequence

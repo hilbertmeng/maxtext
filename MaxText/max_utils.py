@@ -727,6 +727,8 @@ def merge_restored_params_into_initialized(initialized_params, restored_params):
     for key, value in src.items():
       if isinstance(value, (dict, flax.core.FrozenDict)) and isinstance(dst.get(key), (dict, flax.core.FrozenDict)):
         merge(dst[key], value)
+      elif isinstance(value, jax.ShapeDtypeStruct):
+        continue
       else:
         dst[key] = value
 
@@ -886,7 +888,10 @@ def setup_initial_state(
           out_shardings=state_mesh_shardings,
       )(rng)
       if raw_params:  # If we loaded a partial state, we need to merge it.
-        if is_training and getattr(config, "train_reinit_embedding_params", False):
+        if is_training and (
+            getattr(config, "train_reinit_embedding_params", False)
+            or getattr(config, "train_merge_loaded_params", False)
+        ):
           state = state.replace(params=merge_restored_params_into_initialized(state.params, raw_params))
         else:
           state = state.replace(params=raw_params)

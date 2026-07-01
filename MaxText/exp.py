@@ -12,6 +12,7 @@ class Common:
     train_load_parameters_path = ""
     train_reinit_embedding_params = False
     train_merge_loaded_params = False
+    train_unroll_loaded_scanned_layers = False
     load_full_state_path = ""
     enable_checkpointing = True
     async_checkpointing = True
@@ -439,6 +440,7 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMud
     train_load_parameters_path = "gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_nvarc16_ckpt/0/items"
     train_reinit_embedding_params = False
     train_merge_loaded_params = True
+    train_unroll_loaded_scanned_layers = True
     dynamic_mlp_dim = False
     rope_type = "golden_gate"
     arc_grid_positions = True

@@ -628,6 +628,8 @@ train_load_parameters_path: ""
 train_reinit_embedding_params: False
 # When loading a parameter-only checkpoint into an expanded architecture, merge restored arrays into initialized params.
 train_merge_loaded_params: False
+# When loading a scanned-layer checkpoint into an unscanned model, expand decoder/layers into decoder/layers_i.
+train_unroll_loaded_scanned_layers: False
 # Loads a full checkpoint including optimizer state and step count from a specific directory
 # e.g. gs://my-base-output-directory/my-previous-run-name/checkpoints/items/NUMBER or NUMBER/items
 load_full_state_path: ""

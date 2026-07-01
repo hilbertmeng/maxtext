@@ -23,6 +23,7 @@ import flax
 from flax.training import train_state
 import grain.python as grain
 import jax
+import jax.numpy as jnp
 import max_logging
 from multihost_dataloading import MultiHostDataLoadIterator
 import numpy as np
@@ -294,7 +295,14 @@ def load_state_if_possible(
         )
 
   if load_parameters_from_path != "":
-    restored_params = load_params_from_path(load_parameters_from_path, abstract_unboxed_pre_state.params, load_params_skip_paths)
+    restored_params = load_params_from_path(
+        load_parameters_from_path,
+        abstract_unboxed_pre_state.params,
+        load_params_skip_paths,
+        unroll_scanned_layers=bool(config and getattr(config, "train_unroll_loaded_scanned_layers", False)),
+        num_decoder_layers=getattr(config, "num_decoder_layers", None) if config else None,
+        param_scan_axis=getattr(config, "param_scan_axis", 0) if config else 0,
+    )
     return None, restored_params
   elif load_full_state_from_path != "":
     max_logging.log(f"restoring full state from {load_full_state_from_path=}")
@@ -350,7 +358,88 @@ def _without_nested_paths(tree, paths):
   return flax.core.freeze(result) if tree_was_frozen else result
 
 
-def load_params_from_path(load_parameters_from_path, abstract_unboxed_params, skip_paths=None):
+def _layers_i_keys(decoder):
+  return sorted(
+      (key for key in decoder if isinstance(key, str) and key.startswith("layers_") and key[7:].isdigit()),
+      key=lambda key: int(key.split("_")[-1]),
+  )
+
+
+def _with_inserted_scan_axis(x, num_decoder_layers, param_scan_axis):
+  axis = min(param_scan_axis, len(x.shape))
+  shape = x.shape[:axis] + (num_decoder_layers,) + x.shape[axis:]
+  kwargs = {}
+  sharding = getattr(x, "sharding", None)
+  if isinstance(sharding, jax.sharding.NamedSharding):
+    spec = list(sharding.spec)
+    spec.insert(min(param_scan_axis, len(spec)), None)
+    kwargs["sharding"] = jax.sharding.NamedSharding(sharding.mesh, jax.sharding.PartitionSpec(*spec))
+  return jax.ShapeDtypeStruct(shape=shape, dtype=x.dtype, **kwargs)
+
+
+def _with_removed_scan_axis(x, param_scan_axis):
+  if not isinstance(x, jax.ShapeDtypeStruct):
+    return jnp.take(x, 0, axis=param_scan_axis)
+  axis = min(param_scan_axis, len(x.shape) - 1)
+  shape = x.shape[:axis] + x.shape[axis + 1 :]
+  kwargs = {}
+  sharding = getattr(x, "sharding", None)
+  if isinstance(sharding, jax.sharding.NamedSharding):
+    spec = list(sharding.spec)
+    if axis < len(spec):
+      spec.pop(axis)
+    kwargs["sharding"] = jax.sharding.NamedSharding(sharding.mesh, jax.sharding.PartitionSpec(*spec))
+  return jax.ShapeDtypeStruct(shape=shape, dtype=x.dtype, **kwargs)
+
+
+def _restore_target_with_scanned_layers(abstract_unboxed_params, num_decoder_layers, param_scan_axis):
+  params_was_frozen = isinstance(abstract_unboxed_params, flax.core.FrozenDict)
+  target = flax.core.unfreeze(abstract_unboxed_params)
+  decoder = target.get("params", {}).get("decoder", {})
+  layer_keys = _layers_i_keys(decoder)
+  if not layer_keys:
+    return abstract_unboxed_params
+  if len(layer_keys) != num_decoder_layers:
+    max_logging.log(
+        f"Expected {num_decoder_layers} unscanned decoder layers but found {len(layer_keys)} layer keys."
+    )
+  layer0 = decoder[layer_keys[0]]
+  decoder["layers"] = jax.tree_util.tree_map(
+      lambda x: _with_inserted_scan_axis(x, len(layer_keys), param_scan_axis),
+      layer0,
+  )
+  for key in layer_keys:
+    decoder.pop(key, None)
+  return flax.core.freeze(target) if params_was_frozen else target
+
+
+def _unroll_restored_scanned_layers(restored_params, num_decoder_layers, param_scan_axis):
+  params_was_frozen = isinstance(restored_params, flax.core.FrozenDict)
+  params = flax.core.unfreeze(restored_params)
+  decoder = params.get("params", {}).get("decoder", {})
+  if "layers" not in decoder:
+    return restored_params
+  scanned_layers = decoder.pop("layers")
+  for layer_idx in range(num_decoder_layers):
+    decoder[f"layers_{layer_idx}"] = jax.tree_util.tree_map(
+        lambda x, idx=layer_idx: (
+            _with_removed_scan_axis(x, param_scan_axis)
+            if isinstance(x, jax.ShapeDtypeStruct)
+            else jnp.take(x, idx, axis=param_scan_axis)
+        ),
+        scanned_layers,
+    )
+  return flax.core.freeze(params) if params_was_frozen else params
+
+
+def load_params_from_path(
+    load_parameters_from_path,
+    abstract_unboxed_params,
+    skip_paths=None,
+    unroll_scanned_layers=False,
+    num_decoder_layers=None,
+    param_scan_axis=0,
+):
   """Load decode params from checkpoint at specified path."""
   assert load_parameters_from_path, "load_parameters_from_path is not defined."
   max_logging.log(f"restoring params from {load_parameters_from_path}")
@@ -363,6 +452,14 @@ def load_params_from_path(load_parameters_from_path, abstract_unboxed_params, sk
   if skip_paths:
     max_logging.log(f"Skipping parameter restore for: {', '.join('/'.join(path) for path in skip_paths)}")
     abstract_unboxed_params = _without_nested_paths(abstract_unboxed_params, skip_paths)
+  if unroll_scanned_layers:
+    assert num_decoder_layers is not None, "num_decoder_layers is required when unrolling scanned layers."
+    max_logging.log(
+        f"Restoring scanned decoder/layers and unrolling to layers_0..layers_{num_decoder_layers - 1}."
+    )
+    abstract_unboxed_params = _restore_target_with_scanned_layers(
+        abstract_unboxed_params, num_decoder_layers, param_scan_axis
+    )
 
   restore_args = ocp.checkpoint_utils.construct_restore_args(abstract_unboxed_params)
   restore_kwargs = {"item": {"params": abstract_unboxed_params}, "restore_args": {"params": restore_args}}
@@ -371,7 +468,10 @@ def load_params_from_path(load_parameters_from_path, abstract_unboxed_params, sk
   # tree mismatch is expected.
   restore_kwargs["partial_restore"] = True
   restored = ckptr.restore(ckpt, args=ocp.args.PyTreeRestore(**restore_kwargs))
-  return restored["params"]
+  restored_params = restored["params"]
+  if unroll_scanned_layers:
+    restored_params = _unroll_restored_scanned_layers(restored_params, num_decoder_layers, param_scan_axis)
+  return restored_params
 
 
 def save_params_to_path(checkpoint_dir, params):

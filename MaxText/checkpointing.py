@@ -358,6 +358,29 @@ def _without_nested_paths(tree, paths):
   return flax.core.freeze(result) if tree_was_frozen else result
 
 
+def _filter_tree_to_structure(tree, structure):
+  tree_was_frozen = isinstance(tree, flax.core.FrozenDict)
+  source = flax.core.unfreeze(tree)
+
+  def filter_node(node, structure_node):
+    if isinstance(node, (dict, flax.core.FrozenDict)) and isinstance(structure_node, (dict, flax.core.FrozenDict)):
+      return {
+          key: filter_node(value, structure_node[key])
+          for key, value in node.items()
+          if key in structure_node
+      }
+    return node
+
+  filtered = filter_node(source, structure)
+  return flax.core.freeze(filtered) if tree_was_frozen else filtered
+
+
+def _checkpoint_metadata_tree(checkpointer, checkpoint_path):
+  metadata = checkpointer.metadata(checkpoint_path)
+  item_metadata = getattr(metadata, "item_metadata", None)
+  return getattr(item_metadata, "tree", None)
+
+
 def _layers_i_keys(decoder):
   return sorted(
       (key for key in decoder if isinstance(key, str) and key.startswith("layers_") and key[7:].isdigit()),
@@ -461,8 +484,17 @@ def load_params_from_path(
         abstract_unboxed_params, num_decoder_layers, param_scan_axis
     )
 
+  restore_item = {"params": abstract_unboxed_params}
+  if unroll_scanned_layers:
+    checkpoint_tree = _checkpoint_metadata_tree(ckptr, ckpt)
+    if checkpoint_tree is not None:
+      restore_item = _filter_tree_to_structure(restore_item, checkpoint_tree)
+      abstract_unboxed_params = restore_item["params"]
+    else:
+      max_logging.log("Checkpoint metadata tree unavailable; restoring with unfiltered target.")
+
   restore_args = ocp.checkpoint_utils.construct_restore_args(abstract_unboxed_params)
-  restore_kwargs = {"item": {"params": abstract_unboxed_params}, "restore_args": {"params": restore_args}}
+  restore_kwargs = {"item": restore_item, "restore_args": {"params": restore_args}}
   # We intentionally pass only the params subtree here, while full training
   # checkpoints may also contain opt_state and step. Tell Orbax this partial
   # tree mismatch is expected.

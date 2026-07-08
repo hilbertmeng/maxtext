@@ -945,7 +945,8 @@ def _update_exp_config(cmd_vars, raw_keys):
   max_logging.log(f"\n\nUpdated exp model vars:")
   import exp
   model_name = getattr(exp, raw_keys["exp_class"], None)
-  if not model_name: return raw_keys
+  if not model_name:
+    raise ValueError(f"Unknown exp_class={raw_keys['exp_class']!r}. Add it to MaxText/exp.py or fix the run script.")
   model_vars = cls_attr2dict(model_name)
 
   keys = list(model_vars.keys())

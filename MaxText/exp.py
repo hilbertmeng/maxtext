@@ -450,6 +450,18 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMud
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreserved(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
+    # Keep the pretrained Qwen forward path intact at initialization while adding
+    # trainable MUDD/KV-shift params.
+    rope_type = "default"
+    arc_grid_positions = False
+    rope_max_position = 0
+    mudd_prenorm = False
+    mudd_postnorm = True
+    kv_shift_identity_preserved = True
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreserved'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreserved'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftPairedHead(Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift):
     paired_head = True  # adjacent heads share attention via an interleaved 2T causal sequence
     dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/arc/nvarc_tfrecord_shuffled_one_file/'

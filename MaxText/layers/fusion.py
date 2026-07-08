@@ -369,12 +369,22 @@ class FusionDecoderLayer(nn.Module):
         kv_shift_plan,
       )
 
+    mudd_hidden_norm = normalizations.get_rmsnorm("mudd_prenorm", cfg) if cfg.mudd_prenorm else None
+
+    def append_mudd_hidden(hids, hidden):
+      hidden = mudd_hidden_norm(hidden) if mudd_hidden_norm is not None else hidden
+      hids.append(hidden)
+      return hids
+
     if cfg.dense_conn:
+      if hids is None:
+        hids = []
       if self.layer_inx == 0:
-        y_normed = normalizations.get_rmsnorm("mudd_prenorm", cfg)(inputs) \
-          if cfg.mudd_prenorm else inputs
-        # inputs = [inputs] * len(cfg.dynamic_dense_type) # 0层要不要分4路？
-        hids.append(y_normed)
+        if not hids:
+          # Layer 0 has no previous block output yet. The outer decoder usually
+          # seeds hids with the token embedding; keep this guard for direct layer
+          # calls and avoid duplicating that seed in the non-scan path.
+          hids = append_mudd_hidden(hids, inputs)
       elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:
         inputs = [inputs] * len(cfg.dynamic_dense_type) # mtp
       else:
@@ -404,6 +414,10 @@ class FusionDecoderLayer(nn.Module):
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
       C = self.get_C(cfg)
+      # compose_break is after the block, so the current block output must be
+      # available as a source. This matters when mudd_postnorm=False, where
+      # MUDD initializes by selecting the last hidden source.
+      hids = append_mudd_hidden(hids, inputs)
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
         compose=True,
@@ -414,6 +428,9 @@ class FusionDecoderLayer(nn.Module):
           hids=hids,  
           lidx=self.layer_inx,
         )
+      hids = append_mudd_hidden(hids, inputs[0] if isinstance(inputs, (tuple, list)) else inputs)
+    elif cfg.dense_conn:
+      hids = append_mudd_hidden(hids, inputs)
    
     return inputs, hids
 

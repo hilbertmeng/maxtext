@@ -601,6 +601,7 @@ kv_shift_layer_period: 1 # Apply kv shift every N layers. 1 means every layer.
 kv_shift_layer_offset: 0 # First layer index used by kv_shift_layer_period.
 kv_shift_layers: [] # Optional explicit layer list; overrides period when non-empty.
 kv_shift_keep_params_on_skipped_layers: False # Keep skipped-layer params for checkpoint compatibility.
+kv_shift_identity_preserved: False # If true, use zero-init residual KV-shift so initial q/k/v are unchanged.
 use_o_shift: False
 
 # ================================= [deepembed] =================================

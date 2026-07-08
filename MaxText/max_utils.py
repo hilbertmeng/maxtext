@@ -731,12 +731,23 @@ def merge_restored_params_into_initialized(initialized_params, restored_params):
       return None
     return jax.device_put(restored_value, sharding)
 
+  def merge_qkv_prenorm(dst, src_norm):
+    for suffix in ("q", "k", "v"):
+      norm_key = f"pre_self_attention_layer_norm_{suffix}"
+      if norm_key in dst:
+        merge(dst[norm_key], src_norm)
+
   def merge(dst, src):
     for key, value in src.items():
       if key not in dst:
+        if key == "pre_self_attention_layer_norm" and "mudd_qkvnorm" in dst:
+          merge_qkv_prenorm(dst["mudd_qkvnorm"], value)
         continue
       if isinstance(value, (dict, flax.core.FrozenDict)) and isinstance(dst.get(key), (dict, flax.core.FrozenDict)):
-        merge(dst[key], value)
+        if isinstance(key, str) and key.startswith("layers_") and "block" in dst[key] and "block" not in value:
+          merge(dst[key]["block"], value)
+        else:
+          merge(dst[key], value)
       elif isinstance(value, jax.ShapeDtypeStruct):
         continue
       else:

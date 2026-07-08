@@ -216,7 +216,7 @@ class KVshift(nn.Module):
     self.kv_shift_prenorm = normalizations.get_rmsnorm("kv_shift_prenorm", cfg)
     
     kwargs = dict(dtype=cfg.dtype, weight_dtype=cfg.weight_dtype, quant=self.quant)
-    self.q_shift = cfg.use_q_shift
+    self.q_shift = getattr(cfg, "use_q_shift", False)
     self.num_shifts = 2 if not self.q_shift else 3
     self.kv_shift_hidden_way = cfg.kv_shift_hidden_way
     self.kv_shift_mode = getattr(cfg, "kv_shift_mode", "1d")
@@ -271,6 +271,7 @@ class KVshift(nn.Module):
       skip_shift=False,
   ):
     inputs = inputs_q
+    identity_preserved = getattr(self.config, "kv_shift_identity_preserved", False)
 
     if self.kv_shift_mode == "arc_2d":
       if skip_shift:
@@ -293,6 +294,8 @@ class KVshift(nn.Module):
       )
       arc_2d_softmax = getattr(self.config, "kv_shift_arc_2d_softmax", True)
       arc_2d_softmax = True if arc_2d_softmax is None else arc_2d_softmax
+      if identity_preserved:
+        arc_2d_softmax = False
       if kv_shift_plan is None:
         key, value = arc_2d_causal_shift_kv(
             key,
@@ -313,20 +316,34 @@ class KVshift(nn.Module):
         self._touch_dense_params(self.dw_proj_k, inputs_k)
         self._touch_dense_params(self.dw_proj_v, inputs_v)
         return query, key, value
-      kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))[..., jnp.newaxis]
-      vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))[..., jnp.newaxis]
-      key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
-      value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
+      if identity_preserved:
+        kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))[..., jnp.newaxis] - 0.5
+        vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))[..., jnp.newaxis] - 0.5
+        key = key + kg * (shift_1d(key, offset=1, axis=1) - key)
+        value = value + vg * (shift_1d(value, offset=1, axis=1) - value)
+      else:
+        kg = jax.nn.sigmoid(self.dw_proj_k(inputs_k))[..., jnp.newaxis]
+        vg = jax.nn.sigmoid(self.dw_proj_v(inputs_v))[..., jnp.newaxis]
+        key = key * kg + (1-kg) * shift_1d(key, offset=1, axis=1)
+        value = value * vg + (1-vg) * shift_1d(value, offset=1, axis=1)
 
     else:
       if skip_shift:
         self._touch_dense_params(self.dw_proj, inputs)
         return query, key, value
-      dw = jax.nn.sigmoid(self.dw_proj(inputs[:,1:]))
+      dw = self.dw_proj(inputs[:,1:])
+      if identity_preserved:
+        dw = jax.nn.sigmoid(dw) - 0.5
+      else:
+        dw = jax.nn.sigmoid(dw)
       dw = dw.reshape(*dw.shape[:-1], -1, self.num_shifts)
       kg, vg = dw[...,:1], dw[...,1:] # B(T-1)N1
-      key = key.at[:, 1:].set( key[:,1:] * kg + (1-kg) * key[:,:-1]) 
-      value = value.at[:, 1:].set( value[:,1:] * vg + (1-vg) * value[:,:-1])
+      if identity_preserved:
+        key = key.at[:, 1:].set(key[:,1:] + kg * (key[:,:-1] - key[:,1:]))
+        value = value.at[:, 1:].set(value[:,1:] + vg * (value[:,:-1] - value[:,1:]))
+      else:
+        key = key.at[:, 1:].set( key[:,1:] * kg + (1-kg) * key[:,:-1])
+        value = value.at[:, 1:].set( value[:,1:] * vg + (1-vg) * value[:,:-1])
 
     if not self.config.kv_shift_skip_knorm:
       key = self.kv_shift_norm(key)

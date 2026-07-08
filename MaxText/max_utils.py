@@ -720,15 +720,24 @@ def init_training_state(apply_fn, params, tx):
 def merge_restored_params_into_initialized(initialized_params, restored_params):
   """Merge a partial restored parameter tree into a fully initialized tree."""
   initialized_was_frozen = isinstance(initialized_params, flax.core.FrozenDict)
-  merged = flax.core.unfreeze(initialized_params)
-  restored = flax.core.unfreeze(restored_params)
+  # `model.init` returns LogicallyPartitioned leaves before the final unbox step.
+  # Merge after unboxing, otherwise leaves do not expose shape/sharding and every
+  # restored parameter is silently skipped.
+  merged = flax.core.unfreeze(unbox_logicallypartioned(initialized_params))
+  restored = flax.core.unfreeze(unbox_logicallypartioned(restored_params))
+  stats = collections.Counter()
 
   def place_like_initialized(initialized_value, restored_value):
-    sharding = getattr(initialized_value, "sharding", None)
-    if sharding is None or not hasattr(restored_value, "shape"):
+    if not hasattr(initialized_value, "shape") or not hasattr(restored_value, "shape"):
+      stats["skip_non_array"] += 1
       return None
     if tuple(restored_value.shape) != tuple(initialized_value.shape):
+      stats["skip_shape_mismatch"] += 1
       return None
+    sharding = getattr(initialized_value, "sharding", None)
+    stats["copied"] += 1
+    if sharding is None:
+      return restored_value
     return jax.device_put(restored_value, sharding)
 
   def merge_qkv_prenorm(dst, src_norm):
@@ -742,6 +751,8 @@ def merge_restored_params_into_initialized(initialized_params, restored_params):
       if key not in dst:
         if key == "pre_self_attention_layer_norm" and "mudd_qkvnorm" in dst:
           merge_qkv_prenorm(dst["mudd_qkvnorm"], value)
+        else:
+          stats["skip_missing_key"] += 1
         continue
       if isinstance(value, (dict, flax.core.FrozenDict)) and isinstance(dst.get(key), (dict, flax.core.FrozenDict)):
         if isinstance(key, str) and key.startswith("layers_") and "block" in dst[key] and "block" not in value:
@@ -749,6 +760,7 @@ def merge_restored_params_into_initialized(initialized_params, restored_params):
         else:
           merge(dst[key], value)
       elif isinstance(value, jax.ShapeDtypeStruct):
+        stats["skip_shape_dtype_struct"] += 1
         continue
       else:
         placed_value = place_like_initialized(dst[key], value)
@@ -756,6 +768,10 @@ def merge_restored_params_into_initialized(initialized_params, restored_params):
           dst[key] = placed_value
 
   merge(merged, restored)
+  max_logging.log(
+      "Merged restored params into initialized params: "
+      + ", ".join(f"{key}={stats[key]}" for key in sorted(stats))
+  )
   return flax.core.freeze(merged) if initialized_was_frozen else merged
 
 

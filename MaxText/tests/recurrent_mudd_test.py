@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import unittest
 
 import checkpointing
+import flax
 import max_utils
 from layers import attentions
 from layers import models
@@ -57,6 +58,17 @@ class RecurrentMuddTest(unittest.TestCase):
             for letter in "qkv"
         ],
     )
+
+  def test_audit_params_unwraps_real_train_state_collection_shape(self):
+    model_tree = flax.core.freeze(
+        {
+            "token_embedder": {"embedding": "embedding"},
+            "decoder": {"layers_0": {"block": "layer"}},
+        }
+    )
+    wrapped = flax.core.freeze({"params": model_tree})
+    self.assertEqual(max_utils._unwrap_recurrent_mudd_model_params(model_tree), flax.core.unfreeze(model_tree))
+    self.assertEqual(max_utils._unwrap_recurrent_mudd_model_params(wrapped), flax.core.unfreeze(model_tree))
 
 
 if __name__ == "__main__":

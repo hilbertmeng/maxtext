@@ -788,13 +788,26 @@ def _recurrent_mudd_target_paths_for_source(path):
   return [path]
 
 
+def _unwrap_recurrent_mudd_model_params(params):
+  """Returns the model tree from either raw params or TrainState collections."""
+  params = flax.core.unfreeze(unbox_logicallypartioned(params))
+  while (
+      isinstance(params, dict)
+      and "params" in params
+      and "decoder" not in params
+      and "token_embedder" not in params
+  ):
+    params = params["params"]
+  return params
+
+
 def audit_recurrent_mudd_initialization(initialized_params, restored_params, config):
   """Logs and enforces the TPU startup contract for recurrent full-history MUDD."""
   if not getattr(config, "recurrent_mudd_virtual_state", False):
     return
 
-  initialized = flax.core.unfreeze(unbox_logicallypartioned(initialized_params))
-  restored = flax.core.unfreeze(unbox_logicallypartioned(restored_params))
+  initialized = _unwrap_recurrent_mudd_model_params(initialized_params)
+  restored = _unwrap_recurrent_mudd_model_params(restored_params)
   initialized_flat = flax.traverse_util.flatten_dict(initialized)
   restored_flat = flax.traverse_util.flatten_dict(restored)
   loaded_destinations = set()

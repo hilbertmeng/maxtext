@@ -26,6 +26,36 @@ class RecurrentMuddTest(unittest.TestCase):
         list(range(14)) * 2 + list(range(14, 28)),
     )
 
+  def test_abbc_early_full_layer_order(self):
+    self.assertEqual(
+        models.build_recurrent_layer_order(28, 3, 17, 2),
+        list(range(3)) + list(range(3, 17)) * 2 + list(range(17, 28)),
+    )
+
+  def test_abbc_early_config_preserves_physical_and_virtual_depth(self):
+    config = exp.Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBCEarly
+    self.assertEqual(config.recurrent_physical_num_layers, 28)
+    self.assertEqual(config.recurrent_total_layers, 42)
+    self.assertEqual(config.recurrent_layer_start, 3)
+    self.assertEqual(config.recurrent_layer_end, 17)
+    self.assertEqual(config.recurrent_block_repeats, 2)
+    self.assertEqual(
+        checkpointing.decoder_layers_to_restore(
+            SimpleNamespace(
+                recurrent_mudd_virtual_state=config.recurrent_mudd_virtual_state,
+                recurrent_physical_num_layers=config.recurrent_physical_num_layers,
+                num_decoder_layers=config.recurrent_total_layers,
+            )
+        ),
+        28,
+    )
+
+  def test_existing_recurrent_windows_are_unchanged(self):
+    abbc = exp.Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC
+    aab = exp.Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurAAB
+    self.assertEqual((abbc.recurrent_layer_start, abbc.recurrent_layer_end), (7, 21))
+    self.assertEqual((aab.recurrent_layer_start, aab.recurrent_layer_end), (0, 14))
+
   def test_special_restore_uses_physical_layer_count(self):
     config = SimpleNamespace(
         recurrent_mudd_virtual_state=True,

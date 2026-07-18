@@ -170,6 +170,15 @@ def _replica_devices(device_array: np.ndarray, replica_axis_idx: int):
   return np.expand_dims(replica_result, axis=replica_axis_idx)
 
 
+def decoder_layers_to_restore(config):
+  """Returns the number of physical decoder layers represented by a checkpoint."""
+  if config is None:
+    return None
+  if getattr(config, "recurrent_mudd_virtual_state", False):
+    return getattr(config, "recurrent_physical_num_layers", config.num_decoder_layers)
+  return getattr(config, "num_decoder_layers", None)
+
+
 def load_state_if_possible(
     checkpoint_manager: Union[CheckpointManager, None],
     data_iterator: Union[MultiHostDataLoadIterator, None],
@@ -295,12 +304,13 @@ def load_state_if_possible(
         )
 
   if load_parameters_from_path != "":
+    restored_decoder_layers = decoder_layers_to_restore(config)
     restored_params = load_params_from_path(
         load_parameters_from_path,
         abstract_unboxed_pre_state.params,
         load_params_skip_paths,
         unroll_scanned_layers=bool(config and getattr(config, "train_unroll_loaded_scanned_layers", False)),
-        num_decoder_layers=getattr(config, "num_decoder_layers", None) if config else None,
+        num_decoder_layers=restored_decoder_layers,
         param_scan_axis=getattr(config, "param_scan_axis", 0) if config else 0,
     )
     return None, restored_params

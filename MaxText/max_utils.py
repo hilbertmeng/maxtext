@@ -775,6 +775,171 @@ def merge_restored_params_into_initialized(initialized_params, restored_params):
   return flax.core.freeze(merged) if initialized_was_frozen else merged
 
 
+def _recurrent_mudd_target_paths_for_source(path):
+  """Maps one unscanned original-Qwen leaf to recurrent-MUDD destinations."""
+  if len(path) >= 4 and path[0] == "decoder" and str(path[1]).startswith("layers_"):
+    layer, suffix = path[1], path[2:]
+    if suffix == ("pre_self_attention_layer_norm", "scale"):
+      return [
+          ("decoder", layer, "block", "mudd_qkvnorm", f"pre_self_attention_layer_norm_{letter}", "scale")
+          for letter in "qkv"
+      ]
+    return [("decoder", layer, "block", *suffix)]
+  return [path]
+
+
+def audit_recurrent_mudd_initialization(initialized_params, restored_params, config):
+  """Logs and enforces the TPU startup contract for recurrent full-history MUDD."""
+  if not getattr(config, "recurrent_mudd_virtual_state", False):
+    return
+
+  initialized = flax.core.unfreeze(unbox_logicallypartioned(initialized_params))
+  restored = flax.core.unfreeze(unbox_logicallypartioned(restored_params))
+  initialized_flat = flax.traverse_util.flatten_dict(initialized)
+  restored_flat = flax.traverse_util.flatten_dict(restored)
+  loaded_destinations = set()
+  missing = []
+  mismatched = []
+
+  def scalar(value):
+    return float(jax.device_get(value))
+
+  for source_path, source_value in restored_flat.items():
+    for target_path in _recurrent_mudd_target_paths_for_source(source_path):
+      loaded_destinations.add(target_path)
+      if target_path not in initialized_flat:
+        missing.append("/".join(target_path))
+        continue
+      target_value = initialized_flat[target_path]
+      if tuple(source_value.shape) != tuple(target_value.shape):
+        mismatched.append("/".join(target_path))
+
+  new_paths = sorted(set(initialized_flat) - loaded_destinations)
+  kv_paths = [path for path in new_paths if "kv_shift" in "/".join(path)]
+  mudd_paths = [
+      path
+      for path in new_paths
+      if path not in kv_paths and any(token in "/".join(path) for token in ("compose_", "mudd_"))
+  ]
+  unclassified = [path for path in new_paths if path not in kv_paths and path not in mudd_paths]
+
+  physical_layers = sorted(
+      (key for key in initialized["decoder"] if key.startswith("layers_")),
+      key=lambda key: int(key.split("_")[-1]),
+  )
+  physical_count = getattr(config, "recurrent_physical_num_layers", config.base_num_decoder_layers)
+  order = []
+  for physical_idx in range(physical_count):
+    if physical_idx < config.recurrent_layer_start or physical_idx >= config.recurrent_layer_end:
+      if physical_idx < config.recurrent_layer_start:
+        order.append(physical_idx)
+  order.extend(list(range(config.recurrent_layer_start, config.recurrent_layer_end)) * config.recurrent_block_repeats)
+  order.extend(range(config.recurrent_layer_end, physical_count))
+
+  max_logging.log("RECURRENT_MUDD_TPU_AUDIT_BEGIN")
+  max_logging.log(
+      f"recurrent_mudd_depth physical={physical_count} virtual={config.num_decoder_layers} order={order}"
+  )
+  max_logging.log(
+      "recurrent_mudd_load_stats "
+      f"source={len(restored_flat)} loaded_destinations={len(loaded_destinations)} "
+      f"missing={len(missing)} mismatch={len(mismatched)} unclassified={len(unclassified)}"
+  )
+  max_logging.log(f"recurrent_mudd_physical_parameter_scopes={physical_layers}")
+
+  representative_sources = [
+      ("token_embedder", "embedding"),
+      ("decoder", "lm_head", "decoder_norm", "scale"),
+  ]
+  for layer_idx in (0, 7, 13, 20, 27):
+    prefix = ("decoder", f"layers_{layer_idx}")
+    representative_sources.extend(
+        [
+            (*prefix, "pre_self_attention_layer_norm", "scale"),
+            (*prefix, "post_self_attention_layer_norm", "scale"),
+            (*prefix, "self_attention", "query", "kernel"),
+            (*prefix, "self_attention", "key", "kernel"),
+            (*prefix, "self_attention", "value", "kernel"),
+            (*prefix, "self_attention", "out", "kernel"),
+            (*prefix, "mlp", "wi_0", "kernel"),
+            (*prefix, "mlp", "wi_1", "kernel"),
+            (*prefix, "mlp", "wo", "kernel"),
+        ]
+    )
+
+  for source_path in representative_sources:
+    source_value = restored_flat[source_path]
+    for target_path in _recurrent_mudd_target_paths_for_source(source_path):
+      target_value = initialized_flat[target_path]
+      try:
+        exact = bool(jax.device_get(jnp.all(source_value == target_value)))
+      except ValueError:
+        # Local audit may restore the source on CPU and initialize the target
+        # on GPU. TPU training restores both into the same mesh.
+        exact = bool(np.array_equal(jax.device_get(source_value), jax.device_get(target_value)))
+      target_std = scalar(jnp.std(target_value.astype(jnp.float32)))
+      max_logging.log(
+          "recurrent_mudd_preload_compare "
+          f"source={'/'.join(source_path)} target={'/'.join(target_path)} "
+          f"shape={tuple(target_value.shape)} std={target_std:.8g} exact={exact}"
+      )
+      if not exact:
+        mismatched.append("/".join(target_path))
+
+  compose_ids = sorted(
+      {
+          int(part.split("_")[-1])
+          for path in mudd_paths
+          for part in path
+          if str(part).startswith("compose_virtual_") or str(part).startswith("compose_break_virtual_")
+      }
+  )
+  kv_physical_ids = sorted(
+      {
+          int(part.split("_")[-1])
+          for path in kv_paths
+          for part in path
+          if str(part).startswith("layers_")
+      }
+  )
+  kv_projection_paths = [path for path in kv_paths if "kv_shift_proj" in "/".join(path)]
+  mudd_output_paths = [path for path in mudd_paths if "dynamic_dense_conn2" in "/".join(path)]
+  kv_zero = bool(jax.device_get(jnp.all(jnp.stack([jnp.all(initialized_flat[path] == 0) for path in kv_projection_paths]))))
+  mudd_zero = bool(
+      jax.device_get(jnp.all(jnp.stack([jnp.all(initialized_flat[path] == 0) for path in mudd_output_paths])))
+  )
+  max_logging.log(
+      "recurrent_mudd_new_params "
+      f"mudd_leaves={len(mudd_paths)} mudd_params={sum(initialized_flat[path].size for path in mudd_paths)} "
+      f"kv_leaves={len(kv_paths)} kv_params={sum(initialized_flat[path].size for path in kv_paths)} "
+      f"mudd_zero_projection={mudd_zero} kv_zero_projection={kv_zero}"
+  )
+  for label, paths in (("mudd", mudd_paths), ("kv_shift", kv_paths)):
+    for path in paths[:8]:
+      value = initialized_flat[path]
+      max_logging.log(
+          f"recurrent_mudd_new_param_sample class={label} path={'/'.join(path)} "
+          f"shape={tuple(value.shape)} std={scalar(jnp.std(value.astype(jnp.float32))):.8g}"
+      )
+  cache_namespaces = [f"virtual_{idx:03d}" for idx in range(config.num_decoder_layers)]
+  max_logging.log(
+      f"recurrent_mudd_virtual_state compose_ids={compose_ids} kv_physical_ids={kv_physical_ids} "
+      f"cache_namespaces={cache_namespaces}"
+  )
+  max_logging.log("RECURRENT_MUDD_TPU_AUDIT_END")
+
+  assert order == list(range(config.recurrent_layer_start)) + list(
+      range(config.recurrent_layer_start, config.recurrent_layer_end)
+  ) * config.recurrent_block_repeats + list(range(config.recurrent_layer_end, physical_count))
+  assert len(order) == config.num_decoder_layers
+  assert physical_layers == [f"layers_{idx}" for idx in range(physical_count)]
+  assert len(restored_flat) == 311 and len(loaded_destinations) == 367
+  assert not missing and not mismatched and not unclassified
+  assert compose_ids == list(range(config.num_decoder_layers))
+  assert kv_physical_ids == list(range(physical_count))
+  assert kv_zero and mudd_zero
+
+
 def embedding_param_paths_to_skip(config):
   paths = [
       ("params", "token_embedder", "embedding"),
@@ -932,6 +1097,7 @@ def setup_initial_state(
             or getattr(config, "train_merge_loaded_params", False)
         ):
           state = state.replace(params=merge_restored_params_into_initialized(state.params, raw_params))
+          audit_recurrent_mudd_initialization(state.params, raw_params, config)
         else:
           state = state.replace(params=raw_params)
 

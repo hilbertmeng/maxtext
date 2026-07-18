@@ -107,6 +107,7 @@ class SubDecoderLayer(nn.Module):
       model_mode,
       eos_sum,
       kv_shift_plan=None,
+      cache_namespace=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -196,6 +197,7 @@ class SubDecoderLayer(nn.Module):
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
         kv_shift_plan=kv_shift_plan,
+        cache_namespace=cache_namespace,
     )
    
     if cfg.record_internal_nn_metrics:
@@ -353,8 +355,25 @@ class FusionDecoderLayer(nn.Module):
       hids=None,
       eos_sum=None,
       kv_shift_plan=None,
+      virtual_layer_idx=None,
   ):
     cfg = self.config
+    recurrent_mudd_virtual_state = bool(getattr(cfg, "recurrent_mudd_virtual_state", False))
+    if recurrent_mudd_virtual_state:
+      assert virtual_layer_idx is not None, "recurrent MUDD requires an explicit virtual layer index."
+    execution_layer_idx = int(virtual_layer_idx) if recurrent_mudd_virtual_state else self.layer_inx
+    compose_name = f"compose_virtual_{execution_layer_idx:03d}" if recurrent_mudd_virtual_state else "compose"
+    compose_break_name = (
+        f"compose_break_virtual_{execution_layer_idx:03d}" if recurrent_mudd_virtual_state else "compose_break"
+    )
+    cache_namespace = f"virtual_{execution_layer_idx:03d}" if recurrent_mudd_virtual_state else None
+    break_layers = [cfg.num_decoder_layers - 1] if recurrent_mudd_virtual_state else self.break_layers
+    if recurrent_mudd_virtual_state:
+      self.sow(
+          "intermediates",
+          "recurrent_execution_identity",
+          jnp.asarray([execution_layer_idx, self.layer_inx], dtype=jnp.int32),
+      )
     if cfg.partial_scan_layers:
       return self.partial_scan_call(
         inputs,
@@ -379,25 +398,38 @@ class FusionDecoderLayer(nn.Module):
     if cfg.dense_conn:
       if hids is None:
         hids = []
-      if self.layer_inx == 0:
+      if execution_layer_idx == 0:
         if not hids:
           # Layer 0 has no previous block output yet. The outer decoder usually
           # seeds hids with the token embedding; keep this guard for direct layer
           # calls and avoid duplicating that seed in the non-scan path.
           hids = append_mudd_hidden(hids, inputs)
-      elif self.layer_inx == cfg.num_decoder_layers and not cfg.mtp_use_compose:
+        if recurrent_mudd_virtual_state:
+          # AAB revisits physical layer 0 after MUDD composition. Execute an
+          # identity-initialized Compose on virtual layer 0 as well, so the
+          # shared rematted wrapper has the same module/input structure on both
+          # visits. The three Q/K/V norms restore from the original Qwen norm.
+          inputs, hids = mudd.Compose(
+              cfg,
+              self.mesh,
+              self.quant,
+              name=compose_name,
+              C=4,
+              compose=True,
+          )(layer_output=inputs, hids=hids, lidx=execution_layer_idx)
+      elif execution_layer_idx == cfg.num_decoder_layers and not cfg.mtp_use_compose:
         inputs = [inputs] * len(cfg.dynamic_dense_type) # mtp
       else:
         # return's inputs length is 4
         inputs, hids = mudd.Compose(
           cfg, self.mesh, self.quant, 
-          name='compose',
+          name=compose_name,
           C=4,
-          compose=True if self.layer_inx in cfg.compose_layers else False,
+          compose=True if execution_layer_idx in cfg.compose_layers else False,
           )(
             layer_output=inputs, 
             hids=hids,
-            lidx=self.layer_inx,
+            lidx=execution_layer_idx,
           )
     # return's inputs length is 1
     inputs = self.layer(
@@ -410,10 +442,15 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         eos_sum,
         kv_shift_plan=kv_shift_plan,
+        cache_namespace=cache_namespace,
     )
-    max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
-    if cfg.dense_conn and self.layer_inx in self.break_layers:
-      C = self.get_C(cfg)
+    max_logging.log(
+        f'physical_layer_inx: {self.layer_inx} execution_layer_inx: {execution_layer_idx} '
+        f'break_layers: {break_layers}',
+        debug=cfg.debug,
+    )
+    if cfg.dense_conn and execution_layer_idx in break_layers:
+      C = 1 if recurrent_mudd_virtual_state else self.get_C(cfg)
       # compose_break is after the block, so the current block output must be
       # available as a source. This matters when mudd_postnorm=False, where
       # MUDD initializes by selecting the last hidden source.
@@ -421,12 +458,12 @@ class FusionDecoderLayer(nn.Module):
       inputs, hids = mudd.Compose(
         cfg, self.mesh, self.quant, 
         compose=True,
-        name=f'compose_break',
+        name=compose_break_name,
         C=C,
         )(
           layer_output=inputs, 
           hids=hids,  
-          lidx=self.layer_inx,
+          lidx=execution_layer_idx,
         )
       hids = append_mudd_hidden(hids, inputs[0] if isinstance(inputs, (tuple, list)) else inputs)
     elif cfg.dense_conn:

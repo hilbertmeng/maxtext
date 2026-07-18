@@ -475,6 +475,14 @@ class _HyperParameters:
       raw_keys["recurrent_physical_num_layers"] = recurrent_physical_num_layers
       raw_keys["recurrent_total_layers"] = recurrent_virtual_layers
       raw_keys["num_decoder_layers"] = recurrent_virtual_layers
+    if raw_keys["recurrent_mudd_virtual_state"]:
+      assert raw_keys["recurrent_block_repeats"] > 1, (
+          "recurrent_mudd_virtual_state requires recurrent_block_repeats > 1"
+      )
+      assert raw_keys["dense_conn"], "recurrent_mudd_virtual_state requires dense_conn=True"
+      assert not raw_keys["scan_layers"] and not raw_keys["partial_scan_layers"], (
+          "recurrent_mudd_virtual_state requires unscanned physical layers"
+      )
 
     # This is the first command that initializes the backend - it calls
     # jax.devices()

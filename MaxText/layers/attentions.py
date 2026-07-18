@@ -597,6 +597,10 @@ class AttentionOp(nn.Module):
   def _get_cached_kv_dtype(self, dtype):
     return self.kv_quant.dtype if self.kv_quant else dtype
 
+  @staticmethod
+  def _cache_var_name(base_name, cache_namespace):
+    return base_name if cache_namespace is None else f"{base_name}__{cache_namespace}"
+
   def _get_cache_scale_logical_shape(self, batch, heads, cache_length):
     assert self.kv_quant
     if self.kv_quant.axis_cfg == "dkv":
@@ -605,7 +609,7 @@ class AttentionOp(nn.Module):
       return (batch, cache_length, 1, 1)
     raise f"Invalid config for kv_quant_axis:{self.kv_quant.axis_cfg}"
 
-  def _get_prefill_cache_vars(self, batch, heads, kv_head_size, model_mode):
+  def _get_prefill_cache_vars(self, batch, heads, kv_head_size, model_mode, cache_namespace=None):
 
     cache_length = self.max_prefill_predict_length
     dtype = self._get_cached_kv_dtype(self.dtype)
@@ -621,14 +625,14 @@ class AttentionOp(nn.Module):
 
     cached_key_var = self.variable(
         "cache",
-        "cached_prefill_key",
+        self._cache_var_name("cached_prefill_key", cache_namespace),
         nn.with_logical_partitioning(jnp.zeros, cache_axis_names),
         cache_shape,
         dtype,
     )
     cached_value_var = self.variable(
         "cache",
-        "cached_prefill_value",
+        self._cache_var_name("cached_prefill_value", cache_namespace),
         nn.with_logical_partitioning(jnp.zeros, cache_axis_names),
         cache_shape,
         dtype,
@@ -640,7 +644,7 @@ class AttentionOp(nn.Module):
 
     cached_segment_id_var = self.variable(
         "cache",
-        "cache_prefill_segment_id",
+        self._cache_var_name("cache_prefill_segment_id", cache_namespace),
         nn.with_logical_partitioning(jnp.zeros, segment_id_axis_names),
         (cache_logical_shape[0], cache_length),
         jnp.int32,
@@ -653,14 +657,14 @@ class AttentionOp(nn.Module):
 
       cached_key_scale_var = self.variable(
           "cache",
-          "cached_prefill_key_scale",
+          self._cache_var_name("cached_prefill_key_scale", cache_namespace),
           nn.with_logical_partitioning(jnp.zeros, cache_scale_axis_names),
           cache_scale_shape,
           jnp.bfloat16,
       )
       cached_value_scale_var = self.variable(
           "cache",
-          "cached_prefill_value_scale",
+          self._cache_var_name("cached_prefill_value_scale", cache_namespace),
           nn.with_logical_partitioning(jnp.zeros, cache_scale_axis_names),
           cache_scale_shape,
           jnp.bfloat16,
@@ -673,7 +677,7 @@ class AttentionOp(nn.Module):
     value_vars = (cached_value_var, cached_value_scale_var)
     return key_vars, value_vars, cached_segment_id_var
 
-  def _get_ar_cache_vars(self, batch, heads, kv_head_size, model_mode):
+  def _get_ar_cache_vars(self, batch, heads, kv_head_size, model_mode, cache_namespace=None):
 
     dtype = self._get_cached_kv_dtype(self.dtype)
     cache_length = self.max_target_length - self.max_prefill_predict_length
@@ -690,7 +694,7 @@ class AttentionOp(nn.Module):
     # TODO(b/339703100): investigate the issue why with_logical_partitioning doesn't enforce sharding
     cached_key_var = self.variable(
         "cache",
-        "cached_ar_key",
+        self._cache_var_name("cached_ar_key", cache_namespace),
         nn.with_logical_partitioning(jnp.zeros, cache_axis_names),
         cache_shape,
         dtype,
@@ -702,7 +706,7 @@ class AttentionOp(nn.Module):
 
     cached_value_var = self.variable(
         "cache",
-        "cached_ar_value",
+        self._cache_var_name("cached_ar_value", cache_namespace),
         nn.with_logical_partitioning(jnp.zeros, cache_axis_names),
         cache_shape,
         dtype,
@@ -718,7 +722,7 @@ class AttentionOp(nn.Module):
       segment_id_axis_names = (CACHE_BATCH, CACHE_SEQUENCE)
     cached_segment_id_var = self.variable(
         "cache",
-        "cache_ar_segment_id",
+        self._cache_var_name("cache_ar_segment_id", cache_namespace),
         nn.with_logical_partitioning(jnp.zeros, segment_id_axis_names),
         (cache_logical_shape[0], cache_length),
         jnp.int32,
@@ -726,7 +730,7 @@ class AttentionOp(nn.Module):
 
     cached_lengths_var = self.variable(
         "cache",
-        "cached_ar_lengths",
+        self._cache_var_name("cached_ar_lengths", cache_namespace),
         nn.with_logical_partitioning(jnp.zeros, (CACHE_BATCH,)),
         (cache_logical_shape[0],),
         jnp.int32,
@@ -739,14 +743,14 @@ class AttentionOp(nn.Module):
 
       cached_key_scale_var = self.variable(
           "cache",
-          "cached_ar_key_scale",
+          self._cache_var_name("cached_ar_key_scale", cache_namespace),
           nn.with_logical_partitioning(jnp.zeros, cache_scale_axis_names),
           cache_scale_shape,
           jnp.bfloat16,
       )
       cached_value_scale_var = self.variable(
           "cache",
-          "cached_ar_value_scale",
+          self._cache_var_name("cached_ar_value_scale", cache_namespace),
           nn.with_logical_partitioning(jnp.zeros, cache_scale_axis_names),
           cache_scale_shape,
           jnp.bfloat16,
@@ -755,7 +759,13 @@ class AttentionOp(nn.Module):
       cached_key_scale_var = None
       cached_value_scale_var = None
 
-    cache_index_var = self.variable("cache", "cache_ar_index", nn.with_logical_partitioning(jnp.zeros, ()), (1,), jnp.int32)
+    cache_index_var = self.variable(
+        "cache",
+        self._cache_var_name("cache_ar_index", cache_namespace),
+        nn.with_logical_partitioning(jnp.zeros, ()),
+        (1,),
+        jnp.int32,
+    )
     key_vars = (cached_key_var, cached_key_scale_var)
     value_vars = (cached_value_var, cached_value_scale_var)
     return key_vars, value_vars, cached_segment_id_var, cache_index_var, cached_lengths_var
@@ -765,6 +775,7 @@ class AttentionOp(nn.Module):
       key: Array,
       value: Array,
       decoder_segment_ids: Array,
+      cache_namespace=None,
   ):
     """In prefill mode, we zero out the existing cache, run the computation and
     prepare the cache as necessary.
@@ -782,10 +793,12 @@ class AttentionOp(nn.Module):
     assert key.dtype == value.dtype, "Key and Value Dtypes should match."
 
     cached_prefill_key_vars, cached_prefill_value_vars, cached_prefill_segment_id_var = self._get_prefill_cache_vars(
-        batch, heads, kv_head_size, common_types.MODEL_MODE_PREFILL
+        batch, heads, kv_head_size, common_types.MODEL_MODE_PREFILL, cache_namespace
     )
     # TODO: Find a way to not enable the ar cache for prefill mode.
-    _ = self._get_ar_cache_vars(batch, heads, kv_head_size, common_types.MODEL_MODE_PREFILL)  # initialize it now
+    _ = self._get_ar_cache_vars(
+        batch, heads, kv_head_size, common_types.MODEL_MODE_PREFILL, cache_namespace
+    )  # initialize it now
 
     key_shaped_for_cache = jnp.transpose(key, self.prefill_cache_axis_order)
     value_shaped_for_cache = jnp.transpose(value, self.prefill_cache_axis_order)
@@ -922,6 +935,7 @@ class AttentionOp(nn.Module):
       key: Array,
       value: Array,
       use_ragged_attention: bool = False,
+      cache_namespace=None,
   ):
     """In autoregressive mode, we update the cache for this entry and
        then return the full cache.
@@ -941,7 +955,9 @@ class AttentionOp(nn.Module):
       raise ValueError(f"Sequence length should be 1 during autoregression, got {sequence=}")
 
     cached_ar_key_vars, cached_ar_value_vars, cached_ar_segment_id_var, cache_ar_index_var, cache_ar_lengths_var = (
-        self._get_ar_cache_vars(batch, heads, kv_head_size, common_types.MODEL_MODE_AUTOREGRESSIVE)
+        self._get_ar_cache_vars(
+            batch, heads, kv_head_size, common_types.MODEL_MODE_AUTOREGRESSIVE, cache_namespace
+        )
     )
 
     self.update_ar_key_value(
@@ -964,7 +980,7 @@ class AttentionOp(nn.Module):
 
     # The below retrieves the existing prefill cache variables, not creating new ones
     cached_prefill_key_vars, cached_prefill_value_vars, cached_prefill_segment_id_var = self._get_prefill_cache_vars(
-        batch, heads, kv_head_size, common_types.MODEL_MODE_AUTOREGRESSIVE
+        batch, heads, kv_head_size, common_types.MODEL_MODE_AUTOREGRESSIVE, cache_namespace
     )
 
     cached_prefill = (
@@ -982,7 +998,13 @@ class AttentionOp(nn.Module):
     return cached_prefill, cached_ar
 
   def kv_cache(
-      self, key: Array, value: Array, decoder_segment_ids: Array, model_mode: str, use_ragged_attention: bool = False
+      self,
+      key: Array,
+      value: Array,
+      decoder_segment_ids: Array,
+      model_mode: str,
+      use_ragged_attention: bool = False,
+      cache_namespace=None,
   ) -> tuple:
     """KV cache takes the current state and updates the state accordingly.
 
@@ -1007,9 +1029,9 @@ class AttentionOp(nn.Module):
     if model_mode == common_types.MODEL_MODE_TRAIN:
       return (key, value, decoder_segment_ids), None
     elif model_mode == common_types.MODEL_MODE_PREFILL:
-      return self.kv_cache_prefill(key, value, decoder_segment_ids), None
+      return self.kv_cache_prefill(key, value, decoder_segment_ids, cache_namespace), None
     elif model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
-      return self.kv_cache_autoregressive(key, value, use_ragged_attention)
+      return self.kv_cache_autoregressive(key, value, use_ragged_attention, cache_namespace)
     else:
       raise ValueError(f"Model Mode isn't supported! {model_mode=}")
 
@@ -1037,9 +1059,24 @@ class AttentionOp(nn.Module):
     return attn_out
 
   @nn.compact
-  def __call__(self, query, key, value, decoder_segment_ids, model_mode, *args, eos_sum=None): # lsp
+  def __call__(
+      self,
+      query,
+      key,
+      value,
+      decoder_segment_ids,
+      model_mode,
+      *args,
+      eos_sum=None,
+      cache_namespace=None,
+  ): # lsp
     prefill_kv_cache, ar_kv_cache = self.kv_cache(
-        key, value, decoder_segment_ids, model_mode, use_ragged_attention=self.use_ragged_attention
+        key,
+        value,
+        decoder_segment_ids,
+        model_mode,
+        use_ragged_attention=self.use_ragged_attention,
+        cache_namespace=cache_namespace,
     )
 
     prefill_unnormalized_output, prefill_exponentials_max, prefill_exponentials_sum = self.apply_attention(
@@ -1374,6 +1411,7 @@ class Attention(nn.Module):
       eos_sum: Array | None = None,
       deep_embedding: Array | None = None,
       kv_shift_plan=None,
+      cache_namespace=None,
   ):
     """Applies Attention on the input data.
 
@@ -1499,9 +1537,21 @@ class Attention(nn.Module):
 
     print(f'query: {query.shape} key: {key.shape} value: {value.shape}')
     if getattr(cfg, "paired_head", False):
-      out = self.paired_head_attention(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum)
+      out = self.paired_head_attention(
+          query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum, cache_namespace
+      )
     else:
-      out = self.attention_op(query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
+      out = self.attention_op(
+          query,
+          key,
+          value,
+          decoder_segment_ids,
+          model_mode,
+          inputs_q,
+          inputs_kv,
+          eos_sum=eos_sum,
+          cache_namespace=cache_namespace,
+      )
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 
@@ -1512,7 +1562,9 @@ class Attention(nn.Module):
     out = checkpoint_name(out, "out_proj")
     return out
 
-  def paired_head_attention(self, query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum):
+  def paired_head_attention(
+      self, query, key, value, decoder_segment_ids, model_mode, inputs_q, inputs_kv, eos_sum, cache_namespace=None
+  ):
     """Paired-head attention (modded-nanogpt train_gpt.py CausalSelfAttention(paired=True)).
 
     Adjacent heads (2j, 2j+1) are interleaved into a single causal sequence of length 2T so
@@ -1573,7 +1625,17 @@ class Attention(nn.Module):
 
     seg2 = jnp.repeat(decoder_segment_ids, 2, axis=1) if decoder_segment_ids is not None else None
 
-    out2 = self.attention_op(q2, k2, v2, seg2, model_mode, inputs_q, inputs_kv, eos_sum=eos_sum)
+    out2 = self.attention_op(
+        q2,
+        k2,
+        v2,
+        seg2,
+        model_mode,
+        inputs_q,
+        inputs_kv,
+        eos_sum=eos_sum,
+        cache_namespace=cache_namespace,
+    )
 
     # de-interleave [B, 2T, N//2, D] -> [B, T, N, D]
     out = out2.reshape(b, t, 2, n // 2, d)

@@ -42,6 +42,19 @@ from collections import defaultdict
 from functools import partial
 
 Array = common_types.Array
+
+
+def build_recurrent_layer_order(physical_layers, recurrent_start, recurrent_end, recurrent_repeats):
+  """Returns virtual execution order while preserving physical parameter identities."""
+  assert 0 <= recurrent_start < recurrent_end <= physical_layers, (
+      "Layer recurrence requires 0 <= recurrent_layer_start < recurrent_layer_end <= physical layers."
+  )
+  assert recurrent_repeats > 1, "Layer recurrence requires recurrent_block_repeats > 1."
+  return (
+      list(range(recurrent_start))
+      + list(range(recurrent_start, recurrent_end)) * recurrent_repeats
+      + list(range(recurrent_end, physical_layers))
+  )
 Config = common_types.Config
 DType = common_types.DType
 Mesh = common_types.Mesh
@@ -441,20 +454,22 @@ class Decoder(nn.Module):
       )
 
   def set_remat_policy(self, block_layers, policy):
+    recurrent_mudd_virtual_state = bool(getattr(self.config, "recurrent_mudd_virtual_state", False))
+    layer_static_argnums = (6, 7, 11) if recurrent_mudd_virtual_state else (6, 7)
     RemattedBlockLayers = []
     for block_layer in block_layers:
       layer = nn.remat(
           block_layer,
           prevent_cse=True, #lsp: scan_layers is True, 该参数务必注意，设置为False可能会卡住
           policy=policy,
-          static_argnums=(6, 7),
+          static_argnums=layer_static_argnums,
           rngs={"params": True, "aqt": True, "dropout": True},
       )
       layer1 = nn.remat(
           block_layer,
           prevent_cse=True,#lsp: scan_layers is False，该参数务必注意，设置为False可能会卡住
           policy=policy,
-          static_argnums=(6, 7),
+          static_argnums=layer_static_argnums,
           rngs={"params": True, "aqt": True, "dropout": True},
       )
       RemattedBlockLayers.append(layer1)
@@ -784,10 +799,16 @@ class Decoder(nn.Module):
         hids.append(y)
 
       if getattr(cfg, "recurrent_block_repeats", 1) > 1:
+        recurrent_mudd_virtual_state = bool(getattr(cfg, "recurrent_mudd_virtual_state", False))
         assert not cfg.scan_layers, "Shared recurrent layers are only supported with scan_layers=False."
         assert not cfg.partial_scan_layers, "Shared recurrent layers are not supported with partial_scan_layers."
         assert not cfg.using_pipeline_parallelism, "Shared recurrent layers are not supported with pipeline parallelism."
-        assert not cfg.dense_conn, "Shared recurrent layers are not supported with dense_conn."
+        assert not cfg.dense_conn or recurrent_mudd_virtual_state, (
+            "Shared recurrent layers with dense_conn require recurrent_mudd_virtual_state=True."
+        )
+        assert not recurrent_mudd_virtual_state or cfg.dense_conn, (
+            "recurrent_mudd_virtual_state=True is only valid for full-history dense_conn models."
+        )
         assert cfg.mtp_num_layers == 0, "Shared recurrent layers are not supported with MTP."
 
         physical_layers = cfg.recurrent_physical_num_layers or cfg.base_num_decoder_layers
@@ -799,16 +820,19 @@ class Decoder(nn.Module):
             "<= recurrent_physical_num_layers/base_num_decoder_layers."
         )
 
-        layer_order = (
-            list(range(recurrent_start))
-            + list(range(recurrent_start, recurrent_end)) * recurrent_repeats
-            + list(range(recurrent_end, physical_layers))
+        layer_order = build_recurrent_layer_order(
+            physical_layers, recurrent_start, recurrent_end, recurrent_repeats
         )
         assert len(layer_order) == cfg.num_decoder_layers, (
             f"Recurrent layer order has {len(layer_order)} virtual layers, "
             f"but config.num_decoder_layers={cfg.num_decoder_layers}."
         )
-        max_logging.log(f"recurrent layer order: {layer_order}", debug=cfg.debug)
+        max_logging.log(
+            f"recurrent layer order: {layer_order}",
+            debug=False if recurrent_mudd_virtual_state else cfg.debug,
+        )
+        if recurrent_mudd_virtual_state:
+          self.sow("intermediates", "recurrent_layer_order", jnp.asarray(layer_order, dtype=jnp.int32))
 
         swss = format_swss(sws_list)
         layer_sws = {}
@@ -838,18 +862,33 @@ class Decoder(nn.Module):
               f"(params layers_{physical_lyr})=====================\n",
               debug=cfg.debug,
           )
-          layer_output = recurrent_layers[physical_lyr](
-              y,
-              decoder_segment_ids,
-              decoder_positions,
-              decoder_input_tokens,
-              deep_embeddings[virtual_lyr],
-              deterministic,
-              model_mode,
-              hids=hids,
-              eos_sum=eos_sum,
-              kv_shift_plan=kv_shift_plan,
-          )
+          if recurrent_mudd_virtual_state:
+            layer_output = recurrent_layers[physical_lyr](
+                y,
+                decoder_segment_ids,
+                decoder_positions,
+                decoder_input_tokens,
+                deep_embeddings[virtual_lyr],
+                deterministic,
+                model_mode,
+                hids,
+                eos_sum,
+                kv_shift_plan,
+                virtual_lyr,
+            )
+          else:
+            layer_output = recurrent_layers[physical_lyr](
+                y,
+                decoder_segment_ids,
+                decoder_positions,
+                decoder_input_tokens,
+                deep_embeddings[virtual_lyr],
+                deterministic,
+                model_mode,
+                hids=hids,
+                eos_sum=eos_sum,
+                kv_shift_plan=kv_shift_plan,
+            )
           if isinstance(layer_output, tuple):
             y = layer_output[0]
             if len(layer_output) > 1 and layer_output[1] is not None:

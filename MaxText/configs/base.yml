@@ -672,6 +672,7 @@ recurrent_physical_num_layers: 0 # 0 means use the normally derived non-recurren
 recurrent_layer_start: -1 # inclusive physical layer index for the recurrent block
 recurrent_layer_end: -1 # exclusive physical layer index for the recurrent block
 recurrent_block_repeats: 1 # number of times to apply [recurrent_layer_start, recurrent_layer_end)
+recurrent_mudd_virtual_state: False # virtual MUDD/cache state with shared physical recurrent core params
 head_dim: 128
 max_target_length: 2048 # Maximum sequence length
 per_device_batch_size: 12.0

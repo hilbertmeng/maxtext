@@ -474,6 +474,26 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormK
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGrope'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGrope'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGrope):
+    recurrent_physical_num_layers = 28
+    recurrent_layer_start = 7
+    recurrent_layer_end = 21
+    recurrent_block_repeats = 2
+    recurrent_total_layers = 42
+    recurrent_mudd_virtual_state = True
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC'
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurAAB(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGrope):
+    recurrent_physical_num_layers = 28
+    recurrent_layer_start = 0
+    recurrent_layer_end = 14
+    recurrent_block_repeats = 2
+    recurrent_total_layers = 42
+    recurrent_mudd_virtual_state = True
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurAAB'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurAAB'
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeDiagnosticAllPuzzleComplex2V1(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGrope):
     dataset_path = 'gs://newproject-1-common_datasets_us-east5/nvarc_tfrecord_enhanced/all_puzzle_complex2/'
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeDiagnosticAllPuzzleComplex2V1'

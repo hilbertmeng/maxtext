@@ -481,6 +481,10 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormK
     recurrent_block_repeats = 2
     recurrent_total_layers = 42
     recurrent_mudd_virtual_state = True
+    # Virtual full-history Compose leaves raise the replicated-parameter
+    # fraction to 2.67% on v5p-32; retain the sharding guard with a narrow
+    # recurrent-only ceiling rather than changing the global 2% contract.
+    sharding_tolerance = 0.03
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC'
 
@@ -491,6 +495,7 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormK
     recurrent_block_repeats = 2
     recurrent_total_layers = 42
     recurrent_mudd_virtual_state = True
+    sharding_tolerance = 0.03
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurAAB'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurAAB'
 

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import unittest
 
 import checkpointing
+import exp
 import flax
 import max_utils
 from layers import attentions
@@ -69,6 +70,16 @@ class RecurrentMuddTest(unittest.TestCase):
     wrapped = flax.core.freeze({"params": model_tree})
     self.assertEqual(max_utils._unwrap_recurrent_mudd_model_params(model_tree), flax.core.unfreeze(model_tree))
     self.assertEqual(max_utils._unwrap_recurrent_mudd_model_params(wrapped), flax.core.unfreeze(model_tree))
+
+  def test_recurrent_mudd_sharding_guard_is_narrowly_raised(self):
+    self.assertEqual(
+        exp.Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC.sharding_tolerance,
+        0.03,
+    )
+    self.assertEqual(
+        exp.Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurAAB.sharding_tolerance,
+        0.03,
+    )
 
 
 if __name__ == "__main__":

@@ -394,6 +394,11 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunHalfNVARCA
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunHalfNVARCAncestryV1'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunHalfNVARCAncestryV1'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun):
+    dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/arc/nvarc4hp1combo5_v2_7da845923515_064b3f0b70c5/dataset/'
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5'
+
 class Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile):
     train_reinit_embedding_params = False
     train_load_parameters_path = ''

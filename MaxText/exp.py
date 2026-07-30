@@ -373,6 +373,11 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun(Qwen3Larg
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun8K(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun):
+    max_target_length = 8192
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun8K'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun8K'
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunData2x(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun):
     # Two passes over the same training-data budget. Keep the inherited
     # learning_rate=3e-4 and cosine_learning_rate_final_fraction=0.001,

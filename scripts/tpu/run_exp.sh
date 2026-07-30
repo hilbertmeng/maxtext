@@ -50,11 +50,12 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
 # ID="41"; EXP="Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift"
 # ID="42"; EXP="Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreserved"
 # ID="43"; EXP="Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGrope"
-ID="46"; EXP="Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC"
+# ID="46"; EXP="Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC"
+ID="47"; EXP="Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunHalfNVARCAncestryV1"
 
 
-RUN_NAME="Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC_TPUValidationV1"
-# RUN_NAME="${EXP}"
+# RUN_NAME="Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC_TPUValidationV1"
+RUN_NAME="${EXP}"
 
 SESSION_NAME="${EXP}-TPU${ID}-mqy"; echo $SESSION_NAME
 # tmux new -s $SESSION_NAME 

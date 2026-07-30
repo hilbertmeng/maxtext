@@ -1,0 +1,117 @@
+# 2026-07-30 tpu-ag 脚本迁移记录
+
+## 迁移前文件
+
+| 文件 | SHA-256 |
+| --- | --- |
+| `/home/lishengping/mengqy/projects/run_exp.sh` | `2cc3e962d54a9397577b9fa36c0ef2277b0c7f7d8ad5962d04cc4a9c6eeec4c1` |
+| `/home/lishengping/mengqy/projects/auto_train_arc_maxtext.sh` | `a96771738e2678079fec1f481c68d350602ac8f19e4d182629d7e2665d823ed9` |
+| `/home/lishengping/mengqy/projects/auto_train_arc_maxtext_abbc_d30f81a.sh` | `6de99fb6c7c81abd4b478abbff23a881b2d7674d9164bd3621ef102ef540b656` |
+| `/home/lishengping/tpu/install_0812_v5p_mqy_maxtext_jax081.sh` | `5b96ee32ddeb06ec0313ba04936997d8e2bb271fdd9b3c3e20305cbdbaa343b6` |
+
+完整备份目录：
+
+```text
+/home/lishengping/mengqy/projects/script_backups/20260730T025308Z/
+```
+
+旧位置还保留了带 `.pre_repo_20260730T025308Z` 后缀的就地副本。迁移后的旧路径是 symlink，
+全部指向：
+
+```text
+/home/lishengping/mengqy/projects/maxtext/scripts/tpu/
+```
+
+## 历史两个 auto-train 文件的唯一语义差异
+
+`auto_train_arc_maxtext_abbc_d30f81a.sh` 相比用户长期使用的
+`auto_train_arc_maxtext.sh`，只修改了 TPU worker 上的代码同步：
+
+```diff
+- git checkout refactor-arc
+- git pull
++ git fetch origin recurrent-mudd-abbc-validation-d30f81a
++ git checkout --detach 4f0bd7d891dae790b0cb6947a2632e4691f7547c
++ test "$(git rev-parse HEAD)" = 4f0bd7d891dae790b0cb6947a2632e4691f7547c
+```
+
+其他 7,897 bytes 的控制逻辑完全相同。现在统一由环境变量表达：
+
+```text
+MAXTEXT_SYNC_REF
+MAXTEXT_EXPECTED_COMMIT
+```
+
+不设置 commit 时默认跟踪 `refactor-arc`，保持原版语义。ABBC pin 只保存在
+`profiles/abbc_validation.env` 和同名兼容 wrapper 中。
+
+## 旧 run_exp 实验目录
+
+旧 `run_exp.sh` 通过大量注释切换实验，存在 ID 重复、硬编码当前实验和执行即启动等风险。
+迁移后改为显式 profile。以下清单仅用于历史检索，不可直接执行：
+
+```text
+0  LLaDA100m_arc
+0  LladaSmallQuarterArcDataMaskall
+1  LladaSmallQuarterArcDataMaskallReweight
+2  LLaDATinyArc
+3  Qwen3LargeArcPostTrainTenth
+4  Qwen3LargeArcTenthFromScratch
+5  Qwen3LargeArcPostTrainTenthNVARC16
+6  Qwen3LargeArcTenthFromScratchNVARC16
+7  Qwen3LargeArcPostTrainTenthNVARC16Reinit
+8  Qwen3LargeArcPostTrainFullNVARC16
+9  Qwen3LargeArcFromScratchFullNVARC16
+10 Qwen3LargeArcPostTrainFullNVARC16Shuffle
+11 Qwen3LargeArcFromScratchFullNVARC16Shuffle
+12 Qwen3LargeArcPostTrainFullNVARC16Shuffle2
+13 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFile
+14 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFile
+15 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTied
+16 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4
+17 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap4
+18 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap8
+19 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30
+20 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30
+20 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30Tied
+21 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap30Recurrent
+22 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4
+23 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine1e3Cap30Tied
+24 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine6e4Cap30Tied
+25 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRope
+26 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNorm
+27 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift
+28 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftDC
+29 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzle
+30 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftHalfpuzzle
+31 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzleOshift
+32 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzleComplex
+33 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftAllpuzzleComplex2
+34 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift2DAllpuzzle
+35 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift2DAllpuzzleSoftmax
+36 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun
+37 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftLGLL
+38 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMTP4
+39 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftMuon
+40 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftPairedHead
+40 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftPairedHeadCrossGQA
+41 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshift
+42 Qwen3LargeArcFromScratchFullNVARC16ShuffleOneFileCosine3e4Cap30TiedGGRopeMuddNormKVshiftPairedHeadCrossGQA
+42 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreserved
+43 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGrope
+46 Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileCosine3e4Cap30TiedMuddNormKVshiftIdentityPreservedGGropeRecurABBC
+```
+
+ID `20`、`40` 和 `42` 在旧文件中重复，因此以后不得从这个历史表自动分配新 ID。
+
+## 行为变化
+
+- 无参数不再自动创建 TPU；必须显式指定 mode 和 profile。
+- 普通分支同步使用 `pull --ff-only`，不会静默产生 merge commit。
+- pinned 模式验证 TPU worker 实际 HEAD。
+- 安装脚本从当前 Git checkout 复制，不再依赖仓库外漂移副本。
+- controller log/PID 路径显式配置，默认保持旧目录。
+- `delete-tpu` 必须设置 `CONFIRM_DELETE_TPU=yes-really-delete`。
+- `stop-controller` 不会删除 TPU，也不会杀死已经启动的 worker 训练。
+
+迁移和验证期间没有创建、删除 TPU，也没有启动训练。

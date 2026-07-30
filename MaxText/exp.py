@@ -373,6 +373,17 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun(Qwen3Larg
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunData2x(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun):
+    # Two passes over the same training-data budget. Keep the inherited
+    # learning_rate=3e-4 and cosine_learning_rate_final_fraction=0.001,
+    # so the peak and final learning rates remain 3e-4 and 3e-7.
+    epoch = 2
+    steps = 2 * 12716
+    learning_rate_schedule_steps = steps
+    warmup_steps_fraction = 200 / learning_rate_schedule_steps
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunData2x'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunData2x'
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunHalfNVARCAncestryV1(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun):
     dataset_path = 'gs://newproject-1-llm_base_models_us-central1/data/arc/nvarc_half_synthetic_ancestry_v1_fa4953bde3ef_2b1b8316f47b/dataset/'
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunHalfNVARCAncestryV1'

@@ -426,8 +426,8 @@ class FusionDecoderLayer(nn.Module):
             lidx=self.layer_inx,
           )
             
-    # return's inputs length is 1
-    output = self.layer(
+    # return's inputs length is 1 (BAM is blocked on the partial_scan path, so M_out is None here)
+    output, _ = self.layer(
         inputs,
         decoder_segment_ids,
         decoder_positions,

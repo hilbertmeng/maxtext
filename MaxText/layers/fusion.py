@@ -87,6 +87,7 @@ class SubDecoderLayer(nn.Module):
       deterministic,
       model_mode,
       eos_sum,
+      M_in=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -123,7 +124,7 @@ class SubDecoderLayer(nn.Module):
     max_logging.log(f'layer_inx: {self.layer_inx} sliding window size: {self.sliding_window_size} n: {n}', debug=cfg.debug)
     max_logging.log(f'query heads: {num_query_heads} kv heads: {num_kv_heads} head_dim: {head_dim}', debug=cfg.debug)
     # Self-attention block
-    attention_layer = Attention(
+    attn_kwargs = dict(
         config=cfg,
         num_query_heads=num_query_heads,
         num_kv_heads=num_kv_heads,
@@ -150,11 +151,19 @@ class SubDecoderLayer(nn.Module):
         sliding_window_size=self.sliding_window_size,
         use_kv_shift=cfg.use_kv_shift,
     )
+    if cfg.bam_enabled:
+        AttnCls = attentions.BamAttention
+        modes = cfg.bam_layer_modes
+        layer_mode = modes[self.layer_inx] if isinstance(modes, list) else modes
+        attn_kwargs.update(layer_mode=layer_mode, bam_k=cfg.bam_k, bam_v=cfg.bam_v)
+    else:
+        AttnCls = Attention
+    attention_layer = AttnCls(**attn_kwargs)
 
-    attention_lnx = attention_layer(
-        lnx,
-        lnx if not cfg.dense_conn else lnx_kv,
-        decoder_positions,
+    call_kwargs = dict(
+        inputs_q=lnx,
+        inputs_kv=lnx if not cfg.dense_conn else lnx_kv,
+        inputs_positions=decoder_positions,
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
         decoder_input_tokens=decoder_input_tokens,
@@ -162,7 +171,12 @@ class SubDecoderLayer(nn.Module):
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
     )
-   
+    if cfg.bam_enabled:
+        attention_lnx, M_out = attention_layer(**call_kwargs, M_in=M_in)
+    else:
+        attention_lnx = attention_layer(**call_kwargs)
+        M_out = M_in
+
     if cfg.record_internal_nn_metrics:
         attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))
         self.sow('intermediates', 'attn_lnx/l2norm', attention_lnx_l2norm)
@@ -264,7 +278,7 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
-    return layer_output
+    return layer_output, M_out
 
 
 class FusionDecoderLayer(nn.Module):
@@ -317,9 +331,11 @@ class FusionDecoderLayer(nn.Module):
       model_mode,
       hids=None,
       eos_sum=None,
+      M_in=None,
   ):
     cfg = self.config
     if cfg.partial_scan_layers:
+      assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
       return self.partial_scan_call(
         inputs,
         decoder_segment_ids,
@@ -353,7 +369,7 @@ class FusionDecoderLayer(nn.Module):
             lidx=self.layer_inx,
           )
     # return's inputs length is 1
-    inputs = self.layer(
+    inputs, M_out = self.layer(
         inputs,
         decoder_segment_ids,
         decoder_positions,
@@ -362,21 +378,24 @@ class FusionDecoderLayer(nn.Module):
         deterministic,
         model_mode,
         eos_sum,
+        M_in=M_in,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
       C = self.get_C(cfg)
       inputs, hids = mudd.Compose(
-        cfg, self.mesh, self.quant, 
+        cfg, self.mesh, self.quant,
         compose=True,
         name=f'compose_break',
         C=C,
         )(
-          layer_output=inputs, 
-          hids=hids,  
+          layer_output=inputs,
+          hids=hids,
           lidx=self.layer_inx,
         )
-   
+
+    if cfg.bam_enabled:
+      return inputs, hids, M_out
     return inputs, hids
 
   def partial_scan_call(

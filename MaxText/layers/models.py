@@ -641,6 +641,7 @@ class Decoder(nn.Module):
       RemattedBlockLayers = self.set_remat_policy(self.decoder_layer, get_remat_policy(cfg)) 
 
     if cfg.using_pipeline_parallelism:
+      assert not cfg.bam_enabled, "BAM v0.1 does not support pipeline parallelism"
       if cfg.pipeline_fsdp_ag_once:
         partition_spec = self.pipeline_module.get_weight_sharding(
             y, decoder_segment_ids, decoder_positions, deterministic, model_mode
@@ -762,6 +763,7 @@ class Decoder(nn.Module):
         hids.append(y)
 
       if cfg.scan_layers:
+        assert not cfg.bam_enabled, "BAM v0.1 does not support scan_layers (M cannot be threaded across depth)"
         RemattedBlockLayer = RemattedBlockLayers[1]
         y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
             y,
@@ -775,6 +777,7 @@ class Decoder(nn.Module):
         )
 
       elif cfg.partial_scan_layers:
+        assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
 
         swss = format_swss(sws_list)
         max_logging.log(f'[partial_scan_layers] roll_window_size: {cfg.roll_sws} swss: {swss}', debug=cfg.debug)
@@ -899,14 +902,19 @@ class Decoder(nn.Module):
       else:
         swss = format_swss(sws_list)
         max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)
+        if cfg.bam_enabled:
+          b, t = y.shape[0], y.shape[1]
+          M = jnp.zeros((b, t, cfg.bam_k, cfg.bam_v), dtype=cfg.dtype)
+        else:
+          M = None
         for lyr in range(cfg.num_decoder_layers):
           max_logging.log(f'\n=================decoder layer: {lyr}=====================\n', debug=cfg.debug)
           RemattedBlockLayer = RemattedBlockLayers[0]
-          y, hids = RemattedBlockLayer(
-            config=cfg, 
-            mesh=mesh, 
-            name=f"layers_{lyr}", 
-            quant=self.quant, 
+          out = RemattedBlockLayer(
+            config=cfg,
+            mesh=mesh,
+            name=f"layers_{lyr}",
+            quant=self.quant,
             sliding_window_size=swss[lyr])(
               y,
               decoder_segment_ids,
@@ -917,7 +925,12 @@ class Decoder(nn.Module):
               model_mode,
               hids=hids,
               eos_sum=eos_sum,
+              M_in=M,
           )
+          if cfg.bam_enabled:
+            y, hids, M = out
+          else:
+            y, hids = out
 
     if cfg.dense_conn:
       print(f'me: {len(me)} hids: {len(hids)}')

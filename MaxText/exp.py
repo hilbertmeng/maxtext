@@ -180,6 +180,56 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     per_device_batch_size = 32.0
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
+    tensorboard_dir = "gs://newproject-1-llm_base_models_us-central1/log/summaries/train/"
+
+class BamLlama2Medium(Llama2Medium):
+    """BAM Attention built on the Llama2Medium backbone. v0.1: non-scan path, slot+local read, train mode.
+
+    Design ref: bam_attention/DESIGN.md §4 (core design), §4.6.5 (fusion-layer assembly),
+    §7.4 (v0.1 scope). BAM adds a matrix residual stream M:[b,t,k,v] that accumulates
+    across depth, plus a write primitive (outer product) and a read primitive (bilinear
+    contraction) on top of standard MHA. Asymmetric init: read side zero-initialized
+    => start is bit-identical to standard MHA; write gate slightly open => M accumulates
+    immediately and read params get a non-zero gradient on the first step.
+    """
+    model_name = 'BamLlama2Medium'
+
+    # ---- BAM master switch ----
+    bam_enabled = True
+
+    # ---- Per-layer read mode (length == num_decoder_layers); v0.1 supports 'slot'/'local'/'full'/'none'
+    #   'slot'  = slot read (codebook keys, cross-token, uses alpha)
+    #   'local' = local read (token reads its own M, injects into Q/K, before alpha)
+    #   'full'  = full-read oracle (free read keys, for slot-read correctness check only; most expensive transfer, not for production)
+    #   'none'  = pure MHA layer (no read, no write, M passes through)
+    # A layer may combine slot+local: local modifies q/k first, slot uses alpha after; they don't conflict.
+    # Default: first 16 layers slot read, last 8 local read (example; tunable per §4.5 circuit prior).
+    bam_layer_modes = ['slot'] * 16 + ['local'] * 8
+
+    # ---- Matrix-stream dims: bam_k + bam_v == head_dim (§4.1 constraint) ----
+    # Symmetric by default; use k != v (e.g. 24/40) in unit tests to expose U/V mismatch.
+    bam_k = 32
+    bam_v = 32
+
+    # ---- Slot-read params ----
+    bam_C = 2            # number of codebook symbols (active read symbols per layer)
+    bam_n_f = 2          # number of fetch patterns (reuse alpha of the first n_f standard heads)
+
+    # ---- Write primitive ----
+    bam_write_form = 'agg_u@loc_v'   # §4.2 safe write: aggregated U (outer) local V
+    bam_write_eps = 0.1              # write-gate bias b0 = logit(eps), slightly open
+
+    # ---- Stability switches (§9 decision 4; v0.1 defaults to bare accumulation to match oracle) ----
+    bam_lambda_decay = 1.0           # M <- lambda*M + dM; 1.0 = bare accumulation
+    bam_sqrt_n_scale = False         # scale write gate by 1/sqrt(n)
+    bam_read_rmsnorm = False         # RMS-norm on the read output
+
+    # ---- v0.1 constraints: only non-scan, non-dense_conn, train mode are supported ----
+    scan_layers = False
+    partial_scan_layers = False
+    dense_conn = False
+    mudd_in_layer = False
+
 
 class Llama2Large(Llama2Medium):
     model_name = 'Llama2Large'

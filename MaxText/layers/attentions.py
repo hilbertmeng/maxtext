@@ -38,6 +38,7 @@ from layers import dc
 from layers import accelerator
 from layers import normalizations
 from layers import kv_shift
+from einops import rearrange
 
 import max_logging
 
@@ -1668,3 +1669,247 @@ class MLA(Attention):
     out = nn.with_logical_constraint(out, self.out_axis_names)
     out = self.out_projection(inputs_q.shape[-1], out)
     return out
+
+
+# ============================================================================
+# BAM Attention (Bilinear Associative Memory)
+# Design ref: bam_attention/DESIGN.md §4 / §4.6.5 / §7.4
+# v0.1 scope: non-scan path, train mode, slot + local + full read, n == n_kv (no GQA)
+# ============================================================================
+
+def bam_read_reference(alpha_f, M, r_row, r_col):
+  """Full-read oracle (definitional, §4.6.1). For slot-read correctness check only, not production.
+
+  alpha_f: [b, n_f, t, s]  fetch-pattern alpha (reuse the first n_f standard heads)
+  M:       [b, s, k, v]    source matrix stream (U (outer) V form)
+  r_row:   [b, n, n_f, t, k]  row read key (lives in U space)
+  r_col:   [b, n, n_f, t, v]  col read key (lives in V space)
+  Returns [b, n, t, k+v]  [U answer; V answer], jointly addressed per (consumer head, fetch pattern).
+  """
+  Mbar = jnp.einsum('bfts,bskv->bftkv', alpha_f, M)          # fetch: pay the s-factor transfer cost
+  fwd  = jnp.einsum('bftkv,bnftk->bntv', Mbar, r_row)        # row read Mbar^T r -> V answer
+  rev  = jnp.einsum('bftkv,bnftv->bntk', Mbar, r_col)        # col read Mbar r_tilde -> U answer
+  return jnp.concatenate([rev, fwd], axis=-1)               # [U;V], type-aligned (§4.3)
+
+
+def slot_read(alpha_f, M, rho_u, rho_v, beta):
+  """Slot read (§4.6.2): codebook keys r = sum_c beta_c rho_c, cut transfer width k*v -> C(k+v).
+
+  alpha_f: [b, n_f, t, s]   alpha of the first n_f standard heads
+  M:       [b, s, k, v]
+  rho_u:   [C, k]  U-side codebook (row read key)
+  rho_v:   [C, v]  V-side codebook (col read key) -- side-independent (§4.1)
+  beta:    [b, n, t, n_f*2C]  W_beta(x), zero-initialized; last dim = (fetch, symbol, side)
+  Returns [b, n, t, k+v]  [U;V]
+  """
+  C = rho_u.shape[0]
+  # fetch: pre-project rho (once on the source side, no t factor), compute per side (no cat when k != v)
+  Yr = jnp.einsum('bskv,ck->bscv', M, rho_u)               # row read pre-answer M^T rho_u in V  [b,s,C,v]
+  Yc = jnp.einsum('bskv,cv->bsck', M, rho_v)               # col read pre-answer M rho_v  in U  [b,s,C,k]
+  Zr = jnp.einsum('bfts,bscv->bftcv', alpha_f, Yr)          # transfer = value-widened AV (main cost)
+  Zc = jnp.einsum('bfts,bsck->bftck', alpha_f, Yc)
+  # use: mix across all n heads over (fetch, symbol), row/col mixed separately
+  b, n, t, _ = beta.shape
+  n_f = Zr.shape[1]
+  b2 = beta.reshape(b, n, t, n_f, 2 * C)                   # [b,n,t,n_f,2C]: first C row read, last C col read
+  y_row = jnp.einsum('bftcv,bntfc->bntv', Zr, b2[..., :C])  # V-space answer
+  y_col = jnp.einsum('bftck,bntfc->bntk', Zc, b2[..., C:])  # U-space answer
+  return jnp.concatenate([y_col, y_row], axis=-1)          # [b,n,t,k+v]  U first, V second
+
+
+class BamAttention(Attention):
+  """BAM Attention: standard MHA plus a matrix residual stream M, a write primitive, and a read primitive.
+
+  v0.1: train mode, n==n_kv, non-scan. Per-layer read mode is set by layer_mode
+  ('slot' / 'local' / 'full' / 'none', combinable e.g. 'slot+local'). Asymmetric init: read side
+  zero-initialized => start is bit-identical to standard MHA; write-gate bias=logit(eps) slightly open
+  => M accumulates immediately. 'full' is the full-read oracle, for slot-read correctness check only;
+  most expensive transfer, not for production.
+  """
+
+  layer_mode: str = 'none'      # per-layer read mode (each layer is a separate instance under non-scan)
+  bam_k: int = 32
+  bam_v: int = 32
+
+  def setup(self):
+    super().setup()             # reuse attention_op / projections / rope / out_projection
+    cfg = self.config
+    assert self.bam_k + self.bam_v == self.head_dim, (
+        f"bam_k({self.bam_k})+bam_v({self.bam_v}) must equal head_dim({self.head_dim}), "
+        f"since the BAM head output [U;V] must be as wide as a standard head to share W_O")
+    self._mode = set(self.layer_mode.replace('+', ' ').split())
+    self._has_write = self.layer_mode != 'none'
+
+    zeros_init = nn.initializers.zeros
+    orth_init = nn.initializers.orthogonal()
+    reg_init = self.kernel_init
+
+    if 'slot' in self._mode:
+      self.W_beta = DenseGeneral(
+          features=(self.num_query_heads, cfg.bam_n_f, 2 * cfg.bam_C), axis=-1,
+          kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", "code"),
+          dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_beta",
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.rho_u = self.param('rho_u', orth_init, (cfg.bam_C, self.bam_k), self.weight_dtype)
+      self.rho_v = self.param('rho_v', orth_init, (cfg.bam_C, self.bam_v), self.weight_dtype)
+
+    if 'full' in self._mode:
+      # Full-read oracle (§4.6.1): free per-(consumer head, fetch pattern, token) read keys, zero-initialized.
+      # For slot-read correctness check only; most expensive transfer (k*v wide), not for production.
+      for _name, _dim, _ax in (("W_rrow", self.bam_k, "u_key"),
+                               ("W_rcol", self.bam_v, "v_key")):
+        setattr(self, _name, DenseGeneral(
+            features=(self.num_query_heads, cfg.bam_n_f, _dim), axis=-1,
+            kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", _ax),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name=_name,
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
+
+    if 'local' in self._mode:
+      # Local read: free per-use-point keys (one set each for Q/K), inject via U_q/U_k zero-initialized (§4.6.5)
+      for _name, _dim, _ax in (("W_lr_q", self.bam_k, "u_key"),
+                               ("W_lc_q", self.bam_v, "v_key"),
+                               ("W_lr_k", self.bam_k, "u_key"),
+                               ("W_lc_k", self.bam_v, "v_key")):
+        setattr(self, _name, DenseGeneral(
+            features=(_dim,), axis=-1, kernel_init=reg_init,
+            kernel_axes=("embed", _ax), dtype=self.dtype, weight_dtype=self.weight_dtype,
+            name=_name, quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=True))
+      for _name in ("U_q", "U_k"):
+        setattr(self, _name, DenseGeneral(
+            features=(self.num_query_heads, self.head_dim), axis=-1,
+            kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "kv"),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name=_name,
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
+
+    if self._has_write:
+      # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
+      loc_v = self.bam_v if cfg.bam_write_form == 'agg_u@loc_v' else self.bam_k
+      self.P_loc = DenseGeneral(features=(self.num_query_heads, loc_v), axis=-1,
+          kernel_init=reg_init, kernel_axes=("embed", "q_heads", "v_factor"),
+          dtype=self.dtype, weight_dtype=self.weight_dtype, name="P_loc",
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      # Write gate g_write: regular kernel, bias = logit(eps) explicitly slightly open
+      self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+          kernel_axes=("embed", "q_heads"), dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name="W_gw", quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      eps = float(cfg.bam_write_eps)
+      self.gw_b0 = self.param('gw_b0',
+          nn.with_logical_partitioning(
+              lambda key, shape, dtype: jnp.full(shape, math.log(eps / (1.0 - eps))),
+              ("q_heads",)),
+          (self.num_query_heads,), self.weight_dtype)
+
+  def _local_read(self, M_in, x, q, k):
+    """Local read: a token reads its own M_in, bilaterally contracts, injects into Q/K (§4.6.5)."""
+    def lread(W_lr, W_lc):
+      s_col = jnp.einsum('btkv,btv->btk', M_in, W_lc(x))   # col read -> U answer [b,t,k]
+      s_row = jnp.einsum('btkv,btk->btv', M_in, W_lr(x))   # row read -> V answer [b,t,v]
+      return jnp.concatenate([s_col, s_row], axis=-1)     # [b,t,k+v=d]  U first, V second
+    sq = lread(self.W_lr_q, self.W_lc_q)
+    sk = lread(self.W_lr_k, self.W_lc_k)
+    b, t, _ = sq.shape
+    q = q + self.U_q(sq).reshape(b, t, self.num_query_heads, self.head_dim)
+    k = k + self.U_k(sk).reshape(b, t, self.num_query_heads, self.head_dim)
+    return q, k
+
+  def _write(self, o_head, x, M_in):
+    """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O)."""
+    cfg = self.config
+    u1 = o_head[..., :self.bam_k]                          # U factor [b,t,n,k]
+    u2 = self.P_loc(x)                                     # V factor [b,t,n,v] (locally anchored)
+    g = jax.nn.sigmoid(self.W_gw(x) + self.gw_b0)          # [b,t,n]
+    dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * u1, u2)
+    return cfg.bam_lambda_decay * M_in + dM
+
+  @nn.compact
+  def __call__(
+      self,
+      inputs_q: Array,
+      inputs_kv: Array,
+      inputs_positions: Array,
+      decoder_segment_ids: Array | None = None,
+      decoder_input_tokens: Array | None = None,
+      *,
+      model_mode: str = common_types.MODEL_MODE_TRAIN,
+      deterministic: bool = False,
+      eos_sum: Array | None = None,
+      deep_embedding: Array | None = None,
+      M_in: Array | None = None,
+  ):
+    """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
+
+    v0.1 supports train mode and n==n_kv only; prefill/decode error out, deferred to v0.2.
+    """
+    cfg = self.config
+    assert model_mode == common_types.MODEL_MODE_TRAIN, "BamAttention v0.1 supports train mode only"
+    assert self.num_query_heads == self.num_kv_heads, "BamAttention v0.1 requires n==n_kv (no GQA)"
+
+    inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
+    inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
+
+    # ---- QKV projection (reuse parent) + QKNorm + RoPE ----
+    if cfg.fused_qkv:
+      query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
+    else:
+      query = self.query_projection(inputs_q)
+      key = self.kv_projection(inputs_kv, proj_name="key")
+      value = self.kv_projection(inputs_kv, proj_name="value")
+    query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
+    query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
+    key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+
+    # ---- Local read (before alpha, inject into Q/K) ----
+    if 'local' in self._mode:
+      assert M_in is not None, "local read requires M_in"
+      query, key = self._local_read(M_in, inputs_q, query, key)
+
+    query = nn.with_logical_constraint(query, self.query_axis_names)
+    key = nn.with_logical_constraint(key, self.key_axis_names)
+    value = nn.with_logical_constraint(value, self.value_axis_names)
+
+    # ---- alpha = softmax(QK/sqrt(d) + mask) (full sequence in train, n==n_kv) ----
+    query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
+    if cfg.float32_qk_product:
+      query = query.astype(jnp.float32); key = key.astype(jnp.float32)
+    logits = jnp.einsum('btnd,bsnd->bnts', query, key)     # [b,n,t,s]
+    if cfg.attn_logits_soft_cap:
+      logits = jnp.tanh(logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
+    attn_mask = self.attention_op.generate_attention_mask(query, key, decoder_segment_ids, model_mode)
+    if attn_mask is not None:
+      logits = logits + attn_mask                            # broadcast [b,1,1,t,s] -> [b,n,t,s]
+    if cfg.float32_logits:
+      logits = logits.astype(jnp.float32)
+    alpha = jax.nn.softmax(logits, axis=-1)                 # [b,n,t,s]
+    y_std = jnp.einsum('bnts,bsnd->btnd', alpha, value)     # [b,t,n,d]
+
+    # ---- BAM read ----
+    y_bam = 0.0
+    if 'slot' in self._mode:
+      assert M_in is not None, "slot read requires M_in"
+      n_f = cfg.bam_n_f
+      beta = rearrange(self.W_beta(inputs_q), 'b t n c -> b n t c')   # [b,n,t,n_f*2C]
+      y_bam = slot_read(alpha[:, :n_f], M_in, self.rho_u, self.rho_v, beta)  # [b,n,t,k+v]
+      y_bam = rearrange(y_bam, 'b n t d -> b t n d')                 # [b,t,n,k+v=d]
+    elif 'full' in self._mode:
+      assert M_in is not None, "full read requires M_in"
+      n_f = cfg.bam_n_f
+      r_row = rearrange(self.W_rrow(inputs_q), 'b t (n f k) -> b n f t k',
+                        n=self.num_query_heads, f=n_f, k=self.bam_k)  # [b,n,n_f,t,k]
+      r_col = rearrange(self.W_rcol(inputs_q), 'b t (n f v) -> b n f t v',
+                        n=self.num_query_heads, f=n_f, v=self.bam_v)  # [b,n,n_f,t,v]
+      y_bam = bam_read_reference(alpha[:, :n_f], M_in, r_row, r_col)  # [b,n,t,k+v]
+      y_bam = rearrange(y_bam, 'b n t d -> b t n d')                 # [b,t,n,k+v=d]
+
+    o_head = y_std + y_bam                                  # [b,t,n,d]
+
+    # ---- Write primitive (update BAM state first, then project to the residual stream) ----
+    if self._has_write:
+      assert M_in is not None, "write primitive requires M_in"
+      M_out = self._write(o_head, inputs_q, M_in)
+    else:
+      M_out = M_in
+
+    out = nn.with_logical_constraint(o_head, self.out_axis_names)
+    out = self.out_projection(inputs_q.shape[-1], out)
+
+    return out, M_out

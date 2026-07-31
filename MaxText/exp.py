@@ -184,6 +184,10 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     # scan_decoder_layers path has an in_axes/carry arity incompatibility with
     # flax 0.12.1; the explicit loop avoids it. BamLlama2Medium already does this.
     scan_layers = False
+    # record_activation_metrics (train.py) assumes the nn.scan-wrapped intermediates
+    # layout ('sub_0'); with scan_layers=False that wrapper is absent. Disable internal
+    # nn metrics here (loss/lr/etc. are still logged). BamLlama2Medium inherits this.
+    record_internal_nn_metrics = 0
     tensorboard_dir = "gs://newproject-1-llm_base_models_us-central1/log/summaries/train/"
 
 class BamLlama2Medium(Llama2Medium):

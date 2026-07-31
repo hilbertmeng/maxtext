@@ -180,6 +180,10 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     per_device_batch_size = 32.0
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
+    # Use the explicit (unrolled) decoder loop instead of nn.scan. The shared
+    # scan_decoder_layers path has an in_axes/carry arity incompatibility with
+    # flax 0.12.1; the explicit loop avoids it. BamLlama2Medium already does this.
+    scan_layers = False
     tensorboard_dir = "gs://newproject-1-llm_base_models_us-central1/log/summaries/train/"
 
 class BamLlama2Medium(Llama2Medium):

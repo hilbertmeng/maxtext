@@ -189,6 +189,11 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     # nn metrics here (loss/lr/etc. are still logged). BamLlama2Medium inherits this.
     record_internal_nn_metrics = 0
     tensorboard_dir = "gs://newproject-1-llm_base_models_us-central1/log/summaries/train/"
+    # Inherit total step count from learning_rate_schedule_steps (13500 via Optimizer).
+    # pyconfig resolves steps=-1 -> learning_rate_schedule_steps, so the train loop
+    # (for step in np.arange(start_step, config.steps)) stops cleanly at 13500 instead
+    # of running on at constant lr to the base.yml default of 1,000,000.
+    steps = -1
 
 class BamLlama2Medium(Llama2Medium):
     """BAM Attention built on the Llama2Medium backbone. v0.1: non-scan path, slot+local read, train mode.

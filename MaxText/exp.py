@@ -194,6 +194,13 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     # (for step in np.arange(start_step, config.steps)) stops cleanly at 13500 instead
     # of running on at constant lr to the base.yml default of 1,000,000.
     steps = -1
+    # Checkpoint retention: keep only the 2 most recent checkpoints (enough for
+    # preemption recovery — auto_train loads the latest). Overrides Common's
+    # keep_period=1000 (which permanently kept every 1000-step ckpt, ~4 GiB each,
+    # accumulating to ~75 GiB). keep_period=0 disables that permanent keep so
+    # max_to_keep actually prunes.
+    max_to_keep = 2
+    keep_period = 0
 
 class BamLlama2Medium(Llama2Medium):
     """BAM Attention built on the Llama2Medium backbone. v0.1: non-scan path, slot+local read, train mode.

@@ -205,10 +205,9 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
 class BamLlama2Medium(Llama2Medium):
     model_name = 'BamLlama2Medium'
     bam_enabled = True
-    # The full-read oracle is useful for correctness checks but made the v5p-16
-    # step time ~2.9x the Llama2Medium baseline when enabled in every layer.
-    # Use the two production local reads for the 13.5k-step comparison run.
-    bam_layer_modes = ['local_qk+local_o'] * 24
+    # Capability-ceiling run: keep the full-read oracle enabled in every layer
+    # for all 13.5k steps. Its measured cost is intentional for this experiment.
+    bam_layer_modes = ['local_qk+local_o+full'] * 24
 
     bam_k = 32
     bam_v = 32

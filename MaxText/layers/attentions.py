@@ -1674,57 +1674,69 @@ class MLA(Attention):
 # ============================================================================
 # BAM Attention (Bilinear Associative Memory)
 # Design ref: bam_attention/DESIGN.md §4 / §4.6.5 / §7.4
-# v0.1 scope: non-scan path, train mode, slot + local + full read, n == n_kv (no GQA)
+# v0.1 scope: non-scan path, train mode, codebook + local + full read, n == n_kv (no GQA)
 # ============================================================================
 
-def bam_read_reference(alpha_f, M, r_row, r_col):
-  """Full-read oracle (definitional, §4.6.1). For slot-read correctness check only, not production.
+def _rms(z, eps, axis=-1):
+  """RMS normalization: z * rsqrt(mean(z**2, axis) + eps). No params (§4.6.5 two-track normalization)."""
+  return z * jax.lax.rsqrt(jnp.mean(z ** 2, axis=axis, keepdims=True) + eps)
 
-  alpha_f: [b, n_f, t, s]  fetch-pattern alpha (reuse the first n_f standard heads)
-  M:       [b, s, k, v]    source matrix stream (U (outer) V form)
-  r_row:   [b, n, n_f, t, k]  row read key (lives in U space)
-  r_col:   [b, n, n_f, t, v]  col read key (lives in V space)
-  Returns [b, n, t, k+v]  [U answer; V answer], jointly addressed per (consumer head, fetch pattern).
+
+def bam_read(M, x, W_R, R=None):
+  """Unified read primitive (§4.6.1) — every read mode shares this.
+
+  Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
+  M: single tensor [b,{f},t,k,v] (U⊗V same) OR (M_col, M_row) tuple (codebook read uses
+     (Zcᵀ, Zr), each side its own matrix state). The f axis appears iff M is 5-D
+     (cross-token fetch); it is summed into the contraction (Σ_f).
+  W_R: DenseGeneral x -> {n}{f}(A_r+A_c); MaxText emits [b,t,(n),(f,),kv] (head after t),
+     consumed natively by the einsum (key subscript bt{n}{f}{side}). Split widths adapt to M's
+     k/v (or C/C for codebook).
+  R: [n,d,d] rematrix given => shared tier (key has no head axis, read once then per-head
+     rematrix); R is None => per-head tier (key carries head axis, no rematrix).
+  Returns [b, n, t, d] (= k+v, U first V second).
   """
-  Mbar = jnp.einsum('bfts,bskv->bftkv', alpha_f, M)          # fetch: pay the s-factor transfer cost
-  fwd  = jnp.einsum('bftkv,bnftk->bntv', Mbar, r_row)        # row read Mbar^T r -> V answer
-  rev  = jnp.einsum('bftkv,bnftv->bntk', Mbar, r_col)        # col read Mbar r_tilde -> U answer
-  return jnp.concatenate([rev, fwd], axis=-1)               # [U;V], type-aligned (§4.3)
+  Mc, Mr = M if isinstance(M, tuple) else (M, M)
+  f = 'f' if Mc.ndim == 5 else ''        # f axis present iff cross-token fetch (full/codebook)
+  n = 'n' if R is None    else ''        # n axis on key iff per-head tier (diag/full/codebook)
+  r_row, r_col = jnp.split(W_R(x), [Mr.shape[-2]], axis=-1)  # split widths adapt to M (k/v or C/C)
+  y = jnp.concatenate([
+      jnp.einsum(f'b{f}tkv,bt{n}{f}v->b{n}tk', Mc, r_col),   # col read -> U
+      jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row),   # row read -> V
+  ], axis=-1)
+  return y if R is None else jnp.einsum('btd,nde->bnte', y, R)
 
 
-def slot_read(alpha_f, M, rho_u, rho_v, beta):
-  """Slot read (§4.6.2): codebook keys r = sum_c beta_c rho_c, cut transfer width k*v -> C(k+v).
+def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta):
+  """Codebook read (§4.6.2): keys constrained to span(ρ) cut the transfer width k*v -> C(k+v).
 
-  alpha_f: [b, n_f, t, s]   alpha of the first n_f standard heads
-  M:       [b, s, k, v]
-  rho_u:   [C, k]  U-side codebook (row read key)
-  rho_v:   [C, v]  V-side codebook (col read key) -- side-independent (§4.1)
-  beta:    [b, n, t, n_f*2C]  W_beta(x), zero-initialized; last dim = (fetch, symbol, side)
-  Returns [b, n, t, k+v]  [U;V]
+  Source side = ρ pre-contraction (static keys, no per-token key materialization — the savings).
+  Destination side = a literal bam_read((Zcᵀ, Zr), x, W_beta) with β as the runtime key.
+  rho_u: [C, k] (row-read codebook); rho_v: [C, v] (col-read codebook) — side-independent (§4.1).
   """
-  C = rho_u.shape[0]
-  # fetch: pre-project rho (once on the source side, no t factor), compute per side (no cat when k != v)
-  Yr = jnp.einsum('bskv,ck->bscv', M, rho_u)               # row read pre-answer M^T rho_u in V  [b,s,C,v]
-  Yc = jnp.einsum('bskv,cv->bsck', M, rho_v)               # col read pre-answer M rho_v  in U  [b,s,C,k]
-  Zr = jnp.einsum('bfts,bscv->bftcv', alpha_f, Yr)          # transfer = value-widened AV (main cost)
-  Zc = jnp.einsum('bfts,bsck->bftck', alpha_f, Yc)
-  # use: mix across all n heads over (fetch, symbol), row/col mixed separately
-  b, n, t, _ = beta.shape
-  n_f = Zr.shape[1]
-  b2 = beta.reshape(b, n, t, n_f, 2 * C)                   # [b,n,t,n_f,2C]: first C row read, last C col read
-  y_row = jnp.einsum('bftcv,bntfc->bntv', Zr, b2[..., :C])  # V-space answer
-  y_col = jnp.einsum('bftck,bntfc->bntk', Zc, b2[..., C:])  # U-space answer
-  return jnp.concatenate([y_col, y_row], axis=-1)          # [b,n,t,k+v]  U first, V second
+  Yr = jnp.einsum('bskv,ck->bscv', M, rho_u)   # M^T rho_u  (row-read pre-answer)
+  Yc = jnp.einsum('bskv,cv->bsck', M, rho_v)   # M rho_v     (col-read pre-answer)
+  Z = jnp.einsum('bfts,bscd->bftcd', alpha_f, jnp.concatenate([Yc, Yr], -1))  # [b,f,t,C,k+v], U then V
+  k = M.shape[-2]
+  Mc, Mr = rearrange(Z[..., :k], 'b f t c k -> b f t k c'), Z[..., k:]
+  return bam_read((Mc, Mr), x, W_beta)
 
 
 class BamAttention(Attention):
   """BAM Attention: standard MHA plus a matrix residual stream M, a write primitive, and a read primitive.
 
   v0.1: train mode, n==n_kv, non-scan. Per-layer read mode is set by layer_mode
-  ('slot' / 'local' / 'full' / 'none', combinable e.g. 'slot+local'). Asymmetric init: read side
-  zero-initialized => start is bit-identical to standard MHA; write-gate bias=logit(eps) slightly open
-  => M accumulates immediately. 'full' is the full-read oracle, for slot-read correctness check only;
-  most expensive transfer, not for production.
+  ('codebook' / 'local_qk' / 'full' / 'local_o' / 'none', combinable e.g. 'codebook+local_qk+local_o').
+  Asymmetric init: read side zero-initialized => start is bit-identical to standard MHA;
+  write-gate bias=logit(eps) slightly open => M accumulates immediately. 'full' is the
+  full-read oracle, for codebook-read correctness check only; most expensive transfer, not
+  for production. 'local_qk' = route branch (Q/K injection, shared tier + R_q/R_k rematrix).
+  'local_o' = content branch (O local read, per-head tier, merges into o). Common prefix
+  'local_' marks both as local reads (alpha:=delta, read own M_in, zero transfer); the
+  suffix names the use point (Q/K vs o) — the axis that actually distinguishes the two.
+  Normalization (§4.6.5, param-free): read side — one RMS scalar per token over (k,v), all
+  reads consume Mh; write side — per-record factor rms before the outer product (gate is the
+  sole magnitude channel). Readout RMSNorm on y_bam is NOT adopted.
   """
 
   layer_mode: str = 'none'      # per-layer read mode (each layer is a separate instance under non-scan)
@@ -1744,7 +1756,7 @@ class BamAttention(Attention):
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
 
-    if 'slot' in self._mode:
+    if 'codebook' in self._mode:
       self.W_beta = DenseGeneral(
           features=(self.num_query_heads, cfg.bam_n_f, 2 * cfg.bam_C), axis=-1,
           kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", "code"),
@@ -1754,32 +1766,38 @@ class BamAttention(Attention):
       self.rho_v = self.param('rho_v', orth_init, (cfg.bam_C, self.bam_v), self.weight_dtype)
 
     if 'full' in self._mode:
-      # Full-read oracle (§4.6.1): free per-(consumer head, fetch pattern, token) read keys, zero-initialized.
-      # For slot-read correctness check only; most expensive transfer (k*v wide), not for production.
-      for _name, _dim, _ax in (("W_rrow", self.bam_k, "u_key"),
-                               ("W_rcol", self.bam_v, "v_key")):
-        setattr(self, _name, DenseGeneral(
-            features=(self.num_query_heads, cfg.bam_n_f, _dim), axis=-1,
-            kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", _ax),
-            dtype=self.dtype, weight_dtype=self.weight_dtype, name=_name,
-            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
+      # Full-read oracle (§4.6.1): single joint key W_R: D->n·n_f·(k+v), zero-initialized.
+      # bam_read splits it into row/col (k, v) adaptively. For codebook-read correctness
+      # check only; most expensive transfer (k*v wide), not for production.
+      self.W_R = DenseGeneral(
+          features=(self.num_query_heads, cfg.bam_n_f, self.bam_k + self.bam_v), axis=-1,
+          kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", "kv"),
+          dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
 
-    if 'local' in self._mode:
-      # Local read: free per-use-point keys (one set each for Q/K), inject via U_q/U_k zero-initialized (§4.6.5)
-      for _name, _dim, _ax in (("W_lr_q", self.bam_k, "u_key"),
-                               ("W_lc_q", self.bam_v, "v_key"),
-                               ("W_lr_k", self.bam_k, "u_key"),
-                               ("W_lc_k", self.bam_v, "v_key")):
+    if 'local_qk' in self._mode:
+      # local_qk = route branch (§4.6.5): one shared key per use point (W: D->(k+v), bias = static key
+      # component), then per-head static rematrix R:[n,d,d] zero-init (gates the readout to
+      # zero at start => bit-identical to MHA). Default shared tier (per-head tier = §8.3 ablation).
+      for _name in ("W_lq", "W_lk"):
         setattr(self, _name, DenseGeneral(
-            features=(_dim,), axis=-1, kernel_init=reg_init,
-            kernel_axes=("embed", _ax), dtype=self.dtype, weight_dtype=self.weight_dtype,
+            features=(self.bam_k + self.bam_v,), axis=-1, kernel_init=reg_init,
+            kernel_axes=("embed", "kv"), dtype=self.dtype, weight_dtype=self.weight_dtype,
             name=_name, quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=True))
-      for _name in ("U_q", "U_k"):
-        setattr(self, _name, DenseGeneral(
-            features=(self.num_query_heads, self.head_dim), axis=-1,
-            kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "kv"),
-            dtype=self.dtype, weight_dtype=self.weight_dtype, name=_name,
-            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
+      for _name in ("R_q", "R_k"):
+        setattr(self, _name, self.param(_name, zeros_init,
+            (self.num_query_heads, self.head_dim, self.head_dim), self.weight_dtype))
+
+    if 'local_o' in self._mode:
+      # local_o = content branch (§4.6.5, 2026-08-01): per-head tier (R is None),
+      # W_Ro: D->n(k+v) zero-init (gates readout to zero at start). Reads out [U;V] d-wide
+      # and merges into o via integration point 1 (y_bam -> o). alpha:=delta degenerate
+      # (fetch free); same-layer FFN sees the readout via residual.
+      self.W_Ro = DenseGeneral(
+          features=(self.num_query_heads, self.bam_k + self.bam_v), axis=-1,
+          kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "kv"),
+          dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_Ro",
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
 
     if self._has_write:
       # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
@@ -1799,27 +1817,25 @@ class BamAttention(Attention):
               ("q_heads",)),
           (self.num_query_heads,), self.weight_dtype)
 
-  def _local_read(self, M_in, x, q, k):
-    """Local read: a token reads its own M_in, bilaterally contracts, injects into Q/K (§4.6.5)."""
-    def lread(W_lr, W_lc):
-      s_col = jnp.einsum('btkv,btv->btk', M_in, W_lc(x))   # col read -> U answer [b,t,k]
-      s_row = jnp.einsum('btkv,btk->btv', M_in, W_lr(x))   # row read -> V answer [b,t,v]
-      return jnp.concatenate([s_col, s_row], axis=-1)     # [b,t,k+v=d]  U first, V second
-    sq = lread(self.W_lr_q, self.W_lc_q)
-    sk = lread(self.W_lr_k, self.W_lc_k)
-    b, t, _ = sq.shape
-    q = q + self.U_q(sq).reshape(b, t, self.num_query_heads, self.head_dim)
-    k = k + self.U_k(sk).reshape(b, t, self.num_query_heads, self.head_dim)
-    return q, k
-
   def _write(self, o_head, x, M_in):
-    """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O)."""
+    """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
+
+    Per-record factor normalization (§4.6.5 write-side per-record factor norm): each factor is RMS-normalized
+    over its head-dim axis before the outer product, so a single record has O(1) energy and the
+    gate is the sole magnitude channel (admission semantics). rms(u) = u·rsqrt(mean(u²,-1)+eps).
+    """
     cfg = self.config
+    eps = cfg.normalization_layer_epsilon
     u1 = o_head[..., :self.bam_k]                          # U factor [b,t,n,k]
     u2 = self.P_loc(x)                                     # V factor [b,t,n,v] (locally anchored)
     g = jax.nn.sigmoid(self.W_gw(x) + self.gw_b0)          # [b,t,n]
-    dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * u1, u2)
-    return cfg.bam_lambda_decay * M_in + dM
+    if cfg.bam_sqrt_n_scale:
+      # With per-record rms, each head's record is unit energy, so |M| ~ n * Σg. Scaling the
+      # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
+      # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
+      g = g * (1.0 / jnp.sqrt(self.num_query_heads))
+    dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * _rms(u1, eps), _rms(u2, eps))
+    return cfg.bam_lambda_decay * M_in + dM               # write side: bare accumulation on raw M_in
 
   @nn.compact
   def __call__(
@@ -1858,10 +1874,17 @@ class BamAttention(Attention):
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
     key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
 
-    # ---- Local read (before alpha, inject into Q/K) ----
-    if 'local' in self._mode:
-      assert M_in is not None, "local read requires M_in"
-      query, key = self._local_read(M_in, inputs_q, query, key)
+    # ---- Read-side normalization (§4.6.5 read-side whole-matrix one scalar): one RMS scalar per token over
+    # (k,v); all read paths consume Mh. No-op when M_in is all zero (start). Write side keeps
+    # bare accumulation on raw M_in. Param-free, pre-LN-style matrix-stream shift. ----
+    Mh = M_in * jax.lax.rsqrt(jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True)
+                              + cfg.normalization_layer_epsilon) if M_in is not None else None
+
+    # ---- local_qk (route branch: inject into Q/K, before alpha) ----
+    if 'local_qk' in self._mode:
+      assert Mh is not None, "local_qk read requires M_in"
+      query = query + rearrange(bam_read(Mh, inputs_q, self.W_lq, self.R_q), 'b n t d -> b t n d')
+      key   = key   + rearrange(bam_read(Mh, inputs_q, self.W_lk, self.R_k), 'b n t d -> b t n d')
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
@@ -1881,24 +1904,28 @@ class BamAttention(Attention):
       logits = logits.astype(jnp.float32)
     alpha = jax.nn.softmax(logits, axis=-1)                 # [b,n,t,s]
     y_std = jnp.einsum('bnts,bsnd->btnd', alpha, value)     # [b,t,n,d]
+    # Diagonal yield (§4.6.5): when local_o is on, the softmax-fetch patterns (full/codebook) zero
+    # their alpha diagonal without renormalizing — the leftover mass 1−α_tt becomes a soft
+    # "abstain-from-self" gate (attention-sink style, zero-param). sparse (block granularity —
+    # masking self hits block neighbors) and prefix (inclusive scan — "contains self" is part of
+    # the LA exact subfamily) are untouched; local_o itself is fetch-identity (α=δ); when local_o
+    # is off the alpha diagonal is the local_o quota-squeeze approximation and must stay.
+    alpha_x = alpha * (1 - jnp.eye(alpha.shape[-2], alpha.shape[-1], dtype=alpha.dtype)) \
+        if 'local_o' in self._mode else alpha
 
-    # ---- BAM read ----
+    # ---- BAM read (all modes share the unified bam_read primitive, §4.6.1) ----
     y_bam = 0.0
-    if 'slot' in self._mode:
-      assert M_in is not None, "slot read requires M_in"
-      n_f = cfg.bam_n_f
-      beta = rearrange(self.W_beta(inputs_q), 'b t n c -> b n t c')   # [b,n,t,n_f*2C]
-      y_bam = slot_read(alpha[:, :n_f], M_in, self.rho_u, self.rho_v, beta)  # [b,n,t,k+v]
-      y_bam = rearrange(y_bam, 'b n t d -> b t n d')                 # [b,t,n,k+v=d]
-    elif 'full' in self._mode:
-      assert M_in is not None, "full read requires M_in"
-      n_f = cfg.bam_n_f
-      r_row = rearrange(self.W_rrow(inputs_q), 'b t (n f k) -> b n f t k',
-                        n=self.num_query_heads, f=n_f, k=self.bam_k)  # [b,n,n_f,t,k]
-      r_col = rearrange(self.W_rcol(inputs_q), 'b t (n f v) -> b n f t v',
-                        n=self.num_query_heads, f=n_f, v=self.bam_v)  # [b,n,n_f,t,v]
-      y_bam = bam_read_reference(alpha[:, :n_f], M_in, r_row, r_col)  # [b,n,t,k+v]
-      y_bam = rearrange(y_bam, 'b n t d -> b t n d')                 # [b,t,n,k+v=d]
+    if 'codebook' in self._mode:
+      assert Mh is not None, "codebook read requires M_in"
+      y_bam = rearrange(codebook_read(alpha_x[:, :cfg.bam_n_f], Mh, inputs_q,
+                                      self.rho_u, self.rho_v, self.W_beta), 'b n t d -> b t n d')
+    if 'full' in self._mode:
+      assert Mh is not None, "full read requires M_in"
+      Mbar = jnp.einsum('bfts,bskv->bftkv', alpha_x[:, :cfg.bam_n_f], Mh)  # fetch (§4.6.1), α de-diagonaled
+      y_bam = y_bam + rearrange(bam_read(Mbar, inputs_q, self.W_R, None), 'b n t d -> b t n d')
+    if 'local_o' in self._mode:
+      assert Mh is not None, "local_o read requires M_in"
+      y_bam = y_bam + rearrange(bam_read(Mh, inputs_q, self.W_Ro, None), 'b n t d -> b t n d')
 
     o_head = y_std + y_bam                                  # [b,t,n,d]
 

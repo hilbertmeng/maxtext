@@ -1752,7 +1752,10 @@ class BamAttention(Attention):
     self._mode = set(self.layer_mode.replace('+', ' ').split())
     self._has_write = self.layer_mode != 'none'
 
-    zeros_init = nn.initializers.zeros
+    # DenseGeneral passes in_axis/out_axis to its initializer in addition to
+    # key/shape/dtype. Use MaxText's N-D constant wrapper so the zero-init read
+    # kernels work both in DenseGeneral and in direct self.param calls below.
+    zeros_init = initializers.contant_dense_init(0.0)
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
 
@@ -1785,8 +1788,16 @@ class BamAttention(Attention):
             kernel_axes=("embed", "kv"), dtype=self.dtype, weight_dtype=self.weight_dtype,
             name=_name, quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=True))
       for _name in ("R_q", "R_k"):
-        setattr(self, _name, self.param(_name, zeros_init,
-            (self.num_query_heads, self.head_dim, self.head_dim), self.weight_dtype))
+        # R is large enough across 24 unrolled layers that leaving it without
+        # logical axes breaches MaxText's sharding audit. Shard its contracted
+        # input-d axis like an embedding/input axis; q_heads additionally maps
+        # to tensor parallelism in meshes that enable it.
+        setattr(self, _name, self.param(
+            _name,
+            nn.with_logical_partitioning(zeros_init, ("q_heads", "embed", "kv")),
+            (self.num_query_heads, self.head_dim, self.head_dim),
+            self.weight_dtype,
+        ))
 
     if 'local_o' in self._mode:
       # local_o = content branch (§4.6.5, 2026-08-01): per-head tier (R is None),
@@ -1899,7 +1910,13 @@ class BamAttention(Attention):
       logits = jnp.tanh(logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
     attn_mask = self.attention_op.generate_attention_mask(query, key, decoder_segment_ids, model_mode)
     if attn_mask is not None:
-      logits = logits + attn_mask                            # broadcast [b,1,1,t,s] -> [b,n,t,s]
+      # AttentionOp keeps the GQA group axis in its mask because the standard
+      # qk_product has shape [b, n_kv, groups, t, s]. BAM v0.1 requires
+      # n == n_kv and collapses that singleton group axis in logits, so collapse
+      # the matching mask axis as well; otherwise broadcasting creates a bogus
+      # five-dimensional alpha tensor [b, b, n, t, s].
+      attn_mask = jnp.squeeze(attn_mask, axis=2)              # [b,1,t,s]
+      logits = apply_mask_to_logits(logits, attn_mask)        # [b,n,t,s]
     if cfg.float32_logits:
       logits = logits.astype(jnp.float32)
     alpha = jax.nn.softmax(logits, axis=-1)                 # [b,n,t,s]

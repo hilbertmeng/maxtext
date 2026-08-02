@@ -205,27 +205,23 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
 class BamLlama2Medium(Llama2Medium):
     model_name = 'BamLlama2Medium'
     bam_enabled = True
-    bam_layer_modes = ['codebook'] * 16 + ['local_qk'] * 8
+    # The full-read oracle is useful for correctness checks but made the v5p-16
+    # step time ~2.9x the Llama2Medium baseline when enabled in every layer.
+    # Use the two production local reads for the 13.5k-step comparison run.
+    bam_layer_modes = ['local_qk+local_o'] * 24
 
-    # ---- Matrix-stream dims: bam_k + bam_v == head_dim (§4.1 constraint) ----
     bam_k = 32
     bam_v = 32
-    bam_C = 2
+    # bam_C = 2
     bam_n_f = 2
 
-    # ---- Write primitive ----
     bam_write_form = 'agg_u@loc_v'   # §4.2 safe write: aggregated U (outer) local V
     bam_write_eps = 0.1              # write-gate bias b0 = logit(eps), slightly open
 
-    # ---- Stability switches (§9 decision 4; v0.1 defaults to bare accumulation to match oracle) ----
     bam_lambda_decay = 1.0           # M <- lambda*M + dM; 1.0 = bare accumulation
     bam_sqrt_n_scale = False         # scale write gate by 1/sqrt(n)
 
-    # ---- v0.1 constraints: only non-scan, non-dense_conn, train mode are supported ----
     scan_layers = False
-    partial_scan_layers = False
-    dense_conn = False
-    mudd_in_layer = False
 
 
 class Llama2Large(Llama2Medium):

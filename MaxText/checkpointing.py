@@ -66,6 +66,11 @@ def create_orbax_checkpoint_manager(
   # we need to use ocdbt and zarr3 to control max file size in the checkpoint
   # omitting `iter` uses default handler for `iter`
   item_handlers = {"items": PyTreeCheckpointHandler(use_ocdbt=use_ocdbt, use_zarr3=use_zarr3)}
+  # Orbax treats ``keep_period`` as either a positive interval or ``None``.
+  # Some MaxText experiment configs use 0 to mean "do not permanently retain
+  # periodic checkpoints"; passing that value through raises when the first
+  # checkpoint is saved on newer Orbax releases.
+  keep_period = config.keep_period if config.keep_period > 0 else None
   mngr = CheckpointManager(
       p,
       item_names=item_names,
@@ -75,7 +80,7 @@ def create_orbax_checkpoint_manager(
           save_interval_steps=save_interval_steps,
           enable_async_checkpointing=use_async,
           max_to_keep=config.max_to_keep, # lsp: max save checkpoint nums nearby
-          keep_period=config.keep_period, # lsp: step / keep_period would not be deleted
+          keep_period=keep_period, # lsp: step / keep_period would not be deleted
       ),
       logger=orbax_logger,
   )

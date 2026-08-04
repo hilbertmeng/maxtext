@@ -1,0 +1,4 @@
+interface:
+  display_name: "TPU Diagnostics"
+  short_description: "Diagnose BAM checkpoints on preemptible TPUs"
+  default_prompt: "Use $tpu-diagnostics to run a reproducible BAM checkpoint health probe."

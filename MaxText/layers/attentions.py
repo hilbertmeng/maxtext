@@ -1682,7 +1682,88 @@ def _rms(z, eps, axis=-1):
   return z * jax.lax.rsqrt(jnp.mean(z ** 2, axis=axis, keepdims=True) + eps)
 
 
-def bam_read(M, x, W_R, R=None):
+def _shared_bam_fetch_alpha(alpha, query, key, attn_mask, n_f, mode,
+                            diagonal_yield, attn_logits_soft_cap, float32_logits):
+  """Reuse standard Q/K for BAM fetch, with selectable equivalent implementations."""
+  if mode == 'legacy':
+    fetch_alpha = alpha * (
+        1 - jnp.eye(alpha.shape[-2], alpha.shape[-1], dtype=alpha.dtype)
+    ) if diagonal_yield else alpha
+    return fetch_alpha[:, :n_f]
+
+  if mode == 'compact':
+    fetch_alpha = alpha[:, :n_f]
+  elif mode == 'recompute':
+    fetch_logits = jnp.einsum('btfd,bsfd->bfts', query[:, :, :n_f], key[:, :, :n_f])
+    if attn_logits_soft_cap:
+      fetch_logits = jnp.tanh(fetch_logits / attn_logits_soft_cap) * attn_logits_soft_cap
+    if attn_mask is not None:
+      fetch_logits = apply_mask_to_logits(fetch_logits, attn_mask)
+    if float32_logits:
+      fetch_logits = fetch_logits.astype(jnp.float32)
+    fetch_alpha = jax.nn.softmax(fetch_logits, axis=-1)
+  else:
+    raise ValueError(f'Unknown shared BAM fetch mode: {mode}')
+
+  if diagonal_yield:
+    fetch_alpha = fetch_alpha * (
+        1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
+  return fetch_alpha
+
+
+def _select_bam_write_source(source, y_std, y_codebook, y_full, y_local_o, y_all=None):
+  """Select direct U-write content without changing the residual-stream output."""
+  if source == 'std+cross+local_o':
+    return y_all if y_all is not None else y_std + y_codebook + y_full + y_local_o
+  if source == 'std+cross':
+    return y_std + y_codebook + y_full
+  if source == 'std':
+    return y_std
+  raise ValueError(f'Unknown BAM write source: {source}')
+
+
+def _mix_bam_write_v(x_v, o_head, bam_k, mix_scale, bias):
+  """Mix local and attention-output V factors with a per-head affine selector."""
+  o_v = o_head[..., bam_k:bam_k + x_v.shape[-1]]
+  if o_v.shape != x_v.shape:
+    raise ValueError(f'BAM write-V shapes differ: x={x_v.shape}, o={o_v.shape}')
+  x_scale = mix_scale[:, 0][None, None, :, None]
+  o_scale = mix_scale[:, 1][None, None, :, None]
+  return x_scale * x_v + o_scale * o_v + bias
+
+
+def _update_bam_matrix(M_in, dM, lambda_decay, forget_logits=None):
+  """Apply optional token-wise forgetting to old state, then add the new write."""
+  retention = jnp.asarray(lambda_decay, dtype=M_in.dtype)
+  forget_gate = None
+  if forget_logits is not None:
+    forget_gate = jax.nn.sigmoid(forget_logits)
+    retention = retention * (1.0 - forget_gate[..., None])
+  return retention * M_in + dM, forget_gate
+
+
+def _transform_bam_read_key(r, mode='none', scale=1.0, eps=1e-6, gate_logits=None):
+  """Apply a side-local health transform to a runtime BAM read key.
+
+  `soft_rms_cap` is identity to first order at zero and caps the key RMS at `scale`.
+  `rms_gate` factors the key into an RMS-normalized direction and a bounded, learned
+  amplitude `scale * sigmoid(gate_logits)`.  Callers normalize row and column keys
+  separately so one side cannot hide the other side's scale.
+  """
+  if mode == 'none':
+    return r
+  scale = jnp.asarray(scale, dtype=r.dtype)
+  if mode == 'soft_rms_cap':
+    return r * scale * jax.lax.rsqrt(jnp.mean(r ** 2, axis=-1, keepdims=True) + scale ** 2)
+  if mode == 'rms_gate':
+    if gate_logits is None:
+      raise ValueError('rms_gate requires gate logits')
+    return scale * jax.nn.sigmoid(gate_logits) * _rms(r, eps)
+  raise ValueError(f'Unknown BAM read-key transform: {mode}')
+
+
+def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
+             key_eps=1e-6, key_gate_logits=None):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
   Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
@@ -1700,6 +1781,12 @@ def bam_read(M, x, W_R, R=None):
   f = 'f' if Mc.ndim == 5 else ''        # f axis present iff cross-token fetch (full/codebook)
   n = 'n' if R is None    else ''        # n axis on key iff per-head tier (diag/full/codebook)
   r_row, r_col = jnp.split(W_R(x), [Mr.shape[-2]], axis=-1)  # split widths adapt to M (k/v or C/C)
+  if key_gate_logits is None:
+    row_gate = col_gate = None
+  else:
+    row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
+  r_row = _transform_bam_read_key(r_row, key_mode, key_scale, key_eps, row_gate)
+  r_col = _transform_bam_read_key(r_col, key_mode, key_scale, key_eps, col_gate)
   y = jnp.concatenate([
       jnp.einsum(f'b{f}tkv,bt{n}{f}v->b{n}tk', Mc, r_col),   # col read -> U
       jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row),   # row read -> V
@@ -1707,7 +1794,8 @@ def bam_read(M, x, W_R, R=None):
   return y if R is None else jnp.einsum('btd,nde->bnte', y, R)
 
 
-def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta):
+def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
+                  key_scale=1.0, key_eps=1e-6, key_gate_logits=None):
   """Codebook read (§4.6.2): keys constrained to span(ρ) cut the transfer width k*v -> C(k+v).
 
   Source side = ρ pre-contraction (static keys, no per-token key materialization — the savings).
@@ -1719,7 +1807,8 @@ def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta):
   Z = jnp.einsum('bfts,bscd->bftcd', alpha_f, jnp.concatenate([Yc, Yr], -1))  # [b,f,t,C,k+v], U then V
   k = M.shape[-2]
   Mc, Mr = rearrange(Z[..., :k], 'b f t c k -> b f t k c'), Z[..., k:]
-  return bam_read((Mc, Mr), x, W_beta)
+  return bam_read((Mc, Mr), x, W_beta, key_mode=key_mode, key_scale=key_scale,
+                  key_eps=key_eps, key_gate_logits=key_gate_logits)
 
 
 class BamAttention(Attention):
@@ -1759,6 +1848,45 @@ class BamAttention(Attention):
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
 
+    self._read_key_mode = cfg.bam_read_key_mode
+    self._read_key_scale = float(cfg.bam_read_key_scale)
+    self._read_key_eps = float(cfg.bam_read_key_epsilon)
+    self._shared_fetch_mode = cfg.bam_shared_fetch_mode
+    self._write_v_mode = cfg.bam_write_v_mode
+    self._forget_mode = cfg.bam_forget_mode
+    assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
+    assert self._shared_fetch_mode in ('legacy', 'compact', 'recompute')
+    assert self._write_v_mode in ('x', 'x_bias', 'mix')
+    assert self._forget_mode in ('constant', 'dynamic')
+    assert self._read_key_scale > 0.0
+    assert self._read_key_eps > 0.0
+    assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
+    assert not cfg.bam_dedicated_fetch or 'full' in self._mode, (
+        'bam_dedicated_fetch currently requires the full read mode')
+
+    def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
+      """Create a zero-kernel semantic gate with an explicitly calibrated bias."""
+      if not cfg.bam_create_read_gate_params:
+        return
+      assert 0.0 < initial_gate < 1.0
+      setattr(self, name, DenseGeneral(
+          features=features, axis=-1, kernel_init=zeros_init, kernel_axes=kernel_axes,
+          dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
+      bias_value = math.log(initial_gate / (1.0 - initial_gate))
+      setattr(self, f'{name}_b0', self.param(
+          f'{name}_b0',
+          nn.with_logical_partitioning(
+              lambda key, shape, dtype: jnp.full(shape, bias_value, dtype), bias_axes),
+          features, self.weight_dtype))
+
+    # For zero-initialized runtime keys, this choice makes the initial Jacobian of
+    # scale*sigmoid(g)*RMSNorm(r) equal to one at r=0.  The local_qk key projections
+    # are regular-initialized and gated later by zero-initialized R_q/R_k, so give
+    # those gates a normal 0.1 opening instead of unnecessarily shrinking their basis.
+    zero_key_gate_init = math.sqrt(self._read_key_eps) / self._read_key_scale
+    assert zero_key_gate_init < 1.0
+
     if 'codebook' in self._mode:
       self.W_beta = DenseGeneral(
           features=(self.num_query_heads, cfg.bam_n_f, 2 * cfg.bam_C), axis=-1,
@@ -1767,6 +1895,9 @@ class BamAttention(Attention):
           quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
       self.rho_u = self.param('rho_u', orth_init, (cfg.bam_C, self.bam_k), self.weight_dtype)
       self.rho_v = self.param('rho_v', orth_init, (cfg.bam_C, self.bam_v), self.weight_dtype)
+      add_read_gate('W_beta_gate', (self.num_query_heads, cfg.bam_n_f, 2),
+                    ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
+                    zero_key_gate_init)
 
     if 'full' in self._mode:
       # Full-read oracle (§4.6.1): single joint key W_R: D->n·n_f·(k+v), zero-initialized.
@@ -1777,6 +1908,23 @@ class BamAttention(Attention):
           kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", "kv"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      add_read_gate('W_R_gate', (self.num_query_heads, cfg.bam_n_f, 2),
+                    ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
+                    zero_key_gate_init)
+
+      if cfg.bam_dedicated_fetch:
+        # Capability-ceiling router: fetch patterns no longer have to borrow the first
+        # n_f standard MHA heads and can specialize without sacrificing MHA behavior.
+        self.fetch_query = DenseGeneral(
+            features=(cfg.bam_n_f, self.head_dim), axis=-1, kernel_init=reg_init,
+            kernel_axes=('embed', 'q_heads', 'kv'), dtype=self.dtype,
+            weight_dtype=self.weight_dtype, name='fetch_query', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
+        self.fetch_key = DenseGeneral(
+            features=(cfg.bam_n_f, self.head_dim), axis=-1, kernel_init=reg_init,
+            kernel_axes=('embed', 'kv_heads', 'kv_head_dim'), dtype=self.dtype,
+            weight_dtype=self.weight_dtype, name='fetch_key', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
 
     if 'local_qk' in self._mode:
       # local_qk = route branch (§4.6.5): one shared key per use point (W: D->(k+v), bias = static key
@@ -1787,6 +1935,7 @@ class BamAttention(Attention):
             features=(self.bam_k + self.bam_v,), axis=-1, kernel_init=reg_init,
             kernel_axes=("embed", "kv"), dtype=self.dtype, weight_dtype=self.weight_dtype,
             name=_name, quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=True))
+        add_read_gate(f'{_name}_gate', (2,), ('embed', None), (None,), 0.1)
       for _name in ("R_q", "R_k"):
         # R is large enough across 24 unrolled layers that leaving it without
         # logical axes breaches MaxText's sharding audit. Shard its contracted
@@ -1809,14 +1958,25 @@ class BamAttention(Attention):
           kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "kv"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_Ro",
           quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      add_read_gate('W_Ro_gate', (self.num_query_heads, 2),
+                    ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
 
     if self._has_write:
+      if cfg.bam_write_u_proj or cfg.bam_create_write_u_proj_params:
+        def write_u_init(key, shape, dtype):
+          return reg_init(key, shape, dtype, 1, 2)
+        self.P_agg_u = self.param(
+            'P_agg_u',
+            nn.with_logical_partitioning(write_u_init, ('q_heads', 'embed', 'v_factor')),
+            (self.num_query_heads, self.head_dim, self.bam_k), self.weight_dtype)
       # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
       loc_v = self.bam_v if cfg.bam_write_form == 'agg_u@loc_v' else self.bam_k
+      assert self._write_v_mode != 'mix' or loc_v == self.bam_v
       self.P_loc = DenseGeneral(features=(self.num_query_heads, loc_v), axis=-1,
           kernel_init=reg_init, kernel_axes=("embed", "q_heads", "v_factor"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="P_loc",
-          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+          quant=self.quant, matmul_precision=cfg.matmul_precision,
+          use_bias=self._write_v_mode == 'x_bias')
       # Write gate g_write: regular kernel, bias = logit(eps) explicitly slightly open
       self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
           kernel_axes=("embed", "q_heads"), dtype=self.dtype, weight_dtype=self.weight_dtype,
@@ -1827,6 +1987,48 @@ class BamAttention(Attention):
               lambda key, shape, dtype: jnp.full(shape, math.log(eps / (1.0 - eps))),
               ("q_heads",)),
           (self.num_query_heads,), self.weight_dtype)
+      if self._write_v_mode == 'mix':
+        self.write_v_mix_scale = self.param(
+            'write_v_mix_scale',
+            nn.with_logical_partitioning(
+                lambda key, shape, dtype: jnp.broadcast_to(
+                    jnp.asarray([1.0, 0.0], dtype=dtype), shape),
+                ('q_heads', None)),
+            (self.num_query_heads, 2), self.weight_dtype)
+        self.write_v_bias = self.param(
+            'write_v_bias',
+            nn.with_logical_partitioning(
+                lambda key, shape, dtype: jnp.zeros(shape, dtype),
+                ('q_heads', 'v_factor')),
+            (self.num_query_heads, loc_v), self.weight_dtype)
+      if self._forget_mode == 'dynamic':
+        forget_init = float(cfg.bam_forget_init)
+        assert 0.0 < forget_init < 1.0
+        self.W_forget_gate = DenseGeneral(
+            features=(1,), axis=-1, kernel_init=zeros_init,
+            kernel_axes=('embed', None), dtype=self.dtype,
+            weight_dtype=self.weight_dtype, name='W_forget_gate', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=False)
+        forget_bias = math.log(forget_init / (1.0 - forget_init))
+        self.W_forget_gate_b0 = self.param(
+            'W_forget_gate_b0',
+            nn.with_logical_partitioning(
+                lambda key, shape, dtype: jnp.full(shape, forget_bias, dtype),
+                (None,)),
+            (1,), self.weight_dtype)
+
+  def _read_key_kwargs(self, gate_name, x):
+    gate_logits = None
+    if self.config.bam_create_read_gate_params:
+      candidate_logits = getattr(self, gate_name)(x) + getattr(self, f'{gate_name}_b0')
+      if self._read_key_mode == 'rms_gate':
+        gate_logits = candidate_logits
+    return dict(
+        key_mode=self._read_key_mode,
+        key_scale=self._read_key_scale,
+        key_eps=self._read_key_eps,
+        key_gate_logits=gate_logits,
+    )
 
   def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
@@ -1837,16 +2039,30 @@ class BamAttention(Attention):
     """
     cfg = self.config
     eps = cfg.normalization_layer_epsilon
-    u1 = o_head[..., :self.bam_k]                          # U factor [b,t,n,k]
-    u2 = self.P_loc(x)                                     # V factor [b,t,n,v] (locally anchored)
-    g = jax.nn.sigmoid(self.W_gw(x) + self.gw_b0)          # [b,t,n]
+    if cfg.bam_write_u_proj:
+      u1 = jnp.einsum('btnd,ndk->btnk', o_head, self.P_agg_u)
+    else:
+      u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
+    x_v = self.P_loc(x)
+    if self._write_v_mode == 'mix':
+      u2 = _mix_bam_write_v(
+          x_v, o_head, self.bam_k, self.write_v_mix_scale, self.write_v_bias)
+    else:
+      u2 = x_v                                             # V factor [b,t,n,v] (locally anchored)
+    gate = jax.nn.sigmoid(self.W_gw(x) + self.gw_b0)       # [b,t,n]
+    g = gate
     if cfg.bam_sqrt_n_scale:
       # With per-record rms, each head's record is unit energy, so |M| ~ n * Σg. Scaling the
       # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
       # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
     dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * _rms(u1, eps), _rms(u2, eps))
-    return cfg.bam_lambda_decay * M_in + dM               # write side: bare accumulation on raw M_in
+    forget_logits = None
+    if self._forget_mode == 'dynamic':
+      forget_logits = self.W_forget_gate(x) + self.W_forget_gate_b0
+    M_out, forget_gate = _update_bam_matrix(
+        M_in, dM, cfg.bam_lambda_decay, forget_logits)
+    return M_out, gate, forget_gate
 
   @nn.compact
   def __call__(
@@ -1884,6 +2100,19 @@ class BamAttention(Attention):
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
     key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+    fetch_query = fetch_key = None
+    if cfg.bam_dedicated_fetch:
+      fetch_query = self.fetch_query(inputs_q)
+      fetch_key = self.fetch_key(inputs_kv)
+      fetch_query, fetch_key = dc.QKNorm(cfg, name='fetch_qk_norm')(fetch_query, fetch_key)
+      fetch_query = self.apply_rotary_embedding(
+          fetch_query, inputs_positions, name='fetch_query_rotary')
+      fetch_key = self.apply_rotary_embedding(
+          fetch_key, inputs_positions, name='fetch_key_rotary')
+    # Diagnostics retain only the tensors needed to reconstruct route/read behavior outside
+    # this module. No statistics are computed here; the collection is mutable only in the
+    # standalone diagnostic runner, so normal train/eval executions pay no output cost.
+    query_std, key_std = query, key
 
     # ---- Read-side normalization (§4.6.5 read-side whole-matrix one scalar): one RMS scalar per token over
     # (k,v); all read paths consume Mh. No-op when M_in is all zero (start). Write side keeps
@@ -1894,8 +2123,13 @@ class BamAttention(Attention):
     # ---- local_qk (route branch: inject into Q/K, before alpha) ----
     if 'local_qk' in self._mode:
       assert Mh is not None, "local_qk read requires M_in"
-      query = query + rearrange(bam_read(Mh, inputs_q, self.W_lq, self.R_q), 'b n t d -> b t n d')
-      key   = key   + rearrange(bam_read(Mh, inputs_q, self.W_lk, self.R_k), 'b n t d -> b t n d')
+      query = query + rearrange(
+          bam_read(Mh, inputs_q, self.W_lq, self.R_q,
+                   **self._read_key_kwargs('W_lq_gate', inputs_q)), 'b n t d -> b t n d')
+      key = key + rearrange(
+          bam_read(Mh, inputs_q, self.W_lk, self.R_k,
+                   **self._read_key_kwargs('W_lk_gate', inputs_q)), 'b n t d -> b t n d')
+    query_route, key_route = query, key
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
@@ -1927,31 +2161,94 @@ class BamAttention(Attention):
     # masking self hits block neighbors) and prefix (inclusive scan — "contains self" is part of
     # the LA exact subfamily) are untouched; local_o itself is fetch-identity (α=δ); when local_o
     # is off the alpha diagonal is the local_o quota-squeeze approximation and must stay.
-    alpha_x = alpha * (1 - jnp.eye(alpha.shape[-2], alpha.shape[-1], dtype=alpha.dtype)) \
-        if 'local_o' in self._mode else alpha
+    if cfg.bam_dedicated_fetch:
+      fetch_query = fetch_query / jnp.sqrt(self.head_dim).astype(self.dtype)
+      if cfg.float32_qk_product:
+        fetch_query = fetch_query.astype(jnp.float32)
+        fetch_key = fetch_key.astype(jnp.float32)
+      fetch_logits = jnp.einsum('btfd,bsfd->bfts', fetch_query, fetch_key)
+      if cfg.attn_logits_soft_cap:
+        fetch_logits = jnp.tanh(fetch_logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
+      if attn_mask is not None:
+        fetch_logits = apply_mask_to_logits(fetch_logits, attn_mask)
+      if cfg.float32_logits:
+        fetch_logits = fetch_logits.astype(jnp.float32)
+      fetch_alpha = jax.nn.softmax(fetch_logits, axis=-1)
+      if 'local_o' in self._mode:
+        fetch_alpha = fetch_alpha * (
+            1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
+    else:
+      fetch_alpha = _shared_bam_fetch_alpha(
+          alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
+          'local_o' in self._mode, cfg.attn_logits_soft_cap, cfg.float32_logits)
 
     # ---- BAM read (all modes share the unified bam_read primitive, §4.6.1) ----
+    y_codebook = jnp.zeros_like(y_std)
+    y_full = jnp.zeros_like(y_std)
+    y_local_o = jnp.zeros_like(y_std)
+    Mbar = None
     y_bam = 0.0
     if 'codebook' in self._mode:
       assert Mh is not None, "codebook read requires M_in"
-      y_bam = rearrange(codebook_read(alpha_x[:, :cfg.bam_n_f], Mh, inputs_q,
-                                      self.rho_u, self.rho_v, self.W_beta), 'b n t d -> b t n d')
+      y_codebook = rearrange(
+          codebook_read(fetch_alpha, Mh, inputs_q, self.rho_u, self.rho_v, self.W_beta,
+                        **self._read_key_kwargs('W_beta_gate', inputs_q)),
+          'b n t d -> b t n d')
+      y_bam = y_codebook
     if 'full' in self._mode:
       assert Mh is not None, "full read requires M_in"
-      Mbar = jnp.einsum('bfts,bskv->bftkv', alpha_x[:, :cfg.bam_n_f], Mh)  # fetch (§4.6.1), α de-diagonaled
-      y_bam = y_bam + rearrange(bam_read(Mbar, inputs_q, self.W_R, None), 'b n t d -> b t n d')
+      Mbar = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, Mh)  # fetch (§4.6.1), α de-diagonaled
+      y_full = rearrange(
+          bam_read(Mbar, inputs_q, self.W_R, None,
+                   **self._read_key_kwargs('W_R_gate', inputs_q)), 'b n t d -> b t n d')
+      y_bam = y_bam + y_full
     if 'local_o' in self._mode:
       assert Mh is not None, "local_o read requires M_in"
-      y_bam = y_bam + rearrange(bam_read(Mh, inputs_q, self.W_Ro, None), 'b n t d -> b t n d')
+      y_local_o = rearrange(
+          bam_read(Mh, inputs_q, self.W_Ro, None,
+                   **self._read_key_kwargs('W_Ro_gate', inputs_q)), 'b n t d -> b t n d')
+      y_bam = y_bam + y_local_o
 
     o_head = y_std + y_bam                                  # [b,t,n,d]
+
+    # Select only the direct source of the matrix-stream U write. The residual-stream
+    # output above remains unchanged, so these arms isolate read-to-write recirculation.
+    write_o_head = _select_bam_write_source(
+        cfg.bam_write_source, y_std, y_codebook, y_full, y_local_o, o_head)
 
     # ---- Write primitive (update BAM state first, then project to the residual stream) ----
     if self._has_write:
       assert M_in is not None, "write primitive requires M_in"
-      M_out = self._write(o_head, inputs_q, M_in)
+      M_out, write_gate, forget_gate = self._write(write_o_head, inputs_q, M_in)
     else:
       M_out = M_in
+      write_gate = None
+      forget_gate = None
+
+    if cfg.bam_diagnostics and not self.is_initializing():
+      # Raw diagnostic interface only. Keep policy/statistics in bam_diagnostics.py so new
+      # questions do not accumulate analysis logic in the production attention path.
+      raw_tensors = {
+          "M_in": M_in,
+          "M_out": M_out,
+          "query_std": query_std,
+          "key_std": key_std,
+          "query_route": query_route,
+          "key_route": key_route,
+          "fetch_alpha": fetch_alpha,
+          "y_std": y_std,
+          "y_codebook": y_codebook,
+          "y_full": y_full,
+          "y_local_o": y_local_o,
+      }
+      if Mbar is not None:
+        raw_tensors["Mbar"] = Mbar
+      if write_gate is not None:
+        raw_tensors["write_gate"] = write_gate
+      if forget_gate is not None:
+        raw_tensors["forget_gate"] = forget_gate
+      for raw_name, raw_value in raw_tensors.items():
+        self.sow("bam_raw", raw_name, raw_value)
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
     out = self.out_projection(inputs_q.shape[-1], out)

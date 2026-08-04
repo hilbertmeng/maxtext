@@ -1,0 +1,4 @@
+interface:
+  display_name: "TPU Training"
+  short_description: "Manage MaxText training on GCP TPUs"
+  default_prompt: "Use $tpu-training to check or manage a MaxText TPU training run."

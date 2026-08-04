@@ -1,0 +1,4 @@
+interface:
+  display_name: "TPU AG"
+  short_description: "Run commands on the tpu-ag remote server"
+  default_prompt: "Use $tpu-ag to run a command on the remote TPU server."

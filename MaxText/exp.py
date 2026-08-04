@@ -170,6 +170,7 @@ class TrainSmall:
     eval_interval = 4800
 
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
+    # ~0.804 steps/s; completed 13,500 steps.
     base_emb_dim = 1024
     base_num_query_heads = 16
     base_num_kv_heads = 16
@@ -203,8 +204,12 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     keep_period = 0
 
 class BamLlama2Medium(Llama2Medium):
+    # ~0.277 steps/s; stopped at 9,850.
     model_name = 'BamLlama2Medium'
     bam_enabled = True
+    # Standalone health probe only. The attention layer exposes raw tensors in a separate
+    # Flax collection; all reductions/statistics live outside the production model code.
+    bam_diagnostics = False
     # Capability-ceiling run: keep the full-read oracle enabled in every layer
     # for all 13.5k steps. Its measured cost is intentional for this experiment.
     bam_layer_modes = ['local_qk+local_o+full'] * 24
@@ -218,9 +223,148 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_eps = 0.1              # write-gate bias b0 = logit(eps), slightly open
 
     bam_lambda_decay = 1.0           # M <- lambda*M + dM; 1.0 = bare accumulation
+    bam_forget_mode = 'constant'     # constant | dynamic token-wise forget gate
+    bam_forget_init = 0.01           # initial erased fraction; dynamic retention starts at 0.99
     bam_sqrt_n_scale = False         # scale write gate by 1/sqrt(n)
+    # Runtime read-key health transform.  Keep the completed v1 experiment unchanged;
+    # v2 experiment subclasses below select the new alternatives explicitly.
+    bam_read_key_mode = 'none'       # none | soft_rms_cap | rms_gate
+    bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
+    bam_read_key_epsilon = 1e-4      # denominator epsilon for rms_gate
+    bam_create_read_gate_params = False
+    bam_dedicated_fetch = False
+    bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute
+    bam_write_u_proj = False
+    bam_create_write_u_proj_params = False
+    bam_write_source = 'std+cross+local_o'
+    bam_write_v_mode = 'x'          # x | x_bias | mix
 
     scan_layers = False
+
+
+class BamLlama2MediumDedicatedFetch(BamLlama2Medium):
+    """v1 with independent full-read fetch Q/K; single-variable ablation."""
+    # ~0.300 steps/s (+8.29% legacy, +2.46% recompute); stopped 6,044. dloss +0.00948 (+0.37%) vs v1 @6,000
+    model_name = 'BamLlama2MediumDedicatedFetch'
+    bam_dedicated_fetch = True
+
+
+class BamLlama2MediumFetchCompact(BamLlama2Medium):
+    """v1 benchmark: slice shared attention before diagonal masking."""
+    # ~0.278 steps/s; no speed change vs legacy (same-TPU fullx24 benchmark).
+    model_name = 'BamLlama2MediumFetchCompact'
+    bam_shared_fetch_mode = 'compact'
+
+
+class BamLlama2MediumFetchRecompute(BamLlama2Medium):
+    """v1 benchmark: recompute compact shared-Q/K fetch attention."""
+    # ~0.294 steps/s; +5.69% vs legacy, same loss through 46 same-TPU steps.
+    model_name = 'BamLlama2MediumFetchRecompute'
+    bam_shared_fetch_mode = 'recompute'
+
+
+class BamLlama2MediumV2Common(BamLlama2Medium):
+    """Common higher-capability backbone for read-key normalization comparisons."""
+    # Keep an identical parameter tree and PRNG consumption across raw/cap/gate arms.
+    # The first two arms create but do not execute these gate projections.
+    bam_create_read_gate_params = True
+    bam_dedicated_fetch = True
+    bam_write_u_proj = True
+    # FixedU ablations keep this parameter unused so the V2 parameter tree and
+    # downstream initializer sequence remain identical to LearnedU runs.
+    bam_create_write_u_proj_params = True
+    # Gate biases encode deliberate initial openings and must not drift toward zero
+    # merely because AdamW decays parameters that do not end in "bias".
+    wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_b0$', 0.0)]
+
+
+class BamLlama2MediumV2Raw(BamLlama2MediumV2Common):
+    """Control for the v2 router/write changes, with unmodified runtime read keys."""
+    # ~0.295 steps/s; stopped at 2,615.  dloss +0.0343 (+1.23%) vs v1
+    model_name = 'BamLlama2MediumV2Raw'
+    bam_read_key_mode = 'none'
+
+
+class BamLlama2MediumV2SoftCap(BamLlama2MediumV2Common):
+    """Separate row/column soft RMS caps on every BAM runtime read key."""
+    # ~0.290 steps/s; stopped at 2,550.  dloss +0.0435 (+1.55%) vs v1
+    model_name = 'BamLlama2MediumV2SoftCap'
+    bam_read_key_mode = 'soft_rms_cap'
+
+
+class BamLlama2MediumV2RmsGate(BamLlama2MediumV2Common):
+    """Separate row/column RMSNorm directions with learned sigmoid read gates."""
+    # ~0.281 steps/s; stopped at 5,757.  dloss -0.0361 (-1.39%) vs v1
+    model_name = 'BamLlama2MediumV2RmsGate'
+    bam_read_key_mode = 'rms_gate'
+
+
+class BamLlama2MediumRmsGateOnly(BamLlama2Medium):
+    """v1 plus RMS-gated runtime read keys; no other capability changes."""
+    # ~0.280 steps/s; completed 13,500. dloss -0.0678 (-2.77%) vs MHA @13,400
+    model_name = 'BamLlama2MediumRmsGateOnly'
+    bam_create_read_gate_params = True
+    bam_read_key_mode = 'rms_gate'
+    bam_shared_fetch_mode = 'recompute'
+    # Keep the original write-gate decay; exempt only the new read-gate biases.
+    wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_gate_b0$', 0.0)]
+
+
+class BamLlama2MediumRmsGateOnlyNoGwDecay(BamLlama2MediumRmsGateOnly):
+    """RmsGateOnly with all BAM gate biases exempted from weight decay."""
+    # ~0.280 steps/s; stopped at 2,844.  dloss -0.0006 (-0.02%) vs RmsGateOnly @2,800
+    model_name = 'BamLlama2MediumRmsGateOnlyNoGwDecay'
+    wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_b0$', 0.0)]
+
+
+class BamLlama2MediumRmsGateOnlyU2Bias(BamLlama2MediumRmsGateOnly):
+    """B arm: u2 = P_loc(x) + a learned per-head bias."""
+    # ~0.280 steps/s; stopped at 2,943. dloss -0.0011 (-0.04%) vs RmsGateOnly @2,800
+    model_name = 'BamLlama2MediumRmsGateOnlyU2Bias'
+    bam_write_v_mode = 'x_bias'
+
+
+class BamLlama2MediumRmsGateOnlyU2Mix(BamLlama2MediumRmsGateOnly):
+    """A-initialized learned mix: u2 = a_x P_loc(x) + a_o o_tail + b."""
+    # ~0.280 steps/s; stopped at 2,933. dloss -0.0037 (-0.14%) vs RmsGateOnly @2,800
+    model_name = 'BamLlama2MediumRmsGateOnlyU2Mix'
+    bam_write_v_mode = 'mix'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicForget(BamLlama2MediumRmsGateOnly):
+    """Token-wise scalar forget gate on prior-depth M; initial retention is 0.99."""
+    # ~0.293 steps/s; stopped at 2,867. dloss -0.0007 (-0.03%) vs RmsGateOnly @2,800
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicForget'
+    bam_forget_mode = 'dynamic'
+
+
+class BamLlama2MediumV2RawNoLocalWrite(BamLlama2MediumV2Raw):
+    """Write y_std plus cross-token BAM reads, excluding direct local_o writeback."""
+    # ~0.294 steps/s; stopped at 2,885.  dloss +0.0331 (+1.18%) vs v1
+    model_name = 'BamLlama2MediumV2RawNoLocalWrite'
+    bam_write_source = 'std+cross'
+
+
+class BamLlama2MediumV2RawNoLocalWriteFixedU(BamLlama2MediumV2RawNoLocalWrite):
+    """No-local-write arm with the original fixed first-32-dimension U factor."""
+    # ~0.298 steps/s; stopped at 2,979.  dloss +0.0134 (+0.48%) vs v1
+    model_name = 'BamLlama2MediumV2RawNoLocalWriteFixedU'
+    bam_write_u_proj = False
+
+
+class BamLlama2MediumDiagnostics(BamLlama2Medium):
+    """Inference-only raw capture; keep the training experiment unchanged."""
+    bam_diagnostics = True
+    tensorboard_dir = "/tmp/bamdiag_tb/"
+    # The validation set is ~20k sequences.  Shuffle before batching so a one-batch
+    # health probe samples 32 unrelated records instead of a contiguous file range.
+    eval_shuffle_buffer_size = 32768
+
+
+class BamLlama2MediumReadAblation(BamLlama2Medium):
+    """Inference-only parameter ablation with no raw activation capture."""
+    tensorboard_dir = "/tmp/bam_ablation_tb/"
+    eval_shuffle_buffer_size = 32768
 
 
 class Llama2Large(Llama2Medium):

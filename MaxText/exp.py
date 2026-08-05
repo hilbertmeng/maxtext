@@ -416,7 +416,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Combined shared read with the dynamic fetch-alpha diagonal retained."""
-    # ~0.318 steps/s; running.
+    # ~0.319 steps/s; stopped at 6,407. dloss +0.0012 (+0.05%) vs Combined @6,400
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal'
     bam_keep_fetch_diagonal = True
 

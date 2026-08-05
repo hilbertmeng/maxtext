@@ -232,8 +232,13 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
     bam_read_key_epsilon = 1e-4      # denominator epsilon for rms_gate
     bam_create_read_gate_params = False
+    bam_local_qk_key_mode = 'shared'  # shared + per-head rematrix | per_head runtime keys
     bam_dedicated_fetch = False
-    bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute
+    bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
+    bam_share_full_local_read = False  # share full/local_o runtime-key and gate projections
+    bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
+    bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
+    bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
@@ -308,6 +313,119 @@ class BamLlama2MediumRmsGateOnly(BamLlama2Medium):
     bam_shared_fetch_mode = 'recompute'
     # Keep the original write-gate decay; exempt only the new read-gate biases.
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_gate_b0$', 0.0)]
+
+
+class BamLlama2MediumRmsGateOnlyFull3NoLocalO(BamLlama2MediumRmsGateOnly):
+    """Equal-parameter read-slot control: three full fetches, no local_o read."""
+    # ~0.277 steps/s; stopped at 2,860. dloss +0.0015 (+0.06%) vs RmsGateOnly @2,800
+    model_name = 'BamLlama2MediumRmsGateOnlyFull3NoLocalO'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_n_f = 3
+
+
+class BamLlama2MediumRmsGateOnlyFull1LocalO(BamLlama2MediumRmsGateOnly):
+    """One nonlocal full fetch plus local_o."""
+    # ~0.329 steps/s; stopped at 5,150. dloss +0.0074 (+0.28%) vs RmsGateOnly @5,000
+    model_name = 'BamLlama2MediumRmsGateOnlyFull1LocalO'
+    bam_n_f = 1
+
+
+class BamLlama2MediumRmsGateOnlyDynamicMixFull1(BamLlama2MediumRmsGateOnly):
+    """One full fetch dynamically mixed from all standard MHA routing heads."""
+    # ~0.295 steps/s; stopped at 7,000. dloss -0.0016 (-0.06%) vs RmsGateOnly @6,800
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicMixFull1'
+    bam_n_f = 1
+    bam_shared_fetch_mode = 'dynamic_mix'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1(BamLlama2MediumRmsGateOnly):
+    """One full fetch using a signed, parameter-free unit-L2 MHA-head mixture."""
+    # ~0.295 steps/s; stopped at 6,403. dloss -0.0006 (-0.02%) vs SoftmaxMix @6,200
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1'
+    bam_n_f = 1
+    bam_shared_fetch_mode = 'dynamic_rms_mix'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1NoLocalO(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1
+):
+    """Signed dynamic full route including self; no separate local_o read."""
+    # ~0.327 steps/s; stopped at 4,699. dloss +0.0091 (+0.35%) vs RmsMix @4,600
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1NoLocalO'
+    bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1
+):
+    """Share the full/local_o runtime-key and RMS-gate projections."""
+    # ~0.298 steps/s; stopped at 425. dloss +0.0100 (+0.27%) vs RmsMix @400
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead'
+    bam_share_full_local_read = True
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedReadRerun(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead
+):
+    """Exact rerun used to measure same-config training reproducibility."""
+    # ~0.298 steps/s; stopped at 555. loss bit-identical to original through step 400.
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedReadRerun'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead
+):
+    """Algebraically combine fetched/local matrices before one shared read."""
+    # ~0.316 steps/s; TPU bf16 reassociation is not train-equivalent to SharedRead.
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead'
+    bam_combine_full_local_read = True
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1
+):
+    """No local_o branch; directly replace the sole fetch-alpha diagonal with one."""
+    # ~0.316 steps/s; no measurable speedup vs CombinedRead (~0.315).
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_fetch_diagonal_one = True
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
+):
+    """Combined shared read with the dynamic fetch-alpha diagonal retained."""
+    # ~0.318 steps/s; running.
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal'
+    bam_keep_fetch_diagonal = True
+
+
+class BamLlama2MediumRmsGateOnlyFull3LocalO(BamLlama2MediumRmsGateOnly):
+    """Three nonlocal full fetches plus local_o."""
+    # ~0.257 steps/s; stopped at 1,678. dloss +0.0106 (+0.37%) vs RmsGateOnly @1,600
+    model_name = 'BamLlama2MediumRmsGateOnlyFull3LocalO'
+    bam_n_f = 3
+
+
+class BamLlama2MediumRmsGateOnlyNoFullLocalO(BamLlama2MediumRmsGateOnly):
+    """No full fetch; retain local_qk and local_o reads."""
+    # ~0.383 steps/s; stopped at 6,050. dloss +0.0305 (+1.21%) vs RmsGateOnly @6,000
+    model_name = 'BamLlama2MediumRmsGateOnlyNoFullLocalO'
+    bam_layer_modes = ['local_qk+local_o'] * 24
+
+
+class BamLlama2MediumRmsGateOnlyDiagnostics(BamLlama2MediumRmsGateOnly):
+    """Inference-only raw capture for a RmsGateOnly checkpoint."""
+    bam_diagnostics = True
+    tensorboard_dir = "/tmp/bamdiag_tb/"
+    eval_shuffle_buffer_size = 32768
+
+
+class BamLlama2MediumRmsGateOnlyPerHeadLocalQK(BamLlama2MediumRmsGateOnly):
+    """RmsGateOnly with independent runtime local-Q/K keys for every head."""
+    # ~0.246 steps/s; stopped at 12,716. dloss -0.0080 (-0.34%) vs RmsGateOnly @12,600
+    model_name = 'BamLlama2MediumRmsGateOnlyPerHeadLocalQK'
+    bam_local_qk_key_mode = 'per_head'
 
 
 class BamLlama2MediumRmsGateOnlyNoGwDecay(BamLlama2MediumRmsGateOnly):

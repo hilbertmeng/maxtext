@@ -234,7 +234,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
-    bam_local_qk_key_mode = 'shared'  # shared + per-head rematrix | per_head runtime keys
+    bam_local_qk_key_mode = 'shared'  # shared | per_head runtime | per_head_static bias-only keys
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_share_full_local_read = False  # share full/local_o runtime-key and gate projections
@@ -391,6 +391,14 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK(
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK'
     bam_local_qk_key_mode = 'per_head'
     bam_create_grouped_rw_norm_params = True
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocalQK(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
+):
+    """Replace shared local-Q/K reads with static per-layer/per-head keys; no read gates."""
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocalQK'
+    bam_local_qk_key_mode = 'per_head_static'
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGroupedRMSNorm(

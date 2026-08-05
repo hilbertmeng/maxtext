@@ -1836,9 +1836,10 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
   M: single tensor [b,{f},t,k,v] (U⊗V same) OR (M_col, M_row) tuple (codebook read uses
      (Zcᵀ, Zr), each side its own matrix state). The f axis appears iff M is 5-D
      (cross-token fetch); it is summed into the contraction (Σ_f).
-  W_R: DenseGeneral x -> {n}{f}(A_r+A_c); MaxText emits [b,t,(n),(f,),kv] (head after t),
-     consumed natively by the einsum (key subscript bt{n}{f}{side}). Split widths adapt to M's
-     k/v (or C/C for codebook).
+  W_R: DenseGeneral x -> {n}{f}(A_r+A_c), or a static key parameter with those trailing
+     axes. Static keys are broadcast over x's leading [b,t] axes. MaxText emits
+     [b,t,(n),(f,),kv] (head after t), consumed natively by the einsum (key subscript
+     bt{n}{f}{side}). Split widths adapt to M's k/v (or C/C for codebook).
   R: [n,d,d] rematrix given => shared tier (key has no head axis, read once then per-head
      rematrix); R is None => per-head tier (key carries head axis, no rematrix).
   Returns [b, n, t, d] (= k+v, U first V second).
@@ -1848,7 +1849,9 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
   n = 'n' if R is None    else ''        # n axis on key iff per-head tier (diag/full/codebook)
   if return_key and return_key_stages:
     raise ValueError("return_key and return_key_stages are mutually exclusive")
-  raw_row, raw_col = jnp.split(W_R(x), [Mr.shape[-2]], axis=-1)  # split widths adapt to M
+  projected_key = W_R(x) if callable(W_R) else jnp.broadcast_to(
+      W_R, x.shape[:-1] + W_R.shape)
+  raw_row, raw_col = jnp.split(projected_key, [Mr.shape[-2]], axis=-1)  # split widths adapt to M
   if key_gate_logits is None:
     row_gate = col_gate = None
   else:
@@ -1951,7 +1954,7 @@ class BamAttention(Attention):
     self._write_v_mode = cfg.bam_write_v_mode
     self._forget_mode = cfg.bam_forget_mode
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
-    assert self._local_qk_key_mode in ('shared', 'per_head')
+    assert self._local_qk_key_mode in ('shared', 'per_head', 'per_head_static')
     assert self._shared_fetch_mode in (
         'legacy', 'compact', 'recompute', 'dynamic_mix', 'dynamic_rms_mix')
     assert self._write_v_mode in ('x', 'x_bias', 'mix')
@@ -2076,7 +2079,18 @@ class BamAttention(Attention):
             matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
 
     if 'local_qk' in self._mode:
-      if self._local_qk_key_mode == 'per_head':
+      if self._local_qk_key_mode == 'per_head_static':
+        # Bias-only endpoint of the per-head runtime-key projection: one learned row/column
+        # key per layer, head, and Q/K use point. Zero init preserves the exact MHA start;
+        # no RMS read gate is created or applied, so the zero-point Jacobian stays one.
+        for _name in ("W_lq", "W_lk"):
+          setattr(self, _name, self.param(
+              _name,
+              nn.with_logical_partitioning(zeros_init, ("q_heads", "kv")),
+              (self.num_query_heads, self.bam_k + self.bam_v),
+              self.weight_dtype,
+          ))
+      elif self._local_qk_key_mode == 'per_head':
         # Capability ablation symmetric with local_o: each head gets its own
         # runtime row/column key and gate, with no post-read static rematrix.
         # Zero-init keys preserve the exact MHA starting function.
@@ -2328,14 +2342,21 @@ class BamAttention(Attention):
     # ---- local_qk (route branch: inject into Q/K, before alpha) ----
     if 'local_qk' in self._mode:
       assert Mh is not None, "local_qk read requires M_in"
-      local_qk_R_q = None if self._local_qk_key_mode == 'per_head' else self.R_q
-      local_qk_R_k = None if self._local_qk_key_mode == 'per_head' else self.R_k
+      local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
+      local_qk_R_q = None if local_qk_per_head else self.R_q
+      local_qk_R_k = None if local_qk_per_head else self.R_k
+      local_qk_q_kwargs = (
+          {} if self._local_qk_key_mode == 'per_head_static'
+          else self._read_key_kwargs('W_lq_gate', inputs_q))
+      local_qk_k_kwargs = (
+          {} if self._local_qk_key_mode == 'per_head_static'
+          else self._read_key_kwargs('W_lk_gate', inputs_q))
       query = query + rearrange(
           bam_read(Mh, inputs_q, self.W_lq, local_qk_R_q,
-                   **self._read_key_kwargs('W_lq_gate', inputs_q)), 'b n t d -> b t n d')
+                   **local_qk_q_kwargs), 'b n t d -> b t n d')
       key = key + rearrange(
           bam_read(Mh, inputs_q, self.W_lk, local_qk_R_k,
-                   **self._read_key_kwargs('W_lk_gate', inputs_q)), 'b n t d -> b t n d')
+                   **local_qk_k_kwargs), 'b n t d -> b t n d')
     query_route, key_route = query, key
 
     query = nn.with_logical_constraint(query, self.query_axis_names)

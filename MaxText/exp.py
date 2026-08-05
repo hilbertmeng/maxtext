@@ -387,7 +387,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """CombinedRead plus per-head runtime local-Q/K keys; paired norm control."""
-    # running.
+    # ~0.283 steps/s; running.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK'
     bam_local_qk_key_mode = 'per_head'
     bam_create_grouped_rw_norm_params = True
@@ -397,7 +397,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGrou
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK
 ):
     """Use per-head learned RMS scales for runtime read keys and write factors."""
-    # running.
+    # ~0.283 steps/s; running.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGroupedRMSNorm'
     bam_use_grouped_rw_norm = True
 

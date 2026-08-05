@@ -232,6 +232,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
     bam_read_key_epsilon = 1e-4      # denominator epsilon for rms_gate
     bam_create_read_gate_params = False
+    bam_create_grouped_rw_norm_params = False
+    bam_use_grouped_rw_norm = False
     bam_local_qk_key_mode = 'shared'  # shared + per-head rematrix | per_head runtime keys
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
@@ -376,9 +378,28 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead
 ):
     """Algebraically combine fetched/local matrices before one shared read."""
-    # ~0.316 steps/s; TPU bf16 reassociation is not train-equivalent to SharedRead.
+    # ~0.316 steps/s; stopped at 8,218. dloss -0.0019 (-0.07%) vs RmsMix @6,200
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead'
     bam_combine_full_local_read = True
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
+):
+    """CombinedRead plus per-head runtime local-Q/K keys; paired norm control."""
+    # running.
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK'
+    bam_local_qk_key_mode = 'per_head'
+    bam_create_grouped_rw_norm_params = True
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGroupedRMSNorm(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK
+):
+    """Use per-head learned RMS scales for runtime read keys and write factors."""
+    # running.
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGroupedRMSNorm'
+    bam_use_grouped_rw_norm = True
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne(

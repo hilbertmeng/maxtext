@@ -1799,7 +1799,9 @@ def _update_bam_matrix(M_in, dM, lambda_decay, forget_logits=None):
   return retention * M_in + dM, forget_gate
 
 
-def _transform_bam_read_key(r, mode='none', scale=1.0, eps=1e-6, gate_logits=None):
+def _transform_bam_read_key(
+    r, mode='none', scale=1.0, eps=1e-6, gate_logits=None,
+    rms_norm=None, use_learned_rms=False):
   """Apply a side-local health transform to a runtime BAM read key.
 
   `soft_rms_cap` is identity to first order at zero and caps the key RMS at `scale`.
@@ -1815,13 +1817,19 @@ def _transform_bam_read_key(r, mode='none', scale=1.0, eps=1e-6, gate_logits=Non
   if mode == 'rms_gate':
     if gate_logits is None:
       raise ValueError('rms_gate requires gate logits')
-    return scale * jax.nn.sigmoid(gate_logits) * _rms(r, eps)
+    direction = _rms(r, eps)
+    if rms_norm is not None:
+      learned_direction = rms_norm(r)
+      if use_learned_rms:
+        direction = learned_direction
+    return scale * jax.nn.sigmoid(gate_logits) * direction
   raise ValueError(f'Unknown BAM read-key transform: {mode}')
 
 
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_eps=1e-6, key_gate_logits=None, return_key=False,
-             return_key_stages=False):
+             return_key_stages=False, key_row_norm=None, key_col_norm=None,
+             use_learned_key_norm=False):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
   Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
@@ -1845,8 +1853,12 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
     row_gate = col_gate = None
   else:
     row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
-  r_row = _transform_bam_read_key(raw_row, key_mode, key_scale, key_eps, row_gate)
-  r_col = _transform_bam_read_key(raw_col, key_mode, key_scale, key_eps, col_gate)
+  r_row = _transform_bam_read_key(
+      raw_row, key_mode, key_scale, key_eps, row_gate,
+      key_row_norm, use_learned_key_norm)
+  r_col = _transform_bam_read_key(
+      raw_col, key_mode, key_scale, key_eps, col_gate,
+      key_col_norm, use_learned_key_norm)
   y = jnp.concatenate([
       jnp.einsum(f'b{f}tkv,bt{n}{f}v->b{n}tk', Mc, r_col),   # col read -> U
       jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row),   # row read -> V
@@ -1855,10 +1867,14 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
   if return_key:
     return y, jnp.concatenate((r_row, r_col), axis=-1)
   if return_key_stages:
+    post_rms_row = key_row_norm(raw_row) if key_row_norm is not None else _rms(raw_row, key_eps)
+    post_rms_col = key_col_norm(raw_col) if key_col_norm is not None else _rms(raw_col, key_eps)
+    if not use_learned_key_norm:
+      post_rms_row = _rms(raw_row, key_eps)
+      post_rms_col = _rms(raw_col, key_eps)
     return y, {
         "pre_rms": jnp.concatenate((raw_row, raw_col), axis=-1),
-        "post_rms_pre_gate": jnp.concatenate(
-            (_rms(raw_row, key_eps), _rms(raw_col, key_eps)), axis=-1),
+        "post_rms_pre_gate": jnp.concatenate((post_rms_row, post_rms_col), axis=-1),
         "post_gate": jnp.concatenate((r_row, r_col), axis=-1),
     }
   return y
@@ -1921,6 +1937,8 @@ class BamAttention(Attention):
     self._read_key_mode = cfg.bam_read_key_mode
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._read_key_eps = float(cfg.bam_read_key_epsilon)
+    self._create_grouped_rw_norm = bool(cfg.bam_create_grouped_rw_norm_params)
+    self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
     self._share_full_local_read = cfg.bam_share_full_local_read
@@ -1941,6 +1959,11 @@ class BamAttention(Attention):
     assert self._read_key_scale > 0.0
     assert self._read_key_eps > 0.0
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
+    assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm
+    assert not self._create_grouped_rw_norm or self._read_key_mode == 'rms_gate'
+    assert not self._create_grouped_rw_norm or (
+        'local_qk' not in self._mode or self._local_qk_key_mode == 'per_head'), (
+            'per-head learned local_qk normalization requires per-head runtime keys')
     if self._share_full_local_read:
       assert {'full', 'local_o'} <= self._mode, (
           'shared full/local read projections require both full and local_o')
@@ -1975,6 +1998,18 @@ class BamAttention(Attention):
               lambda key, shape, dtype: jnp.full(shape, bias_value, dtype), bias_axes),
           features, self.weight_dtype))
 
+    def add_grouped_read_norms(name, row_shape, col_shape, row_axes, col_axes):
+      if not self._create_grouped_rw_norm:
+        return
+      setattr(self, f'{name}_row_norm', GroupedRMSNorm(
+          scale_shape=row_shape, epsilon=self._read_key_eps, dtype=self.dtype,
+          weight_dtype=self.weight_dtype, kernel_axes=row_axes,
+          name=f'{name}_row_norm'))
+      setattr(self, f'{name}_col_norm', GroupedRMSNorm(
+          scale_shape=col_shape, epsilon=self._read_key_eps, dtype=self.dtype,
+          weight_dtype=self.weight_dtype, kernel_axes=col_axes,
+          name=f'{name}_col_norm'))
+
     # For zero-initialized runtime keys, this choice makes the initial Jacobian of
     # scale*sigmoid(g)*RMSNorm(r) equal to one at r=0.  The local_qk key projections
     # are regular-initialized and gated later by zero-initialized R_q/R_k, so give
@@ -1993,6 +2028,10 @@ class BamAttention(Attention):
       add_read_gate('W_beta_gate', (self.num_query_heads, cfg.bam_n_f, 2),
                     ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
                     zero_key_gate_init)
+      add_grouped_read_norms(
+          'W_beta', (self.num_query_heads, cfg.bam_n_f, cfg.bam_C),
+          (self.num_query_heads, cfg.bam_n_f, cfg.bam_C),
+          ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
     if 'full' in self._mode:
       # Full-read oracle (§4.6.1): single joint key W_R: D->n·n_f·(k+v), zero-initialized.
@@ -2006,6 +2045,10 @@ class BamAttention(Attention):
       add_read_gate('W_R_gate', (self.num_query_heads, cfg.bam_n_f, 2),
                     ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
                     zero_key_gate_init)
+      add_grouped_read_norms(
+          'W_R', (self.num_query_heads, cfg.bam_n_f, self.bam_k),
+          (self.num_query_heads, cfg.bam_n_f, self.bam_v),
+          ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
       if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
         # Softmax starts from a uniform convex mixture. Signed RMS mixing needs a
@@ -2046,6 +2089,10 @@ class BamAttention(Attention):
           add_read_gate(f'{_name}_gate', (self.num_query_heads, 2),
                         ('embed', 'q_heads', None), ('q_heads', None),
                         zero_key_gate_init)
+          add_grouped_read_norms(
+              _name, (self.num_query_heads, self.bam_k),
+              (self.num_query_heads, self.bam_v),
+              ('q_heads', 'kv'), ('q_heads', 'kv'))
       else:
         # Default tier: one shared runtime key per use point, then a per-head
         # zero-init static rematrix gates and remixes the readout.
@@ -2078,6 +2125,10 @@ class BamAttention(Attention):
           quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
       add_read_gate('W_Ro_gate', (self.num_query_heads, 2),
                     ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
+      add_grouped_read_norms(
+          'W_Ro', (self.num_query_heads, self.bam_k),
+          (self.num_query_heads, self.bam_v),
+          ('q_heads', 'kv'), ('q_heads', 'kv'))
 
     if self._has_write:
       if cfg.bam_write_u_proj or cfg.bam_create_write_u_proj_params:
@@ -2134,6 +2185,17 @@ class BamAttention(Attention):
                 lambda key, shape, dtype: jnp.full(shape, forget_bias, dtype),
                 (None,)),
             (1,), self.weight_dtype)
+      if self._create_grouped_rw_norm:
+        self.write_u1_norm = GroupedRMSNorm(
+            scale_shape=(self.num_query_heads, self.bam_k),
+            epsilon=cfg.normalization_layer_epsilon, dtype=self.dtype,
+            weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
+            name='write_u1_norm')
+        self.write_u2_norm = GroupedRMSNorm(
+            scale_shape=(self.num_query_heads, loc_v),
+            epsilon=cfg.normalization_layer_epsilon, dtype=self.dtype,
+            weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
+            name='write_u2_norm')
 
   def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False):
     gate_logits = None
@@ -2143,12 +2205,27 @@ class BamAttention(Attention):
         candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
       if self._read_key_mode == 'rms_gate':
         gate_logits = candidate_logits
-    return dict(
+    kwargs = dict(
         key_mode=self._read_key_mode,
         key_scale=self._read_key_scale,
         key_eps=self._read_key_eps,
         key_gate_logits=gate_logits,
     )
+    if self._create_grouped_rw_norm:
+      projection_name = gate_name.removesuffix('_gate')
+      row_norm = getattr(self, f'{projection_name}_row_norm')
+      col_norm = getattr(self, f'{projection_name}_col_norm')
+      if squeeze_fetch_axis:
+        raw_row_norm = row_norm
+        raw_col_norm = col_norm
+        row_norm = lambda z: jnp.squeeze(raw_row_norm(z[..., None, :]), axis=-2)
+        col_norm = lambda z: jnp.squeeze(raw_col_norm(z[..., None, :]), axis=-2)
+      kwargs.update(
+          key_row_norm=row_norm,
+          key_col_norm=col_norm,
+          use_learned_key_norm=self._use_grouped_rw_norm,
+      )
+    return kwargs
 
   def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
@@ -2176,7 +2253,15 @@ class BamAttention(Attention):
       # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
       # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
-    dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * _rms(u1, eps), _rms(u2, eps))
+    u1_norm = _rms(u1, eps)
+    u2_norm = _rms(u2, eps)
+    if self._create_grouped_rw_norm:
+      learned_u1_norm = self.write_u1_norm(u1)
+      learned_u2_norm = self.write_u2_norm(u2)
+      if self._use_grouped_rw_norm:
+        u1_norm = learned_u1_norm
+        u2_norm = learned_u2_norm
+    dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * u1_norm, u2_norm)
     forget_logits = None
     if self._forget_mode == 'dynamic':
       forget_logits = self.W_forget_gate(x) + self.W_forget_gate_b0

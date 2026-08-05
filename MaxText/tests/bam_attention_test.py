@@ -9,6 +9,7 @@ from layers.attentions import (
     GroupedRMSNorm,
     _dynamic_mixed_bam_fetch_alpha,
     _mix_bam_write_v,
+    _rms,
     _select_bam_write_source,
     _shared_bam_fetch_alpha,
     _transform_bam_read_key,
@@ -269,6 +270,19 @@ class BamReadKeyTransformTest(absltest.TestCase):
         jnp.array([3.0, 4.0]), 'rms_gate', scale, 1e-8, gate_logits)
     transformed_rms = jnp.sqrt(jnp.mean(transformed ** 2))
     np.testing.assert_allclose(transformed_rms, scale * gate, rtol=1e-6, atol=1e-6)
+
+  def test_rms_gate_learned_norm_is_a_paired_identity_control(self):
+    r = jnp.array([[3.0, 4.0]], dtype=jnp.float32)
+    gate_logits = jnp.zeros((1, 1), dtype=jnp.float32)
+    learned_norm = lambda z: 1.5 * _rms(z, 1e-8)
+    baseline = _transform_bam_read_key(
+        r, 'rms_gate', 2.0, 1e-8, gate_logits)
+    dormant = _transform_bam_read_key(
+        r, 'rms_gate', 2.0, 1e-8, gate_logits, learned_norm, False)
+    active = _transform_bam_read_key(
+        r, 'rms_gate', 2.0, 1e-8, gate_logits, learned_norm, True)
+    np.testing.assert_array_equal(dormant, baseline)
+    np.testing.assert_allclose(active, 1.5 * baseline, rtol=1e-6, atol=1e-6)
 
 
 if __name__ == '__main__':

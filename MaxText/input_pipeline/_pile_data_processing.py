@@ -642,7 +642,11 @@ def make_pile_train_iterator(config, mesh):  # lsp
                             name=train_name, 
                             path=train_pathes, 
                             meta_dict=meta_dict,
-                            batch_size=int(config.per_device_batch_size * num_local_devices),
+                            batch_size=int(
+                                config.per_device_batch_size
+                                * num_local_devices
+                                * config.gradient_accumulation_steps
+                            ),
                             seq_len=config.max_target_length,
                             repeat=config.epoch,
                             seed=config.data_shuffle_seed,

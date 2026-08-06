@@ -236,8 +236,10 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
+    bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
+    bam_codebook_source_implementation = 'dot'  # dot | mul_reduce
     bam_share_full_local_read = False  # share full/local_o runtime-key and gate projections
     bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
@@ -324,7 +326,7 @@ class BamLlama2MediumRmsGateOnly(BamLlama2Medium):
 
 class BamLlama2MediumRmsGateOnlyFull3NoLocalO(BamLlama2MediumRmsGateOnly):
     """Equal-parameter read-slot control: three full fetches, no local_o read."""
-    # ~0.277 steps/s; stopped at 2,860. dloss +0.0015 (+0.06%) vs RmsGateOnly @2,800
+    # ~0.277 steps/s; stopped at 2,860. dloss +0.0015 (+0.06%) vs RmsGateOnly @2,800; three fixed fetches add no gain.
     model_name = 'BamLlama2MediumRmsGateOnlyFull3NoLocalO'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_n_f = 3
@@ -339,7 +341,7 @@ class BamLlama2MediumRmsGateOnlyFull1LocalO(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyDynamicMixFull1(BamLlama2MediumRmsGateOnly):
     """One full fetch dynamically mixed from all standard MHA routing heads."""
-    # ~0.295 steps/s; stopped at 7,000. dloss -0.0016 (-0.06%) vs RmsGateOnly @6,800
+    # ~0.295 steps/s; stopped at 7,000. dloss -0.0016 (-0.06%) vs RmsGateOnly @6,800; same loss at lower fetch cost.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicMixFull1'
     bam_n_f = 1
     bam_shared_fetch_mode = 'dynamic_mix'
@@ -347,7 +349,7 @@ class BamLlama2MediumRmsGateOnlyDynamicMixFull1(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1(BamLlama2MediumRmsGateOnly):
     """One full fetch using a signed, parameter-free unit-L2 MHA-head mixture."""
-    # ~0.295 steps/s; stopped at 6,403. dloss -0.0006 (-0.02%) vs SoftmaxMix @6,200
+    # ~0.295 steps/s; stopped at 6,403. dloss -0.0006 (-0.02%) vs SoftmaxMix @6,200; signed mixing adds no gain.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1'
     bam_n_f = 1
     bam_shared_fetch_mode = 'dynamic_rms_mix'
@@ -383,7 +385,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead
 ):
     """Algebraically combine fetched/local matrices before one shared read."""
-    # ~0.316 steps/s; stopped at 8,218. dloss -0.0019 (-0.07%) vs RmsMix @6,200
+    # ~0.316 steps/s; stopped at 8,218. dloss -0.0019 (-0.07%) vs RmsMix @6,200; same loss with lower read cost.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead'
     bam_combine_full_local_read = True
 
@@ -392,7 +394,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """CombinedRead plus per-head runtime local-Q/K keys; paired norm control."""
-    # ~0.283 steps/s; stopped at 7,819. dloss -0.0087 (-0.35%) vs Combined @7,600
+    # ~0.283 steps/s; stopped at 7,819. dloss -0.0087 (-0.35%) vs Combined @7,600; small gain at high parameter/speed cost.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK'
     bam_local_qk_key_mode = 'per_head'
     bam_create_grouped_rw_norm_params = True
@@ -402,16 +404,39 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Shared local-Q/K content keys with signed dynamic rank-1 head routing."""
-    # ~0.315 steps/s; running.
+    # ~0.315 steps/s; stopped at 7,145. mean dloss -0.0035 vs Combined, +0.0057 vs PerHead @5,600–7,000.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK'
     bam_local_qk_key_mode = 'factorized'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
+):
+    """Inject FactorizedLocalQK before QKNorm and RoPE."""
+    # running.
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope'
+    bam_local_qk_injection = 'pre_qknorm_rope'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
+):
+    """Replace the combined full content read with a four-vector codebook read."""
+    # pending paired kernel profile.
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4'
+    bam_layer_modes = ['local_qk+codebook'] * 24
+    bam_C = 4
+    bam_share_full_local_read = False
+    bam_combine_full_local_read = False
+    bam_fetch_diagonal_one = True
+    bam_read_implementation = 'dot_btn'
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """CombinedRead control with the local Q/K routing branch removed."""
-    # ~0.419 steps/s; running.
+    # ~0.419 steps/s; stopped at 9,624. mean dloss +0.0119 vs Combined @6,800–8,200; LocalQK has a stable benefit.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK'
     bam_layer_modes = ['local_o+full'] * 24
 
@@ -420,7 +445,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocal
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Replace shared local-Q/K reads with static per-layer/per-head keys; no read gates."""
-    # ~0.305 steps/s; stopped at 4,969. dloss +0.0120 (+0.47%) vs Combined @4,800
+    # ~0.305 steps/s; stopped at 4,969. dloss +0.0120 vs Combined, +0.0209 vs PerHead @4,800; static keys fail.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocalQK'
     bam_local_qk_key_mode = 'per_head_static'
 
@@ -429,7 +454,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGrou
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK
 ):
     """Use per-head learned RMS scales for runtime read keys and write factors."""
-    # ~0.283 steps/s; stopped at 2,869. dloss -0.0015 (-0.06%) vs PerHead @2,800
+    # ~0.283 steps/s; stopped at 2,869. dloss -0.0015 (-0.06%) vs PerHead @2,800; learned RMS scales are negligible.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGroupedRMSNorm'
     bam_use_grouped_rw_norm = True
 
@@ -462,6 +487,32 @@ class Llama2MediumTrainStepProfile(TrainStepProfile, Llama2Medium):
     """Standard Transformer train-step control for BAM component profiling."""
     # ~0.811 steps/s; completed 200. XPlane device step 1.208 s.
     model_name = 'Llama2MediumTrainStepProfile'
+
+
+class BamLlama2MediumCodebookC4ProfileDD(
+    TrainStepProfile,
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4,
+):
+    """Codebook C4 profile: source dot, destination dot."""
+    model_name = 'BamLlama2MediumCodebookC4ProfileDD'
+
+
+class BamLlama2MediumCodebookC4ProfileMD(BamLlama2MediumCodebookC4ProfileDD):
+    """Codebook C4 profile: source multiply+reduce, destination dot."""
+    model_name = 'BamLlama2MediumCodebookC4ProfileMD'
+    bam_codebook_source_implementation = 'mul_reduce'
+
+
+class BamLlama2MediumCodebookC4ProfileDM(BamLlama2MediumCodebookC4ProfileDD):
+    """Codebook C4 profile: source dot, destination multiply+reduce."""
+    model_name = 'BamLlama2MediumCodebookC4ProfileDM'
+    bam_read_implementation = 'mul_reduce_btn'
+
+
+class BamLlama2MediumCodebookC4ProfileMM(BamLlama2MediumCodebookC4ProfileMD):
+    """Codebook C4 profile: source multiply+reduce, destination multiply+reduce."""
+    model_name = 'BamLlama2MediumCodebookC4ProfileMM'
+    bam_read_implementation = 'mul_reduce_btn'
 
 
 class BamLlama2MediumDynamicPerHeadQKDirectReadProfile(
@@ -578,7 +629,7 @@ class BamLlama2MediumRmsGateOnlyFull3LocalO(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyNoFullLocalO(BamLlama2MediumRmsGateOnly):
     """No full fetch; retain local_qk and local_o reads."""
-    # ~0.383 steps/s; stopped at 6,050. dloss +0.0305 (+1.21%) vs RmsGateOnly @6,000
+    # ~0.383 steps/s; stopped at 6,050. dloss +0.0305 (+1.21%) vs RmsGateOnly @6,000; full fetch contributes materially.
     model_name = 'BamLlama2MediumRmsGateOnlyNoFullLocalO'
     bam_layer_modes = ['local_qk+local_o'] * 24
 
@@ -606,21 +657,21 @@ class BamLlama2MediumRmsGateOnlyNoGwDecay(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyU2Bias(BamLlama2MediumRmsGateOnly):
     """B arm: u2 = P_loc(x) + a learned per-head bias."""
-    # ~0.280 steps/s; stopped at 2,943. dloss -0.0011 (-0.04%) vs RmsGateOnly @2,800
+    # ~0.280 steps/s; stopped at 2,943. dloss -0.0011 (-0.04%) vs RmsGateOnly @2,800; learned bias is null.
     model_name = 'BamLlama2MediumRmsGateOnlyU2Bias'
     bam_write_v_mode = 'x_bias'
 
 
 class BamLlama2MediumRmsGateOnlyU2Mix(BamLlama2MediumRmsGateOnly):
     """A-initialized learned mix: u2 = a_x P_loc(x) + a_o o_tail + b."""
-    # ~0.280 steps/s; stopped at 2,933. dloss -0.0037 (-0.14%) vs RmsGateOnly @2,800
+    # ~0.280 steps/s; stopped at 2,933. dloss -0.0037 (-0.14%) vs RmsGateOnly @2,800; learned mix is negligible.
     model_name = 'BamLlama2MediumRmsGateOnlyU2Mix'
     bam_write_v_mode = 'mix'
 
 
 class BamLlama2MediumRmsGateOnlyDynamicForget(BamLlama2MediumRmsGateOnly):
     """Token-wise scalar forget gate on prior-depth M; initial retention is 0.99."""
-    # ~0.293 steps/s; stopped at 2,867. dloss -0.0007 (-0.03%) vs RmsGateOnly @2,800
+    # ~0.293 steps/s; stopped at 2,867. dloss -0.0007 (-0.03%) vs RmsGateOnly @2,800; dynamic forgetting is null.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicForget'
     bam_forget_mode = 'dynamic'
 

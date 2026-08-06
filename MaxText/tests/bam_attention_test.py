@@ -16,12 +16,53 @@ from layers.attentions import (
     _transform_bam_read_key,
     _update_bam_matrix,
     bam_read,
+    codebook_read,
     factorized_head_bam_read,
     packed_qk_bam_read,
 )
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_codebook_source_and_destination_implementations_match_gradients(self):
+    b, t, n, c, k, v, e = 2, 3, 4, 4, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(53), 8)
+    args = (
+        jax.nn.softmax(jax.random.normal(random[0], (b, 1, t, t)), axis=-1),
+        jax.random.normal(random[1], (b, t, k, v)),
+        jax.random.normal(random[2], (b, t, e)),
+        jax.random.normal(random[3], (c, k)),
+        jax.random.normal(random[4], (c, v)),
+        jax.random.normal(random[5], (e, n, 1, 2 * c)),
+        jax.random.normal(random[6], (b, t, n, 2)),
+    )
+    upstream = jax.random.normal(random[7], (b, t, n, k + v))
+
+    def output(values, source_implementation, read_implementation):
+      alpha, M, x, rho_u, rho_v, kernel, gates = values
+      projection = lambda z: jnp.einsum('bte,enfD->btnfD', z, kernel)
+      return codebook_read(
+          alpha, M, x, rho_u, rho_v, projection,
+          key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
+          key_gate_logits=gates, source_implementation=source_implementation,
+          read_implementation=read_implementation)
+
+    reference = output(args, 'dot', 'dot_btn')
+    reference_value, reference_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, 'dot', 'dot_btn') * upstream))(args)
+    for source_implementation, read_implementation in (
+        ('mul_reduce', 'dot_btn'),
+        ('dot', 'mul_reduce_btn'),
+        ('mul_reduce', 'mul_reduce_btn'),
+    ):
+      actual = output(args, source_implementation, read_implementation)
+      actual_value, actual_grad = jax.value_and_grad(
+          lambda z: jnp.sum(output(
+              z, source_implementation, read_implementation) * upstream))(args)
+      np.testing.assert_allclose(actual, reference, rtol=1e-5, atol=1e-5)
+      np.testing.assert_allclose(actual_value, reference_value, rtol=1e-5, atol=1e-5)
+      for got, expected in zip(actual_grad, reference_grad):
+        np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
 
   def test_bam_read_implementations_match_values_and_gradients(self):
     b, t, n, f, k, v, e = 2, 3, 4, 2, 3, 5, 7

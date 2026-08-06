@@ -1991,20 +1991,52 @@ def factorized_head_bam_read(
 
 
 def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
-                  key_scale=1.0, key_eps=1e-6, key_gate_logits=None):
+                  key_scale=1.0, key_eps=1e-6, key_gate_logits=None,
+                  key_row_norm=None, key_col_norm=None,
+                  use_learned_key_norm=False, source_implementation='dot',
+                  read_implementation='dot_btn'):
   """Codebook read (§4.6.2): keys constrained to span(ρ) cut the transfer width k*v -> C(k+v).
 
   Source side = ρ pre-contraction (static keys, no per-token key materialization — the savings).
   Destination side = a literal bam_read((Zcᵀ, Zr), x, W_beta) with β as the runtime key.
   rho_u: [C, k] (row-read codebook); rho_v: [C, v] (col-read codebook) — side-independent (§4.1).
   """
-  Yr = jnp.einsum('bskv,ck->bscv', M, rho_u)   # M^T rho_u  (row-read pre-answer)
-  Yc = jnp.einsum('bskv,cv->bsck', M, rho_v)   # M rho_v     (col-read pre-answer)
-  Z = jnp.einsum('bfts,bscd->bftcd', alpha_f, jnp.concatenate([Yc, Yr], -1))  # [b,f,t,C,k+v], U then V
+  if alpha_f.shape[1] != 1:
+    raise ValueError(f'optimized codebook read requires one fetch route, got {alpha_f.shape}')
+  if source_implementation == 'dot':
+    Yr = jnp.einsum('bskv,ck->bscv', M, rho_u)  # M^T rho_u
+    Yc = jnp.einsum('bskv,cv->bsck', M, rho_v)  # M rho_v
+  elif source_implementation == 'mul_reduce':
+    expanded_M = M[:, :, None]
+    Yr = jnp.sum(expanded_M * rho_u[None, None, :, :, None], axis=-2)
+    Yc = jnp.sum(expanded_M * rho_v[None, None, :, None, :], axis=-1)
+  else:
+    raise ValueError(f'Unknown codebook source implementation: {source_implementation}')
+
+  # Keep the true T x S contraction as a dense dot. Flattening C and content makes
+  # its transfer width explicit and removes the length-one fetch axis.
+  b, s, c, d = (*Yc.shape[:3], Yc.shape[-1] + Yr.shape[-1])
+  source = jnp.concatenate([Yc, Yr], axis=-1).reshape(b, s, c * d)
+  Z = jnp.einsum('bts,bsd->btd', alpha_f[:, 0], source).reshape(
+      b, alpha_f.shape[-2], c, d)
+
+  projection = lambda z: jnp.squeeze(W_beta(z), axis=-2)
+  raw_row, raw_col, beta_row, beta_col = _project_bam_read_keys(
+      c, x, projection, key_mode=key_mode, key_scale=key_scale,
+      key_eps=key_eps, key_gate_logits=key_gate_logits,
+      key_row_norm=key_row_norm, key_col_norm=key_col_norm,
+      use_learned_key_norm=use_learned_key_norm)
   k = M.shape[-2]
-  Mc, Mr = rearrange(Z[..., :k], 'b f t c k -> b f t k c'), Z[..., k:]
-  return bam_read((Mc, Mr), x, W_beta, key_mode=key_mode, key_scale=key_scale,
-                  key_eps=key_eps, key_gate_logits=key_gate_logits)
+  Zc, Zr = Z[..., :k], Z[..., k:]
+  if read_implementation in ('dot_bnt', 'dot_btn'):
+    y_u = jnp.einsum('btck,btnc->btnk', Zc, beta_col)
+    y_v = jnp.einsum('btcv,btnc->btnv', Zr, beta_row)
+  elif read_implementation == 'mul_reduce_btn':
+    y_u = jnp.sum(Zc[:, :, None] * beta_col[..., None], axis=-2)
+    y_v = jnp.sum(Zr[:, :, None] * beta_row[..., None], axis=-2)
+  else:
+    raise ValueError(f'Unknown BAM read implementation: {read_implementation}')
+  return jnp.concatenate([y_u, y_v], axis=-1)
 
 
 class BamAttention(Attention):
@@ -2050,7 +2082,9 @@ class BamAttention(Attention):
     self._create_grouped_rw_norm = bool(cfg.bam_create_grouped_rw_norm_params)
     self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
+    self._local_qk_injection = cfg.bam_local_qk_injection
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
+    self._codebook_source_implementation = cfg.bam_codebook_source_implementation
     self._share_full_local_read = cfg.bam_share_full_local_read
     self._combine_full_local_read = cfg.bam_combine_full_local_read
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
@@ -2059,7 +2093,8 @@ class BamAttention(Attention):
     self._pack_local_qk_reads = cfg.bam_pack_local_qk_reads
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
     if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
-      assert 'full' in self._mode, 'dynamic head mixing currently requires full read mode'
+      assert {'full', 'codebook'} & self._mode, (
+          'dynamic head mixing requires a full or codebook read mode')
       assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
       assert cfg.bam_n_f == 1, 'dynamic head mixing produces exactly one fetch route'
     self._write_v_mode = cfg.bam_write_v_mode
@@ -2067,6 +2102,9 @@ class BamAttention(Attention):
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
+    assert self._local_qk_injection in ('post_rope', 'pre_qknorm_rope')
+    assert self._local_qk_injection == 'post_rope' or 'local_qk' in self._mode
+    assert self._codebook_source_implementation in ('dot', 'mul_reduce')
     assert self._shared_fetch_mode in (
         'legacy', 'compact', 'recompute', 'dynamic_mix', 'dynamic_rms_mix')
     assert self._write_v_mode in ('x', 'x_bias', 'mix')
@@ -2090,8 +2128,8 @@ class BamAttention(Attention):
     assert not self._combine_full_local_read or cfg.bam_write_source != 'std+cross', (
         "combined read cannot isolate cross-only content for bam_write_source='std+cross'")
     if self._fetch_diagonal_one:
-      assert 'full' in self._mode and 'local_o' not in self._mode, (
-          'direct fetch diagonal one requires full without a local_o branch')
+      assert {'full', 'codebook'} & self._mode and 'local_o' not in self._mode, (
+          'direct fetch diagonal one requires full/codebook without a local_o branch')
       assert cfg.bam_n_f == 1, 'direct fetch diagonal one requires exactly one fetch route'
       assert not cfg.bam_keep_fetch_diagonal, (
           'direct fetch diagonal one and keep_fetch_diagonal are mutually exclusive')
@@ -2177,17 +2215,6 @@ class BamAttention(Attention):
           (self.num_query_heads, cfg.bam_n_f, self.bam_v),
           ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
-      if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
-        # Softmax starts from a uniform convex mixture. Signed RMS mixing needs a
-        # regular-initialized direction because RMSNorm at an all-zero vector is singular;
-        # W_R remains zero-init, so both variants still start exactly as standard MHA.
-        mix_init = zeros_init if self._shared_fetch_mode == 'dynamic_mix' else reg_init
-        self.fetch_head_mix = DenseGeneral(
-            features=self.num_query_heads, axis=-1, kernel_init=mix_init,
-            kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=True)
-
       if cfg.bam_dedicated_fetch:
         # Capability-ceiling router: fetch patterns no longer have to borrow the first
         # n_f standard MHA heads and can specialize without sacrificing MHA behavior.
@@ -2201,6 +2228,17 @@ class BamAttention(Attention):
             kernel_axes=('embed', 'kv_heads', 'kv_head_dim'), dtype=self.dtype,
             weight_dtype=self.weight_dtype, name='fetch_key', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
+
+    if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
+      # Softmax starts from a uniform convex mixture. Signed RMS mixing needs a
+      # regular-initialized direction because RMSNorm at an all-zero vector is singular;
+      # the content-read projection remains zero-init, preserving the exact MHA start.
+      mix_init = zeros_init if self._shared_fetch_mode == 'dynamic_mix' else reg_init
+      self.fetch_head_mix = DenseGeneral(
+          features=self.num_query_heads, axis=-1, kernel_init=mix_init,
+          kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=True)
 
     if 'local_qk' in self._mode:
       if self._local_qk_key_mode == 'per_head_static':
@@ -2383,6 +2421,44 @@ class BamAttention(Attention):
       )
     return kwargs
 
+  def _read_local_qk(self, Mh, inputs_q):
+    """Read the local matrix into Q/K; callers choose the injection point."""
+    local_qk_q_kwargs = (
+        {} if self._local_qk_key_mode == 'per_head_static'
+        else self._read_key_kwargs('W_lq_gate', inputs_q))
+    local_qk_k_kwargs = (
+        {} if self._local_qk_key_mode == 'per_head_static'
+        else self._read_key_kwargs('W_lk_gate', inputs_q))
+    if self._pack_local_qk_reads:
+      return packed_qk_bam_read(
+          Mh, inputs_q, self.W_lq, self.W_lk,
+          local_qk_q_kwargs, local_qk_k_kwargs)
+    if self._local_qk_key_mode == 'factorized':
+      q_local = factorized_head_bam_read(
+          Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
+          **local_qk_q_kwargs)
+      k_local = factorized_head_bam_read(
+          Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
+          **local_qk_k_kwargs)
+      return (
+          rearrange(q_local, 'b n t d -> b t n d'),
+          rearrange(k_local, 'b n t d -> b t n d'),
+      )
+
+    local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
+    local_qk_R_q = None if local_qk_per_head else self.R_q
+    local_qk_R_k = None if local_qk_per_head else self.R_k
+    q_local = bam_read(
+        Mh, inputs_q, self.W_lq, local_qk_R_q, **local_qk_q_kwargs,
+        implementation=self._read_implementation)
+    k_local = bam_read(
+        Mh, inputs_q, self.W_lk, local_qk_R_k, **local_qk_k_kwargs,
+        implementation=self._read_implementation)
+    if self._read_implementation == 'dot_bnt':
+      q_local = rearrange(q_local, 'b n t d -> b t n d')
+      k_local = rearrange(k_local, 'b n t d -> b t n d')
+    return q_local, k_local
+
   def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
@@ -2451,13 +2527,27 @@ class BamAttention(Attention):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
-    # ---- QKV projection (reuse parent) + QKNorm + RoPE ----
+    # ---- QKV projection (reuse parent) + optional pre-RoPE LocalQK + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
+
+    Mh = None
+    if 'local_qk' in self._mode and self._local_qk_injection == 'pre_qknorm_rope':
+      assert M_in is not None, "local_qk read requires M_in"
+      with jax.named_scope("bam/normalize_m"):
+        Mh = M_in * jax.lax.rsqrt(
+            jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True)
+            + cfg.normalization_layer_epsilon)
+      with jax.named_scope("bam/read_local_m_for_qk"):
+        assert Mh is not None, "local_qk read requires M_in"
+        q_local, k_local = self._read_local_qk(Mh, inputs_q)
+        query = query + q_local
+        key = key + k_local
+
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
     key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
@@ -2478,46 +2568,16 @@ class BamAttention(Attention):
     # ---- Read-side normalization (§4.6.5 read-side whole-matrix one scalar): one RMS scalar per token over
     # (k,v); all read paths consume Mh. No-op when M_in is all zero (start). Write side keeps
     # bare accumulation on raw M_in. Param-free, pre-LN-style matrix-stream shift. ----
-    with jax.named_scope("bam/normalize_m"):
-      Mh = M_in * jax.lax.rsqrt(jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True)
-                                + cfg.normalization_layer_epsilon) if M_in is not None else None
+    if Mh is None:
+      with jax.named_scope("bam/normalize_m"):
+        Mh = M_in * jax.lax.rsqrt(jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True)
+                                  + cfg.normalization_layer_epsilon) if M_in is not None else None
 
-    # ---- local_qk (route branch: inject into Q/K, before alpha) ----
-    if 'local_qk' in self._mode:
+    # ---- post-RoPE local_qk (historical route branch, before alpha) ----
+    if 'local_qk' in self._mode and self._local_qk_injection == 'post_rope':
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
-        local_qk_q_kwargs = (
-            {} if self._local_qk_key_mode == 'per_head_static'
-            else self._read_key_kwargs('W_lq_gate', inputs_q))
-        local_qk_k_kwargs = (
-            {} if self._local_qk_key_mode == 'per_head_static'
-            else self._read_key_kwargs('W_lk_gate', inputs_q))
-        if self._pack_local_qk_reads:
-          q_local, k_local = packed_qk_bam_read(
-              Mh, inputs_q, self.W_lq, self.W_lk,
-              local_qk_q_kwargs, local_qk_k_kwargs)
-        elif self._local_qk_key_mode == 'factorized':
-          q_local = factorized_head_bam_read(
-              Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
-              **local_qk_q_kwargs)
-          k_local = factorized_head_bam_read(
-              Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
-              **local_qk_k_kwargs)
-          q_local = rearrange(q_local, 'b n t d -> b t n d')
-          k_local = rearrange(k_local, 'b n t d -> b t n d')
-        else:
-          local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
-          local_qk_R_q = None if local_qk_per_head else self.R_q
-          local_qk_R_k = None if local_qk_per_head else self.R_k
-          q_local = bam_read(
-              Mh, inputs_q, self.W_lq, local_qk_R_q, **local_qk_q_kwargs,
-              implementation=self._read_implementation)
-          k_local = bam_read(
-              Mh, inputs_q, self.W_lk, local_qk_R_k, **local_qk_k_kwargs,
-              implementation=self._read_implementation)
-          if self._read_implementation == 'dot_bnt':
-            q_local = rearrange(q_local, 'b n t d -> b t n d')
-            k_local = rearrange(k_local, 'b n t d -> b t n d')
+        q_local, k_local = self._read_local_qk(Mh, inputs_q)
         query = query + q_local
         key = key + k_local
     query_route, key_route = query, key
@@ -2594,10 +2654,11 @@ class BamAttention(Attention):
     read_key_stages = {}
     if 'codebook' in self._mode:
       assert Mh is not None, "codebook read requires M_in"
-      y_codebook = rearrange(
-          codebook_read(fetch_alpha, Mh, inputs_q, self.rho_u, self.rho_v, self.W_beta,
-                        **self._read_key_kwargs('W_beta_gate', inputs_q)),
-          'b n t d -> b t n d')
+      y_codebook = codebook_read(
+          fetch_alpha, Mh, inputs_q, self.rho_u, self.rho_v, self.W_beta,
+          **self._read_key_kwargs('W_beta_gate', inputs_q, squeeze_fetch_axis=True),
+          source_implementation=self._codebook_source_implementation,
+          read_implementation=self._read_implementation)
       y_bam = y_codebook
     if 'full' in self._mode:
       assert Mh is not None, "full read requires M_in"

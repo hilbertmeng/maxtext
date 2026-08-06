@@ -197,7 +197,8 @@ For every stopped/completed run:
 3. Report final same-step/window gaps, cumulative trajectory, and whether prior extrapolation
    matched.
 4. Replace the experiment class's running comment with one terse line containing speed, final
-   step, and one key windowed gap, e.g.:
+   step, and the main conclusion against its registered direct `compare_runs`; retain every
+   decision-relevant direct baseline, e.g.:
 
 ```python
 # ~0.280 steps/s; completed 13,500. dloss -0.0678 (-2.77%) vs MHA @13,400

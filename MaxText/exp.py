@@ -452,7 +452,8 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
 ):
     """Single-host v5p-8 continuation with the same global batch of 256."""
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4V5p8'
-    gradient_accumulation_steps = 2
+    per_device_batch_size = 16.0
+    gradient_accumulation_steps = 4
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK(

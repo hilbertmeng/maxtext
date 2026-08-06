@@ -1883,6 +1883,50 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
   return y
 
 
+def factorized_head_bam_read(
+    M, x, W_R, W_head_mix, *, key_mode='none', key_scale=1.0,
+    key_eps=1e-6, key_gate_logits=None):
+  """Read once with a shared runtime key, then route it dynamically across heads.
+
+  For each side, the effective per-head key is the rank-1 factorization
+  ``key[b,t,n,:] = head_mix[b,t,n] * shared_key[b,t,:]``.  Bilinearity lets the
+  implementation contract M with the shared key once and apply the signed head
+  coefficients afterwards, without materializing per-head keys.
+
+  M must be the local matrix state [b,t,k,v].  W_R maps x -> k+v and W_head_mix
+  maps x -> [n,2], with independent row/column head coefficients.  Coefficients
+  receive parameter-free RMS normalization over the head axis, so every head has
+  O(1) typical scale; unlike fetch-alpha mixing, this expansion intentionally does
+  not divide by sqrt(n).
+  """
+  if M.ndim != 4:
+    raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
+  projected_key = W_R(x)
+  raw_row, raw_col = jnp.split(projected_key, [M.shape[-2]], axis=-1)
+  if key_gate_logits is None:
+    row_gate = col_gate = None
+  else:
+    row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
+  r_row = _transform_bam_read_key(
+      raw_row, key_mode, key_scale, key_eps, row_gate)
+  r_col = _transform_bam_read_key(
+      raw_col, key_mode, key_scale, key_eps, col_gate)
+
+  y_u = jnp.einsum('btkv,btv->btk', M, r_col)
+  y_v = jnp.einsum('btkv,btk->btv', M, r_row)
+  raw_head_mix = W_head_mix(x)
+  if raw_head_mix.ndim != 4 or raw_head_mix.shape[-1] != 2:
+    raise ValueError(
+        f'factorized head mix expects [b,t,n,2], got {raw_head_mix.shape}')
+  head_mix = _rms(jnp.asarray(raw_head_mix, jnp.float32), key_eps, axis=-2)
+  head_mix = jnp.asarray(head_mix, y_u.dtype)
+  row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
+  return jnp.concatenate([
+      jnp.einsum('btk,btn->bntk', y_u, col_mix),
+      jnp.einsum('btv,btn->bntv', y_v, row_mix),
+  ], axis=-1)
+
+
 def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
                   key_scale=1.0, key_eps=1e-6, key_gate_logits=None):
   """Codebook read (§4.6.2): keys constrained to span(ρ) cut the transfer width k*v -> C(k+v).
@@ -1955,7 +1999,8 @@ class BamAttention(Attention):
     self._write_v_mode = cfg.bam_write_v_mode
     self._forget_mode = cfg.bam_forget_mode
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
-    assert self._local_qk_key_mode in ('shared', 'per_head', 'per_head_static')
+    assert self._local_qk_key_mode in (
+        'shared', 'factorized', 'per_head', 'per_head_static')
     assert self._shared_fetch_mode in (
         'legacy', 'compact', 'recompute', 'dynamic_mix', 'dynamic_rms_mix')
     assert self._write_v_mode in ('x', 'x_bias', 'mix')
@@ -2111,6 +2156,24 @@ class BamAttention(Attention):
               _name, (self.num_query_heads, self.bam_k),
               (self.num_query_heads, self.bam_v),
               ('q_heads', 'kv'), ('q_heads', 'kv'))
+      elif self._local_qk_key_mode == 'factorized':
+        # One zero-init runtime row/column key per Q/K use point, dynamically
+        # distributed over heads by independent signed row/column coefficients.
+        # The read is performed once per side; no static dxd rematrix is needed.
+        for _name in ("W_lq", "W_lk"):
+          setattr(self, _name, DenseGeneral(
+              features=(self.bam_k + self.bam_v,), axis=-1, kernel_init=zeros_init,
+              kernel_axes=("embed", "kv"), dtype=self.dtype,
+              weight_dtype=self.weight_dtype, name=_name, quant=self.quant,
+              matmul_precision=cfg.matmul_precision, use_bias=True))
+          add_read_gate(f'{_name}_gate', (2,), ('embed', None), (None,),
+                        zero_key_gate_init)
+          setattr(self, f'{_name}_head_mix', DenseGeneral(
+              features=(self.num_query_heads, 2), axis=-1, kernel_init=reg_init,
+              kernel_axes=("embed", "q_heads", None), dtype=self.dtype,
+              weight_dtype=self.weight_dtype, name=f'{_name}_head_mix',
+              quant=self.quant, matmul_precision=cfg.matmul_precision,
+              use_bias=False))
       else:
         # Default tier: one shared runtime key per use point, then a per-head
         # zero-init static rematrix gates and remixes the readout.
@@ -2348,21 +2411,29 @@ class BamAttention(Attention):
     if 'local_qk' in self._mode:
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
-        local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
-        local_qk_R_q = None if local_qk_per_head else self.R_q
-        local_qk_R_k = None if local_qk_per_head else self.R_k
         local_qk_q_kwargs = (
             {} if self._local_qk_key_mode == 'per_head_static'
             else self._read_key_kwargs('W_lq_gate', inputs_q))
         local_qk_k_kwargs = (
             {} if self._local_qk_key_mode == 'per_head_static'
             else self._read_key_kwargs('W_lk_gate', inputs_q))
-        query = query + rearrange(
-            bam_read(Mh, inputs_q, self.W_lq, local_qk_R_q,
-                     **local_qk_q_kwargs), 'b n t d -> b t n d')
-        key = key + rearrange(
-            bam_read(Mh, inputs_q, self.W_lk, local_qk_R_k,
-                     **local_qk_k_kwargs), 'b n t d -> b t n d')
+        if self._local_qk_key_mode == 'factorized':
+          q_local = factorized_head_bam_read(
+              Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
+              **local_qk_q_kwargs)
+          k_local = factorized_head_bam_read(
+              Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
+              **local_qk_k_kwargs)
+        else:
+          local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
+          local_qk_R_q = None if local_qk_per_head else self.R_q
+          local_qk_R_k = None if local_qk_per_head else self.R_k
+          q_local = bam_read(
+              Mh, inputs_q, self.W_lq, local_qk_R_q, **local_qk_q_kwargs)
+          k_local = bam_read(
+              Mh, inputs_q, self.W_lk, local_qk_R_k, **local_qk_k_kwargs)
+        query = query + rearrange(q_local, 'b n t d -> b t n d')
+        key = key + rearrange(k_local, 'b n t d -> b t n d')
     query_route, key_route = query, key
 
     query = nn.with_logical_constraint(query, self.query_axis_names)

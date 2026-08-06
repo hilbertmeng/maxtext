@@ -235,7 +235,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
-    bam_local_qk_key_mode = 'shared'  # shared | per_head runtime | per_head_static bias-only keys
+    bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_share_full_local_read = False  # share full/local_o runtime-key and gate projections
@@ -393,6 +393,22 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK(
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK'
     bam_local_qk_key_mode = 'per_head'
     bam_create_grouped_rw_norm_params = True
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
+):
+    """Shared local-Q/K content keys with signed dynamic rank-1 head routing."""
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK'
+    bam_local_qk_key_mode = 'factorized'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
+):
+    """CombinedRead control with the local Q/K routing branch removed."""
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK'
+    bam_layer_modes = ['local_o+full'] * 24
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocalQK(

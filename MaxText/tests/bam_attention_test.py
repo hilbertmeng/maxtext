@@ -15,10 +15,69 @@ from layers.attentions import (
     _transform_bam_read_key,
     _update_bam_matrix,
     bam_read,
+    factorized_head_bam_read,
 )
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_factorized_head_read_matches_explicit_rank_one_keys(self):
+    b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
+    keys = jax.random.split(jax.random.PRNGKey(29), 6)
+    M = jax.random.normal(keys[0], (b, t, k, v))
+    x = jax.random.normal(keys[1], (b, t, e))
+    key_kernel = jax.random.normal(keys[2], (e, k + v))
+    mix_kernel = jax.random.normal(keys[3], (e, n, 2))
+    gate_kernel = jax.random.normal(keys[4], (e, 2))
+    gate_bias = jax.random.normal(keys[5], (2,))
+    projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
+    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    gate_logits = jnp.einsum('bte,er->btr', x, gate_kernel) + gate_bias
+    kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
+        key_gate_logits=gate_logits)
+
+    actual = factorized_head_bam_read(
+        M, x, projection, head_projection, **kwargs)
+    raw_row, raw_col = jnp.split(projection(x), [k], axis=-1)
+    row_gate, col_gate = jnp.split(gate_logits, 2, axis=-1)
+    row = _transform_bam_read_key(raw_row, 'rms_gate', 2.0, 1e-4, row_gate)
+    col = _transform_bam_read_key(raw_col, 'rms_gate', 2.0, 1e-4, col_gate)
+    mix = _rms(head_projection(x), 1e-4, axis=-2)
+    explicit_row = row[:, :, None, :] * mix[..., 0, None]
+    explicit_col = col[:, :, None, :] * mix[..., 1, None]
+    expected = jnp.concatenate([
+        jnp.einsum('btkv,btnv->bntk', M, explicit_col),
+        jnp.einsum('btkv,btnk->bntv', M, explicit_row),
+    ], axis=-1)
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(
+        jnp.mean(mix ** 2, axis=-2), jnp.ones((b, t, 2)),
+        rtol=2e-3, atol=2e-3)
+
+  def test_factorized_head_read_zero_key_starts_dormant_but_has_key_gradient(self):
+    b, t, n, k, v, e = 1, 3, 4, 3, 5, 7
+    M = jax.random.normal(jax.random.PRNGKey(31), (b, t, k, v))
+    x = jax.random.normal(jax.random.PRNGKey(32), (b, t, e))
+    mix_kernel = jax.random.normal(jax.random.PRNGKey(33), (e, n, 2))
+    upstream = jax.random.normal(jax.random.PRNGKey(34), (b, n, t, k + v))
+    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    gate_init = np.sqrt(1e-4) / 2.0
+    gate_logits = jnp.full((b, t, 2), np.log(gate_init / (1.0 - gate_init)))
+
+    def objective(key_kernel):
+      projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
+      y = factorized_head_bam_read(
+          M, x, projection, head_projection, key_mode='rms_gate',
+          key_scale=2.0, key_eps=1e-4, key_gate_logits=gate_logits)
+      return jnp.sum(y * upstream), y
+
+    (value, y), grad = jax.value_and_grad(objective, has_aux=True)(
+        jnp.zeros((e, k + v)))
+    self.assertEqual(float(value), 0.0)
+    np.testing.assert_array_equal(y, jnp.zeros_like(y))
+    self.assertGreater(float(jnp.linalg.norm(grad)), 0.0)
 
   def test_combined_shared_read_matches_separate_value_and_gradients(self):
     """Read(F, r) + Read(L, r) == Read(F + L, r), including shared-key grads."""

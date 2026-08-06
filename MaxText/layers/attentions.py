@@ -2003,40 +2003,43 @@ def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
   """
   if alpha_f.shape[1] != 1:
     raise ValueError(f'optimized codebook read requires one fetch route, got {alpha_f.shape}')
-  if source_implementation == 'dot':
-    Yr = jnp.einsum('bskv,ck->bscv', M, rho_u)  # M^T rho_u
-    Yc = jnp.einsum('bskv,cv->bsck', M, rho_v)  # M rho_v
-  elif source_implementation == 'mul_reduce':
-    expanded_M = M[:, :, None]
-    Yr = jnp.sum(expanded_M * rho_u[None, None, :, :, None], axis=-2)
-    Yc = jnp.sum(expanded_M * rho_v[None, None, :, None, :], axis=-1)
-  else:
-    raise ValueError(f'Unknown codebook source implementation: {source_implementation}')
+  with jax.named_scope('bam/codebook_source_reduce'):
+    if source_implementation == 'dot':
+      Yr = jnp.einsum('bskv,ck->bscv', M, rho_u)  # M^T rho_u
+      Yc = jnp.einsum('bskv,cv->bsck', M, rho_v)  # M rho_v
+    elif source_implementation == 'mul_reduce':
+      expanded_M = M[:, :, None]
+      Yr = jnp.sum(expanded_M * rho_u[None, None, :, :, None], axis=-2)
+      Yc = jnp.sum(expanded_M * rho_v[None, None, :, None, :], axis=-1)
+    else:
+      raise ValueError(f'Unknown codebook source implementation: {source_implementation}')
 
   # Keep the true T x S contraction as a dense dot. Flattening C and content makes
   # its transfer width explicit and removes the length-one fetch axis.
-  b, s, c, d = (*Yc.shape[:3], Yc.shape[-1] + Yr.shape[-1])
-  source = jnp.concatenate([Yc, Yr], axis=-1).reshape(b, s, c * d)
-  Z = jnp.einsum('bts,bsd->btd', alpha_f[:, 0], source).reshape(
-      b, alpha_f.shape[-2], c, d)
+  with jax.named_scope('bam/codebook_fetch'):
+    b, s, c, d = (*Yc.shape[:3], Yc.shape[-1] + Yr.shape[-1])
+    source = jnp.concatenate([Yc, Yr], axis=-1).reshape(b, s, c * d)
+    Z = jnp.einsum('bts,bsd->btd', alpha_f[:, 0], source).reshape(
+        b, alpha_f.shape[-2], c, d)
 
-  projection = lambda z: jnp.squeeze(W_beta(z), axis=-2)
-  raw_row, raw_col, beta_row, beta_col = _project_bam_read_keys(
-      c, x, projection, key_mode=key_mode, key_scale=key_scale,
-      key_eps=key_eps, key_gate_logits=key_gate_logits,
-      key_row_norm=key_row_norm, key_col_norm=key_col_norm,
-      use_learned_key_norm=use_learned_key_norm)
-  k = M.shape[-2]
-  Zc, Zr = Z[..., :k], Z[..., k:]
-  if read_implementation in ('dot_bnt', 'dot_btn'):
-    y_u = jnp.einsum('btck,btnc->btnk', Zc, beta_col)
-    y_v = jnp.einsum('btcv,btnc->btnv', Zr, beta_row)
-  elif read_implementation == 'mul_reduce_btn':
-    y_u = jnp.sum(Zc[:, :, None] * beta_col[..., None], axis=-2)
-    y_v = jnp.sum(Zr[:, :, None] * beta_row[..., None], axis=-2)
-  else:
-    raise ValueError(f'Unknown BAM read implementation: {read_implementation}')
-  return jnp.concatenate([y_u, y_v], axis=-1)
+  with jax.named_scope('bam/codebook_read'):
+    projection = lambda z: jnp.squeeze(W_beta(z), axis=-2)
+    _, _, beta_row, beta_col = _project_bam_read_keys(
+        c, x, projection, key_mode=key_mode, key_scale=key_scale,
+        key_eps=key_eps, key_gate_logits=key_gate_logits,
+        key_row_norm=key_row_norm, key_col_norm=key_col_norm,
+        use_learned_key_norm=use_learned_key_norm)
+    k = M.shape[-2]
+    Zc, Zr = Z[..., :k], Z[..., k:]
+    if read_implementation in ('dot_bnt', 'dot_btn'):
+      y_u = jnp.einsum('btck,btnc->btnk', Zc, beta_col)
+      y_v = jnp.einsum('btcv,btnc->btnv', Zr, beta_row)
+    elif read_implementation == 'mul_reduce_btn':
+      y_u = jnp.sum(Zc[:, :, None] * beta_col[..., None], axis=-2)
+      y_v = jnp.sum(Zr[:, :, None] * beta_row[..., None], axis=-2)
+    else:
+      raise ValueError(f'Unknown BAM read implementation: {read_implementation}')
+    return jnp.concatenate([y_u, y_v], axis=-1)
 
 
 class BamAttention(Attention):

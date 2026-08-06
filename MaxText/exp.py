@@ -444,6 +444,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
     bam_read_implementation = 'mul_reduce_btn'
     bam_codebook_source_implementation = 'mul_reduce'
     bam_codebook_read_implementation = 'mul_reduce_btn'
+    checkpoint_period = 50
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK(

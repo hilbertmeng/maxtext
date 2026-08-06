@@ -422,7 +422,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKP
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRopeAdjacent(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope
 ):
-    """Pre-RoPE FactorizedLocalQK with adjacent coordinate rotation pairs."""
+    """Apply adjacent-pair RoPE to the complete Q/K after pre-RoPE LocalQK injection."""
     # running.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRopeAdjacent'
     bam_local_qk_rope_pairing = 'adjacent'

@@ -243,6 +243,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_profile_fetch_bypass = False  # profile only: feed local Mh directly to the full reader
+    bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
+    bam_pack_local_qk_reads = False  # profile: pack Q/K heads into each local-M contraction
+    bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
@@ -470,6 +473,45 @@ class BamLlama2MediumDynamicPerHeadQKDirectReadProfile(
     model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadProfile'
     bam_local_qk_key_mode = 'per_head'
     bam_create_grouped_rw_norm_params = True
+
+
+class BamLlama2MediumReadKernelCurrentProfile(
+    BamLlama2MediumDynamicPerHeadQKDirectReadProfile
+):
+    """A: historical dot read with [b,n,t,d] output plus caller transpose."""
+    model_name = 'BamLlama2MediumReadKernelCurrentProfile'
+
+
+class BamLlama2MediumReadKernelLayoutProfile(
+    BamLlama2MediumDynamicPerHeadQKDirectReadProfile
+):
+    """B: dot read with direct [b,t,n,d] output; no trailing transpose."""
+    model_name = 'BamLlama2MediumReadKernelLayoutProfile'
+    bam_read_implementation = 'dot_btn'
+
+
+class BamLlama2MediumReadKernelMulReduceProfile(
+    BamLlama2MediumReadKernelLayoutProfile
+):
+    """C: broadcast multiply+reduce read with direct [b,t,n,d] output."""
+    model_name = 'BamLlama2MediumReadKernelMulReduceProfile'
+    bam_read_implementation = 'mul_reduce_btn'
+
+
+class BamLlama2MediumReadKernelPackedQKProfile(
+    BamLlama2MediumReadKernelLayoutProfile
+):
+    """D: direct-layout dot read with Q/K local-M contractions packed."""
+    model_name = 'BamLlama2MediumReadKernelPackedQKProfile'
+    bam_pack_local_qk_reads = True
+
+
+class BamLlama2MediumReadKernelSqueezedFetchProfile(
+    BamLlama2MediumReadKernelLayoutProfile
+):
+    """E: direct-layout dot read with the sole full-fetch axis removed."""
+    model_name = 'BamLlama2MediumReadKernelSqueezedFetchProfile'
+    bam_squeeze_single_fetch_read = True
 
 
 class BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile(

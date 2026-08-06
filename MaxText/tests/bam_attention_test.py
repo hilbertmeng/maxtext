@@ -4,6 +4,7 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from einops import rearrange
 
 from layers.attentions import (
     GroupedRMSNorm,
@@ -16,10 +17,132 @@ from layers.attentions import (
     _update_bam_matrix,
     bam_read,
     factorized_head_bam_read,
+    packed_qk_bam_read,
 )
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_bam_read_implementations_match_values_and_gradients(self):
+    b, t, n, f, k, v, e = 2, 3, 4, 2, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(41), 7)
+
+    for fetched in (False, True):
+      M_shape = (b, f, t, k, v) if fetched else (b, t, k, v)
+      key_shape = (e, n, f, k + v) if fetched else (e, n, k + v)
+      gate_shape = (b, t, n, f, 2) if fetched else (b, t, n, 2)
+      args = (
+          jax.random.normal(random[0], M_shape),
+          jax.random.normal(random[1], (b, t, e)),
+          jax.random.normal(random[2], key_shape),
+          jax.random.normal(random[3], gate_shape),
+      )
+      upstream = jax.random.normal(random[4], (b, t, n, k + v))
+
+      def output(values, implementation):
+        M, x, kernel, gates = values
+        projection = lambda z: jnp.einsum(
+            'bte,enfD->btnfD', z, kernel) if fetched else jnp.einsum(
+                'bte,enD->btnD', z, kernel)
+        y = bam_read(
+            M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
+            key_eps=1e-4, key_gate_logits=gates, implementation=implementation)
+        return rearrange(y, 'b n t d -> b t n d') if implementation == 'dot_bnt' else y
+
+      reference = output(args, 'dot_bnt')
+      reference_value, reference_grad = jax.value_and_grad(
+          lambda z: jnp.sum(output(z, 'dot_bnt') * upstream))(args)
+      for implementation in ('dot_btn', 'mul_reduce_btn'):
+        actual = output(args, implementation)
+        actual_value, actual_grad = jax.value_and_grad(
+            lambda z: jnp.sum(output(z, implementation) * upstream))(args)
+        np.testing.assert_allclose(actual, reference, rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(actual_value, reference_value, rtol=1e-5, atol=1e-5)
+        for got, expected in zip(actual_grad, reference_grad):
+          np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
+
+  def test_packed_qk_read_matches_two_direct_layout_reads_and_gradients(self):
+    b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(43), 8)
+    args = (
+        jax.random.normal(random[0], (b, t, k, v)),
+        jax.random.normal(random[1], (b, t, e)),
+        jax.random.normal(random[2], (e, n, k + v)),
+        jax.random.normal(random[3], (e, n, k + v)),
+        jax.random.normal(random[4], (b, t, n, 2)),
+        jax.random.normal(random[5], (b, t, n, 2)),
+    )
+    q_upstream = jax.random.normal(random[6], (b, t, n, k + v))
+    k_upstream = jax.random.normal(random[7], (b, t, n, k + v))
+
+    def outputs(values, packed):
+      M, x, q_kernel, k_kernel, q_gates, k_gates = values
+      q_projection = lambda z: jnp.einsum('bte,enD->btnD', z, q_kernel)
+      k_projection = lambda z: jnp.einsum('bte,enD->btnD', z, k_kernel)
+      q_kwargs = dict(
+          key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
+          key_gate_logits=q_gates)
+      k_kwargs = dict(
+          key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
+          key_gate_logits=k_gates)
+      if packed:
+        return packed_qk_bam_read(
+            M, x, q_projection, k_projection, q_kwargs, k_kwargs)
+      return (
+          bam_read(M, x, q_projection, None, **q_kwargs, implementation='dot_btn'),
+          bam_read(M, x, k_projection, None, **k_kwargs, implementation='dot_btn'),
+      )
+
+    def objective(values, packed):
+      q, k_out = outputs(values, packed)
+      return jnp.sum(q * q_upstream) + jnp.sum(k_out * k_upstream)
+
+    expected_q, expected_k = outputs(args, False)
+    actual_q, actual_k = outputs(args, True)
+    np.testing.assert_allclose(actual_q, expected_q, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(actual_k, expected_k, rtol=1e-5, atol=1e-5)
+    expected_value, expected_grad = jax.value_and_grad(
+        lambda z: objective(z, False))(args)
+    actual_value, actual_grad = jax.value_and_grad(
+        lambda z: objective(z, True))(args)
+    np.testing.assert_allclose(actual_value, expected_value, rtol=1e-5, atol=1e-5)
+    for got, expected in zip(actual_grad, expected_grad):
+      np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
+
+  def test_single_fetch_axis_squeeze_matches_values_and_gradients(self):
+    b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(47), 5)
+    args = (
+        jax.random.normal(random[0], (b, 1, t, k, v)),
+        jax.random.normal(random[1], (b, t, e)),
+        jax.random.normal(random[2], (e, n, 1, k + v)),
+        jax.random.normal(random[3], (b, t, n, 1, 2)),
+    )
+    upstream = jax.random.normal(random[4], (b, t, n, k + v))
+
+    def output(values, squeeze):
+      M, x, kernel, gates = values
+      if squeeze:
+        projection = lambda z: jnp.einsum('bte,enD->btnD', z, kernel[:, :, 0])
+        return bam_read(
+            M[:, 0], x, projection, None, key_mode='rms_gate', key_scale=2.0,
+            key_eps=1e-4, key_gate_logits=gates[..., 0, :],
+            implementation='dot_btn')
+      projection = lambda z: jnp.einsum('bte,enfD->btnfD', z, kernel)
+      return bam_read(
+          M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
+          key_eps=1e-4, key_gate_logits=gates, implementation='dot_btn')
+
+    expected = output(args, False)
+    actual = output(args, True)
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+    expected_value, expected_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, False) * upstream))(args)
+    actual_value, actual_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, True) * upstream))(args)
+    np.testing.assert_allclose(actual_value, expected_value, rtol=1e-5, atol=1e-5)
+    for got, expected_grad_item in zip(actual_grad, expected_grad):
+      np.testing.assert_allclose(got, expected_grad_item, rtol=2e-5, atol=2e-5)
 
   def test_factorized_head_read_matches_explicit_rank_one_keys(self):
     b, t, n, k, v, e = 2, 3, 4, 3, 5, 7

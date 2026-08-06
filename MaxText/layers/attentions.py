@@ -1826,10 +1826,67 @@ def _transform_bam_read_key(
   raise ValueError(f'Unknown BAM read-key transform: {mode}')
 
 
+def _project_bam_read_keys(
+    row_width, x, W_R, *, key_mode='none', key_scale=1.0, key_eps=1e-6,
+    key_gate_logits=None, key_row_norm=None, key_col_norm=None,
+    use_learned_key_norm=False):
+  """Project and independently transform the row/column runtime read keys."""
+  projected_key = W_R(x) if callable(W_R) else jnp.broadcast_to(
+      W_R, x.shape[:-1] + W_R.shape)
+  raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
+  if key_gate_logits is None:
+    row_gate = col_gate = None
+  else:
+    row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
+  r_row = _transform_bam_read_key(
+      raw_row, key_mode, key_scale, key_eps, row_gate,
+      key_row_norm, use_learned_key_norm)
+  r_col = _transform_bam_read_key(
+      raw_col, key_mode, key_scale, key_eps, col_gate,
+      key_col_norm, use_learned_key_norm)
+  return raw_row, raw_col, r_row, r_col
+
+
+def _contract_bam_read(Mc, Mr, r_row, r_col, per_head, implementation):
+  """Contract both sides of M; optimized variants return head after token."""
+  f = 'f' if Mc.ndim == 5 else ''
+  n = 'n' if per_head else ''
+  if implementation == 'dot_bnt':
+    return jnp.concatenate([
+        jnp.einsum(f'b{f}tkv,bt{n}{f}v->b{n}tk', Mc, r_col),
+        jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row),
+    ], axis=-1)
+  if implementation == 'dot_btn':
+    return jnp.concatenate([
+        jnp.einsum(f'b{f}tkv,bt{n}{f}v->bt{n}k', Mc, r_col),
+        jnp.einsum(f'b{f}tkv,bt{n}{f}k->bt{n}v', Mr, r_row),
+    ], axis=-1)
+  if implementation != 'mul_reduce_btn':
+    raise ValueError(f'Unknown BAM read implementation: {implementation}')
+
+  # Spell the two contractions as broadcast multiply+reduce. XLA may canonicalize
+  # these back to dot_general; the explicit form is retained only for paired profiling.
+  if not per_head:
+    r_row = r_row[:, :, None]
+    r_col = r_col[:, :, None]
+  if Mc.ndim == 4:
+    y_u = jnp.sum(Mc[:, :, None] * r_col[..., None, :], axis=-1)
+    y_v = jnp.sum(Mr[:, :, None] * r_row[..., :, None], axis=-2)
+  else:
+    mc = jnp.transpose(Mc, (0, 2, 1, 3, 4))  # [b,t,f,k,v]
+    mr = jnp.transpose(Mr, (0, 2, 1, 3, 4))
+    y_u = jnp.sum(
+        mc[:, :, None] * r_col[..., None, :], axis=(-3, -1))
+    y_v = jnp.sum(
+        mr[:, :, None] * r_row[..., :, None], axis=(-3, -2))
+  y = jnp.concatenate([y_u, y_v], axis=-1)
+  return y if per_head else jnp.squeeze(y, axis=-2)
+
+
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_eps=1e-6, key_gate_logits=None, return_key=False,
              return_key_stages=False, key_row_norm=None, key_col_norm=None,
-             use_learned_key_norm=False):
+             use_learned_key_norm=False, implementation='dot_bnt'):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
   Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
@@ -1842,31 +1899,21 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
      bt{n}{f}{side}). Split widths adapt to M's k/v (or C/C for codebook).
   R: [n,d,d] rematrix given => shared tier (key has no head axis, read once then per-head
      rematrix); R is None => per-head tier (key carries head axis, no rematrix).
-  Returns [b, n, t, d] (= k+v, U first V second).
+  `dot_bnt` preserves the historical [b,n,t,d] result. `dot_btn` and
+  `mul_reduce_btn` return [b,t,n,d], eliminating the callers' immediate transpose.
   """
   Mc, Mr = M if isinstance(M, tuple) else (M, M)
-  f = 'f' if Mc.ndim == 5 else ''        # f axis present iff cross-token fetch (full/codebook)
-  n = 'n' if R is None    else ''        # n axis on key iff per-head tier (diag/full/codebook)
   if return_key and return_key_stages:
     raise ValueError("return_key and return_key_stages are mutually exclusive")
-  projected_key = W_R(x) if callable(W_R) else jnp.broadcast_to(
-      W_R, x.shape[:-1] + W_R.shape)
-  raw_row, raw_col = jnp.split(projected_key, [Mr.shape[-2]], axis=-1)  # split widths adapt to M
-  if key_gate_logits is None:
-    row_gate = col_gate = None
-  else:
-    row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
-  r_row = _transform_bam_read_key(
-      raw_row, key_mode, key_scale, key_eps, row_gate,
-      key_row_norm, use_learned_key_norm)
-  r_col = _transform_bam_read_key(
-      raw_col, key_mode, key_scale, key_eps, col_gate,
-      key_col_norm, use_learned_key_norm)
-  y = jnp.concatenate([
-      jnp.einsum(f'b{f}tkv,bt{n}{f}v->b{n}tk', Mc, r_col),   # col read -> U
-      jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row),   # row read -> V
-  ], axis=-1)
-  y = y if R is None else jnp.einsum('btd,nde->bnte', y, R)
+  raw_row, raw_col, r_row, r_col = _project_bam_read_keys(
+      Mr.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
+      key_eps=key_eps, key_gate_logits=key_gate_logits,
+      key_row_norm=key_row_norm, key_col_norm=key_col_norm,
+      use_learned_key_norm=use_learned_key_norm)
+  y = _contract_bam_read(Mc, Mr, r_row, r_col, R is None, implementation)
+  if R is not None:
+    y = (jnp.einsum('btd,nde->bnte', y, R) if implementation == 'dot_bnt'
+         else jnp.einsum('btd,nde->btne', y, R))
   if return_key:
     return y, jnp.concatenate((r_row, r_col), axis=-1)
   if return_key_stages:
@@ -1881,6 +1928,22 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
         "post_gate": jnp.concatenate((r_row, r_col), axis=-1),
     }
   return y
+
+
+def packed_qk_bam_read(M, x, W_q, W_k, q_kwargs, k_kwargs):
+  """Read local M for Q and K with their two contractions packed by head."""
+  if M.ndim != 4:
+    raise ValueError(f'packed local Q/K BAM read expects [b,t,k,v], got {M.shape}')
+  _, _, q_row, q_col = _project_bam_read_keys(M.shape[-2], x, W_q, **q_kwargs)
+  _, _, k_row, k_col = _project_bam_read_keys(M.shape[-2], x, W_k, **k_kwargs)
+  if q_row.ndim != 4 or k_row.shape != q_row.shape:
+    raise ValueError(
+        f'packed local Q/K keys must match [b,t,n,k]: {q_row.shape}, {k_row.shape}')
+  heads = q_row.shape[-2]
+  packed = _contract_bam_read(
+      M, M, jnp.concatenate([q_row, k_row], axis=-2),
+      jnp.concatenate([q_col, k_col], axis=-2), True, 'dot_btn')
+  return tuple(jnp.split(packed, [heads], axis=-2))
 
 
 def factorized_head_bam_read(
@@ -1992,6 +2055,9 @@ class BamAttention(Attention):
     self._combine_full_local_read = cfg.bam_combine_full_local_read
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
     self._profile_fetch_bypass = cfg.bam_profile_fetch_bypass
+    self._read_implementation = cfg.bam_read_implementation
+    self._pack_local_qk_reads = cfg.bam_pack_local_qk_reads
+    self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
     if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
       assert 'full' in self._mode, 'dynamic head mixing currently requires full read mode'
       assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
@@ -2005,6 +2071,7 @@ class BamAttention(Attention):
         'legacy', 'compact', 'recompute', 'dynamic_mix', 'dynamic_rms_mix')
     assert self._write_v_mode in ('x', 'x_bias', 'mix')
     assert self._forget_mode in ('constant', 'dynamic')
+    assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._read_key_scale > 0.0
     assert self._read_key_eps > 0.0
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
@@ -2031,6 +2098,14 @@ class BamAttention(Attention):
     if self._profile_fetch_bypass:
       assert 'full' in self._mode and cfg.bam_n_f == 1, (
           'profile fetch bypass requires one full-read route')
+    if self._pack_local_qk_reads:
+      assert 'local_qk' in self._mode and self._local_qk_key_mode == 'per_head', (
+          'packed local Q/K reads require per-head runtime local keys')
+      assert self._read_implementation == 'dot_btn', (
+          'packed local Q/K profiling is paired with the direct btn dot layout')
+    if self._squeeze_single_fetch_read:
+      assert 'full' in self._mode and cfg.bam_n_f == 1, (
+          'single-fetch squeeze requires one full-read route')
     assert not cfg.bam_dedicated_fetch or 'full' in self._mode, (
         'bam_dedicated_fetch currently requires the full read mode')
 
@@ -2417,23 +2492,34 @@ class BamAttention(Attention):
         local_qk_k_kwargs = (
             {} if self._local_qk_key_mode == 'per_head_static'
             else self._read_key_kwargs('W_lk_gate', inputs_q))
-        if self._local_qk_key_mode == 'factorized':
+        if self._pack_local_qk_reads:
+          q_local, k_local = packed_qk_bam_read(
+              Mh, inputs_q, self.W_lq, self.W_lk,
+              local_qk_q_kwargs, local_qk_k_kwargs)
+        elif self._local_qk_key_mode == 'factorized':
           q_local = factorized_head_bam_read(
               Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
               **local_qk_q_kwargs)
           k_local = factorized_head_bam_read(
               Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
               **local_qk_k_kwargs)
+          q_local = rearrange(q_local, 'b n t d -> b t n d')
+          k_local = rearrange(k_local, 'b n t d -> b t n d')
         else:
           local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
           local_qk_R_q = None if local_qk_per_head else self.R_q
           local_qk_R_k = None if local_qk_per_head else self.R_k
           q_local = bam_read(
-              Mh, inputs_q, self.W_lq, local_qk_R_q, **local_qk_q_kwargs)
+              Mh, inputs_q, self.W_lq, local_qk_R_q, **local_qk_q_kwargs,
+              implementation=self._read_implementation)
           k_local = bam_read(
-              Mh, inputs_q, self.W_lk, local_qk_R_k, **local_qk_k_kwargs)
-        query = query + rearrange(q_local, 'b n t d -> b t n d')
-        key = key + rearrange(k_local, 'b n t d -> b t n d')
+              Mh, inputs_q, self.W_lk, local_qk_R_k, **local_qk_k_kwargs,
+              implementation=self._read_implementation)
+          if self._read_implementation == 'dot_bnt':
+            q_local = rearrange(q_local, 'b n t d -> b t n d')
+            k_local = rearrange(k_local, 'b n t d -> b t n d')
+        query = query + q_local
+        key = key + k_local
     query_route, key_route = query, key
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
@@ -2524,15 +2610,23 @@ class BamAttention(Attention):
           # the separate local_o read with a fixed local coefficient of one.
           Mbar = Mbar + Mh[:, None]
       with jax.named_scope("bam/read_fetched_m"):
+        full_read_projection = self.W_R
+        full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
+        if self._squeeze_single_fetch_read:
+          Mbar = jnp.squeeze(Mbar, axis=1)
+          full_read_projection = lambda x: jnp.squeeze(self.W_R(x), axis=-2)
+          full_read_kwargs = self._read_key_kwargs(
+              'W_R_gate', inputs_q, squeeze_fetch_axis=True)
         full_read = bam_read(
-            Mbar, inputs_q, self.W_R, None,
-            **self._read_key_kwargs('W_R_gate', inputs_q),
-            return_key_stages=capture_read_key_stages)
+            Mbar, inputs_q, full_read_projection, None,
+            **full_read_kwargs, return_key_stages=capture_read_key_stages,
+            implementation=self._read_implementation)
         if capture_read_key_stages:
           full_read, full_key_stages = full_read
           read_key_stages.update({
               f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
-        y_full = rearrange(full_read, 'b n t d -> b t n d')
+        y_full = (rearrange(full_read, 'b n t d -> b t n d')
+                  if self._read_implementation == 'dot_bnt' else full_read)
         y_bam = y_bam + y_full
     if 'local_o' in self._mode and not self._combine_full_local_read:
       assert Mh is not None, "local_o read requires M_in"
@@ -2546,12 +2640,14 @@ class BamAttention(Attention):
       local_o_read = bam_read(
           Mh, inputs_q, local_read_projection, None,
           **local_read_key_kwargs,
-          return_key_stages=capture_read_key_stages)
+          return_key_stages=capture_read_key_stages,
+          implementation=self._read_implementation)
       if capture_read_key_stages:
         local_o_read, local_o_key_stages = local_o_read
         read_key_stages.update({
             f"read_key_W_Ro_{stage}": key for stage, key in local_o_key_stages.items()})
-      y_local_o = rearrange(local_o_read, 'b n t d -> b t n d')
+      y_local_o = (rearrange(local_o_read, 'b n t d -> b t n d')
+                   if self._read_implementation == 'dot_bnt' else local_o_read)
       y_bam = y_bam + y_local_o
 
     o_head = y_std + y_bam                                  # [b,t,n,d]

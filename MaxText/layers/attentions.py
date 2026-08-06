@@ -1948,7 +1948,7 @@ def packed_qk_bam_read(M, x, W_q, W_k, q_kwargs, k_kwargs):
 
 def factorized_head_bam_read(
     M, x, W_R, W_head_mix, *, key_mode='none', key_scale=1.0,
-    key_eps=1e-6, key_gate_logits=None):
+    key_eps=1e-6, key_gate_logits=None, implementation='dot_bnt'):
   """Read once with a shared runtime key, then route it dynamically across heads.
 
   For each side, the effective per-head key is the rank-1 factorization
@@ -1975,8 +1975,14 @@ def factorized_head_bam_read(
   r_col = _transform_bam_read_key(
       raw_col, key_mode, key_scale, key_eps, col_gate)
 
-  y_u = jnp.einsum('btkv,btv->btk', M, r_col)
-  y_v = jnp.einsum('btkv,btk->btv', M, r_row)
+  if implementation in ('dot_bnt', 'dot_btn'):
+    y_u = jnp.einsum('btkv,btv->btk', M, r_col)
+    y_v = jnp.einsum('btkv,btk->btv', M, r_row)
+  elif implementation == 'mul_reduce_btn':
+    y_u = jnp.sum(M * r_col[..., None, :], axis=-1)
+    y_v = jnp.sum(M * r_row[..., :, None], axis=-2)
+  else:
+    raise ValueError(f'Unknown BAM read implementation: {implementation}')
   raw_head_mix = W_head_mix(x)
   if raw_head_mix.ndim != 4 or raw_head_mix.shape[-1] != 2:
     raise ValueError(
@@ -2089,6 +2095,7 @@ class BamAttention(Attention):
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
     self._codebook_source_implementation = cfg.bam_codebook_source_implementation
+    self._codebook_read_implementation = cfg.bam_codebook_read_implementation
     self._share_full_local_read = cfg.bam_share_full_local_read
     self._combine_full_local_read = cfg.bam_combine_full_local_read
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
@@ -2113,6 +2120,7 @@ class BamAttention(Attention):
         self._local_qk_injection == 'pre_qknorm_rope' and not cfg.qk_norm), (
             'adjacent Q/K RoPE requires pre-RoPE LocalQK injection with QKNorm disabled')
     assert self._codebook_source_implementation in ('dot', 'mul_reduce')
+    assert self._codebook_read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._shared_fetch_mode in (
         'legacy', 'compact', 'recompute', 'dynamic_mix', 'dynamic_rms_mix')
     assert self._write_v_mode in ('x', 'x_bias', 'mix')
@@ -2444,10 +2452,10 @@ class BamAttention(Attention):
     if self._local_qk_key_mode == 'factorized':
       q_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
-          **local_qk_q_kwargs)
+          **local_qk_q_kwargs, implementation=self._read_implementation)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
-          **local_qk_k_kwargs)
+          **local_qk_k_kwargs, implementation=self._read_implementation)
       return (
           rearrange(q_local, 'b n t d -> b t n d'),
           rearrange(k_local, 'b n t d -> b t n d'),
@@ -2677,7 +2685,7 @@ class BamAttention(Attention):
           fetch_alpha, Mh, inputs_q, self.rho_u, self.rho_v, self.W_beta,
           **self._read_key_kwargs('W_beta_gate', inputs_q, squeeze_fetch_axis=True),
           source_implementation=self._codebook_source_implementation,
-          read_implementation=self._read_implementation)
+          read_implementation=self._codebook_read_implementation)
       y_bam = y_codebook
     if 'full' in self._mode:
       assert Mh is not None, "full read requires M_in"

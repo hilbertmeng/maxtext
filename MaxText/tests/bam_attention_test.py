@@ -24,6 +24,35 @@ from layers.attentions import (
 
 class BamReadKeyTransformTest(absltest.TestCase):
 
+  def test_factorized_head_read_implementations_match_gradients(self):
+    b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(59), 7)
+    args = (
+        jax.random.normal(random[0], (b, t, k, v)),
+        jax.random.normal(random[1], (b, t, e)),
+        jax.random.normal(random[2], (e, k + v)),
+        jax.random.normal(random[3], (e, n, 2)),
+        jax.random.normal(random[4], (b, t, 2)),
+    )
+    upstream = jax.random.normal(random[5], (b, n, t, k + v))
+
+    def output(values, implementation):
+      M, x, key_kernel, mix_kernel, gates = values
+      projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
+      head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+      return factorized_head_bam_read(
+          M, x, projection, head_projection, key_mode='rms_gate',
+          key_scale=2.0, key_eps=1e-4, key_gate_logits=gates,
+          implementation=implementation)
+
+    reference_value, reference_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, 'dot_bnt') * upstream))(args)
+    actual_value, actual_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, 'mul_reduce_btn') * upstream))(args)
+    np.testing.assert_allclose(actual_value, reference_value, rtol=1e-5, atol=1e-5)
+    for got, expected in zip(actual_grad, reference_grad):
+      np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
+
   def test_codebook_source_and_destination_implementations_match_gradients(self):
     b, t, n, c, k, v, e = 2, 3, 4, 4, 3, 5, 7
     random = jax.random.split(jax.random.PRNGKey(53), 8)
@@ -203,6 +232,9 @@ class BamReadKeyTransformTest(absltest.TestCase):
 
     actual = factorized_head_bam_read(
         M, x, projection, head_projection, **kwargs)
+    actual_mul = factorized_head_bam_read(
+        M, x, projection, head_projection, **kwargs,
+        implementation='mul_reduce_btn')
     raw_row, raw_col = jnp.split(projection(x), [k], axis=-1)
     row_gate, col_gate = jnp.split(gate_logits, 2, axis=-1)
     row = _transform_bam_read_key(raw_row, 'rms_gate', 2.0, 1e-4, row_gate)
@@ -216,6 +248,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     ], axis=-1)
 
     np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(actual_mul, expected, rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(
         jnp.mean(mix ** 2, axis=-2), jnp.ones((b, t, 2)),
         rtol=2e-3, atol=2e-3)

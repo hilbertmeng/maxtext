@@ -415,7 +415,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKP
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Inject FactorizedLocalQK before QKNorm and RoPE."""
-    # restarting with multiply+reduce M reads.
+    # ~0.317 steps/s; stopped at 2,865. dloss +0.0101 vs Factorized @2,800; pre-RoPE injection hurts.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope'
     bam_local_qk_injection = 'pre_qknorm_rope'
     bam_read_implementation = 'mul_reduce_btn'
@@ -425,7 +425,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKP
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope
 ):
     """Apply adjacent-pair RoPE to the complete Q/K after pre-RoPE LocalQK injection."""
-    # restarting with multiply+reduce M reads.
+    # ~0.305 steps/s; stopped at 3,138. dloss +0.0038 vs PreRope, +0.0140 vs Factorized @2,800.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRopeAdjacent'
     bam_local_qk_rope_pairing = 'adjacent'
 
@@ -434,7 +434,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Replace the combined full content read with a four-vector codebook read."""
-    # pending paired kernel profile.
+    # Paired v5p-16 profile chose multiply+reduce for both source and destination reads.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4'
     bam_layer_modes = ['local_qk+codebook'] * 24
     bam_C = 4
@@ -442,7 +442,8 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
     bam_combine_full_local_read = False
     bam_fetch_diagonal_one = True
     bam_read_implementation = 'mul_reduce_btn'
-    bam_codebook_read_implementation = 'dot_btn'
+    bam_codebook_source_implementation = 'mul_reduce'
+    bam_codebook_read_implementation = 'mul_reduce_btn'
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK(
@@ -507,23 +508,29 @@ class BamLlama2MediumCodebookC4ProfileDD(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4,
 ):
     """Codebook C4 profile: source dot, destination dot."""
+    # ~0.336 steps/s; stopped at ~109. XPlane 2,956.976 ms.
     model_name = 'BamLlama2MediumCodebookC4ProfileDD'
+    bam_codebook_source_implementation = 'dot'
+    bam_codebook_read_implementation = 'dot_btn'
 
 
 class BamLlama2MediumCodebookC4ProfileMD(BamLlama2MediumCodebookC4ProfileDD):
     """Codebook C4 profile: source multiply+reduce, destination dot."""
+    # ~0.336 steps/s; stopped at 63. XPlane 2,943.286 ms.
     model_name = 'BamLlama2MediumCodebookC4ProfileMD'
     bam_codebook_source_implementation = 'mul_reduce'
 
 
 class BamLlama2MediumCodebookC4ProfileDM(BamLlama2MediumCodebookC4ProfileDD):
     """Codebook C4 profile: source dot, destination multiply+reduce."""
+    # ~0.343 steps/s; stopped at 54. XPlane 2,892.941 ms.
     model_name = 'BamLlama2MediumCodebookC4ProfileDM'
     bam_codebook_read_implementation = 'mul_reduce_btn'
 
 
 class BamLlama2MediumCodebookC4ProfileMM(BamLlama2MediumCodebookC4ProfileMD):
     """Codebook C4 profile: source multiply+reduce, destination multiply+reduce."""
+    # ~0.344 steps/s; stopped at 52. XPlane 2,884.649 ms; fastest (-2.446% vs DD).
     model_name = 'BamLlama2MediumCodebookC4ProfileMM'
     bam_codebook_read_implementation = 'mul_reduce_btn'
 

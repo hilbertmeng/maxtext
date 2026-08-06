@@ -1,6 +1,6 @@
 ---
 name: tpu-training
-description: Manage preemptible TPU lifecycle and MaxText training on GCP for xd's BAM/Llama2Medium experiments. Use when creating, launching, monitoring, stopping, resuming, hot-retraining, or closing out TPU training runs and comparing same-step TensorBoard loss gaps.
+description: Manage preemptible TPU lifecycle and MaxText training on GCP for xd's BAM/Llama2Medium experiments. Use when creating, launching, monitoring, stopping, resuming, hot-retraining, or closing out TPU training runs and comparing same-step loss gaps.
 ---
 
 # TPU Training
@@ -15,43 +15,42 @@ project `newproject-1-451205`; zone `us-central1-a`; TPU `v5p-16`; output
 
 ## Start Training
 
-Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh`, `run_registry.py`, a persistent code
-overlay when needed, and the mandatory `watch_train_xd.sh` watcher.
+Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh`, `run_registry.py`, and the mandatory
+`watch_train_xd.sh` watcher.
 
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
-2. Before a parameter-tree change, use a new run name/GCS prefix. Check both dirty files and
-   commits ahead of origin:
+2. Before a parameter-tree change, use a new run name/GCS prefix. Commit the prepared runtime
+   code, push it to `origin/refactor-bam`, and use its full hash. If first-step debugging changes
+   code, make/push another commit and update the RUN hash; do not wait for `FIRST_STEP` to commit.
 
 ```bash
-git status --short --branch
-git diff --name-status origin/refactor-bam
+git status --short --branch && git push origin refactor-bam
+CODE_COMMIT=$(git rev-parse HEAD)
 ```
 
-3. For dirty/unpushed code, make a tar overlay on tpu-ag containing every runtime file and set
-   `CODE_OVERLAY`; auto-train reapplies it after reprovision. `sync_to_vm.sh` alone omits local
-   commits ahead of origin.
-4. Launch on tpu-ag in tmux:
+3. Launch on tpu-ag in tmux. `run_exp_xd.sh` rejects unpushed hashes; registry records
+   `code_commit`; every initial/retry/preemption launch checks out that exact detached commit.
 
 ```bash
 EXP=BamLlama2Medium ID=0 MODE=install+train
-OVERLAY=/home/lishengping/xd/projects/maxtext_overlay.tar.gz
+CODE_COMMIT=$(git rev-parse HEAD)
 BASES=Llama2Medium
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "tmux new-session -d -s ${EXP}-TPU${ID}-xd \
-   'env EXP=$EXP ID=$ID MODE=$MODE BRANCH=local CODE_OVERLAY=$OVERLAY \
+   'env EXP=$EXP ID=$ID MODE=$MODE BRANCH=bam CODE_COMMIT=$CODE_COMMIT \
    COMPARE_RUNS=$BASES bash /home/lishengping/xd/projects/run_exp_xd.sh'"
 ```
 
-5. Verify registration and overlay persistence immediately:
+4. Verify registration immediately:
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   '/home/lishengping/xd/projects/run_registry.py status'
-# Inspect the registered auto_pid environment; CODE_OVERLAY and COMPARE_RUNS must be present.
+# Registry and auto_pid environment must agree on CODE_COMMIT and COMPARE_RUNS.
 ```
 
-6. **Always attach the watcher as part of launch. Launch is not handed off until it is
+5. **Always attach the watcher as part of launch. Launch is not handed off until it is
    watching `FIRST_STEP:|ERR:`.** Copy it to worker 0, then run it in a backgrounded local
    shell/exec session with output notification:
 
@@ -71,52 +70,69 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 Never use a watcher `pkill` pattern containing the train-log name; it can match itself. Kill
 old watchers only by watcher PID or `pkill -f watch_train_xd.sh`.
 
-7. After 30–40 stable steps, record `~steps/s` tersely in the experiment class in `exp.py`.
+6. After 30–40 stable steps, record `~steps/s` tersely in the experiment class in `exp.py`.
 
 ## Monitor Training
 
-Uses `run_registry.py status`, TPU train logs, TensorBoard/gsutil, and
-`scripts/compare_train_loss.py`. Do not use timers, `_status.json`, or alert files.
+Use `run_registry.py status` for liveness and `loss-report` for loss. Do not use timers,
+TensorBoard sync, plots, `_status.json`, or alert files during training.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   '/home/lishengping/xd/projects/run_registry.py status'
 ```
 
-Each `/home/lishengping/xd/projects/run_registry/<RUN>.json` contains run/TPU/launch data,
-planned steps, report interval/window, cursor, and `compare_runs`. For every listed `BASE`,
-report `gap = RUN loss - BASE loss` (negative favors RUN). Keep `compare_runs` to direct
-controls; do not add transitive baselines.
+At each wake, compare observed step gain over elapsed time with logged steps/s. A large shortfall
+plus stale per-worker train-log mtimes means a hang even if TPU is READY and processes are alive;
+auto-train owns this machine-level liveness check. It arms after three progress samples, waits
+`max(600s, 20 / steps_per_second)` (or per-RUN `STALE_TIMEOUT_SECONDS`), requires two all-worker
+SSH confirmations, then recreates. Any worker SSH failure or missing/invalid speed vetoes
+deletion. Codex owns
+loss/trend decisions and verifies the watchdog rather than duplicating its normal work.
+
+Each `run_registry/<RUN>.json` contains run/TPU/launch data, report interval/window/cursor,
+and direct `compare_runs`. `loss-report` refreshes live worker-0 logs, merges repeated steps
+(latest launch wins) into persistent `run_registry/loss_cache/`, then prints every
+`gap = RUN loss - BASE loss` (negative favors RUN) at exact common steps:
+
+```bash
+ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+  '/home/lishengping/xd/projects/run_registry.py loss-report RUN --through-step STEP'
+```
+
+It samples `step % 5 == 0` inside each ±25-step window, preserving the historical 11-sample
+gap definition even though future TensorBoard files record every 10 steps. Print cumulative
+`step`, `run`, `base`, `gap`, and `r200` as horizontal rows; split into more row blocks when
+long, never transpose milestones into vertical table rows. Here
+`r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s])`: negative means the gap magnitude is
+shrinking, positive means it is growing.
 
 At every due milestone:
 
-1. Sync only the active RUN; reuse completed BASE logs already local.
-2. Compare exact same steps plus the configured ±window; never substitute a nearby step.
-3. Report cumulative history for all prior milestones and assess level plus trend (first/second
-   derivative qualitatively), not a single gap.
-4. Mark the cursor:
+1. Run one shared `status`, then `loss-report` once per due RUN.
+2. Report the cumulative horizontal rows; use `r200`, not visual flatness, for stability.
+3. Mark the cursor:
 
 ```bash
-RUN=BamLlama2Medium BASE=Llama2Medium STEP=200
-mkdir -p ~/tensorboard_logs/$RUN
-~/google-cloud-sdk/bin/gsutil -m rsync -r \
-  gs://newproject-1-llm_base_models_us-central1/log/summaries/train/$RUN/ \
-  ~/tensorboard_logs/$RUN/
-/home/xd/miniconda3/envs/tune/bin/python \
-  .agents/skills/tpu-training/scripts/compare_train_loss.py \
-  --experiment-dir ~/tensorboard_logs/$RUN --baseline-dir ~/tensorboard_logs/$BASE \
-  --experiment-name "$RUN" --baseline-name "$BASE" --step "$STEP" --window-radius 25
+RUN=BamLlama2Medium STEP=200
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/run_registry.py mark-reported $RUN $STEP"
 ```
 
-Normally evaluate early stopping at about 2,800/13,500 steps. Use
+Auto-train caches logs before clean/crash deletion. Before manually deleting a TPU, run
+`run_registry.py collect-loss RUN`. If an old completed BASE has no cache, export its already
+synced TensorBoard once with `scripts/export_tensorboard_loss.py`, copy the small `STEP LOSS`
+file to tpu-ag, and run `run_registry.py import-loss BASE --file FILE`.
+
+Never stop before step 2,800 without explicit user permission. At/after 2,800, use
 `MHA advantage = MHA loss - RUN loss`: an advantage below 0.08 and still shrinking rapidly
 likely finishes below 0.05 and may stop; an advantage above 0.05 with curves becoming parallel
 may merit continuing. Also stop a run clearly dominated by a prior failed configuration.
 
-Between milestones, estimate sleep from `(next_ready_step-step)/steps_per_second`; overshooting
-by up to 400 steps is fine. Stay silent. Do not repeatedly sync TensorBoard or reread this skill.
+For multiple runs, use one shared wake-up and batch-check all runs; use per-run wake-ups only
+for anomalies or imminent completion/decisions. Independently, lengthen the shared sleep for
+stable runs—normally enough to collect ~5 report intervals. Estimate from steps/s; modest
+overshoot is fine. Stay silent, and do not repeatedly sync TensorBoard or reread this skill.
 
 ## Stop Training
 
@@ -142,9 +158,11 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 ```
 
 Wait for any Orbax SIGTERM checkpoint to finish. Then release resources through the shared
-helper; do not duplicate raw delete commands:
+helper; first preserve the final log, then do not duplicate raw delete commands:
 
 ```bash
+ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+  "/home/lishengping/xd/projects/run_registry.py collect-loss $RUN"
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   'bash /home/lishengping/xd/projects/delete_tpu_xd.sh \
    xd-v5p-16-0-maxtext us-central1-a newproject-1-451205'
@@ -174,7 +192,7 @@ a bug; investigate immediately.
 For every stopped/completed run:
 
 1. Verify final step/status and resource teardown with `run_registry.py status --all` and GCP.
-2. Sync the full TensorBoard directory once.
+2. Sync the full TensorBoard directory once; do not routinely parse it when the loss cache exists.
 3. Report final same-step/window gaps, cumulative trajectory, and whether prior extrapolation
    matched.
 4. Replace the experiment class's running comment with one terse line containing speed, final
@@ -186,31 +204,22 @@ For every stopped/completed run:
 
 ## Hot Retrain
 
-Uses local `retrain_xd.sh` → `sync_to_vm.sh` → TPU-VM `retrain_on_vm.sh`. Use it for code
-iteration on an installed TPU without committing/pushing:
-
-```bash
-bash /home/xd/projects/xd_tpu_scripts/retrain_xd.sh
-```
-
-`sync_to_vm.sh` transfers modified/untracked/deleted files via `git ls-files`. The VM relaunch
-must kill the prior `train.py`, kill holders of `/dev/vfio/0`, remove
-`/tmp/libtpu_lockfile`, and recreate writable `/tmp/tpu_logs`.
-
-If validated files were later committed/pushed, an old VM may still show identical dirty files
-and reject `git pull`. Stop only auto-train, verify those files equal `origin/refactor-bam`,
-stash them, then `git pull --ff-only`; do not stop the live training Python process.
+Commit/push every fix and restart the launcher with the new `CODE_COMMIT`; registry registration
+updates the RUN hash. Reuse a RUN only when its checkpoint parameter tree remains compatible.
+For a no-stop migration, restart only auto-train: it adopts the existing `train.py`, while the
+new hash takes effect on the next relaunch. Changing the live training code itself requires a
+training restart.
 
 ## Recover Preemption
 
-Uses `auto_train_xd_maxtext.sh`, the persistent overlay, and `delete_tpu_xd.sh`.
+Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd.sh`.
 
 - Preserve WAITING_FOR_RESOURCES/PROVISIONING queues; deleting resets queue position.
 - In xd's v5p experience, maintenance warning + refused SSH is almost always preemption. Start
   reclaim early rather than waiting for recovery.
 - `PREEMPTED|TERMINATED` plus queued-resource `SUSPENDED; stateInitiator=SERVICE` is terminal.
   Auto-train must release both resources through `delete_tpu_xd.sh`, recreate, reinstall, apply
-  `CODE_OVERLAY`, and resume the same RUN from its latest GCS checkpoint.
+  `CODE_COMMIT`, and resume the same RUN from its latest GCS checkpoint.
 - A post-maintenance SSH timeout (`alive=unknown`) is not evidence that training is alive.
 
 ## TensorBoard Service
@@ -231,6 +240,8 @@ Open `http://localhost:6007` (or the configured host alias). Checkpoints are und
 ## Guardrails
 
 - Keep BAM `full` runs as capability-ceiling experiments; never silently replace them for speed.
+- Report architectural parameter overhead in per-layer `W_Q = d_model^2` units, not raw counts;
+  omit negligible biases/gates unless they matter to the comparison.
 - A step-0 loss cannot prove zero-initialized BAM reads update: LR is zero and layer 0 has zero
   `M_in`; inspect layer 1+ after a later step.
 - Use a new RUN after adding/removing conditional parameters; never resume an incompatible tree.

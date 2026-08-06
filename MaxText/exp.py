@@ -190,6 +190,7 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     # nn metrics here (loss/lr/etc. are still logged). BamLlama2Medium inherits this.
     record_internal_nn_metrics = 0
     tensorboard_dir = "gs://newproject-1-llm_base_models_us-central1/log/summaries/train/"
+    upload_loss_tb_period = 10
     # Inherit total step count from learning_rate_schedule_steps (13500 via Optimizer).
     # pyconfig resolves steps=-1 -> learning_rate_schedule_steps, so the train loop
     # (for step in np.arange(start_step, config.steps)) stops cleanly at 13500 instead
@@ -388,7 +389,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """CombinedRead plus per-head runtime local-Q/K keys; paired norm control."""
-    # ~0.283 steps/s; stopped at 2,984. dloss -0.0094 (-0.34%) vs Combined @2,800
+    # ~0.283 steps/s; stopped at 7,819. dloss -0.0087 (-0.35%) vs Combined @7,600
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK'
     bam_local_qk_key_mode = 'per_head'
     bam_create_grouped_rw_norm_params = True
@@ -398,7 +399,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocal
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Replace shared local-Q/K reads with static per-layer/per-head keys; no read gates."""
-    # ~0.306 steps/s; running.
+    # ~0.305 steps/s; stopped at 4,969. dloss +0.0120 (+0.47%) vs Combined @4,800
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocalQK'
     bam_local_qk_key_mode = 'per_head_static'
 

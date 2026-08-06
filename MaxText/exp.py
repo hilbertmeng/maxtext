@@ -447,6 +447,14 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
     checkpoint_period = 50
 
 
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4V5p8(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4
+):
+    """Single-host v5p-8 continuation with the same global batch of 256."""
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4V5p8'
+    per_device_batch_size = 64.0
+
+
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):

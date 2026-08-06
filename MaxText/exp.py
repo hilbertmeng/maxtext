@@ -434,7 +434,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Replace the combined full content read with a four-vector codebook read."""
-    # Paired v5p-16 profile chose multiply+reduce for both source and destination reads.
+    # ~0.344 steps/s; running. Paired v5p-16 profile chose multiply+reduce for both reads.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4'
     bam_layer_modes = ['local_qk+codebook'] * 24
     bam_C = 4

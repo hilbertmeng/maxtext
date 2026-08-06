@@ -237,6 +237,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_use_grouped_rw_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
+    bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_codebook_source_implementation = 'dot'  # dot | mul_reduce
@@ -416,6 +417,15 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKP
     # running.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope'
     bam_local_qk_injection = 'pre_qknorm_rope'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRopeAdjacent(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope
+):
+    """Pre-RoPE FactorizedLocalQK with adjacent coordinate rotation pairs."""
+    # running.
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRopeAdjacent'
+    bam_local_qk_rope_pairing = 'adjacent'
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4(

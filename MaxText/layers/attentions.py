@@ -2086,6 +2086,7 @@ class BamAttention(Attention):
     self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
     self._local_qk_injection = cfg.bam_local_qk_injection
+    self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
     self._codebook_source_implementation = cfg.bam_codebook_source_implementation
     self._share_full_local_read = cfg.bam_share_full_local_read
@@ -2107,6 +2108,10 @@ class BamAttention(Attention):
         'shared', 'factorized', 'per_head', 'per_head_static')
     assert self._local_qk_injection in ('post_rope', 'pre_qknorm_rope')
     assert self._local_qk_injection == 'post_rope' or 'local_qk' in self._mode
+    assert self._local_qk_rope_pairing in ('split_half', 'adjacent')
+    assert self._local_qk_rope_pairing == 'split_half' or (
+        self._local_qk_injection == 'pre_qknorm_rope' and not cfg.qk_norm), (
+            'adjacent LocalQK RoPE requires pre-RoPE injection with QKNorm disabled')
     assert self._codebook_source_implementation in ('dot', 'mul_reduce')
     assert self._shared_fetch_mode in (
         'legacy', 'compact', 'recompute', 'dynamic_mix', 'dynamic_rms_mix')
@@ -2462,6 +2467,13 @@ class BamAttention(Attention):
       k_local = rearrange(k_local, 'b n t d -> b t n d')
     return q_local, k_local
 
+  def _apply_adjacent_local_qk_rope(self, x, positions, name):
+    """Apply the standard RoPE frequencies to adjacent coordinate pairs."""
+    packed = jnp.concatenate([x[..., 0::2], x[..., 1::2]], axis=-1)
+    rotated = self.apply_rotary_embedding(packed, positions, name=name)
+    first, second = jnp.split(rotated, 2, axis=-1)
+    return jnp.stack([first, second], axis=-1).reshape(x.shape)
+
   def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
@@ -2539,6 +2551,7 @@ class BamAttention(Attention):
       value = self.kv_projection(inputs_kv, proj_name="value")
 
     Mh = None
+    adjacent_local_qk = None
     if 'local_qk' in self._mode and self._local_qk_injection == 'pre_qknorm_rope':
       assert M_in is not None, "local_qk read requires M_in"
       with jax.named_scope("bam/normalize_m"):
@@ -2548,12 +2561,21 @@ class BamAttention(Attention):
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         q_local, k_local = self._read_local_qk(Mh, inputs_q)
-        query = query + q_local
-        key = key + k_local
+        if self._local_qk_rope_pairing == 'split_half':
+          query = query + q_local
+          key = key + k_local
+        else:
+          adjacent_local_qk = q_local, k_local
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
     key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+    if adjacent_local_qk is not None:
+      q_local, k_local = adjacent_local_qk
+      query = query + self._apply_adjacent_local_qk_rope(
+          q_local, inputs_positions, name='local_query_rotary')
+      key = key + self._apply_adjacent_local_qk_rope(
+          k_local, inputs_positions, name='local_key_rotary')
     fetch_query = fetch_key = None
     if cfg.bam_dedicated_fetch:
       fetch_query = self.fetch_query(inputs_q)

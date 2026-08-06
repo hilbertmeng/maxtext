@@ -479,6 +479,7 @@ class BamLlama2MediumReadKernelCurrentProfile(
     BamLlama2MediumDynamicPerHeadQKDirectReadProfile
 ):
     """A: historical dot read with [b,n,t,d] output plus caller transpose."""
+    # ~0.289 steps/s; stopped at 55. XPlane device step 3.426 s.
     model_name = 'BamLlama2MediumReadKernelCurrentProfile'
 
 
@@ -486,6 +487,7 @@ class BamLlama2MediumReadKernelLayoutProfile(
     BamLlama2MediumDynamicPerHeadQKDirectReadProfile
 ):
     """B: dot read with direct [b,t,n,d] output; no trailing transpose."""
+    # ~0.290 steps/s; stopped at 55. XPlane 3.412 s (-0.4% vs A).
     model_name = 'BamLlama2MediumReadKernelLayoutProfile'
     bam_read_implementation = 'dot_btn'
 
@@ -494,6 +496,7 @@ class BamLlama2MediumReadKernelMulReduceProfile(
     BamLlama2MediumReadKernelLayoutProfile
 ):
     """C: broadcast multiply+reduce read with direct [b,t,n,d] output."""
+    # ~0.311 steps/s; stopped at 55. XPlane 3.192 s (-6.8% vs A).
     model_name = 'BamLlama2MediumReadKernelMulReduceProfile'
     bam_read_implementation = 'mul_reduce_btn'
 
@@ -502,6 +505,7 @@ class BamLlama2MediumReadKernelPackedQKProfile(
     BamLlama2MediumReadKernelLayoutProfile
 ):
     """D: direct-layout dot read with Q/K local-M contractions packed."""
+    # ~0.292 steps/s; stopped at 55. XPlane 3.396 s (-0.5% vs B).
     model_name = 'BamLlama2MediumReadKernelPackedQKProfile'
     bam_pack_local_qk_reads = True
 
@@ -510,6 +514,7 @@ class BamLlama2MediumReadKernelSqueezedFetchProfile(
     BamLlama2MediumReadKernelLayoutProfile
 ):
     """E: direct-layout dot read with the sole full-fetch axis removed."""
+    # ~0.291 steps/s; stopped at 55. XPlane 3.407 s (no gain vs B).
     model_name = 'BamLlama2MediumReadKernelSqueezedFetchProfile'
     bam_squeeze_single_fetch_read = True
 

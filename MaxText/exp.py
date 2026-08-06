@@ -399,6 +399,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Shared local-Q/K content keys with signed dynamic rank-1 head routing."""
+    # ~0.315 steps/s; running.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK'
     bam_local_qk_key_mode = 'factorized'
 
@@ -407,6 +408,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """CombinedRead control with the local Q/K routing branch removed."""
+    # ~0.419 steps/s; running.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK'
     bam_layer_modes = ['local_o+full'] * 24
 

@@ -241,6 +241,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
+    bam_profile_fetch_bypass = False  # profile only: feed local Mh directly to the full reader
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
@@ -397,6 +398,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocal
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Replace shared local-Q/K reads with static per-layer/per-head keys; no read gates."""
+    # ~0.306 steps/s; running.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocalQK'
     bam_local_qk_key_mode = 'per_head_static'
 
@@ -418,6 +420,70 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne(
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_fetch_diagonal_one = True
+
+
+class TrainStepProfile:
+    """Short no-checkpoint XPlane run; stop manually after steady post-trace steps."""
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 40
+    profiler_steps = 5
+    profile_cleanly = True
+    upload_all_profiler_results = True
+    enable_checkpointing = False
+    async_checkpointing = False
+    steps = 200
+
+
+class Llama2MediumTrainStepProfile(TrainStepProfile, Llama2Medium):
+    """Standard Transformer train-step control for BAM component profiling."""
+    model_name = 'Llama2MediumTrainStepProfile'
+
+
+class BamLlama2MediumDynamicPerHeadQKDirectReadProfile(
+    TrainStepProfile,
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne,
+):
+    """Profile target: Dynamic PerHead QK with diag(alpha)=1 and no local_o branch."""
+    model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadProfile'
+    bam_local_qk_key_mode = 'per_head'
+    bam_create_grouped_rw_norm_params = True
+
+
+class BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile(
+    BamLlama2MediumDynamicPerHeadQKDirectReadProfile
+):
+    """Paired profile removing dynamic alpha mixing while retaining fetch and read."""
+    model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile'
+    bam_shared_fetch_mode = 'compact'
+
+
+class BamLlama2MediumDynamicPerHeadQKDirectReadNoFetchProfile(
+    BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile
+):
+    """Paired profile feeding local Mh to the same W_R reader, bypassing fetch."""
+    model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadNoFetchProfile'
+    bam_profile_fetch_bypass = True
+
+
+class BamLlama2MediumDynamicPerHeadQKOnlyProfile(
+    TrainStepProfile,
+    BamLlama2MediumRmsGateOnly,
+):
+    """Paired profile retaining write and PerHead local-Q/K reads but no content read."""
+    model_name = 'BamLlama2MediumDynamicPerHeadQKOnlyProfile'
+    bam_layer_modes = ['local_qk'] * 24
+    bam_local_qk_key_mode = 'per_head'
+    bam_create_grouped_rw_norm_params = True
+
+
+class BamLlama2MediumDirectReadNoLocalQKProfile(
+    BamLlama2MediumDynamicPerHeadQKDirectReadNoFetchProfile
+):
+    """Paired profile retaining the direct W_R read and write but no local-Q/K reads."""
+    model_name = 'BamLlama2MediumDirectReadNoLocalQKProfile'
+    bam_layer_modes = ['full'] * 24
+    bam_local_qk_key_mode = 'shared'
+    bam_create_grouped_rw_norm_params = False
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal(

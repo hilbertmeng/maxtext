@@ -1947,6 +1947,7 @@ class BamAttention(Attention):
     self._share_full_local_read = cfg.bam_share_full_local_read
     self._combine_full_local_read = cfg.bam_combine_full_local_read
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
+    self._profile_fetch_bypass = cfg.bam_profile_fetch_bypass
     if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
       assert 'full' in self._mode, 'dynamic head mixing currently requires full read mode'
       assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
@@ -1982,6 +1983,9 @@ class BamAttention(Attention):
       assert cfg.bam_n_f == 1, 'direct fetch diagonal one requires exactly one fetch route'
       assert not cfg.bam_keep_fetch_diagonal, (
           'direct fetch diagonal one and keep_fetch_diagonal are mutually exclusive')
+    if self._profile_fetch_bypass:
+      assert 'full' in self._mode and cfg.bam_n_f == 1, (
+          'profile fetch bypass requires one full-read route')
     assert not cfg.bam_dedicated_fetch or 'full' in self._mode, (
         'bam_dedicated_fetch currently requires the full read mode')
 
@@ -2336,27 +2340,29 @@ class BamAttention(Attention):
     # ---- Read-side normalization (§4.6.5 read-side whole-matrix one scalar): one RMS scalar per token over
     # (k,v); all read paths consume Mh. No-op when M_in is all zero (start). Write side keeps
     # bare accumulation on raw M_in. Param-free, pre-LN-style matrix-stream shift. ----
-    Mh = M_in * jax.lax.rsqrt(jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True)
-                              + cfg.normalization_layer_epsilon) if M_in is not None else None
+    with jax.named_scope("bam/normalize_m"):
+      Mh = M_in * jax.lax.rsqrt(jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True)
+                                + cfg.normalization_layer_epsilon) if M_in is not None else None
 
     # ---- local_qk (route branch: inject into Q/K, before alpha) ----
     if 'local_qk' in self._mode:
-      assert Mh is not None, "local_qk read requires M_in"
-      local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
-      local_qk_R_q = None if local_qk_per_head else self.R_q
-      local_qk_R_k = None if local_qk_per_head else self.R_k
-      local_qk_q_kwargs = (
-          {} if self._local_qk_key_mode == 'per_head_static'
-          else self._read_key_kwargs('W_lq_gate', inputs_q))
-      local_qk_k_kwargs = (
-          {} if self._local_qk_key_mode == 'per_head_static'
-          else self._read_key_kwargs('W_lk_gate', inputs_q))
-      query = query + rearrange(
-          bam_read(Mh, inputs_q, self.W_lq, local_qk_R_q,
-                   **local_qk_q_kwargs), 'b n t d -> b t n d')
-      key = key + rearrange(
-          bam_read(Mh, inputs_q, self.W_lk, local_qk_R_k,
-                   **local_qk_k_kwargs), 'b n t d -> b t n d')
+      with jax.named_scope("bam/read_local_m_for_qk"):
+        assert Mh is not None, "local_qk read requires M_in"
+        local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
+        local_qk_R_q = None if local_qk_per_head else self.R_q
+        local_qk_R_k = None if local_qk_per_head else self.R_k
+        local_qk_q_kwargs = (
+            {} if self._local_qk_key_mode == 'per_head_static'
+            else self._read_key_kwargs('W_lq_gate', inputs_q))
+        local_qk_k_kwargs = (
+            {} if self._local_qk_key_mode == 'per_head_static'
+            else self._read_key_kwargs('W_lk_gate', inputs_q))
+        query = query + rearrange(
+            bam_read(Mh, inputs_q, self.W_lq, local_qk_R_q,
+                     **local_qk_q_kwargs), 'b n t d -> b t n d')
+        key = key + rearrange(
+            bam_read(Mh, inputs_q, self.W_lk, local_qk_R_k,
+                     **local_qk_k_kwargs), 'b n t d -> b t n d')
     query_route, key_route = query, key
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
@@ -2390,35 +2396,36 @@ class BamAttention(Attention):
     # the LA exact subfamily) are untouched; local_o itself is fetch-identity (α=δ); when local_o
     # is off the alpha diagonal is the local_o quota-squeeze approximation and must stay.
     diagonal_yield = 'local_o' in self._mode and not cfg.bam_keep_fetch_diagonal
-    if cfg.bam_dedicated_fetch:
-      fetch_query = fetch_query / jnp.sqrt(self.head_dim).astype(self.dtype)
-      if cfg.float32_qk_product:
-        fetch_query = fetch_query.astype(jnp.float32)
-        fetch_key = fetch_key.astype(jnp.float32)
-      fetch_logits = jnp.einsum('btfd,bsfd->bfts', fetch_query, fetch_key)
-      if cfg.attn_logits_soft_cap:
-        fetch_logits = jnp.tanh(fetch_logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
-      if attn_mask is not None:
-        fetch_logits = apply_mask_to_logits(fetch_logits, attn_mask)
-      if cfg.float32_logits:
-        fetch_logits = fetch_logits.astype(jnp.float32)
-      fetch_alpha = jax.nn.softmax(fetch_logits, axis=-1)
-      if diagonal_yield:
-        fetch_alpha = fetch_alpha * (
-            1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-    elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
-      fetch_alpha = _dynamic_mixed_bam_fetch_alpha(
-          alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
-          'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
-          cfg.normalization_layer_epsilon)
-    else:
-      fetch_alpha = _shared_bam_fetch_alpha(
-          alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
-          diagonal_yield, cfg.attn_logits_soft_cap, cfg.float32_logits)
-    if self._fetch_diagonal_one:
-      diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
-      fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(
-          jnp.asarray(1, dtype=fetch_alpha.dtype))
+    with jax.named_scope("bam/mix_alpha"):
+      if cfg.bam_dedicated_fetch:
+        fetch_query = fetch_query / jnp.sqrt(self.head_dim).astype(self.dtype)
+        if cfg.float32_qk_product:
+          fetch_query = fetch_query.astype(jnp.float32)
+          fetch_key = fetch_key.astype(jnp.float32)
+        fetch_logits = jnp.einsum('btfd,bsfd->bfts', fetch_query, fetch_key)
+        if cfg.attn_logits_soft_cap:
+          fetch_logits = jnp.tanh(fetch_logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
+        if attn_mask is not None:
+          fetch_logits = apply_mask_to_logits(fetch_logits, attn_mask)
+        if cfg.float32_logits:
+          fetch_logits = fetch_logits.astype(jnp.float32)
+        fetch_alpha = jax.nn.softmax(fetch_logits, axis=-1)
+        if diagonal_yield:
+          fetch_alpha = fetch_alpha * (
+              1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
+      elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
+        fetch_alpha = _dynamic_mixed_bam_fetch_alpha(
+            alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
+            'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
+            cfg.normalization_layer_epsilon)
+      else:
+        fetch_alpha = _shared_bam_fetch_alpha(
+            alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
+            diagonal_yield, cfg.attn_logits_soft_cap, cfg.float32_logits)
+      if self._fetch_diagonal_one:
+        diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
+        fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(
+            jnp.asarray(1, dtype=fetch_alpha.dtype))
 
     # ---- BAM read (all modes share the unified bam_read primitive, §4.6.1) ----
     y_codebook = jnp.zeros_like(y_std)
@@ -2437,22 +2444,25 @@ class BamAttention(Attention):
       y_bam = y_codebook
     if 'full' in self._mode:
       assert Mh is not None, "full read requires M_in"
-      Mbar = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, Mh)  # fetch (§4.6.1), α de-diagonaled
-      if self._combine_full_local_read:
-        # The shared runtime key makes Read linear in M.  Because fetch_alpha has
-        # yielded its diagonal, adding normalized local Mh here exactly replaces
-        # the separate local_o read with a fixed local coefficient of one.
-        Mbar = Mbar + Mh[:, None]
-      full_read = bam_read(
-          Mbar, inputs_q, self.W_R, None,
-          **self._read_key_kwargs('W_R_gate', inputs_q),
-          return_key_stages=capture_read_key_stages)
-      if capture_read_key_stages:
-        full_read, full_key_stages = full_read
-        read_key_stages.update({
-            f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
-      y_full = rearrange(full_read, 'b n t d -> b t n d')
-      y_bam = y_bam + y_full
+      with jax.named_scope("bam/fetch_m"):
+        Mbar = (Mh[:, None] if self._profile_fetch_bypass else
+                jnp.einsum('bfts,bskv->bftkv', fetch_alpha, Mh))
+        if self._combine_full_local_read:
+          # The shared runtime key makes Read linear in M.  Because fetch_alpha has
+          # yielded its diagonal, adding normalized local Mh here exactly replaces
+          # the separate local_o read with a fixed local coefficient of one.
+          Mbar = Mbar + Mh[:, None]
+      with jax.named_scope("bam/read_fetched_m"):
+        full_read = bam_read(
+            Mbar, inputs_q, self.W_R, None,
+            **self._read_key_kwargs('W_R_gate', inputs_q),
+            return_key_stages=capture_read_key_stages)
+        if capture_read_key_stages:
+          full_read, full_key_stages = full_read
+          read_key_stages.update({
+              f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
+        y_full = rearrange(full_read, 'b n t d -> b t n d')
+        y_bam = y_bam + y_full
     if 'local_o' in self._mode and not self._combine_full_local_read:
       assert Mh is not None, "local_o read requires M_in"
       if self._share_full_local_read:
@@ -2483,7 +2493,8 @@ class BamAttention(Attention):
     # ---- Write primitive (update BAM state first, then project to the residual stream) ----
     if self._has_write:
       assert M_in is not None, "write primitive requires M_in"
-      M_out, write_gate, forget_gate = self._write(write_o_head, inputs_q, M_in)
+      with jax.named_scope("bam/write_m"):
+        M_out, write_gate, forget_gate = self._write(write_o_head, inputs_q, M_in)
     else:
       M_out = M_in
       write_gate = None

@@ -434,7 +434,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKN
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm
 ):
     """Normalize the combined standard/LocalQK vectors before applying RoPE."""
-    # ~0.383 steps/s !? unexpectedly +17.5% vs NoMNorm; under paired XPlane investigation.
+    # ~0.383 steps/s; stopped at 4,205. dloss +0.0041 (+0.15%) vs NoMNorm @4,000; !! QKNorm's bf16 Q/K cast explains the speedup.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNormPreRopeQKNorm'
     bam_local_qk_injection = 'pre_qknorm_rope'
     qk_norm = True

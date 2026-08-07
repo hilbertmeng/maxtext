@@ -204,6 +204,13 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     max_to_keep = 2
     keep_period = 0
 
+
+class Llama2MediumQKNorm(Llama2Medium):
+    """Standard MHA control with learned Q/K RMSNorm before RoPE."""
+    model_name = 'Llama2MediumQKNorm'
+    qk_norm = True
+
+
 class BamLlama2Medium(Llama2Medium):
     # ~0.277 steps/s; stopped at 9,850.
     model_name = 'BamLlama2Medium'

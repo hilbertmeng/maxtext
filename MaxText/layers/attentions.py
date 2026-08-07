@@ -2093,6 +2093,7 @@ class BamAttention(Attention):
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
+    self._profile_cast_pre_qk = bool(cfg.bam_profile_cast_pre_qk)
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
     self._codebook_source_implementation = cfg.bam_codebook_source_implementation
     self._codebook_read_implementation = cfg.bam_codebook_read_implementation
@@ -2120,6 +2121,9 @@ class BamAttention(Attention):
     assert self._local_qk_rope_pairing == 'split_half' or (
         self._local_qk_injection == 'pre_qknorm_rope' and not cfg.qk_norm), (
             'adjacent Q/K RoPE requires pre-RoPE LocalQK injection with QKNorm disabled')
+    assert not self._profile_cast_pre_qk or (
+        self._local_qk_injection == 'pre_qknorm_rope' and not cfg.qk_norm), (
+            'profile Q/K cast isolates pre-RoPE LocalQK without QKNorm')
     assert self._codebook_source_implementation in ('dot', 'mul_reduce')
     assert self._codebook_read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._shared_fetch_mode in (
@@ -2584,6 +2588,9 @@ class BamAttention(Attention):
         q_local, k_local = self._read_local_qk(Mh, inputs_q)
         query = query + q_local
         key = key + k_local
+        if self._profile_cast_pre_qk:
+          query = jnp.asarray(query, self.dtype)
+          key = jnp.asarray(key, self.dtype)
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     if self._local_qk_rope_pairing == 'adjacent':

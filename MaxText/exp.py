@@ -246,6 +246,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
+    bam_profile_cast_pre_qk = False  # profile only: cast combined pre-RoPE Q/K to model dtype
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_codebook_source_implementation = 'dot'  # dot | mul_reduce
@@ -565,6 +566,12 @@ class BamNoMNormPreNoQKProfile(BamNoMNormPostNoQKProfile):
     # ~0.325 steps/s; XPlane 3,072.6 ms. Pre-RoPE alone is neutral (-0.45%).
     model_name = 'BamNoMNormPreNoQKProfile'
     bam_local_qk_injection = 'pre_qknorm_rope'
+
+
+class BamNoMNormPreCastNoQKProfile(BamNoMNormPreNoQKProfile):
+    """Root-cause control: pre-RoPE LocalQK plus dtype cast, without QKNorm."""
+    model_name = 'BamNoMNormPreCastNoQKProfile'
+    bam_profile_cast_pre_qk = True
 
 
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):

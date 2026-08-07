@@ -519,6 +519,7 @@ class BamLlama2MediumFactorizedLocalQKMulReduceProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK,
 ):
     """FactorizedLocalQK control with multiply+reduce reads for Codebook C4 timing."""
+    # ~0.320 steps/s; stopped at 52. XPlane 3,104.936 ms; CodebookC4 MM is 7.64% faster.
     model_name = 'BamLlama2MediumFactorizedLocalQKMulReduceProfile'
     bam_read_implementation = 'mul_reduce_btn'
 

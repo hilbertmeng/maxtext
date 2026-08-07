@@ -247,6 +247,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
     bam_profile_cast_pre_qk = False  # profile only: cast combined pre-RoPE Q/K to model dtype
+    bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_codebook_source_implementation = 'dot'  # dot | mul_reduce
@@ -573,6 +574,13 @@ class BamNoMNormPreCastNoQKProfile(BamNoMNormPreNoQKProfile):
     # ~0.393 steps/s; stopped at 48. XPlane 2,539.0 ms; +21.0% vs Pre/no-QKNorm confirms dtype cause.
     model_name = 'BamNoMNormPreCastNoQKProfile'
     bam_profile_cast_pre_qk = True
+
+
+class BamNoMNormAllBf16Profile(BamNoMNormPostNoQKProfile):
+    """NoMNorm with bf16 logits, BAM biases, read keys, dM, and M state."""
+    model_name = 'BamNoMNormAllBf16Profile'
+    float32_logits = False
+    bam_force_activation_dtype = True
 
 
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):

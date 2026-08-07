@@ -2094,6 +2094,7 @@ class BamAttention(Attention):
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
     self._profile_cast_pre_qk = bool(cfg.bam_profile_cast_pre_qk)
+    self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
     self._codebook_source_implementation = cfg.bam_codebook_source_implementation
     self._codebook_read_implementation = cfg.bam_codebook_read_implementation
@@ -2420,7 +2421,10 @@ class BamAttention(Attention):
   def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False):
     gate_logits = None
     if self.config.bam_create_read_gate_params:
-      candidate_logits = getattr(self, gate_name)(x) + getattr(self, f'{gate_name}_b0')
+      gate_bias = getattr(self, f'{gate_name}_b0')
+      if self._force_activation_dtype:
+        gate_bias = jnp.asarray(gate_bias, self.dtype)
+      candidate_logits = getattr(self, gate_name)(x) + gate_bias
       if squeeze_fetch_axis:
         candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
       if self._read_key_mode == 'rms_gate':
@@ -2509,8 +2513,14 @@ class BamAttention(Attention):
     """
     cfg = self.config
     eps = cfg.normalization_layer_epsilon
+    if self._force_activation_dtype:
+      assert M_in.dtype == self.dtype, (M_in.dtype, self.dtype)
+      assert o_head.dtype == self.dtype, (o_head.dtype, self.dtype)
     if cfg.bam_write_u_proj:
-      u1 = jnp.einsum('btnd,ndk->btnk', o_head, self.P_agg_u)
+      write_u_proj = self.P_agg_u
+      if self._force_activation_dtype:
+        write_u_proj = jnp.asarray(write_u_proj, self.dtype)
+      u1 = jnp.einsum('btnd,ndk->btnk', o_head, write_u_proj)
     else:
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
     if self._write_v_mode == 'o_tail':
@@ -2519,9 +2529,17 @@ class BamAttention(Attention):
       x_v = self.P_loc(x)
       u2 = x_v
     if self._write_v_mode == 'mix':
+      write_v_mix_scale = self.write_v_mix_scale
+      write_v_bias = self.write_v_bias
+      if self._force_activation_dtype:
+        write_v_mix_scale = jnp.asarray(write_v_mix_scale, self.dtype)
+        write_v_bias = jnp.asarray(write_v_bias, self.dtype)
       u2 = _mix_bam_write_v(
-          x_v, o_head, self.bam_k, self.write_v_mix_scale, self.write_v_bias)
-    gate = jax.nn.sigmoid(self.W_gw(x) + self.gw_b0)       # [b,t,n]
+          x_v, o_head, self.bam_k, write_v_mix_scale, write_v_bias)
+    write_gate_bias = self.gw_b0
+    if self._force_activation_dtype:
+      write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
+    gate = jax.nn.sigmoid(self.W_gw(x) + write_gate_bias)  # [b,t,n]
     g = gate
     if cfg.bam_sqrt_n_scale:
       # With per-record rms, each head's record is unit energy, so |M| ~ n * Σg. Scaling the
@@ -2537,11 +2555,18 @@ class BamAttention(Attention):
         u1_norm = learned_u1_norm
         u2_norm = learned_u2_norm
     dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * u1_norm, u2_norm)
+    if self._force_activation_dtype:
+      assert dM.dtype == self.dtype, (dM.dtype, self.dtype)
     forget_logits = None
     if self._forget_mode == 'dynamic':
-      forget_logits = self.W_forget_gate(x) + self.W_forget_gate_b0
+      forget_gate_bias = self.W_forget_gate_b0
+      if self._force_activation_dtype:
+        forget_gate_bias = jnp.asarray(forget_gate_bias, self.dtype)
+      forget_logits = self.W_forget_gate(x) + forget_gate_bias
     M_out, forget_gate = _update_bam_matrix(
         M_in, dM, cfg.bam_lambda_decay, forget_logits)
+    if self._force_activation_dtype:
+      assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate, forget_gate
 
   @nn.compact

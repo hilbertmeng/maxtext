@@ -588,7 +588,7 @@ class BamFactorizedAllBf16DotBtnSixLayerProfile(BamNoMNormAllBf16Profile):
     """Six-layer FactorizedLocalQK control with direct-layout dot reads."""
     model_name = 'BamFactorizedAllBf16DotBtnSixLayerProfile'
     base_num_decoder_layers = 6
-    bam_layer_modes = ['local_qk+full'] * 6
+    bam_layer_modes = ['local_qk+local_o+full'] * 6
     bam_read_implementation = 'dot_btn'
 
 

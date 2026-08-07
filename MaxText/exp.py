@@ -551,6 +551,34 @@ class Llama2MediumTrainStepProfile(TrainStepProfile, Llama2Medium):
     model_name = 'Llama2MediumTrainStepProfile'
 
 
+class BamNoMNormPostNoQKProfile(
+    TrainStepProfile,
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm,
+):
+    """2x2 speed control: post-RoPE LocalQK, QKNorm off."""
+    model_name = 'BamNoMNormPostNoQKProfile'
+
+
+class BamNoMNormPreNoQKProfile(BamNoMNormPostNoQKProfile):
+    """2x2 speed control: pre-RoPE LocalQK, QKNorm off."""
+    model_name = 'BamNoMNormPreNoQKProfile'
+    bam_local_qk_injection = 'pre_qknorm_rope'
+
+
+class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):
+    """2x2 speed control: post-RoPE LocalQK, standard-only QKNorm on."""
+    model_name = 'BamNoMNormPostQKProfile'
+    qk_norm = True
+
+
+class BamNoMNormPreQKProfile(
+    TrainStepProfile,
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNormPreRopeQKNorm,
+):
+    """2x2 speed target: pre-RoPE LocalQK, combined QKNorm on."""
+    model_name = 'BamNoMNormPreQKProfile'
+
+
 class BamLlama2MediumFactorizedLocalQKMulReduceProfile(
     TrainStepProfile,
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK,

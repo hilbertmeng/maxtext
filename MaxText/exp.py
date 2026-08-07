@@ -726,6 +726,7 @@ class BamReadDotBtnSixLayerProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne,
 ):
     """Six-layer same-shape profile of dot_btn bilateral reads and MHA QK logits."""
+    # ~1.767 steps/s; XPlane 1a/1b/MHA-QK 14.47/13.25/52.25 ms = 1.092:1:3.945.
     model_name = 'BamReadDotBtnSixLayerProfile'
     base_num_decoder_layers = 6
     bam_layer_modes = ['full'] * 6

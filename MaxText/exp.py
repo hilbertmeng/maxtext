@@ -514,6 +514,15 @@ class Llama2MediumTrainStepProfile(TrainStepProfile, Llama2Medium):
     model_name = 'Llama2MediumTrainStepProfile'
 
 
+class BamLlama2MediumFactorizedLocalQKMulReduceProfile(
+    TrainStepProfile,
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK,
+):
+    """FactorizedLocalQK control with multiply+reduce reads for Codebook C4 timing."""
+    model_name = 'BamLlama2MediumFactorizedLocalQKMulReduceProfile'
+    bam_read_implementation = 'mul_reduce_btn'
+
+
 class BamLlama2MediumCodebookC4ProfileDD(
     TrainStepProfile,
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4,

@@ -586,6 +586,7 @@ class BamNoMNormAllBf16Profile(BamNoMNormPostNoQKProfile):
 
 class BamFactorizedAllBf16DotBtnSixLayerProfile(BamNoMNormAllBf16Profile):
     """Six-layer FactorizedLocalQK control with direct-layout dot reads."""
+    # ~1.702 steps/s; stopped at 88. XPlane 587.4 ms.
     model_name = 'BamFactorizedAllBf16DotBtnSixLayerProfile'
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+local_o+full'] * 6
@@ -596,6 +597,7 @@ class BamFactorizedAllBf16MulReduceSixLayerProfile(
     BamFactorizedAllBf16DotBtnSixLayerProfile
 ):
     """Six-layer paired profile replacing both BAM dot reads with multiply+reduce."""
+    # ~1.729 steps/s; completed 200. XPlane 578.2 ms; +1.59% vs dot.
     model_name = 'BamFactorizedAllBf16MulReduceSixLayerProfile'
     bam_read_implementation = 'mul_reduce_btn'
 

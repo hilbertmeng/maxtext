@@ -434,7 +434,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Replace the combined full content read with a four-vector codebook read."""
-    # ~0.344 steps/s on v5p-16; migrated at step 550 after repeated multi-host fake-live.
+    # ~0.344 steps/s on v5p-16; stopped at 2,844. dloss +0.0411 (+1.51%) vs Factorized @2,800; shrinking.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4'
     bam_layer_modes = ['local_qk+codebook'] * 24
     bam_C = 4
@@ -451,7 +451,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4
 ):
     """Single-host v5p-8 continuation with the same global batch of 256."""
-    # ~0.179 steps/s; running from step 550.
+    # ~0.179 steps/s; continued 550–2,844 after repeated v5p-16 fake-live.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4V5p8'
     per_device_batch_size = 16.0
     gradient_accumulation_steps = 4

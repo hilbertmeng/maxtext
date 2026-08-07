@@ -579,6 +579,22 @@ class BamNoMNormPreQKProfile(
     model_name = 'BamNoMNormPreQKProfile'
 
 
+class BamNoMNormPostNoQKHlo(BamNoMNormPostNoQKProfile):
+    """Dump the optimized train-step HLO for the 2x2 speed control."""
+    model_name = 'BamNoMNormPostNoQKHlo'
+    profiler = ''
+    dump_hlo = True
+    steps = 2
+
+
+class BamNoMNormPreQKHlo(BamNoMNormPreQKProfile):
+    """Dump the optimized train-step HLO for the anomalously fast 2x2 arm."""
+    model_name = 'BamNoMNormPreQKHlo'
+    profiler = ''
+    dump_hlo = True
+    steps = 2
+
+
 class BamLlama2MediumFactorizedLocalQKMulReduceProfile(
     TrainStepProfile,
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK,

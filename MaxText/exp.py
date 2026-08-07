@@ -538,7 +538,7 @@ class TrainStepProfile:
     # v5p-16 additive device wall: MHA 35.31%; norm+write 10.45%; PerHead QK 30.62%;
     # dynamic alpha mix ~0%; fetch 14.90%; fetched-M read 9.48%.
     profiler = 'xplane'
-    skip_first_n_steps_for_profiler = 40
+    skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
     profile_cleanly = True
     upload_all_profiler_results = True
@@ -578,6 +578,7 @@ class BamNoMNormPreCastNoQKProfile(BamNoMNormPreNoQKProfile):
 
 class BamNoMNormAllBf16Profile(BamNoMNormPostNoQKProfile):
     """NoMNorm with bf16 logits, BAM biases, read keys, dM, and M state."""
+    # ~0.453 steps/s; stopped at 60. XPlane 2,184.4 ms; +39.0% throughput vs Post/no-QKNorm.
     model_name = 'BamNoMNormAllBf16Profile'
     float32_logits = False
     bam_force_activation_dtype = True

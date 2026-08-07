@@ -584,6 +584,28 @@ class BamNoMNormAllBf16Profile(BamNoMNormPostNoQKProfile):
     bam_force_activation_dtype = True
 
 
+class BamFactorizedAllBf16DotBtnSixLayerProfile(BamNoMNormAllBf16Profile):
+    """Six-layer FactorizedLocalQK control with direct-layout dot reads."""
+    model_name = 'BamFactorizedAllBf16DotBtnSixLayerProfile'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+full'] * 6
+    bam_read_implementation = 'dot_btn'
+
+
+class BamFactorizedAllBf16MulReduceSixLayerProfile(
+    BamFactorizedAllBf16DotBtnSixLayerProfile
+):
+    """Six-layer paired profile replacing both BAM dot reads with multiply+reduce."""
+    model_name = 'BamFactorizedAllBf16MulReduceSixLayerProfile'
+    bam_read_implementation = 'mul_reduce_btn'
+
+
+class BamFactorizedAllBf16MulReduceProfile(BamNoMNormAllBf16Profile):
+    """Full-24 optimized FactorizedLocalQK component profile."""
+    model_name = 'BamFactorizedAllBf16MulReduceProfile'
+    bam_read_implementation = 'mul_reduce_btn'
+
+
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):
     """2x2 speed control: post-RoPE LocalQK, standard-only QKNorm on."""
     # ~0.322 steps/s; XPlane 3,094.6 ms. QKNorm alone slows this path by 1.16%.

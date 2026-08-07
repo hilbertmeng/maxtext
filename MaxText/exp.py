@@ -721,6 +721,19 @@ class BamLlama2MediumReadKernelSqueezedFetchProfile(
     bam_squeeze_single_fetch_read = True
 
 
+class BamReadDotBtnSixLayerProfile(
+    TrainStepProfile,
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne,
+):
+    """Six-layer same-shape profile of dot_btn bilateral reads and MHA QK logits."""
+    model_name = 'BamReadDotBtnSixLayerProfile'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['full'] * 6
+    bam_read_implementation = 'dot_btn'
+    float32_logits = False
+    bam_force_activation_dtype = True
+
+
 class BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile(
     BamLlama2MediumDynamicPerHeadQKDirectReadProfile
 ):

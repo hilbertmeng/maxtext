@@ -1857,10 +1857,11 @@ def _contract_bam_read(Mc, Mr, r_row, r_col, per_head, implementation):
         jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row),
     ], axis=-1)
   if implementation == 'dot_btn':
-    return jnp.concatenate([
-        jnp.einsum(f'b{f}tkv,bt{n}{f}v->bt{n}k', Mc, r_col),
-        jnp.einsum(f'b{f}tkv,bt{n}{f}k->bt{n}v', Mr, r_row),
-    ], axis=-1)
+    with jax.named_scope("bam/contract_1a_col"):
+      y_u = jnp.einsum(f'b{f}tkv,bt{n}{f}v->bt{n}k', Mc, r_col)
+    with jax.named_scope("bam/contract_1b_row"):
+      y_v = jnp.einsum(f'b{f}tkv,bt{n}{f}k->bt{n}v', Mr, r_row)
+    return jnp.concatenate([y_u, y_v], axis=-1)
   if implementation != 'mul_reduce_btn':
     raise ValueError(f'Unknown BAM read implementation: {implementation}')
 
@@ -2662,7 +2663,8 @@ class BamAttention(Attention):
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:
       query = query.astype(jnp.float32); key = key.astype(jnp.float32)
-    logits = jnp.einsum('btnd,bsnd->bnts', query, key)     # [b,n,t,s]
+    with jax.named_scope("attention/qk_logits"):
+      logits = jnp.einsum('btnd,bsnd->bnts', query, key)   # [b,n,t,s]
     if cfg.attn_logits_soft_cap:
       logits = jnp.tanh(logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
     attn_mask = self.attention_op.generate_attention_mask(query, key, decoder_segment_ids, model_mode)

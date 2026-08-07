@@ -570,6 +570,7 @@ class BamNoMNormPreNoQKProfile(BamNoMNormPostNoQKProfile):
 
 class BamNoMNormPreCastNoQKProfile(BamNoMNormPreNoQKProfile):
     """Root-cause control: pre-RoPE LocalQK plus dtype cast, without QKNorm."""
+    # ~0.393 steps/s; stopped at 48. XPlane 2,539.0 ms; +21.0% vs Pre/no-QKNorm confirms dtype cause.
     model_name = 'BamNoMNormPreCastNoQKProfile'
     bam_profile_cast_pre_qk = True
 

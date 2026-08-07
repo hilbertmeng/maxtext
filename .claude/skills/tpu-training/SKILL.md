@@ -104,9 +104,10 @@ It samples `step % 5 == 0` inside each ±25-step window, preserving the historic
 gap definition even though future TensorBoard files record every 10 steps. Print cumulative
 `step`, `run`, `base`, `gap`, and `r200` as horizontal rows; split into more row blocks when
 long, never transpose milestones into vertical table rows. Here
-`r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s])`: negative means the gap magnitude is
-shrinking, positive means it is growing. Summarize the current gap level with the mean of the
-latest 5–8 reported points (and its range), not one point; use recent `r200` values for direction.
+`r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
+magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
+level with the mean of the latest 5–8 reported points (and its range), not one point; use recent
+`r200` values for direction.
 
 At every due milestone:
 

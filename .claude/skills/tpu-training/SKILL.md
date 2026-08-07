@@ -129,7 +129,9 @@ file to tpu-ag, and run `run_registry.py import-loss BASE --file FILE`.
 Never stop before step 2,800 without explicit user permission. At/after 2,800, use
 `MHA advantage = MHA loss - RUN loss`: an advantage below 0.08 and still shrinking rapidly
 likely finishes below 0.05 and may stop; an advantage above 0.05 with curves becoming parallel
-may merit continuing. Also stop a run clearly dominated by a prior failed configuration.
+may merit continuing. Train a configuration with a credible loss or speed gain longer—possibly
+to completion—to verify that the gain persists. A configuration still unlikely to beat its direct
+baseline may stop at 2,800. Also stop a run clearly dominated by a prior failed configuration.
 
 For multiple runs, use one shared wake-up and batch-check all runs; use per-run wake-ups only
 for anomalies or imminent completion/decisions. Independently, lengthen the shared sleep for

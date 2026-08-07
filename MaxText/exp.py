@@ -425,7 +425,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKU
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Remove P_loc and write u2 directly from the current head-output tail."""
-    # ~0.317 steps/s; running.
+    # ~0.317 steps/s; stopped 3,065. dloss +0.0272 vs Factorized @3,000; lower parameters, worse loss.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKU2OTail'
     bam_write_v_mode = 'o_tail'
 

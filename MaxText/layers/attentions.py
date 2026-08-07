@@ -1831,19 +1831,21 @@ def _project_bam_read_keys(
     key_gate_logits=None, key_row_norm=None, key_col_norm=None,
     use_learned_key_norm=False):
   """Project and independently transform the row/column runtime read keys."""
-  projected_key = W_R(x) if callable(W_R) else jnp.broadcast_to(
-      W_R, x.shape[:-1] + W_R.shape)
-  raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
-  if key_gate_logits is None:
-    row_gate = col_gate = None
-  else:
-    row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
-  r_row = _transform_bam_read_key(
-      raw_row, key_mode, key_scale, key_eps, row_gate,
-      key_row_norm, use_learned_key_norm)
-  r_col = _transform_bam_read_key(
-      raw_col, key_mode, key_scale, key_eps, col_gate,
-      key_col_norm, use_learned_key_norm)
+  with jax.named_scope("bam/read_key_projection"):
+    projected_key = W_R(x) if callable(W_R) else jnp.broadcast_to(
+        W_R, x.shape[:-1] + W_R.shape)
+    raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
+  with jax.named_scope("bam/read_key_transform"):
+    if key_gate_logits is None:
+      row_gate = col_gate = None
+    else:
+      row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
+    r_row = _transform_bam_read_key(
+        raw_row, key_mode, key_scale, key_eps, row_gate,
+        key_row_norm, use_learned_key_norm)
+    r_col = _transform_bam_read_key(
+        raw_col, key_mode, key_scale, key_eps, col_gate,
+        key_col_norm, use_learned_key_norm)
   return raw_row, raw_col, r_row, r_col
 
 
@@ -1911,10 +1913,12 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
       key_eps=key_eps, key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
-  y = _contract_bam_read(Mc, Mr, r_row, r_col, R is None, implementation)
+  with jax.named_scope("bam/read_m_contract"):
+    y = _contract_bam_read(Mc, Mr, r_row, r_col, R is None, implementation)
   if R is not None:
-    y = (jnp.einsum('btd,nde->bnte', y, R) if implementation == 'dot_bnt'
-         else jnp.einsum('btd,nde->btne', y, R))
+    with jax.named_scope("bam/read_rematrix"):
+      y = (jnp.einsum('btd,nde->bnte', y, R) if implementation == 'dot_bnt'
+           else jnp.einsum('btd,nde->btne', y, R))
   if return_key:
     return y, jnp.concatenate((r_row, r_col), axis=-1)
   if return_key_stages:
@@ -1965,36 +1969,42 @@ def factorized_head_bam_read(
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
-  projected_key = W_R(x)
-  raw_row, raw_col = jnp.split(projected_key, [M.shape[-2]], axis=-1)
-  if key_gate_logits is None:
-    row_gate = col_gate = None
-  else:
-    row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
-  r_row = _transform_bam_read_key(
-      raw_row, key_mode, key_scale, key_eps, row_gate)
-  r_col = _transform_bam_read_key(
-      raw_col, key_mode, key_scale, key_eps, col_gate)
+  with jax.named_scope("bam/read_key_projection"):
+    projected_key = W_R(x)
+    raw_row, raw_col = jnp.split(projected_key, [M.shape[-2]], axis=-1)
+  with jax.named_scope("bam/read_key_transform"):
+    if key_gate_logits is None:
+      row_gate = col_gate = None
+    else:
+      row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
+    r_row = _transform_bam_read_key(
+        raw_row, key_mode, key_scale, key_eps, row_gate)
+    r_col = _transform_bam_read_key(
+        raw_col, key_mode, key_scale, key_eps, col_gate)
 
-  if implementation in ('dot_bnt', 'dot_btn'):
-    y_u = jnp.einsum('btkv,btv->btk', M, r_col)
-    y_v = jnp.einsum('btkv,btk->btv', M, r_row)
-  elif implementation == 'mul_reduce_btn':
-    y_u = jnp.sum(M * r_col[..., None, :], axis=-1)
-    y_v = jnp.sum(M * r_row[..., :, None], axis=-2)
-  else:
-    raise ValueError(f'Unknown BAM read implementation: {implementation}')
-  raw_head_mix = W_head_mix(x)
-  if raw_head_mix.ndim != 4 or raw_head_mix.shape[-1] != 2:
-    raise ValueError(
-        f'factorized head mix expects [b,t,n,2], got {raw_head_mix.shape}')
-  head_mix = _rms(jnp.asarray(raw_head_mix, jnp.float32), key_eps, axis=-2)
-  head_mix = jnp.asarray(head_mix, y_u.dtype)
-  row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
-  return jnp.concatenate([
-      jnp.einsum('btk,btn->bntk', y_u, col_mix),
-      jnp.einsum('btv,btn->bntv', y_v, row_mix),
-  ], axis=-1)
+  with jax.named_scope("bam/read_m_contract"):
+    if implementation in ('dot_bnt', 'dot_btn'):
+      y_u = jnp.einsum('btkv,btv->btk', M, r_col)
+      y_v = jnp.einsum('btkv,btk->btv', M, r_row)
+    elif implementation == 'mul_reduce_btn':
+      y_u = jnp.sum(M * r_col[..., None, :], axis=-1)
+      y_v = jnp.sum(M * r_row[..., :, None], axis=-2)
+    else:
+      raise ValueError(f'Unknown BAM read implementation: {implementation}')
+  with jax.named_scope("bam/read_head_mix_projection"):
+    raw_head_mix = W_head_mix(x)
+  with jax.named_scope("bam/read_head_mix_transform"):
+    if raw_head_mix.ndim != 4 or raw_head_mix.shape[-1] != 2:
+      raise ValueError(
+          f'factorized head mix expects [b,t,n,2], got {raw_head_mix.shape}')
+    head_mix = _rms(jnp.asarray(raw_head_mix, jnp.float32), key_eps, axis=-2)
+    head_mix = jnp.asarray(head_mix, y_u.dtype)
+    row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
+  with jax.named_scope("bam/read_head_mix_expand"):
+    return jnp.concatenate([
+        jnp.einsum('btk,btn->bntk', y_u, col_mix),
+        jnp.einsum('btv,btn->bntv', y_v, row_mix),
+    ], axis=-1)
 
 
 def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
@@ -2422,14 +2432,15 @@ class BamAttention(Attention):
   def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False):
     gate_logits = None
     if self.config.bam_create_read_gate_params:
-      gate_bias = getattr(self, f'{gate_name}_b0')
-      if self._force_activation_dtype:
-        gate_bias = jnp.asarray(gate_bias, self.dtype)
-      candidate_logits = getattr(self, gate_name)(x) + gate_bias
-      if squeeze_fetch_axis:
-        candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
-      if self._read_key_mode == 'rms_gate':
-        gate_logits = candidate_logits
+      with jax.named_scope("bam/read_gate_projection"):
+        gate_bias = getattr(self, f'{gate_name}_b0')
+        if self._force_activation_dtype:
+          gate_bias = jnp.asarray(gate_bias, self.dtype)
+        candidate_logits = getattr(self, gate_name)(x) + gate_bias
+        if squeeze_fetch_axis:
+          candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
+        if self._read_key_mode == 'rms_gate':
+          gate_logits = candidate_logits
     kwargs = dict(
         key_mode=self._read_key_mode,
         key_scale=self._read_key_scale,

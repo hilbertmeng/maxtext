@@ -556,17 +556,20 @@ class BamNoMNormPostNoQKProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm,
 ):
     """2x2 speed control: post-RoPE LocalQK, QKNorm off."""
+    # ~0.326 steps/s; XPlane 3,058.7 ms.
     model_name = 'BamNoMNormPostNoQKProfile'
 
 
 class BamNoMNormPreNoQKProfile(BamNoMNormPostNoQKProfile):
     """2x2 speed control: pre-RoPE LocalQK, QKNorm off."""
+    # ~0.325 steps/s; XPlane 3,072.6 ms. Pre-RoPE alone is neutral (-0.45%).
     model_name = 'BamNoMNormPreNoQKProfile'
     bam_local_qk_injection = 'pre_qknorm_rope'
 
 
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):
     """2x2 speed control: post-RoPE LocalQK, standard-only QKNorm on."""
+    # ~0.322 steps/s; XPlane 3,094.6 ms. QKNorm alone slows this path by 1.16%.
     model_name = 'BamNoMNormPostQKProfile'
     qk_norm = True
 
@@ -576,12 +579,21 @@ class BamNoMNormPreQKProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNormPreRopeQKNorm,
 ):
     """2x2 speed target: pre-RoPE LocalQK, combined QKNorm on."""
+    # ~0.385 steps/s; XPlane 2,588.6 ms; +18.70% vs Pre/no-QKNorm from lower attention-backward traffic.
     model_name = 'BamNoMNormPreQKProfile'
 
 
 class BamNoMNormPostNoQKHlo(BamNoMNormPostNoQKProfile):
     """Dump the optimized train-step HLO for the 2x2 speed control."""
     model_name = 'BamNoMNormPostNoQKHlo'
+    profiler = ''
+    dump_hlo = True
+    steps = 2
+
+
+class BamNoMNormPreNoQKHlo(BamNoMNormPreNoQKProfile):
+    """Dump the optimized train-step HLO for the matched pre-RoPE control."""
+    model_name = 'BamNoMNormPreNoQKHlo'
     profiler = ''
     dump_hlo = True
     steps = 2

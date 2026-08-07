@@ -2101,6 +2101,7 @@ class BamAttention(Attention):
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
     self._profile_fetch_bypass = cfg.bam_profile_fetch_bypass
     self._read_implementation = cfg.bam_read_implementation
+    self._m_read_norm = cfg.bam_m_read_norm
     self._pack_local_qk_reads = cfg.bam_pack_local_qk_reads
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
     if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
@@ -2123,7 +2124,8 @@ class BamAttention(Attention):
     assert self._codebook_read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._shared_fetch_mode in (
         'legacy', 'compact', 'recompute', 'dynamic_mix', 'dynamic_rms_mix')
-    assert self._write_v_mode in ('x', 'x_bias', 'mix')
+    assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail')
+    assert self._m_read_norm in ('rms', 'none')
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._read_key_scale > 0.0
@@ -2351,11 +2353,15 @@ class BamAttention(Attention):
       # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
       loc_v = self.bam_v if cfg.bam_write_form == 'agg_u@loc_v' else self.bam_k
       assert self._write_v_mode != 'mix' or loc_v == self.bam_v
-      self.P_loc = DenseGeneral(features=(self.num_query_heads, loc_v), axis=-1,
-          kernel_init=reg_init, kernel_axes=("embed", "q_heads", "v_factor"),
-          dtype=self.dtype, weight_dtype=self.weight_dtype, name="P_loc",
-          quant=self.quant, matmul_precision=cfg.matmul_precision,
-          use_bias=self._write_v_mode == 'x_bias')
+      if self._write_v_mode == 'o_tail':
+        assert self.head_dim - self.bam_k == loc_v, (
+            'o_tail write requires the o_head tail width to equal the V-factor width')
+      else:
+        self.P_loc = DenseGeneral(features=(self.num_query_heads, loc_v), axis=-1,
+            kernel_init=reg_init, kernel_axes=("embed", "q_heads", "v_factor"),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name="P_loc",
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            use_bias=self._write_v_mode == 'x_bias')
       # Write gate g_write: regular kernel, bias = logit(eps) explicitly slightly open
       self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
           kernel_axes=("embed", "q_heads"), dtype=self.dtype, weight_dtype=self.weight_dtype,
@@ -2475,6 +2481,14 @@ class BamAttention(Attention):
       k_local = rearrange(k_local, 'b n t d -> b t n d')
     return q_local, k_local
 
+  def _matrix_for_read(self, M_in):
+    """Select the configured read-side view without changing the raw matrix stream."""
+    if M_in is None or self._m_read_norm == 'none':
+      return M_in
+    eps = self.config.normalization_layer_epsilon
+    return M_in * jax.lax.rsqrt(
+        jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + eps)
+
   def _apply_adjacent_rope(self, x, positions, name):
     """Apply the standard RoPE frequencies to adjacent coordinate pairs."""
     packed = jnp.concatenate([x[..., 0::2], x[..., 1::2]], axis=-1)
@@ -2495,12 +2509,14 @@ class BamAttention(Attention):
       u1 = jnp.einsum('btnd,ndk->btnk', o_head, self.P_agg_u)
     else:
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
-    x_v = self.P_loc(x)
+    if self._write_v_mode == 'o_tail':
+      u2 = o_head[..., self.bam_k:]
+    else:
+      x_v = self.P_loc(x)
+      u2 = x_v
     if self._write_v_mode == 'mix':
       u2 = _mix_bam_write_v(
           x_v, o_head, self.bam_k, self.write_v_mix_scale, self.write_v_bias)
-    else:
-      u2 = x_v                                             # V factor [b,t,n,v] (locally anchored)
     gate = jax.nn.sigmoid(self.W_gw(x) + self.gw_b0)       # [b,t,n]
     g = gate
     if cfg.bam_sqrt_n_scale:
@@ -2562,9 +2578,7 @@ class BamAttention(Attention):
     if 'local_qk' in self._mode and self._local_qk_injection == 'pre_qknorm_rope':
       assert M_in is not None, "local_qk read requires M_in"
       with jax.named_scope("bam/normalize_m"):
-        Mh = M_in * jax.lax.rsqrt(
-            jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True)
-            + cfg.normalization_layer_epsilon)
+        Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         q_local, k_local = self._read_local_qk(Mh, inputs_q)
@@ -2597,8 +2611,7 @@ class BamAttention(Attention):
     # bare accumulation on raw M_in. Param-free, pre-LN-style matrix-stream shift. ----
     if Mh is None:
       with jax.named_scope("bam/normalize_m"):
-        Mh = M_in * jax.lax.rsqrt(jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True)
-                                  + cfg.normalization_layer_epsilon) if M_in is not None else None
+        Mh = self._matrix_for_read(M_in)
 
     # ---- post-RoPE local_qk (historical route branch, before alpha) ----
     if 'local_qk' in self._mode and self._local_qk_injection == 'post_rope':

@@ -248,12 +248,13 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_profile_fetch_bypass = False  # profile only: feed local Mh directly to the full reader
     bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
+    bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_pack_local_qk_reads = False  # profile: pack Q/K heads into each local-M contraction
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
-    bam_write_v_mode = 'x'          # x | x_bias | mix
+    bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail
 
     scan_layers = False
 
@@ -409,6 +410,22 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK(
     # ~0.315 steps/s; stopped at 7,145. mean dloss -0.0035 vs Combined, +0.0057 vs PerHead @5,600–7,000.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK'
     bam_local_qk_key_mode = 'factorized'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
+):
+    """Ablate the whole-matrix RMS normalization before every BAM read."""
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm'
+    bam_m_read_norm = 'none'
+
+
+class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKU2OTail(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
+):
+    """Remove P_loc and write u2 directly from the current head-output tail."""
+    model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKU2OTail'
+    bam_write_v_mode = 'o_tail'
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope(

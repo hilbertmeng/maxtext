@@ -70,7 +70,10 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 Never use a watcher `pkill` pattern containing the train-log name; it can match itself. Kill
 old watchers only by watcher PID or `pkill -f watch_train_xd.sh`.
 
-6. After 30–40 stable steps, record `~steps/s` tersely in the experiment class in `exp.py`.
+6. After 30–40 stable steps, compare `~steps/s` with direct `compare_runs` and the expected
+   architectural delta, then record it tersely in the `exp.py` class. Immediately report and
+   investigate a material unexplained speed deviation; mark the class comment `!?` or `!!`
+   until resolved rather than treating the measurement as routine.
 
 ## Monitor Training
 

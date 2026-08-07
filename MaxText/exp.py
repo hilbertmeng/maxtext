@@ -207,7 +207,7 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
 
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
-    # ~0.760 steps/s; running.
+    # ~0.762 steps/s (-5.2% vs MHA, expected QKNorm overhead); running.
     model_name = 'Llama2MediumQKNorm'
     qk_norm = True
 
@@ -433,7 +433,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKN
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm
 ):
     """Normalize the combined standard/LocalQK vectors before applying RoPE."""
-    # ~0.384 steps/s; running.
+    # ~0.35–0.384 steps/s !? unexpectedly +7–18% vs NoMNorm; under paired XPlane investigation.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNormPreRopeQKNorm'
     bam_local_qk_injection = 'pre_qknorm_rope'
     qk_norm = True

@@ -252,6 +252,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
+    bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
+    bam_fetch_temporal_block_mode = 'none'  # none | mean | linear
+    bam_fetch_temporal_recent_window_size = None  # exact recent tokens; compress only older full blocks
     bam_codebook_source_implementation = 'dot'  # dot | mul_reduce
     bam_codebook_read_implementation = 'dot_btn'  # dot_btn | mul_reduce_btn
     bam_share_full_local_read = False  # share full/local_o runtime-key and gate projections
@@ -639,6 +642,14 @@ class BamLlama2MediumV1FetchSlidingWindow256(BamLlama2MediumV1):
     # ~0.460 steps/s; stopped at 2,860. dloss +0.0288 vs V1 @2,800; no benefit.
     model_name = 'BamLlama2MediumV1FetchSlidingWindow256'
     bam_fetch_sliding_window_size = 256
+
+
+class BamLlama2MediumV1CacheDiagnostics(BamLlama2MediumV1):
+    """Read-only V1 cache diagnostics on four randomized Pile eval batches."""
+    bam_diagnostics = True
+    eval_per_device_batch_size = 32.0
+    eval_shuffle_buffer_size = 32768
+    tensorboard_dir = "/tmp/bam_v1_cache_diag_tb/"
 
 
 class BamV1SixLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):

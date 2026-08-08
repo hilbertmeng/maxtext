@@ -14,6 +14,7 @@ from layers.attentions import (
     _select_bam_write_source,
     _shared_bam_fetch_alpha,
     _sliding_window_bam_fetch_alpha,
+    _temporal_block_bam_fetch,
     _transform_bam_read_key,
     _update_bam_matrix,
     bam_read,
@@ -580,6 +581,49 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(mixed[:, 0], expected, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(
         jnp.sqrt(jnp.sum(weights ** 2, axis=-1)), 1.0, rtol=1e-6, atol=1e-6)
+
+    mixed_aux, raw_logits, actual_weights, pre_diagonal = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8, return_aux=True)
+    np.testing.assert_array_equal(mixed_aux, mixed)
+    np.testing.assert_array_equal(raw_logits, logits)
+    np.testing.assert_allclose(actual_weights, weights, rtol=1e-6, atol=1e-6)
+    np.testing.assert_array_equal(pre_diagonal, mixed)
+
+  def test_temporal_block_fetch_is_causal_and_segment_aware(self):
+    alpha = jnp.tril(jnp.ones((1, 1, 8, 8), dtype=jnp.float32))
+    alpha = alpha / alpha.sum(axis=-1, keepdims=True)
+    matrix = jnp.arange(8, dtype=jnp.float32).reshape(1, 8, 1, 1)
+    positions = jnp.arange(8, dtype=jnp.int32)[None]
+    segments = jnp.ones_like(positions)
+
+    mean = _temporal_block_bam_fetch(
+        alpha, matrix, positions, segments, 4, 'mean')
+    # Current block is exact. At t=4, block 0 has mean 1.5 and token 4 is exact.
+    np.testing.assert_allclose(mean[0, 0, :4, 0, 0],
+                               jnp.einsum('ts,s->t', alpha[0, 0, :4], matrix[0, :, 0, 0]))
+    np.testing.assert_allclose(mean[0, 0, 4, 0, 0], (4 * 1.5 + 4.0) / 5.0)
+
+    # A new packed segment must not contaminate the first segment's block summary.
+    packed_positions = jnp.array([[0, 1, 2, 3, 0, 1, 2, 3]], dtype=jnp.int32)
+    packed_segments = jnp.array([[1, 1, 1, 1, 2, 2, 2, 2]], dtype=jnp.int32)
+    packed_alpha = alpha.at[:, :, 4:, :4].set(0)
+    packed_alpha = packed_alpha / jnp.maximum(packed_alpha.sum(axis=-1, keepdims=True), 1)
+    packed = _temporal_block_bam_fetch(
+        packed_alpha, matrix, packed_positions, packed_segments, 4, 'mean')
+    exact = jnp.einsum('bfts,bskv->bftkv', packed_alpha, matrix)
+    np.testing.assert_allclose(packed, exact)
+
+  def test_temporal_linear_reconstructs_linear_matrix_history(self):
+    alpha = jnp.tril(jnp.ones((1, 1, 8, 8), dtype=jnp.float32))
+    alpha = alpha / alpha.sum(axis=-1, keepdims=True)
+    positions = jnp.arange(8, dtype=jnp.int32)[None]
+    segments = jnp.ones_like(positions)
+    within = (positions % 4).astype(jnp.float32)
+    matrix = (3.0 + 2.0 * within)[..., None, None]
+    actual = _temporal_block_bam_fetch(
+        alpha, matrix, positions, segments, 4, 'linear')
+    exact = jnp.einsum('bfts,bskv->bftkv', alpha, matrix)
+    np.testing.assert_allclose(actual, exact, rtol=1e-5, atol=1e-5)
 
   def test_fetch_sliding_window_masks_post_mix_without_renormalizing(self):
     mixed = jax.random.normal(jax.random.PRNGKey(7), (2, 1, 6, 6))

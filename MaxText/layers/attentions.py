@@ -1749,7 +1749,8 @@ def _shared_bam_fetch_alpha(alpha, query, key, attn_mask, n_f, mode,
 
 
 def _dynamic_mixed_bam_fetch_alpha(
-    alpha, mix_logits, diagonal_yield, weight_mode='softmax', epsilon=1e-6):
+    alpha, mix_logits, diagonal_yield, weight_mode='softmax', epsilon=1e-6,
+    return_aux=False):
   """Build one BAM fetch route as a token-wise mixture of all MHA heads."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
   if weight_mode == 'softmax':
@@ -1762,10 +1763,14 @@ def _dynamic_mixed_bam_fetch_alpha(
     raise ValueError(f'Unknown dynamic fetch weight mode: {weight_mode}')
   mix_weights = jnp.asarray(mix_weights, alpha.dtype)
   fetch_alpha = jnp.einsum('bnts,btn->bts', alpha, mix_weights)
+  pre_diagonal_alpha = fetch_alpha[:, None]
   if diagonal_yield:
     fetch_alpha = fetch_alpha * (
         1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-  return fetch_alpha[:, None]
+  fetch_alpha = fetch_alpha[:, None]
+  if return_aux:
+    return fetch_alpha, mix_logits, mix_weights, pre_diagonal_alpha
+  return fetch_alpha
 
 
 def _sliding_window_bam_fetch_alpha(alpha, window_size):
@@ -1776,6 +1781,94 @@ def _sliding_window_bam_fetch_alpha(alpha, window_size):
   source = jnp.arange(alpha.shape[-1])[None, :]
   mask = (source <= target) & (source > target - window_size)
   return jnp.where(mask, alpha, jnp.asarray(0, alpha.dtype))
+
+
+def _temporal_block_bam_fetch(
+    alpha, M, positions, segment_ids, block_size, mode, recent_window_size=None):
+  """Approximate old full-fetch states with causal, segment-aware block summaries.
+
+  Completed blocks store either their mean matrix or an orthogonal constant/linear
+  least-squares pair.  The current block remains exact.  With ``recent_window_size``,
+  only blocks ending before the exact recent window are compressed; the boundary
+  block also remains exact, avoiding future leakage and partial-block ambiguity.
+  """
+  if alpha.ndim != 4 or M.ndim != 4:
+    raise ValueError(f'temporal block fetch expects [b,f,t,s] and [b,s,k,v], got {alpha.shape}, {M.shape}')
+  if alpha.shape[0] != M.shape[0] or alpha.shape[-1] != M.shape[1]:
+    raise ValueError(f'incompatible temporal block fetch shapes: {alpha.shape}, {M.shape}')
+  if alpha.shape[-2] != M.shape[1] or positions.shape != segment_ids.shape:
+    raise ValueError('temporal block fetch currently requires self-attention with aligned positions/segments')
+  if block_size <= 1:
+    raise ValueError(f'temporal block size must exceed one, got {block_size}')
+  if mode not in ('mean', 'linear'):
+    raise ValueError(f'unknown temporal block mode: {mode}')
+  if recent_window_size is not None and recent_window_size <= 0:
+    raise ValueError(f'recent window must be positive, got {recent_window_size}')
+
+  batch, _, target_length, source_length = alpha.shape
+  del batch
+  source_index = jnp.arange(source_length)[None, :]
+  previous_segment = jnp.concatenate(
+      (segment_ids[:, :1], segment_ids[:, :-1]), axis=1)
+  is_segment_start = (source_index == 0) | (segment_ids != previous_segment) | (positions == 0)
+  segment_start = jax.lax.associative_scan(
+      jnp.maximum, jnp.where(is_segment_start, source_index, 0), axis=1)
+  group_ids = segment_start + positions // block_size
+  valid_source = segment_ids != 0
+
+  def segment_sum(data):
+    return jax.vmap(
+        lambda values, ids: jax.ops.segment_sum(
+            values, ids, num_segments=source_length)
+    )(data, group_ids)
+
+  # Accumulate summaries in f32, then store/read them in the matrix-stream dtype.
+  M_f32 = jnp.asarray(M, jnp.float32)
+  valid_f32 = valid_source.astype(jnp.float32)
+  counts = segment_sum(valid_f32)[..., None, None]
+  mean_matrix = segment_sum(M_f32 * valid_f32[..., None, None]) / jnp.maximum(counts, 1.0)
+  mean_matrix = jnp.asarray(mean_matrix, M.dtype)
+
+  within_block = positions % block_size
+  linear_coordinate = (
+      2.0 * within_block.astype(jnp.float32) / float(block_size - 1) - 1.0)
+  if mode == 'linear':
+    linear_energy = segment_sum(
+        jnp.square(linear_coordinate) * valid_f32)[..., None, None]
+    linear_matrix = segment_sum(
+        M_f32 * (linear_coordinate * valid_f32)[..., None, None]
+    ) / jnp.maximum(linear_energy, 1.0)
+    linear_matrix = jnp.asarray(linear_matrix, M.dtype)
+  else:
+    linear_matrix = None
+
+  query_group = group_ids[:, :target_length]
+  same_segment = (
+      segment_ids[:, :target_length, None] == segment_ids[:, None, :])
+  same_segment &= segment_ids[:, :target_length, None] != 0
+  if recent_window_size is None:
+    compress = same_segment & (
+        query_group[:, :, None] != group_ids[:, None, :])
+  else:
+    source_block_end = (positions // block_size + 1) * block_size - 1
+    cutoff = positions[:, :target_length, None] - recent_window_size
+    compress = same_segment & (source_block_end[:, None, :] <= cutoff)
+
+  compressed_alpha = alpha * compress[:, None, :, :].astype(alpha.dtype)
+  exact_alpha = alpha - compressed_alpha
+  grouped_alpha = segment_sum(
+      jnp.transpose(compressed_alpha, (0, 3, 1, 2)))
+  grouped_alpha = jnp.transpose(grouped_alpha, (0, 2, 3, 1))
+  compressed_fetch = jnp.einsum('bftg,bgkv->bftkv', grouped_alpha, mean_matrix)
+  if mode == 'linear':
+    grouped_linear_alpha = segment_sum(jnp.transpose(
+        compressed_alpha * linear_coordinate[:, None, None, :].astype(alpha.dtype),
+        (0, 3, 1, 2)))
+    grouped_linear_alpha = jnp.transpose(grouped_linear_alpha, (0, 2, 3, 1))
+    compressed_fetch = compressed_fetch + jnp.einsum(
+        'bftg,bgkv->bftkv', grouped_linear_alpha, linear_matrix)
+  exact_fetch = jnp.einsum('bfts,bskv->bftkv', exact_alpha, M)
+  return exact_fetch + compressed_fetch
 
 
 def _select_bam_write_source(source, y_std, y_codebook, y_full, y_local_o, y_all=None):
@@ -2254,6 +2347,9 @@ class BamAttention(Attention):
     self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
     self._fetch_sliding_window_size = cfg.bam_fetch_sliding_window_size
+    self._fetch_temporal_block_size = cfg.bam_fetch_temporal_block_size
+    self._fetch_temporal_block_mode = cfg.bam_fetch_temporal_block_mode
+    self._fetch_temporal_recent_window_size = cfg.bam_fetch_temporal_recent_window_size
     self._codebook_source_implementation = cfg.bam_codebook_source_implementation
     self._codebook_read_implementation = cfg.bam_codebook_read_implementation
     self._share_full_local_read = cfg.bam_share_full_local_read
@@ -2293,6 +2389,14 @@ class BamAttention(Attention):
       assert not cfg.bam_dedicated_fetch
       assert self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'), (
           'BAM fetch sliding window currently masks the post-mix fetch alpha')
+    if self._fetch_temporal_block_size is not None:
+      assert self._fetch_temporal_block_size > 1
+      assert self._fetch_temporal_block_mode in ('mean', 'linear')
+      assert 'full' in self._mode, 'temporal block compression requires full fetch'
+      assert not self._profile_fetch_bypass
+    else:
+      assert self._fetch_temporal_block_mode == 'none'
+      assert self._fetch_temporal_recent_window_size is None
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail')
     assert self._m_read_norm in ('rms', 'none')
     assert self._forget_mode in ('constant', 'dynamic')
@@ -2879,6 +2983,9 @@ class BamAttention(Attention):
     # the LA exact subfamily) are untouched; local_o itself is fetch-identity (α=δ); when local_o
     # is off the alpha diagonal is the local_o quota-squeeze approximation and must stay.
     fetch_alpha = None
+    fetch_mix_logits = None
+    fetch_mix_weights = None
+    fetch_alpha_pre_diagonal = None
     diagonal_yield = 'local_o' in self._mode and not cfg.bam_keep_fetch_diagonal
     if {'full', 'codebook'} & self._mode:
       with jax.named_scope("bam/mix_alpha"):
@@ -2899,10 +3006,16 @@ class BamAttention(Attention):
             fetch_alpha = fetch_alpha * (
                 1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
         elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
-          fetch_alpha = _dynamic_mixed_bam_fetch_alpha(
+          dynamic_fetch = _dynamic_mixed_bam_fetch_alpha(
               alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
               'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
-              cfg.normalization_layer_epsilon)
+              cfg.normalization_layer_epsilon,
+              return_aux=cfg.bam_diagnostics)
+          if cfg.bam_diagnostics:
+            (fetch_alpha, fetch_mix_logits, fetch_mix_weights,
+             fetch_alpha_pre_diagonal) = dynamic_fetch
+          else:
+            fetch_alpha = dynamic_fetch
         else:
           fetch_alpha = _shared_bam_fetch_alpha(
               alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
@@ -2920,6 +3033,7 @@ class BamAttention(Attention):
     y_full = jnp.zeros_like(y_std)
     y_local_o = jnp.zeros_like(y_std)
     Mbar = None
+    Mbar_fetch = None
     y_bam = 0.0
     capture_read_key_stages = cfg.bam_diagnostics and not self.is_initializing()
     read_key_stages = {}
@@ -2934,8 +3048,16 @@ class BamAttention(Attention):
     if 'full' in self._mode:
       assert Mh is not None, "full read requires M_in"
       with jax.named_scope("bam/fetch_m"):
-        Mbar = (Mh[:, None] if self._profile_fetch_bypass else
-                jnp.einsum('bfts,bskv->bftkv', fetch_alpha, Mh))
+        if self._profile_fetch_bypass:
+          Mbar_fetch = Mh[:, None]
+        elif self._fetch_temporal_block_size is not None:
+          Mbar_fetch = _temporal_block_bam_fetch(
+              fetch_alpha, Mh, inputs_positions, decoder_segment_ids,
+              self._fetch_temporal_block_size, self._fetch_temporal_block_mode,
+              self._fetch_temporal_recent_window_size)
+        else:
+          Mbar_fetch = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, Mh)
+        Mbar = Mbar_fetch
         if self._combine_full_local_read:
           # The shared runtime key makes Read linear in M.  Because fetch_alpha has
           # yielded its diagonal, adding normalized local Mh here exactly replaces
@@ -3021,6 +3143,14 @@ class BamAttention(Attention):
       }
       if fetch_alpha is not None:
         raw_tensors["fetch_alpha"] = fetch_alpha
+      if fetch_alpha_pre_diagonal is not None:
+        raw_tensors["fetch_alpha_pre_diagonal"] = fetch_alpha_pre_diagonal
+      if fetch_mix_logits is not None:
+        raw_tensors["fetch_mix_logits"] = fetch_mix_logits
+      if fetch_mix_weights is not None:
+        raw_tensors["fetch_mix_weights"] = fetch_mix_weights
+      if Mbar_fetch is not None:
+        raw_tensors["Mbar_fetch"] = Mbar_fetch
       if Mbar is not None:
         raw_tensors["Mbar"] = Mbar
       if write_gate is not None:

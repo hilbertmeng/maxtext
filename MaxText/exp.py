@@ -664,6 +664,17 @@ class BamV1SixLayerFullBlockMulProfile(BamV1SixLayerReadProfile):
     bam_full_block_implementation = 'mul_reduce'
 
 
+class BamV1FullLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
+    """Full-layer control for the winning bilateral block-read path."""
+    model_name = 'BamV1FullLayerReadProfile'
+
+
+class BamV1FullLayerLocalBlockDotProfile(BamV1FullLayerReadProfile):
+    """Full-layer verification of the LocalQK block-dot path."""
+    model_name = 'BamV1FullLayerLocalBlockDotProfile'
+    bam_local_qk_block_implementation = 'dot'
+
+
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):
     """2x2 speed control: post-RoPE LocalQK, standard-only QKNorm on."""
     # ~0.322 steps/s; XPlane 3,094.6 ms. QKNorm alone slows this path by 1.16%.

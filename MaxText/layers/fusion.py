@@ -155,7 +155,10 @@ class SubDecoderLayer(nn.Module):
         AttnCls = attentions.BamAttention
         modes = cfg.bam_layer_modes
         layer_mode = modes[self.layer_inx] if isinstance(modes, list) else modes
-        attn_kwargs.update(layer_mode=layer_mode, bam_k=cfg.bam_k, bam_v=cfg.bam_v)
+        read_sides = cfg.bam_read_sides
+        read_side = read_sides[self.layer_inx] if isinstance(read_sides, list) else read_sides
+        attn_kwargs.update(
+            layer_mode=layer_mode, read_side=read_side, bam_k=cfg.bam_k, bam_v=cfg.bam_v)
     else:
         AttnCls = Attention
     attention_layer = AttnCls(**attn_kwargs)

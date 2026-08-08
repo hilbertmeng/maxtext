@@ -131,6 +131,55 @@ class BamReadKeyTransformTest(absltest.TestCase):
         for got, expected in zip(actual_grad, reference_grad):
           np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
 
+  def test_one_sided_bam_reads_keep_selected_half(self):
+    b, t, n, f, k, v, e = 2, 3, 4, 2, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(67), 6)
+    x = jax.random.normal(random[0], (b, t, e))
+    gates = jax.random.normal(random[1], (b, t, n, f, 2))
+    M = jax.random.normal(random[2], (b, f, t, k, v))
+    kernel = jax.random.normal(random[3], (e, n, f, k + v))
+    projection = lambda z: jnp.einsum('bte,enfD->btnfD', z, kernel)
+
+    for implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn'):
+      outputs = {}
+      for read_side in ('both', 'row', 'col'):
+        y = bam_read(
+            M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
+            key_eps=1e-4, key_gate_logits=gates,
+            implementation=implementation, read_side=read_side)
+        outputs[read_side] = (
+            rearrange(y, 'b n t d -> b t n d')
+            if implementation == 'dot_bnt' else y)
+      np.testing.assert_array_equal(outputs['row'][..., :k], 0)
+      np.testing.assert_allclose(
+          outputs['row'][..., k:], outputs['both'][..., k:], rtol=1e-5, atol=1e-5)
+      np.testing.assert_allclose(
+          outputs['col'][..., :k], outputs['both'][..., :k], rtol=1e-5, atol=1e-5)
+      np.testing.assert_array_equal(outputs['col'][..., k:], 0)
+
+    local_M = jax.random.normal(random[4], (b, t, k, v))
+    key_kernel = jax.random.normal(random[3], (e, k + v))
+    mix_kernel = jax.random.normal(random[5], (e, n, 2))
+    key_projection = lambda z: jnp.einsum('bte,eD->btD', z, key_kernel)
+    mix_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    local_gates = gates[..., 0, :]
+    both = factorized_head_bam_read(
+        local_M, x, key_projection, mix_projection, key_mode='rms_gate',
+        key_scale=2.0, key_eps=1e-4, key_gate_logits=local_gates,
+        implementation='mul_reduce_btn')
+    row = factorized_head_bam_read(
+        local_M, x, key_projection, mix_projection, key_mode='rms_gate',
+        key_scale=2.0, key_eps=1e-4, key_gate_logits=local_gates,
+        implementation='mul_reduce_btn', read_side='row')
+    col = factorized_head_bam_read(
+        local_M, x, key_projection, mix_projection, key_mode='rms_gate',
+        key_scale=2.0, key_eps=1e-4, key_gate_logits=local_gates,
+        implementation='mul_reduce_btn', read_side='col')
+    np.testing.assert_array_equal(row[..., :k], 0)
+    np.testing.assert_allclose(row[..., k:], both[..., k:], rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(col[..., :k], both[..., :k], rtol=1e-5, atol=1e-5)
+    np.testing.assert_array_equal(col[..., k:], 0)
+
   def test_packed_qk_read_matches_two_direct_layout_reads_and_gradients(self):
     b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
     random = jax.random.split(jax.random.PRNGKey(43), 8)

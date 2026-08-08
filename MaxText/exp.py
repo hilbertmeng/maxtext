@@ -222,6 +222,7 @@ class BamLlama2Medium(Llama2Medium):
     # Capability-ceiling run: keep the full-read oracle enabled in every layer
     # for all 13.5k steps. Its measured cost is intentional for this experiment.
     bam_layer_modes = ['local_qk+local_o+full'] * 24
+    bam_read_sides = 'both'  # both | row (M^T r_row) | col (M r_col); may be per-layer
 
     bam_k = 32
     bam_v = 32
@@ -602,10 +603,29 @@ class BamFactorizedAllBf16MulReduceSixLayerProfile(
     bam_read_implementation = 'mul_reduce_btn'
 
 
-class BamFactorizedAllBf16MulReduceProfile(BamNoMNormAllBf16Profile):
-    """Full-24 optimized FactorizedLocalQK component profile."""
-    model_name = 'BamFactorizedAllBf16MulReduceProfile'
+class BamLlama2MediumV1(
+    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm
+):
+    """Milestone: NoMNorm FactorizedLocalQK with the validated bf16/mul-reduce path."""
+    model_name = 'BamLlama2MediumV1'
+    float32_logits = False
+    bam_force_activation_dtype = True
     bam_read_implementation = 'mul_reduce_btn'
+
+
+class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
+    """Write every layer; BAM-read only odd-numbered layers."""
+    model_name = 'BamLlama2MediumV1AlternateLayerRead'
+    bam_layer_modes = [
+        'write' if layer % 2 == 0 else 'local_qk+local_o+full'
+        for layer in range(24)
+    ]
+
+
+class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
+    """Write every layer; alternate row-only and column-only BAM reads."""
+    model_name = 'BamLlama2MediumV1AlternateRowColRead'
+    bam_read_sides = ['row' if layer % 2 == 0 else 'col' for layer in range(24)]
 
 
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):

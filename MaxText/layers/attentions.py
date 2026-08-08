@@ -1849,20 +1849,35 @@ def _project_bam_read_keys(
   return raw_row, raw_col, r_row, r_col
 
 
-def _contract_bam_read(Mc, Mr, r_row, r_col, per_head, implementation):
-  """Contract both sides of M; optimized variants return head after token."""
+def _contract_bam_read(
+    Mc, Mr, r_row, r_col, per_head, implementation, read_side='both'):
+  """Contract the selected side(s) of M; omitted output halves are zero."""
+  if read_side not in ('both', 'row', 'col'):
+    raise ValueError(f'Unknown BAM read side: {read_side}')
   f = 'f' if Mc.ndim == 5 else ''
   n = 'n' if per_head else ''
   if implementation == 'dot_bnt':
-    return jnp.concatenate([
-        jnp.einsum(f'b{f}tkv,bt{n}{f}v->b{n}tk', Mc, r_col),
-        jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row),
-    ], axis=-1)
+    y_u = (jnp.einsum(f'b{f}tkv,bt{n}{f}v->b{n}tk', Mc, r_col)
+           if read_side in ('both', 'col') else None)
+    y_v = (jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row)
+           if read_side in ('both', 'row') else None)
+    if y_u is None:
+      y_u = jnp.zeros(y_v.shape[:-1] + (Mc.shape[-2],), dtype=y_v.dtype)
+    if y_v is None:
+      y_v = jnp.zeros(y_u.shape[:-1] + (Mr.shape[-1],), dtype=y_u.dtype)
+    return jnp.concatenate([y_u, y_v], axis=-1)
   if implementation == 'dot_btn':
-    with jax.named_scope("bam/contract_1a_col"):
-      y_u = jnp.einsum(f'b{f}tkv,bt{n}{f}v->bt{n}k', Mc, r_col)
-    with jax.named_scope("bam/contract_1b_row"):
-      y_v = jnp.einsum(f'b{f}tkv,bt{n}{f}k->bt{n}v', Mr, r_row)
+    y_u = y_v = None
+    if read_side in ('both', 'col'):
+      with jax.named_scope("bam/contract_1a_col"):
+        y_u = jnp.einsum(f'b{f}tkv,bt{n}{f}v->bt{n}k', Mc, r_col)
+    if read_side in ('both', 'row'):
+      with jax.named_scope("bam/contract_1b_row"):
+        y_v = jnp.einsum(f'b{f}tkv,bt{n}{f}k->bt{n}v', Mr, r_row)
+    if y_u is None:
+      y_u = jnp.zeros(y_v.shape[:-1] + (Mc.shape[-2],), dtype=y_v.dtype)
+    if y_v is None:
+      y_v = jnp.zeros(y_u.shape[:-1] + (Mr.shape[-1],), dtype=y_u.dtype)
     return jnp.concatenate([y_u, y_v], axis=-1)
   if implementation != 'mul_reduce_btn':
     raise ValueError(f'Unknown BAM read implementation: {implementation}')
@@ -1873,15 +1888,21 @@ def _contract_bam_read(Mc, Mr, r_row, r_col, per_head, implementation):
     r_row = r_row[:, :, None]
     r_col = r_col[:, :, None]
   if Mc.ndim == 4:
-    y_u = jnp.sum(Mc[:, :, None] * r_col[..., None, :], axis=-1)
-    y_v = jnp.sum(Mr[:, :, None] * r_row[..., :, None], axis=-2)
+    y_u = (jnp.sum(Mc[:, :, None] * r_col[..., None, :], axis=-1)
+           if read_side in ('both', 'col') else None)
+    y_v = (jnp.sum(Mr[:, :, None] * r_row[..., :, None], axis=-2)
+           if read_side in ('both', 'row') else None)
   else:
     mc = jnp.transpose(Mc, (0, 2, 1, 3, 4))  # [b,t,f,k,v]
     mr = jnp.transpose(Mr, (0, 2, 1, 3, 4))
-    y_u = jnp.sum(
-        mc[:, :, None] * r_col[..., None, :], axis=(-3, -1))
-    y_v = jnp.sum(
-        mr[:, :, None] * r_row[..., :, None], axis=(-3, -2))
+    y_u = (jnp.sum(mc[:, :, None] * r_col[..., None, :], axis=(-3, -1))
+           if read_side in ('both', 'col') else None)
+    y_v = (jnp.sum(mr[:, :, None] * r_row[..., :, None], axis=(-3, -2))
+           if read_side in ('both', 'row') else None)
+  if y_u is None:
+    y_u = jnp.zeros(y_v.shape[:-1] + (Mc.shape[-2],), dtype=y_v.dtype)
+  if y_v is None:
+    y_v = jnp.zeros(y_u.shape[:-1] + (Mr.shape[-1],), dtype=y_u.dtype)
   y = jnp.concatenate([y_u, y_v], axis=-1)
   return y if per_head else jnp.squeeze(y, axis=-2)
 
@@ -1889,7 +1910,8 @@ def _contract_bam_read(Mc, Mr, r_row, r_col, per_head, implementation):
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_eps=1e-6, key_gate_logits=None, return_key=False,
              return_key_stages=False, key_row_norm=None, key_col_norm=None,
-             use_learned_key_norm=False, implementation='dot_bnt'):
+             use_learned_key_norm=False, implementation='dot_bnt',
+             read_side='both'):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
   Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
@@ -1914,7 +1936,8 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
   with jax.named_scope("bam/read_m_contract"):
-    y = _contract_bam_read(Mc, Mr, r_row, r_col, R is None, implementation)
+    y = _contract_bam_read(
+        Mc, Mr, r_row, r_col, R is None, implementation, read_side)
   if R is not None:
     with jax.named_scope("bam/read_rematrix"):
       y = (jnp.einsum('btd,nde->bnte', y, R) if implementation == 'dot_bnt'
@@ -1953,7 +1976,8 @@ def packed_qk_bam_read(M, x, W_q, W_k, q_kwargs, k_kwargs):
 
 def factorized_head_bam_read(
     M, x, W_R, W_head_mix, *, key_mode='none', key_scale=1.0,
-    key_eps=1e-6, key_gate_logits=None, implementation='dot_bnt'):
+    key_eps=1e-6, key_gate_logits=None, implementation='dot_bnt',
+    read_side='both'):
   """Read once with a shared runtime key, then route it dynamically across heads.
 
   For each side, the effective per-head key is the rank-1 factorization
@@ -1969,6 +1993,8 @@ def factorized_head_bam_read(
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
+  if read_side not in ('both', 'row', 'col'):
+    raise ValueError(f'Unknown BAM read side: {read_side}')
   with jax.named_scope("bam/read_key_projection"):
     projected_key = W_R(x)
     raw_row, raw_col = jnp.split(projected_key, [M.shape[-2]], axis=-1)
@@ -1983,12 +2009,17 @@ def factorized_head_bam_read(
         raw_col, key_mode, key_scale, key_eps, col_gate)
 
   with jax.named_scope("bam/read_m_contract"):
+    y_u = y_v = None
     if implementation in ('dot_bnt', 'dot_btn'):
-      y_u = jnp.einsum('btkv,btv->btk', M, r_col)
-      y_v = jnp.einsum('btkv,btk->btv', M, r_row)
+      if read_side in ('both', 'col'):
+        y_u = jnp.einsum('btkv,btv->btk', M, r_col)
+      if read_side in ('both', 'row'):
+        y_v = jnp.einsum('btkv,btk->btv', M, r_row)
     elif implementation == 'mul_reduce_btn':
-      y_u = jnp.sum(M * r_col[..., None, :], axis=-1)
-      y_v = jnp.sum(M * r_row[..., :, None], axis=-2)
+      if read_side in ('both', 'col'):
+        y_u = jnp.sum(M * r_col[..., None, :], axis=-1)
+      if read_side in ('both', 'row'):
+        y_v = jnp.sum(M * r_row[..., :, None], axis=-2)
     else:
       raise ValueError(f'Unknown BAM read implementation: {implementation}')
   with jax.named_scope("bam/read_head_mix_projection"):
@@ -1998,13 +2029,19 @@ def factorized_head_bam_read(
       raise ValueError(
           f'factorized head mix expects [b,t,n,2], got {raw_head_mix.shape}')
     head_mix = _rms(jnp.asarray(raw_head_mix, jnp.float32), key_eps, axis=-2)
-    head_mix = jnp.asarray(head_mix, y_u.dtype)
+    output_dtype = y_u.dtype if y_u is not None else y_v.dtype
+    head_mix = jnp.asarray(head_mix, output_dtype)
     row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
   with jax.named_scope("bam/read_head_mix_expand"):
-    return jnp.concatenate([
-        jnp.einsum('btk,btn->bntk', y_u, col_mix),
-        jnp.einsum('btv,btn->bntv', y_v, row_mix),
-    ], axis=-1)
+    y_u = (jnp.einsum('btk,btn->bntk', y_u, col_mix)
+           if y_u is not None else None)
+    y_v = (jnp.einsum('btv,btn->bntv', y_v, row_mix)
+           if y_v is not None else None)
+    if y_u is None:
+      y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
+    if y_v is None:
+      y_v = jnp.zeros(y_u.shape[:-1] + (M.shape[-1],), dtype=y_u.dtype)
+    return jnp.concatenate([y_u, y_v], axis=-1)
 
 
 def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
@@ -2063,7 +2100,8 @@ class BamAttention(Attention):
   """BAM Attention: standard MHA plus a matrix residual stream M, a write primitive, and a read primitive.
 
   v0.1: train mode, n==n_kv, non-scan. Per-layer read mode is set by layer_mode
-  ('codebook' / 'local_qk' / 'full' / 'local_o' / 'none', combinable e.g. 'codebook+local_qk+local_o').
+  ('codebook' / 'local_qk' / 'full' / 'local_o' / 'write' / 'none', combinable
+  e.g. 'codebook+local_qk+local_o').  `write` keeps the M update but performs no BAM read.
   Asymmetric init: read side zero-initialized => start is bit-identical to standard MHA;
   write-gate bias=logit(eps) slightly open => M accumulates immediately. 'full' is the
   full-read oracle, for codebook-read correctness check only; most expensive transfer, not
@@ -2077,6 +2115,7 @@ class BamAttention(Attention):
   """
 
   layer_mode: str = 'none'      # per-layer read mode (each layer is a separate instance under non-scan)
+  read_side: str = 'both'       # both | row (M^T r_row) | col (M r_col)
   bam_k: int = 32
   bam_v: int = 32
 
@@ -2088,6 +2127,8 @@ class BamAttention(Attention):
         f"since the BAM head output [U;V] must be as wide as a standard head to share W_O")
     self._mode = set(self.layer_mode.replace('+', ' ').split())
     self._has_write = self.layer_mode != 'none'
+    assert self._mode <= {'codebook', 'local_qk', 'full', 'local_o', 'write', 'none'}
+    assert self.read_side in ('both', 'row', 'col')
 
     # DenseGeneral passes in_axis/out_axis to its initializer in addition to
     # key/shape/dtype. Use MaxText's N-D constant wrapper so the zero-init read
@@ -2117,9 +2158,8 @@ class BamAttention(Attention):
     self._m_read_norm = cfg.bam_m_read_norm
     self._pack_local_qk_reads = cfg.bam_pack_local_qk_reads
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
-    if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
-      assert {'full', 'codebook'} & self._mode, (
-          'dynamic head mixing requires a full or codebook read mode')
+    if (self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix')
+        and {'full', 'codebook'} & self._mode):
       assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
       assert cfg.bam_n_f == 1, 'dynamic head mixing produces exactly one fetch route'
     self._write_v_mode = cfg.bam_write_v_mode
@@ -2152,7 +2192,7 @@ class BamAttention(Attention):
     assert not self._create_grouped_rw_norm or (
         'local_qk' not in self._mode or self._local_qk_key_mode == 'per_head'), (
             'per-head learned local_qk normalization requires per-head runtime keys')
-    if self._share_full_local_read:
+    if self._share_full_local_read and {'full', 'local_o'} & self._mode:
       assert {'full', 'local_o'} <= self._mode, (
           'shared full/local read projections require both full and local_o')
       assert cfg.bam_n_f == 1, (
@@ -2263,7 +2303,8 @@ class BamAttention(Attention):
             weight_dtype=self.weight_dtype, name='fetch_key', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
 
-    if self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
+    if (self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix')
+        and {'full', 'codebook'} & self._mode):
       # Softmax starts from a uniform convex mixture. Signed RMS mixing needs a
       # regular-initialized direction because RMSNorm at an all-zero vector is singular;
       # the content-read projection remains zero-init, preserving the exact MHA start.
@@ -2478,10 +2519,12 @@ class BamAttention(Attention):
     if self._local_qk_key_mode == 'factorized':
       q_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
-          **local_qk_q_kwargs, implementation=self._read_implementation)
+          **local_qk_q_kwargs, implementation=self._read_implementation,
+          read_side=self.read_side)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
-          **local_qk_k_kwargs, implementation=self._read_implementation)
+          **local_qk_k_kwargs, implementation=self._read_implementation,
+          read_side=self.read_side)
       return (
           rearrange(q_local, 'b n t d -> b t n d'),
           rearrange(k_local, 'b n t d -> b t n d'),
@@ -2492,10 +2535,10 @@ class BamAttention(Attention):
     local_qk_R_k = None if local_qk_per_head else self.R_k
     q_local = bam_read(
         Mh, inputs_q, self.W_lq, local_qk_R_q, **local_qk_q_kwargs,
-        implementation=self._read_implementation)
+        implementation=self._read_implementation, read_side=self.read_side)
     k_local = bam_read(
         Mh, inputs_q, self.W_lk, local_qk_R_k, **local_qk_k_kwargs,
-        implementation=self._read_implementation)
+        implementation=self._read_implementation, read_side=self.read_side)
     if self._read_implementation == 'dot_bnt':
       q_local = rearrange(q_local, 'b n t d -> b t n d')
       k_local = rearrange(k_local, 'b n t d -> b t n d')
@@ -2697,37 +2740,39 @@ class BamAttention(Attention):
     # masking self hits block neighbors) and prefix (inclusive scan — "contains self" is part of
     # the LA exact subfamily) are untouched; local_o itself is fetch-identity (α=δ); when local_o
     # is off the alpha diagonal is the local_o quota-squeeze approximation and must stay.
+    fetch_alpha = None
     diagonal_yield = 'local_o' in self._mode and not cfg.bam_keep_fetch_diagonal
-    with jax.named_scope("bam/mix_alpha"):
-      if cfg.bam_dedicated_fetch:
-        fetch_query = fetch_query / jnp.sqrt(self.head_dim).astype(self.dtype)
-        if cfg.float32_qk_product:
-          fetch_query = fetch_query.astype(jnp.float32)
-          fetch_key = fetch_key.astype(jnp.float32)
-        fetch_logits = jnp.einsum('btfd,bsfd->bfts', fetch_query, fetch_key)
-        if cfg.attn_logits_soft_cap:
-          fetch_logits = jnp.tanh(fetch_logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
-        if attn_mask is not None:
-          fetch_logits = apply_mask_to_logits(fetch_logits, attn_mask)
-        if cfg.float32_logits:
-          fetch_logits = fetch_logits.astype(jnp.float32)
-        fetch_alpha = jax.nn.softmax(fetch_logits, axis=-1)
-        if diagonal_yield:
-          fetch_alpha = fetch_alpha * (
-              1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-      elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
-        fetch_alpha = _dynamic_mixed_bam_fetch_alpha(
-            alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
-            'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
-            cfg.normalization_layer_epsilon)
-      else:
-        fetch_alpha = _shared_bam_fetch_alpha(
-            alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
-            diagonal_yield, cfg.attn_logits_soft_cap, cfg.float32_logits)
-      if self._fetch_diagonal_one:
-        diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
-        fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(
-            jnp.asarray(1, dtype=fetch_alpha.dtype))
+    if {'full', 'codebook'} & self._mode:
+      with jax.named_scope("bam/mix_alpha"):
+        if cfg.bam_dedicated_fetch:
+          fetch_query = fetch_query / jnp.sqrt(self.head_dim).astype(self.dtype)
+          if cfg.float32_qk_product:
+            fetch_query = fetch_query.astype(jnp.float32)
+            fetch_key = fetch_key.astype(jnp.float32)
+          fetch_logits = jnp.einsum('btfd,bsfd->bfts', fetch_query, fetch_key)
+          if cfg.attn_logits_soft_cap:
+            fetch_logits = jnp.tanh(fetch_logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
+          if attn_mask is not None:
+            fetch_logits = apply_mask_to_logits(fetch_logits, attn_mask)
+          if cfg.float32_logits:
+            fetch_logits = fetch_logits.astype(jnp.float32)
+          fetch_alpha = jax.nn.softmax(fetch_logits, axis=-1)
+          if diagonal_yield:
+            fetch_alpha = fetch_alpha * (
+                1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
+        elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
+          fetch_alpha = _dynamic_mixed_bam_fetch_alpha(
+              alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
+              'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
+              cfg.normalization_layer_epsilon)
+        else:
+          fetch_alpha = _shared_bam_fetch_alpha(
+              alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
+              diagonal_yield, cfg.attn_logits_soft_cap, cfg.float32_logits)
+        if self._fetch_diagonal_one:
+          diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
+          fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(
+              jnp.asarray(1, dtype=fetch_alpha.dtype))
 
     # ---- BAM read (all modes share the unified bam_read primitive, §4.6.1) ----
     y_codebook = jnp.zeros_like(y_std)
@@ -2766,7 +2811,7 @@ class BamAttention(Attention):
         full_read = bam_read(
             Mbar, inputs_q, full_read_projection, None,
             **full_read_kwargs, return_key_stages=capture_read_key_stages,
-            implementation=self._read_implementation)
+            implementation=self._read_implementation, read_side=self.read_side)
         if capture_read_key_stages:
           full_read, full_key_stages = full_read
           read_key_stages.update({
@@ -2787,7 +2832,7 @@ class BamAttention(Attention):
           Mh, inputs_q, local_read_projection, None,
           **local_read_key_kwargs,
           return_key_stages=capture_read_key_stages,
-          implementation=self._read_implementation)
+          implementation=self._read_implementation, read_side=self.read_side)
       if capture_read_key_stages:
         local_o_read, local_o_key_stages = local_o_read
         read_key_stages.update({
@@ -2823,12 +2868,13 @@ class BamAttention(Attention):
           "key_std": key_std,
           "query_route": query_route,
           "key_route": key_route,
-          "fetch_alpha": fetch_alpha,
           "y_std": y_std,
           "y_codebook": y_codebook,
           "y_full": y_full,
           "y_local_o": y_local_o,
       }
+      if fetch_alpha is not None:
+        raw_tensors["fetch_alpha"] = fetch_alpha
       if Mbar is not None:
         raw_tensors["Mbar"] = Mbar
       if write_gate is not None:

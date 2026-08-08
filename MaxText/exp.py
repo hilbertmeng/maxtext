@@ -619,7 +619,7 @@ class BamLlama2MediumV1(
 
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
     """Write every layer; BAM-read only odd-numbered layers."""
-    # ~0.558 steps/s; running. +21.0% vs V1.
+    # ~0.555 steps/s; stopped at 8,539. mean dloss +0.0141 vs V1 @5,600–7,000; +20.7% speed.
     model_name = 'BamLlama2MediumV1AlternateLayerRead'
     bam_layer_modes = [
         'write' if layer % 2 == 0 else 'local_qk+local_o+full'

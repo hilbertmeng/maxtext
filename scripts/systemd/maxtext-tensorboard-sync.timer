@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll auto-train TensorBoard completion markers
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=2min
+AccuracySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

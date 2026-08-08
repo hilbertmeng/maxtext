@@ -1,0 +1,7 @@
+[Unit]
+Description=Sync completed MaxText TensorBoard runs from GCS
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/xd/projects/maxtext/scripts/sync_completed_tensorboards.py

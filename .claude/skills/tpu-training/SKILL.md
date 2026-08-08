@@ -189,8 +189,8 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 
 ## Close Out a Completed Run
 
-Uses auto-train's verified cleanup, final `run_registry` state, gsutil/TensorBoard, and
-`exp.py` result comments.
+Uses auto-train's verified cleanup and automatic TensorBoard sync, final `run_registry` state,
+and `exp.py` result comments.
 
 On clean exit, auto-train must run `delete_tpu_xd.sh` until deletion is verified **before**
 marking the registry complete. Treat a success message without absent node+queued-resource as
@@ -199,10 +199,9 @@ a bug; investigate immediately.
 For every stopped/completed run:
 
 1. Verify final step/status and resource teardown with `run_registry.py status --all` and GCP.
-2. Sync the full TensorBoard directory once; do not routinely parse it when the loss cache exists.
-3. Report final same-step/window gaps, cumulative trajectory, and whether prior extrapolation
+2. Report final same-step/window gaps, cumulative trajectory, and whether prior extrapolation
    matched.
-4. Replace the experiment class's running comment with one terse line containing speed, final
+3. Replace the experiment class's running comment with one terse line containing speed, final
    step, and the main conclusion against its registered direct `compare_runs`; retain every
    decision-relevant direct baseline, e.g.:
 
@@ -231,6 +230,10 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
 - A post-maintenance SSH timeout (`alive=unknown`) is not evidence that training is alive.
 
 ## TensorBoard Service
+
+Auto-train publishes `log/tensorboard_complete/RUN`; local `maxtext-tensorboard-sync.timer`
+retries the full sync independently of Codex. Do not routinely sync or verify it. Use this only
+to repair a reported failure:
 
 ```bash
 RUN=Llama2Medium

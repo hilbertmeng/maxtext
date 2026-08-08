@@ -183,6 +183,44 @@ class _DistributionCollector:
     }
 
 
+def _joint_mix_report(collector):
+  """Cross-head structure of the token-wise signed coefficient vectors."""
+  columns = []
+  head = 0
+  while f"head_{head:02d}/coefficient" in collector._values:
+    columns.append(np.concatenate(collector._values[f"head_{head:02d}/coefficient"]))
+    head += 1
+  weights = np.stack(columns, axis=-1).astype(np.float64)
+  mean = np.mean(weights, axis=0)
+  second_moment = weights.T @ weights / weights.shape[0]
+  centered = weights - mean
+  covariance = centered.T @ centered / weights.shape[0]
+  std = np.sqrt(np.maximum(np.diag(covariance), _EPS))
+  correlation = covariance / np.maximum(std[:, None] * std[None, :], _EPS)
+
+  def spectrum(matrix):
+    eigenvalues = np.maximum(np.linalg.eigvalsh(matrix)[::-1], 0.0)
+    total = max(float(np.sum(eigenvalues)), _EPS)
+    probabilities = eigenvalues / total
+    return {
+        "eigenvalues": eigenvalues.tolist(),
+        "top1_energy_fraction": float(probabilities[0]),
+        "top4_energy_fraction": float(np.sum(probabilities[:4])),
+        "effective_rank": float(np.exp(-np.sum(
+            probabilities * np.log(np.maximum(probabilities, _EPS))))),
+    }
+
+  return {
+      "sample_count": int(weights.shape[0]),
+      "mean_vector": mean.tolist(),
+      "mean_vector_l2": float(np.linalg.norm(mean)),
+      "head_rms": np.sqrt(np.diag(second_moment)).tolist(),
+      "head_correlation": correlation.tolist(),
+      "second_moment_spectrum": spectrum(second_moment),
+      "centered_covariance_spectrum": spectrum(covariance),
+  }
+
+
 def _collect_mix_stats(collector, logits, weights, positions, segments):
   logits = np.asarray(logits, np.float32)
   weights = np.asarray(weights, np.float32)
@@ -483,7 +521,10 @@ def run(config):
       "timing_seconds": baseline_timings,
   }
   report["mixing"] = {
-      f"layer_{layer:02d}": collector.report()
+      f"layer_{layer:02d}": {
+          "distributions": collector.report(),
+          "cross_head": _joint_mix_report(collector),
+      }
       for layer, collector in sorted(mix_collectors.items())
   }
   all_mix = _DistributionCollector()
@@ -491,7 +532,10 @@ def run(config):
     for name, arrays in collector._values.items():
       for values in arrays:
         all_mix.add(name, values)
-  report["mixing"]["all_layers"] = all_mix.report()
+  report["mixing"]["all_layers"] = {
+      "distributions": all_mix.report(),
+      "cross_head": _joint_mix_report(all_mix),
+  }
   report["adjacent_M"] = _adjacent_report(adjacent_accumulator)
   _write_report(report_path, report)
 

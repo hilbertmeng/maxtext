@@ -635,6 +635,7 @@ class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
 
 class BamV1SixLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
     """Exact six-layer control for bilateral block-read profiling."""
+    # ~1.690 steps/s; XPlane 576.960 ms.
     model_name = 'BamV1SixLayerReadProfile'
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+local_o+full'] * 6
@@ -642,35 +643,41 @@ class BamV1SixLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
 
 class BamV1SixLayerLocalBlockDotProfile(BamV1SixLayerReadProfile):
     """Fuse LocalQK row/column and Q/K reads with one block dot."""
+    # ~1.709 steps/s; XPlane 571.364 ms (-0.97%); reverses to +1.04% wall at 24 layers.
     model_name = 'BamV1SixLayerLocalBlockDotProfile'
     bam_local_qk_block_implementation = 'dot'
 
 
 class BamV1SixLayerLocalBlockMulProfile(BamV1SixLayerReadProfile):
     """Fuse LocalQK row/column and Q/K reads with block multiply+reduce."""
+    # ~1.685 steps/s; XPlane 580.252 ms (+0.57%); slower than control.
     model_name = 'BamV1SixLayerLocalBlockMulProfile'
     bam_local_qk_block_implementation = 'mul_reduce'
 
 
 class BamV1SixLayerFullBlockDotProfile(BamV1SixLayerReadProfile):
     """Fuse fetched row/column reads with one block dot across heads."""
+    # ~1.640 steps/s; XPlane 596.173 ms (+3.33%); slower than control.
     model_name = 'BamV1SixLayerFullBlockDotProfile'
     bam_full_block_implementation = 'dot'
 
 
 class BamV1SixLayerFullBlockMulProfile(BamV1SixLayerReadProfile):
     """Fuse fetched row/column reads with block multiply+reduce across heads."""
+    # ~1.533 steps/s; XPlane 637.482 ms (+10.49%); slower than control.
     model_name = 'BamV1SixLayerFullBlockMulProfile'
     bam_full_block_implementation = 'mul_reduce'
 
 
 class BamV1FullLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
     """Full-layer control for the winning bilateral block-read path."""
+    # ~0.4611 steps/s; XPlane 2,137.186 ms.
     model_name = 'BamV1FullLayerReadProfile'
 
 
 class BamV1FullLayerLocalBlockDotProfile(BamV1FullLayerReadProfile):
     """Full-layer verification of the LocalQK block-dot path."""
+    # ~0.4561 steps/s; XPlane 2,159.358 ms (+1.04%); 6-layer gain does not transfer.
     model_name = 'BamV1FullLayerLocalBlockDotProfile'
     bam_local_qk_block_implementation = 'dot'
 

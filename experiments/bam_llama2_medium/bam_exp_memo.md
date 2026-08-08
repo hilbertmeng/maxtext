@@ -146,3 +146,30 @@ XPlane 也证实实际计算量完全符合：
 | fetch-M scope | 32.72 ms | 35.98 ms | +9.98% |
 
 结论：在已经因FactorizedLocalQK大幅缩小读形状的最新路径上，`multiply+reduce`仍有真实但较小的整步收益（+1.59%），远小于旧PerHead路径的+6.8%。直接归到M contraction的时间只降0.5–0.9%；较大的fetched-read总scope收益来自layout/copy/fusion重排。不同lowering还把部分融合算子重新归到key-transform/fetch scope，因此细分scope适合定位，最终优劣以配对完整step为准。
+
+## Pure-JAX bilateral block read
+
+同一 `v5p-16`、commit `ece8eb2`、bf16、batch/data与step 10–14 XPlane。把
+行/列读写成块矩阵 `[[0,M],[M.T,0]]`；LocalQK把Q/K作为两个RHS列，full fetch把16个头
+作为RHS列。块矩阵含一半零元素，但普通dense lowering仍计算和搬运这些零块。
+
+| 6层路径 | 稳态 step/s | XPlane step | Δwall | 对应 read-M：TF / GB / ms |
+|---|---:|---:|---:|---:|
+| 原路径 | 1.690 | 576.960 ms | — | Local 0.00628 / 6.49 / 22.12；fetch 0.05151 / 11.93 / 30.86 |
+| Local block dot | **1.709** | **571.364 ms** | **-0.97%** | 0.02409 / 9.49 / 20.61 |
+| Local block multiply+reduce | 1.685 | 580.252 ms | +0.57% | 0.01937 / 20.39 / 34.64 |
+| Fetch block dot | 1.640 | 596.173 ms | +3.33% | 0.11489 / 14.83 / 29.83 |
+| Fetch block multiply+reduce | 1.533 | 637.482 ms | +10.49% | 0.11013 / 30.07 / 74.61 |
+
+Local block-dot在6层用更大dot提高了利用率，虽read-M FLOPs为原路径3.84倍，scope仍快
+6.8%；其余三路均无效。按流程用完整24层复核唯一的6层胜者：
+
+| 24层路径 | 稳态 step/s（step 20–40） | XPlane step | Local scope / read-M | read-M bytes |
+|---|---:|---:|---:|---:|
+| 原路径 | **0.46110** | **2,137.186 ms** | 137.52 / 80.12 ms | 22.25 GB |
+| Local block dot | 0.45610 | 2,159.358 ms (**+1.04%**) | 193.61 / 129.71 ms | 80.49 GB |
+
+24层图中block-dot lowering新增大量归属于`reshape`的output copy；read-M流量增加2.62倍、
+时间增加61.9%，使六层的局部收益反转。结论：不采用任何block-read路径，V1继续使用分别
+执行的row/col `multiply+reduce`。六层适合筛选算子，但涉及layout、remat和内存压力的结果
+必须用完整层数复核。

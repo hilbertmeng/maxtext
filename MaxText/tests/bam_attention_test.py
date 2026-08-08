@@ -16,8 +16,10 @@ from layers.attentions import (
     _transform_bam_read_key,
     _update_bam_matrix,
     bam_read,
+    block_bilateral_bam_read,
     codebook_read,
     factorized_head_bam_read,
+    factorized_qk_block_bam_read,
     packed_qk_bam_read,
 )
 
@@ -179,6 +181,50 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(row[..., k:], both[..., k:], rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(col[..., :k], both[..., :k], rtol=1e-5, atol=1e-5)
     np.testing.assert_array_equal(col[..., k:], 0)
+
+  def test_block_bilateral_reads_match_separate_reads(self):
+    b, t, n, f, k, v, e = 2, 3, 4, 2, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(71), 10)
+    x = jax.random.normal(random[0], (b, t, e))
+    M = jax.random.normal(random[1], (b, f, t, k, v))
+    kernel = jax.random.normal(random[2], (e, n, f, k + v))
+    gates = jax.random.normal(random[3], (b, t, n, f, 2))
+    projection = lambda z: jnp.einsum('bte,enfD->btnfD', z, kernel)
+    kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
+        key_gate_logits=gates)
+    expected = bam_read(
+        M, x, projection, None, **kwargs, implementation='mul_reduce_btn')
+    for implementation in ('dot', 'mul_reduce'):
+      actual = block_bilateral_bam_read(
+          M, x, projection, **kwargs, implementation=implementation)
+      np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
+
+    local_M = jax.random.normal(random[4], (b, t, k, v))
+    q_kernel = jax.random.normal(random[5], (e, k + v))
+    k_kernel = jax.random.normal(random[6], (e, k + v))
+    q_mix_kernel = jax.random.normal(random[7], (e, n, 2))
+    k_mix_kernel = jax.random.normal(random[8], (e, n, 2))
+    local_gates = jax.random.normal(random[9], (b, t, 2))
+    q_projection = lambda z: jnp.einsum('bte,eD->btD', z, q_kernel)
+    k_projection = lambda z: jnp.einsum('bte,eD->btD', z, k_kernel)
+    q_mix = lambda z: jnp.einsum('bte,enr->btnr', z, q_mix_kernel)
+    k_mix = lambda z: jnp.einsum('bte,enr->btnr', z, k_mix_kernel)
+    local_kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
+        key_gate_logits=local_gates)
+    expected_q = factorized_head_bam_read(
+        local_M, x, q_projection, q_mix, **local_kwargs,
+        implementation='mul_reduce_btn')
+    expected_k = factorized_head_bam_read(
+        local_M, x, k_projection, k_mix, **local_kwargs,
+        implementation='mul_reduce_btn')
+    for implementation in ('dot', 'mul_reduce'):
+      actual_q, actual_k = factorized_qk_block_bam_read(
+          local_M, x, q_projection, k_projection, q_mix, k_mix,
+          local_kwargs, local_kwargs, implementation)
+      np.testing.assert_allclose(actual_q, expected_q, rtol=2e-5, atol=2e-5)
+      np.testing.assert_allclose(actual_k, expected_k, rtol=2e-5, atol=2e-5)
 
   def test_packed_qk_read_matches_two_direct_layout_reads_and_gradients(self):
     b, t, n, k, v, e = 2, 3, 4, 3, 5, 7

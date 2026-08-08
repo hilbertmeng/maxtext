@@ -259,6 +259,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_profile_fetch_bypass = False  # profile only: feed local Mh directly to the full reader
     bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
+    bam_local_qk_block_implementation = 'none'  # none | dot | mul_reduce
+    bam_full_block_implementation = 'none'  # none | dot | mul_reduce
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_pack_local_qk_reads = False  # profile: pack Q/K heads into each local-M contraction
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
@@ -626,9 +628,40 @@ class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
 
 class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
     """Write every layer; alternate row-only and column-only BAM reads."""
-    # ~0.491 steps/s; running. +6.5% vs V1.
+    # ~0.491 steps/s; stopped at 2,175. dloss +0.0485 vs V1 @2,000; dominated by AlternateLayerRead.
     model_name = 'BamLlama2MediumV1AlternateRowColRead'
     bam_read_sides = ['row' if layer % 2 == 0 else 'col' for layer in range(24)]
+
+
+class BamV1SixLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
+    """Exact six-layer control for bilateral block-read profiling."""
+    model_name = 'BamV1SixLayerReadProfile'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o+full'] * 6
+
+
+class BamV1SixLayerLocalBlockDotProfile(BamV1SixLayerReadProfile):
+    """Fuse LocalQK row/column and Q/K reads with one block dot."""
+    model_name = 'BamV1SixLayerLocalBlockDotProfile'
+    bam_local_qk_block_implementation = 'dot'
+
+
+class BamV1SixLayerLocalBlockMulProfile(BamV1SixLayerReadProfile):
+    """Fuse LocalQK row/column and Q/K reads with block multiply+reduce."""
+    model_name = 'BamV1SixLayerLocalBlockMulProfile'
+    bam_local_qk_block_implementation = 'mul_reduce'
+
+
+class BamV1SixLayerFullBlockDotProfile(BamV1SixLayerReadProfile):
+    """Fuse fetched row/column reads with one block dot across heads."""
+    model_name = 'BamV1SixLayerFullBlockDotProfile'
+    bam_full_block_implementation = 'dot'
+
+
+class BamV1SixLayerFullBlockMulProfile(BamV1SixLayerReadProfile):
+    """Fuse fetched row/column reads with block multiply+reduce across heads."""
+    model_name = 'BamV1SixLayerFullBlockMulProfile'
+    bam_full_block_implementation = 'mul_reduce'
 
 
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):

@@ -2044,6 +2044,101 @@ def factorized_head_bam_read(
     return jnp.concatenate([y_u, y_v], axis=-1)
 
 
+def _block_bilateral_contract(M, r_row, r_col, implementation):
+  """Fuse row/column reads through [[0,M],[M.T,0]] and RHS columns.
+
+  M is local [b,t,k,v] or fetched [b,f,t,k,v]. Runtime keys carry a read-column
+  axis c: [b,t,c,k/v] or [b,t,c,f,k/v]. The result is [b,t,c,k+v].
+  """
+  if implementation not in ('dot', 'mul_reduce'):
+    raise ValueError(f'Unknown BAM block-read implementation: {implementation}')
+  if M.ndim == 4:
+    matrix = M[:, :, None]  # [b,t,f=1,k,v]
+    if r_row.ndim != 4 or r_col.ndim != 4:
+      raise ValueError(f'local block-read keys must be [b,t,c,d]: {r_row.shape}')
+    r_row = r_row[:, :, :, None]
+    r_col = r_col[:, :, :, None]
+  elif M.ndim == 5:
+    matrix = jnp.transpose(M, (0, 2, 1, 3, 4))  # [b,t,f,k,v]
+    if r_row.ndim != 5 or r_col.ndim != 5:
+      raise ValueError(f'fetched block-read keys must be [b,t,c,f,d]: {r_row.shape}')
+  else:
+    raise ValueError(f'block bilateral BAM read expects rank-4/5 M, got {M.shape}')
+
+  k, v = matrix.shape[-2:]
+  if r_row.shape[-2] != matrix.shape[-3] or r_col.shape[-2] != matrix.shape[-3]:
+    raise ValueError(f'block-read fetch axes differ: M={matrix.shape}, row={r_row.shape}')
+  if r_row.shape[-1] != k or r_col.shape[-1] != v:
+    raise ValueError(f'block-read key widths differ: M={matrix.shape}, row={r_row.shape}')
+
+  zeros_kk = jnp.zeros(matrix.shape[:-2] + (k, k), dtype=matrix.dtype)
+  zeros_vv = jnp.zeros(matrix.shape[:-2] + (v, v), dtype=matrix.dtype)
+  top = jnp.concatenate([zeros_kk, matrix], axis=-1)
+  bottom = jnp.concatenate([jnp.swapaxes(matrix, -1, -2), zeros_vv], axis=-1)
+  blocks = jnp.concatenate([top, bottom], axis=-2)  # [b,t,f,k+v,k+v]
+  operator = jnp.transpose(blocks, (0, 1, 3, 2, 4)).reshape(
+      blocks.shape[0], blocks.shape[1], k + v, -1)  # [b,t,k+v,f(k+v)]
+
+  keys = jnp.concatenate([r_row, r_col], axis=-1)  # [b,t,c,f,k+v]
+  rhs = jnp.transpose(keys, (0, 1, 3, 4, 2)).reshape(
+      keys.shape[0], keys.shape[1], -1, keys.shape[2])  # [b,t,f(k+v),c]
+  if implementation == 'dot':
+    result = jnp.einsum('btij,btjc->btic', operator, rhs)
+  else:
+    result = jnp.sum(
+        operator[..., :, :, None] * rhs[..., None, :, :], axis=-2)
+  return jnp.transpose(result, (0, 1, 3, 2))
+
+
+def block_bilateral_bam_read(
+    M, x, W_R, *, key_mode='none', key_scale=1.0, key_eps=1e-6,
+    key_gate_logits=None, implementation='dot'):
+  """One fused bilateral fetched-M read; heads become RHS columns."""
+  row_width = M.shape[-2]
+  _, _, r_row, r_col = _project_bam_read_keys(
+      row_width, x, W_R, key_mode=key_mode, key_scale=key_scale,
+      key_eps=key_eps, key_gate_logits=key_gate_logits)
+  with jax.named_scope("bam/read_m_contract"):
+    return _block_bilateral_contract(M, r_row, r_col, implementation)
+
+
+def factorized_qk_block_bam_read(
+    M, x, W_q, W_k, W_q_head_mix, W_k_head_mix, q_kwargs, k_kwargs,
+    implementation):
+  """Fuse FactorizedLocalQK's Q/K and bilateral M reads into one contraction."""
+  if M.ndim != 4:
+    raise ValueError(f'factorized Q/K block read expects [b,t,k,v], got {M.shape}')
+  _, _, q_row, q_col = _project_bam_read_keys(M.shape[-2], x, W_q, **q_kwargs)
+  _, _, k_row, k_col = _project_bam_read_keys(M.shape[-2], x, W_k, **k_kwargs)
+  with jax.named_scope("bam/read_m_contract"):
+    shared = _block_bilateral_contract(
+        M, jnp.stack([q_row, k_row], axis=-2),
+        jnp.stack([q_col, k_col], axis=-2), implementation)
+
+  def expand_to_heads(shared_read, W_head_mix):
+    with jax.named_scope("bam/read_head_mix_projection"):
+      raw_head_mix = W_head_mix(x)
+    with jax.named_scope("bam/read_head_mix_transform"):
+      if raw_head_mix.ndim != 4 or raw_head_mix.shape[-1] != 2:
+        raise ValueError(
+            f'factorized head mix expects [b,t,n,2], got {raw_head_mix.shape}')
+      head_mix = _rms(jnp.asarray(raw_head_mix, jnp.float32),
+                      q_kwargs.get('key_eps', 1e-6), axis=-2)
+      head_mix = jnp.asarray(head_mix, shared_read.dtype)
+      row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
+    with jax.named_scope("bam/read_head_mix_expand"):
+      y_u, y_v = jnp.split(shared_read, [M.shape[-2]], axis=-1)
+      return jnp.concatenate([
+          jnp.einsum('btk,btn->bntk', y_u, col_mix),
+          jnp.einsum('btv,btn->bntv', y_v, row_mix),
+      ], axis=-1)
+
+  return (
+      expand_to_heads(shared[:, :, 0], W_q_head_mix),
+      expand_to_heads(shared[:, :, 1], W_k_head_mix),
+  )
+
+
 def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
                   key_scale=1.0, key_eps=1e-6, key_gate_logits=None,
                   key_row_norm=None, key_col_norm=None,
@@ -2155,6 +2250,8 @@ class BamAttention(Attention):
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
     self._profile_fetch_bypass = cfg.bam_profile_fetch_bypass
     self._read_implementation = cfg.bam_read_implementation
+    self._local_qk_block_implementation = cfg.bam_local_qk_block_implementation
+    self._full_block_implementation = cfg.bam_full_block_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._pack_local_qk_reads = cfg.bam_pack_local_qk_reads
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
@@ -2184,6 +2281,8 @@ class BamAttention(Attention):
     assert self._m_read_norm in ('rms', 'none')
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
+    assert self._local_qk_block_implementation in ('none', 'dot', 'mul_reduce')
+    assert self._full_block_implementation in ('none', 'dot', 'mul_reduce')
     assert self._read_key_scale > 0.0
     assert self._read_key_eps > 0.0
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
@@ -2220,6 +2319,19 @@ class BamAttention(Attention):
           'single-fetch squeeze requires one full-read route')
     assert not cfg.bam_dedicated_fetch or 'full' in self._mode, (
         'bam_dedicated_fetch currently requires the full read mode')
+    if self._local_qk_block_implementation != 'none':
+      assert 'local_qk' in self._mode and self._local_qk_key_mode == 'factorized', (
+          'local Q/K block read requires FactorizedLocalQK')
+      assert self.read_side == 'both', 'local Q/K block read requires both matrix sides'
+    if self._full_block_implementation != 'none':
+      assert 'full' in self._mode, 'full block read requires full mode'
+      assert self.read_side == 'both', 'full block read requires both matrix sides'
+      assert not self._squeeze_single_fetch_read, (
+          'full block read directly handles the fetch axis')
+    assert not cfg.bam_diagnostics or (
+        self._local_qk_block_implementation == 'none'
+        and self._full_block_implementation == 'none'), (
+            'block-read profiling does not expose diagnostic key stages')
 
     def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
       """Create a zero-kernel semantic gate with an explicitly calibrated bias."""
@@ -2512,6 +2624,16 @@ class BamAttention(Attention):
     local_qk_k_kwargs = (
         {} if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lk_gate', inputs_q))
+    if self._local_qk_block_implementation != 'none':
+      q_local, k_local = factorized_qk_block_bam_read(
+          Mh, inputs_q, self.W_lq, self.W_lk,
+          self.W_lq_head_mix, self.W_lk_head_mix,
+          local_qk_q_kwargs, local_qk_k_kwargs,
+          self._local_qk_block_implementation)
+      return (
+          rearrange(q_local, 'b n t d -> b t n d'),
+          rearrange(k_local, 'b n t d -> b t n d'),
+      )
     if self._pack_local_qk_reads:
       return packed_qk_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lk,
@@ -2808,10 +2930,15 @@ class BamAttention(Attention):
           full_read_projection = lambda x: jnp.squeeze(self.W_R(x), axis=-2)
           full_read_kwargs = self._read_key_kwargs(
               'W_R_gate', inputs_q, squeeze_fetch_axis=True)
-        full_read = bam_read(
-            Mbar, inputs_q, full_read_projection, None,
-            **full_read_kwargs, return_key_stages=capture_read_key_stages,
-            implementation=self._read_implementation, read_side=self.read_side)
+        if self._full_block_implementation != 'none':
+          full_read = block_bilateral_bam_read(
+              Mbar, inputs_q, full_read_projection, **full_read_kwargs,
+              implementation=self._full_block_implementation)
+        else:
+          full_read = bam_read(
+              Mbar, inputs_q, full_read_projection, None,
+              **full_read_kwargs, return_key_stages=capture_read_key_stages,
+              implementation=self._read_implementation, read_side=self.read_side)
         if capture_read_key_stages:
           full_read, full_key_stages = full_read
           read_key_stages.update({

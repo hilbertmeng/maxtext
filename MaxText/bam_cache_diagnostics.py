@@ -409,6 +409,7 @@ def run(config):
   report = {
       "metadata": {
           "checkpoint": config.load_parameters_path,
+          "code_commit": os.environ.get("BAM_CACHE_DIAG_COMMIT", "unknown"),
           "num_batches": num_batches,
           "batch_size": int(batches[0]["inputs"].shape[0]),
           "sequence_length": int(batches[0]["inputs"].shape[1]),

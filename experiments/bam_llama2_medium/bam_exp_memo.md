@@ -162,7 +162,8 @@ XPlane 也证实实际计算量完全符合：
 | Fetch block multiply+reduce | 1.533 | 637.482 ms | +10.49% | 0.11013 / 30.07 / 74.61 |
 
 Local block-dot在6层用更大dot提高了利用率，虽read-M FLOPs为原路径3.84倍，scope仍快
-6.8%；其余三路均无效。按流程用完整24层复核唯一的6层胜者：
+6.8%；其余三路均无效。完整24层复核使用commit `26f43ec`（仅新增配对配置类，算子代码
+仍为`ece8eb2`）验证唯一的6层胜者：
 
 | 24层路径 | 稳态 step/s（step 20–40） | XPlane step | Local scope / read-M | read-M bytes |
 |---|---:|---:|---:|---:|

@@ -45,6 +45,22 @@ Use `MaxText/bam_wr_ablation.py` with `exp_class=BamLlama2MediumReadAblation`.
 For CPU-only Orbax inspection, override saved TPU sharding with single-device CPU sharding and
 use partial restore for only the required leaves.
 
+## Paired train-step profile
+
+Use `TrainStepProfile` (`xplane`, skip 10, trace steps 10–14, no checkpoints). Keep TPU type,
+VM, commit, model/batch/data, and trace steps identical; prefer 6 layers for operator/scope
+comparisons, then verify the winning combination with full layers.
+
+- Run paired arms on matched TPU types and VM/software environments. If a TPU must remain
+  allocated, avoid launch paths whose clean-completion policy deletes it.
+- The watcher proves `FIRST_STEP`/errors only. Stop by parsing the **actual train-log step**; at
+  step 30–40, `SIGKILL` the exact no-checkpoint profile RUN on all workers, then require `pgrep`
+  empty before launching the next arm. Never time stopping from watcher delivery.
+- Compare stable log speed and all-device XPlane step time; split read-key projection, gate,
+  transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.
+- Inspect HLO/XPlane lowering, layout/copies, fusion type, and whether conceptual broadcast/zero
+  tensors materialize. A single JAX expression does not imply one device kernel.
+
 ## Artifacts
 
 Record checkpoint URI, step, code state, cohort seed/hashes, overrides, timings, results, and

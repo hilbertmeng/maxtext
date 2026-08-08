@@ -226,16 +226,23 @@ def _collect_mix_stats(collector, logits, weights, positions, segments):
   weights = np.asarray(weights, np.float32)
   energy = np.square(weights)
   token_valid = segments != 0
+  token_count = np.maximum(np.sum(token_valid, axis=1), 1)
+  per_sequence_mean = lambda values: np.sum(
+      np.asarray(values) * token_valid, axis=1) / token_count
+  effective_heads = 1.0 / np.maximum(np.sum(np.square(energy), axis=-1), _EPS)
   collector.add("coefficient/l2_norm", np.linalg.norm(weights, axis=-1)[token_valid])
   collector.add("coefficient/sum", np.sum(weights, axis=-1)[token_valid])
   collector.add("coefficient/max_abs", np.max(np.abs(weights), axis=-1)[token_valid])
-  collector.add("coefficient/effective_heads",
-                (1.0 / np.maximum(np.sum(np.square(energy), axis=-1), _EPS))[token_valid])
+  collector.add("coefficient/effective_heads", effective_heads[token_valid])
   collector.add("coefficient/positive_fraction", np.mean(weights > 0, axis=-1)[token_valid])
   collector.add("raw_logits/rms", np.sqrt(np.mean(np.square(logits), axis=-1))[token_valid])
   sorted_energy = np.sort(energy, axis=-1)[..., ::-1]
   collector.add("coefficient/top1_energy", sorted_energy[..., 0][token_valid])
   collector.add("coefficient/top2_energy", np.sum(sorted_energy[..., :2], axis=-1)[token_valid])
+  collector.add("per_sequence/coefficient_effective_heads_mean",
+                per_sequence_mean(effective_heads))
+  collector.add("per_sequence/coefficient_max_abs_mean",
+                per_sequence_mean(np.max(np.abs(weights), axis=-1)))
   for head in range(weights.shape[-1]):
     collector.add(f"head_{head:02d}/coefficient", weights[..., head][token_valid])
     collector.add(f"head_{head:02d}/energy", energy[..., head][token_valid])
@@ -260,6 +267,9 @@ def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments,
   query_segments = segments[:, query_indices]
   query_valid = query_segments != 0
   add_row = lambda name, values: collector.add(name, np.asarray(values)[query_valid])
+  query_count = np.maximum(np.sum(query_valid, axis=1), 1)
+  add_sequence_mean = lambda name, values: collector.add(
+      name, np.sum(np.asarray(values) * query_valid, axis=1) / query_count)
   valid = (
       (query_segments[:, :, None] != 0)
       & (query_segments[:, :, None] == segments[:, None, :])
@@ -277,7 +287,9 @@ def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments,
   add_row("alpha/negative_fraction", np.sum((values < 0) & valid, axis=-1) / valid_count)
   add_row("alpha/positive_mass", np.sum(np.maximum(values, 0), axis=-1))
   add_row("alpha/negative_abs_mass", np.sum(np.maximum(-values, 0), axis=-1))
-  add_row("alpha/effective_support", np.square(l1) / np.maximum(l2_sq, _EPS))
+  effective_support = np.square(l1) / np.maximum(l2_sq, _EPS)
+  add_row("alpha/effective_support", effective_support)
+  add_sequence_mean("per_sequence/alpha_effective_support_mean", effective_support)
 
   max_k = max(_TOP_K)
   largest = np.partition(abs_values, -max_k, axis=-1)[..., -max_k:]
@@ -289,8 +301,12 @@ def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments,
   lag = query_positions[:, :, None] - positions[:, None, :]
   for window in _WINDOWS:
     in_window = valid & (lag < window)
-    add_row(f"alpha/window{window}_abs_mass_fraction",
-            np.sum(abs_values * in_window, axis=-1) / np.maximum(l1, _EPS))
+    window_abs_fraction = (
+        np.sum(abs_values * in_window, axis=-1) / np.maximum(l1, _EPS))
+    add_row(f"alpha/window{window}_abs_mass_fraction", window_abs_fraction)
+    if window == 256:
+      add_sequence_mean(
+          "per_sequence/alpha_window256_abs_mass_fraction_mean", window_abs_fraction)
     add_row(f"alpha/window{window}_signed_sum", np.sum(values * in_window, axis=-1))
 
   batch_indices = np.arange(pre_alpha.shape[0])[:, None]

@@ -222,6 +222,11 @@ training restart.
 
 Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd.sh`.
 
+- For spot `v6e-1`, query
+  `serviceusage.googleapis.com/v1beta1/projects/$NUM/services/tpu.googleapis.com/consumerQuotaMetrics?view=FULL`
+  (`effectiveLimit>0` or override `-1`; missing means zero), then intersect with `gcloud alpha compute tpus
+  accelerator-types list --zone=ZONE --filter=type=v6e-1`; quota is not capacity. Prefer proven
+  zones `us-central1-a`, `europe-west4-a`, then `us-east5-a` before exploring others.
 - Preserve WAITING_FOR_RESOURCES/PROVISIONING queues; deleting resets queue position.
 - In xd's v5p experience, maintenance warning + refused SSH is almost always preemption. Start
   reclaim early rather than waiting for recovery.

@@ -174,3 +174,98 @@ Local block-dot在6层用更大dot提高了利用率，虽read-M FLOPs为原路�
 时间增加61.9%，使六层的局部收益反转。结论：不采用任何block-read路径，V1继续使用分别
 执行的row/col `multiply+reduce`。六层适合筛选算子，但涉及layout、remat和内存压力的结果
 必须用完整层数复核。
+
+## V1 M-cache temporal compression diagnostics
+
+V1 step 13250、commit `49be222`、spot `v6e-1`；随机 Pile eval 128 条（4×32，执行时切成
+8×16 microbatch），与原始 batch32 cohort 的 128 个序列哈希逐条一致。microbatch baseline
+loss `2.379473`，与原结果 `2.379468` 相差约 `5e-6`。以下均为同 checkpoint、同 batch 的
+只读替换，不含重训适应；完整结果：
+`/data0/xd/bam_diagnostics/bam_cache_diagnostics_49be222_mb16_final.json`。
+
+Dynamic RMS mix 并非单头选择：系数 L2 norm `1.000`、最大绝对系数均值 `0.549`、有效头数
+均值 `6.03/16`；系数相邻 token cosine `0.831`。混合后的 signed alpha 有 `57.9%` 负值，
+有效支持均值/中位数 `43.2/16.8`；top-16/64/128 的绝对质量为 `59.0/75.5/83.3%`，最近
+128/256/512 为 `68.6/78.7/88.5%`。每序列的 window256 质量均值 p10/50/90 为
+`63.9/79.8/91.8%`：alpha 有一定稀疏性和局部性，但固定 256 窗口并不可靠。
+
+系数随 token 平滑不代表 `M_s` 平滑。跨层合计的 `M_s` cosine（lag 1/2/4/8/16/32）为
+`0.249/0.179/0.140/0.113/0.096/0.085`，相对 delta RMS 为
+`1.225/1.282/1.312/1.332/1.344/1.352`；layer 1 的 lag-1 cosine 仅 `0.014`。因此直接对
+相邻 `M_s` 求均值或线性拟合不是健康的压缩基底。
+
+| 压缩 | nominal cache reduction | dloss | fetch-M rel-RMS | combined-M rel-RMS | BAM output rel-RMS |
+|---|---:|---:|---:|---:|---:|
+| B8 mean | 8× | +0.4104 | 0.7525 | 0.5824 | 0.7072 |
+| B8 linear | 4× | +0.2236 | 0.6358 | 0.4846 | 0.6107 |
+| B16 mean | 16× | +0.4859 | 0.8080 | 0.6242 | 0.7468 |
+| B16 linear | 8× | +0.3617 | 0.7282 | 0.5617 | 0.6916 |
+| B32 mean | 32× | +0.4844 | 0.8432 | 0.6488 | 0.7688 |
+| B32 linear | 16× | +0.4196 | 0.7857 | 0.6070 | 0.7348 |
+
+Linear 始终优于 mean，但所有纯 block 方案都严重破坏模型；最佳 B8 linear 仍使 128/128
+序列 loss 变差，平均 `+0.2236`。
+
+| 读取方案（T=2048） | effective cache reduction | dloss | fetch-M rel-RMS | BAM output rel-RMS | 改善序列 |
+|---|---:|---:|---:|---:|---:|
+| Window256 only | 8.00× | +0.1193 | 0.3725 | 0.3988 | 0/128 |
+| Window256 + OldBlock16 mean | 5.57× | +0.0811 | 0.3050 | 0.3496 | 0/128 |
+| Window256 + OldBlock16 linear | 4.27× | **+0.0626** | **0.2818** | **0.3261** | 1/128 |
+
+OldBlock16 能恢复被窗口丢失的信息，linear 最好，但 `+0.0626` 仍远高于只读近似通常可接受
+的 `<0.01`。当前 checkpoint 不支持把 Window256+OldBlock16 视为健康替换；若继续压缩
+M-cache，应优先尝试由 alpha 动态选择的稀疏/分层记忆，而不是按时间邻近直接压缩 `M_s`。
+
+## V1 signed dynamic-mix diagnostics
+
+V1 step 13250，同一 Pile eval 128 条 cohort；sign/mass 与只读消融分别由 commits
+`1bbf708`、`94961c7`、`c7ba633` 采集。完整结果位于
+`/data0/xd/bam_diagnostics/bam_alpha_*_final.json`。
+
+`57.9%` 是负 alpha 的**元素个数**，不能直接解释为负贡献强度。全体 query 按绝对质量
+加权后，正/负质量为 `56.8/43.2%`；逐 query 的负质量占比 mean/p50/p90 为
+`46.1/42.9/90.6%`。逐 query cancellation `1-|sum(alpha)|/L1(alpha)` 的
+mean/p50/p90 为 `46.9/48.4/86.4%`；选择每条 route 的占优符号后，表示局部双极对比的
+少数符号质量平均约为其一半，即 `23.4%`。
+
+层间差异极大：layer 1 的负质量仅 `0.3%`，layer 3/7 分别为 `93.5/91.8%`。计数与质量
+也可相反：layer 4 有 `83.4%` 负元素但负质量仅 `39.0%`；layer 8 只有 `41.9%` 负元素，
+负质量却为 `63.5%`。删除少数符号后的逐层 fetch/output error 与少数符号质量相关系数为
+`0.87/0.74`，说明质量比计数更有诊断意义。
+
+RMS mix 的系数 L2 固定为1，但 L1 mean/p50 为 `3.126/3.180`（16维理论上限4）；负质量
+占比 `46.6%`，正负 cancellation 均值 `70.6%`。把系数分解为 common mean direction 与
+zero-sum contrast direction 后，后者占 `91.2%` 能量；但16维随机单位向量的期望本来就是
+`93.75%`，所以高 contrast 能量大部分可能是参数化几何，而非训练主动选择。
+
+| 同 batch 只读消融 | 控制变量 | dloss |
+|---|---|---:|
+| `mix_abs_l2` | 系数 L2 不变，全部改正 | +2.8718 |
+| `mix_positive_l2` | 删除负系数，系数 L2 不变 | +1.7539 |
+| `alpha_abs` | alpha 每点绝对值及 L1/L2 不变，只翻负号 | +1.5727 |
+| `alpha_positive_raw` | 仅保留正 alpha，不补幅度 | +0.3865 |
+| `alpha_positive_l2` | 仅保留正 alpha，恢复原 L2 | +1.0934 |
+| `alpha_negative_l2` | 仅保留负 alpha，恢复原 L2 | +2.2908 |
+| `mix_dominant_sign_l2` | 每 query 保留占优符号系数，恢复 L2 | +0.1279 |
+| `alpha_dominant_sign_raw` | 每 query 只删少数符号 alpha | **+0.0293** |
+| `alpha_dominant_sign_l2` | 同上并恢复 alpha L2 | +0.0627 |
+| `mix_mean_mode_raw` | 只保留 common mean component | +0.3867 |
+| `mix_contrast_raw` | 只保留 zero-sum contrast component | +0.1855 |
+
+所有消融均为 `0/128` 序列改善。`alpha_abs` 证明当前 checkpoint 确实依赖符号，而非只依赖
+绝对幅度；但 naïve positive-only 把整体负 fetch（在 CombinedRead 中相对固定 `+1` local
+项也有意义）与局部双极对比混在一起，严重夸大了“负值本身”的作用。保留占优符号的消融
+表明局部双极对比有稳定但中等的贡献：删除它使
+loss `+0.0293`，恢复 L2 反而更差，说明正负内容与总增益已共同校准。mean-only 与
+contrast-only 都明显变差，二者均有功能；contrast 的作用不只制造负 alpha，也会重排同号
+源位置的相对强度。
+
+这只能证明 checkpoint 已与 signed route 共适应，不能证明 signed 参数化的训练最优点更好；
+此前独立训练的 RmsMix 与 SoftmaxMix 在约6200步几乎打平（`-0.0006`）也支持这一保留意见。
+后续若改动态混合，优先在最终 V1 上配对重训：positive SoftmaxMix，以及“正向基路由 +
+独立零和 contrast + 显式有界门”的方案。后一方案先混成一个 alpha 再 fetch，不增加 M 读取：
+
+`w = g_base * softmax(z_base) + g_ctr * normalize_L1(z_ctr - mean(z_ctr))`
+
+其中 contrast gate 小值初始化、base gate 开启；这样保留源级减法表达力，同时把正向选择、
+对比方向和幅度解耦，避免当前 L2-only 归一化造成接近最大 L1、强 cancellation 与尺度漂移。

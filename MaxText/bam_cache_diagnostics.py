@@ -394,6 +394,17 @@ def _write_report(path, report):
   path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _iter_microbatches(batch, microbatch_size):
+  """Yield stable contiguous slices without changing the input cohort."""
+  batch_size = int(batch["inputs"].shape[0])
+  if batch_size % microbatch_size:
+    raise ValueError(
+        f"logical batch size {batch_size} is not divisible by microbatch size {microbatch_size}")
+  for microbatch_index, start in enumerate(range(0, batch_size, microbatch_size)):
+    end = start + microbatch_size
+    yield microbatch_index, {name: value[start:end] for name, value in batch.items()}
+
+
 def _variant_specs():
   specs = []
   for block_size in (8, 16, 32):
@@ -431,6 +442,7 @@ def run(config):
   if not config.only_eval or not config.bam_diagnostics:
     raise ValueError("bam_cache_diagnostics requires only_eval=True and bam_diagnostics=True")
   num_batches = int(os.environ.get("BAM_CACHE_DIAG_BATCHES", "4"))
+  requested_microbatch_size = int(os.environ.get("BAM_CACHE_DIAG_MICROBATCH_SIZE", "0"))
   stride = int(os.environ.get("BAM_CACHE_DIAG_TOKEN_STRIDE", "32"))
   output_dir = Path(os.environ.get("BAM_CACHE_DIAG_OUTPUT_DIR", "/tmp/bam_cache_diagnostics"))
   output_dir.mkdir(parents=True, exist_ok=True)
@@ -466,6 +478,8 @@ def run(config):
           "code_commit": os.environ.get("BAM_CACHE_DIAG_COMMIT", "unknown"),
           "num_batches": num_batches,
           "batch_size": int(batches[0]["inputs"].shape[0]),
+          "microbatch_size": (
+              requested_microbatch_size or int(batches[0]["inputs"].shape[0])),
           "sequence_length": int(batches[0]["inputs"].shape[1]),
           "token_stride": stride,
           "data_shuffle_seed": config.data_shuffle_seed,
@@ -479,6 +493,16 @@ def run(config):
       "adjacent_M": {},
       "variants": {},
   }
+  microbatch_size = report["metadata"]["microbatch_size"]
+  if microbatch_size <= 0:
+    raise ValueError(f"microbatch size must be positive, got {microbatch_size}")
+  for batch in batches:
+    if int(batch["inputs"].shape[0]) % microbatch_size:
+      raise ValueError(
+          f"logical batch size {batch['inputs'].shape[0]} is not divisible by "
+          f"microbatch size {microbatch_size}")
+  report["metadata"]["num_microbatches"] = sum(
+      int(batch["inputs"].shape[0]) // microbatch_size for batch in batches)
   _write_report(report_path, report)
 
   baseline_forward = jax.jit(
@@ -492,43 +516,49 @@ def run(config):
       lambda: defaultdict(lambda: defaultdict(float)))
   baseline_timings = []
 
+  execution_index = 0
   for batch_index, batch in enumerate(batches):
-    batch_started = time.perf_counter()
-    with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-      metrics_device, sampled_device, adjacent_device = baseline_forward(
-          state.params, batch, jax.random.fold_in(init_rng, batch_index))
-    jax.block_until_ready((metrics_device, sampled_device, adjacent_device))
-    compile_execute_seconds = time.perf_counter() - batch_started
-    transfer_started = time.perf_counter()
-    metrics = jax.device_get(metrics_device)
-    sampled = jax.device_get(sampled_device)
-    adjacent = jax.device_get(adjacent_device)
-    positions = np.asarray(jax.device_get(batch["inputs_position"]))
-    segments = np.asarray(jax.device_get(batch["inputs_segmentation"]))
-    transfer_seconds = time.perf_counter() - transfer_started
-    baseline_timings.append({
-        "compile_execute": compile_execute_seconds,
-        "device_to_host": transfer_seconds,
-    })
-    baseline_total_loss += float(metrics["total_loss"])
-    baseline_total_weights += float(metrics["total_weights"])
-    baseline_sequence_loss.extend(np.asarray(metrics["sequence_loss"]).tolist())
-    _merge_adjacent(adjacent_accumulator, adjacent)
-    baseline_raw.append({
-        layer: {name: np.asarray(values[name]) for name in _COMPARE_NAMES}
-        for layer, values in sampled.items()
-    })
-    for layer, values in sampled.items():
-      collector = mix_collectors[layer]
-      _collect_mix_stats(
-          collector, values["fetch_mix_logits"], values["fetch_mix_weights"],
-          positions, segments)
-      _collect_alpha_stats(
-          collector, values["fetch_alpha_pre_diagonal"], values["fetch_alpha"],
-          positions, segments, stride)
-    print(f"BAM_CACHE_DIAG baseline batch={batch_index + 1}/{num_batches} "
-          f"loss={float(metrics['total_loss']) / float(metrics['total_weights']):.6f} "
-          f"seconds={compile_execute_seconds:.1f}", flush=True)
+    for microbatch_index, microbatch in _iter_microbatches(batch, microbatch_size):
+      batch_started = time.perf_counter()
+      with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+        metrics_device, sampled_device, adjacent_device = baseline_forward(
+            state.params, microbatch, jax.random.fold_in(init_rng, execution_index))
+      jax.block_until_ready((metrics_device, sampled_device, adjacent_device))
+      compile_execute_seconds = time.perf_counter() - batch_started
+      transfer_started = time.perf_counter()
+      metrics = jax.device_get(metrics_device)
+      sampled = jax.device_get(sampled_device)
+      adjacent = jax.device_get(adjacent_device)
+      positions = np.asarray(jax.device_get(microbatch["inputs_position"]))
+      segments = np.asarray(jax.device_get(microbatch["inputs_segmentation"]))
+      transfer_seconds = time.perf_counter() - transfer_started
+      baseline_timings.append({
+          "batch": batch_index,
+          "microbatch": microbatch_index,
+          "compile_execute": compile_execute_seconds,
+          "device_to_host": transfer_seconds,
+      })
+      baseline_total_loss += float(metrics["total_loss"])
+      baseline_total_weights += float(metrics["total_weights"])
+      baseline_sequence_loss.extend(np.asarray(metrics["sequence_loss"]).tolist())
+      _merge_adjacent(adjacent_accumulator, adjacent)
+      baseline_raw.append({
+          layer: {name: np.asarray(values[name]) for name in _COMPARE_NAMES}
+          for layer, values in sampled.items()
+      })
+      for layer, values in sampled.items():
+        collector = mix_collectors[layer]
+        _collect_mix_stats(
+            collector, values["fetch_mix_logits"], values["fetch_mix_weights"],
+            positions, segments)
+        _collect_alpha_stats(
+            collector, values["fetch_alpha_pre_diagonal"], values["fetch_alpha"],
+            positions, segments, stride)
+      print(f"BAM_CACHE_DIAG baseline batch={batch_index + 1}/{num_batches} "
+            f"microbatch={microbatch_index + 1} "
+            f"loss={float(metrics['total_loss']) / float(metrics['total_weights']):.6f} "
+            f"seconds={compile_execute_seconds:.1f}", flush=True)
+      execution_index += 1
 
   baseline_loss = baseline_total_loss / baseline_total_weights
   report["baseline"] = {
@@ -571,33 +601,39 @@ def run(config):
         },
     }
     timings = []
+    execution_index = 0
     for batch_index, batch in enumerate(batches):
-      batch_started = time.perf_counter()
-      with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-        metrics_device, sampled_device, _ = variant_forward(
-            state.params, batch, jax.random.fold_in(init_rng, batch_index))
-      jax.block_until_ready((metrics_device, sampled_device))
-      compile_execute_seconds = time.perf_counter() - batch_started
-      transfer_started = time.perf_counter()
-      metrics = jax.device_get(metrics_device)
-      sampled = jax.device_get(sampled_device)
-      transfer_seconds = time.perf_counter() - transfer_started
-      timings.append({
-          "compile_execute": compile_execute_seconds,
-          "device_to_host": transfer_seconds,
-      })
-      total_loss += float(metrics["total_loss"])
-      total_weights += float(metrics["total_weights"])
-      sequence_loss.extend(np.asarray(metrics["sequence_loss"]).tolist())
-      for layer, values in sampled.items():
-        for name in _COMPARE_NAMES:
-          errors[f"layer_{layer:02d}"][name].add(
-              baseline_raw[batch_index][layer][name], values[name])
-          errors["all_layers"][name].add(
-              baseline_raw[batch_index][layer][name], values[name])
-      print(f"BAM_CACHE_DIAG variant={variant_name} batch={batch_index + 1}/{num_batches} "
-            f"loss={float(metrics['total_loss']) / float(metrics['total_weights']):.6f} "
-            f"seconds={compile_execute_seconds:.1f}", flush=True)
+      for microbatch_index, microbatch in _iter_microbatches(batch, microbatch_size):
+        batch_started = time.perf_counter()
+        with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+          metrics_device, sampled_device, _ = variant_forward(
+              state.params, microbatch, jax.random.fold_in(init_rng, execution_index))
+        jax.block_until_ready((metrics_device, sampled_device))
+        compile_execute_seconds = time.perf_counter() - batch_started
+        transfer_started = time.perf_counter()
+        metrics = jax.device_get(metrics_device)
+        sampled = jax.device_get(sampled_device)
+        transfer_seconds = time.perf_counter() - transfer_started
+        timings.append({
+            "batch": batch_index,
+            "microbatch": microbatch_index,
+            "compile_execute": compile_execute_seconds,
+            "device_to_host": transfer_seconds,
+        })
+        total_loss += float(metrics["total_loss"])
+        total_weights += float(metrics["total_weights"])
+        sequence_loss.extend(np.asarray(metrics["sequence_loss"]).tolist())
+        for layer, values in sampled.items():
+          for name in _COMPARE_NAMES:
+            errors[f"layer_{layer:02d}"][name].add(
+                baseline_raw[execution_index][layer][name], values[name])
+            errors["all_layers"][name].add(
+                baseline_raw[execution_index][layer][name], values[name])
+        print(f"BAM_CACHE_DIAG variant={variant_name} batch={batch_index + 1}/{num_batches} "
+              f"microbatch={microbatch_index + 1} "
+              f"loss={float(metrics['total_loss']) / float(metrics['total_weights']):.6f} "
+              f"seconds={compile_execute_seconds:.1f}", flush=True)
+        execution_index += 1
 
     loss = total_loss / total_weights
     sequence_loss = np.asarray(sequence_loss)

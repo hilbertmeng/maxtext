@@ -636,7 +636,7 @@ class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
 
 class BamLlama2MediumV1FetchSlidingWindow256(BamLlama2MediumV1):
     """Mask the mixed BAM fetch alpha to a 256-token causal window without renormalizing."""
-    # ~0.460 steps/s; effect-first implementation intentionally retains dense alpha computation.
+    # ~0.460 steps/s; stopped at 2,860. dloss +0.0288 vs V1 @2,800; no benefit.
     model_name = 'BamLlama2MediumV1FetchSlidingWindow256'
     bam_fetch_sliding_window_size = 256
 

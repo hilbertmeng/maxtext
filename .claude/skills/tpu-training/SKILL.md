@@ -50,9 +50,10 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 # Registry and auto_pid environment must agree on CODE_COMMIT and COMPARE_RUNS.
 ```
 
-5. **Always attach the watcher as part of launch. Launch is not handed off until it is
-   watching `FIRST_STEP:|ERR:`.** Copy it to worker 0, then run it in a backgrounded local
-   shell/exec session with output notification:
+5. **Always attach the watcher as part of launch. Launch is not handed off until it emits
+   `FIRST_STEP:|ERR:`.** Copy it to worker 0, then run it in a local exec session. Exec sessions
+   are pull-only: continuously wait/poll that session until the signal; never assume it will push
+   a notification while doing unrelated work.
 
 ```bash
 TPU=xd-v5p-16-0-maxtext

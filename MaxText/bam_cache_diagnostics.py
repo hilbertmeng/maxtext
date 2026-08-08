@@ -426,6 +426,15 @@ def _iter_microbatches(batch, microbatch_size):
 
 
 def _variant_specs(group):
+  if group == "sign_dominant":
+    return (
+        ("mix_dominant_sign_l2", {
+            "bam_fetch_sign_ablation": "mix_dominant_sign_l2"}),
+        ("alpha_dominant_sign_raw", {
+            "bam_fetch_sign_ablation": "alpha_dominant_sign_raw"}),
+        ("alpha_dominant_sign_l2", {
+            "bam_fetch_sign_ablation": "alpha_dominant_sign_l2"}),
+    )
   if group == "sign":
     return (
         ("mix_abs_l2", {"bam_fetch_sign_ablation": "mix_abs"}),

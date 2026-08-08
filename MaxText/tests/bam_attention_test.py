@@ -637,6 +637,30 @@ class BamReadKeyTransformTest(absltest.TestCase):
         mix_positive[:, 0], jnp.einsum('bnts,btn->bts', alpha, positive_weights),
         rtol=1e-6, atol=1e-6)
 
+    for mode in ('alpha_dominant_sign_raw', 'alpha_dominant_sign_l2'):
+      dominant = _dynamic_mixed_bam_fetch_alpha(
+          alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+          sign_ablation=mode)
+      signed_sum = jnp.sum(signed, axis=-1, keepdims=True)
+      dominant_sign = jnp.where(signed_sum >= 0, 1, -1)
+      self.assertTrue(np.all(np.asarray(dominant * dominant_sign) >= 0))
+      if mode.endswith('_l2'):
+        np.testing.assert_allclose(
+            jnp.linalg.norm(dominant, axis=-1), jnp.linalg.norm(signed, axis=-1),
+            rtol=1e-5, atol=1e-6)
+
+    mix_dominant = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+        sign_ablation='mix_dominant_sign_l2')
+    weight_sign = jnp.where(jnp.sum(weights, axis=-1, keepdims=True) >= 0, 1, -1)
+    dominant_weights = jnp.where(weights * weight_sign >= 0, weights, 0)
+    dominant_weights *= (
+        jnp.linalg.norm(weights, axis=-1, keepdims=True)
+        / jnp.linalg.norm(dominant_weights, axis=-1, keepdims=True))
+    np.testing.assert_allclose(
+        mix_dominant[:, 0], jnp.einsum('bnts,btn->bts', alpha, dominant_weights),
+        rtol=1e-6, atol=1e-6)
+
   def test_temporal_block_fetch_is_causal_and_segment_aware(self):
     alpha = jnp.tril(jnp.ones((1, 1, 8, 8), dtype=jnp.float32))
     alpha = alpha / alpha.sum(axis=-1, keepdims=True)

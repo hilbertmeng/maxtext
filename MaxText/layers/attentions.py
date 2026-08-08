@@ -1776,9 +1776,15 @@ def _dynamic_mixed_bam_fetch_alpha(
     mix_weights = jnp.abs(mix_weights)
   elif sign_ablation == 'mix_positive_l2':
     mix_weights = match_l2(jnp.maximum(mix_weights, 0), mix_weights)
+  elif sign_ablation == 'mix_dominant_sign_l2':
+    dominant_sign = jnp.where(
+        jnp.sum(mix_weights, axis=-1, keepdims=True) >= 0, 1, -1)
+    dominant = jnp.where(mix_weights * dominant_sign >= 0, mix_weights, 0)
+    mix_weights = match_l2(dominant, mix_weights)
   elif sign_ablation not in (
       'signed', 'alpha_abs', 'alpha_positive_raw', 'alpha_positive_l2',
-      'alpha_negative_l2'):
+      'alpha_negative_l2', 'alpha_dominant_sign_raw',
+      'alpha_dominant_sign_l2'):
     raise ValueError(f'Unknown BAM fetch sign ablation: {sign_ablation}')
 
   fetch_alpha = jnp.einsum('bnts,btn->bts', alpha, mix_weights)
@@ -1794,6 +1800,14 @@ def _dynamic_mixed_bam_fetch_alpha(
     fetch_alpha = match_l2(jnp.maximum(fetch_alpha, 0), fetch_alpha)
   elif sign_ablation == 'alpha_negative_l2':
     fetch_alpha = match_l2(jnp.minimum(fetch_alpha, 0), fetch_alpha)
+  elif sign_ablation in ('alpha_dominant_sign_raw', 'alpha_dominant_sign_l2'):
+    dominant_sign = jnp.where(
+        jnp.sum(fetch_alpha, axis=-1, keepdims=True) >= 0, 1, -1)
+    dominant = jnp.where(fetch_alpha * dominant_sign >= 0, fetch_alpha, 0)
+    fetch_alpha = (
+        match_l2(dominant, fetch_alpha)
+        if sign_ablation == 'alpha_dominant_sign_l2'
+        else dominant)
   fetch_alpha = fetch_alpha[:, None]
   if return_aux:
     return fetch_alpha, mix_logits, mix_weights, pre_diagonal_alpha

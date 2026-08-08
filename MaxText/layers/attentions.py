@@ -3033,7 +3033,7 @@ class BamAttention(Attention):
             fetch_alpha = fetch_alpha * (
                 1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
         elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
-          fetch_sign_ablation = getattr(cfg, 'bam_fetch_sign_ablation', 'signed')
+          fetch_sign_ablation = getattr(cfg, 'bam_fetch_sign_ablation', None) or 'signed'
           if fetch_sign_ablation != 'signed' and not cfg.bam_diagnostics:
             raise ValueError('bam_fetch_sign_ablation is diagnostics-only')
           dynamic_fetch = _dynamic_mixed_bam_fetch_alpha(

@@ -610,7 +610,7 @@ class BamLlama2MediumV1(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm
 ):
     """Milestone: NoMNorm FactorizedLocalQK with the validated bf16/mul-reduce path."""
-    # ~0.461 steps/s; running. +41.8% vs NoMNorm (~0.325), consistent with the bf16 profile.
+    # ~0.461 steps/s; completed 13,500. mean dloss -0.0030 vs NoMNorm @12,000–13,400.
     model_name = 'BamLlama2MediumV1'
     float32_logits = False
     bam_force_activation_dtype = True

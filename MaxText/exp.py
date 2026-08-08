@@ -251,6 +251,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
+    bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_codebook_source_implementation = 'dot'  # dot | mul_reduce
     bam_codebook_read_implementation = 'dot_btn'  # dot_btn | mul_reduce_btn
     bam_share_full_local_read = False  # share full/local_o runtime-key and gate projections
@@ -631,6 +632,13 @@ class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
     # ~0.491 steps/s; stopped at 2,175. dloss +0.0485 vs V1 @2,000; dominated by AlternateLayerRead.
     model_name = 'BamLlama2MediumV1AlternateRowColRead'
     bam_read_sides = ['row' if layer % 2 == 0 else 'col' for layer in range(24)]
+
+
+class BamLlama2MediumV1FetchSlidingWindow256(BamLlama2MediumV1):
+    """Restrict BAM full-fetch routing to a renormalized 256-token causal window."""
+    # Running; effect-first implementation intentionally retains dense alpha computation.
+    model_name = 'BamLlama2MediumV1FetchSlidingWindow256'
+    bam_fetch_sliding_window_size = 256
 
 
 class BamV1SixLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):

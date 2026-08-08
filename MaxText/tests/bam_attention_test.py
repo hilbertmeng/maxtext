@@ -13,6 +13,7 @@ from layers.attentions import (
     _rms,
     _select_bam_write_source,
     _shared_bam_fetch_alpha,
+    _sliding_window_bam_fetch_alpha,
     _transform_bam_read_key,
     _update_bam_matrix,
     bam_read,
@@ -579,6 +580,19 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(mixed[:, 0], expected, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(
         jnp.sqrt(jnp.sum(weights ** 2, axis=-1)), 1.0, rtol=1e-6, atol=1e-6)
+
+  def test_fetch_sliding_window_matches_masked_softmax(self):
+    logits = jax.random.normal(jax.random.PRNGKey(7), (2, 3, 6, 6))
+    causal = jnp.tril(jnp.ones((6, 6), dtype=bool))
+    alpha = jax.nn.softmax(jnp.where(causal, logits, -jnp.inf), axis=-1)
+    actual = _sliding_window_bam_fetch_alpha(alpha, 3)
+
+    target = jnp.arange(6)[:, None]
+    source = jnp.arange(6)[None, :]
+    sliding = causal & (source > target - 3)
+    expected = jax.nn.softmax(jnp.where(sliding, logits, -jnp.inf), axis=-1)
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(actual.sum(axis=-1), 1.0, rtol=1e-6, atol=1e-6)
 
   def test_write_source_selection(self):
     terms = [jnp.full((2,), value) for value in (1.0, 2.0, 4.0, 8.0)]

@@ -187,18 +187,20 @@ def _collect_mix_stats(collector, logits, weights, positions, segments):
   logits = np.asarray(logits, np.float32)
   weights = np.asarray(weights, np.float32)
   energy = np.square(weights)
-  collector.add("coefficient/l2_norm", np.linalg.norm(weights, axis=-1))
-  collector.add("coefficient/sum", np.sum(weights, axis=-1))
-  collector.add("coefficient/max_abs", np.max(np.abs(weights), axis=-1))
-  collector.add("coefficient/effective_heads", 1.0 / np.maximum(np.sum(np.square(energy), axis=-1), _EPS))
-  collector.add("coefficient/positive_fraction", np.mean(weights > 0, axis=-1))
-  collector.add("raw_logits/rms", np.sqrt(np.mean(np.square(logits), axis=-1)))
+  token_valid = segments != 0
+  collector.add("coefficient/l2_norm", np.linalg.norm(weights, axis=-1)[token_valid])
+  collector.add("coefficient/sum", np.sum(weights, axis=-1)[token_valid])
+  collector.add("coefficient/max_abs", np.max(np.abs(weights), axis=-1)[token_valid])
+  collector.add("coefficient/effective_heads",
+                (1.0 / np.maximum(np.sum(np.square(energy), axis=-1), _EPS))[token_valid])
+  collector.add("coefficient/positive_fraction", np.mean(weights > 0, axis=-1)[token_valid])
+  collector.add("raw_logits/rms", np.sqrt(np.mean(np.square(logits), axis=-1))[token_valid])
   sorted_energy = np.sort(energy, axis=-1)[..., ::-1]
-  collector.add("coefficient/top1_energy", sorted_energy[..., 0])
-  collector.add("coefficient/top2_energy", np.sum(sorted_energy[..., :2], axis=-1))
+  collector.add("coefficient/top1_energy", sorted_energy[..., 0][token_valid])
+  collector.add("coefficient/top2_energy", np.sum(sorted_energy[..., :2], axis=-1)[token_valid])
   for head in range(weights.shape[-1]):
-    collector.add(f"head_{head:02d}/coefficient", weights[..., head])
-    collector.add(f"head_{head:02d}/energy", energy[..., head])
+    collector.add(f"head_{head:02d}/coefficient", weights[..., head][token_valid])
+    collector.add(f"head_{head:02d}/energy", energy[..., head][token_valid])
 
   valid = (
       (segments[:, 1:] != 0)
@@ -218,6 +220,8 @@ def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments,
   query_indices = np.arange(0, positions.shape[1], stride)[:pre_alpha.shape[1]]
   query_positions = positions[:, query_indices]
   query_segments = segments[:, query_indices]
+  query_valid = query_segments != 0
+  add_row = lambda name, values: collector.add(name, np.asarray(values)[query_valid])
   valid = (
       (query_segments[:, :, None] != 0)
       & (query_segments[:, :, None] == segments[:, None, :])
@@ -228,37 +232,36 @@ def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments,
   l1 = np.sum(abs_values, axis=-1)
   l2_sq = np.sum(np.square(values), axis=-1)
   valid_count = np.maximum(np.sum(valid, axis=-1), 1)
-  collector.add("alpha/signed_sum", np.sum(values, axis=-1))
-  collector.add("alpha/l1", l1)
-  collector.add("alpha/l2", np.sqrt(l2_sq))
-  collector.add("alpha/max_abs", np.max(abs_values, axis=-1))
-  collector.add("alpha/negative_fraction", np.sum((values < 0) & valid, axis=-1) / valid_count)
-  collector.add("alpha/positive_mass", np.sum(np.maximum(values, 0), axis=-1))
-  collector.add("alpha/negative_abs_mass", np.sum(np.maximum(-values, 0), axis=-1))
-  collector.add("alpha/effective_support", np.square(l1) / np.maximum(l2_sq, _EPS))
+  add_row("alpha/signed_sum", np.sum(values, axis=-1))
+  add_row("alpha/l1", l1)
+  add_row("alpha/l2", np.sqrt(l2_sq))
+  add_row("alpha/max_abs", np.max(abs_values, axis=-1))
+  add_row("alpha/negative_fraction", np.sum((values < 0) & valid, axis=-1) / valid_count)
+  add_row("alpha/positive_mass", np.sum(np.maximum(values, 0), axis=-1))
+  add_row("alpha/negative_abs_mass", np.sum(np.maximum(-values, 0), axis=-1))
+  add_row("alpha/effective_support", np.square(l1) / np.maximum(l2_sq, _EPS))
 
   max_k = max(_TOP_K)
   largest = np.partition(abs_values, -max_k, axis=-1)[..., -max_k:]
   largest = np.sort(largest, axis=-1)[..., ::-1]
   for k in _TOP_K:
-    collector.add(f"alpha/top{k}_abs_mass_fraction",
-                  np.sum(largest[..., :k], axis=-1) / np.maximum(l1, _EPS))
+    add_row(f"alpha/top{k}_abs_mass_fraction",
+            np.sum(largest[..., :k], axis=-1) / np.maximum(l1, _EPS))
 
   lag = query_positions[:, :, None] - positions[:, None, :]
   for window in _WINDOWS:
     in_window = valid & (lag < window)
-    collector.add(f"alpha/window{window}_abs_mass_fraction",
-                  np.sum(abs_values * in_window, axis=-1) / np.maximum(l1, _EPS))
-    collector.add(f"alpha/window{window}_signed_sum",
-                  np.sum(values * in_window, axis=-1))
+    add_row(f"alpha/window{window}_abs_mass_fraction",
+            np.sum(abs_values * in_window, axis=-1) / np.maximum(l1, _EPS))
+    add_row(f"alpha/window{window}_signed_sum", np.sum(values * in_window, axis=-1))
 
   batch_indices = np.arange(pre_alpha.shape[0])[:, None]
   query_sample_indices = np.arange(pre_alpha.shape[1])[None, :]
   source_indices = np.broadcast_to(query_indices[None, :], query_sample_indices.shape)
   pre_diagonal = pre_alpha[batch_indices, query_sample_indices, source_indices]
   final_diagonal = final_alpha[batch_indices, query_sample_indices, source_indices]
-  collector.add("alpha/pre_diagonal", pre_diagonal)
-  collector.add("alpha/final_diagonal", final_diagonal)
+  add_row("alpha/pre_diagonal", pre_diagonal)
+  add_row("alpha/final_diagonal", final_diagonal)
 
 
 class _ErrorAccumulator:

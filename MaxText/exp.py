@@ -607,6 +607,7 @@ class BamLlama2MediumV1(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm
 ):
     """Milestone: NoMNorm FactorizedLocalQK with the validated bf16/mul-reduce path."""
+    # ~0.461 steps/s; running. +41.8% vs NoMNorm (~0.325), consistent with the bf16 profile.
     model_name = 'BamLlama2MediumV1'
     float32_logits = False
     bam_force_activation_dtype = True
@@ -615,6 +616,7 @@ class BamLlama2MediumV1(
 
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
     """Write every layer; BAM-read only odd-numbered layers."""
+    # ~0.558 steps/s; running. +21.0% vs V1.
     model_name = 'BamLlama2MediumV1AlternateLayerRead'
     bam_layer_modes = [
         'write' if layer % 2 == 0 else 'local_qk+local_o+full'
@@ -624,6 +626,7 @@ class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
 
 class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
     """Write every layer; alternate row-only and column-only BAM reads."""
+    # ~0.491 steps/s; running. +6.5% vs V1.
     model_name = 'BamLlama2MediumV1AlternateRowColRead'
     bam_read_sides = ['row' if layer % 2 == 0 else 'col' for layer in range(24)]
 

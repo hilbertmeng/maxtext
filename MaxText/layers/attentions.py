@@ -1750,7 +1750,7 @@ def _shared_bam_fetch_alpha(alpha, query, key, attn_mask, n_f, mode,
 
 def _dynamic_mixed_bam_fetch_alpha(
     alpha, mix_logits, diagonal_yield, weight_mode='softmax', epsilon=1e-6,
-    return_aux=False):
+    sign_ablation='signed', return_aux=False):
   """Build one BAM fetch route as a token-wise mixture of all MHA heads."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
   if weight_mode == 'softmax':
@@ -1762,11 +1762,38 @@ def _dynamic_mixed_bam_fetch_alpha(
   else:
     raise ValueError(f'Unknown dynamic fetch weight mode: {weight_mode}')
   mix_weights = jnp.asarray(mix_weights, alpha.dtype)
+
+  def match_l2(candidate, reference):
+    candidate_f32 = jnp.asarray(candidate, jnp.float32)
+    reference_f32 = jnp.asarray(reference, jnp.float32)
+    candidate_sq = jnp.sum(jnp.square(candidate_f32), axis=-1, keepdims=True)
+    reference_sq = jnp.sum(jnp.square(reference_f32), axis=-1, keepdims=True)
+    scale = jnp.sqrt(reference_sq / jnp.maximum(candidate_sq, epsilon))
+    matched = jnp.where(candidate_sq > epsilon, candidate_f32 * scale, 0.0)
+    return jnp.asarray(matched, reference.dtype)
+
+  if sign_ablation == 'mix_abs':
+    mix_weights = jnp.abs(mix_weights)
+  elif sign_ablation == 'mix_positive_l2':
+    mix_weights = match_l2(jnp.maximum(mix_weights, 0), mix_weights)
+  elif sign_ablation not in (
+      'signed', 'alpha_abs', 'alpha_positive_raw', 'alpha_positive_l2',
+      'alpha_negative_l2'):
+    raise ValueError(f'Unknown BAM fetch sign ablation: {sign_ablation}')
+
   fetch_alpha = jnp.einsum('bnts,btn->bts', alpha, mix_weights)
   pre_diagonal_alpha = fetch_alpha[:, None]
   if diagonal_yield:
     fetch_alpha = fetch_alpha * (
         1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
+  if sign_ablation == 'alpha_abs':
+    fetch_alpha = jnp.abs(fetch_alpha)
+  elif sign_ablation == 'alpha_positive_raw':
+    fetch_alpha = jnp.maximum(fetch_alpha, 0)
+  elif sign_ablation == 'alpha_positive_l2':
+    fetch_alpha = match_l2(jnp.maximum(fetch_alpha, 0), fetch_alpha)
+  elif sign_ablation == 'alpha_negative_l2':
+    fetch_alpha = match_l2(jnp.minimum(fetch_alpha, 0), fetch_alpha)
   fetch_alpha = fetch_alpha[:, None]
   if return_aux:
     return fetch_alpha, mix_logits, mix_weights, pre_diagonal_alpha
@@ -3006,10 +3033,14 @@ class BamAttention(Attention):
             fetch_alpha = fetch_alpha * (
                 1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
         elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
+          fetch_sign_ablation = getattr(cfg, 'bam_fetch_sign_ablation', 'signed')
+          if fetch_sign_ablation != 'signed' and not cfg.bam_diagnostics:
+            raise ValueError('bam_fetch_sign_ablation is diagnostics-only')
           dynamic_fetch = _dynamic_mixed_bam_fetch_alpha(
               alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
               'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
               cfg.normalization_layer_epsilon,
+              sign_ablation=fetch_sign_ablation,
               return_aux=cfg.bam_diagnostics)
           if cfg.bam_diagnostics:
             (fetch_alpha, fetch_mix_logits, fetch_mix_weights,

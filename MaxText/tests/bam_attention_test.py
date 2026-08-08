@@ -589,6 +589,54 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(actual_weights, weights, rtol=1e-6, atol=1e-6)
     np.testing.assert_array_equal(pre_diagonal, mixed)
 
+  def test_dynamic_fetch_sign_ablation_modes(self):
+    alpha = jnp.array([[[[0.7, 0.2, 0.1], [0.1, 0.3, 0.6]],
+                        [[0.1, 0.7, 0.2], [0.5, 0.4, 0.1]],
+                        [[0.2, 0.2, 0.6], [0.7, 0.1, 0.2]]]], dtype=jnp.float32)
+    logits = jnp.array([[[1.0, -2.0, 0.5], [-1.0, 2.0, -0.5]]], dtype=jnp.float32)
+    signed = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8)
+
+    alpha_abs = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+        sign_ablation='alpha_abs')
+    np.testing.assert_allclose(alpha_abs, jnp.abs(signed), rtol=1e-6, atol=1e-6)
+
+    positive_raw = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+        sign_ablation='alpha_positive_raw')
+    np.testing.assert_allclose(
+        positive_raw, jnp.maximum(signed, 0), rtol=1e-6, atol=1e-6)
+
+    for mode, sign in (('alpha_positive_l2', 1), ('alpha_negative_l2', -1)):
+      ablated = _dynamic_mixed_bam_fetch_alpha(
+          alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+          sign_ablation=mode)
+      np.testing.assert_allclose(
+          jnp.linalg.norm(ablated, axis=-1), jnp.linalg.norm(signed, axis=-1),
+          rtol=1e-5, atol=1e-6)
+      self.assertTrue(np.all(np.asarray(ablated) * sign >= 0))
+
+    weights = logits * jax.lax.rsqrt(
+        jnp.mean(logits ** 2, axis=-1, keepdims=True) + 1e-8) / jnp.sqrt(logits.shape[-1])
+    mix_abs = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+        sign_ablation='mix_abs')
+    np.testing.assert_allclose(
+        mix_abs[:, 0], jnp.einsum('bnts,btn->bts', alpha, jnp.abs(weights)),
+        rtol=1e-6, atol=1e-6)
+
+    mix_positive = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+        sign_ablation='mix_positive_l2')
+    positive_weights = jnp.maximum(weights, 0)
+    positive_weights *= (
+        jnp.linalg.norm(weights, axis=-1, keepdims=True)
+        / jnp.linalg.norm(positive_weights, axis=-1, keepdims=True))
+    np.testing.assert_allclose(
+        mix_positive[:, 0], jnp.einsum('bnts,btn->bts', alpha, positive_weights),
+        rtol=1e-6, atol=1e-6)
+
   def test_temporal_block_fetch_is_causal_and_segment_aware(self):
     alpha = jnp.tril(jnp.ones((1, 1, 8, 8), dtype=jnp.float32))
     alpha = alpha / alpha.sum(axis=-1, keepdims=True)

@@ -225,13 +225,26 @@ def _collect_mix_stats(collector, logits, weights, positions, segments):
   logits = np.asarray(logits, np.float32)
   weights = np.asarray(weights, np.float32)
   energy = np.square(weights)
+  abs_weights = np.abs(weights)
+  coefficient_l1 = np.sum(abs_weights, axis=-1)
+  coefficient_positive_mass = np.sum(np.maximum(weights, 0), axis=-1)
+  coefficient_negative_mass = np.sum(np.maximum(-weights, 0), axis=-1)
+  coefficient_sum = np.sum(weights, axis=-1)
   token_valid = segments != 0
   token_count = np.maximum(np.sum(token_valid, axis=1), 1)
   per_sequence_mean = lambda values: np.sum(
       np.asarray(values) * token_valid, axis=1) / token_count
   effective_heads = 1.0 / np.maximum(np.sum(np.square(energy), axis=-1), _EPS)
   collector.add("coefficient/l2_norm", np.linalg.norm(weights, axis=-1)[token_valid])
-  collector.add("coefficient/sum", np.sum(weights, axis=-1)[token_valid])
+  collector.add("coefficient/l1", coefficient_l1[token_valid])
+  collector.add("coefficient/sum", coefficient_sum[token_valid])
+  collector.add("coefficient/positive_mass", coefficient_positive_mass[token_valid])
+  collector.add("coefficient/negative_abs_mass", coefficient_negative_mass[token_valid])
+  collector.add("coefficient/negative_abs_mass_fraction", (
+      coefficient_negative_mass / np.maximum(coefficient_l1, _EPS))[token_valid])
+  collector.add("coefficient/cancellation_fraction", (
+      1 - np.abs(coefficient_sum) / np.maximum(coefficient_l1, _EPS))[token_valid])
+  collector.add("coefficient/no_positive", (coefficient_positive_mass == 0)[token_valid])
   collector.add("coefficient/max_abs", np.max(np.abs(weights), axis=-1)[token_valid])
   collector.add("coefficient/effective_heads", effective_heads[token_valid])
   collector.add("coefficient/positive_fraction", np.mean(weights > 0, axis=-1)[token_valid])
@@ -287,6 +300,13 @@ def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments,
   add_row("alpha/negative_fraction", np.sum((values < 0) & valid, axis=-1) / valid_count)
   add_row("alpha/positive_mass", np.sum(np.maximum(values, 0), axis=-1))
   add_row("alpha/negative_abs_mass", np.sum(np.maximum(-values, 0), axis=-1))
+  negative_abs_mass = np.sum(np.maximum(-values, 0), axis=-1)
+  signed_sum = np.sum(values, axis=-1)
+  negative_abs_mass_fraction = negative_abs_mass / np.maximum(l1, _EPS)
+  add_row("alpha/negative_abs_mass_fraction", negative_abs_mass_fraction)
+  add_row("alpha/cancellation_fraction", 1 - np.abs(signed_sum) / np.maximum(l1, _EPS))
+  add_sequence_mean(
+      "per_sequence/alpha_negative_abs_mass_fraction_mean", negative_abs_mass_fraction)
   effective_support = np.square(l1) / np.maximum(l2_sq, _EPS)
   add_row("alpha/effective_support", effective_support)
   add_sequence_mean("per_sequence/alpha_effective_support_mean", effective_support)
@@ -405,7 +425,18 @@ def _iter_microbatches(batch, microbatch_size):
     yield microbatch_index, {name: value[start:end] for name, value in batch.items()}
 
 
-def _variant_specs():
+def _variant_specs(group):
+  if group == "sign":
+    return (
+        ("mix_abs_l2", {"bam_fetch_sign_ablation": "mix_abs"}),
+        ("mix_positive_l2", {"bam_fetch_sign_ablation": "mix_positive_l2"}),
+        ("alpha_abs", {"bam_fetch_sign_ablation": "alpha_abs"}),
+        ("alpha_positive_raw", {"bam_fetch_sign_ablation": "alpha_positive_raw"}),
+        ("alpha_positive_l2", {"bam_fetch_sign_ablation": "alpha_positive_l2"}),
+        ("alpha_negative_l2", {"bam_fetch_sign_ablation": "alpha_negative_l2"}),
+    )
+  if group != "cache":
+    raise ValueError(f"Unknown BAM_CACHE_DIAG_VARIANT_GROUP={group!r}")
   specs = []
   for block_size in (8, 16, 32):
     for mode in ("mean", "linear"):
@@ -444,6 +475,7 @@ def run(config):
   num_batches = int(os.environ.get("BAM_CACHE_DIAG_BATCHES", "4"))
   requested_microbatch_size = int(os.environ.get("BAM_CACHE_DIAG_MICROBATCH_SIZE", "0"))
   stride = int(os.environ.get("BAM_CACHE_DIAG_TOKEN_STRIDE", "32"))
+  variant_group = os.environ.get("BAM_CACHE_DIAG_VARIANT_GROUP", "cache")
   output_dir = Path(os.environ.get("BAM_CACHE_DIAG_OUTPUT_DIR", "/tmp/bam_cache_diagnostics"))
   output_dir.mkdir(parents=True, exist_ok=True)
   report_path = output_dir / "bam_cache_diagnostics.json"
@@ -482,6 +514,7 @@ def run(config):
               requested_microbatch_size or int(batches[0]["inputs"].shape[0])),
           "sequence_length": int(batches[0]["inputs"].shape[1]),
           "token_stride": stride,
+          "variant_group": variant_group,
           "data_shuffle_seed": config.data_shuffle_seed,
           "eval_shuffle_buffer_size": config.eval_shuffle_buffer_size,
           "setup_seconds": setup_seconds,
@@ -585,7 +618,7 @@ def run(config):
   report["adjacent_M"] = _adjacent_report(adjacent_accumulator)
   _write_report(report_path, report)
 
-  for variant_name, overrides in _variant_specs():
+  for variant_name, overrides in _variant_specs(variant_group):
     variant_config = _ConfigOverlay(config, **overrides)
     variant_model = train.Transformer(variant_config, mesh, quant=base_model.quant)
     variant_forward = jax.jit(

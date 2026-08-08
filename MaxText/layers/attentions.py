@@ -1769,16 +1769,13 @@ def _dynamic_mixed_bam_fetch_alpha(
 
 
 def _sliding_window_bam_fetch_alpha(alpha, window_size):
-  """Condition each causal attention head on its most recent window_size keys."""
+  """Mask an already mixed fetch alpha to its most recent window, without renormalizing."""
   if window_size <= 0:
     raise ValueError(f'BAM fetch sliding-window size must be positive, got {window_size}')
   target = jnp.arange(alpha.shape[-2])[:, None]
   source = jnp.arange(alpha.shape[-1])[None, :]
   mask = (source <= target) & (source > target - window_size)
-  windowed = jnp.where(mask, alpha, jnp.asarray(0, alpha.dtype))
-  normalizer = jnp.sum(windowed, axis=-1, keepdims=True)
-  safe_normalizer = jnp.where(normalizer > 0, normalizer, jnp.ones_like(normalizer))
-  return windowed / safe_normalizer
+  return jnp.where(mask, alpha, jnp.asarray(0, alpha.dtype))
 
 
 def _select_bam_write_source(source, y_std, y_codebook, y_full, y_local_o, y_all=None):
@@ -2294,8 +2291,8 @@ class BamAttention(Attention):
     if self._fetch_sliding_window_size is not None:
       assert self._fetch_sliding_window_size > 0
       assert not cfg.bam_dedicated_fetch
-      assert self._shared_fetch_mode != 'recompute', (
-          'BAM fetch sliding window currently requires an alpha-reuse fetch mode')
+      assert self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'), (
+          'BAM fetch sliding window currently masks the post-mix fetch alpha')
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail')
     assert self._m_read_norm in ('rms', 'none')
     assert self._forget_mode in ('constant', 'dynamic')
@@ -2885,10 +2882,6 @@ class BamAttention(Attention):
     diagonal_yield = 'local_o' in self._mode and not cfg.bam_keep_fetch_diagonal
     if {'full', 'codebook'} & self._mode:
       with jax.named_scope("bam/mix_alpha"):
-        fetch_source_alpha = alpha
-        if self._fetch_sliding_window_size is not None:
-          fetch_source_alpha = _sliding_window_bam_fetch_alpha(
-              alpha, self._fetch_sliding_window_size)
         if cfg.bam_dedicated_fetch:
           fetch_query = fetch_query / jnp.sqrt(self.head_dim).astype(self.dtype)
           if cfg.float32_qk_product:
@@ -2907,13 +2900,16 @@ class BamAttention(Attention):
                 1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
         elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
           fetch_alpha = _dynamic_mixed_bam_fetch_alpha(
-              fetch_source_alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
+              alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
               'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
               cfg.normalization_layer_epsilon)
         else:
           fetch_alpha = _shared_bam_fetch_alpha(
-              fetch_source_alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
+              alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
               diagonal_yield, cfg.attn_logits_soft_cap, cfg.float32_logits)
+        if self._fetch_sliding_window_size is not None:
+          fetch_alpha = _sliding_window_bam_fetch_alpha(
+              fetch_alpha, self._fetch_sliding_window_size)
         if self._fetch_diagonal_one:
           diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
           fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(

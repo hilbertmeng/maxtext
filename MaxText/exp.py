@@ -635,7 +635,7 @@ class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
 
 
 class BamLlama2MediumV1FetchSlidingWindow256(BamLlama2MediumV1):
-    """Restrict BAM full-fetch routing to a renormalized 256-token causal window."""
+    """Mask the mixed BAM fetch alpha to a 256-token causal window without renormalizing."""
     # Running; effect-first implementation intentionally retains dense alpha computation.
     model_name = 'BamLlama2MediumV1FetchSlidingWindow256'
     bam_fetch_sliding_window_size = 256

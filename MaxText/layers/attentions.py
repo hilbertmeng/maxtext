@@ -1781,6 +1781,11 @@ def _dynamic_mixed_bam_fetch_alpha(
         jnp.sum(mix_weights, axis=-1, keepdims=True) >= 0, 1, -1)
     dominant = jnp.where(mix_weights * dominant_sign >= 0, mix_weights, 0)
     mix_weights = match_l2(dominant, mix_weights)
+  elif sign_ablation == 'mix_mean_mode_raw':
+    mix_weights = jnp.broadcast_to(
+        jnp.mean(mix_weights, axis=-1, keepdims=True), mix_weights.shape)
+  elif sign_ablation == 'mix_contrast_raw':
+    mix_weights = mix_weights - jnp.mean(mix_weights, axis=-1, keepdims=True)
   elif sign_ablation not in (
       'signed', 'alpha_abs', 'alpha_positive_raw', 'alpha_positive_l2',
       'alpha_negative_l2', 'alpha_dominant_sign_raw',

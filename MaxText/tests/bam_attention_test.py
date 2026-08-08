@@ -661,6 +661,14 @@ class BamReadKeyTransformTest(absltest.TestCase):
         mix_dominant[:, 0], jnp.einsum('bnts,btn->bts', alpha, dominant_weights),
         rtol=1e-6, atol=1e-6)
 
+    mean_mode = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+        sign_ablation='mix_mean_mode_raw')
+    contrast = _dynamic_mixed_bam_fetch_alpha(
+        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
+        sign_ablation='mix_contrast_raw')
+    np.testing.assert_allclose(mean_mode + contrast, signed, rtol=1e-6, atol=1e-6)
+
   def test_temporal_block_fetch_is_causal_and_segment_aware(self):
     alpha = jnp.tril(jnp.ones((1, 1, 8, 8), dtype=jnp.float32))
     alpha = alpha / alpha.sum(axis=-1, keepdims=True)

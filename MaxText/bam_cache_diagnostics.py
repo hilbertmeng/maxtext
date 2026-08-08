@@ -426,6 +426,11 @@ def _iter_microbatches(batch, microbatch_size):
 
 
 def _variant_specs(group):
+  if group == "sign_components":
+    return (
+        ("mix_mean_mode_raw", {"bam_fetch_sign_ablation": "mix_mean_mode_raw"}),
+        ("mix_contrast_raw", {"bam_fetch_sign_ablation": "mix_contrast_raw"}),
+    )
   if group == "sign_dominant":
     return (
         ("mix_dominant_sign_l2", {

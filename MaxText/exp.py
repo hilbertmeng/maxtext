@@ -426,7 +426,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKN
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Ablate the whole-matrix RMS normalization before every BAM read."""
-    # ~0.325 steps/s; running.
+    # ~0.325 steps/s; completed 13,500. mean dloss -0.0078 (-0.31%) vs Factorized @5,600–7,000; BASE ended 7,145.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm'
     bam_m_read_norm = 'none'
 

@@ -646,7 +646,7 @@ class BamLlama2MediumV1WriteMulDiagonalOne(BamLlama2MediumV1):
 
 class BamLlama2MediumV1FastStdWrite(BamLlama2MediumV1WriteMulDiagonalOne):
     """Write only pre-output-read y_std into M, excluding direct BAM read recirculation."""
-    # running.
+    # ~0.513 steps/s (~flat vs V1-fast); running.
     model_name = 'BamLlama2MediumV1FastStdWrite'
     bam_write_source = 'std'
 
@@ -683,7 +683,7 @@ class BamLlama2MediumDirectFastStdWrite(
     BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne
 ):
     """Direct-fast writing only pre-output-read y_std into M."""
-    # running.
+    # ~0.546 steps/s (+0.5% vs Direct-fast); running.
     model_name = 'BamLlama2MediumDirectFastStdWrite'
     bam_write_source = 'std'
 

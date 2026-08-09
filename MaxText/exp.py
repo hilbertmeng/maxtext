@@ -644,6 +644,13 @@ class BamLlama2MediumV1WriteMulDiagonalOne(BamLlama2MediumV1):
     bam_write_outer_implementation = 'mul_reduce'
 
 
+class BamLlama2MediumV1FastStdWrite(BamLlama2MediumV1WriteMulDiagonalOne):
+    """Write only pre-output-read y_std into M, excluding direct BAM read recirculation."""
+    # running.
+    model_name = 'BamLlama2MediumV1FastStdWrite'
+    bam_write_source = 'std'
+
+
 class BamLlama2MediumV1FactorizedLocalV(BamLlama2MediumV1):
     """Inject a source-local factorized bilateral M read into each standard value."""
     # ~0.440 steps/s; stopped at 8,201. mean dloss -0.0006 vs V1 @7,200–8,000 (<0.002).
@@ -670,6 +677,15 @@ class BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne(
     bam_combine_full_local_read = False
     bam_fetch_diagonal_one = True
     bam_write_outer_implementation = 'mul_reduce'
+
+
+class BamLlama2MediumDirectFastStdWrite(
+    BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne
+):
+    """Direct-fast writing only pre-output-read y_std into M."""
+    # running.
+    model_name = 'BamLlama2MediumDirectFastStdWrite'
+    bam_write_source = 'std'
 
 
 class BamLlama2MediumV1CompressAbsV8DirectStaticWriteV(

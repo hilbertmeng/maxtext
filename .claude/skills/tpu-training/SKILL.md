@@ -218,6 +218,24 @@ For a no-stop migration, restart only auto-train: it adopts the existing `train.
 new hash takes effect on the next relaunch. Changing the live training code itself requires a
 training restart.
 
+## Create Standalone v6e-1
+
+For an unregistered diagnostic TPU, call tpu-ag's creator directly; the installer is a basename
+resolved from the working directory:
+
+```bash
+NAME=xd-v6e-1-bamdiag ZONE=us-east5-a
+ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+  "cd /home/lishengping/xd/projects && mkdir -p logs && \
+   nohup python3 /home/lishengping/lsp/create_tpu.py \
+   --project newproject-1-451205 --tpu_name '$NAME' --type v6e-1 --zone '$ZONE' -p \
+   -inf install_xd_maxtext_jax081.sh \
+   > 'logs/${NAME}-create.log' 2>&1 < /dev/null &"
+```
+
+`-p` creates a best-effort spot queued resource; the creator waits for `READY`, then installs
+the environment. Inspect `logs/${NAME}-create.log` on tpu-ag.
+
 ## Recover Preemption
 
 Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd.sh`.

@@ -15,6 +15,7 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 - Use a spot non-pod `v6e-1` for inference-only probes unless memory requires more.
 - Reclaim `v6e-1` only in known viable zones, in order: `us-central1-a`,
   `europe-west4-a`, `us-east5-a`; follow `$tpu-training` lifecycle rules.
+- Create it with `$tpu-training`'s **Create Standalone v6e-1** command.
 - Never mutate or save over the source checkpoint. Use `only_eval=True` and a local output dir.
 - Add only necessary raw `sow` values to `attentions.py`; keep statistics in standalone runners.
 

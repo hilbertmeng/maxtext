@@ -635,7 +635,7 @@ class BamLlama2MediumV1(
 
 class BamLlama2MediumV1WriteMulDiagonalOne(BamLlama2MediumV1):
     """V1 with multiply+reduce writes and the equivalent diagonal-one read path."""
-    # Running; compare speed/loss with V1.
+    # ~0.514 steps/s (+11.5% vs V1); running.
     model_name = 'BamLlama2MediumV1WriteMulDiagonalOne'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False
@@ -663,7 +663,7 @@ class BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne(
     BamLlama2MediumV1CompressAbsV8Direct
 ):
     """CompressAbsV8 Direct with multiply+reduce writes and diagonal-one reads."""
-    # Running; compare speed/loss with Direct.
+    # !? ~0.543 steps/s (+5.4% vs Direct); running; below the ~0.577 composed-profile expectation.
     model_name = 'BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False

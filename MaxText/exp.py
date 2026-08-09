@@ -684,6 +684,19 @@ class BamAbsV8StaticWriteMulSixLayerProfile(BamAbsV8StaticWriteDotSixLayerProfil
     bam_write_outer_implementation = 'mul_reduce'
 
 
+class BamAbsV8DirectWriteDotFullLayerProfile(BamAbsV8DirectWriteDotSixLayerProfile):
+    """Full-layer verification of the dynamic write-V dot control."""
+    model_name = 'BamAbsV8DirectWriteDotFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o+full'] * 24
+
+
+class BamAbsV8DirectWriteMulFullLayerProfile(BamAbsV8DirectWriteDotFullLayerProfile):
+    """Full-layer verification of dynamic write-V multiply+reduce."""
+    model_name = 'BamAbsV8DirectWriteMulFullLayerProfile'
+    bam_write_outer_implementation = 'mul_reduce'
+
+
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
     """Write every layer; BAM-read only odd-numbered layers."""
     # ~0.555 steps/s; stopped at 8,539. mean dloss +0.0141 vs V1 @5,600–7,000; +20.7% speed.
@@ -736,6 +749,20 @@ class BamV1FetchDiagonalOneSixLayerProfile(BamV1SixLayerReadProfile):
     bam_share_full_local_read = False
     bam_combine_full_local_read = False
     bam_fetch_diagonal_one = True
+
+
+class BamV1CombinedReadFullLayerProfile(BamV1CombinedReadSixLayerProfile):
+    """Full-layer verification of the V1 CombinedRead control."""
+    model_name = 'BamV1CombinedReadFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o+full'] * 24
+
+
+class BamV1FetchDiagonalOneFullLayerProfile(BamV1FetchDiagonalOneSixLayerProfile):
+    """Full-layer verification of the equivalent diagonal-one read path."""
+    model_name = 'BamV1FetchDiagonalOneFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+full'] * 24
 
 
 class BamV1SixLayerLocalBlockDotProfile(BamV1SixLayerReadProfile):

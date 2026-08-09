@@ -34,6 +34,8 @@ _EPS = 1.0e-12
 _LAGS = (1, 2, 4, 8, 16, 32)
 _TOP_K = (1, 2, 4, 8, 16, 32, 64, 128)
 _WINDOWS = (64, 128, 256, 512, 1024)
+_SINK_PREFIXES = (1, 2, 4, 8, 16, 32, 64)
+_SINK_QUERY_MIN_POSITIONS = (256, 512, 1024)
 _COMPARE_NAMES = ("Mbar_fetch", "Mbar", "y_full")
 
 
@@ -104,7 +106,8 @@ def _adjacent_m_accumulators(M, positions, segments):
   return output
 
 
-def _forward(model, params, batch, rng, stride, capture_structure):
+def _forward(
+    model, params, batch, rng, stride, capture_structure, capture_comparisons=True):
   rng1, aqt_rng = jax.random.split(rng)
   (xent, _, _), collections = model.apply(
       params,
@@ -132,12 +135,12 @@ def _forward(model, params, batch, rng, stride, capture_structure):
             else value[:, ::stride]
         )
         for name, value in raw.items()
-        if name in _COMPARE_NAMES
+        if (capture_comparisons and name in _COMPARE_NAMES)
         or (capture_structure and name in (
             "fetch_alpha", "fetch_alpha_pre_diagonal",
             "fetch_mix_logits", "fetch_mix_weights"))
     }
-    if capture_structure:
+    if capture_structure and capture_comparisons:
       adjacent[layer] = _adjacent_m_accumulators(
           raw["M_in"], batch["inputs_position"], batch["inputs_segmentation"])
   return {
@@ -272,6 +275,81 @@ def _collect_mix_stats(collector, logits, weights, positions, segments):
   collector.add("temporal/adjacent_l2_delta", np.linalg.norm(left - right, axis=-1)[valid])
 
 
+def _collect_alpha_sink_stats(
+    collector, final_alpha, positions, query_positions, query_segments, valid):
+  """Measure whether late queries concentrate mixed-alpha mass at segment starts."""
+  values = np.where(valid, np.asarray(final_alpha, np.float32), 0.0)
+  abs_values = np.abs(values)
+  positive_values = np.maximum(values, 0.0)
+  negative_abs_values = np.maximum(-values, 0.0)
+  l1 = np.sum(abs_values, axis=-1)
+  valid_count = np.sum(valid, axis=-1)
+  lag = query_positions[:, :, None] - positions[:, None, :]
+  removed_by_window256 = valid & (lag >= 256)
+  removed_abs = np.sum(abs_values * removed_by_window256, axis=-1)
+  finite_nonzero = (query_segments != 0) & (l1 > _EPS)
+
+  def add_masked(name, metric, mask):
+    mask = np.asarray(mask) & np.isfinite(metric)
+    collector.add(name, np.asarray(metric)[mask])
+
+  for minimum_position in _SINK_QUERY_MIN_POSITIONS:
+    scope = f"qge{minimum_position}"
+    eligible = finite_nonzero & (query_positions >= minimum_position)
+    add_masked(
+        f"sink/{scope}/window256_removed_abs_mass_fraction",
+        removed_abs / np.maximum(l1, _EPS), eligible)
+    for prefix_size in _SINK_PREFIXES:
+      prefix = valid & (positions[:, None, :] < prefix_size)
+      prefix_old = prefix & removed_by_window256
+      prefix_count = np.sum(prefix, axis=-1)
+      prefix_abs = np.sum(abs_values * prefix, axis=-1)
+      prefix_positive = np.sum(positive_values * prefix, axis=-1)
+      prefix_negative_abs = np.sum(negative_abs_values * prefix, axis=-1)
+      prefix_signed = np.sum(values * prefix, axis=-1)
+      abs_fraction = prefix_abs / np.maximum(l1, _EPS)
+      uniform_token_fraction = prefix_count / np.maximum(valid_count, 1)
+      add_masked(
+          f"sink/{scope}/first{prefix_size}_abs_mass_fraction",
+          abs_fraction, eligible & (prefix_count > 0))
+      add_masked(
+          f"sink/{scope}/first{prefix_size}_per_token_enrichment",
+          abs_fraction / np.maximum(uniform_token_fraction, _EPS),
+          eligible & (prefix_count > 0))
+      add_masked(
+          f"sink/{scope}/first{prefix_size}_share_of_window256_removed_abs_mass",
+          np.sum(abs_values * prefix_old, axis=-1) / np.maximum(removed_abs, _EPS),
+          eligible & (removed_abs > _EPS))
+      add_masked(
+          f"sink/{scope}/first{prefix_size}_signed_l1_fraction",
+          prefix_signed / np.maximum(l1, _EPS), eligible & (prefix_count > 0))
+      add_masked(
+          f"sink/{scope}/first{prefix_size}_negative_abs_mass_fraction",
+          prefix_negative_abs / np.maximum(prefix_abs, _EPS),
+          eligible & (prefix_abs > _EPS))
+      add_masked(
+          f"sink/{scope}/first{prefix_size}_positive_abs_mass_fraction",
+          prefix_positive / np.maximum(prefix_abs, _EPS),
+          eligible & (prefix_abs > _EPS))
+
+  # Individual early positions reveal whether a prefix effect is a true token-0
+  # sink or diffuse emphasis. Restrict to long contexts to remove causal-access bias.
+  long_context = finite_nonzero & (query_positions >= 1024)
+  for source_position in range(16):
+    at_position = valid & (positions[:, None, :] == source_position)
+    position_count = np.sum(at_position, axis=-1)
+    position_abs = np.sum(abs_values * at_position, axis=-1)
+    position_fraction = position_abs / np.maximum(l1, _EPS)
+    uniform_token_fraction = position_count / np.maximum(valid_count, 1)
+    add_masked(
+        f"sink/qge1024/position{source_position:02d}_abs_mass_fraction",
+        position_fraction, long_context & (position_count > 0))
+    add_masked(
+        f"sink/qge1024/position{source_position:02d}_per_token_enrichment",
+        position_fraction / np.maximum(uniform_token_fraction, _EPS),
+        long_context & (position_count > 0))
+
+
 def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments, stride):
   pre_alpha = np.asarray(pre_alpha[:, 0], np.float32)
   final_alpha = np.asarray(final_alpha[:, 0], np.float32)
@@ -288,6 +366,8 @@ def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments,
       & (query_segments[:, :, None] == segments[:, None, :])
       & (positions[:, None, :] <= query_positions[:, :, None])
   )
+  _collect_alpha_sink_stats(
+      collector, final_alpha, positions, query_positions, query_segments, valid)
   values = np.where(valid, pre_alpha, 0.0)
   abs_values = np.abs(values)
   l1 = np.sum(abs_values, axis=-1)
@@ -426,6 +506,8 @@ def _iter_microbatches(batch, microbatch_size):
 
 
 def _variant_specs(group):
+  if group == "sink":
+    return ()
   if group == "sign_components":
     return (
         ("mix_mean_mode_raw", {"bam_fetch_sign_ablation": "mix_mean_mode_raw"}),
@@ -490,6 +572,7 @@ def run(config):
   requested_microbatch_size = int(os.environ.get("BAM_CACHE_DIAG_MICROBATCH_SIZE", "0"))
   stride = int(os.environ.get("BAM_CACHE_DIAG_TOKEN_STRIDE", "32"))
   variant_group = os.environ.get("BAM_CACHE_DIAG_VARIANT_GROUP", "cache")
+  variant_specs = _variant_specs(variant_group)
   output_dir = Path(os.environ.get("BAM_CACHE_DIAG_OUTPUT_DIR", "/tmp/bam_cache_diagnostics"))
   output_dir.mkdir(parents=True, exist_ok=True)
   report_path = output_dir / "bam_cache_diagnostics.json"
@@ -529,6 +612,7 @@ def run(config):
           "sequence_length": int(batches[0]["inputs"].shape[1]),
           "token_stride": stride,
           "variant_group": variant_group,
+          "sink_alpha_stage": "post_dynamic_mix_post_diagonal",
           "data_shuffle_seed": config.data_shuffle_seed,
           "eval_shuffle_buffer_size": config.eval_shuffle_buffer_size,
           "setup_seconds": setup_seconds,
@@ -554,7 +638,7 @@ def run(config):
 
   baseline_forward = jax.jit(
       lambda params, batch, rng: _forward(
-          base_model, params, batch, rng, stride, True))
+          base_model, params, batch, rng, stride, True, bool(variant_specs)))
   baseline_raw = []
   baseline_total_loss = baseline_total_weights = 0.0
   baseline_sequence_loss = []
@@ -589,10 +673,11 @@ def run(config):
       baseline_total_weights += float(metrics["total_weights"])
       baseline_sequence_loss.extend(np.asarray(metrics["sequence_loss"]).tolist())
       _merge_adjacent(adjacent_accumulator, adjacent)
-      baseline_raw.append({
-          layer: {name: np.asarray(values[name]) for name in _COMPARE_NAMES}
-          for layer, values in sampled.items()
-      })
+      if variant_specs:
+        baseline_raw.append({
+            layer: {name: np.asarray(values[name]) for name in _COMPARE_NAMES}
+            for layer, values in sampled.items()
+        })
       for layer, values in sampled.items():
         collector = mix_collectors[layer]
         _collect_mix_stats(
@@ -632,12 +717,12 @@ def run(config):
   report["adjacent_M"] = _adjacent_report(adjacent_accumulator)
   _write_report(report_path, report)
 
-  for variant_name, overrides in _variant_specs(variant_group):
+  for variant_name, overrides in variant_specs:
     variant_config = _ConfigOverlay(config, **overrides)
     variant_model = train.Transformer(variant_config, mesh, quant=base_model.quant)
     variant_forward = jax.jit(
         lambda params, batch, rng, model=variant_model: _forward(
-            model, params, batch, rng, stride, False))
+            model, params, batch, rng, stride, False, True))
     total_loss = total_weights = 0.0
     sequence_loss = []
     errors = {

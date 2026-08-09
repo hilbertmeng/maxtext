@@ -622,8 +622,15 @@ class BamLlama2MediumV1(
     bam_read_implementation = 'mul_reduce_btn'
 
 
+class BamLlama2MediumV1FactorizedLocalV(BamLlama2MediumV1):
+    """Inject a source-local factorized bilateral M read into each standard value."""
+    model_name = 'BamLlama2MediumV1FactorizedLocalV'
+    bam_layer_modes = ['local_qk+local_v+local_o+full'] * 24
+
+
 class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
     """Compress the cached absolute V axis to 8; inject its row-read answer into the O tail."""
+    # ~0.515 steps/s (+11.7% vs V1)
     model_name = 'BamLlama2MediumV1CompressAbsV8Direct'
     bam_abs_v_compression_dim = 8
     bam_abs_v_row_output = 'direct'
@@ -631,6 +638,7 @@ class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
 
 class BamLlama2MediumV1CompressAbsV8Project(BamLlama2MediumV1CompressAbsV8Direct):
     """CompressAbsV8 with a learned per-head 8-to-32 row-read decoder."""
+    # ~0.512 steps/s (+11.1% vs V1; -0.6% vs Direct)
     model_name = 'BamLlama2MediumV1CompressAbsV8Project'
     bam_abs_v_row_output = 'project'
 

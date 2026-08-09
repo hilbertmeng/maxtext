@@ -2351,12 +2351,14 @@ class BamAttention(Attention):
   """BAM Attention: standard MHA plus a matrix residual stream M, a write primitive, and a read primitive.
 
   v0.1: train mode, n==n_kv, non-scan. Per-layer read mode is set by layer_mode
-  ('codebook' / 'local_qk' / 'full' / 'local_o' / 'write' / 'none', combinable
-  e.g. 'codebook+local_qk+local_o').  `write` keeps the M update but performs no BAM read.
+  ('codebook' / 'local_qk' / 'local_v' / 'full' / 'local_o' / 'write' / 'none',
+  combinable e.g. 'codebook+local_qk+local_o').  `write` keeps the M update but performs
+  no BAM read.
   Asymmetric init: read side zero-initialized => start is bit-identical to standard MHA;
   write-gate bias=logit(eps) slightly open => M accumulates immediately. 'full' is the
   full-read oracle, for codebook-read correctness check only; most expensive transfer, not
   for production. 'local_qk' = route branch (Q/K injection, shared tier + R_q/R_k rematrix).
+  'local_v' = source-summary branch (factorized local-M read injected before alpha-weighted V).
   'local_o' = content branch (O local read, per-head tier, merges into o). Common prefix
   'local_' marks both as local reads (alpha:=delta, read own M_in, zero transfer); the
   suffix names the use point (Q/K vs o) — the axis that actually distinguishes the two.
@@ -2378,7 +2380,8 @@ class BamAttention(Attention):
         f"since the BAM head output [U;V] must be as wide as a standard head to share W_O")
     self._mode = set(self.layer_mode.replace('+', ' ').split())
     self._has_write = self.layer_mode != 'none'
-    assert self._mode <= {'codebook', 'local_qk', 'full', 'local_o', 'write', 'none'}
+    assert self._mode <= {
+        'codebook', 'local_qk', 'local_v', 'full', 'local_o', 'write', 'none'}
     assert self.read_side in ('both', 'row', 'col')
 
     # DenseGeneral passes in_axis/out_axis to its initializer in addition to
@@ -2814,6 +2817,21 @@ class BamAttention(Attention):
             weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
             name='write_u2_norm')
 
+    if 'local_v' in self._mode:
+      # Source-local matrix summary injected into the standard V stream.  Match
+      # FactorizedLocalQK: one shared bilateral key, then signed dynamic head routing.
+      self.W_lv = DenseGeneral(
+          features=(self.bam_k + self.bam_v,), axis=-1, kernel_init=zeros_init,
+          kernel_axes=("embed", "kv"), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name="W_lv", quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=True)
+      add_read_gate('W_lv_gate', (2,), ('embed', None), (None,), zero_key_gate_init)
+      self.W_lv_head_mix = DenseGeneral(
+          features=(self.num_query_heads, 2), axis=-1, kernel_init=reg_init,
+          kernel_axes=("embed", "q_heads", None), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name="W_lv_head_mix", quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False)
+
   def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False):
     gate_logits = None
     if self.config.bam_create_read_gate_params:
@@ -2897,6 +2915,14 @@ class BamAttention(Attention):
       q_local = rearrange(q_local, 'b n t d -> b t n d')
       k_local = rearrange(k_local, 'b n t d -> b t n d')
     return q_local, k_local
+
+  def _read_local_v(self, Mh, inputs_kv):
+    """Summarize each source-local matrix into the corresponding standard V."""
+    v_local = factorized_head_bam_read(
+        Mh, inputs_kv, self.W_lv, self.W_lv_head_mix,
+        **self._read_key_kwargs('W_lv_gate', inputs_kv),
+        implementation=self._read_implementation, read_side=self.read_side)
+    return rearrange(v_local, 'b n t d -> b t n d')
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3061,6 +3087,10 @@ class BamAttention(Attention):
         q_local, k_local = self._read_local_qk(Mh, inputs_q)
         query = query + q_local
         key = key + k_local
+    if 'local_v' in self._mode:
+      with jax.named_scope("bam/read_local_m_for_v"):
+        assert Mh is not None, "local_v read requires M_in"
+        value = value + self._read_local_v(Mh, inputs_kv)
     query_route, key_route = query, key
 
     query = nn.with_logical_constraint(query, self.query_axis_names)

@@ -714,6 +714,14 @@ class BamReadKeyTransformTest(absltest.TestCase):
     expected = jnp.where(sliding, mixed, 0)
     np.testing.assert_array_equal(actual, expected)
 
+    positions = jnp.array([[0, 1, 2, 3, 4, 5], [0, 1, 2, 0, 1, 2]])
+    with_prefix = _sliding_window_bam_fetch_alpha(mixed, 3, 2, positions)
+    prefix = positions[:, None, None, :] < 2
+    expected_with_prefix = jnp.where(sliding[None, None] | prefix, mixed, 0)
+    np.testing.assert_array_equal(with_prefix, expected_with_prefix)
+    with self.assertRaisesRegex(ValueError, 'source_positions'):
+      _sliding_window_bam_fetch_alpha(mixed, 3, 2)
+
   def test_write_source_selection(self):
     terms = [jnp.full((2,), value) for value in (1.0, 2.0, 4.0, 8.0)]
     np.testing.assert_array_equal(

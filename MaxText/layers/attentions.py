@@ -1819,13 +1819,20 @@ def _dynamic_mixed_bam_fetch_alpha(
   return fetch_alpha
 
 
-def _sliding_window_bam_fetch_alpha(alpha, window_size):
-  """Mask an already mixed fetch alpha to its most recent window, without renormalizing."""
+def _sliding_window_bam_fetch_alpha(
+    alpha, window_size, prefix_size=None, source_positions=None):
+  """Keep a recent window and optional segment-local prefix, without renormalizing."""
   if window_size <= 0:
     raise ValueError(f'BAM fetch sliding-window size must be positive, got {window_size}')
   target = jnp.arange(alpha.shape[-2])[:, None]
   source = jnp.arange(alpha.shape[-1])[None, :]
   mask = (source <= target) & (source > target - window_size)
+  if prefix_size is not None:
+    if prefix_size <= 0:
+      raise ValueError(f'BAM fetch prefix size must be positive, got {prefix_size}')
+    if source_positions is None:
+      raise ValueError('source_positions are required when retaining a BAM fetch prefix')
+    mask = mask[None, None] | (source_positions[:, None, None, :] < prefix_size)
   return jnp.where(mask, alpha, jnp.asarray(0, alpha.dtype))
 
 
@@ -2393,6 +2400,8 @@ class BamAttention(Attention):
     self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
     self._fetch_sliding_window_size = cfg.bam_fetch_sliding_window_size
+    self._fetch_sliding_window_prefix_size = getattr(
+        cfg, 'bam_fetch_sliding_window_prefix_size', None)
     self._fetch_temporal_block_size = cfg.bam_fetch_temporal_block_size
     self._fetch_temporal_block_mode = cfg.bam_fetch_temporal_block_mode
     self._fetch_temporal_recent_window_size = cfg.bam_fetch_temporal_recent_window_size
@@ -2435,6 +2444,10 @@ class BamAttention(Attention):
       assert not cfg.bam_dedicated_fetch
       assert self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'), (
           'BAM fetch sliding window currently masks the post-mix fetch alpha')
+    if self._fetch_sliding_window_prefix_size is not None:
+      assert self._fetch_sliding_window_prefix_size > 0
+      assert self._fetch_sliding_window_size is not None, (
+          'BAM fetch prefix retention requires a sliding window')
     if self._fetch_temporal_block_size is not None:
       assert self._fetch_temporal_block_size > 1
       assert self._fetch_temporal_block_mode in ('mean', 'linear')
@@ -3072,7 +3085,8 @@ class BamAttention(Attention):
               diagonal_yield, cfg.attn_logits_soft_cap, cfg.float32_logits)
         if self._fetch_sliding_window_size is not None:
           fetch_alpha = _sliding_window_bam_fetch_alpha(
-              fetch_alpha, self._fetch_sliding_window_size)
+              fetch_alpha, self._fetch_sliding_window_size,
+              self._fetch_sliding_window_prefix_size, inputs_positions)
         if self._fetch_diagonal_one:
           diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
           fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(

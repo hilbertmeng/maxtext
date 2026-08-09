@@ -562,6 +562,23 @@ def _iter_microbatches(batch, microbatch_size):
 def _variant_specs(group):
   if group == "sink":
     return ()
+  if group == "sink_prefix4":
+    return (
+        ("window256_only", {
+            "bam_fetch_sliding_window_size": 256,
+            "bam_fetch_sliding_window_prefix_size": None,
+            "bam_fetch_temporal_block_size": None,
+            "bam_fetch_temporal_block_mode": "none",
+            "bam_fetch_temporal_recent_window_size": None,
+        }),
+        ("window256_keep_first4", {
+            "bam_fetch_sliding_window_size": 256,
+            "bam_fetch_sliding_window_prefix_size": 4,
+            "bam_fetch_temporal_block_size": None,
+            "bam_fetch_temporal_block_mode": "none",
+            "bam_fetch_temporal_recent_window_size": None,
+        }),
+    )
   if group == "sign_components":
     return (
         ("mix_mean_mode_raw", {"bam_fetch_sign_ablation": "mix_mean_mode_raw"}),

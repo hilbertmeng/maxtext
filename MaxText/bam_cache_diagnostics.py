@@ -296,6 +296,10 @@ def _collect_alpha_sink_stats(
   for minimum_position in _SINK_QUERY_MIN_POSITIONS:
     scope = f"qge{minimum_position}"
     eligible = finite_nonzero & (query_positions >= minimum_position)
+    add_masked(f"sink_mass/{scope}/total_abs_mass", l1, eligible)
+    add_masked(f"sink_mass/{scope}/valid_source_count", valid_count, eligible)
+    add_masked(
+        f"sink_mass/{scope}/window256_removed_abs_mass", removed_abs, eligible)
     add_masked(
         f"sink/{scope}/window256_removed_abs_mass_fraction",
         removed_abs / np.maximum(l1, _EPS), eligible)
@@ -331,6 +335,18 @@ def _collect_alpha_sink_stats(
           f"sink/{scope}/first{prefix_size}_positive_abs_mass_fraction",
           prefix_positive / np.maximum(prefix_abs, _EPS),
           eligible & (prefix_abs > _EPS))
+      add_masked(
+          f"sink_mass/{scope}/first{prefix_size}_abs_mass", prefix_abs, eligible)
+      add_masked(
+          f"sink_mass/{scope}/first{prefix_size}_source_count", prefix_count, eligible)
+      add_masked(
+          f"sink_mass/{scope}/first{prefix_size}_window256_removed_abs_mass",
+          np.sum(abs_values * prefix_old, axis=-1), eligible)
+      add_masked(
+          f"sink_mass/{scope}/first{prefix_size}_positive_mass", prefix_positive, eligible)
+      add_masked(
+          f"sink_mass/{scope}/first{prefix_size}_negative_abs_mass",
+          prefix_negative_abs, eligible)
 
   # Individual early positions reveal whether a prefix effect is a true token-0
   # sink or diffuse emphasis. Restrict to long contexts to remove causal-access bias.
@@ -348,6 +364,44 @@ def _collect_alpha_sink_stats(
         f"sink/qge1024/position{source_position:02d}_per_token_enrichment",
         position_fraction / np.maximum(uniform_token_fraction, _EPS),
         long_context & (position_count > 0))
+
+
+def _mass_weighted_sink_report(collector):
+  """Ratios of summed alpha mass, complementary to query-equal distributions."""
+  def total(name):
+    arrays = collector._values.get(name, ())
+    return float(sum(np.sum(values, dtype=np.float64) for values in arrays))
+
+  report = {}
+  for minimum_position in _SINK_QUERY_MIN_POSITIONS:
+    scope = f"qge{minimum_position}"
+    total_abs = total(f"sink_mass/{scope}/total_abs_mass")
+    valid_sources = total(f"sink_mass/{scope}/valid_source_count")
+    removed_abs = total(f"sink_mass/{scope}/window256_removed_abs_mass")
+    prefixes = {}
+    for prefix_size in _SINK_PREFIXES:
+      prefix = f"sink_mass/{scope}/first{prefix_size}"
+      prefix_abs = total(f"{prefix}_abs_mass")
+      prefix_sources = total(f"{prefix}_source_count")
+      prefix_old_abs = total(f"{prefix}_window256_removed_abs_mass")
+      prefix_positive = total(f"{prefix}_positive_mass")
+      prefix_negative_abs = total(f"{prefix}_negative_abs_mass")
+      prefixes[f"first{prefix_size}"] = {
+          "abs_mass_fraction": prefix_abs / max(total_abs, _EPS),
+          "per_token_enrichment": (
+              (prefix_abs / max(prefix_sources, _EPS))
+              / (total_abs / max(valid_sources, _EPS))),
+          "share_of_window256_removed_abs_mass": (
+              prefix_old_abs / max(removed_abs, _EPS)),
+          "negative_abs_mass_fraction": (
+              prefix_negative_abs / max(prefix_abs, _EPS)),
+          "positive_abs_mass_fraction": prefix_positive / max(prefix_abs, _EPS),
+      }
+    report[scope] = {
+        "window256_removed_abs_mass_fraction": removed_abs / max(total_abs, _EPS),
+        "prefixes": prefixes,
+    }
+  return report
 
 
 def _collect_alpha_stats(collector, pre_alpha, final_alpha, positions, segments, stride):
@@ -702,6 +756,7 @@ def run(config):
       f"layer_{layer:02d}": {
           "distributions": collector.report(),
           "cross_head": _joint_mix_report(collector),
+          "attention_sink_mass_weighted": _mass_weighted_sink_report(collector),
       }
       for layer, collector in sorted(mix_collectors.items())
   }
@@ -713,6 +768,7 @@ def run(config):
   report["mixing"]["all_layers"] = {
       "distributions": all_mix.report(),
       "cross_head": _joint_mix_report(all_mix),
+      "attention_sink_mass_weighted": _mass_weighted_sink_report(all_mix),
   }
   report["adjacent_M"] = _adjacent_report(adjacent_accumulator)
   _write_report(report_path, report)

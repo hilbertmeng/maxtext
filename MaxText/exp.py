@@ -676,7 +676,7 @@ class BamLlama2MediumV1CompressAbsV8DirectStaticWriteV(
     BamLlama2MediumV1CompressAbsV8Direct
 ):
     """Replace token-conditioned P_loc(x) with one static RMS-normalized V write per head."""
-    # !? ~0.573 steps/s (+11.3% vs Direct); larger than P_loc FLOP removal alone predicts.
+    # !? ~0.573 steps/s (+11.3%); trained 13,500. dloss +0.0116 vs Direct @13,400.
     model_name = 'BamLlama2MediumV1CompressAbsV8DirectStaticWriteV'
     bam_write_v_mode = 'static'
 

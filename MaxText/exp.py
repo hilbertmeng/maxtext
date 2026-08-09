@@ -274,6 +274,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
     bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail | static
+    bam_write_outer_implementation = 'dot'  # dot | mul_reduce
 
     scan_layers = False
 
@@ -641,6 +642,7 @@ class BamLlama2MediumV1CompressAbsV8DirectStaticWriteV(
     BamLlama2MediumV1CompressAbsV8Direct
 ):
     """Replace token-conditioned P_loc(x) with one static RMS-normalized V write per head."""
+    # !? ~0.573 steps/s (+11.3% vs Direct); larger than P_loc FLOP removal alone predicts.
     model_name = 'BamLlama2MediumV1CompressAbsV8DirectStaticWriteV'
     bam_write_v_mode = 'static'
 
@@ -650,6 +652,36 @@ class BamLlama2MediumV1CompressAbsV8Project(BamLlama2MediumV1CompressAbsV8Direct
     # ~0.512 steps/s; stopped 3,727. dloss -0.0011 vs Direct, +0.0113 vs V1 @3,600; -0.0359 vs CodebookC4 @2,800.
     model_name = 'BamLlama2MediumV1CompressAbsV8Project'
     bam_abs_v_row_output = 'project'
+
+
+class BamAbsV8DirectWriteDotSixLayerProfile(
+    TrainStepProfile, BamLlama2MediumV1CompressAbsV8Direct
+):
+    """Six-layer control for the dynamic write-V outer-product implementation."""
+    model_name = 'BamAbsV8DirectWriteDotSixLayerProfile'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o+full'] * 6
+
+
+class BamAbsV8DirectWriteMulSixLayerProfile(BamAbsV8DirectWriteDotSixLayerProfile):
+    """Replace the dynamic write-V dot with broadcast multiply+reduce."""
+    model_name = 'BamAbsV8DirectWriteMulSixLayerProfile'
+    bam_write_outer_implementation = 'mul_reduce'
+
+
+class BamAbsV8StaticWriteDotSixLayerProfile(
+    TrainStepProfile, BamLlama2MediumV1CompressAbsV8DirectStaticWriteV
+):
+    """Six-layer control for the static write-V outer-product implementation."""
+    model_name = 'BamAbsV8StaticWriteDotSixLayerProfile'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o+full'] * 6
+
+
+class BamAbsV8StaticWriteMulSixLayerProfile(BamAbsV8StaticWriteDotSixLayerProfile):
+    """Replace the static write-V dot with broadcast multiply+reduce."""
+    model_name = 'BamAbsV8StaticWriteMulSixLayerProfile'
+    bam_write_outer_implementation = 'mul_reduce'
 
 
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):

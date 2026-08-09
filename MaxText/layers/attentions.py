@@ -2450,6 +2450,7 @@ class BamAttention(Attention):
       assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
       assert cfg.bam_n_f == 1, 'dynamic head mixing produces exactly one fetch route'
     self._write_v_mode = cfg.bam_write_v_mode
+    self._write_outer_implementation = cfg.bam_write_outer_implementation
     self._forget_mode = cfg.bam_forget_mode
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert self._local_qk_key_mode in (
@@ -2485,6 +2486,7 @@ class BamAttention(Attention):
       assert self._fetch_temporal_block_mode == 'none'
       assert self._fetch_temporal_recent_window_size is None
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
+    assert self._write_outer_implementation in ('dot', 'mul_reduce')
     assert self._m_read_norm in ('rms', 'none')
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
@@ -3002,10 +3004,19 @@ class BamAttention(Attention):
       if self._use_grouped_rw_norm:
         u1_norm = learned_u1_norm
         u2_norm = learned_u2_norm
-    if self._write_v_mode == 'static':
-      dM = jnp.einsum('btnk,nv->btkv', g[..., None] * u1_norm, u2_norm)
-    else:
-      dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * u1_norm, u2_norm)
+    gated_u1 = g[..., None] * u1_norm
+    with jax.named_scope("bam/write_outer"):
+      if self._write_outer_implementation == 'dot':
+        if self._write_v_mode == 'static':
+          dM = jnp.einsum('btnk,nv->btkv', gated_u1, u2_norm)
+        else:
+          dM = jnp.einsum('btnk,btnv->btkv', gated_u1, u2_norm)
+      elif self._write_v_mode == 'static':
+        dM = jnp.sum(
+            gated_u1[..., None] * u2_norm[None, None, :, None, :], axis=-3)
+      else:
+        dM = jnp.sum(
+            gated_u1[..., None] * u2_norm[..., None, :], axis=-3)
     if self._force_activation_dtype:
       assert dM.dtype == self.dtype, (dM.dtype, self.dtype)
     forget_logits = None

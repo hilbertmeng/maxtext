@@ -54,11 +54,13 @@ Use `TrainStepProfile` (`xplane`, skip 10, trace steps 10–14, no checkpoints).
 VM, commit, model/batch/data, and trace steps identical; prefer 6 layers for operator/scope
 comparisons, then verify the winning combination with full layers.
 
-- Run paired arms on matched TPU types and VM/software environments. If a TPU must remain
-  allocated, avoid launch paths whose clean-completion policy deletes it.
-- The watcher proves `FIRST_STEP`/errors only. Stop by parsing the **actual train-log step**; at
-  step 30–40, `SIGKILL` the exact no-checkpoint profile RUN on all workers, then require `pgrep`
-  empty before launching the next arm. Never time stopping from watcher delivery.
+- Keep profile TPU lifecycle separate from `auto-train`: create/install it standalone, launch
+  paired arms directly and serially, and delete it only after the whole profile set is collected.
+  Never let `auto-train` own a profile TPU; its clean-exit policy may delete it after one arm.
+- The watcher may prove `FIRST_STEP`/errors only; it must not own the profile lifecycle. Stop by
+  parsing the **actual train-log step**; at step 30–40, `SIGKILL` the exact no-checkpoint RUN on
+  all workers, then require `pgrep` empty before the next arm. Never time stopping from watcher
+  delivery.
 - Compare stable log speed and all-device XPlane step time; split read-key projection, gate,
   transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.
 - Inspect HLO/XPlane lowering, layout/copies, fusion type, and whether conceptual broadcast/zero

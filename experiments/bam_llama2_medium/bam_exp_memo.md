@@ -287,3 +287,11 @@ first 16、first 64 分别只解释被 Window256 删除绝对质量的 `0.93%/3.
 position >=1024 则为 `0.39%/1.43%/4.50%`。因此绝大多数被删质量来自分散的旧历史，
 不是序列开头。alpha 质量不能排除早期 `M_s` 被下游放大的可能；若需严格因果归因，做同
 batch 的 `Window256 + keep first K` 只读消融。
+
+K=4 的同-cohort 因果消融（commit `d3c17a6`）确认该解释很弱：Window256 only 与
+Window256+keep-first-4 的 loss 分别为 `2.498772/2.498375`，相对未压缩 V1 的 dloss 为
+`+0.119299/+0.118902`。保留前4个 token 仅改善 `0.000397`，追回窗口损伤的 `0.33%`；
+8个 microbatch 中7个改善，但幅度很小。fetch-M/combined-M/BAM-output rel-RMS 分别从
+`0.372531/0.298635/0.398787` 降至 `0.371736/0.298052/0.398147`，也只改善
+`0.21%/0.20%/0.16%`。因此 token-0 sink 真实存在，但不是 Window256 失效的主要原因。
+完整结果：`/data0/xd/bam_diagnostics/bam_window_prefix4_diagnostics_d3c17a6_final.json`。

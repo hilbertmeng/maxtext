@@ -214,7 +214,7 @@ class Llama2MediumQKNorm(Llama2Medium):
 
 class Llama2MediumFloat32LogitsFalse(Llama2Medium):
     """MHA speed control aligned with the BAM bf16-logits setting."""
-    # Running only through the 30–40-step steady-speed measurement.
+    # ~0.821 steps/s (+2.1% vs Llama2Medium); stopped at ~128 after speed measurement.
     model_name = 'Llama2MediumFloat32LogitsFalse'
     float32_logits = False
     steps = 200

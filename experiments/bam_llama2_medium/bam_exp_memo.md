@@ -269,3 +269,21 @@ contrast-only 都明显变差，二者均有功能；contrast 的作用不只制
 
 其中 contrast gate 小值初始化、base gate 开启；这样保留源级减法表达力，同时把正向选择、
 对比方向和幅度解耦，避免当前 L2-only 归一化造成接近最大 L1、强 cancellation 与尺度漂移。
+
+### Mixed-alpha attention sink
+
+V1 step 13250、同一 128 条 cohort，commit `a02fc72`；统计实际参与 fetch 的
+post-mix/post-diagonal alpha。完整结果：
+`/data0/xd/bam_diagnostics/bam_alpha_sink_diagnostics_a02fc72_final.json`。
+
+存在**局部 token-0 sink**，但不是宽前缀 sink。对 query position >=1024，按 alpha 绝对质量
+汇总，position 0 的逐 token 富集为 `1.73x`，layer 8/11/13 分别为
+`6.49x/5.67x/3.95x`；但 first 2/4/16 的整体富集仅
+`1.04x/0.67x/0.39x`。token 0 自身只占总绝对质量 `0.114%`，正负质量约
+`49.3/50.7%`，不是单一符号的 sink。
+
+它只能小幅解释 Window256 损伤。对所有受窗口影响的 query (position >=256)，token 0、
+first 16、first 64 分别只解释被 Window256 删除绝对质量的 `0.93%/3.11%/9.40%`；对
+position >=1024 则为 `0.39%/1.43%/4.50%`。因此绝大多数被删质量来自分散的旧历史，
+不是序列开头。alpha 质量不能排除早期 `M_s` 被下游放大的可能；若需严格因果归因，做同
+batch 的 `Window256 + keep first K` 只读消融。

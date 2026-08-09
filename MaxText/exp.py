@@ -724,6 +724,20 @@ class BamV1SixLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
     bam_layer_modes = ['local_qk+local_o+full'] * 6
 
 
+class BamV1CombinedReadSixLayerProfile(BamV1SixLayerReadProfile):
+    """Paired V1 control: zero fetch diagonal, add local M, then read once."""
+    model_name = 'BamV1CombinedReadSixLayerProfile'
+
+
+class BamV1FetchDiagonalOneSixLayerProfile(BamV1SixLayerReadProfile):
+    """Equivalent V1 path: remove local_o and replace the fetch diagonal with one."""
+    model_name = 'BamV1FetchDiagonalOneSixLayerProfile'
+    bam_layer_modes = ['local_qk+full'] * 6
+    bam_share_full_local_read = False
+    bam_combine_full_local_read = False
+    bam_fetch_diagonal_one = True
+
+
 class BamV1SixLayerLocalBlockDotProfile(BamV1SixLayerReadProfile):
     """Fuse LocalQK row/column and Q/K reads with one block dot."""
     # ~1.709 steps/s; XPlane 571.364 ms (-0.97%); reverses to +1.04% wall at 24 layers.

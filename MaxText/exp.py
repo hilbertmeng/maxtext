@@ -268,6 +268,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_pack_local_qk_reads = False  # profile: pack Q/K heads into each local-M contraction
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
+    bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
+    bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
@@ -618,6 +620,19 @@ class BamLlama2MediumV1(
     float32_logits = False
     bam_force_activation_dtype = True
     bam_read_implementation = 'mul_reduce_btn'
+
+
+class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
+    """Compress the cached absolute V axis to 8; inject its row-read answer into the O tail."""
+    model_name = 'BamLlama2MediumV1CompressAbsV8Direct'
+    bam_abs_v_compression_dim = 8
+    bam_abs_v_row_output = 'direct'
+
+
+class BamLlama2MediumV1CompressAbsV8Project(BamLlama2MediumV1CompressAbsV8Direct):
+    """CompressAbsV8 with a learned per-head 8-to-32 row-read decoder."""
+    model_name = 'BamLlama2MediumV1CompressAbsV8Project'
+    bam_abs_v_row_output = 'project'
 
 
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):

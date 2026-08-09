@@ -2417,6 +2417,31 @@ class BamAttention(Attention):
     self._m_read_norm = cfg.bam_m_read_norm
     self._pack_local_qk_reads = cfg.bam_pack_local_qk_reads
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
+    self._abs_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
+    self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
+    self._diagnostic_read_projection = bool(
+        getattr(cfg, 'bam_diagnostic_read_projection', False))
+    if self._diagnostic_read_projection:
+      def identity_init(_key, shape, dtype=jnp.float32):
+        eye = jnp.eye(shape[-2], shape[-1], dtype=dtype)
+        return jnp.broadcast_to(eye, shape)
+
+      # Read-only diagnostic controls.  These stay absent from every training
+      # parameter tree unless an explicit diagnostic config enables the hook.
+      self.diag_mc_left = self.param(
+          'diag_mc_left', identity_init, (self.bam_k, self.bam_k), self.weight_dtype)
+      self.diag_mc_right = self.param(
+          'diag_mc_right', identity_init, (self.bam_v, self.bam_v), self.weight_dtype)
+      self.diag_mr_left = self.param(
+          'diag_mr_left', identity_init, (self.bam_k, self.bam_k), self.weight_dtype)
+      self.diag_mr_right = self.param(
+          'diag_mr_right', identity_init, (self.bam_v, self.bam_v), self.weight_dtype)
+      self.diag_yu = self.param(
+          'diag_yu', identity_init,
+          (self.num_query_heads, self.bam_k, self.bam_k), self.weight_dtype)
+      self.diag_yv = self.param(
+          'diag_yv', identity_init,
+          (self.num_query_heads, self.bam_v, self.bam_v), self.weight_dtype)
     if (self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix')
         and {'full', 'codebook'} & self._mode):
       assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
@@ -2462,6 +2487,14 @@ class BamAttention(Attention):
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._local_qk_block_implementation in ('none', 'dot', 'mul_reduce')
     assert self._full_block_implementation in ('none', 'dot', 'mul_reduce')
+    assert self._abs_v_row_output in ('direct', 'project')
+    if self._abs_v_dim is not None:
+      assert 0 < self._abs_v_dim < self.bam_v
+      assert 'full' in self._mode
+      assert self._combine_full_local_read, (
+          'absolute-V compression currently targets the V1 combined full/local read')
+      assert self._full_block_implementation == 'none'
+      assert not self._diagnostic_read_projection
     assert self._read_key_scale > 0.0
     assert self._read_key_eps > 0.0
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
@@ -2564,11 +2597,31 @@ class BamAttention(Attention):
           ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
     if 'full' in self._mode:
-      # Full-read oracle (§4.6.1): single joint key W_R: D->n·n_f·(k+v), zero-initialized.
-      # bam_read splits it into row/col (k, v) adaptively. For codebook-read correctness
-      # check only; most expensive transfer (k*v wide), not for production.
+      read_v_dim = self._abs_v_dim or self.bam_v
+      if self._abs_v_dim is not None:
+        # M itself remains [k,v] across layers.  Only the historical cache/read view is
+        # projected to [k,C]; the target-side W_R column key is generated directly in C.
+        self.abs_v_cache_projection = self.param(
+            'abs_v_cache_projection',
+            nn.with_logical_partitioning(orth_init, ('v_factor', 'kv')),
+            (self.bam_v, self._abs_v_dim), self.weight_dtype)
+
+        def decoder_init(_key, shape, dtype):
+          direct = jnp.eye(shape[-2], shape[-1], dtype=dtype)
+          return jnp.broadcast_to(direct, shape)
+
+        # Create the decoder in both paired arms so their parameter trees and initializers
+        # match.  The direct arm deliberately leaves it unused.
+        self.abs_v_row_decoder = self.param(
+            'abs_v_row_decoder',
+            nn.with_logical_partitioning(
+                decoder_init, ('q_heads', 'kv', 'v_factor')),
+            (self.num_query_heads, self._abs_v_dim, self.bam_v), self.weight_dtype)
+
+      # Joint target-side read key.  Under CompressAbsV, W_R directly emits k+C;
+      # it never forms a 32-wide V key followed by a 32->C projection.
       self.W_R = DenseGeneral(
-          features=(self.num_query_heads, cfg.bam_n_f, self.bam_k + self.bam_v), axis=-1,
+          features=(self.num_query_heads, cfg.bam_n_f, self.bam_k + read_v_dim), axis=-1,
           kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", "kv"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
@@ -2577,7 +2630,7 @@ class BamAttention(Attention):
                     zero_key_gate_init)
       add_grouped_read_norms(
           'W_R', (self.num_query_heads, cfg.bam_n_f, self.bam_k),
-          (self.num_query_heads, cfg.bam_n_f, self.bam_v),
+          (self.num_query_heads, cfg.bam_n_f, read_v_dim),
           ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
       if cfg.bam_dedicated_fetch:
@@ -3112,21 +3165,27 @@ class BamAttention(Attention):
     if 'full' in self._mode:
       assert Mh is not None, "full read requires M_in"
       with jax.named_scope("bam/fetch_m"):
+        fetch_state = Mh
+        if self._abs_v_dim is not None:
+          with jax.named_scope("bam/compress_abs_v_cache"):
+            fetch_state = jnp.einsum(
+                'bskv,vc->bskc', Mh,
+                self.abs_v_cache_projection.astype(Mh.dtype))
         if self._profile_fetch_bypass:
-          Mbar_fetch = Mh[:, None]
+          Mbar_fetch = fetch_state[:, None]
         elif self._fetch_temporal_block_size is not None:
           Mbar_fetch = _temporal_block_bam_fetch(
-              fetch_alpha, Mh, inputs_positions, decoder_segment_ids,
+              fetch_alpha, fetch_state, inputs_positions, decoder_segment_ids,
               self._fetch_temporal_block_size, self._fetch_temporal_block_mode,
               self._fetch_temporal_recent_window_size)
         else:
-          Mbar_fetch = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, Mh)
+          Mbar_fetch = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, fetch_state)
         Mbar = Mbar_fetch
         if self._combine_full_local_read:
           # The shared runtime key makes Read linear in M.  Because fetch_alpha has
           # yielded its diagonal, adding normalized local Mh here exactly replaces
           # the separate local_o read with a fixed local coefficient of one.
-          Mbar = Mbar + Mh[:, None]
+          Mbar = Mbar + fetch_state[:, None]
       with jax.named_scope("bam/read_fetched_m"):
         full_read_projection = self.W_R
         full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
@@ -3136,18 +3195,58 @@ class BamAttention(Attention):
           full_read_kwargs = self._read_key_kwargs(
               'W_R_gate', inputs_q, squeeze_fetch_axis=True)
         if self._full_block_implementation != 'none':
+          assert not self._diagnostic_read_projection, (
+              'diagnostic read projection requires the ordinary bilateral read')
           full_read = block_bilateral_bam_read(
               Mbar, inputs_q, full_read_projection, **full_read_kwargs,
               implementation=self._full_block_implementation)
         else:
+          read_matrix = Mbar
+          if self._diagnostic_read_projection:
+            def sandwich(matrix, left, right):
+              matrix = jnp.einsum(
+                  'ij,...jv->...iv', left.astype(matrix.dtype), matrix)
+              return jnp.einsum(
+                  '...ku,uv->...kv', matrix, right.astype(matrix.dtype))
+
+            read_matrix = (
+                sandwich(Mbar, self.diag_mc_left, self.diag_mc_right),
+                sandwich(Mbar, self.diag_mr_left, self.diag_mr_right),
+            )
           full_read = bam_read(
-              Mbar, inputs_q, full_read_projection, None,
+              read_matrix, inputs_q, full_read_projection, None,
               **full_read_kwargs, return_key_stages=capture_read_key_stages,
               implementation=self._read_implementation, read_side=self.read_side)
         if capture_read_key_stages:
           full_read, full_key_stages = full_read
           read_key_stages.update({
               f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
+        if self._abs_v_dim is not None:
+          y_u, y_v = jnp.split(full_read, [self.bam_k], axis=-1)
+          if self._abs_v_row_output == 'project':
+            decoder = self.abs_v_row_decoder.astype(y_v.dtype)
+            if self._read_implementation == 'dot_bnt':
+              y_v = jnp.einsum('bntc,ncv->bntv', y_v, decoder)
+            else:
+              y_v = jnp.einsum('btnc,ncv->btnv', y_v, decoder)
+          else:
+            y_v = jnp.pad(
+                y_v,
+                [(0, 0)] * (y_v.ndim - 1) + [(0, self.bam_v - self._abs_v_dim)])
+          full_read = jnp.concatenate((y_u, y_v), axis=-1)
+        if self._diagnostic_read_projection:
+          y_u, y_v = jnp.split(full_read, [self.bam_k], axis=-1)
+          if self._read_implementation == 'dot_bnt':
+            y_u = jnp.einsum(
+                'bntk,nkj->bntj', y_u, self.diag_yu.astype(y_u.dtype))
+            y_v = jnp.einsum(
+                'bntv,nvw->bntw', y_v, self.diag_yv.astype(y_v.dtype))
+          else:
+            y_u = jnp.einsum(
+                'btnk,nkj->btnj', y_u, self.diag_yu.astype(y_u.dtype))
+            y_v = jnp.einsum(
+                'btnv,nvw->btnw', y_v, self.diag_yv.astype(y_v.dtype))
+          full_read = jnp.concatenate((y_u, y_v), axis=-1)
         y_full = (rearrange(full_read, 'b n t d -> b t n d')
                   if self._read_implementation == 'dot_bnt' else full_read)
         y_bam = y_bam + y_full

@@ -65,6 +65,12 @@ def classify_fetched(op):
   return "other"
 
 
+def classify_write(op):
+  if "bam/write_outer" in op:
+    return "outer"
+  return "other"
+
+
 def summarize(path):
   with gzip.open(path, "rt") as stream:
     events = json.load(stream)["traceEvents"]
@@ -95,7 +101,9 @@ def summarize(path):
         if scope not in op:
           continue
         add(buckets[name], value)
-        if name == "local_qk":
+        if name == "write_m":
+          add(buckets[f"write.{classify_write(op)}"], value)
+        elif name == "local_qk":
           add(buckets[f"local.{classify_local(op)}"], value)
         elif name == "fetched":
           add(buckets[f"fetched.{classify_fetched(op)}"], value)

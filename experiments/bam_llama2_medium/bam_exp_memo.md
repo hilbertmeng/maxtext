@@ -147,6 +147,35 @@ XPlane 也证实实际计算量完全符合：
 
 结论：在已经因FactorizedLocalQK大幅缩小读形状的最新路径上，`multiply+reduce`仍有真实但较小的整步收益（+1.59%），远小于旧PerHead路径的+6.8%。直接归到M contraction的时间只降0.5–0.9%；较大的fetched-read总scope收益来自layout/copy/fusion重排。不同lowering还把部分融合算子重新归到key-transform/fetch scope，因此细分scope适合定位，最终优劣以配对完整step为准。
 
+## Write outer 与 diagonal-one 配对 profile
+
+同一 `v5p-16`、相同 batch/data、step 10–14 XPlane；六层使用 commit `fef8e3a`，
+24 层复核使用仅增配置类的 `2b8e63a`。配对同 step loss 最大差约 `2.4e-4`，语义一致。
+原始 trace 位于 `/data0/xd/bam_diagnostics/write_read_pair_fef8/`。
+
+| M-write 路径 | 层数 | dot / multiply+reduce step/s | XPlane step | `write_outer` | `write_m` | 结论 |
+|---|---:|---:|---:|---:|---:|---|
+| Direct dynamic-V | 6 | 1.861 / **1.975** | 528.182 / **498.124 ms** (-5.69%) | 8.913 / 5.297 ms | 22.431 / 15.068 ms | multiply+reduce |
+| Direct dynamic-V | 24 | 0.515 / **0.554** | 1914.679 / **1775.476 ms** (-7.27%) | 39.684 / 19.328 ms | 99.885 / 55.601 ms | multiply+reduce |
+| Static-V | 6 | **2.022** / 2.009 | **486.295** / 491.984 ms (+1.17%) | **1.539** / 5.168 ms | **4.747** / 8.336 ms | 保留 dot |
+
+两种写法的前向理论 outer FLOPs 相同，均为每层 `0.015625 W_Q`。Direct 的 dot 被降为
+`convolution_add_fusion`，显式 multiply+reduce 变成更适合该图的 `multiply_reduce_fusion`；
+24 层下全图 XPlane TF/bytes 也从 `143.926/2050.1 GB` 降到 `120.405/1701.1 GB`，
+说明收益扩散到 remat/backward fusion，而不只是前向 outer。Static 的 dot 本已被 XLA 降为
+高效 `multiply_reduce_fusion`；手写 multiply+reduce 反而生成更差的反向/layout 图。
+
+| 等价 read 路径 | 层数 | Combined / diagonal-one step/s | XPlane step | `fetch_m` | `read_fetched_m` | `mix_alpha` |
+|---|---:|---:|---:|---:|---:|---:|
+| V1 | 6 | 1.690 / **1.742** | 581.695 / **568.628 ms** (-2.25%) | 35.980 / 20.855 ms | 47.622 / 36.337 ms | 38.480 / 42.167 ms |
+| V1 | 24 | 0.459 / **0.478** | 2149.300 / **2064.121 ms** (-3.96%) | 131.310 / 69.930 ms | 157.383 / 115.503 ms | 123.021 / 134.063 ms |
+
+Diagonal-one 直接去掉 `local_o`：保留 mixed-alpha 的非对角元、把对角置 1 后只 fetch/read
+一次；它与 CombinedRead 的“fetch 对角置 0、再加本地 M”代数等价。24 层全图 XPlane
+TF 仅 `-0.19%`、bytes 反而 `+0.35%`，所以约4%的收益主要来自避免独立 `Mbar + M`
+所带来的 layout/copy 和更好的临界路径，而非理论计算量下降。后续 V1 变种应优先使用
+diagonal-one 实现。
+
 ## Pure-JAX bilateral block read
 
 同一 `v5p-16`、commit `ece8eb2`、bf16、batch/data与step 10–14 XPlane。把

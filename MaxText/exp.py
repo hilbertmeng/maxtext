@@ -658,6 +658,7 @@ class BamAbsV8DirectWriteDotSixLayerProfile(
     TrainStepProfile, BamLlama2MediumV1CompressAbsV8Direct
 ):
     """Six-layer control for the dynamic write-V outer-product implementation."""
+    # ~1.861 steps/s; XPlane 528.182 ms.
     model_name = 'BamAbsV8DirectWriteDotSixLayerProfile'
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+local_o+full'] * 6
@@ -665,6 +666,7 @@ class BamAbsV8DirectWriteDotSixLayerProfile(
 
 class BamAbsV8DirectWriteMulSixLayerProfile(BamAbsV8DirectWriteDotSixLayerProfile):
     """Replace the dynamic write-V dot with broadcast multiply+reduce."""
+    # ~1.975 steps/s; XPlane 498.124 ms (-5.69%, +6.1% throughput vs dot).
     model_name = 'BamAbsV8DirectWriteMulSixLayerProfile'
     bam_write_outer_implementation = 'mul_reduce'
 
@@ -673,6 +675,7 @@ class BamAbsV8StaticWriteDotSixLayerProfile(
     TrainStepProfile, BamLlama2MediumV1CompressAbsV8DirectStaticWriteV
 ):
     """Six-layer control for the static write-V outer-product implementation."""
+    # ~2.022 steps/s; XPlane 486.295 ms.
     model_name = 'BamAbsV8StaticWriteDotSixLayerProfile'
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+local_o+full'] * 6
@@ -680,12 +683,14 @@ class BamAbsV8StaticWriteDotSixLayerProfile(
 
 class BamAbsV8StaticWriteMulSixLayerProfile(BamAbsV8StaticWriteDotSixLayerProfile):
     """Replace the static write-V dot with broadcast multiply+reduce."""
+    # ~2.009 steps/s; XPlane 491.984 ms (+1.17%, slower than dot).
     model_name = 'BamAbsV8StaticWriteMulSixLayerProfile'
     bam_write_outer_implementation = 'mul_reduce'
 
 
 class BamAbsV8DirectWriteDotFullLayerProfile(BamAbsV8DirectWriteDotSixLayerProfile):
     """Full-layer verification of the dynamic write-V dot control."""
+    # ~0.515 steps/s; XPlane 1,914.679 ms.
     model_name = 'BamAbsV8DirectWriteDotFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+local_o+full'] * 24
@@ -693,6 +698,7 @@ class BamAbsV8DirectWriteDotFullLayerProfile(BamAbsV8DirectWriteDotSixLayerProfi
 
 class BamAbsV8DirectWriteMulFullLayerProfile(BamAbsV8DirectWriteDotFullLayerProfile):
     """Full-layer verification of dynamic write-V multiply+reduce."""
+    # ~0.554 steps/s; XPlane 1,775.476 ms (-7.27%, +7.6% throughput vs dot).
     model_name = 'BamAbsV8DirectWriteMulFullLayerProfile'
     bam_write_outer_implementation = 'mul_reduce'
 
@@ -739,11 +745,13 @@ class BamV1SixLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
 
 class BamV1CombinedReadSixLayerProfile(BamV1SixLayerReadProfile):
     """Paired V1 control: zero fetch diagonal, add local M, then read once."""
+    # ~1.690 steps/s; XPlane 581.695 ms.
     model_name = 'BamV1CombinedReadSixLayerProfile'
 
 
 class BamV1FetchDiagonalOneSixLayerProfile(BamV1SixLayerReadProfile):
     """Equivalent V1 path: remove local_o and replace the fetch diagonal with one."""
+    # ~1.742 steps/s; XPlane 568.628 ms (-2.25%, +3.1% throughput vs CombinedRead).
     model_name = 'BamV1FetchDiagonalOneSixLayerProfile'
     bam_layer_modes = ['local_qk+full'] * 6
     bam_share_full_local_read = False
@@ -753,6 +761,7 @@ class BamV1FetchDiagonalOneSixLayerProfile(BamV1SixLayerReadProfile):
 
 class BamV1CombinedReadFullLayerProfile(BamV1CombinedReadSixLayerProfile):
     """Full-layer verification of the V1 CombinedRead control."""
+    # ~0.459 steps/s; XPlane 2,149.300 ms.
     model_name = 'BamV1CombinedReadFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+local_o+full'] * 24
@@ -760,6 +769,7 @@ class BamV1CombinedReadFullLayerProfile(BamV1CombinedReadSixLayerProfile):
 
 class BamV1FetchDiagonalOneFullLayerProfile(BamV1FetchDiagonalOneSixLayerProfile):
     """Full-layer verification of the equivalent diagonal-one read path."""
+    # ~0.478 steps/s; XPlane 2,064.121 ms (-3.96%, +4.1% throughput vs CombinedRead).
     model_name = 'BamV1FetchDiagonalOneFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24

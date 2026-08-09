@@ -15,8 +15,7 @@ project `newproject-1-451205`; zone `us-central1-a`; TPU `v5p-16`; output
 
 ## Start Training
 
-Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh`, `run_registry.py`, and the mandatory
-`watch_train_xd.sh` watcher.
+Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh` and `run_registry.py`.
 
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
@@ -50,31 +49,24 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 # Registry and auto_pid environment must agree on CODE_COMMIT and COMPARE_RUNS.
 ```
 
-5. **Always attach the watcher as part of launch. Launch is not handed off until it emits
-   `FIRST_STEP:|ERR:`.** Copy it to worker 0, then run it in a local exec session. Exec sessions
-   are pull-only: continuously wait/poll that session until the signal; never assume it will push
-   a notification while doing unrelated work.
+5. Gate launch with the registry's one-shot waiter. It polls the worker log internally and exits
+   on `FIRST_STEP:`, confirmed failure, or timeout; do not poll a long-lived exec session. Launch
+   succeeds only after this command returns `FIRST_STEP:`.
 
 ```bash
-TPU=xd-v5p-16-0-maxtext
-LOG=/home/lishengping/train_${EXP}_xd.log
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "gcloud compute tpus tpu-vm scp --internal-ip \
-   /home/lishengping/xd/projects/watch_train_xd.sh $TPU:~/ \
-   --zone=us-central1-a --project=newproject-1-451205 --worker=0"
-ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "gcloud compute tpus tpu-vm ssh --internal-ip $TPU \
-   --zone=us-central1-a --project=newproject-1-451205 --worker=0 \
-   --command='bash ~/watch_train_xd.sh $LOG'"
+  "/home/lishengping/xd/projects/run_registry.py wait-step '$EXP' 0"
 ```
 
-Never use a watcher `pkill` pattern containing the train-log name; it can match itself. Kill
-old watchers only by watcher PID or `pkill -f watch_train_xd.sh`.
+6. Use the same one-shot gate for the 30–40-step speed check. Compare `~steps/s` with direct
+   `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`
+   class. Immediately report and investigate a material unexplained speed deviation; mark the
+   class comment `!?` or `!!` until resolved.
 
-6. After 30–40 stable steps, compare `~steps/s` with direct `compare_runs` and the expected
-   architectural delta, then record it tersely in the `exp.py` class. Immediately report and
-   investigate a material unexplained speed deviation; mark the class comment `!?` or `!!`
-   until resolved rather than treating the measurement as routine.
+```bash
+ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+  "/home/lishengping/xd/projects/run_registry.py wait-step '$EXP' 40"
+```
 
 ## Monitor Training
 
@@ -216,7 +208,16 @@ Commit/push every fix and restart the launcher with the new `CODE_COMMIT`; regis
 updates the RUN hash. Reuse a RUN only when its checkpoint parameter tree remains compatible.
 For a no-stop migration, restart only auto-train: it adopts the existing `train.py`, while the
 new hash takes effect on the next relaunch. Changing the live training code itself requires a
-training restart.
+training restart. Record `OLD_STEP` before relaunch, then require a strictly newer step so cached
+log history cannot falsely satisfy the launch gate:
+
+```bash
+ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+  "/home/lishengping/xd/projects/run_registry.py wait-step '$RUN' 0 --after-step '$OLD_STEP'"
+ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+  "/home/lishengping/xd/projects/run_registry.py wait-step '$RUN' '$((OLD_STEP + 40))' \
+   --after-step '$OLD_STEP'"
+```
 
 ## Create Standalone v6e-1
 

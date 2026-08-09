@@ -625,7 +625,7 @@ class BamLlama2MediumV1(
 
 class BamLlama2MediumV1FactorizedLocalV(BamLlama2MediumV1):
     """Inject a source-local factorized bilateral M read into each standard value."""
-    # ~0.442 steps/s (-4.1% vs V1).
+    # ~0.440 steps/s; stopped at 8,201. mean dloss -0.0006 vs V1 @7,200–8,000 (<0.002).
     model_name = 'BamLlama2MediumV1FactorizedLocalV'
     bam_layer_modes = ['local_qk+local_v+local_o+full'] * 24
 

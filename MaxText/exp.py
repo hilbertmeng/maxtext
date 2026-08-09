@@ -632,7 +632,7 @@ class BamLlama2MediumV1FactorizedLocalV(BamLlama2MediumV1):
 
 class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
     """Compress the cached absolute V axis to 8; inject its row-read answer into the O tail."""
-    # ~0.515 steps/s (+11.7% vs V1)
+    # ~0.515 steps/s (+11.7% vs V1); completed 13,500. mean dloss +0.0096 vs V1 @12,400–13,400; -0.0346 vs C4 @2,800.
     model_name = 'BamLlama2MediumV1CompressAbsV8Direct'
     bam_abs_v_compression_dim = 8
     bam_abs_v_row_output = 'direct'

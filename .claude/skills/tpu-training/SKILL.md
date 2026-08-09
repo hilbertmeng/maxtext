@@ -20,8 +20,8 @@ Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh` and `run_registry.py`.
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
 2. Before a parameter-tree change, use a new run name/GCS prefix. Commit the prepared runtime
-   code, push it to `origin/refactor-bam`, and use its full hash. If first-step debugging changes
-   code, make/push another commit and update the RUN hash; do not wait for `FIRST_STEP` to commit.
+   code, push it to `origin/refactor-bam`, and use its full hash. Commit/push first-step fixes and
+   update the RUN hash before relaunch.
 
 ```bash
 git status --short --branch && git push origin refactor-bam
@@ -50,8 +50,8 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 ```
 
 5. Gate launch with the registry's one-shot waiter. It polls the worker log internally and exits
-   on `FIRST_STEP:`, confirmed failure, or timeout; do not poll a long-lived exec session. Launch
-   succeeds only after this command returns `FIRST_STEP:`.
+   on `FIRST_STEP:`, confirmed failure, or timeout. Launch succeeds only after this command
+   returns `FIRST_STEP:`.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -70,8 +70,8 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 
 ## Monitor Training
 
-Use `run_registry.py status` for liveness and `loss-report` for loss. Do not use timers,
-TensorBoard sync, plots, `_status.json`, or alert files during training.
+Use `run_registry.py status` for liveness and `loss-report` for loss. Reserve TensorBoard sync
+for run closeout.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -82,9 +82,8 @@ At each wake, compare observed step gain over elapsed time with logged steps/s. 
 plus stale per-worker train-log mtimes means a hang even if TPU is READY and processes are alive;
 auto-train owns this machine-level liveness check. It arms after three progress samples, waits
 `max(600s, 20 / steps_per_second)` (or per-RUN `STALE_TIMEOUT_SECONDS`), requires two all-worker
-SSH confirmations, then recreates. Any worker SSH failure or missing/invalid speed vetoes
-deletion. Codex owns
-loss/trend decisions and verifies the watchdog rather than duplicating its normal work.
+SSH confirmations with valid speed, then recreates. Codex verifies watchdog health and owns
+loss/trend decisions.
 
 Each `run_registry/<RUN>.json` contains run/TPU/launch data, report interval/window/cursor,
 and direct `compare_runs`. `loss-report` refreshes live worker-0 logs, merges repeated steps
@@ -98,17 +97,17 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 
 It samples `step % 5 == 0` inside each ±25-step window, preserving the historical 11-sample
 gap definition even though future TensorBoard files record every 10 steps. Print cumulative
-`step`, `run`, `base`, `gap`, and `r200` as horizontal rows; split into more row blocks when
-long, never transpose milestones into vertical table rows. Here
+`step`, `run`, `base`, `gap`, and `r200` as horizontal rows; split long sequences into additional
+horizontal row blocks. Here
 `r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
 magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
-level with the mean of the latest 5–8 reported points (and its range), not one point; use recent
-`r200` values for direction.
+level with the mean and range of the latest 5–8 reported points; use recent `r200` values for
+direction.
 
 At every due milestone:
 
 1. Run one shared `status`, then `loss-report` once per due RUN.
-2. Report the cumulative horizontal rows; use `r200`, not visual flatness, for stability.
+2. Report the cumulative horizontal rows; judge stability with `r200`.
 3. Mark the cursor:
 
 ```bash
@@ -122,7 +121,7 @@ Auto-train caches logs before clean/crash deletion. Before manually deleting a T
 synced TensorBoard once with `scripts/export_tensorboard_loss.py`, copy the small `STEP LOSS`
 file to tpu-ag, and run `run_registry.py import-loss BASE --file FILE`.
 
-Never stop before step 2,800 without explicit user permission. At/after 2,800, use
+Require explicit user permission for any stop before step 2,800. At/after 2,800, use
 `MHA advantage = MHA loss - RUN loss`: an advantage below 0.08 and still shrinking rapidly
 likely finishes below 0.05 and may stop; an advantage above 0.05 with curves becoming parallel
 may merit continuing. Train a configuration with a credible loss or speed gain longer—possibly
@@ -132,7 +131,7 @@ baseline may stop at 2,800. Also stop a run clearly dominated by a prior failed 
 For multiple runs, use one shared wake-up and batch-check all runs; use per-run wake-ups only
 for anomalies or imminent completion/decisions. Independently, lengthen the shared sleep for
 stable runs—normally enough to collect ~5 report intervals. Estimate from steps/s; modest
-overshoot is fine. Stay silent, and do not repeatedly sync TensorBoard or reread this skill.
+overshoot is fine. Stay silent between wakes.
 
 ## Stop Training
 
@@ -157,8 +156,8 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
    --command=\"pkill -TERM -f '[M]axText/train.py.*run_name=$RUN'\""
 ```
 
-Wait for any Orbax SIGTERM checkpoint to finish. Then release resources through the shared
-helper; first preserve the final log, then do not duplicate raw delete commands:
+Wait for any Orbax SIGTERM checkpoint to finish. Preserve the final log, then use the shared
+helper as the sole resource-release path:
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -168,9 +167,8 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
    xd-v5p-16-0-maxtext us-central1-a newproject-1-451205'
 ```
 
-The helper uses the V2 command `gcloud compute tpus tpu-vm delete`, then deletes the
-queued-resource, retries transient failures, and succeeds only after both describes return
-`NOT_FOUND`. Never use legacy `gcloud alpha compute tpus delete` for v5p.
+The helper uses `gcloud compute tpus tpu-vm delete`, deletes the queued-resource, retries
+transient failures, and succeeds only after both describes return `NOT_FOUND`.
 
 Record the stop only after teardown is verified, then run Close Out:
 
@@ -185,9 +183,8 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 Uses auto-train's verified cleanup and automatic TensorBoard sync, final `run_registry` state,
 and `exp.py` result comments.
 
-On clean exit, auto-train must run `delete_tpu_xd.sh` until deletion is verified **before**
-marking the registry complete. Treat a success message without absent node+queued-resource as
-a bug; investigate immediately.
+On clean exit, auto-train must verify node and queued-resource deletion through
+`delete_tpu_xd.sh`, then mark the registry complete.
 
 For every stopped/completed run:
 
@@ -208,8 +205,8 @@ Commit/push every fix and restart the launcher with the new `CODE_COMMIT`; regis
 updates the RUN hash. Reuse a RUN only when its checkpoint parameter tree remains compatible.
 For a no-stop migration, restart only auto-train: it adopts the existing `train.py`, while the
 new hash takes effect on the next relaunch. Changing the live training code itself requires a
-training restart. Record `OLD_STEP` before relaunch, then require a strictly newer step so cached
-log history cannot falsely satisfy the launch gate:
+training restart. Record `OLD_STEP` before relaunch, then bind the launch gate to a strictly newer
+step:
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -244,21 +241,20 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
 - For spot `v6e-1`, query
   `serviceusage.googleapis.com/v1beta1/projects/$NUM/services/tpu.googleapis.com/consumerQuotaMetrics?view=FULL`
   (`effectiveLimit>0` or override `-1`; missing means zero), then intersect with `gcloud alpha compute tpus
-  accelerator-types list --zone=ZONE --filter=type=v6e-1`; quota is not capacity. Prefer proven
-  zones `us-central1-a`, `europe-west4-a`, then `us-east5-a` before exploring others.
+  accelerator-types list --zone=ZONE --filter=type=v6e-1`; treat quota and current capacity as
+  separate conditions. Prefer proven zones `us-central1-a`, `europe-west4-a`, then `us-east5-a`.
 - Preserve WAITING_FOR_RESOURCES/PROVISIONING queues; deleting resets queue position.
 - In xd's v5p experience, maintenance warning + refused SSH is almost always preemption. Start
-  reclaim early rather than waiting for recovery.
+  reclaim immediately.
 - `PREEMPTED|TERMINATED` plus queued-resource `SUSPENDED; stateInitiator=SERVICE` is terminal.
   Auto-train must release both resources through `delete_tpu_xd.sh`, recreate, reinstall, apply
   `CODE_COMMIT`, and resume the same RUN from its latest GCS checkpoint.
-- A post-maintenance SSH timeout (`alive=unknown`) is not evidence that training is alive.
+- Treat a post-maintenance SSH timeout as `alive=unknown`.
 
 ## TensorBoard Service
 
 Auto-train publishes `log/tensorboard_complete/RUN`; local `maxtext-tensorboard-sync.timer`
-retries the full sync independently of Codex. Do not routinely sync or verify it. Use this only
-to repair a reported failure:
+retries the full sync independently of Codex. Use manual sync only to repair a reported failure:
 
 ```bash
 RUN=Llama2Medium
@@ -275,11 +271,11 @@ Open `http://localhost:6007` (or the configured host alias). Checkpoints are und
 
 ## Guardrails
 
-- Keep BAM `full` runs as capability-ceiling experiments; never silently replace them for speed.
-- Report architectural parameter overhead in per-layer `W_Q = d_model^2` units, not raw counts;
-  omit negligible biases/gates unless they matter to the comparison.
-- A step-0 loss cannot prove zero-initialized BAM reads update: LR is zero and layer 0 has zero
-  `M_in`; inspect layer 1+ after a later step.
-- Use a new RUN after adding/removing conditional parameters; never resume an incompatible tree.
+- Keep BAM `full` runs as capability-ceiling experiments; test speed variants as separate runs.
+- Report architectural parameter overhead in per-layer `W_Q = d_model^2` units; include
+  biases/gates only when comparison-relevant.
+- Test zero-initialized BAM read updates at layer 1+ after step 0; step 0 has zero LR and layer 0
+  has zero `M_in`.
+- Use a new RUN after adding/removing conditional parameters; resume only compatible trees.
 - For resume-only retention use `max_to_keep=2`, `keep_period=None` (normalize non-positive
   config values to `None`). `keep_period=1000` permanently accumulates large checkpoints.

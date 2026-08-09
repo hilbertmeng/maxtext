@@ -2484,7 +2484,7 @@ class BamAttention(Attention):
     else:
       assert self._fetch_temporal_block_mode == 'none'
       assert self._fetch_temporal_recent_window_size is None
-    assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail')
+    assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
     assert self._m_read_norm in ('rms', 'none')
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
@@ -2760,6 +2760,15 @@ class BamAttention(Attention):
       if self._write_v_mode == 'o_tail':
         assert self.head_dim - self.bam_k == loc_v, (
             'o_tail write requires the o_head tail width to equal the V-factor width')
+      elif self._write_v_mode == 'static':
+        # One fixed V-side write direction per head.  Scale the orthogonal rows to unit
+        # raw RMS so the existing write-side RMS reparameterization starts near identity.
+        self.S_v = self.param(
+            'S_v',
+            nn.with_logical_partitioning(
+                nn.initializers.orthogonal(math.sqrt(loc_v)),
+                ('q_heads', 'v_factor')),
+            (self.num_query_heads, loc_v), self.weight_dtype)
       else:
         self.P_loc = DenseGeneral(features=(self.num_query_heads, loc_v), axis=-1,
             kernel_init=reg_init, kernel_axes=("embed", "q_heads", "v_factor"),
@@ -2960,6 +2969,10 @@ class BamAttention(Attention):
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
     if self._write_v_mode == 'o_tail':
       u2 = o_head[..., self.bam_k:]
+    elif self._write_v_mode == 'static':
+      u2 = self.S_v
+      if self._force_activation_dtype:
+        u2 = jnp.asarray(u2, self.dtype)
     else:
       x_v = self.P_loc(x)
       u2 = x_v
@@ -2989,7 +3002,10 @@ class BamAttention(Attention):
       if self._use_grouped_rw_norm:
         u1_norm = learned_u1_norm
         u2_norm = learned_u2_norm
-    dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * u1_norm, u2_norm)
+    if self._write_v_mode == 'static':
+      dM = jnp.einsum('btnk,nv->btkv', g[..., None] * u1_norm, u2_norm)
+    else:
+      dM = jnp.einsum('btnk,btnv->btkv', g[..., None] * u1_norm, u2_norm)
     if self._force_activation_dtype:
       assert dM.dtype == self.dtype, (dM.dtype, self.dtype)
     forget_logits = None

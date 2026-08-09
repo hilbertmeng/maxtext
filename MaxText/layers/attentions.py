@@ -2496,8 +2496,9 @@ class BamAttention(Attention):
     if self._abs_v_dim is not None:
       assert 0 < self._abs_v_dim < self.bam_v
       assert 'full' in self._mode
-      assert self._combine_full_local_read, (
-          'absolute-V compression currently targets the V1 combined full/local read')
+      assert self._combine_full_local_read or (
+          self._fetch_diagonal_one and 'local_o' not in self._mode), (
+              'absolute-V compression requires combined local/full or strict diagonal-one read')
       assert self._full_block_implementation == 'none'
       assert not self._diagnostic_read_projection
     assert self._read_key_scale > 0.0

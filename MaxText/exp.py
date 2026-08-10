@@ -660,7 +660,7 @@ class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
 
 class BamLlama2MediumDirectPLocR128(BamLlama2MediumV1CompressAbsV8Direct):
     """Factor P_loc as D -> 128 -> n*v with a final learned bias."""
-    # ~0.515 steps/s (~flat vs Direct); running.
+    # ~0.515 steps/s (~flat vs Direct); stopped at 2,873. dloss +.0074 vs Direct @2,800.
     model_name = 'BamLlama2MediumDirectPLocR128'
     bam_write_v_mode = 'x_bias'
     bam_write_v_bottleneck_dim = 128
@@ -675,7 +675,7 @@ class BamLlama2MediumDirectPLocR128Gelu(BamLlama2MediumDirectPLocR128):
 
 class BamLlama2MediumDirectPLocR256(BamLlama2MediumV1CompressAbsV8Direct):
     """Factor P_loc as D -> 256 -> n*v with a final learned bias."""
-    # ~0.513 steps/s (~flat vs Direct); running.
+    # ~0.513 steps/s (~flat vs Direct); stopped at 2,878. dloss +.0024 vs Direct @2,800.
     model_name = 'BamLlama2MediumDirectPLocR256'
     bam_write_v_mode = 'x_bias'
     bam_write_v_bottleneck_dim = 256

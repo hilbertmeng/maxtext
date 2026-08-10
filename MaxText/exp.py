@@ -684,7 +684,7 @@ class BamLlama2MediumDirectFastGroupedReadRMSNorm(
     BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne
 ):
     """Learned native-group RMS scales on BAM runtime read keys only."""
-    # Speed pending; running. BASE: Direct-fast.
+    # ~0.543 steps/s (~flat vs Direct-fast); running. BASE: Direct-fast.
     model_name = 'BamLlama2MediumDirectFastGroupedReadRMSNorm'
     bam_use_native_grouped_read_norm = True
 

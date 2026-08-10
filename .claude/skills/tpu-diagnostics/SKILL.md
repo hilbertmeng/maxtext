@@ -11,12 +11,12 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 ## Rules
 
 - Keep this skill procedural. Put checkpoint-specific measurements and conclusions in
-  `experiments/`, never here.
-- Use a spot non-pod `v6e-1` for inference-only probes unless memory requires more.
-- Reclaim `v6e-1` only in known viable zones, in order: `us-central1-a`,
-  `europe-west4-a`, `us-east5-a`; follow `$tpu-training` lifecycle rules.
+  `experiments/`.
+- Use a spot non-pod `v6e-1` for inference probes; choose a larger TPU when memory requires it.
+- Queue `v6e-1` concurrently in `us-central1-a`, `europe-west4-a`, and `us-east5-a`;
+  keep the first READY TPU and immediately stop creators and delete the exact remaining resources.
 - Create it with `$tpu-training`'s **Create Standalone v6e-1** command.
-- Never mutate or save over the source checkpoint. Use `only_eval=True` and a local output dir.
+- Restore the source checkpoint read-only; use `only_eval=True` and a local output dir.
 - Add only necessary raw `sow` values to `attentions.py`; keep statistics in standalone runners.
 
 ## Runtime health probe
@@ -55,16 +55,15 @@ VM, commit, model/batch/data, and trace steps identical; prefer 6 layers for ope
 comparisons, then verify the winning combination with full layers.
 
 - Keep profile TPU lifecycle separate from `auto-train`: create/install it standalone, launch
-  paired arms directly and serially, and delete it only after the whole profile set is collected.
-  Never let `auto-train` own a profile TPU; its clean-exit policy may delete it after one arm.
-- The watcher may prove `FIRST_STEP`/errors only; it must not own the profile lifecycle. Stop by
-  parsing the **actual train-log step**; at step 30–40, `SIGKILL` the exact no-checkpoint RUN on
-  all workers, then require `pgrep` empty before the next arm. Never time stopping from watcher
-  delivery.
+  paired arms directly and serially, collect the complete profile set, then delete it. Keep
+  `auto-train` detached from profile TPUs.
+- Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
+  step**; at step 30–40, `SIGKILL` the exact no-checkpoint RUN on all workers, then require
+  `pgrep` empty before the next arm.
 - Compare stable log speed and all-device XPlane step time; split read-key projection, gate,
   transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.
-- Inspect HLO/XPlane lowering, layout/copies, fusion type, and whether conceptual broadcast/zero
-  tensors materialize. A single JAX expression does not imply one device kernel.
+- Inspect HLO/XPlane lowering, layout/copies, fusion type, kernel count, and whether conceptual
+  broadcast/zero tensors materialize.
 
 ## Artifacts
 

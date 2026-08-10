@@ -515,7 +515,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
         scale_shape=(3, 4), epsilon=1e-6, dtype=jnp.float32,
         weight_dtype=jnp.float32, kernel_axes=(None, None))
     variables = norm.init(jax.random.PRNGKey(0), x)
-    self.assertEqual(variables['params']['scale'].shape, (3, 4))
+    scale_param = variables['params']['scale']
+    self.assertEqual(scale_param.value.shape, (3, 4))
     expected = x * jax.lax.rsqrt(jnp.mean(x ** 2, axis=-1, keepdims=True) + 1e-6)
     np.testing.assert_allclose(norm.apply(variables, x), expected, rtol=1e-6, atol=1e-6)
 

@@ -254,6 +254,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
+    bam_use_native_grouped_read_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
@@ -677,6 +678,15 @@ class BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne(
     bam_combine_full_local_read = False
     bam_fetch_diagonal_one = True
     bam_write_outer_implementation = 'mul_reduce'
+
+
+class BamLlama2MediumDirectFastGroupedReadRMSNorm(
+    BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne
+):
+    """Learned native-group RMS scales on BAM runtime read keys only."""
+    # Speed pending; running. BASE: Direct-fast.
+    model_name = 'BamLlama2MediumDirectFastGroupedReadRMSNorm'
+    bam_use_native_grouped_read_norm = True
 
 
 class BamLlama2MediumDirectFastStdWrite(

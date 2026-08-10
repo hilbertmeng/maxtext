@@ -2132,8 +2132,9 @@ def packed_qk_bam_read(M, x, W_q, W_k, q_kwargs, k_kwargs):
 
 def factorized_head_bam_read(
     M, x, W_R, W_head_mix, *, key_mode='none', key_scale=1.0,
-    key_eps=1e-6, key_gate_logits=None, implementation='dot_bnt',
-    read_side='both'):
+    key_eps=1e-6, key_gate_logits=None, key_row_norm=None,
+    key_col_norm=None, use_learned_key_norm=False,
+    implementation='dot_bnt', read_side='both'):
   """Read once with a shared runtime key, then route it dynamically across heads.
 
   For each side, the effective per-head key is the rank-1 factorization
@@ -2151,18 +2152,11 @@ def factorized_head_bam_read(
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
   if read_side not in ('both', 'row', 'col'):
     raise ValueError(f'Unknown BAM read side: {read_side}')
-  with jax.named_scope("bam/read_key_projection"):
-    projected_key = W_R(x)
-    raw_row, raw_col = jnp.split(projected_key, [M.shape[-2]], axis=-1)
-  with jax.named_scope("bam/read_key_transform"):
-    if key_gate_logits is None:
-      row_gate = col_gate = None
-    else:
-      row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
-    r_row = _transform_bam_read_key(
-        raw_row, key_mode, key_scale, key_eps, row_gate)
-    r_col = _transform_bam_read_key(
-        raw_col, key_mode, key_scale, key_eps, col_gate)
+  _, _, r_row, r_col = _project_bam_read_keys(
+      M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
+      key_eps=key_eps, key_gate_logits=key_gate_logits,
+      key_row_norm=key_row_norm, key_col_norm=key_col_norm,
+      use_learned_key_norm=use_learned_key_norm)
 
   with jax.named_scope("bam/read_m_contract"):
     y_u = y_v = None
@@ -2248,12 +2242,15 @@ def _block_bilateral_contract(M, r_row, r_col, implementation):
 
 def block_bilateral_bam_read(
     M, x, W_R, *, key_mode='none', key_scale=1.0, key_eps=1e-6,
-    key_gate_logits=None, implementation='dot'):
+    key_gate_logits=None, key_row_norm=None, key_col_norm=None,
+    use_learned_key_norm=False, implementation='dot'):
   """One fused bilateral fetched-M read; heads become RHS columns."""
   row_width = M.shape[-2]
   _, _, r_row, r_col = _project_bam_read_keys(
       row_width, x, W_R, key_mode=key_mode, key_scale=key_scale,
-      key_eps=key_eps, key_gate_logits=key_gate_logits)
+      key_eps=key_eps, key_gate_logits=key_gate_logits,
+      key_row_norm=key_row_norm, key_col_norm=key_col_norm,
+      use_learned_key_norm=use_learned_key_norm)
   with jax.named_scope("bam/read_m_contract"):
     return _block_bilateral_contract(M, r_row, r_col, implementation)
 
@@ -2396,6 +2393,8 @@ class BamAttention(Attention):
     self._read_key_eps = float(cfg.bam_read_key_epsilon)
     self._create_grouped_rw_norm = bool(cfg.bam_create_grouped_rw_norm_params)
     self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
+    self._use_native_grouped_read_norm = bool(
+        cfg.bam_use_native_grouped_read_norm)
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
@@ -2506,6 +2505,8 @@ class BamAttention(Attention):
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
     assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm
     assert not self._create_grouped_rw_norm or self._read_key_mode == 'rms_gate'
+    assert not self._use_native_grouped_read_norm or self._read_key_mode == 'rms_gate'
+    assert not (self._use_native_grouped_read_norm and self._create_grouped_rw_norm)
     assert not self._create_grouped_rw_norm or (
         'local_qk' not in self._mode or self._local_qk_key_mode == 'per_head'), (
             'per-head learned local_qk normalization requires per-head runtime keys')
@@ -2568,7 +2569,7 @@ class BamAttention(Attention):
           features, self.weight_dtype))
 
     def add_grouped_read_norms(name, row_shape, col_shape, row_axes, col_axes):
-      if not self._create_grouped_rw_norm:
+      if not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm):
         return
       setattr(self, f'{name}_row_norm', GroupedRMSNorm(
           scale_shape=row_shape, epsilon=self._read_key_eps, dtype=self.dtype,
@@ -2712,6 +2713,8 @@ class BamAttention(Attention):
               weight_dtype=self.weight_dtype, name=f'{_name}_head_mix',
               quant=self.quant, matmul_precision=cfg.matmul_precision,
               use_bias=False))
+          add_grouped_read_norms(
+              _name, (self.bam_k,), (self.bam_v,), ('kv',), ('kv',))
       else:
         # Default tier: one shared runtime key per use point, then a per-head
         # zero-init static rematrix gates and remixes the readout.
@@ -2843,6 +2846,8 @@ class BamAttention(Attention):
           kernel_axes=("embed", "q_heads", None), dtype=self.dtype,
           weight_dtype=self.weight_dtype, name="W_lv_head_mix", quant=self.quant,
           matmul_precision=cfg.matmul_precision, use_bias=False)
+      add_grouped_read_norms(
+          'W_lv', (self.bam_k,), (self.bam_v,), ('kv',), ('kv',))
 
   def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False):
     gate_logits = None
@@ -2862,7 +2867,7 @@ class BamAttention(Attention):
         key_eps=self._read_key_eps,
         key_gate_logits=gate_logits,
     )
-    if self._create_grouped_rw_norm:
+    if self._create_grouped_rw_norm or self._use_native_grouped_read_norm:
       projection_name = gate_name.removesuffix('_gate')
       row_norm = getattr(self, f'{projection_name}_row_norm')
       col_norm = getattr(self, f'{projection_name}_col_norm')
@@ -2874,7 +2879,8 @@ class BamAttention(Attention):
       kwargs.update(
           key_row_norm=row_norm,
           key_col_norm=col_norm,
-          use_learned_key_norm=self._use_grouped_rw_norm,
+          use_learned_key_norm=(
+              self._use_grouped_rw_norm or self._use_native_grouped_read_norm),
       )
     return kwargs
 

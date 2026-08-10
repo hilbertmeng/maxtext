@@ -57,6 +57,33 @@ class BamReadKeyTransformTest(absltest.TestCase):
     for got, expected in zip(actual_grad, reference_grad):
       np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
 
+  def test_factorized_head_read_supports_shared_learned_key_norm(self):
+    b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(61), 5)
+    M = jax.random.normal(random[0], (b, t, k, v))
+    x = jax.random.normal(random[1], (b, t, e))
+    key_kernel = jax.random.normal(random[2], (e, k + v))
+    mix_kernel = jax.random.normal(random[3], (e, n, 2))
+    gates = jax.random.normal(random[4], (b, t, 2))
+    projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
+    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
+        key_gate_logits=gates, implementation='mul_reduce_btn')
+    baseline = factorized_head_bam_read(
+        M, x, projection, head_projection, **kwargs)
+    identity_norm = lambda z: _rms(z, 1e-4)
+    identity = factorized_head_bam_read(
+        M, x, projection, head_projection, key_row_norm=identity_norm,
+        key_col_norm=identity_norm, use_learned_key_norm=True, **kwargs)
+    np.testing.assert_allclose(identity, baseline, rtol=1e-6, atol=1e-6)
+
+    scaled_norm = lambda z: 1.5 * _rms(z, 1e-4)
+    scaled = factorized_head_bam_read(
+        M, x, projection, head_projection, key_row_norm=scaled_norm,
+        key_col_norm=scaled_norm, use_learned_key_norm=True, **kwargs)
+    np.testing.assert_allclose(scaled, 1.5 * baseline, rtol=2e-5, atol=2e-5)
+
   def test_codebook_source_and_destination_implementations_match_gradients(self):
     b, t, n, c, k, v, e = 2, 3, 4, 4, 3, 5, 7
     random = jax.random.split(jax.random.PRNGKey(53), 8)

@@ -2565,13 +2565,13 @@ class BamAttention(Attention):
       elif self._write_v_bottleneck_dim is not None:
         self.P_loc_down = DenseGeneral(
             features=self._write_v_bottleneck_dim, axis=-1,
-            kernel_init=reg_init, kernel_axes=("embed", "mlp"),
+            kernel_init=reg_init, kernel_axes=("embed", None),
             dtype=self.dtype, weight_dtype=self.weight_dtype,
             name="P_loc_down", quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=False)
         self.P_loc_up = DenseGeneral(
             features=(self.num_query_heads, loc_v), axis=-1,
-            kernel_init=reg_init, kernel_axes=("mlp", "q_heads", "v_factor"),
+            kernel_init=reg_init, kernel_axes=("embed", "q_heads", "v_factor"),
             dtype=self.dtype, weight_dtype=self.weight_dtype,
             name="P_loc_up", quant=self.quant,
             matmul_precision=cfg.matmul_precision,

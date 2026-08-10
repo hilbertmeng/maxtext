@@ -635,7 +635,7 @@ class BamLlama2MediumV1(
 
 class BamLlama2MediumV1WriteMulDiagonalOne(BamLlama2MediumV1):
     """V1 with multiply+reduce writes and the equivalent diagonal-one read path."""
-    # ~0.514 steps/s (+11.5% vs V1); running.
+    # ~0.512 steps/s (+11.1% vs V1); completed 13,500. mean dloss +.0016 vs V1 @12,600–13,400.
     model_name = 'BamLlama2MediumV1WriteMulDiagonalOne'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False
@@ -646,7 +646,7 @@ class BamLlama2MediumV1WriteMulDiagonalOne(BamLlama2MediumV1):
 
 class BamLlama2MediumV1FastStdWrite(BamLlama2MediumV1WriteMulDiagonalOne):
     """Write only pre-output-read y_std into M, excluding direct BAM read recirculation."""
-    # ~0.513 steps/s (~flat vs V1-fast); running.
+    # ~0.513 steps/s (~flat); stopped at 2,994. dloss +0.0210 vs V1-fast @2,800; r200 -.030.
     model_name = 'BamLlama2MediumV1FastStdWrite'
     bam_write_source = 'std'
 
@@ -670,7 +670,7 @@ class BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne(
     BamLlama2MediumV1CompressAbsV8Direct
 ):
     """CompressAbsV8 Direct with multiply+reduce writes and diagonal-one reads."""
-    # !? ~0.543 steps/s (+5.4% vs Direct); running; below the ~0.577 composed-profile expectation.
+    # !? ~0.542 steps/s (+5.2% vs Direct; <~0.577 expected); completed 13,500. mean dloss -.0011 vs Direct, +.0064 vs V1-fast @12,600–13,400.
     model_name = 'BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False
@@ -683,7 +683,7 @@ class BamLlama2MediumDirectFastStdWrite(
     BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne
 ):
     """Direct-fast writing only pre-output-read y_std into M."""
-    # ~0.546 steps/s (+0.5% vs Direct-fast); running.
+    # ~0.543 steps/s (~flat); stopped at 3,025. dloss +0.0291 vs Direct-fast @2,800; r200 -.020.
     model_name = 'BamLlama2MediumDirectFastStdWrite'
     bam_write_source = 'std'
 

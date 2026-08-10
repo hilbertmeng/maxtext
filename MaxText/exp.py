@@ -668,7 +668,7 @@ class BamLlama2MediumDirectPLocR128(BamLlama2MediumV1CompressAbsV8Direct):
 
 class BamLlama2MediumDirectPLocR128Gelu(BamLlama2MediumDirectPLocR128):
     """Rank-128-width P_loc factorization with a hidden GELU."""
-    # ~0.513 steps/s (~flat vs Direct/R128); running.
+    # ~0.513 steps/s (~flat); stopped at 2,942. dloss +.0022 vs Direct, -.0052 vs R128 @2,800.
     model_name = 'BamLlama2MediumDirectPLocR128Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
 

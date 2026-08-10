@@ -258,7 +258,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
-    bam_profile_cast_pre_qk = False  # profile only: cast combined pre-RoPE Q/K to model dtype
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
@@ -272,12 +271,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
-    bam_profile_fetch_bypass = False  # profile only: feed local Mh directly to the full reader
     bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
-    bam_local_qk_block_implementation = 'none'  # none | dot | mul_reduce
-    bam_full_block_implementation = 'none'  # none | dot | mul_reduce
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
-    bam_pack_local_qk_reads = False  # profile: pack Q/K heads into each local-M contraction
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
@@ -285,6 +280,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
     bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail | static
+    bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
+    bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
 
     scan_layers = False
@@ -439,6 +436,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK(
 ):
     """Shared local-Q/K content keys with signed dynamic rank-1 head routing."""
     # ~0.315 steps/s; stopped at 7,145. mean dloss -0.0035 vs Combined, +0.0057 vs PerHead @5,600–7,000.
+    # Combined dloss -0.0119 vs NoLocalQK
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK'
     bam_local_qk_key_mode = 'factorized'
 
@@ -590,13 +588,6 @@ class BamNoMNormPreNoQKProfile(BamNoMNormPostNoQKProfile):
     bam_local_qk_injection = 'pre_qknorm_rope'
 
 
-class BamNoMNormPreCastNoQKProfile(BamNoMNormPreNoQKProfile):
-    """Root-cause control: pre-RoPE LocalQK plus dtype cast, without QKNorm."""
-    # ~0.393 steps/s; stopped at 48. XPlane 2,539.0 ms; +21.0% vs Pre/no-QKNorm confirms dtype cause.
-    model_name = 'BamNoMNormPreCastNoQKProfile'
-    bam_profile_cast_pre_qk = True
-
-
 class BamNoMNormAllBf16Profile(BamNoMNormPostNoQKProfile):
     """NoMNorm with bf16 logits, BAM biases, read keys, dM, and M state."""
     # ~0.453 steps/s; stopped at 60. XPlane 2,184.4 ms; +39.0% throughput vs Post/no-QKNorm.
@@ -665,6 +656,36 @@ class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
     model_name = 'BamLlama2MediumV1CompressAbsV8Direct'
     bam_abs_v_compression_dim = 8
     bam_abs_v_row_output = 'direct'
+
+
+class BamLlama2MediumDirectPLocR128(BamLlama2MediumV1CompressAbsV8Direct):
+    """Factor P_loc as D -> 128 -> n*v with a final learned bias."""
+    # running; compare BamLlama2MediumV1CompressAbsV8Direct
+    model_name = 'BamLlama2MediumDirectPLocR128'
+    bam_write_v_mode = 'x_bias'
+    bam_write_v_bottleneck_dim = 128
+
+
+class BamLlama2MediumDirectPLocR128Gelu(BamLlama2MediumDirectPLocR128):
+    """Rank-128-width P_loc factorization with a hidden GELU."""
+    # running; compare Direct and PLocR128
+    model_name = 'BamLlama2MediumDirectPLocR128Gelu'
+    bam_write_v_bottleneck_activation = 'gelu'
+
+
+class BamLlama2MediumDirectPLocR256(BamLlama2MediumV1CompressAbsV8Direct):
+    """Factor P_loc as D -> 256 -> n*v with a final learned bias."""
+    # running; compare BamLlama2MediumV1CompressAbsV8Direct
+    model_name = 'BamLlama2MediumDirectPLocR256'
+    bam_write_v_mode = 'x_bias'
+    bam_write_v_bottleneck_dim = 256
+
+
+class BamLlama2MediumDirectPLocR256Gelu(BamLlama2MediumDirectPLocR256):
+    """Rank-256-width P_loc factorization with a hidden GELU."""
+    # running; compare Direct and PLocR256
+    model_name = 'BamLlama2MediumDirectPLocR256Gelu'
+    bam_write_v_bottleneck_activation = 'gelu'
 
 
 class BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne(
@@ -835,45 +856,10 @@ class BamV1FetchDiagonalOneFullLayerProfile(BamV1FetchDiagonalOneSixLayerProfile
     bam_layer_modes = ['local_qk+full'] * 24
 
 
-class BamV1SixLayerLocalBlockDotProfile(BamV1SixLayerReadProfile):
-    """Fuse LocalQK row/column and Q/K reads with one block dot."""
-    # ~1.709 steps/s; XPlane 571.364 ms (-0.97%); reverses to +1.04% wall at 24 layers.
-    model_name = 'BamV1SixLayerLocalBlockDotProfile'
-    bam_local_qk_block_implementation = 'dot'
-
-
-class BamV1SixLayerLocalBlockMulProfile(BamV1SixLayerReadProfile):
-    """Fuse LocalQK row/column and Q/K reads with block multiply+reduce."""
-    # ~1.685 steps/s; XPlane 580.252 ms (+0.57%); slower than control.
-    model_name = 'BamV1SixLayerLocalBlockMulProfile'
-    bam_local_qk_block_implementation = 'mul_reduce'
-
-
-class BamV1SixLayerFullBlockDotProfile(BamV1SixLayerReadProfile):
-    """Fuse fetched row/column reads with one block dot across heads."""
-    # ~1.640 steps/s; XPlane 596.173 ms (+3.33%); slower than control.
-    model_name = 'BamV1SixLayerFullBlockDotProfile'
-    bam_full_block_implementation = 'dot'
-
-
-class BamV1SixLayerFullBlockMulProfile(BamV1SixLayerReadProfile):
-    """Fuse fetched row/column reads with block multiply+reduce across heads."""
-    # ~1.533 steps/s; XPlane 637.482 ms (+10.49%); slower than control.
-    model_name = 'BamV1SixLayerFullBlockMulProfile'
-    bam_full_block_implementation = 'mul_reduce'
-
-
 class BamV1FullLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
     """Full-layer control for the winning bilateral block-read path."""
     # ~0.4611 steps/s; XPlane 2,137.186 ms.
     model_name = 'BamV1FullLayerReadProfile'
-
-
-class BamV1FullLayerLocalBlockDotProfile(BamV1FullLayerReadProfile):
-    """Full-layer verification of the LocalQK block-dot path."""
-    # ~0.4561 steps/s; XPlane 2,159.358 ms (+1.04%); 6-layer gain does not transfer.
-    model_name = 'BamV1FullLayerLocalBlockDotProfile'
-    bam_local_qk_block_implementation = 'dot'
 
 
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):
@@ -995,15 +981,6 @@ class BamLlama2MediumReadKernelMulReduceProfile(
     bam_read_implementation = 'mul_reduce_btn'
 
 
-class BamLlama2MediumReadKernelPackedQKProfile(
-    BamLlama2MediumReadKernelLayoutProfile
-):
-    """D: direct-layout dot read with Q/K local-M contractions packed."""
-    # ~0.292 steps/s; stopped at 55. XPlane 3.396 s (-0.5% vs B).
-    model_name = 'BamLlama2MediumReadKernelPackedQKProfile'
-    bam_pack_local_qk_reads = True
-
-
 class BamLlama2MediumReadKernelSqueezedFetchProfile(
     BamLlama2MediumReadKernelLayoutProfile
 ):
@@ -1036,15 +1013,6 @@ class BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile(
     bam_shared_fetch_mode = 'compact'
 
 
-class BamLlama2MediumDynamicPerHeadQKDirectReadNoFetchProfile(
-    BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile
-):
-    """Paired profile feeding local Mh to the same W_R reader, bypassing fetch."""
-    # ~0.336 steps/s; profiled through 108. XPlane 2.938 s; fetch costs ~0.510 s/step.
-    model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadNoFetchProfile'
-    bam_profile_fetch_bypass = True
-
-
 class BamLlama2MediumDynamicPerHeadQKOnlyProfile(
     TrainStepProfile,
     BamLlama2MediumRmsGateOnly,
@@ -1055,17 +1023,6 @@ class BamLlama2MediumDynamicPerHeadQKOnlyProfile(
     bam_layer_modes = ['local_qk'] * 24
     bam_local_qk_key_mode = 'per_head'
     bam_create_grouped_rw_norm_params = True
-
-
-class BamLlama2MediumDirectReadNoLocalQKProfile(
-    BamLlama2MediumDynamicPerHeadQKDirectReadNoFetchProfile
-):
-    """Paired profile retaining the direct W_R read and write but no local-Q/K reads."""
-    # ~0.523 steps/s; profiled through 90. XPlane device step 1.890 s.
-    model_name = 'BamLlama2MediumDirectReadNoLocalQKProfile'
-    bam_layer_modes = ['full'] * 24
-    bam_local_qk_key_mode = 'shared'
-    bam_create_grouped_rw_norm_params = False
 
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal(

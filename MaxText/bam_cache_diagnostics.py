@@ -579,29 +579,6 @@ def _variant_specs(group):
             "bam_fetch_temporal_recent_window_size": None,
         }),
     )
-  if group == "sign_components":
-    return (
-        ("mix_mean_mode_raw", {"bam_fetch_sign_ablation": "mix_mean_mode_raw"}),
-        ("mix_contrast_raw", {"bam_fetch_sign_ablation": "mix_contrast_raw"}),
-    )
-  if group == "sign_dominant":
-    return (
-        ("mix_dominant_sign_l2", {
-            "bam_fetch_sign_ablation": "mix_dominant_sign_l2"}),
-        ("alpha_dominant_sign_raw", {
-            "bam_fetch_sign_ablation": "alpha_dominant_sign_raw"}),
-        ("alpha_dominant_sign_l2", {
-            "bam_fetch_sign_ablation": "alpha_dominant_sign_l2"}),
-    )
-  if group == "sign":
-    return (
-        ("mix_abs_l2", {"bam_fetch_sign_ablation": "mix_abs"}),
-        ("mix_positive_l2", {"bam_fetch_sign_ablation": "mix_positive_l2"}),
-        ("alpha_abs", {"bam_fetch_sign_ablation": "alpha_abs"}),
-        ("alpha_positive_raw", {"bam_fetch_sign_ablation": "alpha_positive_raw"}),
-        ("alpha_positive_l2", {"bam_fetch_sign_ablation": "alpha_positive_l2"}),
-        ("alpha_negative_l2", {"bam_fetch_sign_ablation": "alpha_negative_l2"}),
-    )
   if group != "cache":
     raise ValueError(f"Unknown BAM_CACHE_DIAG_VARIANT_GROUP={group!r}")
   specs = []

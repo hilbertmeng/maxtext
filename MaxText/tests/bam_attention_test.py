@@ -18,11 +18,8 @@ from layers.attentions import (
     _transform_bam_read_key,
     _update_bam_matrix,
     bam_read,
-    block_bilateral_bam_read,
     codebook_read,
     factorized_head_bam_read,
-    factorized_qk_block_bam_read,
-    packed_qk_bam_read,
 )
 
 
@@ -210,98 +207,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(row[..., k:], both[..., k:], rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(col[..., :k], both[..., :k], rtol=1e-5, atol=1e-5)
     np.testing.assert_array_equal(col[..., k:], 0)
-
-  def test_block_bilateral_reads_match_separate_reads(self):
-    b, t, n, f, k, v, e = 2, 3, 4, 2, 3, 5, 7
-    random = jax.random.split(jax.random.PRNGKey(71), 10)
-    x = jax.random.normal(random[0], (b, t, e))
-    M = jax.random.normal(random[1], (b, f, t, k, v))
-    kernel = jax.random.normal(random[2], (e, n, f, k + v))
-    gates = jax.random.normal(random[3], (b, t, n, f, 2))
-    projection = lambda z: jnp.einsum('bte,enfD->btnfD', z, kernel)
-    kwargs = dict(
-        key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
-        key_gate_logits=gates)
-    expected = bam_read(
-        M, x, projection, None, **kwargs, implementation='mul_reduce_btn')
-    for implementation in ('dot', 'mul_reduce'):
-      actual = block_bilateral_bam_read(
-          M, x, projection, **kwargs, implementation=implementation)
-      np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
-
-    local_M = jax.random.normal(random[4], (b, t, k, v))
-    q_kernel = jax.random.normal(random[5], (e, k + v))
-    k_kernel = jax.random.normal(random[6], (e, k + v))
-    q_mix_kernel = jax.random.normal(random[7], (e, n, 2))
-    k_mix_kernel = jax.random.normal(random[8], (e, n, 2))
-    local_gates = jax.random.normal(random[9], (b, t, 2))
-    q_projection = lambda z: jnp.einsum('bte,eD->btD', z, q_kernel)
-    k_projection = lambda z: jnp.einsum('bte,eD->btD', z, k_kernel)
-    q_mix = lambda z: jnp.einsum('bte,enr->btnr', z, q_mix_kernel)
-    k_mix = lambda z: jnp.einsum('bte,enr->btnr', z, k_mix_kernel)
-    local_kwargs = dict(
-        key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
-        key_gate_logits=local_gates)
-    expected_q = factorized_head_bam_read(
-        local_M, x, q_projection, q_mix, **local_kwargs,
-        implementation='mul_reduce_btn')
-    expected_k = factorized_head_bam_read(
-        local_M, x, k_projection, k_mix, **local_kwargs,
-        implementation='mul_reduce_btn')
-    for implementation in ('dot', 'mul_reduce'):
-      actual_q, actual_k = factorized_qk_block_bam_read(
-          local_M, x, q_projection, k_projection, q_mix, k_mix,
-          local_kwargs, local_kwargs, implementation)
-      np.testing.assert_allclose(actual_q, expected_q, rtol=2e-5, atol=2e-5)
-      np.testing.assert_allclose(actual_k, expected_k, rtol=2e-5, atol=2e-5)
-
-  def test_packed_qk_read_matches_two_direct_layout_reads_and_gradients(self):
-    b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
-    random = jax.random.split(jax.random.PRNGKey(43), 8)
-    args = (
-        jax.random.normal(random[0], (b, t, k, v)),
-        jax.random.normal(random[1], (b, t, e)),
-        jax.random.normal(random[2], (e, n, k + v)),
-        jax.random.normal(random[3], (e, n, k + v)),
-        jax.random.normal(random[4], (b, t, n, 2)),
-        jax.random.normal(random[5], (b, t, n, 2)),
-    )
-    q_upstream = jax.random.normal(random[6], (b, t, n, k + v))
-    k_upstream = jax.random.normal(random[7], (b, t, n, k + v))
-
-    def outputs(values, packed):
-      M, x, q_kernel, k_kernel, q_gates, k_gates = values
-      q_projection = lambda z: jnp.einsum('bte,enD->btnD', z, q_kernel)
-      k_projection = lambda z: jnp.einsum('bte,enD->btnD', z, k_kernel)
-      q_kwargs = dict(
-          key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
-          key_gate_logits=q_gates)
-      k_kwargs = dict(
-          key_mode='rms_gate', key_scale=2.0, key_eps=1e-4,
-          key_gate_logits=k_gates)
-      if packed:
-        return packed_qk_bam_read(
-            M, x, q_projection, k_projection, q_kwargs, k_kwargs)
-      return (
-          bam_read(M, x, q_projection, None, **q_kwargs, implementation='dot_btn'),
-          bam_read(M, x, k_projection, None, **k_kwargs, implementation='dot_btn'),
-      )
-
-    def objective(values, packed):
-      q, k_out = outputs(values, packed)
-      return jnp.sum(q * q_upstream) + jnp.sum(k_out * k_upstream)
-
-    expected_q, expected_k = outputs(args, False)
-    actual_q, actual_k = outputs(args, True)
-    np.testing.assert_allclose(actual_q, expected_q, rtol=1e-5, atol=1e-5)
-    np.testing.assert_allclose(actual_k, expected_k, rtol=1e-5, atol=1e-5)
-    expected_value, expected_grad = jax.value_and_grad(
-        lambda z: objective(z, False))(args)
-    actual_value, actual_grad = jax.value_and_grad(
-        lambda z: objective(z, True))(args)
-    np.testing.assert_allclose(actual_value, expected_value, rtol=1e-5, atol=1e-5)
-    for got, expected in zip(actual_grad, expected_grad):
-      np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
 
   def test_single_fetch_axis_squeeze_matches_values_and_gradients(self):
     b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
@@ -616,86 +521,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_array_equal(raw_logits, logits)
     np.testing.assert_allclose(actual_weights, weights, rtol=1e-6, atol=1e-6)
     np.testing.assert_array_equal(pre_diagonal, mixed)
-
-  def test_dynamic_fetch_sign_ablation_modes(self):
-    alpha = jnp.array([[[[0.7, 0.2, 0.1], [0.1, 0.3, 0.6]],
-                        [[0.1, 0.7, 0.2], [0.5, 0.4, 0.1]],
-                        [[0.2, 0.2, 0.6], [0.7, 0.1, 0.2]]]], dtype=jnp.float32)
-    logits = jnp.array([[[1.0, -2.0, 0.5], [-1.0, 2.0, -0.5]]], dtype=jnp.float32)
-    signed = _dynamic_mixed_bam_fetch_alpha(
-        alpha, logits, False, weight_mode='rms', epsilon=1e-8)
-
-    alpha_abs = _dynamic_mixed_bam_fetch_alpha(
-        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-        sign_ablation='alpha_abs')
-    np.testing.assert_allclose(alpha_abs, jnp.abs(signed), rtol=1e-6, atol=1e-6)
-
-    positive_raw = _dynamic_mixed_bam_fetch_alpha(
-        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-        sign_ablation='alpha_positive_raw')
-    np.testing.assert_allclose(
-        positive_raw, jnp.maximum(signed, 0), rtol=1e-6, atol=1e-6)
-
-    for mode, sign in (('alpha_positive_l2', 1), ('alpha_negative_l2', -1)):
-      ablated = _dynamic_mixed_bam_fetch_alpha(
-          alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-          sign_ablation=mode)
-      np.testing.assert_allclose(
-          jnp.linalg.norm(ablated, axis=-1), jnp.linalg.norm(signed, axis=-1),
-          rtol=1e-5, atol=1e-6)
-      self.assertTrue(np.all(np.asarray(ablated) * sign >= 0))
-
-    weights = logits * jax.lax.rsqrt(
-        jnp.mean(logits ** 2, axis=-1, keepdims=True) + 1e-8) / jnp.sqrt(logits.shape[-1])
-    mix_abs = _dynamic_mixed_bam_fetch_alpha(
-        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-        sign_ablation='mix_abs')
-    np.testing.assert_allclose(
-        mix_abs[:, 0], jnp.einsum('bnts,btn->bts', alpha, jnp.abs(weights)),
-        rtol=1e-6, atol=1e-6)
-
-    mix_positive = _dynamic_mixed_bam_fetch_alpha(
-        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-        sign_ablation='mix_positive_l2')
-    positive_weights = jnp.maximum(weights, 0)
-    positive_weights *= (
-        jnp.linalg.norm(weights, axis=-1, keepdims=True)
-        / jnp.linalg.norm(positive_weights, axis=-1, keepdims=True))
-    np.testing.assert_allclose(
-        mix_positive[:, 0], jnp.einsum('bnts,btn->bts', alpha, positive_weights),
-        rtol=1e-6, atol=1e-6)
-
-    for mode in ('alpha_dominant_sign_raw', 'alpha_dominant_sign_l2'):
-      dominant = _dynamic_mixed_bam_fetch_alpha(
-          alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-          sign_ablation=mode)
-      signed_sum = jnp.sum(signed, axis=-1, keepdims=True)
-      dominant_sign = jnp.where(signed_sum >= 0, 1, -1)
-      self.assertTrue(np.all(np.asarray(dominant * dominant_sign) >= 0))
-      if mode.endswith('_l2'):
-        np.testing.assert_allclose(
-            jnp.linalg.norm(dominant, axis=-1), jnp.linalg.norm(signed, axis=-1),
-            rtol=1e-5, atol=1e-6)
-
-    mix_dominant = _dynamic_mixed_bam_fetch_alpha(
-        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-        sign_ablation='mix_dominant_sign_l2')
-    weight_sign = jnp.where(jnp.sum(weights, axis=-1, keepdims=True) >= 0, 1, -1)
-    dominant_weights = jnp.where(weights * weight_sign >= 0, weights, 0)
-    dominant_weights *= (
-        jnp.linalg.norm(weights, axis=-1, keepdims=True)
-        / jnp.linalg.norm(dominant_weights, axis=-1, keepdims=True))
-    np.testing.assert_allclose(
-        mix_dominant[:, 0], jnp.einsum('bnts,btn->bts', alpha, dominant_weights),
-        rtol=1e-6, atol=1e-6)
-
-    mean_mode = _dynamic_mixed_bam_fetch_alpha(
-        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-        sign_ablation='mix_mean_mode_raw')
-    contrast = _dynamic_mixed_bam_fetch_alpha(
-        alpha, logits, False, weight_mode='rms', epsilon=1e-8,
-        sign_ablation='mix_contrast_raw')
-    np.testing.assert_allclose(mean_mode + contrast, signed, rtol=1e-6, atol=1e-6)
 
   def test_temporal_block_fetch_is_causal_and_segment_aware(self):
     alpha = jnp.tril(jnp.ones((1, 1, 8, 8), dtype=jnp.float32))

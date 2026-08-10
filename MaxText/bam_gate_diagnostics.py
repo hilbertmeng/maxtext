@@ -279,8 +279,8 @@ def _add_microbatch(collector, sampled, mask):
 
 
 def run(config) -> None:
-  if not config.bam_enabled or not config.bam_diagnostics or not config.only_eval:
-    raise ValueError("use a BAM diagnostics config with only_eval=True")
+  if not config.bam_enabled or not config.only_eval:
+    raise ValueError("use a BAM config with only_eval=True")
   if config.bam_local_qk_key_mode != "factorized" or config.bam_n_f != 1:
     raise ValueError("this runner expects V1 factorized LocalQK and n_f=1")
 

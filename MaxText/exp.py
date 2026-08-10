@@ -660,7 +660,7 @@ class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
 
 class BamLlama2MediumDirectPLocR128(BamLlama2MediumV1CompressAbsV8Direct):
     """Factor P_loc as D -> 128 -> n*v with a final learned bias."""
-    # running; compare BamLlama2MediumV1CompressAbsV8Direct
+    # ~0.515 steps/s (~flat vs Direct); running.
     model_name = 'BamLlama2MediumDirectPLocR128'
     bam_write_v_mode = 'x_bias'
     bam_write_v_bottleneck_dim = 128
@@ -668,14 +668,14 @@ class BamLlama2MediumDirectPLocR128(BamLlama2MediumV1CompressAbsV8Direct):
 
 class BamLlama2MediumDirectPLocR128Gelu(BamLlama2MediumDirectPLocR128):
     """Rank-128-width P_loc factorization with a hidden GELU."""
-    # running; compare Direct and PLocR128
+    # ~0.513 steps/s (~flat vs Direct/R128); running.
     model_name = 'BamLlama2MediumDirectPLocR128Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
 
 
 class BamLlama2MediumDirectPLocR256(BamLlama2MediumV1CompressAbsV8Direct):
     """Factor P_loc as D -> 256 -> n*v with a final learned bias."""
-    # running; compare BamLlama2MediumV1CompressAbsV8Direct
+    # ~0.513 steps/s (~flat vs Direct); running.
     model_name = 'BamLlama2MediumDirectPLocR256'
     bam_write_v_mode = 'x_bias'
     bam_write_v_bottleneck_dim = 256
@@ -683,7 +683,7 @@ class BamLlama2MediumDirectPLocR256(BamLlama2MediumV1CompressAbsV8Direct):
 
 class BamLlama2MediumDirectPLocR256Gelu(BamLlama2MediumDirectPLocR256):
     """Rank-256-width P_loc factorization with a hidden GELU."""
-    # running; compare Direct and PLocR256
+    # ~0.512 steps/s (~flat vs Direct/R256); running.
     model_name = 'BamLlama2MediumDirectPLocR256Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
 

@@ -1693,6 +1693,8 @@ class GroupedRMSNorm(nn.Module):
   kernel_axes: Tuple[Optional[str], ...] = ()
   scale_init: Any = nn.initializers.zeros
   direct_scale: bool = False
+  use_bias: bool = False
+  bias_init: Any = nn.initializers.zeros
 
   @nn.compact
   def __call__(self, x: Array) -> Array:
@@ -1702,16 +1704,24 @@ class GroupedRMSNorm(nn.Module):
     x_f32 = jnp.asarray(x, jnp.float32)
     mean2 = jnp.mean(jax.lax.square(x_f32), axis=-1, keepdims=True)
     y = jnp.asarray(x_f32 * jax.lax.rsqrt(mean2 + self.epsilon), self.dtype)
-    if self.scale_init is None:
-      return y
-    scale = self.param(
-        "scale",
-        nn.with_logical_partitioning(self.scale_init, self.kernel_axes),
-        self.scale_shape,
-        self.weight_dtype,
-    )
-    scale = jnp.asarray(scale, self.dtype)
-    return y * scale if self.direct_scale else y * (scale + 1.0)
+    if self.scale_init is not None:
+      scale = self.param(
+          "scale",
+          nn.with_logical_partitioning(self.scale_init, self.kernel_axes),
+          self.scale_shape,
+          self.weight_dtype,
+      )
+      scale = jnp.asarray(scale, self.dtype)
+      y = y * scale if self.direct_scale else y * (scale + 1.0)
+    if self.use_bias:
+      bias = self.param(
+          "bias",
+          nn.with_logical_partitioning(self.bias_init, self.kernel_axes),
+          self.scale_shape,
+          self.weight_dtype,
+      )
+      y = y + jnp.asarray(bias, self.dtype)
+    return y
 
 
 def _rms(z, eps, axis=-1):
@@ -2258,6 +2268,7 @@ class BamAttention(Attention):
       assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
       assert cfg.bam_n_f == 1, 'dynamic head mixing produces exactly one fetch route'
     self._write_v_mode = cfg.bam_write_v_mode
+    self._write_u2_norm = cfg.bam_write_u2_norm
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
     self._write_v_bottleneck_activation = cfg.bam_write_v_bottleneck_activation
     self._write_outer_implementation = cfg.bam_write_outer_implementation
@@ -2292,6 +2303,9 @@ class BamAttention(Attention):
       assert self._fetch_temporal_block_mode == 'none'
       assert self._fetch_temporal_recent_window_size is None
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
+    assert self._write_u2_norm in ('rms', 'grouped_rms_bias')
+    assert self._write_u2_norm == 'rms' or self._write_v_mode == 'o_tail'
+    assert not (self._write_u2_norm != 'rms' and self._create_grouped_rw_norm)
     assert self._write_v_bottleneck_activation in ('none', 'gelu')
     if self._write_v_bottleneck_dim is None:
       assert self._write_v_bottleneck_activation == 'none'
@@ -2632,6 +2646,12 @@ class BamAttention(Attention):
             epsilon=cfg.normalization_layer_epsilon, dtype=self.dtype,
             weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
             name='write_u2_norm')
+      elif self._write_u2_norm == 'grouped_rms_bias':
+        self.write_u2_norm = GroupedRMSNorm(
+            scale_shape=(self.num_query_heads, loc_v),
+            epsilon=cfg.normalization_layer_epsilon, dtype=self.dtype,
+            weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
+            use_bias=True, name='write_u2_norm')
 
     if 'local_v' in self._mode:
       # Source-local matrix summary injected into the standard V stream.  Match
@@ -2804,6 +2824,8 @@ class BamAttention(Attention):
       if self._use_grouped_rw_norm:
         u1_norm = learned_u1_norm
         u2_norm = learned_u2_norm
+    elif self._write_u2_norm == 'grouped_rms_bias':
+      u2_norm = self.write_u2_norm(u2)
     gated_u1 = g[..., None] * u1_norm
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':

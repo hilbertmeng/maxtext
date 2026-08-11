@@ -280,6 +280,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
     bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail | static
+    bam_write_u2_norm = 'rms'        # rms | grouped_rms_bias (o_tail only)
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
@@ -686,6 +687,16 @@ class BamLlama2MediumDirectPLocR256Gelu(BamLlama2MediumDirectPLocR256):
     # ~0.512 steps/s (~flat vs Direct/R256); running.
     model_name = 'BamLlama2MediumDirectPLocR256Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
+
+
+class BamLlama2MediumDirectOTailGroupedRMSNormBias(
+    BamLlama2MediumV1CompressAbsV8Direct
+):
+    """Write o_head tail through a per-head affine GroupedRMSNorm."""
+    # Running; compare Direct. Removes P_loc; write_u2_norm scale/bias have no weight decay.
+    model_name = 'BamLlama2MediumDirectOTailGroupedRMSNormBias'
+    bam_write_v_mode = 'o_tail'
+    bam_write_u2_norm = 'grouped_rms_bias'
 
 
 class BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne(

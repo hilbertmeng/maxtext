@@ -250,7 +250,6 @@ class BamLlama2Medium(Llama2Medium):
     # v2 experiment subclasses below select the new alternatives explicitly.
     bam_read_key_mode = 'none'       # none | soft_rms_cap | rms_gate
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
-    bam_read_key_epsilon = 1e-4      # denominator epsilon for rms_gate
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False

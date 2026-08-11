@@ -22,12 +22,24 @@ import jax.numpy as jnp
 from layers import initializers
 
 Initializer = initializers.Initializer
+DEFAULT_RMS_EPSILON = 1e-6
+
+
+def rms_norm(x: jnp.ndarray, *, dtype: Any,
+             epsilon: float = DEFAULT_RMS_EPSILON,
+             axis: int = -1) -> jnp.ndarray:
+    """Parameter-free RMS normalization with fp32 statistics."""
+    x = jnp.asarray(x)
+    x = jnp.asarray(x, jnp.float32)
+    mean2 = jnp.mean(lax.square(x), axis=axis, keepdims=True)
+    return jnp.asarray(x * lax.rsqrt(mean2 + epsilon), dtype)
 
 
 class RMSNorm(nn.Module):
-    """RMS normalization."""
+    """RMS normalization over one configurable axis."""
 
-    epsilon: float = 1e-6
+    epsilon: float = DEFAULT_RMS_EPSILON
+    axis: int = -1
     dtype: Any = jnp.float32
     weight_dtype: Any = jnp.float32
     kernel_axes: Tuple[Optional[str], ...] = ()
@@ -37,10 +49,12 @@ class RMSNorm(nn.Module):
     @nn.compact
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         """Applies layer normalization on the input."""
-        x = jnp.asarray(x, jnp.float32)
-        features = x.shape[-1]
-        mean2 = jnp.mean(lax.square(x), axis=-1, keepdims=True)
-        y = jnp.asarray(x * lax.rsqrt(mean2 + self.epsilon), self.dtype)
+        axis = self.axis if self.axis >= 0 else self.axis + x.ndim
+        if axis < 0 or axis >= x.ndim:
+            raise ValueError(f"RMSNorm axis {self.axis} is out of bounds for rank {x.ndim}")
+        features = x.shape[axis]
+        y = rms_norm(
+            x, dtype=self.dtype, epsilon=self.epsilon, axis=axis)
         if not self.scale_init:
             return y
         scale = self.param(
@@ -52,6 +66,9 @@ class RMSNorm(nn.Module):
         scale = jnp.asarray(scale, self.dtype)
         if not self.direct_scale:
             assert self.scale_init == nn.initializers.zeros
+        scale_shape = [1] * x.ndim
+        scale_shape[axis] = features
+        scale = jnp.reshape(scale, scale_shape)
         return y * scale if self.direct_scale else y * (scale + 1.0)
 
 
@@ -60,6 +77,7 @@ def get_rmsnorm(name, cfg, **kwargs):
     for item in ['dtype', 'weight_dtype', 'normalization_layer_epsilon', 'direct_scale']:
         key = 'epsilon' if item == 'normalization_layer_epsilon' else item
         rms_kwargs[key] = kwargs.get(key, getattr(cfg, item))
+    rms_kwargs['axis'] = kwargs.get('axis', -1)
     base_scale_init = nn.initializers.ones if rms_kwargs['direct_scale'] else nn.initializers.zeros
     rms_kwargs['scale_init'] = kwargs.get("scale_init", base_scale_init)
     return RMSNorm(name=name, **rms_kwargs)

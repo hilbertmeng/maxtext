@@ -1687,7 +1687,7 @@ class GroupedRMSNorm(nn.Module):
   """
 
   scale_shape: Tuple[int, ...]
-  epsilon: float = 1e-6
+  epsilon: float
   dtype: DType = jnp.float32
   weight_dtype: DType = jnp.float32
   kernel_axes: Tuple[Optional[str], ...] = ()
@@ -1701,9 +1701,8 @@ class GroupedRMSNorm(nn.Module):
     if tuple(x.shape[-len(self.scale_shape):]) != self.scale_shape:
       raise ValueError(
           f"GroupedRMSNorm expected trailing shape {self.scale_shape}, got {x.shape}")
-    x_f32 = jnp.asarray(x, jnp.float32)
-    mean2 = jnp.mean(jax.lax.square(x_f32), axis=-1, keepdims=True)
-    y = jnp.asarray(x_f32 * jax.lax.rsqrt(mean2 + self.epsilon), self.dtype)
+    y = normalizations.rms_norm(
+        x, dtype=self.dtype, epsilon=self.epsilon)
     if self.scale_init is not None:
       scale = self.param(
           "scale",
@@ -1722,11 +1721,6 @@ class GroupedRMSNorm(nn.Module):
       )
       y = y + jnp.asarray(bias, self.dtype)
     return y
-
-
-def _rms(z, eps, axis=-1):
-  """RMS normalization: z * rsqrt(mean(z**2, axis) + eps). No params (§4.6.5 two-track normalization)."""
-  return z * jax.lax.rsqrt(jnp.mean(z ** 2, axis=axis, keepdims=True) + eps)
 
 
 def _shared_bam_fetch_alpha(alpha, query, key, attn_mask, n_f, mode,
@@ -1759,16 +1753,18 @@ def _shared_bam_fetch_alpha(alpha, query, key, attn_mask, n_f, mode,
 
 
 def _dynamic_mixed_bam_fetch_alpha(
-    alpha, mix_logits, diagonal_yield, weight_mode='softmax', epsilon=1e-6,
-    return_aux=False):
+    alpha, mix_logits, diagonal_yield, weight_mode='softmax',
+    *, rms_epsilon, return_aux=False):
   """Build one BAM fetch route as a token-wise mixture of all MHA heads."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
   if weight_mode == 'softmax':
     mix_weights = jax.nn.softmax(mix_logits, axis=-1)
-  elif weight_mode == 'rms':
+  elif weight_mode == 'rms':  # V1 default
     # RMSNorm alone has L2 norm sqrt(num_heads); divide it out so the signed
     # coefficient vector has unit L2 norm and does not gain amplitude for free.
-    mix_weights = _rms(mix_logits, epsilon) / jnp.sqrt(mix_logits.shape[-1])
+    normalized = normalizations.rms_norm(
+        mix_logits, dtype=alpha.dtype, epsilon=rms_epsilon)
+    mix_weights = normalized / jnp.sqrt(mix_logits.shape[-1])
   else:
     raise ValueError(f'Unknown dynamic fetch weight mode: {weight_mode}')
   mix_weights = jnp.asarray(mix_weights, alpha.dtype)
@@ -1778,7 +1774,7 @@ def _dynamic_mixed_bam_fetch_alpha(
   if diagonal_yield:
     fetch_alpha = fetch_alpha * (
         1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-  fetch_alpha = fetch_alpha[:, None]
+  fetch_alpha = fetch_alpha[:, None]  # bts->bfts
   if return_aux:
     return fetch_alpha, mix_logits, mix_weights, pre_diagonal_alpha
   return fetch_alpha
@@ -1891,7 +1887,7 @@ def _temporal_block_bam_fetch(
 
 def _select_bam_write_source(source, y_std, y_codebook, y_full, y_local_o, y_all=None):
   """Select direct U-write content without changing the residual-stream output."""
-  if source == 'std+cross+local_o':
+  if source == 'std+cross+local_o':  # V1 default
     return y_all if y_all is not None else y_std + y_codebook + y_full + y_local_o
   if source == 'std+cross':
     return y_std + y_codebook + y_full
@@ -1921,8 +1917,8 @@ def _update_bam_matrix(M_in, dM, lambda_decay, forget_logits=None):
 
 
 def _transform_bam_read_key(
-    r, mode='none', scale=1.0, eps=1e-6, gate_logits=None,
-    rms_norm=None, use_learned_rms=False):
+    r, mode='none', scale=1.0, *, rms_epsilon, gate_logits=None,
+    learned_rms_norm=None, use_learned_rms=False):
   """Apply a side-local health transform to a runtime BAM read key.
 
   `soft_rms_cap` is identity to first order at zero and caps the key RMS at `scale`.
@@ -1935,12 +1931,13 @@ def _transform_bam_read_key(
   scale = jnp.asarray(scale, dtype=r.dtype)
   if mode == 'soft_rms_cap':
     return r * scale * jax.lax.rsqrt(jnp.mean(r ** 2, axis=-1, keepdims=True) + scale ** 2)
-  if mode == 'rms_gate':
+  if mode == 'rms_gate':  # V1 default
     if gate_logits is None:
       raise ValueError('rms_gate requires gate logits')
-    direction = _rms(r, eps)
-    if rms_norm is not None:
-      learned_direction = rms_norm(r)
+    direction = normalizations.rms_norm(
+        r, dtype=r.dtype, epsilon=rms_epsilon)
+    if learned_rms_norm is not None:
+      learned_direction = learned_rms_norm(r)
       if use_learned_rms:
         direction = learned_direction
     return scale * jax.nn.sigmoid(gate_logits) * direction
@@ -1948,7 +1945,7 @@ def _transform_bam_read_key(
 
 
 def _project_bam_read_keys(
-    row_width, x, W_R, *, key_mode='none', key_scale=1.0, key_eps=1e-6,
+    row_width, x, W_R, *, rms_epsilon, key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None, key_col_norm=None,
     use_learned_key_norm=False):
   """Project and independently transform the row/column runtime read keys."""
@@ -1962,11 +1959,13 @@ def _project_bam_read_keys(
     else:
       row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
     r_row = _transform_bam_read_key(
-        raw_row, key_mode, key_scale, key_eps, row_gate,
-        key_row_norm, use_learned_key_norm)
+        raw_row, key_mode, key_scale, rms_epsilon=rms_epsilon,
+        gate_logits=row_gate, learned_rms_norm=key_row_norm,
+        use_learned_rms=use_learned_key_norm)
     r_col = _transform_bam_read_key(
-        raw_col, key_mode, key_scale, key_eps, col_gate,
-        key_col_norm, use_learned_key_norm)
+        raw_col, key_mode, key_scale, rms_epsilon=rms_epsilon,
+        gate_logits=col_gate, learned_rms_norm=key_col_norm,
+        use_learned_rms=use_learned_key_norm)
   return raw_row, raw_col, r_row, r_col
 
 
@@ -2002,6 +2001,7 @@ def _contract_bam_read(
     return jnp.concatenate([y_u, y_v], axis=-1)
   if implementation != 'mul_reduce_btn':
     raise ValueError(f'Unknown BAM read implementation: {implementation}')
+  # V1 default
 
   # Spell the two contractions as broadcast multiply+reduce; on TPU this lowering
   # is measurably faster than dot_general for the current BAM read shapes.
@@ -2029,7 +2029,8 @@ def _contract_bam_read(
 
 
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
-             key_eps=1e-6, key_gate_logits=None, return_key_stages=False,
+             rms_epsilon,
+             key_gate_logits=None, return_key_stages=False,
              key_row_norm=None, key_col_norm=None,
              use_learned_key_norm=False, implementation='dot_bnt',
              read_side='both'):
@@ -2051,7 +2052,7 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
   Mc, Mr = M if isinstance(M, tuple) else (M, M)
   raw_row, raw_col, r_row, r_col = _project_bam_read_keys(
       Mr.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
-      key_eps=key_eps, key_gate_logits=key_gate_logits,
+      rms_epsilon=rms_epsilon, key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
   with jax.named_scope("bam/read_m_contract"):
@@ -2062,11 +2063,19 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
       y = (jnp.einsum('btd,nde->bnte', y, R) if implementation == 'dot_bnt'
            else jnp.einsum('btd,nde->btne', y, R))
   if return_key_stages:
-    post_rms_row = key_row_norm(raw_row) if key_row_norm is not None else _rms(raw_row, key_eps)
-    post_rms_col = key_col_norm(raw_col) if key_col_norm is not None else _rms(raw_col, key_eps)
+    post_rms_row = (key_row_norm(raw_row) if key_row_norm is not None
+                    else normalizations.rms_norm(
+                        raw_row, dtype=raw_row.dtype,
+                        epsilon=rms_epsilon))
+    post_rms_col = (key_col_norm(raw_col) if key_col_norm is not None
+                    else normalizations.rms_norm(
+                        raw_col, dtype=raw_col.dtype,
+                        epsilon=rms_epsilon))
     if not use_learned_key_norm:
-      post_rms_row = _rms(raw_row, key_eps)
-      post_rms_col = _rms(raw_col, key_eps)
+      post_rms_row = normalizations.rms_norm(
+          raw_row, dtype=raw_row.dtype, epsilon=rms_epsilon)
+      post_rms_col = normalizations.rms_norm(
+          raw_col, dtype=raw_col.dtype, epsilon=rms_epsilon)
     return y, {
         "pre_rms": jnp.concatenate((raw_row, raw_col), axis=-1),
         "post_rms_pre_gate": jnp.concatenate((post_rms_row, post_rms_col), axis=-1),
@@ -2076,8 +2085,9 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
 
 
 def factorized_head_bam_read(
-    M, x, W_R, W_head_mix, *, key_mode='none', key_scale=1.0,
-    key_eps=1e-6, key_gate_logits=None, key_row_norm=None,
+    M, x, W_R, W_head_mix, *, rms_epsilon,
+    key_mode='none', key_scale=1.0,
+    key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
     implementation='dot_bnt', read_side='both'):
   """Read once with a shared runtime key, then route it dynamically across heads.
@@ -2099,7 +2109,7 @@ def factorized_head_bam_read(
     raise ValueError(f'Unknown BAM read side: {read_side}')
   _, _, r_row, r_col = _project_bam_read_keys(
       M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
-      key_eps=key_eps, key_gate_logits=key_gate_logits,
+      rms_epsilon=rms_epsilon, key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
 
@@ -2110,7 +2120,7 @@ def factorized_head_bam_read(
         y_u = jnp.einsum('btkv,btv->btk', M, r_col)
       if read_side in ('both', 'row'):
         y_v = jnp.einsum('btkv,btk->btv', M, r_row)
-    elif implementation == 'mul_reduce_btn':
+    elif implementation == 'mul_reduce_btn':  # V1 default
       if read_side in ('both', 'col'):
         y_u = jnp.sum(M * r_col[..., None, :], axis=-1)
       if read_side in ('both', 'row'):
@@ -2123,14 +2133,16 @@ def factorized_head_bam_read(
     if raw_head_mix.ndim != 4 or raw_head_mix.shape[-1] != 2:
       raise ValueError(
           f'factorized head mix expects [b,t,n,2], got {raw_head_mix.shape}')
-    head_mix = _rms(jnp.asarray(raw_head_mix, jnp.float32), key_eps, axis=-2)
     output_dtype = y_u.dtype if y_u is not None else y_v.dtype
-    head_mix = jnp.asarray(head_mix, output_dtype)
+    head_mix = normalizations.rms_norm(
+        raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon, axis=-2)
     row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
   with jax.named_scope("bam/read_head_mix_expand"):
-    y_u = (jnp.einsum('btk,btn->bntk', y_u, col_mix)
+    # y_u = (jnp.einsum('btk,btn->bntk', y_u, col_mix)
+    y_u = (jnp.einsum('btk,btn->btnk', y_u, col_mix)  # XD
            if y_u is not None else None)
-    y_v = (jnp.einsum('btv,btn->bntv', y_v, row_mix)
+    # y_v = (jnp.einsum('btv,btn->bntv', y_v, row_mix)
+    y_v = (jnp.einsum('btv,btn->btnv', y_v, row_mix)  # XD
            if y_v is not None else None)
     if y_u is None:
       y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
@@ -2140,7 +2152,8 @@ def factorized_head_bam_read(
 
 
 def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
-                  key_scale=1.0, key_eps=1e-6, key_gate_logits=None,
+                  key_scale=1.0, rms_epsilon,
+                  key_gate_logits=None,
                   key_row_norm=None, key_col_norm=None,
                   use_learned_key_norm=False, source_implementation='dot',
                   read_implementation='dot_btn'):
@@ -2175,7 +2188,7 @@ def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
     projection = lambda z: jnp.squeeze(W_beta(z), axis=-2)
     _, _, beta_row, beta_col = _project_bam_read_keys(
         c, x, projection, key_mode=key_mode, key_scale=key_scale,
-        key_eps=key_eps, key_gate_logits=key_gate_logits,
+        rms_epsilon=rms_epsilon, key_gate_logits=key_gate_logits,
         key_row_norm=key_row_norm, key_col_norm=key_col_norm,
         use_learned_key_norm=use_learned_key_norm)
     k = M.shape[-2]
@@ -2237,7 +2250,7 @@ class BamAttention(Attention):
 
     self._read_key_mode = cfg.bam_read_key_mode
     self._read_key_scale = float(cfg.bam_read_key_scale)
-    self._read_key_eps = float(cfg.bam_read_key_epsilon)
+    self._rms_epsilon = float(cfg.normalization_layer_epsilon)
     self._create_grouped_rw_norm = bool(cfg.bam_create_grouped_rw_norm_params)
     self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
     self._use_native_grouped_read_norm = bool(
@@ -2324,7 +2337,7 @@ class BamAttention(Attention):
           self._fetch_diagonal_one and 'local_o' not in self._mode), (
               'absolute-V compression requires combined local/full or strict diagonal-one read')
     assert self._read_key_scale > 0.0
-    assert self._read_key_eps > 0.0
+    assert self._rms_epsilon > 0.0
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
     assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm
     assert not self._create_grouped_rw_norm or self._read_key_mode == 'rms_gate'
@@ -2373,11 +2386,11 @@ class BamAttention(Attention):
       if not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm):
         return
       setattr(self, f'{name}_row_norm', GroupedRMSNorm(
-          scale_shape=row_shape, epsilon=self._read_key_eps, dtype=self.dtype,
+          scale_shape=row_shape, epsilon=self._rms_epsilon, dtype=self.dtype,
           weight_dtype=self.weight_dtype, kernel_axes=row_axes,
           name=f'{name}_row_norm'))
       setattr(self, f'{name}_col_norm', GroupedRMSNorm(
-          scale_shape=col_shape, epsilon=self._read_key_eps, dtype=self.dtype,
+          scale_shape=col_shape, epsilon=self._rms_epsilon, dtype=self.dtype,
           weight_dtype=self.weight_dtype, kernel_axes=col_axes,
           name=f'{name}_col_norm'))
 
@@ -2385,7 +2398,7 @@ class BamAttention(Attention):
     # scale*sigmoid(g)*RMSNorm(r) equal to one at r=0.  The local_qk key projections
     # are regular-initialized and gated later by zero-initialized R_q/R_k, so give
     # those gates a normal 0.1 opening instead of unnecessarily shrinking their basis.
-    zero_key_gate_init = math.sqrt(self._read_key_eps) / self._read_key_scale
+    zero_key_gate_init = math.sqrt(self._rms_epsilon) / self._read_key_scale
     assert zero_key_gate_init < 1.0
 
     if 'codebook' in self._mode:
@@ -2638,18 +2651,18 @@ class BamAttention(Attention):
       if self._create_grouped_rw_norm:
         self.write_u1_norm = GroupedRMSNorm(
             scale_shape=(self.num_query_heads, self.bam_k),
-            epsilon=cfg.normalization_layer_epsilon, dtype=self.dtype,
+            epsilon=self._rms_epsilon, dtype=self.dtype,
             weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
             name='write_u1_norm')
         self.write_u2_norm = GroupedRMSNorm(
             scale_shape=(self.num_query_heads, loc_v),
-            epsilon=cfg.normalization_layer_epsilon, dtype=self.dtype,
+            epsilon=self._rms_epsilon, dtype=self.dtype,
             weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
             name='write_u2_norm')
       elif self._write_u2_norm == 'grouped_rms_bias':
         self.write_u2_norm = GroupedRMSNorm(
             scale_shape=(self.num_query_heads, loc_v),
-            epsilon=cfg.normalization_layer_epsilon, dtype=self.dtype,
+            epsilon=self._rms_epsilon, dtype=self.dtype,
             weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
             use_bias=True, name='write_u2_norm')
 
@@ -2685,7 +2698,7 @@ class BamAttention(Attention):
     kwargs = dict(
         key_mode=self._read_key_mode,
         key_scale=self._read_key_scale,
-        key_eps=self._read_key_eps,
+        rms_epsilon=self._rms_epsilon,
         key_gate_logits=gate_logits,
     )
     if self._create_grouped_rw_norm or self._use_native_grouped_read_norm:
@@ -2708,12 +2721,14 @@ class BamAttention(Attention):
   def _read_local_qk(self, Mh, inputs_q):
     """Read the local matrix into Q/K; callers choose the injection point."""
     local_qk_q_kwargs = (
-        {} if self._local_qk_key_mode == 'per_head_static'
+        {'rms_epsilon': self._rms_epsilon}
+        if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lq_gate', inputs_q))
     local_qk_k_kwargs = (
-        {} if self._local_qk_key_mode == 'per_head_static'
+        {'rms_epsilon': self._rms_epsilon}
+        if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lk_gate', inputs_q))
-    if self._local_qk_key_mode == 'factorized':
+    if self._local_qk_key_mode == 'factorized':  # V1 default
       q_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
           **local_qk_q_kwargs, implementation=self._read_implementation,
@@ -2722,10 +2737,11 @@ class BamAttention(Attention):
           Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
           **local_qk_k_kwargs, implementation=self._read_implementation,
           read_side=self.read_side)
-      return (
-          rearrange(q_local, 'b n t d -> b t n d'),
-          rearrange(k_local, 'b n t d -> b t n d'),
-      )
+      return (q_local, k_local)  # XD
+      # return (
+      #     rearrange(q_local, 'b n t d -> b t n d'),
+      #     rearrange(k_local, 'b n t d -> b t n d'),
+      # )
 
     local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
     local_qk_R_q = None if local_qk_per_head else self.R_q
@@ -2753,9 +2769,8 @@ class BamAttention(Attention):
     """Select the configured read-side view without changing the raw matrix stream."""
     if M_in is None or self._m_read_norm == 'none':
       return M_in
-    eps = self.config.normalization_layer_epsilon
     return M_in * jax.lax.rsqrt(
-        jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + eps)
+        jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + self._rms_epsilon)
 
   def _apply_adjacent_rope(self, x, positions, name):
     """Apply the standard RoPE frequencies to adjacent coordinate pairs."""
@@ -2772,16 +2787,15 @@ class BamAttention(Attention):
     gate is the sole magnitude channel (admission semantics). rms(u) = u·rsqrt(mean(u²,-1)+eps).
     """
     cfg = self.config
-    eps = cfg.normalization_layer_epsilon
     if self._force_activation_dtype:
       assert M_in.dtype == self.dtype, (M_in.dtype, self.dtype)
       assert o_head.dtype == self.dtype, (o_head.dtype, self.dtype)
-    if cfg.bam_write_u_proj:
+    if cfg.bam_write_u_proj:  # XD: needed by adaptation of pretrained models
       write_u_proj = self.P_agg_u
       if self._force_activation_dtype:
         write_u_proj = jnp.asarray(write_u_proj, self.dtype)
       u1 = jnp.einsum('btnd,ndk->btnk', o_head, write_u_proj)
-    else:
+    else:  # V1 default
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
     if self._write_v_mode == 'o_tail':
       u2 = o_head[..., self.bam_k:]
@@ -2789,10 +2803,10 @@ class BamAttention(Attention):
       u2 = self.S_v
       if self._force_activation_dtype:
         u2 = jnp.asarray(u2, self.dtype)
-    else:
+    else:  # V1 default
       if self._write_v_bottleneck_dim is None:
         x_v = self.P_loc(x)
-      else:
+      else:  # V1 default
         x_v = self.P_loc_down(x)
         if self._write_v_bottleneck_activation == 'gelu':
           x_v = nn.gelu(x_v)
@@ -2816,8 +2830,10 @@ class BamAttention(Attention):
       # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
       # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
-    u1_norm = _rms(u1, eps)
-    u2_norm = _rms(u2, eps)
+    u1_norm = normalizations.rms_norm(
+        u1, dtype=self.dtype, epsilon=self._rms_epsilon)
+    u2_norm = normalizations.rms_norm(
+        u2, dtype=self.dtype, epsilon=self._rms_epsilon)
     if self._create_grouped_rw_norm:
       learned_u1_norm = self.write_u1_norm(u1)
       learned_u2_norm = self.write_u2_norm(u2)
@@ -2837,6 +2853,7 @@ class BamAttention(Attention):
         dM = jnp.sum(
             gated_u1[..., None] * u2_norm[None, None, :, None, :], axis=-3)
       else:
+        assert self._write_outer_implementation == 'mul_reduce'  # XD
         dM = jnp.sum(
             gated_u1[..., None] * u2_norm[..., None, :], axis=-3)
     if self._force_activation_dtype:
@@ -2927,7 +2944,7 @@ class BamAttention(Attention):
         Mh = self._matrix_for_read(M_in)
 
     # ---- post-RoPE local_qk (historical route branch, before alpha) ----
-    if 'local_qk' in self._mode and self._local_qk_injection == 'post_rope':
+    if 'local_qk' in self._mode and self._local_qk_injection == 'post_rope':  # V1 default
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         q_local, k_local = self._read_local_qk(Mh, inputs_q)
@@ -2975,7 +2992,7 @@ class BamAttention(Attention):
     fetch_mix_weights = None
     fetch_alpha_pre_diagonal = None
     diagonal_yield = 'local_o' in self._mode and not cfg.bam_keep_fetch_diagonal
-    if {'full', 'codebook'} & self._mode:
+    if {'full', 'codebook'} & self._mode:  # V1 default
       with jax.named_scope("bam/mix_alpha"):
         if cfg.bam_dedicated_fetch:
           fetch_query = fetch_query / jnp.sqrt(self.head_dim).astype(self.dtype)
@@ -2993,11 +3010,11 @@ class BamAttention(Attention):
           if diagonal_yield:
             fetch_alpha = fetch_alpha * (
                 1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-        elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):
+        elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):  # V1 default
           dynamic_fetch = _dynamic_mixed_bam_fetch_alpha(
               alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
               'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
-              cfg.normalization_layer_epsilon,
+              rms_epsilon=self._rms_epsilon,
               return_aux=cfg.bam_diagnostics)
           if cfg.bam_diagnostics:
             (fetch_alpha, fetch_mix_logits, fetch_mix_weights,
@@ -3012,7 +3029,7 @@ class BamAttention(Attention):
           fetch_alpha = _sliding_window_bam_fetch_alpha(
               fetch_alpha, self._fetch_sliding_window_size,
               self._fetch_sliding_window_prefix_size, inputs_positions)
-        if self._fetch_diagonal_one:
+        if self._fetch_diagonal_one:  # V1 default
           diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
           fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(
               jnp.asarray(1, dtype=fetch_alpha.dtype))
@@ -3034,11 +3051,11 @@ class BamAttention(Attention):
           source_implementation=self._codebook_source_implementation,
           read_implementation=self._codebook_read_implementation)
       y_bam = y_codebook
-    if 'full' in self._mode:
+    if 'full' in self._mode:  # V1 default
       assert Mh is not None, "full read requires M_in"
       with jax.named_scope("bam/fetch_m"):
         fetch_state = Mh
-        if self._abs_v_dim is not None:
+        if self._abs_v_dim is not None:  # V1 default
           with jax.named_scope("bam/compress_abs_v_cache"):
             fetch_state = jnp.einsum(
                 'bskv,vc->bskc', Mh,
@@ -3049,7 +3066,7 @@ class BamAttention(Attention):
               self._fetch_temporal_block_size, self._fetch_temporal_block_mode,
               self._fetch_temporal_recent_window_size)
         else:
-          Mbar_fetch = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, fetch_state)
+          Mbar_fetch = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, fetch_state)  # V1 default
         Mbar = Mbar_fetch
         if self._combine_full_local_read:
           # The shared runtime key makes Read linear in M.  Because fetch_alpha has
@@ -3072,19 +3089,20 @@ class BamAttention(Attention):
           full_read, full_key_stages = full_read
           read_key_stages.update({
               f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
-        if self._abs_v_dim is not None:
-          y_u, y_v = jnp.split(full_read, [self.bam_k], axis=-1)
+        if self._abs_v_dim is not None:  # V1 default
           if self._abs_v_row_output == 'project':
+            y_u, y_v = jnp.split(full_read, [self.bam_k], axis=-1)
             decoder = self.abs_v_row_decoder.astype(y_v.dtype)
             if self._read_implementation == 'dot_bnt':
               y_v = jnp.einsum('bntc,ncv->bntv', y_v, decoder)
             else:
               y_v = jnp.einsum('btnc,ncv->btnv', y_v, decoder)
-          else:
-            y_v = jnp.pad(
-                y_v,
-                [(0, 0)] * (y_v.ndim - 1) + [(0, self.bam_v - self._abs_v_dim)])
-          full_read = jnp.concatenate((y_u, y_v), axis=-1)
+            full_read = jnp.concatenate((y_u, y_v), axis=-1)
+          else:  # V1 default
+            full_read = jnp.pad(
+                full_read,
+                [(0, 0)] * (full_read.ndim - 1)
+                + [(0, self.bam_v - self._abs_v_dim)])
         y_full = (rearrange(full_read, 'b n t d -> b t n d')
                   if self._read_implementation == 'dot_bnt' else full_read)
         y_bam = y_bam + y_full
@@ -3118,7 +3136,7 @@ class BamAttention(Attention):
         cfg.bam_write_source, y_std, y_codebook, y_full, y_local_o, o_head)
 
     # ---- Write primitive (update BAM state first, then project to the residual stream) ----
-    if self._has_write:
+    if self._has_write:  # V1 default
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
         M_out, write_gate, forget_gate = self._write(write_o_head, inputs_q, M_in)

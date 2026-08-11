@@ -768,6 +768,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005(
 ):
     """PackedLocalQK with standard RMS epsilon and explicit 0.005 read gates."""
     # code_commit: 59054dc
+    # ~0.529 steps/s; stopped at 3,073. dloss +0.00698 vs Direct @3,000; eps1e-4 better by 0.00266
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005'
     bam_read_gate_init = 0.005
     steps = 13500

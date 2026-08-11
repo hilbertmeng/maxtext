@@ -770,6 +770,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005(
     # code_commit: b34a57d
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005'
     bam_read_gate_init = 0.005
+    steps = 13500
 
 
 class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4(

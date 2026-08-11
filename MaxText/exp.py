@@ -669,7 +669,7 @@ class BamLlama2MediumDirectPLocR128(BamLlama2MediumV1CompressAbsV8Direct):
 
 class BamLlama2MediumDirectPLocR128Gelu(BamLlama2MediumDirectPLocR128):
     """Rank-128-width P_loc factorization with a hidden GELU."""
-    # ~0.513 steps/s (~flat); stopped at 2,942. dloss +.0022 vs Direct, -.0052 vs R128 @2,800.
+    # ~0.511 steps/s (~flat); resumed from 2,942; running. dloss +.0021 vs Direct, -.0052 vs R128 @2,800.
     model_name = 'BamLlama2MediumDirectPLocR128Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
 
@@ -684,7 +684,7 @@ class BamLlama2MediumDirectPLocR256(BamLlama2MediumV1CompressAbsV8Direct):
 
 class BamLlama2MediumDirectPLocR256Gelu(BamLlama2MediumDirectPLocR256):
     """Rank-256-width P_loc factorization with a hidden GELU."""
-    # ~0.512 steps/s (~flat vs Direct/R256); running.
+    # ~0.512 steps/s (~flat); completed 13,500. mean dloss -.0044 vs Direct @12,600–13,400; -.0085 vs R256 @2,800.
     model_name = 'BamLlama2MediumDirectPLocR256Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
 

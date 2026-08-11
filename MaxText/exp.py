@@ -207,7 +207,7 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
 
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
-    # code_commit: 4408ccb8cee8b67bdb95923bc8bcf781e8ae27ab
+    # code_commit: 4408ccb
     # ~0.762 steps/s; running.
     model_name = 'Llama2MediumQKNorm'
     qk_norm = True
@@ -215,7 +215,7 @@ class Llama2MediumQKNorm(Llama2Medium):
 
 class Llama2MediumFloat32LogitsFalse(Llama2Medium):
     """MHA speed control aligned with the BAM bf16-logits setting."""
-    # code_commit: c93709363c119b33bf326637b2756278438be6f9
+    # code_commit: c937093
     # ~0.821 steps/s (+2.1% vs Llama2Medium); stopped at ~128 after speed measurement.
     model_name = 'Llama2MediumFloat32LogitsFalse'
     float32_logits = False
@@ -423,7 +423,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead
 ):
     """Algebraically combine fetched/local matrices before one shared read."""
-    # code_commit: 346bb350801bd5a917bbafc6fa6e4ff14dc4bf2d
+    # code_commit: 346bb35
     # ~0.316 steps/s; stopped at 8,218. dloss -0.0019 (-0.07%) vs RmsMix @6,200; same loss with lower read cost.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead'
     bam_combine_full_local_read = True
@@ -433,7 +433,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """CombinedRead plus per-head runtime local-Q/K keys; paired norm control."""
-    # code_commit: e60fa4de258f8b7b01f8c86781eee48f00e60d13
+    # code_commit: e60fa4d
     # ~0.283 steps/s; stopped at 7,819. dloss -0.0087 (-0.35%) vs Combined @7,600; small gain at high parameter/speed cost.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK'
     bam_local_qk_key_mode = 'per_head'
@@ -444,7 +444,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Shared local-Q/K content keys with signed dynamic rank-1 head routing."""
-    # code_commit: 67850b6a9ada753a05eeaa2960b8760bf7f44763
+    # code_commit: 67850b6
     # ~0.315 steps/s; stopped at 7,145. mean dloss -0.0035 vs Combined, +0.0057 vs PerHead @5,600–7,000.
     # Combined dloss -0.0119 vs NoLocalQK
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK'
@@ -455,7 +455,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKN
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Ablate the whole-matrix RMS normalization before every BAM read."""
-    # code_commit: f079da183a804fc055a455e1a2fc412db89180af
+    # code_commit: f079da1
     # ~0.325 steps/s; completed 13,500. mean dloss -0.0078 (-0.31%) vs Factorized @5,600–7,000; BASE ended 7,145.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm'
     bam_m_read_norm = 'none'
@@ -465,7 +465,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKN
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm
 ):
     """Normalize the combined standard/LocalQK vectors before applying RoPE."""
-    # code_commit: 4701e776d0253308eb3405cf5ee1f611db4c6b32
+    # code_commit: 4701e77
     # ~0.383 steps/s; stopped at 4,205. dloss +0.0041 (+0.15%) vs NoMNorm @4,000; !! QKNorm's bf16 Q/K cast explains the speedup.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNormPreRopeQKNorm'
     bam_local_qk_injection = 'pre_qknorm_rope'
@@ -476,7 +476,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKU
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Remove P_loc and write u2 directly from the current head-output tail."""
-    # code_commit: f079da183a804fc055a455e1a2fc412db89180af
+    # code_commit: f079da1
     # ~0.317 steps/s; stopped 3,065. dloss +0.0272 vs Factorized @3,000; lower parameters, worse loss.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKU2OTail'
     bam_write_v_mode = 'o_tail'
@@ -486,7 +486,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKP
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Inject FactorizedLocalQK before QKNorm and RoPE."""
-    # code_commit: d0e6f85d9363870986e34855f031792dde0fb915
+    # code_commit: d0e6f85
     # ~0.317 steps/s; stopped at 2,865. dloss +0.0101 vs Factorized @2,800; pre-RoPE injection hurts.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope'
     bam_local_qk_injection = 'pre_qknorm_rope'
@@ -497,7 +497,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKP
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope
 ):
     """Apply adjacent-pair RoPE to the complete Q/K after pre-RoPE LocalQK injection."""
-    # code_commit: d0e6f85d9363870986e34855f031792dde0fb915
+    # code_commit: d0e6f85
     # ~0.305 steps/s; stopped at 3,138. dloss +0.0038 vs PreRope, +0.0140 vs Factorized @2,800.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRopeAdjacent'
     bam_local_qk_rope_pairing = 'adjacent'
@@ -524,7 +524,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKC
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4
 ):
     """Single-host v5p-8 continuation with the same global batch of 256."""
-    # code_commit: 16ad43650a2b35ffa087bd122525939e5f61f5bf
+    # code_commit: 16ad436
     # ~0.179 steps/s; continued 550–2,844 after repeated v5p-16 fake-live.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4V5p8'
     per_device_batch_size = 16.0
@@ -535,7 +535,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """CombinedRead control with the local Q/K routing branch removed."""
-    # code_commit: 67850b6a9ada753a05eeaa2960b8760bf7f44763
+    # code_commit: 67850b6
     # ~0.419 steps/s; stopped at 9,624. mean dloss +0.0119 vs Combined @6,800–8,200; LocalQK has a stable benefit.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadNoLocalQK'
     bam_layer_modes = ['local_o+full'] * 24
@@ -545,7 +545,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocal
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Replace shared local-Q/K reads with static per-layer/per-head keys; no read gates."""
-    # code_commit: e15713c6d812a9542738e38f8c74f5937d7518cd
+    # code_commit: e15713c
     # ~0.305 steps/s; stopped at 4,969. dloss +0.0120 vs Combined, +0.0209 vs PerHead @4,800; static keys fail.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocalQK'
     bam_local_qk_key_mode = 'per_head_static'
@@ -555,7 +555,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGrou
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK
 ):
     """Use per-head learned RMS scales for runtime read keys and write factors."""
-    # code_commit: e60fa4de258f8b7b01f8c86781eee48f00e60d13
+    # code_commit: e60fa4d
     # ~0.283 steps/s; stopped at 2,869. dloss -0.0015 (-0.06%) vs PerHead @2,800; learned RMS scales are negligible.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGroupedRMSNorm'
     bam_use_grouped_rw_norm = True
@@ -587,7 +587,7 @@ class TrainStepProfile:
 
 class Llama2MediumTrainStepProfile(TrainStepProfile, Llama2Medium):
     """Standard Transformer train-step control for BAM component profiling."""
-    # code_commit: d9c65efd9ca4b12a624f75b3dc817bc63fc0edf9
+    # code_commit: d9c65ef
     # ~0.811 steps/s; completed 200. XPlane device step 1.208 s.
     model_name = 'Llama2MediumTrainStepProfile'
 
@@ -597,14 +597,14 @@ class BamNoMNormPostNoQKProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm,
 ):
     """2x2 speed control: post-RoPE LocalQK, QKNorm off."""
-    # code_commit: 6c7c26cb01126bec1f30566ae0c84d6864ab1570
+    # code_commit: 6c7c26c
     # ~0.326 steps/s; XPlane 3,058.7 ms.
     model_name = 'BamNoMNormPostNoQKProfile'
 
 
 class BamNoMNormPreNoQKProfile(BamNoMNormPostNoQKProfile):
     """2x2 speed control: pre-RoPE LocalQK, QKNorm off."""
-    # code_commit: 6c7c26cb01126bec1f30566ae0c84d6864ab1570
+    # code_commit: 6c7c26c
     # ~0.325 steps/s; XPlane 3,072.6 ms. Pre-RoPE alone is neutral (-0.45%).
     model_name = 'BamNoMNormPreNoQKProfile'
     bam_local_qk_injection = 'pre_qknorm_rope'
@@ -620,7 +620,7 @@ class BamNoMNormAllBf16Profile(BamNoMNormPostNoQKProfile):
 
 class BamFactorizedAllBf16DotBtnSixLayerProfile(BamNoMNormAllBf16Profile):
     """Six-layer FactorizedLocalQK control with direct-layout dot reads."""
-    # code_commit: e05d099e26bb144c3ae1f1c0bb8a6a7e929a70a8
+    # code_commit: e05d099
     # ~1.702 steps/s; stopped at 88. XPlane 587.4 ms.
     model_name = 'BamFactorizedAllBf16DotBtnSixLayerProfile'
     base_num_decoder_layers = 6
@@ -632,7 +632,7 @@ class BamFactorizedAllBf16MulReduceSixLayerProfile(
     BamFactorizedAllBf16DotBtnSixLayerProfile
 ):
     """Six-layer paired profile replacing both BAM dot reads with multiply+reduce."""
-    # code_commit: e05d099e26bb144c3ae1f1c0bb8a6a7e929a70a8
+    # code_commit: e05d099
     # ~1.729 steps/s; completed 200. XPlane 578.2 ms; +1.59% vs dot.
     model_name = 'BamFactorizedAllBf16MulReduceSixLayerProfile'
     bam_read_implementation = 'mul_reduce_btn'
@@ -642,7 +642,7 @@ class BamLlama2MediumV1(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm
 ):
     """Milestone: NoMNorm FactorizedLocalQK with the validated bf16/mul-reduce path."""
-    # code_commit: 03367ac7075f95bb34ab8685c643c0fa1aab48c1
+    # code_commit: 03367ac
     # ~0.461 steps/s; completed 13,500. mean dloss -0.0030 vs NoMNorm @12,000–13,400.
     model_name = 'BamLlama2MediumV1'
     float32_logits = False
@@ -652,7 +652,7 @@ class BamLlama2MediumV1(
 
 class BamLlama2MediumV1WriteMulDiagonalOne(BamLlama2MediumV1):
     """V1 with multiply+reduce writes and the equivalent diagonal-one read path."""
-    # code_commit: c93709363c119b33bf326637b2756278438be6f9
+    # code_commit: c937093
     # ~0.512 steps/s (+11.1% vs V1); completed 13,500. mean dloss +.0016 vs V1 @12,600–13,400.
     model_name = 'BamLlama2MediumV1WriteMulDiagonalOne'
     bam_layer_modes = ['local_qk+full'] * 24
@@ -664,7 +664,7 @@ class BamLlama2MediumV1WriteMulDiagonalOne(BamLlama2MediumV1):
 
 class BamLlama2MediumV1FastStdWrite(BamLlama2MediumV1WriteMulDiagonalOne):
     """Write only pre-output-read y_std into M, excluding direct BAM read recirculation."""
-    # code_commit: 5d437d9fcfccfd693516b78a0651c2a94b9639ed
+    # code_commit: 5d437d9
     # ~0.513 steps/s (~flat); stopped at 2,994. dloss +0.0210 vs V1-fast @2,800; r200 -.030.
     model_name = 'BamLlama2MediumV1FastStdWrite'
     bam_write_source = 'std'
@@ -672,7 +672,7 @@ class BamLlama2MediumV1FastStdWrite(BamLlama2MediumV1WriteMulDiagonalOne):
 
 class BamLlama2MediumV1FactorizedLocalV(BamLlama2MediumV1):
     """Inject a source-local factorized bilateral M read into each standard value."""
-    # code_commit: 9c03e9836983deb2ce3eb419ecf90e15e80799af
+    # code_commit: 9c03e98
     # ~0.440 steps/s; stopped at 8,201. mean dloss -0.0006 vs V1 @7,200–8,000 (<0.002).
     model_name = 'BamLlama2MediumV1FactorizedLocalV'
     bam_layer_modes = ['local_qk+local_v+local_o+full'] * 24
@@ -680,7 +680,7 @@ class BamLlama2MediumV1FactorizedLocalV(BamLlama2MediumV1):
 
 class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
     """Compress the cached absolute V axis to 8; inject its row-read answer into the O tail."""
-    # code_commit: ffbf4dc66419acaf525c67cfbfea7cad105047f5
+    # code_commit: ffbf4dc
     # ~0.515 steps/s (+11.7% vs V1); completed 13,500. mean dloss +0.0096 vs V1 @12,400–13,400; -0.0346 vs C4 @2,800.
     model_name = 'BamLlama2MediumV1CompressAbsV8Direct'
     bam_abs_v_compression_dim = 8
@@ -689,7 +689,7 @@ class BamLlama2MediumV1CompressAbsV8Direct(BamLlama2MediumV1):
 
 class BamLlama2MediumDirectPLocR128(BamLlama2MediumV1CompressAbsV8Direct):
     """Factor P_loc as D -> 128 -> n*v with a final learned bias."""
-    # code_commit: 0908b2f687318fb412d00d3c88eb6a654c76692e
+    # code_commit: 0908b2f
     # ~0.515 steps/s (~flat vs Direct); stopped at 2,873. dloss +.0074 vs Direct @2,800.
     model_name = 'BamLlama2MediumDirectPLocR128'
     bam_write_v_mode = 'x_bias'
@@ -698,7 +698,7 @@ class BamLlama2MediumDirectPLocR128(BamLlama2MediumV1CompressAbsV8Direct):
 
 class BamLlama2MediumDirectPLocR128Gelu(BamLlama2MediumDirectPLocR128):
     """Rank-128-width P_loc factorization with a hidden GELU."""
-    # code_commit: 0908b2f687318fb412d00d3c88eb6a654c76692e
+    # code_commit: 0908b2f
     # ~0.512 steps/s (~flat); stopped 8,061. mean dloss +.0018 vs Direct @7,200–8,000; -.0041 vs R128 @2,800.
     model_name = 'BamLlama2MediumDirectPLocR128Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
@@ -706,7 +706,7 @@ class BamLlama2MediumDirectPLocR128Gelu(BamLlama2MediumDirectPLocR128):
 
 class BamLlama2MediumDirectPLocR256(BamLlama2MediumV1CompressAbsV8Direct):
     """Factor P_loc as D -> 256 -> n*v with a final learned bias."""
-    # code_commit: 0908b2f687318fb412d00d3c88eb6a654c76692e
+    # code_commit: 0908b2f
     # ~0.513 steps/s (~flat vs Direct); stopped at 2,878. dloss +.0024 vs Direct @2,800.
     model_name = 'BamLlama2MediumDirectPLocR256'
     bam_write_v_mode = 'x_bias'
@@ -715,7 +715,7 @@ class BamLlama2MediumDirectPLocR256(BamLlama2MediumV1CompressAbsV8Direct):
 
 class BamLlama2MediumDirectPLocR256Gelu(BamLlama2MediumDirectPLocR256):
     """Rank-256-width P_loc factorization with a hidden GELU."""
-    # code_commit: 0908b2f687318fb412d00d3c88eb6a654c76692e
+    # code_commit: 0908b2f
     # ~0.512 steps/s (~flat); completed 13,500. mean dloss -.0044 vs Direct @12,600–13,400; -.0085 vs R256 @2,800.
     model_name = 'BamLlama2MediumDirectPLocR256Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
@@ -725,7 +725,7 @@ class BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):
     """Current RMS implementation with no packed or replicated projection changes."""
-    # code_commit: 1a11262edc5ba6dcc9fd9fee17e99d731f793386
+    # code_commit: 1a11262
     model_name = 'BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl'
     steps = 2800
 
@@ -734,7 +734,7 @@ class BamLlama2MediumDirectPLocR256GeluReadEps1e4Control(
     BamLlama2MediumDirectPLocR256Gelu
 ):
     """Restore the historical BAM runtime read epsilon and gate initialization."""
-    # code_commit: 179cad0bbd6da14713d0b88fa391ddd38d8a0ef7
+    # code_commit: 179cad0
     model_name = 'BamLlama2MediumDirectPLocR256GeluReadEps1e4Control'
     bam_read_key_epsilon = 1e-4
     steps = 300
@@ -744,7 +744,7 @@ class BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):
     """Restore factorized LocalQK's historical bnt output plus transpose."""
-    # code_commit: 179cad0bbd6da14713d0b88fa391ddd38d8a0ef7
+    # code_commit: 179cad0
     model_name = 'BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl'
     bam_factorized_head_output_layout = 'bnt'
     steps = 300
@@ -754,7 +754,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(
     BamLlama2MediumDirectPLocR256Gelu
 ):
     """Replicated P_loc_up plus one packed factorized LocalQK projection."""
-    # code_commit: da3a5e61e3055d7c2ad5db2634d81d93c71489b5
+    # code_commit: da3a5e6
     # ~0.533 steps/s; replicated P_loc_up alone ~0.521 (+1.46%), packed total +3.73% vs R256-GELU.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQK'
     bam_replicate_ploc_up = True
@@ -767,7 +767,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005(
     BamLlama2MediumDirectPLocR256GeluPackedLocalQK
 ):
     """PackedLocalQK with standard RMS epsilon and explicit 0.005 read gates."""
-    # code_commit: b34a57d87830aeed63ce5bd068a0179664726cdf
+    # code_commit: b34a57d
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005'
     bam_read_gate_init = 0.005
 
@@ -776,7 +776,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4(
     BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005
 ):
     """Paired PackedLocalQK control retaining the historical 1e-4 read epsilon."""
-    # code_commit: fab4033c3b3a055452c5a2db715929c7aabb578f
+    # code_commit: fab4033
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4'
     bam_read_key_epsilon = 1e-4
 
@@ -785,7 +785,7 @@ class BamLlama2MediumDirectOTailGroupedRMSNormBias(
     BamLlama2MediumV1CompressAbsV8Direct
 ):
     """Write o_head tail through a per-head affine GroupedRMSNorm."""
-    # code_commit: 063f08fcd48ac8061271696e9b58a07b9c65d67a
+    # code_commit: 063f08f
     # ~0.523 steps/s (+1.6% vs Direct); stopped 2,888. dloss +.0030 vs StaticWriteV, +.0198 vs Direct @2,800.
     model_name = 'BamLlama2MediumDirectOTailGroupedRMSNormBias'
     bam_write_v_mode = 'o_tail'
@@ -796,7 +796,7 @@ class BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne(
     BamLlama2MediumV1CompressAbsV8Direct
 ):
     """CompressAbsV8 Direct with multiply+reduce writes and diagonal-one reads."""
-    # code_commit: c93709363c119b33bf326637b2756278438be6f9
+    # code_commit: c937093
     # !? ~0.542 steps/s (+5.2% vs Direct; <~0.577 expected); completed 13,500. mean dloss -.0011 vs Direct, +.0064 vs V1-fast @12,600–13,400.
     model_name = 'BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne'
     bam_layer_modes = ['local_qk+full'] * 24
@@ -810,7 +810,7 @@ class BamLlama2MediumDirectFastGroupedReadRMSNorm(
     BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne
 ):
     """Learned native-group RMS scales on BAM runtime read keys only."""
-    # code_commit: 5bcaf4990581e6112e656f615d371e69ea2a8348
+    # code_commit: 5bcaf49
     # ~0.543 steps/s (~flat); stopped at 2,904. mean dloss +.0016 vs Direct-fast @2,400–2,800 (effect -> 0).
     model_name = 'BamLlama2MediumDirectFastGroupedReadRMSNorm'
     bam_use_native_grouped_read_norm = True
@@ -820,7 +820,7 @@ class BamLlama2MediumDirectFastStdWrite(
     BamLlama2MediumV1CompressAbsV8DirectWriteMulDiagonalOne
 ):
     """Direct-fast writing only pre-output-read y_std into M."""
-    # code_commit: 5d437d9fcfccfd693516b78a0651c2a94b9639ed
+    # code_commit: 5d437d9
     # ~0.543 steps/s (~flat); stopped at 3,025. dloss +0.0291 vs Direct-fast @2,800; r200 -.020.
     model_name = 'BamLlama2MediumDirectFastStdWrite'
     bam_write_source = 'std'
@@ -830,7 +830,7 @@ class BamLlama2MediumV1CompressAbsV8DirectStaticWriteV(
     BamLlama2MediumV1CompressAbsV8Direct
 ):
     """Replace token-conditioned P_loc(x) with one static RMS-normalized V write per head."""
-    # code_commit: 6eaf4436e95231abdeea347232446df12ddf7238
+    # code_commit: 6eaf443
     # !? ~0.573 steps/s (+11.3%); trained 13,500. dloss +0.0116 vs Direct @13,400.
     model_name = 'BamLlama2MediumV1CompressAbsV8DirectStaticWriteV'
     bam_write_v_mode = 'static'
@@ -838,7 +838,7 @@ class BamLlama2MediumV1CompressAbsV8DirectStaticWriteV(
 
 class BamLlama2MediumV1CompressAbsV8Project(BamLlama2MediumV1CompressAbsV8Direct):
     """CompressAbsV8 with a learned per-head 8-to-32 row-read decoder."""
-    # code_commit: ffbf4dc66419acaf525c67cfbfea7cad105047f5
+    # code_commit: ffbf4dc
     # ~0.512 steps/s; stopped 3,727. dloss -0.0011 vs Direct, +0.0113 vs V1 @3,600; -0.0359 vs CodebookC4 @2,800.
     model_name = 'BamLlama2MediumV1CompressAbsV8Project'
     bam_abs_v_row_output = 'project'
@@ -848,7 +848,7 @@ class BamAbsV8DirectWriteDotSixLayerProfile(
     TrainStepProfile, BamLlama2MediumV1CompressAbsV8Direct
 ):
     """Six-layer control for the dynamic write-V outer-product implementation."""
-    # code_commit: a8c7bb2db1c09aa6482e898b266f1fb15e9e370d
+    # code_commit: a8c7bb2
     # ~1.861 steps/s; XPlane 528.182 ms.
     model_name = 'BamAbsV8DirectWriteDotSixLayerProfile'
     base_num_decoder_layers = 6
@@ -896,7 +896,7 @@ class BamAbsV8DirectWriteMulFullLayerProfile(BamAbsV8DirectWriteDotFullLayerProf
 
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
     """Write every layer; BAM-read only odd-numbered layers."""
-    # code_commit: 03367ac7075f95bb34ab8685c643c0fa1aab48c1
+    # code_commit: 03367ac
     # ~0.555 steps/s; stopped at 8,539. mean dloss +0.0141 vs V1 @5,600–7,000; +20.7% speed.
     model_name = 'BamLlama2MediumV1AlternateLayerRead'
     bam_layer_modes = [
@@ -907,7 +907,7 @@ class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
 
 class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
     """Write every layer; alternate row-only and column-only BAM reads."""
-    # code_commit: 03367ac7075f95bb34ab8685c643c0fa1aab48c1
+    # code_commit: 03367ac
     # ~0.491 steps/s; stopped at 2,175. dloss +0.0485 vs V1 @2,000; dominated by AlternateLayerRead.
     model_name = 'BamLlama2MediumV1AlternateRowColRead'
     bam_read_sides = ['row' if layer % 2 == 0 else 'col' for layer in range(24)]
@@ -915,7 +915,7 @@ class BamLlama2MediumV1AlternateRowColRead(BamLlama2MediumV1):
 
 class BamLlama2MediumV1FetchSlidingWindow256(BamLlama2MediumV1):
     """Mask the mixed BAM fetch alpha to a 256-token causal window without renormalizing."""
-    # code_commit: a9abfb7d0bbc89de775fd4318e06142c0ccdbd9f
+    # code_commit: a9abfb7
     # ~0.460 steps/s; stopped at 2,860. dloss +0.0288 vs V1 @2,800; no benefit.
     model_name = 'BamLlama2MediumV1FetchSlidingWindow256'
     bam_fetch_sliding_window_size = 256
@@ -977,7 +977,7 @@ class BamV1FullLayerReadProfile(TrainStepProfile, BamLlama2MediumV1):
 
 class BamNoMNormPostQKProfile(BamNoMNormPostNoQKProfile):
     """2x2 speed control: post-RoPE LocalQK, standard-only QKNorm on."""
-    # code_commit: 6c7c26cb01126bec1f30566ae0c84d6864ab1570
+    # code_commit: 6c7c26c
     # ~0.322 steps/s; XPlane 3,094.6 ms. QKNorm alone slows this path by 1.16%.
     model_name = 'BamNoMNormPostQKProfile'
     qk_norm = True
@@ -988,14 +988,14 @@ class BamNoMNormPreQKProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNormPreRopeQKNorm,
 ):
     """2x2 speed target: pre-RoPE LocalQK, combined QKNorm on."""
-    # code_commit: 6c7c26cb01126bec1f30566ae0c84d6864ab1570
+    # code_commit: 6c7c26c
     # ~0.385 steps/s; XPlane 2,588.6 ms; +18.70% vs Pre/no-QKNorm from lower attention-backward traffic.
     model_name = 'BamNoMNormPreQKProfile'
 
 
 class BamNoMNormPostNoQKHlo(BamNoMNormPostNoQKProfile):
     """Dump the optimized train-step HLO for the 2x2 speed control."""
-    # code_commit: e90a2a83b394449fcf452b7e1b13d266c9a80357
+    # code_commit: e90a2a8
     model_name = 'BamNoMNormPostNoQKHlo'
     profiler = ''
     dump_hlo = True
@@ -1023,7 +1023,7 @@ class BamLlama2MediumFactorizedLocalQKMulReduceProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK,
 ):
     """FactorizedLocalQK control with multiply+reduce reads for Codebook C4 timing."""
-    # code_commit: 1dcd1142f70a33702b203f1abcd432fbb5680897
+    # code_commit: 1dcd114
     # ~0.320 steps/s; stopped at 52. XPlane 3,104.936 ms; CodebookC4 MM is 7.64% faster.
     model_name = 'BamLlama2MediumFactorizedLocalQKMulReduceProfile'
     bam_read_implementation = 'mul_reduce_btn'
@@ -1034,7 +1034,7 @@ class BamLlama2MediumCodebookC4ProfileDD(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKCodebookC4,
 ):
     """Codebook C4 profile: source dot, destination dot."""
-    # code_commit: d0e6f85d9363870986e34855f031792dde0fb915
+    # code_commit: d0e6f85
     # ~0.336 steps/s; stopped at ~109. XPlane 2,956.976 ms.
     model_name = 'BamLlama2MediumCodebookC4ProfileDD'
     bam_codebook_source_implementation = 'dot'
@@ -1043,7 +1043,7 @@ class BamLlama2MediumCodebookC4ProfileDD(
 
 class BamLlama2MediumCodebookC4ProfileMD(BamLlama2MediumCodebookC4ProfileDD):
     """Codebook C4 profile: source multiply+reduce, destination dot."""
-    # code_commit: d0e6f85d9363870986e34855f031792dde0fb915
+    # code_commit: d0e6f85
     # ~0.336 steps/s; stopped at 63. XPlane 2,943.286 ms.
     model_name = 'BamLlama2MediumCodebookC4ProfileMD'
     bam_codebook_source_implementation = 'mul_reduce'
@@ -1051,7 +1051,7 @@ class BamLlama2MediumCodebookC4ProfileMD(BamLlama2MediumCodebookC4ProfileDD):
 
 class BamLlama2MediumCodebookC4ProfileDM(BamLlama2MediumCodebookC4ProfileDD):
     """Codebook C4 profile: source dot, destination multiply+reduce."""
-    # code_commit: d0e6f85d9363870986e34855f031792dde0fb915
+    # code_commit: d0e6f85
     # ~0.343 steps/s; stopped at 54. XPlane 2,892.941 ms.
     model_name = 'BamLlama2MediumCodebookC4ProfileDM'
     bam_codebook_read_implementation = 'mul_reduce_btn'
@@ -1059,7 +1059,7 @@ class BamLlama2MediumCodebookC4ProfileDM(BamLlama2MediumCodebookC4ProfileDD):
 
 class BamLlama2MediumCodebookC4ProfileMM(BamLlama2MediumCodebookC4ProfileMD):
     """Codebook C4 profile: source multiply+reduce, destination multiply+reduce."""
-    # code_commit: d0e6f85d9363870986e34855f031792dde0fb915
+    # code_commit: d0e6f85
     # ~0.344 steps/s; stopped at 52. XPlane 2,884.649 ms; fastest (-2.446% vs DD).
     model_name = 'BamLlama2MediumCodebookC4ProfileMM'
     bam_codebook_read_implementation = 'mul_reduce_btn'
@@ -1070,7 +1070,7 @@ class BamLlama2MediumDynamicPerHeadQKDirectReadProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne,
 ):
     """Profile target: Dynamic PerHead QK with diag(alpha)=1 and no local_o branch."""
-    # code_commit: d9c65efd9ca4b12a624f75b3dc817bc63fc0edf9
+    # code_commit: d9c65ef
     # ~0.289 steps/s; profiled through 167. XPlane device step 3.422 s.
     model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadProfile'
     bam_local_qk_key_mode = 'per_head'
@@ -1081,7 +1081,7 @@ class BamLlama2MediumReadKernelCurrentProfile(
     BamLlama2MediumDynamicPerHeadQKDirectReadProfile
 ):
     """A: historical dot read with [b,n,t,d] output plus caller transpose."""
-    # code_commit: 07a422335771e7da5ce2b8c966593584cbb8a46b
+    # code_commit: 07a4223
     # ~0.289 steps/s; stopped at 55. XPlane device step 3.426 s.
     model_name = 'BamLlama2MediumReadKernelCurrentProfile'
 
@@ -1090,7 +1090,7 @@ class BamLlama2MediumReadKernelLayoutProfile(
     BamLlama2MediumDynamicPerHeadQKDirectReadProfile
 ):
     """B: dot read with direct [b,t,n,d] output; no trailing transpose."""
-    # code_commit: 07a422335771e7da5ce2b8c966593584cbb8a46b
+    # code_commit: 07a4223
     # ~0.290 steps/s; stopped at 55. XPlane 3.412 s (-0.4% vs A).
     model_name = 'BamLlama2MediumReadKernelLayoutProfile'
     bam_read_implementation = 'dot_btn'
@@ -1100,7 +1100,7 @@ class BamLlama2MediumReadKernelMulReduceProfile(
     BamLlama2MediumReadKernelLayoutProfile
 ):
     """C: broadcast multiply+reduce read with direct [b,t,n,d] output."""
-    # code_commit: 07a422335771e7da5ce2b8c966593584cbb8a46b
+    # code_commit: 07a4223
     # ~0.311 steps/s; stopped at 55. XPlane 3.192 s (-6.8% vs A).
     model_name = 'BamLlama2MediumReadKernelMulReduceProfile'
     bam_read_implementation = 'mul_reduce_btn'
@@ -1110,7 +1110,7 @@ class BamLlama2MediumReadKernelSqueezedFetchProfile(
     BamLlama2MediumReadKernelLayoutProfile
 ):
     """E: direct-layout dot read with the sole full-fetch axis removed."""
-    # code_commit: 07a422335771e7da5ce2b8c966593584cbb8a46b
+    # code_commit: 07a4223
     # ~0.291 steps/s; stopped at 55. XPlane 3.407 s (no gain vs B).
     model_name = 'BamLlama2MediumReadKernelSqueezedFetchProfile'
     bam_squeeze_single_fetch_read = True
@@ -1121,7 +1121,7 @@ class BamReadDotBtnSixLayerProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne,
 ):
     """Six-layer same-shape profile of dot_btn bilateral reads and MHA QK logits."""
-    # code_commit: 3b3845b5d98fdd39029e797fedc17031aa62667f
+    # code_commit: 3b3845b
     # ~1.767 steps/s; XPlane 1a/1b/MHA-QK 14.47/13.25/52.25 ms = 1.092:1:3.945.
     model_name = 'BamReadDotBtnSixLayerProfile'
     base_num_decoder_layers = 6
@@ -1135,7 +1135,7 @@ class BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile(
     BamLlama2MediumDynamicPerHeadQKDirectReadProfile
 ):
     """Paired profile removing dynamic alpha mixing while retaining fetch and read."""
-    # code_commit: d9c65efd9ca4b12a624f75b3dc817bc63fc0edf9
+    # code_commit: d9c65ef
     # ~0.287 steps/s; profiled through 89. XPlane 3.447 s; mix has ~0 marginal wall cost.
     model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile'
     bam_shared_fetch_mode = 'compact'
@@ -1146,7 +1146,7 @@ class BamLlama2MediumDynamicPerHeadQKOnlyProfile(
     BamLlama2MediumRmsGateOnly,
 ):
     """Paired profile retaining write and PerHead local-Q/K reads but no content read."""
-    # code_commit: d9c65efd9ca4b12a624f75b3dc817bc63fc0edf9
+    # code_commit: d9c65ef
     # ~0.378 steps/s; profiled through 87. XPlane device step 2.613 s.
     model_name = 'BamLlama2MediumDynamicPerHeadQKOnlyProfile'
     bam_layer_modes = ['local_qk'] * 24
@@ -1158,7 +1158,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Combined shared read with the dynamic fetch-alpha diagonal retained."""
-    # code_commit: 346bb350801bd5a917bbafc6fa6e4ff14dc4bf2d
+    # code_commit: 346bb35
     # ~0.319 steps/s; stopped at 6,407. dloss +0.0012 (+0.05%) vs Combined @6,400
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal'
     bam_keep_fetch_diagonal = True

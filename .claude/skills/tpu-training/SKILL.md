@@ -58,9 +58,10 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/run_registry.py wait-step '$EXP' 0"
 ```
 
-After `FIRST_STEP`, copy the RUN registry's full `code_commit` into its `exp.py` class as
-`# code_commit: HASH`. If a first-step fix changes the runtime commit, replace the comment after
-the successful relaunch. The later metadata commit is not the RUN's runtime hash.
+After `FIRST_STEP`, copy the RUN registry's seven-character `code_commit` prefix into its
+`exp.py` class as `# code_commit: HASH`. If a first-step fix changes the runtime commit, replace
+the comment after the successful relaunch. The registry remains authoritative for the full hash;
+the later metadata commit is not the RUN's runtime hash.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`

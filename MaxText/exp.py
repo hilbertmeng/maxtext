@@ -250,11 +250,13 @@ class BamLlama2Medium(Llama2Medium):
     # v2 experiment subclasses below select the new alternatives explicitly.
     bam_read_key_mode = 'none'       # none | soft_rms_cap | rms_gate
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
+    bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
     bam_use_native_grouped_read_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
+    bam_factorized_head_output_layout = 'btn'  # btn | bnt
     bam_pack_factorized_local_qk = False  # fuse factorized Q/K key, gate, and head-mix projections
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
@@ -696,6 +698,24 @@ class BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl(
     """Current RMS implementation with no packed or replicated projection changes."""
     model_name = 'BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl'
     steps = 2800
+
+
+class BamLlama2MediumDirectPLocR256GeluReadEps1e4Control(
+    BamLlama2MediumDirectPLocR256Gelu
+):
+    """Restore the historical BAM runtime read epsilon and gate initialization."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluReadEps1e4Control'
+    bam_read_key_epsilon = 1e-4
+    steps = 300
+
+
+class BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl(
+    BamLlama2MediumDirectPLocR256Gelu
+):
+    """Restore factorized LocalQK's historical bnt output plus transpose."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl'
+    bam_factorized_head_output_layout = 'bnt'
+    steps = 300
 
 
 class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(

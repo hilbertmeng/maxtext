@@ -2089,7 +2089,7 @@ def factorized_head_bam_read(
     key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
-    implementation='dot_bnt', read_side='both'):
+    implementation='dot_bnt', read_side='both', output_layout='bnt'):
   """Read once with a shared runtime key, then route it dynamically across heads.
 
   For each side, the effective per-head key is the rank-1 factorization
@@ -2107,6 +2107,8 @@ def factorized_head_bam_read(
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
   if read_side not in ('both', 'row', 'col'):
     raise ValueError(f'Unknown BAM read side: {read_side}')
+  if output_layout not in ('bnt', 'btn'):
+    raise ValueError(f'Unknown factorized BAM output layout: {output_layout}')
   _, _, r_row, r_col = _project_bam_read_keys(
       M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
       rms_epsilon=rms_epsilon, key_gate_logits=key_gate_logits,
@@ -2138,12 +2140,16 @@ def factorized_head_bam_read(
         raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon, axis=-2)
     row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
   with jax.named_scope("bam/read_head_mix_expand"):
-    # y_u = (jnp.einsum('btk,btn->bntk', y_u, col_mix)
-    y_u = (jnp.einsum('btk,btn->btnk', y_u, col_mix)  # XD
-           if y_u is not None else None)
-    # y_v = (jnp.einsum('btv,btn->bntv', y_v, row_mix)
-    y_v = (jnp.einsum('btv,btn->btnv', y_v, row_mix)  # XD
-           if y_v is not None else None)
+    if output_layout == 'bnt':
+      y_u = (jnp.einsum('btk,btn->bntk', y_u, col_mix)
+             if y_u is not None else None)
+      y_v = (jnp.einsum('btv,btn->bntv', y_v, row_mix)
+             if y_v is not None else None)
+    else:
+      y_u = (jnp.einsum('btk,btn->btnk', y_u, col_mix)
+             if y_u is not None else None)
+      y_v = (jnp.einsum('btv,btn->btnv', y_v, row_mix)
+             if y_v is not None else None)
     if y_u is None:
       y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
@@ -2275,11 +2281,16 @@ class BamAttention(Attention):
     self._read_key_mode = cfg.bam_read_key_mode
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
+    self._read_key_epsilon = float(
+        cfg.bam_read_key_epsilon
+        if cfg.bam_read_key_epsilon is not None
+        else cfg.normalization_layer_epsilon)
     self._create_grouped_rw_norm = bool(cfg.bam_create_grouped_rw_norm_params)
     self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
     self._use_native_grouped_read_norm = bool(
         cfg.bam_use_native_grouped_read_norm)
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
+    self._factorized_head_output_layout = cfg.bam_factorized_head_output_layout
     self._pack_factorized_local_qk = bool(cfg.bam_pack_factorized_local_qk)
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._local_qk_injection = cfg.bam_local_qk_injection
@@ -2315,6 +2326,7 @@ class BamAttention(Attention):
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
+    assert self._factorized_head_output_layout in ('bnt', 'btn')
     assert not self._pack_factorized_local_qk or (
         'local_qk' in self._mode
         and self._local_qk_key_mode == 'factorized'
@@ -2371,6 +2383,7 @@ class BamAttention(Attention):
               'absolute-V compression requires combined local/full or strict diagonal-one read')
     assert self._read_key_scale > 0.0
     assert self._rms_epsilon > 0.0
+    assert self._read_key_epsilon > 0.0
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
     assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm
     assert not self._create_grouped_rw_norm or self._read_key_mode == 'rms_gate'
@@ -2419,11 +2432,11 @@ class BamAttention(Attention):
       if not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm):
         return
       setattr(self, f'{name}_row_norm', GroupedRMSNorm(
-          scale_shape=row_shape, epsilon=self._rms_epsilon, dtype=self.dtype,
+          scale_shape=row_shape, epsilon=self._read_key_epsilon, dtype=self.dtype,
           weight_dtype=self.weight_dtype, kernel_axes=row_axes,
           name=f'{name}_row_norm'))
       setattr(self, f'{name}_col_norm', GroupedRMSNorm(
-          scale_shape=col_shape, epsilon=self._rms_epsilon, dtype=self.dtype,
+          scale_shape=col_shape, epsilon=self._read_key_epsilon, dtype=self.dtype,
           weight_dtype=self.weight_dtype, kernel_axes=col_axes,
           name=f'{name}_col_norm'))
 
@@ -2431,7 +2444,7 @@ class BamAttention(Attention):
     # scale*sigmoid(g)*RMSNorm(r) equal to one at r=0.  The local_qk key projections
     # are regular-initialized and gated later by zero-initialized R_q/R_k, so give
     # those gates a normal 0.1 opening instead of unnecessarily shrinking their basis.
-    zero_key_gate_init = math.sqrt(self._rms_epsilon) / self._read_key_scale
+    zero_key_gate_init = math.sqrt(self._read_key_epsilon) / self._read_key_scale
     assert zero_key_gate_init < 1.0
 
     if 'codebook' in self._mode:
@@ -2767,7 +2780,7 @@ class BamAttention(Attention):
     kwargs = dict(
         key_mode=self._read_key_mode,
         key_scale=self._read_key_scale,
-        rms_epsilon=self._rms_epsilon,
+        rms_epsilon=self._read_key_epsilon,
         key_gate_logits=gate_logits,
     )
     if self._create_grouped_rw_norm or self._use_native_grouped_read_norm:
@@ -2788,7 +2801,7 @@ class BamAttention(Attention):
 
   def _read_local_qk(self, Mh, inputs_q):
     """Read the local matrix into Q/K; callers choose the injection point."""
-    if self._pack_factorized_local_qk:
+    if self._pack_factorized_local_qk:  # V1 default
       with jax.named_scope("bam/local_qk_packed_projection"):
         packed = self.W_local_qk_packed(inputs_q)
       key_width = self.bam_k + self.bam_v
@@ -2811,35 +2824,41 @@ class BamAttention(Attention):
       q_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: q_key, lambda _x: q_mix,
           **self._read_key_kwargs_from_logits('W_lq', q_gate),
-          implementation=self._read_implementation, read_side=self.read_side)
+          implementation=self._read_implementation, read_side=self.read_side,
+          output_layout=self._factorized_head_output_layout)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
           **self._read_key_kwargs_from_logits('W_lk', k_gate),
-          implementation=self._read_implementation, read_side=self.read_side)
+          implementation=self._read_implementation, read_side=self.read_side,
+          output_layout=self._factorized_head_output_layout)
+      if self._factorized_head_output_layout == 'bnt':
+        q_local = rearrange(q_local, 'b n t d -> b t n d')
+        k_local = rearrange(k_local, 'b n t d -> b t n d')
       return q_local, k_local
 
     local_qk_q_kwargs = (
-        {'rms_epsilon': self._rms_epsilon}
+        {'rms_epsilon': self._read_key_epsilon}
         if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lq_gate', inputs_q))
     local_qk_k_kwargs = (
-        {'rms_epsilon': self._rms_epsilon}
+        {'rms_epsilon': self._read_key_epsilon}
         if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lk_gate', inputs_q))
-    if self._local_qk_key_mode == 'factorized':  # V1 default
+    if self._local_qk_key_mode == 'factorized':
       q_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
           **local_qk_q_kwargs, implementation=self._read_implementation,
-          read_side=self.read_side)
+          read_side=self.read_side,
+          output_layout=self._factorized_head_output_layout)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
           **local_qk_k_kwargs, implementation=self._read_implementation,
-          read_side=self.read_side)
-      return (q_local, k_local)  # XD
-      # return (
-      #     rearrange(q_local, 'b n t d -> b t n d'),
-      #     rearrange(k_local, 'b n t d -> b t n d'),
-      # )
+          read_side=self.read_side,
+          output_layout=self._factorized_head_output_layout)
+      if self._factorized_head_output_layout == 'bnt':
+        q_local = rearrange(q_local, 'b n t d -> b t n d')
+        k_local = rearrange(k_local, 'b n t d -> b t n d')
+      return q_local, k_local
 
     local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
     local_qk_R_q = None if local_qk_per_head else self.R_q

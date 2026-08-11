@@ -710,15 +710,6 @@ class BamLlama2MediumDirectPLocR256GeluReadEps1e4Control(
     steps = 300
 
 
-class BamLlama2MediumDirectPLocR256GeluReadGateInit005Control(
-    BamLlama2MediumDirectPLocR256Gelu
-):
-    """Standard RMS epsilon with the read-gate opening decoupled at 0.005."""
-    model_name = 'BamLlama2MediumDirectPLocR256GeluReadGateInit005Control'
-    bam_read_gate_init = 0.005
-    steps = 300
-
-
 class BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):
@@ -738,6 +729,14 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(
     bam_pack_factorized_local_qk = True
     sharding_tolerance = 0.06  # measured 0.05238 with replicated P_loc_up
     steps = 2800
+
+
+class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005(
+    BamLlama2MediumDirectPLocR256GeluPackedLocalQK
+):
+    """PackedLocalQK with standard RMS epsilon and explicit 0.005 read gates."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005'
+    bam_read_gate_init = 0.005
 
 
 class BamLlama2MediumDirectOTailGroupedRMSNormBias(

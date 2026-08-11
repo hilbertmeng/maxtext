@@ -690,6 +690,14 @@ class BamLlama2MediumDirectPLocR256Gelu(BamLlama2MediumDirectPLocR256):
     bam_write_v_bottleneck_activation = 'gelu'
 
 
+class BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl(
+    BamLlama2MediumDirectPLocR256Gelu
+):
+    """Current RMS implementation with no packed or replicated projection changes."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl'
+    steps = 2800
+
+
 class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(
     BamLlama2MediumDirectPLocR256Gelu
 ):

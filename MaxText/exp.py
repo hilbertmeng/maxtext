@@ -255,6 +255,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_use_grouped_rw_norm = False
     bam_use_native_grouped_read_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
+    bam_pack_factorized_local_qk = False  # fuse factorized Q/K key, gate, and head-mix projections
+    bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
@@ -686,6 +688,18 @@ class BamLlama2MediumDirectPLocR256Gelu(BamLlama2MediumDirectPLocR256):
     # ~0.512 steps/s (~flat); completed 13,500. mean dloss -.0044 vs Direct @12,600–13,400; -.0085 vs R256 @2,800.
     model_name = 'BamLlama2MediumDirectPLocR256Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
+
+
+class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(
+    BamLlama2MediumDirectPLocR256Gelu
+):
+    """Replicated P_loc_up plus one packed factorized LocalQK projection."""
+    # ~0.532 steps/s: +3.73% vs R256-GELU; PackedFetch was neutral and is omitted.
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQK'
+    bam_replicate_ploc_up = True
+    bam_pack_factorized_local_qk = True
+    sharding_tolerance = 0.06  # measured 0.05238 with replicated P_loc_up
+    steps = 2800
 
 
 class BamLlama2MediumDirectOTailGroupedRMSNormBias(

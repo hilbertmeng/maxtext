@@ -767,7 +767,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005(
     BamLlama2MediumDirectPLocR256GeluPackedLocalQK
 ):
     """PackedLocalQK with standard RMS epsilon and explicit 0.005 read gates."""
-    # code_commit: b34a57d
+    # code_commit: 59054dc
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005'
     bam_read_gate_init = 0.005
     steps = 13500
@@ -777,7 +777,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4(
     BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005
 ):
     """Paired PackedLocalQK control retaining the historical 1e-4 read epsilon."""
-    # code_commit: fab4033
+    # code_commit: 59054dc
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4'
     bam_read_key_epsilon = 1e-4
 

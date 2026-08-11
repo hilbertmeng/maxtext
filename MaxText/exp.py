@@ -694,7 +694,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(
     BamLlama2MediumDirectPLocR256Gelu
 ):
     """Replicated P_loc_up plus one packed factorized LocalQK projection."""
-    # ~0.532 steps/s: +3.73% vs R256-GELU; PackedFetch was neutral and is omitted.
+    # ~0.533 steps/s; replicated P_loc_up alone ~0.521 (+1.46%), packed total +3.73% vs R256-GELU.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQK'
     bam_replicate_ploc_up = True
     bam_pack_factorized_local_qk = True

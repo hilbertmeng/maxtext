@@ -693,7 +693,7 @@ class BamLlama2MediumDirectOTailGroupedRMSNormBias(
     BamLlama2MediumV1CompressAbsV8Direct
 ):
     """Write o_head tail through a per-head affine GroupedRMSNorm."""
-    # ~0.526 steps/s (+2.1% vs Direct); running. Removes P_loc; norm scale/bias have no weight decay.
+    # ~0.523 steps/s (+1.6% vs Direct); stopped 2,888. dloss +.0030 vs StaticWriteV, +.0198 vs Direct @2,800.
     model_name = 'BamLlama2MediumDirectOTailGroupedRMSNormBias'
     bam_write_v_mode = 'o_tail'
     bam_write_u2_norm = 'grouped_rms_bias'

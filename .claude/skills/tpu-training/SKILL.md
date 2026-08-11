@@ -58,14 +58,18 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/run_registry.py wait-step '$EXP' 0"
 ```
 
-6. Use the same one-shot gate for the 30–40-step speed check. Compare `~steps/s` with direct
+After `FIRST_STEP`, copy the RUN registry's full `code_commit` into its `exp.py` class as
+`# code_commit: HASH`. If a first-step fix changes the runtime commit, replace the comment after
+the successful relaunch. The later metadata commit is not the RUN's runtime hash.
+
+6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`
    class. Immediately report and investigate a material unexplained speed deviation; mark the
    class comment `!?` or `!!` until resolved.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "/home/lishengping/xd/projects/run_registry.py wait-step '$EXP' 40"
+  "/home/lishengping/xd/projects/run_registry.py wait-step '$EXP' 14"
 ```
 
 ## Monitor Training
@@ -214,7 +218,7 @@ step:
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/run_registry.py wait-step '$RUN' 0 --after-step '$OLD_STEP'"
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "/home/lishengping/xd/projects/run_registry.py wait-step '$RUN' '$((OLD_STEP + 40))' \
+  "/home/lishengping/xd/projects/run_registry.py wait-step '$RUN' '$((OLD_STEP + 14))' \
    --after-step '$OLD_STEP'"
 ```
 

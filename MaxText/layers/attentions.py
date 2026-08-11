@@ -2285,6 +2285,8 @@ class BamAttention(Attention):
         cfg.bam_read_key_epsilon
         if cfg.bam_read_key_epsilon is not None
         else cfg.normalization_layer_epsilon)
+    self._read_gate_init = (
+        None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
     self._create_grouped_rw_norm = bool(cfg.bam_create_grouped_rw_norm_params)
     self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
     self._use_native_grouped_read_norm = bool(
@@ -2384,6 +2386,7 @@ class BamAttention(Attention):
     assert self._read_key_scale > 0.0
     assert self._rms_epsilon > 0.0
     assert self._read_key_epsilon > 0.0
+    assert self._read_gate_init is None or 0.0 < self._read_gate_init < 1.0
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
     assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm
     assert not self._create_grouped_rw_norm or self._read_key_mode == 'rms_gate'
@@ -2440,11 +2443,10 @@ class BamAttention(Attention):
           weight_dtype=self.weight_dtype, kernel_axes=col_axes,
           name=f'{name}_col_norm'))
 
-    # For zero-initialized runtime keys, this choice makes the initial Jacobian of
-    # scale*sigmoid(g)*RMSNorm(r) equal to one at r=0.  The local_qk key projections
-    # are regular-initialized and gated later by zero-initialized R_q/R_k, so give
-    # those gates a normal 0.1 opening instead of unnecessarily shrinking their basis.
-    zero_key_gate_init = math.sqrt(self._read_key_epsilon) / self._read_key_scale
+    zero_key_gate_init = (
+        self._read_gate_init
+        if self._read_gate_init is not None
+        else math.sqrt(self._read_key_epsilon) / self._read_key_scale)
     assert zero_key_gate_init < 1.0
 
     if 'codebook' in self._mode:

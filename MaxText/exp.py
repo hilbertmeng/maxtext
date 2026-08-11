@@ -251,6 +251,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_mode = 'none'       # none | soft_rms_cap | rms_gate
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
+    bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
@@ -706,6 +707,15 @@ class BamLlama2MediumDirectPLocR256GeluReadEps1e4Control(
     """Restore the historical BAM runtime read epsilon and gate initialization."""
     model_name = 'BamLlama2MediumDirectPLocR256GeluReadEps1e4Control'
     bam_read_key_epsilon = 1e-4
+    steps = 300
+
+
+class BamLlama2MediumDirectPLocR256GeluReadGateInit005Control(
+    BamLlama2MediumDirectPLocR256Gelu
+):
+    """Standard RMS epsilon with the read-gate opening decoupled at 0.005."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluReadGateInit005Control'
+    bam_read_gate_init = 0.005
     steps = 300
 
 

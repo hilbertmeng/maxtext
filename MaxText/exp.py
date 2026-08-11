@@ -739,6 +739,14 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005(
     bam_read_gate_init = 0.005
 
 
+class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4(
+    BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005
+):
+    """Paired PackedLocalQK control retaining the historical 1e-4 read epsilon."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4'
+    bam_read_key_epsilon = 1e-4
+
+
 class BamLlama2MediumDirectOTailGroupedRMSNormBias(
     BamLlama2MediumV1CompressAbsV8Direct
 ):

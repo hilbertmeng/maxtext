@@ -32,6 +32,8 @@ def add(dst, value):
 
 
 def classify_local(op):
+  if "local_qk_packed_projection" in op or "W_local_qk_packed" in op:
+    return "packed_projection"
   if "read_gate_projection" in op or "W_lq_gate" in op or "W_lk_gate" in op:
     return "gate_projection"
   if ("read_head_mix_projection" in op or "W_lq_head_mix" in op

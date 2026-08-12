@@ -812,6 +812,16 @@ class BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl(
     bam_write_rms_statistics_dtype = 'float32'
 
 
+class BamDirectPLocR256GeluBf16PackedSixLayerProfile(
+    TrainStepProfile, BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK
+):
+    """Six-layer fine-grained XPlane profile of the current clean BAM path."""
+    model_name = 'BamDirectPLocR256GeluBf16PackedSixLayerProfile'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o+full'] * 6
+    steps = 16
+
+
 class BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro(
     BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control
 ):

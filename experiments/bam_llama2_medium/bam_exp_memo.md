@@ -440,3 +440,22 @@ multiply+reduce无效且明确更慢。XPlane中它生成独立的
 借由融合消除不利dot lowering。scope重归属也使后续temporal contraction从7.17升到8.71 ms，
 所以最终以完整step判负，生产默认保留dot。配对结果：
 `/data0/xd/bam_diagnostics/clean_source_mul_2386d1d_v6e/`。
+
+## V2 early-loss divergence
+
+V2同时把CombinedRead改为diagonal-one，并把write outer的dot改为multiply+reduce。以fp32
+Packed Native为共同基准的2×2配对表明，两项单独都没有持续loss负作用：
+
+| gap = RUN - Native | 200 | 400 | 600 |
+|---|---:|---:|---:|
+| diagonal-one only | -0.01877 | -0.00639 | -0.00367 |
+| write multiply+reduce only | +0.02758 | +0.00234 | -0.00142 |
+| V2（两项同时） | +0.07236 | +0.02037 | +0.01544 |
+
+V2相对Direct随后收敛到约`+0.0026`（2,400–3,800均值），同时快约5.8%，故不重启。
+同一v5p-16上的bf16原语诊断确认数学语义未变，但归约/反向路径不逐位相同：diagonal-one
+前向rel-RMS误差`1.48e-5`、M梯度`8.02e-4`；write前向rel-RMS误差仅`1.49e-8`，但
+u1/u2梯度约`2.57e-3`；组合后alpha梯度约`3.38e-3`。训练loss在step 1完全相同，step 2
+才出现`1e-5`级差异，之后差值多次换符号并被优化动态放大。因此早期大gap是两个代数等价
+实现改变浮点归约与反向顺序后造成的确定性轨迹分叉，不是read/write语义错误，也不是持续
+能力损伤。复现脚本：`diagnose_v2_fast_path_numerics.py`（commit `90806a4`）。

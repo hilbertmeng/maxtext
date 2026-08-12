@@ -818,7 +818,7 @@ class BamLlama2MediumV2(
 ):
     """Current capability milestone with validated equivalent fast read/write paths."""
     # code_commit: 1afd942
-    # ~0.554 steps/s (+6.3% vs fp32 parent, +2.2% vs old fast milestone); running.
+    # ~0.551 steps/s (+5.8% vs fp32 parent); running. mean dloss +.0026 vs Direct @2,400–3,800.
     model_name = 'BamLlama2MediumV2'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False
@@ -832,7 +832,7 @@ class BamLlama2MediumV2ReadDiagonalOneControl(
 ):
     """V2 2x2 control: diagonal-one read path without multiply-reduce writes."""
     # code_commit: 8e125ee
-    # !? ~0.513 steps/s (-1.5% vs fp32 Native); running loss diagnostic.
+    # ~0.510 steps/s (-2.1%); stopped 642. dloss -.0037 vs fp32 Native @600; no loss harm.
     model_name = 'BamLlama2MediumV2ReadDiagonalOneControl'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False
@@ -844,6 +844,8 @@ class BamLlama2MediumV2WriteMulControl(
     BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl
 ):
     """V2 2x2 control: multiply-reduce writes with the original combined read."""
+    # code_commit: 8e125ee
+    # ~0.564 steps/s (+8.3%); stopped 649. dloss -.0014 vs fp32 Native @600; no loss harm.
     model_name = 'BamLlama2MediumV2WriteMulControl'
     bam_write_outer_implementation = 'mul_reduce'
 

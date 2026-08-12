@@ -777,7 +777,7 @@ class BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro(
 ):
     """Current code with historical bf16 statistics for BAM read and write RMS."""
     # code_commit: 65ddfec
-    # ~0.512 steps/s; running; compare Direct and Fp32RMS.
+    # ~0.512 steps/s; stopped 1,148. Reproduced Direct exactly (max step-loss error 5e-7).
     model_name = 'BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro'
     bam_read_rms_statistics_dtype = 'activation'
 
@@ -795,6 +795,14 @@ class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(
     load_parameters_path = (
         'gs://newproject-1-llm_base_models_us-central1/log/diagnostics/'
         'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInit/items')
+
+
+class BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl(
+    BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl
+):
+    """PackedOnly with its native initialization instead of mapped unpacked parameters."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl'
+    load_parameters_path = ''
 
 
 class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl(

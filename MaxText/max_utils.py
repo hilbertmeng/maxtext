@@ -801,6 +801,16 @@ def _unwrap_recurrent_mudd_model_params(params):
   return params
 
 
+def dcmha_param_paths_to_skip(params):
+  """Return new DCMHA leaves that do not exist in a Plain checkpoint."""
+  params = unbox_logicallypartioned(params)
+  return tuple(
+      path
+      for path in flax.traverse_util.flatten_dict(params)
+      if any(part in {"dyn_w_proj", "q_dyn_w_proj", "k_dyn_w_proj", "pre_proj", "post_proj"} for part in path)
+  )
+
+
 def audit_recurrent_mudd_initialization(initialized_params, restored_params, config):
   """Logs and enforces the TPU startup contract for recurrent full-history MUDD."""
   if not getattr(config, "recurrent_mudd_virtual_state", False):
@@ -1068,8 +1078,13 @@ def setup_initial_state(
     if is_training and getattr(config, "train_load_parameters_path", ""):
       load_parameters_path = config.train_load_parameters_path
       max_logging.log(f"Training init params configured from {load_parameters_path}")
+    skip_paths = []
     if is_training and getattr(config, "train_reinit_embedding_params", False):
-      load_params_skip_paths = embedding_param_paths_to_skip(config)
+      skip_paths.extend(embedding_param_paths_to_skip(config))
+    if is_training and getattr(config, "train_merge_loaded_params", False):
+      skip_paths.extend(dcmha_param_paths_to_skip(unboxed_abstract_state.params))
+    if skip_paths:
+      load_params_skip_paths = tuple(dict.fromkeys(skip_paths))
     restored, raw_params = checkpointing.load_state_if_possible(
         checkpoint_manager,
         data_iterator,

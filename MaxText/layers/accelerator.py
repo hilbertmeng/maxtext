@@ -140,11 +140,20 @@ class QChunk(nn.Module):
     # bnts -> bkgts
     attn_weights = self.qk_product(query, key)
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
+    b, kv_heads, q_per_kv, q_len, kv_len = attn_weights.shape
    
     if self.config.pre_compose:
        # 5 demonsion
       pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd = pre_proj_dw_args
-      attn_weights = pre_proj_layer(attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd)
+      if self.config.dc_gqa_global_heads:
+        attn_weights = pre_proj_layer(
+            attn_weights.reshape(b, kv_heads * q_per_kv, q_len, kv_len),
+            pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd,
+        ).reshape(b, kv_heads, q_per_kv, q_len, kv_len)
+      else:
+        attn_weights = pre_proj_layer(
+            attn_weights, pre_qw1, pre_qw2, pre_kw1, pre_kw2, pre_qdd, pre_kdd
+        )
 
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
     # apply attention mask
@@ -158,7 +167,15 @@ class QChunk(nn.Module):
 
     if self.config.post_compose:
       post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
-      probs = post_proj_layer(probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd)
+      if self.config.dc_gqa_global_heads:
+        probs = post_proj_layer(
+            probs.reshape(b, kv_heads * q_per_kv, q_len, kv_len),
+            post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd,
+        ).reshape(b, kv_heads, q_per_kv, q_len, kv_len)
+      else:
+        probs = post_proj_layer(
+            probs, post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd
+        )
 
     probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
     # Casting softmaxt computation for float32 for model stability.
@@ -369,6 +386,3 @@ class QChunk(nn.Module):
         max_logging.log(f'Global|Local Attn.... remat is {remat} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
         encoded = self._attention_for_remat(*args, remat=remat)
     return encoded, None, None
-  
-
-      

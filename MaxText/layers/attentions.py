@@ -2338,6 +2338,8 @@ class BamAttention(Attention):
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
     self._abs_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
+    self._abs_v_source_implementation = getattr(
+        cfg, 'bam_abs_v_source_implementation', 'dot')
     if (self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix')
         and {'full', 'codebook'} & self._mode):
       assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
@@ -2400,6 +2402,7 @@ class BamAttention(Attention):
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._abs_v_row_output in ('direct', 'project')
+    assert self._abs_v_source_implementation in ('dot', 'mul_reduce')
     if self._abs_v_dim is not None:
       assert 0 < self._abs_v_dim < self.bam_v
       assert 'full' in self._mode
@@ -3208,9 +3211,12 @@ class BamAttention(Attention):
         fetch_state = Mh
         if self._abs_v_dim is not None:  # V1 default
           with jax.named_scope("bam/compress_abs_v_cache"):
-            fetch_state = jnp.einsum(
-                'bskv,vc->bskc', Mh,
-                self.abs_v_cache_projection.astype(Mh.dtype))
+            projection = self.abs_v_cache_projection.astype(Mh.dtype)
+            if self._abs_v_source_implementation == 'dot':
+              fetch_state = jnp.einsum('bskv,vc->bskc', Mh, projection)
+            else:
+              fetch_state = jnp.sum(
+                  Mh[..., None] * projection[None, None, None, :, :], axis=-2)
         if self._fetch_temporal_block_size is not None:
           Mbar_fetch = _temporal_block_bam_fetch(
               fetch_alpha, fetch_state, inputs_positions, decoder_segment_ids,

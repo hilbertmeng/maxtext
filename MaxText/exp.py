@@ -283,6 +283,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
+    bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
@@ -820,6 +821,14 @@ class BamDirectPLocR256GeluBf16PackedSixLayerProfile(
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+local_o+full'] * 6
     steps = 16
+
+
+class BamDirectPLocR256GeluBf16PackedSourceMulSixLayerProfile(
+    BamDirectPLocR256GeluBf16PackedSixLayerProfile
+):
+    """Paired profile using multiply+reduce for AbsV source compression."""
+    model_name = 'BamDirectPLocR256GeluBf16PackedSourceMulSixLayerProfile'
+    bam_abs_v_source_implementation = 'mul_reduce'
 
 
 class BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro(

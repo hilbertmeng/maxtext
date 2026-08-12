@@ -68,8 +68,30 @@ def classify_fetched(op):
 
 
 def classify_write(op):
+  if "/P_loc_down/" in op:
+    return "ploc_down"
+  if "/P_loc_up/" in op:
+    return "ploc_up"
+  if "/W_gw/" in op:
+    return "gate_projection"
   if "bam/write_outer" in op:
     return "outer"
+  return "other"
+
+
+def classify_mix(op):
+  if "/fetch_head_mix/" in op:
+    return "weight_projection"
+  if "bnts,btn->bts" in op:
+    return "alpha_contraction"
+  return "other"
+
+
+def classify_fetch(op):
+  if "compress_abs_v_cache" in op:
+    return "source_compression"
+  if "bfts,bskv->bftkv" in op:
+    return "temporal_contraction"
   return "other"
 
 
@@ -105,6 +127,10 @@ def summarize(path):
         add(buckets[name], value)
         if name == "write_m":
           add(buckets[f"write.{classify_write(op)}"], value)
+        elif name == "mix_alpha":
+          add(buckets[f"mix.{classify_mix(op)}"], value)
+        elif name == "fetch_m":
+          add(buckets[f"fetch.{classify_fetch(op)}"], value)
         elif name == "local_qk":
           add(buckets[f"local.{classify_local(op)}"], value)
         elif name == "fetched":

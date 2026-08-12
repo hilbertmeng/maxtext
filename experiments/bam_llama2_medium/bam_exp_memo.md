@@ -348,3 +348,78 @@ to replicated computation/gradient all-reduce. Different collective and dot redu
 small floating-point differences, which training amplifies into a different trajectory. Replication
 gives about 1.5% speed, but this run's trajectory is persistently worse, so capability comparisons
 should keep `bam_replicate_ploc_up=False`.
+
+## Bf16Packed clean main profile
+
+`BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK` 的六层同构图，commit
+`9fb6720`，standalone `v6e-1`，step 10–14 XPlane。一个训练态 `(W_Q)` 单位由
+MHA QK logits 校准为 **3.329 TF/step**。XPlane 只取决于训练图，不依赖参数值，
+因此无需把24层 checkpoint 裁成不兼容的六层参数树。
+
+| 部分 | 理论 (W_Q) | XPlane TF / (W_Q) | bytes | scope ms（6L / 每层 / 24L线性外推） |
+|---|---:|---:|---:|---:|
+| 标准Transformer / optimizer / unscoped | 16.250³ | 72.308 / 21.722 | 564.44 GB | 498.21¹ / — / — |
+| └ MHA QK logits² | 2.000 | 6.657 / 2.000 | 115.99 GB | 101.07 / 16.84 / 404.28 |
+| **write M** | **0.406** | **1.125 / 0.338** | **23.41 GB** | **35.35 / 5.89 / 141.39** |
+| ├ `P_loc_down` | 0.250 | 0.518 / 0.156 | 2.53 GB | 2.33 / 0.39 / 9.32 |
+| ├ `P_loc_up` | 0.125 | 0.523 / 0.157 | 3.77 GB | 2.74 / 0.46 / 10.94 |
+| ├ write-gate projection | 0.016 | 0.047 / 0.014 | 2.75 GB | 2.63 / 0.44 / 10.52 |
+| ├ **write outer product** | 0.016 | 0.032 / 0.010 | 5.91 GB | **18.84 / 3.14 / 75.36** |
+| └ GELU/RMS/bias/other | ≈0 | 0.005 / 0.001 | 8.45 GB | 8.81 / 1.47 / 35.25 |
+| **mix alpha** | **0.047** | **0.248 / 0.075** | **97.76 GB** | **91.38 / 15.23 / 365.52** |
+| ├ head-weight projection | 0.016 | 0.056 / 0.017 | 3.32 GB | 3.60 / 0.60 / 14.39 |
+| ├ **`bnts,btn->bts`** | **0.031** | **0.192 / 0.058** | **91.11 GB** | **84.44 / 14.07 / 337.75** |
+| └ transform/other | ≈0 | 0.000 / 0.000 | 3.32 GB | 3.35 / 0.56 / 13.38 |
+| **fetch M** | **0.508** | **1.678 / 0.504** | **14.19 GB** | **17.16 / 2.86 / 68.64** |
+| ├ absolute-V source compression | 0.008 | 0.025 / 0.007 | 5.13 GB | **9.99 / 1.67 / 39.96** |
+| └ temporal fetch contraction | 0.500 | 1.653 / 0.497 | 9.06 GB | 7.17 / 1.19 / 28.68 |
+| **read local M for QK** | **0.197** | **0.655 / 0.197** | **25.54 GB** | **44.01 / 7.33 / 176.03** |
+| ├ packed key/gate/head-mix projection | 0.191 | 0.636 / 0.191 | 3.86 GB | 2.93 / 0.49 / 11.70 |
+| ├ key RMS/gate transform | ≈0 | 0.001 / 0.000 | 1.52 GB | 0.79 / 0.13 / 3.17 |
+| ├ **read M contraction** | **0.004** | **0.012 / 0.004** | **11.78 GB** | **33.74 / 5.62 / 134.95** |
+| ├ head-mix transform/expand | ≈0.002 | 0.005 / 0.002 | 7.45 GB | 5.92 / 0.99 / 23.68 |
+| └ other | ≈0 | 0.000 / 0.000 | 0.93 GB | 0.63 / 0.11 / 2.53 |
+| **read fetched M** | **0.664** | **2.205 / 0.663** | **21.63 GB** | **22.85 / 3.81 / 91.38** |
+| ├ read-key projection | 0.625 | 2.067 / 0.621 | 5.29 GB | 3.33 / 0.55 / 13.30 |
+| ├ read-gate projection | 0.031 | 0.108 / 0.032 | 3.35 GB | 2.60 / 0.43 / 10.42 |
+| ├ key RMS/gate/layout transform | ≈0 | 0.004 / 0.001 | 4.23 GB | 2.84 / 0.47 / 11.35 |
+| └ **read M contraction** | **0.008** | **0.026 / 0.008** | **8.76 GB** | **14.08 / 2.35 / 56.31** |
+| **完整step** | **18.072** | **78.218 / 23.498** | **746.98 GB** | **708.95 ms** |
+
+1. 498.21 ms 与旧表相同，只是整步减去五个BAM顶层scope后的wall residual，不是纯
+   Transformer算子时间。
+2. MHA QK logits 已含在标准部分，只作共同参照。
+3. 新旧绝对 wall time 不可直接比较：旧表是 `v5p-16` 的16设备平均，本表是单设备
+   `v6e-1`。代码差异和理论量用于因果判断；scope占比及相对 MHA QK 的耗时仅作跨硬件佐证。
+
+### 相对旧 FactorizedLocalQK main profile
+
+| 部分 | 旧→clean 理论 (W_Q) | 整步占比旧→clean | scope / MHA QK旧→clean | 代码原因 |
+|---|---:|---:|---:|---|
+| write M | 0.531→0.406 | 3.93%→4.99% | 0.411→0.350 | `P_loc: D→256→nV`，理论降23.5% |
+| mix alpha | 0.047→0.047 | 6.65%→12.89% | 0.697→0.904 | 图未简化；已成为最大BAM wall瓶颈 |
+| fetch M | 2.000→0.508 | 6.22%→2.42% | 0.652→0.170 | AbsV8，把fetch的V轴32压至8，理论降74.6% |
+| local QK read | 0.197→0.197 | 6.89%→6.21% | 0.722→0.435 | packed投影只合并launch/layout，理论量不变 |
+| fetched read | 1.063→0.664 | 8.13%→3.22% | 0.852→0.226 | AbsV8缩小row key/output，理论降37.5% |
+| **BAM合计** | **3.838→1.822** | **31.81%→29.73%** | **3.335→2.085** | **BAM理论量降52.5%，完整图理论量降10.0%** |
+
+代码对比确认，两版共同使用 NoMNorm、all-bf16、CombinedRead、FactorizedLocalQK 和两类
+`multiply+reduce` read。clean 新增的结构差异只有：AbsV8、R256-GELU `P_loc`、packed
+LocalQK投影，以及BAM RMS统计使用activation dtype；最后一项不改变理论量，且当前
+bf16/fp32 packed实测速度近乎相同。
+
+改善最明确的是 AbsV8：fetch与fetched-read的理论量和归一化wall都大降。packed LocalQK
+把投影本身压到2.93 ms，但真正的local-M contraction仍用33.74 ms完成仅0.004 `(W_Q)`，
+所以LocalQK总体只小幅降占比。当前未解决项按优先级为：
+
+1. `mix alpha` 的 `bnts,btn->bts`：仅0.031 `(W_Q)`，却占整步11.91%、搬运91.11 GB；
+   应优先配对验证流式融合mix+fetch，或Pallas kernel，避免物化完整 `bts`。
+2. local-M contraction：仅0.004 `(W_Q)` 却占4.76%；packed投影没有触及这个小矩阵归约
+   的低利用率。
+3. AbsV8 source compression：理论仅0.008 `(W_Q)`，却比真正的0.500 `(W_Q)` temporal
+   fetch更慢（9.99 vs 7.17 ms）；应配对测 `dot` 与 broadcast multiply+reduce。
+4. write outer product占write scope的53%；clean尚未启用已验证的write multiply+reduce。
+5. clean仍是CombinedRead，未启用已验证等价且更快的diagonal-one路径；这两项属于已知可
+   回收速度，不是新瓶颈。
+
+原始结果：`/data0/xd/bam_diagnostics/clean_profile_9fb6720_v6e/`。

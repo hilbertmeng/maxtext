@@ -817,6 +817,8 @@ class BamLlama2MediumV2(
     BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl
 ):
     """Current capability milestone with validated equivalent fast read/write paths."""
+    # code_commit: 1afd942
+    # ~0.554 steps/s (+6.3% vs fp32 parent, +2.2% vs old fast milestone); running.
     model_name = 'BamLlama2MediumV2'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False

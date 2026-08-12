@@ -797,6 +797,15 @@ class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(
         'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInit/items')
 
 
+class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl(
+    BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl
+):
+    """Add btn output and replicated P_loc_up to PackedOnly with the same mapped initialization."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl'
+    bam_factorized_head_output_layout = 'btn'
+    bam_replicate_ploc_up = True
+
+
 class BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):

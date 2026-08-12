@@ -2302,8 +2302,14 @@ class BamAttention(Attention):
         else cfg.normalization_layer_epsilon)
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
-    read_rms_statistics_dtype = cfg.bam_read_rms_statistics_dtype
-    self._write_rms_statistics_dtype = cfg.bam_write_rms_statistics_dtype
+    def resolve_rms_statistics_dtype(mode):
+      assert mode in ('float32', 'activation')
+      return jnp.float32 if mode == 'float32' else self.dtype
+
+    self._read_rms_statistics_dtype = resolve_rms_statistics_dtype(
+        cfg.bam_read_rms_statistics_dtype)
+    self._write_rms_statistics_dtype = resolve_rms_statistics_dtype(
+        cfg.bam_write_rms_statistics_dtype)
     self._create_grouped_rw_norm = bool(cfg.bam_create_grouped_rw_norm_params)
     self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
     self._use_native_grouped_read_norm = bool(
@@ -2343,10 +2349,6 @@ class BamAttention(Attention):
     self._write_outer_implementation = cfg.bam_write_outer_implementation
     self._forget_mode = cfg.bam_forget_mode
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
-    assert read_rms_statistics_dtype in ('float32', 'activation')
-    assert self._write_rms_statistics_dtype in ('float32', 'activation')
-    self._read_rms_statistics_dtype = (
-        jnp.float32 if read_rms_statistics_dtype == 'float32' else self.dtype)
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
     assert self._factorized_head_output_layout in ('bnt', 'btn')
@@ -2977,18 +2979,12 @@ class BamAttention(Attention):
       # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
       # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
-    write_statistics_dtype = (
-        jnp.float32
-        if self._write_rms_statistics_dtype == 'float32'
-        else u1.dtype)
     u1_norm = normalizations.rms_norm(
         u1, dtype=self.dtype, epsilon=self._rms_epsilon,
-        statistics_dtype=write_statistics_dtype)
+        statistics_dtype=self._write_rms_statistics_dtype)
     u2_norm = normalizations.rms_norm(
         u2, dtype=self.dtype, epsilon=self._rms_epsilon,
-        statistics_dtype=(jnp.float32
-                          if self._write_rms_statistics_dtype == 'float32'
-                          else u2.dtype))
+        statistics_dtype=self._write_rms_statistics_dtype)
     if self._create_grouped_rw_norm:
       learned_u1_norm = self.write_u1_norm(u1)
       learned_u2_norm = self.write_u2_norm(u2)

@@ -1917,7 +1917,8 @@ def _update_bam_matrix(M_in, dM, lambda_decay, forget_logits=None):
 
 
 def _transform_bam_read_key(
-    r, mode='none', scale=1.0, *, rms_epsilon, gate_logits=None,
+    r, mode='none', scale=1.0, *, rms_epsilon,
+    rms_statistics_dtype=jnp.float32, gate_logits=None,
     learned_rms_norm=None, use_learned_rms=False):
   """Apply a side-local health transform to a runtime BAM read key.
 
@@ -1935,7 +1936,8 @@ def _transform_bam_read_key(
     if gate_logits is None:
       raise ValueError('rms_gate requires gate logits')
     direction = normalizations.rms_norm(
-        r, dtype=r.dtype, epsilon=rms_epsilon)
+        r, dtype=r.dtype, epsilon=rms_epsilon,
+        statistics_dtype=rms_statistics_dtype)
     if learned_rms_norm is not None:
       learned_direction = learned_rms_norm(r)
       if use_learned_rms:
@@ -1945,7 +1947,8 @@ def _transform_bam_read_key(
 
 
 def _project_bam_read_keys(
-    row_width, x, W_R, *, rms_epsilon, key_mode='none', key_scale=1.0,
+    row_width, x, W_R, *, rms_epsilon,
+    rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None, key_col_norm=None,
     use_learned_key_norm=False):
   """Project and independently transform the row/column runtime read keys."""
@@ -1960,10 +1963,12 @@ def _project_bam_read_keys(
       row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
     r_row = _transform_bam_read_key(
         raw_row, key_mode, key_scale, rms_epsilon=rms_epsilon,
+        rms_statistics_dtype=rms_statistics_dtype,
         gate_logits=row_gate, learned_rms_norm=key_row_norm,
         use_learned_rms=use_learned_key_norm)
     r_col = _transform_bam_read_key(
         raw_col, key_mode, key_scale, rms_epsilon=rms_epsilon,
+        rms_statistics_dtype=rms_statistics_dtype,
         gate_logits=col_gate, learned_rms_norm=key_col_norm,
         use_learned_rms=use_learned_key_norm)
   return raw_row, raw_col, r_row, r_col
@@ -2030,6 +2035,7 @@ def _contract_bam_read(
 
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              rms_epsilon,
+             rms_statistics_dtype=jnp.float32,
              key_gate_logits=None, return_key_stages=False,
              key_row_norm=None, key_col_norm=None,
              use_learned_key_norm=False, implementation='dot_bnt',
@@ -2052,7 +2058,8 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
   Mc, Mr = M if isinstance(M, tuple) else (M, M)
   raw_row, raw_col, r_row, r_col = _project_bam_read_keys(
       Mr.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
-      rms_epsilon=rms_epsilon, key_gate_logits=key_gate_logits,
+      rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
+      key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
   with jax.named_scope("bam/read_m_contract"):
@@ -2066,16 +2073,20 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
     post_rms_row = (key_row_norm(raw_row) if key_row_norm is not None
                     else normalizations.rms_norm(
                         raw_row, dtype=raw_row.dtype,
-                        epsilon=rms_epsilon))
+                        epsilon=rms_epsilon,
+                        statistics_dtype=rms_statistics_dtype))
     post_rms_col = (key_col_norm(raw_col) if key_col_norm is not None
                     else normalizations.rms_norm(
                         raw_col, dtype=raw_col.dtype,
-                        epsilon=rms_epsilon))
+                        epsilon=rms_epsilon,
+                        statistics_dtype=rms_statistics_dtype))
     if not use_learned_key_norm:
       post_rms_row = normalizations.rms_norm(
-          raw_row, dtype=raw_row.dtype, epsilon=rms_epsilon)
+          raw_row, dtype=raw_row.dtype, epsilon=rms_epsilon,
+          statistics_dtype=rms_statistics_dtype)
       post_rms_col = normalizations.rms_norm(
-          raw_col, dtype=raw_col.dtype, epsilon=rms_epsilon)
+          raw_col, dtype=raw_col.dtype, epsilon=rms_epsilon,
+          statistics_dtype=rms_statistics_dtype)
     return y, {
         "pre_rms": jnp.concatenate((raw_row, raw_col), axis=-1),
         "post_rms_pre_gate": jnp.concatenate((post_rms_row, post_rms_col), axis=-1),
@@ -2086,6 +2097,7 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
 
 def factorized_head_bam_read(
     M, x, W_R, W_head_mix, *, rms_epsilon,
+    rms_statistics_dtype=jnp.float32,
     key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
@@ -2111,7 +2123,8 @@ def factorized_head_bam_read(
     raise ValueError(f'Unknown factorized BAM output layout: {output_layout}')
   _, _, r_row, r_col = _project_bam_read_keys(
       M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
-      rms_epsilon=rms_epsilon, key_gate_logits=key_gate_logits,
+      rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
+      key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
 
@@ -2183,6 +2196,7 @@ def _packed_factorized_local_qk_init(kernel_init, num_heads, key_width):
 
 def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
                   key_scale=1.0, rms_epsilon,
+                  rms_statistics_dtype=jnp.float32,
                   key_gate_logits=None,
                   key_row_norm=None, key_col_norm=None,
                   use_learned_key_norm=False, source_implementation='dot',
@@ -2218,7 +2232,8 @@ def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
     projection = lambda z: jnp.squeeze(W_beta(z), axis=-2)
     _, _, beta_row, beta_col = _project_bam_read_keys(
         c, x, projection, key_mode=key_mode, key_scale=key_scale,
-        rms_epsilon=rms_epsilon, key_gate_logits=key_gate_logits,
+        rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
+        key_gate_logits=key_gate_logits,
         key_row_norm=key_row_norm, key_col_norm=key_col_norm,
         use_learned_key_norm=use_learned_key_norm)
     k = M.shape[-2]
@@ -2287,6 +2302,7 @@ class BamAttention(Attention):
         else cfg.normalization_layer_epsilon)
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
+    read_rms_statistics_dtype = cfg.bam_read_rms_statistics_dtype
     self._write_rms_statistics_dtype = cfg.bam_write_rms_statistics_dtype
     self._create_grouped_rw_norm = bool(cfg.bam_create_grouped_rw_norm_params)
     self._use_grouped_rw_norm = bool(cfg.bam_use_grouped_rw_norm)
@@ -2327,7 +2343,10 @@ class BamAttention(Attention):
     self._write_outer_implementation = cfg.bam_write_outer_implementation
     self._forget_mode = cfg.bam_forget_mode
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
+    assert read_rms_statistics_dtype in ('float32', 'activation')
     assert self._write_rms_statistics_dtype in ('float32', 'activation')
+    self._read_rms_statistics_dtype = (
+        jnp.float32 if read_rms_statistics_dtype == 'float32' else self.dtype)
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
     assert self._factorized_head_output_layout in ('bnt', 'btn')
@@ -2785,6 +2804,7 @@ class BamAttention(Attention):
         key_mode=self._read_key_mode,
         key_scale=self._read_key_scale,
         rms_epsilon=self._read_key_epsilon,
+        rms_statistics_dtype=self._read_rms_statistics_dtype,
         key_gate_logits=gate_logits,
     )
     if self._create_grouped_rw_norm or self._use_native_grouped_read_norm:
@@ -2841,11 +2861,17 @@ class BamAttention(Attention):
       return q_local, k_local
 
     local_qk_q_kwargs = (
-        {'rms_epsilon': self._read_key_epsilon}
+        {
+            'rms_epsilon': self._read_key_epsilon,
+            'rms_statistics_dtype': self._read_rms_statistics_dtype,
+        }
         if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lq_gate', inputs_q))
     local_qk_k_kwargs = (
-        {'rms_epsilon': self._read_key_epsilon}
+        {
+            'rms_epsilon': self._read_key_epsilon,
+            'rms_statistics_dtype': self._read_rms_statistics_dtype,
+        }
         if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lk_gate', inputs_q))
     if self._local_qk_key_mode == 'factorized':   # V1 default

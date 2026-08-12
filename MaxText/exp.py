@@ -253,6 +253,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_mode = 'none'       # none | soft_rms_cap | rms_gate
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
+    bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
@@ -769,6 +770,14 @@ class BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control(
     """Keep fp32 read RMS statistics but restore historical write-side bf16 statistics."""
     model_name = 'BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control'
     bam_write_rms_statistics_dtype = 'activation'
+
+
+class BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro(
+    BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control
+):
+    """Current code with historical bf16 statistics for BAM read and write RMS."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro'
+    bam_read_rms_statistics_dtype = 'activation'
 
 
 class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(

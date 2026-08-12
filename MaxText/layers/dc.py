@@ -69,8 +69,6 @@ class DynamicWeightProjection(nn.Module):
     self.dc_use_muon = cfg.dc_use_muon
     self.dc_share_all_dw_hidden = cfg.dc_share_all_dw_hidden
     self.dc_share_prepost_dw_hidden = cfg.dc_share_prepost_dw_hidden
-    self.dc_dw2_zero_init = cfg.dc_dw2_zero_init
-
     kwargs = dict(
       dtype=self.dtype,
       weight_dtype=self.weight_dtype, 
@@ -109,12 +107,7 @@ class DynamicWeightProjection(nn.Module):
         NormalInitializer(self.dynamic_w_init), 
         (None, 'data', 'fsdp', None, 'tensor') if not self.dc_use_muon else ('fsdp', 'tensor')
         )
-      if self.dc_dw2_zero_init:
-        shape = (shape[0], shape[1], shape[2], shape[3]//2, shape[4]) 
-        self.qkw1 = self.param('qkw1',kernel_init_shard, shape, self.weight_dtype)
-        self.qkw2 = self.param('qkw2',nn.with_logical_partitioning(initializers.contant_dense_init(0.0), (None, 'data', 'fsdp', None, 'tensor')), shape, self.weight_dtype)
-      else:
-        self.qkw = self.param('qkw', kernel_init_shard, shape if not self.dc_use_muon else two_dim_shape, self.weight_dtype)
+      self.qkw = self.param('qkw', kernel_init_shard, shape if not self.dc_use_muon else two_dim_shape, self.weight_dtype)
       
       if self.use_dw_bias:
         assert self.dc_share_prepost_dw_hidden
@@ -146,10 +139,7 @@ class DynamicWeightProjection(nn.Module):
       self.dw2_norm = normalizations.get_rmsnorm("dw2_norm", self.config, direct_scale=True, scale_init=initializers.contant_dense_init(0.001))
 
   def __call__(self, query_vec):
-    qkw_kernel = jnp.asarray(self.qkw, self.dtype) \
-      if not self.dc_dw2_zero_init \
-      else jnp.asarray(jnp.concatenate([self.qkw1, self.qkw2], axis=-2), self.dtype
-      )
+    qkw_kernel = jnp.asarray(self.qkw, self.dtype)
     if self.dc_use_muon:
       if self.dc_share_all_dw_hidden:
         qkw_kernel = qkw_kernel.reshape(self.G, 1, self.K * self.n_splits, self.I * self.n_splits, self.M)
@@ -334,8 +324,10 @@ class CrossHeadProjection(nn.Module):
   def __call__(self, inputs, qw1 = None, qw2 = None, kw1 = None, kw2 = None, qdd = None, kdd = None):
     shape = inputs.shape  #  bkgts, k: kv_heads, g: groups
     assert inputs.shape[1] == self.num_heads
-    # inputs = rearrange(inputs, 'B (G M) T S -> B G M T S', G=self.num_groups)
-    inputs = rearrange(inputs, 'B M G T S -> B G M T S', G=self.num_groups)
+    if self.config.dc_gqa_global_heads:
+      inputs = rearrange(inputs, 'B (G M) T S -> B G M T S', G=self.num_groups)
+    else:
+      inputs = rearrange(inputs, 'B M G T S -> B G M T S', G=self.num_groups)
     inputs_label = 'BGMTS'
     out_label = inputs_label.replace('M', 'N') #  BGNTS
     exp = f'{inputs_label},GMN->{out_label}' #  'BGMTS'  GMN   BGNTS

@@ -524,6 +524,7 @@ qkv_bias: False
 use_dw_bias: False
 use_dd_bias: False
 dc_share_prepost_dw_hidden: False
+dc_gqa_global_heads: False
 seperate_qk_dw_proj: True
 query_chunk_method: ''
 static_proj: False

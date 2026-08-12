@@ -373,6 +373,25 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun(Qwen3Larg
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1(
+    DC, Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun
+):
+    """Minimal plain-checkpoint to DCMHA posttrain identity (training only)."""
+    query_wise = True
+    key_wise = False
+    static_proj = False
+    dc_gqa_global_heads = True
+    dc_share_all_dw_hidden = False
+    dc_w2_norm = False
+    dc_hidden_way = 'qk'
+    dc_num_groups = None
+    sw_quant = False
+    train_merge_loaded_params = True
+    train_load_parameters_path = 'gs://newproject-1-llm_projects_us-east5/log/qwen3_alignment/maxtext_qwen3_0_6b_nvarc16_ckpt/0/items'
+    steps = 1001  # materialize train/checkpoint/eval at step 1000, then stop
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1'
+    model_name = run_name
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun8K(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun):
     max_target_length = 8192
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun8K'

@@ -138,7 +138,7 @@ do
                 echo "All compiled models are pulled"
             fi
             
-            if ! timeout $GCLOUD_TRAIN_TIMEOUT gcloud compute tpus tpu-vm ssh ${TPU_SSH_FLAGS} $TPU_NAME --project=$PROJECT_ID --zone=$ZONE --worker=all --command="export HARDWARE=tpu; export JAX_TRACEBACK_FILTERING=off; cd $WORK_DIR;/home/lishengping/miniconda3/bin/python MaxText/train$TrainCompile.py MaxText/configs/base.yml base_output_directory=$BASE_OUTPUT_DIR run_name=$RUN_NAME exp_class=${EXP} >/home/lishengping/train_${EXP}.log 2>&1 &"; then
+            if ! timeout $GCLOUD_TRAIN_TIMEOUT gcloud compute tpus tpu-vm ssh ${TPU_SSH_FLAGS} $TPU_NAME --project=$PROJECT_ID --zone=$ZONE --worker=all --command="export HARDWARE=tpu; export JAX_TRACEBACK_FILTERING=off; cd $WORK_DIR; nohup bash scripts/tpu/run_with_exit_status.sh /home/lishengping/train_${EXP}.status /home/lishengping/train_${EXP}.log -- /home/lishengping/miniconda3/bin/python MaxText/train$TrainCompile.py MaxText/configs/base.yml base_output_directory=$BASE_OUTPUT_DIR run_name=$RUN_NAME exp_class=${EXP} >/home/lishengping/train_${EXP}.launcher.log 2>&1 </dev/null &"; then
                 echo "Training launch failed or timed out; will retry after checking TPU state."
                 sleep 30s
                 continue

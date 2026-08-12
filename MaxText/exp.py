@@ -392,6 +392,14 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseD
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1'
     model_name = run_name
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainFullRunV1(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1
+):
+    """Resume the verified step-1000 DCMHA state to the plain run length."""
+    steps = 12716
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainFullRunV1'
+    model_name = run_name
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun8K(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun):
     max_target_length = 8192
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun8K'

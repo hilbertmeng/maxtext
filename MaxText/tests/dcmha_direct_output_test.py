@@ -148,6 +148,30 @@ class MinimalDcmhaPosttrainTest(unittest.TestCase):
     for removed in ("dc_identity_preserved", "dc_dw2_zero_init", "dc_implementation"):
       self.assertFalse(hasattr(identity, removed), removed)
 
+  def test_full_run_identity_only_extends_the_stop_step(self):
+    short = exp.Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1
+    full = exp.Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainFullRunV1
+    plain = exp.Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun
+
+    self.assertEqual(short.steps, 1001)
+    self.assertEqual(full.steps, plain.steps)
+    self.assertEqual(full.learning_rate_schedule_steps, plain.learning_rate_schedule_steps)
+    for name in (
+        "learning_rate",
+        "warmup_steps_fraction",
+        "cosine_learning_rate_final_fraction",
+        "adam_b1",
+        "adam_b2",
+        "adam_eps",
+        "adam_weight_decay",
+        "gradient_clipping_threshold",
+        "data_shuffle_seed",
+        "dataset_path",
+        "per_device_batch_size",
+        "max_target_length",
+    ):
+      self.assertEqual(getattr(full, name), getattr(short, name), name)
+
   def test_plain_restore_skips_only_new_dcmha_leaves(self):
     params = {
         "decoder": {

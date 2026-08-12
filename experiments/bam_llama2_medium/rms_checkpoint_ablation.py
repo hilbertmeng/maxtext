@@ -82,6 +82,16 @@ def run(config):
   if not config.only_eval:
     raise ValueError("rms_checkpoint_ablation.py requires only_eval=True")
   num_batches = int(os.environ.get("BAM_RMS_ABLATION_BATCHES", "4"))
+  mode_names = tuple(
+      name.strip()
+      for name in os.environ.get(
+          "BAM_RMS_ABLATION_MODES", ",".join(_MODE_CALLERS)).split(",")
+      if name.strip()
+  )
+  if "current" not in mode_names or any(name not in _MODE_CALLERS for name in mode_names):
+    raise ValueError(
+        "BAM_RMS_ABLATION_MODES must contain current and only known modes: "
+        f"{tuple(_MODE_CALLERS)}")
   output_dir = Path(os.environ.get("BAM_RMS_ABLATION_OUTPUT_DIR", "/tmp/bam_rms_ablation"))
   output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -103,7 +113,7 @@ def run(config):
   losses = {}
   timings = {}
   try:
-    for mode in _MODE_CALLERS:
+    for mode in mode_names:
       normalizations.rms_norm = (
           original_rms_norm
           if mode == "current"

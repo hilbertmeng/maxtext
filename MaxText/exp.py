@@ -812,7 +812,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl(
 ):
     """Add btn output and replicated P_loc_up to PackedOnly with the same mapped initialization."""
     # code_commit: 71bc14e
-    # ~0.531 steps/s; running; compare mapped PackedOnly.
+    # ~0.531 steps/s; stopped 1,591. mean dloss -.0038 vs mapped PackedOnly @800–1,400.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl'
     bam_factorized_head_output_layout = 'btn'
     bam_replicate_ploc_up = True
@@ -822,8 +822,26 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateNativeControl(
     BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl
 ):
     """Native packed initialization with btn output and replicated P_loc_up."""
+    # code_commit: 340156e
+    # ~0.532 steps/s; stopped 48. Exactly reproduced old eps1e4 at every step.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateNativeControl'
     bam_factorized_head_output_layout = 'btn'
+    bam_replicate_ploc_up = True
+
+
+class BamLlama2MediumDirectPLocR256GeluPackedBtnNativeControl(
+    BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl
+):
+    """Native packed initialization with btn output only."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnNativeControl'
+    bam_factorized_head_output_layout = 'btn'
+
+
+class BamLlama2MediumDirectPLocR256GeluPackedReplicateNativeControl(
+    BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl
+):
+    """Native packed initialization with replicated P_loc_up only."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedReplicateNativeControl'
     bam_replicate_ploc_up = True
 
 

@@ -827,6 +827,25 @@ class BamLlama2MediumV2(
     bam_write_outer_implementation = 'mul_reduce'
 
 
+class BamLlama2MediumV2ReadDiagonalOneControl(
+    BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl
+):
+    """V2 2x2 control: diagonal-one read path without multiply-reduce writes."""
+    model_name = 'BamLlama2MediumV2ReadDiagonalOneControl'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_share_full_local_read = False
+    bam_combine_full_local_read = False
+    bam_fetch_diagonal_one = True
+
+
+class BamLlama2MediumV2WriteMulControl(
+    BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl
+):
+    """V2 2x2 control: multiply-reduce writes with the original combined read."""
+    model_name = 'BamLlama2MediumV2WriteMulControl'
+    bam_write_outer_implementation = 'mul_reduce'
+
+
 class BamDirectPLocR256GeluBf16PackedSixLayerProfile(
     TrainStepProfile, BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK
 ):

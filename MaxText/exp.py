@@ -811,6 +811,8 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl(
     BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl
 ):
     """Add btn output and replicated P_loc_up to PackedOnly with the same mapped initialization."""
+    # code_commit: 71bc14e
+    # ~0.531 steps/s; running; compare mapped PackedOnly.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl'
     bam_factorized_head_output_layout = 'btn'
     bam_replicate_ploc_up = True

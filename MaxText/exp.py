@@ -287,6 +287,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_source = 'std+cross+local_o'
     bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail | static
     bam_write_u2_norm = 'rms'        # rms | grouped_rms_bias (o_tail only)
+    bam_write_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
@@ -760,6 +761,14 @@ class BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl(
     bam_read_gate_init = 0.005
     bam_factorized_head_output_layout = 'bnt'
     steps = 2800
+
+
+class BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control(
+    BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl
+):
+    """Keep fp32 read RMS statistics but restore historical write-side bf16 statistics."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control'
+    bam_write_rms_statistics_dtype = 'activation'
 
 
 class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(

@@ -27,12 +27,12 @@ DEFAULT_RMS_EPSILON = 1e-6
 
 def rms_norm(x: jnp.ndarray, *, dtype: Any,
              epsilon: float = DEFAULT_RMS_EPSILON,
-             axis: int = -1) -> jnp.ndarray:
-    """Parameter-free RMS normalization with fp32 statistics."""
-    x = jnp.asarray(x)
-    x = jnp.asarray(x, jnp.float32)
-    mean2 = jnp.mean(lax.square(x), axis=axis, keepdims=True)
-    return jnp.asarray(x * lax.rsqrt(mean2 + epsilon), dtype)
+             axis: int = -1,
+             statistics_dtype: Any = jnp.float32) -> jnp.ndarray:
+    """Parameter-free RMS normalization with configurable statistics dtype."""
+    x_stats = jnp.asarray(x, statistics_dtype)
+    mean2 = jnp.mean(lax.square(x_stats), axis=axis, keepdims=True)
+    return jnp.asarray(x_stats * lax.rsqrt(mean2 + epsilon), dtype)
 
 
 class RMSNorm(nn.Module):

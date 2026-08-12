@@ -15,8 +15,10 @@ import checkpointing
 def _restore_params(path):
   checkpointer = ocp.PyTreeCheckpointer()
   metadata = checkpointer.metadata(path).item_metadata.tree["params"]
+  host_sharding = jax.sharding.SingleDeviceSharding(jax.devices("cpu")[0])
   abstract = jax.tree.map(
-      lambda x: jax.ShapeDtypeStruct(x.shape, x.dtype), metadata)
+      lambda x: jax.ShapeDtypeStruct(
+          x.shape, x.dtype, sharding=host_sharding), metadata)
   restore_args = ocp.checkpoint_utils.construct_restore_args(abstract)
   restored = checkpointer.restore(
       path,

@@ -744,6 +744,8 @@ class BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):
     """Old Direct layout/epsilon with only BAM RMS statistics promoted to fp32."""
+    # code_commit: c7ded95
+    # ~0.509 steps/s; running; compare Direct.
     model_name = 'BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl'
     bam_read_key_epsilon = 1e-4
     bam_read_gate_init = 0.005
@@ -755,6 +757,8 @@ class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(
     BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl
 ):
     """Packed LocalQK projection from the control's exactly mapped step-0 params."""
+    # code_commit: 0223a7c
+    # ~0.523 steps/s (+2.8% vs fp32 RMS control); running.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl'
     bam_pack_factorized_local_qk = True
     bam_replicate_ploc_up = False

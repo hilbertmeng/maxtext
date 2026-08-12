@@ -513,7 +513,9 @@ class AttentionOp(nn.Module):#
     input_q: Array = None,
     input_kv: Array = None,
     eos_sum: Array | None = None,
+    cache_namespace: str = "",
 ):
+    del cache_namespace  # Direct DCMHA training has no KV-cache variables.
     cfg = self.config
 
     pre_proj_dw_args, post_proj_dw_args = (None, ) * 6, (None, ) * 6

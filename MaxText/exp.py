@@ -776,6 +776,8 @@ class BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro(
     BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control
 ):
     """Current code with historical bf16 statistics for BAM read and write RMS."""
+    # code_commit: 65ddfec
+    # ~0.512 steps/s; running; compare Direct and Fp32RMS.
     model_name = 'BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro'
     bam_read_rms_statistics_dtype = 'activation'
 

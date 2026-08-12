@@ -793,7 +793,7 @@ class BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK(
 ):
     """Bf16 BAM RMS with packed factorized LocalQK and the default sharded P_loc_up."""
     # code_commit: fd29121
-    # ~0.525 steps/s (+2.5% vs Direct); running.
+    # ~0.521 steps/s; stopped 5,755. dloss ~0 vs Direct, ~+.0023 vs fp32 Native.
     model_name = 'BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK'
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'
@@ -807,10 +807,22 @@ class BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl(
 ):
     """Packed LocalQK with fp32 BAM read/write RMS statistics."""
     # code_commit: 9e1fe2f
-    # ~0.524 steps/s; running.
+    # ~0.521 steps/s; stopped 2,382. Loss exactly matched historical fp32 Native.
     model_name = 'BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl'
     bam_read_rms_statistics_dtype = 'float32'
     bam_write_rms_statistics_dtype = 'float32'
+
+
+class BamLlama2MediumV2(
+    BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl
+):
+    """Current capability milestone with validated equivalent fast read/write paths."""
+    model_name = 'BamLlama2MediumV2'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_share_full_local_read = False
+    bam_combine_full_local_read = False
+    bam_fetch_diagonal_one = True
+    bam_write_outer_implementation = 'mul_reduce'
 
 
 class BamDirectPLocR256GeluBf16PackedSixLayerProfile(

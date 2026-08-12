@@ -831,6 +831,8 @@ class BamLlama2MediumV2ReadDiagonalOneControl(
     BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl
 ):
     """V2 2x2 control: diagonal-one read path without multiply-reduce writes."""
+    # code_commit: 8e125ee
+    # !? ~0.513 steps/s (-1.5% vs fp32 Native); running loss diagnostic.
     model_name = 'BamLlama2MediumV2ReadDiagonalOneControl'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False

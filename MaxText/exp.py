@@ -740,6 +740,17 @@ class BamLlama2MediumDirectPLocR256GeluReadEps1e4Control(
     steps = 300
 
 
+class BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl(
+    BamLlama2MediumDirectPLocR256Gelu
+):
+    """Old Direct layout/epsilon with only BAM RMS statistics promoted to fp32."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl'
+    bam_read_key_epsilon = 1e-4
+    bam_read_gate_init = 0.005
+    bam_factorized_head_output_layout = 'bnt'
+    steps = 2800
+
+
 class BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):

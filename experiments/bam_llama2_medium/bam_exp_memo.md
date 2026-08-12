@@ -324,3 +324,27 @@ Window256+keep-first-4 的 loss 分别为 `2.498772/2.498375`，相对未压缩 
 `0.372531/0.298635/0.398787` 降至 `0.371736/0.298052/0.398147`，也只改善
 `0.21%/0.20%/0.16%`。因此 token-0 sink 真实存在，但不是 Window256 失效的主要原因。
 完整结果：`/data0/xd/bam_diagnostics/bam_window_prefix4_diagnostics_d3c17a6_final.json`。
+
+## PackedLocalQK stable-gap root cause
+
+The `~+0.0034` loss gap of
+`BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4` versus Direct is caused by
+`bam_replicate_ploc_up=True`, not the packed projection, `btn` output layout, or native packed
+initializer:
+
+- `btn`-only exactly matched native PackedOnly at every common step 0–41 (max loss error 0).
+- replicated-`P_loc_up`-only exactly matched the old eps1e4 run at every common step 0–56
+  (max loss error 0); adding `btn` also matched it exactly through step 48.
+- Native PackedOnly's initialization transient vanished: mean dloss `-0.0010` versus Direct over
+  steps 1,800–2,600, while it remained about `-0.0051` better than the replicated old run.
+- A mapped-step-0 control fixes parameter initialization yet diverges immediately when replication
+  is enabled (loss differences appear by step 2), excluding different initial parameter values.
+
+The flag changes `P_loc_up/kernel` axes from `('embed','q_heads','v_factor')` to
+`(None,'q_heads','v_factor')`. On v5p-16 the `embed` logical axis maps to the 8-way FSDP mesh, so
+this changes the 256-dimensional input axis from 8-way sharded to replicated. The mathematical
+projection is unchanged, but its FSDP path changes from parameter all-gather/gradient reduce-scatter
+to replicated computation/gradient all-reduce. Different collective and dot reduction order creates
+small floating-point differences, which training amplifies into a different trajectory. Replication
+gives about 1.5% speed, but this run's trajectory is persistently worse, so capability comparisons
+should keep `bam_replicate_ploc_up=False`.

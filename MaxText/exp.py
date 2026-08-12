@@ -802,7 +802,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl(
 ):
     """PackedOnly with its native initialization instead of mapped unpacked parameters."""
     # code_commit: 08ffab2
-    # ~0.522 steps/s; running; compare mapped PackedOnly.
+    # ~0.522 steps/s; completed 2,800. mean dloss -.0010 vs Direct @1,800–2,600; init transient vanished.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl'
     load_parameters_path = ''
 
@@ -833,6 +833,8 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnNativeControl(
     BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl
 ):
     """Native packed initialization with btn output only."""
+    # code_commit: 24d5d8b
+    # ~0.524 steps/s; stopped 41. Exactly matched NativeOnly at every step (max error 0).
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnNativeControl'
     bam_factorized_head_output_layout = 'btn'
 
@@ -841,6 +843,8 @@ class BamLlama2MediumDirectPLocR256GeluPackedReplicateNativeControl(
     BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl
 ):
     """Native packed initialization with replicated P_loc_up only."""
+    # code_commit: 24d5d8b
+    # ~0.531 steps/s; stopped 56. Exactly matched old eps1e4 at every step (max error 0).
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedReplicateNativeControl'
     bam_replicate_ploc_up = True
 
@@ -884,6 +888,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4(
 ):
     """Paired PackedLocalQK control retaining the historical 1e-4 read epsilon."""
     # code_commit: 59054dc
+    # ~0.529 steps/s; stopped 13,271. dloss ~+.0034 vs Direct; caused by replicated P_loc_up.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4'
     bam_read_key_epsilon = 1e-4
 

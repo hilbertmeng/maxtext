@@ -805,7 +805,8 @@ class BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl(
     BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK
 ):
     """Packed LocalQK with fp32 BAM read/write RMS statistics."""
-    # running.
+    # code_commit: 9e1fe2f
+    # ~0.524 steps/s; running.
     model_name = 'BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl'
     bam_read_rms_statistics_dtype = 'float32'
     bam_write_rms_statistics_dtype = 'float32'

@@ -783,6 +783,14 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4(
     bam_read_key_epsilon = 1e-4
 
 
+class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4Diagnostics(
+    BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4
+):
+    """Inference-only randomized Pile diagnostics for the eps1e-4 checkpoint."""
+    eval_shuffle_buffer_size = 32768
+    tensorboard_dir = "/tmp/bam_rms_ablation_tb/"
+
+
 class BamLlama2MediumDirectOTailGroupedRMSNormBias(
     BamLlama2MediumV1CompressAbsV8Direct
 ):

@@ -770,6 +770,16 @@ class BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control(
     """Keep fp32 read RMS statistics but restore historical write-side bf16 statistics."""
     model_name = 'BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control'
     bam_write_rms_statistics_dtype = 'activation'
+    steps = 13500
+
+
+class BamLlama2MediumDirectPLocR256GeluReadBf16WriteFp32Control(
+    BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl
+):
+    """Keep fp32 write RMS statistics but restore historical read-side bf16 statistics."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluReadBf16WriteFp32Control'
+    bam_read_rms_statistics_dtype = 'activation'
+    steps = 13500
 
 
 class BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro(

@@ -781,7 +781,7 @@ class BamLlama2MediumDirectPLocR256GeluReadBf16WriteFp32Control(
 ):
     """Keep fp32 write RMS statistics but restore historical read-side bf16 statistics."""
     # code_commit: 01818cb
-    # ~0.515 steps/s; running.
+    # ~0.510 steps/s; stopped 2,800. mean dloss +.0036 vs Direct @1,800–2,800; ~= read-fp32.
     model_name = 'BamLlama2MediumDirectPLocR256GeluReadBf16WriteFp32Control'
     bam_read_rms_statistics_dtype = 'activation'
     steps = 13500

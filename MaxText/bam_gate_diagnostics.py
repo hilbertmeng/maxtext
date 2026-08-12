@@ -25,6 +25,7 @@ import numpy as np
 import max_utils
 import pyconfig
 from input_pipeline.input_pipeline_interface import create_data_iterator
+from layers import normalizations
 import train
 
 
@@ -129,11 +130,9 @@ def _forward(model, config, params, biases, batch, rng, stride):
         values["W_lk_gate"], biases[layer]["local_k"])
 
     def normalize_head_mix(raw):
-      raw = jnp.asarray(raw, jnp.float32)
-      normalized = raw * jax.lax.rsqrt(
-          jnp.mean(jnp.square(raw), axis=-2, keepdims=True)
-          + config.bam_read_key_epsilon)
-      return jnp.asarray(normalized, config.dtype)
+      return normalizations.rms_norm(
+          raw, dtype=config.dtype,
+          epsilon=config.normalization_layer_epsilon, axis=-2)
 
     sampled[layer] = {
         "write_gate": _sigmoid_with_compute_dtype(

@@ -10,6 +10,7 @@ Environment controls:
   BAM_DIAG_OUTPUT_DIR    Local output directory (default: /tmp/bam_diagnostics).
   BAM_DIAG_SAVE_RAW      Save sampled arrays (default: 1).
   BAM_DIAG_RAW_LAYERS    Optional comma-separated layers to save, e.g. 17,23.
+  BAM_DIAG_KEYS_ONLY     Return only full/local_o key transform stages and rank statistics.
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ import train
 
 
 _READ_PROJECTION_NAMES = frozenset(("W_R", "W_Ro", "W_lq", "W_lk", "W_beta"))
+_READ_KEY_STAGES = ("pre_rms", "post_rms_pre_gate", "post_gate")
 _LAYER_RE = re.compile(r"layers_(\d+)")
 _EPS = 1.0e-12
 
@@ -311,6 +313,109 @@ def _full_fetch_stats(layer_raw: dict[str, np.ndarray]) -> dict[str, Any]:
   return output
 
 
+def _key_matrix_rank_stats(
+    keys: np.ndarray, *, group_name: str | None = None
+) -> dict[str, Any]:
+  """Rank concentration for [..., matrix_rows, key_width] runtime-key matrices."""
+  keys = np.asarray(keys, np.float32)
+  gram = np.einsum("...fd,...gd->...fg", keys, keys)
+  eigenvalues = np.maximum(np.linalg.eigvalsh(gram)[..., ::-1], 0.0)
+  total_energy = np.sum(eigenvalues, axis=-1)
+  valid = total_energy > _EPS
+  top1 = np.where(valid, eigenvalues[..., 0] / np.maximum(total_energy, _EPS), np.nan)
+  rank1_error = np.sqrt(np.maximum(1.0 - top1, 0.0))
+  if eigenvalues.shape[-1] > 1:
+    second_to_first = np.sqrt(
+        eigenvalues[..., 1] / np.maximum(eigenvalues[..., 0], _EPS))
+  else:
+    second_to_first = np.zeros_like(top1)
+
+  batch_size = keys.shape[0]
+  per_sequence = top1.reshape(batch_size, -1)
+  top1_stats = _stats(top1)
+  top1_finite = _finite(top1)
+  top1_stats["p10"] = (
+      float(np.percentile(top1_finite, 10)) if top1_finite.size else float("nan"))
+  output = {
+      "matrix_shape": list(keys.shape[-2:]),
+      "matrix_count": int(np.prod(keys.shape[:-2])),
+      "nonzero_fraction": float(np.mean(valid)),
+      "top1_energy_fraction": top1_stats,
+      "rank1_relative_fro_error": _stats(rank1_error),
+      "second_to_first_singular_ratio": _stats(second_to_first),
+      "per_sequence_median_top1": _stats(np.nanmedian(per_sequence, axis=1)),
+  }
+  if group_name is not None:
+    groups = np.moveaxis(top1, -1, 0).reshape(top1.shape[-1], -1)
+    output[f"per_{group_name}_median_top1"] = np.nanmedian(groups, axis=1).tolist()
+  return output
+
+
+def _read_key_rank_stats(
+    layer_raw: dict[str, np.ndarray], bam_k: int
+) -> dict[str, Any]:
+  """Join full fetch and local_o keys and measure each transform stage by side."""
+  output = {}
+  for stage in _READ_KEY_STAGES:
+    full = np.asarray(layer_raw[f"read_key_W_R_{stage}"], np.float32)  # [b,t,n,f,k+v]
+    local_name = f"read_key_W_Ro_{stage}"
+    # CombinedRead intentionally evaluates the shared key once, so there is no
+    # separate W_Ro capture.  Its n_f=1 local key is exactly the W_R fetch key.
+    local_o = (
+        np.asarray(layer_raw[local_name], np.float32)
+        if local_name in layer_raw
+        else full[..., 0, :]
+    )
+    if full.shape[:-2] != local_o.shape[:-1] or full.shape[-1] != local_o.shape[-1]:
+      raise ValueError(
+          f"Incompatible full/local_o key shapes at {stage}: {full.shape}, {local_o.shape}")
+    keys = np.concatenate((full, local_o[..., None, :]), axis=-2)
+    output[stage] = {
+        "row": _key_matrix_rank_stats(keys[..., :bam_k], group_name="head"),
+        "column": _key_matrix_rank_stats(keys[..., bam_k:], group_name="head"),
+    }
+  return output
+
+
+def _head_axis_read_key_rank_stats(
+    layer_raw: dict[str, np.ndarray], bam_k: int
+) -> dict[str, Any]:
+  """Fix each read source and measure rank across heads; also join sources per head."""
+  output = {}
+  for stage in _READ_KEY_STAGES:
+    full = np.asarray(layer_raw[f"read_key_W_R_{stage}"], np.float32)  # [b,t,n,f,k+v]
+    local_name = f"read_key_W_Ro_{stage}"
+    local_o = (
+        np.asarray(layer_raw[local_name], np.float32)
+        if local_name in layer_raw
+        else full[..., 0, :]
+    )
+    if full.shape[:-2] != local_o.shape[:-1] or full.shape[-1] != local_o.shape[-1]:
+      raise ValueError(
+          f"Incompatible full/local_o key shapes at {stage}: {full.shape}, {local_o.shape}")
+
+    sources = {f"fetch_{fetch}": full[..., fetch, :] for fetch in range(full.shape[-2])}
+    sources["local_o"] = local_o
+    stage_output = {
+        source: {
+            "row": _key_matrix_rank_stats(keys[..., :bam_k]),
+            "column": _key_matrix_rank_stats(keys[..., bam_k:]),
+        }
+        for source, keys in sources.items()
+    }
+
+    # Each head is one row.  Concatenating source features asks whether heads share a
+    # low-dimensional joint full-fetch/local_o key pattern, without mixing row/column keys.
+    joint_row = np.concatenate([keys[..., :bam_k] for keys in sources.values()], axis=-1)
+    joint_column = np.concatenate([keys[..., bam_k:] for keys in sources.values()], axis=-1)
+    stage_output["joint"] = {
+        "row": _key_matrix_rank_stats(joint_row),
+        "column": _key_matrix_rank_stats(joint_column),
+    }
+    output[stage] = stage_output
+  return output
+
+
 def _parameter_summary(params: dict[str, Any]) -> dict[str, Any]:
   """Summarize W_R kernels only; do not retain checkpoint arrays on host."""
   output = {}
@@ -415,7 +520,7 @@ def _save_sample(output_dir: Path, batch_index: int, layers: dict[int, dict[str,
   np.savez_compressed(output_dir / f"bam_raw_batch_{batch_index:02d}.npz", **arrays)
 
 
-def _forward(model, config, params, batch, rng, stride):
+def _forward(model, config, params, batch, rng, stride, keys_only):
   rng1, aqt_rng = jax.random.split(rng)
   (xent, correct, _), collections = model.apply(
       params,
@@ -426,14 +531,27 @@ def _forward(model, config, params, batch, rng, stride):
       decoder_target_tokens=batch["targets"],
       enable_dropout=False,
       rngs={"dropout": rng1, "params": aqt_rng},
-      mutable=["bam_raw", "intermediates"],
-      capture_intermediates=_capture_read_projections,
+      mutable=["bam_raw"] if keys_only else ["bam_raw", "intermediates"],
+      capture_intermediates=False if keys_only else _capture_read_projections,
   )
   mask = batch["targets_segmentation"] != 0
   total_loss = jnp.sum(xent * mask)
   total_weights = jnp.sum(mask)
   sequence_weights = jnp.sum(mask, axis=-1)
   grouped = _group_raw_by_layer(collections)
+  if keys_only:
+    read_key_names = {
+        f"read_key_{projection}_{stage}"
+        for projection in ("W_R", "W_Ro")
+        for stage in _READ_KEY_STAGES
+    }
+    grouped = {
+        layer: {
+            name: value for name, value in layer_raw.items()
+            if name in read_key_names
+        }
+        for layer, layer_raw in grouped.items()
+    }
   sampled = {
       layer: _sample_layer_on_device(layer_raw, stride) for layer, layer_raw in grouped.items()
   }
@@ -458,6 +576,7 @@ def run(config) -> None:
   stride = int(os.environ.get("BAM_DIAG_TOKEN_STRIDE", "32"))
   output_dir = Path(os.environ.get("BAM_DIAG_OUTPUT_DIR", "/tmp/bam_diagnostics"))
   save_raw = os.environ.get("BAM_DIAG_SAVE_RAW", "1").lower() not in ("0", "false", "no")
+  keys_only = os.environ.get("BAM_DIAG_KEYS_ONLY", "0").lower() in ("1", "true", "yes")
   raw_layers_text = os.environ.get("BAM_DIAG_RAW_LAYERS", "").strip()
   raw_layers = {int(layer) for layer in raw_layers_text.split(",") if layer.strip()}
   if num_batches <= 0 or stride <= 0:
@@ -471,13 +590,13 @@ def run(config) -> None:
   state, _, _, _ = max_utils.setup_training_state(
       model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager
   )
-  parameter_summary = _parameter_summary(state.params)
+  parameter_summary = {} if keys_only else _parameter_summary(state.params)
   setup_seconds = time.perf_counter() - run_start
 
   # Slice diagnostic values before they leave the compiled computation.  Returning the full
   # mutable collection at batch=32 would itself consume tens of GiB.
   compiled_forward = jax.jit(
-      lambda params, batch, rng: _forward(model, config, params, batch, rng, stride)
+      lambda params, batch, rng: _forward(model, config, params, batch, rng, stride, keys_only)
   )
   summaries = []
   metadata = {
@@ -488,6 +607,7 @@ def run(config) -> None:
       "eval_shuffle_buffer_size": config.eval_shuffle_buffer_size,
       "data_shuffle_seed": config.data_shuffle_seed,
       "save_raw": save_raw,
+      "keys_only": keys_only,
       "raw_layers": sorted(raw_layers),
       "setup_seconds": setup_seconds,
       "device_count": jax.device_count(),
@@ -523,12 +643,23 @@ def run(config) -> None:
     segment_ids = batch_sample["segments"]
 
     stats_start = time.perf_counter()
-    layer_summaries = {
-        f"layer_{layer:02d}": _layer_summary(
-            layer_raw, token_positions, segment_ids, float(config.bam_lambda_decay)
-        )
-        for layer, layer_raw in sampled_host.items()
-    }
+    if keys_only:
+      layer_summaries = {
+          f"layer_{layer:02d}": {
+              "read_key_rank": _read_key_rank_stats(layer_raw, int(config.bam_k)),
+              "head_axis_read_key_rank": _head_axis_read_key_rank_stats(
+                  layer_raw, int(config.bam_k)
+              ),
+          }
+          for layer, layer_raw in sampled_host.items()
+      }
+    else:
+      layer_summaries = {
+          f"layer_{layer:02d}": _layer_summary(
+              layer_raw, token_positions, segment_ids, float(config.bam_lambda_decay)
+          )
+          for layer, layer_raw in sampled_host.items()
+      }
     metric_host = jax.device_get(batch_metrics)
     metric_values = {
         key: float(value)
@@ -564,12 +695,28 @@ def run(config) -> None:
     }
     summaries.append(batch_summary)
 
-    print(
-        f"BAM_DIAG batch={batch_index} loss={metric_values['loss']:.6f} "
-        f"layer23_gate={layer_summaries['layer_23']['write_gate']['mean']:.4f} "
-        f"layer23_read_ratio={layer_summaries['layer_23']['read']['combined_to_standard']['p50']:.4f}",
-        flush=True,
-    )
+    if keys_only:
+      layer23_rank = layer_summaries["layer_23"]["read_key_rank"]
+      layer23_head_rank = layer_summaries["layer_23"]["head_axis_read_key_rank"]
+      print(
+          f"BAM_DIAG batch={batch_index} loss={metric_values['loss']:.6f} "
+          + " ".join(
+              f"layer23_{stage}="
+              f"{layer23_rank[stage]['row']['top1_energy_fraction']['p50']:.4f}/"
+              f"{layer23_rank[stage]['column']['top1_energy_fraction']['p50']:.4f}"
+              for stage in _READ_KEY_STAGES),
+          f"layer23_head_post_gate_joint="
+          f"{layer23_head_rank['post_gate']['joint']['row']['top1_energy_fraction']['p50']:.4f}/"
+          f"{layer23_head_rank['post_gate']['joint']['column']['top1_energy_fraction']['p50']:.4f}",
+          flush=True,
+      )
+    else:
+      print(
+          f"BAM_DIAG batch={batch_index} loss={metric_values['loss']:.6f} "
+          f"layer23_gate={layer_summaries['layer_23']['write_gate']['mean']:.4f} "
+          f"layer23_read_ratio={layer_summaries['layer_23']['read']['combined_to_standard']['p50']:.4f}",
+          flush=True,
+      )
 
   report = {
       "metadata": metadata,

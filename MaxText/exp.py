@@ -721,6 +721,15 @@ class BamLlama2MediumDirectPLocR256Gelu(BamLlama2MediumDirectPLocR256):
     bam_write_v_bottleneck_activation = 'gelu'
 
 
+class BamLlama2MediumDirectPLocR256GeluRecover(  # for mqy
+    BamLlama2MediumDirectPLocR256Gelu
+):
+    bam_read_key_epsilon = 1e-4
+    bam_read_gate_init = 0.005
+    bam_replicate_ploc_up = True
+    sharding_tolerance = 0.06
+
+
 class BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):

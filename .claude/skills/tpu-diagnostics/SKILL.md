@@ -58,7 +58,7 @@ comparisons, then verify the winning combination with full layers.
   paired arms directly and serially, collect the complete profile set, then delete it. Keep
   `auto-train` detached from profile TPUs.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
-  step**; at step 30–40, `SIGKILL` the exact no-checkpoint RUN on all workers, then require
+  step**; measure steps 10–14, then `SIGKILL` the exact no-checkpoint RUN on all workers and require
   `pgrep` empty before the next arm.
 - Compare stable log speed and all-device XPlane step time; split read-key projection, gate,
   transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.

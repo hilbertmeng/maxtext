@@ -2145,7 +2145,7 @@ def factorized_head_bam_read(
              if y_u is not None else None)
       y_v = (jnp.einsum('btv,btn->bntv', y_v, row_mix)
              if y_v is not None else None)
-    else:
+    else:  # V1 default
       y_u = (jnp.einsum('btk,btn->btnk', y_u, col_mix)
              if y_u is not None else None)
       y_v = (jnp.einsum('btv,btn->btnv', y_v, row_mix)
@@ -2803,7 +2803,7 @@ class BamAttention(Attention):
 
   def _read_local_qk(self, Mh, inputs_q):
     """Read the local matrix into Q/K; callers choose the injection point."""
-    if self._pack_factorized_local_qk:  # V1 default
+    if self._pack_factorized_local_qk:
       with jax.named_scope("bam/local_qk_packed_projection"):
         packed = self.W_local_qk_packed(inputs_q)
       key_width = self.bam_k + self.bam_v
@@ -2846,7 +2846,7 @@ class BamAttention(Attention):
         {'rms_epsilon': self._read_key_epsilon}
         if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lk_gate', inputs_q))
-    if self._local_qk_key_mode == 'factorized':
+    if self._local_qk_key_mode == 'factorized':   # V1 default
       q_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
           **local_qk_q_kwargs, implementation=self._read_implementation,

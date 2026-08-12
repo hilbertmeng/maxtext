@@ -818,6 +818,15 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl(
     bam_replicate_ploc_up = True
 
 
+class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateNativeControl(
+    BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl
+):
+    """Native packed initialization with btn output and replicated P_loc_up."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateNativeControl'
+    bam_factorized_head_output_layout = 'btn'
+    bam_replicate_ploc_up = True
+
+
 class BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):

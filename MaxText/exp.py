@@ -827,6 +827,7 @@ class BamDirectPLocR256GeluBf16PackedSourceMulSixLayerProfile(
     BamDirectPLocR256GeluBf16PackedSixLayerProfile
 ):
     """Paired profile using multiply+reduce for AbsV source compression."""
+    # ~1.383 vs 1.399 steps/s; XPlane 716.26 vs 708.95 ms (+1.03%, slower).
     model_name = 'BamDirectPLocR256GeluBf16PackedSourceMulSixLayerProfile'
     bam_abs_v_source_implementation = 'mul_reduce'
 

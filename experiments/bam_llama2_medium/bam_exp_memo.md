@@ -423,3 +423,20 @@ bf16/fp32 packed实测速度近乎相同。
    回收速度，不是新瓶颈。
 
 原始结果：`/data0/xd/bam_diagnostics/clean_profile_9fb6720_v6e/`。
+
+### AbsV source compression配对
+
+同一 `v6e-1`、六层图、step 10–14，只把 `bskv,vc->bskc` 从dot改为broadcast
+multiply+reduce：
+
+| 路径 | 稳态 step/s | XPlane step | source compression | fetch M总scope | BAM总scope |
+|---|---:|---:|---:|---:|---:|
+| dot | **1.399** | **708.95 ms** | **9.99 ms** | **17.16 ms** | **210.74 ms** |
+| multiply+reduce | 1.383 | 716.26 ms | 15.24 ms | 24.50 ms | 218.94 ms |
+| 变化 | -1.14% | +1.03% | +52.5% | +42.8% | +3.89% |
+
+multiply+reduce无效且明确更慢。XPlane中它生成独立的
+`multiply_reduce_fusion`，反向仍伴随大块output copy；没有像较早的read-M contraction那样
+借由融合消除不利dot lowering。scope重归属也使后续temporal contraction从7.17升到8.71 ms，
+所以最终以完整step判负，生产默认保留dot。配对结果：
+`/data0/xd/bam_diagnostics/clean_source_mul_2386d1d_v6e/`。

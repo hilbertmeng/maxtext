@@ -801,6 +801,16 @@ class BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK(
     bam_read_gate_init = 0.005
 
 
+class BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl(
+    BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK
+):
+    """Packed LocalQK with fp32 BAM read/write RMS statistics."""
+    # running.
+    model_name = 'BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl'
+    bam_read_rms_statistics_dtype = 'float32'
+    bam_write_rms_statistics_dtype = 'float32'
+
+
 class BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro(
     BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control
 ):

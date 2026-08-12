@@ -787,6 +787,18 @@ class BamLlama2MediumDirectPLocR256GeluReadBf16WriteFp32Control(
     steps = 13500
 
 
+class BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK(
+    BamLlama2MediumDirectPLocR256Gelu
+):
+    """Bf16 BAM RMS with packed factorized LocalQK and the default sharded P_loc_up."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK'
+    bam_read_rms_statistics_dtype = 'activation'
+    bam_write_rms_statistics_dtype = 'activation'
+    bam_pack_factorized_local_qk = True
+    bam_read_key_epsilon = 1e-4
+    bam_read_gate_init = 0.005
+
+
 class BamLlama2MediumDirectPLocR256GeluBf16BamRmsRepro(
     BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control
 ):

@@ -737,6 +737,7 @@ class BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl(
 ):
     """Current RMS implementation with no packed or replicated projection changes."""
     # code_commit: 1a11262
+    # stopped 245. dloss +.481 vs Direct @200; confounded by eps1e-6/gate .0005.
     model_name = 'BamLlama2MediumDirectPLocR256GeluRmsNormRefactorControl'
     steps = 2800
 
@@ -769,7 +770,7 @@ class BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control(
 ):
     """Keep fp32 read RMS statistics but restore historical write-side bf16 statistics."""
     # code_commit: 6e3ef40
-    # ~0.512 steps/s; running.
+    # ~0.512 steps/s; stopped 2,846. mean dloss +.0034 vs Direct @1,800–2,800.
     model_name = 'BamLlama2MediumDirectPLocR256GeluReadFp32WriteBf16Control'
     bam_write_rms_statistics_dtype = 'activation'
     steps = 13500
@@ -876,7 +877,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(
 ):
     """Replicated P_loc_up plus one packed factorized LocalQK projection."""
     # code_commit: da3a5e6
-    # ~0.533 steps/s; replicated P_loc_up alone ~0.521 (+1.46%), packed total +3.73% vs R256-GELU.
+    # ~0.533 steps/s; stopped 2,295. dloss +.0598 vs Direct @2,200; gate .0005 is too closed.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQK'
     bam_replicate_ploc_up = True
     bam_pack_factorized_local_qk = True
@@ -901,6 +902,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4(
     """Paired PackedLocalQK control retaining the historical 1e-4 read epsilon."""
     # code_commit: 59054dc
     # ~0.529 steps/s; stopped 13,271. dloss ~+.0034 vs Direct; caused by replicated P_loc_up.
+    # @1,800–2,600: fp32 RMS +.0041, packed -.0042, native init -.0009, btn 0, replicate +.0051 => +.0042.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQKReadGateInit005Eps1e4'
     bam_read_key_epsilon = 1e-4
 

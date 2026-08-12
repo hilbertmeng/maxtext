@@ -751,6 +751,19 @@ class BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl(
     steps = 2800
 
 
+class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(
+    BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl
+):
+    """Packed LocalQK projection from the control's exactly mapped step-0 params."""
+    model_name = 'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl'
+    bam_pack_factorized_local_qk = True
+    bam_replicate_ploc_up = False
+    sharding_tolerance = 0.06
+    load_parameters_path = (
+        'gs://newproject-1-llm_base_models_us-central1/log/diagnostics/'
+        'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInit/items')
+
+
 class BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl(
     BamLlama2MediumDirectPLocR256Gelu
 ):

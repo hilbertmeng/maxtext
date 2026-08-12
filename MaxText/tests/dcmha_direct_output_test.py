@@ -79,7 +79,14 @@ class MinimalDcmhaPosttrainTest(unittest.TestCase):
         jax.random.key(5), query, key, value, segments, input_q=controller, input_kv=controller
     )
     output = module.apply(
-        variables, query, key, value, segments, input_q=controller, input_kv=controller
+        variables,
+        query,
+        key,
+        value,
+        segments,
+        input_q=controller,
+        input_kv=controller,
+        cache_namespace="unused_in_train",
     )
     reference = _plain_gqa(query, key, value)
 

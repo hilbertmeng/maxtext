@@ -801,6 +801,8 @@ class BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl(
     BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl
 ):
     """PackedOnly with its native initialization instead of mapped unpacked parameters."""
+    # code_commit: 08ffab2
+    # ~0.522 steps/s; running; compare mapped PackedOnly.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedOnlyNativeInitControl'
     load_parameters_path = ''
 

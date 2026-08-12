@@ -48,12 +48,14 @@ def _error(actual, reference):
 
 def main():
   b, t, n, k, v = 2, 512, 16, 32, 32
-  keys = jax.random.split(jax.random.PRNGKey(8172), 5)
+  keys = jax.random.split(jax.random.PRNGKey(8172), 6)
   u1 = jax.random.normal(keys[0], (b, t, n, k), dtype=jnp.float32).astype(jnp.bfloat16)
   u2 = jax.random.normal(keys[1], (b, t, n, v), dtype=jnp.float32).astype(jnp.bfloat16)
   upstream = jax.random.normal(keys[2], (b, t, k, v), dtype=jnp.float32).astype(jnp.bfloat16)
   logits = jax.random.normal(keys[3], (b, 1, t, t), dtype=jnp.float32).astype(jnp.bfloat16)
   alpha = jax.nn.softmax(jnp.tril(logits), axis=-1).astype(jnp.bfloat16)
+  read_upstream = jax.random.normal(
+      keys[4], (b, 1, t, k, v), dtype=jnp.float32).astype(jnp.bfloat16)
 
   write_functions = {
       "mul_bf16_reduce": _write_mul,
@@ -79,11 +81,36 @@ def main():
   matrix = dot
   combined = jax.jit(_read_combined)(alpha, matrix)
   diagonal_one = jax.jit(_read_diagonal_one)(alpha, matrix)
-  result["read"]["diagonal_one_vs_combined"] = _error(diagonal_one, combined)
+  combined_grads = jax.grad(
+      lambda route, state: jnp.mean(_read_combined(route, state) * read_upstream), (0, 1)
+  )(alpha, matrix)
+  diagonal_grads = jax.grad(
+      lambda route, state: jnp.mean(_read_diagonal_one(route, state) * read_upstream), (0, 1)
+  )(alpha, matrix)
+  result["read"]["diagonal_one_vs_combined"] = {
+      "value": _error(diagonal_one, combined),
+      "grad_alpha": _error(diagonal_grads[0], combined_grads[0]),
+      "grad_matrix": _error(diagonal_grads[1], combined_grads[1]),
+  }
 
   combined_dot = jax.jit(_read_combined)(alpha, dot)
   combined_mul = jax.jit(_read_diagonal_one)(alpha, jax.jit(_write_mul)(u1, u2))
-  result["read"]["combined_fast_vs_original"] = _error(combined_mul, combined_dot)
+  original_grads = jax.grad(
+      lambda left, right, route: jnp.mean(
+          _read_combined(route, _write_dot(left, right)) * read_upstream),
+      (0, 1, 2),
+  )(u1, u2, alpha)
+  fast_grads = jax.grad(
+      lambda left, right, route: jnp.mean(
+          _read_diagonal_one(route, _write_mul(left, right)) * read_upstream),
+      (0, 1, 2),
+  )(u1, u2, alpha)
+  result["read"]["combined_fast_vs_original"] = {
+      "value": _error(combined_mul, combined_dot),
+      "grad_u1": _error(fast_grads[0], original_grads[0]),
+      "grad_u2": _error(fast_grads[1], original_grads[1]),
+      "grad_alpha": _error(fast_grads[2], original_grads[2]),
+  }
 
   result = jax.device_get(result)
   print(json.dumps(jax.tree.map(lambda x: x.item() if hasattr(x, "item") else x, result), indent=2))

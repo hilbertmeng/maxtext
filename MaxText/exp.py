@@ -791,6 +791,8 @@ class BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK(
     BamLlama2MediumDirectPLocR256Gelu
 ):
     """Bf16 BAM RMS with packed factorized LocalQK and the default sharded P_loc_up."""
+    # code_commit: fd29121
+    # ~0.525 steps/s (+2.5% vs Direct); running.
     model_name = 'BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK'
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'

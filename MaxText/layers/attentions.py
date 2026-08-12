@@ -1114,6 +1114,15 @@ class AttentionOp(nn.Module):
       return prefill_unnormalized_output / prefill_exponentials_sum
 
 
+def uses_dcmha_attention(config, sliding_window_size, attention_kernel):
+  """Returns whether this layer should use the DCMHA attention operator."""
+  return (config.pre_compose or config.post_compose) and (
+      sliding_window_size is None
+      or sliding_window_size < config.max_target_length
+      or attention_kernel == "dot_product_chunk"
+  )
+
+
 class Attention(nn.Module):
   """Generic Attention.
 
@@ -1181,8 +1190,7 @@ class Attention(nn.Module):
   apply_kv_shift: bool = True
 
   def setup(self):
-    if (self.config.pre_compose or self.config.post_compose) \
-      and (self.sliding_window_size < self.config.max_target_length or self.attention_kernel == "dot_product_chunk"):
+    if uses_dcmha_attention(self.config, self.sliding_window_size, self.attention_kernel):
       max_logging.log(f'sws: {self.sliding_window_size} use dc chunk-{self.config.query_chunk_size} attn.', debug=self.config.debug)
       self.attention_op = dc.AttentionOp(self.config, self.quant, self.sliding_window_size)
     else:

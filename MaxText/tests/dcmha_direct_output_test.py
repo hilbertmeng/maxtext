@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 import exp
 import max_utils
-from layers import dc
+from layers import attentions, dc
 
 
 def _config():
@@ -58,6 +58,14 @@ def _plain_gqa(query, key, value):
 
 
 class MinimalDcmhaPosttrainTest(unittest.TestCase):
+
+  def test_attention_setup_accepts_global_and_local_window_values(self):
+    config = _config()
+    config.max_target_length = 128
+    self.assertTrue(attentions.uses_dcmha_attention(config, None, "dot_product"))
+    self.assertTrue(attentions.uses_dcmha_attention(config, 8, "dot_product"))
+    self.assertFalse(attentions.uses_dcmha_attention(config, 128, "dot_product"))
+    self.assertTrue(attentions.uses_dcmha_attention(config, 128, "dot_product_chunk"))
 
   def test_step0_metrics_and_all_new_parameter_gradients(self):
     config = _config()

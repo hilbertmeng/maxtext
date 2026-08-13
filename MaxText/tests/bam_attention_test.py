@@ -10,6 +10,7 @@ from layers import normalizations
 
 from layers.attentions import (
     GroupedRMSNorm,
+    _dynamic_bam_fetch_mix_weights,
     _packed_factorized_local_qk_init,
     _dynamic_mixed_bam_fetch_alpha,
     _mix_and_fetch_bam_chunk,
@@ -29,6 +30,13 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_dynamic_bam_fetch_rms_mix_weights(self):
+    logits = jax.random.normal(jax.random.PRNGKey(13), (2, 4, 3))
+    _, weights = _dynamic_bam_fetch_mix_weights(
+        logits, jnp.bfloat16, 'rms', rms_epsilon=_RMS_EPSILON)
+    self.assertEqual(weights.shape, logits.shape)
+    self.assertEqual(weights.dtype, jnp.bfloat16)
 
   def test_three_input_chunk_fetch_matches_two_stage_values_and_gradients(self):
     key = jax.random.PRNGKey(17)

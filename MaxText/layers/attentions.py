@@ -1780,7 +1780,7 @@ def _dynamic_bam_fetch_mix_weights(
     # RMSNorm alone has L2 norm sqrt(num_heads); divide it out so the signed
     # coefficient vector has unit L2 norm and does not gain amplitude for free.
     normalized = normalizations.rms_norm(
-        mix_logits, dtype=alpha.dtype, epsilon=rms_epsilon)
+        mix_logits, dtype=alpha_dtype, epsilon=rms_epsilon)
     mix_weights = normalized / jnp.sqrt(mix_logits.shape[-1])
   else:
     raise ValueError(f'Unknown dynamic fetch weight mode: {weight_mode}')

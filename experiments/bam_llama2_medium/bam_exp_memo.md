@@ -516,35 +516,35 @@ MHA QK/AV与BAM mix/fetch，而每层write、LocalQK和运行时读键投影仍�
 1.196 steps/s（-28.8%）。保留两阶段实现。
 
 同一dense/C256 BAM配对在v5p-16只提升4.20%（499.11→479.01 ms），而v6e提升15.44%
-（683.15→591.78 ms）。TPU间绝对速度不可直接比较；差异说明v6e对大alpha中间值、布局
-和remat调度更敏感。最终同机full-24 v5p-16配对（commit `8aacdab`）为：
-
-| 配置 | 稳态日志 | XPlane step | 相对dense吞吐 |
-|---|---:|---:|---:|
-| V2 dense | 0.553 steps/s | 1,780.90 ms | — |
-| V2 C256 | 0.575 steps/s | 1,715.14 ms | **+3.83%** |
-
-日志给出+3.98%，与16设备正式step 10–14 XPlane一致。因此C256在目标full-24图上确认
-有效，但收益接近六层v5p的4.20%，明显小于v6e六层的15.44%。
+（683.15→591.78 ms）。TPU间绝对速度不可直接比较；目标full-24结果统一见下表。
 
 ### Full-24 MHA/BAM throughput
 
-All results use v5p-16 and `float32_logits=False`. The three MHA controls were reprofiled on one
-TPU at commit `2c248ad`, using the step 10–14 mean. `BAM/MHA` is the retained training throughput;
-lower means greater BAM overhead.
+Canonical results use `v5p-16`, `B=32,T=2048`, `float32_logits=False`, and the 16-device mean of
+the step 10–14 XPlane. The timing source is UC1a unless marked otherwise; class plus runtime commit
+defines the reproducible configuration.
 
-| Attention | MHA config | MHA steps/s | BAM config | BAM steps/s | BAM/MHA |
+| MHA-only path | Configuration class | Runtime commit | XPlane step | Stable log | Relative result |
+|---|---|---:|---:|---:|---:|
+| standard dense dot | `Llama2MediumDotProductFullLayerProfile` | `f052fa6` | 1,258.65 ms | ~0.786 | reference |
+| `BamAttention` dense | `BamMHAControlDenseFullLayerProfile` | `f052fa6` | 1,276.37 ms | ~0.775 | 1.41% slower than standard dot |
+| `BamAttention` C256, fixed 4D | `BamMHAControlQChunk256FullLayerProfile` | `a1ad13f` | **1,088.61 ms** | **~0.908** | +17.25% throughput vs BAM dense |
+
+The current C256 control removes redundant chunk-local remat but retains the 4D contraction. It is
+6.80% faster than its pre-fix `f052fa6` result (1,162.67 ms, ~0.854 steps/s). An identical EW4b
+run gave 1,083.54 ms/~0.911, only 0.47% faster and with matching device/log direction, so no Pile
+input slowdown was observed; UC1a remains canonical for historical comparability.
+
+Full BAM overhead is only reported for semantically matched control/full paths:
+
+| Attention | MHA-only control class | MHA step | Full BAM class | BAM step | BAM/MHA throughput |
 |---|---|---:|---|---:|---:|
-| Dense global | `Llama2MediumFloat32LogitsFalse` | 0.820 | `BamV2DenseFullLayerProfile` | 0.553 | 67.4% |
-| C256 global | `Llama2MediumQChunk256FullLayerProfile` | 0.933 | `BamV2QChunk256FullLayerProfile` | 0.575 | 61.6% |
-| C256 + LGLL SWA | `Llama2MediumQChunk256LGLLSpeed` | 1.102 | `BamLlama2MediumV2QChunk256LGLL` | 0.693 | 62.9% |
+| dense | `BamMHAControlDenseFullLayerProfile` | 1,276.37 ms | `BamV2DenseFullLayerProfile` | 1,780.90 ms | 71.7% |
+| C256, legacy inner-remat | `BamMHAControlQChunk256FullLayerProfile` @`f052fa6` | 1,162.67 ms | `BamV2QChunk256FullLayerProfile` | 1,715.14 ms | 67.8% |
+| C256, fixed control | `BamMHAControlQChunk256FullLayerProfile` @`a1ad13f` | 1,088.61 ms | not yet matched | — | — |
 
-C256 reduces absolute step time for both models, but MHA gains 13.8% while BAM gains only 4.0%,
-so relative BAM overhead increases. This is opposite the original goal of removing BAM's costly
-full-alpha materialization: the custom BAM chunk body does not match generic `accelerator.QChunk`
-on v5p-16, while per-layer LocalQK, write, runtime-key projection and M reads remain fixed. LGLL
-then improves MHA/BAM by 18.1%/20.5% over global C256, so SWA recovers the ratio slightly but does
-not erase the C256 regression.
+The fixed C256 control must not be paired with the legacy full-BAM timing: full BAM still has its
+own chunk-local remat, so doing so would overstate current BAM overhead.
 
 ### v6e controlled overhead recheck
 
@@ -613,11 +613,11 @@ QK/softmax/AV和输出投影，但不创建BAM参数，不分配或传递M，也
 三路六层`v6e-1`配对具有完全相同的57-leaf参数树与逐项初始化；训练loss仅有bf16数值级
 差异，XPlane中两个control的`bam/*`算子数均为零。
 
-| MHA路径 | XPlane step | 稳态日志 | 相对变化 |
-|---|---:|---:|---:|
-| `Attention(dot_product)` | 481.50 ms | 2.055 steps/s | 基准 |
-| `BamAttention` dense control | 503.17 ms | 1.968 steps/s | step time +4.50% |
-| `BamAttention` C256 control | 413.99 ms | 2.390 steps/s | throughput +21.54% vs自身dense |
+| MHA路径 | Configuration class | XPlane step | 稳态日志 | 相对变化 |
+|---|---|---:|---:|---:|
+| `Attention(dot_product)` | `Llama2MediumDotProductSixLayerProfile` | 481.50 ms | 2.055 | 基准 |
+| `BamAttention` dense | `BamMHAControlDenseSixLayerProfile` | 503.17 ms | 1.968 | step time +4.50% |
+| C256, legacy inner-remat | `BamMHAControlQChunk256SixLayerProfile` @`775a938` | 413.99 ms | 2.390 | +21.54% throughput vs自身dense |
 
 普通`Attention(dot_product)`复现旧值481.56 ms。它比BAM dense control快4.5%，来自
 不同的等价MHA lowering：前者使用五维GQA=1及未归一化`exp→AV→除sum`，后者使用
@@ -625,47 +625,37 @@ QK/softmax/AV和输出投影，但不创建BAM参数，不分配或传递M，也
 369.15 ms慢12.1%。commit `7d673c0`的同机2×2消融将其定位为batched segment mask与
 重复inner-remat的编译交互：
 
-| segment mask | inner remat | v6e-1 step |
-|---|---:|---:|
-| batched | on | 413.99 ms |
-| batched | off | 371.63 ms |
-| shared causal | on | 371.59 ms |
-| shared causal | off | 371.51 ms |
+| Configuration class | segment mask | inner remat | v6e-1 step |
+|---|---|---:|---:|
+| `BamMHAControlQChunk256SixLayerProfile` @`775a938` | batched | on | 413.99 ms |
+| `BamMHAControlQChunk256SixLayerProfile` @`a1ad13f` | batched | off | 371.51 ms |
+| `BamMHAControlQChunk256SharedMaskSixLayerProfile` | shared causal | on | 371.59 ms |
+| `BamMHAControlQChunk256SharedMaskNoInnerRematSixLayerProfile` | shared causal | off | 371.51 ms |
 
-同机通用`accelerator.QChunk`复测为369.24 ms。关闭inner-remat消除了原差距的94.7%，
-仅余2.39 ms（+0.65%）。再把control换成通用QChunk同款五维singleton-GQA core后为
-368.69 ms（相对369.24 ms为-0.15%，已打平），验证余差来自四维自定义contraction与
+修复提交`a1ad13f`的同机通用`Llama2MediumGQChunk256SixLayerProfile`复测为368.84 ms，
+固定4D control为371.51 ms（+0.73%）。关闭inner-remat消除了原差距的94%以上；再把
+control换成通用QChunk同款五维singleton-GQA core后为368.69 ms（已打平），验证余差来自四维自定义contraction与
 五维GQA lowering/layout细节。shared mask会丢失packed Pile的segment隔离语义，不能
 作为训练修复；正确选择是保留batched segment mask并去掉嵌套在整层remat内的
 chunk-local remat。
 
 与同型TPU、同六层图的完整BAM结果配对：
 
-| 路径 | MHA-only control | 完整BAM | BAM增量 |
-|---|---:|---:|---:|
-| dense | 503.17 ms | 684.12 ms | +180.95 ms / +35.96% |
-| C256 | 413.99 ms | 592.28 ms | +178.29 ms / +43.07% |
+| 路径 | MHA-only configuration | MHA-only | Full BAM configuration | 完整BAM | BAM增量 |
+|---|---|---:|---|---:|---:|
+| dense | `BamMHAControlDenseSixLayerProfile` | 503.17 ms | `BamV2DenseSixLayerProfile` | 684.12 ms | +180.95 ms / +35.96% |
+| C256, legacy | `BamMHAControlQChunk256SixLayerProfile` @`775a938` | 413.99 ms | `BamV2QChunk256SixLayerProfile` | 592.28 ms | +178.29 ms / +43.07% |
 
 dense→C256时BAM绝对增量仅少2.66 ms，与旧scope分析的五个BAM顶层scope只少3.50 ms
 一致。因此C256的主要收益来自共享MHA核心，几乎未降低BAM专属读写成本；相对BAM
 overhead反而上升。Artifacts：
 `tpu-ag:/home/lishengping/xd/projects/diagnostics/bam_mha_control/`。
 
-Full-24目标环境的严格MHA-only配对（commit `f052fa6`，同一`v5p-16`，16设备step
-10–14均值）为：
-
-| 路径 | XPlane step | 稳态日志 |
-|---|---:|---:|
-| `Attention(dot_product)` | 1,258.65 ms | ~0.786 steps/s |
-| `BamAttention` dense control | 1,276.37 ms | ~0.775 steps/s |
-| `BamAttention` C256 control | 1,162.67 ms | ~0.854 steps/s |
-
-同一`BamAttention`内C256使MHA-only step减少8.91%（吞吐+9.78%）；dense control相对
-标准dot仅慢1.41%。C256 control仍带上述inner-remat，因此尚未测量生产修复在full-24
-v5p-16上的最终收益。
+Full-24结果只保留在上面的`Full-24 MHA/BAM throughput`权威表中，不在此重复快照。
 
 Artifacts:
 
+- fixed C256 controls: `/data0/xd/bam_diagnostics/c256_control_fix/`
 - v6e: `/data0/xd/bam_diagnostics/qchunk_profiles/` and
   `/data0/xd/bam_diagnostics/qchunk_profile_v6e_local/`
 - v5p-16: `/data0/xd/bam_diagnostics/qchunk_profile_1f40820/`

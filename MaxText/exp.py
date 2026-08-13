@@ -955,7 +955,7 @@ class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
 class Llama2MediumGQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
     """All-global MHA QChunk control for the six-layer BAM profile."""
     # code_commit: da35a43
-    # v6e-1 XPlane 369.15 ms; 369.24 ms same-VM recheck at 7d673c0.
+    # v6e-1 XPlane 368.84 ms at a1ad13f.
     model_name = 'Llama2MediumGQChunk256SixLayerProfile'
     base_num_decoder_layers = 6
     attention = 'dot_product_chunk'
@@ -998,6 +998,7 @@ class BamMHAControlDenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
 
 class BamMHAControlQChunk256SixLayerProfile(BamMHAControlDenseSixLayerProfile):
     """BamAttention control: BAM-free C256 without redundant chunk-local remat."""
+    # code_commit: a1ad13f; v6e-1 XPlane 371.51 ms, +0.73% vs generic QChunk.
     model_name = 'BamMHAControlQChunk256SixLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -1049,7 +1050,7 @@ class BamMHAControlDenseFullLayerProfile(BamMHAControlDenseSixLayerProfile):
 
 class BamMHAControlQChunk256FullLayerProfile(BamMHAControlDenseFullLayerProfile):
     """Full-24 BamAttention C256 MHA control on the target training TPU."""
-    # code_commit: f052fa6; v5p-16 XPlane 1,162.67 ms; ~0.854 steps/s.
+    # code_commit: a1ad13f; UC1a v5p-16 XPlane 1,088.61 ms; ~0.908 steps/s.
     model_name = 'BamMHAControlQChunk256FullLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256

@@ -862,6 +862,8 @@ class BamV2DenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     model_name = 'BamV2DenseSixLayerProfile'
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+full'] * 6
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
     steps = 16
 
 

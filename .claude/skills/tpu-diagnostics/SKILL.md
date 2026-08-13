@@ -61,12 +61,14 @@ comparisons, then verify the winning combination with full layers.
   anomalous results. Keep every arm used for a cross-configuration conclusion on one TPU type
   (normally `v6e-1`); use the target training TPU only as a final confirmation.
 - Write XPlane locally and copy it to `tpu-ag` as soon as `*.xplane.pb` appears. For a critical
-  spot profile, race duplicate arms across reliable zones and keep the first complete trace;
-  never leave a repeatedly preempted zone as the sole copy. Run
-  `scripts/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR DEST_DIR` on `tpu-ag` before launch.
+  spot arm, race two zones and never use `us-east5-a` as its sole copy. Also record an insurance
+  trace at steps 2–6 and the primary trace at 10–14 with
+  `skip_first_n_steps_for_profiler=2 profile_periodically_period=8 profiler_steps=5`; analyze
+  `step_10`, using `step_2` only if preempted first. Before launch, run
+  `scripts/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR DEST_DIR PROJECT 2` on `tpu-ag`.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
-  step**; measure steps 10–14, then `SIGKILL` the exact no-checkpoint RUN on all workers and require
-  `pgrep` empty before the next arm.
+  step**; after step 14, wait for the collector to verify the nonempty primary XPlane on `tpu-ag`,
+  then `SIGKILL` the exact no-checkpoint RUN and require `pgrep` empty before the next arm.
 - Compare stable log speed and all-device XPlane step time; split read-key projection, gate,
   transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.
 - Inspect HLO/XPlane lowering, layout/copies, fusion type, kernel count, and whether conceptual

@@ -890,6 +890,14 @@ class BamV2QChunk256FullLayerProfile(BamV2DenseFullLayerProfile):
     query_chunk_size = 256
 
 
+class Llama2MediumQChunk256FullLayerProfile(SpeedTest, Llama2Medium):
+    """Full-24 all-global MHA C256 speed control for V2 C256."""
+    model_name = 'Llama2MediumQChunk256FullLayerProfile'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    steps = 20
+
+
 class BamV2QChunk512SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 512-query chunks."""
     # v6e-1 XPlane 596.40 ms; +14.5% throughput vs dense.
@@ -916,6 +924,8 @@ class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
 
 class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
     """Full-24 V2 with shared MHA/BAM C256 and LGLL attention."""
+    # code_commit: e184190
+    # ~0.693 steps/s; speed check stopped at 47. +58.6% step time vs matched MHA LGLL.
     model_name = 'BamLlama2MediumV2QChunk256LGLL'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -964,6 +974,8 @@ class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium)
 
 class Llama2MediumQChunk256LGLL(Llama2Medium):
     """Full-24 MHA control with C256 and LGLL attention."""
+    # code_commit: e184190
+    # ~1.099 steps/s; speed check stopped at 303.
     model_name = 'Llama2MediumQChunk256LGLL'
     attention = 'dot_product_chunk'
     query_chunk_size = 256

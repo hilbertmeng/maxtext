@@ -62,7 +62,8 @@ comparisons, then verify the winning combination with full layers.
   (normally `v6e-1`); use the target training TPU only as a final confirmation.
 - Write XPlane locally and copy it to `tpu-ag` as soon as `*.xplane.pb` appears. For a critical
   spot profile, race duplicate arms across reliable zones and keep the first complete trace;
-  never leave a repeatedly preempted zone as the sole copy.
+  never leave a repeatedly preempted zone as the sole copy. Run
+  `scripts/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR DEST_DIR` on `tpu-ag` before launch.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
   step**; measure steps 10–14, then `SIGKILL` the exact no-checkpoint RUN on all workers and require
   `pgrep` empty before the next arm.

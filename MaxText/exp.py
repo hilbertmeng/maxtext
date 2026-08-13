@@ -920,6 +920,15 @@ class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
     steps = 16
 
 
+class Llama2MediumGQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
+    """All-global MHA QChunk control for the six-layer BAM profile."""
+    model_name = 'Llama2MediumGQChunk256SixLayerProfile'
+    base_num_decoder_layers = 6
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    steps = 16
+
+
 class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium):
     """MHA control for the eight-layer 3:1 BAM SWA profile."""
     model_name = 'Llama2MediumLGLLQChunk256EightLayerProfile'

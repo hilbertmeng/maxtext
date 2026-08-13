@@ -58,7 +58,8 @@ comparisons, then verify the winning combination with full layers.
   paired arms directly, collect the complete profile set, then delete it. Keep `auto-train`
   detached from profile TPUs. For a large matrix, distribute arms across cheap spot `v6e-1`s;
   one shared control per TPU type is normally sufficient. Re-pair on one VM only for marginal or
-  anomalous results, and confirm the winner once on the target training TPU type.
+  anomalous results. Keep every arm used for a cross-configuration conclusion on one TPU type
+  (normally `v6e-1`); use the target training TPU only as a final confirmation.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
   step**; measure steps 10–14, then `SIGKILL` the exact no-checkpoint RUN on all workers and require
   `pgrep` empty before the next arm.

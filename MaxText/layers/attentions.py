@@ -2297,6 +2297,8 @@ class BamAttention(Attention):
           cfg, 'bam_mha_control_segment_mask', True))
       self._mha_control_inner_remat = bool(getattr(
           cfg, 'bam_mha_control_inner_remat', True))
+      self._mha_control_gqa_layout = bool(getattr(
+          cfg, 'bam_mha_control_gqa_layout', False))
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
         assert cfg.max_target_length % self._query_chunk_size == 0, (
@@ -3192,16 +3194,26 @@ class BamAttention(Attention):
 
     def chunk_body(q_chunk, k_chunk, v_chunk, valid):
       with jax.named_scope("attention/qk_logits"):
-        logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
+        if self._mha_control_gqa_layout:
+          q_chunk = q_chunk.reshape((b, q_chunk.shape[1], n, 1, d))
+          logits = jnp.einsum('bckgd,bskd->bkgcs', q_chunk, k_chunk)
+          valid_logits = valid[:, None, None]
+        else:
+          logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
+          valid_logits = valid[:, None]
       if cfg.attn_logits_soft_cap:
         logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
                   * cfg.attn_logits_soft_cap)
-      logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
+      logits = jnp.where(valid_logits, logits, DEFAULT_MASK_VALUE)
       if cfg.float32_logits:
         logits = logits.astype(jnp.float32)
       with jax.named_scope("attention/softmax"):
         alpha = jax.nn.softmax(logits, axis=-1)
       with jax.named_scope("attention/av"):
+        if self._mha_control_gqa_layout:
+          alpha = jnp.where(valid_logits, alpha.astype(self.dtype), 0.)
+          output = jnp.einsum('bkgcs,bskd->bckgd', alpha, v_chunk)
+          return output.reshape((b, output.shape[1], n, d))
         return jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
 
     apply_chunk = (

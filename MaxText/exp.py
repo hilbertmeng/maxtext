@@ -1031,6 +1031,14 @@ class BamMHAControlQChunk256SharedMaskNoInnerRematSixLayerProfile(
     bam_mha_control_inner_remat = False
 
 
+class BamMHAControlQChunk256GqaNoInnerRematSixLayerProfile(
+    BamMHAControlQChunk256NoInnerRematSixLayerProfile
+):
+    """Match generic QChunk's singleton-GQA contraction layout without inner remat."""
+    model_name = 'BamMHAControlQChunk256GqaNoInnerRematSixLayerProfile'
+    bam_mha_control_gqa_layout = True
+
+
 class Llama2MediumDotProductFullLayerProfile(Llama2MediumDotProductSixLayerProfile):
     """Full-24 Attention(dot_product) control on the target training TPU."""
     # code_commit: f052fa6; v5p-16 XPlane 1,258.65 ms; ~0.786 steps/s.

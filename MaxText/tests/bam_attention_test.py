@@ -12,6 +12,7 @@ from layers.attentions import (
     GroupedRMSNorm,
     _packed_factorized_local_qk_init,
     _dynamic_mixed_bam_fetch_alpha,
+    _mix_and_fetch_bam_chunk,
     _mix_bam_write_v,
     _select_bam_write_source,
     _shared_bam_fetch_alpha,
@@ -28,6 +29,33 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_three_input_chunk_fetch_matches_two_stage_values_and_gradients(self):
+    key = jax.random.PRNGKey(17)
+    alpha_key, mix_key, matrix_key = jax.random.split(key, 3)
+    alpha = jax.random.normal(alpha_key, (2, 3, 4, 7))
+    mix = jax.random.normal(mix_key, (2, 4, 3))
+    matrix = jax.random.normal(matrix_key, (2, 7, 2, 5))
+    diag_col = jnp.array([1, 2, 3, 4])
+
+    def loss(a, w, M, implementation):
+      self_M = M[:, diag_col]
+      fetched = _mix_and_fetch_bam_chunk(
+          a, w, M, self_M, diag_col, implementation)
+      return jnp.sum(fetched ** 2), fetched
+
+    two = jax.value_and_grad(loss, argnums=(0, 1, 2), has_aux=True)(
+        alpha, mix, matrix, 'two_stage')
+    three = jax.value_and_grad(loss, argnums=(0, 1, 2), has_aux=True)(
+        alpha, mix, matrix, 'three_input')
+    (two_loss, two_value), two_grads = two
+    (three_loss, three_value), three_grads = three
+    np.testing.assert_allclose(three_value, two_value, rtol=2e-6, atol=2e-6)
+    np.testing.assert_allclose(three_loss, two_loss, rtol=2e-6, atol=2e-6)
+    jax.tree.map(
+        lambda actual, expected: np.testing.assert_allclose(
+            actual, expected, rtol=3e-6, atol=3e-6),
+        three_grads, two_grads)
 
   def test_packed_local_qk_preserves_segment_initializers(self):
     embed, heads, key_width = 64, 4, 12

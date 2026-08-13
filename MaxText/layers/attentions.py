@@ -1756,6 +1756,23 @@ def _dynamic_mixed_bam_fetch_alpha(
     alpha, mix_logits, diagonal_yield, weight_mode='softmax',
     *, rms_epsilon, return_aux=False):
   """Build one BAM fetch route as a token-wise mixture of all MHA heads."""
+  mix_logits, mix_weights = _dynamic_bam_fetch_mix_weights(
+      mix_logits, alpha.dtype, weight_mode, rms_epsilon=rms_epsilon)
+
+  fetch_alpha = jnp.einsum('bnts,btn->bts', alpha, mix_weights)
+  pre_diagonal_alpha = fetch_alpha[:, None]
+  if diagonal_yield:
+    fetch_alpha = fetch_alpha * (
+        1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
+  fetch_alpha = fetch_alpha[:, None]  # bts->bfts
+  if return_aux:
+    return fetch_alpha, mix_logits, mix_weights, pre_diagonal_alpha
+  return fetch_alpha
+
+
+def _dynamic_bam_fetch_mix_weights(
+    mix_logits, alpha_dtype, weight_mode='softmax', *, rms_epsilon):
+  """Normalize token-wise MHA-head coefficients without materializing alpha."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
   if weight_mode == 'softmax':
     mix_weights = jax.nn.softmax(mix_logits, axis=-1)
@@ -1767,17 +1784,29 @@ def _dynamic_mixed_bam_fetch_alpha(
     mix_weights = normalized / jnp.sqrt(mix_logits.shape[-1])
   else:
     raise ValueError(f'Unknown dynamic fetch weight mode: {weight_mode}')
-  mix_weights = jnp.asarray(mix_weights, alpha.dtype)
+  return mix_logits, jnp.asarray(mix_weights, alpha_dtype)
 
-  fetch_alpha = jnp.einsum('bnts,btn->bts', alpha, mix_weights)
-  pre_diagonal_alpha = fetch_alpha[:, None]
-  if diagonal_yield:
-    fetch_alpha = fetch_alpha * (
-        1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-  fetch_alpha = fetch_alpha[:, None]  # bts->bfts
-  if return_aux:
-    return fetch_alpha, mix_logits, mix_weights, pre_diagonal_alpha
-  return fetch_alpha
+
+def _mix_and_fetch_bam_chunk(
+    alpha, mix_weights, M, self_M, diag_col, implementation='two_stage'):
+  """Mix attention heads and fetch M with an exact beta[t,t]=1 overwrite."""
+  chunk_size = alpha.shape[-2]
+  if implementation == 'two_stage':
+    fetch_alpha = jnp.einsum('bncs,bcn->bcs', alpha, mix_weights)
+    fetch_alpha = fetch_alpha.at[
+        :, jnp.arange(chunk_size), diag_col].set(
+            jnp.asarray(1, fetch_alpha.dtype))
+    return jnp.einsum('bcs,bskv->bckv', fetch_alpha, M)
+  if implementation != 'three_input':
+    raise ValueError(f'Unknown BAM chunk fetch implementation: {implementation}')
+
+  Mbar = jnp.einsum(
+      'bncs,bcn,bskv->bckv', alpha, mix_weights, M)
+  alpha_diag = alpha[:, :, jnp.arange(chunk_size), diag_col]
+  mixed_diag = jnp.einsum('bnc,bcn->bc', alpha_diag, mix_weights)
+  return Mbar + (
+      jnp.asarray(1, Mbar.dtype) - mixed_diag.astype(Mbar.dtype)
+  )[..., None, None] * self_M
 
 
 def _sliding_window_bam_fetch_alpha(
@@ -2333,6 +2362,8 @@ class BamAttention(Attention):
     self._share_full_local_read = cfg.bam_share_full_local_read
     self._combine_full_local_read = cfg.bam_combine_full_local_read
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
+    self._query_chunk_size = cfg.bam_query_chunk_size
+    self._query_chunk_fetch_implementation = cfg.bam_query_chunk_fetch_implementation
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
@@ -2436,6 +2467,20 @@ class BamAttention(Attention):
       assert cfg.bam_n_f == 1, 'direct fetch diagonal one requires exactly one fetch route'
       assert not cfg.bam_keep_fetch_diagonal, (
           'direct fetch diagonal one and keep_fetch_diagonal are mutually exclusive')
+    if self._query_chunk_size is not None:
+      assert self._query_chunk_size > 0
+      assert cfg.max_target_length % self._query_chunk_size == 0, (
+          'BAM query chunk size must divide max_target_length')
+      assert self._mode == {'local_qk', 'full'}, (
+          'shared-alpha QChunk currently targets the V2 local_qk+full path')
+      assert self._shared_fetch_mode == 'dynamic_rms_mix'
+      assert cfg.bam_n_f == 1 and self._fetch_diagonal_one
+      assert not cfg.bam_dedicated_fetch
+      assert self._fetch_sliding_window_size is None
+      assert self._fetch_temporal_block_size is None
+      assert not cfg.bam_diagnostics
+      assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
+      assert self._query_chunk_fetch_implementation in ('two_stage', 'three_input')
     if self._squeeze_single_fetch_read:
       assert 'full' in self._mode and cfg.bam_n_f == 1, (
           'single-fetch squeeze requires one full-read route')
@@ -3024,6 +3069,126 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate, forget_gate
 
+  def _query_chunk_shared_full_read(
+      self, query, key, value, Mh, inputs_q, decoder_segment_ids):
+    """Compute one shared MHA/BAM alpha a query chunk at a time.
+
+    This deliberately implements only the V2 full-read path. Keeping the initial
+    profile path narrow makes semantic mismatches fail in setup instead of silently
+    falling back to a different BAM mode.
+    """
+    cfg = self.config
+    b, t, n, d = query.shape
+    chunk_size = int(self._query_chunk_size)
+    assert t % chunk_size == 0
+    window_size = (
+        t if self.sliding_window_size is None
+        else min(t, int(self.sliding_window_size)))
+
+    with jax.named_scope("bam/mix_alpha_projection"):
+      _, mix_weights = _dynamic_bam_fetch_mix_weights(
+          self.fetch_head_mix(inputs_q), query.dtype, 'rms',
+          rms_epsilon=self._rms_epsilon)
+
+    with jax.named_scope("bam/compress_abs_v_cache"):
+      fetch_state = Mh
+      if self._abs_v_dim is not None:
+        projection = self.abs_v_cache_projection.astype(Mh.dtype)
+        if self._abs_v_source_implementation == 'dot':
+          fetch_state = jnp.einsum('bskv,vc->bskc', Mh, projection)
+        else:
+          fetch_state = jnp.sum(
+              Mh[..., None] * projection[None, None, None, :, :], axis=-2)
+
+    # Project all linear-size target-side keys once, exactly as dc.QChunk projects
+    # dynamic weights once and slices them inside the query loop.
+    with jax.named_scope("bam/read_fetched_m"):
+      projected_read_key = self.W_R(inputs_q)
+      read_key_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
+      _, _, read_row, read_col = _project_bam_read_keys(
+          self.bam_k, inputs_q, lambda _x: projected_read_key,
+          **read_key_kwargs)
+
+    y_std = jnp.zeros((b, t, n, d), dtype=value.dtype)
+    y_full = jnp.zeros_like(y_std)
+
+    def chunk_body(q_chunk, k_chunk, v_chunk, M_chunk, mix_chunk,
+                   row_chunk, col_chunk, valid, self_M, diag_col):
+      with jax.named_scope("attention/qk_logits"):
+        logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
+      if cfg.attn_logits_soft_cap:
+        logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
+                  * cfg.attn_logits_soft_cap)
+      logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
+      if cfg.float32_logits:
+        logits = logits.astype(jnp.float32)
+      alpha = jax.nn.softmax(logits, axis=-1)
+
+      with jax.named_scope("attention/av"):
+        y_std_chunk = jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
+
+      if self._query_chunk_fetch_implementation == 'two_stage':
+        with jax.named_scope("bam/mix_alpha"):
+          fetch_alpha = jnp.einsum('bncs,bcn->bcs', alpha, mix_chunk)
+          fetch_alpha = fetch_alpha.at[
+              :, jnp.arange(chunk_size), diag_col].set(
+                  jnp.asarray(1, fetch_alpha.dtype))
+        with jax.named_scope("bam/fetch_m"):
+          Mbar = jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
+      else:
+        with jax.named_scope("bam/mix_fetch_m"):
+          Mbar = _mix_and_fetch_bam_chunk(
+              alpha, mix_chunk, M_chunk, self_M, diag_col, 'three_input')
+
+      # Retain the historical singleton fetch axis so this profile changes only
+      # alpha lifetime/contraction ordering, not the bilateral read lowering.
+      with jax.named_scope("bam/read_fetched_m"):
+        full_read = _contract_bam_read(
+            Mbar[:, None], Mbar[:, None], row_chunk, col_chunk, True,
+            self._read_implementation, self.read_side)
+        if self._abs_v_dim is not None:
+          if self._abs_v_row_output == 'project':
+            y_u, y_v = jnp.split(full_read, [self.bam_k], axis=-1)
+            decoder = self.abs_v_row_decoder.astype(y_v.dtype)
+            y_v = jnp.einsum('btnc,ncv->btnv', y_v, decoder)
+            full_read = jnp.concatenate((y_u, y_v), axis=-1)
+          else:
+            full_read = jnp.pad(
+                full_read,
+                [(0, 0)] * (full_read.ndim - 1)
+                + [(0, self.bam_v - self._abs_v_dim)])
+      return y_std_chunk, full_read
+
+    remat_chunk_body = jax.checkpoint(
+        chunk_body, prevent_cse=True)
+    for q0 in range(0, t, chunk_size):
+      q1 = q0 + chunk_size
+      s0 = max(0, q0 - window_size) if window_size < t else 0
+      s1 = q1
+      target = jnp.arange(q0, q1)[:, None]
+      source = jnp.arange(s0, s1)[None, :]
+      valid = source <= target
+      if window_size < t:
+        valid &= source > target - window_size
+      valid = valid[None]
+      if decoder_segment_ids is not None:
+        same_segment = (
+            decoder_segment_ids[:, q0:q1, None]
+            == decoder_segment_ids[:, None, s0:s1])
+        valid &= same_segment
+      else:
+        valid = jnp.broadcast_to(valid, (b,) + valid.shape[1:])
+      diag_col = jnp.arange(q0, q1) - s0
+      y_std_chunk, y_full_chunk = remat_chunk_body(
+          query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
+          fetch_state[:, s0:s1], mix_weights[:, q0:q1],
+          read_row[:, q0:q1], read_col[:, q0:q1], valid,
+          fetch_state[:, q0:q1], diag_col)
+      y_std = lax.dynamic_update_slice(y_std, y_std_chunk, (0, q0, 0, 0))
+      y_full = lax.dynamic_update_slice(y_full, y_full_chunk, (0, q0, 0, 0))
+
+    return y_std, y_full
+
   @nn.compact
   def __call__(
       self,
@@ -3118,6 +3283,19 @@ class BamAttention(Attention):
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:
       query = query.astype(jnp.float32); key = key.astype(jnp.float32)
+    if self._query_chunk_size is not None:
+      y_std, y_full = self._query_chunk_shared_full_read(
+          query, key, value, Mh, inputs_q, decoder_segment_ids)
+      y_codebook = jnp.zeros_like(y_std)
+      y_local_o = jnp.zeros_like(y_std)
+      o_head = y_std + y_full
+      write_o_head = _select_bam_write_source(
+          cfg.bam_write_source, y_std, y_codebook, y_full, y_local_o, o_head)
+      with jax.named_scope("bam/write_m"):
+        M_out, _, _ = self._write(write_o_head, inputs_q, M_in)
+      out = nn.with_logical_constraint(o_head, self.out_axis_names)
+      return self.out_projection(inputs_q.shape[-1], out), M_out
+
     with jax.named_scope("attention/qk_logits"):
       logits = jnp.einsum('btnd,bsnd->bnts', query, key)   # [b,n,t,s]
     if cfg.attn_logits_soft_cap:

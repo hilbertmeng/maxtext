@@ -81,3 +81,5 @@ comparisons, then verify the winning combination with full layers.
 
 Record checkpoint URI, step, code state, cohort seed/hashes, overrides, timings, results, and
 artifact paths in a new file under `experiments/`. Keep large raw arrays outside the repo.
+Name every configuration class in important result tables; update the canonical table in place
+instead of appending overlapping snapshots.

@@ -2296,7 +2296,7 @@ class BamAttention(Attention):
       self._mha_control_segment_mask = bool(getattr(
           cfg, 'bam_mha_control_segment_mask', True))
       self._mha_control_inner_remat = bool(getattr(
-          cfg, 'bam_mha_control_inner_remat', True))
+          cfg, 'bam_mha_control_inner_remat', False))
       self._mha_control_gqa_layout = bool(getattr(
           cfg, 'bam_mha_control_gqa_layout', False))
       if self._query_chunk_size is not None:

@@ -997,19 +997,10 @@ class BamMHAControlDenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
 
 
 class BamMHAControlQChunk256SixLayerProfile(BamMHAControlDenseSixLayerProfile):
-    """BamAttention control: BAM-free C256 QK/softmax/AV and no M state."""
-    # code_commit: 775a938; v6e-1 XPlane 413.99 ms; ~2.390 steps/s.
+    """BamAttention control: BAM-free C256 without redundant chunk-local remat."""
     model_name = 'BamMHAControlQChunk256SixLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
-
-
-class BamMHAControlQChunk256NoInnerRematSixLayerProfile(
-    BamMHAControlQChunk256SixLayerProfile
-):
-    """Ablate the chunk-local remat nested inside the rematted decoder layer."""
-    # code_commit: 7d673c0; v6e-1 XPlane 371.63 ms (+0.65% vs generic QChunk).
-    model_name = 'BamMHAControlQChunk256NoInnerRematSixLayerProfile'
     bam_mha_control_inner_remat = False
 
 
@@ -1020,6 +1011,7 @@ class BamMHAControlQChunk256SharedMaskSixLayerProfile(
     # code_commit: 7d673c0; v6e-1 XPlane 371.59 ms; not packed-data equivalent.
     model_name = 'BamMHAControlQChunk256SharedMaskSixLayerProfile'
     bam_mha_control_segment_mask = False
+    bam_mha_control_inner_remat = True
 
 
 class BamMHAControlQChunk256SharedMaskNoInnerRematSixLayerProfile(
@@ -1032,7 +1024,7 @@ class BamMHAControlQChunk256SharedMaskNoInnerRematSixLayerProfile(
 
 
 class BamMHAControlQChunk256GqaNoInnerRematSixLayerProfile(
-    BamMHAControlQChunk256NoInnerRematSixLayerProfile
+    BamMHAControlQChunk256SixLayerProfile
 ):
     """Match generic QChunk's singleton-GQA contraction layout without inner remat."""
     # code_commit: 28de5e6; v6e-1 XPlane 368.69 ms (-0.15% vs generic QChunk).

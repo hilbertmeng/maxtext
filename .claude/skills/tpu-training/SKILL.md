@@ -13,6 +13,9 @@ Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 project `newproject-1-451205`; zone `us-central1-a`; TPU `v5p-16`; output
 `gs://newproject-1-llm_base_models_us-central1/log/`.
 
+Classify by intent: a short speed/profile arm is `$tpu-diagnostics` even at full layer count;
+use `run_exp_xd.sh` only for a RUN intended to train through its registered plan.
+
 ## Start Training
 
 Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh` and `run_registry.py`.

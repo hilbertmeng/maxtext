@@ -622,7 +622,21 @@ QK/softmax/AV和输出投影，但不创建BAM参数，不分配或传递M，也
 普通`Attention(dot_product)`复现旧值481.56 ms。它比BAM dense control快4.5%，来自
 不同的等价MHA lowering：前者使用五维GQA=1及未归一化`exp→AV→除sum`，后者使用
 显式`softmax→AV`；不是残余BAM开销。C256 control也比通用`accelerator.QChunk`旧值
-369.15 ms慢12.1%，说明BAM的自定义chunk loop/scaffolding仍有固定代价。
+369.15 ms慢12.1%。commit `7d673c0`的同机2×2消融将其定位为batched segment mask与
+重复inner-remat的编译交互：
+
+| segment mask | inner remat | v6e-1 step |
+|---|---:|---:|
+| batched | on | 413.99 ms |
+| batched | off | 371.63 ms |
+| shared causal | on | 371.59 ms |
+| shared causal | off | 371.51 ms |
+
+同机通用`accelerator.QChunk`复测为369.24 ms。关闭inner-remat消除了原差距的94.7%，
+仅余2.39 ms（+0.65%）；QK/AV scope分别只慢1.50/1.09 ms，符合四维einsum与通用
+QChunk五维singleton-GQA lowering的轻微差异。shared mask会丢失packed Pile的segment
+隔离语义，不能作为训练修复；正确选择是保留batched segment mask并去掉嵌套在整层
+remat内的chunk-local remat。
 
 与同型TPU、同六层图的完整BAM结果配对：
 
@@ -635,6 +649,19 @@ dense→C256时BAM绝对增量仅少2.66 ms，与旧scope分析的五个BAM顶�
 一致。因此C256的主要收益来自共享MHA核心，几乎未降低BAM专属读写成本；相对BAM
 overhead反而上升。Artifacts：
 `tpu-ag:/home/lishengping/xd/projects/diagnostics/bam_mha_control/`。
+
+Full-24目标环境的严格MHA-only配对（commit `f052fa6`，同一`v5p-16`，16设备step
+10–14均值）为：
+
+| 路径 | XPlane step | 稳态日志 |
+|---|---:|---:|
+| `Attention(dot_product)` | 1,258.65 ms | ~0.786 steps/s |
+| `BamAttention` dense control | 1,276.37 ms | ~0.775 steps/s |
+| `BamAttention` C256 control | 1,162.67 ms | ~0.854 steps/s |
+
+同一`BamAttention`内C256使MHA-only step减少8.91%（吞吐+9.78%）；dense control相对
+标准dot仅慢1.41%。C256 control仍带上述inner-remat，因此尚未测量生产修复在full-24
+v5p-16上的最终收益。
 
 Artifacts:
 

@@ -955,7 +955,7 @@ class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
 class Llama2MediumGQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
     """All-global MHA QChunk control for the six-layer BAM profile."""
     # code_commit: da35a43
-    # v6e-1 XPlane 369.15 ms; near parity (+1.1%) vs autoselected dense MHA.
+    # v6e-1 XPlane 369.15 ms; 369.24 ms same-VM recheck at 7d673c0.
     model_name = 'Llama2MediumGQChunk256SixLayerProfile'
     base_num_decoder_layers = 6
     attention = 'dot_product_chunk'
@@ -974,6 +974,7 @@ class Llama2MediumDenseSixLayerProfile(TrainStepProfile, Llama2Medium):
 
 class Llama2MediumDotProductSixLayerProfile(TrainStepProfile, Llama2Medium):
     """Explicit Attention(dot_product) control for BAM's dense MHA control."""
+    # code_commit: 775a938; v6e-1 XPlane 481.50 ms; ~2.055 steps/s.
     model_name = 'Llama2MediumDotProductSixLayerProfile'
     base_num_decoder_layers = 6
     attention = 'dot_product'
@@ -984,6 +985,7 @@ class Llama2MediumDotProductSixLayerProfile(TrainStepProfile, Llama2Medium):
 
 class BamMHAControlDenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """BamAttention control: BAM-free dense QK/softmax/AV and no M state."""
+    # code_commit: 775a938; v6e-1 XPlane 503.17 ms; ~1.968 steps/s.
     model_name = 'BamMHAControlDenseSixLayerProfile'
     base_num_decoder_layers = 6
     bam_mha_control = True
@@ -996,6 +998,7 @@ class BamMHAControlDenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
 
 class BamMHAControlQChunk256SixLayerProfile(BamMHAControlDenseSixLayerProfile):
     """BamAttention control: BAM-free C256 QK/softmax/AV and no M state."""
+    # code_commit: 775a938; v6e-1 XPlane 413.99 ms; ~2.390 steps/s.
     model_name = 'BamMHAControlQChunk256SixLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -1005,6 +1008,7 @@ class BamMHAControlQChunk256NoInnerRematSixLayerProfile(
     BamMHAControlQChunk256SixLayerProfile
 ):
     """Ablate the chunk-local remat nested inside the rematted decoder layer."""
+    # code_commit: 7d673c0; v6e-1 XPlane 371.63 ms (+0.65% vs generic QChunk).
     model_name = 'BamMHAControlQChunk256NoInnerRematSixLayerProfile'
     bam_mha_control_inner_remat = False
 
@@ -1013,6 +1017,7 @@ class BamMHAControlQChunk256SharedMaskSixLayerProfile(
     BamMHAControlQChunk256SixLayerProfile
 ):
     """Use QChunk's broadcast causal mask instead of a batched segment mask."""
+    # code_commit: 7d673c0; v6e-1 XPlane 371.59 ms; not packed-data equivalent.
     model_name = 'BamMHAControlQChunk256SharedMaskSixLayerProfile'
     bam_mha_control_segment_mask = False
 
@@ -1021,18 +1026,21 @@ class BamMHAControlQChunk256SharedMaskNoInnerRematSixLayerProfile(
     BamMHAControlQChunk256SharedMaskSixLayerProfile
 ):
     """Pair the broadcast causal mask with no nested chunk remat."""
+    # code_commit: 7d673c0; same-VM v6e-1 XPlane 371.51 ms.
     model_name = 'BamMHAControlQChunk256SharedMaskNoInnerRematSixLayerProfile'
     bam_mha_control_inner_remat = False
 
 
 class Llama2MediumDotProductFullLayerProfile(Llama2MediumDotProductSixLayerProfile):
     """Full-24 Attention(dot_product) control on the target training TPU."""
+    # code_commit: f052fa6; v5p-16 XPlane 1,258.65 ms; ~0.786 steps/s.
     model_name = 'Llama2MediumDotProductFullLayerProfile'
     base_num_decoder_layers = 24
 
 
 class BamMHAControlDenseFullLayerProfile(BamMHAControlDenseSixLayerProfile):
     """Full-24 BamAttention dense MHA control on the target training TPU."""
+    # code_commit: f052fa6; v5p-16 XPlane 1,276.37 ms; ~0.775 steps/s.
     model_name = 'BamMHAControlDenseFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['none'] * 24
@@ -1040,6 +1048,7 @@ class BamMHAControlDenseFullLayerProfile(BamMHAControlDenseSixLayerProfile):
 
 class BamMHAControlQChunk256FullLayerProfile(BamMHAControlDenseFullLayerProfile):
     """Full-24 BamAttention C256 MHA control on the target training TPU."""
+    # code_commit: f052fa6; v5p-16 XPlane 1,162.67 ms; ~0.854 steps/s.
     model_name = 'BamMHAControlQChunk256FullLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256

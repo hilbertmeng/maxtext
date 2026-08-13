@@ -606,6 +606,36 @@ slice/update和重复read开销，而不能把当前C256视为已经解决mix/fe
 Recheck artifacts: `/data0/xd/bam_diagnostics/qchunk_v6e_recheck_final/`；matched-dot和
 中间分析文件位于`/data0/xd/bam_diagnostics/qchunk_v6e_recheck_complete/`。
 
+### Strict `BamAttention` MHA-only control
+
+Commit `775a938`增加`bam_mha_control=True`：保留`BamAttention`同款QKV、RoPE、
+QK/softmax/AV和输出投影，但不创建BAM参数，不分配或传递M，也不执行任何BAM读写。
+三路六层`v6e-1`配对具有完全相同的57-leaf参数树与逐项初始化；训练loss仅有bf16数值级
+差异，XPlane中两个control的`bam/*`算子数均为零。
+
+| MHA路径 | XPlane step | 稳态日志 | 相对变化 |
+|---|---:|---:|---:|
+| `Attention(dot_product)` | 481.50 ms | 2.055 steps/s | 基准 |
+| `BamAttention` dense control | 503.17 ms | 1.968 steps/s | step time +4.50% |
+| `BamAttention` C256 control | 413.99 ms | 2.390 steps/s | throughput +21.54% vs自身dense |
+
+普通`Attention(dot_product)`复现旧值481.56 ms。它比BAM dense control快4.5%，来自
+不同的等价MHA lowering：前者使用五维GQA=1及未归一化`exp→AV→除sum`，后者使用
+显式`softmax→AV`；不是残余BAM开销。C256 control也比通用`accelerator.QChunk`旧值
+369.15 ms慢12.1%，说明BAM的自定义chunk loop/scaffolding仍有固定代价。
+
+与同型TPU、同六层图的完整BAM结果配对：
+
+| 路径 | MHA-only control | 完整BAM | BAM增量 |
+|---|---:|---:|---:|
+| dense | 503.17 ms | 684.12 ms | +180.95 ms / +35.96% |
+| C256 | 413.99 ms | 592.28 ms | +178.29 ms / +43.07% |
+
+dense→C256时BAM绝对增量仅少2.66 ms，与旧scope分析的五个BAM顶层scope只少3.50 ms
+一致。因此C256的主要收益来自共享MHA核心，几乎未降低BAM专属读写成本；相对BAM
+overhead反而上升。Artifacts：
+`tpu-ag:/home/lishengping/xd/projects/diagnostics/bam_mha_control/`。
+
 Artifacts:
 
 - v6e: `/data0/xd/bam_diagnostics/qchunk_profiles/` and

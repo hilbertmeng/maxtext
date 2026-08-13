@@ -3175,7 +3175,7 @@ class BamAttention(Attention):
         same_segment = (
             decoder_segment_ids[:, q0:q1, None]
             == decoder_segment_ids[:, None, s0:s1])
-        valid &= same_segment
+        valid = valid & same_segment
       else:
         valid = jnp.broadcast_to(valid, (b,) + valid.shape[1:])
       diag_col = jnp.arange(q0, q1) - s0

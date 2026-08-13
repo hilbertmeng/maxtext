@@ -55,8 +55,9 @@ VM, commit, model/batch/data, and trace steps identical; prefer 6 layers for ope
 comparisons, then verify the winning combination with full layers.
 
 - Keep profile TPU lifecycle separate from `auto-train`: create/install it standalone, launch
-  paired arms directly and serially, collect the complete profile set, then delete it. Keep
-  `auto-train` detached from profile TPUs.
+  paired arms directly, collect the complete profile set, then delete it. Keep `auto-train`
+  detached from profile TPUs. For a large matrix, parallelize across cheap spot `v6e-1`s, with
+  an on-VM control in every pairing; confirm the winner once on the target training TPU type.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
   step**; measure steps 10–14, then `SIGKILL` the exact no-checkpoint RUN on all workers and require
   `pgrep` empty before the next arm.

@@ -74,6 +74,8 @@ comparisons, then verify the winning combination with full layers.
   transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.
 - Inspect HLO/XPlane lowering, layout/copies, fusion type, kernel count, and whether conceptual
   broadcast/zero tensors materialize.
+- Keep `tpu-ag` for orchestration/artifact storage only; parse XPlane traces on the local
+  workstation, never on `tpu-ag`.
 
 ## Artifacts
 

@@ -2433,7 +2433,8 @@ class BamAttention(Attention):
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._query_chunk_implementation in (
-        'legacy', 'no_remat', 'deferred_read', 'diag_correction', 'optimized')
+        'legacy', 'no_remat', 'deferred_read', 'diag_correction',
+        'diag_select', 'optimized')
     assert self._abs_v_row_output in ('direct', 'project')
     assert self._abs_v_source_implementation in ('dot', 'mul_reduce')
     if self._abs_v_dim is not None:
@@ -3085,8 +3086,10 @@ class BamAttention(Attention):
         t if self.sliding_window_size is None
         else min(t, int(self.sliding_window_size)))
     implementation = self._query_chunk_implementation
-    defer_read = implementation in ('deferred_read', 'diag_correction', 'optimized')
-    diagonal_correction = implementation in ('diag_correction', 'optimized')
+    defer_read = implementation in (
+        'deferred_read', 'diag_correction', 'diag_select', 'optimized')
+    diagonal_correction = implementation == 'diag_correction'
+    diagonal_select = implementation in ('diag_select', 'optimized')
     concatenate_outputs = implementation == 'optimized'
 
     with jax.named_scope("bam/mix_alpha_projection"):
@@ -3125,10 +3128,12 @@ class BamAttention(Attention):
       y_full = None if defer_read else jnp.zeros_like(y_std)
 
     mask_template = None
+    diagonal_template = None
     if implementation == 'optimized':
       template_target = jnp.arange(t - chunk_size, t)[:, None]
       template_source = jnp.arange(t)[None, :]
       mask_template = template_source <= template_target
+      diagonal_template = template_source == template_target
       if window_size < t:
         mask_template &= template_source > template_target - window_size
 
@@ -3151,7 +3156,8 @@ class BamAttention(Attention):
       return full_read
 
     def chunk_body(q_chunk, k_chunk, v_chunk, M_chunk, mix_chunk,
-                   local_M_chunk, row_chunk, col_chunk, valid, diag_col):
+                   local_M_chunk, row_chunk, col_chunk, valid, diagonal_mask,
+                   diag_col):
       with jax.named_scope("attention/qk_logits"):
         logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
       if cfg.attn_logits_soft_cap:
@@ -3173,6 +3179,10 @@ class BamAttention(Attention):
               alpha, diag_col[None, None, :, None], axis=-1)[..., 0]
           fetch_diagonal = jnp.einsum(
               'bnc,bcn->bc', alpha_diagonal, mix_chunk)
+        elif diagonal_select:
+          fetch_alpha = jnp.where(
+              diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype),
+              fetch_alpha)
         else:
           fetch_alpha = fetch_alpha.at[
               :, jnp.arange(chunk_size), diag_col].set(
@@ -3202,6 +3212,10 @@ class BamAttention(Attention):
           valid &= source > target - window_size
       else:
         valid = mask_template[:, t - (s1 - s0):]
+      diagonal_mask = (
+          jnp.arange(s1 - s0)[None, :] == diag_col[:, None]
+          if diagonal_template is None
+          else diagonal_template[:, t - (s1 - s0):])
       valid = valid[None]
       if decoder_segment_ids is not None:
         same_segment = (
@@ -3215,7 +3229,8 @@ class BamAttention(Attention):
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
           fetch_state[:, s0:s1], mix_weights[:, q0:q1],
           fetch_state[:, q0:q1],
-          read_row[:, q0:q1], read_col[:, q0:q1], valid, diag_col)
+          read_row[:, q0:q1], read_col[:, q0:q1], valid, diagonal_mask,
+          diag_col)
       if concatenate_outputs:
         y_std_chunks.append(y_std_chunk)
         Mbar_chunks.append(second_chunk)

@@ -283,7 +283,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
-    # legacy | no_remat | deferred_read | diag_correction | optimized
+    # legacy | no_remat | deferred_read | diag_correction | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
@@ -898,6 +898,12 @@ class BamV2QChunk256DiagCorrectionSixLayerProfile(BamV2QChunk256SixLayerProfile)
     """C256 deferred read plus algebraic diagonal-one correction, without scatter."""
     model_name = 'BamV2QChunk256DiagCorrectionSixLayerProfile'
     bam_query_chunk_implementation = 'diag_correction'
+
+
+class BamV2QChunk256DiagSelectSixLayerProfile(BamV2QChunk256SixLayerProfile):
+    """C256 deferred read with an exact diagonal mask/select instead of scatter."""
+    model_name = 'BamV2QChunk256DiagSelectSixLayerProfile'
+    bam_query_chunk_implementation = 'diag_select'
 
 
 class BamV2QChunk256OptimizedSixLayerProfile(BamV2QChunk256SixLayerProfile):

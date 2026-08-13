@@ -50,6 +50,7 @@ def _emit(root, implementation, output):
 
   run_dir = os.path.join(os.path.dirname(output), implementation)
   os.makedirs(run_dir, exist_ok=True)
+  config_overrides = {"bam_adaptation": True} if implementation == "adaptation" else {}
   cfg = pyconfig.initialize(
       [None, os.path.join(maxtext, "configs/base.yml")],
       exp_class="BamLlama2MediumV2",
@@ -70,6 +71,7 @@ def _emit(root, implementation, output):
       dtype="float32",
       weight_dtype="float32",
       log_config=False,
+      **config_overrides,
   )
   mesh = Mesh(np.asarray(jax.devices()), ("data",))
   common_kwargs = dict(
@@ -131,6 +133,7 @@ def _emit(root, implementation, output):
   }
   payload = dict(
       config={key: getattr(cfg, key) for key in CONFIG_KEYS},
+      bam_adaptation=getattr(cfg, "bam_adaptation", False),
       params=flatten(params),
       grads=flatten(grads),
       output=np.asarray(y),
@@ -144,7 +147,11 @@ def _emit(root, implementation, output):
 def _compare(reference_root, target_root):
   with tempfile.TemporaryDirectory(prefix="bam-v2-alignment-") as tmp:
     outputs = {}
-    for implementation, root in (("reference", reference_root), ("target", target_root)):
+    for implementation, root in (
+        ("reference", reference_root),
+        ("target", target_root),
+        ("adaptation", target_root),
+    ):
       output = os.path.join(tmp, f"{implementation}.pkl")
       subprocess.run(
           [sys.executable, __file__, "--emit", implementation, "--root", root, "--output", output],
@@ -155,6 +162,9 @@ def _compare(reference_root, target_root):
         outputs[implementation] = pickle.load(stream)
 
     reference, target = outputs["reference"], outputs["target"]
+    adaptation = outputs["adaptation"]
+    if target["bam_adaptation"] or not adaptation["bam_adaptation"]:
+      raise AssertionError("bam_adaptation must default to false and enable only by override")
     if reference["config"] != target["config"]:
       raise AssertionError(f"resolved config differs: {reference['config']} != {target['config']}")
     for tree_name in ("params", "grads"):
@@ -169,10 +179,29 @@ def _compare(reference_root, target_root):
         )
     for name in ("output", "matrix_out", "loss"):
       np.testing.assert_allclose(target[name], reference[name], rtol=1e-6, atol=1e-6, err_msg=name)
+
+    # The adaptation path intentionally adds only the projected-U kernel.  The
+    # projected row read reuses abs_v_row_decoder, which is retained in the
+    # default V2 checkpoint tree for reference compatibility.
+    extra_params = set(adaptation["params"]) - set(target["params"])
+    if len(extra_params) != 1 or not next(iter(extra_params)).endswith("P_agg_u"):
+      raise AssertionError(f"unexpected adaptation parameter paths: {sorted(extra_params)}")
+    if set(target["params"]) - set(adaptation["params"]):
+      raise AssertionError("adaptation removed default parameter paths")
+    for name in ("output", "matrix_out", "loss"):
+      if not np.all(np.isfinite(adaptation[name])):
+        raise AssertionError(f"non-finite adaptation {name}")
+    for suffix in ("P_agg_u", "abs_v_row_decoder"):
+      paths = [path for path in adaptation["grads"] if path.endswith(suffix)]
+      if len(paths) != 1 or not np.all(np.isfinite(adaptation["grads"][paths[0]])):
+        raise AssertionError(f"invalid adaptation gradient for {suffix}: {paths}")
+      if not np.any(adaptation["grads"][paths[0]] != 0):
+        raise AssertionError(f"adaptation gradient is identically zero for {suffix}")
     print(
         "BAM V2 alignment passed:",
         f"params={len(target['params'])}",
         f"grads={len(target['grads'])}",
+        f"adaptation_params={len(adaptation['params'])}",
         "rtol=atol=1e-6",
     )
 
@@ -181,7 +210,7 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--reference-root")
   parser.add_argument("--target-root", default=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-  parser.add_argument("--emit", choices=("reference", "target"))
+  parser.add_argument("--emit", choices=("reference", "target", "adaptation"))
   parser.add_argument("--root")
   parser.add_argument("--output")
   args = parser.parse_args()

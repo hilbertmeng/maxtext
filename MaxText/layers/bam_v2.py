@@ -82,19 +82,21 @@ def _factorized_local_read(
   return jnp.concatenate((y_u, y_v), axis=-1)
 
 
-def _packed_local_qk_init(kernel_init, num_heads, key_width):
+def _packed_local_qk_init(kernel_init, num_query_heads, num_kv_heads, key_width):
   """Reference packed initializer, including its two-key PRNG consumption."""
-  mix_width = 2 * num_heads
-  packed_width = 2 * (key_width + 2 + mix_width)
+  query_mix_width = 2 * num_query_heads
+  kv_mix_width = 2 * num_kv_heads
+  packed_width = 2 * (key_width + 2) + query_mix_width + kv_mix_width
 
   def init_fn(key, shape, dtype, _in_axis=0, _out_axis=1):
     if len(shape) != 2 or shape[-1] != packed_width:
       raise ValueError(f"packed local-QK kernel expects [embed,{packed_width}], got {shape}")
     q_mix_key, k_mix_key = jax.random.split(key)
     zeros = lambda width: jnp.zeros((shape[0], width), dtype)
-    mix_shape = (shape[0], num_heads, 2)
-    q_mix = kernel_init(q_mix_key, mix_shape, dtype, 0, (1, 2)).reshape(shape[0], mix_width)
-    k_mix = kernel_init(k_mix_key, mix_shape, dtype, 0, (1, 2)).reshape(shape[0], mix_width)
+    q_mix_shape = (shape[0], num_query_heads, 2)
+    kv_mix_shape = (shape[0], num_kv_heads, 2)
+    q_mix = kernel_init(q_mix_key, q_mix_shape, dtype, 0, (1, 2)).reshape(shape[0], query_mix_width)
+    k_mix = kernel_init(k_mix_key, kv_mix_shape, dtype, 0, (1, 2)).reshape(shape[0], kv_mix_width)
     return jnp.concatenate(
         (zeros(key_width), zeros(2), q_mix, zeros(key_width), zeros(2), k_mix), axis=-1
     )
@@ -113,8 +115,8 @@ class BamV2Attention(attentions.Attention):
     cfg = self.config
     if self.bam_k + self.bam_v != self.head_dim:
       raise ValueError("BAM V2 requires bam_k + bam_v == head_dim")
-    if self.num_query_heads != self.num_kv_heads:
-      raise ValueError("BAM V2 requires MHA (num_query_heads == num_kv_heads)")
+    if self.num_query_heads % self.num_kv_heads != 0:
+      raise ValueError("BAM V2 requires num_query_heads divisible by num_kv_heads")
     if self.use_kv_shift or getattr(cfg, "use_o_shift", False):
       raise ValueError("BAM V2 is not defined with KV/O shift")
     if uses_dcmha := attentions.uses_dcmha_attention(
@@ -125,7 +127,7 @@ class BamV2Attention(attentions.Attention):
     reg_init = self.kernel_init
     zeros_init = initializers.contant_dense_init(0.0)
     key_width = self.bam_k + self.bam_v
-    packed_width = 2 * (key_width + 2 + 2 * self.num_query_heads)
+    packed_width = 2 * (key_width + 2) + 2 * (self.num_query_heads + self.num_kv_heads)
     read_gate_init = float(cfg.bam_read_gate_init)
     gate_bias = math.log(read_gate_init / (1.0 - read_gate_init))
 
@@ -199,7 +201,9 @@ class BamV2Attention(attentions.Attention):
     self.W_local_qk_packed = DenseGeneral(
         features=packed_width,
         axis=-1,
-        kernel_init=_packed_local_qk_init(reg_init, self.num_query_heads, key_width),
+        kernel_init=_packed_local_qk_init(
+            reg_init, self.num_query_heads, self.num_kv_heads, key_width
+        ),
         kernel_axes=("embed", None),
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
@@ -230,6 +234,20 @@ class BamV2Attention(attentions.Attention):
               (2,),
               self.weight_dtype,
           ),
+      )
+
+    # Adaptation-only learned U factor.  Source: the reference BamAttention
+    # ``bam_write_u_proj`` branch, collapsed behind one V2 capability flag.
+    # Keeping this conditional preserves the exact default parameter tree.
+    if cfg.bam_adaptation:
+      def write_u_init(key, shape, dtype):
+        return reg_init(key, shape, dtype, 1, 2)
+
+      self.P_agg_u = self.param(
+          "P_agg_u",
+          nn.with_logical_partitioning(write_u_init, ("q_heads", "embed", "v_factor")),
+          (self.num_query_heads, self.head_dim, self.bam_k),
+          self.weight_dtype,
       )
 
     # Source: Direct P_loc r=256 GELU x_bias write, without unused projected-U.
@@ -283,17 +301,18 @@ class BamV2Attention(attentions.Attention):
   def _local_qk(self, matrix, inputs):
     packed = self.W_local_qk_packed(inputs)
     key_width = self.bam_k + self.bam_v
-    mix_width = 2 * self.num_query_heads
+    query_mix_width = 2 * self.num_query_heads
+    kv_mix_width = 2 * self.num_kv_heads
     split_points = (
         key_width,
         key_width + 2,
-        key_width + 2 + mix_width,
-        2 * key_width + 2 + mix_width,
-        2 * key_width + 4 + mix_width,
+        key_width + 2 + query_mix_width,
+        2 * key_width + 2 + query_mix_width,
+        2 * key_width + 4 + query_mix_width,
     )
     q_key, q_gate, q_mix, k_key, k_gate, k_mix = jnp.split(packed, split_points, axis=-1)
-    mix_shape = q_mix.shape[:-1] + (self.num_query_heads, 2)
-    q_mix, k_mix = q_mix.reshape(mix_shape), k_mix.reshape(mix_shape)
+    q_mix = q_mix.reshape(q_mix.shape[:-1] + (self.num_query_heads, 2))
+    k_mix = k_mix.reshape(k_mix.shape[:-1] + (self.num_kv_heads, 2))
     q_key = q_key + jnp.asarray(self.W_lq_bias, q_key.dtype)
     k_key = k_key + jnp.asarray(self.W_lk_bias, k_key.dtype)
     q_gate = q_gate + jnp.asarray(self.W_lq_gate_b0, q_gate.dtype)
@@ -337,11 +356,22 @@ class BamV2Attention(attentions.Attention):
     fetched_btn = jnp.transpose(fetched, (0, 2, 1, 3, 4))
     y_u = jnp.sum(fetched_btn[:, :, None] * col_key[..., None, :], axis=(-3, -1))
     y_v = jnp.sum(fetched_btn[:, :, None] * row_key[..., :, None], axis=(-3, -2))
+    if self.config.bam_adaptation:
+      # The decoder already exists in the default checkpoint tree.  Adaptation
+      # executes it as a per-head C->V linear projection instead of padding the
+      # compressed row read with zeros.
+      decoder = jnp.asarray(self.abs_v_row_decoder, y_v.dtype)
+      y_v = jnp.einsum("btnc,ncv->btnv", y_v, decoder)
+      return jnp.concatenate((y_u, y_v), axis=-1)
     full_read = jnp.concatenate((y_u, y_v), axis=-1)
     return jnp.pad(full_read, ((0, 0), (0, 0), (0, 0), (0, self.bam_v - y_v.shape[-1])))
 
   def _write(self, o_head, inputs, matrix):
-    u1 = o_head[..., :self.bam_k]
+    if self.config.bam_adaptation:
+      projection = jnp.asarray(self.P_agg_u, o_head.dtype)
+      u1 = jnp.einsum("btnd,ndk->btnk", o_head, projection)
+    else:
+      u1 = o_head[..., :self.bam_k]
     u2 = self.P_loc_up(nn.gelu(self.P_loc_down(inputs)))
     gate = jax.nn.sigmoid(self.W_gw(inputs) + jnp.asarray(self.gw_b0, self.dtype))
     u1 = _rms_norm(
@@ -397,7 +427,12 @@ class BamV2Attention(attentions.Attention):
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if self.float32_qk_product:
       query, key = query.astype(jnp.float32), key.astype(jnp.float32)
-    logits = jnp.einsum("btnd,bsnd->bnts", query, key)
+    batch, query_length, query_heads, depth = query.shape
+    kv_heads = key.shape[-2]
+    query_groups = query_heads // kv_heads
+    grouped_query = query.reshape(batch, query_length, kv_heads, query_groups, depth)
+    logits = jnp.einsum("btkgd,bskd->bkgts", grouped_query, key)
+    logits = logits.reshape(batch, query_heads, query_length, key.shape[1])
     if self.config.attn_logits_soft_cap:
       logits = jnp.tanh(logits / self.config.attn_logits_soft_cap) * self.config.attn_logits_soft_cap
     mask = self.attention_op.generate_attention_mask(query, key, decoder_segment_ids, model_mode)
@@ -406,7 +441,9 @@ class BamV2Attention(attentions.Attention):
     if self.float32_logits:
       logits = logits.astype(jnp.float32)
     alpha = jax.nn.softmax(logits, axis=-1)
-    y_std = jnp.einsum("bnts,bsnd->btnd", alpha, value)
+    grouped_alpha = alpha.reshape(batch, kv_heads, query_groups, query_length, key.shape[1])
+    y_std = jnp.einsum("bkgts,bskd->btkgd", grouped_alpha, value)
+    y_std = y_std.reshape(batch, query_length, query_heads, depth)
     y_full = self._full_read(M_in, alpha, inputs_q)
     o_head = y_std + y_full
     M_out = self._write(o_head, inputs_q, M_in)

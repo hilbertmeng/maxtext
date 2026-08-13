@@ -380,6 +380,8 @@ class FusionDecoderLayer(nn.Module):
   ):
     cfg = self.config
     bam_enabled = bool(getattr(cfg, "bam_enabled", False))
+    if bam_enabled and cfg.scan_layers:
+      inputs, M_in = inputs
     recurrent_mudd_virtual_state = bool(getattr(cfg, "recurrent_mudd_virtual_state", False))
     if recurrent_mudd_virtual_state:
       assert virtual_layer_idx is not None, "recurrent MUDD requires an explicit virtual layer index."
@@ -497,6 +499,8 @@ class FusionDecoderLayer(nn.Module):
     elif cfg.dense_conn:
       hids = append_mudd_hidden(hids, inputs)
    
+    if bam_enabled and cfg.scan_layers:
+      return (inputs, M_out), None
     return (inputs, hids, M_out) if bam_enabled else (inputs, hids)
 
   def partial_scan_call(

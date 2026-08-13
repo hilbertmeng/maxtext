@@ -24,6 +24,7 @@ import jax.numpy as jnp
 from jax.ad_checkpoint import checkpoint_name
 # from jax.experimental.pallas.ops.tpu import flash_attention
 from layers import attentions
+from layers import bam_v2
 from layers import embeddings
 from layers import linears
 from layers import normalizations
@@ -83,6 +84,10 @@ class LlamaDecoderLayer(nn.Module):
   ):
     cfg = self.config
     mesh = self.mesh
+    bam_enabled = bool(getattr(cfg, "bam_enabled", False))
+    M_in = None
+    if bam_enabled and cfg.scan_layers:
+      inputs, M_in = inputs
 
     inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
     inputs = checkpoint_name(inputs, "decoder_layer_input")
@@ -100,7 +105,8 @@ class LlamaDecoderLayer(nn.Module):
     lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
     # Self-attention block
-    attention_layer = Attention(
+    AttentionLayer = bam_v2.BamV2Attention if bam_enabled else Attention
+    attention_layer = AttentionLayer(
         config=cfg,
         num_query_heads=cfg.num_query_heads,
         num_kv_heads=cfg.num_kv_heads,
@@ -123,16 +129,21 @@ class LlamaDecoderLayer(nn.Module):
         reshape_q=cfg.reshape_q,
         use_ragged_attention=cfg.use_ragged_attention,
         ragged_block_size=cfg.ragged_block_size,
+        **(dict(bam_k=cfg.bam_k, bam_v=cfg.bam_v) if bam_enabled else {}),
     )
 
-    attention_lnx = attention_layer(
-        lnx,
-        lnx,
-        decoder_positions,
+    attention_kwargs = dict(
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
         model_mode=model_mode,
     )
+    if bam_enabled:
+      attention_lnx, M_out = attention_layer(
+          lnx, lnx, decoder_positions, M_in=M_in, **attention_kwargs
+      )
+    else:
+      attention_lnx = attention_layer(lnx, lnx, decoder_positions, **attention_kwargs)
+      M_out = None
 
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
@@ -184,7 +195,11 @@ class LlamaDecoderLayer(nn.Module):
           jnp.sum(layer_output == 0) / jnp.size(layer_output),
       )
 
+    if bam_enabled and cfg.scan_layers:
+      return (layer_output, M_out), None
     if cfg.scan_layers:
       return layer_output, None
+    if bam_enabled:
+      return layer_output, M_out
     else:
       return layer_output

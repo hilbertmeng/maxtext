@@ -210,16 +210,10 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     decoder_block = "fusion"
 
 
-class BamLlama2MediumV2(Llama2Medium):
-    """Frozen BAM V2 milestone from tmp/maxtext commit 1afd9425.
-
-    This is the resolved V2 execution configuration, flattened from the
-    reference class MRO.  Keeping only values consumed by the dedicated V2 path
-    prevents historical BAM ablations and compatibility switches from becoming
-    part of this port.
-    """
-    model_name = 'BamLlama2MediumV2'
+class BAM:
+    """Reusable defaults for the minimal BAM V2 execution path."""
     bam_enabled = True
+    bam_adaptation = False
     bam_layer_modes = ['local_qk+full'] * 24
     bam_read_sides = 'both'
     bam_k = 32
@@ -250,6 +244,16 @@ class BamLlama2MediumV2(Llama2Medium):
     bam_write_v_bottleneck_dim = 256
     bam_write_v_bottleneck_activation = 'gelu'
     bam_write_outer_implementation = 'mul_reduce'
+
+
+class BamLlama2MediumV2(BAM, Llama2Medium):
+    """Frozen BAM V2 milestone from tmp/maxtext commit 1afd9425.
+
+    The reusable BAM mixin contains only values consumed by the dedicated V2
+    path, keeping historical BAM ablations and compatibility switches out of
+    this port.
+    """
+    model_name = 'BamLlama2MediumV2'
     float32_logits = False
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_gate_b0$', 0.0)]
 
@@ -426,6 +430,25 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4(Qwen3LargeArcP
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4):
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun'
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAM(
+    BAM, Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun
+):
+    bam_layer_modes = ['local_qk+full'] * 28
+    bam_k = 64
+    bam_v = 64
+    # Merge the Plain checkpoint into the expanded tree; only BAM leaves remain
+    # at their fresh initialization values.
+    train_merge_loaded_params = True
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAM'
+    model_name = run_name
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptation(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAM
+):
+    bam_adaptation = True
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptation'
+    model_name = run_name
 
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1(
     DC, Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun

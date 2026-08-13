@@ -811,6 +811,38 @@ def dcmha_param_paths_to_skip(params):
   )
 
 
+_BAM_ATTENTION_PARAM_NAMES = frozenset(
+    {
+        "abs_v_cache_projection",
+        "abs_v_row_decoder",
+        "W_R",
+        "W_R_gate",
+        "W_R_gate_b0",
+        "fetch_head_mix",
+        "W_local_qk_packed",
+        "W_lq_bias",
+        "W_lq_gate_b0",
+        "W_lk_bias",
+        "W_lk_gate_b0",
+        "P_agg_u",
+        "P_loc_down",
+        "P_loc_up",
+        "W_gw",
+        "gw_b0",
+    }
+)
+
+
+def bam_param_paths_to_skip(params):
+  """Return BAM-only leaves that do not exist in a Plain attention checkpoint."""
+  params = unbox_logicallypartioned(params)
+  return tuple(
+      path
+      for path in flax.traverse_util.flatten_dict(params)
+      if "self_attention" in path and any(part in _BAM_ATTENTION_PARAM_NAMES for part in path)
+  )
+
+
 def audit_recurrent_mudd_initialization(initialized_params, restored_params, config):
   """Logs and enforces the TPU startup contract for recurrent full-history MUDD."""
   if not getattr(config, "recurrent_mudd_virtual_state", False):
@@ -1083,6 +1115,7 @@ def setup_initial_state(
       skip_paths.extend(embedding_param_paths_to_skip(config))
     if is_training and getattr(config, "train_merge_loaded_params", False):
       skip_paths.extend(dcmha_param_paths_to_skip(unboxed_abstract_state.params))
+      skip_paths.extend(bam_param_paths_to_skip(unboxed_abstract_state.params))
     if skip_paths:
       load_params_skip_paths = tuple(dict.fromkeys(skip_paths))
     restored, raw_params = checkpointing.load_state_if_possible(

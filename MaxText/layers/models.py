@@ -672,9 +672,8 @@ class Decoder(nn.Module):
     bam_enabled = bool(getattr(cfg, "bam_enabled", False))
     if bam_enabled:
       # Source: tmp/maxtext 1afd9425 Decoder.  V2 threads one [b,t,k,v]
-      # matrix state through the explicit 24-layer loop; no scan/cache/recurrent
-      # compatibility branches are part of the frozen reference execution path.
-      assert not cfg.scan_layers, "BAM V2 requires scan_layers=False"
+      # matrix state through either the accepted model's scanned layer carry or
+      # the explicit unscanned loop.
       assert not cfg.partial_scan_layers, "BAM V2 does not support partial scans"
       assert not cfg.using_pipeline_parallelism, "BAM V2 does not support pipeline parallelism"
       assert getattr(cfg, "recurrent_block_repeats", 1) == 1, "BAM V2 does not support recurrent layers"
@@ -912,8 +911,11 @@ class Decoder(nn.Module):
 
       elif cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]
-        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
-            y,
+        scan_carry = (y, M) if bam_enabled else y
+        scan_carry, _ = self.scan_decoder_layers(
+            cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh
+        )(
+            scan_carry,
             decoder_segment_ids,
             decoder_positions,
             decoder_input_tokens,
@@ -923,6 +925,10 @@ class Decoder(nn.Module):
             None,
             eos_sum=eos_sum,
         )
+        if bam_enabled:
+          y, M = scan_carry
+        else:
+          y = scan_carry
 
       elif cfg.partial_scan_layers:
 

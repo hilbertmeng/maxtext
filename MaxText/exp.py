@@ -1001,6 +1001,30 @@ class BamMHAControlQChunk256SixLayerProfile(BamMHAControlDenseSixLayerProfile):
     query_chunk_size = 256
 
 
+class BamMHAControlQChunk256NoInnerRematSixLayerProfile(
+    BamMHAControlQChunk256SixLayerProfile
+):
+    """Ablate the chunk-local remat nested inside the rematted decoder layer."""
+    model_name = 'BamMHAControlQChunk256NoInnerRematSixLayerProfile'
+    bam_mha_control_inner_remat = False
+
+
+class BamMHAControlQChunk256SharedMaskSixLayerProfile(
+    BamMHAControlQChunk256SixLayerProfile
+):
+    """Use QChunk's broadcast causal mask instead of a batched segment mask."""
+    model_name = 'BamMHAControlQChunk256SharedMaskSixLayerProfile'
+    bam_mha_control_segment_mask = False
+
+
+class BamMHAControlQChunk256SharedMaskNoInnerRematSixLayerProfile(
+    BamMHAControlQChunk256SharedMaskSixLayerProfile
+):
+    """Pair the broadcast causal mask with no nested chunk remat."""
+    model_name = 'BamMHAControlQChunk256SharedMaskNoInnerRematSixLayerProfile'
+    bam_mha_control_inner_remat = False
+
+
 class Llama2MediumDotProductFullLayerProfile(Llama2MediumDotProductSixLayerProfile):
     """Full-24 Attention(dot_product) control on the target training TPU."""
     model_name = 'Llama2MediumDotProductFullLayerProfile'

@@ -2293,6 +2293,10 @@ class BamAttention(Attention):
     if self._mha_control:
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       assert not cfg.bam_diagnostics, 'BAM MHA control must not expose BAM diagnostics'
+      self._mha_control_segment_mask = bool(getattr(
+          cfg, 'bam_mha_control_segment_mask', True))
+      self._mha_control_inner_remat = bool(getattr(
+          cfg, 'bam_mha_control_inner_remat', True))
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
         assert cfg.max_target_length % self._query_chunk_size == 0, (
@@ -3200,7 +3204,9 @@ class BamAttention(Attention):
       with jax.named_scope("attention/av"):
         return jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
 
-    remat_chunk_body = jax.checkpoint(chunk_body, prevent_cse=True)
+    apply_chunk = (
+        jax.checkpoint(chunk_body, prevent_cse=True)
+        if self._mha_control_inner_remat else chunk_body)
     for q0 in range(0, t, chunk_size):
       q1 = q0 + chunk_size
       s0 = max(0, q0 - window_size) if window_size < t else 0
@@ -3211,13 +3217,11 @@ class BamAttention(Attention):
       if window_size < t:
         valid &= source > target - window_size
       valid = valid[None]
-      if decoder_segment_ids is not None:
+      if self._mha_control_segment_mask and decoder_segment_ids is not None:
         valid = valid & (
             decoder_segment_ids[:, q0:q1, None]
             == decoder_segment_ids[:, None, s0:s1])
-      else:
-        valid = jnp.broadcast_to(valid, (b,) + valid.shape[1:])
-      y_std_chunk = remat_chunk_body(
+      y_std_chunk = apply_chunk(
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1], valid)
       y_std = lax.dynamic_update_slice(y_std, y_std_chunk, (0, q0, 0, 0))
     return y_std

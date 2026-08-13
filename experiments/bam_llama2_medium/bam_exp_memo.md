@@ -551,6 +551,9 @@ not erase the C256 regression.
 Commit `da35a43`, one standalone `v6e-1`, six layers, `B=32,T=2048`, all
 `float32_logits=False`; every arm uses the step 10–14 primary XPlane and also retained a step 2–6
 insurance trace. `BAM/MHA` is throughput retained; `time overhead = BAM/MHA step time - 1`.
+The earlier v6e MHA arms inherited `float32_logits=True` while BAM used `False`, so that table was
+not a fair overhead pair. The recheck reproduces dense MHA within 0.01%, BAM dense within 0.14%,
+and BAM C256 within 0.08%; only MHA C256 moves 376.58→369.15 ms after the dtype correction.
 
 | Comparison | MHA step | BAM step | BAM/MHA | time overhead | C256 throughput gain |
 |---|---:|---:|---:|---:|---:|

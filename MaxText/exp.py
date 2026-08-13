@@ -884,17 +884,19 @@ class BamV2QChunk256ThreeInputSixLayerProfile(BamV2QChunk256SixLayerProfile):
     bam_query_chunk_fetch_implementation = 'three_input'
 
 
-class BamV2LGLLQChunk256SixLayerProfile(BamV2QChunk256SixLayerProfile):
-    """Shared SWA/global alpha with a repeated LGLL layer schedule."""
-    model_name = 'BamV2LGLLQChunk256SixLayerProfile'
+class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
+    """Eight-layer LGLL repeat: exactly 6 local and 2 global layers."""
+    model_name = 'BamV2LGLLQChunk256EightLayerProfile'
+    base_num_decoder_layers = 8
+    bam_layer_modes = ['local_qk+full'] * 8
     sliding_window_size = [256, None, 256, 256]
 
 
-class BamV2LGLLQChunk256ThreeInputSixLayerProfile(
-    BamV2LGLLQChunk256SixLayerProfile
+class BamV2LGLLQChunk256ThreeInputEightLayerProfile(
+    BamV2LGLLQChunk256EightLayerProfile
 ):
     """LGLL C256 with a three-input BAM mix/fetch expression."""
-    model_name = 'BamV2LGLLQChunk256ThreeInputSixLayerProfile'
+    model_name = 'BamV2LGLLQChunk256ThreeInputEightLayerProfile'
     bam_query_chunk_fetch_implementation = 'three_input'
 
 

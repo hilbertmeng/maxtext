@@ -62,9 +62,8 @@ comparisons, then verify the winning combination with full layers.
   (normally `v6e-1`); use the target training TPU only as a final confirmation.
 - If a spot `v5p-16` remains `WAITING_FOR_RESOURCES` in `us-central1-a` for 5 minutes, also queue
   one in `europe-west4-b`. If EW4b wins, retain the UC1a queue and first verify the identical Pile
-  profile has no region-dependent input stall by comparing stable log step time with XPlane device
-  step; if it does, discard EW4b timing and wait for UC1a. Otherwise keep the first validated TPU
-  and immediately stop/delete the other exact resource.
+  config at the same commit and steps on both regions; if stable step/s differs, use UC1a timing.
+  Otherwise keep either validated TPU and immediately stop/delete the other exact resource.
 - Write XPlane locally and copy it to `tpu-ag` as soon as `*.xplane.pb` appears. For a critical
   spot arm, race two zones and never use `us-east5-a` as its sole copy. Also record an insurance
   trace at steps 2–6 and the primary trace at 10–14 with

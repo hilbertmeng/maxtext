@@ -913,6 +913,8 @@ class BamV2QChunk256OptimizedSixLayerProfile(BamV2QChunk256SixLayerProfile):
 
 class BamV2QChunk256OptimizedFullLayerProfile(BamV2QChunk256OptimizedSixLayerProfile):
     """Full-24 target-TPU verification of the optimized C256 BAM path."""
+    # code_commit: 165b55b
+    # v5p-16 XPlane 1,455.35 ms; ~0.675 steps/s; +17.85% throughput vs legacy C256.
     model_name = 'BamV2QChunk256OptimizedFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24

@@ -85,27 +85,25 @@ y_std_c = jnp.einsum('bncs,bsnd->bcnd', alpha, v)
 w_c = mix_weights[:, q0:q1]                      # [b,C,n]
 fetch_alpha_c = jnp.einsum('bncs,bcn->bcs', alpha, w_c)
 
-# V2 diagonal-one semantics: overwrite after head mixing.
-diag_col = jnp.arange(q0, q1) - s0
-fetch_alpha_c = fetch_alpha_c.at[:, jnp.arange(C), diag_col].set(1)
+# V2 diagonal-one semantics: exact select after head mixing, without scatter.
+diag = (target == source)
+fetch_alpha_c = jnp.where(diag, 1, fetch_alpha_c)
 
 Mbar_c = jnp.einsum('bcs,bskv->bckv', fetch_alpha_c, M)
-y_full_c = bam_read_preprojected(
-    Mbar_c, read_key[:, q0:q1], read_gate[:, q0:q1])
 ```
 
-Write `y_std_c` and `y_full_c` into linear-size `[b,T,n,d]` output buffers using
-`lax.dynamic_update_slice`. The existing `o_head`, pointwise M write, and output projection run
-after the loop. LocalQK/localV are also linear in T and may remain outside the loop initially.
+Concatenate every chunk's `y_std_c` and `Mbar_c`. After the loop, perform one
+`bam_read_preprojected(Mbar, read_key, read_gate)` over the full sequence. This avoids repeated
+read contractions and dynamic-update copies while retaining only linear-size intermediates. The
+existing `o_head`, pointwise M write, LocalQK/localV and output projection remain outside the loop.
 
 For packed data, build the causal/local/segment mask per chunk as above. Do not copy QChunk's
 current static causal mask verbatim: BAM training already supports `decoder_segment_ids`, and
 cross-segment attention would be a semantic bug.
 
-Use `jax.checkpoint` around the chunk body as QChunk does. A BAM-local implementation in
-`attentions.py` is initially cleaner than adding a BAM callback to generic `QChunk`, because the
-carry contains two outputs and BAM-specific M/read state. Extract a generic primitive only after
-the shape/semantic path is stable.
+Do not add a chunk-local `jax.checkpoint`: the decoder layer already supplies the remat boundary,
+and the nested remat materially slows this graph. The BAM-local implementation remains in
+`attentions.py` because generic `QChunk` discards alpha before BAM can consume it.
 
 ## Why sharing is exact
 
@@ -176,9 +174,9 @@ the BAM `M_s` cache is the motivation here.
 
 ## Profile result
 
-Implementation and semantic tests are complete. Six/eight-layer profiles use commit `0caa467`,
-bf16, `B=32,T=2048`, and v6e-1 step 10–14 XPlane; the final full-24 target-TPU pair is recorded
-separately below. Full-24 uses commit `8aacdab` on one v5p-16.
+Implementation and semantic tests are complete. Initial architecture profiles used commit
+`0caa467`; the optimized BAM C256 implementation is finalized at `165b55b`. Profiles use bf16,
+`B=32,T=2048`, and step 10–14 XPlane. Full detail is in `bam_exp_memo.md`.
 
 - C256 is the best all-global BAM chunk: 591.78 ms versus dense 683.15 ms, or +15.4%
   throughput. C128/C512 give +12.2%/+14.5%.
@@ -190,10 +188,12 @@ separately below. Full-24 uses commit `8aacdab` on one v5p-16.
 - Matched BAM overhead is 57.1% for all-global C256, 54.3% for L:G=1:1, and 53.9% for
   L:G=3:1. SWA helps absolute speed and historical-M cache, but does not eliminate the remaining
   BAM read/write overhead.
-- Full-24 target verification is 1,715.14 ms for C256 versus 1,780.90 ms dense: +3.83%
-  throughput, agreeing with stable logs (+3.98%).
+- The original full-24 C256 path is 1,715.14 ms versus 1,780.90 ms dense. The optimized path is
+  1,455.35 ms (+17.85% throughput), consistent with the six-layer v6e improvement from 592.26 to
+  494.57 ms (+19.75%). It removes nested remat, defers fetched read, replaces diagonal scatter
+  with exact select, and concatenates chunks.
 
-Therefore the implementation is fixed to two-stage C256. Set `attention='dot_product_chunk'` and
-reuse MaxText's `query_chunk_size`; BAM has no separate chunk-size setting. Architecture training
-should compare an LGLL BAM run only with the identical LGLL MHA control; the profile does not
-establish capability.
+Therefore the implementation remains two-stage C256, with one deferred fetched read after the
+chunk loop. Set `attention='dot_product_chunk'`, reuse MaxText's `query_chunk_size`, and select the
+optimized BAM path. Architecture training should compare an LGLL BAM run only with the identical
+LGLL MHA control; the profile does not establish capability.

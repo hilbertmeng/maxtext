@@ -541,10 +541,12 @@ Full BAM overhead is only reported for semantically matched control/full paths:
 |---|---|---:|---|---:|---:|
 | dense | `BamMHAControlDenseFullLayerProfile` | 1,276.37 ms | `BamV2DenseFullLayerProfile` | 1,780.90 ms | 71.7% |
 | C256, legacy inner-remat | `BamMHAControlQChunk256FullLayerProfile` @`f052fa6` | 1,162.67 ms | `BamV2QChunk256FullLayerProfile` | 1,715.14 ms | 67.8% |
-| C256, fixed control | `BamMHAControlQChunk256FullLayerProfile` @`a1ad13f` | 1,088.61 ms | not yet matched | — | — |
+| **C256, optimized** | `BamMHAControlQChunk256FullLayerProfile` @`a1ad13f` | **1,088.61 ms** | `BamV2QChunk256OptimizedFullLayerProfile` @`165b55b` | **1,455.35 ms** | **74.8%** |
 
-The fixed C256 control must not be paired with the legacy full-BAM timing: full BAM still has its
-own chunk-local remat, so doing so would overstate current BAM overhead.
+Optimized C256 is +17.85% throughput versus legacy C256 and +22.37% versus dense BAM; stable logs
+are ~0.675 steps/s. Its 16-device range is 1,453.44--1,457.40 ms. Relative to the matched C256 MHA
+control its time overhead is 33.7%, down from legacy C256's 47.5%; the canonical matched
+throughput-retention figure is 74.8%.
 
 ### v6e controlled overhead recheck
 
@@ -600,11 +602,35 @@ C256另有50.18 ms未落入上述语义scope的chunk scaffolding：mask/select 2
 13.52 ms、dynamic update 5.41 ms、AbsV源压缩3.15 ms、其余0.51 ms。即目标
 `mix_alpha` contraction确实省35.19 ms，但重复的diagonal更新、fetched read及chunk
 scaffolding抵消了大部分BAM专属收益；整步91.84 ms收益主要来自共享MHA核心少77.61 ms，
-而不是BAM顶层scope只少3.50 ms。这也指出下一步优化目标应是消除逐chunk mask/select、
-slice/update和重复read开销，而不能把当前C256视为已经解决mix/fetch瓶颈。
+而不是BAM顶层scope只少3.50 ms。这直接促成了下面的C256实现优化。
+
+### C256 BAM implementation optimization
+
+同一UC1a `v6e-1`、六层、`B=32,T=2048`、step 10--14 XPlane逐项累积；每一行只增加
+表中所述改动。
+
+| 路径 | Configuration class | Runtime commit | XPlane step | vs 前一项吞吐 | vs legacy吞吐 |
+|---|---|---:|---:|---:|---:|
+| legacy | `BamV2QChunk256SixLayerProfile` | `36ebca4` | 592.26 ms | — | — |
+| 去掉chunk-local remat | `BamV2QChunk256NoRematSixLayerProfile` | `821dc8d` | 536.81 ms | +10.33% | +10.33% |
+| 拼接全部 `Mbar` 后只read一次 | `BamV2QChunk256DeferredReadSixLayerProfile` | `821dc8d` | 521.43 ms | +2.95% | +13.58% |
+| 预计算diagonal mask/select，消除scatter | `BamV2QChunk256DiagSelectSixLayerProfile` | `821dc8d` | 497.61 ms | +4.79% | +19.02% |
+| template mask + concat输出 | `BamV2QChunk256OptimizedSixLayerProfile` | `821dc8d` | **494.57 ms** | **+0.62%** | **+19.75%** |
+
+关键scope由legacy→optimized变化：`bam_total` 170.13→112.47 ms，`mix_alpha`
+89.25→44.27 ms，diagonal update 33.41→0.03 ms，fetched read 37.26→25.23 ms，
+copy 30.93→4.29 ms；编译日志的临时buffer估计由14.08降至8.68 GB。逐chunk加法mask
+把显式select挪进softmax fusion，但整步497.99 ms，反比optimized慢0.69%，故删除。
+代数式diagonal correction会因bf16重结合产生1.39e-3前向相对误差及最高4.15e-3梯度
+相对误差，也未采用。
+
+commit `165b55b`的packed-segment同参验证中，optimized与legacy前向逐元素一致；loss及参数
+梯度差异不超过9.41e-4相对量级，来自去掉冗余remat后的bf16 reduction lowering。最终
+full-24目标TPU结果统一更新到上面的权威表。
 
 Recheck artifacts: `/data0/xd/bam_diagnostics/qchunk_v6e_recheck_final/`；matched-dot和
 中间分析文件位于`/data0/xd/bam_diagnostics/qchunk_v6e_recheck_complete/`。
+本轮实现优化位于`/data0/xd/bam_diagnostics/bam_c256_opt/v6e/`。
 
 ### Strict `BamAttention` MHA-only control
 

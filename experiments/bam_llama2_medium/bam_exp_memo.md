@@ -524,6 +524,22 @@ MHA QK/AV与BAM mix/fetch，而每层write、LocalQK和运行时读键投影仍�
 | V2 dense | 0.553 steps/s | 1,780.90 ms | — |
 | V2 C256 | 0.575 steps/s | 1,715.14 ms | **+3.83%** |
 
+### Full-24 MHA/BAM throughput
+
+All results use v5p-16. `BAM/MHA` is the retained training throughput; lower means greater BAM
+overhead.
+
+| Attention | MHA config | MHA steps/s | BAM config | BAM steps/s | BAM/MHA |
+|---|---|---:|---|---:|---:|
+| Dense global | `Llama2Medium` | 0.804 | `BamV2DenseFullLayerProfile` | 0.553 | 68.8% |
+| C256 global | `Llama2MediumQChunk256FullLayerProfile` | 0.929 | `BamV2QChunk256FullLayerProfile` | 0.575 | 61.9% |
+| C256 + LGLL SWA | `Llama2MediumQChunk256LGLL` | 1.099 | `BamLlama2MediumV2QChunk256LGLL` | 0.693 | 63.1% |
+
+C256 reduces absolute step time for both models, and LGLL reduces it further. Relative BAM
+overhead does not fall with chunking/SWA: the MHA path benefits more because BAM still performs
+per-layer LocalQK, write, alpha mix, fetch and fetched-M read work, including on local-attention
+layers.
+
 日志给出+3.98%，与16设备正式step 10–14 XPlane一致。因此C256在目标full-24图上确认
 有效，但收益接近六层v5p的4.20%，明显小于v6e六层的15.44%。
 

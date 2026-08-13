@@ -3212,7 +3212,7 @@ class BamAttention(Attention):
         valid &= source > target - window_size
       valid = valid[None]
       if decoder_segment_ids is not None:
-        valid &= (
+        valid = valid & (
             decoder_segment_ids[:, q0:q1, None]
             == decoder_segment_ids[:, None, s0:s1])
       else:

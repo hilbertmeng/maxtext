@@ -977,6 +977,8 @@ class Llama2MediumDotProductSixLayerProfile(TrainStepProfile, Llama2Medium):
     model_name = 'Llama2MediumDotProductSixLayerProfile'
     base_num_decoder_layers = 6
     attention = 'dot_product'
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
     steps = 16
 
 
@@ -987,6 +989,8 @@ class BamMHAControlDenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     bam_mha_control = True
     bam_layer_modes = ['none'] * 6
     attention = 'dot_product'
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
     steps = 16
 
 

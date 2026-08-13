@@ -983,6 +983,12 @@ class Llama2MediumQChunk256LGLL(Llama2Medium):
     sliding_window_size = [256, None, 256, 256]
 
 
+class Llama2MediumQChunk256LGLLSpeed(SpeedTest, Llama2MediumQChunk256LGLL):
+    """No-checkpoint speed control for full-24 C256 LGLL MHA."""
+    model_name = 'Llama2MediumQChunk256LGLLSpeed'
+    steps = 200
+
+
 class BamDirectPLocR256GeluBf16PackedSixLayerProfile(
     TrainStepProfile, BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK
 ):

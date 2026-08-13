@@ -229,6 +229,7 @@ class BamLlama2Medium(Llama2Medium):
     # ~0.277 steps/s; stopped at 9,850.
     model_name = 'BamLlama2Medium'
     bam_enabled = True
+    bam_mha_control = False
     # Standalone health probe only. The attention layer exposes raw tensors in a separate
     # Flax collection; all reductions/statistics live outside the production model code.
     bam_diagnostics = False
@@ -969,6 +970,31 @@ class Llama2MediumDenseSixLayerProfile(TrainStepProfile, Llama2Medium):
     model_name = 'Llama2MediumDenseSixLayerProfile'
     base_num_decoder_layers = 6
     steps = 16
+
+
+class Llama2MediumDotProductSixLayerProfile(TrainStepProfile, Llama2Medium):
+    """Explicit Attention(dot_product) control for BAM's dense MHA control."""
+    model_name = 'Llama2MediumDotProductSixLayerProfile'
+    base_num_decoder_layers = 6
+    attention = 'dot_product'
+    steps = 16
+
+
+class BamMHAControlDenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
+    """BamAttention control: BAM-free dense QK/softmax/AV and no M state."""
+    model_name = 'BamMHAControlDenseSixLayerProfile'
+    base_num_decoder_layers = 6
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 6
+    attention = 'dot_product'
+    steps = 16
+
+
+class BamMHAControlQChunk256SixLayerProfile(BamMHAControlDenseSixLayerProfile):
+    """BamAttention control: BAM-free C256 QK/softmax/AV and no M state."""
+    model_name = 'BamMHAControlQChunk256SixLayerProfile'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
 
 
 class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium):

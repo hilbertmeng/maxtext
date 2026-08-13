@@ -902,7 +902,7 @@ class Decoder(nn.Module):
       else:
         swss = format_swss(sws_list)
         max_logging.log(f'swss: {len(swss)}-{swss}, num_decoder_layers: {cfg.num_decoder_layers}', debug=cfg.debug)
-        if cfg.bam_enabled:
+        if cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False):
           b, t = y.shape[0], y.shape[1]
           M = jnp.zeros((b, t, cfg.bam_k, cfg.bam_v), dtype=cfg.dtype)
         else:

@@ -2287,6 +2287,20 @@ class BamAttention(Attention):
   def setup(self):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
+    self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
+    self._query_chunk_size = (
+        cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
+    if self._mha_control:
+      assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
+      assert not cfg.bam_diagnostics, 'BAM MHA control must not expose BAM diagnostics'
+      if self._query_chunk_size is not None:
+        assert self._query_chunk_size > 0
+        assert cfg.max_target_length % self._query_chunk_size == 0, (
+            'BAM MHA-control query chunk size must divide max_target_length')
+      self._mode = set()
+      self._has_write = False
+      return
+
     assert self.bam_k + self.bam_v == self.head_dim, (
         f"bam_k({self.bam_k})+bam_v({self.bam_v}) must equal head_dim({self.head_dim}), "
         f"since the BAM head output [U;V] must be as wide as a standard head to share W_O")
@@ -2343,8 +2357,6 @@ class BamAttention(Attention):
     self._share_full_local_read = cfg.bam_share_full_local_read
     self._combine_full_local_read = cfg.bam_combine_full_local_read
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
-    self._query_chunk_size = (
-        cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
@@ -3162,6 +3174,54 @@ class BamAttention(Attention):
 
     return y_std, y_full
 
+  def _query_chunk_mha_control(
+      self, query, key, value, decoder_segment_ids):
+    """Run only BAM's chunked QK/softmax/AV implementation."""
+    cfg = self.config
+    b, t, n, d = query.shape
+    chunk_size = int(self._query_chunk_size)
+    assert t % chunk_size == 0
+    window_size = (
+        t if self.sliding_window_size is None
+        else min(t, int(self.sliding_window_size)))
+    y_std = jnp.zeros((b, t, n, d), dtype=value.dtype)
+
+    def chunk_body(q_chunk, k_chunk, v_chunk, valid):
+      with jax.named_scope("attention/qk_logits"):
+        logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
+      if cfg.attn_logits_soft_cap:
+        logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
+                  * cfg.attn_logits_soft_cap)
+      logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
+      if cfg.float32_logits:
+        logits = logits.astype(jnp.float32)
+      with jax.named_scope("attention/softmax"):
+        alpha = jax.nn.softmax(logits, axis=-1)
+      with jax.named_scope("attention/av"):
+        return jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
+
+    remat_chunk_body = jax.checkpoint(chunk_body, prevent_cse=True)
+    for q0 in range(0, t, chunk_size):
+      q1 = q0 + chunk_size
+      s0 = max(0, q0 - window_size) if window_size < t else 0
+      s1 = q1
+      target = jnp.arange(q0, q1)[:, None]
+      source = jnp.arange(s0, s1)[None, :]
+      valid = source <= target
+      if window_size < t:
+        valid &= source > target - window_size
+      valid = valid[None]
+      if decoder_segment_ids is not None:
+        valid &= (
+            decoder_segment_ids[:, q0:q1, None]
+            == decoder_segment_ids[:, None, s0:s1])
+      else:
+        valid = jnp.broadcast_to(valid, (b,) + valid.shape[1:])
+      y_std_chunk = remat_chunk_body(
+          query[:, q0:q1], key[:, s0:s1], value[:, s0:s1], valid)
+      y_std = lax.dynamic_update_slice(y_std, y_std_chunk, (0, q0, 0, 0))
+    return y_std
+
   @nn.compact
   def __call__(
       self,
@@ -3208,12 +3268,44 @@ class BamAttention(Attention):
         key = key + k_local
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-    if self._local_qk_rope_pairing == 'adjacent':
+    if not self._mha_control and self._local_qk_rope_pairing == 'adjacent':
       query = self._apply_adjacent_rope(query, inputs_positions, name='query_rotary')
       key = self._apply_adjacent_rope(key, inputs_positions, name='key_rotary')
     else:
       query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
       key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+
+    if self._mha_control:
+      query = nn.with_logical_constraint(query, self.query_axis_names)
+      key = nn.with_logical_constraint(key, self.key_axis_names)
+      value = nn.with_logical_constraint(value, self.value_axis_names)
+      query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
+      if cfg.float32_qk_product:
+        query = query.astype(jnp.float32)
+        key = key.astype(jnp.float32)
+      if self._query_chunk_size is not None:
+        y_std = self._query_chunk_mha_control(
+            query, key, value, decoder_segment_ids)
+      else:
+        with jax.named_scope("attention/qk_logits"):
+          logits = jnp.einsum('btnd,bsnd->bnts', query, key)
+        if cfg.attn_logits_soft_cap:
+          logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
+                    * cfg.attn_logits_soft_cap)
+        attn_mask = self.attention_op.generate_attention_mask(
+            query, key, decoder_segment_ids, model_mode)
+        if attn_mask is not None:
+          attn_mask = jnp.squeeze(attn_mask, axis=2)
+          logits = apply_mask_to_logits(logits, attn_mask)
+        if cfg.float32_logits:
+          logits = logits.astype(jnp.float32)
+        with jax.named_scope("attention/softmax"):
+          alpha = jax.nn.softmax(logits, axis=-1)
+        with jax.named_scope("attention/av"):
+          y_std = jnp.einsum('bnts,bsnd->btnd', alpha, value)
+      y_std = nn.with_logical_constraint(y_std, self.out_axis_names)
+      return self.out_projection(inputs_q.shape[-1], y_std), M_in
+
     fetch_query = fetch_key = None
     if cfg.bam_dedicated_fetch:
       fetch_query = self.fetch_query(inputs_q)

@@ -15,13 +15,14 @@ import pyconfig
 from layers import attentions, initializers
 
 
-MODES = (
-    "legacy",
-    "no_remat",
-    "deferred_read",
-    "diag_correction",
-    "optimized",
-)
+EXP_CLASSES = {
+    "legacy": "BamV2QChunk256SixLayerProfile",
+    "no_remat": "BamV2QChunk256NoRematSixLayerProfile",
+    "deferred_read": "BamV2QChunk256DeferredReadSixLayerProfile",
+    "diag_correction": "BamV2QChunk256DiagCorrectionSixLayerProfile",
+    "optimized": "BamV2QChunk256OptimizedSixLayerProfile",
+}
+MODES = tuple(EXP_CLASSES)
 
 
 def value(x):
@@ -37,7 +38,7 @@ def config(mode):
   os.makedirs(run_name, exist_ok=True)
   return pyconfig.initialize(
       [sys.argv[0], "MaxText/configs/base.yml"],
-      exp_class="BamV2QChunk256SixLayerProfile",
+      exp_class=EXP_CLASSES[mode],
       run_name=run_name,
       enable_checkpointing=False,
       per_device_batch_size=1.0,
@@ -50,7 +51,6 @@ def config(mode):
       base_mlp_dim=512,
       base_num_decoder_layers=1,
       scan_layers=False,
-      bam_query_chunk_implementation=mode,
   )
 
 

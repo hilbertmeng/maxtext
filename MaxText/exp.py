@@ -217,7 +217,7 @@ class Llama2MediumQKNorm(Llama2Medium):
 class Llama2MediumFloat32LogitsFalse(Llama2Medium):
     """MHA speed control aligned with the BAM bf16-logits setting."""
     # code_commit: c937093
-    # ~0.821 steps/s (+2.1% vs Llama2Medium); stopped at ~128 after speed measurement.
+    # ~0.821 steps/s (+2.1% vs Llama2Medium); rechecked 0.820 @2c248ad.
     model_name = 'Llama2MediumFloat32LogitsFalse'
     float32_logits = False
     steps = 200
@@ -879,6 +879,7 @@ class BamV2QChunk256SixLayerProfile(BamV2DenseSixLayerProfile):
 
 class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """Full-24 target-TPU control for shared query-chunk verification."""
+    # code_commit: 8aacdab
     # v5p-16 XPlane 1,780.90 ms; ~0.553 steps/s.
     model_name = 'BamV2DenseFullLayerProfile'
     steps = 16
@@ -886,6 +887,7 @@ class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):
 
 class BamV2QChunk256FullLayerProfile(BamV2DenseFullLayerProfile):
     """Full-24 target-TPU verification of the winning C256 path."""
+    # code_commit: 8aacdab
     # v5p-16 XPlane 1,715.14 ms; ~0.575 steps/s; +3.83% throughput vs dense.
     model_name = 'BamV2QChunk256FullLayerProfile'
     attention = 'dot_product_chunk'
@@ -894,6 +896,8 @@ class BamV2QChunk256FullLayerProfile(BamV2DenseFullLayerProfile):
 
 class Llama2MediumQChunk256FullLayerProfile(SpeedTest, Llama2Medium):
     """Full-24 all-global MHA C256 speed control for V2 C256."""
+    # code_commit: 2c248ad
+    # ~0.933 steps/s; 20-step speed check.
     model_name = 'Llama2MediumQChunk256FullLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -927,7 +931,7 @@ class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
 class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
     """Full-24 V2 with shared MHA/BAM C256 and LGLL attention."""
     # code_commit: e184190
-    # ~0.693 steps/s; speed check stopped at 47. +58.6% step time vs matched MHA LGLL.
+    # ~0.693 steps/s; speed check stopped at 47. +59.0% step time vs matched MHA LGLL.
     model_name = 'BamLlama2MediumV2QChunk256LGLL'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -985,6 +989,8 @@ class Llama2MediumQChunk256LGLL(Llama2Medium):
 
 class Llama2MediumQChunk256LGLLSpeed(SpeedTest, Llama2MediumQChunk256LGLL):
     """No-checkpoint speed control for full-24 C256 LGLL MHA."""
+    # code_commit: 2c248ad
+    # ~1.102 steps/s; speed check stopped after step 14.
     model_name = 'Llama2MediumQChunk256LGLLSpeed'
     steps = 200
 

@@ -526,19 +526,22 @@ MHA QK/AV与BAM mix/fetch，而每层write、LocalQK和运行时读键投影仍�
 
 ### Full-24 MHA/BAM throughput
 
-All results use v5p-16. `BAM/MHA` is the retained training throughput; lower means greater BAM
-overhead.
+All results use v5p-16 and `float32_logits=False`. The three MHA controls were reprofiled on one
+TPU at commit `2c248ad`, using the step 10–14 mean. `BAM/MHA` is the retained training throughput;
+lower means greater BAM overhead.
 
 | Attention | MHA config | MHA steps/s | BAM config | BAM steps/s | BAM/MHA |
 |---|---|---:|---|---:|---:|
-| Dense global | `Llama2Medium` | 0.804 | `BamV2DenseFullLayerProfile` | 0.553 | 68.8% |
-| C256 global | `Llama2MediumQChunk256FullLayerProfile` | 0.929 | `BamV2QChunk256FullLayerProfile` | 0.575 | 61.9% |
-| C256 + LGLL SWA | `Llama2MediumQChunk256LGLL` | 1.099 | `BamLlama2MediumV2QChunk256LGLL` | 0.693 | 63.1% |
+| Dense global | `Llama2MediumFloat32LogitsFalse` | 0.820 | `BamV2DenseFullLayerProfile` | 0.553 | 67.4% |
+| C256 global | `Llama2MediumQChunk256FullLayerProfile` | 0.933 | `BamV2QChunk256FullLayerProfile` | 0.575 | 61.6% |
+| C256 + LGLL SWA | `Llama2MediumQChunk256LGLLSpeed` | 1.102 | `BamLlama2MediumV2QChunk256LGLL` | 0.693 | 62.9% |
 
-C256 reduces absolute step time for both models, and LGLL reduces it further. Relative BAM
-overhead does not fall with chunking/SWA: the MHA path benefits more because BAM still performs
-per-layer LocalQK, write, alpha mix, fetch and fetched-M read work, including on local-attention
-layers.
+C256 reduces absolute step time for both models, but MHA gains 13.8% while BAM gains only 4.0%,
+so relative BAM overhead increases. This is opposite the original goal of removing BAM's costly
+full-alpha materialization: the custom BAM chunk body does not match generic `accelerator.QChunk`
+on v5p-16, while per-layer LocalQK, write, runtime-key projection and M reads remain fixed. LGLL
+then improves MHA/BAM by 18.1%/20.5% over global C256, so SWA recovers the ratio slightly but does
+not erase the C256 regression.
 
 日志给出+3.98%，与16设备正式step 10–14 XPlane一致。因此C256在目标full-24图上确认
 有效，但收益接近六层v5p的4.20%，明显小于v6e六层的15.44%。

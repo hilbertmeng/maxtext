@@ -1787,28 +1787,6 @@ def _dynamic_bam_fetch_mix_weights(
   return mix_logits, jnp.asarray(mix_weights, alpha_dtype)
 
 
-def _mix_and_fetch_bam_chunk(
-    alpha, mix_weights, M, self_M, diag_col, implementation='two_stage'):
-  """Mix attention heads and fetch M with an exact beta[t,t]=1 overwrite."""
-  chunk_size = alpha.shape[-2]
-  if implementation == 'two_stage':
-    fetch_alpha = jnp.einsum('bncs,bcn->bcs', alpha, mix_weights)
-    fetch_alpha = fetch_alpha.at[
-        :, jnp.arange(chunk_size), diag_col].set(
-            jnp.asarray(1, fetch_alpha.dtype))
-    return jnp.einsum('bcs,bskv->bckv', fetch_alpha, M)
-  if implementation != 'three_input':
-    raise ValueError(f'Unknown BAM chunk fetch implementation: {implementation}')
-
-  Mbar = jnp.einsum(
-      'bncs,bcn,bskv->bckv', alpha, mix_weights, M)
-  alpha_diag = alpha[:, :, jnp.arange(chunk_size), diag_col]
-  mixed_diag = jnp.einsum('bnc,bcn->bc', alpha_diag, mix_weights)
-  return Mbar + (
-      jnp.asarray(1, Mbar.dtype) - mixed_diag.astype(Mbar.dtype)
-  )[..., None, None] * self_M
-
-
 def _sliding_window_bam_fetch_alpha(
     alpha, window_size, prefix_size=None, source_positions=None):
   """Keep a recent window and optional segment-local prefix, without renormalizing."""
@@ -2362,8 +2340,8 @@ class BamAttention(Attention):
     self._share_full_local_read = cfg.bam_share_full_local_read
     self._combine_full_local_read = cfg.bam_combine_full_local_read
     self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
-    self._query_chunk_size = cfg.bam_query_chunk_size
-    self._query_chunk_fetch_implementation = cfg.bam_query_chunk_fetch_implementation
+    self._query_chunk_size = (
+        cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
@@ -2480,7 +2458,6 @@ class BamAttention(Attention):
       assert self._fetch_temporal_block_size is None
       assert not cfg.bam_diagnostics
       assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
-      assert self._query_chunk_fetch_implementation in ('two_stage', 'three_input')
     if self._squeeze_single_fetch_read:
       assert 'full' in self._mode and cfg.bam_n_f == 1, (
           'single-fetch squeeze requires one full-read route')
@@ -3073,9 +3050,8 @@ class BamAttention(Attention):
       self, query, key, value, Mh, inputs_q, decoder_segment_ids):
     """Compute one shared MHA/BAM alpha a query chunk at a time.
 
-    This deliberately implements only the V2 full-read path. Keeping the initial
-    profile path narrow makes semantic mismatches fail in setup instead of silently
-    falling back to a different BAM mode.
+    This deliberately implements only the V2 full-read path so semantic mismatches
+    fail in setup instead of silently falling back to a different BAM mode.
     """
     cfg = self.config
     b, t, n, d = query.shape
@@ -3113,7 +3089,7 @@ class BamAttention(Attention):
     y_full = jnp.zeros_like(y_std)
 
     def chunk_body(q_chunk, k_chunk, v_chunk, M_chunk, mix_chunk,
-                   row_chunk, col_chunk, valid, self_M, diag_col):
+                   row_chunk, col_chunk, valid, diag_col):
       with jax.named_scope("attention/qk_logits"):
         logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
       if cfg.attn_logits_soft_cap:
@@ -3127,21 +3103,15 @@ class BamAttention(Attention):
       with jax.named_scope("attention/av"):
         y_std_chunk = jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
 
-      if self._query_chunk_fetch_implementation == 'two_stage':
-        with jax.named_scope("bam/mix_alpha"):
-          fetch_alpha = jnp.einsum('bncs,bcn->bcs', alpha, mix_chunk)
-          fetch_alpha = fetch_alpha.at[
-              :, jnp.arange(chunk_size), diag_col].set(
-                  jnp.asarray(1, fetch_alpha.dtype))
-        with jax.named_scope("bam/fetch_m"):
-          Mbar = jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
-      else:
-        with jax.named_scope("bam/mix_fetch_m"):
-          Mbar = _mix_and_fetch_bam_chunk(
-              alpha, mix_chunk, M_chunk, self_M, diag_col, 'three_input')
+      with jax.named_scope("bam/mix_alpha"):
+        fetch_alpha = jnp.einsum('bncs,bcn->bcs', alpha, mix_chunk)
+        fetch_alpha = fetch_alpha.at[
+            :, jnp.arange(chunk_size), diag_col].set(
+                jnp.asarray(1, fetch_alpha.dtype))
+      with jax.named_scope("bam/fetch_m"):
+        Mbar = jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
 
-      # Retain the historical singleton fetch axis so this profile changes only
-      # alpha lifetime/contraction ordering, not the bilateral read lowering.
+      # Retain the singleton fetch axis expected by the bilateral read lowering.
       with jax.named_scope("bam/read_fetched_m"):
         full_read = _contract_bam_read(
             Mbar[:, None], Mbar[:, None], row_chunk, col_chunk, True,
@@ -3182,8 +3152,7 @@ class BamAttention(Attention):
       y_std_chunk, y_full_chunk = remat_chunk_body(
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
           fetch_state[:, s0:s1], mix_weights[:, q0:q1],
-          read_row[:, q0:q1], read_col[:, q0:q1], valid,
-          fetch_state[:, q0:q1], diag_col)
+          read_row[:, q0:q1], read_col[:, q0:q1], valid, diag_col)
       y_std = lax.dynamic_update_slice(y_std, y_std_chunk, (0, q0, 0, 0))
       y_full = lax.dynamic_update_slice(y_full, y_full_chunk, (0, q0, 0, 0))
 
@@ -3284,15 +3253,12 @@ class BamAttention(Attention):
     if cfg.float32_qk_product:
       query = query.astype(jnp.float32); key = key.astype(jnp.float32)
     if self._query_chunk_size is not None:
+      assert cfg.bam_write_source == 'std+cross+local_o'
       y_std, y_full = self._query_chunk_shared_full_read(
           query, key, value, Mh, inputs_q, decoder_segment_ids)
-      y_codebook = jnp.zeros_like(y_std)
-      y_local_o = jnp.zeros_like(y_std)
       o_head = y_std + y_full
-      write_o_head = _select_bam_write_source(
-          cfg.bam_write_source, y_std, y_codebook, y_full, y_local_o, o_head)
       with jax.named_scope("bam/write_m"):
-        M_out, _, _ = self._write(write_o_head, inputs_q, M_in)
+        M_out, _, _ = self._write(o_head, inputs_q, M_in)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], out), M_out
 

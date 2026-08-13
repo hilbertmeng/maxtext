@@ -165,8 +165,7 @@ the BAM `M_s` cache is the motivation here.
    compare forward output, loss and parameter gradients against current V2. This isolates chunking
    and chooses the fastest C without changing attention reach.
 2. **Six-layer then 24-layer profile.** Measure full step and named scopes. Confirm alpha is not
-   materialized as full `[b,n,T,T]`/`[b,T,T]`; compare two-stage `mix -> fetch` with a fused
-   three-input expression only if HLO/XPlane proves the latter avoids the intermediate.
+   materialized as full `[b,n,T,T]`/`[b,T,T]`; use the fixed two-stage `mix -> fetch` path.
 3. **Architecture run.** Train shared-QChunk `LGLL` (and `LLLG` only if schedule placement is worth
    a second run). Its primary capability baseline must be an MHA-only model with the identical
    L/G schedule, W and chunk implementation. Global V2 is a contextual reference, not the causal
@@ -186,12 +185,15 @@ separately below. Full-24 uses commit `8aacdab` on one v5p-16.
 - Chunking is not a generic MHA speedup: MHA C256 is 376.58 ms versus dense 373.31 ms (-0.9%).
   The BAM gain comes from changing the joint BAM/MHA lowering, remat and intermediate lifetime.
 - A single three-input `einsum(alpha, mix, M)` is rejected: on v5p-16 it is 601.89 ms versus
-  479.01 ms for two-stage C256 (-20.4% throughput), with the same negative result on v6e logs.
+  479.01 ms for two-stage C256 (-20.4% throughput), with the same negative result on v6e logs;
+  that implementation and its configuration switch have been removed.
 - Matched BAM overhead is 57.1% for all-global C256, 54.3% for L:G=1:1, and 53.9% for
   L:G=3:1. SWA helps absolute speed and historical-M cache, but does not eliminate the remaining
   BAM read/write overhead.
 - Full-24 target verification is 1,715.14 ms for C256 versus 1,780.90 ms dense: +3.83%
   throughput, agreeing with stable logs (+3.98%).
 
-Therefore the implementation choice is two-stage C256. Architecture training should compare an
-LGLL BAM run only with the identical LGLL MHA control; the profile does not establish capability.
+Therefore the implementation is fixed to two-stage C256. Set `attention='dot_product_chunk'` and
+reuse MaxText's `query_chunk_size`; BAM has no separate chunk-size setting. Architecture training
+should compare an LGLL BAM run only with the identical LGLL MHA control; the profile does not
+establish capability.

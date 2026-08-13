@@ -278,8 +278,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
-    bam_query_chunk_size = None  # share query-chunked MHA alpha with BAM full fetch
-    bam_query_chunk_fetch_implementation = 'two_stage'  # two_stage | three_input
     bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
@@ -865,14 +863,16 @@ class BamV2QChunk128SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 128-query chunks."""
     # v6e-1 XPlane 608.79 ms; +12.2% throughput vs dense.
     model_name = 'BamV2QChunk128SixLayerProfile'
-    bam_query_chunk_size = 128
+    attention = 'dot_product_chunk'
+    query_chunk_size = 128
 
 
 class BamV2QChunk256SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 256-query chunks."""
     # v6e-1 XPlane 591.78 ms; +15.4% throughput vs dense; fastest chunk size.
     model_name = 'BamV2QChunk256SixLayerProfile'
-    bam_query_chunk_size = 256
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
 
 
 class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):
@@ -886,29 +886,22 @@ class BamV2QChunk256FullLayerProfile(BamV2DenseFullLayerProfile):
     """Full-24 target-TPU verification of the winning C256 path."""
     # v5p-16 XPlane 1,715.14 ms; ~0.575 steps/s; +3.83% throughput vs dense.
     model_name = 'BamV2QChunk256FullLayerProfile'
-    bam_query_chunk_size = 256
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
 
 
 class BamV2QChunk512SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 512-query chunks."""
     # v6e-1 XPlane 596.40 ms; +14.5% throughput vs dense.
     model_name = 'BamV2QChunk512SixLayerProfile'
-    bam_query_chunk_size = 512
-
-
-class BamV2QChunk256ThreeInputSixLayerProfile(BamV2QChunk256SixLayerProfile):
-    """C256 with alpha/head-mix/M expressed as one three-input einsum."""
-    # v5p-16 XPlane 601.89 vs 479.01 ms; -20.4% throughput vs two-stage.
-    model_name = 'BamV2QChunk256ThreeInputSixLayerProfile'
-    bam_query_chunk_fetch_implementation = 'three_input'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 512
 
 
 class BamV2LGSQChunk256SixLayerProfile(BamV2QChunk256SixLayerProfile):
     """Six-layer alternating local/global schedule: exactly 3 local and 3 global."""
     # v6e-1 XPlane 499.06 ms; +18.6% throughput vs all-global BAM C256.
     model_name = 'BamV2LGSQChunk256SixLayerProfile'
-    attention = 'dot_product_chunk'
-    query_chunk_size = 256
     sliding_window_size = [256, None]
 
 
@@ -918,17 +911,7 @@ class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
     model_name = 'BamV2LGLLQChunk256EightLayerProfile'
     base_num_decoder_layers = 8
     bam_layer_modes = ['local_qk+full'] * 8
-    attention = 'dot_product_chunk'
-    query_chunk_size = 256
     sliding_window_size = [256, None, 256, 256]
-
-
-class BamV2LGLLQChunk256ThreeInputEightLayerProfile(
-    BamV2LGLLQChunk256EightLayerProfile
-):
-    """LGLL C256 with a three-input BAM mix/fetch expression."""
-    model_name = 'BamV2LGLLQChunk256ThreeInputEightLayerProfile'
-    bam_query_chunk_fetch_implementation = 'three_input'
 
 
 class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):

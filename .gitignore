@@ -143,3 +143,7 @@ dmypy.json
 .vscode/*.git-credentials
 .gitconfig
 .git-credentials
+
+audits/
+qwen3_alignment/
+

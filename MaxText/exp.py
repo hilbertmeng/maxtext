@@ -209,6 +209,60 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
 
+
+class BamLlama2MediumV2(Llama2Medium):
+    """Frozen BAM V2 milestone from tmp/maxtext commit 1afd9425.
+
+    This is the resolved V2 execution configuration, flattened from the
+    reference class MRO.  Keeping only values consumed by the dedicated V2 path
+    prevents historical BAM ablations and compatibility switches from becoming
+    part of this port.
+    """
+    model_name = 'BamLlama2MediumV2'
+    bam_enabled = True
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_read_sides = 'both'
+    bam_k = 32
+    bam_v = 32
+    bam_n_f = 1
+    bam_write_form = 'agg_u@loc_v'
+    bam_write_eps = 0.1
+    bam_lambda_decay = 1.0
+    bam_read_key_mode = 'rms_gate'
+    bam_read_key_scale = 2.0
+    bam_read_key_epsilon = 1e-4
+    bam_read_rms_statistics_dtype = 'float32'
+    bam_read_gate_init = 0.005
+    bam_local_qk_key_mode = 'factorized'
+    bam_factorized_head_output_layout = 'btn'
+    bam_pack_factorized_local_qk = True
+    bam_local_qk_injection = 'post_rope'
+    bam_force_activation_dtype = True
+    bam_shared_fetch_mode = 'dynamic_rms_mix'
+    bam_fetch_diagonal_one = True
+    bam_read_implementation = 'mul_reduce_btn'
+    bam_m_read_norm = 'none'
+    bam_abs_v_compression_dim = 8
+    bam_abs_v_row_output = 'direct'
+    bam_write_u_proj = False
+    bam_write_v_mode = 'x_bias'
+    bam_write_rms_statistics_dtype = 'float32'
+    bam_write_v_bottleneck_dim = 256
+    bam_write_v_bottleneck_activation = 'gelu'
+    bam_write_outer_implementation = 'mul_reduce'
+    float32_logits = False
+    wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_gate_b0$', 0.0)]
+
+    # Resolved from the reference Llama2Medium/BAM base rather than inherited
+    # implicitly, so the run and checkpoint behavior is reviewable here.
+    scan_layers = False
+    record_internal_nn_metrics = 0
+    tensorboard_dir = "gs://newproject-1-llm_base_models_us-central1/log/summaries/train/"
+    upload_loss_tb_period = 10
+    steps = -1
+    max_to_keep = 2
+    keep_period = 0
+
 class Qwen3_0_6B(GWindow, Optimizer, Common):
     # Matches https://huggingface.co/Qwen/Qwen3-0.6B config.json.
     model_name = 'qwen3-0.6b'

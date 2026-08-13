@@ -669,6 +669,20 @@ class Decoder(nn.Module):
       )(decoder_positions)
 
     hids = []
+    bam_enabled = bool(getattr(cfg, "bam_enabled", False))
+    if bam_enabled:
+      # Source: tmp/maxtext 1afd9425 Decoder.  V2 threads one [b,t,k,v]
+      # matrix state through the explicit 24-layer loop; no scan/cache/recurrent
+      # compatibility branches are part of the frozen reference execution path.
+      assert not cfg.scan_layers, "BAM V2 requires scan_layers=False"
+      assert not cfg.partial_scan_layers, "BAM V2 does not support partial scans"
+      assert not cfg.using_pipeline_parallelism, "BAM V2 does not support pipeline parallelism"
+      assert getattr(cfg, "recurrent_block_repeats", 1) == 1, "BAM V2 does not support recurrent layers"
+      assert cfg.mtp_num_layers == 0, "BAM V2 does not support MTP layers"
+      assert not cfg.dense_conn, "BAM V2 is defined only for the plain residual path"
+      M = jnp.zeros(
+          (y.shape[0], y.shape[1], cfg.bam_k, cfg.bam_v), dtype=cfg.dtype
+      )
     if cfg.dense_conn and not cfg.mudd_in_layer:
       max_logging.log(f'Outside layers don\'t use remat', debug=cfg.debug)
       RemattedBlockLayers = self.decoder_layer * 2
@@ -1038,7 +1052,7 @@ class Decoder(nn.Module):
         for lyr in range(cfg.num_decoder_layers):
           max_logging.log(f'\n=================decoder layer: {lyr}=====================\n', debug=cfg.debug)
           RemattedBlockLayer = RemattedBlockLayers[0]
-          y, hids = RemattedBlockLayer(
+          layer_result = RemattedBlockLayer(
             config=cfg, 
             mesh=mesh, 
             name=f"layers_{lyr}", 
@@ -1054,7 +1068,12 @@ class Decoder(nn.Module):
               hids=hids,
               eos_sum=eos_sum,
               kv_shift_plan=kv_shift_plan,
+              M_in=M if bam_enabled else None,
           )
+          if bam_enabled:
+            y, hids, M = layer_result
+          else:
+            y, hids = layer_result
 
     if cfg.dense_conn:
       print(f'me: {len(me)} hids: {len(hids)}')

@@ -28,6 +28,7 @@ from layers import models
 from layers import quantizations
 from layers import mudd
 from layers import initializers
+from layers import bam_v2
 import max_logging
 
 import common_types
@@ -108,6 +109,7 @@ class SubDecoderLayer(nn.Module):
       eos_sum,
       kv_shift_plan=None,
       cache_namespace=None,
+      M_in=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -156,7 +158,12 @@ class SubDecoderLayer(nn.Module):
         else attentions.AttentionType.GLOBAL
     )
     # Self-attention block
-    attention_layer = Attention(
+    bam_enabled = bool(getattr(cfg, "bam_enabled", False))
+    AttentionLayer = bam_v2.BamV2Attention if bam_enabled else Attention
+    if bam_enabled:
+      assert cfg.bam_layer_modes[self.layer_inx] == "local_qk+full"
+      assert not cfg.dense_conn, "BAM V2 is only defined for the plain residual path"
+    attention_layer = AttentionLayer(
         config=cfg,
         num_query_heads=num_query_heads,
         num_kv_heads=num_kv_heads,
@@ -182,23 +189,36 @@ class SubDecoderLayer(nn.Module):
         ragged_block_size=cfg.ragged_block_size,
         kernel_init=initializers.get_init_method(cfg.init_method), # lsp
         sliding_window_size=self.sliding_window_size,
-        use_kv_shift=instantiate_kv_shift,
-        apply_kv_shift=apply_kv_shift,
+        use_kv_shift=False if bam_enabled else instantiate_kv_shift,
+        apply_kv_shift=False if bam_enabled else apply_kv_shift,
+        **(
+            dict(bam_k=cfg.bam_k, bam_v=cfg.bam_v)
+            if bam_enabled else {}
+        ),
     )
 
-    attention_lnx = attention_layer(
-        lnx,
-        lnx if not cfg.dense_conn else lnx_kv,
-        decoder_positions,
+    attention_kwargs = dict(
         decoder_segment_ids=decoder_segment_ids,
         deterministic=deterministic,
         decoder_input_tokens=decoder_input_tokens,
         model_mode=model_mode,
         eos_sum=eos_sum,
         deep_embedding=deep_embedding,
-        kv_shift_plan=kv_shift_plan,
-        cache_namespace=cache_namespace,
     )
+    if bam_enabled:
+      attention_lnx, M_out = attention_layer(
+          lnx, lnx, decoder_positions, M_in=M_in, **attention_kwargs
+      )
+    else:
+      attention_lnx = attention_layer(
+          lnx,
+          lnx if not cfg.dense_conn else lnx_kv,
+          decoder_positions,
+          kv_shift_plan=kv_shift_plan,
+          cache_namespace=cache_namespace,
+          **attention_kwargs,
+      )
+      M_out = None
    
     if cfg.record_internal_nn_metrics:
         attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))
@@ -301,7 +321,7 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
-    return layer_output
+    return (layer_output, M_out) if bam_enabled else layer_output
 
 
 class FusionDecoderLayer(nn.Module):
@@ -356,8 +376,10 @@ class FusionDecoderLayer(nn.Module):
       eos_sum=None,
       kv_shift_plan=None,
       virtual_layer_idx=None,
+      M_in=None,
   ):
     cfg = self.config
+    bam_enabled = bool(getattr(cfg, "bam_enabled", False))
     recurrent_mudd_virtual_state = bool(getattr(cfg, "recurrent_mudd_virtual_state", False))
     if recurrent_mudd_virtual_state:
       assert virtual_layer_idx is not None, "recurrent MUDD requires an explicit virtual layer index."
@@ -375,6 +397,7 @@ class FusionDecoderLayer(nn.Module):
           jnp.asarray([execution_layer_idx, self.layer_inx], dtype=jnp.int32),
       )
     if cfg.partial_scan_layers:
+      assert not bam_enabled, "BAM V2 does not support partial_scan_layers"
       return self.partial_scan_call(
         inputs,
         decoder_segment_ids,
@@ -432,7 +455,7 @@ class FusionDecoderLayer(nn.Module):
             lidx=execution_layer_idx,
           )
     # return's inputs length is 1
-    inputs = self.layer(
+    layer_output = self.layer(
         inputs,
         decoder_segment_ids,
         decoder_positions,
@@ -443,7 +466,12 @@ class FusionDecoderLayer(nn.Module):
         eos_sum,
         kv_shift_plan=kv_shift_plan,
         cache_namespace=cache_namespace,
+        M_in=M_in,
     )
+    if bam_enabled:
+      inputs, M_out = layer_output
+    else:
+      inputs, M_out = layer_output, None
     max_logging.log(
         f'physical_layer_inx: {self.layer_inx} execution_layer_inx: {execution_layer_idx} '
         f'break_layers: {break_layers}',
@@ -469,7 +497,7 @@ class FusionDecoderLayer(nn.Module):
     elif cfg.dense_conn:
       hids = append_mudd_hidden(hids, inputs)
    
-    return inputs, hids
+    return (inputs, hids, M_out) if bam_enabled else (inputs, hids)
 
   def partial_scan_call(
       self,

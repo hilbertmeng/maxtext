@@ -914,6 +914,14 @@ class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
     sliding_window_size = [256, None, 256, 256]
 
 
+class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
+    """Full-24 V2 with shared MHA/BAM C256 and LGLL attention."""
+    model_name = 'BamLlama2MediumV2QChunk256LGLL'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    sliding_window_size = [256, None, 256, 256]
+
+
 class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
     """MHA control for the six-layer 1:1 BAM SWA profile."""
     # v6e-1 XPlane 323.39 ms.
@@ -952,6 +960,14 @@ class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium)
     query_chunk_size = 256
     sliding_window_size = [256, None, 256, 256]
     steps = 16
+
+
+class Llama2MediumQChunk256LGLL(Llama2Medium):
+    """Full-24 MHA control with C256 and LGLL attention."""
+    model_name = 'Llama2MediumQChunk256LGLL'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    sliding_window_size = [256, None, 256, 256]
 
 
 class BamDirectPLocR256GeluBf16PackedSixLayerProfile(

@@ -3204,6 +3204,7 @@ class BamAttention(Attention):
       q1 = q0 + chunk_size
       s0 = max(0, q0 - window_size) if window_size < t else 0
       s1 = q1
+      diag_col = jnp.arange(q0, q1) - s0
       if mask_template is None:
         target = jnp.arange(q0, q1)[:, None]
         source = jnp.arange(s0, s1)[None, :]
@@ -3224,7 +3225,6 @@ class BamAttention(Attention):
         valid = valid & same_segment
       else:
         valid = jnp.broadcast_to(valid, (b,) + valid.shape[1:])
-      diag_col = jnp.arange(q0, q1) - s0
       y_std_chunk, second_chunk = apply_chunk(
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
           fetch_state[:, s0:s1], mix_weights[:, q0:q1],

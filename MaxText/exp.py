@@ -1035,6 +1035,7 @@ class BamMHAControlQChunk256GqaNoInnerRematSixLayerProfile(
     BamMHAControlQChunk256NoInnerRematSixLayerProfile
 ):
     """Match generic QChunk's singleton-GQA contraction layout without inner remat."""
+    # code_commit: 28de5e6; v6e-1 XPlane 368.69 ms (-0.15% vs generic QChunk).
     model_name = 'BamMHAControlQChunk256GqaNoInnerRematSixLayerProfile'
     bam_mha_control_gqa_layout = True
 

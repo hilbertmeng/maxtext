@@ -633,10 +633,11 @@ QK/softmax/AV和输出投影，但不创建BAM参数，不分配或传递M，也
 | shared causal | off | 371.51 ms |
 
 同机通用`accelerator.QChunk`复测为369.24 ms。关闭inner-remat消除了原差距的94.7%，
-仅余2.39 ms（+0.65%）；QK/AV scope分别只慢1.50/1.09 ms，符合四维einsum与通用
-QChunk五维singleton-GQA lowering的轻微差异。shared mask会丢失packed Pile的segment
-隔离语义，不能作为训练修复；正确选择是保留batched segment mask并去掉嵌套在整层
-remat内的chunk-local remat。
+仅余2.39 ms（+0.65%）。再把control换成通用QChunk同款五维singleton-GQA core后为
+368.69 ms（相对369.24 ms为-0.15%，已打平），验证余差来自四维自定义contraction与
+五维GQA lowering/layout细节。shared mask会丢失packed Pile的segment隔离语义，不能
+作为训练修复；正确选择是保留batched segment mask并去掉嵌套在整层remat内的
+chunk-local remat。
 
 与同型TPU、同六层图的完整BAM结果配对：
 

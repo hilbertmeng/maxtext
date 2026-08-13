@@ -892,9 +892,8 @@ class BamV2QChunk256FullLayerProfile(BamV2DenseFullLayerProfile):
 
 class Llama2MediumQChunk256FullLayerProfile(SpeedTest, Llama2Medium):
     """Full-24 all-global MHA C256 speed control for V2 C256."""
-    # code_commit: 6237f22
-    # ~0.929 steps/s; completed 20-step speed check.
     model_name = 'Llama2MediumQChunk256FullLayerProfile'
+    float32_logits = False
     attention = 'dot_product_chunk'
     query_chunk_size = 256
     steps = 20
@@ -976,9 +975,8 @@ class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium)
 
 class Llama2MediumQChunk256LGLL(Llama2Medium):
     """Full-24 MHA control with C256 and LGLL attention."""
-    # code_commit: e184190
-    # ~1.099 steps/s; speed check stopped at 303.
     model_name = 'Llama2MediumQChunk256LGLL'
+    float32_logits = False
     attention = 'dot_product_chunk'
     query_chunk_size = 256
     sliding_window_size = [256, None, 256, 256]

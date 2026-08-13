@@ -1001,6 +1001,26 @@ class BamMHAControlQChunk256SixLayerProfile(BamMHAControlDenseSixLayerProfile):
     query_chunk_size = 256
 
 
+class Llama2MediumDotProductFullLayerProfile(Llama2MediumDotProductSixLayerProfile):
+    """Full-24 Attention(dot_product) control on the target training TPU."""
+    model_name = 'Llama2MediumDotProductFullLayerProfile'
+    base_num_decoder_layers = 24
+
+
+class BamMHAControlDenseFullLayerProfile(BamMHAControlDenseSixLayerProfile):
+    """Full-24 BamAttention dense MHA control on the target training TPU."""
+    model_name = 'BamMHAControlDenseFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['none'] * 24
+
+
+class BamMHAControlQChunk256FullLayerProfile(BamMHAControlDenseFullLayerProfile):
+    """Full-24 BamAttention C256 MHA control on the target training TPU."""
+    model_name = 'BamMHAControlQChunk256FullLayerProfile'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+
+
 class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium):
     """MHA control for the eight-layer 3:1 BAM SWA profile."""
     # v6e-1 XPlane 376.77 ms.

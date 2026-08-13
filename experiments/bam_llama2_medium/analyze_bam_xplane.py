@@ -123,8 +123,45 @@ def summarize(path):
         step_ms += float(event.get("dur", 0.0)) / 1000.0
         continue
       op = str(event.get("args", {}).get("tf_op", ""))
+      hlo_name = str(event.get("name", "")).lower()
       value = metric(event)
       add(buckets["all_xla_ops"], value)
+      if "tpu_flash_attention/" in op:
+        add(buckets["mha_flash"], value)
+        if "pallas_call" in op:
+          add(buckets["mha_flash.pallas"], value)
+        elif "transpose" in op or "copy" in hlo_name:
+          add(buckets["mha_flash.layout"], value)
+        else:
+          add(buckets["mha_flash.other"], value)
+      if "/QChunk_0/" in op:
+        add(buckets["mha_qchunk"], value)
+      if "self_attention._query_chunk_shared_full_read/" in op:
+        add(buckets["bam_qchunk"], value)
+      if "self_attention.query_projection/query/" in op:
+        add(buckets["mha_projection.q"], value)
+      if "self_attention.kv_projection/key/" in op:
+        add(buckets["mha_projection.k"], value)
+      if "self_attention.kv_projection/value/" in op:
+        add(buckets["mha_projection.v"], value)
+      if "self_attention.out_projection/out/" in op:
+        add(buckets["mha_projection.o"], value)
+      if "/mlp/" in op:
+        add(buckets["transformer.mlp"], value)
+      if "layer_norm/" in op:
+        add(buckets["transformer.norm"], value)
+      if "/lm_head/" in op:
+        add(buckets["transformer.lm_head"], value)
+      if "pallas_call" in hlo_name:
+        add(buckets["kernel.pallas"], value)
+      elif "copy" in hlo_name:
+        add(buckets["kernel.copy"], value)
+      elif "fusion" in hlo_name:
+        add(buckets["kernel.fusion"], value)
+      elif "all-reduce" in hlo_name or "collective" in hlo_name:
+        add(buckets["kernel.collective"], value)
+      else:
+        add(buckets["kernel.other"], value)
       for name, scope in OUTER.items():
         if scope not in op:
           continue
@@ -150,6 +187,25 @@ def summarize(path):
     for name in OUTER:
       add(bam_total, buckets[name])
     buckets["bam_total"] = bam_total
+    if "mha_qchunk" in buckets:
+      buckets["mha_qchunk.other"] = [
+          buckets["mha_qchunk"][index]
+          - buckets["mha_qk_logits"][index]
+          - buckets["mha_softmax"][index]
+          - buckets["mha_av"][index]
+          for index in range(3)
+      ]
+    if "bam_qchunk" in buckets:
+      buckets["bam_qchunk.other"] = [
+          buckets["bam_qchunk"][index]
+          - buckets["mha_qk_logits"][index]
+          - buckets["mha_softmax"][index]
+          - buckets["mha_av"][index]
+          - buckets["mix_alpha"][index]
+          - buckets["fetch_m"][index]
+          - buckets["fetched"][index]
+          for index in range(3)
+      ]
     buckets["non_bam_xla_ops"] = [
         buckets["all_xla_ops"][index] - bam_total[index] for index in range(3)
     ]

@@ -524,6 +524,9 @@ MHA QK/AV与BAM mix/fetch，而每层write、LocalQK和运行时读键投影仍�
 | V2 dense | 0.553 steps/s | 1,780.90 ms | — |
 | V2 C256 | 0.575 steps/s | 1,715.14 ms | **+3.83%** |
 
+日志给出+3.98%，与16设备正式step 10–14 XPlane一致。因此C256在目标full-24图上确认
+有效，但收益接近六层v5p的4.20%，明显小于v6e六层的15.44%。
+
 ### Full-24 MHA/BAM throughput
 
 All results use v5p-16 and `float32_logits=False`. The three MHA controls were reprofiled on one
@@ -543,8 +546,62 @@ on v5p-16, while per-layer LocalQK, write, runtime-key projection and M reads re
 then improves MHA/BAM by 18.1%/20.5% over global C256, so SWA recovers the ratio slightly but does
 not erase the C256 regression.
 
-日志给出+3.98%，与16设备正式step 10–14 XPlane一致。因此C256在目标full-24图上确认
-有效，但收益接近六层v5p的4.20%，明显小于v6e六层的15.44%。
+### v6e controlled overhead recheck
+
+Commit `da35a43`, one standalone `v6e-1`, six layers, `B=32,T=2048`, all
+`float32_logits=False`; every arm uses the step 10–14 primary XPlane and also retained a step 2–6
+insurance trace. `BAM/MHA` is throughput retained; `time overhead = BAM/MHA step time - 1`.
+
+| Comparison | MHA step | BAM step | BAM/MHA | time overhead | C256 throughput gain |
+|---|---:|---:|---:|---:|---:|
+| default dense (`autoselected` Pallas/flash) | 373.26 ms | 684.12 ms | 54.6% | +83.3% | — |
+| C256 | 369.15 ms | 592.28 ms | 62.3% | +60.4% | MHA +1.1%; BAM +15.5% |
+| matched explicit dense dot | 481.56 ms | 684.12 ms | 70.4% | +42.1% | MHA dot→C256 +30.5%; BAM +15.5% |
+
+因此v5p-16默认配置中“C256使相对BAM overhead变大”**没有在v6e默认后端复现**；v6e
+反而从+83.3%降至+60.4%。但matched-dot控制确实从+42.1%升至+60.4%，说明现象不是
+简单测量错误，而是强烈依赖dense MHA分母的后端：默认dense MHA走融合Pallas/flash，
+C256走显式`accelerator.QChunk`。v6e上两者几乎打平；v5p-16 full-24中C256 MHA比
+dense Pallas快13.8%，所以v5p的分母加速远大于BAM，ratio才恶化。跨TPU不可迁移该ratio。
+
+MHA细分进一步验证这个解释：
+
+| MHA路径 | 完整step | attention core | QK | softmax | AV | Q/K/V/O投影 |
+|---|---:|---:|---:|---:|---:|---:|
+| default dense Pallas/flash | 373.26 | 182.85¹ | fused | fused | fused | 39.57 |
+| explicit dense dot | 481.56 | 317.76 | 123.14 | 60.59 | 134.03 | 26.97 |
+| C256 | 369.15 | 195.67² | 87.02 | 21.98 | 83.84 | 28.90 |
+
+1. Pallas call 168.43 ms + layout/transpose 14.39 ms；custom call没有可靠的XPlane FLOP
+   metadata，不能把其0 TF读成零计算。
+2. QK/softmax/AV合计192.84 ms，chunk slice/update等其余2.83 ms。C256比显式dense dot
+   快30.5%，主要来自不计算因果上三角；但其core比Pallas dense慢约7%，完整图只打平。
+
+BAM自身dense→C256的scope变化如下。scope wall是XPlane算子时长之和，不是互斥的
+critical-path分解，不能机械相加为完整step；但同scope配对可定位抵消项。
+
+| BAM/共享部分 | dense | C256 | C256 - dense |
+|---|---:|---:|---:|
+| **完整step** | **684.12** | **592.28** | **-91.84 ms (-13.4%)** |
+| MHA QK+softmax+AV | 264.15 | 186.54 | -77.61 |
+| mix alpha总计 | 103.41 | 89.66 | -13.74 |
+| ├ alpha contraction | 88.67 | 53.48 | -35.19 |
+| └ diagonal update | 7.38 | 33.43 | +26.06 |
+| fetch M | 9.47 | 4.81 | -4.66 |
+| read fetched M | 23.20 | 37.01 | +13.82 |
+| read local M for QK | 15.56 | 17.71 | +2.15 |
+| write M | 22.05 | 20.99 | -1.06 |
+| **五个BAM顶层scope合计** | **173.69** | **170.19** | **-3.50 (-2.0%)** |
+
+C256另有50.18 ms未落入上述语义scope的chunk scaffolding：mask/select 27.59 ms、slice
+13.52 ms、dynamic update 5.41 ms、AbsV源压缩3.15 ms、其余0.51 ms。即目标
+`mix_alpha` contraction确实省35.19 ms，但重复的diagonal更新、fetched read及chunk
+scaffolding抵消了大部分BAM专属收益；整步91.84 ms收益主要来自共享MHA核心少77.61 ms，
+而不是BAM顶层scope只少3.50 ms。这也指出下一步优化目标应是消除逐chunk mask/select、
+slice/update和重复read开销，而不能把当前C256视为已经解决mix/fetch瓶颈。
+
+Recheck artifacts: `/data0/xd/bam_diagnostics/qchunk_v6e_recheck_final/`；matched-dot和
+中间分析文件位于`/data0/xd/bam_diagnostics/qchunk_v6e_recheck_complete/`。
 
 Artifacts:
 

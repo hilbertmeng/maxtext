@@ -854,7 +854,8 @@ class BamLlama2MediumV2WriteMulControl(
 
 class BamV2DenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """Dense-alpha six-layer control for shared query-chunk profiles."""
-    # v6e-1 XPlane 683.15 ms.
+    # code_commit: da35a43
+    # v6e-1 XPlane 684.12 ms (bf16 logits recheck).
     model_name = 'BamV2DenseSixLayerProfile'
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+full'] * 6
@@ -871,7 +872,8 @@ class BamV2QChunk128SixLayerProfile(BamV2DenseSixLayerProfile):
 
 class BamV2QChunk256SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 256-query chunks."""
-    # v6e-1 XPlane 591.78 ms; +15.4% throughput vs dense; fastest chunk size.
+    # code_commit: da35a43
+    # v6e-1 XPlane 592.28 ms; +15.5% throughput vs dense; fastest chunk size.
     model_name = 'BamV2QChunk256SixLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -951,7 +953,8 @@ class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
 
 class Llama2MediumGQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
     """All-global MHA QChunk control for the six-layer BAM profile."""
-    # v6e-1 XPlane 376.58 ms; -0.9% throughput vs nonchunked MHA.
+    # code_commit: da35a43
+    # v6e-1 XPlane 369.15 ms; near parity (+1.1%) vs autoselected dense MHA.
     model_name = 'Llama2MediumGQChunk256SixLayerProfile'
     base_num_decoder_layers = 6
     attention = 'dot_product_chunk'
@@ -961,7 +964,8 @@ class Llama2MediumGQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
 
 class Llama2MediumDenseSixLayerProfile(TrainStepProfile, Llama2Medium):
     """Non-chunked all-global MHA control for the six-layer profile matrix."""
-    # v6e-1 XPlane 373.31 ms.
+    # code_commit: da35a43
+    # v6e-1 XPlane 373.26 ms (autoselected Pallas/flash, bf16 logits recheck).
     model_name = 'Llama2MediumDenseSixLayerProfile'
     base_num_decoder_layers = 6
     steps = 16

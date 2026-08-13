@@ -283,7 +283,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
-    # legacy | no_remat | deferred_read | diag_correction | diag_select | optimized[_add_mask]
+    # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
@@ -877,8 +877,7 @@ class BamV2QChunk128SixLayerProfile(BamV2DenseSixLayerProfile):
 
 class BamV2QChunk256SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 256-query chunks."""
-    # code_commit: da35a43
-    # v6e-1 XPlane 592.28 ms; +15.5% throughput vs dense; fastest chunk size.
+    # v6e-1 @36ebca4: 592.26 ms; exact same-VM legacy zero point.
     model_name = 'BamV2QChunk256SixLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -886,38 +885,37 @@ class BamV2QChunk256SixLayerProfile(BamV2DenseSixLayerProfile):
 
 class BamV2QChunk256NoRematSixLayerProfile(BamV2QChunk256SixLayerProfile):
     """C256 without the redundant chunk-local rematerialization boundary."""
+    # v6e-1 @821dc8d: 536.81 ms; +10.33% throughput vs legacy.
     model_name = 'BamV2QChunk256NoRematSixLayerProfile'
     bam_query_chunk_implementation = 'no_remat'
 
 
 class BamV2QChunk256DeferredReadSixLayerProfile(BamV2QChunk256SixLayerProfile):
     """C256: concatenate all chunk Mbar values, then perform one fetched read."""
+    # v6e-1 @821dc8d: 521.43 ms; +2.95% vs no-remat, +13.58% vs legacy.
     model_name = 'BamV2QChunk256DeferredReadSixLayerProfile'
     bam_query_chunk_implementation = 'deferred_read'
 
 
-class BamV2QChunk256DiagCorrectionSixLayerProfile(BamV2QChunk256SixLayerProfile):
-    """C256 deferred read plus algebraic diagonal-one correction, without scatter."""
-    model_name = 'BamV2QChunk256DiagCorrectionSixLayerProfile'
-    bam_query_chunk_implementation = 'diag_correction'
-
-
 class BamV2QChunk256DiagSelectSixLayerProfile(BamV2QChunk256SixLayerProfile):
     """C256 deferred read with an exact diagonal mask/select instead of scatter."""
+    # v6e-1 @821dc8d: 497.61 ms; +4.79% vs deferred, +19.02% vs legacy.
     model_name = 'BamV2QChunk256DiagSelectSixLayerProfile'
     bam_query_chunk_implementation = 'diag_select'
 
 
 class BamV2QChunk256OptimizedSixLayerProfile(BamV2QChunk256SixLayerProfile):
     """C256 cumulative optimized path with template masks and concatenated outputs."""
+    # v6e-1 @821dc8d: 494.57 ms; +0.62% vs diag-select, +19.75% vs legacy.
     model_name = 'BamV2QChunk256OptimizedSixLayerProfile'
     bam_query_chunk_implementation = 'optimized'
 
 
-class BamV2QChunk256OptimizedAddMaskSixLayerProfile(BamV2QChunk256SixLayerProfile):
-    """Optimized C256 with additive large-negative masking instead of bool select."""
-    model_name = 'BamV2QChunk256OptimizedAddMaskSixLayerProfile'
-    bam_query_chunk_implementation = 'optimized_add_mask'
+class BamV2QChunk256OptimizedFullLayerProfile(BamV2QChunk256OptimizedSixLayerProfile):
+    """Full-24 target-TPU verification of the optimized C256 BAM path."""
+    model_name = 'BamV2QChunk256OptimizedFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+full'] * 24
 
 
 class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):
@@ -978,6 +976,7 @@ class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
     model_name = 'BamLlama2MediumV2QChunk256LGLL'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
+    bam_query_chunk_implementation = 'optimized'
     sliding_window_size = [256, None, 256, 256]
 
 

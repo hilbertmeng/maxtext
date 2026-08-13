@@ -19,10 +19,8 @@ EXP_CLASSES = {
     "legacy": "BamV2QChunk256SixLayerProfile",
     "no_remat": "BamV2QChunk256NoRematSixLayerProfile",
     "deferred_read": "BamV2QChunk256DeferredReadSixLayerProfile",
-    "diag_correction": "BamV2QChunk256DiagCorrectionSixLayerProfile",
     "diag_select": "BamV2QChunk256DiagSelectSixLayerProfile",
     "optimized": "BamV2QChunk256OptimizedSixLayerProfile",
-    "optimized_add_mask": "BamV2QChunk256OptimizedAddMaskSixLayerProfile",
 }
 MODES = tuple(EXP_CLASSES)
 

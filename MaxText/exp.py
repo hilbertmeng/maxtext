@@ -283,6 +283,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
+    # legacy | no_remat | deferred_read | diag_correction | optimized
+    bam_query_chunk_implementation = 'legacy'
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
@@ -878,6 +880,30 @@ class BamV2QChunk256SixLayerProfile(BamV2DenseSixLayerProfile):
     model_name = 'BamV2QChunk256SixLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
+
+
+class BamV2QChunk256NoRematSixLayerProfile(BamV2QChunk256SixLayerProfile):
+    """C256 without the redundant chunk-local rematerialization boundary."""
+    model_name = 'BamV2QChunk256NoRematSixLayerProfile'
+    bam_query_chunk_implementation = 'no_remat'
+
+
+class BamV2QChunk256DeferredReadSixLayerProfile(BamV2QChunk256SixLayerProfile):
+    """C256: concatenate all chunk Mbar values, then perform one fetched read."""
+    model_name = 'BamV2QChunk256DeferredReadSixLayerProfile'
+    bam_query_chunk_implementation = 'deferred_read'
+
+
+class BamV2QChunk256DiagCorrectionSixLayerProfile(BamV2QChunk256SixLayerProfile):
+    """C256 deferred read plus algebraic diagonal-one correction, without scatter."""
+    model_name = 'BamV2QChunk256DiagCorrectionSixLayerProfile'
+    bam_query_chunk_implementation = 'diag_correction'
+
+
+class BamV2QChunk256OptimizedSixLayerProfile(BamV2QChunk256SixLayerProfile):
+    """C256 cumulative optimized path with template masks and concatenated outputs."""
+    model_name = 'BamV2QChunk256OptimizedSixLayerProfile'
+    bam_query_chunk_implementation = 'optimized'
 
 
 class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):

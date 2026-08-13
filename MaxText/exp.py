@@ -131,6 +131,7 @@ class KVshift:
 class SpeedTest:
     enable_checkpointing = False 
     record_internal_nn_metrics = False  
+    float32_logits = False
 
 class DreamMini(Mudd, KVshift, DC, LGLLWindow):
     attention='dot_product_chunk'
@@ -585,6 +586,7 @@ class TrainStepProfile:
     upload_all_profiler_results = True
     enable_checkpointing = False
     async_checkpointing = False
+    float32_logits = False
     steps = 200
 
 
@@ -893,7 +895,6 @@ class BamV2QChunk256FullLayerProfile(BamV2DenseFullLayerProfile):
 class Llama2MediumQChunk256FullLayerProfile(SpeedTest, Llama2Medium):
     """Full-24 all-global MHA C256 speed control for V2 C256."""
     model_name = 'Llama2MediumQChunk256FullLayerProfile'
-    float32_logits = False
     attention = 'dot_product_chunk'
     query_chunk_size = 256
     steps = 20

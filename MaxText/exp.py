@@ -818,7 +818,7 @@ class BamLlama2MediumV2(
 ):
     """Current capability milestone with validated equivalent fast read/write paths."""
     # code_commit: 1afd942
-    # ~0.551 steps/s (+5.8% vs fp32 parent); running. mean dloss +.0026 vs Direct @2,400–3,800.
+    # ~0.551 steps/s (+5.8%); running. mean dloss +.0044 vs fp32 Native @1,800–2,600.
     model_name = 'BamLlama2MediumV2'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False

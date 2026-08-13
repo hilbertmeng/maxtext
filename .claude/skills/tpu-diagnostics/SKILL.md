@@ -13,8 +13,9 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 - Keep this skill procedural. Put checkpoint-specific measurements and conclusions in
   `experiments/`.
 - Use a spot non-pod `v6e-1` for inference probes; choose a larger TPU when memory requires it.
-- Queue `v6e-1` concurrently in `us-central1-a`, `europe-west4-a`, and `us-east5-a`;
-  keep the first READY TPU and immediately stop creators and delete the exact remaining resources.
+- To acquire one `v6e-1`, queue concurrently in `us-central1-a`, `europe-west4-a`, and
+  `us-east5-a`; keep the first READY TPU and delete the exact remaining resources. For parallel
+  profile arms, request multiple TPUs in one proven zone (prefer `us-central1-a`).
 - Create it with `$tpu-training`'s **Create Standalone v6e-1** command.
 - Restore the source checkpoint read-only; use `only_eval=True` and a local output dir.
 - Add only necessary raw `sow` values to `attentions.py`; keep statistics in standalone runners.
@@ -69,7 +70,8 @@ comparisons, then verify the winning combination with full layers.
   trace at steps 2–6 and the primary trace at 10–14 with
   `skip_first_n_steps_for_profiler=2 profile_periodically_period=8 profiler_steps=5`; analyze
   `step_10`, using `step_2` only if preempted first. Before launch, run
-  `scripts/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR DEST_DIR PROJECT 2` on `tpu-ag`.
+  `/home/lishengping/xd/projects/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR DEST_DIR PROJECT 2`
+  on `tpu-ag`.
   For a pod, append `WORKER` and run one collector per worker into separate destinations.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
   step**; after step 14, wait for the collector to verify the nonempty primary XPlane on `tpu-ag`,

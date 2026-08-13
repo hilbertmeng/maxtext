@@ -138,7 +138,8 @@ class QChunk(nn.Module):
       query = query.astype(jnp.float32)
       key = key.astype(jnp.float32)
     # bnts -> bkgts
-    attn_weights = self.qk_product(query, key)
+    with jax.named_scope("attention/qk_logits"):
+      attn_weights = self.qk_product(query, key)
     attn_weights = nn.with_logical_constraint(attn_weights, ('activation_batch', 'heads', 'activation_length', None),)
    
     if self.config.pre_compose:
@@ -153,8 +154,9 @@ class QChunk(nn.Module):
     if self.config.float32_logits:
           attn_weights = attn_weights.astype(jnp.float32)
     # normalize the attention weights
-    probs = jax.nn.softmax(attn_weights).astype(self.dtype) # bkgts
-    probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
+    with jax.named_scope("attention/softmax"):
+      probs = jax.nn.softmax(attn_weights).astype(self.dtype) # bkgts
+      probs = nn.with_logical_constraint(probs, ('activation_batch', 'activation_kv_heads', None, 'activation_length', None),)
 
     if self.config.post_compose:
       post_qw1, post_qw2, post_kw1, post_kw2, post_qdd, post_kdd = post_proj_dw_args
@@ -165,10 +167,11 @@ class QChunk(nn.Module):
     probs = probs.astype(self.dtype)
     if attn_mask is not None:
       probs = jnp.where((attn_mask >= DEFAULT_MASK_VALUE * 0.5), probs, 0.)
-    output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
-    b, t, n_kv, g, h = output.shape
-    output = jnp.reshape(output, (b, t, n_kv * g, h))
-    output = self._constrain_encoded(output)
+    with jax.named_scope("attention/av"):
+      output = jnp.einsum('bkgts,bskh->btkgh', probs, value) # add group
+      b, t, n_kv, g, h = output.shape
+      output = jnp.reshape(output, (b, t, n_kv * g, h))
+      output = self._constrain_encoded(output)
     return output
 
   def _attention_parallel_remat(
@@ -232,7 +235,7 @@ class QChunk(nn.Module):
                                             pre_proj_layer, post_proj_layer)
       if parallel_method == 'vmap':
           return _encoded
-      
+
       encoded = lax.dynamic_update_slice(encoded, _encoded, (0, start, 0, 0))
 
       if parallel_method == 'fori':
@@ -369,6 +372,3 @@ class QChunk(nn.Module):
         max_logging.log(f'Global|Local Attn.... remat is {remat} sliding_window_size: {sliding_window_size}', debug=self.config.debug)
         encoded = self._attention_for_remat(*args, remat=remat)
     return encoded, None, None
-  
-
-      

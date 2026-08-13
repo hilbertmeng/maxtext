@@ -142,6 +142,8 @@ def summarize(path):
         break
       if "/attention/qk_logits/" in op:
         add(buckets["mha_qk_logits"], value)
+      if "/attention/softmax/" in op:
+        add(buckets["mha_softmax"], value)
       if "/attention/av/" in op:
         add(buckets["mha_av"], value)
     bam_total = [0.0, 0.0, 0.0]

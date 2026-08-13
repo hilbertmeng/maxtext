@@ -463,17 +463,19 @@ class AttentionOp(nn.Module):
           local_max is the local max of exponentials
           local_sum is the sum of exponentials for this chunk, divided by exp(local_max).
     """
-    local_max = jnp.max(attn_weights, axis=-1, keepdims=True)
-    local_exps = jnp.exp(attn_weights - local_max)
-    local_sum = jnp.sum(local_exps, axis=-1, keepdims=True)
+    with jax.named_scope("attention/softmax"):
+      local_max = jnp.max(attn_weights, axis=-1, keepdims=True)
+      local_exps = jnp.exp(attn_weights - local_max)
+      local_sum = jnp.sum(local_exps, axis=-1, keepdims=True)
 
-    local_sum = jnp.moveaxis(local_sum, -2, 1)
-    local_max = jnp.moveaxis(local_max, -2, 1)
+      local_sum = jnp.moveaxis(local_sum, -2, 1)
+      local_max = jnp.moveaxis(local_max, -2, 1)
 
-    local_max = jnp.reshape(local_max, (local_max.shape[0], local_max.shape[1], local_max.shape[2] * local_max.shape[3], 1))
-    local_sum = jnp.reshape(local_sum, (local_sum.shape[0], local_sum.shape[1], local_sum.shape[2] * local_sum.shape[3], 1))
+      local_max = jnp.reshape(local_max, (local_max.shape[0], local_max.shape[1], local_max.shape[2] * local_max.shape[3], 1))
+      local_sum = jnp.reshape(local_sum, (local_sum.shape[0], local_sum.shape[1], local_sum.shape[2] * local_sum.shape[3], 1))
 
-    local_out = self.wv_product(local_exps, value, model_mode)
+    with jax.named_scope("attention/av"):
+      local_out = self.wv_product(local_exps, value, model_mode)
 
     if self.reshape_q and q_seq_len == 1:
       local_max = local_max[:, 0:1, :, :]
@@ -500,7 +502,8 @@ class AttentionOp(nn.Module):
       key = key.astype(jnp.float32)
 
     q_seq_len = query.shape[1]
-    attn_weights = self.qk_product(query, key, q_seq_len, model_mode)
+    with jax.named_scope("attention/qk_logits"):
+      attn_weights = self.qk_product(query, key, q_seq_len, model_mode)
     max_logging.log(f'attn_weights: {attn_weights.shape}', debug=self.config.debug)
 
     if self.attn_logits_soft_cap:
@@ -3098,7 +3101,8 @@ class BamAttention(Attention):
       logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
       if cfg.float32_logits:
         logits = logits.astype(jnp.float32)
-      alpha = jax.nn.softmax(logits, axis=-1)
+      with jax.named_scope("attention/softmax"):
+        alpha = jax.nn.softmax(logits, axis=-1)
 
       with jax.named_scope("attention/av"):
         y_std_chunk = jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
@@ -3277,8 +3281,10 @@ class BamAttention(Attention):
       logits = apply_mask_to_logits(logits, attn_mask)        # [b,n,t,s]
     if cfg.float32_logits:
       logits = logits.astype(jnp.float32)
-    alpha = jax.nn.softmax(logits, axis=-1)                 # [b,n,t,s]
-    y_std = jnp.einsum('bnts,bsnd->btnd', alpha, value)     # [b,t,n,d]
+    with jax.named_scope("attention/softmax"):
+      alpha = jax.nn.softmax(logits, axis=-1)               # [b,n,t,s]
+    with jax.named_scope("attention/av"):
+      y_std = jnp.einsum('bnts,bsnd->btnd', alpha, value)   # [b,t,n,d]
     # Diagonal yield (§4.6.5): when local_o is on, the softmax-fetch patterns (full/codebook) zero
     # their alpha diagonal without renormalizing — the leftover mass 1−α_tt becomes a soft
     # "abstain-from-self" gate (attention-sink style, zero-param). sparse (block granularity —

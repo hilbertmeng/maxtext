@@ -1009,7 +1009,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl'
     bam_pack_factorized_local_qk = True
     bam_replicate_ploc_up = False
-    sharding_tolerance = 0.06
     load_parameters_path = (
         'gs://newproject-1-llm_base_models_us-central1/log/diagnostics/'
         'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInit/items')

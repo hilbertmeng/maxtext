@@ -66,6 +66,7 @@ comparisons, then verify the winning combination with full layers.
   `skip_first_n_steps_for_profiler=2 profile_periodically_period=8 profiler_steps=5`; analyze
   `step_10`, using `step_2` only if preempted first. Before launch, run
   `scripts/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR DEST_DIR PROJECT 2` on `tpu-ag`.
+  For a pod, append `WORKER` and run one collector per worker into separate destinations.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
   step**; after step 14, wait for the collector to verify the nonempty primary XPlane on `tpu-ag`,
   then `SIGKILL` the exact no-checkpoint RUN and require `pgrep` empty before the next arm.

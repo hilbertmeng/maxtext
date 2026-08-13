@@ -872,6 +872,18 @@ class BamV2QChunk256SixLayerProfile(BamV2DenseSixLayerProfile):
     bam_query_chunk_size = 256
 
 
+class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):
+    """Full-24 target-TPU control for shared query-chunk verification."""
+    model_name = 'BamV2DenseFullLayerProfile'
+    steps = 16
+
+
+class BamV2QChunk256FullLayerProfile(BamV2DenseFullLayerProfile):
+    """Full-24 target-TPU verification of the winning C256 path."""
+    model_name = 'BamV2QChunk256FullLayerProfile'
+    bam_query_chunk_size = 256
+
+
 class BamV2QChunk512SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 512-query chunks."""
     model_name = 'BamV2QChunk512SixLayerProfile'

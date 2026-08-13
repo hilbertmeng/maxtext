@@ -57,13 +57,15 @@ def classify_local(op):
 def classify_fetched(op):
   if "read_gate_projection" in op or "W_R_gate" in op:
     return "gate_projection"
+  if "read_key_transform" in op:
+    return "key_transform"
   if ("read_m_contract" in op or "contract_1a" in op or "contract_1b" in op
       or "bftkv,btnfv->btnk" in op or "bftkv,btnfk->btnv" in op):
     return "read_m"
+  if "/bam/read_fetched_m/reduce_sum" in op:
+    return "read_m"
   if "read_key_projection" in op or "/W_R/" in op:
     return "key_projection"
-  if "read_key_transform" in op:
-    return "key_transform"
   return "other"
 
 
@@ -82,15 +84,17 @@ def classify_write(op):
 def classify_mix(op):
   if "/fetch_head_mix/" in op:
     return "weight_projection"
-  if "bnts,btn->bts" in op:
+  if "bnts,btn->bts" in op or "bncs,bcn->bcs" in op:
     return "alpha_contraction"
+  if "scatter" in op or "gather" in op or "select_n" in op:
+    return "diagonal_update"
   return "other"
 
 
 def classify_fetch(op):
   if "compress_abs_v_cache" in op:
     return "source_compression"
-  if "bfts,bskv->bftkv" in op:
+  if "bfts,bskv->bftkv" in op or "bcs,bskv->bckv" in op:
     return "temporal_contraction"
   return "other"
 
@@ -138,6 +142,8 @@ def summarize(path):
         break
       if "/attention/qk_logits/" in op:
         add(buckets["mha_qk_logits"], value)
+      if "/attention/av/" in op:
+        add(buckets["mha_av"], value)
     bam_total = [0.0, 0.0, 0.0]
     for name in OUTER:
       add(bam_total, buckets[name])

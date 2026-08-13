@@ -887,6 +887,8 @@ class BamV2QChunk256ThreeInputSixLayerProfile(BamV2QChunk256SixLayerProfile):
 class BamV2LGSQChunk256SixLayerProfile(BamV2QChunk256SixLayerProfile):
     """Six-layer alternating local/global schedule: exactly 3 local and 3 global."""
     model_name = 'BamV2LGSQChunk256SixLayerProfile'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
     sliding_window_size = [256, None]
 
 
@@ -895,6 +897,8 @@ class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
     model_name = 'BamV2LGLLQChunk256EightLayerProfile'
     base_num_decoder_layers = 8
     bam_layer_modes = ['local_qk+full'] * 8
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
     sliding_window_size = [256, None, 256, 256]
 
 
@@ -904,6 +908,26 @@ class BamV2LGLLQChunk256ThreeInputEightLayerProfile(
     """LGLL C256 with a three-input BAM mix/fetch expression."""
     model_name = 'BamV2LGLLQChunk256ThreeInputEightLayerProfile'
     bam_query_chunk_fetch_implementation = 'three_input'
+
+
+class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
+    """MHA control for the six-layer 1:1 BAM SWA profile."""
+    model_name = 'Llama2MediumLGSQChunk256SixLayerProfile'
+    base_num_decoder_layers = 6
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    sliding_window_size = [256, None]
+    steps = 16
+
+
+class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium):
+    """MHA control for the eight-layer 3:1 BAM SWA profile."""
+    model_name = 'Llama2MediumLGLLQChunk256EightLayerProfile'
+    base_num_decoder_layers = 8
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    sliding_window_size = [256, None, 256, 256]
+    steps = 16
 
 
 class BamDirectPLocR256GeluBf16PackedSixLayerProfile(

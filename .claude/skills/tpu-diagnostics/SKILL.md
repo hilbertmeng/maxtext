@@ -60,6 +60,8 @@ comparisons, then verify the winning combination with full layers.
   one shared control per TPU type is normally sufficient. Re-pair on one VM only for marginal or
   anomalous results. Keep every arm used for a cross-configuration conclusion on one TPU type
   (normally `v6e-1`); use the target training TPU only as a final confirmation.
+- If a spot `v5p-16` waits in `us-central1-a`, also queue one in `europe-west4-b`; keep the first
+  READY TPU and immediately stop/delete the other exact resource.
 - Write XPlane locally and copy it to `tpu-ag` as soon as `*.xplane.pb` appears. For a critical
   spot arm, race two zones and never use `us-east5-a` as its sole copy. Also record an insurance
   trace at steps 2–6 and the primary trace at 10–14 with

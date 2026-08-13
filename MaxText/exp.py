@@ -503,6 +503,14 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1C
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5'
     model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5'
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5Data2x(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5):
+    epoch = 2
+    steps = 2 * 12716
+    learning_rate_schedule_steps = steps
+    warmup_steps_fraction = 200 / learning_rate_schedule_steps
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5Data2x'
+    model_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5Data2x'
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo58K(Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo5):
     max_target_length = 8192
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunNVARC4HP1Combo58K'

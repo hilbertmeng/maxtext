@@ -283,7 +283,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
-    # legacy | no_remat | deferred_read | diag_correction | diag_select | optimized
+    # legacy | no_remat | deferred_read | diag_correction | diag_select | optimized[_add_mask]
     bam_query_chunk_implementation = 'legacy'
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
@@ -912,6 +912,12 @@ class BamV2QChunk256OptimizedSixLayerProfile(BamV2QChunk256SixLayerProfile):
     """C256 cumulative optimized path with template masks and concatenated outputs."""
     model_name = 'BamV2QChunk256OptimizedSixLayerProfile'
     bam_query_chunk_implementation = 'optimized'
+
+
+class BamV2QChunk256OptimizedAddMaskSixLayerProfile(BamV2QChunk256SixLayerProfile):
+    """Optimized C256 with additive large-negative masking instead of bool select."""
+    model_name = 'BamV2QChunk256OptimizedAddMaskSixLayerProfile'
+    bam_query_chunk_implementation = 'optimized_add_mask'
 
 
 class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):

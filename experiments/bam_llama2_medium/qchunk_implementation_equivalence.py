@@ -22,6 +22,7 @@ EXP_CLASSES = {
     "diag_correction": "BamV2QChunk256DiagCorrectionSixLayerProfile",
     "diag_select": "BamV2QChunk256DiagSelectSixLayerProfile",
     "optimized": "BamV2QChunk256OptimizedSixLayerProfile",
+    "optimized_add_mask": "BamV2QChunk256OptimizedAddMaskSixLayerProfile",
 }
 MODES = tuple(EXP_CLASSES)
 

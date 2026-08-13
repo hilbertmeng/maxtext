@@ -2434,7 +2434,7 @@ class BamAttention(Attention):
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._query_chunk_implementation in (
         'legacy', 'no_remat', 'deferred_read', 'diag_correction',
-        'diag_select', 'optimized')
+        'diag_select', 'optimized', 'optimized_add_mask')
     assert self._abs_v_row_output in ('direct', 'project')
     assert self._abs_v_source_implementation in ('dot', 'mul_reduce')
     if self._abs_v_dim is not None:
@@ -3087,10 +3087,13 @@ class BamAttention(Attention):
         else min(t, int(self.sliding_window_size)))
     implementation = self._query_chunk_implementation
     defer_read = implementation in (
-        'deferred_read', 'diag_correction', 'diag_select', 'optimized')
+        'deferred_read', 'diag_correction', 'diag_select', 'optimized',
+        'optimized_add_mask')
     diagonal_correction = implementation == 'diag_correction'
-    diagonal_select = implementation in ('diag_select', 'optimized')
-    concatenate_outputs = implementation == 'optimized'
+    diagonal_select = implementation in (
+        'diag_select', 'optimized', 'optimized_add_mask')
+    concatenate_outputs = implementation in ('optimized', 'optimized_add_mask')
+    additive_mask = implementation == 'optimized_add_mask'
 
     with jax.named_scope("bam/mix_alpha_projection"):
       _, mix_weights = _dynamic_bam_fetch_mix_weights(
@@ -3129,7 +3132,7 @@ class BamAttention(Attention):
 
     mask_template = None
     diagonal_template = None
-    if implementation == 'optimized':
+    if implementation in ('optimized', 'optimized_add_mask'):
       template_target = jnp.arange(t - chunk_size, t)[:, None]
       template_source = jnp.arange(t)[None, :]
       mask_template = template_source <= template_target
@@ -3163,7 +3166,11 @@ class BamAttention(Attention):
       if cfg.attn_logits_soft_cap:
         logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
                   * cfg.attn_logits_soft_cap)
-      logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
+      if additive_mask:
+        invalid = jnp.logical_not(valid[:, None]).astype(logits.dtype)
+        logits = logits + invalid * jnp.asarray(DEFAULT_MASK_VALUE, logits.dtype)
+      else:
+        logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
       if cfg.float32_logits:
         logits = logits.astype(jnp.float32)
       with jax.named_scope("attention/softmax"):

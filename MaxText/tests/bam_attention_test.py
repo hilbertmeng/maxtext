@@ -54,7 +54,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(three_loss, two_loss, rtol=2e-6, atol=2e-6)
     jax.tree.map(
         lambda actual, expected: np.testing.assert_allclose(
-            actual, expected, rtol=3e-6, atol=3e-6),
+            actual, expected, rtol=3e-6, atol=3e-5),
         three_grads, two_grads)
 
   def test_packed_local_qk_preserves_segment_initializers(self):

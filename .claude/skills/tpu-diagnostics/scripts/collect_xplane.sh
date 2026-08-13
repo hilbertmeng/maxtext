@@ -25,21 +25,23 @@ while true; do
 
   remote_xplanes=$(gcloud compute tpus tpu-vm ssh "$tpu" --zone="$zone" --project="$project" \
       --worker="$worker" \
-      --command="find '$remote_dir' -type f -name '*.xplane.pb' -size +0c -printf '%s %p\\n' 2>/dev/null | sort" \
+      --command="find '$remote_dir' -type f \\( -name '*.xplane.pb' -o -name '*.trace.json.gz' \\) -size +0c -printf '%s %p\\n' 2>/dev/null | sort" \
       2>/dev/null || true)
   remote_count=$(grep -c '\.xplane\.pb$' <<<"$remote_xplanes" || true)
-  if (( remote_count >= min_xplanes )); then
+  remote_trace_count=$(grep -c '\.trace\.json\.gz$' <<<"$remote_xplanes" || true)
+  if (( remote_count >= min_xplanes && remote_trace_count >= min_xplanes )); then
     sleep 2
     stable_xplanes=$(gcloud compute tpus tpu-vm ssh "$tpu" --zone="$zone" --project="$project" \
         --worker="$worker" \
-        --command="find '$remote_dir' -type f -name '*.xplane.pb' -size +0c -printf '%s %p\\n' 2>/dev/null | sort" \
+        --command="find '$remote_dir' -type f \\( -name '*.xplane.pb' -o -name '*.trace.json.gz' \\) -size +0c -printf '%s %p\\n' 2>/dev/null | sort" \
         2>/dev/null || true)
     [[ "$remote_xplanes" == "$stable_xplanes" ]] || continue
     gcloud compute tpus tpu-vm scp --recurse "$tpu:$remote_dir" "$dest_dir" \
       --zone="$zone" --project="$project" --worker="$worker" >/dev/null
     local_count=$(find "$dest_dir" -type f -name '*.xplane.pb' -size +0c | wc -l)
-    (( local_count >= min_xplanes )) || continue
-    find "$dest_dir" -type f -name '*.xplane.pb' -size +0c -print
+    local_trace_count=$(find "$dest_dir" -type f -name '*.trace.json.gz' -size +0c | wc -l)
+    (( local_count >= min_xplanes && local_trace_count >= min_xplanes )) || continue
+    find "$dest_dir" -type f \( -name '*.xplane.pb' -o -name '*.trace.json.gz' \) -size +0c -print
     exit 0
   fi
   sleep 2

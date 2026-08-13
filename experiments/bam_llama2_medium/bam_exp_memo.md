@@ -469,3 +469,68 @@ u1/u2梯度约`2.57e-3`；组合后alpha梯度约`3.38e-3`。训练loss在step 1
 实现改变浮点归约与反向顺序后造成的确定性轨迹分叉，不是read/write语义错误；但观测区间
 内仍有约`+0.0044`的持续loss代价。复现脚本：`diagnose_v2_fast_path_numerics.py`
 （commit `90806a4`）。
+
+V2 后续训满13,500；相对长期Direct在13,400步的gap降至`+0.000138`，说明整套V2相对
+Direct的早期轨迹差最终基本消失。Native基准止于2,800，因此不能把这一晚期结论严格拆成
+diagonal-one/write-mul本身相对Native的独立因果效果。
+
+## Shared QChunk + SWA profile
+
+实现见 `shared_qchunk_swa_design.md`。语义验证覆盖 dense/C256 的前向、loss 和参数梯度；
+profile 使用 bf16、`B=32,T=2048`、step 10–14。v6e-1 主矩阵为 commit `0caa467`；v5p-16
+早期交叉验证为 commit `1f40820`。跨配置结论只使用同一 TPU 型号内配对。
+
+### All-global chunk size
+
+| 配置 | v6e XPlane step | 相对自身 dense 吞吐 | 相对匹配 MHA 的 BAM overhead |
+|---|---:|---:|---:|
+| MHA dense | 373.31 ms | — | — |
+| MHA C256 | 376.58 ms | -0.9% | — |
+| BAM dense | 683.15 ms | — | 83.0% |
+| BAM C128 | 608.79 ms | +12.2% | — |
+| **BAM C256** | **591.78 ms** | **+15.4%** | **57.1%** |
+| BAM C512 | 596.40 ms | +14.5% | — |
+
+C256 最快，但与 C512 只差0.78% step time；选择C256还因其alpha/M中间规模更小。MHA
+C256 本身略慢，故 BAM C256 的 +15.4% 不是普通MHA chunk收益。dense→C256 时显式
+`bam_total`只从173.96降至169.64 ms，而整步从683.15降至591.78 ms；同时XPlane累计的
+non-BAM算子时间从1197.44降至1018.50 ms。主要收益来自整个联合图的lowering、remat和
+中间值生命周期改善，不能只归因于标注scope内的mix/fetch FLOPs。
+
+### Local/global schedules
+
+| L:G | 层数 | MHA XPlane | BAM XPlane | BAM overhead |
+|---:|---:|---:|---:|---:|
+| 0:1（global C256） | 6 | 376.58 ms | 591.78 ms | 57.1% |
+| 1:1 | 6 | 323.39 ms | 499.06 ms | 54.3% |
+| 3:1（LGLL） | 8 | 376.77 ms | 579.91 ms | 53.9% |
+
+每行只在相同层数/调度的MHA与BAM间计算overhead。1:1相对全global时，MHA/BAM分别
+提速16.4%/18.6%；增加local比例后BAM overhead仅小幅下降至约54%，说明SWA同时缩短
+MHA QK/AV与BAM mix/fetch，而每层write、LocalQK和运行时读键投影仍保留。
+
+### Three-input and TPU-type check
+
+将 `bncs,bcn->bcs` 和 `bcs,bskv->bckv` 合成三输入einsum没有得到融合收益：v5p-16
+两阶段C256为479.01 ms，三输入为601.89 ms，吞吐下降20.4%；v6e日志也从约1.680降至
+1.196 steps/s（-28.8%）。保留两阶段实现。
+
+同一dense/C256 BAM配对在v5p-16只提升4.20%（499.11→479.01 ms），而v6e提升15.44%
+（683.15→591.78 ms）。TPU间绝对速度不可直接比较；差异说明v6e对大alpha中间值、布局
+和remat调度更敏感。最终同机full-24 v5p-16配对（commit `8aacdab`）为：
+
+| 配置 | 稳态日志 | XPlane step | 相对dense吞吐 |
+|---|---:|---:|---:|
+| V2 dense | 0.553 steps/s | 1,780.90 ms | — |
+| V2 C256 | 0.575 steps/s | 1,715.14 ms | **+3.83%** |
+
+日志给出+3.98%，与16设备正式step 10–14 XPlane一致。因此C256在目标full-24图上确认
+有效，但收益接近六层v5p的4.20%，明显小于v6e六层的15.44%。
+
+Artifacts:
+
+- v6e: `/data0/xd/bam_diagnostics/qchunk_profiles/` and
+  `/data0/xd/bam_diagnostics/qchunk_profile_v6e_local/`
+- v5p-16: `/data0/xd/bam_diagnostics/qchunk_profile_1f40820/`
+- full-24 v5p-16 traces: `/data0/xd/bam_diagnostics/qchunk_full_v5/`; complete XPlane files
+  are retained on `tpu-ag:/home/lishengping/xd/projects/qchunk_full_v5/`.

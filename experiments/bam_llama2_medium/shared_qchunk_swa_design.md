@@ -175,3 +175,23 @@ the BAM `M_s` cache is the motivation here.
    it used global-MHA-normalized alpha followed by BAM-only zeroing, whereas L layers here jointly
    renormalize MHA and BAM within the same window and retain periodic G layers.
 
+## Profile result
+
+Implementation and semantic tests are complete. Six/eight-layer profiles use commit `0caa467`,
+bf16, `B=32,T=2048`, and v6e-1 step 10–14 XPlane; the final full-24 target-TPU pair is recorded
+separately below. Full-24 uses commit `8aacdab` on one v5p-16.
+
+- C256 is the best all-global BAM chunk: 591.78 ms versus dense 683.15 ms, or +15.4%
+  throughput. C128/C512 give +12.2%/+14.5%.
+- Chunking is not a generic MHA speedup: MHA C256 is 376.58 ms versus dense 373.31 ms (-0.9%).
+  The BAM gain comes from changing the joint BAM/MHA lowering, remat and intermediate lifetime.
+- A single three-input `einsum(alpha, mix, M)` is rejected: on v5p-16 it is 601.89 ms versus
+  479.01 ms for two-stage C256 (-20.4% throughput), with the same negative result on v6e logs.
+- Matched BAM overhead is 57.1% for all-global C256, 54.3% for L:G=1:1, and 53.9% for
+  L:G=3:1. SWA helps absolute speed and historical-M cache, but does not eliminate the remaining
+  BAM read/write overhead.
+- Full-24 target verification is 1,715.14 ms for C256 versus 1,780.90 ms dense: +3.83%
+  throughput, agreeing with stable logs (+3.98%).
+
+Therefore the implementation choice is two-stage C256. Architecture training should compare an
+LGLL BAM run only with the identical LGLL MHA control; the profile does not establish capability.

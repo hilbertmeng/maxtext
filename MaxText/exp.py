@@ -820,7 +820,7 @@ class BamLlama2MediumV2(
 ):
     """Current capability milestone with validated equivalent fast read/write paths."""
     # code_commit: 1afd942
-    # ~0.551 steps/s (+5.8%); running. mean dloss +.0044 vs fp32 Native @1,800–2,600.
+    # ~0.551 steps/s (+5.8%); completed 13,500. dloss +.00014 vs Direct @13,400.
     model_name = 'BamLlama2MediumV2'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False
@@ -854,6 +854,7 @@ class BamLlama2MediumV2WriteMulControl(
 
 class BamV2DenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """Dense-alpha six-layer control for shared query-chunk profiles."""
+    # v6e-1 XPlane 683.15 ms.
     model_name = 'BamV2DenseSixLayerProfile'
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+full'] * 6
@@ -862,42 +863,49 @@ class BamV2DenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
 
 class BamV2QChunk128SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 128-query chunks."""
+    # v6e-1 XPlane 608.79 ms; +12.2% throughput vs dense.
     model_name = 'BamV2QChunk128SixLayerProfile'
     bam_query_chunk_size = 128
 
 
 class BamV2QChunk256SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 256-query chunks."""
+    # v6e-1 XPlane 591.78 ms; +15.4% throughput vs dense; fastest chunk size.
     model_name = 'BamV2QChunk256SixLayerProfile'
     bam_query_chunk_size = 256
 
 
 class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """Full-24 target-TPU control for shared query-chunk verification."""
+    # v5p-16 XPlane 1,780.90 ms; ~0.553 steps/s.
     model_name = 'BamV2DenseFullLayerProfile'
     steps = 16
 
 
 class BamV2QChunk256FullLayerProfile(BamV2DenseFullLayerProfile):
     """Full-24 target-TPU verification of the winning C256 path."""
+    # v5p-16 XPlane 1,715.14 ms; ~0.575 steps/s; +3.83% throughput vs dense.
     model_name = 'BamV2QChunk256FullLayerProfile'
     bam_query_chunk_size = 256
 
 
 class BamV2QChunk512SixLayerProfile(BamV2DenseSixLayerProfile):
     """All-global shared MHA/BAM alpha in 512-query chunks."""
+    # v6e-1 XPlane 596.40 ms; +14.5% throughput vs dense.
     model_name = 'BamV2QChunk512SixLayerProfile'
     bam_query_chunk_size = 512
 
 
 class BamV2QChunk256ThreeInputSixLayerProfile(BamV2QChunk256SixLayerProfile):
     """C256 with alpha/head-mix/M expressed as one three-input einsum."""
+    # v5p-16 XPlane 601.89 vs 479.01 ms; -20.4% throughput vs two-stage.
     model_name = 'BamV2QChunk256ThreeInputSixLayerProfile'
     bam_query_chunk_fetch_implementation = 'three_input'
 
 
 class BamV2LGSQChunk256SixLayerProfile(BamV2QChunk256SixLayerProfile):
     """Six-layer alternating local/global schedule: exactly 3 local and 3 global."""
+    # v6e-1 XPlane 499.06 ms; +18.6% throughput vs all-global BAM C256.
     model_name = 'BamV2LGSQChunk256SixLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -906,6 +914,7 @@ class BamV2LGSQChunk256SixLayerProfile(BamV2QChunk256SixLayerProfile):
 
 class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
     """Eight-layer LGLL repeat: exactly 6 local and 2 global layers."""
+    # v6e-1 XPlane 579.91 ms; BAM overhead 53.9% vs matched MHA.
     model_name = 'BamV2LGLLQChunk256EightLayerProfile'
     base_num_decoder_layers = 8
     bam_layer_modes = ['local_qk+full'] * 8
@@ -924,6 +933,7 @@ class BamV2LGLLQChunk256ThreeInputEightLayerProfile(
 
 class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
     """MHA control for the six-layer 1:1 BAM SWA profile."""
+    # v6e-1 XPlane 323.39 ms.
     model_name = 'Llama2MediumLGSQChunk256SixLayerProfile'
     base_num_decoder_layers = 6
     attention = 'dot_product_chunk'
@@ -934,6 +944,7 @@ class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
 
 class Llama2MediumGQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
     """All-global MHA QChunk control for the six-layer BAM profile."""
+    # v6e-1 XPlane 376.58 ms; -0.9% throughput vs nonchunked MHA.
     model_name = 'Llama2MediumGQChunk256SixLayerProfile'
     base_num_decoder_layers = 6
     attention = 'dot_product_chunk'
@@ -943,6 +954,7 @@ class Llama2MediumGQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
 
 class Llama2MediumDenseSixLayerProfile(TrainStepProfile, Llama2Medium):
     """Non-chunked all-global MHA control for the six-layer profile matrix."""
+    # v6e-1 XPlane 373.31 ms.
     model_name = 'Llama2MediumDenseSixLayerProfile'
     base_num_decoder_layers = 6
     steps = 16
@@ -950,6 +962,7 @@ class Llama2MediumDenseSixLayerProfile(TrainStepProfile, Llama2Medium):
 
 class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium):
     """MHA control for the eight-layer 3:1 BAM SWA profile."""
+    # v6e-1 XPlane 376.77 ms.
     model_name = 'Llama2MediumLGLLQChunk256EightLayerProfile'
     base_num_decoder_layers = 8
     attention = 'dot_product_chunk'

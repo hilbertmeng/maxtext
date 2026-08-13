@@ -884,6 +884,12 @@ class BamV2QChunk256ThreeInputSixLayerProfile(BamV2QChunk256SixLayerProfile):
     bam_query_chunk_fetch_implementation = 'three_input'
 
 
+class BamV2LGSQChunk256SixLayerProfile(BamV2QChunk256SixLayerProfile):
+    """Six-layer alternating local/global schedule: exactly 3 local and 3 global."""
+    model_name = 'BamV2LGSQChunk256SixLayerProfile'
+    sliding_window_size = [256, None]
+
+
 class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
     """Eight-layer LGLL repeat: exactly 6 local and 2 global layers."""
     model_name = 'BamV2LGLLQChunk256EightLayerProfile'

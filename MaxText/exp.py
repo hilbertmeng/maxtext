@@ -286,6 +286,13 @@ class BamLlama2Medium(Llama2Medium):
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
+    bam_mix_alpha_layout = 'bncs'  # bncs | bcsn
+    bam_mix_weight_layout = 'btn'  # btn | bnt
+    bam_mix_alpha_implementation = 'einsum'  # pure-JAX profile selector
+    bam_mix_head_group_size = None
+    bam_mix_projection_placement = 'full'  # full | chunk
+    bam_mix_before_av = False
+    bam_mix_fetch_implementation = 'two_stage'  # two_stage | three_input
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
@@ -1237,6 +1244,167 @@ class BamV2GScanLayerOptimizedEightLayerProfile(
     # code_commit: 91cb24a; v6e-1 XPlane 661.01 ms; ~1.50 steps/s.
     # Recheck @66c8173: XPlane 672.17 ms; compile 30.71 s; ~1.474 steps/s.
     model_name = 'BamV2GScanLayerOptimizedEightLayerProfile'
+
+
+class BamV2GScanLayerMixBntEinsumEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: retain BNCS alpha but store token weights as BNT."""
+    model_name = 'BamV2GScanLayerMixBntEinsumEightLayerProfile'
+    bam_mix_weight_layout = 'bnt'
+
+
+class BamV2GScanLayerMixBcsnEinsumEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: produce alpha as BCSN; retain BTN/B-C-N weights."""
+    model_name = 'BamV2GScanLayerMixBcsnEinsumEightLayerProfile'
+    bam_mix_alpha_layout = 'bcsn'
+
+
+class BamV2GScanLayerMixBcsnBntEinsumEightLayerProfile(
+    BamV2GScanLayerMixBcsnEinsumEightLayerProfile
+):
+    """Mix profile: BCSN alpha with BNT/B-N-C weights."""
+    model_name = 'BamV2GScanLayerMixBcsnBntEinsumEightLayerProfile'
+    bam_mix_weight_layout = 'bnt'
+
+
+class BamV2GScanLayerMixMulReduceEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: current layouts with elementwise multiply plus head reduction."""
+    model_name = 'BamV2GScanLayerMixMulReduceEightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixBntMulReduceEightLayerProfile(
+    BamV2GScanLayerMixBntEinsumEightLayerProfile
+):
+    """Mix profile: BNCS/BNC native multiply-reduce."""
+    model_name = 'BamV2GScanLayerMixBntMulReduceEightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixBcsnMulReduceEightLayerProfile(
+    BamV2GScanLayerMixBcsnEinsumEightLayerProfile
+):
+    """Mix profile: BCSN/BCN native multiply-reduce."""
+    model_name = 'BamV2GScanLayerMixBcsnMulReduceEightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixBcsnBntMulReduceEightLayerProfile(
+    BamV2GScanLayerMixBcsnBntEinsumEightLayerProfile
+):
+    """Mix profile: BCSN/BNC multiply-reduce with a weight-layout conversion."""
+    model_name = 'BamV2GScanLayerMixBcsnBntMulReduceEightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixDotGeneralEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: explicit lax.dot_general rather than einsum syntax."""
+    model_name = 'BamV2GScanLayerMixDotGeneralEightLayerProfile'
+    bam_mix_alpha_implementation = 'dot_general'
+
+
+class BamV2GScanLayerMixBmmRightEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: flatten B*C and compute [S,N]@[N,1]."""
+    model_name = 'BamV2GScanLayerMixBmmRightEightLayerProfile'
+    bam_mix_alpha_implementation = 'bmm_right'
+
+
+class BamV2GScanLayerMixBmmLeftEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: flatten B*C and compute [1,N]@[N,S]."""
+    model_name = 'BamV2GScanLayerMixBmmLeftEightLayerProfile'
+    bam_mix_alpha_implementation = 'bmm_left'
+
+
+class BamV2GScanLayerMixVecdotEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: broadcast jnp.vecdot over B*C*S."""
+    model_name = 'BamV2GScanLayerMixVecdotEightLayerProfile'
+    bam_mix_alpha_implementation = 'vecdot'
+
+
+class BamV2GScanLayerMixHeadLoopEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: statically unroll a linear sixteen-head accumulation."""
+    model_name = 'BamV2GScanLayerMixHeadLoopEightLayerProfile'
+    bam_mix_alpha_implementation = 'head_loop'
+
+
+class BamV2GScanLayerMixHeadTreeEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: statically unroll a balanced sixteen-head reduction tree."""
+    model_name = 'BamV2GScanLayerMixHeadTreeEightLayerProfile'
+    bam_mix_alpha_implementation = 'head_tree'
+
+
+class BamV2GScanLayerMixHeadForiEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: dynamic lax.fori_loop over the sixteen heads."""
+    model_name = 'BamV2GScanLayerMixHeadForiEightLayerProfile'
+    bam_mix_alpha_implementation = 'head_fori'
+
+
+class BamV2GScanLayerMixHeadGroup2EightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: two-level reduction with groups of two heads."""
+    model_name = 'BamV2GScanLayerMixHeadGroup2EightLayerProfile'
+    bam_mix_alpha_implementation = 'head_group'
+    bam_mix_head_group_size = 2
+
+
+class BamV2GScanLayerMixHeadGroup4EightLayerProfile(
+    BamV2GScanLayerMixHeadGroup2EightLayerProfile
+):
+    """Mix profile: two-level reduction with groups of four heads."""
+    model_name = 'BamV2GScanLayerMixHeadGroup4EightLayerProfile'
+    bam_mix_head_group_size = 4
+
+
+class BamV2GScanLayerMixHeadGroup8EightLayerProfile(
+    BamV2GScanLayerMixHeadGroup2EightLayerProfile
+):
+    """Mix profile: two-level reduction with groups of eight heads."""
+    model_name = 'BamV2GScanLayerMixHeadGroup8EightLayerProfile'
+    bam_mix_head_group_size = 8
+
+
+class BamV2GScanLayerMixChunkProjectionEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: project and normalize head weights per query chunk."""
+    model_name = 'BamV2GScanLayerMixChunkProjectionEightLayerProfile'
+    bam_mix_projection_placement = 'chunk'
+
+
+class BamV2GScanLayerMixBeforeAvEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: express the route consumer before the standard AV consumer."""
+    model_name = 'BamV2GScanLayerMixBeforeAvEightLayerProfile'
+    bam_mix_before_av = True
+
+
+class BamV2GScanLayerMixThreeInputEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: directly contract alpha, weights, and M in pure JAX."""
+    model_name = 'BamV2GScanLayerMixThreeInputEightLayerProfile'
+    bam_mix_fetch_implementation = 'three_input'
 
 
 class BamV2GScanLayerBatchedLocalQKReadEightLayerProfile(

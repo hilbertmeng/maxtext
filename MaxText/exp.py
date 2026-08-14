@@ -1285,6 +1285,42 @@ class BamMHALGLLScanBothFullLayerProfile(
     bam_layer_modes = ['none'] * 24
 
 
+class BamV2LGLLQChunk256FullLayerProfile(
+    BamV2LGLLQChunk256EightLayerProfile
+):
+    """Full-24 LGLL C256 BAM U/U target-TPU profile."""
+    model_name = 'BamV2LGLLQChunk256FullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamMHALGLLQChunk256FullLayerProfile(
+    BamMHALGLLQChunk256EightLayerProfile
+):
+    """Full-24 LGLL C256 BAM-MHA U/U target-TPU control."""
+    model_name = 'BamMHALGLLQChunk256FullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['none'] * 24
+
+
+class BamV2LGLLScanLayerFullLayerProfile(
+    BamV2LGLLScanLayerEightLayerProfile
+):
+    """Full-24 LGLL C256 BAM S/U target-training profile."""
+    model_name = 'BamV2LGLLScanLayerFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamMHALGLLScanLayerFullLayerProfile(
+    BamMHALGLLScanLayerEightLayerProfile
+):
+    """Full-24 LGLL C256 BAM-MHA S/U target-training control."""
+    model_name = 'BamMHALGLLScanLayerFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['none'] * 24
+
+
 class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium):
     """MHA control for the eight-layer 3:1 BAM SWA profile."""
     # v6e-1 XPlane 376.77 ms.

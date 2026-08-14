@@ -329,13 +329,13 @@ Record separately:
 - active contraction counts for G and L; confirm inactive `lax.cond` branches do not execute dots;
 - peak HBM and whether scan transpose retains large per-iteration M accumulators.
 
-Use one TPU type (`v6e-1`) for the development matrix: six layers for G and eight layers for LGLL.
+Use one TPU type (`v6e-1`) and eight layers for every arm of the development matrix.
 Use separate same-type TPUs in one proven zone when parallelism saves time. Verify only the final
 candidate with full 24 layers on v5p-16. Parse XPlane locally and release every diagnostic TPU and
 queued resource after artifact verification.
 
 Development uses a complete 2×2 implementation matrix for each of `MHA-G`, `BAM-G`, `MHA-LGLL`
-and `BAM-LGLL`; G uses six layers and LGLL uses eight:
+and `BAM-LGLL`, with identical layer count and explicit query implementation:
 
 | Arm | Layer implementation | Query implementation | Purpose |
 |---|---|---|---|
@@ -345,7 +345,7 @@ and `BAM-LGLL`; G uses six layers and LGLL uses eight:
 | S/S | layer-scan | streaming query-scan | combined target |
 
 Before this matrix, use a two-layer standard-MHA pair solely to close the generic arity bug. On
-On v5p-16, validate the actual training choices with the complete
+v5p-16, validate the actual training choices with the complete
 `G/LGLL × U/U/S/U × BAM-MHA/BAM` matrix. Keep S/S only as a historical query-scan control.
 
 ## 9. Acceptance and rollback
@@ -378,6 +378,10 @@ implementations or switch production defaults until the full-24 matched result i
 - Layer scan is useful for compile latency. Full-24 v5p-16 G S/U costs 0.53% BAM-MHA and 1.72%
   BAM step time, while dynamic LGLL S/U costs 22.25%/23.14%. LGLL BAM compile falls from
   686.23 s to 49.49 s, but U/U remains the long-training choice.
+- The corrected same-commit, eight-layer v6e matrix (`91cb24a`) uses optimized query chunks in all
+  U/U and S/U arms. BAM/MHA retention is 73.19%/73.04% for G and 73.94%/72.20% for LGLL;
+  dynamic LGLL scan costs 40.06% BAM-MHA and 43.44% BAM. This supersedes the mixed-depth,
+  legacy-inherited v6e ratio table from `cc61013`.
 - Query scan is a clear throughput loss: 2.7--3.4× on v6e and 2.5--2.9× at full-24 v5p-16.
   Combining it with layer scan gives 40-s-class full BAM compilation, but does not justify the
   runtime cost. Keep `optimized + scan_layers=False` as the training default; use S/U only when

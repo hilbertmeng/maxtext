@@ -553,6 +553,11 @@ Throughput retention is `MHA XPlane / BAM XPlane`.
 | LGLL | U/U | `BamMHALGLLQChunk256FullLayerProfile` @`be4174d` | 915.39 / ~1.08 | `BamV2LGLLQChunk256FullLayerProfile` @`be4174d` | 1,245.99 / ~0.788 | 73.5% | — |
 | LGLL | S/U | `BamMHALGLLScanLayerFullLayerProfile` @`d5225e2` | 1,119.09 / ~0.884 | `BamV2LGLLScanLayerFullLayerProfile` @`be4174d` | 1,534.31 / ~0.641 | 72.9% | +22.25% / +23.14% |
 
+The v5p BAM S/U classes explicitly use `optimized`. Their BAM-MHA controls retain the historical
+`legacy` metadata value, but the MHA-control code distinguishes only `streaming_scan` from every
+non-streaming value; `legacy` and `optimized` therefore execute the same no-inner-remat query path.
+The fair v6e matrix below sets `optimized` explicitly on all eight classes as well.
+
 The G S/U path is close to runtime-neutral, but dynamic LGLL layer scan is not a training-speed
 candidate: it adds about 23% device step time to both BAM-MHA and BAM. The BAM/MHA retention only
 shifts 74.8→73.9% for G and 73.5→72.9% for LGLL, so the large LGLL penalty belongs to dynamic
@@ -570,42 +575,41 @@ cross-region pair.
 
 ### Layer/query scan matrix
 
-Commit `cc61013`; standalone `v6e-1`, `B=32,T=2048`, `C=256`. `U/S` denote unrolled/scanned
-layer and query loops. BAM compile time is the sum of its two `jit(train_step)` compilations;
-MHA has one. `step/s` is derived from the primary XPlane device step, and `Δ step` is relative to
-the matching schedule/model `U/U` arm.
+Canonical v6e recheck uses commit `91cb24a`, standalone `v6e-1`, `B=32,T=2048,C=256`, and eight
+layers for every arm. `U/U` means explicit layers plus optimized-unrolled query chunks; `S/U`
+changes only the layer loop to scan. Every class explicitly selects
+`bam_query_chunk_implementation='optimized'`. `step/s` below is derived from the primary step-10
+XPlane.
 
-| Schedule | Model | Arm | Configuration class | Compile | XPlane | step/s | Δ step |
-|---|---|---:|---|---:|---:|---:|---:|
-| G/6 | BAM | U/U | `BamV2QChunk256OptimizedSixLayerProfile` | 169.80 s | 494.07 ms | 2.024 | — |
-| G/6 | BAM | S/U | `BamV2GScanLayerSixLayerProfile` | 62.44 s | 513.77 ms | 1.946 | +4.0% |
-| G/6 | BAM | U/S | `BamV2GScanQuerySixLayerProfile` | 167.81 s | 1,645.48 ms | 0.608 | +233.0% |
-| G/6 | BAM | S/S | `BamV2GScanBothSixLayerProfile` | 54.02 s | 1,655.93 ms | 0.604 | +235.2% |
-| G/6 | MHA | U/U | `BamMHAControlQChunk256SixLayerProfile` | 34.64 s | 374.24 ms | 2.672 | — |
-| G/6 | MHA | S/U | `BamMHAGScanLayerSixLayerProfile` | 22.55 s | 383.07 ms | 2.610 | +2.4% |
-| G/6 | MHA | U/S | `BamMHAGScanQuerySixLayerProfile` | 33.46 s | 1,001.17 ms | 0.999 | +167.5% |
-| G/6 | MHA | S/S | `BamMHAGScanBothSixLayerProfile` | 22.40 s | 1,001.83 ms | 0.998 | +167.7% |
-| LGLL/8 | BAM | U/U | `BamV2LGLLQChunk256EightLayerProfile` | 309.33 s | 579.56 ms | 1.725 | — |
-| LGLL/8 | BAM | S/U | `BamV2LGLLScanLayerEightLayerProfile` | 91.43 s | 676.30 ms | 1.479 | +16.7% |
-| LGLL/8 | BAM | U/S | `BamV2LGLLScanQueryEightLayerProfile` | 212.44 s | 1,882.09 ms | 0.531 | +224.7% |
-| LGLL/8 | BAM | S/S | `BamV2LGLLScanBothEightLayerProfile` | 55.14 s | 1,987.28 ms | 0.503 | +242.9% |
-| LGLL/8 | MHA | U/U | `BamMHALGLLQChunk256EightLayerProfile` | 39.22 s | 360.69 ms | 2.772 | — |
-| LGLL/8 | MHA | S/U | `BamMHALGLLScanLayerEightLayerProfile` | 24.22 s | 507.25 ms | 1.971 | +40.6% |
-| LGLL/8 | MHA | U/S | `BamMHALGLLScanQueryEightLayerProfile` | 37.83 s | 1,203.90 ms | 0.831 | +233.8% |
-| LGLL/8 | MHA | S/S | `BamMHALGLLScanBothEightLayerProfile` | 22.54 s | 1,220.75 ms | 0.819 | +238.5% |
+| Schedule | Model | Arm | Configuration class | XPlane | step/s | S/U time cost |
+|---|---|---:|---|---:|---:|---:|
+| G | BAM | U/U | `BamV2GQChunk256OptimizedEightLayerProfile` | 638.73 ms | 1.566 | — |
+| G | BAM | S/U | `BamV2GScanLayerOptimizedEightLayerProfile` | 661.01 ms | 1.513 | +3.49% |
+| G | BAM-MHA | U/U | `BamMHAGQChunk256EightLayerProfile` | 467.49 ms | 2.139 | — |
+| G | BAM-MHA | S/U | `BamMHAGScanLayerEightLayerProfile` | 482.79 ms | 2.071 | +3.27% |
+| LGLL | BAM | U/U | `BamV2LGLLQChunk256OptimizedEightLayerProfile` | 483.28 ms | 2.069 | — |
+| LGLL | BAM | S/U | `BamV2LGLLScanLayerOptimizedEightLayerProfile` | 693.20 ms | 1.443 | +43.44% |
+| LGLL | BAM-MHA | U/U | `BamMHALGLLQChunk256OptimizedEightLayerProfile` | 357.35 ms | 2.798 | — |
+| LGLL | BAM-MHA | S/U | `BamMHALGLLScanLayerOptimizedEightLayerProfile` | 500.49 ms | 1.998 | +40.06% |
 
-| Schedule | U/U BAM/MHA | S/U BAM/MHA | U/S BAM/MHA | S/S BAM/MHA |
-|---|---:|---:|---:|---:|
-| G/6 | 75.7% | 74.6% | 60.8% | 60.5% |
-| LGLL/8 | 62.2% | 75.0% | 64.0% | 61.4% |
+| Schedule | U/U BAM/MHA retention | S/U BAM/MHA retention | S/U − U/U |
+|---|---:|---:|---:|
+| G | 73.19% | 73.04% | -0.15 pp |
+| LGLL | 73.94% | 72.20% | -1.74 pp |
 
-Layer scan materially shrinks compilation: G BAM/MHA `-63.2%/-34.9%`, LGLL `-70.4%/-38.2%`.
-All-global static specialization limits its runtime cost to 4.0%/2.4%; LGLL's dynamic L/G
-conditional costs 16.7%/40.6%. Query scan is not retained for throughput: source-block remat is
-required to fit v6e HBM (without it the compiler estimates 40.91 GiB against 31.25 GiB), but makes
-G and LGLL 2.7--3.4× slower. Its numerical path is healthy: matching U/U and U/S 16-step losses
-differ by at most `9e-5` for BAM and `8e-5` for MHA. Scanned/unscanned parameter counts are exact,
-and a two-layer generic scanned checkpoint restored and continued from step 2.
+This same-depth, same-commit matrix supersedes the old `cc61013` U/U and S/U table. The old G
+oracle was optimized but six layers, whereas the old LGLL BAM oracle inherited the legacy C256
+implementation; its apparent `62.2→75.0%` retention jump and asymmetric `16.7%/40.6%` scan cost
+were therefore not interpretable. The corrected v6e result is consistent with full-24 v5p-16:
+G→LGLL changes BAM/MHA retention by `+0.75/-0.84 pp` for U/U/S/U on v6e, versus
+`-1.3/-1.0 pp` on v5p-16. Dynamic LGLL layer scan penalizes both models, not BAM alone.
+
+Historical U/S and S/S traces still establish that streaming query scan is 2.7--3.4× slower and
+that its numerical path is healthy (16-step loss differences below `9e-5` BAM and `8e-5` MHA),
+but their mixed six/eight-layer matrix is not used for cross-schedule throughput ratios. The
+source-block remat remains necessary on v6e: without it the compiler estimates 40.91 GiB against
+31.25 GiB. Scanned/unscanned parameter counts are exact, and a two-layer scanned checkpoint
+restored and continued from step 2.
 
 ### v6e controlled overhead recheck
 

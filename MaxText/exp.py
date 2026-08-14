@@ -984,6 +984,7 @@ class BamV2GQChunk256OptimizedEightLayerProfile(
     BamV2QChunk256OptimizedSixLayerProfile
 ):
     """Fair-matrix eight-layer all-global optimized C256 BAM U/U."""
+    # code_commit: 91cb24a; v6e-1 XPlane 638.73 ms; ~1.55 steps/s.
     model_name = 'BamV2GQChunk256OptimizedEightLayerProfile'
     base_num_decoder_layers = 8
     bam_layer_modes = ['local_qk+full'] * 8
@@ -993,6 +994,7 @@ class BamV2LGLLQChunk256OptimizedEightLayerProfile(
     BamV2LGLLQChunk256EightLayerProfile
 ):
     """Fair-matrix eight-layer LGLL optimized C256 BAM U/U."""
+    # code_commit: 91cb24a; v6e-1 XPlane 483.28 ms; ~2.04 steps/s.
     model_name = 'BamV2LGLLQChunk256OptimizedEightLayerProfile'
     bam_query_chunk_implementation = 'optimized'
 
@@ -1198,6 +1200,7 @@ class BamMHAGQChunk256EightLayerProfile(
     BamMHAControlQChunk256SixLayerProfile
 ):
     """Fair-matrix eight-layer all-global C256 BAM-MHA U/U control."""
+    # code_commit: 91cb24a; v6e-1 XPlane 467.49 ms; ~2.11 steps/s.
     model_name = 'BamMHAGQChunk256EightLayerProfile'
     base_num_decoder_layers = 8
     bam_layer_modes = ['none'] * 8
@@ -1208,6 +1211,7 @@ class BamMHALGLLQChunk256OptimizedEightLayerProfile(
     BamMHALGLLQChunk256EightLayerProfile
 ):
     """Fair-matrix eight-layer LGLL C256 BAM-MHA U/U control."""
+    # code_commit: 91cb24a; v6e-1 XPlane 357.35 ms; ~2.76 steps/s.
     model_name = 'BamMHALGLLQChunk256OptimizedEightLayerProfile'
     bam_query_chunk_implementation = 'optimized'
 
@@ -1216,6 +1220,7 @@ class BamV2GScanLayerOptimizedEightLayerProfile(
     BamScanLayerMixin, BamV2GQChunk256OptimizedEightLayerProfile
 ):
     """Fair-matrix eight-layer all-global optimized C256 BAM S/U."""
+    # code_commit: 91cb24a; v6e-1 XPlane 661.01 ms; ~1.50 steps/s.
     model_name = 'BamV2GScanLayerOptimizedEightLayerProfile'
 
 
@@ -1223,6 +1228,7 @@ class BamMHAGScanLayerEightLayerProfile(
     BamScanLayerMixin, BamMHAGQChunk256EightLayerProfile
 ):
     """Fair-matrix eight-layer all-global C256 BAM-MHA S/U control."""
+    # code_commit: 91cb24a; v6e-1 XPlane 482.79 ms; ~2.05 steps/s.
     model_name = 'BamMHAGScanLayerEightLayerProfile'
 
 
@@ -1230,6 +1236,7 @@ class BamMHALGLLScanLayerOptimizedEightLayerProfile(
     BamScanLayerMixin, BamMHALGLLQChunk256OptimizedEightLayerProfile
 ):
     """Fair-matrix eight-layer LGLL C256 BAM-MHA S/U control."""
+    # code_commit: 91cb24a; v6e-1 XPlane 500.49 ms; ~1.98 steps/s.
     model_name = 'BamMHALGLLScanLayerOptimizedEightLayerProfile'
 
 
@@ -1245,6 +1252,7 @@ class BamV2LGLLScanLayerOptimizedEightLayerProfile(
     BamScanLayerMixin, BamV2LGLLQChunk256OptimizedEightLayerProfile
 ):
     """Fair-matrix eight-layer LGLL optimized C256 BAM S/U."""
+    # code_commit: 91cb24a; v6e-1 XPlane 693.20 ms; ~1.43 steps/s.
     model_name = 'BamV2LGLLScanLayerOptimizedEightLayerProfile'
 
 

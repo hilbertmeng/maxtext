@@ -214,6 +214,7 @@ class BAM:
     """Reusable defaults for the minimal BAM V2 execution path."""
     bam_enabled = True
     bam_adaptation = False
+    bam_adaptation_postnorm = False
     bam_layer_modes = ['local_qk+full'] * 24
     bam_read_sides = 'both'
     bam_k = 32
@@ -448,6 +449,14 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
 ):
     bam_adaptation = True
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptation'
+    model_name = run_name
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationPostNorm(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptation
+):
+    """Controlled BAM Adaptation arm with only the learned RMS residual scales enabled."""
+    bam_adaptation_postnorm = True
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationPostNorm'
     model_name = run_name
 
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1(

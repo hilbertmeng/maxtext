@@ -13,6 +13,7 @@ import numpy as np
 PLAIN = "Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun"
 BAM = f"{PLAIN}BAM"
 ADAPTATION = f"{PLAIN}BAMAdaptation"
+POSTNORM = f"{ADAPTATION}PostNorm"
 INVARIANT_KEYS = (
     "dataset_path", "eval_dataset_path", "dataset_type", "tokenizer_path",
     "tokenizer_type", "vocab_size", "base_emb_dim", "base_num_query_heads",
@@ -92,6 +93,7 @@ def _emit(root, identity, output):
       "config": {key: getattr(cfg, key) for key in INVARIANT_KEYS},
       "bam_enabled": bool(getattr(cfg, "bam_enabled", False)),
       "bam_adaptation": bool(getattr(cfg, "bam_adaptation", False)),
+      "bam_adaptation_postnorm": bool(getattr(cfg, "bam_adaptation_postnorm", False)),
       "train_merge_loaded_params": bool(getattr(cfg, "train_merge_loaded_params", False)),
       "params": flatten(params),
       "grads": flatten(grads),
@@ -110,7 +112,7 @@ def _is_standard_attention(path):
 def _compare(root):
   with tempfile.TemporaryDirectory(prefix="bam-posttrain-alignment-") as tmp:
     outputs = {}
-    for identity in (PLAIN, BAM, ADAPTATION):
+    for identity in (PLAIN, BAM, ADAPTATION, POSTNORM):
       output = os.path.join(tmp, f"{identity}.pkl")
       subprocess.run(
           [sys.executable, __file__, "--emit", identity, "--root", root, "--output", output],
@@ -120,20 +122,24 @@ def _compare(root):
       with open(output, "rb") as stream:
         outputs[identity] = pickle.load(stream)
 
-  plain, bam, adaptation = outputs[PLAIN], outputs[BAM], outputs[ADAPTATION]
-  if not (not plain["bam_enabled"] and bam["bam_enabled"] and adaptation["bam_enabled"]):
-    raise AssertionError("BAM enablement does not match the three experiment identities")
-  if plain["bam_adaptation"] or bam["bam_adaptation"] or not adaptation["bam_adaptation"]:
+  plain, bam, adaptation, postnorm = (
+      outputs[PLAIN], outputs[BAM], outputs[ADAPTATION], outputs[POSTNORM]
+  )
+  if not (not plain["bam_enabled"] and all(candidate["bam_enabled"] for candidate in (bam, adaptation, postnorm))):
+    raise AssertionError("BAM enablement does not match the experiment identities")
+  if plain["bam_adaptation"] or bam["bam_adaptation"] or not adaptation["bam_adaptation"] or not postnorm["bam_adaptation"]:
     raise AssertionError("only the adaptation identity may enable bam_adaptation")
-  if not bam["train_merge_loaded_params"] or not adaptation["train_merge_loaded_params"]:
+  if any(candidate["bam_adaptation_postnorm"] for candidate in (plain, bam, adaptation)) or not postnorm["bam_adaptation_postnorm"]:
+    raise AssertionError("only the postnorm identity may enable bam_adaptation_postnorm")
+  if not all(candidate["train_merge_loaded_params"] for candidate in (bam, adaptation, postnorm)):
     raise AssertionError("BAM posttrain identities must merge the Plain checkpoint")
-  if plain["config"] != bam["config"] or bam["config"] != adaptation["config"]:
+  if not all(plain["config"] == candidate["config"] for candidate in (bam, adaptation, postnorm)):
     raise AssertionError("accepted Plain training/runtime invariants changed")
 
   standard = {path for path in plain["params"] if _is_standard_attention(path)}
   if not standard:
     raise AssertionError("no standard attention parameters found")
-  for candidate in (bam, adaptation):
+  for candidate in (bam, adaptation, postnorm):
     candidate_standard = {path for path in candidate["params"] if _is_standard_attention(path)}
     if candidate_standard != standard:
       raise AssertionError("standard Q/K/V/O/QK-norm parameter paths changed")
@@ -144,12 +150,33 @@ def _compare(root):
 
   bam_only = set(bam["params"]) - set(plain["params"])
   adaptation_only = set(adaptation["params"]) - set(bam["params"])
+  postnorm_only = set(postnorm["params"]) - set(adaptation["params"])
   if set(bam["bam_skip_paths"]) != bam_only:
     raise AssertionError("Plain restore skip set is not exactly the default BAM additions")
   if set(adaptation["bam_skip_paths"]) != bam_only | adaptation_only:
     raise AssertionError("Plain restore skip set is not exactly the adaptation BAM additions")
-  if len(adaptation_only) != 1 or not next(iter(adaptation_only)).endswith("P_agg_u"):
+  if set(postnorm["bam_skip_paths"]) != bam_only | adaptation_only | postnorm_only:
+    raise AssertionError("Plain restore skip set is not exactly the postnorm BAM additions")
+  expected_adaptation_suffixes = {"P_agg_u"}
+  matched_adaptation_suffixes = {
+      suffix
+      for path in adaptation_only
+      for suffix in expected_adaptation_suffixes
+      if path.endswith(suffix)
+  }
+  if len(adaptation_only) != len(expected_adaptation_suffixes) or matched_adaptation_suffixes != expected_adaptation_suffixes:
     raise AssertionError(f"unexpected adaptation-only paths: {sorted(adaptation_only)}")
+  expected_postnorm_suffixes = {"rms_norm_q/scale", "rms_norm_k/scale", "rms_norm_o/scale"}
+  matched_postnorm_suffixes = {
+      suffix for path in postnorm_only for suffix in expected_postnorm_suffixes if path.endswith(suffix)
+  }
+  if len(postnorm_only) != len(expected_postnorm_suffixes) or matched_postnorm_suffixes != expected_postnorm_suffixes:
+    raise AssertionError(f"unexpected postnorm-only paths: {sorted(postnorm_only)}")
+  for suffix in expected_postnorm_suffixes:
+    path = next(path for path in postnorm_only if path.endswith(suffix))
+    np.testing.assert_array_equal(
+        postnorm["params"][path], np.full_like(postnorm["params"][path], 0.001), err_msg=path
+    )
   for identity, candidate in outputs.items():
     if not np.all(np.isfinite(candidate["loss"])):
       raise AssertionError(f"non-finite loss for {identity}")
@@ -162,13 +189,14 @@ def _compare(root):
       f"standard_attention={len(standard)}",
       f"bam_only={len(bam_only)}",
       f"adaptation_only={sorted(adaptation_only)}",
+      f"postnorm_only={sorted(postnorm_only)}",
   )
 
 
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--root", default=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-  parser.add_argument("--emit", choices=(PLAIN, BAM, ADAPTATION))
+  parser.add_argument("--emit", choices=(PLAIN, BAM, ADAPTATION, POSTNORM))
   parser.add_argument("--output")
   args = parser.parse_args()
   if args.emit:

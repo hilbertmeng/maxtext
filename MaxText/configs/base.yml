@@ -176,8 +176,9 @@ fused_mlp: False
 
 record_internal_nn_metrics: 0
 
-# BAM V2 adaptation keeps the legacy slice/pad behavior unless explicitly enabled.
+# BAM V2 adaptation and its small learned RMS residual scales are opt-in.
 bam_adaptation: False
+bam_adaptation_postnorm: False
 
 # Output directory
 # Create a GCS bucket, e.g. my-maxtext-outputs and set this to "gs://my-maxtext-outputs/"

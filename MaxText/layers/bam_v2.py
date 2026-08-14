@@ -35,6 +35,7 @@ from layers import attentions
 from layers import dc
 from layers import initializers
 from layers import linears
+from layers import normalizations
 
 
 Array = common_types.Array
@@ -123,6 +124,8 @@ class BamV2Attention(attentions.Attention):
         cfg, self.sliding_window_size, self.attention_kernel
     ):
       raise ValueError(f"BAM V2 is not defined with DCMHA (uses_dcmha={uses_dcmha})")
+    if cfg.bam_adaptation_postnorm and not cfg.bam_adaptation:
+      raise ValueError("bam_adaptation_postnorm requires bam_adaptation")
 
     reg_init = self.kernel_init
     zeros_init = initializers.contant_dense_init(0.0)
@@ -419,6 +422,17 @@ class BamV2Attention(attentions.Attention):
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
     key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
     q_local, k_local = self._local_qk(M_in, inputs_q)
+    if self.config.bam_adaptation_postnorm:
+      norm_kwargs = dict(
+          direct_scale=True,
+          scale_init=nn.initializers.constant(0.001),
+      )
+      q_local = normalizations.get_rmsnorm(
+          "rms_norm_q", self.config, **norm_kwargs
+      )(q_local)
+      k_local = normalizations.get_rmsnorm(
+          "rms_norm_k", self.config, **norm_kwargs
+      )(k_local)
     query, key = query + q_local, key + k_local
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
@@ -445,6 +459,13 @@ class BamV2Attention(attentions.Attention):
     y_std = jnp.einsum("bkgts,bskd->btkgd", grouped_alpha, value)
     y_std = y_std.reshape(batch, query_length, query_heads, depth)
     y_full = self._full_read(M_in, alpha, inputs_q)
+    if self.config.bam_adaptation_postnorm:
+      y_full = normalizations.get_rmsnorm(
+          "rms_norm_o",
+          self.config,
+          direct_scale=True,
+          scale_init=nn.initializers.constant(0.001),
+      )(y_full)
     o_head = y_std + y_full
     M_out = self._write(o_head, inputs_q, M_in)
     out = self.out_projection(inputs_q.shape[-1], nn.with_logical_constraint(o_head, self.out_axis_names))

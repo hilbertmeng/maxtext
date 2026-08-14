@@ -1984,9 +1984,9 @@ def _project_bam_read_keys(
   return raw_row, raw_col, r_row, r_col
 
 
-def _contract_bam_read(
+def _contract_bam_read_sides(
     Mc, Mr, r_row, r_col, per_head, implementation, read_side='both'):
-  """Contract the selected side(s) of M; omitted output halves are zero."""
+  """Contract the selected side(s) of M and return the two output halves."""
   if read_side not in ('both', 'row', 'col'):
     raise ValueError(f'Unknown BAM read side: {read_side}')
   f = 'f' if Mc.ndim == 5 else ''
@@ -2000,7 +2000,7 @@ def _contract_bam_read(
       y_u = jnp.zeros(y_v.shape[:-1] + (Mc.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
       y_v = jnp.zeros(y_u.shape[:-1] + (Mr.shape[-1],), dtype=y_u.dtype)
-    return jnp.concatenate([y_u, y_v], axis=-1)
+    return y_u, y_v
   if implementation == 'dot_btn':
     y_u = y_v = None
     if read_side in ('both', 'col'):
@@ -2013,7 +2013,7 @@ def _contract_bam_read(
       y_u = jnp.zeros(y_v.shape[:-1] + (Mc.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
       y_v = jnp.zeros(y_u.shape[:-1] + (Mr.shape[-1],), dtype=y_u.dtype)
-    return jnp.concatenate([y_u, y_v], axis=-1)
+    return y_u, y_v
   if implementation != 'mul_reduce_btn':
     raise ValueError(f'Unknown BAM read implementation: {implementation}')
   # V1 default
@@ -2039,8 +2039,18 @@ def _contract_bam_read(
     y_u = jnp.zeros(y_v.shape[:-1] + (Mc.shape[-2],), dtype=y_v.dtype)
   if y_v is None:
     y_v = jnp.zeros(y_u.shape[:-1] + (Mr.shape[-1],), dtype=y_u.dtype)
-  y = jnp.concatenate([y_u, y_v], axis=-1)
-  return y if per_head else jnp.squeeze(y, axis=-2)
+  if not per_head:
+    y_u = jnp.squeeze(y_u, axis=-2)
+    y_v = jnp.squeeze(y_v, axis=-2)
+  return y_u, y_v
+
+
+def _contract_bam_read(
+    Mc, Mr, r_row, r_col, per_head, implementation, read_side='both'):
+  """Contract the selected side(s) of M; omitted output halves are zero."""
+  y_u, y_v = _contract_bam_read_sides(
+      Mc, Mr, r_row, r_col, per_head, implementation, read_side)
+  return jnp.concatenate([y_u, y_v], axis=-1)
 
 
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
@@ -2049,7 +2059,7 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_gate_logits=None, return_key_stages=False,
              key_row_norm=None, key_col_norm=None,
              use_learned_key_norm=False, implementation='dot_bnt',
-             read_side='both'):
+             read_side='both', return_sides=False):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
   Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
@@ -2073,9 +2083,15 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
   with jax.named_scope("bam/read_m_contract"):
-    y = _contract_bam_read(
+    y_u, y_v = _contract_bam_read_sides(
         Mc, Mr, r_row, r_col, R is None, implementation, read_side)
-  if R is not None:
+  if return_sides:
+    if R is not None:
+      raise ValueError('return_sides requires a direct per-head BAM read')
+    y = (y_u, y_v)
+  else:
+    y = jnp.concatenate([y_u, y_v], axis=-1)
+  if R is not None and not return_sides:
     with jax.named_scope("bam/read_rematrix"):
       y = (jnp.einsum('btd,nde->bnte', y, R) if implementation == 'dot_bnt'
            else jnp.einsum('btd,nde->btne', y, R))
@@ -2348,6 +2364,8 @@ class BamAttention(Attention):
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
     self._factorized_head_output_layout = cfg.bam_factorized_head_output_layout
     self._pack_factorized_local_qk = bool(cfg.bam_pack_factorized_local_qk)
+    self._batch_factorized_local_qk_read = bool(
+        cfg.bam_batch_factorized_local_qk_read)
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
@@ -2390,6 +2408,10 @@ class BamAttention(Attention):
         and self._local_qk_key_mode == 'factorized'
         and cfg.bam_create_read_gate_params), (
             'packed local-QK requires factorized keys with explicit read gates')
+    assert not self._batch_factorized_local_qk_read or (
+        self._pack_factorized_local_qk
+        and self._factorized_head_output_layout == 'btn'), (
+            'batched local-QK reads require packed projections and btn output')
     assert self._local_qk_injection in ('post_rope', 'pre_qknorm_rope')
     assert self._local_qk_injection == 'post_rope' or 'local_qk' in self._mode
     assert self._local_qk_rope_pairing in ('split_half', 'adjacent')
@@ -2646,19 +2668,34 @@ class BamAttention(Attention):
               use_bias=False)
           bias_value = math.log(
               zero_key_gate_init / (1.0 - zero_key_gate_init))
-          for _name in ("W_lq", "W_lk"):
-            setattr(self, f'{_name}_bias', self.param(
-                f'{_name}_bias',
-                nn.with_logical_partitioning(zeros_init, ('kv',)),
-                (key_width,), self.weight_dtype))
-            setattr(self, f'{_name}_gate_b0', self.param(
-                f'{_name}_gate_b0',
+          if self._batch_factorized_local_qk_read:
+            self.W_local_qk_bias = self.param(
+                'W_local_qk_bias',
+                nn.with_logical_partitioning(zeros_init, (None, 'kv')),
+                (2, key_width), self.weight_dtype)
+            self.W_local_qk_gate_b0 = self.param(
+                'W_local_qk_gate_b0',
                 nn.with_logical_partitioning(
                     lambda key, shape, dtype: jnp.full(
-                        shape, bias_value, dtype), (None,)),
-                (2,), self.weight_dtype))
+                        shape, bias_value, dtype), (None, None)),
+                (2, 2), self.weight_dtype)
             add_grouped_read_norms(
-                _name, (self.bam_k,), (self.bam_v,), ('kv',), ('kv',))
+                'W_local_qk', (2, self.bam_k), (2, self.bam_v),
+                (None, 'kv'), (None, 'kv'))
+          else:
+            for _name in ("W_lq", "W_lk"):
+              setattr(self, f'{_name}_bias', self.param(
+                  f'{_name}_bias',
+                  nn.with_logical_partitioning(zeros_init, ('kv',)),
+                  (key_width,), self.weight_dtype))
+              setattr(self, f'{_name}_gate_b0', self.param(
+                  f'{_name}_gate_b0',
+                  nn.with_logical_partitioning(
+                      lambda key, shape, dtype: jnp.full(
+                          shape, bias_value, dtype), (None,)),
+                  (2,), self.weight_dtype))
+              add_grouped_read_norms(
+                  _name, (self.bam_k,), (self.bam_v,), ('kv',), ('kv',))
         else:
           for _name in ("W_lq", "W_lk"):
             setattr(self, _name, DenseGeneral(
@@ -2881,6 +2918,34 @@ class BamAttention(Attention):
         packed = self.W_local_qk_packed(inputs_q)
       key_width = self.bam_k + self.bam_v
       mix_width = 2 * self.num_query_heads
+      if self._batch_factorized_local_qk_read:
+        slot_width = key_width + 2 + mix_width
+        packed = packed.reshape(packed.shape[:-1] + (2, slot_width))
+        qk_key = packed[..., :key_width]
+        qk_gate = packed[..., key_width:key_width + 2]
+        qk_mix = packed[..., key_width + 2:].reshape(
+            packed.shape[:-2] + (2, self.num_query_heads, 2))
+        qk_key = qk_key + jnp.asarray(
+            self.W_local_qk_bias, qk_key.dtype)
+        qk_gate = qk_gate + jnp.asarray(
+            self.W_local_qk_gate_b0, qk_gate.dtype)
+        qk_u, qk_v = bam_read(
+            Mh, inputs_q, lambda _x: qk_key, None,
+            **self._read_key_kwargs_from_logits('W_local_qk', qk_gate),
+            implementation=self._read_implementation, read_side=self.read_side,
+            return_sides=True)
+        if self._read_implementation == 'dot_bnt':
+          qk_u = rearrange(qk_u, 'b q t d -> b t q d')
+          qk_v = rearrange(qk_v, 'b q t d -> b t q d')
+        qk_mix = normalizations.rms_norm(
+            qk_mix, dtype=qk_u.dtype, epsilon=self._read_key_epsilon,
+            axis=-2)
+        row_mix, col_mix = qk_mix[..., 0], qk_mix[..., 1]
+        qk_u = jnp.einsum('btqk,btqn->btqnk', qk_u, col_mix)
+        qk_v = jnp.einsum('btqv,btqn->btqnv', qk_v, row_mix)
+        qk_local = jnp.concatenate((qk_u, qk_v), axis=-1)
+        return qk_local[:, :, 0], qk_local[:, :, 1]
+
       split_points = (
           key_width,
           key_width + 2,

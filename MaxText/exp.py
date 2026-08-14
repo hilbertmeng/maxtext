@@ -263,6 +263,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
     bam_factorized_head_output_layout = 'btn'  # btn | bnt
     bam_pack_factorized_local_qk = False  # fuse factorized Q/K key, gate, and head-mix projections
+    bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
@@ -1225,6 +1226,14 @@ class BamV2GScanLayerOptimizedEightLayerProfile(
     model_name = 'BamV2GScanLayerOptimizedEightLayerProfile'
 
 
+class BamV2GScanLayerBatchedLocalQKReadEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """G C256 BAM S/U with Q/K batched as two parallel LocalQK reads."""
+    model_name = 'BamV2GScanLayerBatchedLocalQKReadEightLayerProfile'
+    bam_batch_factorized_local_qk_read = True
+
+
 class BamMHAGScanLayerEightLayerProfile(
     BamScanLayerMixin, BamMHAGQChunk256EightLayerProfile
 ):
@@ -1317,6 +1326,14 @@ class BamV2GScanLayerFullLayerProfile(
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamV2GScanLayerBatchedLocalQKReadFullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Full-24 G C256 BAM S/U with batched Q/K LocalQK contractions."""
+    model_name = 'BamV2GScanLayerBatchedLocalQKReadFullLayerProfile'
+    bam_batch_factorized_local_qk_read = True
 
 
 class BamMHAGScanBothFullLayerProfile(

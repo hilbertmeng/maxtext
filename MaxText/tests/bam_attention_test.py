@@ -99,6 +99,60 @@ class BamReadKeyTransformTest(absltest.TestCase):
     for got, expected in zip(actual_grad, reference_grad):
       np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
 
+  def test_batched_factorized_qk_read_matches_separate_reads(self):
+    b, t, qk, n, k, v, e = 2, 3, 2, 4, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(71), 6)
+    args = (
+        jax.random.normal(random[0], (b, t, k, v)),
+        jax.random.normal(random[1], (b, t, e)),
+        jax.random.normal(random[2], (e, qk, k + v)),
+        jax.random.normal(random[3], (e, qk, n, 2)),
+        jax.random.normal(random[4], (b, t, qk, 2)),
+    )
+    upstream = jax.random.normal(random[5], (b, t, qk, n, k + v))
+
+    def combined(values):
+      M, x, key_kernel, mix_kernel, gates = values
+      projected_key = jnp.einsum('bte,eqd->btqd', x, key_kernel)
+      raw_mix = jnp.einsum('bte,eqnr->btqnr', x, mix_kernel)
+      y_u, y_v = bam_read(
+          M, x, lambda _x: projected_key, None, key_mode='rms_gate',
+          key_scale=2.0, rms_epsilon=_RMS_EPSILON,
+          key_gate_logits=gates, implementation='mul_reduce_btn',
+          return_sides=True)
+      mix = normalizations.rms_norm(
+          raw_mix, dtype=y_u.dtype, epsilon=_RMS_EPSILON, axis=-2)
+      row_mix, col_mix = mix[..., 0], mix[..., 1]
+      y_u = jnp.einsum('btqk,btqn->btqnk', y_u, col_mix)
+      y_v = jnp.einsum('btqv,btqn->btqnv', y_v, row_mix)
+      return jnp.concatenate((y_u, y_v), axis=-1)
+
+    def separate(values):
+      M, x, key_kernel, mix_kernel, gates = values
+      outputs = []
+      for index in range(qk):
+        projection = lambda z, i=index: jnp.einsum(
+            'bte,ed->btd', z, key_kernel[:, i])
+        mix_projection = lambda z, i=index: jnp.einsum(
+            'bte,enr->btnr', z, mix_kernel[:, i])
+        outputs.append(factorized_head_bam_read(
+            M, x, projection, mix_projection, key_mode='rms_gate',
+            key_scale=2.0, rms_epsilon=_RMS_EPSILON,
+            key_gate_logits=gates[:, :, index],
+            implementation='mul_reduce_btn', output_layout='btn'))
+      return jnp.stack(outputs, axis=2)
+
+    reference = separate(args)
+    actual = combined(args)
+    np.testing.assert_allclose(actual, reference, rtol=1e-5, atol=1e-5)
+    reference_value, reference_grad = jax.value_and_grad(
+        lambda z: jnp.sum(separate(z) * upstream))(args)
+    actual_value, actual_grad = jax.value_and_grad(
+        lambda z: jnp.sum(combined(z) * upstream))(args)
+    np.testing.assert_allclose(actual_value, reference_value, rtol=1e-5, atol=1e-5)
+    for got, expected in zip(actual_grad, reference_grad):
+      np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
+
   def test_factorized_head_read_supports_shared_learned_key_norm(self):
     b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
     random = jax.random.split(jax.random.PRNGKey(61), 5)
@@ -206,6 +260,34 @@ class BamReadKeyTransformTest(absltest.TestCase):
         np.testing.assert_allclose(actual_value, reference_value, rtol=1e-5, atol=1e-5)
         for got, expected in zip(actual_grad, reference_grad):
           np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
+
+  def test_bam_read_return_sides_matches_joined_output(self):
+    b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
+    random = jax.random.split(jax.random.PRNGKey(73), 6)
+    args = (
+        jax.random.normal(random[0], (b, t, k, v)),
+        jax.random.normal(random[1], (b, t, e)),
+        jax.random.normal(random[2], (e, n, k + v)),
+        jax.random.normal(random[3], (b, t, n, 2)),
+    )
+    upstream = jax.random.normal(random[4], (b, t, n, k + v))
+
+    def output(values, return_sides):
+      M, x, kernel, gates = values
+      projection = lambda z: jnp.einsum('bte,end->btnd', z, kernel)
+      y = bam_read(
+          M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
+          rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
+          implementation='mul_reduce_btn', return_sides=return_sides)
+      return jnp.concatenate(y, axis=-1) if return_sides else y
+
+    reference_value, reference_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, False) * upstream))(args)
+    actual_value, actual_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, True) * upstream))(args)
+    np.testing.assert_allclose(actual_value, reference_value, rtol=1e-6, atol=1e-6)
+    for got, expected in zip(actual_grad, reference_grad):
+      np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
 
   def test_one_sided_bam_reads_keep_selected_half(self):
     b, t, n, f, k, v, e = 2, 3, 4, 2, 3, 5, 7

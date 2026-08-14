@@ -288,6 +288,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_query_chunk_implementation = 'legacy'
     bam_mix_alpha_layout = 'bncs'  # bncs | bcsn
     bam_mix_weight_layout = 'btn'  # btn | bnt
+    bam_mix_output_layout = 'bcs'  # bcs | bsc
     bam_mix_alpha_implementation = 'einsum'  # pure-JAX profile selector
     bam_mix_head_group_size = None
     bam_mix_source_block_size = None
@@ -1486,6 +1487,38 @@ class BamV2GScanLayerMixGroupedConvEightLayerProfile(
     """Mix profile: encode independent B*C dynamic matvecs as grouped 1x1 convolution."""
     model_name = 'BamV2GScanLayerMixGroupedConvEightLayerProfile'
     bam_mix_alpha_implementation = 'grouped_conv'
+
+
+class BamV2GScanLayerMixTransposeEinsumEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: transpose BNCS alpha only at the BAM consumer, then einsum."""
+    model_name = 'BamV2GScanLayerMixTransposeEinsumEightLayerProfile'
+    bam_mix_alpha_implementation = 'transpose_einsum'
+
+
+class BamV2GScanLayerMixTransposeMulReduceEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: transpose BNCS alpha only at the BAM consumer, then multiply-reduce."""
+    model_name = 'BamV2GScanLayerMixTransposeMulReduceEightLayerProfile'
+    bam_mix_alpha_implementation = 'transpose_mul_reduce'
+
+
+class BamV2GScanLayerMixOutputBscEinsumEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: retain source-major BSC route through the following M fetch."""
+    model_name = 'BamV2GScanLayerMixOutputBscEinsumEightLayerProfile'
+    bam_mix_output_layout = 'bsc'
+
+
+class BamV2GScanLayerMixOutputBscMulReduceEightLayerProfile(
+    BamV2GScanLayerMixOutputBscEinsumEightLayerProfile
+):
+    """Mix profile: multiply-reduce followed by a source-major BSC M fetch."""
+    model_name = 'BamV2GScanLayerMixOutputBscMulReduceEightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
 
 
 class BamV2GScanLayerBatchedLocalQKReadEightLayerProfile(

@@ -1292,6 +1292,7 @@ class BamV2LGLLQChunk256FullLayerProfile(
     model_name = 'BamV2LGLLQChunk256FullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
+    bam_query_chunk_implementation = 'optimized'
 
 
 class BamMHALGLLQChunk256FullLayerProfile(
@@ -1310,6 +1311,7 @@ class BamV2LGLLScanLayerFullLayerProfile(
     model_name = 'BamV2LGLLScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
+    bam_query_chunk_implementation = 'optimized'
 
 
 class BamMHALGLLScanLayerFullLayerProfile(

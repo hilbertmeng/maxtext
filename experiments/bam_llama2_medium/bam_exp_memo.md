@@ -535,27 +535,38 @@ The current C256 control removes redundant chunk-local remat but retains the 4D 
 run gave 1,083.54 ms/~0.911, only 0.47% faster and with matching device/log direction, so no Pile
 input slowdown was observed; UC1a remains canonical for historical comparability.
 
-Full BAM overhead is only reported for semantically matched control/full paths:
+Matched historical controls:
 
-| Attention | MHA-only control class | MHA step | Full BAM class | BAM step | BAM/MHA throughput |
+| Attention | BAM-MHA control | MHA step | Full BAM | BAM step | BAM/MHA throughput |
 |---|---|---:|---|---:|---:|
 | dense | `BamMHAControlDenseFullLayerProfile` | 1,276.37 ms | `BamV2DenseFullLayerProfile` | 1,780.90 ms | 71.7% |
 | C256, legacy inner-remat | `BamMHAControlQChunk256FullLayerProfile` @`f052fa6` | 1,162.67 ms | `BamV2QChunk256FullLayerProfile` | 1,715.14 ms | 67.8% |
-| **C256, optimized** | `BamMHAControlQChunk256FullLayerProfile` @`a1ad13f` | **1,088.61 ms** | `BamV2QChunk256OptimizedFullLayerProfile` @`165b55b` | **1,455.35 ms** | **74.8%** |
-| C256 G, layer+query scan | `BamMHAGScanBothFullLayerProfile` @`cc61013` | 2,749.35 ms | `BamV2GScanBothFullLayerProfile` @`cc61013` | 4,264.48 ms | 64.5% |
-| C256 LGLL, layer+query scan | `BamMHALGLLScanBothFullLayerProfile` @`cc61013` | 2,528.73 ms | `BamV2LGLLScanBothFullLayerProfile` @`cc61013` | 3,898.92 ms | 64.9% |
 
-Optimized C256 is +17.85% throughput versus legacy C256 and +22.37% versus dense BAM; stable logs
-are ~0.675 steps/s. Its 16-device range is 1,453.44--1,457.40 ms. Relative to the matched C256 MHA
-control its time overhead is 33.7%, down from legacy C256's 47.5%; the canonical matched
-throughput-retention figure is 74.8%.
+The target-training matrix is the full `G/LGLL × U/U/S/U × BAM-MHA/BAM` 2×2×2. `U/U` is
+explicit layers plus optimized-unrolled query chunks; `S/U` changes only the layer loop to scan.
+Throughput retention is `MHA XPlane / BAM XPlane`.
 
-The full-24 scan rows use UC1a MHA and EW4b BAM after preemption; an identical G MHA scan on both
-regions measured 2,749.35/2,748.69 ms (0.02%), so the cross-region pairing is sound. Stable logs
-are G MHA/BAM `~0.362/~0.233` and LGLL `~0.394/~0.255` steps/s. Compilation is compact (G
-MHA/BAM `10.12/41.18 s`, LGLL `10.72/40.43 s`), but query scan makes the full-24 G MHA/BAM
-2.53×/2.93× slower than optimized U/U. LGLL recovers 8.7%/9.4% throughput over scanned G, as
-expected from fewer active source blocks, but remains far below the optimized path.
+| Schedule | Loops | BAM-MHA class | MHA ms / log step/s | BAM class | BAM ms / log step/s | Retention | S/U time cost (MHA/BAM) |
+|---|---|---|---:|---|---:|---:|---:|
+| G | U/U | `BamMHAControlQChunk256FullLayerProfile` @`a1ad13f` | 1,088.61 / ~0.908 | `BamV2QChunk256OptimizedFullLayerProfile` @`165b55b` | 1,455.35 / ~0.675 | 74.8% | — |
+| G | S/U | `BamMHAGScanLayerFullLayerProfile` @`1d9e1e1` | 1,094.35 / ~0.904 | `BamV2GScanLayerFullLayerProfile` @`1d9e1e1` | 1,480.44 / ~0.665 | 73.9% | +0.53% / +1.72% |
+| LGLL | U/U | `BamMHALGLLQChunk256FullLayerProfile` @`be4174d` | 915.39 / ~1.08 | `BamV2LGLLQChunk256FullLayerProfile` @`be4174d` | 1,245.99 / ~0.788 | 73.5% | — |
+| LGLL | S/U | `BamMHALGLLScanLayerFullLayerProfile` @`d5225e2` | 1,119.09 / ~0.884 | `BamV2LGLLScanLayerFullLayerProfile` @`be4174d` | 1,534.31 / ~0.641 | 72.9% | +22.25% / +23.14% |
+
+The G S/U path is close to runtime-neutral, but dynamic LGLL layer scan is not a training-speed
+candidate: it adds about 23% device step time to both BAM-MHA and BAM. The BAM/MHA retention only
+shifts 74.8→73.9% for G and 73.5→72.9% for LGLL, so the large LGLL penalty belongs to dynamic
+layer scheduling rather than BAM itself. LGLL BAM U/U compiles in 686.23 s versus 49.49 s for
+S/U, a useful compile-latency tradeoff but not enough to offset repeated training-step cost.
+
+Optimized G C256 is +17.85% throughput versus legacy C256 and +22.37% versus dense BAM. Its
+16-device range is 1,453.44--1,457.40 ms; relative to matched BAM-MHA its time overhead is 33.7%,
+down from legacy C256's 47.5%.
+
+For reference, query scan remains a rejected historical control: G S/S BAM-MHA/BAM is
+2,749.35/4,264.48 ms (64.5% retention), and LGLL S/S is 2,528.73/3,898.92 ms (64.9%). An
+identical G MHA S/S run in UC1a/EW4b measured 2,749.35/2,748.69 ms (0.02%), validating the earlier
+cross-region pair.
 
 ### Layer/query scan matrix
 

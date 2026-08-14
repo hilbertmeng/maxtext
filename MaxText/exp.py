@@ -1241,6 +1241,7 @@ class BamV2GScanLayerFullLayerProfile(
     BamV2GScanLayerSixLayerProfile
 ):
     """Full-24 G C256 BAM S/U target-training profile."""
+    # code_commit: 1d9e1e1; EW4b v5p-16 XPlane 1,480.44 ms; ~0.665 steps/s.
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
@@ -1260,6 +1261,7 @@ class BamMHAGScanLayerFullLayerProfile(
     BamMHAGScanLayerSixLayerProfile
 ):
     """Full-24 G C256 BAM-MHA S/U target-training control."""
+    # code_commit: 1d9e1e1; EW4b v5p-16 XPlane 1,094.35 ms; ~0.904 steps/s.
     model_name = 'BamMHAGScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['none'] * 24
@@ -1289,6 +1291,7 @@ class BamV2LGLLQChunk256FullLayerProfile(
     BamV2LGLLQChunk256EightLayerProfile
 ):
     """Full-24 LGLL C256 BAM U/U target-TPU profile."""
+    # code_commit: be4174d; EW4b v5p-16 XPlane 1,245.99 ms; ~0.788 steps/s.
     model_name = 'BamV2LGLLQChunk256FullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
@@ -1299,6 +1302,7 @@ class BamMHALGLLQChunk256FullLayerProfile(
     BamMHALGLLQChunk256EightLayerProfile
 ):
     """Full-24 LGLL C256 BAM-MHA U/U target-TPU control."""
+    # code_commit: be4174d; EW4b v5p-16 XPlane 915.39 ms; ~1.08 steps/s.
     model_name = 'BamMHALGLLQChunk256FullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['none'] * 24
@@ -1308,6 +1312,7 @@ class BamV2LGLLScanLayerFullLayerProfile(
     BamV2LGLLScanLayerEightLayerProfile
 ):
     """Full-24 LGLL C256 BAM S/U target-training profile."""
+    # code_commit: be4174d; EW4b v5p-16 XPlane 1,534.31 ms; ~0.641 steps/s.
     model_name = 'BamV2LGLLScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
@@ -1318,6 +1323,7 @@ class BamMHALGLLScanLayerFullLayerProfile(
     BamMHALGLLScanLayerEightLayerProfile
 ):
     """Full-24 LGLL C256 BAM-MHA S/U target-training control."""
+    # code_commit: d5225e2; EW4b v5p-16 XPlane 1,119.09 ms; ~0.884 steps/s.
     model_name = 'BamMHALGLLScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['none'] * 24

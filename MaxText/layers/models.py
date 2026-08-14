@@ -499,11 +499,28 @@ class Decoder(nn.Module):
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
-  def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh, 
-   sliding_window_size=None, scan_length=1):
+  def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh,
+   sliding_window_size=None, scan_length=1, scan_deep_embedding=False,
+   runtime_schedule=False, scan_hids=False):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
+    if runtime_schedule:
+      in_axes = (
+          nn.broadcast, nn.broadcast, nn.broadcast,
+          0 if scan_deep_embedding else nn.broadcast,
+          nn.broadcast, nn.broadcast, nn.broadcast, 0)
+    elif scan_hids:
+      in_axes = (
+          nn.broadcast, nn.broadcast, nn.broadcast,
+          0 if scan_deep_embedding else nn.broadcast,
+          nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast,
+          nn.broadcast)
+    else:
+      in_axes = (
+          nn.broadcast, nn.broadcast, nn.broadcast,
+          0 if scan_deep_embedding else nn.broadcast,
+          nn.broadcast, nn.broadcast, nn.broadcast)
     scan_fn = nn.scan(
         decoder_layer,
         variable_axes={
@@ -517,15 +534,7 @@ class Decoder(nn.Module):
             "params": True,
             "dropout": cfg.enable_dropout,
         },
-        in_axes=(
-            nn.broadcast,
-            nn.broadcast,
-            nn.broadcast,
-            0 if cfg.deep_embed_effective_layers is None else nn.broadcast, # deep_embedding
-            nn.broadcast,
-            nn.broadcast, # hids
-            nn.broadcast, # 关键字参数不在这个范围内
-        ),
+        in_axes=in_axes,
         length=length,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
@@ -763,18 +772,35 @@ class Decoder(nn.Module):
         hids.append(y)
 
       if cfg.scan_layers:
-        assert not cfg.bam_enabled, "BAM v0.1 does not support scan_layers (M cannot be threaded across depth)"
         RemattedBlockLayer = RemattedBlockLayers[1]
-        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
-            y,
+        swss = format_swss(sws_list)[:cfg.num_decoder_layers]
+        is_global = jnp.asarray(
+            [s >= cfg.max_target_length for s in swss], dtype=jnp.bool_)
+        full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
+        if full_bam:
+          b, t = y.shape[:2]
+          M = jnp.zeros((b, t, cfg.bam_k, cfg.bam_v), dtype=cfg.dtype)
+          scan_carry = (y, M)
+        else:
+          scan_carry = y
+        local_sws = min(swss)
+        scan_carry, _ = self.scan_decoder_layers(
+            cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh,
+            sliding_window_size=local_sws,
+            scan_deep_embedding=deep_embeddings is not None,
+            runtime_schedule=True,
+        )(
+            scan_carry,
             decoder_segment_ids,
             decoder_positions,
             decoder_input_tokens,
             deep_embeddings,
             deterministic,
             model_mode,
-            eos_sum=eos_sum,
+            eos_sum,
+            is_global,
         )
+        y = scan_carry[0] if full_bam else scan_carry
 
       elif cfg.partial_scan_layers:
         assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
@@ -835,6 +861,7 @@ class Decoder(nn.Module):
                 mesh,
                 sliding_window_size=current_sws,
                 scan_length=scan_length,
+                scan_hids=True,
             )(
                 y,
                 decoder_segment_ids,
@@ -843,8 +870,9 @@ class Decoder(nn.Module):
                 de, # scan need to add a dimension
                 deterministic,
                 model_mode,
+                eos_sum,
+                None,
                 me + c_hids[start_index:],
-                eos_sum=eos_sum,
             )
             lyr += 1
 
@@ -874,6 +902,7 @@ class Decoder(nn.Module):
                 mesh,
                 sliding_window_size=current_sws,
                 scan_length=scan_length,
+                scan_hids=True,
             )(
                 y,
                 decoder_segment_ids,
@@ -882,8 +911,9 @@ class Decoder(nn.Module):
                 de,
                 deterministic,
                 model_mode,
+                eos_sum,
+                None,
                 c_hids, # me + local hids
-                eos_sum=eos_sum,
             )
             if cfg.dense_conn and cfg.compose_all_layers:
               for output in outputs[:-1]:

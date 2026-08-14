@@ -88,6 +88,7 @@ class SubDecoderLayer(nn.Module):
       model_mode,
       eos_sum,
       M_in=None,
+      is_global=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -175,7 +176,8 @@ class SubDecoderLayer(nn.Module):
         deep_embedding=deep_embedding,
     )
     if cfg.bam_enabled:
-        attention_lnx, M_out = attention_layer(**call_kwargs, M_in=M_in)
+        attention_lnx, M_out = attention_layer(
+            **call_kwargs, M_in=M_in, is_global=is_global)
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
@@ -332,11 +334,21 @@ class FusionDecoderLayer(nn.Module):
       deep_embedding,
       deterministic,
       model_mode,
-      hids=None,
       eos_sum=None,
+      is_global=None,
+      hids=None,
       M_in=None,
   ):
     cfg = self.config
+    scan_full_bam = (
+        cfg.scan_layers and cfg.bam_enabled
+        and not getattr(cfg, 'bam_mha_control', False))
+    if cfg.scan_layers:
+      assert not cfg.dense_conn, 'flat layer scan currently requires dense_conn=False'
+      if scan_full_bam:
+        inputs, M_in = inputs
+      else:
+        M_in = None
     if cfg.partial_scan_layers:
       assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
       return self.partial_scan_call(
@@ -382,6 +394,7 @@ class FusionDecoderLayer(nn.Module):
         model_mode,
         eos_sum,
         M_in=M_in,
+        is_global=is_global,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
@@ -397,6 +410,9 @@ class FusionDecoderLayer(nn.Module):
           lidx=self.layer_inx,
         )
 
+    if cfg.scan_layers:
+      carry = (inputs, M_out) if scan_full_bam else inputs
+      return carry, ()
     if cfg.bam_enabled:
       return inputs, hids, M_out
     return inputs, hids

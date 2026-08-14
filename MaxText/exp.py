@@ -600,6 +600,15 @@ class Llama2MediumTrainStepProfile(TrainStepProfile, Llama2Medium):
     model_name = 'Llama2MediumTrainStepProfile'
 
 
+class Llama2MediumScanTwoLayerProfile(TrainStepProfile, Llama2Medium):
+    """Minimal standard-MHA smoke test for the repaired generic scan contract."""
+    model_name = 'Llama2MediumScanTwoLayerProfile'
+    base_num_decoder_layers = 2
+    scan_layers = True
+    profiler = ''
+    steps = 4
+
+
 class BamNoMNormPostNoQKProfile(
     TrainStepProfile,
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm,
@@ -1095,6 +1104,149 @@ class BamMHAControlQChunk256FullLayerProfile(BamMHAControlDenseFullLayerProfile)
     model_name = 'BamMHAControlQChunk256FullLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
+
+
+# BAM C256 scan matrix.  U/S mean explicit/scanned layer and query loops.
+class BamScanLayerMixin:
+    scan_layers = True
+
+
+class BamScanQueryMixin:
+    bam_query_chunk_implementation = 'streaming_scan'
+
+
+class BamV2GScanLayerSixLayerProfile(
+    BamScanLayerMixin, BamV2QChunk256OptimizedSixLayerProfile
+):
+    """G C256 BAM S/U: scanned layers, optimized-unrolled query chunks."""
+    model_name = 'BamV2GScanLayerSixLayerProfile'
+
+
+class BamV2GScanQuerySixLayerProfile(
+    BamScanQueryMixin, BamV2QChunk256OptimizedSixLayerProfile
+):
+    """G C256 BAM U/S: explicit layers, streaming query/source scans."""
+    model_name = 'BamV2GScanQuerySixLayerProfile'
+
+
+class BamV2GScanBothSixLayerProfile(
+    BamScanLayerMixin, BamScanQueryMixin,
+    BamV2QChunk256OptimizedSixLayerProfile
+):
+    """G C256 BAM S/S: scanned layers and streaming query/source scans."""
+    model_name = 'BamV2GScanBothSixLayerProfile'
+
+
+class BamMHAGScanLayerSixLayerProfile(
+    BamScanLayerMixin, BamMHAControlQChunk256SixLayerProfile
+):
+    """G C256 BAM-MHA S/U control."""
+    model_name = 'BamMHAGScanLayerSixLayerProfile'
+
+
+class BamMHAGScanQuerySixLayerProfile(
+    BamScanQueryMixin, BamMHAControlQChunk256SixLayerProfile
+):
+    """G C256 BAM-MHA U/S control."""
+    model_name = 'BamMHAGScanQuerySixLayerProfile'
+
+
+class BamMHAGScanBothSixLayerProfile(
+    BamScanLayerMixin, BamScanQueryMixin,
+    BamMHAControlQChunk256SixLayerProfile
+):
+    """G C256 BAM-MHA S/S control."""
+    model_name = 'BamMHAGScanBothSixLayerProfile'
+
+
+class BamMHALGLLQChunk256EightLayerProfile(
+    BamMHAControlQChunk256SixLayerProfile
+):
+    """LGLL C256 BAM-MHA U/U control."""
+    model_name = 'BamMHALGLLQChunk256EightLayerProfile'
+    base_num_decoder_layers = 8
+    bam_layer_modes = ['none'] * 8
+    sliding_window_size = [256, None, 256, 256]
+
+
+class BamV2LGLLScanLayerEightLayerProfile(
+    BamScanLayerMixin, BamV2LGLLQChunk256EightLayerProfile
+):
+    """LGLL C256 BAM S/U."""
+    model_name = 'BamV2LGLLScanLayerEightLayerProfile'
+
+
+class BamV2LGLLScanQueryEightLayerProfile(
+    BamScanQueryMixin, BamV2LGLLQChunk256EightLayerProfile
+):
+    """LGLL C256 BAM U/S."""
+    model_name = 'BamV2LGLLScanQueryEightLayerProfile'
+
+
+class BamV2LGLLScanBothEightLayerProfile(
+    BamScanLayerMixin, BamScanQueryMixin,
+    BamV2LGLLQChunk256EightLayerProfile
+):
+    """LGLL C256 BAM S/S."""
+    model_name = 'BamV2LGLLScanBothEightLayerProfile'
+
+
+class BamMHALGLLScanLayerEightLayerProfile(
+    BamScanLayerMixin, BamMHALGLLQChunk256EightLayerProfile
+):
+    """LGLL C256 BAM-MHA S/U control."""
+    model_name = 'BamMHALGLLScanLayerEightLayerProfile'
+
+
+class BamMHALGLLScanQueryEightLayerProfile(
+    BamScanQueryMixin, BamMHALGLLQChunk256EightLayerProfile
+):
+    """LGLL C256 BAM-MHA U/S control."""
+    model_name = 'BamMHALGLLScanQueryEightLayerProfile'
+
+
+class BamMHALGLLScanBothEightLayerProfile(
+    BamScanLayerMixin, BamScanQueryMixin,
+    BamMHALGLLQChunk256EightLayerProfile
+):
+    """LGLL C256 BAM-MHA S/S control."""
+    model_name = 'BamMHALGLLScanBothEightLayerProfile'
+
+
+class BamV2GScanBothFullLayerProfile(
+    BamV2GScanBothSixLayerProfile
+):
+    """Full-24 G C256 BAM S/S target-TPU profile."""
+    model_name = 'BamV2GScanBothFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamMHAGScanBothFullLayerProfile(
+    BamMHAGScanBothSixLayerProfile
+):
+    """Full-24 G C256 BAM-MHA S/S target-TPU control."""
+    model_name = 'BamMHAGScanBothFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['none'] * 24
+
+
+class BamV2LGLLScanBothFullLayerProfile(
+    BamV2LGLLScanBothEightLayerProfile
+):
+    """Full-24 LGLL C256 BAM S/S target-TPU profile."""
+    model_name = 'BamV2LGLLScanBothFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamMHALGLLScanBothFullLayerProfile(
+    BamMHALGLLScanBothEightLayerProfile
+):
+    """Full-24 LGLL C256 BAM-MHA S/S target-TPU control."""
+    model_name = 'BamMHALGLLScanBothFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['none'] * 24
 
 
 class Llama2MediumLGLLQChunk256EightLayerProfile(TrainStepProfile, Llama2Medium):

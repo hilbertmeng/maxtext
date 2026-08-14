@@ -2290,6 +2290,7 @@ class BamAttention(Attention):
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
     self._query_chunk_size = (
         cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
+    self._query_chunk_implementation = cfg.bam_query_chunk_implementation
     if self._mha_control:
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       assert not cfg.bam_diagnostics, 'BAM MHA control must not expose BAM diagnostics'
@@ -2366,7 +2367,6 @@ class BamAttention(Attention):
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
-    self._query_chunk_implementation = cfg.bam_query_chunk_implementation
     self._abs_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
     self._abs_v_source_implementation = getattr(
@@ -2433,7 +2433,8 @@ class BamAttention(Attention):
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._query_chunk_implementation in (
-        'legacy', 'no_remat', 'deferred_read', 'diag_select', 'optimized')
+        'legacy', 'no_remat', 'deferred_read', 'diag_select', 'optimized',
+        'streaming_scan')
     assert self._abs_v_row_output in ('direct', 'project')
     assert self._abs_v_source_implementation in ('dot', 'mul_reduce')
     if self._abs_v_dim is not None:
@@ -3071,7 +3072,8 @@ class BamAttention(Attention):
     return M_out, gate, forget_gate
 
   def _query_chunk_shared_full_read(
-      self, query, key, value, Mh, inputs_q, decoder_segment_ids):
+      self, query, key, value, Mh, inputs_q, decoder_segment_ids,
+      is_global=None, window_size_override=None):
     """Compute one shared MHA/BAM alpha a query chunk at a time.
 
     This deliberately implements only the V2 full-read path so semantic mismatches
@@ -3081,9 +3083,21 @@ class BamAttention(Attention):
     b, t, n, d = query.shape
     chunk_size = int(self._query_chunk_size)
     assert t % chunk_size == 0
+    if is_global is not None:
+      local_window = min(t, int(self.sliding_window_size))
+      return lax.cond(
+          is_global,
+          lambda _: self._query_chunk_shared_full_read(
+              query, key, value, Mh, inputs_q, decoder_segment_ids,
+              window_size_override=t),
+          lambda _: self._query_chunk_shared_full_read(
+              query, key, value, Mh, inputs_q, decoder_segment_ids,
+              window_size_override=local_window),
+          operand=None)
     window_size = (
-        t if self.sliding_window_size is None
-        else min(t, int(self.sliding_window_size)))
+        window_size_override if window_size_override is not None else
+        (t if self.sliding_window_size is None
+         else min(t, int(self.sliding_window_size))))
     implementation = self._query_chunk_implementation
     defer_read = implementation in ('deferred_read', 'diag_select', 'optimized')
     diagonal_select = implementation in ('diag_select', 'optimized')
@@ -3240,16 +3254,207 @@ class BamAttention(Attention):
 
     return y_std, y_full
 
+  def _finish_streaming_full_read(self, Mbar, row_key, col_key):
+    """Apply the one deferred BAM read used by the streaming query path."""
+    full_read = _contract_bam_read(
+        Mbar[:, None], Mbar[:, None], row_key, col_key, True,
+        self._read_implementation, self.read_side)
+    if self._abs_v_dim is None:
+      return full_read
+    if self._abs_v_row_output == 'project':
+      y_u, y_v = jnp.split(full_read, [self.bam_k], axis=-1)
+      decoder = self.abs_v_row_decoder.astype(y_v.dtype)
+      y_v = jnp.einsum('btnc,ncv->btnv', y_v, decoder)
+      return jnp.concatenate((y_u, y_v), axis=-1)
+    return jnp.pad(
+        full_read,
+        [(0, 0)] * (full_read.ndim - 1)
+        + [(0, self.bam_v - self._abs_v_dim)])
+
+  def _query_chunk_streaming_scan(
+      self, query, key, value, decoder_segment_ids, is_global,
+      *, inputs_q=None, Mh=None, enable_bam=False):
+    """Fixed-shape query/source scans with online softmax.
+
+    ``enable_bam`` is a Python-static specialization.  The MHA control therefore
+    neither creates BAM parameters nor carries BAM numerator tensors.
+    """
+    cfg = self.config
+    b, t, n, d = query.shape
+    chunk_size = int(self._query_chunk_size)
+    assert t % chunk_size == 0
+    num_chunks = t // chunk_size
+    local_window = min(t, int(self.sliding_window_size))
+    if is_global is None:
+      is_global = jnp.asarray(local_window >= t, dtype=jnp.bool_)
+
+    query_blocks = query.reshape(b, num_chunks, chunk_size, n, d)
+    key_blocks = key.reshape(b, num_chunks, chunk_size, n, d)
+    value_blocks = value.reshape(b, num_chunks, chunk_size, n, d)
+    segment_blocks = None
+    if decoder_segment_ids is not None:
+      segment_blocks = decoder_segment_ids.reshape(b, num_chunks, chunk_size)
+
+    mix_weights = fetch_state = read_row = read_col = None
+    if enable_bam:
+      assert inputs_q is not None and Mh is not None
+      with jax.named_scope('bam/mix_alpha_projection'):
+        _, mix_weights = _dynamic_bam_fetch_mix_weights(
+            self.fetch_head_mix(inputs_q), query.dtype, 'rms',
+            rms_epsilon=self._rms_epsilon)
+      with jax.named_scope('bam/compress_abs_v_cache'):
+        fetch_state = Mh
+        if self._abs_v_dim is not None:
+          projection = self.abs_v_cache_projection.astype(Mh.dtype)
+          if self._abs_v_source_implementation == 'dot':
+            fetch_state = jnp.einsum('bskv,vc->bskc', Mh, projection)
+          else:
+            fetch_state = jnp.sum(
+                Mh[..., None] * projection[None, None, None, :, :], axis=-2)
+      fetch_blocks = fetch_state.reshape(
+          b, num_chunks, chunk_size, fetch_state.shape[-2],
+          fetch_state.shape[-1])
+      with jax.named_scope('bam/read_fetched_m'):
+        projected_read_key = self.W_R(inputs_q)
+        read_key_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
+        _, _, read_row, read_col = _project_bam_read_keys(
+            self.bam_k, inputs_q, lambda _x: projected_read_key,
+            **read_key_kwargs)
+
+    def block_at(x, index):
+      return lax.dynamic_index_in_dim(x, index, axis=1, keepdims=False)
+
+    def query_body(_, qi):
+      q_chunk = block_at(query_blocks, qi)
+      q_segment = None if segment_blocks is None else block_at(segment_blocks, qi)
+      q_positions = qi * chunk_size + jnp.arange(chunk_size)
+      stats_dtype = jnp.float32 if cfg.float32_logits else query.dtype
+      running_max = jnp.full(
+          (b, n, chunk_size), -jnp.inf, dtype=stats_dtype)
+      denominator = jnp.zeros((b, n, chunk_size), dtype=stats_dtype)
+      value_numerator = jnp.zeros(
+          (b, n, chunk_size, d), dtype=stats_dtype)
+      if enable_bam:
+        matrix_numerator = jnp.zeros(
+            (b, n, chunk_size, fetch_state.shape[-2], fetch_state.shape[-1]),
+            dtype=stats_dtype)
+        source_init = (
+            running_max, denominator, value_numerator, matrix_numerator)
+      else:
+        source_init = (running_max, denominator, value_numerator)
+
+      def source_body(state, sj):
+        global_active = sj <= qi
+        first_local = jnp.maximum(
+            0, (qi * chunk_size - local_window + 1) // chunk_size)
+        local_active = global_active & (sj >= first_local)
+        active = jnp.where(is_global, global_active, local_active)
+
+        def compute(current):
+          m, z, v_num = current[:3]
+          k_chunk = block_at(key_blocks, sj)
+          v_chunk = block_at(value_blocks, sj)
+          source_positions = sj * chunk_size + jnp.arange(chunk_size)
+          valid = source_positions[None, :] <= q_positions[:, None]
+          valid &= jnp.asarray(is_global) | (
+              source_positions[None, :] >
+              q_positions[:, None] - local_window)
+          valid = valid[None]
+          if segment_blocks is not None:
+            source_segment = block_at(segment_blocks, sj)
+            valid &= q_segment[:, :, None] == source_segment[:, None, :]
+
+          with jax.named_scope('attention/qk_logits'):
+            logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
+          if cfg.attn_logits_soft_cap:
+            logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
+                      * cfg.attn_logits_soft_cap)
+          if cfg.float32_logits:
+            logits = logits.astype(jnp.float32)
+          valid_logits = valid[:, None]
+          masked_logits = jnp.where(valid_logits, logits, -jnp.inf)
+          block_max = jnp.max(masked_logits, axis=-1)
+          new_max = jnp.maximum(m, block_max)
+          safe_new_max = jnp.where(jnp.isfinite(new_max), new_max, 0)
+          old_scale = jnp.where(
+              jnp.isfinite(m), jnp.exp(m - safe_new_max), 0)
+          probability = jnp.where(
+              valid_logits, jnp.exp(logits - safe_new_max[..., None]), 0)
+          new_z = old_scale * z + jnp.sum(probability, axis=-1)
+          with jax.named_scope('attention/av'):
+            new_v_num = (
+                old_scale[..., None] * v_num
+                + jnp.einsum('bncs,bsnd->bncd', probability, v_chunk))
+          if not enable_bam:
+            return new_max, new_z, new_v_num
+
+          target_equals_source = (
+              q_positions[:, None] == source_positions[None, :])
+          off_diagonal_probability = jnp.where(
+              target_equals_source[None, None], 0, probability)
+          with jax.named_scope('bam/mix_alpha_fetch_m'):
+            new_m_num = (
+                old_scale[..., None, None] * current[3]
+                + jnp.einsum(
+                    'bncs,bskv->bnckv', off_diagonal_probability,
+                    block_at(fetch_blocks, sj)))
+          return new_max, new_z, new_v_num, new_m_num
+
+        return lax.cond(active, compute, lambda current: current, state), None
+
+      final_state, _ = lax.scan(
+          source_body, source_init, jnp.arange(num_chunks, dtype=jnp.int32))
+      z = final_state[1]
+      y_chunk = (final_state[2] / z[..., None]).transpose(0, 2, 1, 3)
+      if not enable_bam:
+        return (), y_chunk
+
+      normalized_m_num = final_state[3] / z[..., None, None]
+      mix_chunk = block_at(
+          mix_weights.reshape(b, num_chunks, chunk_size, n), qi)
+      with jax.named_scope('bam/mix_alpha_fetch_m'):
+        off_diagonal_mbar = jnp.einsum(
+            'bcn,bnckv->bckv', mix_chunk, normalized_m_num)
+        diagonal_m = block_at(fetch_blocks, qi)
+        mbar_chunk = diagonal_m + off_diagonal_mbar
+      return (), (y_chunk, mbar_chunk)
+
+    _, stacked = lax.scan(
+        query_body, (), jnp.arange(num_chunks, dtype=jnp.int32))
+    if enable_bam:
+      y_chunks, mbar_chunks = stacked
+      y_std = y_chunks.transpose(1, 0, 2, 3, 4).reshape(b, t, n, d)
+      mbar = mbar_chunks.transpose(1, 0, 2, 3, 4).reshape(
+          b, t, fetch_state.shape[-2], fetch_state.shape[-1])
+      with jax.named_scope('bam/read_fetched_m'):
+        y_full = self._finish_streaming_full_read(mbar, read_row, read_col)
+      return y_std, y_full
+
+    return stacked.transpose(1, 0, 2, 3, 4).reshape(b, t, n, d)
+
   def _query_chunk_mha_control(
-      self, query, key, value, decoder_segment_ids):
+      self, query, key, value, decoder_segment_ids, is_global=None,
+      window_size_override=None):
     """Run only BAM's chunked QK/softmax/AV implementation."""
     cfg = self.config
     b, t, n, d = query.shape
     chunk_size = int(self._query_chunk_size)
     assert t % chunk_size == 0
+    if is_global is not None:
+      local_window = min(t, int(self.sliding_window_size))
+      return lax.cond(
+          is_global,
+          lambda _: self._query_chunk_mha_control(
+              query, key, value, decoder_segment_ids,
+              window_size_override=t),
+          lambda _: self._query_chunk_mha_control(
+              query, key, value, decoder_segment_ids,
+              window_size_override=local_window),
+          operand=None)
     window_size = (
-        t if self.sliding_window_size is None
-        else min(t, int(self.sliding_window_size)))
+        window_size_override if window_size_override is not None else
+        (t if self.sliding_window_size is None
+         else min(t, int(self.sliding_window_size))))
     y_std = jnp.zeros((b, t, n, d), dtype=value.dtype)
 
     def chunk_body(q_chunk, k_chunk, v_chunk, valid):
@@ -3312,6 +3517,7 @@ class BamAttention(Attention):
       eos_sum: Array | None = None,
       deep_embedding: Array | None = None,
       M_in: Array | None = None,
+      is_global: Array | bool | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3360,8 +3566,13 @@ class BamAttention(Attention):
         query = query.astype(jnp.float32)
         key = key.astype(jnp.float32)
       if self._query_chunk_size is not None:
-        y_std = self._query_chunk_mha_control(
-            query, key, value, decoder_segment_ids)
+        if self._query_chunk_implementation == 'streaming_scan':
+          y_std = self._query_chunk_streaming_scan(
+              query, key, value, decoder_segment_ids, is_global,
+              enable_bam=False)
+        else:
+          y_std = self._query_chunk_mha_control(
+              query, key, value, decoder_segment_ids, is_global=is_global)
       else:
         with jax.named_scope("attention/qk_logits"):
           logits = jnp.einsum('btnd,bsnd->bnts', query, key)
@@ -3426,8 +3637,14 @@ class BamAttention(Attention):
       query = query.astype(jnp.float32); key = key.astype(jnp.float32)
     if self._query_chunk_size is not None:
       assert cfg.bam_write_source == 'std+cross+local_o'
-      y_std, y_full = self._query_chunk_shared_full_read(
-          query, key, value, Mh, inputs_q, decoder_segment_ids)
+      if self._query_chunk_implementation == 'streaming_scan':
+        y_std, y_full = self._query_chunk_streaming_scan(
+            query, key, value, decoder_segment_ids, is_global,
+            inputs_q=inputs_q, Mh=Mh, enable_bam=True)
+      else:
+        y_std, y_full = self._query_chunk_shared_full_read(
+            query, key, value, Mh, inputs_q, decoder_segment_ids,
+            is_global=is_global)
       o_head = y_std + y_full
       with jax.named_scope("bam/write_m"):
         M_out, _, _ = self._write(o_head, inputs_q, M_in)

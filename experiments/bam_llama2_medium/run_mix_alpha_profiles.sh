@@ -53,7 +53,8 @@ for exp_class in "$@"; do
     cd '$REMOTE_REPO'; nohup /home/lishengping/miniconda3/bin/python \
     MaxText/train.py MaxText/configs/base.yml base_output_directory='$BASE_OUTPUT' \
     tensorboard_dir='$remote_run/tensorboard' run_name='$run' exp_class='$exp_class' \
-    dataset_path='$DATASET' > /home/lishengping/train_${run}.log 2>&1 </dev/null &"
+    dataset_path='$DATASET' steps=100 \
+    > /home/lishengping/train_${run}.log 2>&1 </dev/null &"
 
   deadline=$((SECONDS + 1200))
   reached_trace=false

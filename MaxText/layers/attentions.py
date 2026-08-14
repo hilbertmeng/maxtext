@@ -3402,8 +3402,14 @@ class BamAttention(Attention):
 
         return lax.cond(active, compute, lambda current: current, state), None
 
+      # Reverse-mode through the nested scan otherwise saves every qi×sj
+      # logits/probability tensor.  At T=2048,C=256 this is an 8×8 activation
+      # lattice and exceeds v6e-1 HBM; recomputing one source block is the
+      # measured memory-safe boundary.
+      remat_source_body = jax.checkpoint(source_body, prevent_cse=False)
       final_state, _ = lax.scan(
-          source_body, source_init, jnp.arange(num_chunks, dtype=jnp.int32))
+          remat_source_body, source_init,
+          jnp.arange(num_chunks, dtype=jnp.int32))
       z = final_state[1]
       y_chunk = (final_state[2] / z[..., None]).transpose(0, 2, 1, 3)
       if not enable_bam:

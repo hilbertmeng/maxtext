@@ -11,6 +11,7 @@ import json
 OUTER = {
     "write_m": "bam/write_m",
     "mix_alpha": "bam/mix_alpha",
+    "mix_fetch": "bam/mix_fetch_m",
     "compress_abs_v": "bam/compress_abs_v_cache",
     "fetch_m": "bam/fetch_m",
     "local_qk": "bam/read_local_m_for_qk",
@@ -83,13 +84,14 @@ def classify_write(op):
 
 
 def classify_mix(op):
-  if "/fetch_head_mix/" in op:
+  if "/fetch_head_mix/" in op or "/bam/mix_alpha_projection/" in op:
     return "weight_projection"
-  if "bnts,btn->bts" in op or "bncs,bcn->bcs" in op:
-    return "alpha_contraction"
-  if "scatter" in op or "gather" in op or "select_n" in op:
+  if ("/bam/mix_alpha_diagonal/" in op or "scatter" in op or "gather" in op
+      or "select_n" in op):
     return "diagonal_update"
-  return "other"
+  # Every remaining op in this deliberately narrow scope belongs to the selected
+  # alpha-head contraction, including layout transforms and reduction epilogues.
+  return "alpha_contraction"
 
 
 def classify_fetch(op):
@@ -209,6 +211,7 @@ def summarize(path):
           - buckets["mha_softmax"][index]
           - buckets["mha_av"][index]
           - buckets["mix_alpha"][index]
+          - buckets["mix_fetch"][index]
           - buckets["compress_abs_v"][index]
           - buckets["fetch_m"][index]
           - buckets["fetched"][index]

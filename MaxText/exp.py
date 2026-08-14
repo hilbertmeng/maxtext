@@ -290,6 +290,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_mix_weight_layout = 'btn'  # btn | bnt
     bam_mix_alpha_implementation = 'einsum'  # pure-JAX profile selector
     bam_mix_head_group_size = None
+    bam_mix_source_block_size = None
     bam_mix_projection_placement = 'full'  # full | chunk
     bam_mix_before_av = False
     bam_mix_fetch_implementation = 'two_stage'  # two_stage | three_input
@@ -1405,6 +1406,86 @@ class BamV2GScanLayerMixThreeInputEightLayerProfile(
     """Mix profile: directly contract alpha, weights, and M in pure JAX."""
     model_name = 'BamV2GScanLayerMixThreeInputEightLayerProfile'
     bam_mix_fetch_implementation = 'three_input'
+
+
+class BamV2GScanLayerMixSourceBlock128EightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: split the source axis into static 128-token contractions."""
+    model_name = 'BamV2GScanLayerMixSourceBlock128EightLayerProfile'
+    bam_mix_source_block_size = 128
+
+
+class BamV2GScanLayerMixSourceBlock256EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock128EightLayerProfile
+):
+    """Mix profile: split the source axis into static 256-token contractions."""
+    model_name = 'BamV2GScanLayerMixSourceBlock256EightLayerProfile'
+    bam_mix_source_block_size = 256
+
+
+class BamV2GScanLayerMixSourceBlock512EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock128EightLayerProfile
+):
+    """Mix profile: split the source axis into static 512-token contractions."""
+    model_name = 'BamV2GScanLayerMixSourceBlock512EightLayerProfile'
+    bam_mix_source_block_size = 512
+
+
+class BamV2GScanLayerMixMulReduceSourceBlock128EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock128EightLayerProfile
+):
+    """Mix profile: multiply-reduce in static 128-token source blocks."""
+    model_name = 'BamV2GScanLayerMixMulReduceSourceBlock128EightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixMulReduceSourceBlock256EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock256EightLayerProfile
+):
+    """Mix profile: multiply-reduce in static 256-token source blocks."""
+    model_name = 'BamV2GScanLayerMixMulReduceSourceBlock256EightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixMulReduceSourceBlock512EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock512EightLayerProfile
+):
+    """Mix profile: multiply-reduce in static 512-token source blocks."""
+    model_name = 'BamV2GScanLayerMixMulReduceSourceBlock512EightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixReduceWindowEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: express the head reduction as one reduce_window."""
+    model_name = 'BamV2GScanLayerMixReduceWindowEightLayerProfile'
+    bam_mix_alpha_implementation = 'reduce_window'
+
+
+class BamV2GScanLayerMixHeadScanEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: carry the head accumulation through lax.scan."""
+    model_name = 'BamV2GScanLayerMixHeadScanEightLayerProfile'
+    bam_mix_alpha_implementation = 'head_scan'
+
+
+class BamV2GScanLayerMixVmapDotEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: vmap one [S,N]@[N] contraction over flattened B*C."""
+    model_name = 'BamV2GScanLayerMixVmapDotEightLayerProfile'
+    bam_mix_alpha_implementation = 'vmap_dot'
+
+
+class BamV2GScanLayerMixGroupedConvEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Mix profile: encode independent B*C dynamic matvecs as grouped 1x1 convolution."""
+    model_name = 'BamV2GScanLayerMixGroupedConvEightLayerProfile'
+    bam_mix_alpha_implementation = 'grouped_conv'
 
 
 class BamV2GScanLayerBatchedLocalQKReadEightLayerProfile(

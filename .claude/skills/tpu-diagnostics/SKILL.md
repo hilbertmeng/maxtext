@@ -76,6 +76,8 @@ comparisons, then verify the winning combination with full layers.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
   step**; after step 14, wait for the collector to verify the nonempty primary XPlane on `tpu-ag`,
   then `SIGKILL` the exact no-checkpoint RUN and require `pgrep` empty before the next arm.
+  Set the RUN length beyond the trace window (for example 100 steps); collector verification,
+  rather than configured-step completion, ends it and keeps the TPU alive through artifact copy.
 - Compare stable log speed and all-device XPlane step time; split read-key projection, gate,
   transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.
 - Inspect HLO/XPlane lowering, layout/copies, fusion type, kernel count, and whether conceptual

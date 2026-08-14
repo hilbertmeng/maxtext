@@ -1790,156 +1790,6 @@ def _dynamic_bam_fetch_mix_weights(
   return mix_logits, jnp.asarray(mix_weights, alpha_dtype)
 
 
-def _mix_bam_alpha_chunk(
-    alpha, mix_weights, *, alpha_layout, weight_layout, implementation,
-    output_layout='bcs', head_group_size=None, source_block_size=None):
-  """Reduce MHA heads into one BAM route using selectable pure-JAX lowerings."""
-  if alpha_layout not in ('bncs', 'bcsn'):
-    raise ValueError(f'Unknown BAM alpha layout: {alpha_layout}')
-  if weight_layout not in ('bcn', 'bnc'):
-    raise ValueError(f'Unknown BAM mix-weight layout: {weight_layout}')
-  if output_layout not in ('bcs', 'bsc'):
-    raise ValueError(f'Unknown BAM mix output layout: {output_layout}')
-  if source_block_size is not None:
-    source_axis = 3 if alpha_layout == 'bncs' else 2
-    source_length = alpha.shape[source_axis]
-    block = int(source_block_size)
-    if block <= 0:
-      raise ValueError(f'source_block_size must be positive, got {source_block_size}')
-    outputs = []
-    for source_start in range(0, source_length, block):
-      slices = [slice(None)] * alpha.ndim
-      slices[source_axis] = slice(source_start, min(source_start + block, source_length))
-      outputs.append(_mix_bam_alpha_chunk(
-          alpha[tuple(slices)], mix_weights, alpha_layout=alpha_layout,
-          weight_layout=weight_layout, output_layout=output_layout,
-          implementation=implementation,
-          head_group_size=head_group_size))
-    return jnp.concatenate(outputs, axis=-1 if output_layout == 'bcs' else 1)
-
-  if implementation == 'einsum':
-    if alpha_layout == 'bncs':
-      equation = 'bncs,bcn->bcs' if weight_layout == 'bcn' else 'bncs,bnc->bcs'
-    else:
-      equation = 'bcsn,bcn->bcs' if weight_layout == 'bcn' else 'bcsn,bnc->bcs'
-    if output_layout == 'bsc':
-      equation = equation.replace('->bcs', '->bsc')
-    return jnp.einsum(equation, alpha, mix_weights)
-
-  if implementation == 'mul_reduce':
-    if alpha_layout == 'bncs':
-      weights_bnc = mix_weights.transpose(0, 2, 1) if weight_layout == 'bcn' else mix_weights
-      result = jnp.sum(alpha * weights_bnc[..., None], axis=1)
-      return result if output_layout == 'bcs' else result.swapaxes(1, 2)
-    weights_bcn = mix_weights if weight_layout == 'bcn' else mix_weights.transpose(0, 2, 1)
-    result = jnp.sum(alpha * weights_bcn[:, :, None, :], axis=-1)
-    return result if output_layout == 'bcs' else result.swapaxes(1, 2)
-  if implementation == 'dot_general':
-    lhs_contract, lhs_batch = (
-        ((1,), (0, 2)) if alpha_layout == 'bncs' else ((3,), (0, 1)))
-    rhs_contract, rhs_batch = (
-        ((2,), (0, 1)) if weight_layout == 'bcn' else ((1,), (0, 2)))
-    result = lax.dot_general(
-        alpha, mix_weights,
-        dimension_numbers=((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)))
-    return result if output_layout == 'bcs' else result.swapaxes(1, 2)
-
-  # Canonical views used by the remaining implementations. Logical transposes are
-  # intentional profile variables: XLA may fold them into producer/consumer layouts.
-  alpha_bcsn = alpha.transpose(0, 2, 3, 1) if alpha_layout == 'bncs' else alpha
-  weights_bcn = mix_weights if weight_layout == 'bcn' else mix_weights.transpose(0, 2, 1)
-
-  if implementation == 'transpose_einsum':
-    result = jnp.einsum('bcsn,bcn->bcs', alpha_bcsn, weights_bcn)
-    return result if output_layout == 'bcs' else result.swapaxes(1, 2)
-  if implementation == 'transpose_mul_reduce':
-    result = jnp.sum(alpha_bcsn * weights_bcn[:, :, None, :], axis=-1)
-    return result if output_layout == 'bcs' else result.swapaxes(1, 2)
-
-  def output(result):
-    return result if output_layout == 'bcs' else result.swapaxes(1, 2)
-  if implementation == 'bmm_right':
-    bc = alpha_bcsn.shape[0] * alpha_bcsn.shape[1]
-    alpha_matrix = alpha_bcsn.reshape(bc, alpha_bcsn.shape[2], alpha_bcsn.shape[3])
-    weight_vector = weights_bcn.reshape(bc, weights_bcn.shape[2], 1)
-    return output(jnp.matmul(alpha_matrix, weight_vector)[..., 0].reshape(alpha_bcsn.shape[:3]))
-  if implementation == 'bmm_left':
-    alpha_bcns = alpha_bcsn.swapaxes(-1, -2)
-    bc = alpha_bcns.shape[0] * alpha_bcns.shape[1]
-    weight_vector = weights_bcn.reshape(bc, 1, weights_bcn.shape[2])
-    alpha_matrix = alpha_bcns.reshape(bc, alpha_bcns.shape[2], alpha_bcns.shape[3])
-    return output(jnp.matmul(weight_vector, alpha_matrix)[:, 0].reshape(alpha_bcsn.shape[:3]))
-  if implementation == 'vecdot':
-    return output(jnp.vecdot(alpha_bcsn, weights_bcn[:, :, None, :], axis=-1))
-  if implementation == 'vmap_dot':
-    bc = alpha_bcsn.shape[0] * alpha_bcsn.shape[1]
-    alpha_matrix = alpha_bcsn.reshape(bc, alpha_bcsn.shape[2], alpha_bcsn.shape[3])
-    weight_vector = weights_bcn.reshape(bc, weights_bcn.shape[2])
-    result = jax.vmap(lambda values, weights: values @ weights)(
-        alpha_matrix, weight_vector)
-    return output(result.reshape(alpha_bcsn.shape[:3]))
-  if implementation == 'grouped_conv':
-    b, c, s, n = alpha_bcsn.shape
-    groups = b * c
-    lhs = alpha_bcsn.transpose(2, 0, 1, 3).reshape(1, s, groups * n)
-    rhs = weights_bcn.reshape(groups, n).transpose(1, 0)[None]
-    result = lax.conv_general_dilated(
-        lhs, rhs, window_strides=(1,), padding='VALID',
-        dimension_numbers=('NWC', 'WIO', 'NWC'), feature_group_count=groups)
-    return output(result[0].reshape(s, b, c).transpose(1, 2, 0))
-
-  products = alpha_bcsn * weights_bcn[:, :, None, :]
-  if implementation == 'head_loop':
-    result = jnp.zeros(products.shape[:-1], products.dtype)
-    for head in range(products.shape[-1]):
-      result = result + products[..., head]
-    return output(result)
-  if implementation == 'head_tree':
-    terms = [products[..., head] for head in range(products.shape[-1])]
-    while len(terms) > 1:
-      terms = [terms[i] + terms[i + 1] for i in range(0, len(terms), 2)]
-    return output(terms[0])
-  if implementation == 'head_fori':
-    return output(lax.fori_loop(
-        0, products.shape[-1],
-        lambda head, value: value + products[..., head],
-        jnp.zeros(products.shape[:-1], products.dtype)))
-  if implementation == 'head_scan':
-    result, _ = lax.scan(
-        lambda value, term: (value + term, None),
-        jnp.zeros(products.shape[:-1], products.dtype),
-        jnp.moveaxis(products, -1, 0))
-    return output(result)
-  if implementation == 'reduce_window':
-    reduced = lax.reduce_window(
-        products, jnp.asarray(0, products.dtype), lax.add,
-        window_dimensions=(1, 1, 1, products.shape[-1]),
-        window_strides=(1, 1, 1, products.shape[-1]), padding='VALID')
-    return output(reduced[..., 0])
-  if implementation == 'head_group':
-    group = int(head_group_size)
-    if group <= 0 or products.shape[-1] % group:
-      raise ValueError(
-          f'head_group_size={head_group_size} must divide {products.shape[-1]}')
-    grouped = products.reshape(products.shape[:-1] + (products.shape[-1] // group, group))
-    return output(jnp.sum(jnp.sum(grouped, axis=-1), axis=-1))
-  raise ValueError(f'Unknown BAM mix-alpha implementation: {implementation}')
-
-
-def _mix_and_fetch_bam_chunk(
-    alpha, mix_weights, M, diag_col, *, alpha_layout, weight_layout):
-  """Direct pure-JAX three-input contraction with an exact diagonal-one correction."""
-  alpha_bncs = alpha if alpha_layout == 'bncs' else alpha.transpose(0, 3, 1, 2)
-  weights_bcn = mix_weights if weight_layout == 'bcn' else mix_weights.transpose(0, 2, 1)
-  Mbar = jnp.einsum('bncs,bcn,bskv->bckv', alpha_bncs, weights_bcn, M)
-  alpha_diag = alpha_bncs[:, :, jnp.arange(alpha_bncs.shape[-2]), diag_col]
-  mixed_diag = jnp.einsum('bnc,bcn->bc', alpha_diag, weights_bcn)
-  self_M = M[:, diag_col]
-  return Mbar + (
-      jnp.asarray(1, Mbar.dtype) - mixed_diag.astype(Mbar.dtype)
-  )[..., None, None] * self_M
-
-
 def _sliding_window_bam_fetch_alpha(
     alpha, window_size, prefix_size=None, source_positions=None):
   """Keep a recent window and optional segment-local prefix, without renormalizing."""
@@ -2458,15 +2308,6 @@ class BamAttention(Attention):
     self._query_chunk_size = (
         cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
     self._query_chunk_implementation = cfg.bam_query_chunk_implementation
-    self._mix_alpha_layout = cfg.bam_mix_alpha_layout
-    self._mix_weight_layout = cfg.bam_mix_weight_layout
-    self._mix_output_layout = cfg.bam_mix_output_layout
-    self._mix_alpha_implementation = cfg.bam_mix_alpha_implementation
-    self._mix_head_group_size = cfg.bam_mix_head_group_size
-    self._mix_source_block_size = cfg.bam_mix_source_block_size
-    self._mix_projection_placement = cfg.bam_mix_projection_placement
-    self._mix_before_av = cfg.bam_mix_before_av
-    self._mix_fetch_implementation = cfg.bam_mix_fetch_implementation
     if self._mha_control:
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       assert not cfg.bam_diagnostics, 'BAM MHA control must not expose BAM diagnostics'
@@ -2664,16 +2505,6 @@ class BamAttention(Attention):
       assert self._fetch_temporal_block_size is None
       assert not cfg.bam_diagnostics
       assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
-      assert self._mix_alpha_layout in ('bncs', 'bcsn')
-      assert self._mix_weight_layout in ('btn', 'bnt')
-      assert self._mix_output_layout in ('bcs', 'bsc')
-      assert self._mix_alpha_implementation in (
-          'einsum', 'mul_reduce', 'dot_general', 'bmm_right', 'bmm_left',
-          'vecdot', 'vmap_dot', 'grouped_conv', 'head_loop', 'head_tree',
-          'head_fori', 'head_scan', 'head_group', 'reduce_window',
-          'transpose_einsum', 'transpose_mul_reduce')
-      assert self._mix_projection_placement in ('full', 'chunk')
-      assert self._mix_fetch_implementation in ('two_stage', 'three_input')
     if self._squeeze_single_fetch_read:
       assert 'full' in self._mode and cfg.bam_n_f == 1, (
           'single-fetch squeeze requires one full-read route')
@@ -3318,14 +3149,10 @@ class BamAttention(Attention):
     chunk_size = int(self._query_chunk_size)
     assert t % chunk_size == 0
     if prepared is None:
-      mix_weights = None
-      if self._mix_projection_placement == 'full':
-        with jax.named_scope("bam/mix_alpha_projection"):
-          _, mix_weights = _dynamic_bam_fetch_mix_weights(
-              self.fetch_head_mix(inputs_q), query.dtype, 'rms',
-              rms_epsilon=self._rms_epsilon)
-          if self._mix_weight_layout == 'bnt':
-            mix_weights = mix_weights.swapaxes(1, 2)
+      with jax.named_scope("bam/mix_alpha_projection"):
+        _, mix_weights = _dynamic_bam_fetch_mix_weights(
+            self.fetch_head_mix(inputs_q), query.dtype, 'rms',
+            rms_epsilon=self._rms_epsilon)
 
       with jax.named_scope("bam/compress_abs_v_cache"):
         fetch_state = Mh
@@ -3411,70 +3238,31 @@ class BamAttention(Attention):
     def chunk_body(q_chunk, k_chunk, v_chunk, M_chunk, mix_chunk,
                    row_chunk, col_chunk, valid, diagonal_mask, diag_col):
       with jax.named_scope("attention/qk_logits"):
-        if self._mix_alpha_layout == 'bncs':
-          logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
-          softmax_axis = -1
-        else:
-          logits = jnp.einsum('bcnd,bsnd->bcsn', q_chunk, k_chunk)
-          softmax_axis = -2
+        logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
       if cfg.attn_logits_soft_cap:
         logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
                   * cfg.attn_logits_soft_cap)
-      logits = jnp.where(
-          valid[:, None] if self._mix_alpha_layout == 'bncs' else valid[..., None],
-          logits, DEFAULT_MASK_VALUE)
+      logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
       if cfg.float32_logits:
         logits = logits.astype(jnp.float32)
       with jax.named_scope("attention/softmax"):
-        alpha = jax.nn.softmax(logits, axis=softmax_axis)
+        alpha = jax.nn.softmax(logits, axis=-1)
 
-      def mix_alpha():
-        with jax.named_scope("bam/mix_alpha"):
-          return _mix_bam_alpha_chunk(
-              alpha, mix_chunk, alpha_layout=self._mix_alpha_layout,
-              weight_layout=('bcn' if self._mix_weight_layout == 'btn' else 'bnc'),
-              output_layout=self._mix_output_layout,
-              implementation=self._mix_alpha_implementation,
-              head_group_size=self._mix_head_group_size,
-              source_block_size=self._mix_source_block_size)
-
-      fetch_alpha = mix_alpha() if self._mix_before_av else None
       with jax.named_scope("attention/av"):
-        y_std_chunk = (
-            jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
-            if self._mix_alpha_layout == 'bncs'
-            else jnp.einsum('bcsn,bsnd->bcnd', alpha, v_chunk))
+        y_std_chunk = jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
 
-      if self._mix_fetch_implementation == 'three_input':
-        with jax.named_scope("bam/mix_fetch_m"):
-          Mbar = _mix_and_fetch_bam_chunk(
-              alpha, mix_chunk, M_chunk, diag_col,
-              alpha_layout=self._mix_alpha_layout,
-              weight_layout=('bcn' if self._mix_weight_layout == 'btn' else 'bnc'))
-      else:
-        if fetch_alpha is None:
-          fetch_alpha = mix_alpha()
-        with jax.named_scope("bam/mix_alpha_diagonal"):
-          if diagonal_select:
-            fetch_alpha = jnp.where(
-                (diagonal_mask if self._mix_output_layout == 'bcs'
-                 else diagonal_mask.T)[None],
-                jnp.asarray(1, fetch_alpha.dtype),
-                fetch_alpha)
-          else:
-            if self._mix_output_layout == 'bcs':
-              fetch_alpha = fetch_alpha.at[
-                  :, jnp.arange(chunk_size), diag_col].set(
-                      jnp.asarray(1, fetch_alpha.dtype))
-            else:
-              fetch_alpha = fetch_alpha.at[
-                  :, diag_col, jnp.arange(chunk_size)].set(
-                      jnp.asarray(1, fetch_alpha.dtype))
-        with jax.named_scope("bam/fetch_m"):
-          Mbar = (
-              jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
-              if self._mix_output_layout == 'bcs'
-              else jnp.einsum('bsc,bskv->bckv', fetch_alpha, M_chunk))
+      with jax.named_scope("bam/mix_alpha"):
+        fetch_alpha = jnp.einsum('bncs,bcn->bcs', alpha, mix_chunk)
+        if diagonal_select:
+          fetch_alpha = jnp.where(
+              diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype),
+              fetch_alpha)
+        else:
+          fetch_alpha = fetch_alpha.at[
+              :, jnp.arange(chunk_size), diag_col].set(
+                  jnp.asarray(1, fetch_alpha.dtype))
+      with jax.named_scope("bam/fetch_m"):
+        Mbar = jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
 
       if defer_read:
         return y_std_chunk, Mbar
@@ -3509,20 +3297,9 @@ class BamAttention(Attention):
         valid = valid & same_segment
       else:
         valid = jnp.broadcast_to(valid, (b,) + valid.shape[1:])
-      if self._mix_projection_placement == 'chunk':
-        with jax.named_scope("bam/mix_alpha_projection"):
-          _, mix_chunk = _dynamic_bam_fetch_mix_weights(
-              self.fetch_head_mix(inputs_q[:, q0:q1]), query.dtype, 'rms',
-              rms_epsilon=self._rms_epsilon)
-          if self._mix_weight_layout == 'bnt':
-            mix_chunk = mix_chunk.swapaxes(1, 2)
-      else:
-        mix_chunk = (
-            mix_weights[:, q0:q1] if self._mix_weight_layout == 'btn'
-            else mix_weights[:, :, q0:q1])
       y_std_chunk, second_chunk = apply_chunk(
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
-          fetch_state[:, s0:s1], mix_chunk,
+          fetch_state[:, s0:s1], mix_weights[:, q0:q1],
           read_row[:, q0:q1], read_col[:, q0:q1], valid, diagonal_mask,
           diag_col)
       if concatenate_outputs:

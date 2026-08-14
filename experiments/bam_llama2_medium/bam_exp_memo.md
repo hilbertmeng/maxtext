@@ -115,6 +115,24 @@ BAM mix/fetch, while fixed BAM projections/read/write remain.
 
 ## Current performance picture
 
+### Pure-JAX mix-alpha outcome
+
+Forty JAX-only rewrites of the C256 layer-scan `bncs,bcn->bcs` contraction were screened on
+eight-layer v6e, including independent `alpha: BNCS/BCSN` and BAM-owned
+`mix_weights: BTN/BNT` layout axes. Multiply+reduce appeared 2.9% faster there and repeated at
+full-24 v6e, but reversed on the target v5p-16:
+
+| Full-24 v5p path | XPlane | mix scope | Result |
+|---|---:|---:|---|
+| BNCS + BTN + einsum | **1483.50 ms** | 84.35 ms | keep |
+| BNCS + BNT + einsum | 1483.36 | 84.21 | neutral; XLA folds the logical transpose |
+| best BCSN einsum arm | 1488.04 | 83.92 | no gain |
+| best multiply+reduce arm | 1505.84 | 108.88 | 1.51% slower |
+
+No pure-JAX rewrite improves the target graph; retain BNCS/BTN/einsum. The exhaustive matrix and
+runnable commits are in `bam_profile_history.md` under **Pure-JAX mix-alpha search**. This result
+also establishes that same-shape lowering gains from v6e must be confirmed on full-layer v5p.
+
 ### Current V2 C256 scan/non-scan paired main profile
 
 Eight-layer UC1a `v6e-1`, `B=32,T=2048`, step 10–14. U/U is
@@ -279,6 +297,7 @@ Remaining structural concerns are:
 | best Window256+OldBlock16 | same-batch `+0.0626` | temporal cache 4.27× smaller | reject |
 | JAX bilateral block read | full-24 1.04% slower | more copies/traffic | reject |
 | three-input mix+fetch einsum | — | 20–29% slower | reject |
+| pure-JAX mix-alpha rewrites | semantics healthy | best v6 gain reverses on v5p; no target gain | keep BNCS/BTN/einsum |
 | C256 optimized | short-step semantics healthy | 22.37% faster than dense BAM full-24 | keep as speed candidate |
 | layer scan, G | semantics healthy | ≤1.72% full-24 cost | optional compile tradeoff |
 | layer scan, LGLL | semantics healthy | ~23% full-24 cost | reject for long training |
@@ -311,6 +330,7 @@ Detailed tables and ablations are in
 | fixed BAM-MHA C256 controls | `a1ad13f` | `/data0/xd/bam_diagnostics/c256_control_fix/` |
 | v5p full-24 C256/scan | classes in canonical table | `/data0/xd/bam_diagnostics/qchunk_full_v5/` |
 | fair v6e eight-layer scan matrix | `91cb24a` | `/data0/xd/bam_diagnostics/bam_scan/v6e8_fair/` |
+| pure-JAX mix-alpha matrix | `2cad4cb`…`eed9791` | `/data0/xd/bam_diagnostics/mix_alpha/` |
 | M-cache compression | V1 step 13,250 | `/data0/xd/bam_diagnostics/bam_cache_diagnostics_49be222_mb16_final.json` |
 | signed alpha | V1 step 13,250 | `/data0/xd/bam_diagnostics/bam_alpha_*_final.json` |
 | attention sink / prefix-4 | `a02fc72`, `d3c17a6` | `/data0/xd/bam_diagnostics/bam_*sink*`, `bam_window_prefix4_*` |

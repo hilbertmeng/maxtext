@@ -164,6 +164,71 @@ Pallas dense, explicit dense dot and C256 BAM-MHA measured 373.26/481.56/369.15 
 faster than explicit dot but only 1.1% faster than Pallas; cross-TPU BAM/MHA ratios must therefore
 use the matched control, not a generic MHA result.
 
+## Pure-JAX mix-alpha search
+
+The search targeted the C256 layer-scan contraction `bncs,bcn->bcs`. Forty independent variants
+were screened at eight layers on `v6e-1`; candidates that appeared useful were then paired at
+full-24 on the target `v5p-16`. Layout was treated as two independent axes: attention probabilities
+`BNCS/BCSN` and BAM-owned mix weights `BTN/BNT` (`BCN/BNC` inside a query chunk).
+
+### Complete v6e screen
+
+Same-pod controls were 658–678 ms depending on the profile group. The core 2×2 used the
+677.75-ms control; multiply+reduce looked promising only on this TPU generation.
+
+| Alpha / weights / reduction | Step | mix scope | Result vs 677.75-ms control |
+|---|---:|---:|---:|
+| BNCS / BTN / einsum | 677.75 ms | 59.74 ms | control |
+| BNCS / BNT / einsum | 677.50 | 61.99 | -0.04% |
+| BCSN / BTN / einsum | 680.28 | 63.47 | +0.37% |
+| BCSN / BNT / einsum | 680.62 | 63.51 | +0.42% |
+| BNCS / BTN / multiply+reduce | **658.83** | **42.29** | **-2.79%** |
+| BNCS / BNT / multiply+reduce | **658.79** | **41.88** | **-2.80%** |
+| BCSN / BTN / multiply+reduce | 669.38 | 50.48 | -1.24% |
+| BCSN / BNT / multiply+reduce | 669.02 | 51.58 | -1.29% |
+
+The remaining 33 routes plus the seven non-control rows above form the complete 40-candidate
+matrix. Values below are XPlane step milliseconds; slash-separated values follow the listed order.
+
+| Family | Configuration suffixes | Step ms | Conclusion |
+|---|---|---:|---|
+| direct contraction | `DotGeneral`, `Vecdot` | 678.23 / 678.37 | same lowering as einsum |
+| batched matmul | `BmmRight`, `BmmLeft` | 770.61 / 844.40 | reject |
+| explicit head reduction | `HeadLoop`, `HeadTree`, `HeadFori`, `HeadScan` | 793.05 / 792.85 / 826.46 / 801.15 | reject; poor backward/traffic |
+| mapped/special primitives | `VmapDot`, `GroupedConv`, `ReduceWindow` | 762.43 / 6118.49 / compile failure | reject; reduce-window lacks reverse-mode autodiff here |
+| grouped heads | `HeadGroup1/2/4/8/16` | 672.74 / 678.32 / 672.03 / 672.43 / 672.96 | neutral against their 672.13–677.75 controls |
+| scheduling | `ChunkProjection`, `BeforeAv`, `ThreeInput` | 676.66 / 672.49 / 1025.00 | first two neutral/slightly worse; three-input reject |
+| einsum source blocks | `SourceBlock64/128/256/512/1024` | 850.47 / 738.09 / 738.73 / 756.56 / 737.21 | reject; breaks fusion and perturbs softmax/AV |
+| mul-reduce source blocks | `MulReduceSourceBlock64/128/256/512/1024` | 857.32 / 759.86 / 757.82 / 754.65 / 733.49 | reject |
+| explicit transpose | `TransposeEinsum`, `TransposeMulReduce` | 672.33 / 672.82 | neutral; XLA folds the logical transpose |
+| BSC output | `OutputBscEinsum`, `OutputBscMulReduce` | 673.94 / 654.92 | einsum neutral; mul gain is not additive to ordinary mul |
+
+Full-24 v6e confirmed the apparent multiply+reduce result: step `1865.16→1813.04 ms`
+(-2.79%) and mix scope `174.58→121.81 ms`. It nevertheless did not transfer to v5p.
+
+### Target v5p-16 full-24 layout grid
+
+| Alpha | BAM weights | Reduction | XPlane step | mix scope | Δ step vs 1483.50-ms recheck |
+|---|---|---|---:|---:|---:|
+| BNCS | BTN | einsum | **1483.50 ms** | 84.35 ms | control |
+| BNCS | BNT | einsum | **1483.36** | 84.21 | -0.01% |
+| BCSN | BTN | einsum | 1494.53 | 84.07 | +0.74% |
+| BCSN | BNT | einsum | 1488.04 | 83.92 | +0.31% |
+| BNCS | BTN | multiply+reduce | 1526.70 | 88.53 | +2.91%¹ |
+| BNCS | BNT | multiply+reduce | 1524.87 | 89.17 | +2.79% |
+| BCSN | BTN | multiply+reduce | 1505.84 | 108.88 | +1.51% |
+| BCSN | BNT | multiply+reduce | 1507.09 | 94.78 | +1.59% |
+
+¹ Its same-pod control was 1490.99 ms, giving +2.40%; the independent 1483.50-ms control agrees
+with the BNT-einsum arm to 0.01% and is the cleaner grid reference. `BTN→BNT` is therefore a true
+zero result, not the initially suspected 0.5% gain. The target TPU rejects every rewrite;
+keep `BNCS/BTN/einsum`. Pure-JAX syntax/layout results from v6e must not be promoted without
+full-layer v5p confirmation.
+
+Runnable commits are `2cad4cb`, `254b738`, and `743aad9` for the v6e matrix; `0d2a971` for the
+v6e full-24 pair; and `eed9791`/`3c07051` for the v5p grid. Artifacts are under
+`/data0/xd/bam_diagnostics/mix_alpha/`.
+
 ## Scan history
 
 Layer scan reduces compile latency but has schedule-dependent runtime cost. The canonical v5p-16

@@ -286,15 +286,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
-    bam_mix_alpha_layout = 'bncs'  # bncs | bcsn
-    bam_mix_weight_layout = 'btn'  # btn | bnt
-    bam_mix_output_layout = 'bcs'  # bcs | bsc
-    bam_mix_alpha_implementation = 'einsum'  # pure-JAX profile selector
-    bam_mix_head_group_size = None
-    bam_mix_source_block_size = None
-    bam_mix_projection_placement = 'full'  # full | chunk
-    bam_mix_before_av = False
-    bam_mix_fetch_implementation = 'two_stage'  # two_stage | three_input
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
@@ -1248,10 +1239,13 @@ class BamV2GScanLayerOptimizedEightLayerProfile(
     model_name = 'BamV2GScanLayerOptimizedEightLayerProfile'
 
 
+# Historical profile configs below are reproducible at their annotated commits; rejected
+# selector implementations are intentionally absent from the production attention path.
 class BamV2GScanLayerMixBntEinsumEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: retain BNCS alpha but store token weights as BNT."""
+    # @2cad4cb v6e-1 XPlane 677.50 ms; BTN->BNT is neutral.
     model_name = 'BamV2GScanLayerMixBntEinsumEightLayerProfile'
     bam_mix_weight_layout = 'bnt'
 
@@ -1260,6 +1254,7 @@ class BamV2GScanLayerMixBcsnEinsumEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: produce alpha as BCSN; retain BTN/B-C-N weights."""
+    # @2cad4cb v6e-1 XPlane 680.28 ms; slower than 677.75-ms control.
     model_name = 'BamV2GScanLayerMixBcsnEinsumEightLayerProfile'
     bam_mix_alpha_layout = 'bcsn'
 
@@ -1268,6 +1263,7 @@ class BamV2GScanLayerMixBcsnBntEinsumEightLayerProfile(
     BamV2GScanLayerMixBcsnEinsumEightLayerProfile
 ):
     """Mix profile: BCSN alpha with BNT/B-N-C weights."""
+    # @2cad4cb v6e-1 XPlane 680.62 ms; slower than control.
     model_name = 'BamV2GScanLayerMixBcsnBntEinsumEightLayerProfile'
     bam_mix_weight_layout = 'bnt'
 
@@ -1276,6 +1272,7 @@ class BamV2GScanLayerMixMulReduceEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: current layouts with elementwise multiply plus head reduction."""
+    # @2cad4cb v6e-1 XPlane 658.83 ms; apparent gain reverses on full-24 v5p-16.
     model_name = 'BamV2GScanLayerMixMulReduceEightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1284,6 +1281,7 @@ class BamV2GScanLayerMixBntMulReduceEightLayerProfile(
     BamV2GScanLayerMixBntEinsumEightLayerProfile
 ):
     """Mix profile: BNCS/BNC native multiply-reduce."""
+    # @2cad4cb v6e-1 XPlane 658.79 ms; BNT adds no gain to multiply+reduce.
     model_name = 'BamV2GScanLayerMixBntMulReduceEightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1292,6 +1290,7 @@ class BamV2GScanLayerMixBcsnMulReduceEightLayerProfile(
     BamV2GScanLayerMixBcsnEinsumEightLayerProfile
 ):
     """Mix profile: BCSN/BCN native multiply-reduce."""
+    # @2cad4cb v6e-1 XPlane 669.38 ms; worse than BNCS multiply+reduce.
     model_name = 'BamV2GScanLayerMixBcsnMulReduceEightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1300,6 +1299,7 @@ class BamV2GScanLayerMixBcsnBntMulReduceEightLayerProfile(
     BamV2GScanLayerMixBcsnBntEinsumEightLayerProfile
 ):
     """Mix profile: BCSN/BNC multiply-reduce with a weight-layout conversion."""
+    # @2cad4cb v6e-1 XPlane 669.02 ms; BNT remains neutral.
     model_name = 'BamV2GScanLayerMixBcsnBntMulReduceEightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1308,6 +1308,7 @@ class BamV2GScanLayerMixDotGeneralEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: explicit lax.dot_general rather than einsum syntax."""
+    # @2cad4cb v6e-1 XPlane 678.23 ms; neutral.
     model_name = 'BamV2GScanLayerMixDotGeneralEightLayerProfile'
     bam_mix_alpha_implementation = 'dot_general'
 
@@ -1316,6 +1317,7 @@ class BamV2GScanLayerMixBmmRightEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: flatten B*C and compute [S,N]@[N,1]."""
+    # @2cad4cb v6e-1 XPlane 770.61 ms; reject.
     model_name = 'BamV2GScanLayerMixBmmRightEightLayerProfile'
     bam_mix_alpha_implementation = 'bmm_right'
 
@@ -1324,6 +1326,7 @@ class BamV2GScanLayerMixBmmLeftEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: flatten B*C and compute [1,N]@[N,S]."""
+    # @2cad4cb v6e-1 XPlane 844.40 ms; reject.
     model_name = 'BamV2GScanLayerMixBmmLeftEightLayerProfile'
     bam_mix_alpha_implementation = 'bmm_left'
 
@@ -1332,6 +1335,7 @@ class BamV2GScanLayerMixVecdotEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: broadcast jnp.vecdot over B*C*S."""
+    # @2cad4cb v6e-1 XPlane 678.37 ms; neutral.
     model_name = 'BamV2GScanLayerMixVecdotEightLayerProfile'
     bam_mix_alpha_implementation = 'vecdot'
 
@@ -1340,6 +1344,7 @@ class BamV2GScanLayerMixHeadLoopEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: statically unroll a linear sixteen-head accumulation."""
+    # @2cad4cb v6e-1 XPlane 793.05 ms; reject.
     model_name = 'BamV2GScanLayerMixHeadLoopEightLayerProfile'
     bam_mix_alpha_implementation = 'head_loop'
 
@@ -1348,6 +1353,7 @@ class BamV2GScanLayerMixHeadTreeEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: statically unroll a balanced sixteen-head reduction tree."""
+    # @2cad4cb v6e-1 XPlane 792.85 ms; reject.
     model_name = 'BamV2GScanLayerMixHeadTreeEightLayerProfile'
     bam_mix_alpha_implementation = 'head_tree'
 
@@ -1356,6 +1362,7 @@ class BamV2GScanLayerMixHeadForiEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: dynamic lax.fori_loop over the sixteen heads."""
+    # @2cad4cb v6e-1 XPlane 826.46 ms; reject.
     model_name = 'BamV2GScanLayerMixHeadForiEightLayerProfile'
     bam_mix_alpha_implementation = 'head_fori'
 
@@ -1364,6 +1371,7 @@ class BamV2GScanLayerMixHeadGroup2EightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: two-level reduction with groups of two heads."""
+    # @2cad4cb v6e-1 XPlane 678.32 ms; neutral.
     model_name = 'BamV2GScanLayerMixHeadGroup2EightLayerProfile'
     bam_mix_alpha_implementation = 'head_group'
     bam_mix_head_group_size = 2
@@ -1373,6 +1381,7 @@ class BamV2GScanLayerMixHeadGroup1EightLayerProfile(
     BamV2GScanLayerMixHeadGroup2EightLayerProfile
 ):
     """Mix profile: degenerate one-head groups before the outer reduction."""
+    # @743aad9 v6e-1 XPlane 672.74 ms; neutral.
     model_name = 'BamV2GScanLayerMixHeadGroup1EightLayerProfile'
     bam_mix_head_group_size = 1
 
@@ -1381,6 +1390,7 @@ class BamV2GScanLayerMixHeadGroup4EightLayerProfile(
     BamV2GScanLayerMixHeadGroup2EightLayerProfile
 ):
     """Mix profile: two-level reduction with groups of four heads."""
+    # @2cad4cb v6e-1 XPlane 672.03 ms; neutral.
     model_name = 'BamV2GScanLayerMixHeadGroup4EightLayerProfile'
     bam_mix_head_group_size = 4
 
@@ -1389,6 +1399,7 @@ class BamV2GScanLayerMixHeadGroup8EightLayerProfile(
     BamV2GScanLayerMixHeadGroup2EightLayerProfile
 ):
     """Mix profile: two-level reduction with groups of eight heads."""
+    # @2cad4cb v6e-1 XPlane 672.43 ms; neutral.
     model_name = 'BamV2GScanLayerMixHeadGroup8EightLayerProfile'
     bam_mix_head_group_size = 8
 
@@ -1397,6 +1408,7 @@ class BamV2GScanLayerMixHeadGroup16EightLayerProfile(
     BamV2GScanLayerMixHeadGroup2EightLayerProfile
 ):
     """Mix profile: one sixteen-head group followed by a singleton reduction."""
+    # @743aad9 v6e-1 XPlane 672.96 ms; neutral.
     model_name = 'BamV2GScanLayerMixHeadGroup16EightLayerProfile'
     bam_mix_head_group_size = 16
 
@@ -1405,6 +1417,7 @@ class BamV2GScanLayerMixChunkProjectionEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: project and normalize head weights per query chunk."""
+    # @2cad4cb v6e-1 XPlane 676.66 ms; ~0.7% slower than paired control.
     model_name = 'BamV2GScanLayerMixChunkProjectionEightLayerProfile'
     bam_mix_projection_placement = 'chunk'
 
@@ -1413,6 +1426,7 @@ class BamV2GScanLayerMixBeforeAvEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: express the route consumer before the standard AV consumer."""
+    # @2cad4cb v6e-1 XPlane 672.49 ms; neutral.
     model_name = 'BamV2GScanLayerMixBeforeAvEightLayerProfile'
     bam_mix_before_av = True
 
@@ -1421,6 +1435,7 @@ class BamV2GScanLayerMixThreeInputEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: directly contract alpha, weights, and M in pure JAX."""
+    # @2cad4cb v6e-1 XPlane 1,025.00 ms; reject.
     model_name = 'BamV2GScanLayerMixThreeInputEightLayerProfile'
     bam_mix_fetch_implementation = 'three_input'
 
@@ -1429,6 +1444,7 @@ class BamV2GScanLayerMixSourceBlock128EightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: split the source axis into static 128-token contractions."""
+    # @254b738 v6e-1 XPlane 738.09 ms; reject.
     model_name = 'BamV2GScanLayerMixSourceBlock128EightLayerProfile'
     bam_mix_source_block_size = 128
 
@@ -1437,6 +1453,7 @@ class BamV2GScanLayerMixSourceBlock64EightLayerProfile(
     BamV2GScanLayerMixSourceBlock128EightLayerProfile
 ):
     """Mix profile: split the source axis into static 64-token contractions."""
+    # @743aad9 v6e-1 XPlane 850.47 ms; reject.
     model_name = 'BamV2GScanLayerMixSourceBlock64EightLayerProfile'
     bam_mix_source_block_size = 64
 
@@ -1445,6 +1462,7 @@ class BamV2GScanLayerMixSourceBlock256EightLayerProfile(
     BamV2GScanLayerMixSourceBlock128EightLayerProfile
 ):
     """Mix profile: split the source axis into static 256-token contractions."""
+    # @254b738 v6e-1 XPlane 738.73 ms; reject.
     model_name = 'BamV2GScanLayerMixSourceBlock256EightLayerProfile'
     bam_mix_source_block_size = 256
 
@@ -1453,6 +1471,7 @@ class BamV2GScanLayerMixSourceBlock512EightLayerProfile(
     BamV2GScanLayerMixSourceBlock128EightLayerProfile
 ):
     """Mix profile: split the source axis into static 512-token contractions."""
+    # @254b738 v6e-1 XPlane 756.56 ms; reject.
     model_name = 'BamV2GScanLayerMixSourceBlock512EightLayerProfile'
     bam_mix_source_block_size = 512
 
@@ -1461,6 +1480,7 @@ class BamV2GScanLayerMixSourceBlock1024EightLayerProfile(
     BamV2GScanLayerMixSourceBlock128EightLayerProfile
 ):
     """Mix profile: split the source axis into static 1,024-token contractions."""
+    # @743aad9 v6e-1 XPlane 737.21 ms; reject.
     model_name = 'BamV2GScanLayerMixSourceBlock1024EightLayerProfile'
     bam_mix_source_block_size = 1024
 
@@ -1469,6 +1489,7 @@ class BamV2GScanLayerMixMulReduceSourceBlock128EightLayerProfile(
     BamV2GScanLayerMixSourceBlock128EightLayerProfile
 ):
     """Mix profile: multiply-reduce in static 128-token source blocks."""
+    # @254b738 v6e-1 XPlane 759.86 ms; reject.
     model_name = 'BamV2GScanLayerMixMulReduceSourceBlock128EightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1477,6 +1498,7 @@ class BamV2GScanLayerMixMulReduceSourceBlock64EightLayerProfile(
     BamV2GScanLayerMixSourceBlock64EightLayerProfile
 ):
     """Mix profile: multiply-reduce in static 64-token source blocks."""
+    # @743aad9 v6e-1 XPlane 857.32 ms; reject.
     model_name = 'BamV2GScanLayerMixMulReduceSourceBlock64EightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1485,6 +1507,7 @@ class BamV2GScanLayerMixMulReduceSourceBlock256EightLayerProfile(
     BamV2GScanLayerMixSourceBlock256EightLayerProfile
 ):
     """Mix profile: multiply-reduce in static 256-token source blocks."""
+    # @254b738 v6e-1 XPlane 757.82 ms; reject.
     model_name = 'BamV2GScanLayerMixMulReduceSourceBlock256EightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1493,6 +1516,7 @@ class BamV2GScanLayerMixMulReduceSourceBlock512EightLayerProfile(
     BamV2GScanLayerMixSourceBlock512EightLayerProfile
 ):
     """Mix profile: multiply-reduce in static 512-token source blocks."""
+    # @254b738 v6e-1 XPlane 754.65 ms; reject.
     model_name = 'BamV2GScanLayerMixMulReduceSourceBlock512EightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1501,6 +1525,7 @@ class BamV2GScanLayerMixMulReduceSourceBlock1024EightLayerProfile(
     BamV2GScanLayerMixSourceBlock1024EightLayerProfile
 ):
     """Mix profile: multiply-reduce in static 1,024-token source blocks."""
+    # @743aad9 v6e-1 XPlane 733.49 ms; reject.
     model_name = 'BamV2GScanLayerMixMulReduceSourceBlock1024EightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1509,6 +1534,7 @@ class BamV2GScanLayerMixReduceWindowEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: express the head reduction as one reduce_window."""
+    # @254b738 fails before training: reduce-window has no reverse-mode autodiff here.
     model_name = 'BamV2GScanLayerMixReduceWindowEightLayerProfile'
     bam_mix_alpha_implementation = 'reduce_window'
 
@@ -1517,6 +1543,7 @@ class BamV2GScanLayerMixHeadScanEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: carry the head accumulation through lax.scan."""
+    # @254b738 v6e-1 XPlane 801.15 ms; reject.
     model_name = 'BamV2GScanLayerMixHeadScanEightLayerProfile'
     bam_mix_alpha_implementation = 'head_scan'
 
@@ -1525,6 +1552,7 @@ class BamV2GScanLayerMixVmapDotEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: vmap one [S,N]@[N] contraction over flattened B*C."""
+    # @254b738 v6e-1 XPlane 762.43 ms; reject.
     model_name = 'BamV2GScanLayerMixVmapDotEightLayerProfile'
     bam_mix_alpha_implementation = 'vmap_dot'
 
@@ -1533,6 +1561,7 @@ class BamV2GScanLayerMixGroupedConvEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: encode independent B*C dynamic matvecs as grouped 1x1 convolution."""
+    # @254b738 v6e-1 XPlane 6,118.49 ms; reject.
     model_name = 'BamV2GScanLayerMixGroupedConvEightLayerProfile'
     bam_mix_alpha_implementation = 'grouped_conv'
 
@@ -1541,6 +1570,7 @@ class BamV2GScanLayerMixTransposeEinsumEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: transpose BNCS alpha only at the BAM consumer, then einsum."""
+    # @743aad9 v6e-1 XPlane 672.33 ms; neutral.
     model_name = 'BamV2GScanLayerMixTransposeEinsumEightLayerProfile'
     bam_mix_alpha_implementation = 'transpose_einsum'
 
@@ -1549,6 +1579,7 @@ class BamV2GScanLayerMixTransposeMulReduceEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: transpose BNCS alpha only at the BAM consumer, then multiply-reduce."""
+    # @743aad9 v6e-1 XPlane 672.82 ms; neutral.
     model_name = 'BamV2GScanLayerMixTransposeMulReduceEightLayerProfile'
     bam_mix_alpha_implementation = 'transpose_mul_reduce'
 
@@ -1557,6 +1588,7 @@ class BamV2GScanLayerMixOutputBscEinsumEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Mix profile: retain source-major BSC route through the following M fetch."""
+    # @743aad9 v6e-1 XPlane 673.94 ms; neutral.
     model_name = 'BamV2GScanLayerMixOutputBscEinsumEightLayerProfile'
     bam_mix_output_layout = 'bsc'
 
@@ -1565,6 +1597,7 @@ class BamV2GScanLayerMixOutputBscMulReduceEightLayerProfile(
     BamV2GScanLayerMixOutputBscEinsumEightLayerProfile
 ):
     """Mix profile: multiply-reduce followed by a source-major BSC M fetch."""
+    # @743aad9 v6e-1 XPlane 654.92 ms; same gain as ordinary mul, not additive.
     model_name = 'BamV2GScanLayerMixOutputBscMulReduceEightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1669,6 +1702,7 @@ class BamV2GScanLayerFullLayerProfile(
     """Full-24 G C256 BAM S/U target-training profile."""
     # code_commit: 1d9e1e1; EW4b v5p-16 XPlane 1,480.44 ms; ~0.665 steps/s.
     # Recheck @2646f97: EW4b XPlane 1,485.78 ms; ~0.664 steps/s.
+    # Mix-layout control @eed9791: EW4b XPlane 1,483.50 ms; mix 84.35 ms.
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
@@ -1678,6 +1712,8 @@ class BamV2GScanLayerMixMulReduceFullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Full-24 paired profile for pure-JAX multiply+reduce alpha mixing."""
+    # @0d2a971 v6e-1: 1,865.16->1,813.04 ms (-2.79%); @f24d876 v5p-16:
+    # 1,490.99->1,526.70 ms (+2.40%). Target TPU reverses the apparent gain; reject.
     model_name = 'BamV2GScanLayerMixMulReduceFullLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1686,6 +1722,8 @@ class BamV2GScanLayerMixBntEinsumFullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Full-24 target-TPU profile with BNT mix weights."""
+    # code_commit: eed9791; v5p-16 XPlane 1,483.36 ms, mix 84.21 ms;
+    # control 1,483.50/84.35 ms. BTN->BNT is neutral.
     model_name = 'BamV2GScanLayerMixBntEinsumFullLayerProfile'
     bam_mix_weight_layout = 'bnt'
 
@@ -1694,6 +1732,7 @@ class BamV2GScanLayerMixBcsnEinsumFullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Full-24 target-TPU profile with BCSN attention probabilities."""
+    # code_commit: eed9791; v5p-16 XPlane 1,494.53 ms (+0.74% vs control); reject.
     model_name = 'BamV2GScanLayerMixBcsnEinsumFullLayerProfile'
     bam_mix_alpha_layout = 'bcsn'
 
@@ -1702,6 +1741,7 @@ class BamV2GScanLayerMixBcsnBntEinsumFullLayerProfile(
     BamV2GScanLayerMixBcsnEinsumFullLayerProfile
 ):
     """Full-24 target-TPU profile with BCSN alpha and BNT mix weights."""
+    # code_commit: eed9791; v5p-16 XPlane 1,488.04 ms (+0.31% vs control); no gain.
     model_name = 'BamV2GScanLayerMixBcsnBntEinsumFullLayerProfile'
     bam_mix_weight_layout = 'bnt'
 
@@ -1710,6 +1750,7 @@ class BamV2GScanLayerMixBntMulReduceFullLayerProfile(
     BamV2GScanLayerMixBntEinsumFullLayerProfile
 ):
     """Full-24 target-TPU BNT multiply+reduce profile."""
+    # code_commit: eed9791; v5p-16 XPlane 1,524.87 ms (+2.79% vs control); reject.
     model_name = 'BamV2GScanLayerMixBntMulReduceFullLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1718,6 +1759,7 @@ class BamV2GScanLayerMixBcsnMulReduceFullLayerProfile(
     BamV2GScanLayerMixBcsnEinsumFullLayerProfile
 ):
     """Full-24 target-TPU BCSN multiply+reduce profile."""
+    # code_commit: eed9791; v5p-16 XPlane 1,505.84 ms (+1.51% vs control); reject.
     model_name = 'BamV2GScanLayerMixBcsnMulReduceFullLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
@@ -1726,6 +1768,7 @@ class BamV2GScanLayerMixBcsnBntMulReduceFullLayerProfile(
     BamV2GScanLayerMixBcsnBntEinsumFullLayerProfile
 ):
     """Full-24 target-TPU BCSN/BNT multiply+reduce profile."""
+    # code_commit: 3c07051; v5p-16 XPlane 1,507.09 ms (+1.59% vs control); reject.
     model_name = 'BamV2GScanLayerMixBcsnBntMulReduceFullLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 

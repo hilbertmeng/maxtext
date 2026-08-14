@@ -2074,6 +2074,7 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
      rematrix); R is None => per-head tier (key carries head axis, no rematrix).
   `dot_bnt` preserves the historical [b,n,t,d] result. `dot_btn` and
   `mul_reduce_btn` return [b,t,n,d], eliminating the callers' immediate transpose.
+  `return_sides=True` returns the row/column contractions separately before concatenation.
   """
   Mc, Mr = M if isinstance(M, tuple) else (M, M)
   raw_row, raw_col, r_row, r_col = _project_bam_read_keys(

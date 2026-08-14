@@ -1230,6 +1230,8 @@ class BamV2GScanLayerBatchedLocalQKReadEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """G C256 BAM S/U with Q/K batched as two parallel LocalQK reads."""
+    # code_commit: 66c8173; v6e-1 XPlane 679.40 ms vs 672.17 ms baseline (+1.08%).
+    # LocalQK contraction 7.06->11.62 ms; compile 30.71->32.80 s. Rejected.
     model_name = 'BamV2GScanLayerBatchedLocalQKReadEightLayerProfile'
     bam_batch_factorized_local_qk_read = True
 

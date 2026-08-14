@@ -49,6 +49,21 @@ After FactorizedLocalQK shrank the contraction, multiply+reduce still improved t
 1.59%, but the individual contractions only by 0.5–0.9%; the larger gain came from changed
 layout/copy/fusion. This is why the final choice is based on paired whole-step speed.
 
+### Batched Q/K LocalQK read
+
+At `66c8173`, Q/K keys were represented as one `qk=2` axis and passed through the shared
+`bam_read(..., return_sides=True)` path. The same-VM v6e-1 eight-layer G C256 S/U pair was negative:
+
+| Path | XPlane | Stable step/s | LocalQK scope | read-M contraction | compile |
+|---|---:|---:|---:|---:|---:|
+| separate Q/K | 672.17 ms | 1.474 | 22.42 ms | 7.06 ms | 30.71 s |
+| batched `qk=2` | 679.40 ms | 1.458 | 26.03 ms | 11.62 ms | 32.80 s |
+
+The separate source graph already lowers to two fused forward contractions, one per matrix side.
+Making Q/K an explicit size-two axis therefore does not reduce forward kernel count, while its
+gradient over the shared M adds two reductions per layer: forward+backward read-M kernels rise from
+6 to 8. Reject the batched path; no full-24 confirmation is warranted.
+
 ### Pure-JAX block read
 
 Packing row/column reads into `[[0,M],[M.T,0]]` made the six-layer LocalQK step 0.97% faster, but the

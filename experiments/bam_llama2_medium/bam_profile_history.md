@@ -95,21 +95,10 @@ FactorizedLocalQK reduced its theoretical cost from `2.125 W_Q` for PerHeadLocal
 `0.197 W_Q`: shared key projection `0.125`, gates `0.0039`, shared contractions `0.0039`, and head
 routing about `0.0645`. Its measured XPlane work was `0.199 W_Q`.
 
-The later six-layer Bf16Packed clean profile (`9fb6720`, v6e-1) measured:
-
-| BAM part | theoretical `W_Q` | scope ms | share of 708.95-ms step | Main observation |
-|---|---:|---:|---:|---|
-| write M | 0.406 | 35.35 | 4.99% | outer product was 18.84 ms |
-| mix alpha | 0.047 | 91.38 | 12.89% | `bnts,btn→bts` was 84.44 ms |
-| fetch M | 0.508 | 17.16 | 2.42% | AbsV8 removed most fetch work |
-| LocalQK read | 0.197 | 44.01 | 6.21% | contraction alone was 33.74 ms |
-| fetched read | 0.664 | 22.85 | 3.22% | contraction was 14.08 ms |
-
-Relative to the older Factorized graph, AbsV8 reduced fetch theory `2.000→0.508 W_Q` and fetched
-read `1.063→0.664 W_Q`; R256-GELU reduced write `0.531→0.406 W_Q`. Packed projections did not fix
-the low-utilization LocalQK contraction. The subsequent C256 implementation substantially reduced
-mix/diagonal/copy cost, so this table is a pre-C256 bottleneck snapshot, not the current throughput
-baseline.
+The complete Bf16Packed clean table and the live status of every optimization target are retained
+in the main memo under **V2 fine-grained main profile**. Relative to the older Factorized graph,
+AbsV8 reduced fetch theory `2.000→0.508 W_Q` and fetched read `1.063→0.664 W_Q`; R256-GELU reduced
+write `0.531→0.406 W_Q`. Packed projections did not fix the low-utilization LocalQK contraction.
 
 ## C256 evolution
 

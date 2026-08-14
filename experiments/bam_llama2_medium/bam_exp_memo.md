@@ -95,6 +95,65 @@ BAM mix/fetch, while fixed BAM projections/read/write remain.
 
 ## Current performance picture
 
+### V2 fine-grained main profile
+
+The most detailed operator breakdown is the six-layer graph of
+`BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK`, commit `9fb6720`, standalone `v6e-1`,
+step 10–14. It is the clean precursor from which V2 evolved and remains the primary table for
+choosing optimization targets. One training-state `(W_Q)` is calibrated by MHA QK logits as
+**3.329 TF/step**.
+
+| Part | Theory `(W_Q)` | XPlane TF / `(W_Q)` | Bytes | Scope ms (6L / layer / 24L linear) |
+|---|---:|---:|---:|---:|
+| Transformer / optimizer / unscoped | 16.250³ | 72.308 / 21.722 | 564.44 GB | 498.21¹ / — / — |
+| └ MHA QK logits² | 2.000 | 6.657 / 2.000 | 115.99 GB | 101.07 / 16.84 / 404.28 |
+| **write M** | **0.406** | **1.125 / 0.338** | **23.41 GB** | **35.35 / 5.89 / 141.39** |
+| ├ `P_loc_down` | 0.250 | 0.518 / 0.156 | 2.53 GB | 2.33 / 0.39 / 9.32 |
+| ├ `P_loc_up` | 0.125 | 0.523 / 0.157 | 3.77 GB | 2.74 / 0.46 / 10.94 |
+| ├ write-gate projection | 0.016 | 0.047 / 0.014 | 2.75 GB | 2.63 / 0.44 / 10.52 |
+| ├ **write outer product** | 0.016 | 0.032 / 0.010 | 5.91 GB | **18.84 / 3.14 / 75.36** |
+| └ GELU/RMS/bias/other | ≈0 | 0.005 / 0.001 | 8.45 GB | 8.81 / 1.47 / 35.25 |
+| **mix alpha** | **0.047** | **0.248 / 0.075** | **97.76 GB** | **91.38 / 15.23 / 365.52** |
+| ├ head-weight projection | 0.016 | 0.056 / 0.017 | 3.32 GB | 3.60 / 0.60 / 14.39 |
+| ├ **`bnts,btn→bts`** | **0.031** | **0.192 / 0.058** | **91.11 GB** | **84.44 / 14.07 / 337.75** |
+| └ transform/other | ≈0 | 0.000 / 0.000 | 3.32 GB | 3.35 / 0.56 / 13.38 |
+| **fetch M** | **0.508** | **1.678 / 0.504** | **14.19 GB** | **17.16 / 2.86 / 68.64** |
+| ├ AbsV source compression | 0.008 | 0.025 / 0.007 | 5.13 GB | **9.99 / 1.67 / 39.96** |
+| └ temporal fetch contraction | 0.500 | 1.653 / 0.497 | 9.06 GB | 7.17 / 1.19 / 28.68 |
+| **read local M for QK** | **0.197** | **0.655 / 0.197** | **25.54 GB** | **44.01 / 7.33 / 176.03** |
+| ├ packed key/gate/head-mix projection | 0.191 | 0.636 / 0.191 | 3.86 GB | 2.93 / 0.49 / 11.70 |
+| ├ key RMS/gate transform | ≈0 | 0.001 / 0.000 | 1.52 GB | 0.79 / 0.13 / 3.17 |
+| ├ **read-M contraction** | **0.004** | **0.012 / 0.004** | **11.78 GB** | **33.74 / 5.62 / 134.95** |
+| ├ head-mix transform/expand | ≈0.002 | 0.005 / 0.002 | 7.45 GB | 5.92 / 0.99 / 23.68 |
+| └ other | ≈0 | 0.000 / 0.000 | 0.93 GB | 0.63 / 0.11 / 2.53 |
+| **read fetched M** | **0.664** | **2.205 / 0.663** | **21.63 GB** | **22.85 / 3.81 / 91.38** |
+| ├ read-key projection | 0.625 | 2.067 / 0.621 | 5.29 GB | 3.33 / 0.55 / 13.30 |
+| ├ read-gate projection | 0.031 | 0.108 / 0.032 | 3.35 GB | 2.60 / 0.43 / 10.42 |
+| ├ key RMS/gate/layout | ≈0 | 0.004 / 0.001 | 4.23 GB | 2.84 / 0.47 / 11.35 |
+| └ **read-M contraction** | **0.008** | **0.026 / 0.008** | **8.76 GB** | **14.08 / 2.35 / 56.31** |
+| **complete step** | **18.072** | **78.218 / 23.498** | **746.98 GB** | **708.95 ms** |
+
+1. The 498.21-ms residual is the complete step minus five top-level BAM scopes; it includes
+   Transformer, optimizer, communication, unscoped work and idle, not pure Transformer time.
+2. MHA QK is already included in the first row and appears only as a common calibration reference.
+3. The 24-layer values are linear scope extrapolations, not a replacement for full-24 profiling.
+
+This table exposed the optimization order. Its current status is:
+
+1. `mix alpha`: only `0.031 W_Q`, yet its contraction moved 91.11 GB and occupied 84.44 ms. C256
+   template/concat/deferred-read work reduced the mix scope `89.25→44.27 ms`, but it remains the
+   largest BAM-specific target.
+2. LocalQK read-M: only `0.004 W_Q`, yet the contraction took 33.74 ms. Packed projections did not
+   fix this low-utilization reduction; it remains unresolved.
+3. AbsV source compression: multiply+reduce was tested and slowed the step 708.95→716.26 ms; keep
+   dot. This branch is closed unless a custom kernel/layout changes the lowering.
+4. Write outer product: addressed by multiply+reduce, improving the full-24 dynamic-V graph 7.27%.
+5. CombinedRead: addressed by diagonal-one, improving the equivalent full-24 graph 3.96%.
+
+Raw artifacts: `/data0/xd/bam_diagnostics/clean_profile_9fb6720_v6e/`.
+
+### C256 improvement on top of the main profile
+
 The optimized six-layer C256 ladder reduced BAM scope from 170.13 to 112.47 ms:
 
 | Component | legacy | optimized |

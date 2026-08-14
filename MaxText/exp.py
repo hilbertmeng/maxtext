@@ -182,9 +182,8 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     per_device_batch_size = 32.0
     eval_per_device_batch_size = 128.0
     decoder_block = "fusion"
-    # Use the explicit (unrolled) decoder loop instead of nn.scan. The shared
-    # scan_decoder_layers path has an in_axes/carry arity incompatibility with
-    # flax 0.12.1; the explicit loop avoids it. BamLlama2Medium already does this.
+    # Keep the historical training baseline explicit; scan-enabled variants are
+    # selected by their own experiment classes.
     scan_layers = False
     # record_activation_metrics (train.py) assumes the nn.scan-wrapped intermediates
     # layout ('sub_0'); with scan_layers=False that wrapper is absent. Disable internal
@@ -916,6 +915,7 @@ class BamV2QChunk256DiagSelectSixLayerProfile(BamV2QChunk256SixLayerProfile):
 class BamV2QChunk256OptimizedSixLayerProfile(BamV2QChunk256SixLayerProfile):
     """C256 cumulative optimized path with template masks and concatenated outputs."""
     # v6e-1 @821dc8d: 494.57 ms; +0.62% vs diag-select, +19.75% vs legacy.
+    # Recheck @cc61013: 494.07 ms; compile 169.80 s; ~1.997 steps/s.
     model_name = 'BamV2QChunk256OptimizedSixLayerProfile'
     bam_query_chunk_implementation = 'optimized'
 
@@ -973,7 +973,7 @@ class BamV2LGSQChunk256SixLayerProfile(BamV2QChunk256SixLayerProfile):
 
 class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
     """Eight-layer LGLL repeat: exactly 6 local and 2 global layers."""
-    # v6e-1 XPlane 579.91 ms; BAM overhead 53.9% vs matched MHA.
+    # code_commit: cc61013; v6e-1 XPlane 579.56 ms; compile 309.33 s; ~1.704 steps/s.
     model_name = 'BamV2LGLLQChunk256EightLayerProfile'
     base_num_decoder_layers = 8
     bam_layer_modes = ['local_qk+full'] * 8
@@ -1049,6 +1049,7 @@ class BamMHAControlDenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
 class BamMHAControlQChunk256SixLayerProfile(BamMHAControlDenseSixLayerProfile):
     """BamAttention control: BAM-free C256 without redundant chunk-local remat."""
     # code_commit: a1ad13f; v6e-1 XPlane 371.51 ms, +0.73% vs generic QChunk.
+    # Recheck @cc61013: 374.24 ms; compile 34.64 s; ~2.64 steps/s.
     model_name = 'BamMHAControlQChunk256SixLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
@@ -1119,6 +1120,7 @@ class BamV2GScanLayerSixLayerProfile(
     BamScanLayerMixin, BamV2QChunk256OptimizedSixLayerProfile
 ):
     """G C256 BAM S/U: scanned layers, optimized-unrolled query chunks."""
+    # code_commit: cc61013; v6e-1 XPlane 513.77 ms; compile 62.44 s; ~1.924 steps/s.
     model_name = 'BamV2GScanLayerSixLayerProfile'
 
 
@@ -1126,6 +1128,7 @@ class BamV2GScanQuerySixLayerProfile(
     BamScanQueryMixin, BamV2QChunk256OptimizedSixLayerProfile
 ):
     """G C256 BAM U/S: explicit layers, streaming query/source scans."""
+    # code_commit: cc61013; v6e-1 XPlane 1,645.48 ms; compile 167.81 s; ~0.606 steps/s.
     model_name = 'BamV2GScanQuerySixLayerProfile'
 
 
@@ -1134,6 +1137,7 @@ class BamV2GScanBothSixLayerProfile(
     BamV2QChunk256OptimizedSixLayerProfile
 ):
     """G C256 BAM S/S: scanned layers and streaming query/source scans."""
+    # code_commit: cc61013; v6e-1 XPlane 1,655.93 ms; compile 54.02 s; ~0.602 steps/s.
     model_name = 'BamV2GScanBothSixLayerProfile'
 
 
@@ -1141,6 +1145,7 @@ class BamMHAGScanLayerSixLayerProfile(
     BamScanLayerMixin, BamMHAControlQChunk256SixLayerProfile
 ):
     """G C256 BAM-MHA S/U control."""
+    # code_commit: cc61013; v6e-1 XPlane 383.07 ms; compile 22.55 s; ~2.58 steps/s.
     model_name = 'BamMHAGScanLayerSixLayerProfile'
 
 
@@ -1148,6 +1153,7 @@ class BamMHAGScanQuerySixLayerProfile(
     BamScanQueryMixin, BamMHAControlQChunk256SixLayerProfile
 ):
     """G C256 BAM-MHA U/S control."""
+    # code_commit: cc61013; v6e-1 XPlane 1,001.17 ms; compile 33.46 s; ~0.995 steps/s.
     model_name = 'BamMHAGScanQuerySixLayerProfile'
 
 
@@ -1156,6 +1162,7 @@ class BamMHAGScanBothSixLayerProfile(
     BamMHAControlQChunk256SixLayerProfile
 ):
     """G C256 BAM-MHA S/S control."""
+    # code_commit: cc61013; v6e-1 XPlane 1,001.83 ms; compile 22.40 s; ~0.995 steps/s.
     model_name = 'BamMHAGScanBothSixLayerProfile'
 
 
@@ -1163,6 +1170,7 @@ class BamMHALGLLQChunk256EightLayerProfile(
     BamMHAControlQChunk256SixLayerProfile
 ):
     """LGLL C256 BAM-MHA U/U control."""
+    # code_commit: cc61013; v6e-1 XPlane 360.69 ms; compile 39.22 s; ~2.74 steps/s.
     model_name = 'BamMHALGLLQChunk256EightLayerProfile'
     base_num_decoder_layers = 8
     bam_layer_modes = ['none'] * 8
@@ -1173,6 +1181,7 @@ class BamV2LGLLScanLayerEightLayerProfile(
     BamScanLayerMixin, BamV2LGLLQChunk256EightLayerProfile
 ):
     """LGLL C256 BAM S/U."""
+    # code_commit: cc61013; v6e-1 XPlane 676.30 ms; compile 91.43 s; ~1.464 steps/s.
     model_name = 'BamV2LGLLScanLayerEightLayerProfile'
 
 
@@ -1180,6 +1189,7 @@ class BamV2LGLLScanQueryEightLayerProfile(
     BamScanQueryMixin, BamV2LGLLQChunk256EightLayerProfile
 ):
     """LGLL C256 BAM U/S."""
+    # code_commit: cc61013; v6e-1 XPlane 1,882.09 ms; compile 212.44 s; ~0.529 steps/s.
     model_name = 'BamV2LGLLScanQueryEightLayerProfile'
 
 
@@ -1188,6 +1198,7 @@ class BamV2LGLLScanBothEightLayerProfile(
     BamV2LGLLQChunk256EightLayerProfile
 ):
     """LGLL C256 BAM S/S."""
+    # code_commit: cc61013; v6e-1 XPlane 1,987.28 ms; compile 55.14 s; ~0.502 steps/s.
     model_name = 'BamV2LGLLScanBothEightLayerProfile'
 
 
@@ -1195,6 +1206,7 @@ class BamMHALGLLScanLayerEightLayerProfile(
     BamScanLayerMixin, BamMHALGLLQChunk256EightLayerProfile
 ):
     """LGLL C256 BAM-MHA S/U control."""
+    # code_commit: cc61013; v6e-1 XPlane 507.25 ms; compile 24.22 s; ~1.952 steps/s.
     model_name = 'BamMHALGLLScanLayerEightLayerProfile'
 
 
@@ -1202,6 +1214,7 @@ class BamMHALGLLScanQueryEightLayerProfile(
     BamScanQueryMixin, BamMHALGLLQChunk256EightLayerProfile
 ):
     """LGLL C256 BAM-MHA U/S control."""
+    # code_commit: cc61013; v6e-1 XPlane 1,203.90 ms; compile 37.83 s; ~0.827 steps/s.
     model_name = 'BamMHALGLLScanQueryEightLayerProfile'
 
 
@@ -1210,6 +1223,7 @@ class BamMHALGLLScanBothEightLayerProfile(
     BamMHALGLLQChunk256EightLayerProfile
 ):
     """LGLL C256 BAM-MHA S/S control."""
+    # code_commit: cc61013; v6e-1 XPlane 1,220.75 ms; compile 22.54 s; ~0.816 steps/s.
     model_name = 'BamMHALGLLScanBothEightLayerProfile'
 
 
@@ -1217,6 +1231,7 @@ class BamV2GScanBothFullLayerProfile(
     BamV2GScanBothSixLayerProfile
 ):
     """Full-24 G C256 BAM S/S target-TPU profile."""
+    # code_commit: cc61013; EW4b v5p-16 XPlane 4,264.48 ms; ~0.233 steps/s.
     model_name = 'BamV2GScanBothFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
@@ -1226,6 +1241,7 @@ class BamMHAGScanBothFullLayerProfile(
     BamMHAGScanBothSixLayerProfile
 ):
     """Full-24 G C256 BAM-MHA S/S target-TPU control."""
+    # code_commit: cc61013; UC1a v5p-16 XPlane 2,749.35 ms; ~0.362 steps/s.
     model_name = 'BamMHAGScanBothFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['none'] * 24
@@ -1235,6 +1251,7 @@ class BamV2LGLLScanBothFullLayerProfile(
     BamV2LGLLScanBothEightLayerProfile
 ):
     """Full-24 LGLL C256 BAM S/S target-TPU profile."""
+    # code_commit: cc61013; EW4b v5p-16 XPlane 3,898.92 ms; ~0.255 steps/s.
     model_name = 'BamV2LGLLScanBothFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
@@ -1244,6 +1261,7 @@ class BamMHALGLLScanBothFullLayerProfile(
     BamMHALGLLScanBothEightLayerProfile
 ):
     """Full-24 LGLL C256 BAM-MHA S/S target-TPU control."""
+    # code_commit: cc61013; UC1a v5p-16 XPlane 2,528.73 ms; ~0.394 steps/s.
     model_name = 'BamMHALGLLScanBothFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['none'] * 24

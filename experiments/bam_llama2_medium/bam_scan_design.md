@@ -365,6 +365,23 @@ Expected hypotheses, not acceptance substitutes:
 Retain `optimized + scan_layers=False` as the rollback configuration. Do not remove historical
 implementations or switch production defaults until the full-24 matched result is recorded.
 
+## Measured outcome (`cc61013`)
+
+- Generic Linen scan arity is repaired. Standard two-layer scanned/unscanned models both contain
+  0.129B parameters; direct scanned checkpoint restore continued from step 2. Full BAM scans carry
+  `(hidden,M)`, while BAM MHA carries only `hidden` and has zero BAM scopes in XPlane.
+- Parameter stack/unstack is lossless and count-preserving. BAM/MHA scanned and explicit arms have
+  identical counts (LGLL 0.217B/0.206B).
+- Streaming query scan matches the optimized oracle over 16 bf16 train steps within `9e-5` loss.
+  The original no-inner-remat implementation needs 40.91 GiB on a 31.25-GiB v6e-1, so the source
+  body remat is required for this implementation.
+- Layer scan is useful for compile latency. Static all-global scan costs only 2--4% step time;
+  dynamic LGLL scheduling costs 17--41% and is not a throughput candidate.
+- Query scan is a clear throughput loss: 2.7--3.4× on v6e and 2.5--2.9× at full-24 v5p-16.
+  Combining it with layer scan gives 40-s-class full BAM compilation, but does not justify the
+  runtime cost. Keep `optimized + scan_layers=False` as the training default; retain the scan paths
+  as supported compile-memory/latency options. Canonical numbers are in `bam_exp_memo.md`.
+
 ## Files
 
 - `MaxText/layers/models.py`: scan adapter invocation, schedule xs, M initialization/carry.

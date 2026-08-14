@@ -542,11 +542,59 @@ Full BAM overhead is only reported for semantically matched control/full paths:
 | dense | `BamMHAControlDenseFullLayerProfile` | 1,276.37 ms | `BamV2DenseFullLayerProfile` | 1,780.90 ms | 71.7% |
 | C256, legacy inner-remat | `BamMHAControlQChunk256FullLayerProfile` @`f052fa6` | 1,162.67 ms | `BamV2QChunk256FullLayerProfile` | 1,715.14 ms | 67.8% |
 | **C256, optimized** | `BamMHAControlQChunk256FullLayerProfile` @`a1ad13f` | **1,088.61 ms** | `BamV2QChunk256OptimizedFullLayerProfile` @`165b55b` | **1,455.35 ms** | **74.8%** |
+| C256 G, layer+query scan | `BamMHAGScanBothFullLayerProfile` @`cc61013` | 2,749.35 ms | `BamV2GScanBothFullLayerProfile` @`cc61013` | 4,264.48 ms | 64.5% |
+| C256 LGLL, layer+query scan | `BamMHALGLLScanBothFullLayerProfile` @`cc61013` | 2,528.73 ms | `BamV2LGLLScanBothFullLayerProfile` @`cc61013` | 3,898.92 ms | 64.9% |
 
 Optimized C256 is +17.85% throughput versus legacy C256 and +22.37% versus dense BAM; stable logs
 are ~0.675 steps/s. Its 16-device range is 1,453.44--1,457.40 ms. Relative to the matched C256 MHA
 control its time overhead is 33.7%, down from legacy C256's 47.5%; the canonical matched
 throughput-retention figure is 74.8%.
+
+The full-24 scan rows use UC1a MHA and EW4b BAM after preemption; an identical G MHA scan on both
+regions measured 2,749.35/2,748.69 ms (0.02%), so the cross-region pairing is sound. Stable logs
+are G MHA/BAM `~0.362/~0.233` and LGLL `~0.394/~0.255` steps/s. Compilation is compact (G
+MHA/BAM `10.12/41.18 s`, LGLL `10.72/40.43 s`), but query scan makes the full-24 G MHA/BAM
+2.53×/2.93× slower than optimized U/U. LGLL recovers 8.7%/9.4% throughput over scanned G, as
+expected from fewer active source blocks, but remains far below the optimized path.
+
+### Layer/query scan matrix
+
+Commit `cc61013`; standalone `v6e-1`, `B=32,T=2048`, `C=256`. `U/S` denote unrolled/scanned
+layer and query loops. BAM compile time is the sum of its two `jit(train_step)` compilations;
+MHA has one. `step/s` is derived from the primary XPlane device step, and `Δ step` is relative to
+the matching schedule/model `U/U` arm.
+
+| Schedule | Model | Arm | Configuration class | Compile | XPlane | step/s | Δ step |
+|---|---|---:|---|---:|---:|---:|---:|
+| G/6 | BAM | U/U | `BamV2QChunk256OptimizedSixLayerProfile` | 169.80 s | 494.07 ms | 2.024 | — |
+| G/6 | BAM | S/U | `BamV2GScanLayerSixLayerProfile` | 62.44 s | 513.77 ms | 1.946 | +4.0% |
+| G/6 | BAM | U/S | `BamV2GScanQuerySixLayerProfile` | 167.81 s | 1,645.48 ms | 0.608 | +233.0% |
+| G/6 | BAM | S/S | `BamV2GScanBothSixLayerProfile` | 54.02 s | 1,655.93 ms | 0.604 | +235.2% |
+| G/6 | MHA | U/U | `BamMHAControlQChunk256SixLayerProfile` | 34.64 s | 374.24 ms | 2.672 | — |
+| G/6 | MHA | S/U | `BamMHAGScanLayerSixLayerProfile` | 22.55 s | 383.07 ms | 2.610 | +2.4% |
+| G/6 | MHA | U/S | `BamMHAGScanQuerySixLayerProfile` | 33.46 s | 1,001.17 ms | 0.999 | +167.5% |
+| G/6 | MHA | S/S | `BamMHAGScanBothSixLayerProfile` | 22.40 s | 1,001.83 ms | 0.998 | +167.7% |
+| LGLL/8 | BAM | U/U | `BamV2LGLLQChunk256EightLayerProfile` | 309.33 s | 579.56 ms | 1.725 | — |
+| LGLL/8 | BAM | S/U | `BamV2LGLLScanLayerEightLayerProfile` | 91.43 s | 676.30 ms | 1.479 | +16.7% |
+| LGLL/8 | BAM | U/S | `BamV2LGLLScanQueryEightLayerProfile` | 212.44 s | 1,882.09 ms | 0.531 | +224.7% |
+| LGLL/8 | BAM | S/S | `BamV2LGLLScanBothEightLayerProfile` | 55.14 s | 1,987.28 ms | 0.503 | +242.9% |
+| LGLL/8 | MHA | U/U | `BamMHALGLLQChunk256EightLayerProfile` | 39.22 s | 360.69 ms | 2.772 | — |
+| LGLL/8 | MHA | S/U | `BamMHALGLLScanLayerEightLayerProfile` | 24.22 s | 507.25 ms | 1.971 | +40.6% |
+| LGLL/8 | MHA | U/S | `BamMHALGLLScanQueryEightLayerProfile` | 37.83 s | 1,203.90 ms | 0.831 | +233.8% |
+| LGLL/8 | MHA | S/S | `BamMHALGLLScanBothEightLayerProfile` | 22.54 s | 1,220.75 ms | 0.819 | +238.5% |
+
+| Schedule | U/U BAM/MHA | S/U BAM/MHA | U/S BAM/MHA | S/S BAM/MHA |
+|---|---:|---:|---:|---:|
+| G/6 | 75.7% | 74.6% | 60.8% | 60.5% |
+| LGLL/8 | 62.2% | 75.0% | 64.0% | 61.4% |
+
+Layer scan materially shrinks compilation: G BAM/MHA `-63.2%/-34.9%`, LGLL `-70.4%/-38.2%`.
+All-global static specialization limits its runtime cost to 4.0%/2.4%; LGLL's dynamic L/G
+conditional costs 16.7%/40.6%. Query scan is not retained for throughput: source-block remat is
+required to fit v6e HBM (without it the compiler estimates 40.91 GiB against 31.25 GiB), but makes
+G and LGLL 2.7--3.4× slower. Its numerical path is healthy: matching U/U and U/S 16-step losses
+differ by at most `9e-5` for BAM and `8e-5` for MHA. Scanned/unscanned parameter counts are exact,
+and a two-layer generic scanned checkpoint restored and continued from step 2.
 
 ### v6e controlled overhead recheck
 

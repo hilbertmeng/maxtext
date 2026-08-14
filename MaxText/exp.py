@@ -1126,12 +1126,13 @@ class BamMHAControlQChunk256FullLayerProfile(BamMHAControlDenseFullLayerProfile)
     query_chunk_size = 256
 
 
-# BAM C256 scan matrix.  U/S mean explicit/scanned layer and query loops.
+# BAM C256 scan matrix. U/S mean explicit/scanned layer and query loops.
 class BamScanLayerMixin:
     scan_layers = True
 
 
 class BamScanQueryMixin:
+    """Historical query-scan profiles; restore code_commit cc61013 to run."""
     bam_query_chunk_implementation = 'streaming_scan'
 
 

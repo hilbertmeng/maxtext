@@ -1,5 +1,10 @@
 # BAM C256 scan design
 
+> Historical query-scan design. The measured implementation was 2.7–3.4× slower on v6e and
+> 2.5–2.9× slower on full-24 v5p, so its runtime path was removed from HEAD. Restore commit
+> `cc61013` to reproduce U/S or S/S profiles. Layer scan, LGLL `is_global` dispatch and scanned
+> parameter-tree support remain in production.
+
 ## Goal
 
 为以下四种模型提供同一套可训练、可profile的scan实现：

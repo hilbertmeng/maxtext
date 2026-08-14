@@ -52,9 +52,9 @@ the control.
 ### Complete G/LGLL × U/U/S/U × BAM-MHA/BAM matrix
 
 `U/U` is explicit layers plus optimized-unrolled query chunks. `S/U` changes only the layer loop to
-scan. The v5p full-BAM G/LGLL arms explicitly use `optimized`. BAM-MHA does not execute that
-full-BAM implementation at all: every non-`streaming_scan` value dispatches to the same dedicated
-`_query_chunk_mha_control`, so its inherited historical selector value does not change the graph.
+scan. The v5p full-BAM G/LGLL arms explicitly use `optimized`. At those runtime commits, BAM-MHA
+did not execute the full-BAM implementation: every non-`streaming_scan` value dispatched to the
+same dedicated `_query_chunk_mha_control`, so its inherited selector value did not change the graph.
 
 | Schedule | Loops | BAM-MHA class | MHA XPlane / step/s | BAM class | BAM XPlane / step/s | Retention | S/U cost MHA/BAM |
 |---|---|---|---:|---|---:|---:|---:|

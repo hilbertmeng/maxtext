@@ -67,6 +67,26 @@ Optimized G C256 is 17.85% faster than legacy C256 and 22.37% faster than dense 
 layer scan reduces compile latency (BAM 686.23→49.49 s) but adds about 23% step time to both models;
 use explicit LGLL layers for long training.
 
+### Full-24 layer-scan unroll
+
+Commit `2646f97`, full-24 G C256 BAM on v5p-16. The `u1/u2` pair used one EW4b pod; `u4` used
+UC1a after two EW4b preemptions. Stable loss is invariant to unroll within bf16 rounding: at step 0,
+`u2/u4 = 10.846203/10.846224`, and their subsequent values differ by at most about `2e-5`.
+
+| Unroll | Configuration class | XPlane | Stable log | `M+dM` add events / ms | Lowered TF / GB |
+|---:|---|---:|---:|---:|---:|
+| 1 | `BamV2GScanLayerFullLayerProfile` | 1,485.78 ms | ~0.664 | 24 / 3.97 | 100.06 / 1,388.07 |
+| 2 | `BamV2GScanLayerUnroll2FullLayerProfile` | 1,488.24 ms | ~0.663 | 12 / 1.96 | 101.45 / 1,404.62 |
+| 4 | `BamV2GScanLayerUnroll4FullLayerProfile` | 1,482.00 ms | ~0.663 | 6 / 0.98 | 103.70 / 1,433.46 |
+
+Unroll successfully coalesces the loop-boundary matrix residual add, but increases other lowered
+work and traffic; the complete-step spread is only 0.42% and shows no throughput benefit. Keep
+`unroll=1`. Scan and non-scan do not start from identical random parameters: at step 10,
+`u1/u2 = 10.306737/10.306740`, versus non-scan C256 `10.304788` and dense V2 `10.304796`.
+The two non-scan paths agree, while `nn.scan(split_rngs={'params': True})` uses a different parameter
+RNG sequence. Thus ordinary from-scratch loss cannot establish scan/non-scan numerical equivalence;
+that requires mapping one parameter set into both layouts.
+
 ## Canonical v6e-1 eight-layer matrix
 
 Commit `91cb24a`; every arm has eight layers and explicitly selects optimized, non-streaming C256.
@@ -154,6 +174,12 @@ but does not alter the backward. Thus scan's Q/K forward coalescing is real and 
 whole-step loop/layout cost is larger. Raw artifacts:
 `/data0/xd/bam_diagnostics/scan_pair/f29e89f/non_scan/` and
 `/data0/xd/bam_diagnostics/qk_batch_read/66c8173/baseline/`.
+
+Manual Q/K batching does not improve this contraction. On the same non-scan v6e-1, commit
+`2646f97`, it changes complete step `644.20→650.57 ms` (+0.99%) and LocalQK
+`22.61→25.35 ms`. Its intended forward coalescing works (`314→216` events,
+`8.03→5.78 ms`), but backward rises `14.58→19.56 ms`; backward read-M traffic rises
+`4.97→7.58 GB`. Training is backward-dominated, so keep the separate Q/K implementation.
 
 ### V2 fine-grained main profile
 

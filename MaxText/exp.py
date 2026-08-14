@@ -997,6 +997,8 @@ class BamV2GQChunk256BatchedLocalQKReadEightLayerProfile(
     BamV2GQChunk256OptimizedEightLayerProfile
 ):
     """Non-scan G C256 BAM with Q/K batched as two parallel LocalQK reads."""
+    # code_commit: 2646f97; v6e-1 XPlane 650.57 vs 644.20 ms separate-Q/K control.
+    # Forward LocalQK is faster, but backward read traffic dominates; -0.98% throughput. Reject.
     model_name = 'BamV2GQChunk256BatchedLocalQKReadEightLayerProfile'
     bam_batch_factorized_local_qk_read = True
 
@@ -1336,6 +1338,7 @@ class BamV2GScanLayerFullLayerProfile(
 ):
     """Full-24 G C256 BAM S/U target-training profile."""
     # code_commit: 1d9e1e1; EW4b v5p-16 XPlane 1,480.44 ms; ~0.665 steps/s.
+    # Recheck @2646f97: EW4b XPlane 1,485.78 ms; ~0.664 steps/s.
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
@@ -1345,6 +1348,8 @@ class BamV2GScanLayerUnroll2FullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Full-24 G C256 BAM layer scan with two body iterations unrolled."""
+    # code_commit: 2646f97; EW4b v5p-16 XPlane 1,488.24 ms; ~0.663 steps/s.
+    # +0.17% step time vs unroll=1: halving loop-boundary M adds gives no whole-step gain.
     model_name = 'BamV2GScanLayerUnroll2FullLayerProfile'
     scan_layers_unroll = 2
 
@@ -1353,6 +1358,8 @@ class BamV2GScanLayerUnroll4FullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Full-24 G C256 BAM layer scan with four body iterations unrolled."""
+    # code_commit: 2646f97; UC1a v5p-16 XPlane 1,482.00 ms; ~0.663 steps/s.
+    # No measurable whole-step gain; larger lowered work offsets fewer loop-boundary M adds.
     model_name = 'BamV2GScanLayerUnroll4FullLayerProfile'
     scan_layers_unroll = 4
 

@@ -1674,6 +1674,14 @@ class BamV2GScanLayerFullLayerProfile(
     bam_layer_modes = ['local_qk+full'] * 24
 
 
+class BamV2GScanLayerMixMulReduceFullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Full-24 paired profile for pure-JAX multiply+reduce alpha mixing."""
+    model_name = 'BamV2GScanLayerMixMulReduceFullLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
 class BamV2GScanLayerUnroll2FullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):

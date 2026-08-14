@@ -1369,6 +1369,14 @@ class BamV2GScanLayerMixHeadGroup2EightLayerProfile(
     bam_mix_head_group_size = 2
 
 
+class BamV2GScanLayerMixHeadGroup1EightLayerProfile(
+    BamV2GScanLayerMixHeadGroup2EightLayerProfile
+):
+    """Mix profile: degenerate one-head groups before the outer reduction."""
+    model_name = 'BamV2GScanLayerMixHeadGroup1EightLayerProfile'
+    bam_mix_head_group_size = 1
+
+
 class BamV2GScanLayerMixHeadGroup4EightLayerProfile(
     BamV2GScanLayerMixHeadGroup2EightLayerProfile
 ):
@@ -1383,6 +1391,14 @@ class BamV2GScanLayerMixHeadGroup8EightLayerProfile(
     """Mix profile: two-level reduction with groups of eight heads."""
     model_name = 'BamV2GScanLayerMixHeadGroup8EightLayerProfile'
     bam_mix_head_group_size = 8
+
+
+class BamV2GScanLayerMixHeadGroup16EightLayerProfile(
+    BamV2GScanLayerMixHeadGroup2EightLayerProfile
+):
+    """Mix profile: one sixteen-head group followed by a singleton reduction."""
+    model_name = 'BamV2GScanLayerMixHeadGroup16EightLayerProfile'
+    bam_mix_head_group_size = 16
 
 
 class BamV2GScanLayerMixChunkProjectionEightLayerProfile(
@@ -1417,6 +1433,14 @@ class BamV2GScanLayerMixSourceBlock128EightLayerProfile(
     bam_mix_source_block_size = 128
 
 
+class BamV2GScanLayerMixSourceBlock64EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock128EightLayerProfile
+):
+    """Mix profile: split the source axis into static 64-token contractions."""
+    model_name = 'BamV2GScanLayerMixSourceBlock64EightLayerProfile'
+    bam_mix_source_block_size = 64
+
+
 class BamV2GScanLayerMixSourceBlock256EightLayerProfile(
     BamV2GScanLayerMixSourceBlock128EightLayerProfile
 ):
@@ -1433,11 +1457,27 @@ class BamV2GScanLayerMixSourceBlock512EightLayerProfile(
     bam_mix_source_block_size = 512
 
 
+class BamV2GScanLayerMixSourceBlock1024EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock128EightLayerProfile
+):
+    """Mix profile: split the source axis into static 1,024-token contractions."""
+    model_name = 'BamV2GScanLayerMixSourceBlock1024EightLayerProfile'
+    bam_mix_source_block_size = 1024
+
+
 class BamV2GScanLayerMixMulReduceSourceBlock128EightLayerProfile(
     BamV2GScanLayerMixSourceBlock128EightLayerProfile
 ):
     """Mix profile: multiply-reduce in static 128-token source blocks."""
     model_name = 'BamV2GScanLayerMixMulReduceSourceBlock128EightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixMulReduceSourceBlock64EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock64EightLayerProfile
+):
+    """Mix profile: multiply-reduce in static 64-token source blocks."""
+    model_name = 'BamV2GScanLayerMixMulReduceSourceBlock64EightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
 
@@ -1454,6 +1494,14 @@ class BamV2GScanLayerMixMulReduceSourceBlock512EightLayerProfile(
 ):
     """Mix profile: multiply-reduce in static 512-token source blocks."""
     model_name = 'BamV2GScanLayerMixMulReduceSourceBlock512EightLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixMulReduceSourceBlock1024EightLayerProfile(
+    BamV2GScanLayerMixSourceBlock1024EightLayerProfile
+):
+    """Mix profile: multiply-reduce in static 1,024-token source blocks."""
+    model_name = 'BamV2GScanLayerMixMulReduceSourceBlock1024EightLayerProfile'
     bam_mix_alpha_implementation = 'mul_reduce'
 
 

@@ -1682,6 +1682,54 @@ class BamV2GScanLayerMixMulReduceFullLayerProfile(
     bam_mix_alpha_implementation = 'mul_reduce'
 
 
+class BamV2GScanLayerMixBntEinsumFullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Full-24 target-TPU profile with BNT mix weights."""
+    model_name = 'BamV2GScanLayerMixBntEinsumFullLayerProfile'
+    bam_mix_weight_layout = 'bnt'
+
+
+class BamV2GScanLayerMixBcsnEinsumFullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Full-24 target-TPU profile with BCSN attention probabilities."""
+    model_name = 'BamV2GScanLayerMixBcsnEinsumFullLayerProfile'
+    bam_mix_alpha_layout = 'bcsn'
+
+
+class BamV2GScanLayerMixBcsnBntEinsumFullLayerProfile(
+    BamV2GScanLayerMixBcsnEinsumFullLayerProfile
+):
+    """Full-24 target-TPU profile with BCSN alpha and BNT mix weights."""
+    model_name = 'BamV2GScanLayerMixBcsnBntEinsumFullLayerProfile'
+    bam_mix_weight_layout = 'bnt'
+
+
+class BamV2GScanLayerMixBntMulReduceFullLayerProfile(
+    BamV2GScanLayerMixBntEinsumFullLayerProfile
+):
+    """Full-24 target-TPU BNT multiply+reduce profile."""
+    model_name = 'BamV2GScanLayerMixBntMulReduceFullLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixBcsnMulReduceFullLayerProfile(
+    BamV2GScanLayerMixBcsnEinsumFullLayerProfile
+):
+    """Full-24 target-TPU BCSN multiply+reduce profile."""
+    model_name = 'BamV2GScanLayerMixBcsnMulReduceFullLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerMixBcsnBntMulReduceFullLayerProfile(
+    BamV2GScanLayerMixBcsnBntEinsumFullLayerProfile
+):
+    """Full-24 target-TPU BCSN/BNT multiply+reduce profile."""
+    model_name = 'BamV2GScanLayerMixBcsnBntMulReduceFullLayerProfile'
+    bam_mix_alpha_implementation = 'mul_reduce'
+
+
 class BamV2GScanLayerUnroll2FullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):

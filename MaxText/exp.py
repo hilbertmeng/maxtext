@@ -980,6 +980,23 @@ class BamV2LGLLQChunk256EightLayerProfile(BamV2QChunk256SixLayerProfile):
     sliding_window_size = [256, None, 256, 256]
 
 
+class BamV2GQChunk256OptimizedEightLayerProfile(
+    BamV2QChunk256OptimizedSixLayerProfile
+):
+    """Fair-matrix eight-layer all-global optimized C256 BAM U/U."""
+    model_name = 'BamV2GQChunk256OptimizedEightLayerProfile'
+    base_num_decoder_layers = 8
+    bam_layer_modes = ['local_qk+full'] * 8
+
+
+class BamV2LGLLQChunk256OptimizedEightLayerProfile(
+    BamV2LGLLQChunk256EightLayerProfile
+):
+    """Fair-matrix eight-layer LGLL optimized C256 BAM U/U."""
+    model_name = 'BamV2LGLLQChunk256OptimizedEightLayerProfile'
+    bam_query_chunk_implementation = 'optimized'
+
+
 class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
     """Full-24 V2 with shared MHA/BAM C256 and LGLL attention."""
     # code_commit: e184190
@@ -1177,12 +1194,58 @@ class BamMHALGLLQChunk256EightLayerProfile(
     sliding_window_size = [256, None, 256, 256]
 
 
+class BamMHAGQChunk256EightLayerProfile(
+    BamMHAControlQChunk256SixLayerProfile
+):
+    """Fair-matrix eight-layer all-global C256 BAM-MHA U/U control."""
+    model_name = 'BamMHAGQChunk256EightLayerProfile'
+    base_num_decoder_layers = 8
+    bam_layer_modes = ['none'] * 8
+    bam_query_chunk_implementation = 'optimized'
+
+
+class BamMHALGLLQChunk256OptimizedEightLayerProfile(
+    BamMHALGLLQChunk256EightLayerProfile
+):
+    """Fair-matrix eight-layer LGLL C256 BAM-MHA U/U control."""
+    model_name = 'BamMHALGLLQChunk256OptimizedEightLayerProfile'
+    bam_query_chunk_implementation = 'optimized'
+
+
+class BamV2GScanLayerOptimizedEightLayerProfile(
+    BamScanLayerMixin, BamV2GQChunk256OptimizedEightLayerProfile
+):
+    """Fair-matrix eight-layer all-global optimized C256 BAM S/U."""
+    model_name = 'BamV2GScanLayerOptimizedEightLayerProfile'
+
+
+class BamMHAGScanLayerEightLayerProfile(
+    BamScanLayerMixin, BamMHAGQChunk256EightLayerProfile
+):
+    """Fair-matrix eight-layer all-global C256 BAM-MHA S/U control."""
+    model_name = 'BamMHAGScanLayerEightLayerProfile'
+
+
+class BamMHALGLLScanLayerOptimizedEightLayerProfile(
+    BamScanLayerMixin, BamMHALGLLQChunk256OptimizedEightLayerProfile
+):
+    """Fair-matrix eight-layer LGLL C256 BAM-MHA S/U control."""
+    model_name = 'BamMHALGLLScanLayerOptimizedEightLayerProfile'
+
+
 class BamV2LGLLScanLayerEightLayerProfile(
     BamScanLayerMixin, BamV2LGLLQChunk256EightLayerProfile
 ):
     """LGLL C256 BAM S/U."""
     # code_commit: cc61013; v6e-1 XPlane 676.30 ms; compile 91.43 s; ~1.464 steps/s.
     model_name = 'BamV2LGLLScanLayerEightLayerProfile'
+
+
+class BamV2LGLLScanLayerOptimizedEightLayerProfile(
+    BamScanLayerMixin, BamV2LGLLQChunk256OptimizedEightLayerProfile
+):
+    """Fair-matrix eight-layer LGLL optimized C256 BAM S/U."""
+    model_name = 'BamV2LGLLScanLayerOptimizedEightLayerProfile'
 
 
 class BamV2LGLLScanQueryEightLayerProfile(

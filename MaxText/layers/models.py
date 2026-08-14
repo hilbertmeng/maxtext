@@ -501,7 +501,7 @@ class Decoder(nn.Module):
 
   def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh,
    sliding_window_size=None, scan_length=1, scan_deep_embedding=False,
-   runtime_schedule=False, scan_hids=False):
+   runtime_schedule=False, scan_hids=False, all_global_attention=False):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
@@ -538,8 +538,13 @@ class Decoder(nn.Module):
         length=length,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
-    return scan_fn(config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant, 
-      sliding_window_size=sliding_window_size, scan_length=scan_length)
+    module_kwargs = dict(
+        config=cfg, mesh=mesh, name=metdata_axis_name, quant=self.quant)
+    if cfg.decoder_block == 'fusion':
+      module_kwargs.update(
+          sliding_window_size=sliding_window_size, scan_length=scan_length,
+          all_global_attention=all_global_attention)
+    return scan_fn(**module_kwargs)
 
   def get_pipeline_stage_module(self, base_stage):
     cfg = self.config
@@ -784,11 +789,13 @@ class Decoder(nn.Module):
         else:
           scan_carry = y
         local_sws = min(swss)
+        all_global_attention = all(s >= cfg.max_target_length for s in swss)
         scan_carry, _ = self.scan_decoder_layers(
             cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh,
             sliding_window_size=local_sws,
             scan_deep_embedding=deep_embeddings is not None,
             runtime_schedule=True,
+            all_global_attention=all_global_attention,
         )(
             scan_carry,
             decoder_segment_ids,

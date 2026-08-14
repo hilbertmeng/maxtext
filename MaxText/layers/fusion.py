@@ -294,6 +294,7 @@ class FusionDecoderLayer(nn.Module):
   sliding_window_size: int # lsp
   quant: Optional[Quant] = None
   scan_length: int = 1
+  all_global_attention: bool = False
 
   def setup(self):
     cfg = self.config
@@ -349,6 +350,8 @@ class FusionDecoderLayer(nn.Module):
         inputs, M_in = inputs
       else:
         M_in = None
+      if self.all_global_attention:
+        is_global = None
     if cfg.partial_scan_layers:
       assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
       return self.partial_scan_call(

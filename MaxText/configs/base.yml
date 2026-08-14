@@ -672,6 +672,7 @@ only_eval: False
 # sharding tolerance: float between 0.0 and 1.0 representing the allowed percentage of non-sharded parameters.
 sharding_tolerance: 0.02
 scan_layers: True # We recommend setting this to false when using pipeline parallelism, instead scanning the PP iterations.
+scan_layers_unroll: 1 # Number of decoder-layer scan iterations unrolled inside each loop body.
 param_scan_axis: 1
 run_name: ""
 shard_mode: "auto" # choices: [auto, explicit]

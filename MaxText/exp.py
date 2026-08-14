@@ -19,6 +19,7 @@ class Common:
     eval_interval = 13500
     record_internal_nn_metrics = 1
     scan_layers = True
+    scan_layers_unroll = 1
     remat_policy = 'full'
     normalization_layer_epsilon = 1e-6
     query_chunk_size = 512
@@ -992,6 +993,14 @@ class BamV2GQChunk256OptimizedEightLayerProfile(
     bam_layer_modes = ['local_qk+full'] * 8
 
 
+class BamV2GQChunk256BatchedLocalQKReadEightLayerProfile(
+    BamV2GQChunk256OptimizedEightLayerProfile
+):
+    """Non-scan G C256 BAM with Q/K batched as two parallel LocalQK reads."""
+    model_name = 'BamV2GQChunk256BatchedLocalQKReadEightLayerProfile'
+    bam_batch_factorized_local_qk_read = True
+
+
 class BamV2LGLLQChunk256OptimizedEightLayerProfile(
     BamV2LGLLQChunk256EightLayerProfile
 ):
@@ -1330,6 +1339,22 @@ class BamV2GScanLayerFullLayerProfile(
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamV2GScanLayerUnroll2FullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Full-24 G C256 BAM layer scan with two body iterations unrolled."""
+    model_name = 'BamV2GScanLayerUnroll2FullLayerProfile'
+    scan_layers_unroll = 2
+
+
+class BamV2GScanLayerUnroll4FullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Full-24 G C256 BAM layer scan with four body iterations unrolled."""
+    model_name = 'BamV2GScanLayerUnroll4FullLayerProfile'
+    scan_layers_unroll = 4
 
 
 class BamV2GScanLayerBatchedLocalQKReadFullLayerProfile(

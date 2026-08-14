@@ -536,6 +536,7 @@ class Decoder(nn.Module):
         },
         in_axes=in_axes,
         length=length,
+        unroll=int(cfg.scan_layers_unroll),
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
     )
     module_kwargs = dict(

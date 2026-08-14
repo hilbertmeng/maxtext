@@ -3073,7 +3073,7 @@ class BamAttention(Attention):
 
   def _query_chunk_shared_full_read(
       self, query, key, value, Mh, inputs_q, decoder_segment_ids,
-      is_global=None, window_size_override=None):
+      is_global=None, window_size_override=None, prepared=None):
     """Compute one shared MHA/BAM alpha a query chunk at a time.
 
     This deliberately implements only the V2 full-read path so semantic mismatches
@@ -3083,16 +3083,44 @@ class BamAttention(Attention):
     b, t, n, d = query.shape
     chunk_size = int(self._query_chunk_size)
     assert t % chunk_size == 0
+    if prepared is None:
+      with jax.named_scope("bam/mix_alpha_projection"):
+        _, mix_weights = _dynamic_bam_fetch_mix_weights(
+            self.fetch_head_mix(inputs_q), query.dtype, 'rms',
+            rms_epsilon=self._rms_epsilon)
+
+      with jax.named_scope("bam/compress_abs_v_cache"):
+        fetch_state = Mh
+        if self._abs_v_dim is not None:
+          projection = self.abs_v_cache_projection.astype(Mh.dtype)
+          if self._abs_v_source_implementation == 'dot':
+            fetch_state = jnp.einsum('bskv,vc->bskc', Mh, projection)
+          else:
+            fetch_state = jnp.sum(
+                Mh[..., None] * projection[None, None, None, :, :], axis=-2)
+
+      # Parameterized projections must stay outside the runtime L/G cond.  A
+      # Linen module call inside lax.cond leaks initialization tracers.
+      with jax.named_scope("bam/read_fetched_m"):
+        projected_read_key = self.W_R(inputs_q)
+        read_key_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
+        _, _, read_row, read_col = _project_bam_read_keys(
+            self.bam_k, inputs_q, lambda _x: projected_read_key,
+            **read_key_kwargs)
+      prepared = (mix_weights, fetch_state, read_row, read_col)
+    else:
+      mix_weights, fetch_state, read_row, read_col = prepared
+
     if is_global is not None:
       local_window = min(t, int(self.sliding_window_size))
       return lax.cond(
           is_global,
           lambda _: self._query_chunk_shared_full_read(
               query, key, value, Mh, inputs_q, decoder_segment_ids,
-              window_size_override=t),
+              window_size_override=t, prepared=prepared),
           lambda _: self._query_chunk_shared_full_read(
               query, key, value, Mh, inputs_q, decoder_segment_ids,
-              window_size_override=local_window),
+              window_size_override=local_window, prepared=prepared),
           operand=None)
     window_size = (
         window_size_override if window_size_override is not None else
@@ -3102,30 +3130,6 @@ class BamAttention(Attention):
     defer_read = implementation in ('deferred_read', 'diag_select', 'optimized')
     diagonal_select = implementation in ('diag_select', 'optimized')
     concatenate_outputs = implementation == 'optimized'
-
-    with jax.named_scope("bam/mix_alpha_projection"):
-      _, mix_weights = _dynamic_bam_fetch_mix_weights(
-          self.fetch_head_mix(inputs_q), query.dtype, 'rms',
-          rms_epsilon=self._rms_epsilon)
-
-    with jax.named_scope("bam/compress_abs_v_cache"):
-      fetch_state = Mh
-      if self._abs_v_dim is not None:
-        projection = self.abs_v_cache_projection.astype(Mh.dtype)
-        if self._abs_v_source_implementation == 'dot':
-          fetch_state = jnp.einsum('bskv,vc->bskc', Mh, projection)
-        else:
-          fetch_state = jnp.sum(
-              Mh[..., None] * projection[None, None, None, :, :], axis=-2)
-
-    # Project all linear-size target-side keys once, exactly as dc.QChunk projects
-    # dynamic weights once and slices them inside the query loop.
-    with jax.named_scope("bam/read_fetched_m"):
-      projected_read_key = self.W_R(inputs_q)
-      read_key_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
-      _, _, read_row, read_col = _project_bam_read_keys(
-          self.bam_k, inputs_q, lambda _x: projected_read_key,
-          **read_key_kwargs)
 
     if concatenate_outputs:
       y_std_chunks = []

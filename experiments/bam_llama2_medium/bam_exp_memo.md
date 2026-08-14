@@ -95,6 +95,66 @@ BAM mix/fetch, while fixed BAM projections/read/write remain.
 
 ## Current performance picture
 
+### Current V2 C256 scan/non-scan paired main profile
+
+Eight-layer UC1a `v6e-1`, `B=32,T=2048`, step 10–14. U/U is
+`BamV2GQChunk256OptimizedEightLayerProfile` at `f29e89f`; S/U is
+`BamV2GScanLayerOptimizedEightLayerProfile` at `66c8173`. The runtime graph is identical apart
+from `scan_layers`: changes after `66c8173` were comments/documentation only. C256 computes 56.25%
+of dense causal attention pairs, so MHA QK calibrates one training-state `(W_Q)` as
+`5.02476 / 1.125 = 4.46645 TF`. The S/U `while.*` parent contains its body kernels and is excluded
+from additive TF/byte totals to avoid double counting.
+Named scopes may overlap through fusion; use complete-step time for throughput and scope deltas for
+local attribution. XPlane TF/bytes describe the compiled lowering, so their small U/U–S/U changes
+do not imply a change in model semantics or theoretical arithmetic.
+
+| Part | Theory `(W_Q)` | U/U ms | S/U ms | S/U Δ | U/U TF / `(W_Q)` | S/U TF / `(W_Q)` | U/U / S/U GB |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Transformer / optimizer / unscoped | 14.500 | 487.35 | 510.41 | +4.73% | 81.052 / 18.147 | 81.659 / 18.283 | 597.58 / 613.88 |
+| └ shared C256 QChunk (overlapping scope) | — | 399.57 | 392.82 | -1.69% | 14.678 / 3.286 | 14.674 / 3.285 | 457.42 / 455.28 |
+|   ├ MHA QK logits | 1.125 | 104.92 | 105.52 | +0.57% | 5.025 / 1.125 | 5.025 / 1.125 | 117.36 / 117.36 |
+|   ├ MHA softmax | ≈0 | 36.25 | 33.38 | -7.93% | 0.055 / 0.012 | 0.055 / 0.012 | 39.83 / 39.83 |
+|   └ MHA AV | 1.125 | 110.20 | 108.61 | -1.45% | 5.101 / 1.142 | 5.101 / 1.142 | 127.47 / 127.47 |
+| **write M** | **0.406** | **27.86** | **33.90** | **+21.68%** | **1.577 / 0.353** | **1.804 / 0.404** | **27.11 / 34.19** |
+|   ├ `P_loc_down` | 0.250 | 2.40 | 2.61 | +8.76% | 0.725 / 0.162 | 0.829 / 0.186 | 3.54 / 4.05 |
+|   ├ `P_loc_up` | 0.125 | 3.20 | 3.68 | +14.76% | 0.732 / 0.164 | 0.837 / 0.187 | 5.31 / 6.06 |
+|   ├ write-gate projection | 0.016 | 2.58 | 2.99 | +15.83% | 0.066 / 0.015 | 0.075 / 0.017 | 3.85 / 4.40 |
+|   ├ write outer product | 0.016 | 14.95 | 17.09 | +14.28% | 0.044 / 0.010 | 0.050 / 0.011 | 5.64 / 6.44 |
+|   └ GELU/RMS/bias/other | ≈0 | 4.72 | 7.53 | +59.67% | 0.010 / 0.002 | 0.012 / 0.003 | 8.76 / 13.24 |
+| **mix alpha** | **0.033** | **60.67** | **58.88** | **-2.94%** | **0.215 / 0.048** | **0.209 / 0.047** | **68.07 / 65.35** |
+|   ├ head-weight projection | 0.016 | 3.34 | 3.56 | +6.37% | 0.075 / 0.017 | 0.075 / 0.017 | 4.43 / 4.43 |
+|   ├ chunked `bnts,btn→bts` | 0.018 | 57.26 | 55.27 | -3.48% | 0.140 / 0.031 | 0.134 / 0.030 | 63.45 / 60.74 |
+|   └ diagonal/transform/other | ≈0 | 0.07 | 0.06 | -4.55% | 0.000 / 0.000 | 0.000 / 0.000 | 0.19 / 0.19 |
+| AbsV source compression | 0.008 | 4.46 | 4.74 | +6.37% | 0.046 / 0.010 | 0.040 / 0.009 | 6.23 / 6.71 |
+| fetch M temporal contraction | 0.281 | 8.00 | 8.20 | +2.55% | 1.232 / 0.276 | 1.240 / 0.278 | 11.56 / 11.75 |
+| **read local M for QK** | **0.197** | **22.53** | **22.42** | **-0.49%** | **0.874 / 0.196** | **0.874 / 0.196** | **33.33 / 31.75** |
+|   ├ packed key/gate/head-mix projection | 0.191 | 3.39 | 3.63 | +6.95% | 0.848 / 0.190 | 0.848 / 0.190 | 5.15 / 5.14 |
+|   ├ key RMS/gate transform | ≈0 | 0.62 | 0.63 | +1.77% | 0.002 / 0.000 | 0.002 / 0.000 | 1.90 / 1.93 |
+|   ├ **read-M contraction** | **0.004** | **7.94** | **7.06** | **-11.03%** | **0.013 / 0.003** | **0.014 / 0.003** | **8.62 / 7.25** |
+|   ├ head-mix transform/expand | 0.002 | 5.62 | 5.98 | +6.43% | 0.007 / 0.002 | 0.007 / 0.002 | 9.98 / 9.75 |
+|   └ other | ≈0 | 4.96 | 5.11 | +3.15% | 0.004 / 0.001 | 0.004 / 0.001 | 7.68 / 7.68 |
+| **read fetched M** | **0.664** | **33.09** | **33.63** | **+1.63%** | **2.944 / 0.659** | **2.944 / 0.659** | **31.33 / 31.31** |
+|   ├ read-key projection | 0.625 | 4.88 | 5.44 | +11.56% | 2.756 / 0.617 | 2.756 / 0.617 | 7.06 / 7.04 |
+|   ├ read-gate projection | 0.031 | 3.10 | 3.33 | +7.42% | 0.144 / 0.032 | 0.144 / 0.032 | 4.47 / 4.47 |
+|   ├ key RMS/gate/layout | ≈0 | 4.79 | 4.89 | +2.21% | 0.008 / 0.002 | 0.008 / 0.002 | 7.25 / 7.25 |
+|   ├ read-M contraction | 0.008 | 17.63 | 17.28 | -1.99% | 0.033 / 0.007 | 0.033 / 0.007 | 7.52 / 7.52 |
+|   └ other | ≈0 | 2.70 | 2.68 | -0.52% | 0.003 / 0.001 | 0.003 / 0.001 | 5.03 / 5.03 |
+| **complete step** | **16.089** | **643.94** | **672.17** | **+4.38%** | **87.940 / 19.689** | **88.770 / 19.875** | **775.21 / 794.94** |
+
+Stable log speed is `1.535` U/U versus `1.473` S/U (`-4.02%` throughput). S/U compiles in
+`30.71 s` versus `121.44 s` for U/U (`3.95×` faster compile). Its complete-step penalty is
+`28.23 ms`: the five BAM scopes plus AbsV compression account for only `5.17 ms`; the residual
+accounts for `23.06 ms` (81.7%). Within BAM, write M adds `6.04 ms`, partly offset by mix alpha
+(`-1.78 ms`) and LocalQK (`-0.11 ms`). The shared C256 QChunk is itself `6.75 ms` faster under
+scan, so query chunking is not the source of the slowdown.
+
+For LocalQK read-M, U/U exposes 20 forward and 32 backward compute events per step; S/U exposes
+16 forward and the same 32 backward events. The reduced forward fragmentation saves `0.88 ms`,
+but does not alter the backward. Thus scan's Q/K forward coalescing is real and local, while its
+whole-step loop/layout cost is larger. Raw artifacts:
+`/data0/xd/bam_diagnostics/scan_pair/f29e89f/non_scan/` and
+`/data0/xd/bam_diagnostics/qk_batch_read/66c8173/baseline/`.
+
 ### V2 fine-grained main profile
 
 The most detailed operator breakdown is the six-layer graph of

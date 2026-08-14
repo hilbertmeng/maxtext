@@ -11,6 +11,7 @@ import json
 OUTER = {
     "write_m": "bam/write_m",
     "mix_alpha": "bam/mix_alpha",
+    "compress_abs_v": "bam/compress_abs_v_cache",
     "fetch_m": "bam/fetch_m",
     "local_qk": "bam/read_local_m_for_qk",
     "fetched": "bam/read_fetched_m",
@@ -125,6 +126,12 @@ def summarize(path):
       op = str(event.get("args", {}).get("tf_op", ""))
       hlo_name = str(event.get("name", "")).lower()
       value = metric(event)
+      # A scanned layer appears as a device-side while parent whose duration,
+      # FLOPs, and bytes already include the nested body kernels. Keep the
+      # wrapper visible, but exclude it from additive leaf-work totals.
+      if hlo_name.startswith("while."):
+        add(buckets["kernel.control_wrapper"], value)
+        continue
       add(buckets["all_xla_ops"], value)
       if "tpu_flash_attention/" in op:
         add(buckets["mha_flash"], value)
@@ -202,6 +209,7 @@ def summarize(path):
           - buckets["mha_softmax"][index]
           - buckets["mha_av"][index]
           - buckets["mix_alpha"][index]
+          - buckets["compress_abs_v"][index]
           - buckets["fetch_m"][index]
           - buckets["fetched"][index]
           for index in range(3)

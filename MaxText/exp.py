@@ -986,6 +986,7 @@ class BamV2GQChunk256OptimizedEightLayerProfile(
 ):
     """Fair-matrix eight-layer all-global optimized C256 BAM U/U."""
     # code_commit: 91cb24a; v6e-1 XPlane 638.73 ms; ~1.55 steps/s.
+    # Recheck @f29e89f: XPlane 643.94 ms; compile 121.44 s; ~1.535 steps/s.
     model_name = 'BamV2GQChunk256OptimizedEightLayerProfile'
     base_num_decoder_layers = 8
     bam_layer_modes = ['local_qk+full'] * 8
@@ -1223,6 +1224,7 @@ class BamV2GScanLayerOptimizedEightLayerProfile(
 ):
     """Fair-matrix eight-layer all-global optimized C256 BAM S/U."""
     # code_commit: 91cb24a; v6e-1 XPlane 661.01 ms; ~1.50 steps/s.
+    # Recheck @66c8173: XPlane 672.17 ms; compile 30.71 s; ~1.474 steps/s.
     model_name = 'BamV2GScanLayerOptimizedEightLayerProfile'
 
 

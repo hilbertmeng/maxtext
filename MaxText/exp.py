@@ -1237,12 +1237,30 @@ class BamV2GScanBothFullLayerProfile(
     bam_layer_modes = ['local_qk+full'] * 24
 
 
+class BamV2GScanLayerFullLayerProfile(
+    BamV2GScanLayerSixLayerProfile
+):
+    """Full-24 G C256 BAM S/U target-training profile."""
+    model_name = 'BamV2GScanLayerFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+full'] * 24
+
+
 class BamMHAGScanBothFullLayerProfile(
     BamMHAGScanBothSixLayerProfile
 ):
     """Full-24 G C256 BAM-MHA S/S target-TPU control."""
     # code_commit: cc61013; UC1a v5p-16 XPlane 2,749.35 ms; ~0.362 steps/s.
     model_name = 'BamMHAGScanBothFullLayerProfile'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['none'] * 24
+
+
+class BamMHAGScanLayerFullLayerProfile(
+    BamMHAGScanLayerSixLayerProfile
+):
+    """Full-24 G C256 BAM-MHA S/U target-training control."""
+    model_name = 'BamMHAGScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['none'] * 24
 

@@ -19,9 +19,11 @@ ARTIFACT_ROOT=/home/lishengping/xd/projects/bam_diagnostics/mix_alpha/${COMMIT:0
 LOG_ROOT=/home/lishengping/xd/projects/logs
 DATASET=gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord
 BASE_OUTPUT=gs://newproject-1-llm_base_models_us-central1/log/
+WORKER_SCOPE=${PROFILE_WORKER_SCOPE:-0}
 
 gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
-  --project="$PROJECT" --command="cd '$REMOTE_REPO' && git fetch origin refactor-bam && \
+  --project="$PROJECT" --worker="$WORKER_SCOPE" \
+  --command="cd '$REMOTE_REPO' && git fetch origin refactor-bam && \
   git reset --hard && git clean -ffd && git checkout --detach '$COMMIT' && \
   test \"\$(git rev-parse HEAD)\" = '$COMMIT'"
 
@@ -35,7 +37,8 @@ for exp_class in "$@"; do
   mkdir -p "$artifact_dir"
 
   gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
-    --project="$PROJECT" --command="pkill -KILL -f '[M]axText/train.py.*run_name=$run' \
+    --project="$PROJECT" --worker="$WORKER_SCOPE" \
+    --command="pkill -KILL -f '[M]axText/train.py.*run_name=$run' \
     2>/dev/null || true; rm -rf '$remote_run'; mkdir -p '$remote_run'; \
     sudo rm -f /tmp/libtpu_lockfile"
 
@@ -45,7 +48,8 @@ for exp_class in "$@"; do
   collector_pid=$!
 
   gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
-    --project="$PROJECT" --command="export HARDWARE=tpu JAX_TRACEBACK_FILTERING=off; \
+    --project="$PROJECT" --worker="$WORKER_SCOPE" \
+    --command="export HARDWARE=tpu JAX_TRACEBACK_FILTERING=off; \
     cd '$REMOTE_REPO'; nohup /home/lishengping/miniconda3/bin/python \
     MaxText/train.py MaxText/configs/base.yml base_output_directory='$BASE_OUTPUT' \
     tensorboard_dir='$remote_run/tensorboard' run_name='$run' exp_class='$exp_class' \
@@ -55,7 +59,8 @@ for exp_class in "$@"; do
   reached_trace=false
   while (( SECONDS < deadline )); do
     status=$(gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
-      --project="$PROJECT" --command="if grep -q 'completed step: 15,' \
+      --project="$PROJECT" --worker=0 \
+      --command="if grep -q 'completed step: 15,' \
       /home/lishengping/train_${run}.log 2>/dev/null; then echo DONE; \
       elif grep -Eq '(^| )Traceback \(most recent call last\):|ValueError:|AssertionError:|TypeError:' \
       /home/lishengping/train_${run}.log 2>/dev/null; then echo ERROR; \
@@ -66,7 +71,8 @@ for exp_class in "$@"; do
       ERROR|EXITED)
         echo "$run $status" >&2
         gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
-          --project="$PROJECT" --command="tail -80 /home/lishengping/train_${run}.log" >&2 || true
+          --project="$PROJECT" --worker=0 \
+          --command="tail -80 /home/lishengping/train_${run}.log" >&2 || true
         break ;;
     esac
     sleep 5
@@ -79,7 +85,8 @@ for exp_class in "$@"; do
     wait "$collector_pid" 2>/dev/null || true
   fi
   gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
-    --project="$PROJECT" --command="pkill -KILL -f '[M]axText/train.py.*run_name=$run' \
+    --project="$PROJECT" --worker="$WORKER_SCOPE" \
+    --command="pkill -KILL -f '[M]axText/train.py.*run_name=$run' \
     2>/dev/null || true; sudo rm -f /tmp/libtpu_lockfile; \
     grep 'completed step:' /home/lishengping/train_${run}.log | tail -6" || true
 

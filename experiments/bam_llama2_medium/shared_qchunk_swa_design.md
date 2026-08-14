@@ -176,22 +176,22 @@ the BAM `M_s` cache is the motivation here.
 
 Implementation and semantic tests are complete. Initial architecture profiles used commit
 `0caa467`; the optimized BAM C256 implementation is finalized at `165b55b`. Profiles use bf16,
-`B=32,T=2048`, and step 10–14 XPlane. Full detail is in `bam_exp_memo.md`.
+`B=32,T=2048`, and step 10–14 XPlane. Canonical full-24 and fair eight-layer results are in
+`bam_exp_memo.md`; the optimization ladder is in `bam_profile_history.md`.
 
-- C256 is the best all-global BAM chunk: 591.78 ms versus dense 683.15 ms, or +15.4%
-  throughput. C128/C512 give +12.2%/+14.5%.
-- Chunking is not a generic MHA speedup: MHA C256 is 376.58 ms versus dense 373.31 ms (-0.9%).
-  The BAM gain comes from changing the joint BAM/MHA lowering, remat and intermediate lifetime.
+- C256 is the best original all-global BAM chunk: C128/C256/C512 measured
+  608.79/591.78/596.40 ms on the same six-layer v6e graph.
 - A single three-input `einsum(alpha, mix, M)` is rejected: on v5p-16 it is 601.89 ms versus
   479.01 ms for two-stage C256 (-20.4% throughput), with the same negative result on v6e logs;
   that implementation and its configuration switch have been removed.
-- Matched BAM overhead is 57.1% for all-global C256, 54.3% for L:G=1:1, and 53.9% for
-  L:G=3:1. SWA helps absolute speed and historical-M cache, but does not eliminate the remaining
-  BAM read/write overhead.
 - The original full-24 C256 path is 1,715.14 ms versus 1,780.90 ms dense. The optimized path is
   1,455.35 ms (+17.85% throughput), consistent with the six-layer v6e improvement from 592.26 to
   494.57 ms (+19.75%). It removes nested remat, defers fetched read, replaces diagonal scatter
   with exact select, and concatenates chunks.
+- Against matched C256 BAM-MHA controls, full-24 v5p retention is 74.8/73.9% for G U/U/S/U and
+  73.5/72.9% for LGLL. The corrected same-commit eight-layer v6e matrix gives
+  73.19/73.04% and 73.94/72.20%. Thus LGLL changes BAM's relative overhead only modestly; old
+  mixed-depth and legacy-inherited v6e ratios are not used.
 
 Therefore the implementation remains two-stage C256, with one deferred fetched read after the
 chunk loop. Set `attention='dot_product_chunk'`, reuse MaxText's `query_chunk_size`, and select the

@@ -1052,7 +1052,7 @@ class Llama2MediumC256LLLG(Llama2MediumC256LG):
 
 class BamLlama2MediumV2C256LGFetchG(BamV2C256FetchScheduleBase):
     """LG attention; fetched M read only on global layers."""
-    # code_commit: 159db23; ~0.790 steps/s (77.6% of matched MHA-LG).
+    # code_commit: 159db23; ~0.790 steps/s; stopped at 8,500. Fetch-G-only: +6.5% speed vs AllRead; plateau dloss -0.0734 vs MHA-LG, +0.0152 vs V2, +0.0121 vs LG-AllRead.
     model_name = 'BamLlama2MediumV2C256LGFetchG'
     bam_layer_modes = ['local_qk', 'local_qk+full'] * 12
     sliding_window_size = [256, None]
@@ -1068,7 +1068,7 @@ class BamLlama2MediumV2C256LGFetchL(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LLLGFetchL(BamV2C256FetchScheduleBase):
     """LLLG attention; fetched M read on the three local layers."""
-    # code_commit: 159db23; ~0.817 steps/s (76.2% of matched MHA-LLLG).
+    # code_commit: 159db23; ~0.817 steps/s; stopped at 8,750. Fetch-L-only: +3.9% speed vs AllRead; plateau dloss -0.0684 vs MHA-LLLG, -0.0183 vs LG-FetchL, +0.0118 vs LLLG-AllRead.
     model_name = 'BamLlama2MediumV2C256LLLGFetchL'
     bam_layer_modes = (['local_qk+full'] * 3 + ['local_qk']) * 6
     sliding_window_size = [256, 256, 256, None]

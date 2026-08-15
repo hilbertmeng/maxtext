@@ -2314,13 +2314,65 @@ class BamAttention(Attention):
         cfg, 'bam_mha_control_inner_remat', False))
     self._mha_control_gqa_layout = bool(getattr(
         cfg, 'bam_mha_control_gqa_layout', False))
+    self._mha_extra_head_mode = getattr(
+        cfg, 'bam_mha_extra_head_mode', 'none')
+    self._mha_extra_head_value_dim = int(getattr(
+        cfg, 'bam_mha_extra_head_value_dim', 256))
+    self._mha_extra_head_qk_dim = int(getattr(
+        cfg, 'bam_mha_extra_head_qk_dim', 64))
     if self._mha_control:
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       assert not cfg.bam_diagnostics, 'BAM MHA control must not expose BAM diagnostics'
+      assert self._mha_extra_head_mode in (
+          'none', 'dynamic_rms_mix', 'independent_qk')
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
         assert cfg.max_target_length % self._query_chunk_size == 0, (
             'BAM MHA-control query chunk size must divide max_target_length')
+      if self._mha_extra_head_mode != 'none':
+        assert self._query_chunk_size is not None, (
+            'MHA extra-head controls currently require query chunking')
+        assert not self._mha_control_gqa_layout, (
+            'MHA extra-head controls require the direct per-head alpha layout')
+        assert self._mha_extra_head_value_dim > 0
+        self.mha_extra_value = DenseGeneral(
+            features=(1, self._mha_extra_head_value_dim), axis=-1,
+            kernel_init=self.kernel_init,
+            kernel_axes=('embed', 'kv_heads', 'kv_head_dim'),
+            dtype=self.dtype, weight_dtype=self.weight_dtype,
+            name='mha_extra_value', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
+        self.mha_extra_out = DenseGeneral(
+            features=cfg.emb_dim, axis=(-2, -1), kernel_init=self.kernel_init,
+            kernel_axes=('heads', 'kv', 'embed'),
+            dtype=self.dtype, weight_dtype=self.weight_dtype,
+            name='mha_extra_out', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=False)
+        if self._mha_extra_head_mode == 'dynamic_rms_mix':
+          self.mha_extra_head_mix = DenseGeneral(
+              features=self.num_query_heads, axis=-1,
+              kernel_init=self.kernel_init,
+              kernel_axes=('embed', 'q_heads'),
+              dtype=self.dtype, weight_dtype=self.weight_dtype,
+              name='mha_extra_head_mix', quant=self.quant,
+              matmul_precision=cfg.matmul_precision, use_bias=True)
+        else:
+          assert self._mha_extra_head_qk_dim == self.head_dim, (
+              'independent extra-head Q/K currently reuse the standard RoPE width')
+          self.mha_extra_query = DenseGeneral(
+              features=(1, self._mha_extra_head_qk_dim), axis=-1,
+              kernel_init=self.kernel_init,
+              kernel_axes=('embed', 'q_heads', 'kv'),
+              dtype=self.dtype, weight_dtype=self.weight_dtype,
+              name='mha_extra_query', quant=self.quant,
+              matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
+          self.mha_extra_key = DenseGeneral(
+              features=(1, self._mha_extra_head_qk_dim), axis=-1,
+              kernel_init=self.kernel_init,
+              kernel_axes=('embed', 'kv_heads', 'kv_head_dim'),
+              dtype=self.dtype, weight_dtype=self.weight_dtype,
+              name='mha_extra_key', quant=self.quant,
+              matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
       self._mode = set()
       self._has_write = False
       return
@@ -3420,7 +3472,8 @@ class BamAttention(Attention):
 
   def _query_chunk_mha_control(
       self, query, key, value, decoder_segment_ids, is_global=None,
-      window_size_override=None):
+      window_size_override=None, extra_value=None, extra_mix_weights=None,
+      extra_query=None, extra_key=None):
     """Run only BAM's chunked QK/softmax/AV implementation."""
     cfg = self.config
     b, t, n, d = query.shape
@@ -3432,18 +3485,33 @@ class BamAttention(Attention):
           is_global,
           lambda _: self._query_chunk_mha_control(
               query, key, value, decoder_segment_ids,
-              window_size_override=t),
+              window_size_override=t, extra_value=extra_value,
+              extra_mix_weights=extra_mix_weights,
+              extra_query=extra_query, extra_key=extra_key),
           lambda _: self._query_chunk_mha_control(
               query, key, value, decoder_segment_ids,
-              window_size_override=local_window),
+              window_size_override=local_window, extra_value=extra_value,
+              extra_mix_weights=extra_mix_weights,
+              extra_query=extra_query, extra_key=extra_key),
           operand=None)
     window_size = (
         window_size_override if window_size_override is not None else
         (t if self.sliding_window_size is None
          else min(t, int(self.sliding_window_size))))
     y_std = jnp.zeros((b, t, n, d), dtype=value.dtype)
+    has_extra_head = self._mha_extra_head_mode != 'none'
+    if has_extra_head:
+      assert extra_value is not None
+      y_extra = jnp.zeros(
+          (b, t, 1, self._mha_extra_head_value_dim),
+          dtype=extra_value.dtype)
+      if self._mha_extra_head_mode == 'dynamic_rms_mix':
+        assert extra_mix_weights is not None
+      else:
+        assert extra_query is not None and extra_key is not None
 
-    def chunk_body(q_chunk, k_chunk, v_chunk, valid):
+    def chunk_body(q_chunk, k_chunk, v_chunk, valid, extra_v_chunk=None,
+                   mix_chunk=None, extra_q_chunk=None, extra_k_chunk=None):
       with jax.named_scope("attention/qk_logits"):
         if self._mha_control_gqa_layout:
           q_chunk = q_chunk.reshape((b, q_chunk.shape[1], n, 1, d))
@@ -3464,8 +3532,35 @@ class BamAttention(Attention):
         if self._mha_control_gqa_layout:
           alpha = jnp.where(valid_logits, alpha.astype(self.dtype), 0.)
           output = jnp.einsum('bkgcs,bskd->bckgd', alpha, v_chunk)
-          return output.reshape((b, output.shape[1], n, d))
-        return jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
+          y_chunk = output.reshape((b, output.shape[1], n, d))
+        else:
+          y_chunk = jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
+      if not has_extra_head:
+        return y_chunk
+      if self._mha_extra_head_mode == 'dynamic_rms_mix':
+        with jax.named_scope("mha_extra_head/mix_alpha"):
+          extra_alpha = jnp.einsum('bncs,bcn->bcs', alpha, mix_chunk)
+      else:
+        with jax.named_scope("mha_extra_head/qk_logits"):
+          extra_logits = jnp.einsum(
+              'bcnd,bsnd->bncs', extra_q_chunk, extra_k_chunk)
+        if cfg.attn_logits_soft_cap:
+          extra_logits = (
+              jnp.tanh(extra_logits / cfg.attn_logits_soft_cap)
+              * cfg.attn_logits_soft_cap)
+        extra_logits = jnp.where(valid[:, None], extra_logits, DEFAULT_MASK_VALUE)
+        if cfg.float32_logits:
+          extra_logits = extra_logits.astype(jnp.float32)
+        with jax.named_scope("mha_extra_head/softmax"):
+          extra_alpha = jax.nn.softmax(extra_logits, axis=-1)
+      with jax.named_scope("mha_extra_head/av"):
+        if self._mha_extra_head_mode == 'dynamic_rms_mix':
+          y_extra_chunk = jnp.einsum(
+              'bcs,bsnd->bcnd', extra_alpha, extra_v_chunk)
+        else:
+          y_extra_chunk = jnp.einsum(
+              'bncs,bsnd->bcnd', extra_alpha, extra_v_chunk)
+      return y_chunk, y_extra_chunk
 
     apply_chunk = (
         jax.checkpoint(chunk_body, prevent_cse=True)
@@ -3484,10 +3579,26 @@ class BamAttention(Attention):
         valid = valid & (
             decoder_segment_ids[:, q0:q1, None]
             == decoder_segment_ids[:, None, s0:s1])
-      y_std_chunk = apply_chunk(
+      chunk_args = (
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1], valid)
+      if self._mha_extra_head_mode == 'dynamic_rms_mix':
+        chunk_result = apply_chunk(
+            *chunk_args, extra_value[:, s0:s1],
+            extra_mix_weights[:, q0:q1], None, None)
+      elif self._mha_extra_head_mode == 'independent_qk':
+        chunk_result = apply_chunk(
+            *chunk_args, extra_value[:, s0:s1], None,
+            extra_query[:, q0:q1], extra_key[:, s0:s1])
+      else:
+        chunk_result = apply_chunk(*chunk_args)
+      if has_extra_head:
+        y_std_chunk, y_extra_chunk = chunk_result
+        y_extra = lax.dynamic_update_slice(
+            y_extra, y_extra_chunk, (0, q0, 0, 0))
+      else:
+        y_std_chunk = chunk_result
       y_std = lax.dynamic_update_slice(y_std, y_std_chunk, (0, q0, 0, 0))
-    return y_std
+    return (y_std, y_extra) if has_extra_head else y_std
 
   @nn.compact
   def __call__(
@@ -3544,6 +3655,39 @@ class BamAttention(Attention):
       key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
 
     if self._mha_control:
+      extra_value = None
+      extra_mix_weights = None
+      extra_query = None
+      extra_key = None
+      if self._mha_extra_head_mode != 'none':
+        with jax.named_scope("mha_extra_head/value_projection"):
+          extra_value = self.mha_extra_value(inputs_kv)
+        extra_value = nn.with_logical_constraint(
+            extra_value, self.value_axis_names)
+        if self._mha_extra_head_mode == 'dynamic_rms_mix':
+          with jax.named_scope("mha_extra_head/mix_projection"):
+            _, extra_mix_weights = _dynamic_bam_fetch_mix_weights(
+                self.mha_extra_head_mix(inputs_q), query.dtype, 'rms',
+                rms_epsilon=float(cfg.normalization_layer_epsilon))
+        else:
+          with jax.named_scope("mha_extra_head/qk_projection"):
+            extra_query = self.mha_extra_query(inputs_q)
+            extra_key = self.mha_extra_key(inputs_kv)
+          extra_query, extra_key = dc.QKNorm(
+              cfg, name='mha_extra_qk_norm')(extra_query, extra_key)
+          extra_query = self.apply_rotary_embedding(
+              extra_query, inputs_positions, name='mha_extra_query_rotary')
+          extra_key = self.apply_rotary_embedding(
+              extra_key, inputs_positions, name='mha_extra_key_rotary')
+          extra_query = nn.with_logical_constraint(
+              extra_query, self.query_axis_names)
+          extra_key = nn.with_logical_constraint(
+              extra_key, self.key_axis_names)
+          extra_query = extra_query / jnp.sqrt(
+              self._mha_extra_head_qk_dim).astype(self.dtype)
+          if cfg.float32_qk_product:
+            extra_query = extra_query.astype(jnp.float32)
+            extra_key = extra_key.astype(jnp.float32)
       query = nn.with_logical_constraint(query, self.query_axis_names)
       key = nn.with_logical_constraint(key, self.key_axis_names)
       value = nn.with_logical_constraint(value, self.value_axis_names)
@@ -3552,8 +3696,15 @@ class BamAttention(Attention):
         query = query.astype(jnp.float32)
         key = key.astype(jnp.float32)
       if self._query_chunk_size is not None:
-        y_std = self._query_chunk_mha_control(
-            query, key, value, decoder_segment_ids, is_global=is_global)
+        chunk_output = self._query_chunk_mha_control(
+            query, key, value, decoder_segment_ids, is_global=is_global,
+            extra_value=extra_value, extra_mix_weights=extra_mix_weights,
+            extra_query=extra_query, extra_key=extra_key)
+        if self._mha_extra_head_mode == 'none':
+          y_std = chunk_output
+          y_extra = None
+        else:
+          y_std, y_extra = chunk_output
       else:
         with jax.named_scope("attention/qk_logits"):
           logits = jnp.einsum('btnd,bsnd->bnts', query, key)
@@ -3572,7 +3723,12 @@ class BamAttention(Attention):
         with jax.named_scope("attention/av"):
           y_std = jnp.einsum('bnts,bsnd->btnd', alpha, value)
       y_std = nn.with_logical_constraint(y_std, self.out_axis_names)
-      return self.out_projection(inputs_q.shape[-1], y_std), M_in
+      out = self.out_projection(inputs_q.shape[-1], y_std)
+      if self._mha_extra_head_mode != 'none':
+        y_extra = nn.with_logical_constraint(y_extra, self.out_axis_names)
+        with jax.named_scope("mha_extra_head/out_projection"):
+          out = out + self.mha_extra_out(y_extra)
+      return out, M_in
 
     fetch_query = fetch_key = None
     if cfg.bam_dedicated_fetch:

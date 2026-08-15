@@ -230,6 +230,9 @@ class BamLlama2Medium(Llama2Medium):
     model_name = 'BamLlama2Medium'
     bam_enabled = True
     bam_mha_control = False
+    bam_mha_extra_head_mode = 'none'  # none | dynamic_rms_mix | independent_qk
+    bam_mha_extra_head_value_dim = 256
+    bam_mha_extra_head_qk_dim = 64
     # Standalone health probe only. The attention layer exposes raw tensors in a separate
     # Flax collection; all reductions/statistics live outside the production model code.
     bam_diagnostics = False
@@ -1036,6 +1039,31 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class Llama2MediumC256ExtraHeadBase(BamLlama2MediumV2):
+    """Matched C256 MHA control with one additional 256-wide value head."""
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 24
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    scan_layers = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-mha-c256-extra-heads')
+    jax_cache_explain_misses = True
+
+
+class Llama2MediumC256DynamicMixV256Head(Llama2MediumC256ExtraHeadBase):
+    """Extra V256 head whose route is a signed dynamic mixture of MHA heads."""
+    model_name = 'Llama2MediumC256DynamicMixV256Head'
+    bam_mha_extra_head_mode = 'dynamic_rms_mix'
+
+
+class Llama2MediumC256IndependentQK64V256Head(Llama2MediumC256ExtraHeadBase):
+    """Extra V256 head with an independent Q64/K64 attention route."""
+    model_name = 'Llama2MediumC256IndependentQK64V256Head'
+    bam_mha_extra_head_mode = 'independent_qk'
 
 
 class BamLlama2MediumV2C256AbsK16Direct(BamV2C256FetchScheduleBase):

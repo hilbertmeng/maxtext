@@ -1036,7 +1036,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class Llama2MediumC256LG(BamV2C256FetchScheduleBase):
     """Matched BAM-MHA control with alternating local/global attention."""
-    # code_commit: 159db23; ~1.018 steps/s.
+    # code_commit: 159db23; ~1.018 steps/s; completed 13,500. LG: +26.6% speed, plateau dloss +0.00169 vs dense MHA.
     model_name = 'Llama2MediumC256LG'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24
@@ -1045,7 +1045,7 @@ class Llama2MediumC256LG(BamV2C256FetchScheduleBase):
 
 class Llama2MediumC256LLLG(Llama2MediumC256LG):
     """Matched BAM-MHA control with three local layers per global layer."""
-    # code_commit: 159db23; ~1.073 steps/s.
+    # code_commit: 159db23; ~1.073 steps/s; completed 13,500. LLLG: +5.4% speed and plateau dloss -0.00221 vs LG; -0.00051 vs dense MHA.
     model_name = 'Llama2MediumC256LLLG'
     sliding_window_size = [256, 256, 256, None]
 

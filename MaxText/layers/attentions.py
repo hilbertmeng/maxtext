@@ -2308,15 +2308,15 @@ class BamAttention(Attention):
     self._query_chunk_size = (
         cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
     self._query_chunk_implementation = cfg.bam_query_chunk_implementation
+    self._mha_control_segment_mask = bool(getattr(
+        cfg, 'bam_mha_control_segment_mask', True))
+    self._mha_control_inner_remat = bool(getattr(
+        cfg, 'bam_mha_control_inner_remat', False))
+    self._mha_control_gqa_layout = bool(getattr(
+        cfg, 'bam_mha_control_gqa_layout', False))
     if self._mha_control:
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       assert not cfg.bam_diagnostics, 'BAM MHA control must not expose BAM diagnostics'
-      self._mha_control_segment_mask = bool(getattr(
-          cfg, 'bam_mha_control_segment_mask', True))
-      self._mha_control_inner_remat = bool(getattr(
-          cfg, 'bam_mha_control_inner_remat', False))
-      self._mha_control_gqa_layout = bool(getattr(
-          cfg, 'bam_mha_control_gqa_layout', False))
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
         assert cfg.max_target_length % self._query_chunk_size == 0, (
@@ -2386,7 +2386,9 @@ class BamAttention(Attention):
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
-    self._abs_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
+    self._abs_v_dim = (
+        getattr(cfg, 'bam_abs_v_compression_dim', None)
+        if 'full' in self._mode else None)
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
     self._abs_v_source_implementation = getattr(
         cfg, 'bam_abs_v_source_implementation', 'dot')
@@ -2486,7 +2488,7 @@ class BamAttention(Attention):
         'combining full/local reads requires shared projections')
     assert not self._combine_full_local_read or cfg.bam_write_source != 'std+cross', (
         "combined read cannot isolate cross-only content for bam_write_source='std+cross'")
-    if self._fetch_diagonal_one:
+    if self._fetch_diagonal_one and {'full', 'codebook'} & self._mode:
       assert {'full', 'codebook'} & self._mode and 'local_o' not in self._mode, (
           'direct fetch diagonal one requires full/codebook without a local_o branch')
       assert cfg.bam_n_f == 1, 'direct fetch diagonal one requires exactly one fetch route'
@@ -2496,16 +2498,17 @@ class BamAttention(Attention):
       assert self._query_chunk_size > 0
       assert cfg.max_target_length % self._query_chunk_size == 0, (
           'BAM query chunk size must divide max_target_length')
-      assert self._mode == {'local_qk', 'full'}, (
-          'shared-alpha QChunk currently targets the V2 local_qk+full path')
-      assert self._shared_fetch_mode == 'dynamic_rms_mix'
-      assert cfg.bam_n_f == 1 and self._fetch_diagonal_one
-      assert not cfg.bam_dedicated_fetch
-      assert self._fetch_sliding_window_size is None
-      assert self._fetch_temporal_block_size is None
+      assert self._mode in ({'local_qk'}, {'local_qk', 'full'}), (
+          'QChunk BAM supports V2 local_qk layers with optional full fetch')
+      if 'full' in self._mode:
+        assert self._shared_fetch_mode == 'dynamic_rms_mix'
+        assert cfg.bam_n_f == 1 and self._fetch_diagonal_one
+        assert not cfg.bam_dedicated_fetch
+        assert self._fetch_sliding_window_size is None
+        assert self._fetch_temporal_block_size is None
+        assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
       assert not cfg.bam_diagnostics
-      assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
-    if self._squeeze_single_fetch_read:
+    if self._squeeze_single_fetch_read and 'full' in self._mode:
       assert 'full' in self._mode and cfg.bam_n_f == 1, (
           'single-fetch squeeze requires one full-read route')
     assert not cfg.bam_dedicated_fetch or 'full' in self._mode, (
@@ -3523,10 +3526,15 @@ class BamAttention(Attention):
       query = query.astype(jnp.float32); key = key.astype(jnp.float32)
     if self._query_chunk_size is not None:
       assert cfg.bam_write_source == 'std+cross+local_o'
-      y_std, y_full = self._query_chunk_shared_full_read(
-          query, key, value, Mh, inputs_q, decoder_segment_ids,
-          is_global=is_global)
-      o_head = y_std + y_full
+      if 'full' in self._mode:
+        y_std, y_full = self._query_chunk_shared_full_read(
+            query, key, value, Mh, inputs_q, decoder_segment_ids,
+            is_global=is_global)
+        o_head = y_std + y_full
+      else:
+        y_std = self._query_chunk_mha_control(
+            query, key, value, decoder_segment_ids, is_global=is_global)
+        o_head = y_std
       with jax.named_scope("bam/write_m"):
         M_out, _, _ = self._write(o_head, inputs_q, M_in)
       out = nn.with_logical_constraint(o_head, self.out_axis_names)

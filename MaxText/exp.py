@@ -1023,6 +1023,51 @@ class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
     sliding_window_size = [256, None, 256, 256]
 
 
+class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
+    """Explicit-layer C256 base for sparse fetched-read schedules."""
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    bam_query_chunk_implementation = 'optimized'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-schedules')
+
+
+class Llama2MediumC256LG(BamV2C256FetchScheduleBase):
+    """Matched BAM-MHA control with alternating local/global attention."""
+    model_name = 'Llama2MediumC256LG'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 24
+    sliding_window_size = [256, None]
+
+
+class Llama2MediumC256LLLG(Llama2MediumC256LG):
+    """Matched BAM-MHA control with three local layers per global layer."""
+    model_name = 'Llama2MediumC256LLLG'
+    sliding_window_size = [256, 256, 256, None]
+
+
+class BamLlama2MediumV2C256LGFetchG(BamV2C256FetchScheduleBase):
+    """LG attention; fetched M read only on global layers."""
+    model_name = 'BamLlama2MediumV2C256LGFetchG'
+    bam_layer_modes = ['local_qk', 'local_qk+full'] * 12
+    sliding_window_size = [256, None]
+
+
+class BamLlama2MediumV2C256LGFetchL(BamV2C256FetchScheduleBase):
+    """LG attention; fetched M read only on local layers."""
+    model_name = 'BamLlama2MediumV2C256LGFetchL'
+    bam_layer_modes = ['local_qk+full', 'local_qk'] * 12
+    sliding_window_size = [256, None]
+
+
+class BamLlama2MediumV2C256LLLGFetchL(BamV2C256FetchScheduleBase):
+    """LLLG attention; fetched M read on the three local layers."""
+    model_name = 'BamLlama2MediumV2C256LLLGFetchL'
+    bam_layer_modes = (['local_qk+full'] * 3 + ['local_qk']) * 6
+    sliding_window_size = [256, 256, 256, None]
+
+
 class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):
     """MHA control for the six-layer 1:1 BAM SWA profile."""
     # v6e-1 XPlane 323.39 ms.

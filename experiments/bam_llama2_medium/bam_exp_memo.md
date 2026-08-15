@@ -291,6 +291,7 @@ Remaining structural concerns are:
 | remove whole-M normalization | `-0.0078` vs Factorized | slightly faster | keep |
 | AbsV8 Direct | `+0.0096` vs V1 final | 11.7% faster; V-axis cache 4× smaller | keep as tradeoff |
 | R256-GELU `P_loc` | `-0.0044` vs Direct final | speed neutral | keep |
+| packed factorized LocalQK projection | mapped/native-init controls converge to ~loss-neutral vs Direct | isolated fp32 mapped pair: 0.523 vs 0.509 step/s (`+2.8%`); the cross-commit clean endpoint, 0.521 vs historical Direct 0.512, is not a packing-only estimate | keep with sharded `P_loc_up`; inherited by V2 |
 | replicate `P_loc_up` | persistent ~`+0.0034` trajectory gap | ~1.5% faster | reject for capability runs |
 | CodebookC4 | `+0.0411` vs Factorized @2,800 | faster | reject |
 | Window256 | same-batch `+0.1193` | temporal cache 8× smaller | reject |

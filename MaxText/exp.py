@@ -1057,14 +1057,16 @@ class Llama2MediumC256ExtraHeadBase(BamLlama2MediumV2):
 
 class Llama2MediumC256DynamicMixV256Head(Llama2MediumC256ExtraHeadBase):
     """Extra V256 head whose route is a signed dynamic mixture of MHA heads."""
-    # code_commit: 37337bb; ~0.793 steps/s.
+    # code_commit: 37337bb; ~0.793 steps/s; stopped 2,910. dloss +.0010 vs MHA
+    # @2,000–2,800, but +.1372 vs V2 @2,800: extra routed value capacity is dominated.
     model_name = 'Llama2MediumC256DynamicMixV256Head'
     bam_mha_extra_head_mode = 'dynamic_rms_mix'
 
 
 class Llama2MediumC256IndependentQK64V256Head(Llama2MediumC256ExtraHeadBase):
     """Extra V256 head with an independent Q64/K64 attention route."""
-    # code_commit: 37337bb; ~0.829 steps/s.
+    # code_commit: 37337bb; ~0.829 steps/s; stopped 3,041. dloss +.0008 vs MHA
+    # @2,000–2,800, but +.1388 vs V2 @2,800; equivalent to DynamicMix and dominated.
     model_name = 'Llama2MediumC256IndependentQK64V256Head'
     bam_mha_extra_head_mode = 'independent_qk'
 

@@ -1040,8 +1040,8 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256AbsK16Direct(BamV2C256FetchScheduleBase):
     """Cache full reads as 16x8 and inject both compressed halves directly."""
-    # code_commit: 5e31a9f; ~0.681 steps/s (+2.6%); stopped 12,075. Plateau dloss +.03333 vs V2.
-    # 8x M-cache compression, but gives back ~38% of V2's loss gain over MHA.
+    # code_commit: 5e31a9f; ~0.681 steps/s (+2.6% vs V2-C256); stopped 12,075.
+    # 2x M-cache compression vs V2, but dloss +.03333 gives back ~38% of V2's gain over MHA.
     model_name = 'BamLlama2MediumV2C256AbsK16Direct'
     scan_layers = True
     bam_abs_k_compression_dim = 16

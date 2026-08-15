@@ -106,9 +106,10 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 ```
 
 It samples `step % 5 == 0` inside each ±25-step window, preserving the historical 11-sample
-gap definition even though future TensorBoard files record every 10 steps. Print cumulative
-`step`, `run`, `base`, `gap`, and `r200` as horizontal rows; split long sequences into additional
-horizontal row blocks. Omit a completed BASE from routine repeats once it has no new common steps
+gap definition even though future TensorBoard files record every 10 steps. For each RUN−BASE,
+print one cumulative horizontal table with only `step`, `gap`, and `r200`; omit absolute losses
+and split after about 20 steps into another horizontal block. Omit a completed BASE from routine
+repeats once it has no new common steps
 and the user has acknowledged its result; retain it in the registry/experiment record. Here
 `r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
 magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
@@ -142,9 +143,10 @@ unlikely to beat its direct baseline and offering no other gain may stop at 2,80
 clearly dominated by a prior failed configuration.
 
 For multiple runs, use one shared wake-up and batch-check all runs; use per-run wake-ups only
-for anomalies or imminent completion/decisions. Estimate from steps/s and stay silent between
-wakes. When preemptions are frequent, cap a shared sleep at ~2 report intervals or ~10–12 minutes
-so a stable loss curve does not delay health/recovery checks; modest overshoot is fine.
+for anomalies or imminent completion/decisions. Stable runs may accumulate about five 200-step
+windows per loss report. Independently, when preemptions are frequent, wake for a shared health
+check within ~10–12 minutes; an unchanged health check need not trigger a loss report. Estimate
+from steps/s and stay silent between wakes; modest overshoot is fine.
 
 ## Stop Training
 

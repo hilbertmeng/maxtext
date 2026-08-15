@@ -1057,18 +1057,21 @@ class Llama2MediumC256ExtraHeadBase(BamLlama2MediumV2):
 
 class Llama2MediumC256DynamicMixV256Head(Llama2MediumC256ExtraHeadBase):
     """Extra V256 head whose route is a signed dynamic mixture of MHA heads."""
+    # code_commit: 37337bb; ~0.793 steps/s.
     model_name = 'Llama2MediumC256DynamicMixV256Head'
     bam_mha_extra_head_mode = 'dynamic_rms_mix'
 
 
 class Llama2MediumC256IndependentQK64V256Head(Llama2MediumC256ExtraHeadBase):
     """Extra V256 head with an independent Q64/K64 attention route."""
+    # code_commit: 37337bb; ~0.829 steps/s.
     model_name = 'Llama2MediumC256IndependentQK64V256Head'
     bam_mha_extra_head_mode = 'independent_qk'
 
 
 class BamLlama2MediumV2C256MixHead8(BamV2C256FetchScheduleBase):
     """V2 C256 fetch routing dynamically mixes only the first 8 MHA heads."""
+    # code_commit: 9fd72ab; ~0.619 steps/s. !! 6.6% slower than matched V2-C256 ~0.663.
     model_name = 'BamLlama2MediumV2C256MixHead8'
     scan_layers = True
     bam_fetch_mix_num_heads = 8
@@ -1076,6 +1079,7 @@ class BamLlama2MediumV2C256MixHead8(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256MixHead4(BamV2C256FetchScheduleBase):
     """V2 C256 fetch routing dynamically mixes only the first 4 MHA heads."""
+    # code_commit: 9fd72ab; ~0.630 steps/s. !! 5.0% slower than matched V2-C256 ~0.663.
     model_name = 'BamLlama2MediumV2C256MixHead4'
     scan_layers = True
     bam_fetch_mix_num_heads = 4

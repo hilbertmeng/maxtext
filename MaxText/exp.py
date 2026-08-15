@@ -286,6 +286,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
+    bam_abs_k_compression_dim = None  # keep the cached absolute K axis full-width
+    bam_abs_k_col_output = 'direct'  # direct | project; expand the compressed K-side answer
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
@@ -1034,6 +1036,22 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
     jax_cache_explain_misses = True
 
 
+class BamLlama2MediumV2C256AbsK16Direct(BamV2C256FetchScheduleBase):
+    """Cache full reads as 16x8 and inject both compressed halves directly."""
+    model_name = 'BamLlama2MediumV2C256AbsK16Direct'
+    scan_layers = True
+    bam_abs_k_compression_dim = 16
+    bam_abs_k_col_output = 'direct'
+
+
+class BamLlama2MediumV2C256AbsK16Project(
+    BamLlama2MediumV2C256AbsK16Direct
+):
+    """Decode the cached 16-wide K-side answer independently for every head."""
+    model_name = 'BamLlama2MediumV2C256AbsK16Project'
+    bam_abs_k_col_output = 'project'
+
+
 class Llama2MediumC256LG(BamV2C256FetchScheduleBase):
     """Matched BAM-MHA control with alternating local/global attention."""
     # code_commit: 159db23; ~1.018 steps/s; completed 13,500. LG: +26.6% speed, plateau dloss +0.00169 vs dense MHA.
@@ -1076,7 +1094,7 @@ class BamLlama2MediumV2C256LLLGFetchL(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LGAllRead(BamV2C256FetchScheduleBase):
     """LG attention; fetched M read on every layer."""
-    # code_commit: e49b98b; ~0.742 steps/s (72.9% of matched MHA-LG).
+    # code_commit: e49b98b; ~0.742 steps/s; stopped at 11,108. plateau dloss -0.0792 vs MHA-LG, +0.00356 vs V2; -0.0115/-0.0356 vs FetchG/FetchL.
     model_name = 'BamLlama2MediumV2C256LGAllRead'
     bam_layer_modes = ['local_qk+full'] * 24
     sliding_window_size = [256, None]
@@ -1084,7 +1102,7 @@ class BamLlama2MediumV2C256LGAllRead(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LLLGAllRead(BamV2C256FetchScheduleBase):
     """LLLG attention; fetched M read on every layer."""
-    # code_commit: e49b98b; ~0.786 steps/s (73.3% of matched MHA-LLLG).
+    # code_commit: e49b98b; ~0.786 steps/s; stopped at 12,801. plateau dloss -0.0732 vs MHA-LLLG, +0.00227 vs LG-AllRead, -0.0112 vs FetchL.
     model_name = 'BamLlama2MediumV2C256LLLGAllRead'
     bam_layer_modes = ['local_qk+full'] * 24
     sliding_window_size = [256, 256, 256, None]

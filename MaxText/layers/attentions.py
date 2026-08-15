@@ -2386,6 +2386,10 @@ class BamAttention(Attention):
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
+    self._abs_k_dim = (
+        getattr(cfg, 'bam_abs_k_compression_dim', None)
+        if 'full' in self._mode else None)
+    self._abs_k_col_output = getattr(cfg, 'bam_abs_k_col_output', 'direct')
     self._abs_v_dim = (
         getattr(cfg, 'bam_abs_v_compression_dim', None)
         if 'full' in self._mode else None)
@@ -2459,8 +2463,13 @@ class BamAttention(Attention):
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._query_chunk_implementation in (
         'legacy', 'no_remat', 'deferred_read', 'diag_select', 'optimized')
+    assert self._abs_k_col_output in ('direct', 'project')
     assert self._abs_v_row_output in ('direct', 'project')
     assert self._abs_v_source_implementation in ('dot', 'mul_reduce')
+    if self._abs_k_dim is not None:
+      assert 0 < self._abs_k_dim < self.bam_k
+      assert self._abs_v_dim is not None, (
+          'absolute-K compression currently pairs with absolute-V compression')
     if self._abs_v_dim is not None:
       assert 0 < self._abs_v_dim < self.bam_v
       assert 'full' in self._mode
@@ -2564,19 +2573,21 @@ class BamAttention(Attention):
           ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
     if 'full' in self._mode:
+      read_k_dim = self._abs_k_dim or self.bam_k
       read_v_dim = self._abs_v_dim or self.bam_v
+
+      def decoder_init(_key, shape, dtype):
+        direct = jnp.eye(shape[-2], shape[-1], dtype=dtype)
+        return jnp.broadcast_to(direct, shape)
+
       if self._abs_v_dim is not None:
         # M itself remains [k,v] across layers.  Only the historical cache/read view is
-        # projected to [k,C]; the target-side W_R column key is generated directly in C.
+        # projected on its V axis; the target-side column key is generated directly
+        # in the compressed space.
         self.abs_v_cache_projection = self.param(
             'abs_v_cache_projection',
             nn.with_logical_partitioning(orth_init, ('v_factor', 'kv')),
             (self.bam_v, self._abs_v_dim), self.weight_dtype)
-
-        def decoder_init(_key, shape, dtype):
-          direct = jnp.eye(shape[-2], shape[-1], dtype=dtype)
-          return jnp.broadcast_to(direct, shape)
-
         # Create the decoder in both paired arms so their parameter trees and initializers
         # match.  The direct arm deliberately leaves it unused.
         self.abs_v_row_decoder = self.param(
@@ -2585,10 +2596,25 @@ class BamAttention(Attention):
                 decoder_init, ('q_heads', 'kv', 'v_factor')),
             (self.num_query_heads, self._abs_v_dim, self.bam_v), self.weight_dtype)
 
-      # Joint target-side read key.  Under CompressAbsV, W_R directly emits k+C;
-      # it never forms a 32-wide V key followed by a 32->C projection.
+      if self._abs_k_dim is not None:
+        # Compress only the historical cache/read view; the cross-layer M stream
+        # remains full [k,v].  V is compressed first at runtime because it is the
+        # narrower axis, then this projection maps K to its cached width.
+        self.abs_k_cache_projection = self.param(
+            'abs_k_cache_projection',
+            nn.with_logical_partitioning(orth_init, ('v_factor', 'kv')),
+            (self.bam_k, self._abs_k_dim), self.weight_dtype)
+        # The identity-prefix initializer makes the project arm exactly match the
+        # direct zero-pad arm at step zero while retaining identical parameter trees.
+        self.abs_k_col_decoder = self.param(
+            'abs_k_col_decoder',
+            nn.with_logical_partitioning(
+                decoder_init, ('q_heads', 'kv', 'v_factor')),
+            (self.num_query_heads, self._abs_k_dim, self.bam_k), self.weight_dtype)
+
+      # Joint target-side read key is generated directly in both cached spaces.
       self.W_R = DenseGeneral(
-          features=(self.num_query_heads, cfg.bam_n_f, self.bam_k + read_v_dim), axis=-1,
+          features=(self.num_query_heads, cfg.bam_n_f, read_k_dim + read_v_dim), axis=-1,
           kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", "kv"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
@@ -2596,7 +2622,7 @@ class BamAttention(Attention):
                     ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
                     zero_key_gate_init)
       add_grouped_read_norms(
-          'W_R', (self.num_query_heads, cfg.bam_n_f, self.bam_k),
+          'W_R', (self.num_query_heads, cfg.bam_n_f, read_k_dim),
           (self.num_query_heads, cfg.bam_n_f, read_v_dim),
           ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
@@ -3139,6 +3165,56 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate, forget_gate
 
+  def _compress_full_fetch_state(self, Mh):
+    """Project only the historical full-read cache view; keep cross-layer M full."""
+    fetch_state = Mh
+    if self._abs_v_dim is not None:
+      with jax.named_scope("bam/compress_abs_v_cache"):
+        projection = self.abs_v_cache_projection.astype(fetch_state.dtype)
+        if self._abs_v_source_implementation == 'dot':
+          fetch_state = jnp.einsum('bskv,vc->bskc', fetch_state, projection)
+        else:
+          fetch_state = jnp.sum(
+              fetch_state[..., None] * projection[None, None, None, :, :],
+              axis=-2)
+    if self._abs_k_dim is not None:
+      with jax.named_scope("bam/compress_abs_k_cache"):
+        projection = self.abs_k_cache_projection.astype(fetch_state.dtype)
+        if self._abs_v_source_implementation == 'dot':
+          fetch_state = jnp.einsum('bskc,kp->bspc', fetch_state, projection)
+        else:
+          fetch_state = jnp.sum(
+              fetch_state[..., :, None, :]
+              * projection[None, None, :, :, None], axis=-3)
+    return fetch_state
+
+  def _expand_full_read(self, full_read):
+    """Restore the fixed [K-half,V-half] head layout after cache compression."""
+    read_k_dim = self._abs_k_dim or self.bam_k
+    y_k, y_v = jnp.split(full_read, [read_k_dim], axis=-1)
+
+    def decode(y, decoder):
+      decoder = decoder.astype(y.dtype)
+      if self._read_implementation == 'dot_bnt':
+        return jnp.einsum('bntc,ncd->bntd', y, decoder)
+      return jnp.einsum('btnc,ncd->btnd', y, decoder)
+
+    if self._abs_k_dim is not None:
+      if self._abs_k_col_output == 'project':
+        y_k = decode(y_k, self.abs_k_col_decoder)
+      else:
+        y_k = jnp.pad(
+            y_k, [(0, 0)] * (y_k.ndim - 1)
+            + [(0, self.bam_k - self._abs_k_dim)])
+    if self._abs_v_dim is not None:
+      if self._abs_v_row_output == 'project':
+        y_v = decode(y_v, self.abs_v_row_decoder)
+      else:
+        y_v = jnp.pad(
+            y_v, [(0, 0)] * (y_v.ndim - 1)
+            + [(0, self.bam_v - self._abs_v_dim)])
+    return jnp.concatenate((y_k, y_v), axis=-1)
+
   def _query_chunk_shared_full_read(
       self, query, key, value, Mh, inputs_q, decoder_segment_ids,
       is_global=None, window_size_override=None, prepared=None):
@@ -3157,15 +3233,7 @@ class BamAttention(Attention):
             self.fetch_head_mix(inputs_q), query.dtype, 'rms',
             rms_epsilon=self._rms_epsilon)
 
-      with jax.named_scope("bam/compress_abs_v_cache"):
-        fetch_state = Mh
-        if self._abs_v_dim is not None:
-          projection = self.abs_v_cache_projection.astype(Mh.dtype)
-          if self._abs_v_source_implementation == 'dot':
-            fetch_state = jnp.einsum('bskv,vc->bskc', Mh, projection)
-          else:
-            fetch_state = jnp.sum(
-                Mh[..., None] * projection[None, None, None, :, :], axis=-2)
+      fetch_state = self._compress_full_fetch_state(Mh)
 
       # Parameterized projections must stay outside the runtime L/G cond.  A
       # Linen module call inside lax.cond leaks initialization tracers.
@@ -3173,7 +3241,8 @@ class BamAttention(Attention):
         projected_read_key = self.W_R(inputs_q)
         read_key_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
         _, _, read_row, read_col = _project_bam_read_keys(
-            self.bam_k, inputs_q, lambda _x: projected_read_key,
+            self._abs_k_dim or self.bam_k,
+            inputs_q, lambda _x: projected_read_key,
             **read_key_kwargs)
       prepared = (mix_weights, fetch_state, read_row, read_col)
     else:
@@ -3204,9 +3273,10 @@ class BamAttention(Attention):
       Mbar_chunks = []
     else:
       y_std = jnp.zeros((b, t, n, d), dtype=value.dtype)
+      read_k_dim = self._abs_k_dim or self.bam_k
       read_v_dim = self._abs_v_dim or self.bam_v
       deferred_Mbar = (
-          jnp.zeros((b, t, self.bam_k, read_v_dim), dtype=fetch_state.dtype)
+          jnp.zeros((b, t, read_k_dim, read_v_dim), dtype=fetch_state.dtype)
           if defer_read else None)
       y_full = None if defer_read else jnp.zeros_like(y_std)
 
@@ -3225,18 +3295,9 @@ class BamAttention(Attention):
       full_read = _contract_bam_read(
           Mbar[:, None], Mbar[:, None], row_key, col_key, True,
           self._read_implementation, self.read_side)
-      if self._abs_v_dim is not None:
-        if self._abs_v_row_output == 'project':
-          y_u, y_v = jnp.split(full_read, [self.bam_k], axis=-1)
-          decoder = self.abs_v_row_decoder.astype(y_v.dtype)
-          y_v = jnp.einsum('btnc,ncv->btnv', y_v, decoder)
-          full_read = jnp.concatenate((y_u, y_v), axis=-1)
-        else:
-          full_read = jnp.pad(
-              full_read,
-              [(0, 0)] * (full_read.ndim - 1)
-              + [(0, self.bam_v - self._abs_v_dim)])
-      return full_read
+      return (self._expand_full_read(full_read)
+              if self._abs_k_dim is not None or self._abs_v_dim is not None
+              else full_read)
 
     def chunk_body(q_chunk, k_chunk, v_chunk, M_chunk, mix_chunk,
                    row_chunk, col_chunk, valid, diagonal_mask, diag_col):
@@ -3632,15 +3693,7 @@ class BamAttention(Attention):
     if 'full' in self._mode:  # V1 default
       assert Mh is not None, "full read requires M_in"
       with jax.named_scope("bam/fetch_m"):
-        fetch_state = Mh
-        if self._abs_v_dim is not None:  # V1 default
-          with jax.named_scope("bam/compress_abs_v_cache"):
-            projection = self.abs_v_cache_projection.astype(Mh.dtype)
-            if self._abs_v_source_implementation == 'dot':
-              fetch_state = jnp.einsum('bskv,vc->bskc', Mh, projection)
-            else:
-              fetch_state = jnp.sum(
-                  Mh[..., None] * projection[None, None, None, :, :], axis=-2)
+        fetch_state = self._compress_full_fetch_state(Mh)
         if self._fetch_temporal_block_size is not None:
           Mbar_fetch = _temporal_block_bam_fetch(
               fetch_alpha, fetch_state, inputs_positions, decoder_segment_ids,
@@ -3670,20 +3723,8 @@ class BamAttention(Attention):
           full_read, full_key_stages = full_read
           read_key_stages.update({
               f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
-        if self._abs_v_dim is not None:  # V1 default
-          if self._abs_v_row_output == 'project':
-            y_u, y_v = jnp.split(full_read, [self.bam_k], axis=-1)
-            decoder = self.abs_v_row_decoder.astype(y_v.dtype)
-            if self._read_implementation == 'dot_bnt':
-              y_v = jnp.einsum('bntc,ncv->bntv', y_v, decoder)
-            else:
-              y_v = jnp.einsum('btnc,ncv->btnv', y_v, decoder)
-            full_read = jnp.concatenate((y_u, y_v), axis=-1)
-          else:  # V1 default
-            full_read = jnp.pad(
-                full_read,
-                [(0, 0)] * (full_read.ndim - 1)
-                + [(0, self.bam_v - self._abs_v_dim)])
+        if self._abs_k_dim is not None or self._abs_v_dim is not None:
+          full_read = self._expand_full_read(full_read)
         y_full = (rearrange(full_read, 'b n t d -> b t n d')
                   if self._read_implementation == 'dot_bnt' else full_read)
         y_bam = y_bam + y_full

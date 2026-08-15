@@ -1076,6 +1076,7 @@ class BamLlama2MediumV2C256LLLGFetchL(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LGAllRead(BamV2C256FetchScheduleBase):
     """LG attention; fetched M read on every layer."""
+    # code_commit: e49b98b; ~0.742 steps/s (72.9% of matched MHA-LG).
     model_name = 'BamLlama2MediumV2C256LGAllRead'
     bam_layer_modes = ['local_qk+full'] * 24
     sliding_window_size = [256, None]
@@ -1083,6 +1084,7 @@ class BamLlama2MediumV2C256LGAllRead(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LLLGAllRead(BamV2C256FetchScheduleBase):
     """LLLG attention; fetched M read on every layer."""
+    # code_commit: e49b98b; ~0.786 steps/s (73.3% of matched MHA-LLLG).
     model_name = 'BamLlama2MediumV2C256LLLGAllRead'
     bam_layer_modes = ['local_qk+full'] * 24
     sliding_window_size = [256, 256, 256, None]

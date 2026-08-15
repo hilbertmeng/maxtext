@@ -380,11 +380,14 @@ class _HyperParameters:
       jax.config.update("jax_debug_log_modules", raw_keys["jax_debug_log_modules"])
     max_utils.maybe_initialize_jax_distributed_system(raw_keys)
 
+    _update_exp_config(keys_from_env_and_command_line, raw_keys) # lsp must define in before user_init, because some vars would be changed in user_init.
+
+    # Experiment classes may override the persistent compilation-cache settings.
+    # Apply them only after the experiment config is merged, but before user_init
+    # initializes the JAX backend.
     if raw_keys["jax_cache_dir"]:
       compilation_cache.set_cache_dir(os.path.expanduser(raw_keys["jax_cache_dir"]))
       jax.config.update("jax_explain_cache_misses", raw_keys["jax_cache_explain_misses"])
-
-    _update_exp_config(keys_from_env_and_command_line, raw_keys) # lsp must define in before user_init, because some vars would be changed in user_init.
 
     _HyperParameters.user_init(raw_keys)
     if raw_keys["dataset_type"] == "c4_mlperf" and raw_keys["model_name"] == "gpt3-175b":

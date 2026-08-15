@@ -1031,6 +1031,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
+    jax_cache_explain_misses = True
 
 
 class Llama2MediumC256LG(BamV2C256FetchScheduleBase):

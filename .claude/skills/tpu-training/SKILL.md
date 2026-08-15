@@ -108,9 +108,9 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 It samples `step % 5 == 0` inside each ±25-step window, preserving the historical 11-sample
 gap definition even though future TensorBoard files record every 10 steps. For each RUN−BASE,
 print one cumulative horizontal table with only `step`, `gap`, and `r200`; omit absolute losses
-and split after about 20 steps into another horizontal block. Omit a completed BASE from routine
-repeats once it has no new common steps
-and the user has acknowledged its result; retain it in the registry/experiment record. Here
+and split after about 20 steps into another horizontal block. Report every direct `compare_runs`
+entry, including completed BASEs with no new common steps; omit one only after the user explicitly
+removes it or the registry is updated. Here
 `r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
 magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
 level with the mean and range of the latest 5–8 reported points; use recent `r200` values for

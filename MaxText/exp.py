@@ -1035,6 +1035,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class Llama2MediumC256LG(BamV2C256FetchScheduleBase):
     """Matched BAM-MHA control with alternating local/global attention."""
+    # code_commit: 159db23; ~1.018 steps/s.
     model_name = 'Llama2MediumC256LG'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24
@@ -1043,12 +1044,14 @@ class Llama2MediumC256LG(BamV2C256FetchScheduleBase):
 
 class Llama2MediumC256LLLG(Llama2MediumC256LG):
     """Matched BAM-MHA control with three local layers per global layer."""
+    # code_commit: 159db23; ~1.073 steps/s.
     model_name = 'Llama2MediumC256LLLG'
     sliding_window_size = [256, 256, 256, None]
 
 
 class BamLlama2MediumV2C256LGFetchG(BamV2C256FetchScheduleBase):
     """LG attention; fetched M read only on global layers."""
+    # code_commit: 159db23; ~0.790 steps/s (77.6% of matched MHA-LG).
     model_name = 'BamLlama2MediumV2C256LGFetchG'
     bam_layer_modes = ['local_qk', 'local_qk+full'] * 12
     sliding_window_size = [256, None]
@@ -1056,6 +1059,7 @@ class BamLlama2MediumV2C256LGFetchG(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LGFetchL(BamV2C256FetchScheduleBase):
     """LG attention; fetched M read only on local layers."""
+    # code_commit: 159db23; ~0.805 steps/s (79.1% of matched MHA-LG).
     model_name = 'BamLlama2MediumV2C256LGFetchL'
     bam_layer_modes = ['local_qk+full', 'local_qk'] * 12
     sliding_window_size = [256, None]
@@ -1063,6 +1067,7 @@ class BamLlama2MediumV2C256LGFetchL(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LLLGFetchL(BamV2C256FetchScheduleBase):
     """LLLG attention; fetched M read on the three local layers."""
+    # code_commit: 159db23; ~0.817 steps/s (76.2% of matched MHA-LLLG).
     model_name = 'BamLlama2MediumV2C256LLLGFetchL'
     bam_layer_modes = (['local_qk+full'] * 3 + ['local_qk']) * 6
     sliding_window_size = [256, 256, 256, None]

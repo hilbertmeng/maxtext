@@ -1058,6 +1058,7 @@ class BamLlama2MediumV2C256AbsK16Project(
 
 class BamLlama2MediumV2C256FetchReadR512Gelu(BamV2C256FetchScheduleBase):
     """Factor the fetched read-key projection as D -> 512 -> n*f*(k+v)."""
+    # code_commit: 4d9ed3f; ~0.653 steps/s (-1.7% vs full-24 V2-C256 S/U).
     model_name = 'BamLlama2MediumV2C256FetchReadR512Gelu'
     scan_layers = True
     bam_fetch_read_bottleneck_dim = 512

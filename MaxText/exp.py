@@ -1031,6 +1031,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
+    jax_cache_explain_misses = True
 
 
 class Llama2MediumC256LG(BamV2C256FetchScheduleBase):
@@ -1070,6 +1071,20 @@ class BamLlama2MediumV2C256LLLGFetchL(BamV2C256FetchScheduleBase):
     # code_commit: 159db23; ~0.817 steps/s (76.2% of matched MHA-LLLG).
     model_name = 'BamLlama2MediumV2C256LLLGFetchL'
     bam_layer_modes = (['local_qk+full'] * 3 + ['local_qk']) * 6
+    sliding_window_size = [256, 256, 256, None]
+
+
+class BamLlama2MediumV2C256LGAllRead(BamV2C256FetchScheduleBase):
+    """LG attention; fetched M read on every layer."""
+    model_name = 'BamLlama2MediumV2C256LGAllRead'
+    bam_layer_modes = ['local_qk+full'] * 24
+    sliding_window_size = [256, None]
+
+
+class BamLlama2MediumV2C256LLLGAllRead(BamV2C256FetchScheduleBase):
+    """LLLG attention; fetched M read on every layer."""
+    model_name = 'BamLlama2MediumV2C256LLLGAllRead'
+    bam_layer_modes = ['local_qk+full'] * 24
     sliding_window_size = [256, 256, 256, None]
 
 

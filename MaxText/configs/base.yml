@@ -197,6 +197,7 @@ replicator_backup_interval_minutes: 0
 
 # Jax cache directory
 jax_cache_dir: "~/jax_cache"
+jax_cache_explain_misses: False
 
 # Hardware
 hardware: 'tpu' # Supported hardware types are 'tpu', 'gpu', 'gpu_multiprocess' and 'cpu'

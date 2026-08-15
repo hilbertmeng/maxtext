@@ -1051,7 +1051,8 @@ class BamLlama2MediumV2C256AbsK16Project(
     BamLlama2MediumV2C256AbsK16Direct
 ):
     """Decode the cached 16-wide K-side answer independently for every head."""
-    # code_commit: 5e31a9f; ~0.680 steps/s (+2.4% vs full-24 V2-C256 S/U); decoder cost is below timing noise.
+    # code_commit: 5e31a9f; ~0.680 steps/s (+2.4% vs full-24 V2-C256 S/U); stopped 3,781.
+    # Plateau dloss +.0592 vs V2, +.0075 vs Direct; decoder cost is nil but its loss effect is negative.
     model_name = 'BamLlama2MediumV2C256AbsK16Project'
     bam_abs_k_col_output = 'project'
 

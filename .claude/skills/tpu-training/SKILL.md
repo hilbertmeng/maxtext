@@ -208,7 +208,8 @@ For every stopped/completed run:
    matched.
 3. Replace the experiment class's running comment with one terse line containing speed, final
    step, and the main conclusion against its registered direct `compare_runs`; retain every
-   decision-relevant direct baseline, e.g.:
+   decision-relevant direct baseline. Express loss, speed, parameters, cache, and compute as
+   deltas or ratios versus that baseline; use absolute values only as supplemental context, e.g.:
 
 ```python
 # ~0.280 steps/s; completed 13,500. dloss -0.0678 (-2.77%) vs MHA @13,400

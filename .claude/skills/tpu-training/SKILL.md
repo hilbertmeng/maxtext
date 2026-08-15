@@ -66,11 +66,7 @@ After `FIRST_STEP`, copy the RUN registry's seven-character `code_commit` prefix
 the comment after the successful relaunch. The registry remains authoritative for the full hash;
 the later metadata commit is not the RUN's runtime hash.
 
-For slow non-scan compiles, set a GCS `jax_cache_dir` in the experiment base. `pyconfig` must
-bind it after `_update_exp_config` and before backend initialization. During bring-up set
-`jax_cache_explain_misses=True`; verify a large `jit_train_step-*-cache` object is written, then
-verify an identical rerun logs `Persistent compilation cache hit`. A RUN's auto-train commit must
-contain this fix; its first post-fix recovery may populate the cache and later recoveries can hit.
+For slow non-scan compiles, use a stable GCS `jax_cache_dir` across preemption relaunches.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`

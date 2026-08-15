@@ -274,6 +274,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
+    bam_fetch_mix_num_heads = None  # None uses all MHA heads; otherwise use the first N
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
     bam_fetch_temporal_block_mode = 'none'  # none | mean | linear
@@ -1064,6 +1065,20 @@ class Llama2MediumC256IndependentQK64V256Head(Llama2MediumC256ExtraHeadBase):
     """Extra V256 head with an independent Q64/K64 attention route."""
     model_name = 'Llama2MediumC256IndependentQK64V256Head'
     bam_mha_extra_head_mode = 'independent_qk'
+
+
+class BamLlama2MediumV2C256MixHead8(BamV2C256FetchScheduleBase):
+    """V2 C256 fetch routing dynamically mixes only the first 8 MHA heads."""
+    model_name = 'BamLlama2MediumV2C256MixHead8'
+    scan_layers = True
+    bam_fetch_mix_num_heads = 8
+
+
+class BamLlama2MediumV2C256MixHead4(BamV2C256FetchScheduleBase):
+    """V2 C256 fetch routing dynamically mixes only the first 4 MHA heads."""
+    model_name = 'BamLlama2MediumV2C256MixHead4'
+    scan_layers = True
+    bam_fetch_mix_num_heads = 4
 
 
 class BamLlama2MediumV2C256AbsK16Direct(BamV2C256FetchScheduleBase):

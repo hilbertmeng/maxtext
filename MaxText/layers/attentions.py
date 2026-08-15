@@ -1762,7 +1762,10 @@ def _dynamic_mixed_bam_fetch_alpha(
   mix_logits, mix_weights = _dynamic_bam_fetch_mix_weights(
       mix_logits, alpha.dtype, weight_mode, rms_epsilon=rms_epsilon)
 
-  fetch_alpha = jnp.einsum('bnts,btn->bts', alpha, mix_weights)
+  # A restricted router consumes the first N standard attention maps.  Head
+  # identity is learned jointly; "first" is only a deterministic subset.
+  fetch_alpha = jnp.einsum(
+      'bnts,btn->bts', alpha[:, :mix_weights.shape[-1]], mix_weights)
   pre_diagonal_alpha = fetch_alpha[:, None]
   if diagonal_yield:
     fetch_alpha = fetch_alpha * (
@@ -2424,6 +2427,11 @@ class BamAttention(Attention):
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
     self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
     self._shared_fetch_mode = cfg.bam_shared_fetch_mode
+    self._fetch_mix_num_heads = (
+        self.num_query_heads
+        if cfg.bam_fetch_mix_num_heads is None
+        else int(cfg.bam_fetch_mix_num_heads))
+    assert 0 < self._fetch_mix_num_heads <= self.num_query_heads
     self._fetch_sliding_window_size = cfg.bam_fetch_sliding_window_size
     self._fetch_sliding_window_prefix_size = getattr(
         cfg, 'bam_fetch_sliding_window_prefix_size', None)
@@ -2722,7 +2730,7 @@ class BamAttention(Attention):
       # the content-read projection remains zero-init, preserving the exact MHA start.
       mix_init = zeros_init if self._shared_fetch_mode == 'dynamic_mix' else reg_init
       self.fetch_head_mix = DenseGeneral(
-          features=self.num_query_heads, axis=-1, kernel_init=mix_init,
+          features=self._fetch_mix_num_heads, axis=-1, kernel_init=mix_init,
           kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
           weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
           matmul_precision=cfg.matmul_precision, use_bias=True)
@@ -3399,7 +3407,8 @@ class BamAttention(Attention):
         y_std_chunk = jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
 
       with jax.named_scope("bam/mix_alpha"):
-        fetch_alpha = jnp.einsum('bncs,bcn->bcs', alpha, mix_chunk)
+        fetch_alpha = jnp.einsum(
+            'bncs,bcn->bcs', alpha[:, :mix_chunk.shape[-1]], mix_chunk)
         if diagonal_select:
           fetch_alpha = jnp.where(
               diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype),

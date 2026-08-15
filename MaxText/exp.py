@@ -1060,7 +1060,7 @@ class BamLlama2MediumV2C256LGFetchG(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LGFetchL(BamV2C256FetchScheduleBase):
     """LG attention; fetched M read only on local layers."""
-    # code_commit: 159db23; ~0.805 steps/s (79.1% of matched MHA-LG).
+    # code_commit: 159db23; ~0.805 steps/s; stopped at 3,831. Dominated by LLLGFetchL: +1.5% speed, dloss -0.0170 @3,600.
     model_name = 'BamLlama2MediumV2C256LGFetchL'
     bam_layer_modes = ['local_qk+full', 'local_qk'] * 12
     sliding_window_size = [256, None]

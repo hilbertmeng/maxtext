@@ -2386,6 +2386,10 @@ class BamAttention(Attention):
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
+    self._fetch_read_bottleneck_dim = getattr(
+        cfg, 'bam_fetch_read_bottleneck_dim', None)
+    self._fetch_read_bottleneck_activation = getattr(
+        cfg, 'bam_fetch_read_bottleneck_activation', 'none')
     self._abs_k_dim = (
         getattr(cfg, 'bam_abs_k_compression_dim', None)
         if 'full' in self._mode else None)
@@ -2463,6 +2467,12 @@ class BamAttention(Attention):
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._query_chunk_implementation in (
         'legacy', 'no_remat', 'deferred_read', 'diag_select', 'optimized')
+    assert self._fetch_read_bottleneck_activation in ('none', 'gelu')
+    if self._fetch_read_bottleneck_dim is None:
+      assert self._fetch_read_bottleneck_activation == 'none'
+    else:
+      assert 0 < self._fetch_read_bottleneck_dim < cfg.emb_dim
+      assert 'full' in self._mode
     assert self._abs_k_col_output in ('direct', 'project')
     assert self._abs_v_row_output in ('direct', 'project')
     assert self._abs_v_source_implementation in ('dot', 'mul_reduce')
@@ -2613,11 +2623,24 @@ class BamAttention(Attention):
             (self.num_query_heads, self._abs_k_dim, self.bam_k), self.weight_dtype)
 
       # Joint target-side read key is generated directly in both cached spaces.
-      self.W_R = DenseGeneral(
-          features=(self.num_query_heads, cfg.bam_n_f, read_k_dim + read_v_dim), axis=-1,
-          kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", "kv"),
-          dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
-          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      read_features = (self.num_query_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
+      if self._fetch_read_bottleneck_dim is None:
+        self.W_R = DenseGeneral(
+            features=read_features, axis=-1, kernel_init=zeros_init,
+            kernel_axes=("embed", "q_heads", "fetch", "kv"),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      else:
+        self.W_R_down = DenseGeneral(
+            features=self._fetch_read_bottleneck_dim, axis=-1,
+            kernel_init=reg_init, kernel_axes=("embed", None),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R_down",
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+        self.W_R_up = DenseGeneral(
+            features=read_features, axis=-1, kernel_init=zeros_init,
+            kernel_axes=("embed", "q_heads", "fetch", "kv"),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R_up",
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
       add_read_gate('W_R_gate', (self.num_query_heads, cfg.bam_n_f, 2),
                     ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
                     zero_key_gate_init)
@@ -2899,6 +2922,14 @@ class BamAttention(Attention):
           matmul_precision=cfg.matmul_precision, use_bias=False)
       add_grouped_read_norms(
           'W_lv', (self.bam_k,), (self.bam_v,), ('kv',), ('kv',))
+
+  def _project_full_read_key(self, x):
+    if self._fetch_read_bottleneck_dim is None:
+      return self.W_R(x)
+    x = self.W_R_down(x)
+    if self._fetch_read_bottleneck_activation == 'gelu':
+      x = nn.gelu(x)
+    return self.W_R_up(x)
 
   def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False):
     candidate_logits = None
@@ -3238,7 +3269,7 @@ class BamAttention(Attention):
       # Parameterized projections must stay outside the runtime L/G cond.  A
       # Linen module call inside lax.cond leaks initialization tracers.
       with jax.named_scope("bam/read_fetched_m"):
-        projected_read_key = self.W_R(inputs_q)
+        projected_read_key = self._project_full_read_key(inputs_q)
         read_key_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
         _, _, read_row, read_col = _project_bam_read_keys(
             self._abs_k_dim or self.bam_k,
@@ -3708,11 +3739,12 @@ class BamAttention(Attention):
           # the separate local_o read with a fixed local coefficient of one.
           Mbar = Mbar + fetch_state[:, None]
       with jax.named_scope("bam/read_fetched_m"):
-        full_read_projection = self.W_R
+        full_read_projection = self._project_full_read_key
         full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
         if self._squeeze_single_fetch_read:
           Mbar = jnp.squeeze(Mbar, axis=1)
-          full_read_projection = lambda x: jnp.squeeze(self.W_R(x), axis=-2)
+          full_read_projection = lambda x: jnp.squeeze(
+              self._project_full_read_key(x), axis=-2)
           full_read_kwargs = self._read_key_kwargs(
               'W_R_gate', inputs_q, squeeze_fetch_axis=True)
         full_read = bam_read(
@@ -3731,7 +3763,8 @@ class BamAttention(Attention):
     if 'local_o' in self._mode and not self._combine_full_local_read:
       assert Mh is not None, "local_o read requires M_in"
       if self._share_full_local_read:
-        local_read_projection = lambda x: jnp.squeeze(self.W_R(x), axis=-2)
+        local_read_projection = lambda x: jnp.squeeze(
+            self._project_full_read_key(x), axis=-2)
         local_read_key_kwargs = self._read_key_kwargs(
             'W_R_gate', inputs_q, squeeze_fetch_axis=True)
       else:

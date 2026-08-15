@@ -286,6 +286,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
+    bam_fetch_read_bottleneck_dim = None  # optional fetched W_R: D -> r -> n*f*(k+v)
+    bam_fetch_read_bottleneck_activation = 'none'  # none | gelu
     bam_abs_k_compression_dim = None  # keep the cached absolute K axis full-width
     bam_abs_k_col_output = 'direct'  # direct | project; expand the compressed K-side answer
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
@@ -1052,6 +1054,14 @@ class BamLlama2MediumV2C256AbsK16Project(
     # code_commit: 5e31a9f; ~0.680 steps/s (+2.4% vs full-24 V2-C256 S/U); decoder cost is below timing noise.
     model_name = 'BamLlama2MediumV2C256AbsK16Project'
     bam_abs_k_col_output = 'project'
+
+
+class BamLlama2MediumV2C256FetchReadR512Gelu(BamV2C256FetchScheduleBase):
+    """Factor the fetched read-key projection as D -> 512 -> n*f*(k+v)."""
+    model_name = 'BamLlama2MediumV2C256FetchReadR512Gelu'
+    scan_layers = True
+    bam_fetch_read_bottleneck_dim = 512
+    bam_fetch_read_bottleneck_activation = 'gelu'
 
 
 class Llama2MediumC256LG(BamV2C256FetchScheduleBase):

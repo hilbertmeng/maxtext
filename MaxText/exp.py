@@ -1038,7 +1038,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256AbsK16Direct(BamV2C256FetchScheduleBase):
     """Cache full reads as 16x8 and inject both compressed halves directly."""
-    # code_commit: 5e31a9f
+    # code_commit: 5e31a9f; ~0.681 steps/s (+2.6% vs full-24 V2-C256 S/U).
     model_name = 'BamLlama2MediumV2C256AbsK16Direct'
     scan_layers = True
     bam_abs_k_compression_dim = 16
@@ -1049,7 +1049,7 @@ class BamLlama2MediumV2C256AbsK16Project(
     BamLlama2MediumV2C256AbsK16Direct
 ):
     """Decode the cached 16-wide K-side answer independently for every head."""
-    # code_commit: 5e31a9f
+    # code_commit: 5e31a9f; ~0.680 steps/s (+2.4% vs full-24 V2-C256 S/U); decoder cost is below timing noise.
     model_name = 'BamLlama2MediumV2C256AbsK16Project'
     bam_abs_k_col_output = 'project'
 

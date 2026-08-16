@@ -1581,6 +1581,26 @@ class BamMHAGScanLayerFullLayerProfile(
     bam_layer_modes = ['none'] * 24
 
 
+class BamV2GScanLayerT4096FullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Full-24 G C256 BAM S/U profile at sequence length 4096."""
+    model_name = 'BamV2GScanLayerT4096FullLayerProfile'
+    max_target_length = 4096
+    per_device_batch_size = 16.0
+    steps = 100
+
+
+class BamMHAGScanLayerT4096FullLayerProfile(
+    BamMHAGScanLayerFullLayerProfile
+):
+    """Matched full-24 G C256 BAM-MHA S/U profile at sequence length 4096."""
+    model_name = 'BamMHAGScanLayerT4096FullLayerProfile'
+    max_target_length = 4096
+    per_device_batch_size = 16.0
+    steps = 100
+
+
 class BamV2LGLLScanBothFullLayerProfile(
     BamV2LGLLScanBothEightLayerProfile
 ):

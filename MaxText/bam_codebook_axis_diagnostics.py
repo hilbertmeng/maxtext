@@ -3,6 +3,10 @@
 The runner uses four shuffled Pile eval batches.  It fits all layerwise subspaces on
 the first two batches, then reports paired losses on the held-out two batches.  The
 checkpoint is restored once and never mutated or saved.
+
+``BAM_AXIS_DIAG_SCHEDULES_JSON`` may name a JSON file mapping variant names to one
+compression width per layer.  This reuses the same fitted per-layer bases to test
+heterogeneous, equal-cache schedules without changing the production BAM path.
 """
 
 from __future__ import annotations
@@ -384,6 +388,48 @@ def _rank_aggregate(per_layer, ranks):
   return output
 
 
+def _load_schedules(path, num_layers, max_rank):
+  if not path:
+    return {}
+  schedules = json.loads(Path(path).read_text())
+  if not isinstance(schedules, dict):
+    raise ValueError("BAM_AXIS_DIAG_SCHEDULES_JSON must contain a JSON object")
+  output = {}
+  for name, widths in schedules.items():
+    if not isinstance(name, str) or not name:
+      raise ValueError(f"invalid schedule name: {name!r}")
+    if len(widths) != num_layers:
+      raise ValueError(
+          f"schedule {name!r} has {len(widths)} layers, expected {num_layers}")
+    widths = tuple(int(width) for width in widths)
+    if any(width < 0 or width > max_rank for width in widths):
+      raise ValueError(
+          f"schedule {name!r} widths must be in [0, {max_rank}]: {widths}")
+    output[name] = widths
+  return output
+
+
+def _select_budget_schedule(layer_costs, budget):
+  """Minimize summed single-layer loss deltas under a cache-width cap."""
+  states = {0: (0.0, [])}
+  for layer in sorted(layer_costs):
+    next_states = {}
+    for used, (cost, schedule) in states.items():
+      for width, layer_cost in layer_costs[layer].items():
+        candidate_used = used + width
+        if candidate_used > budget:
+          continue
+        candidate = (cost + layer_cost, schedule + [width])
+        if candidate_used not in next_states or candidate[0] < next_states[candidate_used][0]:
+          next_states[candidate_used] = candidate
+    states = next_states
+  if not states:
+    raise ValueError(f"no feasible schedule for cache-width budget {budget}")
+  used, (cost, schedule) = min(
+      states.items(), key=lambda item: (item[1][0], -item[0]))
+  return tuple(schedule), used, cost
+
+
 def run(config) -> None:
   started = time.perf_counter()
   if not config.only_eval or not config.bam_diagnostics:
@@ -399,6 +445,20 @@ def run(config) -> None:
   ).split(",") if x)
   layerwise = os.environ.get("BAM_AXIS_DIAG_LAYERWISE", "0").lower() in (
       "1", "true", "yes")
+  schedules = _load_schedules(
+      os.environ.get("BAM_AXIS_DIAG_SCHEDULES_JSON", ""),
+      int(config.num_decoder_layers), int(config.bam_v))
+  auto_budgets = tuple(int(value) for value in os.environ.get(
+      "BAM_AXIS_DIAG_AUTO_BUDGETS", "").split(",") if value)
+  auto_widths = tuple(sorted(set(int(value) for value in os.environ.get(
+      "BAM_AXIS_DIAG_AUTO_WIDTHS", "0,4,8,12,16,24,32").split(","))))
+  if auto_budgets:
+    if any(width < 0 or width > int(config.bam_v) for width in auto_widths):
+      raise ValueError(f"auto widths must lie in [0, {config.bam_v}]")
+    if int(config.bam_v) not in auto_widths:
+      raise ValueError("auto widths must include the uncompressed width")
+    if num_batches - calibration_batches < 2:
+      raise ValueError("auto schedule selection needs one selection and one validation batch")
   output_path = Path(os.environ.get(
       "BAM_AXIS_DIAG_OUTPUT", "/tmp/bam_codebook_axis_diagnostics.json"))
   output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -492,9 +552,16 @@ def run(config) -> None:
       baseline_parts, range(calibration_batches), microbatches_per_batch)
   baseline_heldout = _subset(
       baseline_parts, range(calibration_batches, num_batches), microbatches_per_batch)
+  baseline_selection = _subset(
+      baseline_parts, (calibration_batches,), microbatches_per_batch)
+  baseline_validation = _subset(
+      baseline_parts, range(calibration_batches + 1, num_batches),
+      microbatches_per_batch)
 
   variants = {}
   layerwise_variants = {}
+  scheduled_variants = {}
+  auto_schedule_selection = {}
   evaluation_started = time.perf_counter()
   if layerwise:
     identity_controls = {
@@ -572,6 +639,86 @@ def run(config) -> None:
             f"BAM_AXIS_VARIANT {name} heldout_loss={candidate_heldout['loss']:.8f} "
             f"delta={candidate_heldout['loss'] - baseline_heldout['loss']:+.8f}",
             flush=True)
+    if auto_budgets:
+      identity_controls = {
+          layer: _identity_controls(
+              int(config.num_query_heads), int(config.bam_k), int(config.bam_v))
+          for layer in layer_bases
+      }
+      selection_start = calibration_batches * microbatches_per_batch
+      selection_stop = selection_start + microbatches_per_batch
+      layer_costs = {}
+      for layer in sorted(layer_bases):
+        layer_costs[layer] = {0: 0.0} if layer == 0 else {}
+        if layer == 0:
+          continue
+        for width in auto_widths:
+          if width == int(config.bam_v):
+            layer_costs[layer][width] = 0.0
+            continue
+          controls = dict(identity_controls)
+          controls[layer] = _variant_controls(
+              "compress_fixed_v", width, layer_bases[layer],
+              int(config.num_query_heads), int(config.bam_k), int(config.bam_v))
+          variant_params = _insert_controls(state.params, wr_paths, controls)
+          parts = []
+          for index in range(selection_start, selection_stop):
+            rng = jax.random.fold_in(init_rng, index)
+            with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+              metrics_device = variant_forward(variant_params, microbatches[index], rng)
+            parts.append(jax.device_get(jax.block_until_ready(metrics_device)))
+          candidate = _merge_metrics(parts)
+          layer_costs[layer][width] = candidate["loss"] - baseline_selection["loss"]
+          print(
+              f"BAM_AXIS_RATE_DISTORTION layer={layer:02d} C={width} "
+              f"selection_delta={layer_costs[layer][width]:+.8f}", flush=True)
+      for budget in auto_budgets:
+        widths, used, predicted_delta = _select_budget_schedule(
+            layer_costs, budget)
+        name = f"auto_dp_c{budget}"
+        schedules[name] = widths
+        auto_schedule_selection[name] = {
+            "budget": budget,
+            "used_width": used,
+            "predicted_additive_selection_delta": predicted_delta,
+            "widths": list(widths),
+        }
+        print(
+            f"BAM_AXIS_AUTO_SCHEDULE {name} used={used} "
+            f"predicted_delta={predicted_delta:+.8f} widths={widths}", flush=True)
+    for name, widths in schedules.items():
+      controls = {
+          layer: _variant_controls(
+              "compress_fixed_v", widths[layer], covariance,
+              int(config.num_query_heads), int(config.bam_k), int(config.bam_v))
+          for layer, covariance in layer_bases.items()
+      }
+      variant_params = _insert_controls(state.params, wr_paths, controls)
+      parts = []
+      variant_started = time.perf_counter()
+      heldout_start = calibration_batches * microbatches_per_batch
+      for index in range(heldout_start, len(microbatches)):
+        rng = jax.random.fold_in(init_rng, index)
+        with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+          metrics_device = variant_forward(variant_params, microbatches[index], rng)
+        parts.append(jax.device_get(jax.block_until_ready(metrics_device)))
+      candidate_heldout = _merge_metrics(parts)
+      candidate_selection = _merge_metrics(parts[:microbatches_per_batch])
+      candidate_validation = _merge_metrics(parts[microbatches_per_batch:])
+      scheduled_variants[name] = {
+          "mode": "compress_fixed_v",
+          "widths": list(widths),
+          "total_width": int(sum(widths)),
+          "heldout": _delta_report(candidate_heldout, baseline_heldout),
+          "selection": _delta_report(candidate_selection, baseline_selection),
+          "validation": _delta_report(candidate_validation, baseline_validation),
+          "seconds": time.perf_counter() - variant_started,
+      }
+      print(
+          f"BAM_AXIS_SCHEDULE {name} total_width={sum(widths)} "
+          f"selection_delta={candidate_selection['loss'] - baseline_selection['loss']:+.8f} "
+          f"validation_delta={candidate_validation['loss'] - baseline_validation['loss']:+.8f}",
+          flush=True)
   evaluation_seconds = time.perf_counter() - evaluation_started
 
   rank_for_aggregate = {
@@ -589,6 +736,9 @@ def run(config) -> None:
           "microbatch_size": microbatch_size,
           "ranks": list(ranks),
           "modes": list(modes),
+          "schedules": {name: list(widths) for name, widths in schedules.items()},
+          "auto_budgets": list(auto_budgets),
+          "auto_widths": list(auto_widths),
           "layerwise": layerwise,
           "data_shuffle_seed": int(config.data_shuffle_seed),
           "eval_shuffle_buffer_size": int(config.eval_shuffle_buffer_size),
@@ -615,6 +765,8 @@ def run(config) -> None:
       },
       "variants": variants,
       "layerwise_variants": layerwise_variants,
+      "auto_schedule_selection": auto_schedule_selection,
+      "scheduled_variants": scheduled_variants,
   }
   output_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
   print(f"BAM_AXIS_DONE report={output_path}", flush=True)

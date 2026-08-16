@@ -30,10 +30,11 @@ schedule transferable.
 Before any pilot model exists, uniform width is the only layer-count-independent,
 assumption-free choice. A monotonic or staged depth schedule is merely another low-dimensional
 hypothesis and needs cross-checkpoint, cross-depth evidence; this checkpoint provides evidence
-against the tested monotonic `C4/C8/C12` hypothesis. If a pilot/retrain cycle is acceptable, a
-wide checkpoint may estimate an architecture for its formal retrain, preferably using a small
-smooth schedule family rather than independently fitting every layer. Without such a pilot,
-there is no data-driven way to claim an optimal model-specific `C_l`.
+against both tested coarse depth schedules, especially increasing `C4/C8/C12`. If a
+pilot/retrain cycle is acceptable, a wide checkpoint may estimate an architecture for its formal
+retrain, preferably using a small smooth schedule family rather than independently fitting every
+layer. Without such a pilot, there is no data-driven way to claim an optimal model-specific
+`C_l`.
 
 ## Held-out result
 
@@ -43,15 +44,18 @@ Uniform C8 costs 192 dimensions across 24 layers. `monotonic` is the simple dept
 | schedule | cache width | selection dloss | validation dloss | validation vs uniform | penalty change |
 |---|---:|---:|---:|---:|---:|
 | uniform C8 | 192 | +0.95611 | +0.92972 | -- | -- |
-| monotonic C4/C8/C12 | 192 | +1.40171 | +1.38612 | +0.45640 | +49.1% |
+| depth-increasing C4/C8/C12 | 192 | +1.40171 | +1.38612 | +0.45640 | +49.1% |
+| depth-decreasing C12/C8/C4 | 192 | +1.00752 | +0.99867 | +0.06895 | +7.4% |
 | auto DP | 184 | +0.68628 | +0.68283 | -0.24689 | -26.6% |
 | auto DP | 192 | +0.63652 | +0.62738 | -0.30233 | -32.5% |
 | checkpoint-local exchange, 2 rounds | 192 | +0.60837 | +0.59061 | -0.33911 | -36.5% |
 
 At equal cache, auto C192 beats uniform C8 on all 32 validation sequences. Auto C184 uses
 4.2% less cache and wins on 31/32. Selection and validation effects agree closely, so the
-gain is not a selector-batch fluctuation. The monotonic schedule is substantially worse than
-uniform: importance is not a smooth function of normalized depth.
+gain is not a selector-batch fluctuation. Depth-decreasing is much less harmful than
+depth-increasing, consistent with some early-layer sensitivity, but still loses to uniform C8.
+On validation it improves only 15/32 sequences, has median delta +0.0244 versus uniform, and a
+worst-sequence regression of +1.1448. Neither depth direction is a supported production rule.
 
 The DP's additive prediction for C192 is +0.207, versus the exact combined +0.627. Cascading
 cross-layer distribution shift is therefore large; single-layer curves reliably rank these

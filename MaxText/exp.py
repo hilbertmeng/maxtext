@@ -1075,6 +1075,7 @@ class BamLlama2MediumV2C256T4096(BamV2C256FetchScheduleBase):
 
 class Llama2MediumC256T4096TruePile(Llama2MediumC256T4096):
     """T4096 C256 MHA retrain on true 4097-token Pile records."""
+    # code_commit: c1ec69d; ~0.678 steps/s; running.
     model_name = 'Llama2MediumC256T4096TruePile'
     dataset_path = (
         'gs://newproject-1-llm_base_models_us-central1/data/'
@@ -1084,6 +1085,7 @@ class Llama2MediumC256T4096TruePile(Llama2MediumC256T4096):
 
 class BamLlama2MediumV2C256T4096TruePile(BamLlama2MediumV2C256T4096):
     """T4096 C256 BAM V2 retrain on true 4097-token Pile records."""
+    # code_commit: c1ec69d; ~0.509 steps/s; running.
     model_name = 'BamLlama2MediumV2C256T4096TruePile'
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
 

@@ -939,6 +939,16 @@ class BamV2QChunk256OptimizedFullLayerProfile(BamV2QChunk256OptimizedSixLayerPro
     bam_layer_modes = ['local_qk+full'] * 24
 
 
+class BamV2QChunk256OptimizedT4096FullLayerProfile(
+    BamV2QChunk256OptimizedFullLayerProfile
+):
+    """Full-24 V2 C256 profile at sequence length 4096."""
+    model_name = 'BamV2QChunk256OptimizedT4096FullLayerProfile'
+    max_target_length = 4096
+    per_device_batch_size = 16.0
+    steps = 100
+
+
 class BamV2DenseFullLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """Full-24 target-TPU control for shared query-chunk verification."""
     # code_commit: 8aacdab
@@ -1289,6 +1299,16 @@ class BamMHAControlQChunk256FullLayerProfile(BamMHAControlDenseFullLayerProfile)
     model_name = 'BamMHAControlQChunk256FullLayerProfile'
     attention = 'dot_product_chunk'
     query_chunk_size = 256
+
+
+class BamMHAControlQChunk256T4096FullLayerProfile(
+    BamMHAControlQChunk256FullLayerProfile
+):
+    """Matched full-24 BAM-MHA C256 profile at sequence length 4096."""
+    model_name = 'BamMHAControlQChunk256T4096FullLayerProfile'
+    max_target_length = 4096
+    per_device_batch_size = 16.0
+    steps = 100
 
 
 # BAM C256 scan matrix. U/S mean explicit/scanned layer and query loops.

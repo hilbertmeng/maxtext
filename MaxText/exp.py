@@ -943,6 +943,7 @@ class BamV2QChunk256OptimizedT4096FullLayerProfile(
     BamV2QChunk256OptimizedFullLayerProfile
 ):
     """Full-24 V2 C256 profile at sequence length 4096."""
+    # code_commit: bbfd0ea; EW4b v5p-16 XPlane 1,910.07 ms; ~0.517 steps/s.
     model_name = 'BamV2QChunk256OptimizedT4096FullLayerProfile'
     max_target_length = 4096
     per_device_batch_size = 16.0
@@ -1323,6 +1324,7 @@ class BamMHAControlQChunk256T4096FullLayerProfile(
     BamMHAControlQChunk256FullLayerProfile
 ):
     """Matched full-24 BAM-MHA C256 profile at sequence length 4096."""
+    # code_commit: bbfd0ea; EW4b v5p-16 XPlane 1,462.25 ms; ~0.677 steps/s.
     model_name = 'BamMHAControlQChunk256T4096FullLayerProfile'
     max_target_length = 4096
     per_device_batch_size = 16.0
@@ -1587,6 +1589,7 @@ class BamV2GScanLayerT4096FullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Full-24 G C256 BAM S/U profile at sequence length 4096."""
+    # code_commit: 309448f; EW4b v5p-16 XPlane 1,937.20 ms; ~0.510 steps/s.
     model_name = 'BamV2GScanLayerT4096FullLayerProfile'
     max_target_length = 4096
     per_device_batch_size = 16.0
@@ -1597,6 +1600,7 @@ class BamMHAGScanLayerT4096FullLayerProfile(
     BamMHAGScanLayerFullLayerProfile
 ):
     """Matched full-24 G C256 BAM-MHA S/U profile at sequence length 4096."""
+    # code_commit: 309448f; EW4b v5p-16 XPlane 1,462.14 ms; ~0.678 steps/s.
     model_name = 'BamMHAGScanLayerT4096FullLayerProfile'
     max_target_length = 4096
     per_device_batch_size = 16.0

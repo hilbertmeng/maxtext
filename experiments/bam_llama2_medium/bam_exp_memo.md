@@ -67,6 +67,23 @@ Optimized G C256 is 17.85% faster than legacy C256 and 22.37% faster than dense 
 layer scan reduces compile latency (BAM 686.23→49.49 s) but adds about 23% step time to both models;
 use explicit LGLL layers for long training.
 
+### Sequence-length scaling at constant tokens/step
+
+Full-24 v5p-16, C256, all-global attention, bf16 logits. T2048 uses batch 32 and T4096 batch 16.
+
+| Length | Layers | BAM-MHA class | MHA XPlane / step/s | BAM class | BAM XPlane / step/s | Retention |
+|---:|---|---|---:|---|---:|---:|
+| 2,048 | U/U | `BamMHAControlQChunk256FullLayerProfile` @`a1ad13f` | 1,088.61 / ~0.908 | `BamV2QChunk256OptimizedFullLayerProfile` @`165b55b` | 1,455.35 / ~0.675 | 74.80% |
+| 4,096 | U/U | `BamMHAControlQChunk256T4096FullLayerProfile` @`bbfd0ea` | 1,462.25 / ~0.677 | `BamV2QChunk256OptimizedT4096FullLayerProfile` @`bbfd0ea` | 1,910.07 / ~0.517 | 76.55% |
+| 2,048 | S/U | `BamMHAGScanLayerFullLayerProfile` @`1d9e1e1` | 1,094.35 / ~0.904 | `BamV2GScanLayerFullLayerProfile` @`1d9e1e1` | 1,480.44 / ~0.665 | 73.92% |
+| 4,096 | S/U | `BamMHAGScanLayerT4096FullLayerProfile` @`309448f` | 1,462.14 / ~0.678 | `BamV2GScanLayerT4096FullLayerProfile` @`309448f` | 1,937.20 / ~0.510 | 75.48% |
+
+Doubling sequence length raises BAM/MHA throughput retention by 1.75 pp without layer scan and
+1.56 pp with layer scan. BAM's fixed per-token work is amortized by the larger standard-attention
+cost, but the C256 mix/fetch path still scales with sequence length, so the gain is modest. At
+T4096, layer scan leaves MHA unchanged and makes BAM 1.42% slower than explicit layers, while
+reducing BAM first-step compile time from about 18 minutes to 2 minutes 15 seconds.
+
 ### Full-24 layer-scan unroll
 
 Commit `2646f97`, full-24 G C256 BAM on v5p-16. The `u1/u2` pair used one EW4b pod; `u4` used

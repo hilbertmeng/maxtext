@@ -1073,8 +1073,8 @@ class Llama2MediumC256IndependentQK64V256Head(Llama2MediumC256ExtraHeadBase):
 
 class BamLlama2MediumV2C256MixHead8(BamV2C256FetchScheduleBase):
     """V2 C256 fetch routing dynamically mixes only the first 8 MHA heads."""
-    # code_commit: 9fd72ab; ~0.619 steps/s (!? -6.6% vs V2-C256); resumed to >=6,800.
-    # mean dloss +.0048 vs V2 @2k–2.8k; saves .0078 W_Q/layer.
+    # code_commit: 9fd72ab; ~0.619 steps/s (!? -6.6% vs V2-C256); stopped 4,091.
+    # mean dloss +.0049 vs V2 (range +.0036..+.0061) @2,600–4,000; saves .0078 W_Q/layer but is dominated.
     model_name = 'BamLlama2MediumV2C256MixHead8'
     scan_layers = True
     bam_fetch_mix_num_heads = 8
@@ -1082,8 +1082,8 @@ class BamLlama2MediumV2C256MixHead8(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256MixHead4(BamV2C256FetchScheduleBase):
     """V2 C256 fetch routing dynamically mixes only the first 4 MHA heads."""
-    # code_commit: 9fd72ab; ~0.630 steps/s (!? -5.0% vs V2-C256); resumed to >=6,800.
-    # mean dloss +.0070 vs V2 @2k–2.8k; saves .0117 W_Q/layer.
+    # code_commit: 9fd72ab; ~0.630 steps/s (!? -5.0% vs V2-C256); stopped 4,585.
+    # mean dloss +.0082 vs V2 @3,000–4,400; +.0026 vs Head8 @3,200–4,000; saves .0117 W_Q/layer but is dominated.
     model_name = 'BamLlama2MediumV2C256MixHead4'
     scan_layers = True
     bam_fetch_mix_num_heads = 4

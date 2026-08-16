@@ -65,16 +65,18 @@ comparisons, then verify the winning combination with full layers.
   one in `europe-west4-b`. If EW4b wins, retain the UC1a queue and first verify the identical Pile
   config at the same commit and steps on both regions; if stable step/s differs, use UC1a timing.
   Otherwise keep either validated TPU and immediately stop/delete the other exact resource.
-- Write XPlane locally and copy it to `tpu-ag` as soon as `*.xplane.pb` appears. For a critical
+- Write XPlane on the TPU worker and upload it directly to a unique GCS prefix as soon as
+  `*.xplane.pb` appears; never route profile bytes through `tpu-ag`. For a critical
   spot arm, race two zones and never use `us-east5-a` as its sole copy. Also record an insurance
   trace at steps 2–6 and the primary trace at 10–14 with
   `skip_first_n_steps_for_profiler=2 profile_periodically_period=8 profiler_steps=5`; analyze
   `step_10`, using `step_2` only if preempted first. Before launch, run
-  `/home/lishengping/xd/projects/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR DEST_DIR PROJECT 2`
+  `/home/lishengping/xd/projects/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR GCS_PREFIX PROJECT 2`
   on `tpu-ag`.
-  For a pod, append `WORKER` and run one collector per worker into separate destinations.
+  For a pod, append `WORKER` and run one collector per worker. After GCS verification, pull the
+  artifacts directly to `/data0/xd/bam_diagnostics/` on the local workstation.
 - Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
-  step**; after step 14, wait for the collector to verify the nonempty primary XPlane on `tpu-ag`,
+  step**; after step 14, wait for the collector to verify the nonempty primary XPlane in GCS,
   then `SIGKILL` the exact no-checkpoint RUN and require `pgrep` empty before the next arm.
   Set the RUN length beyond the trace window (for example 100 steps); collector verification,
   rather than configured-step completion, ends it and keeps the TPU alive through artifact copy.
@@ -82,8 +84,8 @@ comparisons, then verify the winning combination with full layers.
   transform, M contraction, and routing scopes. Report theoretical cost in `W_Q` units.
 - Inspect HLO/XPlane lowering, layout/copies, fusion type, kernel count, and whether conceptual
   broadcast/zero tensors materialize.
-- Keep `tpu-ag` for orchestration/artifact storage only; parse XPlane traces on the local
-  workstation, never on `tpu-ag`.
+- Keep `tpu-ag` for orchestration and object verification only; store no profile artifacts and
+  parse XPlane traces only on the local workstation.
 
 ## Artifacts
 

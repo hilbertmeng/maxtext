@@ -495,6 +495,8 @@ def run(config) -> None:
   auto_widths = tuple(sorted(set(int(value) for value in os.environ.get(
       "BAM_AXIS_DIAG_AUTO_WIDTHS", "0,4,8,12,16,24,32").split(","))))
   refine_rounds = int(os.environ.get("BAM_AXIS_DIAG_REFINE_ROUNDS", "0"))
+  refine_resume_path = os.environ.get("BAM_AXIS_DIAG_REFINE_RESUME_JSON", "")
+  refine_resume = json.loads(Path(refine_resume_path).read_text()) if refine_resume_path else None
   if auto_budgets:
     if any(width < 0 or width > int(config.bam_v) for width in auto_widths):
       raise ValueError(f"auto widths must lie in [0, {config.bam_v}]")
@@ -716,31 +718,46 @@ def run(config) -> None:
           selection_cache[widths] = _merge_metrics(parts)
         return selection_cache[widths]
 
-      layer_costs = {}
-      for layer in sorted(layer_bases):
-        layer_costs[layer] = {0: 0.0} if layer == 0 else {}
-        if layer == 0:
-          continue
-        for width in auto_widths:
-          if width == int(config.bam_v):
-            layer_costs[layer][width] = 0.0
+      if refine_resume is not None:
+        layer_costs = {
+            int(layer_name.removeprefix("layer_")): {
+                int(width): float(cost) for width, cost in costs.items()}
+            for layer_name, costs in refine_resume["auto_rate_distortion"].items()
+        }
+        expected_layers = tuple(sorted(layer_bases))
+        if tuple(sorted(layer_costs)) != expected_layers:
+          raise ValueError("resume rate-distortion layers do not match the model")
+        if any(tuple(sorted(costs)) != auto_widths for layer, costs in layer_costs.items()
+               if layer != 0):
+          raise ValueError("resume rate-distortion widths do not match AUTO_WIDTHS")
+        print(f"BAM_AXIS_RATE_DISTORTION_RESUME path={refine_resume_path}", flush=True)
+      else:
+        layer_costs = {}
+        for layer in sorted(layer_bases):
+          layer_costs[layer] = {0: 0.0} if layer == 0 else {}
+          if layer == 0:
             continue
-          controls = dict(identity_controls)
-          controls[layer] = _variant_controls(
-              "compress_fixed_v", width, layer_bases[layer],
-              int(config.num_query_heads), int(config.bam_k), int(config.bam_v))
-          variant_params = _insert_controls(state.params, wr_paths, controls)
-          parts = []
-          for index in range(selection_start, selection_stop):
-            rng = jax.random.fold_in(init_rng, index)
-            with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-              metrics_device = variant_forward(variant_params, microbatches[index], rng)
-            parts.append(jax.device_get(jax.block_until_ready(metrics_device)))
-          candidate = _merge_metrics(parts)
-          layer_costs[layer][width] = candidate["loss"] - baseline_selection["loss"]
-          print(
-              f"BAM_AXIS_RATE_DISTORTION layer={layer:02d} C={width} "
-              f"selection_delta={layer_costs[layer][width]:+.8f}", flush=True)
+          for width in auto_widths:
+            if width == int(config.bam_v):
+              layer_costs[layer][width] = 0.0
+              continue
+            controls = dict(identity_controls)
+            controls[layer] = _variant_controls(
+                "compress_fixed_v", width, layer_bases[layer],
+                int(config.num_query_heads), int(config.bam_k), int(config.bam_v))
+            variant_params = _insert_controls(state.params, wr_paths, controls)
+            parts = []
+            for index in range(selection_start, selection_stop):
+              rng = jax.random.fold_in(init_rng, index)
+              with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+                metrics_device = variant_forward(
+                    variant_params, microbatches[index], rng)
+              parts.append(jax.device_get(jax.block_until_ready(metrics_device)))
+            candidate = _merge_metrics(parts)
+            layer_costs[layer][width] = candidate["loss"] - baseline_selection["loss"]
+            print(
+                f"BAM_AXIS_RATE_DISTORTION layer={layer:02d} C={width} "
+                f"selection_delta={layer_costs[layer][width]:+.8f}", flush=True)
       for budget in auto_budgets:
         widths, used, predicted_delta = _select_budget_schedule(
             layer_costs, budget)
@@ -756,7 +773,14 @@ def run(config) -> None:
             f"BAM_AXIS_AUTO_SCHEDULE {name} used={used} "
             f"predicted_delta={predicted_delta:+.8f} widths={widths}", flush=True)
         if refine_rounds:
-          current = widths
+          resume_name = f"auto_refined_c{budget}"
+          if refine_resume is not None:
+            current = tuple(
+                refine_resume["scheduled_variants"][resume_name]["widths"])
+            if len(current) != int(config.num_decoder_layers) or sum(current) > budget:
+              raise ValueError(f"invalid resume schedule for budget {budget}: {current}")
+          else:
+            current = widths
           current_delta = (
               evaluate_selection(current)["loss"] - baseline_selection["loss"])
           history = [{
@@ -794,7 +818,7 @@ def run(config) -> None:
           schedules[refined_name] = current
           auto_schedule_refinement[refined_name] = {
               "budget": budget,
-              "initial_schedule": name,
+              "initial_schedule": resume_name if refine_resume is not None else name,
               "history": history,
           }
           print(
@@ -862,6 +886,7 @@ def run(config) -> None:
           "auto_budgets": list(auto_budgets),
           "auto_widths": list(auto_widths),
           "refine_rounds": refine_rounds,
+          "refine_resume_path": refine_resume_path,
           "layerwise": layerwise,
           "data_shuffle_seed": int(config.data_shuffle_seed),
           "eval_shuffle_buffer_size": int(config.eval_shuffle_buffer_size),

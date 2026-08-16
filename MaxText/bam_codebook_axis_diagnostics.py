@@ -430,6 +430,48 @@ def _select_budget_schedule(layer_costs, budget):
   return tuple(schedule), used, cost
 
 
+def _exchange_neighbors(schedule, layer_costs, budget):
+  """Enumerate one-step reallocations around a fixed-budget schedule."""
+  layers = tuple(sorted(layer_costs))
+  if layers != tuple(range(len(schedule))):
+    raise ValueError(f"layer ids must be contiguous from zero: {layers}")
+  choices = {layer: tuple(sorted(layer_costs[layer])) for layer in layers}
+  candidates = set()
+
+  # Permit one-sided moves when the DP left slack or an interaction makes less
+  # capacity preferable despite the additive rate-distortion estimate.
+  for layer in layers:
+    index = choices[layer].index(schedule[layer])
+    for neighbor_index in (index - 1, index + 1):
+      if 0 <= neighbor_index < len(choices[layer]):
+        candidate = list(schedule)
+        candidate[layer] = choices[layer][neighbor_index]
+        if sum(candidate) <= budget:
+          candidates.add(tuple(candidate))
+
+  # Move one adjacent width increment between two layers. Different adjacent
+  # increments are allowed whenever the resulting schedule remains in budget.
+  for donor in layers:
+    donor_index = choices[donor].index(schedule[donor])
+    if donor_index == 0:
+      continue
+    for receiver in layers:
+      if receiver == donor:
+        continue
+      receiver_index = choices[receiver].index(schedule[receiver])
+      if receiver_index + 1 == len(choices[receiver]):
+        continue
+      candidate = list(schedule)
+      candidate[donor] = choices[donor][donor_index - 1]
+      candidate[receiver] = choices[receiver][receiver_index + 1]
+      if sum(candidate) <= budget:
+        candidates.add(tuple(candidate))
+
+  candidates.discard(tuple(schedule))
+  return sorted(candidates, key=lambda candidate: (
+      sum(layer_costs[layer][candidate[layer]] for layer in layers), candidate))
+
+
 def run(config) -> None:
   started = time.perf_counter()
   if not config.only_eval or not config.bam_diagnostics:
@@ -452,6 +494,7 @@ def run(config) -> None:
       "BAM_AXIS_DIAG_AUTO_BUDGETS", "").split(",") if value)
   auto_widths = tuple(sorted(set(int(value) for value in os.environ.get(
       "BAM_AXIS_DIAG_AUTO_WIDTHS", "0,4,8,12,16,24,32").split(","))))
+  refine_rounds = int(os.environ.get("BAM_AXIS_DIAG_REFINE_ROUNDS", "0"))
   if auto_budgets:
     if any(width < 0 or width > int(config.bam_v) for width in auto_widths):
       raise ValueError(f"auto widths must lie in [0, {config.bam_v}]")
@@ -459,6 +502,8 @@ def run(config) -> None:
       raise ValueError("auto widths must include the uncompressed width")
     if num_batches - calibration_batches < 2:
       raise ValueError("auto schedule selection needs one selection and one validation batch")
+  if refine_rounds < 0:
+    raise ValueError("BAM_AXIS_DIAG_REFINE_ROUNDS must be nonnegative")
   output_path = Path(os.environ.get(
       "BAM_AXIS_DIAG_OUTPUT", "/tmp/bam_codebook_axis_diagnostics.json"))
   output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -562,6 +607,7 @@ def run(config) -> None:
   layerwise_variants = {}
   scheduled_variants = {}
   auto_schedule_selection = {}
+  auto_schedule_refinement = {}
   auto_rate_distortion = {}
   evaluation_started = time.perf_counter()
   if layerwise:
@@ -648,6 +694,28 @@ def run(config) -> None:
       }
       selection_start = calibration_batches * microbatches_per_batch
       selection_stop = selection_start + microbatches_per_batch
+      selection_cache = {}
+
+      def evaluate_selection(widths):
+        widths = tuple(widths)
+        if widths not in selection_cache:
+          controls = {
+              layer: _variant_controls(
+                  "compress_fixed_v", widths[layer], covariance,
+                  int(config.num_query_heads), int(config.bam_k), int(config.bam_v))
+              for layer, covariance in layer_bases.items()
+          }
+          variant_params = _insert_controls(state.params, wr_paths, controls)
+          parts = []
+          for index in range(selection_start, selection_stop):
+            rng = jax.random.fold_in(init_rng, index)
+            with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+              metrics_device = variant_forward(
+                  variant_params, microbatches[index], rng)
+            parts.append(jax.device_get(jax.block_until_ready(metrics_device)))
+          selection_cache[widths] = _merge_metrics(parts)
+        return selection_cache[widths]
+
       layer_costs = {}
       for layer in sorted(layer_bases):
         layer_costs[layer] = {0: 0.0} if layer == 0 else {}
@@ -687,6 +755,51 @@ def run(config) -> None:
         print(
             f"BAM_AXIS_AUTO_SCHEDULE {name} used={used} "
             f"predicted_delta={predicted_delta:+.8f} widths={widths}", flush=True)
+        if refine_rounds:
+          current = widths
+          current_delta = (
+              evaluate_selection(current)["loss"] - baseline_selection["loss"])
+          history = [{
+              "round": 0,
+              "selection_delta": current_delta,
+              "total_width": int(sum(current)),
+              "widths": list(current),
+          }]
+          for round_index in range(1, refine_rounds + 1):
+            candidates = _exchange_neighbors(current, layer_costs, budget)
+            best = current
+            best_delta = current_delta
+            for candidate_index, candidate in enumerate(candidates, start=1):
+              candidate_delta = (
+                  evaluate_selection(candidate)["loss"] - baseline_selection["loss"])
+              if candidate_delta < best_delta:
+                best = candidate
+                best_delta = candidate_delta
+              print(
+                  f"BAM_AXIS_REFINE budget={budget} round={round_index} "
+                  f"candidate={candidate_index}/{len(candidates)} "
+                  f"selection_delta={candidate_delta:+.8f} best={best_delta:+.8f}",
+                  flush=True)
+            if best == current:
+              break
+            current = best
+            current_delta = best_delta
+            history.append({
+                "round": round_index,
+                "selection_delta": current_delta,
+                "total_width": int(sum(current)),
+                "widths": list(current),
+            })
+          refined_name = f"auto_refined_c{budget}"
+          schedules[refined_name] = current
+          auto_schedule_refinement[refined_name] = {
+              "budget": budget,
+              "initial_schedule": name,
+              "history": history,
+          }
+          print(
+              f"BAM_AXIS_REFINED_SCHEDULE {refined_name} used={sum(current)} "
+              f"selection_delta={current_delta:+.8f} widths={current}", flush=True)
       auto_rate_distortion = {
           f"layer_{layer:02d}": {
               str(width): cost for width, cost in sorted(costs.items())}
@@ -748,6 +861,7 @@ def run(config) -> None:
           "schedules": {name: list(widths) for name, widths in schedules.items()},
           "auto_budgets": list(auto_budgets),
           "auto_widths": list(auto_widths),
+          "refine_rounds": refine_rounds,
           "layerwise": layerwise,
           "data_shuffle_seed": int(config.data_shuffle_seed),
           "eval_shuffle_buffer_size": int(config.eval_shuffle_buffer_size),
@@ -775,6 +889,7 @@ def run(config) -> None:
       "variants": variants,
       "layerwise_variants": layerwise_variants,
       "auto_schedule_selection": auto_schedule_selection,
+      "auto_schedule_refinement": auto_schedule_refinement,
       "auto_rate_distortion": auto_rate_distortion,
       "scheduled_variants": scheduled_variants,
   }

@@ -25,6 +25,20 @@ the schedule with this rule, verify it at another checkpoint if the model is sti
 freeze the physical widths for the formal retrain. With no trained activations, no data-driven
 method can know the layer importance in advance.
 
+The layer-count-independent procedure is therefore:
+
+1. Measure each layer's paired causal loss curve `D_l(C)` on a calibration checkpoint.
+2. Use the budget DP above to initialize `C_l` by equalizing marginal loss reduction per cache
+   dimension, not by imposing a depth trend.
+3. Because layer effects interact, refine that seed at fixed total cache with whole-model
+   pairwise exchanges (`C_i -= delta`, `C_j += delta`) on the selection split; stop when no
+   exchange improves loss, then evaluate once on the untouched validation split.
+
+This works for any number of layers. A non-monotonic result is expected whenever measured
+marginal utilities are non-monotonic; monotonic widths are an optional constraint, not an
+optimality principle. If no pilot checkpoint can be trained, uniform width is the only
+assumption-free starting point and cannot be called model-specific optimum.
+
 ## Held-out result
 
 Uniform C8 costs 192 dimensions across 24 layers. `monotonic` is the simple depth rule

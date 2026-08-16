@@ -17,27 +17,23 @@ For every layer and `C in {0,4,8,12,16,24,32}`, measure the paired selection-bat
 only that layer is compressed. A discrete rate-distortion DP then minimizes the sum of these
 single-layer deltas under `sum(C_l) <= budget`. This is the cache-allocation analogue of
 water-filling: capacity goes where its next increment removes the most loss. It uses no fixed
-layer numbers or depth fractions and therefore applies unchanged to a different layer count.
-Layer 0 is forced to C=0 because its incoming M is exactly zero.
+layer numbers or depth fractions, so it can diagnose a trained checkpoint of any depth; it does
+not make the resulting widths transferable across models. Layer 0 is forced to C=0 because its
+incoming M is exactly zero.
 
-For a genuinely new model, first train an uncompressed/wide-bottleneck checkpoint, calibrate
-the schedule with this rule, verify it at another checkpoint if the model is still early, then
-freeze the physical widths for the formal retrain. With no trained activations, no data-driven
-method can know the layer importance in advance.
+This is not a rule for choosing the architecture of a new, untrained model. The measured
+`D_l(C)` curves and their jagged DP result are checkpoint-specific; transferring that list to a
+different depth would be unjustified. Pairwise whole-model exchange search can tighten this
+checkpoint's oracle, but also increases selector-overfitting risk and still does not make the
+schedule transferable.
 
-The layer-count-independent procedure is therefore:
-
-1. Measure each layer's paired causal loss curve `D_l(C)` on a calibration checkpoint.
-2. Use the budget DP above to initialize `C_l` by equalizing marginal loss reduction per cache
-   dimension, not by imposing a depth trend.
-3. Because layer effects interact, refine that seed at fixed total cache with whole-model
-   pairwise exchanges (`C_i -= delta`, `C_j += delta`) on the selection split; stop when no
-   exchange improves loss, then evaluate once on the untouched validation split.
-
-This works for any number of layers. A non-monotonic result is expected whenever measured
-marginal utilities are non-monotonic; monotonic widths are an optional constraint, not an
-optimality principle. If no pilot checkpoint can be trained, uniform width is the only
-assumption-free starting point and cannot be called model-specific optimum.
+Before any pilot model exists, uniform width is the only layer-count-independent,
+assumption-free choice. A monotonic or staged depth schedule is merely another low-dimensional
+hypothesis and needs cross-checkpoint, cross-depth evidence; this checkpoint provides evidence
+against the tested monotonic `C4/C8/C12` hypothesis. If a pilot/retrain cycle is acceptable, a
+wide checkpoint may estimate an architecture for its formal retrain, preferably using a small
+smooth schedule family rather than independently fitting every layer. Without such a pilot,
+there is no data-driven way to claim an optimal model-specific `C_l`.
 
 ## Held-out result
 
@@ -50,6 +46,7 @@ Uniform C8 costs 192 dimensions across 24 layers. `monotonic` is the simple dept
 | monotonic C4/C8/C12 | 192 | +1.40171 | +1.38612 | +0.45640 | +49.1% |
 | auto DP | 184 | +0.68628 | +0.68283 | -0.24689 | -26.6% |
 | auto DP | 192 | +0.63652 | +0.62738 | -0.30233 | -32.5% |
+| checkpoint-local exchange, 2 rounds | 192 | +0.60837 | +0.59061 | -0.33911 | -36.5% |
 
 At equal cache, auto C192 beats uniform C8 on all 32 validation sequences. Auto C184 uses
 4.2% less cache and wins on 31/32. Selection and validation effects agree closely, so the
@@ -59,6 +56,10 @@ uniform: importance is not a smooth function of normalized depth.
 The DP's additive prediction for C192 is +0.207, versus the exact combined +0.627. Cascading
 cross-layer distribution shift is therefore large; single-layer curves reliably rank these
 schedules but cannot be summed as an absolute loss estimate.
+
+Two rounds of exact schedule exchange improved 26/32 untouched validation sequences versus the
+DP seed, but this is an exploratory checkpoint-local oracle, not a proposed production width
+list. The search was stopped rather than fitting the 24 layer widths more aggressively.
 
 ## Layer structure
 

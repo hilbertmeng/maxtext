@@ -930,7 +930,7 @@ class BamV2QChunk256OptimizedSixLayerProfile(BamV2QChunk256SixLayerProfile):
     bam_query_chunk_implementation = 'optimized'
 
 
-class BamV2QChunk256OptimizedFullLayerProfile(BamV2QChunk256OptimizedSixLayerProfile):
+class BamV2QChunk256OptimizedFullLayerProfile(BamV2QChunk256OptimizedSixLayerProfile):  # V2 C256
     """Full-24 target-TPU verification of the optimized C256 BAM path."""
     # code_commit: 165b55b
     # v5p-16 XPlane 1,455.35 ms; ~0.675 steps/s; +17.85% throughput vs legacy C256.
@@ -1055,7 +1055,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class Llama2MediumC256T4096(BamV2C256FetchScheduleBase):
     """Matched all-global BAM-MHA C256 layer-scan baseline at length 4096."""
-    # code_commit: 309448f; EW4b v5p-16 ~0.678 steps/s.
+    # code_commit: 309448f; EW4b v5p-16 ~0.678 steps/s; finished at 13,500.
     model_name = 'Llama2MediumC256T4096'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24
@@ -1066,11 +1066,26 @@ class Llama2MediumC256T4096(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256T4096(BamV2C256FetchScheduleBase):
     """Full V2 C256 layer-scan training at length 4096 and constant tokens/step."""
-    # code_commit: 309448f; EW4b v5p-16 ~0.509 steps/s.
+    # code_commit: 309448f; v5p-16 ~0.509 steps/s; completed 13,500. dloss -0.0912 vs MHA T4096; +0.0727 vs BAM T2048; T4096 adds -0.0128 BAM gain @13,400.
     model_name = 'BamLlama2MediumV2C256T4096'
     scan_layers = True
     max_target_length = 4096
     per_device_batch_size = 16.0
+
+
+class Llama2MediumC256T4096TruePile(Llama2MediumC256T4096):
+    """T4096 C256 MHA retrain on true 4097-token Pile records."""
+    model_name = 'Llama2MediumC256T4096TruePile'
+    dataset_path = (
+        'gs://newproject-1-llm_base_models_us-central1/data/'
+        'pythia_pile_idxmaps_tfrecord_4096'
+    )
+
+
+class BamLlama2MediumV2C256T4096TruePile(BamLlama2MediumV2C256T4096):
+    """T4096 C256 BAM V2 retrain on true 4097-token Pile records."""
+    model_name = 'BamLlama2MediumV2C256T4096TruePile'
+    dataset_path = Llama2MediumC256T4096TruePile.dataset_path
 
 
 class Llama2MediumC256ExtraHeadBase(BamLlama2MediumV2):
@@ -1527,7 +1542,7 @@ class BamV2GScanBothFullLayerProfile(
     bam_layer_modes = ['local_qk+full'] * 24
 
 
-class BamV2GScanLayerFullLayerProfile(
+class BamV2GScanLayerFullLayerProfile(  # V2 C256 layer_scan
     BamV2GScanLayerSixLayerProfile
 ):
     """Full-24 G C256 BAM S/U target-training profile."""

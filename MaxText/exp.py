@@ -1053,17 +1053,19 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 
 class Llama2MediumC256T4096(BamV2C256FetchScheduleBase):
-    """Matched all-global BAM-MHA C256 baseline at sequence length 4096."""
+    """Matched all-global BAM-MHA C256 layer-scan baseline at length 4096."""
     model_name = 'Llama2MediumC256T4096'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24
+    scan_layers = True
     max_target_length = 4096
     per_device_batch_size = 16.0
 
 
 class BamLlama2MediumV2C256T4096(BamV2C256FetchScheduleBase):
-    """Full V2 C256 training at sequence length 4096 and constant tokens/step."""
+    """Full V2 C256 layer-scan training at length 4096 and constant tokens/step."""
     model_name = 'BamLlama2MediumV2C256T4096'
+    scan_layers = True
     max_target_length = 4096
     per_device_batch_size = 16.0
 

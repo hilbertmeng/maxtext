@@ -50,11 +50,14 @@ def _emit(root, implementation, output):
 
   run_dir = os.path.join(os.path.dirname(output), implementation)
   os.makedirs(run_dir, exist_ok=True)
-  config_overrides = (
-      {"bam_adaptation": True, "bam_adaptation_postnorm": True}
-      if implementation == "adaptation"
-      else {}
-  )
+  config_overrides = {
+      "adaptation": {"bam_adaptation": True, "bam_adaptation_postnorm": True},
+  }.get(implementation, {})
+  if implementation.endswith("_rms"):
+    # bam_m_read_norm is an exp-class attribute, not a base.yml key, so both
+    # roots reject it as a command-line override; patch the class instead.
+    import exp as exp_module
+    exp_module.BamLlama2MediumV2.bam_m_read_norm = "rms"
   cfg = pyconfig.initialize(
       [None, os.path.join(maxtext, "configs/base.yml")],
       exp_class="BamLlama2MediumV2",
@@ -92,7 +95,7 @@ def _emit(root, implementation, output):
       sliding_window_size=4,
       name="self_attention",
   )
-  if implementation == "reference":
+  if implementation.startswith("reference"):
     from layers.attentions import BamAttention
     module = BamAttention(
         **common_kwargs, layer_mode="local_qk+full", read_side="both", bam_k=32, bam_v=32
@@ -204,6 +207,25 @@ def _emit(root, implementation, output):
     pickle.dump(payload, stream)
 
 
+def _assert_pair_matches(reference, target, label):
+  if reference["config"] != target["config"]:
+    raise AssertionError(
+        f"{label}: resolved config differs: {reference['config']} != {target['config']}")
+  for tree_name in ("params", "grads"):
+    if reference[tree_name].keys() != target[tree_name].keys():
+      raise AssertionError(f"{label}: {tree_name} paths differ")
+    for path in reference[tree_name]:
+      if not np.all(np.isfinite(target[tree_name][path])):
+        raise AssertionError(f"{label}: non-finite {tree_name}/{path}")
+      np.testing.assert_allclose(
+          target[tree_name][path], reference[tree_name][path], rtol=1e-6, atol=1e-6,
+          err_msg=f"{label}: {tree_name}/{path}",
+      )
+  for name in ("output", "matrix_out", "loss"):
+    np.testing.assert_allclose(
+        target[name], reference[name], rtol=1e-6, atol=1e-6, err_msg=f"{label}: {name}")
+
+
 def _compare(reference_root, target_root):
   with tempfile.TemporaryDirectory(prefix="bam-v2-alignment-") as tmp:
     outputs = {}
@@ -211,6 +233,8 @@ def _compare(reference_root, target_root):
         ("reference", reference_root),
         ("target", target_root),
         ("adaptation", target_root),
+        ("reference_rms", reference_root),
+        ("target_rms", target_root),
     ):
       output = os.path.join(tmp, f"{implementation}.pkl")
       subprocess.run(
@@ -225,20 +249,15 @@ def _compare(reference_root, target_root):
     adaptation = outputs["adaptation"]
     if target["bam_adaptation"] or not adaptation["bam_adaptation"]:
       raise AssertionError("bam_adaptation must default to false and enable only by override")
-    if reference["config"] != target["config"]:
-      raise AssertionError(f"resolved config differs: {reference['config']} != {target['config']}")
-    for tree_name in ("params", "grads"):
-      if reference[tree_name].keys() != target[tree_name].keys():
-        raise AssertionError(f"{tree_name} paths differ")
-      for path in reference[tree_name]:
-        if not np.all(np.isfinite(target[tree_name][path])):
-          raise AssertionError(f"non-finite {tree_name}/{path}")
-        np.testing.assert_allclose(
-            target[tree_name][path], reference[tree_name][path], rtol=1e-6, atol=1e-6,
-            err_msg=f"{tree_name}/{path}",
-        )
-    for name in ("output", "matrix_out", "loss"):
-      np.testing.assert_allclose(target[name], reference[name], rtol=1e-6, atol=1e-6, err_msg=name)
+    _assert_pair_matches(reference, target, "default")
+
+    # The read-side matrix RMS view must match the reference and actually
+    # change behavior relative to the default 'none' mode.
+    _assert_pair_matches(outputs["reference_rms"], outputs["target_rms"], "m_read_norm=rms")
+    if outputs["target_rms"]["config"]["bam_m_read_norm"] != "rms":
+      raise AssertionError("rms override did not reach the resolved config")
+    if np.allclose(outputs["target_rms"]["output"], target["output"], rtol=1e-6, atol=1e-6):
+      raise AssertionError("m_read_norm=rms did not change the forward output")
 
     # The adaptation path adds projected-U plus three small learned RMS scales.
     # The projected row read reuses abs_v_row_decoder, which is retained in the
@@ -287,7 +306,8 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--reference-root")
   parser.add_argument("--target-root", default=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-  parser.add_argument("--emit", choices=("reference", "target", "adaptation"))
+  parser.add_argument(
+      "--emit", choices=("reference", "target", "adaptation", "reference_rms", "target_rms"))
   parser.add_argument("--root")
   parser.add_argument("--output")
   args = parser.parse_args()

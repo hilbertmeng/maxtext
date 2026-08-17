@@ -22,6 +22,15 @@ grouped norms, dynamic forgetting, alternate write forms and diagnostics) are
 intentionally absent.  Parameter names, shapes and initializer ordering remain
 the same as that reference path so checkpoints and deterministic alignment are
 reviewable.
+
+Structure:
+  _rms_norm / _rms_gated_key / _factorized_local_read: param-free read helpers.
+  _packed_local_qk_init: packed local-QK kernel init (zero keys/gates, random mixes).
+  BamV2Attention.setup: parameter tree (full-read, packed local-QK, write path).
+  BamV2Attention._matrix_for_read: optional read-side matrix RMS view (bam_m_read_norm).
+  BamV2Attention._local_qk / _full_read: M reads added to Q/K and head output.
+  BamV2Attention._write: raw-matrix-stream update (decay + gated outer product).
+  BamV2Attention.__call__: train-only forward returning (residual_output, M_out).
 """
 
 import math
@@ -126,6 +135,8 @@ class BamV2Attention(attentions.Attention):
       raise ValueError(f"BAM V2 is not defined with DCMHA (uses_dcmha={uses_dcmha})")
     if cfg.bam_adaptation_postnorm and not cfg.bam_adaptation:
       raise ValueError("bam_adaptation_postnorm requires bam_adaptation")
+    if cfg.bam_m_read_norm not in ("rms", "none"):
+      raise ValueError(f"BAM V2 supports bam_m_read_norm rms/none, got {cfg.bam_m_read_norm}")
 
     reg_init = self.kernel_init
     zeros_init = initializers.contant_dense_init(0.0)
@@ -301,6 +312,15 @@ class BamV2Attention(attentions.Attention):
         self.weight_dtype,
     )
 
+  def _matrix_for_read(self, matrix):
+    """Reference read-side RMS view; the write stream keeps the raw matrix."""
+    if self.config.bam_m_read_norm == "none":
+      return matrix
+    return matrix * jax.lax.rsqrt(
+        jnp.mean(matrix**2, axis=(-2, -1), keepdims=True)
+        + float(self.config.normalization_layer_epsilon)
+    )
+
   def _local_qk(self, matrix, inputs):
     packed = self.W_local_qk_packed(inputs)
     key_width = self.bam_k + self.bam_v
@@ -421,7 +441,8 @@ class BamV2Attention(attentions.Attention):
     query, key = dc.QKNorm(self.config, name="qk_norm")(query, key)
     query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
     key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
-    q_local, k_local = self._local_qk(M_in, inputs_q)
+    M_read = self._matrix_for_read(M_in)
+    q_local, k_local = self._local_qk(M_read, inputs_q)
     if self.config.bam_adaptation_postnorm:
       norm_kwargs = dict(
           direct_scale=True,
@@ -458,7 +479,7 @@ class BamV2Attention(attentions.Attention):
     grouped_alpha = alpha.reshape(batch, kv_heads, query_groups, query_length, key.shape[1])
     y_std = jnp.einsum("bkgts,bskd->btkgd", grouped_alpha, value)
     y_std = y_std.reshape(batch, query_length, query_heads, depth)
-    y_full = self._full_read(M_in, alpha, inputs_q)
+    y_full = self._full_read(M_read, alpha, inputs_q)
     if self.config.bam_adaptation_postnorm:
       y_full = normalizations.get_rmsnorm(
           "rms_norm_o",

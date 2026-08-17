@@ -459,6 +459,14 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationPostNorm'
     model_name = run_name
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNorm(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptation
+):
+    """Adaptation arm reading a per-token RMS-normalized matrix view (reference bam_m_read_norm)."""
+    bam_m_read_norm = 'rms'
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNorm'
+    model_name = run_name
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1(
     DC, Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun
 ):

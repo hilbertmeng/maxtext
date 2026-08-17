@@ -11,6 +11,7 @@ from layers import normalizations
 from layers.attentions import (
     GroupedRMSNorm,
     _dynamic_bam_fetch_mix_weights,
+    _fit_bam_read_to_head,
     _packed_factorized_local_qk_init,
     _dynamic_mixed_bam_fetch_alpha,
     _mix_bam_write_v,
@@ -29,6 +30,25 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_bam_read_head_mapping_pads_or_adapts_only_v_side(self):
+    direct = jnp.arange(96, dtype=jnp.float32).reshape(1, 1, 1, 96)
+    padded = _fit_bam_read_to_head(direct, bam_k=64, head_dim=128)
+    np.testing.assert_array_equal(padded[..., :96], direct)
+    np.testing.assert_array_equal(padded[..., 96:], 0)
+
+    adapter = jnp.zeros((1, 64, 32), dtype=jnp.float32)
+    adapter = adapter.at[0, :32].set(jnp.eye(32))
+    wide = jnp.arange(96, dtype=jnp.float32).reshape(1, 1, 1, 96)
+    adapted = _fit_bam_read_to_head(
+        wide, bam_k=32, head_dim=64, v_adapter=adapter)
+    np.testing.assert_array_equal(adapted[..., :32], wide[..., :32])
+    np.testing.assert_array_equal(adapted[..., 32:], wide[..., 32:64])
+
+  def test_bam_read_head_mapping_rejects_wide_v_without_adapter(self):
+    with self.assertRaisesRegex(ValueError, 'without an adapter'):
+      _fit_bam_read_to_head(
+          jnp.zeros((1, 1, 1, 96)), bam_k=32, head_dim=64)
 
   def test_dynamic_bam_fetch_rms_mix_weights(self):
     logits = jax.random.normal(jax.random.PRNGKey(13), (2, 4, 3))

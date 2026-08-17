@@ -2056,6 +2056,26 @@ def _contract_bam_read(
   return jnp.concatenate([y_u, y_v], axis=-1)
 
 
+def _fit_bam_read_to_head(read, bam_k, head_dim, v_adapter=None):
+  """Map a bilateral [K-side, V-side] BAM read into one attention head."""
+  if not 0 < bam_k < head_dim:
+    raise ValueError(f'bam_k={bam_k} must be smaller than head_dim={head_dim}')
+  y_k, y_v = jnp.split(read, [bam_k], axis=-1)
+  target_v_dim = head_dim - bam_k
+  if y_v.shape[-1] > target_v_dim:
+    if v_adapter is None:
+      raise ValueError(
+          f'BAM V-side width {y_v.shape[-1]} exceeds available head tail '
+          f'{target_v_dim} without an adapter')
+    y_v = jnp.einsum(
+        '...nv,nvd->...nd', y_v, v_adapter.astype(y_v.dtype))
+  elif y_v.shape[-1] < target_v_dim:
+    y_v = jnp.pad(
+        y_v, [(0, 0)] * (y_v.ndim - 1)
+        + [(0, target_v_dim - y_v.shape[-1])])
+  return jnp.concatenate((y_k, y_v), axis=-1)
+
+
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              rms_epsilon,
              rms_statistics_dtype=jnp.float32,
@@ -2328,9 +2348,8 @@ class BamAttention(Attention):
       self._has_write = False
       return
 
-    assert self.bam_k + self.bam_v == self.head_dim, (
-        f"bam_k({self.bam_k})+bam_v({self.bam_v}) must equal head_dim({self.head_dim}), "
-        f"since the BAM head output [U;V] must be as wide as a standard head to share W_O")
+    assert 0 < self.bam_k < self.head_dim, (
+        f'bam_k({self.bam_k}) must fit inside head_dim({self.head_dim})')
     self._mode = set(self.layer_mode.replace('+', ' ').split())
     self._has_write = self.layer_mode != 'none'
     assert self._mode <= {
@@ -2494,6 +2513,14 @@ class BamAttention(Attention):
       assert self._combine_full_local_read or (
           self._fetch_diagonal_one and 'local_o' not in self._mode), (
               'absolute-V compression requires combined local/full or strict diagonal-one read')
+    if 'full' in self._mode:
+      full_v_output_dim = (
+          self.bam_v
+          if self._abs_v_dim is None or self._abs_v_row_output == 'project'
+          else self._abs_v_dim)
+      assert full_v_output_dim <= self.head_dim - self.bam_k, (
+          f'fetched BAM output needs {self.bam_k}+{full_v_output_dim} head '
+          f'coordinates, but head_dim={self.head_dim}')
     assert self._read_key_scale > 0.0
     assert self._rms_epsilon > 0.0
     assert self._read_key_epsilon > 0.0
@@ -2794,6 +2821,19 @@ class BamAttention(Attention):
               self.weight_dtype,
           ))
 
+      local_v_output_dim = self.head_dim - self.bam_k
+      if self.bam_v > local_v_output_dim:
+        def local_v_adapter_init(key, shape, dtype):
+          return reg_init(key, shape, dtype, 1, 2)
+        for _name in ('local_q_v_adapter', 'local_k_v_adapter'):
+          setattr(self, _name, self.param(
+              _name,
+              nn.with_logical_partitioning(
+                  local_v_adapter_init, ('q_heads', 'v_factor', 'kv')),
+              (self.num_query_heads, self.bam_v, local_v_output_dim),
+              self.weight_dtype,
+          ))
+
     if 'local_o' in self._mode and not self._share_full_local_read:
       # local_o = content branch (§4.6.5, 2026-08-01): per-head tier (R is None),
       # W_Ro: D->n(k+v) zero-init (gates readout to zero at start). Reads out [U;V] d-wide
@@ -2980,6 +3020,15 @@ class BamAttention(Attention):
       )
     return kwargs
 
+  def _fit_local_qk_reads(self, q_local, k_local):
+    """Place K-side first and adapt/pad V-side into the remaining head width."""
+    q_adapter = getattr(self, 'local_q_v_adapter', None)
+    k_adapter = getattr(self, 'local_k_v_adapter', None)
+    return (
+        _fit_bam_read_to_head(q_local, self.bam_k, self.head_dim, q_adapter),
+        _fit_bam_read_to_head(k_local, self.bam_k, self.head_dim, k_adapter),
+    )
+
   def _read_local_qk(self, Mh, inputs_q):
     """Read the local matrix into Q/K; callers choose the injection point."""
     if self._pack_factorized_local_qk:
@@ -3043,7 +3092,7 @@ class BamAttention(Attention):
       if self._factorized_head_output_layout == 'bnt':
         q_local = rearrange(q_local, 'b n t d -> b t n d')
         k_local = rearrange(k_local, 'b n t d -> b t n d')
-      return q_local, k_local
+      return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_q_kwargs = (
         {
@@ -3073,7 +3122,7 @@ class BamAttention(Attention):
       if self._factorized_head_output_layout == 'bnt':
         q_local = rearrange(q_local, 'b n t d -> b t n d')
         k_local = rearrange(k_local, 'b n t d -> b t n d')
-      return q_local, k_local
+      return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
     local_qk_R_q = None if local_qk_per_head else self.R_q
@@ -3087,7 +3136,7 @@ class BamAttention(Attention):
     if self._read_implementation == 'dot_bnt':
       q_local = rearrange(q_local, 'b n t d -> b t n d')
       k_local = rearrange(k_local, 'b n t d -> b t n d')
-    return q_local, k_local
+    return self._fit_local_qk_reads(q_local, k_local)
 
   def _read_local_v(self, Mh, inputs_kv):
     """Summarize each source-local matrix into the corresponding standard V."""
@@ -3228,7 +3277,7 @@ class BamAttention(Attention):
     return fetch_state
 
   def _expand_full_read(self, full_read):
-    """Restore the fixed [K-half,V-half] head layout after cache compression."""
+    """Restore compressed read sides and place them in one attention head."""
     read_k_dim = self._abs_k_dim or self.bam_k
     y_k, y_v = jnp.split(full_read, [read_k_dim], axis=-1)
 
@@ -3248,11 +3297,11 @@ class BamAttention(Attention):
     if self._abs_v_dim is not None:
       if self._abs_v_row_output == 'project':
         y_v = decode(y_v, self.abs_v_row_decoder)
-      else:
-        y_v = jnp.pad(
-            y_v, [(0, 0)] * (y_v.ndim - 1)
-            + [(0, self.bam_v - self._abs_v_dim)])
-    return jnp.concatenate((y_k, y_v), axis=-1)
+      # Direct mode keeps only the compressed coordinates. Padding the complete
+      # [K-side, V-side] result below is equivalent when k+v==head_dim and also
+      # supports k+v>head_dim without an unnecessary fetched-read decoder.
+    return _fit_bam_read_to_head(
+        jnp.concatenate((y_k, y_v), axis=-1), self.bam_k, self.head_dim)
 
   def _query_chunk_shared_full_read(
       self, query, key, value, Mh, inputs_q, decoder_segment_ids,
@@ -3334,9 +3383,7 @@ class BamAttention(Attention):
       full_read = _contract_bam_read(
           Mbar[:, None], Mbar[:, None], row_key, col_key, True,
           self._read_implementation, self.read_side)
-      return (self._expand_full_read(full_read)
-              if self._abs_k_dim is not None or self._abs_v_dim is not None
-              else full_read)
+      return self._expand_full_read(full_read)
 
     def chunk_body(q_chunk, k_chunk, v_chunk, M_chunk, mix_chunk,
                    row_chunk, col_chunk, valid, diagonal_mask, diag_col):
@@ -3764,8 +3811,7 @@ class BamAttention(Attention):
           full_read, full_key_stages = full_read
           read_key_stages.update({
               f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
-        if self._abs_k_dim is not None or self._abs_v_dim is not None:
-          full_read = self._expand_full_read(full_read)
+        full_read = self._expand_full_read(full_read)
         y_full = (rearrange(full_read, 'b n t d -> b t n d')
                   if self._read_implementation == 'dot_bnt' else full_read)
         y_bam = y_bam + y_full

@@ -158,6 +158,7 @@ class TrainXL:
     warmup_steps_fraction = 0.01
     cosine_learning_rate_final_fraction = 0.1
     eval_interval = 50000
+    per_device_batch_size = 16.0
 
 class TrainMedium:
     learning_rate = 3e-4
@@ -1626,6 +1627,100 @@ class BamMHAGScanLayerT4096FullLayerProfile(
     steps = 100
 
 
+class BamLlama2XLV2C256ProfileBase(
+    TrainStepProfile, TrainXL, BamLlama2MediumV2
+):
+    """Full-24 XL V2 C256 layer-scan throughput base on v5p-32."""
+    model_name = 'BamLlama2XLV2C256ProfileBase'
+    base_emb_dim = 2048
+    base_mlp_dim = 5504
+    base_num_decoder_layers = 24
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    bam_query_chunk_implementation = 'optimized'
+    scan_layers = True
+    bam_layer_modes = ['local_qk+full'] * 24
+    steps = 100
+
+
+class BamLlama2XLHead16x128V2C256T2048Profile(
+    BamLlama2XLV2C256ProfileBase
+):
+    """XL 16x128, BAM k/v/C=64/32/8, T2048."""
+    model_name = 'BamLlama2XLHead16x128V2C256T2048Profile'
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 128
+    bam_k = 64
+    bam_v = 32
+    bam_abs_v_compression_dim = 8
+
+
+class BamMHALlama2XLHead16x128C256T2048Profile(
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    """BamAttention MHA control paired with XL 16x128 BAM T2048."""
+    model_name = 'BamMHALlama2XLHead16x128C256T2048Profile'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 24
+
+
+class BamLlama2XLHead16x128V2C256T4096Profile(
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    """XL 16x128 BAM T4096 with TrainXL's per-device batch 16."""
+    model_name = 'BamLlama2XLHead16x128V2C256T4096Profile'
+    max_target_length = 4096
+
+
+class BamMHALlama2XLHead16x128C256T4096Profile(
+    BamLlama2XLHead16x128V2C256T4096Profile
+):
+    """BamAttention MHA control paired with XL 16x128 BAM T4096."""
+    model_name = 'BamMHALlama2XLHead16x128C256T4096Profile'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 24
+
+
+class BamLlama2XLHead32x64V2C256T2048Profile(
+    BamLlama2XLV2C256ProfileBase
+):
+    """XL 32x64, BAM k/v/C=32/64/16, T2048."""
+    model_name = 'BamLlama2XLHead32x64V2C256T2048Profile'
+    base_num_query_heads = 32
+    base_num_kv_heads = 32
+    head_dim = 64
+    bam_k = 32
+    bam_v = 64
+    bam_abs_v_compression_dim = 16
+
+
+class BamMHALlama2XLHead32x64C256T2048Profile(
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    """BamAttention MHA control paired with XL 32x64 BAM T2048."""
+    model_name = 'BamMHALlama2XLHead32x64C256T2048Profile'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 24
+
+
+class BamLlama2XLHead32x64V2C256T4096Profile(
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    """XL 32x64 BAM T4096 with TrainXL's per-device batch 16."""
+    model_name = 'BamLlama2XLHead32x64V2C256T4096Profile'
+    max_target_length = 4096
+
+
+class BamMHALlama2XLHead32x64C256T4096Profile(
+    BamLlama2XLHead32x64V2C256T4096Profile
+):
+    """BamAttention MHA control paired with XL 32x64 BAM T4096."""
+    model_name = 'BamMHALlama2XLHead32x64C256T4096Profile'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 24
+
+
 class BamV2LGLLScanBothFullLayerProfile(
     BamV2LGLLScanBothEightLayerProfile
 ):
@@ -2350,6 +2445,11 @@ class Llama2XL(Llama2Medium):
     learning_rate = 2e-4
     learning_rate_schedule_steps = 50000
     eval_interval = 5000
+
+class Llama2XLHead16x128(Llama2XL):
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 128
 
 class Llama2XLSG(Llama2Medium):
     base_num_decoder_layers = 36

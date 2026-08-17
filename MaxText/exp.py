@@ -286,9 +286,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
-    bam_read_implementation = 'dot_bnt'  # dot_bnt | dot_btn | mul_reduce_btn
+    bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
-    bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
+    bam_squeeze_single_fetch_read = True  # remove f=1 before the full read
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
     bam_fetch_read_bottleneck_dim = None  # optional fetched W_R: D -> r -> n*f*(k+v)
@@ -1065,15 +1065,6 @@ class Llama2MediumC256T4096(BamV2C256FetchScheduleBase):
     per_device_batch_size = 16.0
 
 
-class BamLlama2MediumV2C256T4096(BamV2C256FetchScheduleBase):
-    """Full V2 C256 layer-scan training at length 4096 and constant tokens/step."""
-    # code_commit: 309448f; v5p-16 ~0.509 steps/s; completed 13,500. dloss -0.0912 vs MHA T4096; +0.0727 vs BAM T2048; T4096 adds -0.0128 BAM gain @13,400.
-    model_name = 'BamLlama2MediumV2C256T4096'
-    scan_layers = True
-    max_target_length = 4096
-    per_device_batch_size = 16.0
-
-
 class Llama2MediumC256T4096TruePile(Llama2MediumC256T4096):
     """T4096 C256 MHA retrain on true 4097-token Pile records."""
     # code_commit: c1ec69d; ~0.678 steps/s; completed 13,500. mean dloss -0.0236 vs MHA T2048 @12,400–13,400.
@@ -1084,10 +1075,13 @@ class Llama2MediumC256T4096TruePile(Llama2MediumC256T4096):
     )
 
 
-class BamLlama2MediumV2C256T4096TruePile(BamLlama2MediumV2C256T4096):
+class BamLlama2MediumV2C256T4096TruePile(BamV2C256FetchScheduleBase):
     """T4096 C256 BAM V2 retrain on true 4097-token Pile records."""
-    # code_commit: c1ec69d; ~0.509 steps/s; running.
+    # code_commit: c1ec69d; ~0.509 steps/s; completed 13,500. dloss -0.0968 vs matched MHA; T4096 adds 0.0184 (19.0%) BAM gain vs T2048 @13,400.
     model_name = 'BamLlama2MediumV2C256T4096TruePile'
+    scan_layers = True
+    max_target_length = 4096
+    per_device_batch_size = 16.0
     dataset_path = Llama2MediumC256T4096TruePile.dataset_path
 
 
@@ -2266,15 +2260,6 @@ class BamLlama2MediumDynamicPerHeadQKDirectReadProfile(
     model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadProfile'
     bam_local_qk_key_mode = 'per_head'
     bam_create_grouped_rw_norm_params = True
-
-
-class BamLlama2MediumReadKernelCurrentProfile(
-    BamLlama2MediumDynamicPerHeadQKDirectReadProfile
-):
-    """A: historical dot read with [b,n,t,d] output plus caller transpose."""
-    # code_commit: 07a4223
-    # ~0.289 steps/s; stopped at 55. XPlane device step 3.426 s.
-    model_name = 'BamLlama2MediumReadKernelCurrentProfile'
 
 
 class BamLlama2MediumReadKernelLayoutProfile(

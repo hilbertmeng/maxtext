@@ -1677,7 +1677,7 @@ class MLA(Attention):
 # ============================================================================
 # BAM Attention (Bilinear Associative Memory)
 # Design ref: bam_attention/DESIGN.md §4 / §4.6.5 / §7.4
-# v0.1 scope: non-scan path, train mode, codebook + local + full read, n == n_kv (no GQA)
+# BAM train path: matrix write, factorized LocalQK, and dynamic full read; n == n_kv.
 # ============================================================================
 
 class GroupedRMSNorm(nn.Module):
@@ -1726,71 +1726,12 @@ class GroupedRMSNorm(nn.Module):
     return y
 
 
-def _shared_bam_fetch_alpha(alpha, query, key, attn_mask, n_f, mode,
-                            diagonal_yield, attn_logits_soft_cap, float32_logits):
-  """Reuse standard Q/K for BAM fetch, with selectable equivalent implementations."""
-  if mode == 'legacy':
-    fetch_alpha = alpha * (
-        1 - jnp.eye(alpha.shape[-2], alpha.shape[-1], dtype=alpha.dtype)
-    ) if diagonal_yield else alpha
-    return fetch_alpha[:, :n_f]
-
-  if mode == 'compact':
-    fetch_alpha = alpha[:, :n_f]
-  elif mode == 'recompute':
-    fetch_logits = jnp.einsum('btfd,bsfd->bfts', query[:, :, :n_f], key[:, :, :n_f])
-    if attn_logits_soft_cap:
-      fetch_logits = jnp.tanh(fetch_logits / attn_logits_soft_cap) * attn_logits_soft_cap
-    if attn_mask is not None:
-      fetch_logits = apply_mask_to_logits(fetch_logits, attn_mask)
-    if float32_logits:
-      fetch_logits = fetch_logits.astype(jnp.float32)
-    fetch_alpha = jax.nn.softmax(fetch_logits, axis=-1)
-  else:
-    raise ValueError(f'Unknown shared BAM fetch mode: {mode}')
-
-  if diagonal_yield:
-    fetch_alpha = fetch_alpha * (
-        1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-  return fetch_alpha
-
-
-def _dynamic_mixed_bam_fetch_alpha(
-    alpha, mix_logits, diagonal_yield, weight_mode='softmax',
-    *, rms_epsilon, return_aux=False):
-  """Build one BAM fetch route as a token-wise mixture of all MHA heads."""
-  mix_logits, mix_weights = _dynamic_bam_fetch_mix_weights(
-      mix_logits, alpha.dtype, weight_mode, rms_epsilon=rms_epsilon)
-
-  # A restricted router consumes the first N standard attention maps.  Head
-  # identity is learned jointly; "first" is only a deterministic subset.
-  fetch_alpha = jnp.einsum(
-      'bnts,btn->bts', alpha[:, :mix_weights.shape[-1]], mix_weights)
-  pre_diagonal_alpha = fetch_alpha[:, None]
-  if diagonal_yield:
-    fetch_alpha = fetch_alpha * (
-        1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-  fetch_alpha = fetch_alpha[:, None]  # bts->bfts
-  if return_aux:
-    return fetch_alpha, mix_logits, mix_weights, pre_diagonal_alpha
-  return fetch_alpha
-
-
-def _dynamic_bam_fetch_mix_weights(
-    mix_logits, alpha_dtype, weight_mode='softmax', *, rms_epsilon):
-  """Normalize token-wise MHA-head coefficients without materializing alpha."""
+def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon):
+  """Build a signed unit-L2 mixture over standard-attention heads."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
-  if weight_mode == 'softmax':
-    mix_weights = jax.nn.softmax(mix_logits, axis=-1)
-  elif weight_mode == 'rms':  # V1 default
-    # RMSNorm alone has L2 norm sqrt(num_heads); divide it out so the signed
-    # coefficient vector has unit L2 norm and does not gain amplitude for free.
-    normalized = normalizations.rms_norm(
-        mix_logits, dtype=alpha_dtype, epsilon=rms_epsilon)
-    mix_weights = normalized / jnp.sqrt(mix_logits.shape[-1])
-  else:
-    raise ValueError(f'Unknown dynamic fetch weight mode: {weight_mode}')
-  return mix_logits, jnp.asarray(mix_weights, alpha_dtype)
+  normalized = normalizations.rms_norm(
+      mix_logits, dtype=alpha_dtype, epsilon=rms_epsilon)
+  return normalized / jnp.sqrt(mix_logits.shape[-1])
 
 
 def _attention_op(
@@ -1813,147 +1754,15 @@ def _attention_op(
   return y_std, alpha
 
 
-def _bam_fetch_op(
-    alpha, fetch_state, *, mix_weights=None, diagonal_mask=None,
-    diagonal_indices=None):
-  """Optionally mix MHA routes, set the local coefficient, and fetch M."""
-  if diagonal_mask is not None and diagonal_indices is not None:
-    raise ValueError('Specify either diagonal_mask or diagonal_indices, not both')
+def _bam_fetch_op(alpha, fetch_state, mix_weights, diagonal_mask):
+  """Mix standard-attention routes, set the local coefficient, and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
-    fetch_alpha = (
-        jnp.einsum(
-            'bnqs,bqn->bqs', alpha[:, :mix_weights.shape[-1]], mix_weights)
-        if mix_weights is not None else alpha)
-    fetch_alpha_pre_diagonal = fetch_alpha
-    if diagonal_mask is not None:
-      fetch_alpha = jnp.where(
-          diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype), fetch_alpha)
-    elif diagonal_indices is not None:
-      query_indices, source_indices = diagonal_indices
-      fetch_alpha = fetch_alpha.at[:, query_indices, source_indices].set(
-          jnp.asarray(1, fetch_alpha.dtype))
+    fetch_alpha = jnp.einsum(
+        'bnqs,bqn->bqs', alpha[:, :mix_weights.shape[-1]], mix_weights)
+    fetch_alpha = jnp.where(
+        diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype), fetch_alpha)
   with jax.named_scope("bam/fetch_m"):
-    if fetch_alpha.ndim == 4:
-      Mbar = jnp.einsum('bfqs,bskv->bfqkv', fetch_alpha, fetch_state)
-    else:
-      Mbar = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
-  return Mbar, fetch_alpha, fetch_alpha_pre_diagonal
-
-
-def _sliding_window_bam_fetch_alpha(
-    alpha, window_size, prefix_size=None, source_positions=None):
-  """Keep a recent window and optional segment-local prefix, without renormalizing."""
-  if window_size <= 0:
-    raise ValueError(f'BAM fetch sliding-window size must be positive, got {window_size}')
-  target = jnp.arange(alpha.shape[-2])[:, None]
-  source = jnp.arange(alpha.shape[-1])[None, :]
-  mask = (source <= target) & (source > target - window_size)
-  if prefix_size is not None:
-    if prefix_size <= 0:
-      raise ValueError(f'BAM fetch prefix size must be positive, got {prefix_size}')
-    if source_positions is None:
-      raise ValueError('source_positions are required when retaining a BAM fetch prefix')
-    mask = mask[None, None] | (source_positions[:, None, None, :] < prefix_size)
-  return jnp.where(mask, alpha, jnp.asarray(0, alpha.dtype))
-
-
-def _temporal_block_bam_fetch(
-    alpha, M, positions, segment_ids, block_size, mode, recent_window_size=None):
-  """Approximate old full-fetch states with causal, segment-aware block summaries.
-
-  Completed blocks store either their mean matrix or an orthogonal constant/linear
-  least-squares pair.  The current block remains exact.  With ``recent_window_size``,
-  only blocks ending before the exact recent window are compressed; the boundary
-  block also remains exact, avoiding future leakage and partial-block ambiguity.
-  """
-  if alpha.ndim != 4 or M.ndim != 4:
-    raise ValueError(f'temporal block fetch expects [b,f,t,s] and [b,s,k,v], got {alpha.shape}, {M.shape}')
-  if alpha.shape[0] != M.shape[0] or alpha.shape[-1] != M.shape[1]:
-    raise ValueError(f'incompatible temporal block fetch shapes: {alpha.shape}, {M.shape}')
-  if alpha.shape[-2] != M.shape[1] or positions.shape != segment_ids.shape:
-    raise ValueError('temporal block fetch currently requires self-attention with aligned positions/segments')
-  if block_size <= 1:
-    raise ValueError(f'temporal block size must exceed one, got {block_size}')
-  if mode not in ('mean', 'linear'):
-    raise ValueError(f'unknown temporal block mode: {mode}')
-  if recent_window_size is not None and recent_window_size <= 0:
-    raise ValueError(f'recent window must be positive, got {recent_window_size}')
-
-  batch, _, target_length, source_length = alpha.shape
-  del batch
-  source_index = jnp.arange(source_length)[None, :]
-  previous_segment = jnp.concatenate(
-      (segment_ids[:, :1], segment_ids[:, :-1]), axis=1)
-  is_segment_start = (source_index == 0) | (segment_ids != previous_segment) | (positions == 0)
-  segment_start = jax.lax.associative_scan(
-      jnp.maximum, jnp.where(is_segment_start, source_index, 0), axis=1)
-  group_ids = segment_start + positions // block_size
-  valid_source = segment_ids != 0
-
-  def segment_sum(data):
-    return jax.vmap(
-        lambda values, ids: jax.ops.segment_sum(
-            values, ids, num_segments=source_length)
-    )(data, group_ids)
-
-  # Accumulate summaries in f32, then store/read them in the matrix-stream dtype.
-  M_f32 = jnp.asarray(M, jnp.float32)
-  valid_f32 = valid_source.astype(jnp.float32)
-  counts = segment_sum(valid_f32)[..., None, None]
-  mean_matrix = segment_sum(M_f32 * valid_f32[..., None, None]) / jnp.maximum(counts, 1.0)
-  mean_matrix = jnp.asarray(mean_matrix, M.dtype)
-
-  within_block = positions % block_size
-  linear_coordinate = (
-      2.0 * within_block.astype(jnp.float32) / float(block_size - 1) - 1.0)
-  if mode == 'linear':
-    linear_energy = segment_sum(
-        jnp.square(linear_coordinate) * valid_f32)[..., None, None]
-    linear_matrix = segment_sum(
-        M_f32 * (linear_coordinate * valid_f32)[..., None, None]
-    ) / jnp.maximum(linear_energy, 1.0)
-    linear_matrix = jnp.asarray(linear_matrix, M.dtype)
-  else:
-    linear_matrix = None
-
-  query_group = group_ids[:, :target_length]
-  same_segment = (
-      segment_ids[:, :target_length, None] == segment_ids[:, None, :])
-  same_segment &= segment_ids[:, :target_length, None] != 0
-  if recent_window_size is None:
-    compress = same_segment & (
-        query_group[:, :, None] != group_ids[:, None, :])
-  else:
-    source_block_end = (positions // block_size + 1) * block_size - 1
-    cutoff = positions[:, :target_length, None] - recent_window_size
-    compress = same_segment & (source_block_end[:, None, :] <= cutoff)
-
-  compressed_alpha = alpha * compress[:, None, :, :].astype(alpha.dtype)
-  exact_alpha = alpha - compressed_alpha
-  grouped_alpha = segment_sum(
-      jnp.transpose(compressed_alpha, (0, 3, 1, 2)))
-  grouped_alpha = jnp.transpose(grouped_alpha, (0, 2, 3, 1))
-  compressed_fetch = jnp.einsum('bftg,bgkv->bftkv', grouped_alpha, mean_matrix)
-  if mode == 'linear':
-    grouped_linear_alpha = segment_sum(jnp.transpose(
-        compressed_alpha * linear_coordinate[:, None, None, :].astype(alpha.dtype),
-        (0, 3, 1, 2)))
-    grouped_linear_alpha = jnp.transpose(grouped_linear_alpha, (0, 2, 3, 1))
-    compressed_fetch = compressed_fetch + jnp.einsum(
-        'bftg,bgkv->bftkv', grouped_linear_alpha, linear_matrix)
-  exact_fetch = jnp.einsum('bfts,bskv->bftkv', exact_alpha, M)
-  return exact_fetch + compressed_fetch
-
-
-def _select_bam_write_source(source, y_std, y_codebook, y_full, y_local_o, y_all=None):
-  """Select direct U-write content without changing the residual-stream output."""
-  if source == 'std+cross+local_o':  # V1 default
-    return y_all if y_all is not None else y_std + y_codebook + y_full + y_local_o
-  if source == 'std+cross':
-    return y_std + y_codebook + y_full
-  if source == 'std':
-    return y_std
-  raise ValueError(f'Unknown BAM write source: {source}')
+    return jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
 
 
 def _mix_bam_write_v(x_v, o_head, bam_k, mix_scale, bias):
@@ -2041,16 +1850,6 @@ def _contract_bam_read_sides(
     raise ValueError(f'Unknown BAM read side: {read_side}')
   f = 'f' if Mc.ndim == 5 else ''
   n = 'n' if per_head else ''
-  if implementation == 'dot_bnt':
-    y_u = (jnp.einsum(f'b{f}tkv,bt{n}{f}v->b{n}tk', Mc, r_col)
-           if read_side in ('both', 'col') else None)
-    y_v = (jnp.einsum(f'b{f}tkv,bt{n}{f}k->b{n}tv', Mr, r_row)
-           if read_side in ('both', 'row') else None)
-    if y_u is None:
-      y_u = jnp.zeros(y_v.shape[:-1] + (Mc.shape[-2],), dtype=y_v.dtype)
-    if y_v is None:
-      y_v = jnp.zeros(y_u.shape[:-1] + (Mr.shape[-1],), dtype=y_u.dtype)
-    return y_u, y_v
   if implementation == 'dot_btn':
     y_u = y_v = None
     if read_side in ('both', 'col'):
@@ -2128,7 +1927,7 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              rms_statistics_dtype=jnp.float32,
              key_gate_logits=None, return_key_stages=False,
              key_row_norm=None, key_col_norm=None,
-             use_learned_key_norm=False, implementation='dot_bnt',
+             use_learned_key_norm=False, implementation='mul_reduce_btn',
              read_side='both', return_sides=False):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
@@ -2142,8 +1941,7 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
      bt{n}{f}{side}). Split widths adapt to M's k/v (or C/C for codebook).
   R: [n,d,d] rematrix given => shared tier (key has no head axis, read once then per-head
      rematrix); R is None => per-head tier (key carries head axis, no rematrix).
-  `dot_bnt` preserves the historical [b,n,t,d] result. `dot_btn` and
-  `mul_reduce_btn` return [b,t,n,d], eliminating the callers' immediate transpose.
+  Both implementations return [b,t,n,d].
   `return_sides=True` returns the row/column contractions separately before concatenation.
   """
   Mc, Mr = M if isinstance(M, tuple) else (M, M)
@@ -2164,8 +1962,7 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
     y = jnp.concatenate([y_u, y_v], axis=-1)
   if R is not None and not return_sides:
     with jax.named_scope("bam/read_rematrix"):
-      y = (jnp.einsum('btd,nde->bnte', y, R) if implementation == 'dot_bnt'
-           else jnp.einsum('btd,nde->btne', y, R))
+      y = jnp.einsum('btd,nde->btne', y, R)
   if return_key_stages:
     post_rms_row = (key_row_norm(raw_row) if key_row_norm is not None
                     else normalizations.rms_norm(
@@ -2198,7 +1995,7 @@ def factorized_head_bam_read(
     key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
-    implementation='dot_bnt', read_side='both', output_layout='bnt'):
+    implementation='mul_reduce_btn', read_side='both', output_layout='bnt'):
   """Read once with a shared runtime key, then route it dynamically across heads.
 
   For each side, the effective per-head key is the rank-1 factorization
@@ -2227,7 +2024,7 @@ def factorized_head_bam_read(
 
   with jax.named_scope("bam/read_m_contract"):
     y_u = y_v = None
-    if implementation in ('dot_bnt', 'dot_btn'):
+    if implementation == 'dot_btn':
       if read_side in ('both', 'col'):
         y_u = jnp.einsum('btkv,btv->btk', M, r_col)
       if read_side in ('both', 'row'):
@@ -2291,80 +2088,8 @@ def _packed_factorized_local_qk_init(kernel_init, num_heads, key_width):
   return init_fn
 
 
-def codebook_read(alpha_f, M, x, rho_u, rho_v, W_beta, *, key_mode='none',
-                  key_scale=1.0, rms_epsilon,
-                  rms_statistics_dtype=jnp.float32,
-                  key_gate_logits=None,
-                  key_row_norm=None, key_col_norm=None,
-                  use_learned_key_norm=False, source_implementation='dot',
-                  read_implementation='dot_btn'):
-  """Codebook read (§4.6.2): keys constrained to span(ρ) cut the transfer width k*v -> C(k+v).
-
-  Source side = ρ pre-contraction (static keys, no per-token key materialization — the savings).
-  Destination side = a literal bam_read((Zcᵀ, Zr), x, W_beta) with β as the runtime key.
-  rho_u: [C, k] (row-read codebook); rho_v: [C, v] (col-read codebook) — side-independent (§4.1).
-  """
-  if alpha_f.shape[1] != 1:
-    raise ValueError(f'optimized codebook read requires one fetch route, got {alpha_f.shape}')
-  with jax.named_scope('bam/codebook_source_reduce'):
-    if source_implementation == 'dot':
-      Yr = jnp.einsum('bskv,ck->bscv', M, rho_u)  # M^T rho_u
-      Yc = jnp.einsum('bskv,cv->bsck', M, rho_v)  # M rho_v
-    elif source_implementation == 'mul_reduce':
-      expanded_M = M[:, :, None]
-      Yr = jnp.sum(expanded_M * rho_u[None, None, :, :, None], axis=-2)
-      Yc = jnp.sum(expanded_M * rho_v[None, None, :, None, :], axis=-1)
-    else:
-      raise ValueError(f'Unknown codebook source implementation: {source_implementation}')
-
-  # Keep the true T x S contraction as a dense dot. Flattening C and content makes
-  # its transfer width explicit and removes the length-one fetch axis.
-  with jax.named_scope('bam/codebook_fetch'):
-    b, s, c, d = (*Yc.shape[:3], Yc.shape[-1] + Yr.shape[-1])
-    source = jnp.concatenate([Yc, Yr], axis=-1).reshape(b, s, c * d)
-    Z = jnp.einsum('bts,bsd->btd', alpha_f[:, 0], source).reshape(
-        b, alpha_f.shape[-2], c, d)
-
-  with jax.named_scope('bam/codebook_read'):
-    projection = lambda z: jnp.squeeze(W_beta(z), axis=-2)
-    _, _, beta_row, beta_col = _project_bam_read_keys(
-        c, x, projection, key_mode=key_mode, key_scale=key_scale,
-        rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
-        key_gate_logits=key_gate_logits,
-        key_row_norm=key_row_norm, key_col_norm=key_col_norm,
-        use_learned_key_norm=use_learned_key_norm)
-    k = M.shape[-2]
-    Zc, Zr = Z[..., :k], Z[..., k:]
-    if read_implementation in ('dot_bnt', 'dot_btn'):
-      y_u = jnp.einsum('btck,btnc->btnk', Zc, beta_col)
-      y_v = jnp.einsum('btcv,btnc->btnv', Zr, beta_row)
-    elif read_implementation == 'mul_reduce_btn':
-      y_u = jnp.sum(Zc[:, :, None] * beta_col[..., None], axis=-2)
-      y_v = jnp.sum(Zr[:, :, None] * beta_row[..., None], axis=-2)
-    else:
-      raise ValueError(f'Unknown BAM read implementation: {read_implementation}')
-    return jnp.concatenate([y_u, y_v], axis=-1)
-
-
 class BamAttention(Attention):
-  """BAM Attention: standard MHA plus a matrix residual stream M, a write primitive, and a read primitive.
-
-  v0.1: train mode, n==n_kv, non-scan. Per-layer read mode is set by layer_mode
-  ('codebook' / 'local_qk' / 'local_v' / 'full' / 'local_o' / 'write' / 'none',
-  combinable e.g. 'codebook+local_qk+local_o').  `write` keeps the M update but performs
-  no BAM read.
-  Asymmetric init: read side zero-initialized => start is bit-identical to standard MHA;
-  write-gate bias=logit(eps) slightly open => M accumulates immediately. 'full' is the
-  full-read oracle, for codebook-read correctness check only; most expensive transfer, not
-  for production. 'local_qk' = route branch (Q/K injection, shared tier + R_q/R_k rematrix).
-  'local_v' = source-summary branch (factorized local-M read injected before alpha-weighted V).
-  'local_o' = content branch (O local read, per-head tier, merges into o). Common prefix
-  'local_' marks both as local reads (alpha:=delta, read own M_in, zero transfer); the
-  suffix names the use point (Q/K vs o) — the axis that actually distinguishes the two.
-  Normalization (§4.6.5, param-free): read side — one RMS scalar per token over (k,v), all
-  reads consume Mh; write side — per-record factor rms before the outer product (gate is the
-  sole magnitude channel). Readout RMSNorm on y_bam is NOT adopted.
-  """
+  """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
   layer_mode: str = 'none'      # per-layer read mode (each layer is a separate instance under non-scan)
   read_side: str = 'both'       # both | row (M^T r_row) | col (M r_col)
@@ -2377,10 +2102,10 @@ class BamAttention(Attention):
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
     self._query_chunk_size = (
         cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
-    self._query_chunk_implementation = cfg.bam_query_chunk_implementation
+    assert not cfg.bam_diagnostics, (
+        'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
-      assert not cfg.bam_diagnostics, 'BAM MHA control must not expose BAM diagnostics'
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
         assert cfg.max_target_length % self._query_chunk_size == 0, (
@@ -2391,11 +2116,16 @@ class BamAttention(Attention):
 
     assert 0 < self.bam_k < self.head_dim, (
         f'bam_k({self.bam_k}) must fit inside head_dim({self.head_dim})')
-    self._mode = set(self.layer_mode.replace('+', ' ').split())
-    self._has_write = self.layer_mode != 'none'
-    assert self._mode <= {
-        'codebook', 'local_qk', 'local_v', 'full', 'local_o', 'write', 'none'}
+    self._mode = (
+        set() if self.layer_mode == 'none'
+        else set(self.layer_mode.replace('+', ' ').split()))
+    assert self._mode in (
+        set(), {'write'}, {'local_qk'}, {'local_qk', 'full'}), (
+            f'unsupported production BAM layer mode: {self.layer_mode}')
+    self._has_write = bool(self._mode)
     assert self.read_side in ('both', 'row', 'col')
+    assert cfg.bam_write_source == 'std+cross+local_o', (
+        'historical BAM write-source ablations must use their recorded commit')
 
     # DenseGeneral passes in_axis/out_axis to its initializer in addition to
     # key/shape/dtype. Use MaxText's N-D constant wrapper so the zero-init read
@@ -2434,23 +2164,11 @@ class BamAttention(Attention):
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
     self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
-    self._shared_fetch_mode = cfg.bam_shared_fetch_mode
     self._fetch_mix_num_heads = (
         self.num_query_heads
         if cfg.bam_fetch_mix_num_heads is None
         else int(cfg.bam_fetch_mix_num_heads))
     assert 0 < self._fetch_mix_num_heads <= self.num_query_heads
-    self._fetch_sliding_window_size = cfg.bam_fetch_sliding_window_size
-    self._fetch_sliding_window_prefix_size = getattr(
-        cfg, 'bam_fetch_sliding_window_prefix_size', None)
-    self._fetch_temporal_block_size = cfg.bam_fetch_temporal_block_size
-    self._fetch_temporal_block_mode = cfg.bam_fetch_temporal_block_mode
-    self._fetch_temporal_recent_window_size = cfg.bam_fetch_temporal_recent_window_size
-    self._codebook_source_implementation = cfg.bam_codebook_source_implementation
-    self._codebook_read_implementation = cfg.bam_codebook_read_implementation
-    self._share_full_local_read = cfg.bam_share_full_local_read
-    self._combine_full_local_read = cfg.bam_combine_full_local_read
-    self._fetch_diagonal_one = cfg.bam_fetch_diagonal_one
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
@@ -2468,10 +2186,19 @@ class BamAttention(Attention):
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
     self._abs_v_source_implementation = getattr(
         cfg, 'bam_abs_v_source_implementation', 'dot')
-    if (self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix')
-        and {'full', 'codebook'} & self._mode):
-      assert not cfg.bam_dedicated_fetch, 'dynamic head mixing and dedicated fetch are exclusive'
-      assert cfg.bam_n_f == 1, 'dynamic head mixing produces exactly one fetch route'
+    if 'full' in self._mode:
+      assert cfg.bam_shared_fetch_mode == 'dynamic_rms_mix'
+      assert cfg.bam_n_f == 1
+      assert cfg.bam_fetch_diagonal_one
+      assert not cfg.bam_dedicated_fetch
+      assert cfg.bam_fetch_sliding_window_size is None
+      assert getattr(cfg, 'bam_fetch_sliding_window_prefix_size', None) is None
+      assert cfg.bam_fetch_temporal_block_size is None
+      assert cfg.bam_fetch_temporal_block_mode == 'none'
+      assert cfg.bam_fetch_temporal_recent_window_size is None
+      assert not cfg.bam_share_full_local_read
+      assert not cfg.bam_combine_full_local_read
+      assert not cfg.bam_keep_fetch_diagonal
     self._write_v_mode = cfg.bam_write_v_mode
     self._write_u2_norm = cfg.bam_write_u2_norm
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
@@ -2497,26 +2224,6 @@ class BamAttention(Attention):
     assert self._local_qk_rope_pairing == 'split_half' or (
         self._local_qk_injection == 'pre_qknorm_rope' and not cfg.qk_norm), (
             'adjacent Q/K RoPE requires pre-RoPE LocalQK injection with QKNorm disabled')
-    assert self._codebook_source_implementation in ('dot', 'mul_reduce')
-    assert self._codebook_read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
-    assert self._shared_fetch_mode in (
-        'legacy', 'compact', 'recompute', 'dynamic_mix', 'dynamic_rms_mix')
-    if self._fetch_sliding_window_size is not None:
-      assert self._fetch_sliding_window_size > 0
-      assert not cfg.bam_dedicated_fetch
-      assert self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'), (
-          'BAM fetch sliding window currently masks the post-mix fetch alpha')
-    if self._fetch_sliding_window_prefix_size is not None:
-      assert self._fetch_sliding_window_prefix_size > 0
-      assert self._fetch_sliding_window_size is not None, (
-          'BAM fetch prefix retention requires a sliding window')
-    if self._fetch_temporal_block_size is not None:
-      assert self._fetch_temporal_block_size > 1
-      assert self._fetch_temporal_block_mode in ('mean', 'linear')
-      assert 'full' in self._mode, 'temporal block compression requires full fetch'
-    else:
-      assert self._fetch_temporal_block_mode == 'none'
-      assert self._fetch_temporal_recent_window_size is None
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
     assert self._write_u2_norm in ('rms', 'grouped_rms_bias')
     assert self._write_u2_norm == 'rms' or self._write_v_mode == 'o_tail'
@@ -2532,9 +2239,7 @@ class BamAttention(Attention):
     assert self._write_outer_implementation in ('dot', 'mul_reduce')
     assert self._m_read_norm in ('rms', 'none')
     assert self._forget_mode in ('constant', 'dynamic')
-    assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
-    assert self._query_chunk_implementation in (
-        'legacy', 'no_remat', 'deferred_read', 'diag_select', 'optimized')
+    assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     assert self._fetch_read_bottleneck_activation in ('none', 'gelu')
     if self._fetch_read_bottleneck_dim is None:
       assert self._fetch_read_bottleneck_activation == 'none'
@@ -2551,9 +2256,6 @@ class BamAttention(Attention):
     if self._abs_v_dim is not None:
       assert 0 < self._abs_v_dim < self.bam_v
       assert 'full' in self._mode
-      assert self._combine_full_local_read or (
-          self._fetch_diagonal_one and 'local_o' not in self._mode), (
-              'absolute-V compression requires combined local/full or strict diagonal-one read')
     if 'full' in self._mode:
       full_v_output_dim = (
           self.bam_v
@@ -2574,41 +2276,16 @@ class BamAttention(Attention):
     assert not self._create_grouped_rw_norm or (
         'local_qk' not in self._mode or self._local_qk_key_mode == 'per_head'), (
             'per-head learned local_qk normalization requires per-head runtime keys')
-    if self._share_full_local_read and {'full', 'local_o'} & self._mode:
-      assert {'full', 'local_o'} <= self._mode, (
-          'shared full/local read projections require both full and local_o')
-      assert cfg.bam_n_f == 1, (
-          'shared full/local read projections require exactly one full fetch')
-    assert not self._combine_full_local_read or self._share_full_local_read, (
-        'combining full/local reads requires shared projections')
-    assert not self._combine_full_local_read or cfg.bam_write_source != 'std+cross', (
-        "combined read cannot isolate cross-only content for bam_write_source='std+cross'")
-    if self._fetch_diagonal_one and {'full', 'codebook'} & self._mode:
-      assert {'full', 'codebook'} & self._mode and 'local_o' not in self._mode, (
-          'direct fetch diagonal one requires full/codebook without a local_o branch')
-      assert cfg.bam_n_f == 1, 'direct fetch diagonal one requires exactly one fetch route'
-      assert not cfg.bam_keep_fetch_diagonal, (
-          'direct fetch diagonal one and keep_fetch_diagonal are mutually exclusive')
     if self._query_chunk_size is not None:
       assert self._query_chunk_size > 0
       assert cfg.max_target_length % self._query_chunk_size == 0, (
           'BAM query chunk size must divide max_target_length')
       assert self._mode in ({'local_qk'}, {'local_qk', 'full'}), (
           'QChunk BAM supports V2 local_qk layers with optional full fetch')
-      if 'full' in self._mode:
-        assert self._query_chunk_implementation == 'optimized'
-        assert self._shared_fetch_mode == 'dynamic_rms_mix'
-        assert cfg.bam_n_f == 1 and self._fetch_diagonal_one
-        assert not cfg.bam_dedicated_fetch
-        assert self._fetch_sliding_window_size is None
-        assert self._fetch_temporal_block_size is None
-        assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
-      assert not cfg.bam_diagnostics
+      assert cfg.bam_query_chunk_implementation == 'optimized'
+      assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     if self._squeeze_single_fetch_read and 'full' in self._mode:
-      assert 'full' in self._mode and cfg.bam_n_f == 1, (
-          'single-fetch squeeze requires one full-read route')
-    assert not cfg.bam_dedicated_fetch or 'full' in self._mode, (
-        'bam_dedicated_fetch currently requires the full read mode')
+      assert cfg.bam_n_f == 1, 'single-fetch squeeze requires one full-read route'
     def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
       """Create a zero-kernel semantic gate with an explicitly calibrated bias."""
       if not cfg.bam_create_read_gate_params:
@@ -2642,22 +2319,6 @@ class BamAttention(Attention):
         if self._read_gate_init is not None
         else math.sqrt(self._read_key_epsilon) / self._read_key_scale)
     assert zero_key_gate_init < 1.0
-
-    if 'codebook' in self._mode:
-      self.W_beta = DenseGeneral(
-          features=(self.num_query_heads, cfg.bam_n_f, 2 * cfg.bam_C), axis=-1,
-          kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "fetch", "code"),
-          dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_beta",
-          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
-      self.rho_u = self.param('rho_u', orth_init, (cfg.bam_C, self.bam_k), self.weight_dtype)
-      self.rho_v = self.param('rho_v', orth_init, (cfg.bam_C, self.bam_v), self.weight_dtype)
-      add_read_gate('W_beta_gate', (self.num_query_heads, cfg.bam_n_f, 2),
-                    ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
-                    zero_key_gate_init)
-      add_grouped_read_norms(
-          'W_beta', (self.num_query_heads, cfg.bam_n_f, cfg.bam_C),
-          (self.num_query_heads, cfg.bam_n_f, cfg.bam_C),
-          ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
     if 'full' in self._mode:
       read_k_dim = self._abs_k_dim or self.bam_k
@@ -2726,28 +2387,11 @@ class BamAttention(Attention):
           (self.num_query_heads, cfg.bam_n_f, read_v_dim),
           ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
-      if cfg.bam_dedicated_fetch:
-        # Capability-ceiling router: fetch patterns no longer have to borrow the first
-        # n_f standard MHA heads and can specialize without sacrificing MHA behavior.
-        self.fetch_query = DenseGeneral(
-            features=(cfg.bam_n_f, self.head_dim), axis=-1, kernel_init=reg_init,
-            kernel_axes=('embed', 'q_heads', 'kv'), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name='fetch_query', quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
-        self.fetch_key = DenseGeneral(
-            features=(cfg.bam_n_f, self.head_dim), axis=-1, kernel_init=reg_init,
-            kernel_axes=('embed', 'kv_heads', 'kv_head_dim'), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name='fetch_key', quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=cfg.qkv_bias)
-
-    if (self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix')
-        and {'full', 'codebook'} & self._mode):
-      # Softmax starts from a uniform convex mixture. Signed RMS mixing needs a
-      # regular-initialized direction because RMSNorm at an all-zero vector is singular;
-      # the content-read projection remains zero-init, preserving the exact MHA start.
-      mix_init = zeros_init if self._shared_fetch_mode == 'dynamic_mix' else reg_init
+      # Signed RMS mixing needs a regular-initialized direction because RMSNorm
+      # at an all-zero vector is singular. W_R remains zero-initialized, so the
+      # complete BAM read still starts at zero.
       self.fetch_head_mix = DenseGeneral(
-          features=self._fetch_mix_num_heads, axis=-1, kernel_init=mix_init,
+          features=self._fetch_mix_num_heads, axis=-1, kernel_init=reg_init,
           kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
           weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
           matmul_precision=cfg.matmul_precision, use_bias=True)
@@ -2876,23 +2520,6 @@ class BamAttention(Attention):
               self.weight_dtype,
           ))
 
-    if 'local_o' in self._mode and not self._share_full_local_read:
-      # local_o = content branch (§4.6.5, 2026-08-01): per-head tier (R is None),
-      # W_Ro: D->n(k+v) zero-init (gates readout to zero at start). Reads out [U;V] d-wide
-      # and merges into o via integration point 1 (y_bam -> o). alpha:=delta degenerate
-      # (fetch free); same-layer FFN sees the readout via residual.
-      self.W_Ro = DenseGeneral(
-          features=(self.num_query_heads, self.bam_k + self.bam_v), axis=-1,
-          kernel_init=zeros_init, kernel_axes=("embed", "q_heads", "kv"),
-          dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_Ro",
-          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
-      add_read_gate('W_Ro_gate', (self.num_query_heads, 2),
-                    ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
-      add_grouped_read_norms(
-          'W_Ro', (self.num_query_heads, self.bam_k),
-          (self.num_query_heads, self.bam_v),
-          ('q_heads', 'kv'), ('q_heads', 'kv'))
-
     if self._has_write:
       if cfg.bam_write_u_proj or cfg.bam_create_write_u_proj_params:
         def write_u_init(key, shape, dtype):
@@ -2996,23 +2623,6 @@ class BamAttention(Attention):
             weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
             use_bias=True, name='write_u2_norm')
 
-    if 'local_v' in self._mode:
-      # Source-local matrix summary injected into the standard V stream.  Match
-      # FactorizedLocalQK: one shared bilateral key, then signed dynamic head routing.
-      self.W_lv = DenseGeneral(
-          features=(self.bam_k + self.bam_v,), axis=-1, kernel_init=zeros_init,
-          kernel_axes=("embed", "kv"), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name="W_lv", quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=True)
-      add_read_gate('W_lv_gate', (2,), ('embed', None), (None,), zero_key_gate_init)
-      self.W_lv_head_mix = DenseGeneral(
-          features=(self.num_query_heads, 2), axis=-1, kernel_init=reg_init,
-          kernel_axes=("embed", "q_heads", None), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name="W_lv_head_mix", quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=False)
-      add_grouped_read_norms(
-          'W_lv', (self.bam_k,), (self.bam_v,), ('kv',), ('kv',))
-
   def _project_full_read_key(self, x):
     if self._fetch_read_bottleneck_dim is None:
       return self.W_R(x)
@@ -3094,9 +2704,6 @@ class BamAttention(Attention):
             **self._read_key_kwargs_from_logits('W_local_qk', qk_gate),
             implementation=self._read_implementation, read_side=self.read_side,
             return_sides=True)
-        if self._read_implementation == 'dot_bnt':
-          qk_u = rearrange(qk_u, 'b q t d -> b t q d')
-          qk_v = rearrange(qk_v, 'b q t d -> b t q d')
         qk_mix = normalizations.rms_norm(
             qk_mix, dtype=qk_u.dtype, epsilon=self._read_key_epsilon,
             axis=-2)
@@ -3175,18 +2782,7 @@ class BamAttention(Attention):
     k_local = bam_read(
         Mh, inputs_q, self.W_lk, local_qk_R_k, **local_qk_k_kwargs,
         implementation=self._read_implementation, read_side=self.read_side)
-    if self._read_implementation == 'dot_bnt':
-      q_local = rearrange(q_local, 'b n t d -> b t n d')
-      k_local = rearrange(k_local, 'b n t d -> b t n d')
     return self._fit_local_qk_reads(q_local, k_local)
-
-  def _read_local_v(self, Mh, inputs_kv):
-    """Summarize each source-local matrix into the corresponding standard V."""
-    v_local = factorized_head_bam_read(
-        Mh, inputs_kv, self.W_lv, self.W_lv_head_mix,
-        **self._read_key_kwargs('W_lv_gate', inputs_kv),
-        implementation=self._read_implementation, read_side=self.read_side)
-    return rearrange(v_local, 'b n t d -> b t n d')
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3325,8 +2921,6 @@ class BamAttention(Attention):
 
     def decode(y, decoder):
       decoder = decoder.astype(y.dtype)
-      if self._read_implementation == 'dot_bnt':
-        return jnp.einsum('bntc,ncd->bntd', y, decoder)
       return jnp.einsum('btnc,ncd->btnd', y, decoder)
 
     if self._abs_k_dim is not None:
@@ -3345,94 +2939,76 @@ class BamAttention(Attention):
     return _fit_bam_read_to_head(
         jnp.concatenate((y_k, y_v), axis=-1), self.bam_k, self.head_dim)
 
-  def _query_chunk_op(
-      self, query, key, value, decoder_segment_ids, *, with_full_read=False,
-      Mh=None, inputs_q=None, is_global=None, window_size_override=None,
-      prepared=None):
-    """Apply shared chunked attention, optionally consuming alpha for V2 fetch."""
+  def _read_fetched_m(self, Mbar, inputs_q):
+    """Read one fetched matrix stream after dense or chunked routing."""
+    with jax.named_scope("bam/read_fetched_m"):
+      full_read_projection = self._project_full_read_key
+      full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
+      if self._squeeze_single_fetch_read:
+        Mbar = jnp.squeeze(Mbar, axis=1)
+        full_read_projection = lambda x: jnp.squeeze(
+            self._project_full_read_key(x), axis=-2)
+        full_read_kwargs = self._read_key_kwargs(
+            'W_R_gate', inputs_q, squeeze_fetch_axis=True)
+      full_read = bam_read(
+          Mbar, inputs_q, full_read_projection, None,
+          **full_read_kwargs,
+          implementation=self._read_implementation, read_side=self.read_side)
+      full_read = self._expand_full_read(full_read)
+      return full_read
+
+  def _attention_block(
+      self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,
+      fetch_state=None, mix_weights=None):
+    """Apply one dense/chunk attention block and its optional BAM fetch."""
+    q1 = q0 + query.shape[1]
+    s1 = s0 + key.shape[1]
+    target = jnp.arange(q0, q1)[:, None]
+    source = jnp.arange(s0, s1)[None, :]
+    valid = (source <= target)[None]
+    if window_size < s1:
+      valid &= (source > target - window_size)
+    if decoder_segment_ids is not None:
+      valid &= (
+          decoder_segment_ids[:, q0:q1, None]
+          == decoder_segment_ids[:, None, s0:s1])
+
     cfg = self.config
+    y_std, alpha = _attention_op(
+        query, key, value, valid,
+        attn_logits_soft_cap=cfg.attn_logits_soft_cap,
+        float32_logits=cfg.float32_logits)
+    Mbar = None
+    if fetch_state is not None:
+      assert mix_weights is not None
+      Mbar = _bam_fetch_op(
+          alpha, fetch_state, mix_weights, source == target)
+    return y_std, Mbar
+
+  def _query_chunk_op(
+      self, query, key, value, decoder_segment_ids, window_size, *,
+      fetch_state=None, mix_weights=None):
+    """Slice query/source blocks, call `_attention_block`, and concatenate."""
     _, t, _, _ = query.shape
+    assert self._query_chunk_size is not None
     chunk_size = int(self._query_chunk_size)
     assert t % chunk_size == 0
-    if with_full_read and prepared is None:
-      assert Mh is not None and inputs_q is not None
-      with jax.named_scope("bam/mix_alpha_projection"):
-        _, mix_weights = _dynamic_bam_fetch_mix_weights(
-            self.fetch_head_mix(inputs_q), query.dtype, 'rms',
-            rms_epsilon=self._rms_epsilon)
-
-      fetch_state = self._compress_full_fetch_state(Mh)
-
-      # Parameterized projections must stay outside the runtime L/G cond.  A
-      # Linen module call inside lax.cond leaks initialization tracers.
-      with jax.named_scope("bam/read_fetched_m"):
-        projected_read_key = self._project_full_read_key(inputs_q)
-        read_key_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
-        _, _, read_row, read_col = _project_bam_read_keys(
-            self._abs_k_dim or self.bam_k,
-            inputs_q, lambda _x: projected_read_key,
-            **read_key_kwargs)
-      prepared = (mix_weights, fetch_state, read_row, read_col)
-    elif with_full_read:
-      mix_weights, fetch_state, read_row, read_col = prepared
-
-    if is_global is not None:
-      local_window = min(t, int(self.sliding_window_size))
-      return lax.cond(
-          is_global,
-          lambda _: self._query_chunk_op(
-              query, key, value, decoder_segment_ids,
-              with_full_read=with_full_read, Mh=Mh, inputs_q=inputs_q,
-              window_size_override=t, prepared=prepared),
-          lambda _: self._query_chunk_op(
-              query, key, value, decoder_segment_ids,
-              with_full_read=with_full_read, Mh=Mh, inputs_q=inputs_q,
-              window_size_override=local_window, prepared=prepared),
-          operand=None)
-    window_size = (
-        window_size_override if window_size_override is not None else
-        (t if self.sliding_window_size is None
-         else min(t, int(self.sliding_window_size))))
-    template_target = jnp.arange(t - chunk_size, t)[:, None]
-    template_source = jnp.arange(t)[None, :]
-    mask_template = template_source <= template_target
-    diagonal_template = template_source == template_target
-    if window_size < t:
-      mask_template &= template_source > template_target - window_size
-
-    y_std_chunks = []
-    Mbar_chunks = []
+    y_chunks, Mbar_chunks = [], []
     for q0 in range(0, t, chunk_size):
       q1 = q0 + chunk_size
       s0 = max(0, q0 - window_size) if window_size < t else 0
       s1 = q1
-      valid = mask_template[:, t - (s1 - s0):][None]
-      if decoder_segment_ids is not None:
-        valid = valid & (
-            decoder_segment_ids[:, q0:q1, None]
-            == decoder_segment_ids[:, None, s0:s1])
-      y_std_chunk, alpha = _attention_op(
-          query[:, q0:q1], key[:, s0:s1], value[:, s0:s1], valid,
-          attn_logits_soft_cap=cfg.attn_logits_soft_cap,
-          float32_logits=cfg.float32_logits)
-      y_std_chunks.append(y_std_chunk)
-      if with_full_read:
-        Mbar_chunk, _, _ = _bam_fetch_op(
-            alpha, fetch_state[:, s0:s1],
-            mix_weights=mix_weights[:, q0:q1],
-            diagonal_mask=diagonal_template[:, t - (s1 - s0):])
+      y_chunk, Mbar_chunk = self._attention_block(
+          query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
+          decoder_segment_ids, q0=q0, s0=s0, window_size=window_size,
+          fetch_state=(None if fetch_state is None else fetch_state[:, s0:s1]),
+          mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1]))
+      y_chunks.append(y_chunk)
+      if Mbar_chunk is not None:
         Mbar_chunks.append(Mbar_chunk)
-
-    y_std = jnp.concatenate(y_std_chunks, axis=1)
-    if with_full_read:
-      Mbar = jnp.concatenate(Mbar_chunks, axis=1)
-      with jax.named_scope("bam/read_fetched_m"):
-        full_read = _contract_bam_read(
-            Mbar[:, None], Mbar[:, None], read_row, read_col, True,
-            self._read_implementation, self.read_side)
-        y_full = self._expand_full_read(full_read)
-      return y_std, y_full
-    return y_std
+    return (
+        jnp.concatenate(y_chunks, axis=1),
+        jnp.concatenate(Mbar_chunks, axis=1) if Mbar_chunks else None)
 
   @nn.compact
   def __call__(
@@ -3488,288 +3064,68 @@ class BamAttention(Attention):
       query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
       key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
 
-    if self._mha_control:
-      query = nn.with_logical_constraint(query, self.query_axis_names)
-      key = nn.with_logical_constraint(key, self.key_axis_names)
-      value = nn.with_logical_constraint(value, self.value_axis_names)
-      query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
-      if cfg.float32_qk_product:
-        query = query.astype(jnp.float32)
-        key = key.astype(jnp.float32)
-      if self._query_chunk_size is not None:
-        y_std = self._query_chunk_op(
-            query, key, value, decoder_segment_ids, is_global=is_global)
-      else:
-        attn_mask = self.attention_op.generate_attention_mask(
-            query, key, decoder_segment_ids, model_mode)
-        valid = None
-        if attn_mask is not None:
-          attn_mask = jnp.squeeze(attn_mask, axis=2)
-          valid = jnp.squeeze(
-              attn_mask >= DEFAULT_MASK_VALUE * 0.5, axis=1)
-        y_std, _ = _attention_op(
-            query, key, value, valid,
-            attn_logits_soft_cap=cfg.attn_logits_soft_cap,
-            float32_logits=cfg.float32_logits)
-      y_std = nn.with_logical_constraint(y_std, self.out_axis_names)
-      return self.out_projection(inputs_q.shape[-1], y_std), M_in
-
-    fetch_query = fetch_key = None
-    if cfg.bam_dedicated_fetch:
-      fetch_query = self.fetch_query(inputs_q)
-      fetch_key = self.fetch_key(inputs_kv)
-      fetch_query, fetch_key = dc.QKNorm(cfg, name='fetch_qk_norm')(fetch_query, fetch_key)
-      fetch_query = self.apply_rotary_embedding(
-          fetch_query, inputs_positions, name='fetch_query_rotary')
-      fetch_key = self.apply_rotary_embedding(
-          fetch_key, inputs_positions, name='fetch_key_rotary')
-    # Diagnostics retain only the tensors needed to reconstruct route/read behavior outside
-    # this module. No statistics are computed here; the collection is mutable only in the
-    # standalone diagnostic runner, so normal train/eval executions pay no output cost.
-    query_std, key_std = query, key
-
-    # ---- Read-side normalization (§4.6.5 read-side whole-matrix one scalar): one RMS scalar per token over
-    # (k,v); all read paths consume Mh. No-op when M_in is all zero (start). Write side keeps
-    # bare accumulation on raw M_in. Param-free, pre-LN-style matrix-stream shift. ----
-    if Mh is None:
-      with jax.named_scope("bam/normalize_m"):
-        Mh = self._matrix_for_read(M_in)
-
-    # ---- post-RoPE local_qk (historical route branch, before alpha) ----
+    # LocalQK can instead be injected after RoPE (the production default).
     if 'local_qk' in self._mode and self._local_qk_injection == 'post_rope':  # V1 default
+      if Mh is None:
+        with jax.named_scope("bam/normalize_m"):
+          Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         q_local, k_local = self._read_local_qk(Mh, inputs_q)
         query = query + q_local
         key = key + k_local
-    if 'local_v' in self._mode:
-      with jax.named_scope("bam/read_local_m_for_v"):
-        assert Mh is not None, "local_v read requires M_in"
-        value = value + self._read_local_v(Mh, inputs_kv)
-    query_route, key_route = query, key
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
-    # ---- alpha = softmax(QK/sqrt(d) + mask) (full sequence in train, n==n_kv) ----
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:
-      query = query.astype(jnp.float32); key = key.astype(jnp.float32)
-    if self._query_chunk_size is not None:
-      assert cfg.bam_write_source == 'std+cross+local_o'
-      if 'full' in self._mode:
-        y_std, y_full = self._query_chunk_op(
-            query, key, value, decoder_segment_ids, with_full_read=True,
-            Mh=Mh, inputs_q=inputs_q, is_global=is_global)
-        o_head = y_std + y_full
-      else:
-        y_std = self._query_chunk_op(
-            query, key, value, decoder_segment_ids, is_global=is_global)
-        o_head = y_std
-      with jax.named_scope("bam/write_m"):
-        M_out, _, _ = self._write(o_head, inputs_q, M_in)
-      out = nn.with_logical_constraint(o_head, self.out_axis_names)
-      return self.out_projection(inputs_q.shape[-1], out), M_out
+      query = query.astype(jnp.float32)
+      key = key.astype(jnp.float32)
 
-    attn_mask = self.attention_op.generate_attention_mask(query, key, decoder_segment_ids, model_mode)
-    valid = None
-    if attn_mask is not None:
-      # AttentionOp keeps the GQA group axis in its mask because the standard
-      # qk_product has shape [b, n_kv, groups, t, s]. BAM v0.1 requires
-      # n == n_kv and collapses that singleton group axis in logits, so collapse
-      # the matching mask axis as well; otherwise broadcasting creates a bogus
-      # five-dimensional alpha tensor [b, b, n, t, s].
-      attn_mask = jnp.squeeze(attn_mask, axis=2)              # [b,1,t,s]
-      valid = jnp.squeeze(
-          attn_mask >= DEFAULT_MASK_VALUE * 0.5, axis=1)      # [b,t,s]
-    y_std, alpha = _attention_op(
-        query, key, value, valid,
-        attn_logits_soft_cap=cfg.attn_logits_soft_cap,
-        float32_logits=cfg.float32_logits)
-    # Diagonal yield (§4.6.5): when local_o is on, the softmax-fetch patterns (full/codebook) zero
-    # their alpha diagonal without renormalizing — the leftover mass 1−α_tt becomes a soft
-    # "abstain-from-self" gate (attention-sink style, zero-param). sparse (block granularity —
-    # masking self hits block neighbors) and prefix (inclusive scan — "contains self" is part of
-    # the LA exact subfamily) are untouched; local_o itself is fetch-identity (α=δ); when local_o
-    # is off the alpha diagonal is the local_o quota-squeeze approximation and must stay.
-    fetch_alpha = None
-    fetch_mix_logits = None
-    fetch_mix_weights = None
-    fetch_alpha_pre_diagonal = None
-    diagonal_yield = 'local_o' in self._mode and not cfg.bam_keep_fetch_diagonal
-    if {'full', 'codebook'} & self._mode:  # V1 default
-      with jax.named_scope("bam/mix_alpha"):
-        if cfg.bam_dedicated_fetch:
-          fetch_query = fetch_query / jnp.sqrt(self.head_dim).astype(self.dtype)
-          if cfg.float32_qk_product:
-            fetch_query = fetch_query.astype(jnp.float32)
-            fetch_key = fetch_key.astype(jnp.float32)
-          fetch_logits = jnp.einsum('btfd,bsfd->bfts', fetch_query, fetch_key)
-          if cfg.attn_logits_soft_cap:
-            fetch_logits = jnp.tanh(fetch_logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
-          if attn_mask is not None:
-            fetch_logits = apply_mask_to_logits(fetch_logits, attn_mask)
-          if cfg.float32_logits:
-            fetch_logits = fetch_logits.astype(jnp.float32)
-          fetch_alpha = jax.nn.softmax(fetch_logits, axis=-1)
-          if diagonal_yield:
-            fetch_alpha = fetch_alpha * (
-                1 - jnp.eye(fetch_alpha.shape[-2], fetch_alpha.shape[-1], dtype=fetch_alpha.dtype))
-        elif self._shared_fetch_mode in ('dynamic_mix', 'dynamic_rms_mix'):  # V1 default
-          dynamic_fetch = _dynamic_mixed_bam_fetch_alpha(
-              alpha, self.fetch_head_mix(inputs_q), diagonal_yield,
-              'rms' if self._shared_fetch_mode == 'dynamic_rms_mix' else 'softmax',
-              rms_epsilon=self._rms_epsilon,
-              return_aux=cfg.bam_diagnostics)
-          if cfg.bam_diagnostics:
-            (fetch_alpha, fetch_mix_logits, fetch_mix_weights,
-             fetch_alpha_pre_diagonal) = dynamic_fetch
-          else:
-            fetch_alpha = dynamic_fetch
-        else:
-          fetch_alpha = _shared_bam_fetch_alpha(
-              alpha, query, key, attn_mask, cfg.bam_n_f, self._shared_fetch_mode,
-              diagonal_yield, cfg.attn_logits_soft_cap, cfg.float32_logits)
-        if self._fetch_sliding_window_size is not None:
-          fetch_alpha = _sliding_window_bam_fetch_alpha(
-              fetch_alpha, self._fetch_sliding_window_size,
-              self._fetch_sliding_window_prefix_size, inputs_positions)
-        if self._fetch_diagonal_one:  # V1 default
-          diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
-          fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(
-              jnp.asarray(1, dtype=fetch_alpha.dtype))
+    fetch_state = mix_weights = None
+    if 'full' in self._mode:
+      if Mh is None:
+        with jax.named_scope("bam/normalize_m"):
+          Mh = self._matrix_for_read(M_in)
+      with jax.named_scope("bam/mix_alpha_projection"):
+        mix_weights = _dynamic_bam_fetch_mix_weights(
+            self.fetch_head_mix(inputs_q), query.dtype,
+            rms_epsilon=self._rms_epsilon)
+      fetch_state = self._compress_full_fetch_state(Mh)
 
-    # ---- BAM read (all modes share the unified bam_read primitive, §4.6.1) ----
-    y_codebook = jnp.zeros_like(y_std)
-    y_full = jnp.zeros_like(y_std)
-    y_local_o = jnp.zeros_like(y_std)
-    Mbar = None
-    y_bam = 0.0
-    capture_read_key_stages = cfg.bam_diagnostics and not self.is_initializing()
-    read_key_stages = {}
-    if 'codebook' in self._mode:
-      assert Mh is not None, "codebook read requires M_in"
-      y_codebook = codebook_read(
-          fetch_alpha, Mh, inputs_q, self.rho_u, self.rho_v, self.W_beta,
-          **self._read_key_kwargs('W_beta_gate', inputs_q, squeeze_fetch_axis=True),
-          source_implementation=self._codebook_source_implementation,
-          read_implementation=self._codebook_read_implementation)
-      y_bam = y_codebook
-    if 'full' in self._mode:  # V1 default
-      assert Mh is not None, "full read requires M_in"
-      with jax.named_scope("bam/fetch_m"):
-        fetch_state = self._compress_full_fetch_state(Mh)
-        if self._fetch_temporal_block_size is not None:
-          Mbar_fetch = _temporal_block_bam_fetch(
-              fetch_alpha, fetch_state, inputs_positions, decoder_segment_ids,
-              self._fetch_temporal_block_size, self._fetch_temporal_block_mode,
-              self._fetch_temporal_recent_window_size)
-        else:
-          Mbar_fetch, _, _ = _bam_fetch_op(fetch_alpha, fetch_state)
-        Mbar = Mbar_fetch
-        if self._combine_full_local_read:
-          # The shared runtime key makes Read linear in M.  Because fetch_alpha has
-          # yielded its diagonal, adding normalized local Mh here exactly replaces
-          # the separate local_o read with a fixed local coefficient of one.
-          Mbar = Mbar + fetch_state[:, None]
-      with jax.named_scope("bam/read_fetched_m"):
-        full_read_projection = self._project_full_read_key
-        full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
-        if self._squeeze_single_fetch_read:
-          Mbar = jnp.squeeze(Mbar, axis=1)
-          full_read_projection = lambda x: jnp.squeeze(
-              self._project_full_read_key(x), axis=-2)
-          full_read_kwargs = self._read_key_kwargs(
-              'W_R_gate', inputs_q, squeeze_fetch_axis=True)
-        full_read = bam_read(
-            Mbar, inputs_q, full_read_projection, None,
-            **full_read_kwargs, return_key_stages=capture_read_key_stages,
-            implementation=self._read_implementation, read_side=self.read_side)
-        if capture_read_key_stages:
-          full_read, full_key_stages = full_read
-          read_key_stages.update({
-              f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
-        full_read = self._expand_full_read(full_read)
-        y_full = (rearrange(full_read, 'b n t d -> b t n d')
-                  if self._read_implementation == 'dot_bnt' else full_read)
-        y_bam = y_bam + y_full
-    if 'local_o' in self._mode and not self._combine_full_local_read:
-      assert Mh is not None, "local_o read requires M_in"
-      if self._share_full_local_read:
-        local_read_projection = lambda x: jnp.squeeze(
-            self._project_full_read_key(x), axis=-2)
-        local_read_key_kwargs = self._read_key_kwargs(
-            'W_R_gate', inputs_q, squeeze_fetch_axis=True)
-      else:
-        local_read_projection = self.W_Ro
-        local_read_key_kwargs = self._read_key_kwargs('W_Ro_gate', inputs_q)
-      local_o_read = bam_read(
-          Mh, inputs_q, local_read_projection, None,
-          **local_read_key_kwargs,
-          return_key_stages=capture_read_key_stages,
-          implementation=self._read_implementation, read_side=self.read_side)
-      if capture_read_key_stages:
-        local_o_read, local_o_key_stages = local_o_read
-        read_key_stages.update({
-            f"read_key_W_Ro_{stage}": key for stage, key in local_o_key_stages.items()})
-      y_local_o = (rearrange(local_o_read, 'b n t d -> b t n d')
-                   if self._read_implementation == 'dot_bnt' else local_o_read)
-      y_bam = y_bam + y_local_o
+    _, t, _, _ = query.shape
 
-    o_head = y_std + y_bam                                  # [b,t,n,d]
+    def apply_attention(window_size):
+      if self._query_chunk_size is not None:
+        return self._query_chunk_op(
+            query, key, value, decoder_segment_ids, window_size,
+            fetch_state=fetch_state, mix_weights=mix_weights)
+      return self._attention_block(
+          query, key, value, decoder_segment_ids,
+          q0=0, s0=0, window_size=window_size,
+          fetch_state=fetch_state, mix_weights=mix_weights)
 
-    # Select only the direct source of the matrix-stream U write. The residual-stream
-    # output above remains unchanged, so these arms isolate read-to-write recirculation.
-    write_o_head = _select_bam_write_source(
-        cfg.bam_write_source, y_std, y_codebook, y_full, y_local_o, o_head)
+    local_window = (
+        t if self.sliding_window_size is None
+        else min(t, int(self.sliding_window_size)))
+    if is_global:
+      local_window = t
+    y_std, Mbar = apply_attention(local_window)
 
-    # ---- Write primitive (update BAM state first, then project to the residual stream) ----
-    if self._has_write:  # V1 default
+    o_head = y_std
+    if Mbar is not None:
+      o_head = o_head + self._read_fetched_m(Mbar[:, None], inputs_q)
+
+    if self._mha_control:
+      M_out = M_in
+    elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, write_gate, forget_gate = self._write(write_o_head, inputs_q, M_in)
+        M_out, _, _ = self._write(o_head, inputs_q, M_in)
     else:
       M_out = M_in
-      write_gate = None
-      forget_gate = None
-
-    if cfg.bam_diagnostics and not self.is_initializing():
-      # Raw diagnostic interface only. Keep policy/statistics in bam_diagnostics.py so new
-      # questions do not accumulate analysis logic in the production attention path.
-      raw_tensors = {
-          "M_in": M_in,
-          "M_out": M_out,
-          "query_std": query_std,
-          "key_std": key_std,
-          "query_route": query_route,
-          "key_route": key_route,
-          "y_std": y_std,
-          "y_codebook": y_codebook,
-          "y_full": y_full,
-          "y_local_o": y_local_o,
-      }
-      if fetch_alpha is not None:
-        raw_tensors["fetch_alpha"] = fetch_alpha
-      if fetch_alpha_pre_diagonal is not None:
-        raw_tensors["fetch_alpha_pre_diagonal"] = fetch_alpha_pre_diagonal
-      if fetch_mix_logits is not None:
-        raw_tensors["fetch_mix_logits"] = fetch_mix_logits
-      if fetch_mix_weights is not None:
-        raw_tensors["fetch_mix_weights"] = fetch_mix_weights
-      if Mbar_fetch is not None:
-        raw_tensors["Mbar_fetch"] = Mbar_fetch
-      if Mbar is not None:
-        raw_tensors["Mbar"] = Mbar
-      if write_gate is not None:
-        raw_tensors["write_gate"] = write_gate
-      if forget_gate is not None:
-        raw_tensors["forget_gate"] = forget_gate
-      raw_tensors.update(read_key_stages)
-      for raw_name, raw_value in raw_tensors.items():
-        self.sow("bam_raw", raw_name, raw_value)
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    out = self.out_projection(inputs_q.shape[-1], out)
-
-    return out, M_out
+    return self.out_projection(inputs_q.shape[-1], out), M_out

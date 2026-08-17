@@ -40,7 +40,7 @@ gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
 
 gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
   --project="$PROJECT" --worker=0 \
-  --command="cd '$REMOTE_REPO' && PYTHONPATH=MaxText \
+  --command="cd '$REMOTE_REPO' && JAX_PLATFORMS=cpu PYTHONPATH=MaxText \
   /home/lishengping/miniconda3/bin/python -m unittest \
   MaxText.tests.bam_attention_test.BamReadKeyTransformTest.test_bam_read_head_mapping_pads_or_adapts_only_v_side \
   MaxText.tests.bam_attention_test.BamReadKeyTransformTest.test_bam_read_head_mapping_rejects_wide_v_without_adapter"

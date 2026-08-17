@@ -41,8 +41,9 @@ gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
 gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
   --project="$PROJECT" --worker=0 \
   --command="cd '$REMOTE_REPO' && PYTHONPATH=MaxText \
-  /home/lishengping/miniconda3/bin/python -m pytest -q \
-  MaxText/tests/bam_attention_test.py -k bam_read_head_mapping"
+  /home/lishengping/miniconda3/bin/python \
+  MaxText/tests/bam_attention_test.py \
+  --test_filter='*bam_read_head_mapping*'"
 
 mkdir -p "$LOG_ROOT"
 for exp_class in "$@"; do

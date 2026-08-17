@@ -467,6 +467,14 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNorm'
     model_name = run_name
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNormWriteEps001(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNorm
+):
+    """MReadNorm arm with the sigmoid-transformed BAM write coefficient initialized to 0.01."""
+    bam_write_eps = 0.01
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNormWriteEps001'
+    model_name = run_name
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1(
     DC, Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun
 ):

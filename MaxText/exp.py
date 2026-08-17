@@ -1649,6 +1649,7 @@ class BamLlama2XLHead16x128V2C256T2048Profile(
     BamLlama2XLV2C256ProfileBase
 ):
     """XL 16x128, BAM k/v/C=64/32/8, T2048."""
+    # code_commit: 011d44a; UC1a v5p-32 XPlane 1,754.93 ms; ~0.562 steps/s.
     model_name = 'BamLlama2XLHead16x128V2C256T2048Profile'
     base_num_query_heads = 16
     base_num_kv_heads = 16
@@ -1662,6 +1663,7 @@ class BamMHALlama2XLHead16x128C256T2048Profile(
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
     """BamAttention MHA control paired with XL 16x128 BAM T2048."""
+    # code_commit: 011d44a; UC1a v5p-32 XPlane 1,400.17 ms; ~0.708 steps/s.
     model_name = 'BamMHALlama2XLHead16x128C256T2048Profile'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24
@@ -1671,6 +1673,7 @@ class BamLlama2XLHead16x128V2C256T4096Profile(
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
     """XL 16x128 BAM T4096 with TrainXL's per-device batch 16."""
+    # code_commit: 011d44a; EW4b v5p-32 XPlane 3,886.03 ms; ~0.256 steps/s.
     model_name = 'BamLlama2XLHead16x128V2C256T4096Profile'
     max_target_length = 4096
 
@@ -1679,6 +1682,7 @@ class BamMHALlama2XLHead16x128C256T4096Profile(
     BamLlama2XLHead16x128V2C256T4096Profile
 ):
     """BamAttention MHA control paired with XL 16x128 BAM T4096."""
+    # code_commit: 011d44a; EW4b v5p-32 XPlane 3,123.97 ms; ~0.319 steps/s.
     model_name = 'BamMHALlama2XLHead16x128C256T4096Profile'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24
@@ -1688,6 +1692,7 @@ class BamLlama2XLHead32x64V2C256T2048Profile(
     BamLlama2XLV2C256ProfileBase
 ):
     """XL 32x64, BAM k/v/C=32/64/16, T2048."""
+    # code_commit: ec0de73; EW4b v5p-32 XPlane 2,085.69 ms; ~0.475 steps/s.
     model_name = 'BamLlama2XLHead32x64V2C256T2048Profile'
     base_num_query_heads = 32
     base_num_kv_heads = 32
@@ -1704,6 +1709,7 @@ class BamMHALlama2XLHead32x64C256T2048Profile(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
     """BamAttention MHA control paired with XL 32x64 BAM T2048."""
+    # code_commit: 011d44a; EW4b v5p-32 XPlane 1,554.72 ms; ~0.640 steps/s.
     model_name = 'BamMHALlama2XLHead32x64C256T2048Profile'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24
@@ -1713,6 +1719,7 @@ class BamLlama2XLHead32x64V2C256T4096Profile(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
     """XL 32x64 BAM T4096 with TrainXL's per-device batch 16."""
+    # code_commit: ec0de73; EW4b v5p-32 XPlane 4,929.29 ms; ~0.202 steps/s.
     model_name = 'BamLlama2XLHead32x64V2C256T4096Profile'
     max_target_length = 4096
 
@@ -1721,6 +1728,7 @@ class BamMHALlama2XLHead32x64C256T4096Profile(
     BamLlama2XLHead32x64V2C256T4096Profile
 ):
     """BamAttention MHA control paired with XL 32x64 BAM T4096."""
+    # code_commit: ec0de73; EW4b v5p-32 XPlane 3,714.83 ms; ~0.268 steps/s.
     model_name = 'BamMHALlama2XLHead32x64C256T4096Profile'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24

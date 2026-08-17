@@ -190,7 +190,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         jax.random.normal(random[3], (e, n, 2)),
         jax.random.normal(random[4], (b, t, 2)),
     )
-    upstream = jax.random.normal(random[5], (b, n, t, k + v))
+    upstream = jax.random.normal(random[5], (b, t, n, k + v))
 
     def output(values, implementation):
       M, x, key_kernel, mix_kernel, gates = values
@@ -249,7 +249,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
             M, x, projection, mix_projection, key_mode='rms_gate',
             key_scale=2.0, rms_epsilon=_RMS_EPSILON,
             key_gate_logits=gates[:, :, index],
-            implementation='mul_reduce_btn', output_layout='btn'))
+            implementation='mul_reduce_btn'))
       return jnp.stack(outputs, axis=2)
 
     reference = separate(args)
@@ -480,8 +480,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
     explicit_row = row[:, :, None, :] * mix[..., 0, None]
     explicit_col = col[:, :, None, :] * mix[..., 1, None]
     expected = jnp.concatenate([
-        jnp.einsum('btkv,btnv->bntk', M, explicit_col),
-        jnp.einsum('btkv,btnk->bntv', M, explicit_row),
+        jnp.einsum('btkv,btnv->btnk', M, explicit_col),
+        jnp.einsum('btkv,btnk->btnv', M, explicit_row),
     ], axis=-1)
 
     np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
@@ -495,7 +495,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     M = jax.random.normal(jax.random.PRNGKey(31), (b, t, k, v))
     x = jax.random.normal(jax.random.PRNGKey(32), (b, t, e))
     mix_kernel = jax.random.normal(jax.random.PRNGKey(33), (e, n, 2))
-    upstream = jax.random.normal(jax.random.PRNGKey(34), (b, n, t, k + v))
+    upstream = jax.random.normal(jax.random.PRNGKey(34), (b, t, n, k + v))
     head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
     gate_init = np.sqrt(_RMS_EPSILON) / 2.0
     gate_logits = jnp.full((b, t, 2), np.log(gate_init / (1.0 - gate_init)))

@@ -1995,7 +1995,7 @@ def factorized_head_bam_read(
     key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
-    implementation='mul_reduce_btn', read_side='both', output_layout='bnt'):
+    implementation='mul_reduce_btn', read_side='both'):
   """Read once with a shared runtime key, then route it dynamically across heads.
 
   For each side, the effective per-head key is the rank-1 factorization
@@ -2007,14 +2007,12 @@ def factorized_head_bam_read(
   maps x -> [n,2], with independent row/column head coefficients.  Coefficients
   receive parameter-free RMS normalization over the head axis, so every head has
   O(1) typical scale; unlike fetch-alpha mixing, this expansion intentionally does
-  not divide by sqrt(n).
+  not divide by sqrt(n).  The result is always [b,t,n,k+v].
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
   if read_side not in ('both', 'row', 'col'):
     raise ValueError(f'Unknown BAM read side: {read_side}')
-  if output_layout not in ('bnt', 'btn'):
-    raise ValueError(f'Unknown factorized BAM output layout: {output_layout}')
   _, _, r_row, r_col = _project_bam_read_keys(
       M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
@@ -2047,16 +2045,10 @@ def factorized_head_bam_read(
         raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon, axis=-2)
     row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
   with jax.named_scope("bam/read_head_mix_expand"):
-    if output_layout == 'bnt':
-      y_u = (jnp.einsum('btk,btn->bntk', y_u, col_mix)
-             if y_u is not None else None)
-      y_v = (jnp.einsum('btv,btn->bntv', y_v, row_mix)
-             if y_v is not None else None)
-    else:  # V1 default
-      y_u = (jnp.einsum('btk,btn->btnk', y_u, col_mix)
-             if y_u is not None else None)
-      y_v = (jnp.einsum('btv,btn->btnv', y_v, row_mix)
-             if y_v is not None else None)
+    y_u = (jnp.einsum('btk,btn->btnk', y_u, col_mix)
+           if y_u is not None else None)
+    y_v = (jnp.einsum('btv,btn->btnv', y_v, row_mix)
+           if y_v is not None else None)
     if y_u is None:
       y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
@@ -2156,7 +2148,6 @@ class BamAttention(Attention):
     self._use_native_grouped_read_norm = bool(
         cfg.bam_use_native_grouped_read_norm)
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
-    self._factorized_head_output_layout = cfg.bam_factorized_head_output_layout
     self._pack_factorized_local_qk = bool(cfg.bam_pack_factorized_local_qk)
     self._batch_factorized_local_qk_read = bool(
         cfg.bam_batch_factorized_local_qk_read)
@@ -2208,16 +2199,13 @@ class BamAttention(Attention):
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
-    assert self._factorized_head_output_layout in ('bnt', 'btn')
     assert not self._pack_factorized_local_qk or (
         'local_qk' in self._mode
         and self._local_qk_key_mode == 'factorized'
         and cfg.bam_create_read_gate_params), (
             'packed local-QK requires factorized keys with explicit read gates')
-    assert not self._batch_factorized_local_qk_read or (
-        self._pack_factorized_local_qk
-        and self._factorized_head_output_layout == 'btn'), (
-            'batched local-QK reads require packed projections and btn output')
+    assert not self._batch_factorized_local_qk_read or self._pack_factorized_local_qk, (
+        'batched local-QK reads require packed projections')
     assert self._local_qk_injection in ('post_rope', 'pre_qknorm_rope')
     assert self._local_qk_injection == 'post_rope' or 'local_qk' in self._mode
     assert self._local_qk_rope_pairing in ('split_half', 'adjacent')
@@ -2683,7 +2671,7 @@ class BamAttention(Attention):
 
   def _read_local_qk(self, Mh, inputs_q):
     """Read the local matrix into Q/K; callers choose the injection point."""
-    if self._pack_factorized_local_qk:
+    if self._pack_factorized_local_qk:  # V1 default
       with jax.named_scope("bam/local_qk_packed_projection"):
         packed = self.W_local_qk_packed(inputs_q)
       key_width = self.bam_k + self.bam_v
@@ -2713,6 +2701,7 @@ class BamAttention(Attention):
         qk_local = jnp.concatenate((qk_u, qk_v), axis=-1)
         return qk_local[:, :, 0], qk_local[:, :, 1]
 
+      # V1 default
       split_points = (
           key_width,
           key_width + 2,
@@ -2731,16 +2720,11 @@ class BamAttention(Attention):
       q_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: q_key, lambda _x: q_mix,
           **self._read_key_kwargs_from_logits('W_lq', q_gate),
-          implementation=self._read_implementation, read_side=self.read_side,
-          output_layout=self._factorized_head_output_layout)
+          implementation=self._read_implementation, read_side=self.read_side)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
           **self._read_key_kwargs_from_logits('W_lk', k_gate),
-          implementation=self._read_implementation, read_side=self.read_side,
-          output_layout=self._factorized_head_output_layout)
-      if self._factorized_head_output_layout == 'bnt':
-        q_local = rearrange(q_local, 'b n t d -> b t n d')
-        k_local = rearrange(k_local, 'b n t d -> b t n d')
+          implementation=self._read_implementation, read_side=self.read_side)
       return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_q_kwargs = (
@@ -2761,16 +2745,11 @@ class BamAttention(Attention):
       q_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
           **local_qk_q_kwargs, implementation=self._read_implementation,
-          read_side=self.read_side,
-          output_layout=self._factorized_head_output_layout)
+          read_side=self.read_side)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
           **local_qk_k_kwargs, implementation=self._read_implementation,
-          read_side=self.read_side,
-          output_layout=self._factorized_head_output_layout)
-      if self._factorized_head_output_layout == 'bnt':
-        q_local = rearrange(q_local, 'b n t d -> b t n d')
-        k_local = rearrange(k_local, 'b n t d -> b t n d')
+          read_side=self.read_side)
       return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')

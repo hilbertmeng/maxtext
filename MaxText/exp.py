@@ -266,7 +266,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_use_grouped_rw_norm = False
     bam_use_native_grouped_read_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
-    bam_factorized_head_output_layout = 'btn'  # btn | bnt
     bam_pack_factorized_local_qk = False  # fuse factorized Q/K key, gate, and head-mix projections
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
@@ -786,7 +785,6 @@ class BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl(
     model_name = 'BamLlama2MediumDirectPLocR256GeluFp32BamRmsControl'
     bam_read_key_epsilon = 1e-4
     bam_read_gate_init = 0.005
-    bam_factorized_head_output_layout = 'bnt'
     steps = 2800
 
 
@@ -1878,7 +1876,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl(
     # code_commit: 71bc14e
     # ~0.531 steps/s; stopped 1,591. mean dloss -.0038 vs mapped PackedOnly @800–1,400.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl'
-    bam_factorized_head_output_layout = 'btn'
     bam_replicate_ploc_up = True
 
 
@@ -1889,7 +1886,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateNativeControl(
     # code_commit: 340156e
     # ~0.532 steps/s; stopped 48. Exactly reproduced old eps1e4 at every step.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateNativeControl'
-    bam_factorized_head_output_layout = 'btn'
     bam_replicate_ploc_up = True
 
 
@@ -1900,7 +1896,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnNativeControl(
     # code_commit: 24d5d8b
     # ~0.524 steps/s; stopped 41. Exactly matched NativeOnly at every step (max error 0).
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnNativeControl'
-    bam_factorized_head_output_layout = 'btn'
 
 
 class BamLlama2MediumDirectPLocR256GeluPackedReplicateNativeControl(
@@ -1911,16 +1906,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedReplicateNativeControl(
     # ~0.531 steps/s; stopped 56. Exactly matched old eps1e4 at every step (max error 0).
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedReplicateNativeControl'
     bam_replicate_ploc_up = True
-
-
-class BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl(
-    BamLlama2MediumDirectPLocR256Gelu
-):
-    """Restore factorized LocalQK's historical bnt output plus transpose."""
-    # code_commit: 179cad0
-    model_name = 'BamLlama2MediumDirectPLocR256GeluLegacyLocalQKLayoutControl'
-    bam_factorized_head_output_layout = 'bnt'
-    steps = 300
 
 
 class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(

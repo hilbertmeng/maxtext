@@ -12,13 +12,18 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 
 - Keep this skill procedural. Put checkpoint-specific measurements and conclusions in
   `experiments/`.
+- Run local BAM unit tests with `scripts/run_bam_unit_tests.sh`; it uses the pinned CPU
+  environment instead of whichever conda environment happens to be active.
 - Use a spot non-pod `v6e-1` for inference probes; choose a larger TPU when memory requires it.
 - To acquire one `v6e-1`, queue concurrently in `us-central1-a`, `europe-west4-a`, and
-  `us-east5-a`; keep the first READY TPU and delete the exact remaining resources. For parallel
-  profile arms, request multiple TPUs in one proven zone (prefer `us-central1-a`).
+  `us-east5-a`; keep the other queues until one candidate reaches `FIRST_STEP`, then delete their
+  exact resources. If that candidate is preempted first, continue with the next queue. For
+  parallel profile arms, request multiple TPUs in one proven zone (prefer `us-central1-a`).
 - Create it with `$tpu-training`'s **Create Standalone v6e-1** command.
 - Restore the source checkpoint read-only; use `only_eval=True` and a local output dir.
 - Add only necessary raw `sow` values to `attentions.py`; keep statistics in standalone runners.
+- At closeout, audit every delay/failure as repeated or new. Root-fix recurring causes in a
+  script or concise general skill rule; do not preserve incident-specific narrative here.
 
 ## Runtime health probe
 
@@ -55,6 +60,8 @@ Use `TrainStepProfile` (`xplane`, skip 10, trace steps 10–14, no checkpoints).
 VM, commit, model/batch/data, and trace steps identical; prefer 6 layers for operator/scope
 comparisons, then verify the winning combination with full layers.
 
+- Launch direct TPU smoke/profile runs with `scripts/run_train_smoke.sh EXP RUN [STEPS]` from the
+  checked-out commit; do not reconstruct its dataset/output/checkpoint CLI by hand.
 - Keep profile TPU lifecycle separate from `auto-train`: create/install it standalone, launch
   paired arms directly, collect the complete profile set, then delete it. Keep `auto-train`
   detached from profile TPUs. For a large matrix, distribute arms across cheap spot `v6e-1`s;
@@ -75,8 +82,10 @@ comparisons, then verify the winning combination with full layers.
   on `tpu-ag`.
   For a pod, append `WORKER` and run one collector per worker. After GCS verification, pull the
   artifacts directly to `/data0/xd/bam_diagnostics/` on the local workstation.
-- Use the watcher as a `FIRST_STEP`/error gate. Control lifecycle from the **actual train-log
-  step**; after step 14, wait for the collector to verify the nonempty primary XPlane in GCS,
+- Use the watcher as a `FIRST_STEP` hint, but declare failure only when the exact train process
+  exits or its main thread fails; a background uploader traceback is not sufficient. Control
+  lifecycle from the **actual train-log step**; after step 14, wait for the collector to verify
+  the nonempty primary XPlane in GCS,
   then `SIGKILL` the exact no-checkpoint RUN and require `pgrep` empty before the next arm.
   Set the RUN length beyond the trace window (for example 100 steps); collector verification,
   rather than configured-step completion, ends it and keeps the TPU alive through artifact copy.

@@ -1793,6 +1793,53 @@ def _dynamic_bam_fetch_mix_weights(
   return mix_logits, jnp.asarray(mix_weights, alpha_dtype)
 
 
+def _attention_op(
+    query, key, value, valid, *, attn_logits_soft_cap=0.0,
+    float32_logits=False):
+  """Apply masked QK/softmax/AV to one dense or query-chunk block."""
+  with jax.named_scope("attention/qk_logits"):
+    logits = jnp.einsum('bqnd,bsnd->bnqs', query, key)
+  if attn_logits_soft_cap:
+    logits = (
+        jnp.tanh(logits / attn_logits_soft_cap) * attn_logits_soft_cap)
+  if valid is not None:
+    logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
+  if float32_logits:
+    logits = logits.astype(jnp.float32)
+  with jax.named_scope("attention/softmax"):
+    alpha = jax.nn.softmax(logits, axis=-1)
+  with jax.named_scope("attention/av"):
+    y_std = jnp.einsum('bnqs,bsnd->bqnd', alpha, value)
+  return y_std, alpha
+
+
+def _bam_fetch_op(
+    alpha, fetch_state, *, mix_weights=None, diagonal_mask=None,
+    diagonal_indices=None):
+  """Optionally mix MHA routes, set the local coefficient, and fetch M."""
+  if diagonal_mask is not None and diagonal_indices is not None:
+    raise ValueError('Specify either diagonal_mask or diagonal_indices, not both')
+  with jax.named_scope("bam/mix_alpha"):
+    fetch_alpha = (
+        jnp.einsum(
+            'bnqs,bqn->bqs', alpha[:, :mix_weights.shape[-1]], mix_weights)
+        if mix_weights is not None else alpha)
+    fetch_alpha_pre_diagonal = fetch_alpha
+    if diagonal_mask is not None:
+      fetch_alpha = jnp.where(
+          diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype), fetch_alpha)
+    elif diagonal_indices is not None:
+      query_indices, source_indices = diagonal_indices
+      fetch_alpha = fetch_alpha.at[:, query_indices, source_indices].set(
+          jnp.asarray(1, fetch_alpha.dtype))
+  with jax.named_scope("bam/fetch_m"):
+    if fetch_alpha.ndim == 4:
+      Mbar = jnp.einsum('bfqs,bskv->bfqkv', fetch_alpha, fetch_state)
+    else:
+      Mbar = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
+  return Mbar, fetch_alpha, fetch_alpha_pre_diagonal
+
+
 def _sliding_window_bam_fetch_alpha(
     alpha, window_size, prefix_size=None, source_positions=None):
   """Keep a recent window and optional segment-local prefix, without renormalizing."""
@@ -2331,12 +2378,6 @@ class BamAttention(Attention):
     self._query_chunk_size = (
         cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
     self._query_chunk_implementation = cfg.bam_query_chunk_implementation
-    self._mha_control_segment_mask = bool(getattr(
-        cfg, 'bam_mha_control_segment_mask', True))
-    self._mha_control_inner_remat = bool(getattr(
-        cfg, 'bam_mha_control_inner_remat', False))
-    self._mha_control_gqa_layout = bool(getattr(
-        cfg, 'bam_mha_control_gqa_layout', False))
     if self._mha_control:
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       assert not cfg.bam_diagnostics, 'BAM MHA control must not expose BAM diagnostics'
@@ -2555,6 +2596,7 @@ class BamAttention(Attention):
       assert self._mode in ({'local_qk'}, {'local_qk', 'full'}), (
           'QChunk BAM supports V2 local_qk layers with optional full fetch')
       if 'full' in self._mode:
+        assert self._query_chunk_implementation == 'optimized'
         assert self._shared_fetch_mode == 'dynamic_rms_mix'
         assert cfg.bam_n_f == 1 and self._fetch_diagonal_one
         assert not cfg.bam_dedicated_fetch
@@ -3303,19 +3345,17 @@ class BamAttention(Attention):
     return _fit_bam_read_to_head(
         jnp.concatenate((y_k, y_v), axis=-1), self.bam_k, self.head_dim)
 
-  def _query_chunk_shared_full_read(
-      self, query, key, value, Mh, inputs_q, decoder_segment_ids,
-      is_global=None, window_size_override=None, prepared=None):
-    """Compute one shared MHA/BAM alpha a query chunk at a time.
-
-    This deliberately implements only the V2 full-read path so semantic mismatches
-    fail in setup instead of silently falling back to a different BAM mode.
-    """
+  def _query_chunk_op(
+      self, query, key, value, decoder_segment_ids, *, with_full_read=False,
+      Mh=None, inputs_q=None, is_global=None, window_size_override=None,
+      prepared=None):
+    """Apply shared chunked attention, optionally consuming alpha for V2 fetch."""
     cfg = self.config
-    b, t, n, d = query.shape
+    _, t, _, _ = query.shape
     chunk_size = int(self._query_chunk_size)
     assert t % chunk_size == 0
-    if prepared is None:
+    if with_full_read and prepared is None:
+      assert Mh is not None and inputs_q is not None
       with jax.named_scope("bam/mix_alpha_projection"):
         _, mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype, 'rms',
@@ -3333,216 +3373,65 @@ class BamAttention(Attention):
             inputs_q, lambda _x: projected_read_key,
             **read_key_kwargs)
       prepared = (mix_weights, fetch_state, read_row, read_col)
-    else:
+    elif with_full_read:
       mix_weights, fetch_state, read_row, read_col = prepared
 
     if is_global is not None:
       local_window = min(t, int(self.sliding_window_size))
       return lax.cond(
           is_global,
-          lambda _: self._query_chunk_shared_full_read(
-              query, key, value, Mh, inputs_q, decoder_segment_ids,
+          lambda _: self._query_chunk_op(
+              query, key, value, decoder_segment_ids,
+              with_full_read=with_full_read, Mh=Mh, inputs_q=inputs_q,
               window_size_override=t, prepared=prepared),
-          lambda _: self._query_chunk_shared_full_read(
-              query, key, value, Mh, inputs_q, decoder_segment_ids,
+          lambda _: self._query_chunk_op(
+              query, key, value, decoder_segment_ids,
+              with_full_read=with_full_read, Mh=Mh, inputs_q=inputs_q,
               window_size_override=local_window, prepared=prepared),
           operand=None)
     window_size = (
         window_size_override if window_size_override is not None else
         (t if self.sliding_window_size is None
          else min(t, int(self.sliding_window_size))))
-    implementation = self._query_chunk_implementation
-    defer_read = implementation in ('deferred_read', 'diag_select', 'optimized')
-    diagonal_select = implementation in ('diag_select', 'optimized')
-    concatenate_outputs = implementation == 'optimized'
+    template_target = jnp.arange(t - chunk_size, t)[:, None]
+    template_source = jnp.arange(t)[None, :]
+    mask_template = template_source <= template_target
+    diagonal_template = template_source == template_target
+    if window_size < t:
+      mask_template &= template_source > template_target - window_size
 
-    if concatenate_outputs:
-      y_std_chunks = []
-      Mbar_chunks = []
-    else:
-      y_std = jnp.zeros((b, t, n, d), dtype=value.dtype)
-      read_k_dim = self._abs_k_dim or self.bam_k
-      read_v_dim = self._abs_v_dim or self.bam_v
-      deferred_Mbar = (
-          jnp.zeros((b, t, read_k_dim, read_v_dim), dtype=fetch_state.dtype)
-          if defer_read else None)
-      y_full = None if defer_read else jnp.zeros_like(y_std)
-
-    mask_template = None
-    diagonal_template = None
-    if implementation == 'optimized':
-      template_target = jnp.arange(t - chunk_size, t)[:, None]
-      template_source = jnp.arange(t)[None, :]
-      mask_template = template_source <= template_target
-      diagonal_template = template_source == template_target
-      if window_size < t:
-        mask_template &= template_source > template_target - window_size
-
-    def finish_full_read(Mbar, row_key, col_key):
-      # Retain the singleton fetch axis expected by the bilateral read lowering.
-      full_read = _contract_bam_read(
-          Mbar[:, None], Mbar[:, None], row_key, col_key, True,
-          self._read_implementation, self.read_side)
-      return self._expand_full_read(full_read)
-
-    def chunk_body(q_chunk, k_chunk, v_chunk, M_chunk, mix_chunk,
-                   row_chunk, col_chunk, valid, diagonal_mask, diag_col):
-      with jax.named_scope("attention/qk_logits"):
-        logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
-      if cfg.attn_logits_soft_cap:
-        logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
-                  * cfg.attn_logits_soft_cap)
-      logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
-      if cfg.float32_logits:
-        logits = logits.astype(jnp.float32)
-      with jax.named_scope("attention/softmax"):
-        alpha = jax.nn.softmax(logits, axis=-1)
-
-      with jax.named_scope("attention/av"):
-        y_std_chunk = jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
-
-      with jax.named_scope("bam/mix_alpha"):
-        fetch_alpha = jnp.einsum(
-            'bncs,bcn->bcs', alpha[:, :mix_chunk.shape[-1]], mix_chunk)
-        if diagonal_select:
-          fetch_alpha = jnp.where(
-              diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype),
-              fetch_alpha)
-        else:
-          fetch_alpha = fetch_alpha.at[
-              :, jnp.arange(chunk_size), diag_col].set(
-                  jnp.asarray(1, fetch_alpha.dtype))
-      with jax.named_scope("bam/fetch_m"):
-        Mbar = jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
-
-      if defer_read:
-        return y_std_chunk, Mbar
-      with jax.named_scope("bam/read_fetched_m"):
-        return y_std_chunk, finish_full_read(Mbar, row_chunk, col_chunk)
-
-    apply_chunk = (
-        jax.checkpoint(chunk_body, prevent_cse=True)
-        if implementation == 'legacy' else chunk_body)
+    y_std_chunks = []
+    Mbar_chunks = []
     for q0 in range(0, t, chunk_size):
       q1 = q0 + chunk_size
       s0 = max(0, q0 - window_size) if window_size < t else 0
       s1 = q1
-      diag_col = jnp.arange(q0, q1) - s0
-      if mask_template is None:
-        target = jnp.arange(q0, q1)[:, None]
-        source = jnp.arange(s0, s1)[None, :]
-        valid = source <= target
-        if window_size < t:
-          valid &= source > target - window_size
-      else:
-        valid = mask_template[:, t - (s1 - s0):]
-      diagonal_mask = (
-          jnp.arange(s1 - s0)[None, :] == diag_col[:, None]
-          if diagonal_template is None
-          else diagonal_template[:, t - (s1 - s0):])
-      valid = valid[None]
+      valid = mask_template[:, t - (s1 - s0):][None]
       if decoder_segment_ids is not None:
-        same_segment = (
-            decoder_segment_ids[:, q0:q1, None]
-            == decoder_segment_ids[:, None, s0:s1])
-        valid = valid & same_segment
-      else:
-        valid = jnp.broadcast_to(valid, (b,) + valid.shape[1:])
-      y_std_chunk, second_chunk = apply_chunk(
-          query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
-          fetch_state[:, s0:s1], mix_weights[:, q0:q1],
-          read_row[:, q0:q1], read_col[:, q0:q1], valid, diagonal_mask,
-          diag_col)
-      if concatenate_outputs:
-        y_std_chunks.append(y_std_chunk)
-        Mbar_chunks.append(second_chunk)
-      else:
-        y_std = lax.dynamic_update_slice(y_std, y_std_chunk, (0, q0, 0, 0))
-        if defer_read:
-          deferred_Mbar = lax.dynamic_update_slice(
-              deferred_Mbar, second_chunk, (0, q0, 0, 0))
-        else:
-          y_full = lax.dynamic_update_slice(
-              y_full, second_chunk, (0, q0, 0, 0))
-
-    if concatenate_outputs:
-      y_std = jnp.concatenate(y_std_chunks, axis=1)
-      deferred_Mbar = jnp.concatenate(Mbar_chunks, axis=1)
-    if defer_read:
-      with jax.named_scope("bam/read_fetched_m"):
-        y_full = finish_full_read(deferred_Mbar, read_row, read_col)
-
-    return y_std, y_full
-
-  def _query_chunk_mha_control(
-      self, query, key, value, decoder_segment_ids, is_global=None,
-      window_size_override=None):
-    """Run only BAM's chunked QK/softmax/AV implementation."""
-    cfg = self.config
-    b, t, n, d = query.shape
-    chunk_size = int(self._query_chunk_size)
-    assert t % chunk_size == 0
-    if is_global is not None:
-      local_window = min(t, int(self.sliding_window_size))
-      return lax.cond(
-          is_global,
-          lambda _: self._query_chunk_mha_control(
-              query, key, value, decoder_segment_ids,
-              window_size_override=t),
-          lambda _: self._query_chunk_mha_control(
-              query, key, value, decoder_segment_ids,
-              window_size_override=local_window),
-          operand=None)
-    window_size = (
-        window_size_override if window_size_override is not None else
-        (t if self.sliding_window_size is None
-         else min(t, int(self.sliding_window_size))))
-    y_std = jnp.zeros((b, t, n, d), dtype=value.dtype)
-
-    def chunk_body(q_chunk, k_chunk, v_chunk, valid):
-      with jax.named_scope("attention/qk_logits"):
-        if self._mha_control_gqa_layout:
-          q_chunk = q_chunk.reshape((b, q_chunk.shape[1], n, 1, d))
-          logits = jnp.einsum('bckgd,bskd->bkgcs', q_chunk, k_chunk)
-          valid_logits = valid[:, None, None]
-        else:
-          logits = jnp.einsum('bcnd,bsnd->bncs', q_chunk, k_chunk)
-          valid_logits = valid[:, None]
-      if cfg.attn_logits_soft_cap:
-        logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
-                  * cfg.attn_logits_soft_cap)
-      logits = jnp.where(valid_logits, logits, DEFAULT_MASK_VALUE)
-      if cfg.float32_logits:
-        logits = logits.astype(jnp.float32)
-      with jax.named_scope("attention/softmax"):
-        alpha = jax.nn.softmax(logits, axis=-1)
-      with jax.named_scope("attention/av"):
-        if self._mha_control_gqa_layout:
-          alpha = jnp.where(valid_logits, alpha.astype(self.dtype), 0.)
-          output = jnp.einsum('bkgcs,bskd->bckgd', alpha, v_chunk)
-          return output.reshape((b, output.shape[1], n, d))
-        return jnp.einsum('bncs,bsnd->bcnd', alpha, v_chunk)
-
-    apply_chunk = (
-        jax.checkpoint(chunk_body, prevent_cse=True)
-        if self._mha_control_inner_remat else chunk_body)
-    for q0 in range(0, t, chunk_size):
-      q1 = q0 + chunk_size
-      s0 = max(0, q0 - window_size) if window_size < t else 0
-      s1 = q1
-      target = jnp.arange(q0, q1)[:, None]
-      source = jnp.arange(s0, s1)[None, :]
-      valid = source <= target
-      if window_size < t:
-        valid &= source > target - window_size
-      valid = valid[None]
-      if self._mha_control_segment_mask and decoder_segment_ids is not None:
         valid = valid & (
             decoder_segment_ids[:, q0:q1, None]
             == decoder_segment_ids[:, None, s0:s1])
-      y_std_chunk = apply_chunk(
-          query[:, q0:q1], key[:, s0:s1], value[:, s0:s1], valid)
-      y_std = lax.dynamic_update_slice(y_std, y_std_chunk, (0, q0, 0, 0))
+      y_std_chunk, alpha = _attention_op(
+          query[:, q0:q1], key[:, s0:s1], value[:, s0:s1], valid,
+          attn_logits_soft_cap=cfg.attn_logits_soft_cap,
+          float32_logits=cfg.float32_logits)
+      y_std_chunks.append(y_std_chunk)
+      if with_full_read:
+        Mbar_chunk, _, _ = _bam_fetch_op(
+            alpha, fetch_state[:, s0:s1],
+            mix_weights=mix_weights[:, q0:q1],
+            diagonal_mask=diagonal_template[:, t - (s1 - s0):])
+        Mbar_chunks.append(Mbar_chunk)
+
+    y_std = jnp.concatenate(y_std_chunks, axis=1)
+    if with_full_read:
+      Mbar = jnp.concatenate(Mbar_chunks, axis=1)
+      with jax.named_scope("bam/read_fetched_m"):
+        full_read = _contract_bam_read(
+            Mbar[:, None], Mbar[:, None], read_row, read_col, True,
+            self._read_implementation, self.read_side)
+        y_full = self._expand_full_read(full_read)
+      return y_std, y_full
     return y_std
 
   @nn.compact
@@ -3608,25 +3497,20 @@ class BamAttention(Attention):
         query = query.astype(jnp.float32)
         key = key.astype(jnp.float32)
       if self._query_chunk_size is not None:
-        y_std = self._query_chunk_mha_control(
+        y_std = self._query_chunk_op(
             query, key, value, decoder_segment_ids, is_global=is_global)
       else:
-        with jax.named_scope("attention/qk_logits"):
-          logits = jnp.einsum('btnd,bsnd->bnts', query, key)
-        if cfg.attn_logits_soft_cap:
-          logits = (jnp.tanh(logits / cfg.attn_logits_soft_cap)
-                    * cfg.attn_logits_soft_cap)
         attn_mask = self.attention_op.generate_attention_mask(
             query, key, decoder_segment_ids, model_mode)
+        valid = None
         if attn_mask is not None:
           attn_mask = jnp.squeeze(attn_mask, axis=2)
-          logits = apply_mask_to_logits(logits, attn_mask)
-        if cfg.float32_logits:
-          logits = logits.astype(jnp.float32)
-        with jax.named_scope("attention/softmax"):
-          alpha = jax.nn.softmax(logits, axis=-1)
-        with jax.named_scope("attention/av"):
-          y_std = jnp.einsum('bnts,bsnd->btnd', alpha, value)
+          valid = jnp.squeeze(
+              attn_mask >= DEFAULT_MASK_VALUE * 0.5, axis=1)
+        y_std, _ = _attention_op(
+            query, key, value, valid,
+            attn_logits_soft_cap=cfg.attn_logits_soft_cap,
+            float32_logits=cfg.float32_logits)
       y_std = nn.with_logical_constraint(y_std, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], y_std), M_in
 
@@ -3675,12 +3559,12 @@ class BamAttention(Attention):
     if self._query_chunk_size is not None:
       assert cfg.bam_write_source == 'std+cross+local_o'
       if 'full' in self._mode:
-        y_std, y_full = self._query_chunk_shared_full_read(
-            query, key, value, Mh, inputs_q, decoder_segment_ids,
-            is_global=is_global)
+        y_std, y_full = self._query_chunk_op(
+            query, key, value, decoder_segment_ids, with_full_read=True,
+            Mh=Mh, inputs_q=inputs_q, is_global=is_global)
         o_head = y_std + y_full
       else:
-        y_std = self._query_chunk_mha_control(
+        y_std = self._query_chunk_op(
             query, key, value, decoder_segment_ids, is_global=is_global)
         o_head = y_std
       with jax.named_scope("bam/write_m"):
@@ -3688,11 +3572,8 @@ class BamAttention(Attention):
       out = nn.with_logical_constraint(o_head, self.out_axis_names)
       return self.out_projection(inputs_q.shape[-1], out), M_out
 
-    with jax.named_scope("attention/qk_logits"):
-      logits = jnp.einsum('btnd,bsnd->bnts', query, key)   # [b,n,t,s]
-    if cfg.attn_logits_soft_cap:
-      logits = jnp.tanh(logits / cfg.attn_logits_soft_cap) * cfg.attn_logits_soft_cap
     attn_mask = self.attention_op.generate_attention_mask(query, key, decoder_segment_ids, model_mode)
+    valid = None
     if attn_mask is not None:
       # AttentionOp keeps the GQA group axis in its mask because the standard
       # qk_product has shape [b, n_kv, groups, t, s]. BAM v0.1 requires
@@ -3700,13 +3581,12 @@ class BamAttention(Attention):
       # the matching mask axis as well; otherwise broadcasting creates a bogus
       # five-dimensional alpha tensor [b, b, n, t, s].
       attn_mask = jnp.squeeze(attn_mask, axis=2)              # [b,1,t,s]
-      logits = apply_mask_to_logits(logits, attn_mask)        # [b,n,t,s]
-    if cfg.float32_logits:
-      logits = logits.astype(jnp.float32)
-    with jax.named_scope("attention/softmax"):
-      alpha = jax.nn.softmax(logits, axis=-1)               # [b,n,t,s]
-    with jax.named_scope("attention/av"):
-      y_std = jnp.einsum('bnts,bsnd->btnd', alpha, value)   # [b,t,n,d]
+      valid = jnp.squeeze(
+          attn_mask >= DEFAULT_MASK_VALUE * 0.5, axis=1)      # [b,t,s]
+    y_std, alpha = _attention_op(
+        query, key, value, valid,
+        attn_logits_soft_cap=cfg.attn_logits_soft_cap,
+        float32_logits=cfg.float32_logits)
     # Diagonal yield (§4.6.5): when local_o is on, the softmax-fetch patterns (full/codebook) zero
     # their alpha diagonal without renormalizing — the leftover mass 1−α_tt becomes a soft
     # "abstain-from-self" gate (attention-sink style, zero-param). sparse (block granularity —
@@ -3765,7 +3645,6 @@ class BamAttention(Attention):
     y_full = jnp.zeros_like(y_std)
     y_local_o = jnp.zeros_like(y_std)
     Mbar = None
-    Mbar_fetch = None
     y_bam = 0.0
     capture_read_key_stages = cfg.bam_diagnostics and not self.is_initializing()
     read_key_stages = {}
@@ -3787,7 +3666,7 @@ class BamAttention(Attention):
               self._fetch_temporal_block_size, self._fetch_temporal_block_mode,
               self._fetch_temporal_recent_window_size)
         else:
-          Mbar_fetch = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, fetch_state)  # V1 default
+          Mbar_fetch, _, _ = _bam_fetch_op(fetch_alpha, fetch_state)
         Mbar = Mbar_fetch
         if self._combine_full_local_read:
           # The shared runtime key makes Read linear in M.  Because fetch_alpha has

@@ -10,6 +10,8 @@ from layers import normalizations
 
 from layers.attentions import (
     GroupedRMSNorm,
+    _attention_op,
+    _bam_fetch_op,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
     _packed_factorized_local_qk_init,
@@ -30,6 +32,114 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_attention_op_matches_dense_and_chunk_values_and_gradients(self):
+    b, t, n, d, chunk_size = 2, 6, 3, 4, 2
+    keys = jax.random.split(jax.random.PRNGKey(79), 6)
+    args = (
+        jax.random.normal(keys[0], (b, t, n, d)),
+        jax.random.normal(keys[1], (b, t, n, d)),
+        jax.random.normal(keys[2], (b, t, n, d)),
+    )
+    segment_ids = jnp.asarray([[1, 1, 1, 2, 2, 2], [3, 3, 4, 4, 4, 4]])
+    causal = jnp.arange(t)[None, :] <= jnp.arange(t)[:, None]
+    valid = causal[None] & (
+        segment_ids[:, :, None] == segment_ids[:, None, :])
+    output_weight = jax.random.normal(keys[3], (b, t, n, d))
+    alpha_weight = jax.random.normal(keys[4], (b, n, t, t))
+
+    def dense(values):
+      return _attention_op(
+          *values, valid, attn_logits_soft_cap=3.0, float32_logits=True,
+      )
+
+    def reference(values):
+      query, key, value = values
+      logits = jnp.einsum('btnd,bsnd->bnts', query, key)
+      logits = jnp.tanh(logits / 3.0) * 3.0
+      logits = jnp.where(valid[:, None], logits, -1e30).astype(jnp.float32)
+      alpha = jax.nn.softmax(logits, axis=-1)
+      return jnp.einsum('bnts,bsnd->btnd', alpha, value), alpha
+
+    expected_y, expected_alpha = reference(args)
+    actual_y, actual_alpha = dense(args)
+    np.testing.assert_allclose(actual_y, expected_y, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(actual_alpha, expected_alpha, rtol=1e-6, atol=1e-6)
+    chunk_outputs = []
+    chunk_alphas = []
+    for q0 in range(0, t, chunk_size):
+      q1 = q0 + chunk_size
+      chunk_y, chunk_alpha = _attention_op(
+          args[0][:, q0:q1], args[1][:, :q1], args[2][:, :q1],
+          valid[:, q0:q1, :q1], attn_logits_soft_cap=3.0,
+          float32_logits=True)
+      chunk_outputs.append(chunk_y)
+      chunk_alphas.append(jnp.pad(
+          chunk_alpha, ((0, 0), (0, 0), (0, 0), (0, t - q1))))
+    np.testing.assert_allclose(
+        jnp.concatenate(chunk_outputs, axis=1), expected_y,
+        rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(
+        jnp.concatenate(chunk_alphas, axis=2), expected_alpha,
+        rtol=1e-6, atol=1e-6)
+
+    def objective(function, values):
+      y, alpha = function(values)
+      return jnp.sum(y * output_weight) + jnp.sum(alpha * alpha_weight)
+
+    expected_value, expected_grad = jax.value_and_grad(
+        lambda values: objective(reference, values))(args)
+    actual_value, actual_grad = jax.value_and_grad(
+        lambda values: objective(dense, values))(args)
+    np.testing.assert_allclose(actual_value, expected_value, rtol=1e-6, atol=1e-6)
+    for got, expected in zip(actual_grad, expected_grad):
+      np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
+
+  def test_bam_fetch_op_matches_v2_fetch_values_and_gradients(self):
+    b, n, t, k, v = 2, 3, 5, 4, 6
+    keys = jax.random.split(jax.random.PRNGKey(83), 4)
+    args = (
+        jax.nn.softmax(jax.random.normal(keys[0], (b, n, t, t)), axis=-1),
+        jax.random.normal(keys[1], (b, t, n)),
+        jax.random.normal(keys[2], (b, t, k, v)),
+    )
+    upstream = jax.random.normal(keys[3], (b, t, k, v))
+    diagonal = jnp.arange(t)
+
+    def reference(values):
+      alpha, mix_weights, fetch_state = values
+      fetch_alpha = jnp.einsum('bnts,btn->bts', alpha, mix_weights)
+      pre_diagonal = fetch_alpha
+      fetch_alpha = fetch_alpha.at[:, diagonal, diagonal].set(1)
+      Mbar = jnp.einsum('bts,bskv->btkv', fetch_alpha, fetch_state)
+      return Mbar, fetch_alpha, pre_diagonal
+
+    def actual(values):
+      alpha, mix_weights, fetch_state = values
+      return _bam_fetch_op(
+          alpha, fetch_state, mix_weights=mix_weights,
+          diagonal_indices=(diagonal, diagonal))
+
+    expected = reference(args)
+    got = actual(args)
+    for got_item, expected_item in zip(got, expected):
+      np.testing.assert_allclose(got_item, expected_item, rtol=1e-6, atol=1e-6)
+    masked = _bam_fetch_op(
+        args[0], args[2], mix_weights=args[1],
+        diagonal_mask=jnp.eye(t, dtype=bool))[0]
+    np.testing.assert_allclose(
+        masked, expected[0], rtol=1e-6, atol=1e-6)
+    dense = _bam_fetch_op(expected[1][:, None], args[2])[0]
+    np.testing.assert_allclose(
+        dense[:, 0], expected[0], rtol=1e-6, atol=1e-6)
+
+    expected_value, expected_grad = jax.value_and_grad(
+        lambda values: jnp.sum(reference(values)[0] * upstream))(args)
+    actual_value, actual_grad = jax.value_and_grad(
+        lambda values: jnp.sum(actual(values)[0] * upstream))(args)
+    np.testing.assert_allclose(actual_value, expected_value, rtol=1e-6, atol=1e-6)
+    for got_item, expected_item in zip(actual_grad, expected_grad):
+      np.testing.assert_allclose(got_item, expected_item, rtol=1e-6, atol=1e-6)
 
   def test_bam_read_head_mapping_pads_or_adapts_only_v_side(self):
     direct = jnp.arange(96, dtype=jnp.float32).reshape(1, 1, 1, 96)

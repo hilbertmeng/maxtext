@@ -1876,6 +1876,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl(
     # code_commit: 71bc14e
     # ~0.531 steps/s; stopped 1,591. mean dloss -.0038 vs mapped PackedOnly @800–1,400.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateMappedControl'
+    bam_factorized_head_output_layout = 'btn'
     bam_replicate_ploc_up = True
 
 
@@ -1886,6 +1887,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateNativeControl(
     # code_commit: 340156e
     # ~0.532 steps/s; stopped 48. Exactly reproduced old eps1e4 at every step.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnReplicateNativeControl'
+    bam_factorized_head_output_layout = 'btn'
     bam_replicate_ploc_up = True
 
 
@@ -1896,6 +1898,7 @@ class BamLlama2MediumDirectPLocR256GeluPackedBtnNativeControl(
     # code_commit: 24d5d8b
     # ~0.524 steps/s; stopped 41. Exactly matched NativeOnly at every step (max error 0).
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedBtnNativeControl'
+    bam_factorized_head_output_layout = 'btn'
 
 
 class BamLlama2MediumDirectPLocR256GeluPackedReplicateNativeControl(

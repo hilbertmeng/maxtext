@@ -1754,13 +1754,15 @@ def _attention_op(
   return y_std, alpha
 
 
-def _bam_fetch_op(alpha, fetch_state, mix_weights, diagonal_mask):
-  """Mix standard-attention routes, set the local coefficient, and fetch M."""
+def _bam_fetch_op(
+    alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one):
+  """Mix standard-attention routes, optionally set the local coefficient, and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     fetch_alpha = jnp.einsum(
         'bnqs,bqn->bqs', alpha[:, :mix_weights.shape[-1]], mix_weights)
-    fetch_alpha = jnp.where(
-        diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype), fetch_alpha)
+    if diagonal_one:
+      fetch_alpha = jnp.where(
+          diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype), fetch_alpha)
   with jax.named_scope("bam/fetch_m"):
     return jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
 
@@ -2163,6 +2165,7 @@ class BamAttention(Attention):
     self._read_implementation = cfg.bam_read_implementation
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
+    self._fetch_diagonal_one = bool(cfg.bam_fetch_diagonal_one)
     self._fetch_read_bottleneck_dim = getattr(
         cfg, 'bam_fetch_read_bottleneck_dim', None)
     self._fetch_read_bottleneck_activation = getattr(
@@ -2180,7 +2183,6 @@ class BamAttention(Attention):
     if 'full' in self._mode:
       assert cfg.bam_shared_fetch_mode == 'dynamic_rms_mix'
       assert cfg.bam_n_f == 1
-      assert cfg.bam_fetch_diagonal_one
       assert not cfg.bam_dedicated_fetch
       assert cfg.bam_fetch_sliding_window_size is None
       assert getattr(cfg, 'bam_fetch_sliding_window_prefix_size', None) is None
@@ -2961,7 +2963,8 @@ class BamAttention(Attention):
     if fetch_state is not None:
       assert mix_weights is not None
       Mbar = _bam_fetch_op(
-          alpha, fetch_state, mix_weights, source == target)
+          alpha, fetch_state, mix_weights, source == target,
+          diagonal_one=self._fetch_diagonal_one)
     return y_std, Mbar
 
   def _query_chunk_op(

@@ -88,7 +88,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     for got, expected in zip(actual_grad, expected_grad):
       np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
 
-  def test_bam_fetch_op_matches_v2_fetch_values_and_gradients(self):
+  def test_bam_fetch_op_respects_diagonal_one_for_values_and_gradients(self):
     b, n, t, k, v = 2, 3, 5, 4, 6
     keys = jax.random.split(jax.random.PRNGKey(83), 4)
     args = (
@@ -99,27 +99,35 @@ class BamReadKeyTransformTest(absltest.TestCase):
     upstream = jax.random.normal(keys[3], (b, t, k, v))
     diagonal_mask = jnp.eye(t, dtype=bool)
 
-    def reference(values):
+    def reference(values, diagonal_one):
       alpha, mix_weights, fetch_state = values
       fetch_alpha = jnp.einsum('bnts,btn->bts', alpha, mix_weights)
-      fetch_alpha = jnp.where(diagonal_mask[None], 1, fetch_alpha)
+      if diagonal_one:
+        fetch_alpha = jnp.where(diagonal_mask[None], 1, fetch_alpha)
       return jnp.einsum('bts,bskv->btkv', fetch_alpha, fetch_state)
 
-    def actual(values):
+    def actual(values, diagonal_one):
       alpha, mix_weights, fetch_state = values
-      return _bam_fetch_op(alpha, fetch_state, mix_weights, diagonal_mask)
+      return _bam_fetch_op(
+          alpha, fetch_state, mix_weights, diagonal_mask,
+          diagonal_one=diagonal_one)
 
-    expected = reference(args)
-    got = actual(args)
-    np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
+    for diagonal_one in (False, True):
+      expected = reference(args, diagonal_one)
+      got = actual(args, diagonal_one)
+      np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
 
-    expected_value, expected_grad = jax.value_and_grad(
-        lambda values: jnp.sum(reference(values) * upstream))(args)
-    actual_value, actual_grad = jax.value_and_grad(
-        lambda values: jnp.sum(actual(values) * upstream))(args)
-    np.testing.assert_allclose(actual_value, expected_value, rtol=1e-6, atol=1e-6)
-    for got_item, expected_item in zip(actual_grad, expected_grad):
-      np.testing.assert_allclose(got_item, expected_item, rtol=1e-6, atol=1e-6)
+      expected_value, expected_grad = jax.value_and_grad(
+          lambda values: jnp.sum(
+              reference(values, diagonal_one) * upstream))(args)
+      actual_value, actual_grad = jax.value_and_grad(
+          lambda values: jnp.sum(
+              actual(values, diagonal_one) * upstream))(args)
+      np.testing.assert_allclose(
+          actual_value, expected_value, rtol=1e-6, atol=1e-6)
+      for got_item, expected_item in zip(actual_grad, expected_grad):
+        np.testing.assert_allclose(
+            got_item, expected_item, rtol=1e-6, atol=1e-6)
 
   def test_bam_read_head_mapping_pads_or_adapts_only_v_side(self):
     direct = jnp.arange(96, dtype=jnp.float32).reshape(1, 1, 1, 96)

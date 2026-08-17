@@ -1640,6 +1640,8 @@ class BamLlama2XLV2C256ProfileBase(
     bam_query_chunk_implementation = 'optimized'
     scan_layers = True
     bam_layer_modes = ['local_qk+full'] * 24
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
     steps = 100
 
 

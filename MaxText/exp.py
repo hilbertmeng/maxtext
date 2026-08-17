@@ -1695,6 +1695,9 @@ class BamLlama2XLHead32x64V2C256T2048Profile(
     bam_k = 32
     bam_v = 64
     bam_abs_v_compression_dim = 16
+    # The two per-head 64->32 LocalQ/K adapters are intentionally replicated on
+    # this fsdp-only mesh; together they raise the sharding audit to ~3.99%.
+    sharding_tolerance = 0.05
 
 
 class BamMHALlama2XLHead32x64C256T2048Profile(

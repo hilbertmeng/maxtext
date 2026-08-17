@@ -388,7 +388,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     mix_kernel = jax.random.normal(random[5], (e, n, 2))
     key_projection = lambda z: jnp.einsum('bte,eD->btD', z, key_kernel)
     mix_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
-    local_gates = gates[..., 0, :]
+    local_gates = gates[:, :, 0, 0]
     both = factorized_head_bam_read(
         local_M, x, key_projection, mix_projection, key_mode='rms_gate',
         key_scale=2.0, rms_epsilon=_RMS_EPSILON,
@@ -529,7 +529,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
       )
 
     upstream = jax.random.normal(
-        keys[5], (b, n, t, k + v), dtype=jnp.bfloat16).astype(jnp.float32)
+        keys[5], (b, t, n, k + v), dtype=jnp.bfloat16).astype(jnp.float32)
     gate_bias = jax.random.normal(keys[6], (n, 1, 2), dtype=jnp.float32)
 
     def read_output(args, combine):

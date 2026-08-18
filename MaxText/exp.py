@@ -1043,8 +1043,8 @@ class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
 
 
 class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
-    """Explicit-layer C256 base for sparse fetched-read schedules."""
-    # Full-24 layer-scan @c5482e1: ~0.663 steps/s on EW4b (historical @2646f97: ~0.664).
+    """C256 base for sparse fetched-read schedules."""
+    # Full-24 v5p-16: scan=False @165b55b UC1a 1,455.35 ms/~0.675; scan=True @c5482e1 EW4b ~0.663.
     attention = 'dot_product_chunk'
     query_chunk_size = 256
     bam_query_chunk_implementation = 'optimized'

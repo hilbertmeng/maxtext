@@ -2565,7 +2565,7 @@ class BamAttention(Attention):
             self.bam_k + self.bam_v + 2 + 2 * self.num_query_heads)
         self.W_local_qk_thumb = DenseGeneral(
             features=packed_width, axis=-1, kernel_init=zeros_init,
-            kernel_axes=('v_factor', None), dtype=self.dtype,
+            kernel_axes=('embed', None), dtype=self.dtype,
             weight_dtype=self.weight_dtype, name='W_local_qk_thumb',
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             use_bias=False)
@@ -2575,7 +2575,7 @@ class BamAttention(Attention):
             (self._abs_k_dim or self.bam_k) + (self._abs_v_dim or self.bam_v))
         self.W_R_thumb = DenseGeneral(
             features=read_features, axis=-1, kernel_init=zeros_init,
-            kernel_axes=('v_factor', 'q_heads', 'fetch', 'kv'),
+            kernel_axes=('embed', 'q_heads', 'fetch', 'kv'),
             dtype=self.dtype, weight_dtype=self.weight_dtype, name='W_R_thumb',
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             use_bias=False)
@@ -2583,7 +2583,7 @@ class BamAttention(Attention):
           self.W_R_gate_thumb = DenseGeneral(
               features=(self.num_query_heads, cfg.bam_n_f, 2), axis=-1,
               kernel_init=zeros_init,
-              kernel_axes=('v_factor', 'q_heads', 'fetch', None),
+              kernel_axes=('embed', 'q_heads', 'fetch', None),
               dtype=self.dtype, weight_dtype=self.weight_dtype,
               name='W_R_gate_thumb', quant=self.quant,
               matmul_precision=cfg.matmul_precision, use_bias=False)

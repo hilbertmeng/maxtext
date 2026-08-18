@@ -1055,6 +1055,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256FetchedRowOnly(BamV2C256FetchScheduleBase):
     """V2 C256 layer-scan ablation retaining only fetched-M row reads."""
+    # code_commit: c5482e1; ~0.672 steps/s on EW4b; training to 13,500.
     model_name = 'BamLlama2MediumV2C256FetchedRowOnly'
     scan_layers = True
     bam_fetched_read_side = 'row'
@@ -1062,6 +1063,7 @@ class BamLlama2MediumV2C256FetchedRowOnly(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchedColOnly(BamV2C256FetchScheduleBase):
     """V2 C256 layer-scan ablation retaining only fetched-M column reads."""
+    # code_commit: c5482e1; ~0.672 steps/s on EW4b; training to 13,500.
     model_name = 'BamLlama2MediumV2C256FetchedColOnly'
     scan_layers = True
     bam_fetched_read_side = 'col'

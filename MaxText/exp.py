@@ -241,6 +241,7 @@ class BamLlama2Medium(Llama2Medium):
     # for all 13.5k steps. Its measured cost is intentional for this experiment.
     bam_layer_modes = ['local_qk+local_o+full'] * 24
     bam_read_sides = 'both'  # both | row (M^T r_row) | col (M r_col); may be per-layer
+    bam_fetched_read_side = 'both'  # fetched-M-only ablation; leaves LocalQK bilateral
 
     bam_k = 32
     bam_v = 32
@@ -1050,6 +1051,20 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256FetchedRowOnly(BamV2C256FetchScheduleBase):
+    """V2 C256 layer-scan ablation retaining only fetched-M row reads."""
+    model_name = 'BamLlama2MediumV2C256FetchedRowOnly'
+    scan_layers = True
+    bam_fetched_read_side = 'row'
+
+
+class BamLlama2MediumV2C256FetchedColOnly(BamV2C256FetchScheduleBase):
+    """V2 C256 layer-scan ablation retaining only fetched-M column reads."""
+    model_name = 'BamLlama2MediumV2C256FetchedColOnly'
+    scan_layers = True
+    bam_fetched_read_side = 'col'
 
 
 class Llama2MediumC256T4096(BamV2C256FetchScheduleBase):

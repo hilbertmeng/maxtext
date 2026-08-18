@@ -2163,6 +2163,8 @@ class BamAttention(Attention):
         else int(cfg.bam_fetch_mix_num_heads))
     assert 0 < self._fetch_mix_num_heads <= self.num_query_heads
     self._read_implementation = cfg.bam_read_implementation
+    self._fetched_read_side = cfg.bam_fetched_read_side
+    assert self._fetched_read_side in ('both', 'row', 'col')
     self._m_read_norm = cfg.bam_m_read_norm
     self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
     self._fetch_diagonal_one = bool(cfg.bam_fetch_diagonal_one)
@@ -2934,7 +2936,8 @@ class BamAttention(Attention):
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,
-          implementation=self._read_implementation, read_side=self.read_side)
+          implementation=self._read_implementation,
+          read_side=self._fetched_read_side)
       full_read = self._expand_full_read(full_read)
       return full_read
 

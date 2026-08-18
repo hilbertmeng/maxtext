@@ -298,6 +298,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
+    bam_thumbnail_k_dim = None  # M directory: static K compression of the abs-V fetch view (e.g. 16 -> 16x8 grid)
+    bam_thumbnail_consumers = 'local_qk+full'  # read points whose keys/gates consume the directory
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
@@ -307,6 +309,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
+    bam_write_mixer_quadrants = 'none'  # none, or +-joined subset of uu/uv/vu/vv fetched-read write taps
 
     scan_layers = False
 
@@ -1044,7 +1047,7 @@ class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
 
 class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
     """C256 base for sparse fetched-read schedules."""
-    # Full-24 v5p-16: scan=False @165b55b UC1a 1,455.35 ms/~0.675; scan=True @c5482e1 EW4b ~0.663.
+    # Full-24 v5p-16: scan=False @165b55b UC1a 1,455.35 ms/~0.675 (tested with BamV2QChunk256OptimizedFullLayerProfile); scan=True @c5482e1 EW4b ~0.663.
     attention = 'dot_product_chunk'
     query_chunk_size = 256
     bam_query_chunk_implementation = 'optimized'
@@ -1232,6 +1235,74 @@ class BamLlama2MediumV2C256LLLGAllRead(BamV2C256FetchScheduleBase):
     model_name = 'BamLlama2MediumV2C256LLLGAllRead'
     bam_layer_modes = ['local_qk+full'] * 24
     sliding_window_size = [256, 256, 256, None]
+
+
+class BamV2C256MHInteractionBase(BamV2C256FetchScheduleBase):
+    """Layer-scan C256 base for M/H-interaction arms: M directory + write-source mixer."""
+    scan_layers = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-mh-interaction')
+
+
+class BamLlama2MediumV2C256Thumb16x8(BamV2C256MHInteractionBase):
+    """Single variable vs V2 C256: a 16x8 M directory conditions every read key and gate."""
+    model_name = 'BamLlama2MediumV2C256Thumb16x8'
+    bam_thumbnail_k_dim = 16
+
+
+class BamLlama2MediumV2C256Thumb16x8LocalQKOnly(BamLlama2MediumV2C256Thumb16x8):
+    """Consumer split: the M directory conditions only the LocalQK routing keys/gates."""
+    model_name = 'BamLlama2MediumV2C256Thumb16x8LocalQKOnly'
+    bam_thumbnail_consumers = 'local_qk'
+
+
+class BamLlama2MediumV2C256Thumb16x8FullOnly(BamLlama2MediumV2C256Thumb16x8):
+    """Consumer split: the M directory conditions only the fetched-read keys/gates."""
+    model_name = 'BamLlama2MediumV2C256Thumb16x8FullOnly'
+    bam_thumbnail_consumers = 'full'
+
+
+class BamLlama2MediumV2C256WriteMixVV(BamV2C256MHInteractionBase):
+    """Single variable vs V2 C256: write new content at retrieved anchors (y_V -> V slot)."""
+    model_name = 'BamLlama2MediumV2C256WriteMixVV'
+    bam_write_mixer_quadrants = 'vv'
+
+
+class BamLlama2MediumV2C256WriteMixVU(BamV2C256MHInteractionBase):
+    """Single variable vs V2 C256: store retrieved anchors as record content (address as data)."""
+    model_name = 'BamLlama2MediumV2C256WriteMixVU'
+    bam_write_mixer_quadrants = 'vu'
+
+
+class BamLlama2MediumV2C256WriteMixUV(BamV2C256MHInteractionBase):
+    """Single variable vs V2 C256: anchor new records at retrieved content (content as address)."""
+    model_name = 'BamLlama2MediumV2C256WriteMixUV'
+    bam_write_mixer_quadrants = 'uv'
+
+
+class BamLlama2MediumV2C256WriteMixUU(BamV2C256MHInteractionBase):
+    """Mixer control: a y_std-free recirculation tap on top of the implicit u1 = o[:k] path."""
+    model_name = 'BamLlama2MediumV2C256WriteMixUU'
+    bam_write_mixer_quadrants = 'uu'
+
+
+class BamLlama2MediumV2C256WriteMixVVVU(BamV2C256MHInteractionBase):
+    """Priority pair: retrieved-anchor writes plus address-as-data (vv+vu)."""
+    model_name = 'BamLlama2MediumV2C256WriteMixVVVU'
+    bam_write_mixer_quadrants = 'vv+vu'
+
+
+class BamLlama2MediumV2C256WriteMixAll(BamV2C256MHInteractionBase):
+    """All four write-source quadrants together (uu+uv+vu+vv)."""
+    model_name = 'BamLlama2MediumV2C256WriteMixAll'
+    bam_write_mixer_quadrants = 'uu+uv+vu+vv'
+
+
+class BamLlama2MediumV2C256Thumb16x8WriteMixAll(BamLlama2MediumV2C256WriteMixAll):
+    """Combined arm: M directory plus the complete write-source mixer."""
+    model_name = 'BamLlama2MediumV2C256Thumb16x8WriteMixAll'
+    bam_thumbnail_k_dim = 16
 
 
 class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):

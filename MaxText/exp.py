@@ -1044,6 +1044,7 @@ class BamLlama2MediumV2QChunk256LGLL(BamLlama2MediumV2):
 
 class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
     """Explicit-layer C256 base for sparse fetched-read schedules."""
+    # Full-24 layer-scan @c5482e1: ~0.663 steps/s on EW4b (historical @2646f97: ~0.664).
     attention = 'dot_product_chunk'
     query_chunk_size = 256
     bam_query_chunk_implementation = 'optimized'
@@ -1055,7 +1056,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256FetchedRowOnly(BamV2C256FetchScheduleBase):
     """V2 C256 layer-scan ablation retaining only fetched-M row reads."""
-    # code_commit: c5482e1; ~0.672 steps/s on EW4b; training to 13,500.
+    # code_commit: c5482e1; ~0.673 steps/s (+1.4% vs matched V2 C256); training to 13,500.
     model_name = 'BamLlama2MediumV2C256FetchedRowOnly'
     scan_layers = True
     bam_fetched_read_side = 'row'
@@ -1063,7 +1064,7 @@ class BamLlama2MediumV2C256FetchedRowOnly(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchedColOnly(BamV2C256FetchScheduleBase):
     """V2 C256 layer-scan ablation retaining only fetched-M column reads."""
-    # code_commit: c5482e1; ~0.672 steps/s on EW4b; training to 13,500.
+    # code_commit: c5482e1; ~0.673 steps/s (+1.4% vs matched V2 C256); training to 13,500.
     model_name = 'BamLlama2MediumV2C256FetchedColOnly'
     scan_layers = True
     bam_fetched_read_side = 'col'
@@ -1560,6 +1561,7 @@ class BamV2GScanLayerFullLayerProfile(  # V2 C256 layer_scan
     """Full-24 G C256 BAM S/U target-training profile."""
     # code_commit: 1d9e1e1; EW4b v5p-16 XPlane 1,480.44 ms; ~0.665 steps/s.
     # Recheck @2646f97: EW4b XPlane 1,485.78 ms; ~0.664 steps/s.
+    # Recheck @c5482e1 after refactor: EW4b ~0.663 steps/s.
     # Mix-layout control @eed9791: EW4b XPlane 1,483.50 ms; mix 84.35 ms.
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24

@@ -1267,7 +1267,7 @@ class BamLlama2MediumV2C256Thumb16x8FullOnly(BamLlama2MediumV2C256Thumb16x8):
 
 class BamLlama2MediumV2C256WriteMixVV(BamV2C256MHInteractionBase):
     """Single variable vs V2 C256: write new content at retrieved anchors (y_V -> V slot)."""
-    # code_commit: 8c6a3cf; ~0.655 steps/s (EW4b).
+    # code_commit: 8c6a3cf; ~0.655 steps/s; stopped at 3,177. dloss +0.0070 vs V2 @1,800–3,000; stable harm, adds cost.
     model_name = 'BamLlama2MediumV2C256WriteMixVV'
     bam_write_mixer_quadrants = 'vv'
 

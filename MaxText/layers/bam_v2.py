@@ -137,6 +137,8 @@ class BamV2Attention(attentions.Attention):
       raise ValueError("bam_adaptation_postnorm requires bam_adaptation")
     if cfg.bam_m_read_norm not in ("rms", "none"):
       raise ValueError(f"BAM V2 supports bam_m_read_norm rms/none, got {cfg.bam_m_read_norm}")
+    if cfg.bam_m_read_learnable_scale and cfg.bam_m_read_norm != "rms":
+      raise ValueError("bam_m_read_learnable_scale requires bam_m_read_norm='rms'")
 
     reg_init = self.kernel_init
     zeros_init = initializers.contant_dense_init(0.0)
@@ -144,6 +146,15 @@ class BamV2Attention(attentions.Attention):
     packed_width = 2 * (key_width + 2) + 2 * (self.num_query_heads + self.num_kv_heads)
     read_gate_init = float(cfg.bam_read_gate_init)
     gate_bias = math.log(read_gate_init / (1.0 - read_gate_init))
+    if cfg.bam_m_read_learnable_scale:
+      self.m_read_scale = self.param(
+          "m_read_scale",
+          nn.with_logical_partitioning(
+              nn.initializers.constant(float(cfg.bam_m_read_scale_init)), (None,)
+          ),
+          (1,),
+          self.weight_dtype,
+      )
 
     # Source: absolute-V full-read branch.  The direct decoder is deliberately
     # created but unused: the reference V2 does this to preserve its checkpoint tree.
@@ -316,10 +327,13 @@ class BamV2Attention(attentions.Attention):
     """Reference read-side RMS view; the write stream keeps the raw matrix."""
     if self.config.bam_m_read_norm == "none":
       return matrix
-    return matrix * jax.lax.rsqrt(
+    matrix = matrix * jax.lax.rsqrt(
         jnp.mean(matrix**2, axis=(-2, -1), keepdims=True)
         + float(self.config.normalization_layer_epsilon)
     )
+    if self.config.bam_m_read_learnable_scale:
+      matrix = matrix * jnp.asarray(self.m_read_scale, matrix.dtype)
+    return matrix
 
   def _local_qk(self, matrix, inputs):
     packed = self.W_local_qk_packed(inputs)

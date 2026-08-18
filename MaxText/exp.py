@@ -237,6 +237,8 @@ class BAM:
     bam_fetch_diagonal_one = True
     bam_read_implementation = 'mul_reduce_btn'
     bam_m_read_norm = 'none'
+    bam_m_read_learnable_scale = False
+    bam_m_read_scale_init = 0.01
     bam_abs_v_compression_dim = 8
     bam_abs_v_row_output = 'direct'
     bam_write_u_proj = False
@@ -473,6 +475,15 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
     """MReadNorm arm with the sigmoid-transformed BAM write coefficient initialized to 0.01."""
     bam_write_eps = 0.01
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNormWriteEps001'
+    model_name = run_name
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNormScale001(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNorm
+):
+    """MReadNorm arm with one learnable read scale per layer, initialized to 0.01."""
+    bam_m_read_learnable_scale = True
+    bam_m_read_scale_init = 0.01
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationMReadNormScale001'
     model_name = run_name
 
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunQueryWiseDCMHAPostTrainV1(

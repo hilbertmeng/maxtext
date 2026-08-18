@@ -1253,14 +1253,14 @@ class BamLlama2MediumV2C256Thumb16x8(BamV2C256MHInteractionBase):
 
 class BamLlama2MediumV2C256Thumb16x8LocalQKOnly(BamLlama2MediumV2C256Thumb16x8):
     """Consumer split: the M directory conditions only the LocalQK routing keys/gates."""
-    # code_commit: 9a16df3; ~0.661 steps/s (UC1a).
+    # code_commit: 9a16df3; ~0.661 steps/s (UC1a); stopped at 2,810. dloss +0.0065 vs V2 @1,800–2,600; growing harm.
     model_name = 'BamLlama2MediumV2C256Thumb16x8LocalQKOnly'
     bam_thumbnail_consumers = 'local_qk'
 
 
 class BamLlama2MediumV2C256Thumb16x8FullOnly(BamLlama2MediumV2C256Thumb16x8):
     """Consumer split: the M directory conditions only the fetched-read keys/gates."""
-    # code_commit: 9a16df3; ~0.654 steps/s (UC1a).
+    # code_commit: 9a16df3; ~0.654 steps/s (UC1a); stopped at 2,780. dloss +0.0092 vs V2 @1,800–2,600; stable harm.
     model_name = 'BamLlama2MediumV2C256Thumb16x8FullOnly'
     bam_thumbnail_consumers = 'full'
 
@@ -1274,7 +1274,7 @@ class BamLlama2MediumV2C256WriteMixVV(BamV2C256MHInteractionBase):
 
 class BamLlama2MediumV2C256WriteMixVU(BamV2C256MHInteractionBase):
     """Single variable vs V2 C256: store retrieved anchors as record content (address as data)."""
-    # code_commit: 8c6a3cf; ~0.661 steps/s (UC1a).
+    # code_commit: 8c6a3cf; ~0.661 steps/s (UC1a); stopped at 2,830. dloss +0.0001 vs V2 @1,800–2,800; early gain decayed to zero.
     model_name = 'BamLlama2MediumV2C256WriteMixVU'
     bam_write_mixer_quadrants = 'vu'
 

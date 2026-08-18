@@ -14,6 +14,7 @@ PLAIN = "Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun"
 BAM = f"{PLAIN}BAM"
 ADAPTATION = f"{PLAIN}BAMAdaptation"
 POSTNORM = f"{ADAPTATION}PostNorm"
+MREAD_SCALE = f"{ADAPTATION}MReadNormScale001"
 INVARIANT_KEYS = (
     "dataset_path", "eval_dataset_path", "dataset_type", "tokenizer_path",
     "tokenizer_type", "vocab_size", "base_emb_dim", "base_num_query_heads",
@@ -94,6 +95,9 @@ def _emit(root, identity, output):
       "bam_enabled": bool(getattr(cfg, "bam_enabled", False)),
       "bam_adaptation": bool(getattr(cfg, "bam_adaptation", False)),
       "bam_adaptation_postnorm": bool(getattr(cfg, "bam_adaptation_postnorm", False)),
+      "bam_m_read_norm": getattr(cfg, "bam_m_read_norm", None),
+      "bam_m_read_learnable_scale": bool(getattr(cfg, "bam_m_read_learnable_scale", False)),
+      "bam_m_read_scale_init": getattr(cfg, "bam_m_read_scale_init", None),
       "train_merge_loaded_params": bool(getattr(cfg, "train_merge_loaded_params", False)),
       "params": flatten(params),
       "grads": flatten(grads),
@@ -112,7 +116,7 @@ def _is_standard_attention(path):
 def _compare(root):
   with tempfile.TemporaryDirectory(prefix="bam-posttrain-alignment-") as tmp:
     outputs = {}
-    for identity in (PLAIN, BAM, ADAPTATION, POSTNORM):
+    for identity in (PLAIN, BAM, ADAPTATION, POSTNORM, MREAD_SCALE):
       output = os.path.join(tmp, f"{identity}.pkl")
       subprocess.run(
           [sys.executable, __file__, "--emit", identity, "--root", root, "--output", output],
@@ -122,24 +126,36 @@ def _compare(root):
       with open(output, "rb") as stream:
         outputs[identity] = pickle.load(stream)
 
-  plain, bam, adaptation, postnorm = (
-      outputs[PLAIN], outputs[BAM], outputs[ADAPTATION], outputs[POSTNORM]
+  plain, bam, adaptation, postnorm, mread_scale = (
+      outputs[PLAIN], outputs[BAM], outputs[ADAPTATION], outputs[POSTNORM], outputs[MREAD_SCALE]
   )
-  if not (not plain["bam_enabled"] and all(candidate["bam_enabled"] for candidate in (bam, adaptation, postnorm))):
+  bam_candidates = (bam, adaptation, postnorm, mread_scale)
+  if not (
+      not plain["bam_enabled"] and all(candidate["bam_enabled"] for candidate in bam_candidates)
+  ):
     raise AssertionError("BAM enablement does not match the experiment identities")
-  if plain["bam_adaptation"] or bam["bam_adaptation"] or not adaptation["bam_adaptation"] or not postnorm["bam_adaptation"]:
+  if plain["bam_adaptation"] or bam["bam_adaptation"] or not all(
+      candidate["bam_adaptation"] for candidate in (adaptation, postnorm, mread_scale)
+  ):
     raise AssertionError("only the adaptation identity may enable bam_adaptation")
-  if any(candidate["bam_adaptation_postnorm"] for candidate in (plain, bam, adaptation)) or not postnorm["bam_adaptation_postnorm"]:
+  if (
+      any(candidate["bam_adaptation_postnorm"] for candidate in (plain, bam, adaptation, mread_scale))
+      or not postnorm["bam_adaptation_postnorm"]
+  ):
     raise AssertionError("only the postnorm identity may enable bam_adaptation_postnorm")
-  if not all(candidate["train_merge_loaded_params"] for candidate in (bam, adaptation, postnorm)):
+  if not all(candidate["train_merge_loaded_params"] for candidate in bam_candidates):
     raise AssertionError("BAM posttrain identities must merge the Plain checkpoint")
-  if not all(plain["config"] == candidate["config"] for candidate in (bam, adaptation, postnorm)):
+  if not all(plain["config"] == candidate["config"] for candidate in bam_candidates):
     raise AssertionError("accepted Plain training/runtime invariants changed")
+  if mread_scale["bam_m_read_norm"] != "rms" or not mread_scale["bam_m_read_learnable_scale"]:
+    raise AssertionError("MReadNormScale001 must enable RMS-normalized reads with a learnable scale")
+  if mread_scale["bam_m_read_scale_init"] != 0.01:
+    raise AssertionError("MReadNormScale001 scale initializer changed")
 
   standard = {path for path in plain["params"] if _is_standard_attention(path)}
   if not standard:
     raise AssertionError("no standard attention parameters found")
-  for candidate in (bam, adaptation, postnorm):
+  for candidate in bam_candidates:
     candidate_standard = {path for path in candidate["params"] if _is_standard_attention(path)}
     if candidate_standard != standard:
       raise AssertionError("standard Q/K/V/O/QK-norm parameter paths changed")
@@ -151,12 +167,15 @@ def _compare(root):
   bam_only = set(bam["params"]) - set(plain["params"])
   adaptation_only = set(adaptation["params"]) - set(bam["params"])
   postnorm_only = set(postnorm["params"]) - set(adaptation["params"])
+  mread_scale_only = set(mread_scale["params"]) - set(adaptation["params"])
   if set(bam["bam_skip_paths"]) != bam_only:
     raise AssertionError("Plain restore skip set is not exactly the default BAM additions")
   if set(adaptation["bam_skip_paths"]) != bam_only | adaptation_only:
     raise AssertionError("Plain restore skip set is not exactly the adaptation BAM additions")
   if set(postnorm["bam_skip_paths"]) != bam_only | adaptation_only | postnorm_only:
     raise AssertionError("Plain restore skip set is not exactly the postnorm BAM additions")
+  if set(mread_scale["bam_skip_paths"]) != bam_only | adaptation_only | mread_scale_only:
+    raise AssertionError("Plain restore skip set is not exactly the MReadNormScale001 BAM additions")
   expected_adaptation_suffixes = {"P_agg_u"}
   matched_adaptation_suffixes = {
       suffix
@@ -177,6 +196,14 @@ def _compare(root):
     np.testing.assert_array_equal(
         postnorm["params"][path], np.full_like(postnorm["params"][path], 0.001), err_msg=path
     )
+  if len(mread_scale_only) != 1 or not next(iter(mread_scale_only)).endswith("m_read_scale"):
+    raise AssertionError(f"unexpected MReadNormScale001-only paths: {sorted(mread_scale_only)}")
+  scale_path = next(iter(mread_scale_only))
+  np.testing.assert_array_equal(
+      mread_scale["params"][scale_path],
+      np.full_like(mread_scale["params"][scale_path], 0.01),
+      err_msg=scale_path,
+  )
   for identity, candidate in outputs.items():
     if not np.all(np.isfinite(candidate["loss"])):
       raise AssertionError(f"non-finite loss for {identity}")
@@ -190,13 +217,14 @@ def _compare(root):
       f"bam_only={len(bam_only)}",
       f"adaptation_only={sorted(adaptation_only)}",
       f"postnorm_only={sorted(postnorm_only)}",
+      f"mread_scale_only={sorted(mread_scale_only)}",
   )
 
 
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--root", default=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-  parser.add_argument("--emit", choices=(PLAIN, BAM, ADAPTATION, POSTNORM))
+  parser.add_argument("--emit", choices=(PLAIN, BAM, ADAPTATION, POSTNORM, MREAD_SCALE))
   parser.add_argument("--output")
   args = parser.parse_args()
   if args.emit:

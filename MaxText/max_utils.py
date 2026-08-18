@@ -832,6 +832,7 @@ _BAM_ATTENTION_PARAM_NAMES = frozenset(
         "P_loc_up",
         "W_gw",
         "gw_b0",
+        "m_read_scale",
     }
 )
 

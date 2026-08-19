@@ -142,15 +142,16 @@ def _summarize(store: _Store) -> dict[str, Any]:
           store.get("same_layer_max_abs_cos"), gate),
   }
   if "cross_layer_max_abs_cos" in store.values:
+    cross_gate = store.get("cross_gate")
     max_abs = store.get("cross_layer_max_abs_cos")
     max_positive = store.get("cross_layer_max_positive_cos")
     pair_gate = store.get("matched_pair_gate")
     data_cos = store.get("matched_data_cos_sign_aligned")
     output["cross_layer"] = {
-        "max_abs_cosine": _distribution(max_abs, gate),
-        "max_positive_cosine": _distribution(max_positive, gate),
+        "max_abs_cosine": _distribution(max_abs, cross_gate),
+        "max_positive_cosine": _distribution(max_positive, cross_gate),
         "cross_token_null_max_abs_cosine": _distribution(
-            store.get("cross_token_null_max_abs_cos"), gate),
+            store.get("cross_token_null_max_abs_cos"), cross_gate),
         "matched_data_cosine_sign_aligned": _distribution(data_cos, pair_gate),
         "thresholds": {},
     }
@@ -160,7 +161,7 @@ def _summarize(store: _Store) -> dict[str, Any]:
           "write_fraction": _fraction(selected),
           "cross_token_null_fraction": _fraction(
               store.get("cross_token_null_max_abs_cos") >= threshold),
-          "current_gate_mass_fraction": _fraction(selected, gate),
+          "current_gate_mass_fraction": _fraction(selected, cross_gate),
           "matched_pair_gate_mass_fraction": _fraction(selected, pair_gate),
           "matched_data_cosine_mean": (
               float(np.mean(data_cos[selected])) if np.any(selected) else float("nan")),
@@ -170,14 +171,14 @@ def _summarize(store: _Store) -> dict[str, Any]:
     pred_cos = store.get("prediction_data_cosine")
     residual = store.get("delta_residual_norm_to_data")
     output["memory_prediction"] = {
-        "prediction_norm_to_data": _distribution(pred_ratio, gate),
-        "prediction_data_cosine": _distribution(pred_cos, gate),
-        "delta_residual_norm_to_data": _distribution(residual, gate),
-        "fraction_prediction_norm_gt_0.1": _fraction(pred_ratio > 0.1, gate),
-        "fraction_prediction_norm_gt_0.5": _fraction(pred_ratio > 0.5, gate),
-        "fraction_prediction_norm_gt_1.0": _fraction(pred_ratio > 1.0, gate),
-        "fraction_delta_residual_lt_vanilla": _fraction(residual < 1.0, gate),
-        "fraction_delta_residual_lt_half": _fraction(residual < 0.5, gate),
+        "prediction_norm_to_data": _distribution(pred_ratio, cross_gate),
+        "prediction_data_cosine": _distribution(pred_cos, cross_gate),
+        "delta_residual_norm_to_data": _distribution(residual, cross_gate),
+        "fraction_prediction_norm_gt_0.1": _fraction(pred_ratio > 0.1, cross_gate),
+        "fraction_prediction_norm_gt_0.5": _fraction(pred_ratio > 0.5, cross_gate),
+        "fraction_prediction_norm_gt_1.0": _fraction(pred_ratio > 1.0, cross_gate),
+        "fraction_delta_residual_lt_vanilla": _fraction(residual < 1.0, cross_gate),
+        "fraction_delta_residual_lt_half": _fraction(residual < 0.5, cross_gate),
         "reuse_prediction_norm_correlation": float(np.corrcoef(max_abs, pred_ratio)[0, 1]),
         "reuse_residual_correlation": float(np.corrcoef(max_abs, residual)[0, 1]),
     }
@@ -265,6 +266,7 @@ def _analyze(output_dir: Path, rms_epsilon: float) -> dict[str, Any]:
             data_norm, _EPS)
 
         current_metrics.update({
+            "cross_gate": gate,
             "cross_layer_max_abs_cos": np.abs(nearest_similarity),
             "cross_layer_max_positive_cos": np.max(similarity, axis=-1),
             "cross_token_null_max_abs_cos": np.max(np.abs(null_similarity), axis=-1),

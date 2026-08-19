@@ -2123,6 +2123,13 @@ def _fit_bam_read_to_head(read, bam_k, head_dim, v_adapter=None):
   return jnp.concatenate((y_k, y_v), axis=-1)
 
 
+def _bam_readout_query_indices(length, count=16):
+  """Evenly sample query endpoints for the isolated readout diagnostic."""
+  if length % count:
+    raise ValueError(f'readout diagnostic needs length divisible by {count}, got {length}')
+  return (jnp.arange(count) + 1) * (length // count) - 1
+
+
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              rms_epsilon,
              rms_statistics_dtype=jnp.float32,
@@ -2198,7 +2205,8 @@ def factorized_head_bam_read(
     key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
-    implementation='dot_bnt', read_side='both', output_layout='bnt'):
+    implementation='dot_bnt', read_side='both', output_layout='bnt',
+    return_aux=False):
   """Read once with a shared runtime key, then route it dynamically across heads.
 
   For each side, the effective per-head key is the rank-1 factorization
@@ -2249,6 +2257,12 @@ def factorized_head_bam_read(
     head_mix = normalizations.rms_norm(
         raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon, axis=-2)
     row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
+  pre_mix_read = jnp.concatenate([
+      y_u if y_u is not None else jnp.zeros(
+          y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype),
+      y_v if y_v is not None else jnp.zeros(
+          y_u.shape[:-1] + (M.shape[-1],), dtype=y_u.dtype),
+  ], axis=-1)
   with jax.named_scope("bam/read_head_mix_expand"):
     if output_layout == 'bnt':
       y_u = (jnp.einsum('btk,btn->bntk', y_u, col_mix)
@@ -2264,7 +2278,14 @@ def factorized_head_bam_read(
       y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
       y_v = jnp.zeros(y_u.shape[:-1] + (M.shape[-1],), dtype=y_u.dtype)
-    return jnp.concatenate([y_u, y_v], axis=-1)
+    output = jnp.concatenate([y_u, y_v], axis=-1)
+    if return_aux:
+      return output, {
+          'post_gate_key': jnp.concatenate((r_row, r_col), axis=-1),
+          'head_mix': head_mix,
+          'pre_mix_read': pre_mix_read,
+      }
+    return output
 
 
 def _packed_factorized_local_qk_init(kernel_init, num_heads, key_width):
@@ -2430,6 +2451,7 @@ class BamAttention(Attention):
     self._pack_factorized_local_qk = bool(cfg.bam_pack_factorized_local_qk)
     self._batch_factorized_local_qk_read = bool(
         cfg.bam_batch_factorized_local_qk_read)
+    self._readout_attribution = bool(cfg.bam_readout_attribution)
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
@@ -3121,16 +3143,33 @@ class BamAttention(Attention):
       k_key = k_key + jnp.asarray(self.W_lk_bias, k_key.dtype)
       q_gate = q_gate + jnp.asarray(self.W_lq_gate_b0, q_gate.dtype)
       k_gate = k_gate + jnp.asarray(self.W_lk_gate_b0, k_gate.dtype)
+      capture_readout = self._readout_attribution and not self.is_initializing()
       q_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: q_key, lambda _x: q_mix,
           **self._read_key_kwargs_from_logits('W_lq', q_gate),
           implementation=self._read_implementation, read_side=self.read_side,
-          output_layout=self._factorized_head_output_layout)
+          output_layout=self._factorized_head_output_layout,
+          return_aux=capture_readout)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
           **self._read_key_kwargs_from_logits('W_lk', k_gate),
           implementation=self._read_implementation, read_side=self.read_side,
-          output_layout=self._factorized_head_output_layout)
+          output_layout=self._factorized_head_output_layout,
+          return_aux=capture_readout)
+      if capture_readout:
+        q_local, q_aux = q_local
+        k_local, k_aux = k_local
+        query_indices = _bam_readout_query_indices(inputs_q.shape[1])
+        for prefix, aux in (('local_q', q_aux), ('local_k', k_aux)):
+          self.sow(
+              'bam_readout', f'{prefix}_post_gate_key',
+              aux['post_gate_key'][:, query_indices])
+          self.sow(
+              'bam_readout', f'{prefix}_head_mix',
+              aux['head_mix'][:, query_indices])
+          self.sow(
+              'bam_readout', f'{prefix}_pre_mix_read',
+              aux['pre_mix_read'][:, query_indices])
       if self._factorized_head_output_layout == 'bnt':
         q_local = rearrange(q_local, 'b n t d -> b t n d')
         k_local = rearrange(k_local, 'b n t d -> b t n d')
@@ -3268,6 +3307,16 @@ class BamAttention(Attention):
     elif self._write_u2_norm == 'grouped_rms_bias':
       u2_norm = self.write_u2_norm(u2)
     gated_u1 = g[..., None] * u1_norm
+    if self._readout_attribution and not self.is_initializing():
+      # The gradient of this per-record scale is exactly
+      # <dL/ddM, g * rms(u1) outer rms(u2)> without exporting dL/ddM itself.
+      record_scale = self.perturb(
+          'write_record_scale', jnp.zeros_like(g))
+      gated_u1 = gated_u1 * (1 + record_scale[..., None])
+      self.sow('bam_readout', 'write_u1_norm', u1_norm)
+      self.sow('bam_readout', 'write_u2_norm', u2_norm)
+      self.sow('bam_readout', 'write_scale', g)
+      self.sow('bam_readout', 'write_gate', gate)
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
         if self._write_v_mode == 'static':
@@ -3734,7 +3783,29 @@ class BamAttention(Attention):
       write_gate = None
       forget_gate = None
 
-    if cfg.bam_diagnostics and not self.is_initializing():
+    if self._readout_attribution and not self.is_initializing():
+      query_indices = _bam_readout_query_indices(inputs_q.shape[1])
+      if fetch_alpha is not None:
+        alpha_rows = jnp.squeeze(fetch_alpha, axis=1)[:, query_indices]
+        top_count = min(64, alpha_rows.shape[-1])
+        _, source_indices = jax.lax.top_k(jnp.abs(alpha_rows), top_count)
+        source_weights = jnp.take_along_axis(
+            alpha_rows, source_indices, axis=-1)
+        self.sow('bam_readout', 'fetch_source_indices', source_indices)
+        self.sow('bam_readout', 'fetch_source_weights', source_weights)
+        self.sow(
+            'bam_readout', 'fetch_retained_abs_mass',
+            jnp.sum(jnp.abs(source_weights), axis=-1)
+            / jnp.maximum(jnp.sum(jnp.abs(alpha_rows), axis=-1), 1e-12))
+      if 'read_key_W_R_post_gate' in read_key_stages:
+        full_key = read_key_stages['read_key_W_R_post_gate']
+        if full_key.ndim == 5:
+          full_key = jnp.squeeze(full_key, axis=-2)
+        self.sow(
+            'bam_readout', 'full_post_gate_key',
+            full_key[:, query_indices])
+      self.sow('bam_readout', 'y_full', y_full[:, query_indices])
+    elif cfg.bam_diagnostics and not self.is_initializing():
       # Raw diagnostic interface only. Keep policy/statistics in bam_diagnostics.py so new
       # questions do not accumulate analysis logic in the production attention path.
       raw_tensors = {

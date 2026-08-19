@@ -1056,6 +1056,14 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
     jax_cache_explain_misses = True
 
 
+class BamLlama2MediumV2C256DynamicRowRank8(BamV2C256FetchScheduleBase):
+    """Factorize fetched-M row reads through eight dynamic basis reads."""
+    model_name = 'BamLlama2MediumV2C256DynamicRowRank8'
+    scan_layers = True
+    bam_fetched_row_rank = 8
+    bam_fetched_row_second_implementation = 'mul_reduce'
+
+
 class BamLlama2MediumV2C256FetchedRowOnly(BamV2C256FetchScheduleBase):
     """V2 C256 layer-scan ablation retaining only fetched-M row reads."""
     # c5482e1; EW4b ~0.673 steps/s (+1.4% vs V2 C256); stopped ~6,600. Recent dloss +.0443 vs V2 / -.0516 vs MHA; retains ~54% of V2 gain.
@@ -1709,6 +1717,44 @@ class BamV2GScanLayerFullLayerProfile(  # V2 C256 layer_scan
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamV2GRowRank8ControlFullLayerProfile(
+    BamV2QChunk256OptimizedFullLayerProfile
+):
+    """Paired full-24 non-scan control for dynamic fetched-row rank 8."""
+    model_name = 'BamV2GRowRank8ControlFullLayerProfile'
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
+    steps = 100
+
+
+class BamV2GRowRank8MulReduceFullLayerProfile(
+    BamV2GRowRank8ControlFullLayerProfile
+):
+    """Full-24 non-scan dynamic fetched-row rank 8."""
+    model_name = 'BamV2GRowRank8MulReduceFullLayerProfile'
+    bam_fetched_row_rank = 8
+    bam_fetched_row_second_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerRowRank8ControlFullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Paired full-24 layer-scan control for dynamic fetched-row rank 8."""
+    model_name = 'BamV2GScanLayerRowRank8ControlFullLayerProfile'
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
+    steps = 100
+
+
+class BamV2GScanLayerRowRank8MulReduceFullLayerProfile(
+    BamV2GScanLayerRowRank8ControlFullLayerProfile
+):
+    """Full-24 layer-scan dynamic fetched-row rank 8."""
+    model_name = 'BamV2GScanLayerRowRank8MulReduceFullLayerProfile'
+    bam_fetched_row_rank = 8
+    bam_fetched_row_second_implementation = 'mul_reduce'
 
 
 class BamV2GScanLayerUnroll2FullLayerProfile(

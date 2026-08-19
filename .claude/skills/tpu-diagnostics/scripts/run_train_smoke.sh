@@ -14,6 +14,10 @@ PYTHON="${MAXTEXT_PYTHON:-/home/lishengping/miniconda3/bin/python}"
 DATASET="${DATASET_PATH:-gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord}"
 OUTPUT="${SMOKE_OUTPUT:-gs://newproject-1-llm_base_models_us-central1/log/diagnostics/smoke}"
 
+if [[ "$OUTPUT" != gs://* ]]; then
+  mkdir -p "$OUTPUT/$RUN" "$OUTPUT/tensorboard"
+fi
+
 cd "$REPO"
 exec env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off "$PYTHON" \
   MaxText/train.py MaxText/configs/base.yml \

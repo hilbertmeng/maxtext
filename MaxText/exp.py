@@ -1572,8 +1572,17 @@ class BamV2GScanLayerOptimizedEightLayerProfile(
     model_name = 'BamV2GScanLayerOptimizedEightLayerProfile'
 
 
-class BamV2GScanLayerRowRank8DotEightLayerProfile(
+class BamV2GScanLayerRowRank8ControlEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Same-commit control with insurance and primary XPlane windows."""
+    model_name = 'BamV2GScanLayerRowRank8ControlEightLayerProfile'
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
+
+
+class BamV2GScanLayerRowRank8DotEightLayerProfile(
+    BamV2GScanLayerRowRank8ControlEightLayerProfile
 ):
     """V2 C256 S/U with fetched row-read heads dynamically factorized to rank 8."""
     model_name = 'BamV2GScanLayerRowRank8DotEightLayerProfile'

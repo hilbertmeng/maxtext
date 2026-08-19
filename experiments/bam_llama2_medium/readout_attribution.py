@@ -43,7 +43,7 @@ _K = 32
 _V = 32
 _C = 8
 _QUERY_SAMPLES = 16
-_SOURCE_TOPK = 64
+_SOURCE_TOPK = 512
 _EPS = 1.0e-12
 _LAYER_RE = re.compile(r"layers_(\d+)")
 
@@ -245,6 +245,7 @@ def _fetch_layer_metrics(layer, raw, attrs, projection, query_indices, *, permut
       attr, jnp.arange(_LAYERS),
       self_mask=indices == query_indices[None, :, None])
   metrics["retained_alpha_abs_mass"] = raw["fetch_retained_abs_mass"][layer]
+  metrics["support_99_count"] = raw["fetch_support_99_count"][layer]
   return metrics
 
 
@@ -428,6 +429,7 @@ def _analyze_p2(output_dir: Path) -> dict[str, Any]:
       "harmful_attribution_abs_share", "self_signed_share",
       "cross_signed_share", "self_abs_share", "cross_abs_share",
       "retained_alpha_abs_mass",
+      "support_99_count",
   )
   sites = ("fetch", "fetch_permuted_alpha", "local_q", "local_k")
   values: dict[tuple[str, str], list[np.ndarray]] = defaultdict(list)

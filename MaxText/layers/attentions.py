@@ -3788,12 +3788,21 @@ class BamAttention(Attention):
       query_indices = _bam_readout_query_indices(inputs_q.shape[1])
       if fetch_alpha is not None:
         alpha_rows = jnp.squeeze(fetch_alpha, axis=1)[:, query_indices]
-        top_count = min(64, alpha_rows.shape[-1])
+        # Signed dynamic mixing is materially more diffuse than one MHA head;
+        # keep enough support for the P2 reconstruction and record the exact
+        # 99%-absolute-mass support needed at every sampled read site.
+        top_count = min(512, alpha_rows.shape[-1])
         _, source_indices = jax.lax.top_k(jnp.abs(alpha_rows), top_count)
         source_weights = jnp.take_along_axis(
             alpha_rows, source_indices, axis=-1)
+        sorted_abs = jnp.sort(jnp.abs(alpha_rows), axis=-1)[..., ::-1]
+        total_abs = jnp.sum(sorted_abs, axis=-1)
+        support_99 = 1 + jnp.sum(
+            jnp.cumsum(sorted_abs, axis=-1)
+            < 0.99 * total_abs[..., None], axis=-1)
         self.sow('bam_readout', 'fetch_source_indices', source_indices)
         self.sow('bam_readout', 'fetch_source_weights', source_weights)
+        self.sow('bam_readout', 'fetch_support_99_count', support_99)
         self.sow(
             'bam_readout', 'fetch_retained_abs_mass',
             jnp.sum(jnp.abs(source_weights), axis=-1)

@@ -43,7 +43,7 @@ _K = 32
 _V = 32
 _C = 8
 _QUERY_SAMPLES = 16
-_SOURCE_TOPK = 512
+_SOURCE_TOPK = 1536
 _EPS = 1.0e-12
 _LAYER_RE = re.compile(r"layers_(\d+)")
 
@@ -488,10 +488,13 @@ def run(config) -> None:
   output_dir = Path(os.environ.get("BAM_ATTR_OUTPUT_DIR", "/tmp/bam_readout_attribution"))
   output_dir.mkdir(parents=True, exist_ok=True)
   target_sequences = int(os.environ.get("BAM_ATTR_SEQUENCES", "128"))
+  sequence_offset = int(os.environ.get("BAM_ATTR_SEQUENCE_OFFSET", "0"))
   batch_size = int(config.eval_per_device_batch_size * jax.local_device_count())
-  if target_sequences % batch_size:
-    raise ValueError(f"{target_sequences=} must be divisible by {batch_size=}")
+  if target_sequences % batch_size or sequence_offset % batch_size:
+    raise ValueError(
+        f"{target_sequences=} and {sequence_offset=} must be divisible by {batch_size=}")
   num_batches = target_sequences // batch_size
+  offset_batches = sequence_offset // batch_size
 
   start = time.perf_counter()
   init_rng, writer, checkpoint_manager, mesh, model, _, tx = train.setup_mesh_and_model(config)
@@ -512,6 +515,7 @@ def run(config) -> None:
       "checkpoint_trainer_commit": "1afd942",
       "diagnostic_commit": os.environ.get("BAM_ATTR_DIAGNOSTIC_COMMIT", "unknown"),
       "sequences": target_sequences,
+      "sequence_offset": sequence_offset,
       "batch_size": batch_size,
       "num_batches": num_batches,
       "query_positions": ((np.arange(_QUERY_SAMPLES) + 1)
@@ -522,6 +526,9 @@ def run(config) -> None:
       "device": [str(device) for device in jax.devices()],
       "uniform_scale_check": None,
   }
+
+  for _ in range(offset_batches):
+    next(eval_data_iterator)
 
   for batch_index in range(num_batches):
     batch = next(eval_data_iterator)
@@ -540,7 +547,9 @@ def run(config) -> None:
     jax.block_until_ready((loss, attrs, p2))
 
     if batch_index == 0:
-      epsilon = 1.0e-3
+      # The probe scale is cast to bf16 on the production activation path; use
+      # a finite-difference step above bf16 spacing around one.
+      epsilon = 2.0e-2
       plus = jax.tree.map(lambda value: value + epsilon, perturbations)
       minus = jax.tree.map(lambda value: value - epsilon, perturbations)
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
@@ -565,7 +574,7 @@ def run(config) -> None:
     inputs_host, valid_host = jax.device_get((
         batch["inputs"], batch["targets_segmentation"] != 0))
     np.savez_compressed(
-        output_dir / f"attribution_batch_{batch_index:03d}.npz",
+        output_dir / f"attribution_batch_{offset_batches + batch_index:03d}.npz",
         attr_mean=np.asarray(attrs_host, np.float32),
         attr_sumloss=np.asarray(attrs_host, np.float32) * float(total_weights_host),
         write_gate=np.asarray(raw_small["write_gate"]),
@@ -576,7 +585,7 @@ def run(config) -> None:
         ]),
     )
     np.savez_compressed(
-        output_dir / f"p2_batch_{batch_index:03d}.npz",
+        output_dir / f"p2_batch_{offset_batches + batch_index:03d}.npz",
         **_flatten_for_npz(jax.device_get(p2_host)))
     print(
         f"ATTR batch={batch_index + 1}/{num_batches} loss={float(loss):.6f} "

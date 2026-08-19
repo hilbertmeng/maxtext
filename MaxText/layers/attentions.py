@@ -3791,7 +3791,7 @@ class BamAttention(Attention):
         # Signed dynamic mixing is materially more diffuse than one MHA head;
         # keep enough support for the P2 reconstruction and record the exact
         # 99%-absolute-mass support needed at every sampled read site.
-        top_count = min(512, alpha_rows.shape[-1])
+        top_count = min(1536, alpha_rows.shape[-1])
         _, source_indices = jax.lax.top_k(jnp.abs(alpha_rows), top_count)
         source_weights = jnp.take_along_axis(
             alpha_rows, source_indices, axis=-1)

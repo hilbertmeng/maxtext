@@ -22,7 +22,8 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 - Create it with `$tpu-training`'s **Create Standalone v6e-1** command.
 - Restore the source checkpoint read-only; use `only_eval=True` and a local output dir.
 - Add only necessary raw `sow` values to `attentions.py`; keep statistics in standalone runners.
-- After verifying artifacts, delete every diagnostic TPU; keep the reusable diagnostic runner.
+- After the artifact workflow below completes, delete every diagnostic TPU; keep the reusable
+  diagnostic runner.
 - At closeout, audit every delay/failure as repeated or new. Root-fix recurring causes in a
   script or concise general skill rule; do not preserve incident-specific narrative here.
 
@@ -98,6 +99,10 @@ comparisons, then verify the winning combination with full layers.
   parse XPlane traces only on the local workstation.
 
 ## Artifacts
+
+Upload artifacts from the TPU worker to a unique GCS prefix with `gsutil`, verify object count and
+sizes, then `gsutil rsync` that prefix to `/data0/xd/bam_diagnostics/` and verify complete local
+files before deleting the TPU. Do not route bytes through `tpu-ag` or rely on recursive SCP.
 
 Record checkpoint URI, step, code state, cohort seed/hashes, overrides, timings, results, and
 artifact paths in a new file under `experiments/`. Keep large raw arrays outside the repo.

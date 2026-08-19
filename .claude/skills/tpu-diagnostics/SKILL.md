@@ -22,6 +22,7 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 - Create it with `$tpu-training`'s **Create Standalone v6e-1** command.
 - Restore the source checkpoint read-only; use `only_eval=True` and a local output dir.
 - Add only necessary raw `sow` values to `attentions.py`; keep statistics in standalone runners.
+- After verifying artifacts, delete every diagnostic TPU; keep the reusable diagnostic runner.
 - At closeout, audit every delay/failure as repeated or new. Root-fix recurring causes in a
   script or concise general skill rule; do not preserve incident-specific narrative here.
 

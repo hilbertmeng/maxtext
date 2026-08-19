@@ -1678,8 +1678,6 @@ class MLA(Attention):
 # BAM Attention (Bilinear Associative Memory)
 # Design ref: bam_attention/DESIGN.md §4 / §4.6.5 / §7.4
 # BAM train path: matrix write, factorized LocalQK, and dynamic full read; n == n_kv.
-# Optional: M directory ("thumbnail") conditioning read keys/gates on M's contents,
-# and a four-quadrant write-source mixer routing raw fetched readouts into the write.
 # ============================================================================
 
 class GroupedRMSNorm(nn.Module):
@@ -2108,13 +2106,6 @@ class BamAttention(Attention):
             'BAM MHA-control query chunk size must divide max_target_length')
       self._mode = set()
       self._has_write = False
-      self._thumbnail_k_dim = None
-      self._thumbnail_consumers = set()
-      self._write_mixer_quadrants = set()
-      self._split_write_recirculation = False
-      self._fetched_row_bypass = False
-      self._lambda_vector_mode = 'none'
-      self._lambda_vector_fixed = None
       return
 
     assert 0 < self.bam_k < self.head_dim, (
@@ -2209,33 +2200,6 @@ class BamAttention(Attention):
     self._write_v_bottleneck_activation = cfg.bam_write_v_bottleneck_activation
     self._write_outer_implementation = cfg.bam_write_outer_implementation
     self._forget_mode = cfg.bam_forget_mode
-    thumbnail_k_dim = getattr(cfg, 'bam_thumbnail_k_dim', None)
-    self._thumbnail_k_dim = (
-        None if thumbnail_k_dim is None else int(thumbnail_k_dim))
-    self._thumbnail_consumers = (
-        set() if self._thumbnail_k_dim is None
-        else set(getattr(cfg, 'bam_thumbnail_consumers', 'local_qk+full')
-                 .replace('+', ' ').split()))
-    write_mixer_quadrants = getattr(cfg, 'bam_write_mixer_quadrants', 'none')
-    self._write_mixer_quadrants = (
-        set() if write_mixer_quadrants == 'none'
-        else set(write_mixer_quadrants.replace('+', ' ').split()))
-    self._split_write_recirculation = bool(
-        getattr(cfg, 'bam_write_split_recirculation', False))
-    self._fetched_row_bypass = bool(
-        getattr(cfg, 'bam_fetched_row_bypass_wo', False))
-    self._lambda_vector_mode = getattr(cfg, 'bam_lambda_vector_mode', 'none')
-    assert self._lambda_vector_mode in ('none', 'fixed_bands', 'learned')
-    self._lambda_vector_fixed = None
-    if self._lambda_vector_mode == 'fixed_bands':
-      # Per-V-coordinate depth-decay bands, shared across layers (a constant,
-      # not a parameter): anchor coordinates become lifetime classes and the
-      # per-layer P_loc chooses a record's lifetime by band placement.
-      bands = [float(band) for band in cfg.bam_lambda_vector_bands]
-      assert bands and self.bam_v % len(bands) == 0
-      assert all(0.0 < band <= 1.0 for band in bands)
-      self._lambda_vector_fixed = jnp.repeat(
-          jnp.asarray(bands, jnp.float32), self.bam_v // len(bands))
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
@@ -2292,45 +2256,6 @@ class BamAttention(Attention):
       assert full_v_output_dim <= self.head_dim - self.bam_k, (
           f'fetched BAM output needs {self.bam_k}+{full_v_output_dim} head '
           f'coordinates, but head_dim={self.head_dim}')
-    if self._thumbnail_k_dim is not None:
-      assert 'full' in self._mode, (
-          'the M directory further compresses the fetch view, so every BAM '
-          'layer must run a full fetched read when it is enabled')
-      assert self._abs_v_dim is not None and self._abs_k_dim is None, (
-          'the M directory reuses the abs-V-compressed fetch view and adds '
-          'the only K-axis compression itself')
-      assert 0 < self._thumbnail_k_dim < self.bam_k
-      assert self._thumbnail_consumers, (
-          'the M directory needs at least one consumer')
-      assert self._thumbnail_consumers <= {'local_qk', 'full'}
-      if 'local_qk' in self._thumbnail_consumers:
-        assert 'local_qk' in self._mode and self._pack_factorized_local_qk, (
-            'directory-conditioned LocalQK is implemented for the packed '
-            'factorized tier only')
-    assert self._write_mixer_quadrants <= {'uu', 'uv', 'vu', 'vv'}
-    if self._write_mixer_quadrants:
-      assert 'full' in self._mode, (
-          'the write-source mixer taps the raw bilateral fetched read')
-      if any(quad[1] == 'v' for quad in self._write_mixer_quadrants):
-        assert self._write_v_mode != 'static', (
-            'V-slot mixer taps add to a per-token write V factor')
-    if self._split_write_recirculation:
-      assert 'full' in self._mode, (
-          'the split-recirculation write needs the raw fetched U answer')
-      assert not self._write_mixer_quadrants, (
-          'split write and the write-source mixer redefine the same records')
-      assert not cfg.bam_write_u_proj
-      assert self._write_v_mode in ('x', 'x_bias')
-      assert self._abs_k_dim is None, (
-          'the recirculation record takes the raw (uncompressed-K) U answer')
-      assert self._write_u2_norm == 'rms' and not self._create_grouped_rw_norm
-    if self._fetched_row_bypass:
-      assert 'full' in self._mode, (
-          'the dedicated row-output projection applies to the fetched read')
-      assert self._fetched_read_side in ('both', 'row'), (
-          'bypassing W_O is moot without a fetched row answer')
-      assert self._abs_v_row_output == 'direct', (
-          'bypass removes the in-head row placement; the project decoder is moot')
     assert self._read_key_scale > 0.0
     assert self._rms_epsilon > 0.0
     assert self._read_key_epsilon > 0.0
@@ -2587,44 +2512,6 @@ class BamAttention(Attention):
               self.weight_dtype,
           ))
 
-    if self._thumbnail_k_dim is not None:
-      # M directory ("thumbnail"): the static two-sided compression Pi_k^T (M Pi_v)
-      # of the abs-V fetch view -- a binding-presence grid over static direction
-      # pairs.  It is RMS-normed and fed through zero-init side projections into
-      # read keys and gates, so addressing can condition on M's own contents while
-      # the layer still starts exactly at its thumbnail-free function.
-      self.thumbnail_k_projection = self.param(
-          'thumbnail_k_projection',
-          nn.with_logical_partitioning(orth_init, ('v_factor', 'kv')),
-          (self.bam_k, self._thumbnail_k_dim), self.weight_dtype)
-      if 'local_qk' in self._thumbnail_consumers:
-        packed_width = 2 * (
-            self.bam_k + self.bam_v + 2 + 2 * self.num_query_heads)
-        self.W_local_qk_thumb = DenseGeneral(
-            features=packed_width, axis=-1, kernel_init=zeros_init,
-            kernel_axes=('embed', None), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name='W_local_qk_thumb',
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            use_bias=False)
-      if 'full' in self._thumbnail_consumers:
-        read_features = (
-            self.num_query_heads, cfg.bam_n_f,
-            (self._abs_k_dim or self.bam_k) + (self._abs_v_dim or self.bam_v))
-        self.W_R_thumb = DenseGeneral(
-            features=read_features, axis=-1, kernel_init=zeros_init,
-            kernel_axes=('embed', 'q_heads', 'fetch', 'kv'),
-            dtype=self.dtype, weight_dtype=self.weight_dtype, name='W_R_thumb',
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            use_bias=False)
-        if cfg.bam_create_read_gate_params:
-          self.W_R_gate_thumb = DenseGeneral(
-              features=(self.num_query_heads, cfg.bam_n_f, 2), axis=-1,
-              kernel_init=zeros_init,
-              kernel_axes=('embed', 'q_heads', 'fetch', None),
-              dtype=self.dtype, weight_dtype=self.weight_dtype,
-              name='W_R_gate_thumb', quant=self.quant,
-              matmul_precision=cfg.matmul_precision, use_bias=False)
-
     if self._has_write:
       if cfg.bam_write_u_proj or cfg.bam_create_write_u_proj_params:
         def write_u_init(key, shape, dtype):
@@ -2727,82 +2614,15 @@ class BamAttention(Attention):
             epsilon=self._rms_epsilon, dtype=self.dtype,
             weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
             use_bias=True, name='write_u2_norm')
-      if self._write_mixer_quadrants:
-        # Four-quadrant write-source mixer: per-head zero-init taps route the raw
-        # bilateral fetched readout (in its native cached widths) into the write
-        # factors.  'vv' writes new content at retrieved anchors; 'vu' stores
-        # retrieved anchors as record content (address as data); 'uv' anchors new
-        # records at retrieved content (content as address); 'uu' is a y_std-free
-        # recirculation tap on top of the implicit u1 = o[:k] path.  The taps are
-        # added before the per-record factor RMS norm, so they mix directions and
-        # the write gate stays the sole magnitude channel.
-        mixer_src_dims = {
-            'u': self._abs_k_dim or self.bam_k,
-            'v': self._abs_v_dim or self.bam_v,
-        }
-        mixer_dst_dims = {'u': self.bam_k, 'v': loc_v}
-        for quad in sorted(self._write_mixer_quadrants):
-          setattr(self, f'W_mix_{quad}', self.param(
-              f'W_mix_{quad}',
-              nn.with_logical_partitioning(
-                  zeros_init, ('q_heads', 'kv', 'v_factor')),
-              (self.num_query_heads, mixer_src_dims[quad[0]],
-               mixer_dst_dims[quad[1]]),
-              self.weight_dtype))
-      if self._split_write_recirculation:
-        # Split-recirculation write: the fetched-read U answer gets its own
-        # record (private local anchor + admission gate) instead of blending
-        # into the fresh-observation record inside one outer product.  The
-        # blend structurally cross-contaminates (one shared anchor, one shared
-        # admission decision, one mixed record); two rank-1 records restore
-        # per-source admission semantics.  At init the fetched answer is zero
-        # (W_R zero-init), so the layer starts exactly at the bundled write.
-        if self._write_v_bottleneck_dim is None:
-          self.P_loc_rec = DenseGeneral(
-              features=(self.num_query_heads, loc_v), axis=-1,
-              kernel_init=reg_init, kernel_axes=("embed", "q_heads", "v_factor"),
-              dtype=self.dtype, weight_dtype=self.weight_dtype, name="P_loc_rec",
-              quant=self.quant, matmul_precision=cfg.matmul_precision,
-              use_bias=self._write_v_mode == 'x_bias')
-        else:
-          # Shares the P_loc_down bottleneck; only the up-projection is private.
-          self.P_loc_rec_up = DenseGeneral(
-              features=(self.num_query_heads, loc_v), axis=-1,
-              kernel_init=reg_init,
-              kernel_axes=(
-                  None if self._replicate_ploc_up else "embed",
-                  "q_heads", "v_factor"),
-              dtype=self.dtype, weight_dtype=self.weight_dtype,
-              name="P_loc_rec_up", quant=self.quant,
-              matmul_precision=cfg.matmul_precision,
-              use_bias=self._write_v_mode == 'x_bias')
-        self.W_gw_rec = DenseGeneral(
-            features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
-            kernel_axes=("embed", "q_heads"), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name="W_gw_rec", quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False)
-        rec_eps = float(cfg.bam_write_eps)
-        self.gw_rec_b0 = self.param(
-            'gw_rec_b0',
-            nn.with_logical_partitioning(
-                lambda key, shape, dtype: jnp.full(
-                    shape, math.log(rec_eps / (1.0 - rec_eps))),
-                ("q_heads",)),
-            (self.num_query_heads,), self.weight_dtype)
-
-  def _project_full_read_key(self, x, thumb=None):
+  def _project_full_read_key(self, x):
     if self._fetch_read_bottleneck_dim is None:
-      key = self.W_R(x)
-    else:
-      hidden = self.W_R_down(x)
-      if self._fetch_read_bottleneck_activation == 'gelu':
-        hidden = nn.gelu(hidden)
-      key = self.W_R_up(hidden)
-    if thumb is not None:
-      key = key + self.W_R_thumb(thumb)
-    return key
+      return self.W_R(x)
+    x = self.W_R_down(x)
+    if self._fetch_read_bottleneck_activation == 'gelu':
+      x = nn.gelu(x)
+    return self.W_R_up(x)
 
-  def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False, thumb=None):
+  def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False):
     candidate_logits = None
     if self.config.bam_create_read_gate_params:
       with jax.named_scope("bam/read_gate_projection"):
@@ -2810,9 +2630,6 @@ class BamAttention(Attention):
         if self._force_activation_dtype:
           gate_bias = jnp.asarray(gate_bias, self.dtype)
         candidate_logits = getattr(self, gate_name)(x) + gate_bias
-        if thumb is not None:
-          candidate_logits = candidate_logits + getattr(
-              self, f'{gate_name}_thumb')(thumb)
         if squeeze_fetch_axis:
           candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
     return self._read_key_kwargs_from_logits(
@@ -2855,13 +2672,11 @@ class BamAttention(Attention):
         _fit_bam_read_to_head(k_local, self.bam_k, self.head_dim, k_adapter),
     )
 
-  def _read_local_qk(self, Mh, inputs_q, thumb=None):
+  def _read_local_qk(self, Mh, inputs_q):
     """Read the local matrix into Q/K; callers choose the injection point."""
     if self._pack_factorized_local_qk:  # V1 default
       with jax.named_scope("bam/local_qk_packed_projection"):
         packed = self.W_local_qk_packed(inputs_q)
-        if thumb is not None:
-          packed = packed + self.W_local_qk_thumb(thumb)
       key_width = self.bam_k + self.bam_v
       mix_width = 2 * self.num_query_heads
       if self._batch_factorized_local_qk_read:
@@ -2965,21 +2780,12 @@ class BamAttention(Attention):
     first, second = jnp.split(rotated, 2, axis=-1)
     return jnp.stack([first, second], axis=-1).reshape(x.shape)
 
-  def _write(self, o_head, x, M_in, read_sides=None, split_sources=None,
-             lambda_vector=None):
+  def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): each factor is RMS-normalized
     over its head-dim axis before the outer product, so a single record has O(1) energy and the
     gate is the sole magnitude channel (admission semantics). rms(u) = u·rsqrt(mean(u²,-1)+eps).
-
-    `read_sides` carries the raw bilateral fetched answers (y_U, y_V) for the
-    four-quadrant write-source mixer; the taps are added pre-norm so they mix
-    factor directions without opening a second magnitude channel.
-
-    `split_sources = (y_std[..., :k], y_U)` activates the split-recirculation
-    write: the fresh-observation record keeps the y_std slice, and the fetched
-    U answer becomes a second rank-1 record with its own anchor and gate.
     """
     cfg = self.config
     if self._force_activation_dtype:
@@ -2992,11 +2798,6 @@ class BamAttention(Attention):
       u1 = jnp.einsum('btnd,ndk->btnk', o_head, write_u_proj)
     else:  # V1 default
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
-    if split_sources is not None:
-      # Fresh-observation record keeps only y_std; the recirculated fetched
-      # U answer is written as its own record below.
-      u1 = split_sources[0]
-    v_hidden = x
     if self._write_v_mode == 'o_tail':
       u2 = o_head[..., self.bam_k:]
     elif self._write_v_mode == 'static':
@@ -3007,10 +2808,10 @@ class BamAttention(Attention):
       if self._write_v_bottleneck_dim is None:
         x_v = self.P_loc(x)
       else:  # V1 default
-        v_hidden = self.P_loc_down(x)
+        x_v = self.P_loc_down(x)
         if self._write_v_bottleneck_activation == 'gelu':
-          v_hidden = nn.gelu(v_hidden)
-        x_v = self.P_loc_up(v_hidden)
+          x_v = nn.gelu(x_v)
+        x_v = self.P_loc_up(x_v)
       u2 = x_v
     if self._write_v_mode == 'mix':
       write_v_mix_scale = self.write_v_mix_scale
@@ -3020,21 +2821,6 @@ class BamAttention(Attention):
         write_v_bias = jnp.asarray(write_v_bias, self.dtype)
       u2 = _mix_bam_write_v(
           x_v, o_head, self.bam_k, write_v_mix_scale, write_v_bias)
-    if self._write_mixer_quadrants:
-      assert read_sides is not None, (
-          'write-source mixer requires the raw fetched read sides')
-      mixer_sources = dict(zip('uv', read_sides))
-      with jax.named_scope("bam/write_source_mixer"):
-        for quad in sorted(self._write_mixer_quadrants):
-          W_mix = getattr(self, f'W_mix_{quad}')
-          if self._force_activation_dtype:
-            W_mix = jnp.asarray(W_mix, self.dtype)
-          tap = jnp.einsum(
-              'btnc,ncd->btnd', mixer_sources[quad[0]], W_mix)
-          if quad[1] == 'u':
-            u1 = u1 + tap
-          else:
-            u2 = u2 + tap
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
       write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
@@ -3073,33 +2859,6 @@ class BamAttention(Attention):
         assert self._write_outer_implementation == 'mul_reduce'  # XD
         dM = jnp.sum(
             gated_u1[..., None] * u2_norm[..., None, :], axis=-3)
-    if split_sources is not None:
-      # Recirculation record: rms(y_U) (outer) rms(private anchor), with its own
-      # admission gate.  Zero at init because the fetched answer is zero.
-      with jax.named_scope("bam/write_recirculation_record"):
-        u1_rec = split_sources[1]
-        if self._write_v_bottleneck_dim is None:
-          u2_rec = self.P_loc_rec(v_hidden)
-        else:
-          u2_rec = self.P_loc_rec_up(v_hidden)
-        rec_gate_bias = self.gw_rec_b0
-        if self._force_activation_dtype:
-          rec_gate_bias = jnp.asarray(rec_gate_bias, self.dtype)
-        g_rec = jax.nn.sigmoid(self.W_gw_rec(x) + rec_gate_bias)
-        if cfg.bam_sqrt_n_scale:
-          g_rec = g_rec * (1.0 / jnp.sqrt(self.num_query_heads))
-        u1_rec_norm = normalizations.rms_norm(
-            u1_rec, dtype=self.dtype, epsilon=self._rms_epsilon,
-            statistics_dtype=self._write_rms_statistics_dtype)
-        u2_rec_norm = normalizations.rms_norm(
-            u2_rec, dtype=self.dtype, epsilon=self._rms_epsilon,
-            statistics_dtype=self._write_rms_statistics_dtype)
-        gated_u1_rec = g_rec[..., None] * u1_rec_norm
-        if self._write_outer_implementation == 'dot':
-          dM = dM + jnp.einsum('btnk,btnv->btkv', gated_u1_rec, u2_rec_norm)
-        else:
-          dM = dM + jnp.sum(
-              gated_u1_rec[..., None] * u2_rec_norm[..., None, :], axis=-3)
     if self._force_activation_dtype:
       assert dM.dtype == self.dtype, (dM.dtype, self.dtype)
     forget_logits = None
@@ -3108,13 +2867,8 @@ class BamAttention(Attention):
       if self._force_activation_dtype:
         forget_gate_bias = jnp.asarray(forget_gate_bias, self.dtype)
       forget_logits = self.W_forget_gate(x) + forget_gate_bias
-    retention = cfg.bam_lambda_decay
-    if lambda_vector is not None:
-      # Per-V-coordinate depth decay ([v], layer-shared); broadcasts over
-      # M's trailing axis inside the update.
-      retention = retention * lambda_vector
     M_out, forget_gate = _update_bam_matrix(
-        M_in, dM, retention, forget_logits)
+        M_in, dM, cfg.bam_lambda_decay, forget_logits)
     if self._force_activation_dtype:
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate, forget_gate
@@ -3167,39 +2921,17 @@ class BamAttention(Attention):
     return _fit_bam_read_to_head(
         jnp.concatenate((y_k, y_v), axis=-1), self.bam_k, self.head_dim)
 
-  def _read_fetched_m(self, Mbar, inputs_q, thumb=None, return_sides=False):
-    """Read one fetched matrix stream after dense or chunked routing.
-
-    `return_sides=True` additionally returns the raw bilateral answers
-    (y_U, y_V) in their native cached widths for the write-source mixer,
-    excluding the y_std components that only exist in o_head.
-    """
+  def _read_fetched_m(self, Mbar, inputs_q):
+    """Read one fetched matrix stream after dense or chunked routing."""
     with jax.named_scope("bam/read_fetched_m"):
-      full_read_projection = lambda x: self._project_full_read_key(
-          x, thumb=thumb)
-      full_read_kwargs = self._read_key_kwargs(
-          'W_R_gate', inputs_q, thumb=thumb)
+      full_read_projection = self._project_full_read_key
+      full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
       if self._squeeze_single_fetch_read:
         Mbar = jnp.squeeze(Mbar, axis=1)
-        unsqueezed_projection = full_read_projection
         full_read_projection = lambda x: jnp.squeeze(
-            unsqueezed_projection(x), axis=-2)
+            self._project_full_read_key(x), axis=-2)
         full_read_kwargs = self._read_key_kwargs(
-            'W_R_gate', inputs_q, squeeze_fetch_axis=True, thumb=thumb)
-      if return_sides:
-        y_u, y_v = bam_read(
-            Mbar, inputs_q, full_read_projection, None,
-            **full_read_kwargs,
-            implementation=self._read_implementation,
-            read_side=self._fetched_read_side,
-            return_sides=True)
-        # Under the W_O bypass the row answer leaves via its dedicated output
-        # projection instead of the head placement (its tail coordinates
-        # return to pure y_std use).
-        head_row = jnp.zeros_like(y_v) if self._fetched_row_bypass else y_v
-        full_read = self._expand_full_read(
-            jnp.concatenate((y_u, head_row), axis=-1))
-        return full_read, (y_u, y_v)
+            'W_R_gate', inputs_q, squeeze_fetch_axis=True)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,
@@ -3276,7 +3008,6 @@ class BamAttention(Attention):
       deep_embedding: Array | None = None,
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
-      lambda_vector: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3297,34 +3028,14 @@ class BamAttention(Attention):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
-    # ---- M read view, fetch compression, and directory features. Hoisted so both
-    #      LocalQK injection points and every key/gate projection can consume them. ----
     Mh = None
-    fetch_state = mix_weights = thumb = None
-    if 'local_qk' in self._mode or 'full' in self._mode:
-      assert M_in is not None, "BAM reads require M_in"
+    if 'local_qk' in self._mode and self._local_qk_injection == 'pre_qknorm_rope':
+      assert M_in is not None, "local_qk read requires M_in"
       with jax.named_scope("bam/normalize_m"):
         Mh = self._matrix_for_read(M_in)
-    if 'full' in self._mode:
-      fetch_state = self._compress_full_fetch_state(Mh)
-      if self._thumbnail_k_dim is not None:
-        with jax.named_scope("bam/thumbnail"):
-          # Directory = Pi_k^T (M Pi_v): a binding-presence grid over static
-          # direction pairs, flattened and RMS-normed (M itself is unnormalized
-          # under NoMNorm, so raw directory scale would drift with depth).
-          projection = self.thumbnail_k_projection.astype(fetch_state.dtype)
-          thumb = jnp.einsum('btkc,kp->btpc', fetch_state, projection)
-          thumb = thumb.reshape(thumb.shape[:2] + (-1,))
-          thumb = normalizations.rms_norm(
-              thumb, dtype=thumb.dtype, epsilon=self._rms_epsilon,
-              statistics_dtype=self._read_rms_statistics_dtype)
-    local_qk_thumb = thumb if 'local_qk' in self._thumbnail_consumers else None
-    fetch_thumb = thumb if 'full' in self._thumbnail_consumers else None
-
-    if 'local_qk' in self._mode and self._local_qk_injection == 'pre_qknorm_rope':
       with jax.named_scope("bam/read_local_m_for_qk"):
-        q_local, k_local = self._read_local_qk(
-            Mh, inputs_q, thumb=local_qk_thumb)
+        assert Mh is not None, "local_qk read requires M_in"
+        q_local, k_local = self._read_local_qk(Mh, inputs_q)
         query = query + q_local
         key = key + k_local
 
@@ -3338,9 +3049,12 @@ class BamAttention(Attention):
 
     # LocalQK can instead be injected after RoPE (the production default).
     if 'local_qk' in self._mode and self._local_qk_injection == 'post_rope':  # V1 default
+      if Mh is None:
+        with jax.named_scope("bam/normalize_m"):
+          Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_qk"):
-        q_local, k_local = self._read_local_qk(
-            Mh, inputs_q, thumb=local_qk_thumb)
+        assert Mh is not None, "local_qk read requires M_in"
+        q_local, k_local = self._read_local_qk(Mh, inputs_q)
         query = query + q_local
         key = key + k_local
 
@@ -3353,11 +3067,16 @@ class BamAttention(Attention):
       query = query.astype(jnp.float32)
       key = key.astype(jnp.float32)
 
+    fetch_state = mix_weights = None
     if 'full' in self._mode:
+      if Mh is None:
+        with jax.named_scope("bam/normalize_m"):
+          Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/mix_alpha_projection"):
         mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype,
             rms_epsilon=self._rms_epsilon)
+      fetch_state = self._compress_full_fetch_state(Mh)
 
     _, t, _, _ = query.shape
 
@@ -3379,57 +3098,17 @@ class BamAttention(Attention):
     y_std, Mbar = apply_attention(local_window)
 
     o_head = y_std
-    read_sides = None
     if Mbar is not None:
-      if (self._write_mixer_quadrants or self._split_write_recirculation
-          or self._fetched_row_bypass):
-        fetched_read, read_sides = self._read_fetched_m(
-            Mbar[:, None], inputs_q, thumb=fetch_thumb, return_sides=True)
-      else:
-        fetched_read = self._read_fetched_m(
-            Mbar[:, None], inputs_q, thumb=fetch_thumb)
-      o_head = o_head + fetched_read
-
-    split_sources = None
-    if self._split_write_recirculation:
-      assert read_sides is not None, "split write requires the fetched read"
-      split_sources = (y_std[..., :self.bam_k], read_sides[0])
-
-    if self._lambda_vector_mode == 'learned':
-      assert lambda_vector is None or lambda_vector.shape == (self.bam_v,)
-      assert not self._has_write or lambda_vector is not None, (
-          'the learned lambda vector is a decoder-level shared parameter and '
-          'must be threaded into every writing BAM layer')
-    else:
-      assert lambda_vector is None, (
-          'an explicit lambda vector requires bam_lambda_vector_mode=learned')
-      lambda_vector = self._lambda_vector_fixed
+      o_head = o_head + self._read_fetched_m(Mbar[:, None], inputs_q)
 
     if self._mha_control:
       M_out = M_in
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _, _ = self._write(
-            o_head, inputs_q, M_in, read_sides=read_sides,
-            split_sources=split_sources, lambda_vector=lambda_vector)
+        M_out, _, _ = self._write(o_head, inputs_q, M_in)
     else:
       M_out = M_in
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    out = self.out_projection(inputs_q.shape[-1], out)
-    if self._fetched_row_bypass and read_sides is not None:
-      # Dedicated output projection for the fetched row answer: the V-typed
-      # (address-space) readout gets its own column space instead of sharing
-      # W_O's y_std tail columns.  Zero-init keeps the factory function exactly
-      # (the fetched read is zero-init dormant, so both the removed head
-      # placement and this projection act on zeros at start).
-      with jax.named_scope("bam/row_output_projection"):
-        out = out + DenseGeneral(
-            features=out.shape[-1], axis=(-2, -1),
-            kernel_init=initializers.contant_dense_init(0.0),
-            kernel_axes=('q_heads', 'kv', 'embed'),
-            dtype=self.dtype, weight_dtype=self.weight_dtype, name='W_row',
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            use_bias=False)(read_sides[1])
-    return out, M_out
+    return self.out_projection(inputs_q.shape[-1], out), M_out

@@ -298,8 +298,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
-    bam_thumbnail_k_dim = None  # M directory: static K compression of the abs-V fetch view (e.g. 16 -> 16x8 grid)
-    bam_thumbnail_consumers = 'local_qk+full'  # read points whose keys/gates consume the directory
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
@@ -309,11 +307,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
-    bam_write_mixer_quadrants = 'none'  # none, or +-joined subset of uu/uv/vu/vv fetched-read write taps
-    bam_write_split_recirculation = False  # write the fetched U answer as its own record (private P_loc + gate)
-    bam_fetched_row_bypass_wo = False  # route the fetched row answer through a dedicated output projection instead of W_O's tail
-    bam_lambda_vector_mode = 'none'  # none | fixed_bands | learned; per-V-coordinate depth decay of M, layer-shared
-    bam_lambda_vector_bands = [1.0, 0.9, 0.7, 0.4]  # lifetime bands over the v axis (tau ~ inf/9.5/2.8/1.1 layers)
 
     scan_layers = False
 

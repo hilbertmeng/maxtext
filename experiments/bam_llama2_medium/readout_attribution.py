@@ -54,7 +54,9 @@ class BamLlama2MediumV2ReadoutAttribution(exp.BamLlama2MediumV2):
   bam_diagnostics = True
   bam_readout_attribution = True
   scan_layers = False
-  eval_per_device_batch_size = float(os.environ.get("BAM_ATTR_BATCH_SIZE", "2"))
+  # Preserve the exact shuffled cohort used by delta_rule_write_reuse.py.  The
+  # runner slices each 16-sequence iterator batch into smaller backward passes.
+  eval_per_device_batch_size = 16.0
   eval_shuffle_buffer_size = 32768
   tensorboard_dir = "/tmp/bam_readout_attribution_tb/"
 
@@ -489,12 +491,17 @@ def run(config) -> None:
   output_dir.mkdir(parents=True, exist_ok=True)
   target_sequences = int(os.environ.get("BAM_ATTR_SEQUENCES", "128"))
   sequence_offset = int(os.environ.get("BAM_ATTR_SEQUENCE_OFFSET", "0"))
-  batch_size = int(config.eval_per_device_batch_size * jax.local_device_count())
-  if target_sequences % batch_size or sequence_offset % batch_size:
+  iterator_batch_size = int(
+      config.eval_per_device_batch_size * jax.local_device_count())
+  batch_size = int(os.environ.get("BAM_ATTR_BATCH_SIZE", "2"))
+  if (target_sequences % batch_size or iterator_batch_size % batch_size
+      or sequence_offset % iterator_batch_size):
     raise ValueError(
-        f"{target_sequences=} and {sequence_offset=} must be divisible by {batch_size=}")
+        f"invalid {target_sequences=}, {sequence_offset=}, {batch_size=}, "
+        f"{iterator_batch_size=}")
   num_batches = target_sequences // batch_size
-  offset_batches = sequence_offset // batch_size
+  microbatches_per_input = iterator_batch_size // batch_size
+  output_batch_offset = sequence_offset // batch_size
 
   start = time.perf_counter()
   init_rng, writer, checkpoint_manager, mesh, model, _, tx = train.setup_mesh_and_model(config)
@@ -517,6 +524,7 @@ def run(config) -> None:
       "sequences": target_sequences,
       "sequence_offset": sequence_offset,
       "batch_size": batch_size,
+      "iterator_batch_size": iterator_batch_size,
       "num_batches": num_batches,
       "query_positions": ((np.arange(_QUERY_SAMPLES) + 1)
                           * (config.max_target_length // _QUERY_SAMPLES) - 1).tolist(),
@@ -527,11 +535,17 @@ def run(config) -> None:
       "uniform_scale_check": None,
   }
 
-  for _ in range(offset_batches):
+  for _ in range(sequence_offset // iterator_batch_size):
     next(eval_data_iterator)
 
+  input_batch = None
   for batch_index in range(num_batches):
-    batch = next(eval_data_iterator)
+    microbatch_index = batch_index % microbatches_per_input
+    if microbatch_index == 0:
+      input_batch = next(eval_data_iterator)
+    start_index = microbatch_index * batch_size
+    batch = jax.tree.map(
+        lambda value: value[start_index:start_index + batch_size], input_batch)
     if perturbations is None:
       perturbations = _make_perturbations(
           state.params, batch["inputs"].shape[0], batch["inputs"].shape[1])
@@ -574,7 +588,7 @@ def run(config) -> None:
     inputs_host, valid_host = jax.device_get((
         batch["inputs"], batch["targets_segmentation"] != 0))
     np.savez_compressed(
-        output_dir / f"attribution_batch_{offset_batches + batch_index:03d}.npz",
+        output_dir / f"attribution_batch_{output_batch_offset + batch_index:03d}.npz",
         attr_mean=np.asarray(attrs_host, np.float32),
         attr_sumloss=np.asarray(attrs_host, np.float32) * float(total_weights_host),
         write_gate=np.asarray(raw_small["write_gate"]),
@@ -585,7 +599,7 @@ def run(config) -> None:
         ]),
     )
     np.savez_compressed(
-        output_dir / f"p2_batch_{offset_batches + batch_index:03d}.npz",
+        output_dir / f"p2_batch_{output_batch_offset + batch_index:03d}.npz",
         **_flatten_for_npz(jax.device_get(p2_host)))
     print(
         f"ATTR batch={batch_index + 1}/{num_batches} loss={float(loss):.6f} "

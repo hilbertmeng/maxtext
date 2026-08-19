@@ -1727,6 +1727,9 @@ class BamV2GRowRank8ControlFullLayerProfile(
     skip_first_n_steps_for_profiler = 2
     profile_periodically_period = 8
     steps = 100
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-rowrank8-full24')
 
 
 class BamV2GRowRank8MulReduceFullLayerProfile(
@@ -1746,6 +1749,7 @@ class BamV2GScanLayerRowRank8ControlFullLayerProfile(
     skip_first_n_steps_for_profiler = 2
     profile_periodically_period = 8
     steps = 100
+    jax_cache_dir = BamV2GRowRank8ControlFullLayerProfile.jax_cache_dir
 
 
 class BamV2GScanLayerRowRank8MulReduceFullLayerProfile(

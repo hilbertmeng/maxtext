@@ -258,6 +258,46 @@ class BamMHInteractionTest(absltest.TestCase):
     for name, norm in awake.items():
       self.assertGreater(norm, 0.0, msg=f'{name} should wake with read keys')
 
+  def test_split_recirculation_write_starts_at_bundled_write(self):
+    cfg = make_config(exp_overrides=dict(
+        bam_thumbnail_k_dim=None, bam_write_mixer_quadrants='none',
+        bam_write_split_recirculation=True))
+    out_split, M_split, attention, variables = self.forward(cfg)
+    out_base, M_base, _, _ = self.forward(make_config(exp_overrides=_FEATURES_OFF))
+    # At init the fetched U answer is zero (W_R zero-init), so the recirculation
+    # record vanishes and the fresh-observation record equals the bundled write.
+    np.testing.assert_array_equal(np.asarray(out_split), np.asarray(out_base))
+    np.testing.assert_array_equal(np.asarray(M_split), np.asarray(M_base))
+    params = variables['params']
+    self.assertEqual(
+        get_param(params, ('P_loc_rec_up', 'kernel')).shape,
+        (256, _HEADS, _BAM_V))
+    self.assertEqual(get_param(params, ('W_gw_rec', 'kernel')).shape,
+                     (_EMBED, _HEADS))
+    gate_bias = get_param(params, ('gw_rec_b0',))
+    self.assertEqual(gate_bias.shape, (_HEADS,))
+    np.testing.assert_allclose(
+        gate_bias, np.log(0.1 / 0.9), rtol=1e-5, atol=1e-5)
+
+  def test_recirculation_record_writes_only_the_matrix_stream(self):
+    cfg = make_config(exp_overrides=dict(
+        bam_thumbnail_k_dim=None, bam_write_mixer_quadrants='none',
+        bam_write_split_recirculation=True))
+    _, _, attention, variables = self.forward(cfg)
+    # Wake the fetched read so the recirculated U answer is non-zero.
+    replace_param(
+        variables['params'], ('W_R', 'kernel'),
+        0.3 * jax.random.normal(
+            jax.random.PRNGKey(17), (_EMBED, _HEADS, 1, _BAM_K + _ABS_V)))
+    out_open, M_open = self.apply(attention, variables)
+    replace_param(
+        variables['params'], ('gw_rec_b0',), jnp.full((_HEADS,), -30.0))
+    out_closed, M_closed = self.apply(attention, variables)
+    # Closing only the recirculation gate must not touch the layer output but
+    # must remove the second record's contribution from the matrix stream.
+    np.testing.assert_array_equal(np.asarray(out_open), np.asarray(out_closed))
+    self.assertGreater(float(jnp.max(jnp.abs(M_open - M_closed))), 1e-4)
+
   def test_chunked_attention_path_keeps_factory_equivalence(self):
     chunk = dict(attention='dot_product_chunk')
     chunk_exp = dict(query_chunk_size=8)

@@ -310,6 +310,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
     bam_write_mixer_quadrants = 'none'  # none, or +-joined subset of uu/uv/vu/vv fetched-read write taps
+    bam_write_split_recirculation = False  # write the fetched U answer as its own record (private P_loc + gate)
 
     scan_layers = False
 
@@ -1307,6 +1308,13 @@ class BamLlama2MediumV2C256Thumb16x8WriteMixAll(BamLlama2MediumV2C256WriteMixAll
     """Combined arm: M directory plus the complete write-source mixer."""
     model_name = 'BamLlama2MediumV2C256Thumb16x8WriteMixAll'
     bam_thumbnail_k_dim = 16
+
+
+class BamLlama2MediumV2C256SplitRecircWrite(BamV2C256MHInteractionBase):
+    """Split the write into fresh-observation (y_std) and recirculation (y_U) records,
+    each with a private local anchor and admission gate; starts at the bundled write."""
+    model_name = 'BamLlama2MediumV2C256SplitRecircWrite'
+    bam_write_split_recirculation = True
 
 
 class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):

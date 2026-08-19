@@ -2111,6 +2111,7 @@ class BamAttention(Attention):
       self._thumbnail_k_dim = None
       self._thumbnail_consumers = set()
       self._write_mixer_quadrants = set()
+      self._split_write_recirculation = False
       return
 
     assert 0 < self.bam_k < self.head_dim, (
@@ -2216,6 +2217,8 @@ class BamAttention(Attention):
     self._write_mixer_quadrants = (
         set() if write_mixer_quadrants == 'none'
         else set(write_mixer_quadrants.replace('+', ' ').split()))
+    self._split_write_recirculation = bool(
+        getattr(cfg, 'bam_write_split_recirculation', False))
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
@@ -2294,6 +2297,16 @@ class BamAttention(Attention):
       if any(quad[1] == 'v' for quad in self._write_mixer_quadrants):
         assert self._write_v_mode != 'static', (
             'V-slot mixer taps add to a per-token write V factor')
+    if self._split_write_recirculation:
+      assert 'full' in self._mode, (
+          'the split-recirculation write needs the raw fetched U answer')
+      assert not self._write_mixer_quadrants, (
+          'split write and the write-source mixer redefine the same records')
+      assert not cfg.bam_write_u_proj
+      assert self._write_v_mode in ('x', 'x_bias')
+      assert self._abs_k_dim is None, (
+          'the recirculation record takes the raw (uncompressed-K) U answer')
+      assert self._write_u2_norm == 'rms' and not self._create_grouped_rw_norm
     assert self._read_key_scale > 0.0
     assert self._rms_epsilon > 0.0
     assert self._read_key_epsilon > 0.0
@@ -2712,6 +2725,46 @@ class BamAttention(Attention):
               (self.num_query_heads, mixer_src_dims[quad[0]],
                mixer_dst_dims[quad[1]]),
               self.weight_dtype))
+      if self._split_write_recirculation:
+        # Split-recirculation write: the fetched-read U answer gets its own
+        # record (private local anchor + admission gate) instead of blending
+        # into the fresh-observation record inside one outer product.  The
+        # blend structurally cross-contaminates (one shared anchor, one shared
+        # admission decision, one mixed record); two rank-1 records restore
+        # per-source admission semantics.  At init the fetched answer is zero
+        # (W_R zero-init), so the layer starts exactly at the bundled write.
+        if self._write_v_bottleneck_dim is None:
+          self.P_loc_rec = DenseGeneral(
+              features=(self.num_query_heads, loc_v), axis=-1,
+              kernel_init=reg_init, kernel_axes=("embed", "q_heads", "v_factor"),
+              dtype=self.dtype, weight_dtype=self.weight_dtype, name="P_loc_rec",
+              quant=self.quant, matmul_precision=cfg.matmul_precision,
+              use_bias=self._write_v_mode == 'x_bias')
+        else:
+          # Shares the P_loc_down bottleneck; only the up-projection is private.
+          self.P_loc_rec_up = DenseGeneral(
+              features=(self.num_query_heads, loc_v), axis=-1,
+              kernel_init=reg_init,
+              kernel_axes=(
+                  None if self._replicate_ploc_up else "embed",
+                  "q_heads", "v_factor"),
+              dtype=self.dtype, weight_dtype=self.weight_dtype,
+              name="P_loc_rec_up", quant=self.quant,
+              matmul_precision=cfg.matmul_precision,
+              use_bias=self._write_v_mode == 'x_bias')
+        self.W_gw_rec = DenseGeneral(
+            features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+            kernel_axes=("embed", "q_heads"), dtype=self.dtype,
+            weight_dtype=self.weight_dtype, name="W_gw_rec", quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=False)
+        rec_eps = float(cfg.bam_write_eps)
+        self.gw_rec_b0 = self.param(
+            'gw_rec_b0',
+            nn.with_logical_partitioning(
+                lambda key, shape, dtype: jnp.full(
+                    shape, math.log(rec_eps / (1.0 - rec_eps))),
+                ("q_heads",)),
+            (self.num_query_heads,), self.weight_dtype)
 
   def _project_full_read_key(self, x, thumb=None):
     if self._fetch_read_bottleneck_dim is None:
@@ -2888,7 +2941,7 @@ class BamAttention(Attention):
     first, second = jnp.split(rotated, 2, axis=-1)
     return jnp.stack([first, second], axis=-1).reshape(x.shape)
 
-  def _write(self, o_head, x, M_in, read_sides=None):
+  def _write(self, o_head, x, M_in, read_sides=None, split_sources=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): each factor is RMS-normalized
@@ -2898,6 +2951,10 @@ class BamAttention(Attention):
     `read_sides` carries the raw bilateral fetched answers (y_U, y_V) for the
     four-quadrant write-source mixer; the taps are added pre-norm so they mix
     factor directions without opening a second magnitude channel.
+
+    `split_sources = (y_std[..., :k], y_U)` activates the split-recirculation
+    write: the fresh-observation record keeps the y_std slice, and the fetched
+    U answer becomes a second rank-1 record with its own anchor and gate.
     """
     cfg = self.config
     if self._force_activation_dtype:
@@ -2910,6 +2967,11 @@ class BamAttention(Attention):
       u1 = jnp.einsum('btnd,ndk->btnk', o_head, write_u_proj)
     else:  # V1 default
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
+    if split_sources is not None:
+      # Fresh-observation record keeps only y_std; the recirculated fetched
+      # U answer is written as its own record below.
+      u1 = split_sources[0]
+    v_hidden = x
     if self._write_v_mode == 'o_tail':
       u2 = o_head[..., self.bam_k:]
     elif self._write_v_mode == 'static':
@@ -2920,10 +2982,10 @@ class BamAttention(Attention):
       if self._write_v_bottleneck_dim is None:
         x_v = self.P_loc(x)
       else:  # V1 default
-        x_v = self.P_loc_down(x)
+        v_hidden = self.P_loc_down(x)
         if self._write_v_bottleneck_activation == 'gelu':
-          x_v = nn.gelu(x_v)
-        x_v = self.P_loc_up(x_v)
+          v_hidden = nn.gelu(v_hidden)
+        x_v = self.P_loc_up(v_hidden)
       u2 = x_v
     if self._write_v_mode == 'mix':
       write_v_mix_scale = self.write_v_mix_scale
@@ -2986,6 +3048,33 @@ class BamAttention(Attention):
         assert self._write_outer_implementation == 'mul_reduce'  # XD
         dM = jnp.sum(
             gated_u1[..., None] * u2_norm[..., None, :], axis=-3)
+    if split_sources is not None:
+      # Recirculation record: rms(y_U) (outer) rms(private anchor), with its own
+      # admission gate.  Zero at init because the fetched answer is zero.
+      with jax.named_scope("bam/write_recirculation_record"):
+        u1_rec = split_sources[1]
+        if self._write_v_bottleneck_dim is None:
+          u2_rec = self.P_loc_rec(v_hidden)
+        else:
+          u2_rec = self.P_loc_rec_up(v_hidden)
+        rec_gate_bias = self.gw_rec_b0
+        if self._force_activation_dtype:
+          rec_gate_bias = jnp.asarray(rec_gate_bias, self.dtype)
+        g_rec = jax.nn.sigmoid(self.W_gw_rec(x) + rec_gate_bias)
+        if cfg.bam_sqrt_n_scale:
+          g_rec = g_rec * (1.0 / jnp.sqrt(self.num_query_heads))
+        u1_rec_norm = normalizations.rms_norm(
+            u1_rec, dtype=self.dtype, epsilon=self._rms_epsilon,
+            statistics_dtype=self._write_rms_statistics_dtype)
+        u2_rec_norm = normalizations.rms_norm(
+            u2_rec, dtype=self.dtype, epsilon=self._rms_epsilon,
+            statistics_dtype=self._write_rms_statistics_dtype)
+        gated_u1_rec = g_rec[..., None] * u1_rec_norm
+        if self._write_outer_implementation == 'dot':
+          dM = dM + jnp.einsum('btnk,btnv->btkv', gated_u1_rec, u2_rec_norm)
+        else:
+          dM = dM + jnp.sum(
+              gated_u1_rec[..., None] * u2_rec_norm[..., None, :], axis=-3)
     if self._force_activation_dtype:
       assert dM.dtype == self.dtype, (dM.dtype, self.dtype)
     forget_logits = None
@@ -3257,7 +3346,7 @@ class BamAttention(Attention):
     o_head = y_std
     read_sides = None
     if Mbar is not None:
-      if self._write_mixer_quadrants:
+      if self._write_mixer_quadrants or self._split_write_recirculation:
         fetched_read, read_sides = self._read_fetched_m(
             Mbar[:, None], inputs_q, thumb=fetch_thumb, return_sides=True)
       else:
@@ -3265,12 +3354,19 @@ class BamAttention(Attention):
             Mbar[:, None], inputs_q, thumb=fetch_thumb)
       o_head = o_head + fetched_read
 
+    split_sources = None
+    if self._split_write_recirculation:
+      assert read_sides is not None, "split write requires the fetched read"
+      split_sources = (y_std[..., :self.bam_k], read_sides[0])
+
     if self._mha_control:
       M_out = M_in
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _, _ = self._write(o_head, inputs_q, M_in, read_sides=read_sides)
+        M_out, _, _ = self._write(
+            o_head, inputs_q, M_in, read_sides=read_sides,
+            split_sources=split_sources)
     else:
       M_out = M_in
 

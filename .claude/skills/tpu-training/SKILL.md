@@ -78,6 +78,10 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/run_registry.py wait-step '$EXP' 14"
 ```
 
+A successful launch is not task completion. Unless the user requested launch only, transition
+immediately to **Monitor Training** and keep the current turn/goal active until the RUN stops or
+completes.
+
 ## Monitor Training
 
 Use `run_registry.py status` for liveness and `loss-report` for loss. Reserve TensorBoard sync
@@ -115,6 +119,9 @@ removes it or the registry is updated. Here
 magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
 level with the mean and range of the latest 5–8 reported points; use recent `r200` values for
 direction.
+
+Never ignore an anomalous monitoring metric: investigate and locate its root cause immediately,
+then restore 200-step reporting until the anomaly is resolved.
 
 At every due milestone:
 

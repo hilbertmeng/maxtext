@@ -140,6 +140,8 @@ def _summarize(store: _Store) -> dict[str, Any]:
       "write_gate": _distribution(gate),
       "same_layer_max_abs_cosine": _distribution(
           store.get("same_layer_max_abs_cos"), gate),
+      "same_layer_cross_token_null_max_abs_cosine": _distribution(
+          store.get("same_layer_cross_token_null_max_abs_cos"), gate),
   }
   if "cross_layer_max_abs_cos" in store.values:
     cross_gate = store.get("cross_gate")
@@ -233,9 +235,15 @@ def _analyze(output_dir: Path, rms_epsilon: float) -> dict[str, Any]:
       diagonal = np.arange(heads)
       same_sim[:, diagonal, diagonal] = 0.0
       same_max_abs = np.max(np.abs(same_sim), axis=-1)
+      null_same_sim = np.einsum(
+          "snv,smv->snm", address_unit,
+          np.roll(address_unit, sample_count // 2, axis=0))
+      null_same_sim[:, diagonal, diagonal] = 0.0
       current_metrics = {
           "gate": gate,
           "same_layer_max_abs_cos": same_max_abs,
+          "same_layer_cross_token_null_max_abs_cos": np.max(
+              np.abs(null_same_sim), axis=-1),
       }
 
       if previous_address:

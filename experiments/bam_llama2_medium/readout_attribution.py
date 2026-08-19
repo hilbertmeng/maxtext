@@ -316,7 +316,7 @@ def _flatten_for_npz(tree: Any, prefix: tuple[str, ...] = ()) -> dict[str, np.nd
     for key, value in tree.items():
       output.update(_flatten_for_npz(value, prefix + (str(key),)))
   else:
-    output["__".join(prefix)] = np.asarray(value)
+    output["__".join(prefix)] = np.asarray(tree)
   return output
 
 

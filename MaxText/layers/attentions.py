@@ -3311,8 +3311,9 @@ class BamAttention(Attention):
       # The gradient of this per-record scale is exactly
       # <dL/ddM, g * rms(u1) outer rms(u2)> without exporting dL/ddM itself.
       record_scale = self.perturb(
-          'write_record_scale', jnp.zeros_like(g))
-      gated_u1 = gated_u1 * (1 + record_scale[..., None])
+          'write_record_scale', jnp.zeros(g.shape, jnp.float32))
+      gated_u1 = gated_u1 * jnp.asarray(
+          1 + record_scale[..., None], gated_u1.dtype)
       self.sow('bam_readout', 'write_u1_norm', u1_norm)
       self.sow('bam_readout', 'write_u2_norm', u2_norm)
       self.sow('bam_readout', 'write_scale', g)

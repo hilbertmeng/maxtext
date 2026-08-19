@@ -235,12 +235,6 @@ def _fetch_layer_metrics(layer, raw, attrs, projection, query_indices, *, permut
   a_u = col_dot * coefficient[:, :, None]
   a_v = row_dot * coefficient[:, :, None]
 
-  y_actual = raw["y_full"][layer].astype(jnp.float32)
-  y_actual = jnp.concatenate((y_actual[..., :_K], y_actual[..., _K:_K + _C]), axis=-1)
-  y_u, y_v = jnp.split(y_actual, [_K], axis=-1)
-  u_y = jnp.einsum("bqlmhk,bqnk->bqnlmh", u, y_u)
-  v_y = jnp.einsum("bqlmhc,bqnc->bqnlmh", v, y_v)
-  score = a_u * u_y + a_v * v_y
   norm2 = (
       jnp.square(a_u) * jnp.sum(jnp.square(u), axis=-1)[:, :, None]
       + jnp.square(a_v) * jnp.sum(jnp.square(v), axis=-1)[:, :, None]
@@ -249,10 +243,16 @@ def _fetch_layer_metrics(layer, raw, attrs, projection, query_indices, *, permut
       jnp.einsum("bqnlmh,bqlmhk->bqnk", a_u, u),
       jnp.einsum("bqnlmh,bqlmhc->bqnc", a_v, v),
   ), axis=-1)
+  y_actual = raw["y_full"][layer].astype(jnp.float32)
+  y_actual = jnp.concatenate((y_actual[..., :_K], y_actual[..., _K:_K + _C]), axis=-1)
+  y_reference = y_truncated if permute_alpha else y_actual
+  y_u, y_v = jnp.split(y_reference, [_K], axis=-1)
+  u_y = jnp.einsum("bqlmhk,bqnk->bqnlmh", u, y_u)
+  v_y = jnp.einsum("bqlmhc,bqnc->bqnlmh", v, y_v)
+  score = a_u * u_y + a_v * v_y
   attr = attr[:, :, None]
   metrics = _top_record_metrics(
-      score, norm2, y_truncated,
-      y_truncated if permute_alpha else y_actual,
+      score, norm2, y_truncated, y_reference,
       attr, jnp.arange(_LAYERS),
       self_mask=indices == query_indices[None, :, None])
   metrics["retained_alpha_abs_mass"] = raw["fetch_retained_abs_mass"][layer]

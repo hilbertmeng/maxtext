@@ -12,6 +12,19 @@
   P1 uses an exact per-record scale gradient, algebraically equivalent to the
   Frobenius product between the write and its full downstream cotangent.
 
+## Reproduction code
+
+The executed diagnostic code is preserved on
+`codex/readout-attribution@65fc768`:
+
+- Driver, capture harness, analyzer, and artifact writer:
+  `experiments/bam_llama2_medium/readout_attribution.py`
+- Guarded model-side capture hooks: `MaxText/layers/attentions.py`
+- Shared diagnostic extraction helpers: `MaxText/bam_diagnostics.py`
+
+For an exact copy of the main script, run
+`git show 65fc768:experiments/bam_llama2_medium/readout_attribution.py`.
+
 ## P1: loss-grounded write attribution
 
 P1 covers 100,663,296 layer/token/head records (including the structurally dead

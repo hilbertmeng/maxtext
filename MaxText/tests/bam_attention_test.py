@@ -13,11 +13,13 @@ from layers.attentions import (
     _bam_fetch_op,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
+    _packed_fetched_row_rank_init,
     _packed_factorized_local_qk_init,
     _mix_bam_write_v,
     _transform_bam_read_key,
     _update_bam_matrix,
     bam_read,
+    dynamic_rank_row_bam_read,
     factorized_head_bam_read,
 )
 
@@ -216,6 +218,71 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(actual_value, reference_value, rtol=1e-5, atol=1e-5)
     for got, expected in zip(actual_grad, reference_grad):
       np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
+
+  def test_dynamic_rank_row_read_matches_explicit_keys_and_gradients(self):
+    b, t, n, r, k, v = 2, 3, 4, 2, 4, 3
+    basis_chunk = r * k // n
+    keys = jax.random.split(jax.random.PRNGKey(89), 5)
+    args = (
+        jax.random.normal(keys[0], (b, t, k, v)),
+        jax.random.normal(keys[1], (b, t, n, basis_chunk + v + r)),
+        jax.random.normal(keys[2], (b, t, n, 2)),
+    )
+    upstream = jax.random.normal(keys[3], (b, t, n, k + v))
+    kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, rms_epsilon=1e-4,
+        rms_statistics_dtype=jnp.float32, first_implementation='mul_reduce_btn')
+
+    def explicit(values):
+      M, packed, gates = values
+      chunks, col, mix = jnp.split(
+          packed, [basis_chunk, basis_chunk + v], axis=-1)
+      basis = chunks.reshape((b, t, r, k))
+      row_gate, col_gate = jnp.split(gates, 2, axis=-1)
+      basis = normalizations.rms_norm(
+          basis, dtype=basis.dtype, epsilon=1e-4,
+          statistics_dtype=jnp.float32)
+      mix = normalizations.rms_norm(
+          mix, dtype=mix.dtype, epsilon=1e-4, axis=-1,
+          statistics_dtype=jnp.float32) / jnp.sqrt(jnp.asarray(r, mix.dtype))
+      mix = mix * (2.0 * jax.nn.sigmoid(row_gate))
+      row = jnp.einsum('btrk,btnr->btnk', basis, mix)
+      col = _transform_bam_read_key(
+          col, 'rms_gate', 2.0, rms_epsilon=1e-4,
+          rms_statistics_dtype=jnp.float32, gate_logits=col_gate)
+      return jnp.concatenate((
+          jnp.einsum('btkv,btnv->btnk', M, col),
+          jnp.einsum('btkv,btnk->btnv', M, row)), axis=-1)
+
+    def factorized(values, second_implementation):
+      M, packed, gates = values
+      return dynamic_rank_row_bam_read(
+          M, jnp.zeros((b, t, 1)), lambda _x: packed, r,
+          key_gate_logits=gates, second_implementation=second_implementation,
+          **kwargs)
+
+    expected = explicit(args)
+    expected_value, expected_grad = jax.value_and_grad(
+        lambda z: jnp.sum(explicit(z) * upstream))(args)
+    for second_implementation in ('dot', 'mul_reduce'):
+      actual = factorized(args, second_implementation)
+      actual_value, actual_grad = jax.value_and_grad(
+          lambda z: jnp.sum(
+              factorized(z, second_implementation) * upstream))(args)
+      np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
+      np.testing.assert_allclose(actual_value, expected_value, rtol=2e-5, atol=2e-5)
+      for got, want in zip(actual_grad, expected_grad):
+        np.testing.assert_allclose(got, want, rtol=3e-5, atol=3e-5)
+
+  def test_packed_dynamic_row_initializer_keeps_read_dormant(self):
+    e, n, r, k, v = 7, 4, 2, 4, 3
+    init = _packed_fetched_row_rank_init(
+        initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
+        n, r, k, v)
+    packed_width = r * k // n + v + r
+    kernel = init(jax.random.PRNGKey(97), (e, n, packed_width), jnp.float32)
+    np.testing.assert_array_equal(kernel[..., :r * k // n + v], 0)
+    self.assertGreater(float(jnp.linalg.norm(kernel[..., -r:])), 0.0)
 
   def test_batched_factorized_qk_read_matches_separate_reads(self):
     b, t, qk, n, k, v, e = 2, 3, 2, 4, 3, 5, 7

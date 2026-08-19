@@ -2082,6 +2082,115 @@ def _packed_factorized_local_qk_init(kernel_init, num_heads, key_width):
   return init_fn
 
 
+def _packed_fetched_row_rank_init(
+    kernel_init, num_heads, row_rank, row_width, col_width):
+  """Pack zero-init row bases/column keys and regular-init row mixing."""
+  if row_rank * row_width % num_heads:
+    raise ValueError(
+        f'row rank*width ({row_rank}*{row_width}) must divide across '
+        f'{num_heads} heads')
+  basis_chunk_width = row_rank * row_width // num_heads
+  packed_head_width = basis_chunk_width + col_width + row_rank
+
+  def init_fn(key, shape, dtype, _in_axis=0, _out_axis=1):
+    expected = (shape[0], num_heads, packed_head_width)
+    if shape != expected:
+      raise ValueError(
+          f'packed fetched-row kernel expects {expected}, got {shape}')
+    mix = kernel_init(
+        key, (shape[0], num_heads, row_rank), dtype, 0, (1, 2))
+    zeros = jnp.zeros(
+        (shape[0], num_heads, basis_chunk_width + col_width), dtype)
+    return jnp.concatenate((zeros, mix), axis=-1)
+
+  return init_fn
+
+
+def dynamic_rank_row_bam_read(
+    M, x, W_R, row_rank, *, key_mode, key_scale, rms_epsilon,
+    rms_statistics_dtype, key_gate_logits, first_implementation,
+    second_implementation, read_side='both'):
+  """Read fetched M with a dynamic rank-r factorization of its per-head row keys.
+
+  The projected row-key matrix is ``A[b,t,n,r] @ B[b,t,r,k]``.  B is
+  RMS-normalized per basis key; A is RMS-normalized over rank, divided by
+  sqrt(r) to unit L2, and carries the existing per-head sigmoid gate.  M is
+  therefore read by only r basis keys and a second small contraction expands
+  those r answers to n attention heads.  Column reads remain unchanged.
+  """
+  if M.ndim != 4:
+    raise ValueError(f'dynamic fetched-row read expects [b,t,k,v], got {M.shape}')
+  if read_side not in ('both', 'row', 'col'):
+    raise ValueError(f'Unknown BAM read side: {read_side}')
+  if key_mode != 'rms_gate' or key_gate_logits is None:
+    raise ValueError('dynamic fetched-row read requires rms_gate logits')
+  if first_implementation not in ('dot_btn', 'mul_reduce_btn'):
+    raise ValueError(f'Unknown first read implementation: {first_implementation}')
+  if second_implementation not in ('dot', 'mul_reduce'):
+    raise ValueError(
+        f'Unknown fetched-row second implementation: {second_implementation}')
+
+  n = key_gate_logits.shape[-2]
+  k, v = M.shape[-2:]
+  if row_rank * k % n:
+    raise ValueError(f'row rank*width ({row_rank}*{k}) must divide across {n} heads')
+  basis_chunk_width = row_rank * k // n
+  with jax.named_scope("bam/read_key_projection"):
+    packed = W_R(x)
+    expected_width = basis_chunk_width + v + row_rank
+    if packed.shape[-2:] != (n, expected_width):
+      raise ValueError(
+          f'packed fetched-row projection expects [...,{n},{expected_width}], '
+          f'got {packed.shape}')
+    basis_chunks, raw_col, raw_mix = jnp.split(
+        packed, [basis_chunk_width, basis_chunk_width + v], axis=-1)
+    row_basis = basis_chunks.reshape(packed.shape[:-2] + (row_rank, k))
+
+  row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
+  with jax.named_scope("bam/read_key_transform"):
+    r_col = _transform_bam_read_key(
+        raw_col, key_mode, key_scale, rms_epsilon=rms_epsilon,
+        rms_statistics_dtype=rms_statistics_dtype, gate_logits=col_gate)
+    row_basis = normalizations.rms_norm(
+        row_basis, dtype=row_basis.dtype, epsilon=rms_epsilon,
+        statistics_dtype=rms_statistics_dtype)
+    row_mix = normalizations.rms_norm(
+        raw_mix, dtype=raw_mix.dtype, epsilon=rms_epsilon,
+        statistics_dtype=rms_statistics_dtype)
+    row_mix = row_mix / jnp.sqrt(jnp.asarray(row_rank, row_mix.dtype))
+    row_amplitude = (
+        jnp.asarray(key_scale, row_mix.dtype)
+        * jax.nn.sigmoid(jnp.asarray(row_gate, row_mix.dtype)))
+    scaled_mix = row_mix * row_amplitude
+
+  with jax.named_scope("bam/read_m_contract"):
+    y_u = y_v = None
+    if read_side in ('both', 'col'):
+      with jax.named_scope("col"):
+        if first_implementation == 'dot_btn':
+          y_u = jnp.einsum('btkv,btnv->btnk', M, r_col)
+        else:
+          y_u = jnp.sum(M[:, :, None] * r_col[..., None, :], axis=-1)
+    if read_side in ('both', 'row'):
+      with jax.named_scope("row_rank_basis"):
+        if first_implementation == 'dot_btn':
+          basis_read = jnp.einsum('btkv,btrk->btrv', M, row_basis)
+        else:
+          basis_read = jnp.sum(
+              M[:, :, None] * row_basis[..., :, None], axis=-2)
+      with jax.named_scope("row_rank_expand"):
+        if second_implementation == 'dot':
+          y_v = jnp.einsum('btrv,btnr->btnv', basis_read, scaled_mix)
+        else:
+          y_v = jnp.sum(
+              basis_read[:, :, None] * scaled_mix[..., None], axis=-2)
+    if y_u is None:
+      y_u = jnp.zeros(y_v.shape[:-1] + (k,), dtype=y_v.dtype)
+    if y_v is None:
+      y_v = jnp.zeros(y_u.shape[:-1] + (v,), dtype=y_u.dtype)
+  return jnp.concatenate((y_u, y_v), axis=-1)
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -2163,6 +2272,9 @@ class BamAttention(Attention):
         else int(cfg.bam_fetch_mix_num_heads))
     assert 0 < self._fetch_mix_num_heads <= self.num_query_heads
     self._read_implementation = cfg.bam_read_implementation
+    self._fetched_row_rank = getattr(cfg, 'bam_fetched_row_rank', None)
+    self._fetched_row_second_implementation = getattr(
+        cfg, 'bam_fetched_row_second_implementation', 'dot')
     self._fetched_read_side = cfg.bam_fetched_read_side
     assert self._fetched_read_side in ('both', 'row', 'col')
     self._m_read_norm = cfg.bam_m_read_norm
@@ -2232,6 +2344,7 @@ class BamAttention(Attention):
     assert self._m_read_norm in ('rms', 'none')
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
+    assert self._fetched_row_second_implementation in ('dot', 'mul_reduce')
     assert self._fetch_read_bottleneck_activation in ('none', 'gelu')
     if self._fetch_read_bottleneck_dim is None:
       assert self._fetch_read_bottleneck_activation == 'none'
@@ -2278,6 +2391,15 @@ class BamAttention(Attention):
       assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     if self._squeeze_single_fetch_read and 'full' in self._mode:
       assert cfg.bam_n_f == 1, 'single-fetch squeeze requires one full-read route'
+    if self._fetched_row_rank is not None:
+      assert 'full' in self._mode
+      assert 0 < self._fetched_row_rank < self.num_query_heads
+      assert self._squeeze_single_fetch_read, (
+          'dynamic fetched-row rank currently requires the f=1 squeezed path')
+      assert self._fetch_read_bottleneck_dim is None
+      assert self._read_key_mode == 'rms_gate'
+      assert not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm), (
+          'dynamic fetched-row rank preserves parameter-free per-head RMSGate only')
     def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
       """Create a zero-kernel semantic gate with an explicitly calibrated bias."""
       if not cfg.bam_create_read_gate_params:
@@ -2354,7 +2476,22 @@ class BamAttention(Attention):
 
       # Joint target-side read key is generated directly in both cached spaces.
       read_features = (self.num_query_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
-      if self._fetch_read_bottleneck_dim is None:
+      if self._fetched_row_rank is not None:
+        assert self._fetched_row_rank * read_k_dim % self.num_query_heads == 0
+        basis_chunk_width = (
+            self._fetched_row_rank * read_k_dim // self.num_query_heads)
+        packed_head_width = (
+            basis_chunk_width + read_v_dim + self._fetched_row_rank)
+        self.W_R = DenseGeneral(
+            features=(self.num_query_heads, packed_head_width), axis=-1,
+            kernel_init=_packed_fetched_row_rank_init(
+                reg_init, self.num_query_heads, self._fetched_row_rank,
+                read_k_dim, read_v_dim),
+            kernel_axes=("embed", "q_heads", "kv"),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            use_bias=False)
+      elif self._fetch_read_bottleneck_dim is None:
         self.W_R = DenseGeneral(
             features=read_features, axis=-1, kernel_init=zeros_init,
             kernel_axes=("embed", "q_heads", "fetch", "kv"),
@@ -2374,10 +2511,11 @@ class BamAttention(Attention):
       add_read_gate('W_R_gate', (self.num_query_heads, cfg.bam_n_f, 2),
                     ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
                     zero_key_gate_init)
-      add_grouped_read_norms(
-          'W_R', (self.num_query_heads, cfg.bam_n_f, read_k_dim),
-          (self.num_query_heads, cfg.bam_n_f, read_v_dim),
-          ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
+      if self._fetched_row_rank is None:
+        add_grouped_read_norms(
+            'W_R', (self.num_query_heads, cfg.bam_n_f, read_k_dim),
+            (self.num_query_heads, cfg.bam_n_f, read_v_dim),
+            ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
       # Signed RMS mixing needs a regular-initialized direction because RMSNorm
       # at an all-zero vector is singular. W_R remains zero-initialized, so the
@@ -2928,6 +3066,16 @@ class BamAttention(Attention):
       full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
       if self._squeeze_single_fetch_read:
         Mbar = jnp.squeeze(Mbar, axis=1)
+        if self._fetched_row_rank is not None:
+          full_read = dynamic_rank_row_bam_read(
+              Mbar, inputs_q, self._project_full_read_key,
+              self._fetched_row_rank,
+              **self._read_key_kwargs(
+                  'W_R_gate', inputs_q, squeeze_fetch_axis=True),
+              first_implementation=self._read_implementation,
+              second_implementation=self._fetched_row_second_implementation,
+              read_side=self._fetched_read_side)
+          return self._expand_full_read(full_read)
         full_read_projection = lambda x: jnp.squeeze(
             self._project_full_read_key(x), axis=-2)
         full_read_kwargs = self._read_key_kwargs(

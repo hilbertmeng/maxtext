@@ -287,6 +287,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
+    bam_fetched_row_rank = None  # dynamically factor fetched row keys through this rank
+    bam_fetched_row_second_implementation = 'dot'  # dot | mul_reduce
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     bam_squeeze_single_fetch_read = True  # remove f=1 before the full read
     # legacy | no_remat | deferred_read | diag_select | optimized
@@ -1568,6 +1570,23 @@ class BamV2GScanLayerOptimizedEightLayerProfile(
     # code_commit: 91cb24a; v6e-1 XPlane 661.01 ms; ~1.50 steps/s.
     # Recheck @66c8173: XPlane 672.17 ms; compile 30.71 s; ~1.474 steps/s.
     model_name = 'BamV2GScanLayerOptimizedEightLayerProfile'
+
+
+class BamV2GScanLayerRowRank8DotEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """V2 C256 S/U with fetched row-read heads dynamically factorized to rank 8."""
+    model_name = 'BamV2GScanLayerRowRank8DotEightLayerProfile'
+    bam_fetched_row_rank = 8
+    bam_fetched_row_second_implementation = 'dot'
+
+
+class BamV2GScanLayerRowRank8MulReduceEightLayerProfile(
+    BamV2GScanLayerRowRank8DotEightLayerProfile
+):
+    """Rank-8 fetched row read with multiply-reduce for the r-to-head expansion."""
+    model_name = 'BamV2GScanLayerRowRank8MulReduceEightLayerProfile'
+    bam_fetched_row_second_implementation = 'mul_reduce'
 
 
 class BamV2GScanLayerBatchedLocalQKReadEightLayerProfile(

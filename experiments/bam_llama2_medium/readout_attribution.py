@@ -118,11 +118,11 @@ def _make_perturbations(params: dict[str, Any], batch_size: int, length: int) ->
   return traverse_util.unflatten_dict(leaves)
 
 
-def _offset_layer_perturbations(
-    perturbations: dict[str, Any], layer: int, delta: float) -> dict[str, Any]:
+def _offset_perturbations(
+    perturbations: dict[str, Any], direction: np.ndarray, delta: float) -> dict[str, Any]:
   leaves = traverse_util.flatten_dict(perturbations)
   return traverse_util.unflatten_dict({
-      path: value + delta if _layer_from_path(path) == layer else value
+      path: value + delta * direction[_layer_from_path(path)]
       for path, value in leaves.items()
   })
 
@@ -573,21 +573,26 @@ def run(config) -> None:
       # Move exactly one bf16 ULP on either side of one, then divide by the
       # realized scale interval rather than the nominal float32 probe interval.
       epsilon = 2.0**-7
-      layer_sums = jax.device_get(jnp.sum(attrs, axis=(1, 2, 3)))
-      check_layer = int(np.argmax(np.abs(layer_sums)))
-      plus = _offset_layer_perturbations(perturbations, check_layer, epsilon)
-      minus = _offset_layer_perturbations(perturbations, check_layer, -epsilon)
+      attrs_for_check = np.asarray(jax.device_get(attrs), np.float32)
+      selected_count = min(256, attrs_for_check.size)
+      selected = np.argpartition(
+          np.abs(attrs_for_check).ravel(), -selected_count)[-selected_count:]
+      direction = np.zeros(attrs_for_check.size, np.float32)
+      direction[selected] = np.sign(attrs_for_check.ravel()[selected])
+      direction = direction.reshape(attrs_for_check.shape)
+      plus = _offset_perturbations(perturbations, direction, epsilon)
+      minus = _offset_perturbations(perturbations, direction, -epsilon)
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
         (loss_plus, _), _ = compiled_grad(plus, state.params, batch, batch_rng)
         (loss_minus, _), _ = compiled_grad(minus, state.params, batch, batch_rng)
       scale_plus = float(np.asarray(jnp.asarray(1 + epsilon, config.dtype)))
       scale_minus = float(np.asarray(jnp.asarray(1 - epsilon, config.dtype)))
       numerical = (loss_plus - loss_minus) / (scale_plus - scale_minus)
-      analytic = jnp.sum(attrs[check_layer])
+      analytic = jnp.sum(attrs * direction)
       numerical, analytic = jax.device_get((numerical, analytic))
       metadata["uniform_scale_check"] = {
           "epsilon": epsilon,
-          "layer": check_layer,
+          "direction": f"top-{selected_count} absolute attributions",
           "scale_plus": scale_plus,
           "scale_minus": scale_minus,
           "analytic": float(analytic),

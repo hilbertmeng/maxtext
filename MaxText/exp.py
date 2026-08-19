@@ -1334,6 +1334,7 @@ class BamLlama2MediumV2C256RowBypassWO(BamV2C256MHInteractionBase):
     """Fetched row answer leaves via a dedicated per-head zero-init output projection
     (W_row [n,8,D]) instead of W_O's y_std-shared tail columns; its 8 head coordinates
     return to pure y_std use. Starts exactly at V2 (fetched read is zero-init dormant)."""
+    # code_commit: 14ee021; ~0.658 steps/s (UC1a).
     model_name = 'BamLlama2MediumV2C256RowBypassWO'
     bam_fetched_row_bypass_wo = True
 

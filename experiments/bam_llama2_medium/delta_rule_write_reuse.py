@@ -22,6 +22,7 @@ import sys
 from typing import Any
 
 from absl import app
+import ml_dtypes
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "MaxText"))
@@ -74,8 +75,16 @@ bam_diagnostics._layer_summary = _minimal_layer_summary  # pylint: disable=prote
 
 
 def _rms_norm(value: np.ndarray, epsilon: float) -> np.ndarray:
-  value = np.asarray(value, np.float32)
+  value = _to_float32(value)
   return value / np.sqrt(np.mean(np.square(value), axis=-1, keepdims=True) + epsilon)
+
+
+def _to_float32(value: np.ndarray) -> np.ndarray:
+  """Decode JAX bf16 saved by NumPy as an opaque two-byte scalar."""
+  value = np.asarray(value)
+  if value.dtype.kind == "V" and value.dtype.itemsize == 2:
+    value = value.view(ml_dtypes.bfloat16)
+  return value.astype(np.float32)
 
 
 def _l2_normalize(value: np.ndarray) -> np.ndarray:
@@ -140,6 +149,8 @@ def _summarize(store: _Store) -> dict[str, Any]:
     output["cross_layer"] = {
         "max_abs_cosine": _distribution(max_abs, gate),
         "max_positive_cosine": _distribution(max_positive, gate),
+        "cross_token_null_max_abs_cosine": _distribution(
+            store.get("cross_token_null_max_abs_cos"), gate),
         "matched_data_cosine_sign_aligned": _distribution(data_cos, pair_gate),
         "thresholds": {},
     }
@@ -147,6 +158,8 @@ def _summarize(store: _Store) -> dict[str, Any]:
       selected = max_abs >= threshold
       output["cross_layer"]["thresholds"][str(threshold)] = {
           "write_fraction": _fraction(selected),
+          "cross_token_null_fraction": _fraction(
+              store.get("cross_token_null_max_abs_cos") >= threshold),
           "current_gate_mass_fraction": _fraction(selected, gate),
           "matched_pair_gate_mass_fraction": _fraction(selected, pair_gate),
           "matched_data_cosine_mean": (
@@ -178,16 +191,16 @@ def _load_batch(path: Path, rms_epsilon: float) -> tuple[np.ndarray, list[dict[s
   layer = 0
   while f"layer_{layer:02d}__M_in" in archive:
     prefix = f"layer_{layer:02d}__"
-    y_std = np.asarray(archive[prefix + "y_std"], np.float32)
-    y_full = np.asarray(archive[prefix + "y_full"], np.float32)
+    y_std = _to_float32(archive[prefix + "y_std"])
+    y_full = _to_float32(archive[prefix + "y_full"])
     data = _rms_norm((y_std + y_full)[..., :32], rms_epsilon)
     address = _rms_norm(
-        np.asarray(archive[prefix + "read_key_P_loc_up"], np.float32), rms_epsilon)
+        _to_float32(archive[prefix + "read_key_P_loc_up"]), rms_epsilon)
     layers.append({
-        "M_in": np.asarray(archive[prefix + "M_in"], np.float32).reshape((-1, 32, 32))[valid],
+        "M_in": _to_float32(archive[prefix + "M_in"]).reshape((-1, 32, 32))[valid],
         "data": data.reshape((-1,) + data.shape[-2:])[valid],
         "address": address.reshape((-1,) + address.shape[-2:])[valid],
-        "gate": np.asarray(archive[prefix + "write_gate"], np.float32).reshape(
+        "gate": _to_float32(archive[prefix + "write_gate"]).reshape(
             (-1, address.shape[-2]))[valid],
     })
     layer += 1
@@ -230,6 +243,8 @@ def _analyze(output_dir: Path, rms_epsilon: float) -> dict[str, Any]:
         old_gate = np.concatenate(previous_gate, axis=1)
         old_address_unit = _l2_normalize(old_address)
         similarity = np.einsum("snv,smv->snm", address_unit, old_address_unit)
+        null_old_address = np.roll(old_address_unit, sample_count // 2, axis=0)
+        null_similarity = np.einsum("snv,smv->snm", address_unit, null_old_address)
         nearest = np.argmax(np.abs(similarity), axis=-1)
         nearest_similarity = np.take_along_axis(similarity, nearest[..., None], axis=-1)[..., 0]
         sample_index = np.arange(sample_count)[:, None]
@@ -252,6 +267,7 @@ def _analyze(output_dir: Path, rms_epsilon: float) -> dict[str, Any]:
         current_metrics.update({
             "cross_layer_max_abs_cos": np.abs(nearest_similarity),
             "cross_layer_max_positive_cos": np.max(similarity, axis=-1),
+            "cross_token_null_max_abs_cos": np.max(np.abs(null_similarity), axis=-1),
             "matched_pair_gate": gate * matched_gate,
             "matched_data_cos_sign_aligned": data_cos,
             "prediction_norm_to_data": prediction_ratio,
@@ -286,8 +302,11 @@ def main(argv) -> None:
   config = pyconfig.initialize(argv)
   train.validate_train_config(config)
   os.environ["TFDS_DATA_DIR"] = config.dataset_path
-  bam_diagnostics.run(config)
   output_dir = Path(os.environ.get("BAM_DIAG_OUTPUT_DIR", "/tmp/bam_diagnostics"))
+  analyze_only = os.environ.get("BAM_DIAG_ANALYZE_ONLY", "0").lower() in (
+      "1", "true", "yes")
+  if not analyze_only:
+    bam_diagnostics.run(config)
   report = _analyze(output_dir, float(config.normalization_layer_epsilon))
   report_path = output_dir / "delta_rule_write_reuse.json"
   report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

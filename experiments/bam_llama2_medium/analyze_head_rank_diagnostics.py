@@ -59,7 +59,18 @@ def _spectrum(gram: np.ndarray) -> dict[str, Any]:
   gram = (gram + gram.T) * 0.5
   eigenvalues = np.linalg.eigvalsh(gram)[::-1]
   eigenvalues = np.maximum(eigenvalues, 0)
-  total = max(float(eigenvalues.sum()), _EPS)
+  raw_total = float(eigenvalues.sum())
+  if raw_total <= _EPS:
+    return {
+        **{f"energy_top_{rank}": 0.0 for rank in _RANKS},
+        "r90": 0,
+        "r95": 0,
+        "r99": 0,
+        "effective_rank": 0.0,
+        "stable_rank": 0.0,
+        "eigenvalue_fraction": [0.0] * _HEADS,
+    }
+  total = raw_total
   p = eigenvalues / total
   cumulative = np.cumsum(p)
   output = {
@@ -197,15 +208,38 @@ def analyze(bam_dir: Path, mha_dir: Path) -> dict[str, Any]:
   }
 
 
+def write_bases(bam_dir: Path, output: Path) -> None:
+  bam = _load_capture(bam_dir, "bam")
+  train_count = len(bam["hashes"]) // 2
+  arrays = {
+      "train_sequence_hashes": np.asarray(bam["hashes"][:train_count]),
+      "heldout_sequence_hashes": np.asarray(bam["hashes"][train_count:]),
+  }
+  for side in ("row", "col"):
+    grams = bam["values"][f"bam_{side}_key_post_gate__sequence_gram"]
+    vectors = []
+    for layer in range(_LAYERS):
+      gram = grams[layer, :train_count].sum(axis=0)
+      gram = (gram + gram.T) * 0.5
+      _, layer_vectors = np.linalg.eigh(gram)
+      vectors.append(layer_vectors[:, ::-1])
+    arrays[f"{side}_key_vectors"] = np.stack(vectors).astype(np.float32)
+  output.parent.mkdir(parents=True, exist_ok=True)
+  np.savez_compressed(output, **arrays)
+
+
 def main() -> None:
   parser = argparse.ArgumentParser()
   parser.add_argument("--bam-dir", type=Path, required=True)
   parser.add_argument("--mha-dir", type=Path, required=True)
   parser.add_argument("--output", type=Path, required=True)
+  parser.add_argument("--bases-output", type=Path)
   args = parser.parse_args()
   report = analyze(args.bam_dir, args.mha_dir)
   args.output.parent.mkdir(parents=True, exist_ok=True)
   args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+  if args.bases_output is not None:
+    write_bases(args.bam_dir, args.bases_output)
   print(args.output)
 
 

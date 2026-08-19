@@ -1478,6 +1478,11 @@ class Attention(nn.Module):
 
     out = nn.with_logical_constraint(out, self.out_axis_names)
 
+    if (getattr(cfg, 'bam_head_rank_diagnostics', False)
+        and not self.is_initializing()):
+      query_indices = _bam_head_rank_query_indices(inputs_q.shape[1])
+      self.sow('bam_head_rank', 'mha_head_output', out[:, query_indices])
+
     # apply output projection,  output dim is set to the input dim.
     out = self.out_projection(inputs_q.shape[-1], out)
     out = checkpoint_name(out, "out_proj")
@@ -2148,13 +2153,21 @@ def _bam_readout_query_indices(length, count=16):
   return (jnp.arange(count) + 1) * (length // count) - 1
 
 
+def _bam_head_rank_query_indices(length, count=32):
+  """Evenly sample query positions for the isolated head-rank diagnostic."""
+  if length % count:
+    raise ValueError(f'head-rank diagnostic needs length divisible by {count}, got {length}')
+  return (jnp.arange(count) + 1) * (length // count) - 1
+
+
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              rms_epsilon,
              rms_statistics_dtype=jnp.float32,
              key_gate_logits=None, return_key_stages=False,
              key_row_norm=None, key_col_norm=None,
              use_learned_key_norm=False, implementation='dot_bnt',
-             read_side='both', return_sides=False):
+             read_side='both', return_sides=False,
+             key_head_projections=None):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
   Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
@@ -2178,6 +2191,10 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
       key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
+  if key_head_projections is not None:
+    row_projection, col_projection = key_head_projections
+    r_row = jnp.einsum('hn,btnk->bthk', row_projection, r_row)
+    r_col = jnp.einsum('hn,btnv->bthv', col_projection, r_col)
   with jax.named_scope("bam/read_m_contract"):
     y_u, y_v = _contract_bam_read_sides(
         Mc, Mr, r_row, r_col, R is None, implementation, read_side)
@@ -2470,6 +2487,10 @@ class BamAttention(Attention):
     self._batch_factorized_local_qk_read = bool(
         cfg.bam_batch_factorized_local_qk_read)
     self._readout_attribution = bool(cfg.bam_readout_attribution)
+    self._head_rank_diagnostics = bool(
+        getattr(cfg, 'bam_head_rank_diagnostics', False))
+    self._head_rank_ablation = bool(
+        getattr(cfg, 'bam_head_rank_ablation', False))
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
@@ -3731,7 +3752,10 @@ class BamAttention(Attention):
     y_local_o = jnp.zeros_like(y_std)
     Mbar = None
     y_bam = 0.0
-    capture_read_key_stages = cfg.bam_diagnostics and not self.is_initializing()
+    full_read_native = None
+    capture_read_key_stages = (
+        (cfg.bam_diagnostics or self._head_rank_diagnostics)
+        and not self.is_initializing())
     read_key_stages = {}
     if 'codebook' in self._mode:
       assert Mh is not None, "codebook read requires M_in"
@@ -3767,14 +3791,25 @@ class BamAttention(Attention):
               self._project_full_read_key(x), axis=-2)
           full_read_kwargs = self._read_key_kwargs(
               'W_R_gate', inputs_q, squeeze_fetch_axis=True)
+        key_head_projections = None
+        if self._head_rank_ablation and not self.is_initializing():
+          identity = jnp.eye(self.num_query_heads, dtype=self.dtype)
+          row_delta = self.perturb(
+              'fetch_row_head_projection_delta', jnp.zeros_like(identity))
+          col_delta = self.perturb(
+              'fetch_col_head_projection_delta', jnp.zeros_like(identity))
+          key_head_projections = (identity + row_delta, identity + col_delta)
         full_read = bam_read(
             Mbar, inputs_q, full_read_projection, None,
             **full_read_kwargs, return_key_stages=capture_read_key_stages,
-            implementation=self._read_implementation, read_side=self.read_side)
+            implementation=self._read_implementation, read_side=self.read_side,
+            key_head_projections=key_head_projections)
         if capture_read_key_stages:
           full_read, full_key_stages = full_read
           read_key_stages.update({
               f"read_key_W_R_{stage}": key for stage, key in full_key_stages.items()})
+        full_read_native = (rearrange(full_read, 'b n t d -> b t n d')
+                            if self._read_implementation == 'dot_bnt' else full_read)
         full_read = self._expand_full_read(full_read)
         y_full = (rearrange(full_read, 'b n t d -> b t n d')
                   if self._read_implementation == 'dot_bnt' else full_read)
@@ -3819,6 +3854,23 @@ class BamAttention(Attention):
       M_out = M_in
       write_gate = None
       forget_gate = None
+
+    if self._head_rank_diagnostics and not self.is_initializing():
+      if full_read_native is None:
+        raise ValueError('head-rank diagnostic requires a fetched BAM read')
+      query_indices = _bam_head_rank_query_indices(inputs_q.shape[1])
+      self.sow(
+          'bam_head_rank', 'mha_head_output', y_std[:, query_indices])
+      self.sow(
+          'bam_head_rank', 'fetch_native_output',
+          full_read_native[:, query_indices])
+      for stage in ('post_rms_pre_gate', 'post_gate'):
+        key = read_key_stages[f'read_key_W_R_{stage}']
+        if key.ndim == 5:
+          key = jnp.squeeze(key, axis=-2)
+        self.sow(
+            'bam_head_rank', f'fetch_key_{stage}',
+            key[:, query_indices])
 
     if self._readout_attribution and not self.is_initializing():
       query_indices = _bam_readout_query_indices(inputs_q.shape[1])

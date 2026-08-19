@@ -298,6 +298,33 @@ class BamMHInteractionTest(absltest.TestCase):
     np.testing.assert_array_equal(np.asarray(out_open), np.asarray(out_closed))
     self.assertGreater(float(jnp.max(jnp.abs(M_open - M_closed))), 1e-4)
 
+  def test_row_bypass_starts_at_factory_and_routes_only_to_output(self):
+    cfg = make_config(exp_overrides=dict(
+        **_FEATURES_OFF, bam_fetched_row_bypass_wo=True))
+    out0, M0, attention, variables = self.forward(cfg)
+    out_base, M_base, _, _ = self.forward(make_config(exp_overrides=_FEATURES_OFF))
+    # The fetched read is zero-init dormant, so removing the head placement and
+    # adding the zero-init W_row both act on zeros: bit-exact factory start.
+    np.testing.assert_array_equal(np.asarray(out0), np.asarray(out_base))
+    np.testing.assert_array_equal(np.asarray(M0), np.asarray(M_base))
+    kernel = get_param(variables['params'], ('W_row', 'kernel'))
+    self.assertEqual(kernel.shape, (_HEADS, _ABS_V, _EMBED))
+    np.testing.assert_array_equal(kernel, 0)
+    # Wake the fetched read, then perturb W_row: only the layer output may move
+    # (the bypass is output-only; the matrix stream must be untouched).
+    replace_param(
+        variables['params'], ('W_R', 'kernel'),
+        0.3 * jax.random.normal(
+            jax.random.PRNGKey(19), (_EMBED, _HEADS, 1, _BAM_K + _ABS_V)))
+    out_zero_row, M_zero_row = self.apply(attention, variables)
+    replace_param(
+        variables['params'], ('W_row', 'kernel'),
+        0.3 * jax.random.normal(
+            jax.random.PRNGKey(23), (_HEADS, _ABS_V, _EMBED)))
+    out_row, M_row = self.apply(attention, variables)
+    np.testing.assert_array_equal(np.asarray(M_row), np.asarray(M_zero_row))
+    self.assertGreater(float(jnp.max(jnp.abs(out_row - out_zero_row))), 1e-5)
+
   def test_fixed_lambda_bands_decay_only_the_carried_matrix(self):
     cfg = make_config(exp_overrides=dict(
         **_FEATURES_OFF, bam_lambda_vector_mode='fixed_bands'))

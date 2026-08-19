@@ -15,6 +15,8 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 - Run local BAM unit tests with `scripts/run_bam_unit_tests.sh`; it uses the pinned CPU
   environment instead of whichever conda environment happens to be active.
 - Use a spot non-pod `v6e-1` for inference probes; choose a larger TPU when memory requires it.
+- Use only Codex-owned diagnostic resources whose names start with `xd-`; never borrow an idle
+  TPU owned by another workflow.
 - To acquire one `v6e-1`, queue concurrently in `us-central1-a`, `europe-west4-a`, and
   `us-east5-a`; keep the other queues until one candidate reaches `FIRST_STEP`, then delete their
   exact resources. If that candidate is preempted first, continue with the next queue. For

@@ -2112,6 +2112,7 @@ class BamAttention(Attention):
       self._thumbnail_consumers = set()
       self._write_mixer_quadrants = set()
       self._split_write_recirculation = False
+      self._fetched_row_bypass = False
       self._lambda_vector_mode = 'none'
       self._lambda_vector_fixed = None
       return
@@ -2221,6 +2222,8 @@ class BamAttention(Attention):
         else set(write_mixer_quadrants.replace('+', ' ').split()))
     self._split_write_recirculation = bool(
         getattr(cfg, 'bam_write_split_recirculation', False))
+    self._fetched_row_bypass = bool(
+        getattr(cfg, 'bam_fetched_row_bypass_wo', False))
     self._lambda_vector_mode = getattr(cfg, 'bam_lambda_vector_mode', 'none')
     assert self._lambda_vector_mode in ('none', 'fixed_bands', 'learned')
     self._lambda_vector_fixed = None
@@ -2321,6 +2324,13 @@ class BamAttention(Attention):
       assert self._abs_k_dim is None, (
           'the recirculation record takes the raw (uncompressed-K) U answer')
       assert self._write_u2_norm == 'rms' and not self._create_grouped_rw_norm
+    if self._fetched_row_bypass:
+      assert 'full' in self._mode, (
+          'the dedicated row-output projection applies to the fetched read')
+      assert self._fetched_read_side in ('both', 'row'), (
+          'bypassing W_O is moot without a fetched row answer')
+      assert self._abs_v_row_output == 'direct', (
+          'bypass removes the in-head row placement; the project decoder is moot')
     assert self._read_key_scale > 0.0
     assert self._rms_epsilon > 0.0
     assert self._read_key_epsilon > 0.0
@@ -3183,8 +3193,12 @@ class BamAttention(Attention):
             implementation=self._read_implementation,
             read_side=self._fetched_read_side,
             return_sides=True)
+        # Under the W_O bypass the row answer leaves via its dedicated output
+        # projection instead of the head placement (its tail coordinates
+        # return to pure y_std use).
+        head_row = jnp.zeros_like(y_v) if self._fetched_row_bypass else y_v
         full_read = self._expand_full_read(
-            jnp.concatenate((y_u, y_v), axis=-1))
+            jnp.concatenate((y_u, head_row), axis=-1))
         return full_read, (y_u, y_v)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
@@ -3367,7 +3381,8 @@ class BamAttention(Attention):
     o_head = y_std
     read_sides = None
     if Mbar is not None:
-      if self._write_mixer_quadrants or self._split_write_recirculation:
+      if (self._write_mixer_quadrants or self._split_write_recirculation
+          or self._fetched_row_bypass):
         fetched_read, read_sides = self._read_fetched_m(
             Mbar[:, None], inputs_q, thumb=fetch_thumb, return_sides=True)
       else:
@@ -3402,4 +3417,19 @@ class BamAttention(Attention):
       M_out = M_in
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_out
+    out = self.out_projection(inputs_q.shape[-1], out)
+    if self._fetched_row_bypass and read_sides is not None:
+      # Dedicated output projection for the fetched row answer: the V-typed
+      # (address-space) readout gets its own column space instead of sharing
+      # W_O's y_std tail columns.  Zero-init keeps the factory function exactly
+      # (the fetched read is zero-init dormant, so both the removed head
+      # placement and this projection act on zeros at start).
+      with jax.named_scope("bam/row_output_projection"):
+        out = out + DenseGeneral(
+            features=out.shape[-1], axis=(-2, -1),
+            kernel_init=initializers.contant_dense_init(0.0),
+            kernel_axes=('q_heads', 'kv', 'embed'),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name='W_row',
+            quant=self.quant, matmul_precision=cfg.matmul_precision,
+            use_bias=False)(read_sides[1])
+    return out, M_out

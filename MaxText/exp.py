@@ -311,6 +311,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
     bam_write_mixer_quadrants = 'none'  # none, or +-joined subset of uu/uv/vu/vv fetched-read write taps
     bam_write_split_recirculation = False  # write the fetched U answer as its own record (private P_loc + gate)
+    bam_fetched_row_bypass_wo = False  # route the fetched row answer through a dedicated output projection instead of W_O's tail
     bam_lambda_vector_mode = 'none'  # none | fixed_bands | learned; per-V-coordinate depth decay of M, layer-shared
     bam_lambda_vector_bands = [1.0, 0.9, 0.7, 0.4]  # lifetime bands over the v axis (tau ~ inf/9.5/2.8/1.1 layers)
 
@@ -1327,6 +1328,14 @@ class BamLlama2MediumV2C256LambdaBandsFixed(BamV2C256MHInteractionBase):
     # code_commit: 4808481; ~0.667 steps/s (UC1a); stopped 3,543. dloss +.0101 vs V2 @2,800–3,400; fixed retention harms.
     model_name = 'BamLlama2MediumV2C256LambdaBandsFixed'
     bam_lambda_vector_mode = 'fixed_bands'
+
+
+class BamLlama2MediumV2C256RowBypassWO(BamV2C256MHInteractionBase):
+    """Fetched row answer leaves via a dedicated per-head zero-init output projection
+    (W_row [n,8,D]) instead of W_O's y_std-shared tail columns; its 8 head coordinates
+    return to pure y_std use. Starts exactly at V2 (fetched read is zero-init dormant)."""
+    model_name = 'BamLlama2MediumV2C256RowBypassWO'
+    bam_fetched_row_bypass_wo = True
 
 
 class BamLlama2MediumV2C256LambdaBandsLearned(BamV2C256MHInteractionBase):

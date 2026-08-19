@@ -1324,7 +1324,7 @@ class BamLlama2MediumV2C256LambdaBandsFixed(BamV2C256MHInteractionBase):
     """Multi-timescale M: fixed layer-shared per-V-coordinate decay bands 1.0/0.9/0.7/0.4.
     A structural prior arm (deliberately not factory-equivalent): anchor coordinates become
     lifetime classes and per-layer P_loc assigns each record's lifetime by band placement."""
-    # code_commit: 4808481; ~0.667 steps/s (UC1a; ~flat vs V2 C256 layer-scan).
+    # code_commit: 4808481; ~0.667 steps/s (UC1a); stopped 3,426. dloss +.0101 vs V2 @2,800–3,400; fixed retention harms.
     model_name = 'BamLlama2MediumV2C256LambdaBandsFixed'
     bam_lambda_vector_mode = 'fixed_bands'
 
@@ -1333,7 +1333,7 @@ class BamLlama2MediumV2C256LambdaBandsLearned(BamV2C256MHInteractionBase):
     """Multi-timescale M with a learnable layer-shared decay vector (decoder-level
     sigmoid-parameterized, initialized at the fixed bands); vs Fixed isolates the
     value of refining the band values by gradient."""
-    # code_commit: 4808481; ~0.663 steps/s (UC1a; ~flat vs V2 C256 layer-scan).
+    # code_commit: 4808481; ~0.663 steps/s (UC1a); stopped 2,828. dloss -.0006 vs Fixed @2,200–2,800; learned bands add no repeatable gain.
     model_name = 'BamLlama2MediumV2C256LambdaBandsLearned'
     bam_lambda_vector_mode = 'learned'
     wd_mults = BamV2C256MHInteractionBase.wd_mults + [

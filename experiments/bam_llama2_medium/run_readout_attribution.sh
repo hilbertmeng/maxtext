@@ -21,6 +21,7 @@ if [[ -e "$OUTPUT_DIR" ]]; then
   exit 1
 fi
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR/maxtext-output/$OUTPUT_TAG"
 
 cd "$REPO"
 env \

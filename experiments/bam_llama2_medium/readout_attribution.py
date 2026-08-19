@@ -101,28 +101,54 @@ def _stack_collection(collections: dict[str, Any]) -> dict[str, jax.Array]:
 
 
 def _stack_attributions(grad_perturbations: dict[str, Any]) -> jax.Array:
-  grouped = _group_by_layer(grad_perturbations, "write_record_scale")
-  if set(grouped) != set(range(_LAYERS)):
-    raise ValueError(f"expected {_LAYERS} perturbation layers, got {sorted(grouped)}")
-  return jnp.stack([grouped[layer]["write_record_scale"] for layer in range(_LAYERS)])
+  by_layer = {}
+  for path, value in traverse_util.flatten_dict(grad_perturbations).items():
+    if path[-1] != "write_record_scale":
+      continue
+    layer = _layer_from_path(path)
+    if layer is not None:
+      by_layer[layer] = value
+  if set(by_layer) != set(range(_LAYERS)):
+    raise ValueError(f"expected {_LAYERS} perturbation layers, got {sorted(by_layer)}")
+  return jnp.stack([by_layer[layer] for layer in range(_LAYERS)])
 
 
 def _make_perturbations(params: dict[str, Any], batch_size: int, length: int) -> dict[str, Any]:
   leaves = {}
   for path in traverse_util.flatten_dict(params["params"]):
     if path[-1] == "gw_b0":
-      leaves[path[:-1] + ("write_record_scale",)] = jnp.zeros(
+      parent = path[:-1]
+      leaves[parent + ("write_record_scale",)] = jnp.zeros(
           (batch_size, length, _HEADS), jnp.float32)
-  if len(leaves) != _LAYERS:
-    raise ValueError(f"expected {_LAYERS} BAM modules, found {len(leaves)}")
+      leaves[parent + ("read_col_gradient_scale",)] = jnp.ones((), jnp.float32)
+      leaves[parent + ("read_row_gradient_scale",)] = jnp.ones((), jnp.float32)
+  if len(leaves) != 3 * _LAYERS:
+    raise ValueError(
+        f"expected {_LAYERS} BAM modules with three perturbations each, "
+        f"found {len(leaves)} leaves")
   return traverse_util.unflatten_dict(leaves)
 
 
+def _set_read_gradient_scales(
+    perturbations: dict[str, Any], col_scale: float, row_scale: float
+) -> dict[str, Any]:
+  leaves = traverse_util.flatten_dict(perturbations)
+  updated = {}
+  for path, value in leaves.items():
+    if path[-1] == "read_col_gradient_scale":
+      value = jnp.asarray(col_scale, value.dtype)
+    elif path[-1] == "read_row_gradient_scale":
+      value = jnp.asarray(row_scale, value.dtype)
+    updated[path] = value
+  return traverse_util.unflatten_dict(updated)
+
+
 def _offset_perturbations(
-    perturbations: dict[str, Any], direction: np.ndarray, delta: float) -> dict[str, Any]:
+  perturbations: dict[str, Any], direction: np.ndarray, delta: float) -> dict[str, Any]:
   leaves = traverse_util.flatten_dict(perturbations)
   return traverse_util.unflatten_dict({
-      path: value + delta * direction[_layer_from_path(path)]
+      path: (value + delta * direction[_layer_from_path(path)]
+             if path[-1] == "write_record_scale" else value)
       for path, value in leaves.items()
   })
 
@@ -187,6 +213,7 @@ def _top_record_metrics(score, norm2, y_truncated, y_actual, attrs, source_layer
       "top8_abs_share": jnp.sum(jnp.abs(top_signed), axis=-1),
       "signed_share_sum": jnp.sum(score, axis=(-3, -2, -1)),
       "absolute_share_sum": jnp.sum(abs_score, axis=(-3, -2, -1)),
+      "actual_output_norm2": actual_norm2,
       "coherence": truncated_norm2 / jnp.maximum(
           jnp.sum(norm2, axis=(-3, -2, -1)), _EPS),
       "reconstruction_relative_norm": jnp.sqrt(
@@ -210,7 +237,9 @@ def _top_record_metrics(score, norm2, y_truncated, y_actual, attrs, source_layer
   return output
 
 
-def _fetch_layer_metrics(layer, raw, attrs, projection, query_indices, *, permute_alpha=False):
+def _fetch_layer_metrics(
+    layer, raw, attrs_by_path, projection, query_indices, *, permute_alpha=False
+):
   indices = raw["fetch_source_indices"][layer]
   alpha = raw["fetch_source_weights"][layer].astype(jnp.float32)
   if permute_alpha:
@@ -219,7 +248,10 @@ def _fetch_layer_metrics(layer, raw, attrs, projection, query_indices, *, permut
   u = _gather_sources(raw["write_u1_norm"].astype(jnp.float32), indices)
   v = _gather_sources(raw["write_u2_norm"].astype(jnp.float32), indices)
   scale = _gather_sources(raw["write_scale"].astype(jnp.float32), indices)
-  attr = _gather_sources(attrs.astype(jnp.float32), indices)
+  attrs = {
+      name: _gather_sources(value.astype(jnp.float32), indices)
+      for name, value in attrs_by_path.items()
+  }
   v = jnp.einsum("bqlmhv,vc->bqlmhc", v, projection[layer])
 
   key = raw["full_post_gate_key"][layer].astype(jnp.float32)
@@ -235,32 +267,40 @@ def _fetch_layer_metrics(layer, raw, attrs, projection, query_indices, *, permut
   a_u = col_dot * coefficient[:, :, None]
   a_v = row_dot * coefficient[:, :, None]
 
-  norm2 = (
-      jnp.square(a_u) * jnp.sum(jnp.square(u), axis=-1)[:, :, None]
-      + jnp.square(a_v) * jnp.sum(jnp.square(v), axis=-1)[:, :, None]
-  )
-  y_truncated = jnp.concatenate((
-      jnp.einsum("bqnlmh,bqlmhk->bqnk", a_u, u),
-      jnp.einsum("bqnlmh,bqlmhc->bqnc", a_v, v),
-  ), axis=-1)
+  norm2_u = jnp.square(a_u) * jnp.sum(jnp.square(u), axis=-1)[:, :, None]
+  norm2_v = jnp.square(a_v) * jnp.sum(jnp.square(v), axis=-1)[:, :, None]
+  y_truncated_u = jnp.einsum("bqnlmh,bqlmhk->bqnk", a_u, u)
+  y_truncated_v = jnp.einsum("bqnlmh,bqlmhc->bqnc", a_v, v)
+  y_truncated = jnp.concatenate((y_truncated_u, y_truncated_v), axis=-1)
   y_actual = raw["y_full"][layer].astype(jnp.float32)
   y_actual = jnp.concatenate((y_actual[..., :_K], y_actual[..., _K:_K + _C]), axis=-1)
   y_reference = y_truncated if permute_alpha else y_actual
   y_u, y_v = jnp.split(y_reference, [_K], axis=-1)
   u_y = jnp.einsum("bqlmhk,bqnk->bqnlmh", u, y_u)
   v_y = jnp.einsum("bqlmhc,bqnc->bqnlmh", v, y_v)
-  score = a_u * u_y + a_v * v_y
-  attr = attr[:, :, None]
-  metrics = _top_record_metrics(
-      score, norm2, y_truncated, y_reference,
-      attr, jnp.arange(_LAYERS),
-      self_mask=indices == query_indices[None, :, None])
-  metrics["retained_alpha_abs_mass"] = raw["fetch_retained_abs_mass"][layer]
-  metrics["support_99_count"] = raw["fetch_support_99_count"][layer]
+  score_u = a_u * u_y
+  score_v = a_v * v_y
+  self_mask = indices == query_indices[None, :, None]
+  metrics = {
+      "both": _top_record_metrics(
+          score_u + score_v, norm2_u + norm2_v, y_truncated, y_reference,
+          attrs["both"][:, :, None], jnp.arange(_LAYERS), self_mask=self_mask),
+      "col": _top_record_metrics(
+          score_u, norm2_u, y_truncated_u, y_u,
+          attrs["col"][:, :, None], jnp.arange(_LAYERS), self_mask=self_mask),
+      "row": _top_record_metrics(
+          score_v, norm2_v, y_truncated_v, y_v,
+          attrs["row"][:, :, None], jnp.arange(_LAYERS), self_mask=self_mask),
+  }
+  metrics["col"]["read_key_rms"] = jnp.sqrt(jnp.mean(jnp.square(r_col), axis=-1))
+  metrics["row"]["read_key_rms"] = jnp.sqrt(jnp.mean(jnp.square(r_row), axis=-1))
+  for side_metrics in metrics.values():
+    side_metrics["retained_alpha_abs_mass"] = raw["fetch_retained_abs_mass"][layer]
+    side_metrics["support_99_count"] = raw["fetch_support_99_count"][layer]
   return metrics
 
 
-def _local_layer_metrics(layer, raw, attrs, query_indices, prefix):
+def _local_layer_metrics(layer, raw, attrs_by_path, query_indices, prefix):
   def gather_queries(values):
     values = jnp.swapaxes(values, 0, 1)
     gathered = jax.vmap(lambda value: jnp.take(value, query_indices, axis=1))(values)
@@ -270,7 +310,10 @@ def _local_layer_metrics(layer, raw, attrs, query_indices, prefix):
   u = gather_queries(raw["write_u1_norm"].astype(jnp.float32))
   v = gather_queries(raw["write_u2_norm"].astype(jnp.float32))
   scale = gather_queries(raw["write_scale"].astype(jnp.float32))
-  attr = gather_queries(attrs.astype(jnp.float32))
+  attrs = {
+      name: gather_queries(value.astype(jnp.float32))
+      for name, value in attrs_by_path.items()
+  }
   key = raw[f"{prefix}_post_gate_key"][layer].astype(jnp.float32)
   r_row, r_col = jnp.split(key, [_K], axis=-1)
   head_mix = raw[f"{prefix}_head_mix"][layer].astype(jnp.float32)
@@ -291,34 +334,63 @@ def _local_layer_metrics(layer, raw, attrs, query_indices, prefix):
   y_u, y_v = jnp.split(y_actual, [_K], axis=-1)
   u_y = jnp.einsum("bqlhk,bqnk->bqnlh", u, y_u)
   v_y = jnp.einsum("bqlhv,bqnv->bqnlh", v, y_v)
-  score = a_u * u_y + a_v * v_y
-  norm2 = (
-      jnp.square(a_u) * jnp.sum(jnp.square(u), axis=-1)[:, :, None]
-      + jnp.square(a_v) * jnp.sum(jnp.square(v), axis=-1)[:, :, None]
-  )
-  y_truncated = jnp.concatenate((
-      jnp.einsum("bqnlh,bqlhk->bqnk", a_u, u),
-      jnp.einsum("bqnlh,bqlhv->bqnv", a_v, v),
-  ), axis=-1)
+  score_u = a_u * u_y
+  score_v = a_v * v_y
+  norm2_u = jnp.square(a_u) * jnp.sum(jnp.square(u), axis=-1)[:, :, None]
+  norm2_v = jnp.square(a_v) * jnp.sum(jnp.square(v), axis=-1)[:, :, None]
+  y_truncated_u = jnp.einsum("bqnlh,bqlhk->bqnk", a_u, u)
+  y_truncated_v = jnp.einsum("bqnlh,bqlhv->bqnv", a_v, v)
+  y_truncated = jnp.concatenate((y_truncated_u, y_truncated_v), axis=-1)
   # Reuse the generic reducer by adding a singleton source-token axis.
-  return _top_record_metrics(
-      score[..., None, :], norm2[..., None, :], y_truncated, y_actual,
-      attr[:, :, None, :, None, :], jnp.arange(_LAYERS))
+  metrics = {
+      "both": _top_record_metrics(
+          (score_u + score_v)[..., None, :],
+          (norm2_u + norm2_v)[..., None, :], y_truncated, y_actual,
+          attrs["both"][:, :, None, :, None, :], jnp.arange(_LAYERS)),
+      "col": _top_record_metrics(
+          score_u[..., None, :], norm2_u[..., None, :], y_truncated_u, y_u,
+          attrs["col"][:, :, None, :, None, :], jnp.arange(_LAYERS)),
+      "row": _top_record_metrics(
+          score_v[..., None, :], norm2_v[..., None, :], y_truncated_v, y_v,
+          attrs["row"][:, :, None, :, None, :], jnp.arange(_LAYERS)),
+  }
+  col_key_rms = jnp.sqrt(jnp.mean(jnp.square(r_col), axis=-1))
+  row_key_rms = jnp.sqrt(jnp.mean(jnp.square(r_row), axis=-1))
+  metrics["col"].update({
+      "read_key_rms": col_key_rms,
+      "head_mix_signed": col_mix,
+      "head_mix_abs": jnp.abs(col_mix),
+      "effective_read_strength": col_key_rms[..., None] * jnp.abs(col_mix),
+  })
+  metrics["row"].update({
+      "read_key_rms": row_key_rms,
+      "head_mix_signed": row_mix,
+      "head_mix_abs": jnp.abs(row_mix),
+      "effective_read_strength": row_key_rms[..., None] * jnp.abs(row_mix),
+  })
+  return metrics
 
 
-def _p2_all_layers(raw, attrs, projections):
+def _p2_all_layers(raw, attrs_by_path, projections):
   query_indices = (jnp.arange(_QUERY_SAMPLES) + 1) * (
       raw["write_scale"].shape[2] // _QUERY_SAMPLES) - 1
 
   def one(layer):
-    return {
+    output = {}
+    families = {
         "fetch": _fetch_layer_metrics(
-            layer, raw, attrs, projections, query_indices),
+            layer, raw, attrs_by_path, projections, query_indices),
         "fetch_permuted_alpha": _fetch_layer_metrics(
-            layer, raw, attrs, projections, query_indices, permute_alpha=True),
-        "local_q": _local_layer_metrics(layer, raw, attrs, query_indices, "local_q"),
-        "local_k": _local_layer_metrics(layer, raw, attrs, query_indices, "local_k"),
+            layer, raw, attrs_by_path, projections, query_indices, permute_alpha=True),
+        "local_q": _local_layer_metrics(
+            layer, raw, attrs_by_path, query_indices, "local_q"),
+        "local_k": _local_layer_metrics(
+            layer, raw, attrs_by_path, query_indices, "local_k"),
     }
+    for family, side_metrics in families.items():
+      for side, metrics in side_metrics.items():
+        output[f"{family}_{side}"] = metrics
+    return output
 
   return jax.lax.map(one, jnp.arange(_LAYERS))
 
@@ -374,22 +446,22 @@ def _correlations(gate: np.ndarray, value: np.ndarray, sample_cap=500_000) -> di
   return {"pearson": pearson, "spearman": spearman, "sample_count": int(gate.size)}
 
 
-def _analyze_p1(output_dir: Path) -> dict[str, Any]:
-  files = sorted(output_dir.glob("attribution_batch_*.npz"))
-  if not files:
-    raise FileNotFoundError("no attribution batches")
+def _analyze_p1_component(
+    files: list[Path], component: str
+) -> dict[str, Any]:
   overall_attr_sample = []
   overall_gate_sample = []
   layer_reports = {}
   head_positive = np.zeros(_HEADS, np.float64)
   head_absolute = np.zeros(_HEADS, np.float64)
+  head_net = np.zeros(_HEADS, np.float64)
   total_positive = total_absolute = total_net = total_gate = total_gate_attr = 0.0
   for layer in range(_LAYERS):
     attrs, gates = [], []
     for path in files:
       data = np.load(path)
       valid = data["valid"].astype(bool)
-      attrs.append(data["attr_sumloss"][layer][valid])
+      attrs.append(data[f"attr_sumloss_{component}"][layer][valid])
       gates.append(_to_float32(data["write_gate"][layer][valid]))
     attr = np.concatenate(attrs)
     gate = np.concatenate(gates)
@@ -400,11 +472,14 @@ def _analyze_p1(output_dir: Path) -> dict[str, Any]:
         "attr_per_unit_gate": _distribution(attr / np.maximum(gate, 1e-8)),
         "harmful_mass": float(np.sum(positive) / max(np.sum(absolute), _EPS)),
         "net_attr": float(np.sum(attr)),
+        "absolute_attr": float(np.sum(absolute)),
+        "net_over_abs": float(np.sum(attr) / max(np.sum(absolute), _EPS)),
         "gate_weighted_mean_attr": float(np.sum(gate * attr) / max(np.sum(gate), _EPS)),
         "gate_vs_helpfulness": _correlations(gate, -attr),
     }
     head_positive += np.sum(positive, axis=0)
     head_absolute += np.sum(absolute, axis=0)
+    head_net += np.sum(attr, axis=0)
     total_positive += float(np.sum(positive))
     total_absolute += float(np.sum(absolute))
     total_net += float(np.sum(attr))
@@ -420,12 +495,50 @@ def _analyze_p1(output_dir: Path) -> dict[str, Any]:
           "attr_sampled": _distribution(attr_sample),
           "harmful_mass_exact": total_positive / max(total_absolute, _EPS),
           "net_attr_exact": total_net,
+          "absolute_attr_exact": total_absolute,
+          "net_over_abs_exact": total_net / max(total_absolute, _EPS),
           "gate_weighted_mean_attr_exact": total_gate_attr / max(total_gate, _EPS),
           "gate_vs_helpfulness_sampled": _correlations(gate_sample, -attr_sample, 2_000_000),
           "per_head_harmful_mass": (
               head_positive / np.maximum(head_absolute, _EPS)).tolist(),
+          "per_head_net_over_abs": (
+              head_net / np.maximum(head_absolute, _EPS)).tolist(),
       },
       "layers": layer_reports,
+  }
+
+
+def _analyze_p1(output_dir: Path) -> dict[str, Any]:
+  files = sorted(output_dir.glob("attribution_batch_*.npz"))
+  if not files:
+    raise FileNotFoundError("no attribution batches")
+  components = {
+      name: _analyze_p1_component(files, name)
+      for name in ("both", "col", "row", "mixed")
+  }
+  both_abs = components["both"]["overall"]["absolute_attr_exact"]
+  forward_differences = []
+  for path in files:
+    with np.load(path) as data:
+      loss_both = float(data["loss_both"])
+      forward_differences.extend((
+          abs(loss_both - float(data["loss_col"])),
+          abs(loss_both - float(data["loss_row"])),
+      ))
+  return {
+      "components": components,
+      "decomposition": {
+          "mixed_absolute_mass_over_both": (
+              components["mixed"]["overall"]["absolute_attr_exact"]
+              / max(both_abs, _EPS)),
+          "col_absolute_mass_over_both": (
+              components["col"]["overall"]["absolute_attr_exact"]
+              / max(both_abs, _EPS)),
+          "row_absolute_mass_over_both": (
+              components["row"]["overall"]["absolute_attr_exact"]
+              / max(both_abs, _EPS)),
+          "max_forward_loss_difference": max(forward_differences),
+      },
   }
 
 
@@ -436,13 +549,19 @@ def _analyze_p2(output_dir: Path) -> dict[str, Any]:
   metric_names = (
       "top1_signed_share", "top8_signed_share", "top1_abs_share",
       "top8_abs_share", "signed_share_sum", "absolute_share_sum",
-      "coherence", "reconstruction_relative_norm",
+      "actual_output_norm2", "coherence", "reconstruction_relative_norm",
       "harmful_attribution_abs_share", "self_signed_share",
       "cross_signed_share", "self_abs_share", "cross_abs_share",
       "retained_alpha_abs_mass",
       "support_99_count",
+      "read_key_rms", "head_mix_signed", "head_mix_abs",
+      "effective_read_strength",
   )
-  sites = ("fetch", "fetch_permuted_alpha", "local_q", "local_k")
+  sites = tuple(
+      f"{family}_{side}"
+      for family in ("fetch", "fetch_permuted_alpha", "local_q", "local_k")
+      for side in ("both", "col", "row")
+  )
   values: dict[tuple[str, str], list[np.ndarray]] = defaultdict(list)
   depth_signed = {site: np.zeros(_LAYERS, np.float64) for site in sites}
   depth_absolute = {site: np.zeros(_LAYERS, np.float64) for site in sites}
@@ -466,7 +585,9 @@ def _analyze_p2(output_dir: Path) -> dict[str, Any]:
   report = {}
   per_layer_metrics = (
       "top1_abs_share", "top8_abs_share", "coherence",
-      "harmful_attribution_abs_share", "reconstruction_relative_norm")
+      "harmful_attribution_abs_share", "reconstruction_relative_norm",
+      "actual_output_norm2", "read_key_rms", "head_mix_abs",
+      "effective_read_strength")
   for site in sites:
     site_report = {}
     for metric in metric_names:
@@ -492,6 +613,19 @@ def _analyze_p2(output_dir: Path) -> dict[str, Any]:
         for gap in range(1, _LAYERS)
     }
     report[site] = site_report
+
+  for family in ("fetch", "fetch_permuted_alpha", "local_q", "local_k"):
+    col_arrays = values.get((f"{family}_col", "actual_output_norm2"), [])
+    row_arrays = values.get((f"{family}_row", "actual_output_norm2"), [])
+    if col_arrays and row_arrays:
+      col_energy = np.concatenate(col_arrays, axis=1)[1:]
+      row_energy = np.concatenate(row_arrays, axis=1)[1:]
+      report[f"{family}_side_balance"] = {
+          "col_output_energy_fraction": _distribution(
+              col_energy / np.maximum(col_energy + row_energy, _EPS)),
+          "col_to_row_output_energy_ratio": float(
+              np.sum(col_energy) / max(np.sum(row_energy), _EPS)),
+      }
   return report
 
 
@@ -542,6 +676,12 @@ def run(config) -> None:
       "setup_seconds": time.perf_counter() - start,
       "device": [str(device) for device in jax.devices()],
       "uniform_scale_check": None,
+      "path_decomposition": {
+          "both": {"col_gradient_scale": 1.0, "row_gradient_scale": 1.0},
+          "col": {"col_gradient_scale": 1.0, "row_gradient_scale": 0.0},
+          "row": {"col_gradient_scale": 0.0, "row_gradient_scale": 1.0},
+          "mixed": "both - col - row; paths requiring both read sides",
+      },
   }
 
   for _ in range(sequence_offset // iterator_batch_size):
@@ -560,20 +700,38 @@ def run(config) -> None:
           state.params, batch["inputs"].shape[0], batch["inputs"].shape[1])
     batch_rng = jax.random.fold_in(init_rng, batch_index)
     batch_start = time.perf_counter()
+    path_perturbations = {
+        "both": _set_read_gradient_scales(perturbations, 1.0, 1.0),
+        "col": _set_read_gradient_scales(perturbations, 1.0, 0.0),
+        "row": _set_read_gradient_scales(perturbations, 0.0, 1.0),
+    }
+    attrs_by_path = {}
+    losses_by_path = {}
+    total_weights = collections = None
     with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-      (loss_and_aux, grad_perturbations) = compiled_grad(
-          perturbations, state.params, batch, batch_rng)
-      loss, (total_weights, collections) = loss_and_aux
-      attrs = _stack_attributions(grad_perturbations)
+      for path_name, path_values in path_perturbations.items():
+        (loss_and_aux, grad_perturbations) = compiled_grad(
+            path_values, state.params, batch, batch_rng)
+        path_loss, (path_weights, path_collections) = loss_and_aux
+        losses_by_path[path_name] = path_loss
+        attrs_by_path[path_name] = _stack_attributions(grad_perturbations)
+        if path_name == "both":
+          total_weights, collections = path_weights, path_collections
+      attrs_by_path["mixed"] = (
+          attrs_by_path["both"] - attrs_by_path["col"] - attrs_by_path["row"])
       raw = _stack_collection(collections)
-      p2 = compiled_p2(raw, attrs, projections)
-    jax.block_until_ready((loss, attrs, p2))
+      p2 = compiled_p2(
+          raw, {name: attrs_by_path[name] for name in ("both", "col", "row")},
+          projections)
+    jax.block_until_ready((losses_by_path, attrs_by_path, p2))
+    loss = losses_by_path["both"]
 
     if batch_index == 0:
       # Move exactly one bf16 ULP on either side of one, then divide by the
       # realized scale interval rather than the nominal float32 probe interval.
       epsilon = 2.0**-7
-      attrs_for_check = np.asarray(jax.device_get(attrs), np.float32)
+      attrs_for_check = np.asarray(
+          jax.device_get(attrs_by_path["both"]), np.float32)
       selected_count = min(256, attrs_for_check.size)
       selected = np.argpartition(
           np.abs(attrs_for_check).ravel(), -selected_count)[-selected_count:]
@@ -583,12 +741,16 @@ def run(config) -> None:
       plus = _offset_perturbations(perturbations, direction, epsilon)
       minus = _offset_perturbations(perturbations, direction, -epsilon)
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-        (loss_plus, _), _ = compiled_grad(plus, state.params, batch, batch_rng)
-        (loss_minus, _), _ = compiled_grad(minus, state.params, batch, batch_rng)
+        (loss_plus, _), _ = compiled_grad(
+            _set_read_gradient_scales(plus, 1.0, 1.0),
+            state.params, batch, batch_rng)
+        (loss_minus, _), _ = compiled_grad(
+            _set_read_gradient_scales(minus, 1.0, 1.0),
+            state.params, batch, batch_rng)
       scale_plus = float(np.asarray(jnp.asarray(1 + epsilon, config.dtype)))
       scale_minus = float(np.asarray(jnp.asarray(1 - epsilon, config.dtype)))
       numerical = (loss_plus - loss_minus) / (scale_plus - scale_minus)
-      analytic = jnp.sum(attrs * direction)
+      analytic = jnp.sum(attrs_by_path["both"] * direction)
       numerical, analytic = jax.device_get((numerical, analytic))
       metadata["uniform_scale_check"] = {
           "epsilon": epsilon,
@@ -600,18 +762,30 @@ def run(config) -> None:
           "relative_error": float(abs(analytic - numerical) / max(abs(numerical), _EPS)),
       }
 
-    attrs_host, raw_small, p2_host, total_weights_host = jax.device_get((
-        attrs,
+    attrs_host, raw_small, p2_host, total_weights_host, losses_host = jax.device_get((
+        attrs_by_path,
         {"write_gate": raw["write_gate"]},
         p2,
         total_weights,
+        losses_by_path,
     ))
     inputs_host, valid_host = jax.device_get((
         batch["inputs"], batch["targets_segmentation"] != 0))
     np.savez_compressed(
         output_dir / f"attribution_batch_{output_batch_offset + batch_index:03d}.npz",
-        attr_mean=np.asarray(attrs_host, np.float32),
-        attr_sumloss=np.asarray(attrs_host, np.float32) * float(total_weights_host),
+        **{
+            f"attr_mean_{name}": np.asarray(value, np.float32)
+            for name, value in attrs_host.items()
+        },
+        **{
+            f"attr_sumloss_{name}": (
+                np.asarray(value, np.float32) * float(total_weights_host))
+            for name, value in attrs_host.items()
+        },
+        **{
+            f"loss_{name}": np.asarray(value, np.float32)
+            for name, value in losses_host.items()
+        },
         write_gate=np.asarray(raw_small["write_gate"]),
         valid=np.asarray(valid_host),
         sequence_hashes=np.asarray([

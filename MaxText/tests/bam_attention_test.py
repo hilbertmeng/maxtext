@@ -14,6 +14,7 @@ from layers.attentions import (
     _bam_fetch_op,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
+    _scale_bam_read_side_gradients,
     _packed_factorized_local_qk_init,
     _dynamic_mixed_bam_fetch_alpha,
     _mix_bam_write_v,
@@ -159,6 +160,25 @@ class BamReadKeyTransformTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, 'without an adapter'):
       _fit_bam_read_to_head(
           jnp.zeros((1, 1, 1, 96)), bam_k=32, head_dim=64)
+
+  def test_read_side_gradient_scaling_preserves_value_and_splits_gradient(self):
+    read = jnp.arange(1, 7, dtype=jnp.float32)
+    upstream = jnp.arange(6, 0, -1, dtype=jnp.float32)
+
+    def value_and_grad(col_scale, row_scale):
+      return jax.value_and_grad(lambda value: jnp.vdot(
+          _scale_bam_read_side_gradients(
+              value, bam_k=4, col_scale=col_scale, row_scale=row_scale),
+          upstream))(read)
+
+    both_value, both_grad = value_and_grad(1.0, 1.0)
+    col_value, col_grad = value_and_grad(1.0, 0.0)
+    row_value, row_grad = value_and_grad(0.0, 1.0)
+    np.testing.assert_array_equal(col_value, both_value)
+    np.testing.assert_array_equal(row_value, both_value)
+    np.testing.assert_array_equal(col_grad, jnp.concatenate((upstream[:4], jnp.zeros(2))))
+    np.testing.assert_array_equal(row_grad, jnp.concatenate((jnp.zeros(4), upstream[4:])))
+    np.testing.assert_array_equal(col_grad + row_grad, both_grad)
 
   def test_dynamic_bam_fetch_rms_mix_weights(self):
     logits = jax.random.normal(jax.random.PRNGKey(13), (2, 4, 3))

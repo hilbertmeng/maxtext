@@ -2123,6 +2123,24 @@ def _fit_bam_read_to_head(read, bam_k, head_dim, v_adapter=None):
   return jnp.concatenate((y_k, y_v), axis=-1)
 
 
+def _scale_bam_read_side_gradients(read, bam_k, col_scale, row_scale):
+  """Preserve the forward read while scaling each side's backward path.
+
+  The leading K-side output is M @ r_col (column/address lookup); the
+  remaining output is M.T @ r_row (row/data lookup).  This hook is used only
+  by the standalone attribution diagnostic.
+  """
+  y_col, y_row = jnp.split(read, [bam_k], axis=-1)
+
+  def scale_gradient(value, scale):
+    stopped = jax.lax.stop_gradient(value)
+    return value + (jnp.asarray(scale, value.dtype) - 1) * (value - stopped)
+
+  return jnp.concatenate(
+      (scale_gradient(y_col, col_scale), scale_gradient(y_row, row_scale)),
+      axis=-1)
+
+
 def _bam_readout_query_indices(length, count=16):
   """Evenly sample query endpoints for the isolated readout diagnostic."""
   if length % count:
@@ -3508,6 +3526,19 @@ class BamAttention(Attention):
     assert model_mode == common_types.MODEL_MODE_TRAIN, "BamAttention v0.1 supports train mode only"
     assert self.num_query_heads == self.num_kv_heads, "BamAttention v0.1 requires n==n_kv (no GQA)"
 
+    read_gradient_scales = None
+    if self._readout_attribution and not self.is_initializing():
+      read_gradient_scales = (
+          self.perturb('read_col_gradient_scale', jnp.zeros((), jnp.float32)),
+          self.perturb('read_row_gradient_scale', jnp.zeros((), jnp.float32)),
+      )
+
+    def mask_read_side_gradients(read):
+      if read_gradient_scales is None:
+        return read
+      return _scale_bam_read_side_gradients(
+          read, self.bam_k, *read_gradient_scales)
+
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
@@ -3527,6 +3558,8 @@ class BamAttention(Attention):
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         q_local, k_local = self._read_local_qk(Mh, inputs_q)
+        q_local = mask_read_side_gradients(q_local)
+        k_local = mask_read_side_gradients(k_local)
         query = query + q_local
         key = key + k_local
 
@@ -3590,6 +3623,8 @@ class BamAttention(Attention):
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         q_local, k_local = self._read_local_qk(Mh, inputs_q)
+        q_local = mask_read_side_gradients(q_local)
+        k_local = mask_read_side_gradients(k_local)
         query = query + q_local
         key = key + k_local
     if 'local_v' in self._mode:
@@ -3743,6 +3778,7 @@ class BamAttention(Attention):
         full_read = self._expand_full_read(full_read)
         y_full = (rearrange(full_read, 'b n t d -> b t n d')
                   if self._read_implementation == 'dot_bnt' else full_read)
+        y_full = mask_read_side_gradients(y_full)
         y_bam = y_bam + y_full
     if 'local_o' in self._mode and not self._combine_full_local_read:
       assert Mh is not None, "local_o read requires M_in"

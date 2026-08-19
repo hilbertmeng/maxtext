@@ -439,11 +439,11 @@ def _analyze_p2(output_dir: Path) -> dict[str, Any]:
         for metric in metric_names:
           key = f"{site}__{metric}"
           if key in data:
-            values[(site, metric)].append(np.asarray(data[key], np.float32))
+            values[(site, metric)].append(_to_float32(data[key]))
         signed_key = f"{site}__source_layer_signed_share"
         absolute_key = f"{site}__source_layer_abs_share"
-        signed = np.asarray(data[signed_key], np.float64)
-        absolute = np.asarray(data[absolute_key], np.float64)
+        signed = _to_float32(data[signed_key]).astype(np.float64)
+        absolute = _to_float32(data[absolute_key]).astype(np.float64)
         for use_layer in range(1, _LAYERS):
           for source_layer in range(use_layer):
             gap = use_layer - source_layer

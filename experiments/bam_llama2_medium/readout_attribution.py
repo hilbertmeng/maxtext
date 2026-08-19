@@ -118,6 +118,15 @@ def _make_perturbations(params: dict[str, Any], batch_size: int, length: int) ->
   return traverse_util.unflatten_dict(leaves)
 
 
+def _offset_layer_perturbations(
+    perturbations: dict[str, Any], layer: int, delta: float) -> dict[str, Any]:
+  leaves = traverse_util.flatten_dict(perturbations)
+  return traverse_util.unflatten_dict({
+      path: value + delta if _layer_from_path(path) == layer else value
+      for path, value in leaves.items()
+  })
+
+
 def _abs_v_projections(params: dict[str, Any]) -> jax.Array:
   by_layer = {}
   for path, value in traverse_util.flatten_dict(params["params"]).items():
@@ -564,18 +573,21 @@ def run(config) -> None:
       # Move exactly one bf16 ULP on either side of one, then divide by the
       # realized scale interval rather than the nominal float32 probe interval.
       epsilon = 2.0**-7
-      plus = jax.tree.map(lambda value: value + epsilon, perturbations)
-      minus = jax.tree.map(lambda value: value - epsilon, perturbations)
+      layer_sums = jax.device_get(jnp.sum(attrs, axis=(1, 2, 3)))
+      check_layer = int(np.argmax(np.abs(layer_sums)))
+      plus = _offset_layer_perturbations(perturbations, check_layer, epsilon)
+      minus = _offset_layer_perturbations(perturbations, check_layer, -epsilon)
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
         (loss_plus, _), _ = compiled_grad(plus, state.params, batch, batch_rng)
         (loss_minus, _), _ = compiled_grad(minus, state.params, batch, batch_rng)
       scale_plus = float(np.asarray(jnp.asarray(1 + epsilon, config.dtype)))
       scale_minus = float(np.asarray(jnp.asarray(1 - epsilon, config.dtype)))
       numerical = (loss_plus - loss_minus) / (scale_plus - scale_minus)
-      analytic = jnp.sum(attrs)
+      analytic = jnp.sum(attrs[check_layer])
       numerical, analytic = jax.device_get((numerical, analytic))
       metadata["uniform_scale_check"] = {
           "epsilon": epsilon,
+          "layer": check_layer,
           "scale_plus": scale_plus,
           "scale_minus": scale_minus,
           "analytic": float(analytic),

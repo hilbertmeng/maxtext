@@ -92,20 +92,27 @@ between UC1a (3,128.69 ms) and EW4b (3,123.97 ms), validating the EW4b pairs. Me
 v5p-16 references above. Commit `ec0de73` differs from `011d44a` only by the Head32 sharding-audit
 tolerance; it does not change the compiled computation.
 
-| Scale / heads | BAM k/v/C | Length | BAM-MHA class | MHA XPlane / step/s | BAM class | BAM XPlane / step/s | Retention | vs Medium |
-|---|---:|---:|---|---:|---|---:|---:|---:|
-| Medium 16x64 | 32/32/8 | 2,048 | `BamMHAGScanLayerFullLayerProfile` @`1d9e1e1` | 1,094.35 / ~0.904 | `BamV2GScanLayerFullLayerProfile` @`1d9e1e1` | 1,480.44 / ~0.665 | 73.92% | — |
-| Medium 16x64 | 32/32/8 | 4,096 | `BamMHAGScanLayerT4096FullLayerProfile` @`309448f` | 1,462.14 / ~0.678 | `BamV2GScanLayerT4096FullLayerProfile` @`309448f` | 1,937.20 / ~0.510 | 75.48% | — |
-| XL 16x128 | 64/32/8 | 2,048 | `BamMHALlama2XLHead16x128C256T2048Profile` @`011d44a` | 1,400.17 / ~0.708 | `BamLlama2XLHead16x128V2C256T2048Profile` @`011d44a` | 1,754.93 / ~0.562 | **79.78%** | +5.86 pp |
-| XL 16x128 | 64/32/8 | 4,096 | `BamMHALlama2XLHead16x128C256T4096Profile` @`011d44a` | 3,123.97 / ~0.319 | `BamLlama2XLHead16x128V2C256T4096Profile` @`011d44a` | 3,886.03 / ~0.256 | **80.39%** | +4.91 pp |
-| XL 32x64 | 32/64/16 | 2,048 | `BamMHALlama2XLHead32x64C256T2048Profile` @`011d44a` | 1,554.72 / ~0.640 | `BamLlama2XLHead32x64V2C256T2048Profile` @`ec0de73` | 2,085.69 / ~0.475 | 74.54% | +0.62 pp |
-| XL 32x64 | 32/64/16 | 4,096 | `BamMHALlama2XLHead32x64C256T4096Profile` @`ec0de73` | 3,714.83 / ~0.268 | `BamLlama2XLHead32x64V2C256T4096Profile` @`ec0de73` | 4,929.29 / ~0.202 | 75.36% | -0.12 pp |
+| Scale / heads | BAM k/v/C | Length | BAM-MHA class | MHA XPlane / step/s | BAM class | BAM XPlane / step/s | Theory FLOPs | Theory params | Retention | vs Medium |
+|---|---:|---:|---|---:|---|---:|---:|---:|---:|---:|
+| Medium 16x64 | 32/32/8 | 2,048 | `BamMHAGScanLayerFullLayerProfile` @`1d9e1e1` | 1,094.35 / ~0.904 | `BamV2GScanLayerFullLayerProfile` @`1d9e1e1` | 1,480.44 / ~0.665 | +10.96% | +10.28% | 73.92% | — |
+| Medium 16x64 | 32/32/8 | 4,096 | `BamMHAGScanLayerT4096FullLayerProfile` @`309448f` | 1,462.14 / ~0.678 | `BamV2GScanLayerT4096FullLayerProfile` @`309448f` | 1,937.20 / ~0.510 | +11.25% | +10.28% | 75.48% | — |
+| XL 16x128 | 64/32/8 | 2,048 | `BamMHALlama2XLHead16x128C256T2048Profile` @`011d44a` | 1,400.17 / ~0.708 | `BamLlama2XLHead16x128V2C256T2048Profile` @`011d44a` | 1,754.93 / ~0.562 | **+7.89%** | **+7.28%** | **79.78%** | +5.86 pp |
+| XL 16x128 | 64/32/8 | 4,096 | `BamMHALlama2XLHead16x128C256T4096Profile` @`011d44a` | 3,123.97 / ~0.319 | `BamLlama2XLHead16x128V2C256T4096Profile` @`011d44a` | 3,886.03 / ~0.256 | **+8.24%** | **+7.28%** | **80.39%** | +4.91 pp |
+| XL 32x64 | 32/64/16 | 2,048 | `BamMHALlama2XLHead32x64C256T2048Profile` @`011d44a` | 1,554.72 / ~0.640 | `BamLlama2XLHead32x64V2C256T2048Profile` @`ec0de73` | 2,085.69 / ~0.475 | +10.89% | +10.45% | 74.54% | +0.62 pp |
+| XL 32x64 | 32/64/16 | 4,096 | `BamMHALlama2XLHead32x64C256T4096Profile` @`ec0de73` | 3,714.83 / ~0.268 | `BamLlama2XLHead32x64V2C256T4096Profile` @`ec0de73` | 4,929.29 / ~0.202 | +11.06% | +10.45% | 75.36% | -0.12 pp |
 
-The 16x128 design clearly amortizes BAM better: its retention is about 5 pp above Medium, whereas
-32x64 is essentially unchanged. Doubling the number of heads while using the wider 64-D BAM V
-factor and two 64->32 LocalQ/K adapters makes BAM overhead grow alongside the MHA control's own
-head-count cost. Longer context still improves retention modestly (+0.60 pp for 16x128 and +0.82 pp
-for 32x64), consistent with standard attention growing faster than BAM's mostly per-token work.
+Theory overhead is relative to the corresponding BAM-MHA Transformer block, excluding embeddings
+and the LM head. Parameter counts include the complete configured BAM parameter tree. FLOPs count
+matrix projections and contractions using the actual C256 block-pair count `T(T+256)/2`; they omit
+lower-order norm, gate, softmax, and elementwise work. Forward/backward scales both sides similarly.
+
+The theoretical ordering matches the width experiment: 16x128 cuts BAM arithmetic/parameter
+overhead to about 8%/7%, whereas 32x64 remains near Medium because twice as many heads, wider BAM
+V, and two 64->32 LocalQ/K adapters consume the width gain. Measured step-time overhead
+(`1/retention-1`) is still much larger: Medium 35.3/32.5%, XL16 25.3/24.4%, and XL32 34.2/32.7%
+at T2048/T4096. Moreover, theoretical FLOP overhead rises slightly with length while measured
+overhead falls. The context-length gain is therefore a hardware-utilization effect, not arithmetic
+amortization; BAM's small contractions remain disproportionately expensive.
 
 ### Full-24 layer-scan unroll
 

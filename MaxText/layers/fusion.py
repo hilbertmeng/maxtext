@@ -89,6 +89,7 @@ class SubDecoderLayer(nn.Module):
       eos_sum,
       M_in=None,
       is_global=None,
+      bam_lambda_vector=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -177,7 +178,8 @@ class SubDecoderLayer(nn.Module):
     )
     if cfg.bam_enabled:
         attention_lnx, M_out = attention_layer(
-            **call_kwargs, M_in=M_in, is_global=is_global)
+            **call_kwargs, M_in=M_in, is_global=is_global,
+            lambda_vector=bam_lambda_vector)
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
@@ -337,6 +339,7 @@ class FusionDecoderLayer(nn.Module):
       model_mode,
       eos_sum=None,
       is_global=None,
+      bam_lambda_vector=None,
       hids=None,
       M_in=None,
   ):
@@ -398,6 +401,7 @@ class FusionDecoderLayer(nn.Module):
         eos_sum,
         M_in=M_in,
         is_global=is_global,
+        bam_lambda_vector=bam_lambda_vector,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:

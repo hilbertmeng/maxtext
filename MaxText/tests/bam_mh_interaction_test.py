@@ -123,10 +123,10 @@ class BamMHInteractionTest(absltest.TestCase):
         self.inputs, self.inputs, self.positions, None,
         deterministic=True, M_in=self.M_in)
 
-  def apply(self, attention, variables):
+  def apply(self, attention, variables, lambda_vector=None):
     return attention.apply(
         variables, self.inputs, self.inputs, self.positions, None,
-        deterministic=True, M_in=self.M_in)
+        deterministic=True, M_in=self.M_in, lambda_vector=lambda_vector)
 
   def forward(self, cfg):
     attention = self.build(cfg)
@@ -297,6 +297,76 @@ class BamMHInteractionTest(absltest.TestCase):
     # must remove the second record's contribution from the matrix stream.
     np.testing.assert_array_equal(np.asarray(out_open), np.asarray(out_closed))
     self.assertGreater(float(jnp.max(jnp.abs(M_open - M_closed))), 1e-4)
+
+  def test_fixed_lambda_bands_decay_only_the_carried_matrix(self):
+    cfg = make_config(exp_overrides=dict(
+        **_FEATURES_OFF, bam_lambda_vector_mode='fixed_bands'))
+    out_bands, M_bands, _, _ = self.forward(cfg)
+    out_base, M_base, _, _ = self.forward(make_config(exp_overrides=_FEATURES_OFF))
+    # Reads and the write records are untouched (decay applies at the update),
+    # so the layer output matches and the matrix streams differ by exactly
+    # (lambda - 1) ⊙ M_in on the trailing V axis.
+    np.testing.assert_array_equal(np.asarray(out_bands), np.asarray(out_base))
+    bands = np.repeat(np.asarray([1.0, 0.9, 0.7, 0.4], np.float32), _BAM_V // 4)
+    np.testing.assert_allclose(
+        np.asarray(M_bands - M_base),
+        np.asarray((bands - 1.0) * self.M_in),
+        rtol=1e-5, atol=1e-5)
+
+  def test_learned_lambda_vector_is_consumed_when_threaded(self):
+    cfg = make_config(exp_overrides=dict(
+        **_FEATURES_OFF, bam_lambda_vector_mode='learned'))
+    attention = self.build(cfg)
+    variables = attention.init(
+        {'params': self.rng, 'aqt': self.rng},
+        self.inputs, self.inputs, self.positions, None,
+        deterministic=True, M_in=self.M_in,
+        lambda_vector=jnp.ones((_BAM_V,), jnp.float32))
+    lam = jnp.linspace(0.3, 1.0, _BAM_V, dtype=jnp.float32)
+    out_lam, M_lam = self.apply(attention, variables, lambda_vector=lam)
+    out_one, M_one = self.apply(
+        attention, variables, lambda_vector=jnp.ones((_BAM_V,), jnp.float32))
+    np.testing.assert_array_equal(np.asarray(out_lam), np.asarray(out_one))
+    np.testing.assert_allclose(
+        np.asarray(M_lam - M_one),
+        np.asarray((lam - 1.0) * self.M_in),
+        rtol=1e-5, atol=1e-5)
+    # A writing layer in learned mode must receive the shared vector.
+    with self.assertRaises(AssertionError):
+      self.apply(attention, variables)
+
+  def test_full_model_threads_shared_lambda_vector(self):
+    """eval_shape smoke over the whole Transformer: decoder-level shared param,
+    scan broadcast argument, and per-layer consumption."""
+    from layers import models
+
+    overrides = dict(
+        base_num_decoder_layers=2,
+        attention='dot_product',
+    )
+    tokens = jnp.ones((1, _T), jnp.int32)
+
+    def abstract_init(exp_overrides):
+      cfg = make_config(exp_overrides=exp_overrides, **overrides)
+      model = models.Transformer(cfg, self.mesh(cfg), quant=None)
+      return jax.eval_shape(
+          lambda key: model.init(
+              {'params': key, 'dropout': key, 'aqt': key},
+              decoder_input_tokens=tokens,
+              decoder_positions=tokens,
+              decoder_target_tokens=tokens,
+              decoder_target_mask=tokens,
+              decoder_segment_ids=None,
+              enable_dropout=False,
+              model_mode='train'),
+          jax.random.PRNGKey(0))
+
+    learned = abstract_init(dict(bam_lambda_vector_mode='learned'))
+    logits_param = get_param(
+        learned['params']['decoder'], ('bam_lambda_vector_logits',))
+    self.assertEqual(logits_param.shape, (32,))
+    fixed = abstract_init(dict(bam_lambda_vector_mode='fixed_bands'))
+    self.assertNotIn('bam_lambda_vector_logits', fixed['params']['decoder'])
 
   def test_chunked_attention_path_keeps_factory_equivalence(self):
     chunk = dict(attention='dot_product_chunk')

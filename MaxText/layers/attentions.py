@@ -2112,6 +2112,8 @@ class BamAttention(Attention):
       self._thumbnail_consumers = set()
       self._write_mixer_quadrants = set()
       self._split_write_recirculation = False
+      self._lambda_vector_mode = 'none'
+      self._lambda_vector_fixed = None
       return
 
     assert 0 < self.bam_k < self.head_dim, (
@@ -2219,6 +2221,18 @@ class BamAttention(Attention):
         else set(write_mixer_quadrants.replace('+', ' ').split()))
     self._split_write_recirculation = bool(
         getattr(cfg, 'bam_write_split_recirculation', False))
+    self._lambda_vector_mode = getattr(cfg, 'bam_lambda_vector_mode', 'none')
+    assert self._lambda_vector_mode in ('none', 'fixed_bands', 'learned')
+    self._lambda_vector_fixed = None
+    if self._lambda_vector_mode == 'fixed_bands':
+      # Per-V-coordinate depth-decay bands, shared across layers (a constant,
+      # not a parameter): anchor coordinates become lifetime classes and the
+      # per-layer P_loc chooses a record's lifetime by band placement.
+      bands = [float(band) for band in cfg.bam_lambda_vector_bands]
+      assert bands and self.bam_v % len(bands) == 0
+      assert all(0.0 < band <= 1.0 for band in bands)
+      self._lambda_vector_fixed = jnp.repeat(
+          jnp.asarray(bands, jnp.float32), self.bam_v // len(bands))
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
@@ -2941,7 +2955,8 @@ class BamAttention(Attention):
     first, second = jnp.split(rotated, 2, axis=-1)
     return jnp.stack([first, second], axis=-1).reshape(x.shape)
 
-  def _write(self, o_head, x, M_in, read_sides=None, split_sources=None):
+  def _write(self, o_head, x, M_in, read_sides=None, split_sources=None,
+             lambda_vector=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): each factor is RMS-normalized
@@ -3083,8 +3098,13 @@ class BamAttention(Attention):
       if self._force_activation_dtype:
         forget_gate_bias = jnp.asarray(forget_gate_bias, self.dtype)
       forget_logits = self.W_forget_gate(x) + forget_gate_bias
+    retention = cfg.bam_lambda_decay
+    if lambda_vector is not None:
+      # Per-V-coordinate depth decay ([v], layer-shared); broadcasts over
+      # M's trailing axis inside the update.
+      retention = retention * lambda_vector
     M_out, forget_gate = _update_bam_matrix(
-        M_in, dM, cfg.bam_lambda_decay, forget_logits)
+        M_in, dM, retention, forget_logits)
     if self._force_activation_dtype:
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate, forget_gate
@@ -3242,6 +3262,7 @@ class BamAttention(Attention):
       deep_embedding: Array | None = None,
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
+      lambda_vector: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3359,6 +3380,16 @@ class BamAttention(Attention):
       assert read_sides is not None, "split write requires the fetched read"
       split_sources = (y_std[..., :self.bam_k], read_sides[0])
 
+    if self._lambda_vector_mode == 'learned':
+      assert lambda_vector is None or lambda_vector.shape == (self.bam_v,)
+      assert not self._has_write or lambda_vector is not None, (
+          'the learned lambda vector is a decoder-level shared parameter and '
+          'must be threaded into every writing BAM layer')
+    else:
+      assert lambda_vector is None, (
+          'an explicit lambda vector requires bam_lambda_vector_mode=learned')
+      lambda_vector = self._lambda_vector_fixed
+
     if self._mha_control:
       M_out = M_in
     elif self._has_write:
@@ -3366,7 +3397,7 @@ class BamAttention(Attention):
       with jax.named_scope("bam/write_m"):
         M_out, _, _ = self._write(
             o_head, inputs_q, M_in, read_sides=read_sides,
-            split_sources=split_sources)
+            split_sources=split_sources, lambda_vector=lambda_vector)
     else:
       M_out = M_in
 

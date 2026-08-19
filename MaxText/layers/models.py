@@ -499,6 +499,33 @@ class Decoder(nn.Module):
     else:
       raise ValueError(f"Incorrect decoder_block name {self.config.decoder_block=}")
 
+  def _bam_lambda_vector(self, cfg):
+    """Cross-layer shared learnable per-V-coordinate depth decay for the M stream.
+
+    Lives at decoder level so every BAM layer sees the same lifetime menu
+    (per-layer P_loc chooses a record's band).  Sigmoid parameterization with
+    band-valued init; bands capped just below one because sigmoid cannot
+    express exactly one (the persistent band leaks < 0.3% over 24 layers).
+    """
+    if getattr(cfg, 'bam_lambda_vector_mode', 'none') != 'learned':
+      return None
+    bands = [float(band) for band in cfg.bam_lambda_vector_bands]
+    assert bands and cfg.bam_v % len(bands) == 0
+    assert all(0.0 < band <= 1.0 for band in bands)
+
+    def band_logit_init(key, shape, dtype):
+      del key
+      values = jnp.repeat(
+          jnp.asarray(bands, jnp.float32), cfg.bam_v // len(bands))
+      values = jnp.clip(values, 1.0e-4, 1.0 - 1.0e-4)
+      return jnp.asarray(jnp.log(values / (1.0 - values)), dtype).reshape(shape)
+
+    logits = self.param(
+        'bam_lambda_vector_logits',
+        nn.with_logical_partitioning(band_logit_init, ('v_factor',)),
+        (cfg.bam_v,), cfg.weight_dtype)
+    return jax.nn.sigmoid(jnp.asarray(logits, jnp.float32))
+
   def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh,
    sliding_window_size=None, scan_length=1, scan_deep_embedding=False,
    runtime_schedule=False, scan_hids=False, all_global_attention=False):
@@ -509,13 +536,14 @@ class Decoder(nn.Module):
       in_axes = (
           nn.broadcast, nn.broadcast, nn.broadcast,
           0 if scan_deep_embedding else nn.broadcast,
-          nn.broadcast, nn.broadcast, nn.broadcast, 0)
+          nn.broadcast, nn.broadcast, nn.broadcast, 0,
+          nn.broadcast)  # bam_lambda_vector: layer-shared, hence broadcast
     elif scan_hids:
       in_axes = (
           nn.broadcast, nn.broadcast, nn.broadcast,
           0 if scan_deep_embedding else nn.broadcast,
           nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast,
-          nn.broadcast)
+          nn.broadcast, nn.broadcast)
     else:
       in_axes = (
           nn.broadcast, nn.broadcast, nn.broadcast,
@@ -789,6 +817,7 @@ class Decoder(nn.Module):
           scan_carry = (y, M)
         else:
           scan_carry = y
+        bam_lambda_vector = self._bam_lambda_vector(cfg) if full_bam else None
         local_sws = min(swss)
         all_global_attention = all(s >= cfg.max_target_length for s in swss)
         scan_carry, _ = self.scan_decoder_layers(
@@ -807,6 +836,7 @@ class Decoder(nn.Module):
             model_mode,
             eos_sum,
             is_global,
+            bam_lambda_vector,
         )
         y = scan_carry[0] if full_bam else scan_carry
 
@@ -880,6 +910,7 @@ class Decoder(nn.Module):
                 model_mode,
                 eos_sum,
                 None,
+                None,
                 me + c_hids[start_index:],
             )
             lyr += 1
@@ -921,6 +952,7 @@ class Decoder(nn.Module):
                 model_mode,
                 eos_sum,
                 None,
+                None,
                 c_hids, # me + local hids
             )
             if cfg.dense_conn and cfg.compose_all_layers:
@@ -943,8 +975,10 @@ class Decoder(nn.Module):
         if cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False):
           b, t = y.shape[0], y.shape[1]
           M = jnp.zeros((b, t, cfg.bam_k, cfg.bam_v), dtype=cfg.dtype)
+          bam_lambda_vector = self._bam_lambda_vector(cfg)
         else:
           M = None
+          bam_lambda_vector = None
         for lyr in range(cfg.num_decoder_layers):
           max_logging.log(f'\n=================decoder layer: {lyr}=====================\n', debug=cfg.debug)
           RemattedBlockLayer = RemattedBlockLayers[0]
@@ -964,6 +998,7 @@ class Decoder(nn.Module):
               hids=hids,
               eos_sum=eos_sum,
               M_in=M,
+              bam_lambda_vector=bam_lambda_vector,
           )
           if cfg.bam_enabled:
             y, hids, M = out

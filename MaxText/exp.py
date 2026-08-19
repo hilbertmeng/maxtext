@@ -311,6 +311,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
     bam_write_mixer_quadrants = 'none'  # none, or +-joined subset of uu/uv/vu/vv fetched-read write taps
     bam_write_split_recirculation = False  # write the fetched U answer as its own record (private P_loc + gate)
+    bam_lambda_vector_mode = 'none'  # none | fixed_bands | learned; per-V-coordinate depth decay of M, layer-shared
+    bam_lambda_vector_bands = [1.0, 0.9, 0.7, 0.4]  # lifetime bands over the v axis (tau ~ inf/9.5/2.8/1.1 layers)
 
     scan_layers = False
 
@@ -1316,6 +1318,24 @@ class BamLlama2MediumV2C256SplitRecircWrite(BamV2C256MHInteractionBase):
     # code_commit: a53c4c4; ~0.634 steps/s (UC1a; -4.4%); stopped 3,473. dloss +.0045 vs V2 @2,600–3,400; no gain.
     model_name = 'BamLlama2MediumV2C256SplitRecircWrite'
     bam_write_split_recirculation = True
+
+
+class BamLlama2MediumV2C256LambdaBandsFixed(BamV2C256MHInteractionBase):
+    """Multi-timescale M: fixed layer-shared per-V-coordinate decay bands 1.0/0.9/0.7/0.4.
+    A structural prior arm (deliberately not factory-equivalent): anchor coordinates become
+    lifetime classes and per-layer P_loc assigns each record's lifetime by band placement."""
+    model_name = 'BamLlama2MediumV2C256LambdaBandsFixed'
+    bam_lambda_vector_mode = 'fixed_bands'
+
+
+class BamLlama2MediumV2C256LambdaBandsLearned(BamV2C256MHInteractionBase):
+    """Multi-timescale M with a learnable layer-shared decay vector (decoder-level
+    sigmoid-parameterized, initialized at the fixed bands); vs Fixed isolates the
+    value of refining the band values by gradient."""
+    model_name = 'BamLlama2MediumV2C256LambdaBandsLearned'
+    bam_lambda_vector_mode = 'learned'
+    wd_mults = BamV2C256MHInteractionBase.wd_mults + [
+        ('.*bam_lambda_vector_logits$', 0.0)]
 
 
 class Llama2MediumLGSQChunk256SixLayerProfile(TrainStepProfile, Llama2Medium):

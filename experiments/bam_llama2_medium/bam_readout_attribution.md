@@ -5,8 +5,8 @@
 - Model: `BamLlama2MediumV2`, checkpoint step 13,250 (trainer commit `1afd942`).
 - Cohort: 128 fixed-seed shuffled Pile-eval sequences. P1 uses every token; P2 samples
   16 query positions per sequence.
-- Capture/runtime commit: `78a2f9f` on `codex/readout-attribution`; offline aggregation
-  uses `aggregate_readout_attribution.py` at the report commit.
+- Capture/runtime commit: `78a2f9f`; offline analysis/report commit: `5446f3b`, both
+  on `codex/readout-attribution`.
 - Sign: positive attribution is loss-harmful at the margin; negative is helpful.
 - Side names follow the contraction: the **column path** matches the address/V axis and
   returns data/U; the **row path** matches data/U and returns address/V.

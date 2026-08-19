@@ -25,6 +25,7 @@ from flax import traverse_util
 from flax.linen import partitioning as nn_partitioning
 import jax
 import jax.numpy as jnp
+import ml_dtypes
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "MaxText"))
@@ -335,6 +336,14 @@ def _distribution(value: np.ndarray) -> dict[str, float]:
   }
 
 
+def _to_float32(value: np.ndarray) -> np.ndarray:
+  """Decode JAX bf16 arrays saved by NumPy as opaque two-byte values."""
+  value = np.asarray(value)
+  if value.dtype.kind == "V" and value.dtype.itemsize == 2:
+    value = value.view(ml_dtypes.bfloat16)
+  return value.astype(np.float32)
+
+
 def _rankdata(value: np.ndarray) -> np.ndarray:
   order = np.argsort(value, kind="stable")
   ranks = np.empty(order.size, np.float64)
@@ -369,7 +378,7 @@ def _analyze_p1(output_dir: Path) -> dict[str, Any]:
       data = np.load(path)
       valid = data["valid"].astype(bool)
       attrs.append(data["attr_sumloss"][layer][valid])
-      gates.append(data["write_gate"][layer][valid].astype(np.float32))
+      gates.append(_to_float32(data["write_gate"][layer][valid]))
     attr = np.concatenate(attrs)
     gate = np.concatenate(gates)
     positive = np.maximum(attr, 0)

@@ -561,19 +561,23 @@ def run(config) -> None:
     jax.block_until_ready((loss, attrs, p2))
 
     if batch_index == 0:
-      # The probe scale is cast to bf16 on the production activation path; use
-      # a finite-difference step above bf16 spacing around one.
-      epsilon = 2.0e-2
+      # Move exactly one bf16 ULP on either side of one, then divide by the
+      # realized scale interval rather than the nominal float32 probe interval.
+      epsilon = 2.0**-7
       plus = jax.tree.map(lambda value: value + epsilon, perturbations)
       minus = jax.tree.map(lambda value: value - epsilon, perturbations)
       with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
         (loss_plus, _), _ = compiled_grad(plus, state.params, batch, batch_rng)
         (loss_minus, _), _ = compiled_grad(minus, state.params, batch, batch_rng)
-      numerical = (loss_plus - loss_minus) / (2 * epsilon)
+      scale_plus = float(np.asarray(jnp.asarray(1 + epsilon, config.dtype)))
+      scale_minus = float(np.asarray(jnp.asarray(1 - epsilon, config.dtype)))
+      numerical = (loss_plus - loss_minus) / (scale_plus - scale_minus)
       analytic = jnp.sum(attrs)
       numerical, analytic = jax.device_get((numerical, analytic))
       metadata["uniform_scale_check"] = {
           "epsilon": epsilon,
+          "scale_plus": scale_plus,
+          "scale_minus": scale_minus,
           "analytic": float(analytic),
           "numerical": float(numerical),
           "relative_error": float(abs(analytic - numerical) / max(abs(numerical), _EPS)),

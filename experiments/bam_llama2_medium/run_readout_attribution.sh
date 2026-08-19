@@ -38,7 +38,14 @@ env \
     "load_parameters_path=$CHECKPOINT" \
     "base_output_directory=$OUTPUT_DIR/maxtext-output" \
     "tensorboard_dir=$OUTPUT_DIR/tensorboard" \
-    only_eval=True enable_checkpointing=False async_checkpointing=False
+    only_eval=True enable_checkpointing=False async_checkpointing=False &
+DIAGNOSTIC_PID=$!
+
+while kill -0 "$DIAGNOSTIC_PID" 2>/dev/null; do
+  sleep 120
+  gsutil -m rsync -r "$OUTPUT_DIR" "$GCS_PREFIX" || true
+done
+wait "$DIAGNOSTIC_PID"
 
 gsutil -m rsync -r "$OUTPUT_DIR" "$GCS_PREFIX"
 echo "READOUT_ATTRIBUTION_UPLOADED local=$OUTPUT_DIR gcs=$GCS_PREFIX"

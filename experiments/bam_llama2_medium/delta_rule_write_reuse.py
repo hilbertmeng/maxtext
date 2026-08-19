@@ -18,10 +18,13 @@ from collections import defaultdict
 import json
 import os
 from pathlib import Path
+import sys
 from typing import Any
 
 from absl import app
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "MaxText"))
 
 import bam_diagnostics
 import exp

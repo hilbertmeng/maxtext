@@ -1576,6 +1576,7 @@ class BamV2GScanLayerRowRank8ControlEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Same-commit control with insurance and primary XPlane windows."""
+    # code_commit: b6b5ef4; UC1a v6e-1 XPlane 670.650 ms; ~1.474 steps/s.
     model_name = 'BamV2GScanLayerRowRank8ControlEightLayerProfile'
     skip_first_n_steps_for_profiler = 2
     profile_periodically_period = 8
@@ -1585,6 +1586,8 @@ class BamV2GScanLayerRowRank8DotEightLayerProfile(
     BamV2GScanLayerRowRank8ControlEightLayerProfile
 ):
     """V2 C256 S/U with fetched row-read heads dynamically factorized to rank 8."""
+    # code_commit: b6b5ef4; UC1a v6e-1 XPlane 689.840 ms; ~1.438 steps/s.
+    # Second-stage dot costs 15.895 ms; -2.78% throughput vs paired control. Reject.
     model_name = 'BamV2GScanLayerRowRank8DotEightLayerProfile'
     bam_fetched_row_rank = 8
     bam_fetched_row_second_implementation = 'dot'
@@ -1594,6 +1597,9 @@ class BamV2GScanLayerRowRank8MulReduceEightLayerProfile(
     BamV2GScanLayerRowRank8DotEightLayerProfile
 ):
     """Rank-8 fetched row read with multiply-reduce for the r-to-head expansion."""
+    # code_commit: b6b5ef4; UC1a v6e-1 XPlane 672.135 ms; ~1.472 steps/s.
+    # Expand 2.073 ms; fetched Read-M 18.126->16.705 ms, but whole-step throughput
+    # is -0.22% vs paired control: the dynamic rank-8 row factorization is speed-neutral.
     model_name = 'BamV2GScanLayerRowRank8MulReduceEightLayerProfile'
     bam_fetched_row_second_implementation = 'mul_reduce'
 

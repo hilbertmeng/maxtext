@@ -2193,8 +2193,12 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
       use_learned_key_norm=use_learned_key_norm)
   if key_head_projections is not None:
     row_projection, col_projection = key_head_projections
-    r_row = jnp.einsum('hn,btnk->bthk', row_projection, r_row)
-    r_col = jnp.einsum('hn,btnv->bthv', col_projection, r_col)
+    if r_row.ndim == 4:
+      r_row = jnp.einsum('hn,btnk->bthk', row_projection, r_row)
+      r_col = jnp.einsum('hn,btnv->bthv', col_projection, r_col)
+    else:
+      r_row = jnp.einsum('hn,btnfk->bthfk', row_projection, r_row)
+      r_col = jnp.einsum('hn,btnfv->bthfv', col_projection, r_col)
   with jax.named_scope("bam/read_m_contract"):
     y_u, y_v = _contract_bam_read_sides(
         Mc, Mr, r_row, r_col, R is None, implementation, read_side)

@@ -1313,6 +1313,7 @@ class BamLlama2MediumV2C256Thumb16x8WriteMixAll(BamLlama2MediumV2C256WriteMixAll
 class BamLlama2MediumV2C256SplitRecircWrite(BamV2C256MHInteractionBase):
     """Split the write into fresh-observation (y_std) and recirculation (y_U) records,
     each with a private local anchor and admission gate; starts at the bundled write."""
+    # code_commit: a53c4c4; ~0.634 steps/s (UC1a; -4.4% vs matched V2 C256 layer-scan).
     model_name = 'BamLlama2MediumV2C256SplitRecircWrite'
     bam_write_split_recirculation = True
 

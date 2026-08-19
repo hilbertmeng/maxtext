@@ -447,7 +447,7 @@ def _correlations(gate: np.ndarray, value: np.ndarray, sample_cap=500_000) -> di
 
 
 def _analyze_p1_component(
-    files: list[Path], component: str
+    attrs_all: np.ndarray, gates_all: np.ndarray, valid: np.ndarray
 ) -> dict[str, Any]:
   overall_attr_sample = []
   overall_gate_sample = []
@@ -457,14 +457,8 @@ def _analyze_p1_component(
   head_net = np.zeros(_HEADS, np.float64)
   total_positive = total_absolute = total_net = total_gate = total_gate_attr = 0.0
   for layer in range(_LAYERS):
-    attrs, gates = [], []
-    for path in files:
-      data = np.load(path)
-      valid = data["valid"].astype(bool)
-      attrs.append(data[f"attr_sumloss_{component}"][layer][valid])
-      gates.append(_to_float32(data["write_gate"][layer][valid]))
-    attr = np.concatenate(attrs)
-    gate = np.concatenate(gates)
+    attr = attrs_all[layer][valid]
+    gate = gates_all[layer][valid]
     positive = np.maximum(attr, 0)
     absolute = np.abs(attr)
     layer_reports[f"layer_{layer:02d}"] = {
@@ -512,19 +506,30 @@ def _analyze_p1(output_dir: Path) -> dict[str, Any]:
   files = sorted(output_dir.glob("attribution_batch_*.npz"))
   if not files:
     raise FileNotFoundError("no attribution batches")
-  components = {
-      name: _analyze_p1_component(files, name)
-      for name in ("both", "col", "row", "mixed")
-  }
-  both_abs = components["both"]["overall"]["absolute_attr_exact"]
+  attrs_by_component = {name: [] for name in ("both", "col", "row", "mixed")}
+  gates = []
+  valid = []
   forward_differences = []
   for path in files:
     with np.load(path) as data:
+      valid.append(data["valid"].astype(bool))
+      gates.append(_to_float32(data["write_gate"]))
+      for name in attrs_by_component:
+        attrs_by_component[name].append(
+            np.asarray(data[f"attr_sumloss_{name}"], np.float32))
       loss_both = float(data["loss_both"])
       forward_differences.extend((
           abs(loss_both - float(data["loss_col"])),
           abs(loss_both - float(data["loss_row"])),
       ))
+  valid = np.concatenate(valid, axis=0)
+  gates = np.concatenate(gates, axis=1)
+  components = {
+      name: _analyze_p1_component(
+          np.concatenate(values, axis=1), gates, valid)
+      for name, values in attrs_by_component.items()
+  }
+  both_abs = components["both"]["overall"]["absolute_attr_exact"]
   return {
       "components": components,
       "decomposition": {

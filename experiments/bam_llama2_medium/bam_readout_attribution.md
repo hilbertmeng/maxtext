@@ -3,121 +3,134 @@
 ## Setup
 
 - Model: `BamLlama2MediumV2`, checkpoint step 13,250 (trainer commit `1afd942`).
-- Cohort: the same 128 shuffled Pile-eval sequences as the delta-rule diagnostic;
-  P1 uses every token and P2 samples 16 query positions per sequence.
-- Capture/analyzer commit: `65fc768` on `codex/readout-attribution`.
-- Scope: P1 and P2 only; P3 was not run, and the triggered P4 remains a proposed
-  follow-up rather than part of this result.
+- Cohort: 128 fixed-seed shuffled Pile-eval sequences. P1 uses every token; P2 samples
+  16 query positions per sequence.
+- Capture/runtime commit: `78a2f9f` on `codex/readout-attribution`; offline aggregation
+  uses `aggregate_readout_attribution.py` at the report commit.
 - Sign: positive attribution is loss-harmful at the margin; negative is helpful.
-  P1 uses an exact per-record scale gradient, algebraically equivalent to the
-  Frobenius product between the write and its full downstream cotangent.
+- Side names follow the contraction: the **column path** matches the address/V axis and
+  returns data/U; the **row path** matches data/U and returns address/V.
 
-## Reproduction code
+## Reproduction
 
-The executed diagnostic code is preserved on
-`codex/readout-attribution@65fc768`:
+- Capture/analyzer: `experiments/bam_llama2_medium/readout_attribution.py`
+- Sharded launcher: `experiments/bam_llama2_medium/run_readout_attribution.sh`
+- Cross-shard side analysis: `experiments/bam_llama2_medium/aggregate_readout_attribution.py`
+- Model-side guarded capture: `MaxText/layers/attentions.py`
 
-- Driver, capture harness, analyzer, and artifact writer:
-  `experiments/bam_llama2_medium/readout_attribution.py`
-- Guarded model-side capture hooks: `MaxText/layers/attentions.py`
-- Shared diagnostic extraction helpers: `MaxText/bam_diagnostics.py`
+Raw artifacts:
 
-For an exact copy of the main script, run
-`git show 65fc768:experiments/bam_llama2_medium/readout_attribution.py`.
+- Local: `/data0/xd/bam_diagnostics/v2_readout_attribution_sides_13250_78a2f9f/`
+- GCS: `gs://newproject-1-llm_base_models_us-central1/diagnostics/bam/v2_readout_attribution_sides_13250_78a2f9f/`
 
-## P1: loss-grounded write attribution
+## P1: loss-grounded attribution
 
-P1 covers 100,663,296 layer/token/head records (including the structurally dead
-last-layer writes).
+P1 covers 100,663,296 layer/token/head write records. The same forward pass was
+backpropagated through both paths, column-only, and row-only. The residual
+`mixed = both - column - row` isolates downstream interactions requiring both paths;
+the numerical decomposition closes to `7.25e-10` of total absolute attribution.
 
-| Metric | Result |
-|---|---:|
-| harmful attribution mass | 49.992% |
-| net / absolute attribution mass | -0.0159% |
-| sampled attr mean / std | 5.90e-5 / 0.06624 |
-| sampled attr p10 / p50 / p90 / p99 | -0.01659 / 0 / 0.01683 / 0.11022 |
-| attr / gate, per-layer mean range | -2.35e-4 to 4.55e-4 |
-| attr / gate std, layer 0 / layer 22 | 0.328 / 0.0198 |
-| gate-weighted mean attr | -1.48e-5 |
-| gate vs helpfulness, Pearson / Spearman | 0.00023 / 0.00046 |
-| per-head harmful-mass range | 49.903–50.098% |
-| per-layer harmful-mass range, layers 0–22 | 49.80–50.13% |
-
-The positive and negative first-order masses cancel almost exactly. This is not
-localized to a bad head or a depth band, and the write gate has effectively zero
-alignment with marginal record value. Layer net effects change sign without a
-monotone depth pattern; layer 23 is exactly zero because its write is never read.
-
-## P2: structural composition at read sites
-
-All values below are means over nonempty read layers; top shares are projections
-onto each arm's own reconstructed readout.
-
-| Metric | Fetch | Permuted-alpha null | Local-Q | Local-K |
+| Component | absolute mass / both | harmful mass | net / absolute | gate vs helpfulness (Pearson / Spearman) |
 |---|---:|---:|---:|---:|
-| top-1 absolute share | 18.77% | 18.31% | 19.44% | 26.82% |
-| top-8 absolute share | 64.34% | 63.63% | 66.20% | 72.28% |
-| coherence | 2.463 | 2.406 | 2.693 | 2.871 |
-| harmful-attribution absolute share | 50.05% | 50.04% | 49.94% | 50.23% |
-| reconstruction relative norm | 0.60% | — | 0.41% | 0.37% |
+| both | 100.00% | 49.992% | -0.0160% | 0.00021 / 0.00045 |
+| column (address -> data) | 85.04% | 49.981% | -0.0375% | -0.00110 / -0.00092 |
+| row (data -> address) | 20.69% | 50.013% | +0.0250% | 0.00147 / 0.00246 |
+| mixed interaction | 32.61% | 50.016% | +0.0327% | 0.00207 / -0.00070 |
 
-Permuting alpha barely changes concentration, coherence, or harmful mass. The
-heavy top-k concentration is therefore a structural property of these rank-1
-contributions, not evidence that learned alpha uniquely selects a few records.
+The column path carries `4.111x` the absolute first-order mass of the row path.
+Their record-level patterns are nearly independent: cosine `0.0396`, sampled
+Pearson `0.0529`, and Spearman `0.0418`. Of the magnitude that the two paths overlap,
+`46.5%` has opposite signs. The sizable mixed term means the two path attributions
+cannot be treated as additive standalone modules.
 
-The fetch decomposition retains 99.944% of `|alpha|` mass on average (median
-100%; p90 100%) with top-1,536 sources. Its reconstruction error is 0.60% mean
-(0.55% median, 0.87% p90); local-Q/K reconstruction errors are 0.41%/0.37% mean.
-These residuals are the combined support-truncation and bf16 accumulation floor.
+The approximately 50/50 helpful/harmful split and zero gate alignment hold for both
+sides separately. Column is more important because it is stronger, not because its
+records are cleaner or its write gate is a better value selector.
 
-Fetch source depth is strongly recency-weighted: gaps <=1/2/4/8/16 account for
-16.8/31.4/51.1/76.5/95.9% of absolute contribution mass. Concentration falls as
-the matrix accumulates more records:
+## P2: structural readout composition
 
-| Use layers | Fetch top-1 / top-8 | Local-Q top-1 / top-8 | Local-K top-1 / top-8 |
+The energy split below uses each side's actual post-gate runtime keys and readout.
+Fetch column output has 32 coordinates and row output has 8; Local-Q/K have 32 on
+both sides, so the fetch per-coordinate ratio is the fairer scale comparison.
+
+| Read site | column energy fraction | column/row energy | per-coordinate ratio | column/row key RMS | column/row effective strength |
+|---|---:|---:|---:|---:|---:|
+| fetch | 86.52% | 6.419x | 1.605x | 2.069x | — |
+| Local-Q | 92.89% | 13.059x | 13.059x | 3.181x | 3.210x |
+| Local-K | 95.02% | 19.083x | 19.083x | 2.955x | 2.777x |
+
+For Local-Q/K, the column/row absolute head-mix ratios are only `0.889x/0.864x`.
+Thus their strong column dominance does not come from larger head-mix coefficients;
+it is already present in the post-gate key/effective-read strength.
+
+| Read site | side | top-1 abs share | top-8 abs share | coherence | harmful-attribution share |
+|---|---|---:|---:|---:|---:|
+| fetch | column | 20.79% | 69.26% | 2.354 | 49.90% |
+| fetch | row | 21.65% | 76.80% | 2.474 | 50.00% |
+| Local-Q | column | 21.53% | 73.09% | 2.858 | 49.70% |
+| Local-Q | row | 18.95% | 62.48% | 2.256 | 49.95% |
+| Local-K | column | 32.22% | 81.51% | 3.133 | 49.93% |
+| Local-K | row | 18.99% | 62.20% | 2.274 | 49.98% |
+
+Column dominance generally grows after the earliest layers:
+
+| Read site | layers 1-8 | layers 9-16 | layers 17-23 |
 |---|---:|---:|---:|
-| 1–8 | 27.3% / 84.3% | 29.1% / 82.5% | 37.4% / 86.1% |
-| 9–16 | 15.5% / 54.2% | 17.0% / 64.4% | 28.0% / 72.8% |
-| 17–23 | 12.7% / 53.1% | 11.3% / 49.6% | 13.4% / 55.9% |
+| fetch column energy fraction | 60.25% | 83.00% | 87.96% |
+| Local-Q column energy fraction | 89.17% | 96.19% | 92.60% |
+| Local-K column energy fraction | 93.57% | 97.24% | 92.52% |
 
-For fetched reads, the diagonal/self records supply 76.4% of signed output
-alignment and cross-token records supply 23.6%. Thus the high top-k shares are
-not evidence that cross-token fetch alone is a pure pointer.
+Fetch is an instructive exception at its first usable layer: column energy is only
+`5.68%`; the column path takes over as M accumulates. Permuting mixed alpha raises
+the aggregate column/row energy ratio from `6.419x` to `8.212x`. Learned alpha
+therefore routes relatively more energy through the weak row path, even though the
+previous analysis found little change in top-k concentration or harmful mass.
+
+Across both sides, the original aggregate conclusions remain: readouts are fairly
+top-k concentrated and coherent (`coherence > 1`), while their contributing records
+remain almost exactly 50/50 helpful/harmful. Geometry is constructive even when
+first-order loss attribution is sign-mixed.
+
+## Cross-check against training ablations
+
+The independent from-scratch fetched-read ablations provide an unusually clean
+validation of the side decomposition:
+
+| Run | Removed path | loss penalty vs V2 |
+|---|---|---:|
+| `BamLlama2MediumV2C256FetchedRowOnly` | column | +0.0443 |
+| `BamLlama2MediumV2C256FetchedColOnly` | row | +0.0108 |
+
+The functional penalty ratio is `0.0443 / 0.0108 = 4.102x`, essentially identical
+to P1's independently measured column/row absolute-attribution ratio `4.111x`.
+P2 agrees directionally but is more skewed in raw energy (`6.419x`): the small row
+readout is still useful per unit energy and should not simply be deleted.
 
 ## Interpretation
 
-- H1's proposed signature is rejected: harmful mass is not low and the learned
-  gates do not identify helpful records.
-- The result supports H2's sign-mixed premise but not a simple targeted-decay
-  mechanism: every head and depth contains an almost exact 50/50 mixture of
-  helpful and harmful marginal mass.
-- H3 holds only in the geometric sense that a few records dominate each readout,
-  especially local-K and early layers. The same concentration under permuted alpha
-  means this does not establish learned retrieval semantics; concentration also
-  becomes more distributed with depth.
-- Coherence is greater than one, not much less than one, so the read vectors add
-  constructively in representation space. Geometric superposition can therefore
-  be coherent while its loss attribution remains sign-mixed.
-- A uniform or depth/coordinate-only forget rule has no measured selector for the
-  harmful records. This is consistent with the negative Fixed/Learned LambdaBands
-  training results; any useful suppression mechanism needs content/query-dependent
-  selectivity rather than a lifetime band alone.
+- The column/address-to-data path is the primary BAM read mechanism. It dominates
+  loss attribution, output energy, and the cost of causal removal.
+- The row/data-to-address path is weaker but nonzero, relatively more important in
+  the first fetched layer, and selectively favored by learned alpha versus the null.
+- The two sides do different work rather than duplicate one another: their attribution
+  correlation is near zero and the mixed downstream interaction is 32.6% of total
+  absolute attribution.
+- Splitting the sides does not rescue the learned gates as value selectors. Both are
+  individually 50/50 sign-mixed with essentially zero gate/value alignment.
+- Uniform lifetime decay remains poorly targeted. A useful selector would need to be
+  content/query dependent and likely side aware.
 
-Per the preregistered decision rule, the approximately 50% harmful mass triggers a
-small P4 finite ablation before treating the first-order signs as causal removal
-effects. The most direct check is to suppress the oracle top-harmful record set on
-the same batches and compare it with magnitude-matched random/helpful controls.
+The row path's low energy but measurable causal value motivates the concurrent
+`BamLlama2MediumV2C256RowBypassWO` training arm: it tests whether giving this answer
+a dedicated output projection can preserve its distinct information without sharing
+the standard MHA tail columns.
 
-## Caveats
+## Caveats and next check
 
-- Attribution is first-order scaling, not finite removal; record interactions are
-  not assigned separately.
-- The bf16 production path makes tiny numerical finite differences quantized. A
-  high-signal top-256 direction has the correct sign but 17.7% relative slope error;
-  the reported P1 values themselves are exact autodiff gradients of that bf16 graph.
-- P2 uses 16 query positions per sequence and the stated top-1,536 fetch support.
-
-Artifacts:
-
-- Local: `/data0/xd/bam_diagnostics/v2_readout_attribution_13250_65fc768/`
-- GCS: `gs://newproject-1-llm_base_models_us-central1/diagnostics/bam/v2_readout_attribution_13250_65fc768/`
+- P1 is exact first-order scaling attribution of the bf16 graph, not finite removal.
+- P2 reconstruction error is 0.60% for fetch and 0.41%/0.37% for Local-Q/K; fetch
+  retains 99.944% of absolute alpha mass on average.
+- P2 samples 16 query positions per sequence; P1 uses all valid positions.
+- Because harmful mass is about 50% on both sides, the preregistered next causal check
+  remains a small P4 oracle finite ablation against magnitude-matched random/helpful
+  controls. It should report column and row paths separately.

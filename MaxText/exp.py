@@ -1068,7 +1068,7 @@ class BamLlama2MediumV2C256DynamicRowRank8(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256WriteAddressRmsOnly(BamV2C256FetchScheduleBase):
     """Normalize only the address factor of each M write; preserve raw data magnitude."""
-    # code_commit: 4ea1bc4; EW4b ~0.669 steps/s; running.
+    # 4ea1bc4; stopped 3,272. Speed-neutral; dloss plateau ~+.034 vs V2 @2,800–3,200.
     model_name = 'BamLlama2MediumV2C256WriteAddressRmsOnly'
     scan_layers = True
     bam_write_data_rms = False

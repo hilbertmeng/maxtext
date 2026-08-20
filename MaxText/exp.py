@@ -1059,7 +1059,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256DynamicRowRank8(BamV2C256FetchScheduleBase):
     """Factorize fetched-M row reads through eight dynamic basis reads."""
-    # code_commit: 4fd6278; EW4b ~0.664 steps/s; running.
+    # 4fd6278; stopped 2,601. Speed-neutral; dloss +.0142 vs V2 @2,400, nearly parallel.
     model_name = 'BamLlama2MediumV2C256DynamicRowRank8'
     scan_layers = True
     bam_fetched_row_rank = 8
@@ -1068,6 +1068,7 @@ class BamLlama2MediumV2C256DynamicRowRank8(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256WriteAddressRmsOnly(BamV2C256FetchScheduleBase):
     """Normalize only the address factor of each M write; preserve raw data magnitude."""
+    # code_commit: 4ea1bc4; EW4b ~0.669 steps/s; running.
     model_name = 'BamLlama2MediumV2C256WriteAddressRmsOnly'
     scan_layers = True
     bam_write_data_rms = False

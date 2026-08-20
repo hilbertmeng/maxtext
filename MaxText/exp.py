@@ -1893,6 +1893,7 @@ class BamLlama2XLHead16x128V2C256(
     """50k-step XL 16x128 BAM scalability run on v5p-32."""
     model_name = 'BamLlama2XLHead16x128V2C256'
     profiler = ''
+    profile_periodically_period = -1
     steps = -1  # TrainXL schedule: 50,000 steps
     enable_checkpointing = True
     async_checkpointing = True
@@ -1911,6 +1912,7 @@ class BamMHALlama2XLHead16x128C256(
     """Matched 50k-step BamAttention MHA control for XL 16x128."""
     model_name = 'BamMHALlama2XLHead16x128C256'
     profiler = ''
+    profile_periodically_period = -1
     steps = -1  # TrainXL schedule: 50,000 steps
     enable_checkpointing = True
     async_checkpointing = True

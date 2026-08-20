@@ -2307,6 +2307,7 @@ class BamAttention(Attention):
       assert not cfg.bam_combine_full_local_read
       assert not cfg.bam_keep_fetch_diagonal
     self._write_v_mode = cfg.bam_write_v_mode
+    self._write_data_rms = bool(cfg.bam_write_data_rms)
     self._write_u2_norm = cfg.bam_write_u2_norm
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
     self._write_v_bottleneck_activation = cfg.bam_write_v_bottleneck_activation
@@ -2921,9 +2922,9 @@ class BamAttention(Attention):
   def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
-    Per-record factor normalization (§4.6.5 write-side per-record factor norm): each factor is RMS-normalized
-    over its head-dim axis before the outer product, so a single record has O(1) energy and the
-    gate is the sole magnitude channel (admission semantics). rms(u) = u·rsqrt(mean(u²,-1)+eps).
+    Per-record factor normalization (§4.6.5 write-side per-record factor norm): the address
+    factor is RMS-normalized over its head-dim axis; the data factor is normally normalized too,
+    but may retain its raw magnitude for ablation. rms(u) = u·rsqrt(mean(u²,-1)+eps).
     """
     cfg = self.config
     if self._force_activation_dtype:
@@ -2969,9 +2970,11 @@ class BamAttention(Attention):
       # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
       # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
-    u1_norm = normalizations.rms_norm(
-        u1, dtype=self.dtype, epsilon=self._rms_epsilon,
-        statistics_dtype=self._write_rms_statistics_dtype)
+    u1_norm = (
+        normalizations.rms_norm(
+            u1, dtype=self.dtype, epsilon=self._rms_epsilon,
+            statistics_dtype=self._write_rms_statistics_dtype)
+        if self._write_data_rms else u1)
     u2_norm = normalizations.rms_norm(
         u2, dtype=self.dtype, epsilon=self._rms_epsilon,
         statistics_dtype=self._write_rms_statistics_dtype)

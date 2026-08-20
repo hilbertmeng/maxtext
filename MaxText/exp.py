@@ -304,6 +304,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_write_u_proj_params = False
     bam_write_source = 'std+cross+local_o'
     bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail | static
+    bam_write_data_rms = True       # normalize write data/value factor u1
     bam_write_u2_norm = 'rms'        # rms | grouped_rms_bias (o_tail only)
     bam_write_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
@@ -1063,6 +1064,13 @@ class BamLlama2MediumV2C256DynamicRowRank8(BamV2C256FetchScheduleBase):
     scan_layers = True
     bam_fetched_row_rank = 8
     bam_fetched_row_second_implementation = 'mul_reduce'
+
+
+class BamLlama2MediumV2C256WriteAddressRmsOnly(BamV2C256FetchScheduleBase):
+    """Normalize only the address factor of each M write; preserve raw data magnitude."""
+    model_name = 'BamLlama2MediumV2C256WriteAddressRmsOnly'
+    scan_layers = True
+    bam_write_data_rms = False
 
 
 class BamLlama2MediumV2C256FetchedRowOnly(BamV2C256FetchScheduleBase):

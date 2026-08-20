@@ -158,7 +158,8 @@ class TrainXL:
     warmup_steps_fraction = 0.01
     cosine_learning_rate_final_fraction = 0.1
     eval_interval = 50000
-    per_device_batch_size = 16.0
+    per_device_batch_size = 16.0  # for v5p-32
+    checkpoint_period = 500
 
 class TrainMedium:
     learning_rate = 3e-4
@@ -290,7 +291,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_row_rank = None  # dynamically factor fetched row keys through this rank
     bam_fetched_row_second_implementation = 'dot'  # dot | mul_reduce
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
-    bam_squeeze_single_fetch_read = True  # remove f=1 before the full read
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
     bam_fetch_read_bottleneck_dim = None  # optional fetched W_R: D -> r -> n*f*(k+v)
@@ -1887,6 +1887,37 @@ class BamMHALlama2XLHead16x128C256T2048Profile(
     bam_layer_modes = ['none'] * 24
 
 
+class BamLlama2XLHead16x128V2C256(
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    """50k-step XL 16x128 BAM scalability run on v5p-32."""
+    model_name = 'BamLlama2XLHead16x128V2C256'
+    profiler = ''
+    steps = -1  # TrainXL schedule: 50,000 steps
+    enable_checkpointing = True
+    async_checkpointing = True
+    tensorboard_dir = Llama2Medium.tensorboard_dir
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl-head16x128-c256')
+    # Preserve the initialized write-gate prior instead of letting AdamW open it.
+    wd_mults = BamLlama2XLHead16x128V2C256T2048Profile.wd_mults + [
+        ('.*gw_b0$', 0.0)]
+
+
+class BamMHALlama2XLHead16x128C256(
+    BamMHALlama2XLHead16x128C256T2048Profile
+):
+    """Matched 50k-step BamAttention MHA control for XL 16x128."""
+    model_name = 'BamMHALlama2XLHead16x128C256'
+    profiler = ''
+    steps = -1  # TrainXL schedule: 50,000 steps
+    enable_checkpointing = True
+    async_checkpointing = True
+    tensorboard_dir = Llama2Medium.tensorboard_dir
+    jax_cache_dir = BamLlama2XLHead16x128V2C256.jax_cache_dir
+
+
 class BamLlama2XLHead16x128V2C256T4096Profile(
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
@@ -2503,7 +2534,6 @@ class BamLlama2MediumReadKernelSqueezedFetchProfile(
     # code_commit: 07a4223
     # ~0.291 steps/s; stopped at 55. XPlane 3.407 s (no gain vs B).
     model_name = 'BamLlama2MediumReadKernelSqueezedFetchProfile'
-    bam_squeeze_single_fetch_read = True
 
 
 class BamReadDotBtnSixLayerProfile(

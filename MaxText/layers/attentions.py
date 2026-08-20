@@ -2278,7 +2278,6 @@ class BamAttention(Attention):
     self._fetched_read_side = cfg.bam_fetched_read_side
     assert self._fetched_read_side in ('both', 'row', 'col')
     self._m_read_norm = cfg.bam_m_read_norm
-    self._squeeze_single_fetch_read = cfg.bam_squeeze_single_fetch_read
     self._fetch_diagonal_one = bool(cfg.bam_fetch_diagonal_one)
     self._fetch_read_bottleneck_dim = getattr(
         cfg, 'bam_fetch_read_bottleneck_dim', None)
@@ -2390,13 +2389,9 @@ class BamAttention(Attention):
           'QChunk BAM supports V2 local_qk layers with optional full fetch')
       assert cfg.bam_query_chunk_implementation == 'optimized'
       assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
-    if self._squeeze_single_fetch_read and 'full' in self._mode:
-      assert cfg.bam_n_f == 1, 'single-fetch squeeze requires one full-read route'
     if self._fetched_row_rank is not None:
       assert 'full' in self._mode
       assert 0 < self._fetched_row_rank < self.num_query_heads
-      assert self._squeeze_single_fetch_read, (
-          'dynamic fetched-row rank currently requires the f=1 squeezed path')
       assert self._fetch_read_bottleneck_dim is None
       assert self._read_key_mode == 'rms_gate'
       assert not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm), (
@@ -3065,24 +3060,18 @@ class BamAttention(Attention):
   def _read_fetched_m(self, Mbar, inputs_q):
     """Read one fetched matrix stream after dense or chunked routing."""
     with jax.named_scope("bam/read_fetched_m"):
-      full_read_projection = self._project_full_read_key
-      full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
-      if self._squeeze_single_fetch_read:
-        Mbar = jnp.squeeze(Mbar, axis=1)
-        if self._fetched_row_rank is not None:
-          full_read = dynamic_rank_row_bam_read(
-              Mbar, inputs_q, self._project_full_read_key,
-              self._fetched_row_rank,
-              **self._read_key_kwargs(
-                  'W_R_gate', inputs_q, squeeze_fetch_axis=True),
-              first_implementation=self._read_implementation,
-              second_implementation=self._fetched_row_second_implementation,
-              read_side=self._fetched_read_side)
-          return self._expand_full_read(full_read)
-        full_read_projection = lambda x: jnp.squeeze(
-            self._project_full_read_key(x), axis=-2)
-        full_read_kwargs = self._read_key_kwargs(
-            'W_R_gate', inputs_q, squeeze_fetch_axis=True)
+      full_read_kwargs = self._read_key_kwargs(
+          'W_R_gate', inputs_q, squeeze_fetch_axis=True)
+      if self._fetched_row_rank is not None:
+        full_read = dynamic_rank_row_bam_read(
+            Mbar, inputs_q, self._project_full_read_key,
+            self._fetched_row_rank, **full_read_kwargs,
+            first_implementation=self._read_implementation,
+            second_implementation=self._fetched_row_second_implementation,
+            read_side=self._fetched_read_side)
+        return self._expand_full_read(full_read)
+      full_read_projection = lambda x: jnp.squeeze(
+          self._project_full_read_key(x), axis=-2)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,
@@ -3231,26 +3220,24 @@ class BamAttention(Attention):
 
     _, t, _, _ = query.shape
 
-    def apply_attention(window_size):
-      if self._query_chunk_size is not None:
-        return self._query_chunk_op(
-            query, key, value, decoder_segment_ids, window_size,
-            fetch_state=fetch_state, mix_weights=mix_weights)
-      return self._attention_block(
-          query, key, value, decoder_segment_ids,
-          q0=0, s0=0, window_size=window_size,
-          fetch_state=fetch_state, mix_weights=mix_weights)
-
     local_window = (
         t if self.sliding_window_size is None
         else min(t, int(self.sliding_window_size)))
     if is_global:
       local_window = t
-    y_std, Mbar = apply_attention(local_window)
+    if self._query_chunk_size is not None:
+      y_std, Mbar = self._query_chunk_op(
+          query, key, value, decoder_segment_ids, local_window,
+          fetch_state=fetch_state, mix_weights=mix_weights)
+    else:
+      y_std, Mbar = self._attention_block(
+          query, key, value, decoder_segment_ids,
+          q0=0, s0=0, window_size=local_window,
+          fetch_state=fetch_state, mix_weights=mix_weights)
 
     o_head = y_std
     if Mbar is not None:
-      o_head = o_head + self._read_fetched_m(Mbar[:, None], inputs_q)
+      o_head = o_head + self._read_fetched_m(Mbar, inputs_q)
 
     if self._mha_control:
       M_out = M_in

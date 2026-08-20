@@ -1891,7 +1891,7 @@ class BamLlama2XLHead16x128V2C256(
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
     """50k-step XL 16x128 BAM scalability run on v5p-32."""
-    # code_commit: b8d9c27; ~0.563 steps/s (78.7% of matched MHA); running.
+    # code_commit: b8d9c27; ~0.559 steps/s (78.9% of matched MHA); running.
     model_name = 'BamLlama2XLHead16x128V2C256'
     profiler = ''
     profile_periodically_period = -1
@@ -1911,7 +1911,7 @@ class BamMHALlama2XLHead16x128C256(
     BamMHALlama2XLHead16x128C256T2048Profile
 ):
     """Matched 50k-step BamAttention MHA control for XL 16x128."""
-    # code_commit: b8d9c27; ~0.715 steps/s; running.
+    # code_commit: b8d9c27; ~0.708 steps/s; running.
     model_name = 'BamMHALlama2XLHead16x128C256'
     profiler = ''
     profile_periodically_period = -1

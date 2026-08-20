@@ -1058,6 +1058,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256DynamicRowRank8(BamV2C256FetchScheduleBase):
     """Factorize fetched-M row reads through eight dynamic basis reads."""
+    # code_commit: 4fd6278; EW4b ~0.664 steps/s; running.
     model_name = 'BamLlama2MediumV2C256DynamicRowRank8'
     scan_layers = True
     bam_fetched_row_rank = 8
@@ -1723,6 +1724,7 @@ class BamV2GRowRank8ControlFullLayerProfile(
     BamV2QChunk256OptimizedFullLayerProfile
 ):
     """Paired full-24 non-scan control for dynamic fetched-row rank 8."""
+    # code_commit: db94296; EW4b v5p-16 XPlane 1,456.213 ms; ~0.673 steps/s.
     model_name = 'BamV2GRowRank8ControlFullLayerProfile'
     skip_first_n_steps_for_profiler = 2
     profile_periodically_period = 8
@@ -1736,6 +1738,7 @@ class BamV2GRowRank8MulReduceFullLayerProfile(
     BamV2GRowRank8ControlFullLayerProfile
 ):
     """Full-24 non-scan dynamic fetched-row rank 8."""
+    # code_commit: db94296; EW4b XPlane 1,456.361 ms; ~0.673 steps/s (-0.01%).
     model_name = 'BamV2GRowRank8MulReduceFullLayerProfile'
     bam_fetched_row_rank = 8
     bam_fetched_row_second_implementation = 'mul_reduce'
@@ -1745,6 +1748,7 @@ class BamV2GScanLayerRowRank8ControlFullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Paired full-24 layer-scan control for dynamic fetched-row rank 8."""
+    # code_commit: db94296; EW4b v5p-16 XPlane 1,482.839 ms; ~0.663 steps/s.
     model_name = 'BamV2GScanLayerRowRank8ControlFullLayerProfile'
     skip_first_n_steps_for_profiler = 2
     profile_periodically_period = 8
@@ -1756,6 +1760,7 @@ class BamV2GScanLayerRowRank8MulReduceFullLayerProfile(
     BamV2GScanLayerRowRank8ControlFullLayerProfile
 ):
     """Full-24 layer-scan dynamic fetched-row rank 8."""
+    # code_commit: db94296; EW4b XPlane 1,481.892 ms; ~0.664 steps/s (+0.06%).
     model_name = 'BamV2GScanLayerRowRank8MulReduceFullLayerProfile'
     bam_fetched_row_rank = 8
     bam_fetched_row_second_implementation = 'mul_reduce'

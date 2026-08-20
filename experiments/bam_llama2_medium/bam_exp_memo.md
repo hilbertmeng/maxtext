@@ -134,6 +134,19 @@ The two non-scan paths agree, while `nn.scan(split_rngs={'params': True})` uses 
 RNG sequence. Thus ordinary from-scratch loss cannot establish scan/non-scan numerical equivalence;
 that requires mapping one parameter set into both layouts.
 
+### Dynamic fetched-row rank 8
+
+Commit `db94296`, full-24 G C256 on one EW4b v5p-16. The rank-8 path replaces 16 independent
+fetched-row reads with eight dynamic basis reads and a multiply-reduce head expansion.
+
+| Layers | Control class / XPlane / log step/s | Rank-8 class / XPlane / log step/s | Rank-8 throughput |
+|---|---|---|---:|
+| non-scan | `BamV2GRowRank8ControlFullLayerProfile` / 1,456.213 ms / ~0.673 | `BamV2GRowRank8MulReduceFullLayerProfile` / 1,456.361 ms / ~0.673 | -0.01% |
+| layer-scan | `BamV2GScanLayerRowRank8ControlFullLayerProfile` / 1,482.839 ms / ~0.663 | `BamV2GScanLayerRowRank8MulReduceFullLayerProfile` / 1,481.892 ms / ~0.664 | +0.06% |
+
+Rank-8 is speed-neutral under both layer implementations. Non-scan is 1.83% faster for the control
+and 1.75% faster for rank-8; layer-scan remains useful only for its much shorter compilation.
+
 ## Canonical v6e-1 eight-layer matrix
 
 Commit `91cb24a`; every arm has eight layers and explicitly selects optimized, non-streaming C256.

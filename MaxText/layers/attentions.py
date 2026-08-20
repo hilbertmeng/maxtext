@@ -1692,6 +1692,7 @@ class GroupedRMSNorm(nn.Module):
   scale_shape: Tuple[int, ...]
   epsilon: float
   dtype: DType = jnp.float32
+  statistics_dtype: DType = jnp.float32
   weight_dtype: DType = jnp.float32
   kernel_axes: Tuple[Optional[str], ...] = ()
   scale_init: Any = nn.initializers.zeros
@@ -1705,7 +1706,8 @@ class GroupedRMSNorm(nn.Module):
       raise ValueError(
           f"GroupedRMSNorm expected trailing shape {self.scale_shape}, got {x.shape}")
     y = normalizations.rms_norm(
-        x, dtype=self.dtype, epsilon=self.epsilon)
+        x, dtype=self.dtype, epsilon=self.epsilon,
+        statistics_dtype=self.statistics_dtype)
     if self.scale_init is not None:
       scale = self.param(
           "scale",
@@ -2307,6 +2309,7 @@ class BamAttention(Attention):
       assert not cfg.bam_keep_fetch_diagonal
     self._write_v_mode = cfg.bam_write_v_mode
     self._write_data_rms = bool(cfg.bam_write_data_rms)
+    self._write_factor_norm = cfg.bam_write_factor_norm
     self._write_u2_norm = cfg.bam_write_u2_norm
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
     self._write_v_bottleneck_activation = cfg.bam_write_v_bottleneck_activation
@@ -2329,9 +2332,11 @@ class BamAttention(Attention):
         self._local_qk_injection == 'pre_qknorm_rope' and not cfg.qk_norm), (
             'adjacent Q/K RoPE requires pre-RoPE LocalQK injection with QKNorm disabled')
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
+    assert self._write_factor_norm in ('rms', 'grouped_rms')
     assert self._write_u2_norm in ('rms', 'grouped_rms_bias')
     assert self._write_u2_norm == 'rms' or self._write_v_mode == 'o_tail'
     assert not (self._write_u2_norm != 'rms' and self._create_grouped_rw_norm)
+    assert not (self._write_factor_norm != 'rms' and self._create_grouped_rw_norm)
     assert self._write_v_bottleneck_activation in ('none', 'gelu')
     if self._write_v_bottleneck_dim is None:
       assert self._write_v_bottleneck_activation == 'none'
@@ -2417,10 +2422,12 @@ class BamAttention(Attention):
         return
       setattr(self, f'{name}_row_norm', GroupedRMSNorm(
           scale_shape=row_shape, epsilon=self._read_key_epsilon, dtype=self.dtype,
+          statistics_dtype=self._read_rms_statistics_dtype,
           weight_dtype=self.weight_dtype, kernel_axes=row_axes,
           name=f'{name}_row_norm'))
       setattr(self, f'{name}_col_norm', GroupedRMSNorm(
           scale_shape=col_shape, epsilon=self._read_key_epsilon, dtype=self.dtype,
+          statistics_dtype=self._read_rms_statistics_dtype,
           weight_dtype=self.weight_dtype, kernel_axes=col_axes,
           name=f'{name}_col_norm'))
 
@@ -2731,23 +2738,25 @@ class BamAttention(Attention):
                 lambda key, shape, dtype: jnp.full(shape, forget_bias, dtype),
                 (None,)),
             (1,), self.weight_dtype)
-      if self._create_grouped_rw_norm:
-        self.write_u1_norm = GroupedRMSNorm(
-            scale_shape=(self.num_query_heads, self.bam_k),
-            epsilon=self._rms_epsilon, dtype=self.dtype,
-            weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
-            name='write_u1_norm')
-        self.write_u2_norm = GroupedRMSNorm(
-            scale_shape=(self.num_query_heads, loc_v),
-            epsilon=self._rms_epsilon, dtype=self.dtype,
-            weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
-            name='write_u2_norm')
-      elif self._write_u2_norm == 'grouped_rms_bias':
-        self.write_u2_norm = GroupedRMSNorm(
-            scale_shape=(self.num_query_heads, loc_v),
-            epsilon=self._rms_epsilon, dtype=self.dtype,
-            weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
-            use_bias=True, name='write_u2_norm')
+      learned_write_scale = (
+          self._write_factor_norm == 'grouped_rms' or self._use_grouped_rw_norm)
+      address_bias = self._write_u2_norm == 'grouped_rms_bias'
+      self.write_data_norm = GroupedRMSNorm(
+          scale_shape=(self.num_query_heads, self.bam_k),
+          epsilon=self._rms_epsilon, dtype=self.dtype,
+          statistics_dtype=self._write_rms_statistics_dtype,
+          weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
+          scale_init=nn.initializers.zeros if learned_write_scale else None,
+          name='write_data_norm')
+      self.write_address_norm = GroupedRMSNorm(
+          scale_shape=(self.num_query_heads, loc_v),
+          epsilon=self._rms_epsilon, dtype=self.dtype,
+          statistics_dtype=self._write_rms_statistics_dtype,
+          weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
+          scale_init=(
+              nn.initializers.zeros
+              if learned_write_scale or address_bias else None),
+          use_bias=address_bias, name='write_address_norm')
   def _project_full_read_key(self, x):
     if self._fetch_read_bottleneck_dim is None:
       return self.W_R(x)
@@ -2965,22 +2974,8 @@ class BamAttention(Attention):
       # gate by 1/sqrt(n) damps each head's write so |M| ~ sqrt(n) — head-count-invariant
       # dynamics, analogous to attention's 1/sqrt(d). No-op at n==1.
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
-    u1_norm = (
-        normalizations.rms_norm(
-            u1, dtype=self.dtype, epsilon=self._rms_epsilon,
-            statistics_dtype=self._write_rms_statistics_dtype)
-        if self._write_data_rms else u1)
-    u2_norm = normalizations.rms_norm(
-        u2, dtype=self.dtype, epsilon=self._rms_epsilon,
-        statistics_dtype=self._write_rms_statistics_dtype)
-    if self._create_grouped_rw_norm:
-      learned_u1_norm = self.write_u1_norm(u1)
-      learned_u2_norm = self.write_u2_norm(u2)
-      if self._use_grouped_rw_norm:
-        u1_norm = learned_u1_norm
-        u2_norm = learned_u2_norm
-    elif self._write_u2_norm == 'grouped_rms_bias':
-      u2_norm = self.write_u2_norm(u2)
+    u1_norm = self.write_data_norm(u1) if self._write_data_rms else u1
+    u2_norm = self.write_address_norm(u2)
     gated_u1 = g[..., None] * u1_norm
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':

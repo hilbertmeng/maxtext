@@ -306,6 +306,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail | static
     bam_write_data_rms = True       # normalize write data/value factor u1
     bam_write_factor_norm = 'rms'   # rms | grouped_rms (per-head learned scale)
+    bam_write_address_norm_bias = False  # learned post-norm shift on the address factor
     bam_write_u2_norm = 'rms'        # rms | grouped_rms_bias (o_tail only)
     bam_write_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
@@ -1911,9 +1912,11 @@ class BamLlama2XLHead16x128V2C256(
 class BamLlama2XLHead16x128V2C256GroupedWriteRMSNorm(
     BamLlama2XLHead16x128V2C256
 ):
-    """Replace only write-side parameter-free RMS with per-head learned scales."""
+    """Per-head affine write RMS; move P_loc bias after address normalization."""
     model_name = 'BamLlama2XLHead16x128V2C256GroupedWriteRMSNorm'
+    bam_write_v_mode = 'x'
     bam_write_factor_norm = 'grouped_rms'
+    bam_write_address_norm_bias = True
 
 
 class BamMHALlama2XLHead16x128C256(

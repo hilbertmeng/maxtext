@@ -2310,6 +2310,7 @@ class BamAttention(Attention):
     self._write_v_mode = cfg.bam_write_v_mode
     self._write_data_rms = bool(cfg.bam_write_data_rms)
     self._write_factor_norm = cfg.bam_write_factor_norm
+    self._write_address_norm_bias = bool(cfg.bam_write_address_norm_bias)
     self._write_u2_norm = cfg.bam_write_u2_norm
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
     self._write_v_bottleneck_activation = cfg.bam_write_v_bottleneck_activation
@@ -2333,6 +2334,7 @@ class BamAttention(Attention):
             'adjacent Q/K RoPE requires pre-RoPE LocalQK injection with QKNorm disabled')
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
     assert self._write_factor_norm in ('rms', 'grouped_rms')
+    assert not self._write_address_norm_bias or self._write_factor_norm == 'grouped_rms'
     assert self._write_u2_norm in ('rms', 'grouped_rms_bias')
     assert self._write_u2_norm == 'rms' or self._write_v_mode == 'o_tail'
     assert not (self._write_u2_norm != 'rms' and self._create_grouped_rw_norm)
@@ -2740,7 +2742,9 @@ class BamAttention(Attention):
             (1,), self.weight_dtype)
       learned_write_scale = (
           self._write_factor_norm == 'grouped_rms' or self._use_grouped_rw_norm)
-      address_bias = self._write_u2_norm == 'grouped_rms_bias'
+      address_bias = (
+          self._write_address_norm_bias
+          or self._write_u2_norm == 'grouped_rms_bias')
       self.write_data_norm = GroupedRMSNorm(
           scale_shape=(self.num_query_heads, self.bam_k),
           epsilon=self._rms_epsilon, dtype=self.dtype,

@@ -82,6 +82,10 @@ For slow non-scan compiles, use a stable GCS `jax_cache_dir` across preemption r
    class. Immediately report and investigate a material unexplained speed deviation; mark the
    class comment `!?` or `!!` until resolved.
 
+Once training is steady, ignore isolated/short-lived `steps/s` changes; preemptible TPU throughput
+is otherwise stable and these are normally checkpoint or I/O scheduling effects. Revisit speed only
+when the slowdown persists together with stalled progress or another health signal.
+
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/run_registry.py wait-step '$EXP' 14"

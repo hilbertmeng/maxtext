@@ -108,8 +108,9 @@ auto-train owns this machine-level liveness check. It arms after three progress 
 SSH confirmations with valid speed, then recreates. Codex verifies watchdog health and owns
 loss/trend decisions.
 
-Each `run_registry/<RUN>.json` contains run/TPU/launch data, report interval/window/cursor,
-and direct `compare_runs`. `loss-report` refreshes live worker-0 logs, merges repeated steps
+Each `run_registry/<RUN>.json` contains run/TPU/launch data, current `base_output_directory`,
+report interval/window/cursor, and direct `compare_runs`. `loss-report` refreshes live worker-0
+logs, merges repeated steps
 (latest launch wins) into persistent `run_registry/loss_cache/`, then prints every
 `gap = RUN loss - BASE loss` (negative favors RUN) at exact common steps:
 

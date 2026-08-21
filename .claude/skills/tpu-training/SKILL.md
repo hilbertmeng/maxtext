@@ -83,8 +83,7 @@ For slow non-scan compiles, use a stable GCS `jax_cache_dir` across preemption r
    class comment `!?` or `!!` until resolved.
 
 Once training is steady, ignore isolated/short-lived `steps/s` changes; preemptible TPU throughput
-is otherwise stable and these are normally checkpoint or I/O scheduling effects. Revisit speed only
-when the slowdown persists together with stalled progress or another health signal.
+is otherwise stable and these are normally checkpoint or I/O scheduling effects.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \

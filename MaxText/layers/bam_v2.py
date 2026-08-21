@@ -24,7 +24,7 @@ the same as that reference path so checkpoints and deterministic alignment are
 reviewable.
 
 Structure:
-  _rms_norm / _rms_gated_key / _factorized_local_read: param-free read helpers.
+  _rms_norm / _fit_width / _rms_gated_key / _factorized_local_read: param-free read helpers.
   _packed_local_qk_init: packed local-QK kernel init (zero keys/gates, random mixes).
   BamV2Attention.setup: parameter tree (full-read, packed local-QK, write path).
   BamV2Attention._matrix_for_read: optional read-side matrix RMS view (bam_m_read_norm).
@@ -59,6 +59,15 @@ def _rms_norm(x, *, dtype, epsilon, axis=-1, statistics_dtype=None):
   return jnp.asarray(statistics * jax.lax.rsqrt(mean_square + epsilon), dtype)
 
 
+def _fit_width(x, width):
+  """Zero-pad or truncate the last axis to ``width``."""
+  if x.shape[-1] == width:
+    return x
+  if x.shape[-1] > width:
+    return x[..., :width]
+  return jnp.pad(x, ((0, 0),) * (x.ndim - 1) + ((0, width - x.shape[-1]),))
+
+
 def _rms_gated_key(raw_key, gate_logits, *, split_at, scale, epsilon, dtype):
   """Reference ``_project_bam_read_keys`` + ``rms_gate`` specialization."""
   raw_row, raw_col = jnp.split(raw_key, [split_at], axis=-1)
@@ -72,7 +81,16 @@ def _rms_gated_key(raw_key, gate_logits, *, split_at, scale, epsilon, dtype):
 
 
 def _factorized_local_read(
-    matrix, raw_key, gate_logits, raw_head_mix, *, bam_k, scale, epsilon, output_dtype
+    matrix,
+    raw_key,
+    gate_logits,
+    raw_head_mix,
+    *,
+    bam_k,
+    scale,
+    epsilon,
+    output_dtype,
+    decoder=None,
 ):
   """Reference ``factorized_head_bam_read`` fixed to V2's both/BTN/mul path."""
   row_key, col_key = _rms_gated_key(
@@ -89,7 +107,11 @@ def _factorized_local_read(
   row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
   y_u = jnp.einsum("btk,btn->btnk", y_u, col_mix)
   y_v = jnp.einsum("btv,btn->btnv", y_v, row_mix)
-  return jnp.concatenate((y_u, y_v), axis=-1)
+  y = jnp.concatenate((y_u, y_v), axis=-1)
+  if decoder is None:
+    return y
+  # Per-head (K+V)->head_dim decode so the local read matches the Q/K width.
+  return jnp.einsum("btnd,ndk->btnk", y, jnp.asarray(decoder, y.dtype))
 
 
 def _packed_local_qk_init(kernel_init, num_query_heads, num_kv_heads, key_width):
@@ -123,8 +145,6 @@ class BamV2Attention(attentions.Attention):
   def setup(self):
     super().setup()
     cfg = self.config
-    if self.bam_k + self.bam_v != self.head_dim:
-      raise ValueError("BAM V2 requires bam_k + bam_v == head_dim")
     if self.num_query_heads % self.num_kv_heads != 0:
       raise ValueError("BAM V2 requires num_query_heads divisible by num_kv_heads")
     if self.use_kv_shift or getattr(cfg, "use_o_shift", False):
@@ -168,10 +188,19 @@ class BamV2Attention(attentions.Attention):
     def decoder_init(_key, shape, dtype):
       return jnp.broadcast_to(jnp.eye(shape[-2], shape[-1], dtype=dtype), shape)
 
+    # Preserve the accepted BAMAdaptation parameter shape and initialization
+    # when K+V already equals the attention-head width.  The narrower V2 arm
+    # instead needs a learned decoder for the concatenated K+compressed-V read.
+    decoder_shape = (
+        (self.num_query_heads, cfg.bam_abs_v_compression_dim, self.bam_v)
+        if key_width == self.head_dim
+        else (self.num_query_heads, self.bam_k + cfg.bam_abs_v_compression_dim, self.head_dim)
+    )
+    decoder_kernel_init = decoder_init if key_width == self.head_dim else reg_init
     self.abs_v_row_decoder = self.param(
         "abs_v_row_decoder",
-        nn.with_logical_partitioning(decoder_init, ("q_heads", "kv", "v_factor")),
-        (self.num_query_heads, cfg.bam_abs_v_compression_dim, self.bam_v),
+        nn.with_logical_partitioning(decoder_kernel_init, ("q_heads", "kv", "v_factor")),
+        decoder_shape,
         self.weight_dtype,
     )
     read_width = self.bam_k + cfg.bam_abs_v_compression_dim
@@ -274,6 +303,21 @@ class BamV2Attention(attentions.Attention):
           (self.num_query_heads, self.head_dim, self.bam_k),
           self.weight_dtype,
       )
+      if key_width != self.head_dim:
+        # Per-head (K+V)->head_dim decoders are V2-only: the accepted
+        # BAMAdaptation arm already emits the exact head width.
+        self.local_q_decoder = self.param(
+            "local_q_decoder",
+            nn.with_logical_partitioning(reg_init, ("q_heads", "kv", "v_factor")),
+            (self.num_query_heads, key_width, self.head_dim),
+            self.weight_dtype,
+        )
+        self.local_k_decoder = self.param(
+            "local_k_decoder",
+            nn.with_logical_partitioning(reg_init, ("kv_heads", "kv", "v_factor")),
+            (self.num_kv_heads, key_width, self.head_dim),
+            self.weight_dtype,
+        )
 
     # Source: Direct P_loc r=256 GELU x_bias write, without unused projected-U.
     self.P_loc_down = DenseGeneral(
@@ -360,10 +404,14 @@ class BamV2Attention(attentions.Attention):
         epsilon=float(self.config.bam_read_key_epsilon),
         output_dtype=self.dtype,
     )
-    return (
-        _factorized_local_read(matrix, q_key, q_gate, q_mix, **kwargs),
-        _factorized_local_read(matrix, k_key, k_gate, k_mix, **kwargs),
-    )
+    needs_decoder = self.config.bam_adaptation and self.bam_k + self.bam_v != self.head_dim
+    q_decoder = self.local_q_decoder if needs_decoder else None
+    k_decoder = self.local_k_decoder if needs_decoder else None
+    q_read = _factorized_local_read(matrix, q_key, q_gate, q_mix, decoder=q_decoder, **kwargs)
+    k_read = _factorized_local_read(matrix, k_key, k_gate, k_mix, decoder=k_decoder, **kwargs)
+    if needs_decoder:
+      return q_read, k_read
+    return _fit_width(q_read, self.head_dim), _fit_width(k_read, self.head_dim)
 
   def _full_read(self, matrix, alpha, inputs):
     mix_logits = jnp.asarray(self.fetch_head_mix(inputs), jnp.float32)
@@ -372,7 +420,7 @@ class BamV2Attention(attentions.Attention):
         dtype=alpha.dtype,
         epsilon=float(self.config.normalization_layer_epsilon),
     ) / jnp.sqrt(self.num_query_heads)
-    fetch_alpha = jnp.einsum("bnts,btn->bts", alpha, mix_weights)[:, None]
+    fetch_alpha = jnp.einsum("bnts,btn->bts", alpha, mix_weights)[:, None]  # B1TS
     diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
     fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(jnp.asarray(1, fetch_alpha.dtype))
 
@@ -390,25 +438,28 @@ class BamV2Attention(attentions.Attention):
         dtype=self.dtype,
     )
     # Reference ``_contract_bam_read(..., mul_reduce_btn)`` with one fetch axis.
-    fetched_btn = jnp.transpose(fetched, (0, 2, 1, 3, 4))
+    fetched_btn = jnp.transpose(fetched, (0, 2, 1, 3, 4))  # B1TKV -> BT1KV
     y_u = jnp.sum(fetched_btn[:, :, None] * col_key[..., None, :], axis=(-3, -1))
     y_v = jnp.sum(fetched_btn[:, :, None] * row_key[..., :, None], axis=(-3, -2))
+    if self.config.bam_adaptation and self.bam_k + self.bam_v != self.head_dim:
+      # Adaptation decodes the concatenated column/row reads with a per-head
+      # (K+C)->head_dim linear projection instead of padding the compressed
+      # row read with zeros.
+      decoder = jnp.asarray(self.abs_v_row_decoder, y_v.dtype)
+      y_full = jnp.concatenate((y_u, y_v), axis=-1)
+      return jnp.einsum("btnd,ndk->btnk", y_full, decoder)
     if self.config.bam_adaptation:
-      # The decoder already exists in the default checkpoint tree.  Adaptation
-      # executes it as a per-head C->V linear projection instead of padding the
-      # compressed row read with zeros.
       decoder = jnp.asarray(self.abs_v_row_decoder, y_v.dtype)
       y_v = jnp.einsum("btnc,ncv->btnv", y_v, decoder)
       return jnp.concatenate((y_u, y_v), axis=-1)
-    full_read = jnp.concatenate((y_u, y_v), axis=-1)
-    return jnp.pad(full_read, ((0, 0), (0, 0), (0, 0), (0, self.bam_v - y_v.shape[-1])))
+    return _fit_width(jnp.concatenate((y_u, y_v), axis=-1), self.head_dim)
 
   def _write(self, o_head, inputs, matrix):
     if self.config.bam_adaptation:
       projection = jnp.asarray(self.P_agg_u, o_head.dtype)
       u1 = jnp.einsum("btnd,ndk->btnk", o_head, projection)
     else:
-      u1 = o_head[..., :self.bam_k]
+      u1 = _fit_width(o_head, self.bam_k)
     u2 = self.P_loc_up(nn.gelu(self.P_loc_down(inputs)))
     gate = jax.nn.sigmoid(self.W_gw(inputs) + jnp.asarray(self.gw_b0, self.dtype))
     u1 = _rms_norm(
@@ -479,7 +530,7 @@ class BamV2Attention(attentions.Attention):
     batch, query_length, query_heads, depth = query.shape
     kv_heads = key.shape[-2]
     query_groups = query_heads // kv_heads
-    grouped_query = query.reshape(batch, query_length, kv_heads, query_groups, depth)
+    grouped_query = query.reshape(batch, query_length, kv_heads, query_groups, depth)  # BTNGd
     logits = jnp.einsum("btkgd,bskd->bkgts", grouped_query, key)
     logits = logits.reshape(batch, query_heads, query_length, key.shape[1])
     if self.config.attn_logits_soft_cap:
@@ -489,7 +540,7 @@ class BamV2Attention(attentions.Attention):
       logits = attentions.apply_mask_to_logits(logits, jnp.squeeze(mask, axis=2))
     if self.float32_logits:
       logits = logits.astype(jnp.float32)
-    alpha = jax.nn.softmax(logits, axis=-1)
+    alpha = jax.nn.softmax(logits, axis=-1)  # BNTS
     grouped_alpha = alpha.reshape(batch, kv_heads, query_groups, query_length, key.shape[1])
     y_std = jnp.einsum("bkgts,bskd->btkgd", grouped_alpha, value)
     y_std = y_std.reshape(batch, query_length, query_heads, depth)

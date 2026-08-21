@@ -13,6 +13,7 @@ import numpy as np
 PLAIN = "Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun"
 BAM = f"{PLAIN}BAM"
 ADAPTATION = f"{PLAIN}BAMAdaptation"
+ADAPTATION_V2 = f"{PLAIN}BAMAdaptationV2"
 POSTNORM = f"{ADAPTATION}PostNorm"
 MREAD_SCALE = f"{ADAPTATION}MReadNormScale001"
 INVARIANT_KEYS = (
@@ -116,7 +117,7 @@ def _is_standard_attention(path):
 def _compare(root):
   with tempfile.TemporaryDirectory(prefix="bam-posttrain-alignment-") as tmp:
     outputs = {}
-    for identity in (PLAIN, BAM, ADAPTATION, POSTNORM, MREAD_SCALE):
+    for identity in (PLAIN, BAM, ADAPTATION, ADAPTATION_V2, POSTNORM, MREAD_SCALE):
       output = os.path.join(tmp, f"{identity}.pkl")
       subprocess.run(
           [sys.executable, __file__, "--emit", identity, "--root", root, "--output", output],
@@ -126,27 +127,34 @@ def _compare(root):
       with open(output, "rb") as stream:
         outputs[identity] = pickle.load(stream)
 
-  plain, bam, adaptation, postnorm, mread_scale = (
-      outputs[PLAIN], outputs[BAM], outputs[ADAPTATION], outputs[POSTNORM], outputs[MREAD_SCALE]
+  plain, bam, adaptation, adaptation_v2, postnorm, mread_scale = (
+      outputs[PLAIN], outputs[BAM], outputs[ADAPTATION], outputs[ADAPTATION_V2],
+      outputs[POSTNORM], outputs[MREAD_SCALE]
   )
-  bam_candidates = (bam, adaptation, postnorm, mread_scale)
+  bam_candidates = (bam, adaptation, adaptation_v2, postnorm, mread_scale)
   if not (
       not plain["bam_enabled"] and all(candidate["bam_enabled"] for candidate in bam_candidates)
   ):
     raise AssertionError("BAM enablement does not match the experiment identities")
   if plain["bam_adaptation"] or bam["bam_adaptation"] or not all(
-      candidate["bam_adaptation"] for candidate in (adaptation, postnorm, mread_scale)
+      candidate["bam_adaptation"] for candidate in (adaptation, adaptation_v2, postnorm, mread_scale)
   ):
     raise AssertionError("only the adaptation identity may enable bam_adaptation")
   if (
-      any(candidate["bam_adaptation_postnorm"] for candidate in (plain, bam, adaptation, mread_scale))
+      any(
+          candidate["bam_adaptation_postnorm"]
+          for candidate in (plain, bam, adaptation, adaptation_v2, mread_scale)
+      )
       or not postnorm["bam_adaptation_postnorm"]
   ):
     raise AssertionError("only the postnorm identity may enable bam_adaptation_postnorm")
   if not all(candidate["train_merge_loaded_params"] for candidate in bam_candidates):
     raise AssertionError("BAM posttrain identities must merge the Plain checkpoint")
-  if not all(plain["config"] == candidate["config"] for candidate in bam_candidates):
+  if not all(plain["config"] == candidate["config"] for candidate in (bam, adaptation, postnorm, mread_scale)):
     raise AssertionError("accepted Plain training/runtime invariants changed")
+  v2_expected_config = dict(plain["config"], steps=1001)
+  if adaptation_v2["config"] != v2_expected_config:
+    raise AssertionError("V2 must stop after step-1000 eval without changing the matched LR schedule/runtime")
   if mread_scale["bam_m_read_norm"] != "rms" or not mread_scale["bam_m_read_learnable_scale"]:
     raise AssertionError("MReadNormScale001 must enable RMS-normalized reads with a learnable scale")
   if mread_scale["bam_m_read_scale_init"] != 0.01:
@@ -166,12 +174,15 @@ def _compare(root):
 
   bam_only = set(bam["params"]) - set(plain["params"])
   adaptation_only = set(adaptation["params"]) - set(bam["params"])
+  adaptation_v2_only = set(adaptation_v2["params"]) - set(bam["params"])
   postnorm_only = set(postnorm["params"]) - set(adaptation["params"])
   mread_scale_only = set(mread_scale["params"]) - set(adaptation["params"])
   if set(bam["bam_skip_paths"]) != bam_only:
     raise AssertionError("Plain restore skip set is not exactly the default BAM additions")
   if set(adaptation["bam_skip_paths"]) != bam_only | adaptation_only:
     raise AssertionError("Plain restore skip set is not exactly the adaptation BAM additions")
+  if set(adaptation_v2["bam_skip_paths"]) != bam_only | adaptation_v2_only:
+    raise AssertionError("Plain restore skip set is not exactly the V2 BAM additions")
   if set(postnorm["bam_skip_paths"]) != bam_only | adaptation_only | postnorm_only:
     raise AssertionError("Plain restore skip set is not exactly the postnorm BAM additions")
   if set(mread_scale["bam_skip_paths"]) != bam_only | adaptation_only | mread_scale_only:
@@ -185,6 +196,15 @@ def _compare(root):
   }
   if len(adaptation_only) != len(expected_adaptation_suffixes) or matched_adaptation_suffixes != expected_adaptation_suffixes:
     raise AssertionError(f"unexpected adaptation-only paths: {sorted(adaptation_only)}")
+  expected_v2_suffixes = {"P_agg_u", "local_q_decoder", "local_k_decoder"}
+  matched_v2_suffixes = {
+      suffix
+      for path in adaptation_v2_only
+      for suffix in expected_v2_suffixes
+      if path.endswith(suffix)
+  }
+  if len(adaptation_v2_only) != len(expected_v2_suffixes) or matched_v2_suffixes != expected_v2_suffixes:
+    raise AssertionError(f"unexpected V2-only paths: {sorted(adaptation_v2_only)}")
   expected_postnorm_suffixes = {"rms_norm_q/scale", "rms_norm_k/scale", "rms_norm_o/scale"}
   matched_postnorm_suffixes = {
       suffix for path in postnorm_only for suffix in expected_postnorm_suffixes if path.endswith(suffix)
@@ -216,6 +236,7 @@ def _compare(root):
       f"standard_attention={len(standard)}",
       f"bam_only={len(bam_only)}",
       f"adaptation_only={sorted(adaptation_only)}",
+      f"adaptation_v2_only={sorted(adaptation_v2_only)}",
       f"postnorm_only={sorted(postnorm_only)}",
       f"mread_scale_only={sorted(mread_scale_only)}",
   )
@@ -224,7 +245,7 @@ def _compare(root):
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--root", default=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-  parser.add_argument("--emit", choices=(PLAIN, BAM, ADAPTATION, POSTNORM, MREAD_SCALE))
+  parser.add_argument("--emit", choices=(PLAIN, BAM, ADAPTATION, ADAPTATION_V2, POSTNORM, MREAD_SCALE))
   parser.add_argument("--output")
   args = parser.parse_args()
   if args.emit:

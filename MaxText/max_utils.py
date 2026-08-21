@@ -825,6 +825,8 @@ _BAM_ATTENTION_PARAM_NAMES = frozenset(
         "W_lk_bias",
         "W_lk_gate_b0",
         "P_agg_u",
+        "local_q_decoder",
+        "local_k_decoder",
         "rms_norm_q",
         "rms_norm_k",
         "rms_norm_o",

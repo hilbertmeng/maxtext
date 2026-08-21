@@ -239,7 +239,7 @@ class BAM:
     bam_m_read_norm = 'none'
     bam_m_read_learnable_scale = False
     bam_m_read_scale_init = 0.01
-    bam_abs_v_compression_dim = 8
+    bam_abs_v_compression_dim = 8  # 32x32 -> 32x8; 64x32 -> 64x8
     bam_abs_v_row_output = 'direct'
     bam_write_u_proj = False
     bam_write_v_mode = 'x_bias'
@@ -451,6 +451,20 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
 ):
     bam_adaptation = True
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptation'
+    model_name = run_name
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAM
+):
+    bam_adaptation = True
+    bam_k = 64
+    bam_v = 32
+    wd_mults = [
+        ('.*scale$', 0.0), ('.*bias$', 0.0),
+        ('.*gate_b0$', 0.0), ('.*gw_b0$', 0.0),
+    ]  # no weight decay on all gate biases
+    steps = 1001  # materialize train/checkpoint/eval at step 1000, then stop
+    run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2'
     model_name = run_name
 
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationPostNorm(

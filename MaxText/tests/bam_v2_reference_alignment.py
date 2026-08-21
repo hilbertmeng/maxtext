@@ -203,6 +203,11 @@ def _emit(root, implementation, output):
       loss=np.asarray(loss),
       diagnostics=diagnostics,
   )
+  # The reference tree predates the explicit "btn" default; its None value
+  # selects the same layout.  Normalize only this config spelling while
+  # retaining strict comparisons for parameters, outputs, and gradients.
+  if payload["config"]["bam_factorized_head_output_layout"] is None:
+    payload["config"]["bam_factorized_head_output_layout"] = "btn"
   with open(output, "wb") as stream:
     pickle.dump(payload, stream)
 

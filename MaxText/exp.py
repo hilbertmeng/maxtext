@@ -1981,6 +1981,40 @@ class BamMHALlama2XLHead32x64C256T2048Profile(
     bam_layer_modes = ['none'] * 24
 
 
+class BamLlama2XLHead32x64V2C256(
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    """50k-step XL 32x64 BAM head-shape scalability run on v5p-32."""
+    # code_commit: pending; running.
+    model_name = 'BamLlama2XLHead32x64V2C256'
+    profiler = ''
+    profile_periodically_period = -1
+    steps = -1  # TrainXL schedule: 50,000 steps
+    enable_checkpointing = True
+    async_checkpointing = True
+    tensorboard_dir = Llama2Medium.tensorboard_dir
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl-head32x64-c256')
+    wd_mults = BamLlama2XLHead32x64V2C256T2048Profile.wd_mults + [
+        ('.*gw_b0$', 0.0)]
+
+
+class BamMHALlama2XLHead32x64C256(
+    BamMHALlama2XLHead32x64C256T2048Profile
+):
+    """Matched 50k-step BamAttention MHA control for XL 32x64."""
+    # code_commit: pending; running.
+    model_name = 'BamMHALlama2XLHead32x64C256'
+    profiler = ''
+    profile_periodically_period = -1
+    steps = -1  # TrainXL schedule: 50,000 steps
+    enable_checkpointing = True
+    async_checkpointing = True
+    tensorboard_dir = Llama2Medium.tensorboard_dir
+    jax_cache_dir = BamLlama2XLHead32x64V2C256.jax_cache_dir
+
+
 class BamLlama2XLHead32x64V2C256T4096Profile(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):

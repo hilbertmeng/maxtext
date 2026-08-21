@@ -1064,6 +1064,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256CompressedVLocalQK(BamV2C256FetchScheduleBase):
     """Read LocalQK from the compressed 32x8 M view; retain full RoPE."""
+    # code_commit: 3e57ddc; UC1a ~0.675 steps/s; running.
     model_name = 'BamLlama2MediumV2C256CompressedVLocalQK'
     scan_layers = True
     bam_local_qk_use_compressed_v = True
@@ -1076,6 +1077,7 @@ class BamLlama2MediumV2C256CompressedVLocalQKPartialRoPE(
     BamLlama2MediumV2C256CompressedVLocalQK
 ):
     """Compressed LocalQK with its Q/K[:40] NoPE and Q/K[40:64] RoPE."""
+    # code_commit: 3e57ddc; UC1a ~0.672 steps/s; running.
     model_name = 'BamLlama2MediumV2C256CompressedVLocalQKPartialRoPE'
     bam_partial_rope = True
     jax_cache_dir = (

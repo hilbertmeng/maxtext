@@ -281,7 +281,7 @@ def run(config) -> None:
   if not config.bam_enabled or not config.only_eval:
     raise ValueError("use a BAM config with only_eval=True")
   if config.bam_local_qk_key_mode != "factorized" or config.bam_n_f != 1:
-    raise ValueError("this runner expects V1 factorized LocalQK and n_f=1")
+    raise ValueError("this runner expects factorized LocalQK and n_f=1")
 
   batches = int(os.environ.get("BAM_GATE_DIAG_BATCHES", "4"))
   microbatch_size = int(os.environ.get("BAM_GATE_DIAG_MICROBATCH", "16"))
@@ -396,7 +396,11 @@ def run(config) -> None:
           "setup_seconds": setup_seconds,
           "elapsed_seconds": time.perf_counter() - start,
           "architecture": {
-              "fetch": "W_R gate for V1 CombinedRead over fetched M + local M",
+              "fetch": (
+                  "W_R gate for the fetched-M read; diagonal-one includes the "
+                  "current-position M"
+                  if config.bam_fetch_diagonal_one
+                  else "W_R gate for the configured fetched-M read"),
               "local_qk": (
                   "sigmoid row/col gate is shared across heads; per-head effective "
                   "strength is gate * abs(RMS-normalized signed head mix)"),

@@ -39,10 +39,11 @@ from v2_c256_rope_gate_diagnostics import (  # pylint: disable=unused-import
 _LAYER_RE = re.compile(r"layers_(\d+)")
 _PROJECTIONS = frozenset(("query", "key", "value"))
 _BUCKET_NAMES = (
-    "d0", "d1_4", "d5_16", "d17_64", "d65_256", "d257_1024", "d1025_plus"
+    "d0", "d1_4", "d5_16", "d17_64", "d65_256", "d257_1024",
+    "d1025_plus", "all",
 )
 _BUCKET_BOUNDS = ((0, 0), (1, 4), (5, 16), (17, 64), (65, 256),
-                  (257, 1024), (1025, None))
+                  (257, 1024), (1025, None), (0, None))
 _EPS = 1.0e-12
 
 
@@ -236,13 +237,28 @@ def _layer_metrics(q_std, k_std, value, q_bam, k_bam, positions, segments,
 
   q_current = gather_query(q_std_rope + q_bam)
   k_current = k_std_rope + k_bam
-  q_block = gather_query(q_std_block + q_bam_block)
-  k_block = k_std_block + k_bam_block
+  counterfactual_pairs = {
+      # Matched generic control: no BAM signal in either endpoint.
+      "mha_control": (
+          gather_query(q_std_rope), k_std_rope,
+          gather_query(q_std_block), k_std_block),
+      # Keep standard Q/K on full RoPE and position-encode only LocalQK.
+      "bam_signal_only": (
+          q_current, k_current,
+          gather_query(q_std_rope + q_bam_block), k_std_rope + k_bam_block),
+      # Proposed block-RoPE: rotate standard and BAM components together.
+      "full_block": (
+          q_current, k_current,
+          gather_query(q_std_block + q_bam_block), k_std_block + k_bam_block),
+  }
   counterfactual = {
-      "lambda_0.1": _attention_delta(
-          q_current, k_current, q_block, k_block, value, valid, 0.1),
-      "lambda_1.0": _attention_delta(
-          q_current, k_current, q_block, k_block, value, valid, 1.0),
+      name: {
+          "lambda_0.1": _attention_delta(
+              q0, k0, q1, k1, value, valid, 0.1),
+          "lambda_1.0": _attention_delta(
+              q0, k0, q1, k1, value, valid, 1.0),
+      }
+      for name, (q0, k0, q1, k1) in counterfactual_pairs.items()
   }
   return {
       "norm_ratio": norm_ratio,

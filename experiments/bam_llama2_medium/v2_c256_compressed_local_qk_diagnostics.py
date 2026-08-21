@@ -283,10 +283,13 @@ def run(config):
   if config.bam_abs_v_compression_dim != 8:
     raise ValueError("diagnostic currently targets V2 abs_v=8")
   batches = int(os.environ.get("BAM_COMPRESSED_QK_BATCHES", "4"))
+  loss_batches = int(os.environ.get("BAM_COMPRESSED_QK_LOSS_BATCHES", "1"))
   microbatch = int(os.environ.get("BAM_COMPRESSED_QK_MICROBATCH", "2"))
   query_count = int(os.environ.get("BAM_COMPRESSED_QK_QUERY_COUNT", "16"))
   output_path = Path(os.environ.get(
       "BAM_COMPRESSED_QK_OUTPUT", "/tmp/v2_c256_compressed_local_qk.json"))
+  if not 1 <= loss_batches <= batches:
+    raise ValueError("loss batches must be in [1, batches]")
   output_path.parent.mkdir(parents=True, exist_ok=True)
 
   started = time.perf_counter()
@@ -324,19 +327,22 @@ def run(config):
       structural_seconds.append(time.perf_counter() - begin)
       metric_trees.append(metrics)
 
-      begin = time.perf_counter()
-      for target in loss_totals:
-        with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
-          loss_sum, weight_sum = loss_fn(
-              state.params, small_batch, rng, jnp.asarray(target, jnp.int32))
-        loss_sum, weight_sum = jax.device_get((loss_sum, weight_sum))
-        loss_totals[target][0] += float(loss_sum)
-        loss_totals[target][1] += float(weight_sum)
-      loss_seconds.append(time.perf_counter() - begin)
+      if batch_index < loss_batches:
+        begin = time.perf_counter()
+        for target in loss_totals:
+          with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+            loss_sum, weight_sum = loss_fn(
+                state.params, small_batch, rng, jnp.asarray(target, jnp.int32))
+          loss_sum, weight_sum = jax.device_get((loss_sum, weight_sum))
+          loss_totals[target][0] += float(loss_sum)
+          loss_totals[target][1] += float(weight_sum)
+        loss_seconds.append(time.perf_counter() - begin)
+      loss_suffix = (
+          f" loss_s={loss_seconds[-1]:.2f}"
+          if batch_index < loss_batches else "")
       print(
           f"BAM_COMPRESSED_QK batch={batch_index} microbatch={microbatch_index} "
-          f"structural_s={structural_seconds[-1]:.2f} "
-          f"loss_s={loss_seconds[-1]:.2f}", flush=True)
+          f"structural_s={structural_seconds[-1]:.2f}{loss_suffix}", flush=True)
       microbatch_index += 1
 
   losses = {
@@ -352,6 +358,7 @@ def run(config):
               "".join(sequence_hashes).encode()).hexdigest()[:16],
           "sequence_hashes": sequence_hashes,
           "batches": batches,
+          "loss_batches": loss_batches,
           "microbatch": microbatch,
           "query_count": query_count,
           "structural_seconds": structural_seconds,

@@ -107,6 +107,46 @@ shard_map = shard_map.shard_map
 dynamic_vector_slice_in_dim = jax.vmap(lax.dynamic_slice_in_dim, in_axes=(None, 0, None, None))
 
 
+class GroupedRMSNorm(nn.Module):
+  """RMSNorm with independent learned scales over explicit leading groups."""
+
+  scale_shape: Tuple[int, ...]
+  epsilon: float
+  dtype: DType = jnp.float32
+  weight_dtype: DType = jnp.float32
+  kernel_axes: Tuple[Optional[str], ...] = ()
+  scale_init: Any = nn.initializers.zeros
+  direct_scale: bool = False
+  use_bias: bool = False
+  bias_init: Any = nn.initializers.zeros
+
+  @nn.compact
+  def __call__(self, x: Array) -> Array:
+    if tuple(x.shape[-len(self.scale_shape):]) != self.scale_shape:
+      raise ValueError(
+          f"GroupedRMSNorm expected trailing shape {self.scale_shape}, got {x.shape}"
+      )
+    y = normalizations.rms_norm(x, dtype=self.dtype, epsilon=self.epsilon)
+    if self.scale_init is not None:
+      scale = self.param(
+          "scale",
+          nn.with_logical_partitioning(self.scale_init, self.kernel_axes),
+          self.scale_shape,
+          self.weight_dtype,
+      )
+      scale = jnp.asarray(scale, self.dtype)
+      y = y * scale if self.direct_scale else y * (scale + 1.0)
+    if self.use_bias:
+      bias = self.param(
+          "bias",
+          nn.with_logical_partitioning(self.bias_init, self.kernel_axes),
+          self.scale_shape,
+          self.weight_dtype,
+      )
+      y = y + jnp.asarray(bias, self.dtype)
+    return y
+
+
 def validate_compute_axis_order(s: AxisIdxes) -> None:
   valid_compute_axis_order = ((0, 1, 2, 3), (0, 2, 1, 3))
   if s not in valid_compute_axis_order:  # currently supported compute_axis_order

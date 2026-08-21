@@ -1,12 +1,12 @@
-"""CPU alignment of the minimal BAM V2 port against tmp/maxtext.
+"""CPU contracts for the learned-normalization BAM V2 port.
 
 Run from the target repository root:
 
   PYTHONPATH=MaxText python MaxText/tests/bam_v2_reference_alignment.py \
     --reference-root=/home/mengqy/Projects/shared_projects/tmp/maxtext
 
-The comparison covers the resolved config, initialized parameters, forward
-output, matrix-state update, scalar loss, and every parameter-gradient leaf.
+The comparison retains config/shared-initializer checks against tmp/maxtext and
+adds direct contracts for the intentionally new learned RMS scales.
 """
 
 import argparse
@@ -158,6 +158,36 @@ def _emit(root, implementation, output):
   (loss, (y, matrix_out)), grads = jax.value_and_grad(objective, has_aux=True)(eval_params)
 
   diagnostics = {}
+  if not implementation.startswith("reference"):
+    flat_params = flax.traverse_util.flatten_dict(params)
+    write_scale_paths = [
+        path
+        for path in flat_params
+        if "/".join(path).endswith(("write_u1_norm/scale", "write_u2_norm/scale"))
+    ]
+    if len(write_scale_paths) != 2:
+      raise AssertionError(f"missing direct write RMS scales: {write_scale_paths}")
+    unit_write_flat = dict(flat_params)
+    for path in write_scale_paths:
+      leaf = unit_write_flat[path]
+      raw_leaf = leaf.value if hasattr(leaf, "value") else leaf
+      replacement = jnp.ones_like(raw_leaf)
+      unit_write_flat[path] = leaf.replace(value=replacement) if hasattr(leaf, "value") else replacement
+    unit_write_params = flax.traverse_util.unflatten_dict(unit_write_flat)
+    _, production_matrix_out = module.apply({"params": params}, x, x, positions, **call_kwargs)
+    _, unit_write_matrix_out = module.apply(
+        {"params": unit_write_params}, x, x, positions, **call_kwargs
+    )
+    decay_only = float(cfg.bam_lambda_decay) * matrix
+    production_delta_norm = jnp.linalg.norm(
+        jnp.asarray(production_matrix_out - decay_only, jnp.float32)
+    )
+    unit_delta_norm = jnp.linalg.norm(
+        jnp.asarray(unit_write_matrix_out - decay_only, jnp.float32)
+    )
+    diagnostics["initial_write_delta_ratio_to_unit_scale"] = np.asarray(
+        production_delta_norm / jnp.maximum(unit_delta_norm, 1e-12)
+    )
   if implementation == "adaptation":
     zero_params = replace_adaptation_scales(eval_params, 0.0)
     unit_params = replace_adaptation_scales(eval_params, 1.0)
@@ -178,14 +208,14 @@ def _emit(root, implementation, output):
       denominator = jnp.maximum(jnp.linalg.norm(jnp.asarray(baseline, jnp.float32)), 1e-12)
       return numerator / denominator
 
-    diagnostics = {
+    diagnostics.update({
         "output_relative_delta_from_zero_scale": np.asarray(relative_delta(y, zero_y)),
         "matrix_relative_delta_from_zero_scale": np.asarray(relative_delta(matrix_out, zero_matrix_out)),
         "raw_grad_norm_small_scale": np.asarray(l2norm(grads)),
         "raw_grad_norm_unit_scale": np.asarray(l2norm(unit_grads)),
         "upstream_grad_norm_small_scale": np.asarray(l2norm(grads, exclude_scales=True)),
         "upstream_grad_norm_unit_scale": np.asarray(l2norm(unit_grads, exclude_scales=True)),
-    }
+    })
   flatten = lambda tree: {
       "/".join(path): np.asarray(value.value if hasattr(value, "value") else value)
       for path, value in flax.traverse_util.flatten_dict(tree).items()
@@ -231,6 +261,35 @@ def _assert_pair_matches(reference, target, label):
         target[name], reference[name], rtol=1e-6, atol=1e-6, err_msg=f"{label}: {name}")
 
 
+def _assert_learned_norm_contract(reference, target, label):
+  if reference["config"] != target["config"]:
+    raise AssertionError(
+        f"{label}: resolved config differs: {reference['config']} != {target['config']}"
+    )
+  extra_paths = set(target["params"]) - set(reference["params"])
+  grouped_paths = {path for path in extra_paths if path.endswith("_norm/scale")}
+  if extra_paths != grouped_paths or len(grouped_paths) != 11:
+    raise AssertionError(f"{label}: unexpected learned-norm paths: {sorted(extra_paths)}")
+  for path in reference["params"]:
+    np.testing.assert_array_equal(
+        target["params"][path], reference["params"][path], err_msg=f"{label}: {path}"
+    )
+  for path in grouped_paths:
+    expected = 0.1 if path.endswith(("write_u1_norm/scale", "write_u2_norm/scale")) else 0.0
+    np.testing.assert_array_equal(
+        target["params"][path], np.full_like(target["params"][path], expected), err_msg=path
+    )
+    if not np.all(np.isfinite(target["grads"][path])):
+      raise AssertionError(f"{label}: non-finite gradient for {path}")
+  np.testing.assert_allclose(
+      target["diagnostics"]["initial_write_delta_ratio_to_unit_scale"],
+      0.01,
+      rtol=2e-4,
+      atol=2e-6,
+      err_msg=f"{label}: direct 0.1 x 0.1 write scaling",
+  )
+
+
 def _compare(reference_root, target_root):
   with tempfile.TemporaryDirectory(prefix="bam-v2-alignment-") as tmp:
     outputs = {}
@@ -254,11 +313,13 @@ def _compare(reference_root, target_root):
     adaptation = outputs["adaptation"]
     if target["bam_adaptation"] or not adaptation["bam_adaptation"]:
       raise AssertionError("bam_adaptation must default to false and enable only by override")
-    _assert_pair_matches(reference, target, "default")
+    _assert_learned_norm_contract(reference, target, "default")
 
-    # The read-side matrix RMS view must match the reference and actually
-    # change behavior relative to the default 'none' mode.
-    _assert_pair_matches(outputs["reference_rms"], outputs["target_rms"], "m_read_norm=rms")
+    # The read-side matrix RMS view retains the shared reference initializers;
+    # learned normalization is the intentional target-only extension.
+    _assert_learned_norm_contract(
+        outputs["reference_rms"], outputs["target_rms"], "m_read_norm=rms"
+    )
     if outputs["target_rms"]["config"]["bam_m_read_norm"] != "rms":
       raise AssertionError("rms override did not reach the resolved config")
     if np.allclose(outputs["target_rms"]["output"], target["output"], rtol=1e-6, atol=1e-6):

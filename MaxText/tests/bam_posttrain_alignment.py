@@ -6,6 +6,7 @@ import pickle
 import subprocess
 import sys
 import tempfile
+import types
 
 import numpy as np
 
@@ -28,11 +29,21 @@ INVARIANT_KEYS = (
     "eval_interval", "per_device_batch_size", "eval_per_device_batch_size",
 )
 STANDARD_ATTENTION_MODULES = frozenset({"query", "key", "value", "out", "qk_norm"})
+GROUPED_NORM_NAMES = (
+    "local_q_row_norm", "local_q_col_norm", "local_k_row_norm", "local_k_col_norm",
+    "local_q_head_mix_norm", "local_k_head_mix_norm", "full_row_norm", "full_col_norm",
+    "fetch_head_mix_norm", "write_u1_norm", "write_u2_norm",
+)
 
 
 def _emit(root, identity, output):
   maxtext = os.path.join(root, "MaxText")
   sys.path.insert(0, maxtext)
+  if os.environ.get("MAXTEXT_TEST_STUB_TENSORFLOW_TEXT") == "1":
+    # Model construction does not instantiate a tokenizer. This opt-in stub
+    # keeps the CPU contract runnable on hosts without tensorflow-text's ICU
+    # shared-library version while leaving normal test/runtime imports intact.
+    sys.modules["tensorflow_text"] = types.ModuleType("tensorflow_text")
 
   import flax
   import jax
@@ -233,6 +244,28 @@ def _compare(root):
       np.full_like(mread_scale["params"][scale_path], 0.01),
       err_msg=scale_path,
   )
+  for identity, candidate in zip(
+      (BAM, ADAPTATION, ADAPTATION_V2, POSTNORM, MREAD_SCALE), bam_candidates
+  ):
+    grouped_scales = {
+        path: value
+        for path, value in candidate["params"].items()
+        if path.endswith("_norm/scale")
+        and any(f"/{name}/scale" in path for name in GROUPED_NORM_NAMES)
+    }
+    expected_count = len(GROUPED_NORM_NAMES)
+    if not candidate["config"]["scan_layers"]:
+      expected_count *= candidate["config"]["base_num_decoder_layers"]
+    if len(grouped_scales) != expected_count:
+      raise AssertionError(
+          f"{identity}: expected {expected_count} grouped RMS scales, got {sorted(grouped_scales)}"
+      )
+    for path, value in grouped_scales.items():
+      expected = 0.1 if path.endswith(("write_u1_norm/scale", "write_u2_norm/scale")) else 0.0
+      # Non-write GroupedRMSNorm uses (1 + scale), so a zero parameter is an
+      # effective multiplier of one and is initialization-equivalent to the
+      # former parameter-free RMS normalization.
+      np.testing.assert_array_equal(value, np.full_like(value, expected), err_msg=path)
   for identity, candidate in outputs.items():
     if not np.all(np.isfinite(candidate["loss"])):
       raise AssertionError(f"non-finite loss for {identity}")

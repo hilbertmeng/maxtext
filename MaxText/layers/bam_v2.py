@@ -17,14 +17,14 @@
 This module is reduced from ``tmp/maxtext`` commit ``1afd9425``, specifically
 ``layers/attentions.py``'s ``BamAttention`` as reached by
 ``exp.BamLlama2MediumV2``.  Branches that V2 cannot execute (ablation modes,
-codebook/local-v/local-o reads, dedicated/temporal/window fetch, learned
-grouped norms, dynamic forgetting, alternate write forms and diagnostics) are
+codebook/local-v/local-o reads, dedicated/temporal/window fetch, dynamic
+forgetting, alternate write forms and diagnostics) are
 intentionally absent.  Parameter names, shapes and initializer ordering remain
 the same as that reference path so checkpoints and deterministic alignment are
 reviewable.
 
 Structure:
-  _rms_norm / _fit_width / _rms_gated_key / _factorized_local_read: param-free read helpers.
+  _fit_width / _rms_gated_key / _factorized_local_read: read helpers.
   _packed_local_qk_init: packed local-QK kernel init (zero keys/gates, random mixes).
   BamV2Attention.setup: parameter tree (full-read, packed local-QK, write path).
   BamV2Attention._matrix_for_read: optional read-side matrix RMS view (bam_m_read_norm).
@@ -51,14 +51,6 @@ Array = common_types.Array
 DenseGeneral = linears.DenseGeneral
 
 
-def _rms_norm(x, *, dtype, epsilon, axis=-1, statistics_dtype=None):
-  """Reference param-free RMS helper absent from this older target baseline."""
-  statistics_dtype = statistics_dtype or dtype
-  statistics = jnp.asarray(x, statistics_dtype)
-  mean_square = jnp.mean(jnp.square(statistics), axis=axis, keepdims=True)
-  return jnp.asarray(statistics * jax.lax.rsqrt(mean_square + epsilon), dtype)
-
-
 def _fit_width(x, width):
   """Zero-pad or truncate the last axis to ``width``."""
   if x.shape[-1] == width:
@@ -68,16 +60,16 @@ def _fit_width(x, width):
   return jnp.pad(x, ((0, 0),) * (x.ndim - 1) + ((0, width - x.shape[-1]),))
 
 
-def _rms_gated_key(raw_key, gate_logits, *, split_at, scale, epsilon, dtype):
-  """Reference ``_project_bam_read_keys`` + ``rms_gate`` specialization."""
+def _rms_gated_key(raw_key, gate_logits, *, split_at, scale, row_norm, col_norm):
+  """Normalize and gate the row/column BAM read keys."""
   raw_row, raw_col = jnp.split(raw_key, [split_at], axis=-1)
   row_gate, col_gate = jnp.split(gate_logits, 2, axis=-1)
 
-  def transform(key, gate):
-    direction = _rms_norm(key, dtype=key.dtype, epsilon=epsilon, statistics_dtype=jnp.float32)
+  def transform(key, gate, norm):
+    direction = norm(key)
     return jnp.asarray(scale, key.dtype) * jax.nn.sigmoid(gate) * direction
 
-  return transform(raw_row, row_gate), transform(raw_col, col_gate)
+  return transform(raw_row, row_gate, row_norm), transform(raw_col, col_gate, col_norm)
 
 
 def _factorized_local_read(
@@ -88,8 +80,9 @@ def _factorized_local_read(
     *,
     bam_k,
     scale,
-    epsilon,
-    output_dtype,
+    row_norm,
+    col_norm,
+    head_mix_norm,
     decoder=None,
 ):
   """Reference ``factorized_head_bam_read`` fixed to V2's both/BTN/mul path."""
@@ -98,12 +91,14 @@ def _factorized_local_read(
       gate_logits,
       split_at=bam_k,
       scale=scale,
-      epsilon=epsilon,
-      dtype=output_dtype,
+      row_norm=row_norm,
+      col_norm=col_norm,
   )
   y_u = jnp.sum(matrix * col_key[..., None, :], axis=-1)
   y_v = jnp.sum(matrix * row_key[..., :, None], axis=-2)
-  head_mix = _rms_norm(raw_head_mix, dtype=y_u.dtype, epsilon=epsilon, axis=-2)
+  # GroupedRMSNorm reduces its final axis, so move heads last to preserve the
+  # old per-mixer head-axis normalization.
+  head_mix = jnp.swapaxes(head_mix_norm(jnp.swapaxes(raw_head_mix, -2, -1)), -2, -1)
   row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
   y_u = jnp.einsum("btk,btn->btnk", y_u, col_mix)
   y_v = jnp.einsum("btv,btn->btnv", y_v, row_mix)
@@ -175,6 +170,72 @@ class BamV2Attention(attentions.Attention):
           (1,),
           self.weight_dtype,
       )
+
+    norm_kwargs = dict(
+        epsilon=float(cfg.normalization_layer_epsilon),
+        dtype=self.dtype,
+        weight_dtype=self.weight_dtype,
+    )
+    key_norm_kwargs = dict(norm_kwargs, epsilon=float(cfg.bam_read_key_epsilon))
+    self.local_q_row_norm = attentions.GroupedRMSNorm(
+        (self.bam_k,), kernel_axes=("kv",), name="local_q_row_norm", **key_norm_kwargs
+    )
+    self.local_q_col_norm = attentions.GroupedRMSNorm(
+        (self.bam_v,), kernel_axes=("v_factor",), name="local_q_col_norm", **key_norm_kwargs
+    )
+    self.local_k_row_norm = attentions.GroupedRMSNorm(
+        (self.bam_k,), kernel_axes=("kv",), name="local_k_row_norm", **key_norm_kwargs
+    )
+    self.local_k_col_norm = attentions.GroupedRMSNorm(
+        (self.bam_v,), kernel_axes=("v_factor",), name="local_k_col_norm", **key_norm_kwargs
+    )
+    self.local_q_head_mix_norm = attentions.GroupedRMSNorm(
+        (2, self.num_query_heads),
+        kernel_axes=(None, "q_heads"),
+        name="local_q_head_mix_norm",
+        **key_norm_kwargs,
+    )
+    self.local_k_head_mix_norm = attentions.GroupedRMSNorm(
+        (2, self.num_kv_heads),
+        kernel_axes=(None, "kv_heads"),
+        name="local_k_head_mix_norm",
+        **key_norm_kwargs,
+    )
+    self.full_row_norm = attentions.GroupedRMSNorm(
+        (self.num_query_heads, 1, self.bam_k),
+        kernel_axes=("q_heads", "fetch", "kv"),
+        name="full_row_norm",
+        **key_norm_kwargs,
+    )
+    self.full_col_norm = attentions.GroupedRMSNorm(
+        (self.num_query_heads, 1, cfg.bam_abs_v_compression_dim),
+        kernel_axes=("q_heads", "fetch", None),
+        name="full_col_norm",
+        **key_norm_kwargs,
+    )
+    self.fetch_head_mix_norm = attentions.GroupedRMSNorm(
+        (self.num_query_heads,),
+        kernel_axes=("q_heads",),
+        name="fetch_head_mix_norm",
+        **norm_kwargs,
+    )
+    write_scale_init = nn.initializers.constant(0.1)
+    self.write_u1_norm = attentions.GroupedRMSNorm(
+        (self.num_query_heads, self.bam_k),
+        kernel_axes=("q_heads", "kv"),
+        scale_init=write_scale_init,
+        direct_scale=True,
+        name="write_u1_norm",
+        **norm_kwargs,
+    )
+    self.write_u2_norm = attentions.GroupedRMSNorm(
+        (self.num_query_heads, self.bam_v),
+        kernel_axes=("q_heads", "v_factor"),
+        scale_init=write_scale_init,
+        direct_scale=True,
+        name="write_u2_norm",
+        **norm_kwargs,
+    )
 
     # Source: absolute-V full-read branch.  The direct decoder is deliberately
     # created but unused: the reference V2 does this to preserve its checkpoint tree.
@@ -409,25 +470,41 @@ class BamV2Attention(attentions.Attention):
     kwargs = dict(
         bam_k=self.bam_k,
         scale=float(self.config.bam_read_key_scale),
-        epsilon=float(self.config.bam_read_key_epsilon),
-        output_dtype=self.dtype,
     )
     needs_decoder = self.config.bam_adaptation and self.bam_k + self.bam_v != self.head_dim
     q_decoder = self.local_q_decoder if needs_decoder else None
     k_decoder = self.local_k_decoder if needs_decoder else None
-    q_read = _factorized_local_read(matrix, q_key, q_gate, q_mix, decoder=q_decoder, **kwargs)
-    k_read = _factorized_local_read(matrix, k_key, k_gate, k_mix, decoder=k_decoder, **kwargs)
+    q_read = _factorized_local_read(
+        matrix,
+        q_key,
+        q_gate,
+        q_mix,
+        row_norm=self.local_q_row_norm,
+        col_norm=self.local_q_col_norm,
+        head_mix_norm=self.local_q_head_mix_norm,
+        decoder=q_decoder,
+        **kwargs,
+    )
+    k_read = _factorized_local_read(
+        matrix,
+        k_key,
+        k_gate,
+        k_mix,
+        row_norm=self.local_k_row_norm,
+        col_norm=self.local_k_col_norm,
+        head_mix_norm=self.local_k_head_mix_norm,
+        decoder=k_decoder,
+        **kwargs,
+    )
     if needs_decoder:
       return q_read, k_read
     return _fit_width(q_read, self.head_dim), _fit_width(k_read, self.head_dim)
 
   def _full_read(self, matrix, alpha, inputs):
     mix_logits = jnp.asarray(self.fetch_head_mix(inputs), jnp.float32)
-    mix_weights = _rms_norm(
-        mix_logits,
-        dtype=alpha.dtype,
-        epsilon=float(self.config.normalization_layer_epsilon),
-    ) / jnp.sqrt(self.num_query_heads)
+    mix_weights = jnp.asarray(self.fetch_head_mix_norm(mix_logits), alpha.dtype) / jnp.sqrt(
+        self.num_query_heads
+    )
     fetch_alpha = jnp.einsum("bnts,btn->bts", alpha, mix_weights)[:, None]  # B1TS
     diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
     fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(jnp.asarray(1, fetch_alpha.dtype))
@@ -442,8 +519,8 @@ class BamV2Attention(attentions.Attention):
         gate_logits,
         split_at=self.bam_k,
         scale=float(self.config.bam_read_key_scale),
-        epsilon=float(self.config.bam_read_key_epsilon),
-        dtype=self.dtype,
+        row_norm=self.full_row_norm,
+        col_norm=self.full_col_norm,
     )
     # Reference ``_contract_bam_read(..., mul_reduce_btn)`` with one fetch axis.
     fetched_btn = jnp.transpose(fetched, (0, 2, 1, 3, 4))  # B1TKV -> BT1KV
@@ -470,12 +547,8 @@ class BamV2Attention(attentions.Attention):
       u1 = _fit_width(o_head, self.bam_k)
     u2 = self.P_loc_up(nn.gelu(self.P_loc_down(inputs)))
     gate = jax.nn.sigmoid(self.W_gw(inputs) + jnp.asarray(self.gw_b0, self.dtype))
-    u1 = _rms_norm(
-        u1, dtype=self.dtype, epsilon=float(self.config.normalization_layer_epsilon), statistics_dtype=jnp.float32
-    )
-    u2 = _rms_norm(
-        u2, dtype=self.dtype, epsilon=float(self.config.normalization_layer_epsilon), statistics_dtype=jnp.float32
-    )
+    u1 = self.write_u1_norm(u1)
+    u2 = self.write_u2_norm(u2)
     delta = jnp.sum((gate[..., None] * u1)[..., None] * u2[..., None, :], axis=-3)
     return jnp.asarray(self.config.bam_lambda_decay, matrix.dtype) * matrix + delta
 

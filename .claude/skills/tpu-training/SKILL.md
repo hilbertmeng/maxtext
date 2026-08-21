@@ -34,6 +34,11 @@ CODE_COMMIT=$(git rev-parse HEAD)
 3. Launch on tpu-ag in tmux. `run_exp_xd.sh` rejects unpushed hashes; registry records
    `code_commit`; every initial/retry/preemption launch checks out that exact detached commit.
 
+For a hot switch on an allocated preemptible TPU, prepare and push the new RUN first, then stop
+the old worker processes and launch the new tmux immediately. Defer old-RUN registry/TensorBoard
+bookkeeping until the new launcher is running; do it while waiting for `FIRST_STEP` so the TPU is
+not left idle.
+
 ```bash
 EXP=BamLlama2Medium ID=0 MODE=install+train
 CODE_COMMIT=$(git rev-parse HEAD)

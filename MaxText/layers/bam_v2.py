@@ -200,7 +200,10 @@ class BamV2Attention(attentions.Attention):
     decoder_kernel_axes = (
         ("q_heads", "kv", "v_factor")
         if key_width == self.head_dim
-        else ("q_heads", "embed", "v_factor")
+        # The V2 contraction width is 72, which is not divisible by the
+        # v5p-32 FSDP mesh size (16).  Shard the 128-wide decoded output
+        # instead; it carries the same per-head matrix without replication.
+        else ("q_heads", None, "embed")
     )
     self.abs_v_row_decoder = self.param(
         "abs_v_row_decoder",
@@ -313,13 +316,13 @@ class BamV2Attention(attentions.Attention):
         # BAMAdaptation arm already emits the exact head width.
         self.local_q_decoder = self.param(
             "local_q_decoder",
-            nn.with_logical_partitioning(reg_init, ("q_heads", "embed", "v_factor")),
+            nn.with_logical_partitioning(reg_init, ("q_heads", None, "embed")),
             (self.num_query_heads, key_width, self.head_dim),
             self.weight_dtype,
         )
         self.local_k_decoder = self.param(
             "local_k_decoder",
-            nn.with_logical_partitioning(reg_init, ("kv_heads", "embed", "v_factor")),
+            nn.with_logical_partitioning(reg_init, ("kv_heads", None, "embed")),
             (self.num_kv_heads, key_width, self.head_dim),
             self.weight_dtype,
         )

@@ -212,8 +212,8 @@ def _compare(root):
   for suffix in ("abs_v_row_decoder", "local_q_decoder", "local_k_decoder"):
     path = next(path for path in adaptation_v2["params"] if path.endswith(suffix))
     axes = adaptation_v2["logical_axes"][path]
-    if axes is None or "embed" not in axes:
-      raise AssertionError(f"V2 decoder contraction axis is not FSDP-shardable: {path}={axes}")
+    if axes is None or axes[-1] != "embed":
+      raise AssertionError(f"V2 decoder output axis is not FSDP-shardable: {path}={axes}")
   expected_postnorm_suffixes = {"rms_norm_q/scale", "rms_norm_k/scale", "rms_norm_o/scale"}
   matched_postnorm_suffixes = {
       suffix for path in postnorm_only for suffix in expected_postnorm_suffixes if path.endswith(suffix)

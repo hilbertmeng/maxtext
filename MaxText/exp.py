@@ -1062,6 +1062,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):
     """Keep the direct BAM-read footprint NoPE and rotate only the unused Q/K tail."""
+    # code_commit: d65a758; EW4b ~0.661 steps/s; running.
     model_name = 'BamLlama2MediumV2C256PartialRoPE'
     scan_layers = True
     bam_partial_rope = True
@@ -1072,6 +1073,7 @@ class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):
 
 class Llama2MediumC256PartialRoPE(BamLlama2MediumV2C256PartialRoPE):
     """Matched BAM-Attention MHA control for the Partial-RoPE24 experiment."""
+    # code_commit: d65a758; EW4b ~0.903 steps/s; running.
     model_name = 'Llama2MediumC256PartialRoPE'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24

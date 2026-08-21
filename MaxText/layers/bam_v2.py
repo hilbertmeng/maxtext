@@ -219,11 +219,16 @@ class BamV2Attention(attentions.Attention):
         name="fetch_head_mix_norm",
         **norm_kwargs,
     )
-    write_scale_init = nn.initializers.constant(0.1)
+    write_u1_scale_init = nn.initializers.constant(
+        float(getattr(cfg, "bam_write_u1_scale_init", 0.1))
+    )
+    write_u2_scale_init = nn.initializers.constant(
+        float(getattr(cfg, "bam_write_u2_scale_init", 0.1))
+    )
     self.write_u1_norm = attentions.GroupedRMSNorm(
         (self.num_query_heads, self.bam_k),
         kernel_axes=("q_heads", "kv"),
-        scale_init=write_scale_init,
+        scale_init=write_u1_scale_init,
         direct_scale=True,
         name="write_u1_norm",
         **norm_kwargs,
@@ -231,7 +236,7 @@ class BamV2Attention(attentions.Attention):
     self.write_u2_norm = attentions.GroupedRMSNorm(
         (self.num_query_heads, self.bam_v),
         kernel_axes=("q_heads", "v_factor"),
-        scale_init=write_scale_init,
+        scale_init=write_u2_scale_init,
         direct_scale=True,
         name="write_u2_norm",
         **norm_kwargs,

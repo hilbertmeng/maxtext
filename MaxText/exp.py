@@ -222,6 +222,8 @@ class BAM:
     bam_n_f = 1
     bam_write_form = 'agg_u@loc_v'
     bam_write_eps = 0.1
+    bam_write_u1_scale_init = 0.1
+    bam_write_u2_scale_init = 0.1
     bam_lambda_decay = 1.0
     bam_read_key_mode = 'rms_gate'
     bam_read_key_scale = 2.0
@@ -466,6 +468,21 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
     steps = 1001  # materialize train/checkpoint/eval at step 1000, then stop
     run_name = 'Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2'
     model_name = run_name
+
+
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2
+):
+    """V2 ablation preserving 0.01 write-scale product with asymmetric factors."""
+
+    bam_write_u1_scale_init = 1.0
+    bam_write_u2_scale_init = 0.01
+    run_name = (
+        "Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun"
+        "BAMAdaptationV2GroupedRMSU1Scale1U2Scale001"
+    )
+    model_name = run_name
+
 
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationPostNorm(
     Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptation

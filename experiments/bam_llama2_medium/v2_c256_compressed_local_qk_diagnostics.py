@@ -2,10 +2,10 @@
 
 This is a read-only checkpoint diagnostic.  It maps each learned 32-D column
 key to the least-squares coordinates of the layer's existing absolute-V
-encoder, re-normalizes it in 8-D, reads ``M @ E_v``, and injects the 8-D row
-answer directly into head dims 32:40.  It reports local read distortion,
-attention perturbation, and exact same-batch one-layer/all-layer loss deltas
-without changing BamAttention.
+encoder, re-normalizes it in 8-D, and reads ``M @ E_v``.  The row answer is
+either injected directly into head dims 32:40 or decoded back to 32-D with
+``pinv(E_v)``.  It reports local read distortion, attention perturbation, and
+exact same-batch one-layer/all-layer loss deltas without changing BamAttention.
 """
 
 from __future__ import annotations
@@ -83,7 +83,8 @@ def _packed_local_parts(module, inputs_q):
           (k_key, k_gate, k_mix, "W_lk"))
 
 
-def _factorized_read_pair(module, matrix, inputs_q, key, gate, mix, name):
+def _factorized_read_pair(
+    module, matrix, inputs_q, key, gate, mix, name, output_mode):
   if module._create_grouped_rw_norm or module._use_native_grouped_read_norm:
     raise ValueError("compressed-key mapping is undefined for learned read norms")
   kwargs = module._read_key_kwargs_from_logits(name, gate)
@@ -110,6 +111,10 @@ def _factorized_read_pair(module, matrix, inputs_q, key, gate, mix, name):
       compressed_matrix, compressed_matrix,
       compressed_row_key, compressed_col_key, False,
       module._read_implementation, module.read_side)
+  if output_mode == "decoded":
+    compressed_v = jnp.einsum(
+        "btc,cv->btv", compressed_v,
+        jnp.linalg.pinv(encoder.astype(jnp.float32)).astype(compressed_v.dtype))
 
   mix = normalizations.rms_norm(
       mix, dtype=current_u.dtype, epsilon=module._read_key_epsilon, axis=-2)
@@ -128,16 +133,16 @@ def _factorized_read_pair(module, matrix, inputs_q, key, gate, mix, name):
   )
 
 
-def _compressed_local_qk(module, matrix, inputs_q):
+def _compressed_local_qk(module, matrix, inputs_q, output_mode):
   if not module._pack_factorized_local_qk:
     raise ValueError("diagnostic expects packed factorized LocalQK")
   if module._batch_factorized_local_qk_read:
     raise ValueError("diagnostic expects separate packed Q/K slots")
   q_parts, k_parts = _packed_local_parts(module, inputs_q)
   q_current, q_compressed, q_row, q_encoder = _factorized_read_pair(
-      module, matrix, inputs_q, *q_parts)
+      module, matrix, inputs_q, *q_parts, output_mode)
   k_current, k_compressed, k_row, k_encoder = _factorized_read_pair(
-      module, matrix, inputs_q, *k_parts)
+      module, matrix, inputs_q, *k_parts, output_mode)
   q_current, k_current = module._fit_local_qk_reads(q_current, k_current)
   q_compressed, k_compressed = module._fit_local_qk_reads(
       q_compressed, k_compressed)
@@ -166,13 +171,15 @@ def _compare(current, target, start, end):
   }
 
 
-def _structural_forward(model, config, params, batch, rng, query_count):
+def _structural_forward(
+    model, config, params, batch, rng, query_count, output_mode):
   def compressed_interceptor(next_fun, args, kwargs, context):
     module = context.module
     if (isinstance(module, attentions.BamAttention)
         and context.method_name == "_read_local_qk"):
       next_fun(*args, **kwargs)
-      _, compressed, _ = _compressed_local_qk(module, args[0], args[1])
+      _, compressed, _ = _compressed_local_qk(
+          module, args[0], args[1], output_mode)
       return compressed
     return next_fun(*args, **kwargs)
 
@@ -230,7 +237,8 @@ def _structural_forward(model, config, params, batch, rng, query_count):
   return output
 
 
-def _loss_forward(model, config, params, batch, rng, target_layer):
+def _loss_forward(
+    model, config, params, batch, rng, target_layer, output_mode):
   def interceptor(next_fun, args, kwargs, context):
     module = context.module
     if (not isinstance(module, attentions.BamAttention)
@@ -238,7 +246,8 @@ def _loss_forward(model, config, params, batch, rng, target_layer):
       return next_fun(*args, **kwargs)
     layer = _layer_index(module)
     current = next_fun(*args, **kwargs)
-    _, compressed, _ = _compressed_local_qk(module, args[0], args[1])
+    _, compressed, _ = _compressed_local_qk(
+        module, args[0], args[1], output_mode)
     selected = (target_layer == layer) | (target_layer == -2)
     weight = jnp.asarray(selected, current[0].dtype)
     return tuple(
@@ -286,10 +295,13 @@ def run(config):
   loss_batches = int(os.environ.get("BAM_COMPRESSED_QK_LOSS_BATCHES", "1"))
   microbatch = int(os.environ.get("BAM_COMPRESSED_QK_MICROBATCH", "2"))
   query_count = int(os.environ.get("BAM_COMPRESSED_QK_QUERY_COUNT", "16"))
+  output_mode = os.environ.get("BAM_COMPRESSED_QK_OUTPUT_MODE", "direct")
   output_path = Path(os.environ.get(
       "BAM_COMPRESSED_QK_OUTPUT", "/tmp/v2_c256_compressed_local_qk.json"))
   if not 1 <= loss_batches <= batches:
     raise ValueError("loss batches must be in [1, batches]")
+  if output_mode not in ("direct", "decoded"):
+    raise ValueError("output mode must be direct or decoded")
   output_path.parent.mkdir(parents=True, exist_ok=True)
 
   started = time.perf_counter()
@@ -301,9 +313,9 @@ def run(config):
   state, _, _, _ = max_utils.setup_training_state(
       model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager)
   structural = jax.jit(lambda params, batch, rng: _structural_forward(
-      model, config, params, batch, rng, query_count))
+      model, config, params, batch, rng, query_count, output_mode))
   loss_fn = jax.jit(lambda params, batch, rng, target: _loss_forward(
-      model, config, params, batch, rng, target))
+      model, config, params, batch, rng, target, output_mode))
 
   metric_trees = []
   sequence_hashes = []
@@ -361,6 +373,7 @@ def run(config):
           "loss_batches": loss_batches,
           "microbatch": microbatch,
           "query_count": query_count,
+          "output_mode": output_mode,
           "structural_seconds": structural_seconds,
           "loss_seconds": loss_seconds,
           "elapsed_seconds": time.perf_counter() - started,

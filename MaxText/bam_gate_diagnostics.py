@@ -30,14 +30,22 @@ import train
 
 
 _LAYER_RE = re.compile(r"layers_(\d+)")
-_CAPTURE_NAMES = frozenset((
+_COMMON_CAPTURE_NAMES = frozenset((
     "W_gw",
     "W_R_gate",
+))
+_LEGACY_LOCAL_CAPTURE_NAMES = frozenset((
     "W_lq_gate",
     "W_lk_gate",
     "W_lq_head_mix",
     "W_lk_head_mix",
 ))
+_PACKED_LOCAL_CAPTURE_NAME = "W_local_qk_packed"
+_CAPTURE_NAMES = (
+    _COMMON_CAPTURE_NAMES
+    | _LEGACY_LOCAL_CAPTURE_NAMES
+    | frozenset((_PACKED_LOCAL_CAPTURE_NAME,))
+)
 _BIAS_NAMES = {
     "gw_b0": "write",
     "W_R_gate_b0": "fetch",
@@ -116,7 +124,7 @@ def _forward(model, config, params, biases, batch, rng, stride):
 
   sampled = {}
   for layer, values in captures.items():
-    missing = _CAPTURE_NAMES - values.keys()
+    missing = _COMMON_CAPTURE_NAMES - values.keys()
     if missing:
       raise KeyError(f"layer {layer} is missing captures: {sorted(missing)}")
     fetch_gate = _sigmoid_with_compute_dtype(
@@ -124,15 +132,48 @@ def _forward(model, config, params, biases, batch, rng, stride):
     if fetch_gate.shape[-2] != 1:
       raise ValueError(f"expected V1 n_f=1 gate, got {fetch_gate.shape}")
     fetch_gate = jnp.squeeze(fetch_gate, axis=-2)
+    if _PACKED_LOCAL_CAPTURE_NAME in values:
+      packed = values[_PACKED_LOCAL_CAPTURE_NAME]
+      key_width = config.bam_k + config.bam_v
+      mix_width = 2 * config.num_query_heads
+      expected_width = 2 * (key_width + 2 + mix_width)
+      if packed.shape[-1] != expected_width:
+        raise ValueError(
+            f"unexpected packed LocalQK width {packed.shape[-1]}; "
+            f"expected {expected_width}")
+      split_points = (
+          key_width,
+          key_width + 2,
+          key_width + 2 + mix_width,
+          2 * key_width + 2 + mix_width,
+          2 * key_width + 4 + mix_width,
+      )
+      _, local_q_gate, local_q_mix, _, local_k_gate, local_k_mix = (
+          jnp.split(packed, split_points, axis=-1))
+      local_q_mix = local_q_mix.reshape(
+          local_q_mix.shape[:-1] + (config.num_query_heads, 2))
+      local_k_mix = local_k_mix.reshape(
+          local_k_mix.shape[:-1] + (config.num_query_heads, 2))
+    else:
+      missing = _LEGACY_LOCAL_CAPTURE_NAMES - values.keys()
+      if missing:
+        raise KeyError(
+            f"layer {layer} is missing legacy LocalQK captures: "
+            f"{sorted(missing)}")
+      local_q_gate = values["W_lq_gate"]
+      local_k_gate = values["W_lk_gate"]
+      local_q_mix = values["W_lq_head_mix"]
+      local_k_mix = values["W_lk_head_mix"]
+
     local_q_gate = _sigmoid_with_compute_dtype(
-        values["W_lq_gate"], biases[layer]["local_q"])
+        local_q_gate, biases[layer]["local_q"])
     local_k_gate = _sigmoid_with_compute_dtype(
-        values["W_lk_gate"], biases[layer]["local_k"])
+        local_k_gate, biases[layer]["local_k"])
 
     def normalize_head_mix(raw):
       return normalizations.rms_norm(
           raw, dtype=config.dtype,
-          epsilon=config.normalization_layer_epsilon, axis=-2)
+          epsilon=config.bam_read_key_epsilon, axis=-2)
 
     sampled[layer] = {
         "write_gate": _sigmoid_with_compute_dtype(
@@ -141,9 +182,9 @@ def _forward(model, config, params, biases, batch, rng, stride):
         "local_q_gate": local_q_gate[:, ::stride],
         "local_k_gate": local_k_gate[:, ::stride],
         "local_q_head_mix": normalize_head_mix(
-            values["W_lq_head_mix"])[:, ::stride],
+            local_q_mix)[:, ::stride],
         "local_k_head_mix": normalize_head_mix(
-            values["W_lk_head_mix"])[:, ::stride],
+            local_k_mix)[:, ::stride],
     }
   mask = batch["targets_segmentation"] != 0
   sequence_weights = jnp.sum(mask, axis=-1)

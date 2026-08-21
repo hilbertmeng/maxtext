@@ -1985,7 +1985,7 @@ class BamLlama2XLHead32x64V2C256(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
     """50k-step XL 32x64 BAM head-shape scalability run on v5p-32."""
-    # code_commit: pending; running.
+    # code_commit: 312a8ce; running.
     model_name = 'BamLlama2XLHead32x64V2C256'
     profiler = ''
     profile_periodically_period = -1
@@ -2004,7 +2004,7 @@ class BamMHALlama2XLHead32x64C256(
     BamMHALlama2XLHead32x64C256T2048Profile
 ):
     """Matched 50k-step BamAttention MHA control for XL 32x64."""
-    # code_commit: pending; running.
+    # code_commit: 312a8ce; running.
     model_name = 'BamMHALlama2XLHead32x64C256'
     profiler = ''
     profile_periodically_period = -1

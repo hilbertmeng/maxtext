@@ -10,7 +10,6 @@ without changing BamAttention.
 
 from __future__ import annotations
 
-from collections import defaultdict
 import hashlib
 import json
 import os
@@ -39,7 +38,12 @@ from layers import normalizations
 from v2_c256_rope_gate_diagnostics import (  # pylint: disable=unused-import
     BamLlama2MediumV2C256RopeGateDiagnostics,
 )
-from v2_c256_rope_structure_diagnostics import _attention_delta
+from v2_c256_rope_structure_diagnostics import (
+    _attention_delta,
+    _capture_rope_inputs,
+    _rope,
+    _stack_captures,
+)
 
 
 _LAYER_RE = re.compile(r"layers_(\d+)")
@@ -162,57 +166,34 @@ def _compare(current, target, start, end):
   }
 
 
-def _row_subspace_energy(row_read, encoder):
-  basis, _ = jnp.linalg.qr(encoder.astype(jnp.float32), mode="reduced")
-  coefficients = jnp.einsum(
-      "btv,vc->btc", row_read.astype(jnp.float32), basis)
-  return jnp.sum(jnp.square(coefficients)) / jnp.maximum(
-      jnp.sum(jnp.square(row_read.astype(jnp.float32))), _EPS)
-
-
 def _structural_forward(model, config, params, batch, rng, query_count):
-  rotations = defaultdict(dict)
-  values = {}
-  reads = {}
-
-  def interceptor(next_fun, args, kwargs, context):
+  def compressed_interceptor(next_fun, args, kwargs, context):
     module = context.module
-    if not isinstance(module, attentions.BamAttention):
-      return next_fun(*args, **kwargs)
-    layer = _layer_index(module)
-    if layer is None:
-      return next_fun(*args, **kwargs)
-    if context.method_name == "apply_rotary_embedding":
-      result = next_fun(*args, **kwargs)
-      name = kwargs.get("name", args[2] if len(args) > 2 else "")
-      rotations[layer]["q" if name.startswith("query") else "k"] = result
-      return result
-    if context.method_name == "kv_projection":
-      result = next_fun(*args, **kwargs)
-      name = kwargs.get("proj_name", args[1] if len(args) > 1 else "")
-      if name == "value":
-        values[layer] = result
-      return result
-    if context.method_name == "_read_local_qk":
-      current = next_fun(*args, **kwargs)
-      calculated, compressed, stages = _compressed_local_qk(
-          module, args[0], args[1])
-      reads[layer] = (current, calculated, compressed, stages)
-      return current
+    if (isinstance(module, attentions.BamAttention)
+        and context.method_name == "_read_local_qk"):
+      next_fun(*args, **kwargs)
+      _, compressed, _ = _compressed_local_qk(module, args[0], args[1])
+      return compressed
     return next_fun(*args, **kwargs)
 
   dropout_rng, params_rng = jax.random.split(rng)
-  with nn.intercept_methods(interceptor):
-    model.apply(
-        params,
-        batch["inputs"],
-        batch["inputs_position"],
-        decoder_segment_ids=batch["inputs_segmentation"],
-        decoder_target_mask=batch["targets_segmentation"],
-        decoder_target_tokens=batch["targets"],
-        enable_dropout=False,
-        rngs={"dropout": dropout_rng, "params": params_rng},
-    )
+  apply_kwargs = dict(
+      decoder_segment_ids=batch["inputs_segmentation"],
+      decoder_target_mask=batch["targets_segmentation"],
+      decoder_target_tokens=batch["targets"],
+      enable_dropout=False,
+      rngs={"dropout": dropout_rng, "params": params_rng},
+      mutable=["intermediates"],
+      capture_intermediates=_capture_rope_inputs,
+  )
+  (_, _, _), current_collections = model.apply(
+      params, batch["inputs"], batch["inputs_position"], **apply_kwargs)
+  with nn.intercept_methods(compressed_interceptor):
+    (_, _, _), compressed_collections = model.apply(
+        params, batch["inputs"], batch["inputs_position"], **apply_kwargs)
+  current = _stack_captures(current_collections, config.num_decoder_layers)
+  compressed = _stack_captures(
+      compressed_collections, config.num_decoder_layers)
 
   query_indices = ((jnp.arange(query_count) + 1)
                    * (batch["inputs"].shape[1] // query_count) - 1)
@@ -225,27 +206,26 @@ def _structural_forward(model, config, params, batch, rng, query_count):
 
   output = {}
   for layer in range(config.num_decoder_layers):
-    (q_actual, k_actual), (q_calc, k_calc), (q_comp, k_comp), stages = reads[layer]
+    q_actual, k_actual = current["q_bam"][layer], current["k_bam"][layer]
+    q_comp, k_comp = compressed["q_bam"][layer], compressed["k_bam"][layer]
     layer_output = {
-        "recompute_max_abs_error": jnp.maximum(
-            jnp.max(jnp.abs(q_actual - q_calc)),
-            jnp.max(jnp.abs(k_actual - k_calc))),
         "q_column": _compare(q_actual, q_comp, 0, config.bam_k),
         "q_row": _compare(q_actual, q_comp, config.bam_k, config.head_dim),
         "q_total": _compare(q_actual, q_comp, 0, config.head_dim),
         "k_column": _compare(k_actual, k_comp, 0, config.bam_k),
         "k_row": _compare(k_actual, k_comp, config.bam_k, config.head_dim),
         "k_total": _compare(k_actual, k_comp, 0, config.head_dim),
-        "q_row_encoder_subspace_energy": _row_subspace_energy(
-            stages["q_row"], stages["q_encoder"]),
-        "k_row_encoder_subspace_energy": _row_subspace_energy(
-            stages["k_row"], stages["k_encoder"]),
     }
-    q_std, k_std = rotations[layer]["q"], rotations[layer]["k"]
+    q_std = _rope(
+        current["query"][layer], batch["inputs_position"],
+        config.rope_min_timescale, config.rope_max_timescale)
+    k_std = _rope(
+        current["key"][layer], batch["inputs_position"],
+        config.rope_min_timescale, config.rope_max_timescale)
     layer_output["attention"] = _attention_delta(
         (q_std + q_actual)[:, query_indices], k_std + k_actual,
         (q_std + q_comp)[:, query_indices], k_std + k_comp,
-        values[layer], valid, 1.0)
+        current["value"][layer], valid, 1.0)
     output[layer] = layer_output
   return output
 

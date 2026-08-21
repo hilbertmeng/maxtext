@@ -2218,12 +2218,10 @@ class BamAttention(Attention):
     self._partial_rope_nope_dim = None
     if self._partial_rope:
       assert not cfg.rope_half, 'BAM partial RoPE is independent of rope_half'
-      assert cfg.bam_abs_v_compression_dim is not None, (
-          'BAM partial RoPE requires an explicit compressed V width')
-      assert cfg.bam_abs_v_row_output == 'direct', (
-          'BAM partial RoPE tracks the direct fetched-read footprint')
+      explicit_nope_dim = cfg.bam_partial_rope_nope_dim
       self._partial_rope_nope_dim = (
-          self.bam_k + int(cfg.bam_abs_v_compression_dim))
+          self.bam_k + self.bam_v
+          if explicit_nope_dim is None else int(explicit_nope_dim))
       rope_dim = self.head_dim - self._partial_rope_nope_dim
       assert 0 < rope_dim and rope_dim % 2 == 0, (
           self.head_dim, self._partial_rope_nope_dim, rope_dim)
@@ -2952,7 +2950,7 @@ class BamAttention(Attention):
     return jnp.stack([first, second], axis=-1).reshape(x.shape)
 
   def _apply_partial_rope(self, x, positions, name):
-    """Keep the direct BAM-read footprint position-free; rotate its unused tail."""
+    """Keep the LocalQK footprint position-free; rotate its unused head tail."""
     assert self._partial_rope_nope_dim is not None
     nope = x[..., :self._partial_rope_nope_dim]
     rope = x[..., self._partial_rope_nope_dim:]

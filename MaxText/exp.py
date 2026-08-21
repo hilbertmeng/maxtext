@@ -273,7 +273,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
-    bam_partial_rope = False  # NoPE width = bam_k + compressed direct V width; rotate the remaining tail
+    bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
+    bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
@@ -1068,6 +1069,7 @@ class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):
     model_name = 'BamLlama2MediumV2C256PartialRoPE'
     scan_layers = True
     bam_partial_rope = True
+    bam_partial_rope_nope_dim = 40
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-partial-rope')
@@ -1956,6 +1958,26 @@ class BamMHALlama2XLHead16x128C256(
     async_checkpointing = True
     tensorboard_dir = Llama2Medium.tensorboard_dir
     jax_cache_dir = BamLlama2XLHead16x128V2C256.jax_cache_dir
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPE(
+    BamLlama2XLHead16x128V2C256
+):
+    """XL 16x128 BAM with Q/K[:96] NoPE and only Q/K[96:128] RoPE."""
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPE'
+    bam_partial_rope = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl-head16x128-c256-partial-rope')
+
+
+class BamMHALlama2XLHead16x128C256PartialRoPE(
+    BamMHALlama2XLHead16x128C256
+):
+    """Matched MHA control with the same Q/K[:96] NoPE, Q/K[96:128] RoPE split."""
+    model_name = 'BamMHALlama2XLHead16x128C256PartialRoPE'
+    bam_partial_rope = True
+    jax_cache_dir = BamLlama2XLHead16x128V2C256PartialRoPE.jax_cache_dir
 
 
 class BamLlama2XLHead16x128V2C256T4096Profile(

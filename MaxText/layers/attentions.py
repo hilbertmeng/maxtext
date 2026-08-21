@@ -1302,18 +1302,27 @@ class Attention(nn.Module):
       )(out)
     return out_proj
 
-  def apply_rotary_embedding(self, inputs: Array, inputs_positions: Array, name: str):
+  def apply_rotary_embedding(
+      self,
+      inputs: Array,
+      inputs_positions: Array,
+      name: str,
+      embedding_dims: int | None = None,
+  ):
     """Applies rotary embeddings, handling different model types.
 
     Args:
       inputs: The input tensor to apply rotary embeddings to.
       inputs_positions: The positions of the inputs.
       name: A name for the embedding layer.
+      embedding_dims: Optional rotary width when rotating a sliced subspace.
 
     Returns:
       The input tensor with rotary embeddings applied.
     """
-    if self.config.attention_type == AttentionType.MLA.value:
+    if embedding_dims is not None:
+      rope_embedding_dims = embedding_dims
+    elif self.config.attention_type == AttentionType.MLA.value:
       # For MLA attention RoPE is applied to only `self.qk_rope_head_dim` portion the heads.
       rope_embedding_dims = self.qk_rope_head_dim
     else:
@@ -2205,6 +2214,19 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
+    self._partial_rope = bool(cfg.bam_partial_rope)
+    self._partial_rope_nope_dim = None
+    if self._partial_rope:
+      assert not cfg.rope_half, 'BAM partial RoPE is independent of rope_half'
+      assert cfg.bam_abs_v_compression_dim is not None, (
+          'BAM partial RoPE requires an explicit compressed V width')
+      assert cfg.bam_abs_v_row_output == 'direct', (
+          'BAM partial RoPE tracks the direct fetched-read footprint')
+      self._partial_rope_nope_dim = (
+          self.bam_k + int(cfg.bam_abs_v_compression_dim))
+      rope_dim = self.head_dim - self._partial_rope_nope_dim
+      assert 0 < rope_dim and rope_dim % 2 == 0, (
+          self.head_dim, self._partial_rope_nope_dim, rope_dim)
     self._query_chunk_size = (
         cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
     assert not cfg.bam_diagnostics, (
@@ -2329,6 +2351,8 @@ class BamAttention(Attention):
     assert self._local_qk_injection in ('post_rope', 'pre_qknorm_rope')
     assert self._local_qk_injection == 'post_rope' or 'local_qk' in self._mode
     assert self._local_qk_rope_pairing in ('split_half', 'adjacent')
+    assert not self._partial_rope or self._local_qk_rope_pairing == 'split_half', (
+        'BAM partial RoPE does not support the adjacent-pair ablation')
     assert self._local_qk_rope_pairing == 'split_half' or (
         self._local_qk_injection == 'pre_qknorm_rope' and not cfg.qk_norm), (
             'adjacent Q/K RoPE requires pre-RoPE LocalQK injection with QKNorm disabled')
@@ -2927,6 +2951,15 @@ class BamAttention(Attention):
     first, second = jnp.split(rotated, 2, axis=-1)
     return jnp.stack([first, second], axis=-1).reshape(x.shape)
 
+  def _apply_partial_rope(self, x, positions, name):
+    """Keep the direct BAM-read footprint position-free; rotate its unused tail."""
+    assert self._partial_rope_nope_dim is not None
+    nope = x[..., :self._partial_rope_nope_dim]
+    rope = x[..., self._partial_rope_nope_dim:]
+    rope = self.apply_rotary_embedding(
+        rope, positions, name=name, embedding_dims=rope.shape[-1])
+    return jnp.concatenate((nope, rope), axis=-1)
+
   def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
@@ -3179,7 +3212,10 @@ class BamAttention(Attention):
         key = key + k_local
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-    if not self._mha_control and self._local_qk_rope_pairing == 'adjacent':
+    if self._partial_rope:
+      query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
+      key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
+    elif not self._mha_control and self._local_qk_rope_pairing == 'adjacent':
       query = self._apply_adjacent_rope(query, inputs_positions, name='query_rotary')
       key = self._apply_adjacent_rope(key, inputs_positions, name='key_rotary')
     else:

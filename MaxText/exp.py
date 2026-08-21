@@ -273,6 +273,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
+    bam_partial_rope = False  # NoPE width = bam_k + compressed direct V width; rotate the remaining tail
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
@@ -1057,6 +1058,23 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):
+    """Keep the direct BAM-read footprint NoPE and rotate only the unused Q/K tail."""
+    model_name = 'BamLlama2MediumV2C256PartialRoPE'
+    scan_layers = True
+    bam_partial_rope = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-partial-rope')
+
+
+class Llama2MediumC256PartialRoPE(BamLlama2MediumV2C256PartialRoPE):
+    """Matched BAM-Attention MHA control for the Partial-RoPE24 experiment."""
+    model_name = 'Llama2MediumC256PartialRoPE'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 24
 
 
 class BamLlama2MediumV2C256DynamicRowRank8(BamV2C256FetchScheduleBase):

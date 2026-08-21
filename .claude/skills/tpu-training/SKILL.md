@@ -281,10 +281,12 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
   already disappeared (empty/NOT_FOUND node state).
   Auto-train must release both resources through `delete_tpu_xd.sh`, recreate, reinstall, apply
   `CODE_COMMIT`, and resume the same RUN from its latest GCS checkpoint.
-- Storage belongs to the RUN, not the replacement TPU's zone. On a cross-zone recovery, keep the
-  RUN's original `base_output_directory` (pass `BASE_OUTPUT_DIR_OVERRIDE`); before launch verify
-  its latest committed checkpoint. Accept recovery only when `FIRST_STEP` continues beyond that
-  step. Never derive a new output bucket from the replacement zone.
+- Storage is explicit RUN state; never let a replacement zone silently select an empty prefix.
+  Prefer same-zone recovery. For continued cross-zone training, quiesce the RUN, migrate its latest
+  checkpoint with `commit_success.txt` plus root `skip_file_and_step.json` to a bucket colocated with
+  the new TPU, verify equal bytes/metadata, then record/pass the new `base_output_directory`.
+  Accept recovery only after `FIRST_STEP` exceeds the migrated step **and** the next periodic
+  checkpoint commits. A step directory without `commit_success.txt` is incomplete and may roll back.
 - Treat a post-maintenance SSH timeout as `alive=unknown`.
 
 ## TensorBoard Service

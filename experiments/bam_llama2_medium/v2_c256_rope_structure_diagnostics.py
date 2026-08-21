@@ -174,29 +174,31 @@ def _attention_delta(q_current, k_current, q_target, k_target, value,
 
 
 def _layer_metrics(q_std, k_std, value, q_bam, k_bam, positions, segments,
-                   bam_k, bam_width, min_timescale, max_timescale,
+                   bam_k, local_width, block_split, min_timescale, max_timescale,
                    query_indices):
   q_std_rope = _rope(q_std, positions, min_timescale, max_timescale)
   k_std_rope = _rope(k_std, positions, min_timescale, max_timescale)
   q_std_block = _block_rope(
-      q_std, positions, bam_width, min_timescale, max_timescale)
+      q_std, positions, block_split, min_timescale, max_timescale)
   k_std_block = _block_rope(
-      k_std, positions, bam_width, min_timescale, max_timescale)
+      k_std, positions, block_split, min_timescale, max_timescale)
   q_bam_block = _block_rope(
-      q_bam, positions, bam_width, min_timescale, max_timescale)
+      q_bam, positions, block_split, min_timescale, max_timescale)
   k_bam_block = _block_rope(
-      k_bam, positions, bam_width, min_timescale, max_timescale)
+      k_bam, positions, block_split, min_timescale, max_timescale)
 
   norm_ratio = {}
   for name, bam, standard in (("q", q_bam, q_std), ("k", k_bam, k_std)):
     norm_ratio[f"{name}_column_read"] = _slice_norm_ratio(
         bam, standard, 0, bam_k)
     norm_ratio[f"{name}_row_read"] = _slice_norm_ratio(
-        bam, standard, bam_k, bam_width)
+        bam, standard, bam_k, local_width)
+    norm_ratio[f"{name}_block_front"] = _slice_norm_ratio(
+        bam, standard, 0, block_split)
+    norm_ratio[f"{name}_block_tail"] = _slice_norm_ratio(
+        bam, standard, block_split, local_width)
     norm_ratio[f"{name}_total"] = _slice_norm_ratio(
-        bam, standard, 0, bam_width)
-    norm_ratio[f"{name}_tail_leakage_rms"] = jnp.sqrt(jnp.mean(
-        jnp.square(bam[..., bam_width:].astype(jnp.float32)), axis=(0, 1, 3)))
+        bam, standard, 0, local_width)
 
   q_index = query_indices
   q_seg = segments[:, q_index]
@@ -269,6 +271,7 @@ def _forward(model, config, params, batch, rng, query_count):
   one = lambda q, k, v, qb, kb: _layer_metrics(
       q, k, v, qb, kb, batch["inputs_position"],
       batch["inputs_segmentation"], config.bam_k,
+      config.bam_k + config.bam_v,
       config.bam_k + config.bam_abs_v_compression_dim,
       config.rope_min_timescale, config.rope_max_timescale, query_indices)
   metrics = jax.vmap(one)(
@@ -364,6 +367,8 @@ def run(config):
           "batches": batches,
           "microbatch": microbatch,
           "query_count": query_count,
+          "local_qk_width": config.bam_k + config.bam_v,
+          "block_rope_split": config.bam_k + config.bam_abs_v_compression_dim,
           "distance_buckets": list(_BUCKET_NAMES),
           "setup_seconds": setup_seconds,
           "elapsed_seconds": time.perf_counter() - started,

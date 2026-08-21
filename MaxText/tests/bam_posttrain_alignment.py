@@ -101,6 +101,10 @@ def _emit(root, identity, output):
       "bam_m_read_scale_init": getattr(cfg, "bam_m_read_scale_init", None),
       "train_merge_loaded_params": bool(getattr(cfg, "train_merge_loaded_params", False)),
       "params": flatten(params),
+      "logical_axes": {
+          "/".join(path): tuple(value.names) if hasattr(value, "names") else None
+          for path, value in flax.traverse_util.flatten_dict(params).items()
+      },
       "grads": flatten(grads),
       "bam_skip_paths": tuple("/".join(path) for path in max_utils.bam_param_paths_to_skip(params)),
       "loss": np.asarray(loss),
@@ -205,6 +209,11 @@ def _compare(root):
   }
   if len(adaptation_v2_only) != len(expected_v2_suffixes) or matched_v2_suffixes != expected_v2_suffixes:
     raise AssertionError(f"unexpected V2-only paths: {sorted(adaptation_v2_only)}")
+  for suffix in ("abs_v_row_decoder", "local_q_decoder", "local_k_decoder"):
+    path = next(path for path in adaptation_v2["params"] if path.endswith(suffix))
+    axes = adaptation_v2["logical_axes"][path]
+    if axes is None or "embed" not in axes:
+      raise AssertionError(f"V2 decoder contraction axis is not FSDP-shardable: {path}={axes}")
   expected_postnorm_suffixes = {"rms_norm_q/scale", "rms_norm_k/scale", "rms_norm_o/scale"}
   matched_postnorm_suffixes = {
       suffix for path in postnorm_only for suffix in expected_postnorm_suffixes if path.endswith(suffix)

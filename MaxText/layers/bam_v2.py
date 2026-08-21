@@ -197,9 +197,14 @@ class BamV2Attention(attentions.Attention):
         else (self.num_query_heads, self.bam_k + cfg.bam_abs_v_compression_dim, self.head_dim)
     )
     decoder_kernel_init = decoder_init if key_width == self.head_dim else reg_init
+    decoder_kernel_axes = (
+        ("q_heads", "kv", "v_factor")
+        if key_width == self.head_dim
+        else ("q_heads", "embed", "v_factor")
+    )
     self.abs_v_row_decoder = self.param(
         "abs_v_row_decoder",
-        nn.with_logical_partitioning(decoder_kernel_init, ("q_heads", "kv", "v_factor")),
+        nn.with_logical_partitioning(decoder_kernel_init, decoder_kernel_axes),
         decoder_shape,
         self.weight_dtype,
     )
@@ -308,13 +313,13 @@ class BamV2Attention(attentions.Attention):
         # BAMAdaptation arm already emits the exact head width.
         self.local_q_decoder = self.param(
             "local_q_decoder",
-            nn.with_logical_partitioning(reg_init, ("q_heads", "kv", "v_factor")),
+            nn.with_logical_partitioning(reg_init, ("q_heads", "embed", "v_factor")),
             (self.num_query_heads, key_width, self.head_dim),
             self.weight_dtype,
         )
         self.local_k_decoder = self.param(
             "local_k_decoder",
-            nn.with_logical_partitioning(reg_init, ("kv_heads", "kv", "v_factor")),
+            nn.with_logical_partitioning(reg_init, ("kv_heads", "embed", "v_factor")),
             (self.num_kv_heads, key_width, self.head_dim),
             self.weight_dtype,
         )

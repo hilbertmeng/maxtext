@@ -20,6 +20,10 @@ use `run_exp_xd.sh` only for a RUN intended to train through its registered plan
 
 Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh` and `run_registry.py`.
 
+Default validation is the pinned local BAM test suite followed by the target RUN's
+`FIRST_STEP`. Add a standalone v6e check only for TPU-specific uncertainty those two gates do
+not cover; it is not a routine prerequisite for training.
+
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
 2. Before a parameter-tree change, use a new run name/GCS prefix. Commit the prepared runtime

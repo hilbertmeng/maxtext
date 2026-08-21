@@ -2214,13 +2214,22 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
+    self._local_qk_use_compressed_v = bool(
+        cfg.bam_local_qk_use_compressed_v)
+    compressed_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
+    if self._local_qk_use_compressed_v and compressed_v_dim is None:
+      raise ValueError('compressed-V LocalQK requires bam_abs_v_compression_dim')
+    self._local_qk_v_dim = (
+        int(compressed_v_dim)
+        if self._local_qk_use_compressed_v else self.bam_v)
+    self._local_qk_key_width = self.bam_k + self._local_qk_v_dim
     self._partial_rope = bool(cfg.bam_partial_rope)
     self._partial_rope_nope_dim = None
     if self._partial_rope:
       assert not cfg.rope_half, 'BAM partial RoPE is independent of rope_half'
       explicit_nope_dim = cfg.bam_partial_rope_nope_dim
       self._partial_rope_nope_dim = (
-          self.bam_k + self.bam_v
+          self._local_qk_key_width
           if explicit_nope_dim is None else int(explicit_nope_dim))
       rope_dim = self.head_dim - self._partial_rope_nope_dim
       assert 0 < rope_dim and rope_dim % 2 == 0, (
@@ -2390,6 +2399,11 @@ class BamAttention(Attention):
     if self._abs_v_dim is not None:
       assert 0 < self._abs_v_dim < self.bam_v
       assert 'full' in self._mode
+    if self._local_qk_use_compressed_v:
+      assert 'local_qk' in self._mode and 'full' in self._mode
+      assert self._abs_v_dim == self._local_qk_v_dim
+      assert self._abs_k_dim is None, (
+          'compressed-V LocalQK keeps the K axis full-width')
     if 'full' in self._mode:
       full_v_output_dim = (
           self.bam_v
@@ -2587,7 +2601,7 @@ class BamAttention(Attention):
         # distributed over heads by independent signed row/column coefficients.
         # The read is performed once per side; no static dxd rematrix is needed.
         if self._pack_factorized_local_qk:
-          key_width = self.bam_k + self.bam_v
+          key_width = self._local_qk_key_width
           packed_width = 2 * (key_width + 2 + 2 * self.num_query_heads)
           self.W_local_qk_packed = DenseGeneral(
               features=packed_width, axis=-1,
@@ -2611,7 +2625,7 @@ class BamAttention(Attention):
                         shape, bias_value, dtype), (None, None)),
                 (2, 2), self.weight_dtype)
             add_grouped_read_norms(
-                'W_local_qk', (2, self.bam_k), (2, self.bam_v),
+                'W_local_qk', (2, self.bam_k), (2, self._local_qk_v_dim),
                 (None, 'kv'), (None, 'kv'))
           else:
             for _name in ("W_lq", "W_lk"):
@@ -2626,7 +2640,8 @@ class BamAttention(Attention):
                           shape, bias_value, dtype), (None,)),
                   (2,), self.weight_dtype))
               add_grouped_read_norms(
-                  _name, (self.bam_k,), (self.bam_v,), ('kv',), ('kv',))
+                  _name, (self.bam_k,), (self._local_qk_v_dim,),
+                  ('kv',), ('kv',))
         else:
           for _name in ("W_lq", "W_lk"):
             setattr(self, _name, DenseGeneral(
@@ -2846,7 +2861,7 @@ class BamAttention(Attention):
     if self._pack_factorized_local_qk:  # V1 default
       with jax.named_scope("bam/local_qk_packed_projection"):
         packed = self.W_local_qk_packed(inputs_q)
-      key_width = self.bam_k + self.bam_v
+      key_width = self._local_qk_key_width
       mix_width = 2 * self.num_query_heads
       if self._batch_factorized_local_qk_read:
         slot_width = key_width + 2 + mix_width
@@ -3039,18 +3054,23 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate, forget_gate
 
+  def _compress_abs_v_state(self, state, scope):
+    """Project one read-only M view on V while keeping cross-layer M full."""
+    if self._abs_v_dim is not None:
+      with jax.named_scope(scope):
+        projection = self.abs_v_cache_projection.astype(state.dtype)
+        if self._abs_v_source_implementation == 'dot':
+          state = jnp.einsum('bskv,vc->bskc', state, projection)
+        else:
+          state = jnp.sum(
+              state[..., None] * projection[None, None, None, :, :],
+              axis=-2)
+    return state
+
   def _compress_full_fetch_state(self, Mh):
     """Project only the historical full-read cache view; keep cross-layer M full."""
-    fetch_state = Mh
-    if self._abs_v_dim is not None:
-      with jax.named_scope("bam/compress_abs_v_cache"):
-        projection = self.abs_v_cache_projection.astype(fetch_state.dtype)
-        if self._abs_v_source_implementation == 'dot':
-          fetch_state = jnp.einsum('bskv,vc->bskc', fetch_state, projection)
-        else:
-          fetch_state = jnp.sum(
-              fetch_state[..., None] * projection[None, None, None, :, :],
-              axis=-2)
+    fetch_state = self._compress_abs_v_state(
+        Mh, "bam/compress_abs_v_cache")
     if self._abs_k_dim is not None:
       with jax.named_scope("bam/compress_abs_k_cache"):
         projection = self.abs_k_cache_projection.astype(fetch_state.dtype)
@@ -3198,14 +3218,17 @@ class BamAttention(Attention):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
-    Mh = None
+    Mh = local_Mh = None
     if 'local_qk' in self._mode and self._local_qk_injection == 'pre_qknorm_rope':
       assert M_in is not None, "local_qk read requires M_in"
       with jax.named_scope("bam/normalize_m"):
         Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
-        q_local, k_local = self._read_local_qk(Mh, inputs_q)
+        local_Mh = (
+            self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
+            if self._local_qk_use_compressed_v else Mh)
+        q_local, k_local = self._read_local_qk(local_Mh, inputs_q)
         query = query + q_local
         key = key + k_local
 
@@ -3227,7 +3250,10 @@ class BamAttention(Attention):
           Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
-        q_local, k_local = self._read_local_qk(Mh, inputs_q)
+        local_Mh = (
+            self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
+            if self._local_qk_use_compressed_v else Mh)
+        q_local, k_local = self._read_local_qk(local_Mh, inputs_q)
         query = query + q_local
         key = key + k_local
 
@@ -3249,7 +3275,9 @@ class BamAttention(Attention):
         mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype,
             rms_epsilon=self._rms_epsilon)
-      fetch_state = self._compress_full_fetch_state(Mh)
+      fetch_state = (
+          local_Mh if self._local_qk_use_compressed_v
+          else self._compress_full_fetch_state(Mh))
 
     _, t, _, _ = query.shape
 

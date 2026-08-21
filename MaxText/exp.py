@@ -273,6 +273,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
+    bam_local_qk_use_compressed_v = False  # read LocalQK from the same k*C view as fetched M
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
     bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
@@ -1059,6 +1060,27 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256CompressedVLocalQK(BamV2C256FetchScheduleBase):
+    """Read LocalQK from the compressed 32x8 M view; retain full RoPE."""
+    model_name = 'BamLlama2MediumV2C256CompressedVLocalQK'
+    scan_layers = True
+    bam_local_qk_use_compressed_v = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-compressed-v-local-qk')
+
+
+class BamLlama2MediumV2C256CompressedVLocalQKPartialRoPE(
+    BamLlama2MediumV2C256CompressedVLocalQK
+):
+    """Compressed LocalQK with its Q/K[:40] NoPE and Q/K[40:64] RoPE."""
+    model_name = 'BamLlama2MediumV2C256CompressedVLocalQKPartialRoPE'
+    bam_partial_rope = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-compressed-v-local-qk-partial-rope')
 
 
 class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):

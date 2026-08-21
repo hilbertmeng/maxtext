@@ -484,6 +484,19 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
     model_name = run_name
 
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001WriteEps05(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001
+):
+    """Asymmetric grouped-RMS write arm with the BAM write gate initialized to 0.5."""
+
+    bam_write_eps = 0.5
+    run_name = (
+        "Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4Rerun"
+        "BAMAdaptationV2GroupedRMSU1Scale1U2Scale001WriteEps05"
+    )
+    model_name = run_name
+
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationPostNorm(
     Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptation
 ):

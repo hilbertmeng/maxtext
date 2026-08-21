@@ -1913,7 +1913,7 @@ class BamLlama2XLHead16x128V2C256GroupedWriteAffineRMSNorm(
     BamLlama2XLHead16x128V2C256
 ):
     """Per-head affine write RMS; move P_loc bias after address normalization."""
-    # code_commit: fe8e761; EW4b ~0.562 steps/s; stopped at 8,500. dloss ~0 vs XL V2 (no stable effect).
+    # code_commit: fe8e761; EW4b ~0.558 steps/s (same as XL V2); stopped at 8,500. dloss ~0.
     model_name = 'BamLlama2XLHead16x128V2C256GroupedWriteAffineRMSNorm'
     bam_write_v_mode = 'x'
     bam_write_factor_norm = 'grouped_rms'

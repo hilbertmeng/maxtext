@@ -2293,6 +2293,18 @@ class BamLlama2XLHead32x64V2C256(
         ('.*gw_b0$', 0.0)]
 
 
+class BamLlama2XLHead32x64V2C256PartialRoPE(
+    BamLlama2XLHead32x64V2C256
+):
+    """XL 32x64 BAM with Q/K[:32] NoPE and only Q/K[32:64] RoPE."""
+    model_name = 'BamLlama2XLHead32x64V2C256PartialRoPE'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 32
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl-head32x64-c256-partial-rope')
+
+
 class BamMHALlama2XLHead32x64C256(
     BamMHALlama2XLHead32x64C256T2048Profile
 ):

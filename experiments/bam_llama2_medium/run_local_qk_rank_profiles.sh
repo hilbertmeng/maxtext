@@ -56,11 +56,11 @@ for exp_class in "$@"; do
     status=$(gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
       --project="$PROJECT" --worker=0 \
       --command="if grep -q 'completed step: 15,' '$train_log' 2>/dev/null; \
-      then echo DONE; elif grep -Eq \
-      '(^| )Traceback \\(most recent call last\\):|ValueError:|AssertionError:|TypeError:|RESOURCE_EXHAUSTED' \
-      '$train_log' 2>/dev/null; then echo ERROR; \
-      elif pgrep -f '[M]axText/train.py.*run_name=$run' >/dev/null; \
-      then echo RUNNING; else echo EXITED; fi" </dev/null 2>/dev/null | tail -1)
+      then echo DONE; elif pgrep -f '[M]axText/train.py.*run_name=$run' \
+      >/dev/null; then echo RUNNING; elif grep -Eq \
+      'ValueError:|AssertionError:|TypeError:|RESOURCE_EXHAUSTED' \
+      '$train_log' 2>/dev/null; then echo ERROR; else echo EXITED; fi" \
+      </dev/null 2>/dev/null | tail -1)
     case "$status" in
       DONE) reached_trace=true; break ;;
       ERROR|EXITED)

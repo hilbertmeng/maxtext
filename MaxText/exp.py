@@ -1841,6 +1841,30 @@ class BamV2GScanLayerFullLayerProfile(  # V2 C256 layer_scan
     bam_layer_modes = ['local_qk+full'] * 24
 
 
+class BamV2GScanLayerLocalQKRankControlFullLayerProfile(
+    BamV2GScanLayerFullLayerProfile
+):
+    """Medium full-24 v5p-16 control for rank-r LocalQK."""
+    model_name = 'BamV2GScanLayerLocalQKRankControlFullLayerProfile'
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
+    steps = 100
+
+
+class BamV2GScanLayerLocalQKRank2MulReduceFullLayerProfile(
+    BamLocalQKRank2MulReduceProfileMixin,
+    BamV2GScanLayerLocalQKRankControlFullLayerProfile
+):
+    model_name = 'BamV2GScanLayerLocalQKRank2MulReduceFullLayerProfile'
+
+
+class BamV2GScanLayerLocalQKRank4MulReduceFullLayerProfile(
+    BamLocalQKRank4MulReduceProfileMixin,
+    BamV2GScanLayerLocalQKRankControlFullLayerProfile
+):
+    model_name = 'BamV2GScanLayerLocalQKRank4MulReduceFullLayerProfile'
+
+
 class BamV2GRowRank8ControlFullLayerProfile(
     BamV2QChunk256OptimizedFullLayerProfile
 ):
@@ -2178,6 +2202,48 @@ class BamXL32V2LocalQKRank4MulReduceEightLayerProfile(
     BamXL32V2LocalQKRankControlEightLayerProfile
 ):
     model_name = 'BamXL32V2LocalQKRank4MulReduceEightLayerProfile'
+
+
+class BamXL16V2LocalQKRankControlFullLayerProfile(
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    """XL 16x128 full-24 v5p-32 control for rank-r LocalQK."""
+    model_name = 'BamXL16V2LocalQKRankControlFullLayerProfile'
+
+
+class BamXL16V2LocalQKRank2MulReduceFullLayerProfile(
+    BamLocalQKRank2MulReduceProfileMixin,
+    BamXL16V2LocalQKRankControlFullLayerProfile
+):
+    model_name = 'BamXL16V2LocalQKRank2MulReduceFullLayerProfile'
+
+
+class BamXL16V2LocalQKRank4MulReduceFullLayerProfile(
+    BamLocalQKRank4MulReduceProfileMixin,
+    BamXL16V2LocalQKRankControlFullLayerProfile
+):
+    model_name = 'BamXL16V2LocalQKRank4MulReduceFullLayerProfile'
+
+
+class BamXL32V2LocalQKRankControlFullLayerProfile(
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    """XL 32x64 full-24 v5p-32 control for rank-r LocalQK."""
+    model_name = 'BamXL32V2LocalQKRankControlFullLayerProfile'
+
+
+class BamXL32V2LocalQKRank2MulReduceFullLayerProfile(
+    BamLocalQKRank2MulReduceProfileMixin,
+    BamXL32V2LocalQKRankControlFullLayerProfile
+):
+    model_name = 'BamXL32V2LocalQKRank2MulReduceFullLayerProfile'
+
+
+class BamXL32V2LocalQKRank4MulReduceFullLayerProfile(
+    BamLocalQKRank4MulReduceProfileMixin,
+    BamXL32V2LocalQKRankControlFullLayerProfile
+):
+    model_name = 'BamXL32V2LocalQKRank4MulReduceFullLayerProfile'
 
 
 class BamMHALlama2XLHead32x64C256T2048Profile(

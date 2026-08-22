@@ -13,6 +13,7 @@ from layers.attentions import (
     _bam_fetch_op,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
+    _packed_address_control_init,
     _packed_fetched_row_rank_init,
     _packed_factorized_local_qk_init,
     _mix_bam_write_v,
@@ -283,6 +284,21 @@ class BamReadKeyTransformTest(absltest.TestCase):
     kernel = init(jax.random.PRNGKey(97), (e, n, packed_width), jnp.float32)
     np.testing.assert_array_equal(kernel[..., :r * k // n + v], 0)
     self.assertGreater(float(jnp.linalg.norm(kernel[..., -r:])), 0.0)
+
+  def test_packed_address_control_initializer_preserves_semantic_slices(self):
+    rank, n, n_f, write_v, read_v = 13, 4, 1, 5, 2
+    init = _packed_address_control_init(
+        initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
+        n, n_f, write_v, read_v)
+    widths = (n * write_v, n * n_f * read_v, n * n_f * 2, n)
+    kernel = init(
+        jax.random.PRNGKey(101), (rank, sum(widths)), jnp.float32)
+    write_v_kernel, read_v_kernel, read_gate_kernel, write_gate_kernel = (
+        jnp.split(kernel, np.cumsum(widths)[:-1], axis=-1))
+    self.assertGreater(float(jnp.linalg.norm(write_v_kernel)), 0.0)
+    np.testing.assert_array_equal(read_v_kernel, 0)
+    np.testing.assert_array_equal(read_gate_kernel, 0)
+    self.assertGreater(float(jnp.linalg.norm(write_gate_kernel)), 0.0)
 
   def test_batched_factorized_qk_read_matches_separate_reads(self):
     b, t, qk, n, k, v, e = 2, 3, 2, 4, 3, 5, 7

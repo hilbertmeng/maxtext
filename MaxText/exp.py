@@ -300,6 +300,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_query_chunk_implementation = 'legacy'
     bam_fetch_read_bottleneck_dim = None  # optional fetched W_R: D -> r -> n*f*(k+v)
     bam_fetch_read_bottleneck_activation = 'none'  # none | gelu
+    # Optional shared GELU trunk for write-V, fetched-read-V, and their gates.
+    bam_compact_address_control_bottleneck_dim = None
     bam_abs_k_compression_dim = None  # keep the cached absolute K axis full-width
     bam_abs_k_col_output = 'direct'  # direct | project; expand the compressed K-side answer
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
@@ -1256,6 +1258,17 @@ class BamLlama2MediumV2C256FetchReadR512Gelu(BamV2C256FetchScheduleBase):
     bam_fetch_read_bottleneck_activation = 'gelu'
 
 
+class BamLlama2MediumV2C256CompactAddressControlR384(
+    BamV2C256FetchScheduleBase
+):
+    """Share one D->384->688 GELU trunk across BAM address/control outputs."""
+    model_name = 'BamLlama2MediumV2C256CompactAddressControlR384'
+    scan_layers = True
+    bam_compact_address_control_bottleneck_dim = 384
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+
+
 class Llama2MediumC256LG(BamV2C256FetchScheduleBase):
     """Matched BAM-MHA control with alternating local/global attention."""
     # code_commit: 159db23; ~1.018 steps/s; completed 13,500. LG: +26.6% speed, plateau dloss +0.00169 vs dense MHA.
@@ -1851,6 +1864,7 @@ class BamV2GScanLayerLocalQKRankControlFullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Medium full-24 v5p-16 control for rank-r LocalQK."""
+    # 8235ccd; EW4b XPlane 1,480.38 ms; ~0.666 steps/s.
     model_name = 'BamV2GScanLayerLocalQKRankControlFullLayerProfile'
     skip_first_n_steps_for_profiler = 2
     profile_periodically_period = 8
@@ -1861,6 +1875,7 @@ class BamV2GScanLayerLocalQKRank2MulReduceFullLayerProfile(
     BamLocalQKRank2MulReduceProfileMixin,
     BamV2GScanLayerLocalQKRankControlFullLayerProfile
 ):
+    # 8235ccd; EW4b XPlane 1,527.18 ms; -3.07% throughput vs rank 1.
     model_name = 'BamV2GScanLayerLocalQKRank2MulReduceFullLayerProfile'
 
 
@@ -1868,6 +1883,7 @@ class BamV2GScanLayerLocalQKRank4MulReduceFullLayerProfile(
     BamLocalQKRank4MulReduceProfileMixin,
     BamV2GScanLayerLocalQKRankControlFullLayerProfile
 ):
+    # 8235ccd; EW4b XPlane 1,566.82 ms; -5.52% throughput vs rank 1.
     model_name = 'BamV2GScanLayerLocalQKRank4MulReduceFullLayerProfile'
 
 
@@ -2079,6 +2095,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPE(
     BamLlama2XLHead16x128V2C256
 ):
     """XL 16x128 BAM with Q/K[:96] NoPE and only Q/K[96:128] RoPE."""
+    # code_commit: 585b051; EW4b ~0.567 steps/s (+1.4% vs full-RoPE BAM).
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPE'
     bam_partial_rope = True
     jax_cache_dir = (
@@ -2224,6 +2241,7 @@ class BamXL16V2LocalQKRankControlFullLayerProfile(
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
     """XL 16x128 full-24 v5p-32 control for rank-r LocalQK."""
+    # 8235ccd; EW4b XPlane 1,748.65 ms; ~0.564 steps/s.
     model_name = 'BamXL16V2LocalQKRankControlFullLayerProfile'
 
 
@@ -2231,6 +2249,7 @@ class BamXL16V2LocalQKRank2MulReduceFullLayerProfile(
     BamLocalQKRank2MulReduceProfileMixin,
     BamXL16V2LocalQKRankControlFullLayerProfile
 ):
+    # 8235ccd; EW4b XPlane 1,803.44 ms; -3.04% throughput vs rank 1.
     model_name = 'BamXL16V2LocalQKRank2MulReduceFullLayerProfile'
 
 
@@ -2238,6 +2257,7 @@ class BamXL16V2LocalQKRank4MulReduceFullLayerProfile(
     BamLocalQKRank4MulReduceProfileMixin,
     BamXL16V2LocalQKRankControlFullLayerProfile
 ):
+    # 8235ccd; EW4b XPlane 1,842.78 ms; -5.11% throughput vs rank 1.
     model_name = 'BamXL16V2LocalQKRank4MulReduceFullLayerProfile'
 
 
@@ -2245,6 +2265,7 @@ class BamXL32V2LocalQKRankControlFullLayerProfile(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
     """XL 32x64 full-24 v5p-32 control for rank-r LocalQK."""
+    # 8235ccd; EW4b XPlane 2,074.42 ms.
     model_name = 'BamXL32V2LocalQKRankControlFullLayerProfile'
 
 
@@ -2252,6 +2273,7 @@ class BamXL32V2LocalQKRank2MulReduceFullLayerProfile(
     BamLocalQKRank2MulReduceProfileMixin,
     BamXL32V2LocalQKRankControlFullLayerProfile
 ):
+    # 8235ccd; EW4b XPlane 2,140.11 ms; -3.07% throughput vs rank 1.
     model_name = 'BamXL32V2LocalQKRank2MulReduceFullLayerProfile'
 
 
@@ -2259,6 +2281,7 @@ class BamXL32V2LocalQKRank4MulReduceFullLayerProfile(
     BamLocalQKRank4MulReduceProfileMixin,
     BamXL32V2LocalQKRankControlFullLayerProfile
 ):
+    # 8235ccd; EW4b XPlane 2,186.56 ms (2 pods); -5.13% throughput vs rank 1.
     model_name = 'BamXL32V2LocalQKRank4MulReduceFullLayerProfile'
 
 
@@ -2309,7 +2332,8 @@ class BamMHALlama2XLHead32x64C256(
     BamMHALlama2XLHead32x64C256T2048Profile
 ):
     """Matched 50k-step BamAttention MHA control for XL 32x64."""
-    # code_commit: 6ed397a; EW4b ~0.646 steps/s; running.
+    # code_commit: 6ed397a; EW4b ~0.640 steps/s; stopped at 33,611.
+    # dloss ~+.0050 vs Head16x128 MHA @10k–33k, stable with no tendency to zero.
     model_name = 'BamMHALlama2XLHead32x64C256'
     profiler = ''
     profile_periodically_period = -1

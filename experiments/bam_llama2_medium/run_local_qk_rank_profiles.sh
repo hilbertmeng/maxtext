@@ -43,7 +43,7 @@ for exp_class in "$@"; do
     sudo rm -f /tmp/libtpu_lockfile" </dev/null
 
   "$COLLECTOR" "$TPU" "$ZONE" "$remote_run/tensorboard" \
-    "$gcs_run" "$PROJECT" 2 0 </dev/null >"$collector_log" 2>&1 &
+    "$gcs_run" "$PROJECT" 2 auto </dev/null >"$collector_log" 2>&1 &
   collector_pid=$!
 
   gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \

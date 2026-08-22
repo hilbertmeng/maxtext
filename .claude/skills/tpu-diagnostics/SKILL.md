@@ -84,7 +84,7 @@ comparisons, then verify the winning combination with full layers.
   `step_10`, using `step_2` only if preempted first. Before launch, run
   `/home/lishengping/xd/projects/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR GCS_PREFIX PROJECT 2`
   on `tpu-ag`.
-  For a pod, append `WORKER` and run one collector per worker. After GCS verification, pull the
+  The collector auto-detects which pod worker owns the trace. After GCS verification, pull the
   artifacts directly to `/data0/xd/bam_diagnostics/` on the local workstation.
 - Use the watcher as a `FIRST_STEP` hint, but declare failure only when the exact train process
   exits or its main thread fails; a background uploader traceback is not sufficient. Control

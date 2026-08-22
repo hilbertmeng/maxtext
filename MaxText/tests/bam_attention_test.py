@@ -565,6 +565,53 @@ class BamReadKeyTransformTest(absltest.TestCase):
         jnp.mean(mix ** 2, axis=-2), jnp.ones((b, t, 2)),
         rtol=2e-3, atol=2e-3)
 
+  def test_factorized_head_rank_two_dot_and_mul_reduce_match(self):
+    b, t, n, rank, k, v, e = 2, 3, 4, 2, 3, 5, 7
+    keys = jax.random.split(jax.random.PRNGKey(30), 6)
+    M = jax.random.normal(keys[0], (b, t, k, v))
+    x = jax.random.normal(keys[1], (b, t, e))
+    key_kernel = jax.random.normal(keys[2], (e, rank, k + v))
+    mix_kernel = jax.random.normal(keys[3], (e, n, 2, rank))
+    gate_kernel = jax.random.normal(keys[4], (e, 2))
+    gate_bias = jax.random.normal(keys[5], (2,))
+    projection = lambda z: jnp.einsum('bte,erd->btrd', z, key_kernel)
+    head_projection = lambda z: jnp.einsum(
+        'bte,ensr->btnsr', z, mix_kernel)
+    gate_logits = jnp.einsum('bte,es->bts', x, gate_kernel) + gate_bias
+    kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
+        key_gate_logits=gate_logits, implementation='mul_reduce_btn', rank=rank)
+
+    dot = factorized_head_bam_read(
+        M, x, projection, head_projection,
+        second_implementation='dot', **kwargs)
+    mul = factorized_head_bam_read(
+        M, x, projection, head_projection,
+        second_implementation='mul_reduce', **kwargs)
+    np.testing.assert_allclose(dot, mul, rtol=2e-5, atol=2e-5)
+
+    upstream = jax.random.normal(jax.random.PRNGKey(35), dot.shape)
+    args = (M, x, key_kernel, mix_kernel, gate_kernel, gate_bias)
+
+    def output(values, second_implementation):
+      matrix, hidden, key_w, mix_w, gate_w, gate_b = values
+      return factorized_head_bam_read(
+          matrix, hidden,
+          lambda z: jnp.einsum('bte,erd->btrd', z, key_w),
+          lambda z: jnp.einsum('bte,ensr->btnsr', z, mix_w),
+          key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
+          key_gate_logits=jnp.einsum('bte,es->bts', hidden, gate_w) + gate_b,
+          implementation='mul_reduce_btn', rank=rank,
+          second_implementation=second_implementation)
+
+    dot_value, dot_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, 'dot') * upstream))(args)
+    mul_value, mul_grad = jax.value_and_grad(
+        lambda z: jnp.sum(output(z, 'mul_reduce') * upstream))(args)
+    np.testing.assert_allclose(dot_value, mul_value, rtol=2e-5, atol=2e-5)
+    for got, expected in zip(dot_grad, mul_grad):
+      np.testing.assert_allclose(got, expected, rtol=3e-5, atol=3e-5)
+
   def test_factorized_head_read_zero_key_starts_dormant_but_has_key_gradient(self):
     b, t, n, k, v, e = 1, 3, 4, 3, 5, 7
     M = jax.random.normal(jax.random.PRNGKey(31), (b, t, k, v))

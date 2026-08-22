@@ -270,6 +270,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
     bam_pack_factorized_local_qk = False  # fuse factorized Q/K key, gate, and head-mix projections
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
+    bam_local_qk_rank = 1  # number of dynamic basis keys per Q/K and read side
+    bam_local_qk_second_implementation = 'mul_reduce'  # dot | mul_reduce
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
@@ -1064,7 +1066,9 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256CompressedVLocalQK(BamV2C256FetchScheduleBase):
     """Read LocalQK from the compressed 32x8 M view; retain full RoPE."""
-    # code_commit: 3e57ddc; UC1a ~0.675 steps/s; running.
+    # code_commit: 3e57ddc; EW4b ~0.673 steps/s; completed 13,500.
+    # ~2x M-cache compression costs dloss +.00794 vs V2 @13,400 (stable);
+    # dloss -.07048 vs MHA.
     model_name = 'BamLlama2MediumV2C256CompressedVLocalQK'
     scan_layers = True
     bam_local_qk_use_compressed_v = True
@@ -1101,8 +1105,8 @@ class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):
 
 class Llama2MediumC256PartialRoPE(BamLlama2MediumV2C256PartialRoPE):
     """Matched BAM-Attention MHA control for the Partial-RoPE24 experiment."""
-    # d65a758; EW4b ~0.903 steps/s; stopped 3,504. Mean dloss +.0051 vs MHA
-    # @2,000–2,800: this coordinate split is a small generic loss harm.
+    # d65a758; EW4b ~0.899 steps/s; completed 13,500. dloss -.00062 vs
+    # Full-RoPE MHA @13,400; last-eight mean -.00042, i.e. essentially neutral.
     model_name = 'Llama2MediumC256PartialRoPE'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24
@@ -1673,6 +1677,61 @@ class BamV2GScanLayerRowRank8MulReduceEightLayerProfile(
     bam_fetched_row_second_implementation = 'mul_reduce'
 
 
+class BamLocalQKRank2DotProfileMixin:
+    bam_local_qk_rank = 2
+    bam_local_qk_second_implementation = 'dot'
+
+
+class BamLocalQKRank2MulReduceProfileMixin(BamLocalQKRank2DotProfileMixin):
+    bam_local_qk_second_implementation = 'mul_reduce'
+
+
+class BamLocalQKRank4DotProfileMixin:
+    bam_local_qk_rank = 4
+    bam_local_qk_second_implementation = 'dot'
+
+
+class BamLocalQKRank4MulReduceProfileMixin(BamLocalQKRank4DotProfileMixin):
+    bam_local_qk_second_implementation = 'mul_reduce'
+
+
+class BamV2GScanLayerLocalQKRankControlEightLayerProfile(
+    BamV2GScanLayerOptimizedEightLayerProfile
+):
+    """Medium rank-1 LocalQK control for the rank-r v6e matrix."""
+    model_name = 'BamV2GScanLayerLocalQKRankControlEightLayerProfile'
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
+
+
+class BamV2GScanLayerLocalQKRank2DotEightLayerProfile(
+    BamLocalQKRank2DotProfileMixin,
+    BamV2GScanLayerLocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamV2GScanLayerLocalQKRank2DotEightLayerProfile'
+
+
+class BamV2GScanLayerLocalQKRank2MulReduceEightLayerProfile(
+    BamLocalQKRank2MulReduceProfileMixin,
+    BamV2GScanLayerLocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamV2GScanLayerLocalQKRank2MulReduceEightLayerProfile'
+
+
+class BamV2GScanLayerLocalQKRank4DotEightLayerProfile(
+    BamLocalQKRank4DotProfileMixin,
+    BamV2GScanLayerLocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamV2GScanLayerLocalQKRank4DotEightLayerProfile'
+
+
+class BamV2GScanLayerLocalQKRank4MulReduceEightLayerProfile(
+    BamLocalQKRank4MulReduceProfileMixin,
+    BamV2GScanLayerLocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamV2GScanLayerLocalQKRank4MulReduceEightLayerProfile'
+
+
 class BamV2GScanLayerBatchedLocalQKReadEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
@@ -2040,6 +2099,85 @@ class BamLlama2XLHead32x64V2C256T2048Profile(
     sharding_tolerance = 0.05
 
 
+class BamXLV2LocalQKRankEightLayerProfileMixin:
+    """Eight-layer v6e shape profile retaining each XL model's training batch."""
+    base_num_decoder_layers = 8
+    bam_layer_modes = ['local_qk+full'] * 8
+    skip_first_n_steps_for_profiler = 2
+    profile_periodically_period = 8
+    steps = 100
+
+
+class BamXL16V2LocalQKRankControlEightLayerProfile(
+    BamXLV2LocalQKRankEightLayerProfileMixin,
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    model_name = 'BamXL16V2LocalQKRankControlEightLayerProfile'
+
+
+class BamXL16V2LocalQKRank2DotEightLayerProfile(
+    BamLocalQKRank2DotProfileMixin,
+    BamXL16V2LocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamXL16V2LocalQKRank2DotEightLayerProfile'
+
+
+class BamXL16V2LocalQKRank2MulReduceEightLayerProfile(
+    BamLocalQKRank2MulReduceProfileMixin,
+    BamXL16V2LocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamXL16V2LocalQKRank2MulReduceEightLayerProfile'
+
+
+class BamXL16V2LocalQKRank4DotEightLayerProfile(
+    BamLocalQKRank4DotProfileMixin,
+    BamXL16V2LocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamXL16V2LocalQKRank4DotEightLayerProfile'
+
+
+class BamXL16V2LocalQKRank4MulReduceEightLayerProfile(
+    BamLocalQKRank4MulReduceProfileMixin,
+    BamXL16V2LocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamXL16V2LocalQKRank4MulReduceEightLayerProfile'
+
+
+class BamXL32V2LocalQKRankControlEightLayerProfile(
+    BamXLV2LocalQKRankEightLayerProfileMixin,
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    model_name = 'BamXL32V2LocalQKRankControlEightLayerProfile'
+
+
+class BamXL32V2LocalQKRank2DotEightLayerProfile(
+    BamLocalQKRank2DotProfileMixin,
+    BamXL32V2LocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamXL32V2LocalQKRank2DotEightLayerProfile'
+
+
+class BamXL32V2LocalQKRank2MulReduceEightLayerProfile(
+    BamLocalQKRank2MulReduceProfileMixin,
+    BamXL32V2LocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamXL32V2LocalQKRank2MulReduceEightLayerProfile'
+
+
+class BamXL32V2LocalQKRank4DotEightLayerProfile(
+    BamLocalQKRank4DotProfileMixin,
+    BamXL32V2LocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamXL32V2LocalQKRank4DotEightLayerProfile'
+
+
+class BamXL32V2LocalQKRank4MulReduceEightLayerProfile(
+    BamLocalQKRank4MulReduceProfileMixin,
+    BamXL32V2LocalQKRankControlEightLayerProfile
+):
+    model_name = 'BamXL32V2LocalQKRank4MulReduceEightLayerProfile'
+
+
 class BamMHALlama2XLHead32x64C256T2048Profile(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
@@ -2054,7 +2192,9 @@ class BamLlama2XLHead32x64V2C256(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
     """50k-step XL 32x64 BAM head-shape scalability run on v5p-32."""
-    # code_commit: 6ed397a; EW4b ~0.477 steps/s; running.
+    # code_commit: 6ed397a; EW4b ~0.477 steps/s; paused at 21,651.
+    # 17.5k–21.5k means vs Head16x128: dloss +.00167 BAM / +.00504 MHA;
+    # delta-shape -.00337, stable rather than tending to zero.
     model_name = 'BamLlama2XLHead32x64V2C256'
     profiler = ''
     profile_periodically_period = -1

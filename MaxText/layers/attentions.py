@@ -2008,30 +2008,103 @@ def factorized_head_bam_read(
     key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
-    implementation='mul_reduce_btn', read_side='both'):
-  """Read once with a shared runtime key, then route it dynamically across heads.
+    implementation='mul_reduce_btn', read_side='both', rank=1,
+    second_implementation='mul_reduce'):
+  """Read with rank-r shared runtime keys, then route dynamically across heads.
 
-  For each side, the effective per-head key is the rank-1 factorization
-  ``key[b,t,n,:] = head_mix[b,t,n] * shared_key[b,t,:]``.  Bilinearity lets the
-  implementation contract M with the shared key once and apply the signed head
-  coefficients afterwards, without materializing per-head keys.
+  For each side, the effective per-head key is factorized as
+  ``key[b,t,n,:] = sum_r head_mix[b,t,n,r] * shared_key[b,t,r,:]``.
+  Bilinearity lets the implementation read M with the r basis keys, then perform
+  a small r-to-head contraction without materializing per-head keys.  ``rank=1``
+  retains the original implementation and parameterization exactly.
 
-  M must be the local matrix state [b,t,k,v].  W_R maps x -> k+v and W_head_mix
-  maps x -> [n,2], with independent row/column head coefficients.  Coefficients
-  receive parameter-free RMS normalization over the head axis, so every head has
-  O(1) typical scale; unlike fetch-alpha mixing, this expansion intentionally does
-  not divide by sqrt(n).  The result is always [b,t,n,k+v].
+  M must be the local matrix state [b,t,k,v].  W_R maps x -> [r,k+v] and
+  W_head_mix maps x -> [n,2,r], with independent row/column coefficients.  The
+  mixing matrix has the same total RMS energy as rank 1, so the result keeps
+  O(1) per-head scale as r changes.  Rank 1 retains the historical head-axis RMS
+  transform exactly.  The result is always [b,t,n,k+v].
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
   if read_side not in ('both', 'row', 'col'):
     raise ValueError(f'Unknown BAM read side: {read_side}')
+  if rank < 1:
+    raise ValueError(f'factorized local BAM read rank must be positive, got {rank}')
+  if second_implementation not in ('dot', 'mul_reduce'):
+    raise ValueError(
+        f'Unknown factorized local BAM second implementation: {second_implementation}')
+  if rank > 1 and (key_row_norm is not None or key_col_norm is not None):
+    raise ValueError('rank-r factorized local BAM read does not support learned key norms')
+
+  gate_logits = (
+      key_gate_logits[..., None, :] if rank > 1 and key_gate_logits is not None
+      else key_gate_logits)
   _, _, r_row, r_col = _project_bam_read_keys(
       M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
-      key_gate_logits=key_gate_logits,
+      key_gate_logits=gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
+
+  if rank > 1:
+    if r_row.shape[-2:] != (rank, M.shape[-2]):
+      raise ValueError(
+          f'factorized row bases must end in [{rank},{M.shape[-2]}], got {r_row.shape}')
+    if r_col.shape[-2:] != (rank, M.shape[-1]):
+      raise ValueError(
+          f'factorized column bases must end in [{rank},{M.shape[-1]}], got {r_col.shape}')
+
+    with jax.named_scope("bam/read_m_contract"):
+      y_u_basis = y_v_basis = None
+      if implementation == 'dot_btn':
+        if read_side in ('both', 'col'):
+          y_u_basis = jnp.einsum('btkv,btrv->btrk', M, r_col)
+        if read_side in ('both', 'row'):
+          y_v_basis = jnp.einsum('btkv,btrk->btrv', M, r_row)
+      elif implementation == 'mul_reduce_btn':
+        if read_side in ('both', 'col'):
+          y_u_basis = jnp.sum(
+              M[:, :, None] * r_col[..., None, :], axis=-1)
+        if read_side in ('both', 'row'):
+          y_v_basis = jnp.sum(
+              M[:, :, None] * r_row[..., :, None], axis=-2)
+      else:
+        raise ValueError(f'Unknown BAM read implementation: {implementation}')
+
+    with jax.named_scope("bam/read_head_mix_projection"):
+      raw_head_mix = W_head_mix(x)
+    with jax.named_scope("bam/read_head_mix_transform"):
+      if raw_head_mix.ndim != 5 or raw_head_mix.shape[-2:] != (2, rank):
+        raise ValueError(
+            f'rank-r factorized head mix expects [b,t,n,2,{rank}], '
+            f'got {raw_head_mix.shape}')
+      output_dtype = (
+          y_u_basis.dtype if y_u_basis is not None else y_v_basis.dtype)
+      raw_row_mix, raw_col_mix = raw_head_mix[..., 0, :], raw_head_mix[..., 1, :]
+      rank_scale = jnp.sqrt(jnp.asarray(rank, output_dtype))
+      row_mix = normalizations.rms_norm(
+          raw_row_mix, dtype=output_dtype, epsilon=rms_epsilon,
+          axis=(-2, -1)) / rank_scale
+      col_mix = normalizations.rms_norm(
+          raw_col_mix, dtype=output_dtype, epsilon=rms_epsilon,
+          axis=(-2, -1)) / rank_scale
+
+    def expand(basis_read, mix):
+      if basis_read is None:
+        return None
+      if second_implementation == 'dot':
+        return jnp.einsum('btrd,btnr->btnd', basis_read, mix)
+      return jnp.sum(
+          basis_read[:, :, None] * mix[..., None], axis=-2)
+
+    with jax.named_scope("bam/read_head_mix_expand"):
+      y_u = expand(y_u_basis, col_mix)
+      y_v = expand(y_v_basis, row_mix)
+      if y_u is None:
+        y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
+      if y_v is None:
+        y_v = jnp.zeros(y_u.shape[:-1] + (M.shape[-1],), dtype=y_u.dtype)
+      return jnp.concatenate([y_u, y_v], axis=-1)
 
   with jax.named_scope("bam/read_m_contract"):
     y_u = y_v = None
@@ -2069,10 +2142,12 @@ def factorized_head_bam_read(
     return jnp.concatenate([y_u, y_v], axis=-1)
 
 
-def _packed_factorized_local_qk_init(kernel_init, num_heads, key_width):
+def _packed_factorized_local_qk_init(
+    kernel_init, num_heads, key_width, rank=1):
   """Pack Q/K key, gate, and head-mix kernels while preserving their initializers."""
-  mix_width = 2 * num_heads
-  packed_width = 2 * (key_width + 2 + mix_width)
+  basis_width = rank * key_width
+  mix_width = 2 * num_heads * rank
+  packed_width = 2 * (basis_width + 2 + mix_width)
 
   def init_fn(key, shape, dtype, _in_axis=0, _out_axis=1):
     if len(shape) != 2 or shape[-1] != packed_width:
@@ -2080,14 +2155,17 @@ def _packed_factorized_local_qk_init(kernel_init, num_heads, key_width):
           f'packed local-QK kernel expects [embed,{packed_width}], got {shape}')
     q_mix_key, k_mix_key = jax.random.split(key)
     zeros = lambda width: jnp.zeros((shape[0], width), dtype)
-    mix_shape = (shape[0], num_heads, 2)
-    q_mix = kernel_init(q_mix_key, mix_shape, dtype, 0, (1, 2)).reshape(
-        shape[0], mix_width)
-    k_mix = kernel_init(k_mix_key, mix_shape, dtype, 0, (1, 2)).reshape(
-        shape[0], mix_width)
+    mix_shape = (
+        (shape[0], num_heads, 2)
+        if rank == 1 else (shape[0], num_heads, 2, rank))
+    mix_out_axes = (1, 2) if rank == 1 else (1, 2, 3)
+    q_mix = kernel_init(
+        q_mix_key, mix_shape, dtype, 0, mix_out_axes).reshape(shape[0], mix_width)
+    k_mix = kernel_init(
+        k_mix_key, mix_shape, dtype, 0, mix_out_axes).reshape(shape[0], mix_width)
     return jnp.concatenate((
-        zeros(key_width), zeros(2), q_mix,
-        zeros(key_width), zeros(2), k_mix,
+        zeros(basis_width), zeros(2), q_mix,
+        zeros(basis_width), zeros(2), k_mix,
     ), axis=-1)
 
   return init_fn
@@ -2293,6 +2371,9 @@ class BamAttention(Attention):
     self._pack_factorized_local_qk = bool(cfg.bam_pack_factorized_local_qk)
     self._batch_factorized_local_qk_read = bool(
         cfg.bam_batch_factorized_local_qk_read)
+    self._local_qk_rank = int(getattr(cfg, 'bam_local_qk_rank', 1))
+    self._local_qk_second_implementation = getattr(
+        cfg, 'bam_local_qk_second_implementation', 'mul_reduce')
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
@@ -2383,6 +2464,14 @@ class BamAttention(Attention):
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     assert self._fetched_row_second_implementation in ('dot', 'mul_reduce')
+    assert self._local_qk_rank > 0
+    assert self._local_qk_second_implementation in ('dot', 'mul_reduce')
+    assert self._local_qk_rank == 1 or (
+        self._local_qk_key_mode == 'factorized'
+        and self._pack_factorized_local_qk
+        and not self._batch_factorized_local_qk_read
+        and not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm)
+    ), 'rank-r LocalQK requires the separate-Q/K packed factorized path'
     assert self._fetch_read_bottleneck_activation in ('none', 'gelu')
     if self._fetch_read_bottleneck_dim is None:
       assert self._fetch_read_bottleneck_activation == 'none'
@@ -2602,11 +2691,14 @@ class BamAttention(Attention):
         # The read is performed once per side; no static dxd rematrix is needed.
         if self._pack_factorized_local_qk:
           key_width = self._local_qk_key_width
-          packed_width = 2 * (key_width + 2 + 2 * self.num_query_heads)
+          rank = self._local_qk_rank
+          basis_width = rank * key_width
+          mix_width = 2 * self.num_query_heads * rank
+          packed_width = 2 * (basis_width + 2 + mix_width)
           self.W_local_qk_packed = DenseGeneral(
               features=packed_width, axis=-1,
               kernel_init=_packed_factorized_local_qk_init(
-                  reg_init, self.num_query_heads, key_width),
+                  reg_init, self.num_query_heads, key_width, rank),
               kernel_axes=("embed", None), dtype=self.dtype,
               weight_dtype=self.weight_dtype, name="W_local_qk_packed",
               quant=self.quant, matmul_precision=cfg.matmul_precision,
@@ -2629,10 +2721,14 @@ class BamAttention(Attention):
                 (None, 'kv'), (None, 'kv'))
           else:
             for _name in ("W_lq", "W_lk"):
+              key_bias_shape = (
+                  (key_width,) if rank == 1 else (rank, key_width))
+              key_bias_axes = (
+                  ('kv',) if rank == 1 else (None, 'kv'))
               setattr(self, f'{_name}_bias', self.param(
                   f'{_name}_bias',
-                  nn.with_logical_partitioning(zeros_init, ('kv',)),
-                  (key_width,), self.weight_dtype))
+                  nn.with_logical_partitioning(zeros_init, key_bias_axes),
+                  key_bias_shape, self.weight_dtype))
               setattr(self, f'{_name}_gate_b0', self.param(
                   f'{_name}_gate_b0',
                   nn.with_logical_partitioning(
@@ -2640,8 +2736,12 @@ class BamAttention(Attention):
                           shape, bias_value, dtype), (None,)),
                   (2,), self.weight_dtype))
               add_grouped_read_norms(
-                  _name, (self.bam_k,), (self._local_qk_v_dim,),
-                  ('kv',), ('kv',))
+                  _name,
+                  ((self.bam_k,) if rank == 1 else (rank, self.bam_k)),
+                  ((self._local_qk_v_dim,)
+                   if rank == 1 else (rank, self._local_qk_v_dim)),
+                  (('kv',) if rank == 1 else (None, 'kv')),
+                  (('kv',) if rank == 1 else (None, 'kv')))
         else:
           for _name in ("W_lq", "W_lk"):
             setattr(self, _name, DenseGeneral(
@@ -2889,17 +2989,28 @@ class BamAttention(Attention):
         return qk_local[:, :, 0], qk_local[:, :, 1]
 
       # V1 default
+      rank = self._local_qk_rank
+      basis_width = rank * key_width
+      mix_width = 2 * self.num_query_heads * rank
       split_points = (
-          key_width,
-          key_width + 2,
-          key_width + 2 + mix_width,
-          2 * key_width + 2 + mix_width,
-          2 * key_width + 4 + mix_width,
+          basis_width,
+          basis_width + 2,
+          basis_width + 2 + mix_width,
+          2 * basis_width + 2 + mix_width,
+          2 * basis_width + 4 + mix_width,
       )
       q_key, q_gate, q_mix, k_key, k_gate, k_mix = jnp.split(
           packed, split_points, axis=-1)
-      q_mix = q_mix.reshape(q_mix.shape[:-1] + (self.num_query_heads, 2))
-      k_mix = k_mix.reshape(k_mix.shape[:-1] + (self.num_query_heads, 2))
+      if rank == 1:
+        q_mix = q_mix.reshape(q_mix.shape[:-1] + (self.num_query_heads, 2))
+        k_mix = k_mix.reshape(k_mix.shape[:-1] + (self.num_query_heads, 2))
+      else:
+        q_key = q_key.reshape(q_key.shape[:-1] + (rank, key_width))
+        k_key = k_key.reshape(k_key.shape[:-1] + (rank, key_width))
+        q_mix = q_mix.reshape(
+            q_mix.shape[:-1] + (self.num_query_heads, 2, rank))
+        k_mix = k_mix.reshape(
+            k_mix.shape[:-1] + (self.num_query_heads, 2, rank))
       q_key = q_key + jnp.asarray(self.W_lq_bias, q_key.dtype)
       k_key = k_key + jnp.asarray(self.W_lk_bias, k_key.dtype)
       q_gate = q_gate + jnp.asarray(self.W_lq_gate_b0, q_gate.dtype)
@@ -2907,11 +3018,15 @@ class BamAttention(Attention):
       q_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: q_key, lambda _x: q_mix,
           **self._read_key_kwargs_from_logits('W_lq', q_gate),
-          implementation=self._read_implementation, read_side=self.read_side)
+          implementation=self._read_implementation, read_side=self.read_side,
+          rank=rank,
+          second_implementation=self._local_qk_second_implementation)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
           **self._read_key_kwargs_from_logits('W_lk', k_gate),
-          implementation=self._read_implementation, read_side=self.read_side)
+          implementation=self._read_implementation, read_side=self.read_side,
+          rank=rank,
+          second_implementation=self._local_qk_second_implementation)
       return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_q_kwargs = (

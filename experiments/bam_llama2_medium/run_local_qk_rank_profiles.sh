@@ -19,6 +19,7 @@ LOG_ROOT=/home/lishengping/xd/projects/logs
 GCS_ROOT=gs://newproject-1-llm_base_models_us-central1/log/diagnostics/local_qk_rank
 COLLECTOR=/home/lishengping/xd/projects/collect_xplane.sh
 SMOKE=.claude/skills/tpu-diagnostics/scripts/run_train_smoke.sh
+PROFILE_STEPS=${PROFILE_STEPS:-20}
 
 gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
   --project="$PROJECT" --worker=all \
@@ -48,7 +49,8 @@ for exp_class in "$@"; do
   gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
     --project="$PROJECT" --worker=all \
     --command="cd '$REMOTE_REPO'; nohup env SMOKE_OUTPUT='$remote_run' \
-    '$SMOKE' '$exp_class' '$run' 100 >'$train_log' 2>&1 </dev/null &" </dev/null
+    '$SMOKE' '$exp_class' '$run' '$PROFILE_STEPS' \
+    >'$train_log' 2>&1 </dev/null &" </dev/null
 
   deadline=$((SECONDS + 1800))
   reached_trace=false

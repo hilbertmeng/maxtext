@@ -1081,7 +1081,9 @@ class BamLlama2MediumV2C256CompressedVLocalQKPartialRoPE(
     BamLlama2MediumV2C256CompressedVLocalQK
 ):
     """Compressed LocalQK with its Q/K[:40] NoPE and Q/K[40:64] RoPE."""
-    # code_commit: 3e57ddc; UC1a ~0.672 steps/s; running.
+    # code_commit: 3e57ddc; UC1a/EW4b ~0.672 steps/s; completed 13,500.
+    # @13,400: dloss -.0743 vs Partial MHA; Partial-vs-Full interaction
+    # -.0020 (last-eight -.0031); compressed-M penalty +.0064 vs V2.
     model_name = 'BamLlama2MediumV2C256CompressedVLocalQKPartialRoPE'
     bam_partial_rope = True
     jax_cache_dir = (

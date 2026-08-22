@@ -1701,6 +1701,7 @@ class BamV2GScanLayerLocalQKRankControlEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """Medium rank-1 LocalQK control for the rank-r v6e matrix."""
+    # 38bf1ce; UC1a v6e-1 XPlane 675.37 ms.
     model_name = 'BamV2GScanLayerLocalQKRankControlEightLayerProfile'
     skip_first_n_steps_for_profiler = 2
     profile_periodically_period = 8
@@ -1710,6 +1711,7 @@ class BamV2GScanLayerLocalQKRank2DotEightLayerProfile(
     BamLocalQKRank2DotProfileMixin,
     BamV2GScanLayerLocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 799.89 ms (+18.44% wall vs rank 1).
     model_name = 'BamV2GScanLayerLocalQKRank2DotEightLayerProfile'
 
 
@@ -1717,6 +1719,7 @@ class BamV2GScanLayerLocalQKRank2MulReduceEightLayerProfile(
     BamLocalQKRank2MulReduceProfileMixin,
     BamV2GScanLayerLocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 707.10 ms (+4.70% wall vs rank 1; +13.12% throughput vs dot).
     model_name = 'BamV2GScanLayerLocalQKRank2MulReduceEightLayerProfile'
 
 
@@ -1724,6 +1727,7 @@ class BamV2GScanLayerLocalQKRank4DotEightLayerProfile(
     BamLocalQKRank4DotProfileMixin,
     BamV2GScanLayerLocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 820.75 ms (+21.53% wall vs rank 1).
     model_name = 'BamV2GScanLayerLocalQKRank4DotEightLayerProfile'
 
 
@@ -1731,6 +1735,7 @@ class BamV2GScanLayerLocalQKRank4MulReduceEightLayerProfile(
     BamLocalQKRank4MulReduceProfileMixin,
     BamV2GScanLayerLocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 720.49 ms (+6.68% wall vs rank 1; +13.92% throughput vs dot).
     model_name = 'BamV2GScanLayerLocalQKRank4MulReduceEightLayerProfile'
 
 
@@ -2138,6 +2143,7 @@ class BamXL16V2LocalQKRankControlEightLayerProfile(
     BamXLV2LocalQKRankEightLayerProfileMixin,
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
+    # 38bf1ce; us-east5-a v6e-1 XPlane 568.77 ms.
     model_name = 'BamXL16V2LocalQKRankControlEightLayerProfile'
 
 
@@ -2145,6 +2151,7 @@ class BamXL16V2LocalQKRank2DotEightLayerProfile(
     BamLocalQKRank2DotProfileMixin,
     BamXL16V2LocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 639.05 ms (+12.36% wall vs rank 1).
     model_name = 'BamXL16V2LocalQKRank2DotEightLayerProfile'
 
 
@@ -2152,6 +2159,7 @@ class BamXL16V2LocalQKRank2MulReduceEightLayerProfile(
     BamLocalQKRank2MulReduceProfileMixin,
     BamXL16V2LocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 595.77 ms (+4.75% wall vs rank 1; +7.26% throughput vs dot).
     model_name = 'BamXL16V2LocalQKRank2MulReduceEightLayerProfile'
 
 
@@ -2159,6 +2167,7 @@ class BamXL16V2LocalQKRank4DotEightLayerProfile(
     BamLocalQKRank4DotProfileMixin,
     BamXL16V2LocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 659.64 ms (+15.98% wall vs rank 1).
     model_name = 'BamXL16V2LocalQKRank4DotEightLayerProfile'
 
 
@@ -2166,6 +2175,7 @@ class BamXL16V2LocalQKRank4MulReduceEightLayerProfile(
     BamLocalQKRank4MulReduceProfileMixin,
     BamXL16V2LocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 615.42 ms (+8.20% wall vs rank 1; +7.19% throughput vs dot).
     model_name = 'BamXL16V2LocalQKRank4MulReduceEightLayerProfile'
 
 
@@ -2173,6 +2183,7 @@ class BamXL32V2LocalQKRankControlEightLayerProfile(
     BamXLV2LocalQKRankEightLayerProfileMixin,
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
+    # 38bf1ce; UC1a v6e-1 XPlane 777.30 ms.
     model_name = 'BamXL32V2LocalQKRankControlEightLayerProfile'
 
 
@@ -2180,6 +2191,7 @@ class BamXL32V2LocalQKRank2DotEightLayerProfile(
     BamLocalQKRank2DotProfileMixin,
     BamXL32V2LocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 876.05 ms (+12.70% wall vs rank 1).
     model_name = 'BamXL32V2LocalQKRank2DotEightLayerProfile'
 
 
@@ -2187,6 +2199,7 @@ class BamXL32V2LocalQKRank2MulReduceEightLayerProfile(
     BamLocalQKRank2MulReduceProfileMixin,
     BamXL32V2LocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 818.93 ms (+5.36% wall vs rank 1; +6.98% throughput vs dot).
     model_name = 'BamXL32V2LocalQKRank2MulReduceEightLayerProfile'
 
 
@@ -2194,6 +2207,7 @@ class BamXL32V2LocalQKRank4DotEightLayerProfile(
     BamLocalQKRank4DotProfileMixin,
     BamXL32V2LocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 898.92 ms (+15.65% wall vs rank 1).
     model_name = 'BamXL32V2LocalQKRank4DotEightLayerProfile'
 
 
@@ -2201,6 +2215,7 @@ class BamXL32V2LocalQKRank4MulReduceEightLayerProfile(
     BamLocalQKRank4MulReduceProfileMixin,
     BamXL32V2LocalQKRankControlEightLayerProfile
 ):
+    # 38bf1ce; 837.79 ms (+7.78% wall vs rank 1; +7.30% throughput vs dot).
     model_name = 'BamXL32V2LocalQKRank4MulReduceEightLayerProfile'
 
 

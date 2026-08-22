@@ -2318,6 +2318,8 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
+    self._compact_address_control_dim = getattr(
+        cfg, 'bam_compact_address_control_bottleneck_dim', None)
     self._local_qk_use_compressed_v = bool(
         cfg.bam_local_qk_use_compressed_v)
     compressed_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
@@ -2421,8 +2423,6 @@ class BamAttention(Attention):
         cfg, 'bam_fetch_read_bottleneck_dim', None)
     self._fetch_read_bottleneck_activation = getattr(
         cfg, 'bam_fetch_read_bottleneck_activation', 'none')
-    self._compact_address_control_dim = getattr(
-        cfg, 'bam_compact_address_control_bottleneck_dim', None)
     self._abs_k_dim = (
         getattr(cfg, 'bam_abs_k_compression_dim', None)
         if 'full' in self._mode else None)

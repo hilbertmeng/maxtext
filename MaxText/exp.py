@@ -1262,6 +1262,7 @@ class BamLlama2MediumV2C256CompactAddressControlR384(
     BamV2C256FetchScheduleBase
 ):
     """Share one D->384->688 GELU trunk across BAM address/control outputs."""
+    # code_commit: 0f49173; UC1a ~0.664 steps/s.
     model_name = 'BamLlama2MediumV2C256CompactAddressControlR384'
     scan_layers = True
     bam_compact_address_control_bottleneck_dim = 384

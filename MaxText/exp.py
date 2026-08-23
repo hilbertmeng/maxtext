@@ -1126,6 +1126,7 @@ class BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQK(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPE
 ):
     """Use separate head-shared V32->8 adapters for LocalQ and LocalK."""
+    # 0d32bfd; UC1a ~0.665 steps/s.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQK'
     bam_local_qk_post_read_v_share_qk = False
     jax_cache_dir = (
@@ -1137,6 +1138,7 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE
 ):
     """Use separate head-shared V32->8 adapters for Q/K-only expansion."""
+    # 0d32bfd; UC1a ~0.663 steps/s.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK'
     bam_local_qk_post_read_v_share_qk = False
     jax_cache_dir = (

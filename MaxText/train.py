@@ -1228,7 +1228,11 @@ def train_loop(config, state=None):
   clear_buffered_metrics()
   with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
     # pytype: disable=attribute-error
-    compiled = p_train_step.lower(state, example_batch, nextrng).compile()
+    compiled = (
+        p_train_step.lower(state, example_batch, nextrng).compile()
+        if hasattr(p_train_step, "lower")
+        else p_train_step
+    )
     compiled_stats = compiled.memory_analysis()
     if compiled_stats is not None:
       max_logging.log(

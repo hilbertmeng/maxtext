@@ -1128,7 +1128,8 @@ class BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQK(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPE
 ):
     """Use separate head-shared V32->8 adapters for LocalQ and LocalK."""
-    # 0d32bfd; UC1a ~0.665 steps/s.
+    # 0d32bfd; UC1a ~0.665 steps/s; stopped at 7,960. Late dloss ~-0.0035
+    # vs Shared40; superseded by paired-init control to remove init confounding.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQK'
     bam_local_qk_post_read_v_share_qk = False
     jax_cache_dir = (
@@ -1152,6 +1153,7 @@ class BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQK
 ):
     """Separate Q/K V32->8 adapters initialized to identical values."""
+    # e7990ef; UC1a ~0.663 steps/s.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit'
     bam_local_qk_post_read_v_paired_init = True
     jax_cache_dir = (
@@ -1163,6 +1165,7 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK
 ):
     """QK72 with separate Q/K V32->8 adapters initialized identically."""
+    # e7990ef; UC1a ~0.668 steps/s.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit'
     bam_local_qk_post_read_v_paired_init = True
     jax_cache_dir = (

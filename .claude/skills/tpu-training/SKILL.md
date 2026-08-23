@@ -38,10 +38,11 @@ CODE_COMMIT=$(git rev-parse HEAD)
 3. Launch on tpu-ag in tmux. `run_exp_xd.sh` rejects unpushed hashes; registry records
    `code_commit`; every initial/retry/preemption launch checks out that exact detached commit.
 
-For a hot switch on an allocated preemptible TPU, prepare and push the new RUN first, then stop
-the old worker processes and launch the new tmux immediately. Defer old-RUN registry/TensorBoard
-bookkeeping until the new launcher is running; do it while waiting for `FIRST_STEP` so the TPU is
-not left idle.
+For a hot switch on an allocated preemptible TPU, first make the new RUN launch-ready: push its
+commit and prepare its registry, environment and AOT artifact. At handoff, stop the old auto-trainer
+and worker processes while retaining the READY TPU/queued resource, then launch the new RUN
+immediately with `MODE=train`. Mark the old RUN paused and handle its TensorBoard bookkeeping while
+waiting; ownership transfers only after the new RUN reaches `FIRST_STEP`.
 
 ```bash
 EXP=BamLlama2Medium ID=0 MODE=install+train
@@ -75,7 +76,15 @@ After `FIRST_STEP`, copy the RUN registry's seven-character `code_commit` prefix
 the comment after the successful relaunch. The registry remains authoritative for the full hash;
 the later metadata commit is not the RUN's runtime hash.
 
-For slow non-scan compiles, use a stable GCS `jax_cache_dir` across preemption relaunches.
+For every sealed full-layer RUN, cross-topology AOT-compile the exact target topology before its
+target launch (in parallel with the resource queue when useful). Key the executable by commit,
+environment, topology, training shapes and schedule;
+stage the matching environment, detached commit and executable during TPU installation, then
+require `Loaded compiled function!` plus an actual first step. Recompile when any key changes.
+Launch with `COMPILED_TRAINSTEP_GCS=gs://...`; auto-train stages that artifact on every recovery.
+For checkpoint resume, compile the original total schedule, never the remaining-step count; the
+restored optimizer `state.step` selects the resumed learning rate. Require the first resumed step
+and logged LR to match the checkpoint and original schedule; stop immediately on mismatch.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`
@@ -104,6 +113,10 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   '/home/lishengping/xd/projects/run_registry.py status'
 ```
 
+`status` persists and displays queue age, no-progress age, preemption count, recent READY lease
+durations, and `ACTION`. Treat one long queue and repeated short leases as separate recovery
+signals; either may require a passive candidate in another zone.
+
 At each wake, compare observed step gain over elapsed time with logged steps/s. A large shortfall
 plus stale per-worker train-log mtimes means a hang even if TPU is READY and processes are alive;
 auto-train owns this machine-level liveness check. It arms after three progress samples, waits
@@ -130,16 +143,18 @@ entry, including completed BASEs with no new common steps; omit one only after t
 removes it or the registry is updated. Here
 `r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
 magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
-level with the mean and range of the latest 5–8 reported points; use recent `r200` values for
-direction.
+level with the mean and range of the latest 5–8 reported points. Judge direction from successive
+signed-gap window means and sign changes; use `r200` only for magnitude change, especially near zero.
 
-Never ignore an anomalous monitoring metric: investigate and locate its root cause immediately,
-then restore 200-step reporting until the anomaly is resolved.
+Investigate every anomalous monitoring metric immediately and restore 200-step reporting until
+its root cause is resolved.
+Treat a gap sign crossing or trend reversal as material even when its magnitude is small; report
+the transition explicitly and monitor it closely until its direction is clear.
 
 At every due milestone:
 
 1. Run one shared `status`, then `loss-report` once per due RUN.
-2. Report the cumulative horizontal rows; judge stability with `r200`.
+2. Report the cumulative horizontal rows; judge stability from signed-gap trends plus `r200`.
 3. Mark the cursor:
 
 ```bash
@@ -279,6 +294,13 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
   accelerator-types list --zone=ZONE --filter=type=v6e-1`; treat quota and current capacity as
   separate conditions. Prefer proven zones `us-central1-a`, `europe-west4-a`, then `us-east5-a`.
 - Preserve WAITING_FOR_RESOURCES/PROVISIONING queues; deleting resets queue position.
+- If best-effort pods are repeatedly reclaimed before useful progress, first validate the exact
+  topology/zone with a passive FLEX_START queued-resource. After creation succeeds, freeze the RUN
+  and activate exactly one flex trainer with a duration longer than its ETA.
+- For a formal spot `v5p` RUN, retain its `us-central1-a` queue and add one passive
+  `europe-west4-b` candidate after 5 minutes of `WAITING_FOR_RESOURCES` or repeated short READY
+  leases. Activate only the first READY candidate; retain the passive loser until the migrated RUN
+  exceeds its checkpoint and commits the next periodic checkpoint; only then delete the loser.
 - In xd's v5p experience, maintenance warning + refused SSH is almost always preemption. Start
   reclaim immediately.
 - A queued-resource `SUSPENDED; stateInitiator=SERVICE` is terminal even if the TPU node has

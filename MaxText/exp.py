@@ -1099,7 +1099,8 @@ class BamLlama2MediumV2C256FullMPostReadV8PartialRoPE(
     BamV2C256FetchScheduleBase
 ):
     """Read full M for LocalQK, project V32->8, and use [U32,V8,RoPE24]."""
-    # 8b81623; UC1a ~0.663 steps/s; stopped at 5,134. dloss +0.0010 recent mean vs CompressedPartial; no loss gain for higher compute.
+    # 8b81623; UC1a ~0.663 steps/s; stopped at 5,134. Gap vs CompressedPartial
+    # fell from clearly positive toward zero/negative; stopped before the late trend resolved.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPE'
     scan_layers = True
     bam_local_qk_post_read_v_dim = 8

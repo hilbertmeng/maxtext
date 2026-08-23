@@ -2188,6 +2188,16 @@ def _packed_factorized_local_qk_init(
   return init_fn
 
 
+def _paired_parameter_init(kernel_init):
+  """Initialize two independently trainable parameter slices identically."""
+  def init_fn(key, shape, dtype):
+    if not shape or shape[0] != 2:
+      raise ValueError(f'paired parameter expects leading size 2, got {shape}')
+    base = kernel_init(key, shape[1:], dtype)
+    return jnp.broadcast_to(base, shape)
+  return init_fn
+
+
 def _packed_fetched_row_rank_init(
     kernel_init, num_heads, row_rank, row_width, col_width):
   """Pack zero-init row bases/column keys and regular-init row mixing."""
@@ -2322,6 +2332,8 @@ class BamAttention(Attention):
         cfg, 'bam_local_qk_post_read_v_dim', None)
     self._local_qk_post_read_v_share_qk = bool(getattr(
         cfg, 'bam_local_qk_post_read_v_share_qk', True))
+    self._local_qk_post_read_v_paired_init = bool(getattr(
+        cfg, 'bam_local_qk_post_read_v_paired_init', False))
     self._local_qk_post_read_v_layout = getattr(
         cfg, 'bam_local_qk_post_read_v_layout', 'head_tail')
     self._local_qk_output_width = self.bam_k + (
@@ -2497,6 +2509,9 @@ class BamAttention(Attention):
     if self._local_qk_post_read_v_dim is not None:
       self._local_qk_post_read_v_dim = int(self._local_qk_post_read_v_dim)
       assert 0 < self._local_qk_post_read_v_dim < self.bam_v
+      assert not (
+          self._local_qk_post_read_v_share_qk
+          and self._local_qk_post_read_v_paired_init)
       assert 'local_qk' in self._mode
       assert self._local_qk_key_mode == 'factorized'
       assert self._local_qk_rank == 1
@@ -2949,6 +2964,13 @@ class BamAttention(Attention):
         self.local_qk_post_read_v_projection = self.param(
             'local_qk_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
+      elif self._local_qk_post_read_v_paired_init:
+        self.local_qk_post_read_v_paired_projection = self.param(
+            'local_qk_post_read_v_paired_projection',
+            nn.with_logical_partitioning(
+                _paired_parameter_init(orth_init),
+                (None, 'v_factor', 'kv')),
+            (2,) + projection_shape, self.weight_dtype)
       else:
         self.local_q_post_read_v_projection = self.param(
             'local_q_post_read_v_projection', projection_init,
@@ -2958,6 +2980,9 @@ class BamAttention(Attention):
             projection_shape, self.weight_dtype)
 
   def _local_qk_post_read_v_projections(self):
+    paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
+    if paired is not None:
+      return paired[0], paired[1]
     shared = getattr(self, 'local_qk_post_read_v_projection', None)
     return (
         getattr(self, 'local_q_post_read_v_projection', shared),

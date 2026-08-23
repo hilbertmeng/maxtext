@@ -15,6 +15,7 @@ from layers.attentions import (
     _fit_bam_read_to_head,
     _packed_fetched_row_rank_init,
     _packed_factorized_local_qk_init,
+    _paired_parameter_init,
     _mix_bam_write_v,
     _transform_bam_read_key,
     _update_bam_matrix,
@@ -177,6 +178,16 @@ class BamReadKeyTransformTest(absltest.TestCase):
     self.assertGreater(float(jnp.linalg.norm(q_mix)), 0.0)
     self.assertGreater(float(jnp.linalg.norm(k_mix)), 0.0)
     self.assertFalse(np.array_equal(q_mix, k_mix))
+
+  def test_paired_parameter_init_matches_single_init_in_both_slices(self):
+    regular_init = initializers.nd_dense_init(
+        1.0, 'fan_in', 'truncated_normal')
+    key = jax.random.PRNGKey(17)
+    expected = regular_init(key, (32, 8), jnp.float32)
+    paired = _paired_parameter_init(regular_init)(
+        key, (2, 32, 8), jnp.float32)
+    np.testing.assert_array_equal(paired[0], expected)
+    np.testing.assert_array_equal(paired[1], expected)
 
   def test_rmsnorm_supports_nontrailing_axis(self):
     x = jax.random.normal(jax.random.PRNGKey(0), (2, 3, 4, 2))

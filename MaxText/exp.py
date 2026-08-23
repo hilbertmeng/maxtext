@@ -2286,7 +2286,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPESharedOrthV32(
     BamLlama2XLHead16x128V2C256PartialRoPE
 ):
     """Apply one Q/K-shared orthogonal V32-to-V32 LocalQK readout map."""
-    # ef1ba25; UC1a ~0.564 steps/s; running.
+    # ef1ba25; UC1a ~0.559 steps/s; stopped at 6,132. Same-speed Paired was
+    # lower-loss at every 500-step point from 1,500–6,000 (latest dloss -0.00295).
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPESharedOrthV32'
     bam_local_qk_post_read_v_dim = 32
     jax_cache_dir = (

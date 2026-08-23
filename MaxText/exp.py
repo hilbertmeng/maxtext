@@ -1099,7 +1099,7 @@ class BamLlama2MediumV2C256FullMPostReadV8PartialRoPE(
     BamV2C256FetchScheduleBase
 ):
     """Read full M for LocalQK, project V32->8, and use [U32,V8,RoPE24]."""
-    # 8b81623; UC1a ~0.663 steps/s.
+    # 8b81623; UC1a ~0.663 steps/s; stopped at 5,134. dloss +0.0010 recent mean vs CompressedPartial; no loss gain for higher compute.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPE'
     scan_layers = True
     bam_local_qk_post_read_v_dim = 8
@@ -1113,7 +1113,7 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPE
 ):
     """Append LocalQK V8 to Q/K only: [NoPE U32, RoPE std32, NoPE V8]."""
-    # 8b81623; UC1a ~0.662 steps/s.
+    # 8b81623; UC1a ~0.662 steps/s; stopped at 6,586. dloss +0.0031 recent mean vs V2; the QK72 gain did not overcome the base penalty.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE'
     bam_local_qk_post_read_v_layout = 'qk_tail'
     bam_partial_rope_nope_dim = 32

@@ -2525,7 +2525,7 @@ class BamAttention(Attention):
     assert self._local_qk_post_read_v_layout in ('head_tail', 'qk_tail')
     if self._local_qk_post_read_v_dim is not None:
       self._local_qk_post_read_v_dim = int(self._local_qk_post_read_v_dim)
-      assert 0 < self._local_qk_post_read_v_dim < self.bam_v
+      assert 0 < self._local_qk_post_read_v_dim <= self.bam_v
       assert not (
           self._local_qk_post_read_v_share_qk
           and self._local_qk_post_read_v_paired_init)

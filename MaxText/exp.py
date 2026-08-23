@@ -2253,6 +2253,29 @@ class BamLlama2XLHead16x128V2C256PartialRoPE(
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPESharedOrthV32(
+    BamLlama2XLHead16x128V2C256PartialRoPE
+):
+    """Apply one Q/K-shared orthogonal V32-to-V32 LocalQK readout map."""
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPESharedOrthV32'
+    bam_local_qk_post_read_v_dim = 32
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-shared-orth-v32')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPEPairedOrthV32(
+    BamLlama2XLHead16x128V2C256PartialRoPESharedOrthV32
+):
+    """Use independent Q/K V32 maps initialized to the shared control's value."""
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPEPairedOrthV32'
+    bam_local_qk_post_read_v_share_qk = False
+    bam_local_qk_post_read_v_paired_init = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-paired-orth-v32')
+
+
 class BamMHALlama2XLHead16x128C256PartialRoPE(
     BamMHALlama2XLHead16x128C256
 ):

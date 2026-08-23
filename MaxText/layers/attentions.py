@@ -2320,6 +2320,8 @@ class BamAttention(Attention):
     self._local_qk_key_width = self.bam_k + self._local_qk_v_dim
     self._local_qk_post_read_v_dim = getattr(
         cfg, 'bam_local_qk_post_read_v_dim', None)
+    self._local_qk_post_read_v_share_qk = bool(getattr(
+        cfg, 'bam_local_qk_post_read_v_share_qk', True))
     self._local_qk_post_read_v_layout = getattr(
         cfg, 'bam_local_qk_post_read_v_layout', 'head_tail')
     self._local_qk_output_width = self.bam_k + (
@@ -2940,10 +2942,28 @@ class BamAttention(Attention):
     # Create the experimental adapter after all existing parameters so adding it
     # does not perturb the initialization stream of the V2 control parameters.
     if self._local_qk_post_read_v_dim is not None:
-      self.local_qk_post_read_v_projection = self.param(
-          'local_qk_post_read_v_projection',
-          nn.with_logical_partitioning(orth_init, ('v_factor', 'kv')),
-          (self.bam_v, self._local_qk_post_read_v_dim), self.weight_dtype)
+      projection_init = nn.with_logical_partitioning(
+          orth_init, ('v_factor', 'kv'))
+      projection_shape = (self.bam_v, self._local_qk_post_read_v_dim)
+      if self._local_qk_post_read_v_share_qk:
+        self.local_qk_post_read_v_projection = self.param(
+            'local_qk_post_read_v_projection', projection_init,
+            projection_shape, self.weight_dtype)
+      else:
+        self.local_q_post_read_v_projection = self.param(
+            'local_q_post_read_v_projection', projection_init,
+            projection_shape, self.weight_dtype)
+        self.local_k_post_read_v_projection = self.param(
+            'local_k_post_read_v_projection', projection_init,
+            projection_shape, self.weight_dtype)
+
+  def _local_qk_post_read_v_projections(self):
+    shared = getattr(self, 'local_qk_post_read_v_projection', None)
+    return (
+        getattr(self, 'local_q_post_read_v_projection', shared),
+        getattr(self, 'local_k_post_read_v_projection', shared),
+    )
+
   def _project_full_read_key(self, x):
     if self._fetch_read_bottleneck_dim is None:
       return self.W_R(x)
@@ -3043,7 +3063,7 @@ class BamAttention(Attention):
 
       # V1 default
       rank = self._local_qk_rank
-      v_projection = getattr(self, 'local_qk_post_read_v_projection', None)
+      q_v_projection, k_v_projection = self._local_qk_post_read_v_projections()
       basis_width = rank * key_width
       mix_width = 2 * self.num_query_heads * rank
       split_points = (
@@ -3075,14 +3095,14 @@ class BamAttention(Attention):
           implementation=self._read_implementation, read_side=self.read_side,
           rank=rank,
           second_implementation=self._local_qk_second_implementation,
-          v_projection=v_projection)
+          v_projection=q_v_projection)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
           **self._read_key_kwargs_from_logits('W_lk', k_gate),
           implementation=self._read_implementation, read_side=self.read_side,
           rank=rank,
           second_implementation=self._local_qk_second_implementation,
-          v_projection=v_projection)
+          v_projection=k_v_projection)
       return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_q_kwargs = (
@@ -3100,15 +3120,15 @@ class BamAttention(Attention):
         if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lk_gate', inputs_q))
     if self._local_qk_key_mode == 'factorized':   # V1 default
-      v_projection = getattr(self, 'local_qk_post_read_v_projection', None)
+      q_v_projection, k_v_projection = self._local_qk_post_read_v_projections()
       q_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
           **local_qk_q_kwargs, implementation=self._read_implementation,
-          read_side=self.read_side, v_projection=v_projection)
+          read_side=self.read_side, v_projection=q_v_projection)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
           **local_qk_k_kwargs, implementation=self._read_implementation,
-          read_side=self.read_side, v_projection=v_projection)
+          read_side=self.read_side, v_projection=k_v_projection)
       return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')

@@ -1138,7 +1138,7 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE
 ):
     """Use separate head-shared V32->8 adapters for Q/K-only expansion."""
-    # 0d32bfd; UC1a ~0.663 steps/s.
+    # 0d32bfd; UC1a ~0.663 steps/s; stopped at 3,327. dloss +0.0038 vs Shared72 and +0.0002 vs Separate40 at 3,200; the gains do not stack.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK'
     bam_local_qk_post_read_v_share_qk = False
     jax_cache_dir = (

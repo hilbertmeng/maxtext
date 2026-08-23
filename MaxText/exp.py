@@ -1211,7 +1211,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
 ):
     """Paired40 with two dynamic LocalQK basis reads on both M sides."""
-    # code_commit: 5b26aec; UC1a ~0.642 steps/s (-3.1% vs Paired40); running.
+    # code_commit: 5b26aec; UC1a ~0.645 steps/s (-2.7% vs Paired40); completed
+    # 13,500. dloss -0.00368 vs Paired40 @13,400; Rank4 was slower and worse.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2'
     bam_local_qk_rank = 2
     jax_cache_dir = (

@@ -1101,8 +1101,9 @@ class BamLlama2MediumV2C256FullMPostReadV8PartialRoPE(
     BamV2C256FetchScheduleBase
 ):
     """Read full M for LocalQK, project V32->8, and use [U32,V8,RoPE24]."""
-    # 8b81623; UC1a ~0.663 steps/s; stopped at 5,134. Gap vs CompressedPartial
-    # fell from clearly positive toward zero/negative; stopped before the late trend resolved.
+    # 8b81623; UC1a ~0.663 / EW4b ~0.666 steps/s; completed 13,500.
+    # Full-M then V8 compression gave no benefit: dloss +.0022 vs CompressedPartial
+    # and +.0063 vs V2 @13,400 after the early gap first approached zero.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPE'
     scan_layers = True
     bam_local_qk_post_read_v_dim = 8
@@ -1116,9 +1117,9 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPE
 ):
     """Append LocalQK V8 to Q/K only: [NoPE U32, RoPE std32, NoPE V8]."""
-    # 8b81623; UC1a ~0.662 steps/s. @8,200: dloss -.0035 vs Shared40,
-    # +.0031 vs V2. The appended V8 is a zero-gradient dead branch; this delta
-    # comes from removing head-tail row read/changing RoPE layout, not V8 expansion.
+    # 8b81623; UC1a ~0.663 steps/s; replaced at 12,714. dloss -.0024 vs
+    # Shared40 but +.0034 vs V2 @12,600; the shrinking benefit comes from removing
+    # head-tail row read/changing RoPE layout because the appended V8 stayed dead.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE'
     bam_local_qk_post_read_v_layout = 'qk_tail'
     bam_partial_rope_nope_dim = 32
@@ -1181,6 +1182,7 @@ class BamLlama2MediumV2C256SeededPaired40(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
 ):
     """Paired40 with identical nonzero Q/K row-key initialization."""
+    # 5f4e06d; UC1a ~0.666 steps/s; running.
     model_name = 'BamLlama2MediumV2C256SeededPaired40'
     bam_seed_paired_local_qk_row_key = True
     jax_cache_dir = (
@@ -1192,6 +1194,7 @@ class BamLlama2MediumV2C256SeededPaired72(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit
 ):
     """Paired72 with an active V8 tail from identical nonzero Q/K row keys."""
+    # 5f4e06d; UC1a ~0.663 steps/s; running.
     model_name = 'BamLlama2MediumV2C256SeededPaired72'
     bam_seed_paired_local_qk_row_key = True
     jax_cache_dir = (

@@ -13,7 +13,6 @@ from layers.attentions import (
     _bam_fetch_op,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
-    _packed_address_control_init,
     _packed_fetched_row_rank_init,
     _packed_factorized_local_qk_init,
     _mix_bam_write_v,
@@ -220,6 +219,20 @@ class BamReadKeyTransformTest(absltest.TestCase):
     for got, expected in zip(actual_grad, reference_grad):
       np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
 
+  def test_attention_op_allows_qk_only_width_expansion(self):
+    b, t, n, d, extra = 2, 5, 3, 4, 2
+    q, k, v = (
+        jax.random.normal(key, (b, t, n, d))
+        for key in jax.random.split(jax.random.PRNGKey(83), 3))
+    valid = jnp.tril(jnp.ones((t, t), dtype=bool))[None]
+    reference = _attention_op(q, k, v, valid)
+    zeros = jnp.zeros(q.shape[:-1] + (extra,), q.dtype)
+    expanded = _attention_op(
+        jnp.concatenate((q, zeros), axis=-1),
+        jnp.concatenate((k, zeros), axis=-1), v, valid)
+    for got, expected in zip(expanded, reference):
+      np.testing.assert_array_equal(got, expected)
+
   def test_dynamic_rank_row_read_matches_explicit_keys_and_gradients(self):
     b, t, n, r, k, v = 2, 3, 4, 2, 4, 3
     basis_chunk = r * k // n
@@ -284,21 +297,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
     kernel = init(jax.random.PRNGKey(97), (e, n, packed_width), jnp.float32)
     np.testing.assert_array_equal(kernel[..., :r * k // n + v], 0)
     self.assertGreater(float(jnp.linalg.norm(kernel[..., -r:])), 0.0)
-
-  def test_packed_address_control_initializer_preserves_semantic_slices(self):
-    rank, n, n_f, write_v, read_v = 13, 4, 1, 5, 2
-    init = _packed_address_control_init(
-        initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
-        n, n_f, write_v, read_v)
-    widths = (n * write_v, n * n_f * read_v, n * n_f * 2, n)
-    kernel = init(
-        jax.random.PRNGKey(101), (rank, sum(widths)), jnp.float32)
-    write_v_kernel, read_v_kernel, read_gate_kernel, write_gate_kernel = (
-        jnp.split(kernel, np.cumsum(widths)[:-1], axis=-1))
-    self.assertGreater(float(jnp.linalg.norm(write_v_kernel)), 0.0)
-    np.testing.assert_array_equal(read_v_kernel, 0)
-    np.testing.assert_array_equal(read_gate_kernel, 0)
-    self.assertGreater(float(jnp.linalg.norm(write_gate_kernel)), 0.0)
 
   def test_batched_factorized_qk_read_matches_separate_reads(self):
     b, t, qk, n, k, v, e = 2, 3, 2, 4, 3, 5, 7
@@ -382,6 +380,29 @@ class BamReadKeyTransformTest(absltest.TestCase):
         M, x, projection, head_projection, key_row_norm=scaled_norm,
         key_col_norm=scaled_norm, use_learned_key_norm=True, **kwargs)
     np.testing.assert_allclose(scaled, 1.5 * baseline, rtol=2e-5, atol=2e-5)
+
+  def test_factorized_head_read_projects_v_before_head_expansion(self):
+    b, t, n, k, v, c, e = 2, 3, 4, 3, 5, 2, 7
+    random = jax.random.split(jax.random.PRNGKey(89), 6)
+    M = jax.random.normal(random[0], (b, t, k, v))
+    x = jax.random.normal(random[1], (b, t, e))
+    key_kernel = jax.random.normal(random[2], (e, k + v))
+    mix_kernel = jax.random.normal(random[3], (e, n, 2))
+    gates = jax.random.normal(random[4], (b, t, 2))
+    projection = jax.random.normal(random[5], (v, c))
+    key_fn = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
+    mix_fn = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
+        key_gate_logits=gates, implementation='mul_reduce_btn')
+    full = factorized_head_bam_read(M, x, key_fn, mix_fn, **kwargs)
+    expected_u, expected_v = jnp.split(full, [k], axis=-1)
+    expected = jnp.concatenate((
+        expected_u, jnp.einsum('btnv,vc->btnc', expected_v, projection)),
+        axis=-1)
+    actual = factorized_head_bam_read(
+        M, x, key_fn, mix_fn, v_projection=projection, **kwargs)
+    np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
 
   def test_bam_read_implementations_match_values_and_gradients(self):
     b, t, n, f, k, v, e = 2, 3, 4, 2, 3, 5, 7

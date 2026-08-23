@@ -276,6 +276,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
     bam_local_qk_use_compressed_v = False  # read LocalQK from the same k*C view as fetched M
+    bam_local_qk_post_read_v_dim = None  # optionally project the full-M V-side answer before head mixing
+    bam_local_qk_post_read_v_layout = 'head_tail'  # head_tail | qk_tail
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
     bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
@@ -300,8 +302,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_query_chunk_implementation = 'legacy'
     bam_fetch_read_bottleneck_dim = None  # optional fetched W_R: D -> r -> n*f*(k+v)
     bam_fetch_read_bottleneck_activation = 'none'  # none | gelu
-    # Optional shared GELU trunk for write-V, fetched-read-V, and their gates.
-    bam_compact_address_control_bottleneck_dim = None
     bam_abs_k_compression_dim = None  # keep the cached absolute K axis full-width
     bam_abs_k_col_output = 'direct'  # direct | project; expand the compressed K-side answer
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
@@ -1092,6 +1092,31 @@ class BamLlama2MediumV2C256CompressedVLocalQKPartialRoPE(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-compressed-v-local-qk-partial-rope')
+
+
+class BamLlama2MediumV2C256FullMPostReadV8PartialRoPE(
+    BamV2C256FetchScheduleBase
+):
+    """Read full M for LocalQK, project V32->8, and use [U32,V8,RoPE24]."""
+    model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPE'
+    scan_layers = True
+    bam_local_qk_post_read_v_dim = 8
+    bam_partial_rope = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-partial-rope')
+
+
+class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE(
+    BamLlama2MediumV2C256FullMPostReadV8PartialRoPE
+):
+    """Append LocalQK V8 to Q/K only: [NoPE U32, RoPE std32, NoPE V8]."""
+    model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE'
+    bam_local_qk_post_read_v_layout = 'qk_tail'
+    bam_partial_rope_nope_dim = 32
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-qk72-partial-rope')
 
 
 class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):

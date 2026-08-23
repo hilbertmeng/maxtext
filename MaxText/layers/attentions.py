@@ -2009,7 +2009,7 @@ def factorized_head_bam_read(
     key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
     implementation='mul_reduce_btn', read_side='both', rank=1,
-    second_implementation='mul_reduce'):
+    second_implementation='mul_reduce', v_projection=None):
   """Read with rank-r shared runtime keys, then route dynamically across heads.
 
   For each side, the effective per-head key is factorized as
@@ -2022,7 +2022,8 @@ def factorized_head_bam_read(
   W_head_mix maps x -> [n,2,r], with independent row/column coefficients.  The
   mixing matrix has the same total RMS energy as rank 1, so the result keeps
   O(1) per-head scale as r changes.  Rank 1 retains the historical head-axis RMS
-  transform exactly.  The result is always [b,t,n,k+v].
+  transform exactly.  An optional head-shared ``v_projection`` compresses the
+  V-side result before its scalar head expansion.
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
@@ -2035,6 +2036,20 @@ def factorized_head_bam_read(
         f'Unknown factorized local BAM second implementation: {second_implementation}')
   if rank > 1 and (key_row_norm is not None or key_col_norm is not None):
     raise ValueError('rank-r factorized local BAM read does not support learned key norms')
+  v_output_dim = M.shape[-1]
+  if v_projection is not None:
+    if v_projection.ndim != 2 or v_projection.shape[0] != M.shape[-1]:
+      raise ValueError(
+          f'factorized V projection must be [{M.shape[-1]},c], got '
+          f'{v_projection.shape}')
+    v_output_dim = v_projection.shape[-1]
+
+  def project_v(y_v):
+    if y_v is None or v_projection is None:
+      return y_v
+    with jax.named_scope("bam/read_v_projection"):
+      return jnp.einsum(
+          '...v,vc->...c', y_v, jnp.asarray(v_projection, y_v.dtype))
 
   gate_logits = (
       key_gate_logits[..., None, :] if rank > 1 and key_gate_logits is not None
@@ -2070,6 +2085,7 @@ def factorized_head_bam_read(
               M[:, :, None] * r_row[..., :, None], axis=-2)
       else:
         raise ValueError(f'Unknown BAM read implementation: {implementation}')
+    y_v_basis = project_v(y_v_basis)
 
     with jax.named_scope("bam/read_head_mix_projection"):
       raw_head_mix = W_head_mix(x)
@@ -2103,7 +2119,7 @@ def factorized_head_bam_read(
       if y_u is None:
         y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
       if y_v is None:
-        y_v = jnp.zeros(y_u.shape[:-1] + (M.shape[-1],), dtype=y_u.dtype)
+        y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
       return jnp.concatenate([y_u, y_v], axis=-1)
 
   with jax.named_scope("bam/read_m_contract"):
@@ -2120,6 +2136,7 @@ def factorized_head_bam_read(
         y_v = jnp.sum(M * r_row[..., :, None], axis=-2)
     else:
       raise ValueError(f'Unknown BAM read implementation: {implementation}')
+  y_v = project_v(y_v)
   with jax.named_scope("bam/read_head_mix_projection"):
     raw_head_mix = W_head_mix(x)
   with jax.named_scope("bam/read_head_mix_transform"):
@@ -2138,7 +2155,7 @@ def factorized_head_bam_read(
     if y_u is None:
       y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
-      y_v = jnp.zeros(y_u.shape[:-1] + (M.shape[-1],), dtype=y_u.dtype)
+      y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
     return jnp.concatenate([y_u, y_v], axis=-1)
 
 
@@ -2191,32 +2208,6 @@ def _packed_fetched_row_rank_init(
     zeros = jnp.zeros(
         (shape[0], num_heads, basis_chunk_width + col_width), dtype)
     return jnp.concatenate((zeros, mix), axis=-1)
-
-  return init_fn
-
-
-def _packed_address_control_init(
-    kernel_init, num_heads, num_fetches, write_v_width, read_v_width):
-  """Pack regular write-V/write-gate and zero-init read-V/read-gate kernels."""
-  write_v_size = num_heads * write_v_width
-  read_v_size = num_heads * num_fetches * read_v_width
-  read_gate_size = num_heads * num_fetches * 2
-  write_gate_size = num_heads
-  packed_width = write_v_size + read_v_size + read_gate_size + write_gate_size
-
-  def init_fn(key, shape, dtype, _in_axis=0, _out_axis=1):
-    if len(shape) != 2 or shape[-1] != packed_width:
-      raise ValueError(
-          f'packed address/control kernel expects [rank,{packed_width}], got {shape}')
-    write_v_key, write_gate_key = jax.random.split(key)
-    write_v = kernel_init(
-        write_v_key, (shape[0], num_heads, write_v_width),
-        dtype, 0, (1, 2)).reshape(shape[0], write_v_size)
-    read_zeros = jnp.zeros(
-        (shape[0], read_v_size + read_gate_size), dtype)
-    write_gate = kernel_init(
-        write_gate_key, (shape[0], num_heads), dtype, 0, 1)
-    return jnp.concatenate((write_v, read_zeros, write_gate), axis=-1)
 
   return init_fn
 
@@ -2318,8 +2309,6 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
-    self._compact_address_control_dim = getattr(
-        cfg, 'bam_compact_address_control_bottleneck_dim', None)
     self._local_qk_use_compressed_v = bool(
         cfg.bam_local_qk_use_compressed_v)
     compressed_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
@@ -2329,13 +2318,21 @@ class BamAttention(Attention):
         int(compressed_v_dim)
         if self._local_qk_use_compressed_v else self.bam_v)
     self._local_qk_key_width = self.bam_k + self._local_qk_v_dim
+    self._local_qk_post_read_v_dim = getattr(
+        cfg, 'bam_local_qk_post_read_v_dim', None)
+    self._local_qk_post_read_v_layout = getattr(
+        cfg, 'bam_local_qk_post_read_v_layout', 'head_tail')
+    self._local_qk_output_width = self.bam_k + (
+        int(self._local_qk_post_read_v_dim)
+        if self._local_qk_post_read_v_dim is not None
+        else self._local_qk_v_dim)
     self._partial_rope = bool(cfg.bam_partial_rope)
     self._partial_rope_nope_dim = None
     if self._partial_rope:
       assert not cfg.rope_half, 'BAM partial RoPE is independent of rope_half'
       explicit_nope_dim = cfg.bam_partial_rope_nope_dim
       self._partial_rope_nope_dim = (
-          self._local_qk_key_width
+          self._local_qk_output_width
           if explicit_nope_dim is None else int(explicit_nope_dim))
       rope_dim = self.head_dim - self._partial_rope_nope_dim
       assert 0 < rope_dim and rope_dim % 2 == 0, (
@@ -2494,6 +2491,19 @@ class BamAttention(Attention):
     assert self._fetched_row_second_implementation in ('dot', 'mul_reduce')
     assert self._local_qk_rank > 0
     assert self._local_qk_second_implementation in ('dot', 'mul_reduce')
+    assert self._local_qk_post_read_v_layout in ('head_tail', 'qk_tail')
+    if self._local_qk_post_read_v_dim is not None:
+      self._local_qk_post_read_v_dim = int(self._local_qk_post_read_v_dim)
+      assert 0 < self._local_qk_post_read_v_dim < self.bam_v
+      assert 'local_qk' in self._mode
+      assert self._local_qk_key_mode == 'factorized'
+      assert self._local_qk_rank == 1
+      assert not self._local_qk_use_compressed_v
+      assert not self._batch_factorized_local_qk_read
+      if self._local_qk_post_read_v_layout == 'qk_tail':
+        assert self._local_qk_injection == 'post_rope'
+        assert self._partial_rope and self._partial_rope_nope_dim == self.bam_k
+        assert not cfg.qk_norm
     assert self._local_qk_rank == 1 or (
         self._local_qk_key_mode == 'factorized'
         and self._pack_factorized_local_qk
@@ -2501,15 +2511,6 @@ class BamAttention(Attention):
         and not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm)
     ), 'rank-r LocalQK requires the separate-Q/K packed factorized path'
     assert self._fetch_read_bottleneck_activation in ('none', 'gelu')
-    if self._compact_address_control_dim is not None:
-      self._compact_address_control_dim = int(self._compact_address_control_dim)
-      assert 0 < self._compact_address_control_dim < cfg.emb_dim
-      assert 'full' in self._mode
-      assert self._write_v_mode == 'x_bias'
-      assert cfg.bam_write_form == 'agg_u@loc_v'
-      assert self._fetch_read_bottleneck_dim is None
-      assert self._fetched_row_rank is None
-      assert cfg.bam_create_read_gate_params
     if self._fetch_read_bottleneck_dim is None:
       assert self._fetch_read_bottleneck_activation == 'none'
     else:
@@ -2565,17 +2566,15 @@ class BamAttention(Attention):
       assert self._read_key_mode == 'rms_gate'
       assert not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm), (
           'dynamic fetched-row rank preserves parameter-free per-head RMSGate only')
-    def add_read_gate(
-        name, features, kernel_axes, bias_axes, initial_gate, *, create_kernel=True):
+    def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
       """Create a zero-kernel semantic gate with an explicitly calibrated bias."""
       if not cfg.bam_create_read_gate_params:
         return
       assert 0.0 < initial_gate < 1.0
-      if create_kernel:
-        setattr(self, name, DenseGeneral(
-            features=features, axis=-1, kernel_init=zeros_init, kernel_axes=kernel_axes,
-            dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
-            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
+      setattr(self, name, DenseGeneral(
+          features=features, axis=-1, kernel_init=zeros_init, kernel_axes=kernel_axes,
+          dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
       bias_value = math.log(initial_gate / (1.0 - initial_gate))
       setattr(self, f'{name}_b0', self.param(
           f'{name}_b0',
@@ -2660,46 +2659,6 @@ class BamAttention(Attention):
             dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             use_bias=False)
-      elif self._compact_address_control_dim is not None:
-        self.W_R_u = DenseGeneral(
-            features=(self.num_query_heads, cfg.bam_n_f, read_k_dim), axis=-1,
-            kernel_init=zeros_init,
-            kernel_axes=("embed", "q_heads", "fetch", "kv"),
-            dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R_u",
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            use_bias=False)
-        write_v_width = self.bam_v
-        self._compact_read_k_width = read_k_dim
-        self._compact_read_v_width = read_v_dim
-        self._compact_num_fetches = cfg.bam_n_f
-        self._compact_write_v_size = self.num_query_heads * write_v_width
-        self._compact_read_v_size = (
-            self.num_query_heads * cfg.bam_n_f * read_v_dim)
-        self._compact_read_gate_size = self.num_query_heads * cfg.bam_n_f * 2
-        self._compact_write_gate_size = self.num_query_heads
-        packed_width = (
-            self._compact_write_v_size + self._compact_read_v_size
-            + self._compact_read_gate_size + self._compact_write_gate_size)
-        self.compact_address_control_down = DenseGeneral(
-            features=self._compact_address_control_dim, axis=-1,
-            kernel_init=reg_init, kernel_axes=("embed", None),
-            dtype=self.dtype, weight_dtype=self.weight_dtype,
-            name="compact_address_control_down", quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False)
-        self.compact_address_control_up = DenseGeneral(
-            features=packed_width, axis=-1,
-            kernel_init=_packed_address_control_init(
-                reg_init, self.num_query_heads, cfg.bam_n_f,
-                write_v_width, read_v_dim),
-            kernel_axes=("embed", None), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name="compact_address_control_up",
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            use_bias=False)
-        self.compact_write_v_bias = self.param(
-            'compact_write_v_bias',
-            nn.with_logical_partitioning(
-                nn.initializers.zeros, ('q_heads', 'v_factor')),
-            (self.num_query_heads, write_v_width), self.weight_dtype)
       elif self._fetch_read_bottleneck_dim is None:
         self.W_R = DenseGeneral(
             features=read_features, axis=-1, kernel_init=zeros_init,
@@ -2719,8 +2678,7 @@ class BamAttention(Attention):
             quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
       add_read_gate('W_R_gate', (self.num_query_heads, cfg.bam_n_f, 2),
                     ('embed', 'q_heads', 'fetch', None), ('q_heads', 'fetch', None),
-                    zero_key_gate_init,
-                    create_kernel=self._compact_address_control_dim is None)
+                    zero_key_gate_init)
       if self._fetched_row_rank is None:
         add_grouped_read_norms(
             'W_R', (self.num_query_heads, cfg.bam_n_f, read_k_dim),
@@ -2895,8 +2853,6 @@ class BamAttention(Attention):
                 nn.initializers.orthogonal(math.sqrt(loc_v)),
                 ('q_heads', 'v_factor')),
             (self.num_query_heads, loc_v), self.weight_dtype)
-      elif self._compact_address_control_dim is not None:
-        assert loc_v == self.bam_v
       elif self._write_v_bottleneck_dim is not None:
         self.P_loc_down = DenseGeneral(
             features=self._write_v_bottleneck_dim, axis=-1,
@@ -2921,12 +2877,9 @@ class BamAttention(Attention):
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             use_bias=self._write_v_mode == 'x_bias')
       # Write gate g_write: regular kernel, bias = logit(eps) explicitly slightly open
-      if self._compact_address_control_dim is None:
-        self.W_gw = DenseGeneral(
-            features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
-            kernel_axes=("embed", "q_heads"), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name="W_gw", quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+          kernel_axes=("embed", "q_heads"), dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name="W_gw", quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
       eps = float(cfg.bam_write_eps)
       self.gw_b0 = self.param('gw_b0',
           nn.with_logical_partitioning(
@@ -2984,39 +2937,14 @@ class BamAttention(Attention):
               if learned_write_scale or address_bias else None),
           use_bias=address_bias, name='write_address_norm')
 
-  def _project_compact_address_control(self, x):
-    """Project shared address/control features once and unpack semantic outputs."""
-    with jax.named_scope("bam/compact_address_control_projection"):
-      hidden = nn.gelu(self.compact_address_control_down(x))
-      packed = self.compact_address_control_up(hidden)
-      split_points = (
-          self._compact_write_v_size,
-          self._compact_write_v_size + self._compact_read_v_size,
-          self._compact_write_v_size + self._compact_read_v_size
-          + self._compact_read_gate_size,
-      )
-      write_v, read_v, read_gate, write_gate = jnp.split(
-          packed, split_points, axis=-1)
-      prefix = packed.shape[:-1]
-      write_v = write_v.reshape(
-          prefix + (self.num_query_heads, self.bam_v))
-      write_v_bias = self.compact_write_v_bias
-      if self._force_activation_dtype:
-        write_v_bias = jnp.asarray(write_v_bias, self.dtype)
-      write_v = write_v + write_v_bias
-      read_v = read_v.reshape(
-          prefix + (
-              self.num_query_heads, self._compact_num_fetches,
-              self._compact_read_v_width))
-      read_u = self.W_R_u(x)
-      read_key = jnp.concatenate((read_u, read_v), axis=-1)
-      read_gate = read_gate.reshape(
-          prefix + (self.num_query_heads, self._compact_num_fetches, 2))
-      write_gate = write_gate.reshape(prefix + (self.num_query_heads,))
-      return write_v, read_key, read_gate, write_gate
-
+    # Create the experimental adapter after all existing parameters so adding it
+    # does not perturb the initialization stream of the V2 control parameters.
+    if self._local_qk_post_read_v_dim is not None:
+      self.local_qk_post_read_v_projection = self.param(
+          'local_qk_post_read_v_projection',
+          nn.with_logical_partitioning(orth_init, ('v_factor', 'kv')),
+          (self.bam_v, self._local_qk_post_read_v_dim), self.weight_dtype)
   def _project_full_read_key(self, x):
-    assert self._compact_address_control_dim is None
     if self._fetch_read_bottleneck_dim is None:
       return self.W_R(x)
     x = self.W_R_down(x)
@@ -3067,6 +2995,13 @@ class BamAttention(Attention):
 
   def _fit_local_qk_reads(self, q_local, k_local):
     """Place K-side first and adapt/pad V-side into the remaining head width."""
+    if self._local_qk_post_read_v_layout == 'qk_tail':
+      def extend_qk(read):
+        y_u, y_v = jnp.split(read, [self.bam_k], axis=-1)
+        middle = jnp.zeros(
+            y_u.shape[:-1] + (self.head_dim - self.bam_k,), dtype=read.dtype)
+        return jnp.concatenate((y_u, middle, y_v), axis=-1)
+      return extend_qk(q_local), extend_qk(k_local)
     q_adapter = getattr(self, 'local_q_v_adapter', None)
     k_adapter = getattr(self, 'local_k_v_adapter', None)
     return (
@@ -3108,6 +3043,7 @@ class BamAttention(Attention):
 
       # V1 default
       rank = self._local_qk_rank
+      v_projection = getattr(self, 'local_qk_post_read_v_projection', None)
       basis_width = rank * key_width
       mix_width = 2 * self.num_query_heads * rank
       split_points = (
@@ -3138,13 +3074,15 @@ class BamAttention(Attention):
           **self._read_key_kwargs_from_logits('W_lq', q_gate),
           implementation=self._read_implementation, read_side=self.read_side,
           rank=rank,
-          second_implementation=self._local_qk_second_implementation)
+          second_implementation=self._local_qk_second_implementation,
+          v_projection=v_projection)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
           **self._read_key_kwargs_from_logits('W_lk', k_gate),
           implementation=self._read_implementation, read_side=self.read_side,
           rank=rank,
-          second_implementation=self._local_qk_second_implementation)
+          second_implementation=self._local_qk_second_implementation,
+          v_projection=v_projection)
       return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_q_kwargs = (
@@ -3162,14 +3100,15 @@ class BamAttention(Attention):
         if self._local_qk_key_mode == 'per_head_static'
         else self._read_key_kwargs('W_lk_gate', inputs_q))
     if self._local_qk_key_mode == 'factorized':   # V1 default
+      v_projection = getattr(self, 'local_qk_post_read_v_projection', None)
       q_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
           **local_qk_q_kwargs, implementation=self._read_implementation,
-          read_side=self.read_side)
+          read_side=self.read_side, v_projection=v_projection)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
           **local_qk_k_kwargs, implementation=self._read_implementation,
-          read_side=self.read_side)
+          read_side=self.read_side, v_projection=v_projection)
       return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_per_head = self._local_qk_key_mode in ('per_head', 'per_head_static')
@@ -3190,6 +3129,14 @@ class BamAttention(Attention):
     return M_in * jax.lax.rsqrt(
         jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + self._rms_epsilon)
 
+  def _add_local_qk(self, query, key, q_local, k_local):
+    """Inject LocalQK, padding only the standard Q/K arm for Q/K-only expansion."""
+    if self._local_qk_post_read_v_layout == 'qk_tail':
+      pad = self._local_qk_post_read_v_dim
+      query = jnp.pad(query, [(0, 0)] * (query.ndim - 1) + [(0, pad)])
+      key = jnp.pad(key, [(0, 0)] * (key.ndim - 1) + [(0, pad)])
+    return query + q_local, key + k_local
+
   def _apply_adjacent_rope(self, x, positions, name):
     """Apply the standard RoPE frequencies to adjacent coordinate pairs."""
     packed = jnp.concatenate([x[..., 0::2], x[..., 1::2]], axis=-1)
@@ -3206,8 +3153,7 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
-  def _write(
-      self, o_head, x, M_in, *, write_v=None, write_gate_logits=None):
+  def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): the address
@@ -3225,10 +3171,7 @@ class BamAttention(Attention):
       u1 = jnp.einsum('btnd,ndk->btnk', o_head, write_u_proj)
     else:  # V1 default
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
-    if self._compact_address_control_dim is not None:
-      assert write_v is not None and write_gate_logits is not None
-      u2 = write_v
-    elif self._write_v_mode == 'o_tail':
+    if self._write_v_mode == 'o_tail':
       u2 = o_head[..., self.bam_k:]
     elif self._write_v_mode == 'static':
       u2 = self.S_v
@@ -3254,10 +3197,7 @@ class BamAttention(Attention):
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
       write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
-    if self._compact_address_control_dim is None:
-      assert write_v is None and write_gate_logits is None
-      write_gate_logits = self.W_gw(x)
-    gate = jax.nn.sigmoid(write_gate_logits + write_gate_bias)  # [b,t,n]
+    gate = jax.nn.sigmoid(self.W_gw(x) + write_gate_bias)  # [b,t,n]
     g = gate
     if cfg.bam_sqrt_n_scale:
       # With per-record rms, each head's record is unit energy, so |M| ~ n * Σg. Scaling the
@@ -3347,26 +3287,11 @@ class BamAttention(Attention):
     return _fit_bam_read_to_head(
         jnp.concatenate((y_k, y_v), axis=-1), self.bam_k, self.head_dim)
 
-  def _read_fetched_m(
-      self, Mbar, inputs_q, *, read_key=None, read_gate_logits=None):
+  def _read_fetched_m(self, Mbar, inputs_q):
     """Read one fetched matrix stream after dense or chunked routing."""
     with jax.named_scope("bam/read_fetched_m"):
-      if self._compact_address_control_dim is None:
-        assert read_key is None and read_gate_logits is None
-        full_read_kwargs = self._read_key_kwargs(
-            'W_R_gate', inputs_q, squeeze_fetch_axis=True)
-        full_read_projection = lambda x: jnp.squeeze(
-            self._project_full_read_key(x), axis=-2)
-      else:
-        assert read_key is not None and read_gate_logits is not None
-        gate_bias = self.W_R_gate_b0
-        if self._force_activation_dtype:
-          gate_bias = jnp.asarray(gate_bias, self.dtype)
-        read_gate_logits = jnp.squeeze(
-            read_gate_logits + gate_bias, axis=-2)
-        full_read_kwargs = self._read_key_kwargs_from_logits(
-            'W_R', read_gate_logits, squeeze_fetch_axis=True)
-        full_read_projection = lambda _x: jnp.squeeze(read_key, axis=-2)
+      full_read_kwargs = self._read_key_kwargs(
+          'W_R_gate', inputs_q, squeeze_fetch_axis=True)
       if self._fetched_row_rank is not None:
         full_read = dynamic_rank_row_bam_read(
             Mbar, inputs_q, self._project_full_read_key,
@@ -3375,6 +3300,8 @@ class BamAttention(Attention):
             second_implementation=self._fetched_row_second_implementation,
             read_side=self._fetched_read_side)
         return self._expand_full_read(full_read)
+      full_read_projection = lambda x: jnp.squeeze(
+          self._project_full_read_key(x), axis=-2)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,
@@ -3482,8 +3409,7 @@ class BamAttention(Attention):
             self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
             if self._local_qk_use_compressed_v else Mh)
         q_local, k_local = self._read_local_qk(local_Mh, inputs_q)
-        query = query + q_local
-        key = key + k_local
+        query, key = self._add_local_qk(query, key, q_local, k_local)
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     if self._partial_rope:
@@ -3507,8 +3433,7 @@ class BamAttention(Attention):
             self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
             if self._local_qk_use_compressed_v else Mh)
         q_local, k_local = self._read_local_qk(local_Mh, inputs_q)
-        query = query + q_local
-        key = key + k_local
+        query, key = self._add_local_qk(query, key, q_local, k_local)
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
@@ -3549,26 +3474,16 @@ class BamAttention(Attention):
           q0=0, s0=0, window_size=local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
 
-    compact_write_v = compact_read_key = None
-    compact_read_gate = compact_write_gate = None
-    if self._compact_address_control_dim is not None:
-      (compact_write_v, compact_read_key, compact_read_gate,
-       compact_write_gate) = self._project_compact_address_control(inputs_q)
-
     o_head = y_std
     if Mbar is not None:
-      o_head = o_head + self._read_fetched_m(
-          Mbar, inputs_q, read_key=compact_read_key,
-          read_gate_logits=compact_read_gate)
+      o_head = o_head + self._read_fetched_m(Mbar, inputs_q)
 
     if self._mha_control:
       M_out = M_in
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _, _ = self._write(
-            o_head, inputs_q, M_in, write_v=compact_write_v,
-            write_gate_logits=compact_write_gate)
+        M_out, _, _ = self._write(o_head, inputs_q, M_in)
     else:
       M_out = M_in
 

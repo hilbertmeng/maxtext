@@ -1176,6 +1176,16 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit(
         'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-qk72-partial-rope-separate-qk-paired')
 
 
+class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPEPaired40Fork(
+    BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit
+):
+    """QK72 forked from a trained Paired40 checkpoint so its V8 tail is active."""
+    model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPEPaired40Fork'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-qk72-partial-rope-paired40-fork')
+
+
 class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):
     """Historical control: keep Q/K[:40] NoPE and rotate Q/K[40:64]."""
     # d65a758; EW4b ~0.661 steps/s; stopped 2,929. Mean dloss +.0070 vs V2

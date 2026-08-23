@@ -1073,7 +1073,8 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256AbsVRowDecode32PerHead(BamV2C256FetchScheduleBase):
     """Decode each head's fetched 8-wide V-side read into its own 32-wide basis."""
-    # code_commit: 5ba9554; UC1a ~0.659 steps/s; running.
+    # 5ba9554; UC1a ~0.659 steps/s; stopped at 2,800.  Mean dloss +.00262
+    # vs V2 @2k-2.8k: a learned per-head 8->32 decoder is mildly harmful.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode32PerHead'
     scan_layers = True
     bam_abs_v_row_output = 'project'
@@ -1083,7 +1084,8 @@ class BamLlama2MediumV2C256AbsVRowDecode32Shared(
     BamLlama2MediumV2C256AbsVRowDecode32PerHead
 ):
     """Decode fetched 8-to-32 V-side reads through one cross-head shared basis."""
-    # code_commit: 5ba9554; UC1a ~0.663 steps/s; running.
+    # 5ba9554; UC1a ~0.663 steps/s; stopped at 2,800.  Mean dloss +.00103
+    # vs 32-PerHead, +.00365 vs V2 @2k-2.8k: sharing further hurts loss.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode32Shared'
     bam_abs_v_row_decoder_share_heads = True
 

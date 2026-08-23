@@ -1146,26 +1146,6 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK(
         'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-qk72-partial-rope-separate-qk')
 
 
-class BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit(
-    BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQK
-):
-    """Paired control: Q/K adapters start shared, then may diverge."""
-    model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit'
-    jax_cache_dir = (
-        'gs://newproject-1-llm_base_models_us-central1/'
-        'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-partial-rope-separate-qk-paired')
-
-
-class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit(
-    BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK
-):
-    """Paired Q/K-only control: adapters start shared, then may diverge."""
-    model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit'
-    jax_cache_dir = (
-        'gs://newproject-1-llm_base_models_us-central1/'
-        'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-qk72-partial-rope-separate-qk-paired')
-
-
 class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):
     """Historical control: keep Q/K[:40] NoPE and rotate Q/K[40:64]."""
     # d65a758; EW4b ~0.661 steps/s; stopped 2,929. Mean dloss +.0070 vs V2

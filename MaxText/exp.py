@@ -1115,7 +1115,9 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPE
 ):
     """Append LocalQK V8 to Q/K only: [NoPE U32, RoPE std32, NoPE V8]."""
-    # 8b81623; UC1a ~0.662 steps/s; stopped at 6,586. dloss +0.0031 recent mean vs V2; the QK72 gain did not overcome the base penalty.
+    # 8b81623; UC1a ~0.662 steps/s. @8,200: dloss -.0035 vs Shared40,
+    # +.0031 vs V2. The appended V8 is a zero-gradient dead branch; this delta
+    # comes from removing head-tail row read/changing RoPE layout, not V8 expansion.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE'
     bam_local_qk_post_read_v_layout = 'qk_tail'
     bam_partial_rope_nope_dim = 32
@@ -1165,7 +1167,8 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK
 ):
     """QK72 with separate Q/K V32->8 adapters initialized identically."""
-    # e7990ef; UC1a ~0.668 steps/s.
+    # e7990ef; UC1a ~0.668 steps/s; stopped at 3,171. Loss was bit-identical to
+    # Shared72: row-key and adapter gradients stayed exactly zero (dead V8 tail).
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit'
     bam_local_qk_post_read_v_paired_init = True
     jax_cache_dir = (

@@ -2204,7 +2204,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPE(
     BamLlama2XLHead16x128V2C256
 ):
     """XL 16x128 BAM with Q/K[:96] NoPE and only Q/K[96:128] RoPE."""
-    # code_commit: 585b051; EW4b ~0.567 steps/s (+1.4% vs full-RoPE BAM).
+    # 585b051; EW4b ~0.567 (+1.4% vs Full), UC1a ~0.559 steps/s; paused
+    # at 21,629. Mean dloss -.00512 vs Full (gap still growing) and -.05158 vs MHA @21,560–21,600.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPE'
     bam_partial_rope = True
     jax_cache_dir = (

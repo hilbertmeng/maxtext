@@ -2950,19 +2950,21 @@ class BamAttention(Attention):
             'local_qk_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
       else:
-        self.local_q_post_read_v_projection = self.param(
-            'local_q_post_read_v_projection', projection_init,
+        self.local_qk_post_read_v_projection = self.param(
+            'local_qk_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
-        self.local_k_post_read_v_projection = self.param(
-            'local_k_post_read_v_projection', projection_init,
+        self.local_qk_post_read_v_delta = self.param(
+            'local_qk_post_read_v_delta',
+            nn.with_logical_partitioning(
+                nn.initializers.zeros, ('v_factor', 'kv')),
             projection_shape, self.weight_dtype)
 
   def _local_qk_post_read_v_projections(self):
     shared = getattr(self, 'local_qk_post_read_v_projection', None)
-    return (
-        getattr(self, 'local_q_post_read_v_projection', shared),
-        getattr(self, 'local_k_post_read_v_projection', shared),
-    )
+    delta = getattr(self, 'local_qk_post_read_v_delta', None)
+    if delta is None:
+      return shared, shared
+    return shared + delta, shared - delta
 
   def _project_full_read_key(self, x):
     if self._fetch_read_bottleneck_dim is None:

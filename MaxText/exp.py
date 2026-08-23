@@ -1207,6 +1207,28 @@ class BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit(
         'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-partial-rope-separate-qk-paired')
 
 
+class BamLlama2MediumV2C256Paired40LocalQKRank2(
+    BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
+):
+    """Paired40 with two dynamic LocalQK basis reads on both M sides."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2'
+    bam_local_qk_rank = 2
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank4(
+    BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
+):
+    """Paired40 with four dynamic LocalQK basis reads on both M sides."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank4'
+    bam_local_qk_rank = 4
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank4')
+
+
 class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK
 ):

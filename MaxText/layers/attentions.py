@@ -2531,7 +2531,6 @@ class BamAttention(Attention):
           and self._local_qk_post_read_v_paired_init)
       assert 'local_qk' in self._mode
       assert self._local_qk_key_mode == 'factorized'
-      assert self._local_qk_rank == 1
       assert not self._local_qk_use_compressed_v
       assert not self._batch_factorized_local_qk_read
       if self._local_qk_post_read_v_layout == 'qk_tail':

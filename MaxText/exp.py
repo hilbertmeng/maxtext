@@ -1073,7 +1073,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256AbsVRowDecode32PerHead(BamV2C256FetchScheduleBase):
     """Decode each head's fetched 8-wide V-side read into its own 32-wide basis."""
-    # code_commit: 3cb33cc; running.
+    # code_commit: 5ba9554; UC1a ~0.659 steps/s; running.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode32PerHead'
     scan_layers = True
     bam_abs_v_row_output = 'project'
@@ -1083,7 +1083,7 @@ class BamLlama2MediumV2C256AbsVRowDecode32Shared(
     BamLlama2MediumV2C256AbsVRowDecode32PerHead
 ):
     """Decode fetched 8-to-32 V-side reads through one cross-head shared basis."""
-    # code_commit: 3cb33cc; running.
+    # code_commit: 5ba9554; UC1a ~0.663 steps/s; running.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode32Shared'
     bam_abs_v_row_decoder_share_heads = True
 
@@ -1219,7 +1219,8 @@ class BamLlama2MediumV2C256SeededPaired40(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
 ):
     """Paired40 with identical nonzero Q/K row-key initialization."""
-    # 5f4e06d; UC1a ~0.666 steps/s; running.
+    # 5f4e06d; UC1a ~0.663 steps/s; stopped at 3,150. Mean dloss +.0057 vs
+    # Paired40 @2,600–3,000: identical nonzero row-key seeding is harmful.
     model_name = 'BamLlama2MediumV2C256SeededPaired40'
     bam_seed_paired_local_qk_row_key = True
     jax_cache_dir = (
@@ -1231,7 +1232,9 @@ class BamLlama2MediumV2C256SeededPaired72(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit
 ):
     """Paired72 with an active V8 tail from identical nonzero Q/K row keys."""
-    # 5f4e06d; UC1a ~0.663 steps/s; running.
+    # 5f4e06d; UC1a ~0.663 steps/s; stopped at 3,550. Mean dloss -.0026 vs
+    # Shared72, +.0003 vs Paired40, +.0015 vs V2 @2,600–3,400: activating the
+    # V8 tail helps the dead-tail control but gives no independent QK72 gain.
     model_name = 'BamLlama2MediumV2C256SeededPaired72'
     bam_seed_paired_local_qk_row_key = True
     jax_cache_dir = (

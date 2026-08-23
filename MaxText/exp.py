@@ -1211,6 +1211,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
 ):
     """Paired40 with two dynamic LocalQK basis reads on both M sides."""
+    # code_commit: 5b26aec; UC1a ~0.649 steps/s (-2.1% vs Paired40); running.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2'
     bam_local_qk_rank = 2
     jax_cache_dir = (
@@ -1222,6 +1223,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank4(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
 ):
     """Paired40 with four dynamic LocalQK basis reads on both M sides."""
+    # code_commit: 5b26aec; UC1a ~0.630 steps/s (-5.0% vs Paired40); running.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank4'
     bam_local_qk_rank = 4
     jax_cache_dir = (

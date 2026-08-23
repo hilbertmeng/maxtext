@@ -1223,7 +1223,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank4(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
 ):
     """Paired40 with four dynamic LocalQK basis reads on both M sides."""
-    # code_commit: 5b26aec; UC1a ~0.622 steps/s (-6.2% vs Paired40); running.
+    # code_commit: 5b26aec; UC1a ~0.622 steps/s; stopped at 7,542. dloss
+    # -0.00300 vs Paired40, but +0.00050 and 3.1% slower vs Rank2 @7,400.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank4'
     bam_local_qk_rank = 4
     jax_cache_dir = (
@@ -2299,7 +2300,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPEPairedOrthV32(
     BamLlama2XLHead16x128V2C256PartialRoPESharedOrthV32
 ):
     """Use independent Q/K V32 maps initialized to the shared control's value."""
-    # ef1ba25; UC1a ~0.561 steps/s; running.
+    # ef1ba25; UC1a ~0.559 steps/s; stopped at 10,257. dloss +0.00006 vs old
+    # Partial @10,000; dominated Shared (-0.00295 @6,000) but added no net gain.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPEPairedOrthV32'
     bam_local_qk_post_read_v_share_qk = False
     bam_local_qk_post_read_v_paired_init = True

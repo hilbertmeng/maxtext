@@ -1092,7 +1092,8 @@ class BamLlama2MediumV2C256AbsVRowDecode32Shared(
 
 class BamLlama2MediumV2C256AbsVRowDecode8PerHead(BamV2C256FetchScheduleBase):
     """Transform each fetched V-side read in its original 8-wide space per head."""
-    # code_commit: 5ba9554; UC1a ~0.660 steps/s; running.
+    # 5ba9554; UC1a ~0.660 steps/s; stopped at 3,000.  Mean dloss +.00576
+    # vs V2 over available 2k-3k windows: learned per-head 8->8 is harmful.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode8PerHead'
     scan_layers = True
     bam_abs_v_row_output = 'project'
@@ -1103,7 +1104,8 @@ class BamLlama2MediumV2C256AbsVRowDecode8Shared(
     BamLlama2MediumV2C256AbsVRowDecode8PerHead
 ):
     """Transform fetched 8-wide V-side reads with one cross-head shared map."""
-    # code_commit: 5ba9554; UC1a ~0.661 steps/s; running.
+    # 5ba9554; UC1a ~0.661 steps/s; stopped at 3,200.  Mean dloss +.00432
+    # vs V2 @2.4k-3.2k; sharing recovers ~.0014 vs 8-PerHead, insufficient.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode8Shared'
     bam_abs_v_row_decoder_share_heads = True
 

@@ -303,7 +303,15 @@ class MlpBlock(nn.Module):
         )
 
   @nn.compact
-  def __call__(self, inputs, deep_embedding=None, decoder_input_tokens=None, decode: bool = False, deterministic: bool = False):
+  def __call__(
+      self,
+      inputs,
+      deep_embedding=None,
+      decoder_input_tokens=None,
+      decode: bool = False,
+      deterministic: bool = False,
+      return_hidden: bool = False,
+  ):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
@@ -387,7 +395,7 @@ class MlpBlock(nn.Module):
       output = self.deep_embed_block(inputs, output, decoder_input_tokens, deep_embedding)
 
     output = checkpoint_name(output, "mlpwo")
-    return output
+    return (output, x) if return_hidden else output
 
 
 class MoeBlock(nn.Module):

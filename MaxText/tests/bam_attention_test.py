@@ -4,8 +4,10 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from types import SimpleNamespace
 from layers import initializers
 from layers import normalizations
+from layers.fusion import MlpBamWrite, _bam_mlp_write_delta
 
 from layers.attentions import (
     GroupedRMSNorm,
@@ -28,6 +30,62 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_mlp_bam_write_parameter_shapes_and_output(self):
+    cfg = SimpleNamespace(
+        bam_k=3, bam_v=4, bam_mlp_write_v_bottleneck_dim=5,
+        matmul_precision='default', bam_write_eps=0.1,
+        bam_sqrt_n_scale=False, bam_write_rms_statistics_dtype='float32',
+        normalization_layer_epsilon=1e-6)
+    module = MlpBamWrite(
+        config=cfg, num_write_heads=2, dtype=jnp.float32,
+        weight_dtype=jnp.float32, quant=None,
+        kernel_init=initializers.nd_dense_init(
+            1.0, 'fan_in', 'truncated_normal'))
+    inputs = jnp.ones((2, 3, 7), jnp.float32)
+    hidden = jnp.ones((2, 3, 13), jnp.float32)
+    variables = module.init(jax.random.PRNGKey(103), inputs, hidden)
+    output = module.apply(variables, inputs, hidden)
+    self.assertEqual(output.shape, (2, 3, 3, 4))
+    params = variables['params']
+    self.assertEqual(params['P_loc_down']['kernel'].shape, (7, 5))
+    self.assertEqual(params['P_loc_up']['kernel'].shape, (5, 2, 4))
+    self.assertEqual(params['P_loc_up']['bias'].shape, (2, 4))
+    self.assertEqual(params['W_gw']['kernel'].shape, (7, 2))
+    self.assertEqual(params['gw_b0'].shape, (2,))
+
+  def test_mlp_write_delta_matches_normalized_outer_and_gradients(self):
+    b, t, h, k, v = 2, 3, 4, 5, 6
+    keys = jax.random.split(jax.random.PRNGKey(101), 4)
+    args = (
+        jax.random.normal(keys[0], (b, t, h, k)),
+        jax.random.normal(keys[1], (b, t, h, v)),
+        jax.nn.sigmoid(jax.random.normal(keys[2], (b, t, h))),
+    )
+    upstream = jax.random.normal(keys[3], (b, t, k, v))
+
+    def reference(values):
+      data, address, gate = values
+      data = normalizations.rms_norm(
+          data, dtype=data.dtype, epsilon=1e-6,
+          statistics_dtype=jnp.float32)
+      address = normalizations.rms_norm(
+          address, dtype=address.dtype, epsilon=1e-6,
+          statistics_dtype=jnp.float32)
+      return jnp.einsum('bthk,bthv,bth->btkv', data, address, gate)
+
+    def actual(values):
+      return _bam_mlp_write_delta(
+          *values, epsilon=1e-6, statistics_dtype=jnp.float32)
+
+    np.testing.assert_allclose(actual(args), reference(args), rtol=1e-6, atol=1e-6)
+    expected_value, expected_grad = jax.value_and_grad(
+        lambda values: jnp.sum(reference(values) * upstream))(args)
+    actual_value, actual_grad = jax.value_and_grad(
+        lambda values: jnp.sum(actual(values) * upstream))(args)
+    np.testing.assert_allclose(actual_value, expected_value, rtol=1e-6, atol=1e-6)
+    for got, expected in zip(actual_grad, expected_grad):
+      np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
 
   def test_attention_op_matches_dense_and_chunk_values_and_gradients(self):
     b, t, n, d, chunk_size = 2, 6, 3, 4, 2

@@ -324,6 +324,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
+    bam_mlp_write = False
+    mlp_num_bam_head = None  # None -> num_query_heads // 2
+    bam_mlp_write_v_bottleneck_dim = 128
 
     scan_layers = False
 
@@ -1069,6 +1072,15 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):
+    """Add eight rank-one M writes from the pre-WO MLP hidden state per layer."""
+    model_name = 'BamLlama2MediumV2C256MlpWriteR128'
+    bam_mlp_write = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-mlp-write-r128')
 
 
 class BamLlama2MediumV2C256AbsVRowDecode32PerHead(BamV2C256FetchScheduleBase):
@@ -2282,6 +2294,17 @@ class BamLlama2XLHead16x128V2C256PartialRoPE(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
+    BamLlama2XLHead16x128V2C256PartialRoPE
+):
+    """XL16 Partial-RoPE scaling test of Medium's beneficial rank-2 LocalQK."""
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2'
+    bam_local_qk_rank = 2
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPESharedOrthV32(

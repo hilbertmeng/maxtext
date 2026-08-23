@@ -279,6 +279,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_post_read_v_dim = None  # optionally project the full-M V-side answer before head mixing
     bam_local_qk_post_read_v_share_qk = True  # share that projection between Q and K reads
     bam_local_qk_post_read_v_paired_init = False  # separate Q/K params with identical initialization
+    bam_seed_paired_local_qk_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_local_qk_post_read_v_layout = 'head_tail'  # head_tail | qk_tail
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
     bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
@@ -1176,14 +1177,26 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit(
         'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-qk72-partial-rope-separate-qk-paired')
 
 
-class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPEPaired40Fork(
-    BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit
+class BamLlama2MediumV2C256SeededPaired40(
+    BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
 ):
-    """QK72 forked from a trained Paired40 checkpoint so its V8 tail is active."""
-    model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPEPaired40Fork'
+    """Paired40 with identical nonzero Q/K row-key initialization."""
+    model_name = 'BamLlama2MediumV2C256SeededPaired40'
+    bam_seed_paired_local_qk_row_key = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
-        'jax_caches/xd-bam-v2-c256-full-m-post-read-v8-qk72-partial-rope-paired40-fork')
+        'jax_caches/xd-bam-v2-c256-seeded-paired40')
+
+
+class BamLlama2MediumV2C256SeededPaired72(
+    BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit
+):
+    """Paired72 with an active V8 tail from identical nonzero Q/K row keys."""
+    model_name = 'BamLlama2MediumV2C256SeededPaired72'
+    bam_seed_paired_local_qk_row_key = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-seeded-paired72')
 
 
 class BamLlama2MediumV2C256PartialRoPE(BamV2C256FetchScheduleBase):

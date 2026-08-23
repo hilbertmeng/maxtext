@@ -2160,8 +2160,12 @@ def factorized_head_bam_read(
 
 
 def _packed_factorized_local_qk_init(
-    kernel_init, num_heads, key_width, rank=1):
+    kernel_init, num_heads, key_width, rank=1, paired_row_width=0):
   """Pack Q/K key, gate, and head-mix kernels while preserving their initializers."""
+  if paired_row_width and (rank != 1 or not 0 < paired_row_width < key_width):
+    raise ValueError(
+        'paired LocalQK row-key init requires rank=1 and '
+        f'0 < row_width < key_width, got {rank=}, {paired_row_width=}, {key_width=}')
   basis_width = rank * key_width
   mix_width = 2 * num_heads * rank
   packed_width = 2 * (basis_width + 2 + mix_width)
@@ -2180,9 +2184,16 @@ def _packed_factorized_local_qk_init(
         q_mix_key, mix_shape, dtype, 0, mix_out_axes).reshape(shape[0], mix_width)
     k_mix = kernel_init(
         k_mix_key, mix_shape, dtype, 0, mix_out_axes).reshape(shape[0], mix_width)
+    if paired_row_width:
+      row_key = kernel_init(
+          jax.random.fold_in(key, 2), (shape[0], paired_row_width), dtype, 0, 1)
+      paired_key = jnp.concatenate(
+          (row_key, zeros(key_width - paired_row_width)), axis=-1)
+    else:
+      paired_key = zeros(basis_width)
     return jnp.concatenate((
-        zeros(basis_width), zeros(2), q_mix,
-        zeros(basis_width), zeros(2), k_mix,
+        paired_key, zeros(2), q_mix,
+        paired_key, zeros(2), k_mix,
     ), axis=-1)
 
   return init_fn
@@ -2334,6 +2345,8 @@ class BamAttention(Attention):
         cfg, 'bam_local_qk_post_read_v_share_qk', True))
     self._local_qk_post_read_v_paired_init = bool(getattr(
         cfg, 'bam_local_qk_post_read_v_paired_init', False))
+    self._seed_paired_local_qk_row_key = bool(getattr(
+        cfg, 'bam_seed_paired_local_qk_row_key', False))
     self._local_qk_post_read_v_layout = getattr(
         cfg, 'bam_local_qk_post_read_v_layout', 'head_tail')
     self._local_qk_output_width = self.bam_k + (
@@ -2521,6 +2534,11 @@ class BamAttention(Attention):
         assert self._local_qk_injection == 'post_rope'
         assert self._partial_rope and self._partial_rope_nope_dim == self.bam_k
         assert not cfg.qk_norm
+    if self._seed_paired_local_qk_row_key:
+      assert self._local_qk_key_mode == 'factorized'
+      assert self._pack_factorized_local_qk
+      assert self._local_qk_rank == 1
+      assert not self._batch_factorized_local_qk_read
     assert self._local_qk_rank == 1 or (
         self._local_qk_key_mode == 'factorized'
         and self._pack_factorized_local_qk
@@ -2753,7 +2771,8 @@ class BamAttention(Attention):
           self.W_local_qk_packed = DenseGeneral(
               features=packed_width, axis=-1,
               kernel_init=_packed_factorized_local_qk_init(
-                  reg_init, self.num_query_heads, key_width, rank),
+                  reg_init, self.num_query_heads, key_width, rank,
+                  self.bam_k if self._seed_paired_local_qk_row_key else 0),
               kernel_axes=("embed", None), dtype=self.dtype,
               weight_dtype=self.weight_dtype, name="W_local_qk_packed",
               quant=self.quant, matmul_precision=cfg.matmul_precision,

@@ -1073,6 +1073,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256AbsVRowDecode32PerHead(BamV2C256FetchScheduleBase):
     """Decode each head's fetched 8-wide V-side read into its own 32-wide basis."""
+    # code_commit: 3cb33cc; running.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode32PerHead'
     scan_layers = True
     bam_abs_v_row_output = 'project'
@@ -1082,12 +1083,14 @@ class BamLlama2MediumV2C256AbsVRowDecode32Shared(
     BamLlama2MediumV2C256AbsVRowDecode32PerHead
 ):
     """Decode fetched 8-to-32 V-side reads through one cross-head shared basis."""
+    # code_commit: 3cb33cc; running.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode32Shared'
     bam_abs_v_row_decoder_share_heads = True
 
 
 class BamLlama2MediumV2C256AbsVRowDecode8PerHead(BamV2C256FetchScheduleBase):
     """Transform each fetched V-side read in its original 8-wide space per head."""
+    # code_commit: 3cb33cc; running.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode8PerHead'
     scan_layers = True
     bam_abs_v_row_output = 'project'
@@ -1098,6 +1101,7 @@ class BamLlama2MediumV2C256AbsVRowDecode8Shared(
     BamLlama2MediumV2C256AbsVRowDecode8PerHead
 ):
     """Transform fetched 8-wide V-side reads with one cross-head shared map."""
+    # code_commit: 3cb33cc; running.
     model_name = 'BamLlama2MediumV2C256AbsVRowDecode8Shared'
     bam_abs_v_row_decoder_share_heads = True
 

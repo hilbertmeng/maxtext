@@ -2455,6 +2455,10 @@ class BamAttention(Attention):
         getattr(cfg, 'bam_abs_v_compression_dim', None)
         if 'full' in self._mode else None)
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
+    self._abs_v_row_decoder_output = getattr(
+        cfg, 'bam_abs_v_row_decoder_output', 'full')
+    self._abs_v_row_decoder_share_heads = bool(getattr(
+        cfg, 'bam_abs_v_row_decoder_share_heads', False))
     self._abs_v_source_implementation = getattr(
         cfg, 'bam_abs_v_source_implementation', 'dot')
     if 'full' in self._mode:
@@ -2553,6 +2557,7 @@ class BamAttention(Attention):
       assert 'full' in self._mode
     assert self._abs_k_col_output in ('direct', 'project')
     assert self._abs_v_row_output in ('direct', 'project')
+    assert self._abs_v_row_decoder_output in ('full', 'compressed')
     assert self._abs_v_source_implementation in ('dot', 'mul_reduce')
     if self._abs_k_dim is not None:
       assert 0 < self._abs_k_dim < self.bam_k
@@ -2569,7 +2574,9 @@ class BamAttention(Attention):
     if 'full' in self._mode:
       full_v_output_dim = (
           self.bam_v
-          if self._abs_v_dim is None or self._abs_v_row_output == 'project'
+          if (self._abs_v_dim is None
+              or (self._abs_v_row_output == 'project'
+                  and self._abs_v_row_decoder_output == 'full'))
           else self._abs_v_dim)
       assert full_v_output_dim <= self.head_dim - self.bam_k, (
           f'fetched BAM output needs {self.bam_k}+{full_v_output_dim} head '
@@ -2653,13 +2660,21 @@ class BamAttention(Attention):
             'abs_v_cache_projection',
             nn.with_logical_partitioning(orth_init, ('v_factor', 'kv')),
             (self.bam_v, self._abs_v_dim), self.weight_dtype)
-        # Create the decoder in both paired arms so their parameter trees and initializers
-        # match.  The direct arm deliberately leaves it unused.
+        decoder_output_dim = (
+            self.bam_v
+            if self._abs_v_row_decoder_output == 'full'
+            else self._abs_v_dim)
+        decoder_shape = (self._abs_v_dim, decoder_output_dim)
+        decoder_axes = ('kv', 'v_factor')
+        if not self._abs_v_row_decoder_share_heads:
+          decoder_shape = (self.num_query_heads,) + decoder_shape
+          decoder_axes = ('q_heads',) + decoder_axes
+        # Identity initialization makes every decoder arm start from the Direct
+        # readout.  Direct keeps the historical unused per-head [C,V] parameter.
         self.abs_v_row_decoder = self.param(
             'abs_v_row_decoder',
-            nn.with_logical_partitioning(
-                decoder_init, ('q_heads', 'kv', 'v_factor')),
-            (self.num_query_heads, self._abs_v_dim, self.bam_v), self.weight_dtype)
+            nn.with_logical_partitioning(decoder_init, decoder_axes),
+            decoder_shape, self.weight_dtype)
 
       if self._abs_k_dim is not None:
         # Compress only the historical cache/read view; the cross-layer M stream
@@ -3333,6 +3348,8 @@ class BamAttention(Attention):
 
     def decode(y, decoder):
       decoder = decoder.astype(y.dtype)
+      if decoder.ndim == 2:
+        return jnp.einsum('btnc,cd->btnd', y, decoder)
       return jnp.einsum('btnc,ncd->btnd', y, decoder)
 
     if self._abs_k_dim is not None:

@@ -309,6 +309,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_abs_k_col_output = 'direct'  # direct | project; expand the compressed K-side answer
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
+    bam_abs_v_row_decoder_output = 'full'  # full | compressed
+    bam_abs_v_row_decoder_share_heads = False
     bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
@@ -1067,6 +1069,37 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256AbsVRowDecode32PerHead(BamV2C256FetchScheduleBase):
+    """Decode each head's fetched 8-wide V-side read into its own 32-wide basis."""
+    model_name = 'BamLlama2MediumV2C256AbsVRowDecode32PerHead'
+    scan_layers = True
+    bam_abs_v_row_output = 'project'
+
+
+class BamLlama2MediumV2C256AbsVRowDecode32Shared(
+    BamLlama2MediumV2C256AbsVRowDecode32PerHead
+):
+    """Decode fetched 8-to-32 V-side reads through one cross-head shared basis."""
+    model_name = 'BamLlama2MediumV2C256AbsVRowDecode32Shared'
+    bam_abs_v_row_decoder_share_heads = True
+
+
+class BamLlama2MediumV2C256AbsVRowDecode8PerHead(BamV2C256FetchScheduleBase):
+    """Transform each fetched V-side read in its original 8-wide space per head."""
+    model_name = 'BamLlama2MediumV2C256AbsVRowDecode8PerHead'
+    scan_layers = True
+    bam_abs_v_row_output = 'project'
+    bam_abs_v_row_decoder_output = 'compressed'
+
+
+class BamLlama2MediumV2C256AbsVRowDecode8Shared(
+    BamLlama2MediumV2C256AbsVRowDecode8PerHead
+):
+    """Transform fetched 8-wide V-side reads with one cross-head shared map."""
+    model_name = 'BamLlama2MediumV2C256AbsVRowDecode8Shared'
+    bam_abs_v_row_decoder_share_heads = True
 
 
 class BamLlama2MediumV2C256CompressedVLocalQK(BamV2C256FetchScheduleBase):

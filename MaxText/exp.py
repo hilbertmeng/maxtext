@@ -1167,7 +1167,7 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK
 ):
     """QK72 with separate Q/K V32->8 adapters initialized identically."""
-    # e7990ef; UC1a ~0.668 steps/s; stopped at 3,171. Loss was bit-identical to
+    # e7990ef; UC1a ~0.668 steps/s; stopped at 3,221. Loss was bit-identical to
     # Shared72: row-key and adapter gradients stayed exactly zero (dead V8 tail).
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit'
     bam_local_qk_post_read_v_paired_init = True

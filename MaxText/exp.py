@@ -1194,7 +1194,8 @@ class BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQK
 ):
     """Separate Q/K V32->8 adapters initialized to identical values."""
-    # e7990ef; UC1a ~0.663 steps/s.
+    # e7990ef; UC1a ~0.663 steps/s; completed 13,499.  Mean dloss @12k-13.4k:
+    # -0.00877 vs Shared40, -0.00261 vs V2; paired Q/K specialization is useful.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit'
     bam_local_qk_post_read_v_paired_init = True
     jax_cache_dir = (

@@ -1247,6 +1247,18 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2(
         'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2')
 
 
+class BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm(
+    BamLlama2MediumV2C256Paired40LocalQKRank2
+):
+    """Apply QKNorm after adding Rank2 LocalQK and before partial RoPE."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm'
+    bam_local_qk_injection = 'pre_qknorm_rope'
+    qk_norm = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2-pre-rope-qknorm')
+
+
 class BamLlama2MediumV2C256Paired40LocalQKRank4(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPESeparateQKPairedInit
 ):

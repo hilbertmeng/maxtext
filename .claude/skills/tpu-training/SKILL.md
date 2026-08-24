@@ -85,6 +85,9 @@ Launch with `COMPILED_TRAINSTEP_GCS=gs://...`; auto-train stages that artifact o
 For checkpoint resume, compile the original total schedule, never the remaining-step count; the
 restored optimizer `state.step` selects the resumed learning rate. Require the first resumed step
 and logged LR to match the checkpoint and original schedule; stop immediately on mismatch.
+Generate formal AOT artifacts only in a validated TPU-VM environment. If the target TPU becomes
+READY first, start its native compile immediately and reserve any later AOT artifact for recovery;
+do not replace a healthy pre-first-step compile merely because the artifact finishes.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`
@@ -266,6 +269,10 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/run_registry.py wait-step '$RUN' '$((OLD_STEP + 14))' \
    --after-step '$OLD_STEP'"
 ```
+
+When replacing a train process, wait for both the process and any Orbax save to finish, verify the
+latest checkpoint is committed and its data cursor agrees, then require the exact `pgrep` to be
+empty before relaunch. Stop a standalone creator before deleting its TPU and queued resource.
 
 ## Create Standalone v6e-1
 

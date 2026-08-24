@@ -1104,7 +1104,8 @@ class BamLlama2MediumV2C256EmbeddingWriteR256Gelu(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256UnEmbRead(BamV2C256FetchScheduleBase):
     """Read the final full M stream into the pre-decoder-norm residual."""
-    # code_commit: abe7d90; UC1a ~0.661 steps/s (-0.3% vs V2 C256 scan); running.
+    # code_commit: abe7d90; UC1a ~0.661 steps/s (-0.3% vs V2 C256 scan); stopped 3,155.
+    # dloss +.00007 vs V2 / +.01177 vs EmbWrite @3,000; early gain decayed through zero.
     model_name = 'BamLlama2MediumV2C256UnEmbRead'
     bam_unembedding_read = True
     unemb_bam_num_head = 16
@@ -1266,7 +1267,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
     """Apply QKNorm after adding Rank2 LocalQK and before partial RoPE."""
-    # code_commit: 9cbf6d6; UC1a ~0.631 steps/s (-2.2% vs Rank2); running.
+    # code_commit: 9cbf6d6; UC1a ~0.631 steps/s (-2.2% vs Rank2); stopped 6,549.
+    # dloss -.00111 vs Rank2 @6,400, decaying to zero; interaction vs MHA QKNorm +.02170.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm'
     bam_local_qk_injection = 'pre_qknorm_rope'
     qk_norm = True

@@ -7,7 +7,7 @@ import numpy as np
 from types import SimpleNamespace
 from layers import initializers
 from layers import normalizations
-from layers.models import EmbeddingBamWrite, UnembeddingBamRead
+from layers.models import EmbeddingBamWrite
 
 from layers.attentions import (
     GroupedRMSNorm,
@@ -30,35 +30,6 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
-
-  def test_unembedding_bam_read_starts_as_exact_residual_identity(self):
-    cfg = SimpleNamespace(
-        bam_k=3, bam_v=4, matmul_precision='default',
-        bam_read_key_epsilon=1e-4, bam_read_gate_init=0.005,
-        bam_read_key_scale=1.0, bam_read_rms_statistics_dtype='float32',
-        bam_read_key_mode='rms_gate',
-        bam_read_implementation='mul_reduce_btn',
-        normalization_layer_epsilon=1e-6)
-    module = UnembeddingBamRead(
-        config=cfg, num_read_heads=2, dtype=jnp.float32,
-        weight_dtype=jnp.float32, quant=None,
-        kernel_init=initializers.nd_dense_init_normal(0.006))
-    inputs = jax.random.normal(jax.random.PRNGKey(105), (2, 3, 7))
-    matrix = jax.random.normal(jax.random.PRNGKey(106), (2, 3, 3, 4))
-    variables = module.init(jax.random.PRNGKey(107), inputs, matrix)
-    output = module.apply(variables, inputs, matrix)
-    np.testing.assert_array_equal(output, inputs)
-    params = variables['params']
-    self.assertEqual(params['W_unemb_read']['kernel'].value.shape, (7, 2, 9))
-    self.assertEqual(params['unemb_read_gate_b0'].value.shape, (2, 2))
-    self.assertEqual(params['W_unemb_o']['kernel'].value.shape, (2, 7, 7))
-    np.testing.assert_allclose(
-        params['unemb_read_gate_b0'].value,
-        np.log(0.005 / 0.995), rtol=0.0, atol=1e-6)
-    gradients = jax.grad(
-        lambda p: jnp.sum(module.apply({'params': p}, inputs, matrix)))(params)
-    self.assertGreater(
-        float(jnp.linalg.norm(gradients['W_unemb_read']['kernel'].value)), 0.0)
 
   def test_embedding_bam_write_parameter_shapes_output_and_gradient(self):
     cfg = SimpleNamespace(

@@ -329,8 +329,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_embedding_write = False
     emb_bam_num_head = None  # None -> num_query_heads
     emb_bam_v_bottleneck_dim = 256
-    bam_unembedding_read = False
-    unemb_bam_num_head = None  # None -> num_query_heads
 
     scan_layers = False
 
@@ -2366,6 +2364,20 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2EmbeddingWriteR256Gelu(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Test Medium's near-neutral embedding write after scaling Rank2 to XL."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2EmbeddingWriteR256Gelu')
+    bam_embedding_write = True
+    emb_bam_num_head = 16
+    emb_bam_v_bottleneck_dim = 256
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-embedding-write-r256-gelu')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPESharedOrthV32(

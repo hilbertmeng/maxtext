@@ -1766,14 +1766,19 @@ def _attention_op(
 
 
 def _bam_fetch_op(
-    alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one):
+    alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
+    diagonal_value=None):
   """Mix standard-attention routes, optionally set the local coefficient, and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     fetch_alpha = jnp.einsum(
         'bnqs,bqn->bqs', alpha[:, :mix_weights.shape[-1]], mix_weights)
     if diagonal_one:
+      diagonal_value = (
+          jnp.asarray(1, fetch_alpha.dtype)
+          if diagonal_value is None
+          else jnp.asarray(diagonal_value, fetch_alpha.dtype)[..., None])
       fetch_alpha = jnp.where(
-          diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype), fetch_alpha)
+          diagonal_mask[None], diagonal_value, fetch_alpha)
   with jax.named_scope("bam/fetch_m"):
     return jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
 
@@ -2443,6 +2448,9 @@ class BamAttention(Attention):
     assert self._fetched_read_side in ('both', 'row', 'col')
     self._m_read_norm = cfg.bam_m_read_norm
     self._fetch_diagonal_one = bool(cfg.bam_fetch_diagonal_one)
+    self._fetch_self_gate_init = getattr(cfg, 'bam_fetch_self_gate_init', None)
+    if self._fetch_self_gate_init is not None:
+      self._fetch_self_gate_init = float(self._fetch_self_gate_init)
     self._fetch_read_bottleneck_dim = getattr(
         cfg, 'bam_fetch_read_bottleneck_dim', None)
     self._fetch_read_bottleneck_activation = getattr(
@@ -2517,6 +2525,10 @@ class BamAttention(Attention):
         'replicated P_loc_up requires a write-V bottleneck')
     assert self._write_outer_implementation in ('dot', 'mul_reduce')
     assert self._m_read_norm in ('rms', 'none')
+    assert self._fetch_self_gate_init is None or (
+        'full' in self._mode
+        and self._fetch_diagonal_one
+        and 0.0 < self._fetch_self_gate_init < 1.0)
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     assert self._fetched_row_second_implementation in ('dot', 'mul_reduce')
@@ -3012,6 +3024,26 @@ class BamAttention(Attention):
             'local_k_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
 
+    # This experiment is appended after the production parameter tree so all
+    # pre-existing V2 parameters retain their paired initialization.
+    if self._fetch_self_gate_init is not None:
+      self.W_fetch_self_gate = DenseGeneral(
+          features=1, axis=-1, kernel_init=zeros_init,
+          kernel_axes=('embed', None), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name='W_fetch_self_gate',
+          quant=self.quant, matmul_precision=cfg.matmul_precision,
+          use_bias=False)
+      self.fetch_self_gate_b0 = self.param(
+          'fetch_self_gate_b0',
+          nn.with_logical_partitioning(
+              lambda key, shape, dtype: jnp.full(
+                  shape,
+                  math.log(self._fetch_self_gate_init /
+                           (1.0 - self._fetch_self_gate_init)),
+                  dtype),
+              (None,)),
+          (1,), self.weight_dtype)
+
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
     if paired is not None:
@@ -3391,7 +3423,7 @@ class BamAttention(Attention):
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,
-      fetch_state=None, mix_weights=None):
+      fetch_state=None, mix_weights=None, fetch_self_gate=None):
     """Apply one dense/chunk attention block and its optional BAM fetch."""
     q1 = q0 + query.shape[1]
     s1 = s0 + key.shape[1]
@@ -3415,12 +3447,13 @@ class BamAttention(Attention):
       assert mix_weights is not None
       Mbar = _bam_fetch_op(
           alpha, fetch_state, mix_weights, source == target,
-          diagonal_one=self._fetch_diagonal_one)
+          diagonal_one=self._fetch_diagonal_one,
+          diagonal_value=fetch_self_gate)
     return y_std, Mbar
 
   def _query_chunk_op(
       self, query, key, value, decoder_segment_ids, window_size, *,
-      fetch_state=None, mix_weights=None):
+      fetch_state=None, mix_weights=None, fetch_self_gate=None):
     """Slice query/source blocks, call `_attention_block`, and concatenate."""
     _, t, _, _ = query.shape
     assert self._query_chunk_size is not None
@@ -3435,7 +3468,9 @@ class BamAttention(Attention):
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
           decoder_segment_ids, q0=q0, s0=s0, window_size=window_size,
           fetch_state=(None if fetch_state is None else fetch_state[:, s0:s1]),
-          mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1]))
+          mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1]),
+          fetch_self_gate=(
+              None if fetch_self_gate is None else fetch_self_gate[:, q0:q1]))
       y_chunks.append(y_chunk)
       if Mbar_chunk is not None:
         Mbar_chunks.append(Mbar_chunk)
@@ -3524,7 +3559,7 @@ class BamAttention(Attention):
       query = query.astype(jnp.float32)
       key = key.astype(jnp.float32)
 
-    fetch_state = mix_weights = None
+    fetch_state = mix_weights = fetch_self_gate = None
     if 'full' in self._mode:
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
@@ -3536,6 +3571,14 @@ class BamAttention(Attention):
       fetch_state = (
           local_Mh if self._local_qk_use_compressed_v
           else self._compress_full_fetch_state(Mh))
+      if self._fetch_self_gate_init is not None:
+        with jax.named_scope("bam/fetch_self_gate"):
+          self_gate_bias = self.fetch_self_gate_b0
+          if self._force_activation_dtype:
+            self_gate_bias = jnp.asarray(self_gate_bias, self.dtype)
+          fetch_self_gate = jax.nn.sigmoid(
+              jnp.squeeze(self.W_fetch_self_gate(inputs_q), axis=-1)
+              + jnp.squeeze(self_gate_bias, axis=-1))
 
     _, t, _, _ = query.shape
 
@@ -3547,12 +3590,14 @@ class BamAttention(Attention):
     if self._query_chunk_size is not None:
       y_std, Mbar = self._query_chunk_op(
           query, key, value, decoder_segment_ids, local_window,
-          fetch_state=fetch_state, mix_weights=mix_weights)
+          fetch_state=fetch_state, mix_weights=mix_weights,
+          fetch_self_gate=fetch_self_gate)
     else:
       y_std, Mbar = self._attention_block(
           query, key, value, decoder_segment_ids,
           q0=0, s0=0, window_size=local_window,
-          fetch_state=fetch_state, mix_weights=mix_weights)
+          fetch_state=fetch_state, mix_weights=mix_weights,
+          fetch_self_gate=fetch_self_gate)
 
     o_head = y_std
     if Mbar is not None:

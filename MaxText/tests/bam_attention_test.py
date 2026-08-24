@@ -192,6 +192,35 @@ class BamReadKeyTransformTest(absltest.TestCase):
         np.testing.assert_allclose(
             got_item, expected_item, rtol=1e-6, atol=1e-6)
 
+  def test_bam_fetch_op_accepts_token_wise_diagonal_values(self):
+    b, n, t, k, v = 2, 3, 5, 4, 6
+    keys = jax.random.split(jax.random.PRNGKey(89), 5)
+    alpha = jax.nn.softmax(jax.random.normal(keys[0], (b, n, t, t)), axis=-1)
+    mix_weights = jax.random.normal(keys[1], (b, t, n))
+    fetch_state = jax.random.normal(keys[2], (b, t, k, v))
+    diagonal_value = jax.nn.sigmoid(jax.random.normal(keys[3], (b, t)))
+    diagonal_mask = jnp.eye(t, dtype=bool)
+    upstream = jax.random.normal(keys[4], (b, t, k, v))
+
+    def reference(a, m, state, gate):
+      mixed = jnp.einsum('bnts,btn->bts', a, m)
+      mixed = jnp.where(diagonal_mask[None], gate[..., None], mixed)
+      return jnp.einsum('bts,bskv->btkv', mixed, state)
+
+    def actual(a, m, state, gate):
+      return _bam_fetch_op(
+          a, state, m, diagonal_mask, diagonal_one=True,
+          diagonal_value=gate)
+
+    args = (alpha, mix_weights, fetch_state, diagonal_value)
+    expected, expected_grad = jax.value_and_grad(
+        lambda *xs: jnp.sum(reference(*xs) * upstream), argnums=(0, 1, 2, 3))(*args)
+    got, got_grad = jax.value_and_grad(
+        lambda *xs: jnp.sum(actual(*xs) * upstream), argnums=(0, 1, 2, 3))(*args)
+    np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
+    for got_item, expected_item in zip(got_grad, expected_grad):
+      np.testing.assert_allclose(got_item, expected_item, rtol=1e-6, atol=1e-6)
+
   def test_bam_read_head_mapping_pads_or_adapts_only_v_side(self):
     direct = jnp.arange(96, dtype=jnp.float32).reshape(1, 1, 1, 96)
     padded = _fit_bam_read_to_head(direct, bam_k=64, head_dim=128)

@@ -298,6 +298,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
+    bam_fetch_self_gate_init = None  # None keeps fixed diagonal-one; otherwise dynamic sigmoid init
     bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
     bam_fetched_row_rank = None  # dynamically factor fetched row keys through this rank
     bam_fetched_row_second_implementation = 'dot'  # dot | mul_reduce
@@ -1368,6 +1369,16 @@ class BamLlama2MediumV2C256WriteAddressRmsOnly(BamV2C256FetchScheduleBase):
     model_name = 'BamLlama2MediumV2C256WriteAddressRmsOnly'
     scan_layers = True
     bam_write_data_rms = False
+
+
+class BamLlama2MediumV2C256SelfReadGate(BamV2C256FetchScheduleBase):
+    """Replace diagonal-one with a token-wise sigmoid gate on the self fetch."""
+    model_name = 'BamLlama2MediumV2C256SelfReadGate'
+    scan_layers = True
+    bam_fetch_self_gate_init = 0.995
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-self-read-gate')
 
 
 class BamLlama2MediumV2C256FetchedRowOnly(BamV2C256FetchScheduleBase):

@@ -15,8 +15,6 @@ limitations under the License.
 """
 
 """Transformer model definition."""
-import math
-
 import jax
 from flax import linen as nn
 from jax.sharding import Mesh
@@ -54,89 +52,6 @@ KV_HEAD_DIM = common_types.KV_HEAD_DIM
 Embed = embeddings.Embed
 Attention = attentions.Attention
 Quant = quantizations.AqtQuantization
-
-
-def _bam_mlp_write_delta(
-    data, address, gate, *, epsilon, statistics_dtype):
-  """Form one gated MLP-to-M write from per-slot data/address factors."""
-  data = normalizations.rms_norm(
-      data, dtype=data.dtype, epsilon=epsilon,
-      statistics_dtype=statistics_dtype)
-  address = normalizations.rms_norm(
-      address, dtype=address.dtype, epsilon=epsilon,
-      statistics_dtype=statistics_dtype)
-  with jax.named_scope("bam/mlp_write_outer"):
-    return jnp.sum(
-        gate[..., None, None] * data[..., :, None]
-        * address[..., None, :], axis=-3)
-
-
-class MlpBamWrite(nn.Module):
-  """Write selected MLP hidden channels into the cross-layer BAM stream."""
-
-  config: models.Config
-  num_write_heads: int
-  dtype: DType
-  weight_dtype: DType
-  quant: Optional[Quant]
-  kernel_init: initializers.Initializer
-
-  @nn.compact
-  def __call__(self, inputs, mlp_hidden):
-    cfg = self.config
-    heads = self.num_write_heads
-    bam_k = int(cfg.bam_k)
-    bam_v = int(cfg.bam_v)
-    bottleneck = int(cfg.bam_mlp_write_v_bottleneck_dim)
-    data_width = heads * bam_k
-    if mlp_hidden.shape[-1] < data_width:
-      raise ValueError(
-          f"MLP hidden width {mlp_hidden.shape[-1]} is smaller than the "
-          f"BAM write-data width {data_width}")
-
-    data = mlp_hidden[..., :data_width].reshape(
-        mlp_hidden.shape[:-1] + (heads, bam_k))
-    with jax.named_scope("bam/mlp_write_address"):
-      address = linears.DenseGeneral(
-          features=bottleneck, axis=-1, kernel_init=self.kernel_init,
-          kernel_axes=("embed", None), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name="P_loc_down", quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
-      address = nn.gelu(address)
-      address = linears.DenseGeneral(
-          features=(heads, bam_v), axis=-1, kernel_init=self.kernel_init,
-          kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name="P_loc_up", quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=True)(address)
-
-    with jax.named_scope("bam/mlp_write_gate"):
-      gate_logits = linears.DenseGeneral(
-          features=heads, axis=-1, kernel_init=self.kernel_init,
-          kernel_axes=("embed", "q_heads"), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name="W_gw", quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
-      eps = float(cfg.bam_write_eps)
-      if not 0.0 < eps < 1.0:
-        raise ValueError(f"bam_write_eps must be in (0, 1), got {eps}")
-      gate_bias = self.param(
-          "gw_b0",
-          nn.with_logical_partitioning(
-              lambda key, shape, dtype: jnp.full(
-                  shape, math.log(eps / (1.0 - eps)), dtype),
-              ("q_heads",)),
-          (heads,), self.weight_dtype)
-      gate = jax.nn.sigmoid(
-          gate_logits + jnp.asarray(gate_bias, self.dtype))
-      if cfg.bam_sqrt_n_scale:
-        gate = gate / jnp.sqrt(jnp.asarray(heads, gate.dtype))
-
-    statistics_dtype = (
-        jnp.float32
-        if cfg.bam_write_rms_statistics_dtype == "float32"
-        else self.dtype)
-    return _bam_mlp_write_delta(
-        data, address, gate, epsilon=cfg.normalization_layer_epsilon,
-        statistics_dtype=statistics_dtype)
 
 
 class SubDecoderLayer(nn.Module):
@@ -285,7 +200,7 @@ class SubDecoderLayer(nn.Module):
     mlp_lnx = None
     if cfg.shared_experts == 1:
       # MLP block.
-      mlp_result = linears.MlpBlock(
+      mlp_lnx = linears.MlpBlock(
           intermediate_dim=self.updated_mlp_dim, # lsp
           activations=cfg.mlp_activations,
           intermediate_dropout_rate=cfg.dropout_rate,
@@ -295,32 +210,7 @@ class SubDecoderLayer(nn.Module):
           config=cfg,
           quant=self.quant,
           kernel_init=initializers.get_init_method(cfg.init_method), # lsp
-      )(
-          hidden_states, deep_embedding=deep_embedding,
-          decoder_input_tokens=decoder_input_tokens,
-          deterministic=deterministic,
-          return_hidden=bool(getattr(cfg, "bam_mlp_write", False)))
-      if getattr(cfg, "bam_mlp_write", False):
-        if not cfg.bam_enabled or M_out is None:
-          raise ValueError("MLP BAM write requires an active BAM matrix stream")
-        mlp_lnx, mlp_hidden = mlp_result
-        configured_heads = getattr(cfg, "mlp_num_bam_head", None)
-        mlp_num_bam_head = (
-            num_query_heads // 2
-            if configured_heads is None else int(configured_heads))
-        if not 0 < mlp_num_bam_head <= num_query_heads:
-          raise ValueError(
-              "mlp_num_bam_head must be in [1, num_query_heads], got "
-              f"{mlp_num_bam_head} for {num_query_heads} query heads")
-        dM_mlp = MlpBamWrite(
-            config=cfg, num_write_heads=mlp_num_bam_head,
-            dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
-            quant=self.quant, kernel_init=initializers.get_init_method(cfg.init_method),
-            name="mlp_bam_write")(
-                hidden_states, mlp_hidden)
-        M_out = M_out + dM_mlp
-      else:
-        mlp_lnx = mlp_result
+      )(hidden_states, deep_embedding=deep_embedding, decoder_input_tokens=decoder_input_tokens, deterministic=deterministic)
       mlp_lnx = nn.with_logical_constraint(mlp_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
       if cfg.record_internal_nn_metrics:

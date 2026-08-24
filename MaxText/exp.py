@@ -324,9 +324,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
-    bam_mlp_write = False
-    mlp_num_bam_head = None  # None -> num_query_heads // 2
-    bam_mlp_write_v_bottleneck_dim = 128
+    bam_embedding_write = False
+    emb_bam_num_head = None  # None -> num_query_heads
+    emb_bam_v_bottleneck_dim = 256
 
     scan_layers = False
 
@@ -1079,9 +1079,22 @@ class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):
     # aef0d97; ~0.643 steps/s (!? -4.7% vs V2 C256); stopped at 3,249. Early gain decayed through zero; dloss +.00106 @3,200.
     model_name = 'BamLlama2MediumV2C256MlpWriteR128'
     bam_mlp_write = True
+    mlp_num_bam_head = None
+    bam_mlp_write_v_bottleneck_dim = 128
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-mlp-write-r128')
+
+
+class BamLlama2MediumV2C256EmbeddingWriteR256Gelu(BamV2C256FetchScheduleBase):
+    """Initialize M with 16 embedding-derived data/address records before layer 0."""
+    model_name = 'BamLlama2MediumV2C256EmbeddingWriteR256Gelu'
+    bam_embedding_write = True
+    emb_bam_num_head = 16
+    emb_bam_v_bottleneck_dim = 256
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-embedding-write-r256-gelu')
 
 
 class BamLlama2MediumV2C256AbsVRowDecode32PerHead(BamV2C256FetchScheduleBase):

@@ -1091,7 +1091,8 @@ class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256EmbeddingWriteR256Gelu(BamV2C256FetchScheduleBase):
     """Initialize M with 16 embedding-derived data/address records before layer 0."""
-    # code_commit: 1069897; UC1a ~0.673 steps/s (-0.3% vs V2 C256); running.
+    # code_commit: 1069897; UC1a ~0.673 steps/s (-0.3% vs V2 C256); completed 13,500.
+    # dloss -.00054 vs V2 @13,400: large early gain (-.4418 @200) decayed to ~0.
     model_name = 'BamLlama2MediumV2C256EmbeddingWriteR256Gelu'
     bam_embedding_write = True
     emb_bam_num_head = 16

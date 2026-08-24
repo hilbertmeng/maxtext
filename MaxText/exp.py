@@ -211,7 +211,8 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
     # code_commit: 4408ccb
-    # ~0.762 steps/s; completed 13,500. dloss -.01674 vs MHA @13,400.
+    # ~0.762 steps/s; completed 13,500. dloss -.01664 vs MHA @13,400
+    # (same-step 5-sample mean); final 13,450-13,490 mean -.01552.
     model_name = 'Llama2MediumQKNorm'
     qk_norm = True
 

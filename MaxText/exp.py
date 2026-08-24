@@ -1076,6 +1076,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):
     """Add eight rank-one M writes from the pre-WO MLP hidden state per layer."""
+    # code_commit: aef0d97; ~0.646 steps/s (!? -4.3% vs V2 C256; larger than ~2% expected).
     model_name = 'BamLlama2MediumV2C256MlpWriteR128'
     bam_mlp_write = True
     jax_cache_dir = (
@@ -2300,6 +2301,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
     BamLlama2XLHead16x128V2C256PartialRoPE
 ):
     """XL16 Partial-RoPE scaling test of Medium's beneficial rank-2 LocalQK."""
+    # code_commit: aef0d97; UC1a ~0.550 steps/s (-1.6% vs Partial).
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2'
     bam_local_qk_rank = 2
     jax_cache_dir = (

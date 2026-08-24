@@ -1076,7 +1076,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):
     """Add eight rank-one M writes from the pre-WO MLP hidden state per layer."""
-    # code_commit: aef0d97; ~0.646 steps/s (!? -4.3% vs V2 C256; larger than ~2% expected).
+    # aef0d97; ~0.643 steps/s (!? -4.7% vs V2 C256); stopped at 3,249. Early gain decayed through zero; dloss +.00106 @3,200.
     model_name = 'BamLlama2MediumV2C256MlpWriteR128'
     bam_mlp_write = True
     jax_cache_dir = (

@@ -1373,6 +1373,7 @@ class BamLlama2MediumV2C256WriteAddressRmsOnly(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256SelfReadGate(BamV2C256FetchScheduleBase):
     """Replace diagonal-one with a token-wise sigmoid gate on the self fetch."""
+    # code_commit: 6d86481; UC1a ~0.667 steps/s (~flat vs V2 C256).
     model_name = 'BamLlama2MediumV2C256SelfReadGate'
     scan_layers = True
     bam_fetch_self_gate_init = 0.995

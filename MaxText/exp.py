@@ -1251,6 +1251,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
     """Apply QKNorm after adding Rank2 LocalQK and before partial RoPE."""
+    # code_commit: 9cbf6d6; UC1a ~0.631 steps/s (-2.2% vs Rank2); running.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm'
     bam_local_qk_injection = 'pre_qknorm_rope'
     qk_norm = True

@@ -2370,6 +2370,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2EmbeddingWriteR256Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Test Medium's near-neutral embedding write after scaling Rank2 to XL."""
+    # code_commit: 7b46068; UC1a ~0.547 steps/s (-0.5% vs Rank2).
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2EmbeddingWriteR256Gelu')
     bam_embedding_write = True

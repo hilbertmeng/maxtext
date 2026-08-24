@@ -1102,6 +1102,7 @@ class BamLlama2MediumV2C256EmbeddingWriteR256Gelu(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256UnEmbRead(BamV2C256FetchScheduleBase):
     """Read the final full M stream into the pre-decoder-norm residual."""
+    # code_commit: abe7d90; UC1a ~0.661 steps/s (-0.3% vs V2 C256 scan); running.
     model_name = 'BamLlama2MediumV2C256UnEmbRead'
     bam_unembedding_read = True
     unemb_bam_num_head = 16

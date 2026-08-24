@@ -211,7 +211,7 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
     # code_commit: 4408ccb
-    # ~0.762 steps/s; running.
+    # ~0.762 steps/s; completed 13,500. dloss -.01674 vs MHA @13,400.
     model_name = 'Llama2MediumQKNorm'
     qk_norm = True
 
@@ -327,6 +327,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_embedding_write = False
     emb_bam_num_head = None  # None -> num_query_heads
     emb_bam_v_bottleneck_dim = 256
+    bam_unembedding_read = False
+    unemb_bam_num_head = None  # None -> num_query_heads
 
     scan_layers = False
 
@@ -1096,6 +1098,16 @@ class BamLlama2MediumV2C256EmbeddingWriteR256Gelu(BamV2C256FetchScheduleBase):
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-embedding-write-r256-gelu')
+
+
+class BamLlama2MediumV2C256UnEmbRead(BamV2C256FetchScheduleBase):
+    """Read the final full M stream into the pre-decoder-norm residual."""
+    model_name = 'BamLlama2MediumV2C256UnEmbRead'
+    bam_unembedding_read = True
+    unemb_bam_num_head = 16
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-unemb-read')
 
 
 class BamLlama2MediumV2C256AbsVRowDecode32PerHead(BamV2C256FetchScheduleBase):

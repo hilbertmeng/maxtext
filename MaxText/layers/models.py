@@ -487,6 +487,77 @@ class EmbeddingBamWrite(nn.Module):
           * address[..., None, :], axis=-3)
 
 
+class UnembeddingBamRead(nn.Module):
+  """Read the final BAM matrix stream into the pre-output-norm residual."""
+
+  config: Config
+  num_read_heads: int
+  dtype: DType
+  weight_dtype: DType
+  quant: Optional[Quant]
+  kernel_init: initializers.Initializer
+
+  @nn.compact
+  def __call__(self, inputs, M):
+    cfg = self.config
+    heads = self.num_read_heads
+    bam_k = int(cfg.bam_k)
+    bam_v = int(cfg.bam_v)
+
+    # The two keys and gates share one zero-initialized projection, making the
+    # complete residual branch exactly zero at initialization.
+    packed = linears.DenseGeneral(
+        features=(heads, bam_k + bam_v + 2), axis=-1,
+        kernel_init=initializers.contant_dense_init(0.0),
+        kernel_axes=("embed", "q_heads", "kv"), dtype=self.dtype,
+        weight_dtype=self.weight_dtype, name="W_unemb_read",
+        quant=self.quant, matmul_precision=cfg.matmul_precision,
+        use_bias=False)(inputs)
+    read_key = packed[..., :bam_k + bam_v]
+    gate_logits = packed[..., bam_k + bam_v:]
+
+    read_key_epsilon = float(
+        cfg.bam_read_key_epsilon
+        if cfg.bam_read_key_epsilon is not None
+        else cfg.normalization_layer_epsilon)
+    gate_init = (
+        float(cfg.bam_read_gate_init)
+        if cfg.bam_read_gate_init is not None
+        else math.sqrt(read_key_epsilon) / float(cfg.bam_read_key_scale))
+    if not 0.0 < gate_init < 1.0:
+      raise ValueError(
+          f"BAM unembedding read gate init must be in (0, 1), got {gate_init}")
+    gate_bias = self.param(
+        "unemb_read_gate_b0",
+        nn.with_logical_partitioning(
+            lambda key, shape, dtype: jnp.full(
+                shape, math.log(gate_init / (1.0 - gate_init)), dtype),
+            ("q_heads", None)),
+        (heads, 2), self.weight_dtype)
+    gate_logits = gate_logits + jnp.asarray(gate_bias, self.dtype)
+    statistics_dtype = (
+        jnp.float32
+        if cfg.bam_read_rms_statistics_dtype == "float32"
+        else self.dtype)
+
+    read = attentions.bam_read(
+        M, inputs, lambda _: read_key, None,
+        key_mode=cfg.bam_read_key_mode,
+        key_scale=float(cfg.bam_read_key_scale),
+        rms_epsilon=read_key_epsilon,
+        rms_statistics_dtype=statistics_dtype,
+        key_gate_logits=gate_logits,
+        implementation=cfg.bam_read_implementation,
+        read_side="both")
+    residual = linears.DenseGeneral(
+        features=inputs.shape[-1], axis=(-2, -1),
+        kernel_init=self.kernel_init,
+        kernel_axes=("q_heads", "kv", "embed"), dtype=self.dtype,
+        weight_dtype=self.weight_dtype, name="W_unemb_o", quant=self.quant,
+        matmul_precision=cfg.matmul_precision, use_bias=False)(read)
+    return inputs + residual
+
+
 class Decoder(nn.Module):
   """A stack of decoder layers as a part of an encoder-decoder architecture."""
 
@@ -516,6 +587,21 @@ class Decoder(nn.Module):
           weight_dtype=cfg.weight_dtype, quant=self.quant,
           kernel_init=initializers.get_init_method(cfg.init_method),
           name="embedding_bam_write")
+    self.unembedding_bam_read = None
+    if full_bam and getattr(cfg, 'bam_unembedding_read', False):
+      configured_heads = getattr(cfg, 'unemb_bam_num_head', None)
+      read_heads = (
+          int(cfg.num_query_heads)
+          if configured_heads is None else int(configured_heads))
+      if not 0 < read_heads <= int(cfg.num_query_heads):
+        raise ValueError(
+            "unemb_bam_num_head must be in [1, num_query_heads], got "
+            f"{read_heads} for {cfg.num_query_heads} query heads")
+      self.unembedding_bam_read = UnembeddingBamRead(
+          config=cfg, num_read_heads=read_heads, dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype, quant=self.quant,
+          kernel_init=initializers.get_init_method(cfg.init_method),
+          name="unembedding_bam_read")
     if self.config.using_pipeline_parallelism:
       pipeline_stage_module = self.get_pipeline_stage_module(self.decoder_layer[0])
       remat_policy = get_remat_policy(self.config)
@@ -904,7 +990,10 @@ class Decoder(nn.Module):
             eos_sum,
             is_global,
         )
-        y = scan_carry[0] if full_bam else scan_carry
+        if full_bam:
+          y, M = scan_carry
+        else:
+          y = scan_carry
 
       elif cfg.partial_scan_layers:
         assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
@@ -1083,6 +1172,9 @@ class Decoder(nn.Module):
       mtp_head_inputs, main_head_inputs = y if cfg.mtp_num_layers > 0 else [None, y[0]]
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
+
+    if self.unembedding_bam_read is not None:
+      main_head_inputs = self.unembedding_bam_read(main_head_inputs, M)
 
     # mtp share llm head params
     OutputHeadLayer = OutputHead(config=cfg, 

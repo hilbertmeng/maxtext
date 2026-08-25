@@ -19,6 +19,7 @@ export JAX_TRACEBACK_FILTERING=off
 export BAM_FETCH_RANK_BATCHES="$BATCHES"
 export BAM_FETCH_RANK_OUTPUT="/tmp/fetch_rank_${TAG}.json"
 rm -f "$EXIT_FILE"
+mkdir -p "/tmp/fetch_rank_${TAG}_output/fetch_rank_${TAG}"
 
 cd "$ROOT" || exit 2
 "$PYTHON" MaxText/bam_fetch_rank_diagnostics.py MaxText/configs/base.yml \

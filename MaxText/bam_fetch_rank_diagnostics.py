@@ -60,6 +60,16 @@ def _tie_routes(params: Any, mode: str, fetch_rank: int) -> Any:
   return freeze(updated) if isinstance(params, FrozenDict) else updated
 
 
+def _scale_route_contrast(params: Any, scale: float, fetch_rank: int) -> Any:
+  """Scale route specialization around the route mean without changing shapes."""
+  flat = dict(flatten_dict(params))
+  for path, value, route_axis in _fetch_mixer_paths(params, fetch_rank):
+    mean = jnp.mean(value, axis=route_axis, keepdims=True)
+    flat[path] = mean + jnp.asarray(scale, value.dtype) * (value - mean)
+  updated = unflatten_dict(flat)
+  return freeze(updated) if isinstance(params, FrozenDict) else updated
+
+
 def _forward(model, params, batch, rng):
   dropout_rng, params_rng = jax.random.split(rng)
   xent, correct, _ = model.apply(
@@ -272,6 +282,12 @@ def run(config) -> None:
   variants = {
       "original": state.params,
       "tied_mean": _tie_routes(state.params, "mean", int(config.bam_fetch_rank)),
+      "contrast_025": _scale_route_contrast(
+          state.params, 0.25, int(config.bam_fetch_rank)),
+      "contrast_050": _scale_route_contrast(
+          state.params, 0.50, int(config.bam_fetch_rank)),
+      "contrast_075": _scale_route_contrast(
+          state.params, 0.75, int(config.bam_fetch_rank)),
       "tied_first": _tie_routes(state.params, "first", int(config.bam_fetch_rank)),
       "tied_second": _tie_routes(state.params, "second", int(config.bam_fetch_rank)),
   }

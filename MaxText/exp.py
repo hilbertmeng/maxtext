@@ -2459,6 +2459,17 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2(
         'jax_caches/xd-bam-xl16-partial-local-qk-rank2-fetch-rank2')
 
 
+class BamLlama2XLHead16x128V2C256FetchRank2(
+    BamFetchRank2DotMulProfileMixin,
+    BamLlama2XLHead16x128V2C256
+):
+    """Clean XL16 V2 scaling test of two dynamically mixed fetched-M routes."""
+    model_name = 'BamLlama2XLHead16x128V2C256FetchRank2'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-v2-c256-fetch-rank2')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2EmbeddingWriteR256Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

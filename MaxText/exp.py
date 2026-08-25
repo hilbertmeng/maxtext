@@ -1870,6 +1870,17 @@ class BamLlama2MediumV2C256FetchRank2(
         'jax_caches/xd-bam-v2-c256-fetch-rank2')
 
 
+class BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2(
+    BamFetchRank2DotMulProfileMixin,
+    BamLlama2MediumV2C256Paired40LocalQKRank2,
+):
+    """Cross-scale control: add FetchRank2 to Medium Paired40 LocalQKRank2."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2-fetch-rank2')
+
+
 class BamV2FetchRank2DotDotSixLayerProfile(
     BamFetchRank2DotDotProfileMixin, BamV2GScanLayerSixLayerProfile
 ):

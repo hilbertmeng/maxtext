@@ -1887,6 +1887,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2StopGradAlpha(
     BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2
 ):
     """Detach attention alpha before FetchRank2 mixing; keep MHA gradients intact."""
+    # code_commit: 9c19324; EW4b ~0.600 steps/s (+6.4% vs composite ~0.564).
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2StopGradAlpha'
     bam_fetch_stop_gradient_alpha = True
     jax_cache_dir = (

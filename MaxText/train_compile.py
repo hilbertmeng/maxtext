@@ -189,8 +189,10 @@ def main(argv: Sequence[str]) -> None:
     save_compiled(compiled, config.compiled_trainstep_file)
     print(f"Successfully saved compiled object as {config.compiled_trainstep_file}")
   print("Finished train_compile.py successfully!", flush=True)
-  print(f"Cost analysis: {compiled.cost_analysis()}")
-  print(f"Memory analysis: {compiled.memory_analysis()}")
+  # Compile-only hosts may lack the target chip model required by these optional reports.
+  if not os.environ.get("MAXTEXT_SKIP_AOT_ANALYSIS"):
+    print(f"Cost analysis: {compiled.cost_analysis()}")
+    print(f"Memory analysis: {compiled.memory_analysis()}")
 
   # Dump HLO if requested
   if config.dump_hlo:

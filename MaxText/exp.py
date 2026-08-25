@@ -2478,7 +2478,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBia
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Learned per-head write RMS scales with no P_loc or post-norm address bias."""
-    # code_commit: 206c773
+    # code_commit: 86756a1; UC1a ~0.548 steps/s (~flat vs Rank2 ~0.550).
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias')
     bam_write_v_mode = 'x'

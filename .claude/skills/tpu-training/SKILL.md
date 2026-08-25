@@ -12,6 +12,8 @@ Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 `/home/lishengping/xd/projects`; TPU VM repo `/home/lishengping/xd/projects/maxtext`;
 project `newproject-1-451205`; zone `us-central1-a`; TPU `v5p-16`; output
 `gs://newproject-1-llm_base_models_us-central1/log/`.
+Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
+exact files to tpu-ag and verify matching hashes.
 
 Classify by intent: a short speed/profile arm is `$tpu-diagnostics` even at full layer count;
 use `run_exp_xd.sh` only for a RUN intended to train through its registered plan.

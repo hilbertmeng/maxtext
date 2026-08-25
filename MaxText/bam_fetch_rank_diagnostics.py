@@ -25,6 +25,7 @@ import numpy as np
 import max_utils
 import pyconfig
 from input_pipeline.input_pipeline_interface import create_data_iterator
+from layers import attentions
 import train
 
 
@@ -135,6 +136,112 @@ def _parameter_route_stats(
   return output
 
 
+_ACTIVATION_STAT_NAMES = (
+    "mix_cosine",
+    "mix_difference_to_mean_rms",
+    "fetch_alpha_cosine",
+    "fetch_alpha_difference_to_mean_rms",
+    "mbar_cosine",
+    "mbar_difference_to_mean_rms",
+    "mbar_route0_rms",
+    "mbar_route1_rms",
+)
+
+
+def _route_pair_stats(x: jax.Array, route_axis: int, reduce_axes: tuple[int, ...]):
+  """Return mean cosine, relative difference, and route RMS for two routes."""
+  x = jnp.asarray(x, jnp.float32)
+  a = jnp.take(x, 0, axis=route_axis)
+  b = jnp.take(x, 1, axis=route_axis)
+  adjusted_axes = tuple(axis - int(route_axis < axis) for axis in reduce_axes)
+  a2 = jnp.mean(jnp.square(a), axis=adjusted_axes)
+  b2 = jnp.mean(jnp.square(b), axis=adjusted_axes)
+  diff2 = jnp.mean(jnp.square(a - b), axis=adjusted_axes)
+  dot = jnp.mean(a * b, axis=adjusted_axes)
+  a_rms = jnp.sqrt(a2)
+  b_rms = jnp.sqrt(b2)
+  cosine = dot / jnp.maximum(a_rms * b_rms, 1e-30)
+  relative_difference = jnp.sqrt(diff2) / jnp.maximum((a_rms + b_rms) / 2, 1e-30)
+  return jnp.stack((
+      jnp.mean(cosine),
+      jnp.mean(relative_difference),
+      jnp.mean(a_rms),
+      jnp.mean(b_rms),
+  ))
+
+
+def _install_activation_capture(records: list[np.ndarray]) -> None:
+  """Capture compact route statistics without changing production BAM code."""
+  original = attentions._bam_fetch_op
+
+  def wrapped(
+      alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
+      diagonal_value=None, mix_implementation="dot"):
+    mbar = original(
+        alpha, fetch_state, mix_weights, diagonal_mask,
+        diagonal_one=diagonal_one, diagonal_value=diagonal_value,
+        mix_implementation=mix_implementation)
+    if mix_weights.ndim != 4:
+      return mbar
+
+    if mix_implementation == "dot":
+      fetch_alpha = jnp.einsum("bnqs,bqfn->bfqs", alpha, mix_weights)
+    elif mix_implementation == "mul_reduce":
+      fetch_alpha = jnp.sum(
+          jnp.transpose(alpha, (0, 2, 1, 3))[:, :, None]
+          * mix_weights[..., None], axis=-2)
+      fetch_alpha = jnp.transpose(fetch_alpha, (0, 2, 1, 3))
+    else:
+      raise ValueError(f"Unknown BAM fetch-mix implementation: {mix_implementation}")
+    if diagonal_one:
+      value = (
+          jnp.asarray(1, fetch_alpha.dtype)
+          if diagonal_value is None
+          else jnp.asarray(diagonal_value, fetch_alpha.dtype))
+      value = value if value.ndim == 0 else value[:, None, :, None]
+      fetch_alpha = jnp.where(diagonal_mask[None, None], value, fetch_alpha)
+
+    mix_stats = _route_pair_stats(mix_weights, 2, (3,))
+    alpha_stats = _route_pair_stats(fetch_alpha, 1, (3,))
+    mbar_stats = _route_pair_stats(mbar, 1, (3, 4))
+    payload = jnp.stack((
+        mix_stats[0], mix_stats[1],
+        alpha_stats[0], alpha_stats[1],
+        mbar_stats[0], mbar_stats[1], mbar_stats[2], mbar_stats[3],
+    ))
+    jax.debug.callback(
+        lambda value: records.append(np.asarray(value, np.float64)),
+        payload, ordered=True)
+    return mbar
+
+  attentions._bam_fetch_op = wrapped
+
+
+def _activation_route_report(records: list[np.ndarray], config, num_batches: int):
+  values = np.asarray(records, np.float64)
+  if values.size == 0:
+    return {"records": 0}
+  report = {
+      "records": len(values),
+      "aggregate": {
+          name: float(values[:, index].mean())
+          for index, name in enumerate(_ACTIVATION_STAT_NAMES)
+      },
+  }
+  chunk_size = int(config.query_chunk_size or config.max_target_length)
+  chunks = int(config.max_target_length) // chunk_size
+  layers = int(config.base_num_decoder_layers)
+  expected = num_batches * layers * chunks
+  report.update({"expected_records": expected, "chunks_per_layer": chunks})
+  if len(values) == expected:
+    by_layer = values.reshape(num_batches, layers, chunks, -1).mean(axis=(0, 2))
+    report["per_layer"] = [
+        {name: float(layer[index]) for index, name in enumerate(_ACTIVATION_STAT_NAMES)}
+        for layer in by_layer
+    ]
+  return report
+
+
 def run(config) -> None:
   started = time.perf_counter()
   if not config.bam_enabled or int(config.bam_fetch_rank) <= 1:
@@ -146,6 +253,10 @@ def run(config) -> None:
       "BAM_FETCH_RANK_OUTPUT", "/tmp/bam_fetch_rank_diagnostics.json"))
   output_path.parent.mkdir(parents=True, exist_ok=True)
   num_batches = int(os.environ.get("BAM_FETCH_RANK_BATCHES", "1"))
+  capture_activations = os.environ.get("BAM_FETCH_RANK_CAPTURE_ACTIVATIONS", "0") == "1"
+  activation_records = []
+  if capture_activations:
+    _install_activation_capture(activation_records)
 
   init_rng, writer, checkpoint_manager, mesh, model, _, tx = train.setup_mesh_and_model(config)
   data_iterator, eval_data_iterator = create_data_iterator(config, mesh)
@@ -161,6 +272,8 @@ def run(config) -> None:
       "tied_first": _tie_routes(state.params, "first", int(config.bam_fetch_rank)),
       "tied_second": _tie_routes(state.params, "second", int(config.bam_fetch_rank)),
   }
+  if capture_activations:
+    variants = {"original": state.params}
   compiled_forward = jax.jit(
       lambda params, batch, rng: _forward(model, params, batch, rng))
   collected = {name: {"loss": [], "sequence_loss": [], "sequence_weights": []}
@@ -221,6 +334,9 @@ def run(config) -> None:
           state.params, int(config.bam_fetch_rank), int(config.base_num_decoder_layers)),
       "results": results,
   }
+  if capture_activations:
+    report["activation_route_stats"] = _activation_route_report(
+        activation_records, config, num_batches)
   output_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
   print(f"BAM_FETCH_RANK_DONE report={output_path}", flush=True)
   if writer is not None:

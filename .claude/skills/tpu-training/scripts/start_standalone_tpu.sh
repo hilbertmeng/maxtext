@@ -15,7 +15,12 @@ creator=$root/create_standalone_tpu.sh
 log_dir=$root/logs
 log=$log_dir/$tpu-create.log
 
+if [[ "$install_script" != /* ]]; then
+  install_script=$root/$install_script
+fi
+
 [[ -x "$creator" ]] || { echo "ERROR: missing creator: $creator" >&2; exit 1; }
+[[ -f "$install_script" ]] || { echo "ERROR: missing installer: $install_script" >&2; exit 1; }
 mkdir -p "$log_dir"
 nohup "$creator" "$tpu" "$accelerator" "$zone" "$install_script" \
   >"$log" 2>&1 < /dev/null &

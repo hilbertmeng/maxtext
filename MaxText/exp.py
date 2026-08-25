@@ -1827,6 +1827,7 @@ class BamV2GScanLayerSixLayerProfile(
 ):
     """G C256 BAM S/U: scanned layers, optimized-unrolled query chunks."""
     # code_commit: cc61013; v6e-1 XPlane 513.77 ms; compile 62.44 s; ~1.924 steps/s.
+    # Recheck @e2c645d: UC1a v6e-1 XPlane 507.56 ms.
     model_name = 'BamV2GScanLayerSixLayerProfile'
 
 
@@ -1861,24 +1862,28 @@ class BamFetchRank2MulMulProfileMixin:
 class BamV2FetchRank2DotDotSixLayerProfile(
     BamFetchRank2DotDotProfileMixin, BamV2GScanLayerSixLayerProfile
 ):
+    # code_commit: e2c645d; UC1a v6e-1 XPlane 651.13 ms (+28.28% wall vs rank 1).
     model_name = 'BamV2FetchRank2DotDotSixLayerProfile'
 
 
 class BamV2FetchRank2DotMulSixLayerProfile(
     BamFetchRank2DotMulProfileMixin, BamV2GScanLayerSixLayerProfile
 ):
+    # code_commit: e2c645d; UC1a v6e-1 XPlane 595.12 ms (+17.25% wall vs rank 1).
     model_name = 'BamV2FetchRank2DotMulSixLayerProfile'
 
 
 class BamV2FetchRank2MulDotSixLayerProfile(
     BamFetchRank2MulDotProfileMixin, BamV2GScanLayerSixLayerProfile
 ):
+    # code_commit: e2c645d; EW4a v6e-1 XPlane 709.66 ms (+38.53% wall vs 512.28-ms control).
     model_name = 'BamV2FetchRank2MulDotSixLayerProfile'
 
 
 class BamV2FetchRank2MulMulSixLayerProfile(
     BamFetchRank2MulMulProfileMixin, BamV2GScanLayerSixLayerProfile
 ):
+    # code_commit: e2c645d; EW4a v6e-1 XPlane 654.44 ms (+27.75% wall vs 512.28-ms control).
     model_name = 'BamV2FetchRank2MulMulSixLayerProfile'
 
 
@@ -2158,6 +2163,7 @@ class BamV2GScanLayerFullLayerProfile(  # V2 C256 layer_scan
     # Recheck @2646f97: EW4b XPlane 1,485.78 ms; ~0.664 steps/s.
     # Recheck @c5482e1 after refactor: EW4b ~0.663 steps/s.
     # Mix-layout control @eed9791: EW4b XPlane 1,483.50 ms; mix 84.35 ms.
+    # Recheck @e2c645d: UC1a v5p-16 XPlane 1,478.47 ms; ~0.665 steps/s.
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
@@ -2167,6 +2173,7 @@ class BamV2GScanLayerFetchRank2FullLayerProfile(
     BamFetchRank2DotMulProfileMixin, BamV2GScanLayerFullLayerProfile
 ):
     """Medium full-24 v5p-16 fetch-rank-2 target profile."""
+    # code_commit: e2c645d; UC1a v5p-16 XPlane 1,718.47 ms (+16.23% wall); ~0.574 steps/s.
     model_name = 'BamV2GScanLayerFetchRank2FullLayerProfile'
 
 
@@ -2527,6 +2534,7 @@ class BamXL16V2FetchRank2DotDotEightLayerProfile(
     BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2DotDotProfileMixin,
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
+    # code_commit: e2c645d; v6e-1 XPlane 657.31 ms (+15.61% wall vs rank 1).
     model_name = 'BamXL16V2FetchRank2DotDotEightLayerProfile'
 
 
@@ -2534,6 +2542,7 @@ class BamXL16V2FetchRank2DotMulEightLayerProfile(
     BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2DotMulProfileMixin,
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
+    # code_commit: e2c645d; v6e-1 XPlane 632.47 ms (+11.24% wall vs rank 1).
     model_name = 'BamXL16V2FetchRank2DotMulEightLayerProfile'
 
 
@@ -2541,6 +2550,7 @@ class BamXL16V2FetchRank2MulDotEightLayerProfile(
     BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2MulDotProfileMixin,
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
+    # code_commit: e2c645d; v6e-1 XPlane 699.83 ms (+23.09% wall vs rank 1).
     model_name = 'BamXL16V2FetchRank2MulDotEightLayerProfile'
 
 
@@ -2548,6 +2558,7 @@ class BamXL16V2FetchRank2MulMulEightLayerProfile(
     BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2MulMulProfileMixin,
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
+    # code_commit: e2c645d; v6e-1 XPlane 673.91 ms (+18.53% wall vs rank 1).
     model_name = 'BamXL16V2FetchRank2MulMulEightLayerProfile'
 
 
@@ -2555,6 +2566,7 @@ class BamXL32V2FetchRank2DotDotEightLayerProfile(
     BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2DotDotProfileMixin,
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
+    # code_commit: e2c645d; v6e-1 XPlane 951.01 ms (+23.58% wall vs rank 1).
     model_name = 'BamXL32V2FetchRank2DotDotEightLayerProfile'
 
 
@@ -2562,6 +2574,7 @@ class BamXL32V2FetchRank2DotMulEightLayerProfile(
     BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2DotMulProfileMixin,
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
+    # code_commit: e2c645d; v6e-1 XPlane 886.05 ms (+15.14% wall vs rank 1).
     model_name = 'BamXL32V2FetchRank2DotMulEightLayerProfile'
 
 
@@ -2569,6 +2582,7 @@ class BamXL32V2FetchRank2MulDotEightLayerProfile(
     BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2MulDotProfileMixin,
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
+    # code_commit: e2c645d; v6e-1 XPlane 1,009.81 ms (+31.23% wall vs rank 1).
     model_name = 'BamXL32V2FetchRank2MulDotEightLayerProfile'
 
 
@@ -2576,6 +2590,7 @@ class BamXL32V2FetchRank2MulMulEightLayerProfile(
     BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2MulMulProfileMixin,
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
+    # code_commit: e2c645d; v6e-1 XPlane 954.80 ms (+24.08% wall vs rank 1).
     model_name = 'BamXL32V2FetchRank2MulMulEightLayerProfile'
 
 
@@ -2584,6 +2599,7 @@ class BamXL16V2FetchRank2FullLayerProfile(
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
     """XL 16x128 full-24 v5p-32 fetch-rank-2 target profile."""
+    # code_commit: e2c645d; UC1a v5p-32 XPlane 1,849.96 ms (+5.21% wall); ~0.534 steps/s.
     model_name = 'BamXL16V2FetchRank2FullLayerProfile'
 
 
@@ -2592,6 +2608,7 @@ class BamXL32V2FetchRank2FullLayerProfile(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
     """XL 32x64 full-24 v5p-32 fetch-rank-2 target profile."""
+    # code_commit: e2c645d; UC1a v5p-32 XPlane 2,316.08 ms (+11.78% wall); ~0.428 steps/s.
     model_name = 'BamXL32V2FetchRank2FullLayerProfile'
 
 
@@ -2609,6 +2626,7 @@ class BamXL16V2LocalQKRankControlEightLayerProfile(
     BamLlama2XLHead16x128V2C256T2048Profile
 ):
     # 38bf1ce; us-east5-a v6e-1 XPlane 568.77 ms.
+    # Recheck @e2c645d: v6e-1 XPlane 568.55 ms.
     model_name = 'BamXL16V2LocalQKRankControlEightLayerProfile'
 
 
@@ -2649,6 +2667,7 @@ class BamXL32V2LocalQKRankControlEightLayerProfile(
     BamLlama2XLHead32x64V2C256T2048Profile
 ):
     # 38bf1ce; UC1a v6e-1 XPlane 777.30 ms.
+    # Recheck @e2c645d: v6e-1 XPlane 769.53 ms.
     model_name = 'BamXL32V2LocalQKRankControlEightLayerProfile'
 
 
@@ -2689,6 +2708,7 @@ class BamXL16V2LocalQKRankControlFullLayerProfile(
 ):
     """XL 16x128 full-24 v5p-32 control for rank-r LocalQK."""
     # 8235ccd; EW4b XPlane 1,748.65 ms; ~0.564 steps/s.
+    # Recheck @e2c645d: UC1a XPlane 1,758.38 ms; ~0.561 steps/s.
     model_name = 'BamXL16V2LocalQKRankControlFullLayerProfile'
 
 
@@ -2713,6 +2733,7 @@ class BamXL32V2LocalQKRankControlFullLayerProfile(
 ):
     """XL 32x64 full-24 v5p-32 control for rank-r LocalQK."""
     # 8235ccd; EW4b XPlane 2,074.42 ms.
+    # Recheck @e2c645d: UC1a XPlane 2,071.92 ms; ~0.477 steps/s.
     model_name = 'BamXL32V2LocalQKRankControlFullLayerProfile'
 
 

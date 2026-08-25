@@ -19,8 +19,17 @@ REMOTE_ROOT=/home/lishengping/xd/profile_outputs/fetch_rank
 GCS_ROOT=gs://newproject-1-llm_base_models_us-central1/log/diagnostics/fetch_rank
 COLLECTOR=/home/lishengping/xd/projects/collect_xplane.sh
 SMOKE=.claude/skills/tpu-diagnostics/scripts/run_train_smoke.sh
+COMPILED_SMOKE=~/run_train_smoke_compiled.sh
+AOT_ROOT=${AOT_ROOT:-}
+AOT_PROFILE_SKIP=${AOT_PROFILE_SKIP:-10}
+AOT_PROFILE_PERIOD=${AOT_PROFILE_PERIOD:-1000}
+AOT_PROFILE_DURATION=${AOT_PROFILE_DURATION:-5}
 PROFILE_STEPS=${PROFILE_STEPS:-20}
 DONE_STEP=${PROFILE_DONE_STEP:-15}
+MIN_XPLANES=${MIN_XPLANES:-}
+if [[ -z "$MIN_XPLANES" ]]; then
+  MIN_XPLANES=$([[ -n "$AOT_ROOT" ]] && echo 1 || echo 2)
+fi
 
 gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
   --project="$PROJECT" --worker=all --command="cd '$REPO' && \
@@ -38,14 +47,26 @@ for exp_class in "$@"; do
   collector_log="$LOG_ROOT/${run}-collector.log"
   gcs_run="$GCS_ROOT/${COMMIT:0:7}/$LABEL/$run"
 
+  if [[ -n "$AOT_ROOT" ]]; then
+    compiled="/tmp/${exp_class}.pickle"
+    gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
+      --project="$PROJECT" --worker=all --command="gsutil -q cp \
+      '$AOT_ROOT/$exp_class.pickle' '$compiled'" </dev/null
+    smoke_command="env PROFILE_SKIP='$AOT_PROFILE_SKIP' \
+      PROFILE_PERIOD='$AOT_PROFILE_PERIOD' PROFILE_DURATION='$AOT_PROFILE_DURATION' \
+      '$COMPILED_SMOKE' '$exp_class' '$run' '$compiled' '$PROFILE_STEPS'"
+  else
+    smoke_command="'$SMOKE' '$exp_class' '$run' '$PROFILE_STEPS'"
+  fi
+
   gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
     --project="$PROJECT" --worker=all --command="rm -rf '$remote_run'; \
     mkdir -p '$remote_run'; sudo rm -f /tmp/libtpu_lockfile; cd '$REPO'; \
-    nohup env SMOKE_OUTPUT='$remote_run' '$SMOKE' '$exp_class' '$run' \
-    '$PROFILE_STEPS' >'$train_log' 2>&1 </dev/null &" </dev/null
+    nohup env SMOKE_OUTPUT='$remote_run' $smoke_command \
+    >'$train_log' 2>&1 </dev/null &" </dev/null
 
   "$COLLECTOR" "$TPU" "$ZONE" "$remote_run/tensorboard" "$gcs_run" \
-    "$PROJECT" 2 auto </dev/null >"$collector_log" 2>&1 &
+    "$PROJECT" "$MIN_XPLANES" auto </dev/null >"$collector_log" 2>&1 &
   collector_pid=$!
   echo "$run launch_utc=$(date -u +%FT%TZ)"
 

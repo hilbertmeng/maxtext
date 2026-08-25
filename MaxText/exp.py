@@ -288,6 +288,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_fetch_mix_num_heads = None  # None uses all MHA heads; otherwise use the first N
+    bam_fetch_rank = 1  # number of dynamically mixed temporal routes shared across head groups
+    bam_fetch_mix_implementation = 'dot'  # dot | mul_reduce
+    bam_fetch_rank_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
     bam_fetch_temporal_block_mode = 'none'  # none | mean | linear
@@ -1827,6 +1830,58 @@ class BamV2GScanLayerSixLayerProfile(
     model_name = 'BamV2GScanLayerSixLayerProfile'
 
 
+class BamFetchRank2DotDotProfileMixin:
+    """Fetch-rank-2 with dot route mixing and dot grouped Read-M."""
+    bam_fetch_rank = 2
+    bam_fetch_mix_implementation = 'dot'
+    bam_fetch_rank_read_implementation = 'dot_btn'
+
+
+class BamFetchRank2DotMulProfileMixin:
+    """Fetch-rank-2 with dot route mixing and multiply-reduce grouped Read-M."""
+    bam_fetch_rank = 2
+    bam_fetch_mix_implementation = 'dot'
+    bam_fetch_rank_read_implementation = 'mul_reduce_btn'
+
+
+class BamFetchRank2MulDotProfileMixin:
+    """Fetch-rank-2 with multiply-reduce route mixing and dot grouped Read-M."""
+    bam_fetch_rank = 2
+    bam_fetch_mix_implementation = 'mul_reduce'
+    bam_fetch_rank_read_implementation = 'dot_btn'
+
+
+class BamFetchRank2MulMulProfileMixin:
+    """Fetch-rank-2 with multiply-reduce route mixing and grouped Read-M."""
+    bam_fetch_rank = 2
+    bam_fetch_mix_implementation = 'mul_reduce'
+    bam_fetch_rank_read_implementation = 'mul_reduce_btn'
+
+
+class BamV2FetchRank2DotDotSixLayerProfile(
+    BamFetchRank2DotDotProfileMixin, BamV2GScanLayerSixLayerProfile
+):
+    model_name = 'BamV2FetchRank2DotDotSixLayerProfile'
+
+
+class BamV2FetchRank2DotMulSixLayerProfile(
+    BamFetchRank2DotMulProfileMixin, BamV2GScanLayerSixLayerProfile
+):
+    model_name = 'BamV2FetchRank2DotMulSixLayerProfile'
+
+
+class BamV2FetchRank2MulDotSixLayerProfile(
+    BamFetchRank2MulDotProfileMixin, BamV2GScanLayerSixLayerProfile
+):
+    model_name = 'BamV2FetchRank2MulDotSixLayerProfile'
+
+
+class BamV2FetchRank2MulMulSixLayerProfile(
+    BamFetchRank2MulMulProfileMixin, BamV2GScanLayerSixLayerProfile
+):
+    model_name = 'BamV2FetchRank2MulMulSixLayerProfile'
+
+
 class BamV2GScanQuerySixLayerProfile(
     BamScanQueryMixin, BamV2QChunk256OptimizedSixLayerProfile
 ):
@@ -2106,6 +2161,13 @@ class BamV2GScanLayerFullLayerProfile(  # V2 C256 layer_scan
     model_name = 'BamV2GScanLayerFullLayerProfile'
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+full'] * 24
+
+
+class BamV2GScanLayerFetchRank2FullLayerProfile(
+    BamFetchRank2DotMulProfileMixin, BamV2GScanLayerFullLayerProfile
+):
+    """Medium full-24 v5p-16 fetch-rank-2 target profile."""
+    model_name = 'BamV2GScanLayerFetchRank2FullLayerProfile'
 
 
 class BamV2GScanLayerLocalQKRankControlFullLayerProfile(
@@ -2453,6 +2515,84 @@ class BamLlama2XLHead32x64V2C256T2048Profile(
     # The two per-head 64->32 LocalQ/K adapters are intentionally replicated on
     # this fsdp-only mesh; together they raise the sharding audit to ~3.99%.
     sharding_tolerance = 0.05
+
+
+class BamXLV2FetchRankEightLayerProfileMixin:
+    """Eight-layer v6e screening shape retaining the XL training batch."""
+    base_num_decoder_layers = 8
+    bam_layer_modes = ['local_qk+full'] * 8
+
+
+class BamXL16V2FetchRank2DotDotEightLayerProfile(
+    BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2DotDotProfileMixin,
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    model_name = 'BamXL16V2FetchRank2DotDotEightLayerProfile'
+
+
+class BamXL16V2FetchRank2DotMulEightLayerProfile(
+    BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2DotMulProfileMixin,
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    model_name = 'BamXL16V2FetchRank2DotMulEightLayerProfile'
+
+
+class BamXL16V2FetchRank2MulDotEightLayerProfile(
+    BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2MulDotProfileMixin,
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    model_name = 'BamXL16V2FetchRank2MulDotEightLayerProfile'
+
+
+class BamXL16V2FetchRank2MulMulEightLayerProfile(
+    BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2MulMulProfileMixin,
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    model_name = 'BamXL16V2FetchRank2MulMulEightLayerProfile'
+
+
+class BamXL32V2FetchRank2DotDotEightLayerProfile(
+    BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2DotDotProfileMixin,
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    model_name = 'BamXL32V2FetchRank2DotDotEightLayerProfile'
+
+
+class BamXL32V2FetchRank2DotMulEightLayerProfile(
+    BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2DotMulProfileMixin,
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    model_name = 'BamXL32V2FetchRank2DotMulEightLayerProfile'
+
+
+class BamXL32V2FetchRank2MulDotEightLayerProfile(
+    BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2MulDotProfileMixin,
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    model_name = 'BamXL32V2FetchRank2MulDotEightLayerProfile'
+
+
+class BamXL32V2FetchRank2MulMulEightLayerProfile(
+    BamXLV2FetchRankEightLayerProfileMixin, BamFetchRank2MulMulProfileMixin,
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    model_name = 'BamXL32V2FetchRank2MulMulEightLayerProfile'
+
+
+class BamXL16V2FetchRank2FullLayerProfile(
+    BamFetchRank2DotMulProfileMixin,
+    BamLlama2XLHead16x128V2C256T2048Profile
+):
+    """XL 16x128 full-24 v5p-32 fetch-rank-2 target profile."""
+    model_name = 'BamXL16V2FetchRank2FullLayerProfile'
+
+
+class BamXL32V2FetchRank2FullLayerProfile(
+    BamFetchRank2DotMulProfileMixin,
+    BamLlama2XLHead32x64V2C256T2048Profile
+):
+    """XL 32x64 full-24 v5p-32 fetch-rank-2 target profile."""
+    model_name = 'BamXL32V2FetchRank2FullLayerProfile'
 
 
 class BamXLV2LocalQKRankEightLayerProfileMixin:

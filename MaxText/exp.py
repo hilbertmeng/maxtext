@@ -1865,6 +1865,7 @@ class BamLlama2MediumV2C256FetchRank2(
 ):
     """Train Medium V2 C256 with two dynamically mixed fetched-M routes."""
     # 9bffc92; ~0.570 steps/s (-15.6% vs V2 C256 non-scan ~0.675).
+    # Completed 13,500; dloss -0.00344 vs V2 @13,400 (late ~-0.0037, stable).
     model_name = 'BamLlama2MediumV2C256FetchRank2'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

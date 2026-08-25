@@ -279,6 +279,45 @@ class BamReadKeyTransformTest(absltest.TestCase):
         jax.random.PRNGKey(197), (7, 2, 4), jnp.float32)
     np.testing.assert_array_equal(kernel[:, 0], kernel[:, 1])
 
+  def test_paired_fetch_rank_two_reproduces_rank_one_value_and_gradient(self):
+    b, t, n, f, k, v, e = 2, 5, 4, 2, 3, 2, 7
+    keys = jax.random.split(jax.random.PRNGKey(211), 7)
+    args = (
+        jax.nn.softmax(jax.random.normal(keys[0], (b, n, t, t)), axis=-1),
+        jax.random.normal(keys[1], (b, t, k, v)),
+        jax.random.normal(keys[2], (b, t, n)),
+        jax.random.normal(keys[3], (b, t, e)),
+        jax.random.normal(keys[4], (e, n, k + v)),
+    )
+    upstream = jax.random.normal(keys[5], (b, t, n, k + v))
+    diagonal_mask = jnp.eye(t, dtype=bool)
+
+    def projection(x, kernel):
+      return jnp.einsum('bte,end->btnd', x, kernel)
+
+    def apply(fetch_rank, values):
+      alpha, state, mix, x, kernel = values
+      if fetch_rank == 1:
+        mix_weights = mix
+      else:
+        mix_weights = jnp.broadcast_to(
+            mix[:, :, None], mix.shape[:2] + (fetch_rank, mix.shape[-1]))
+      fetched = _bam_fetch_op(
+          alpha, state, mix_weights, diagonal_mask, diagonal_one=True)
+      return bam_read(
+          fetched, x, lambda z: projection(z, kernel), None,
+          rms_epsilon=_RMS_EPSILON, implementation='mul_reduce_btn',
+          grouped_fetch_rank=(None if fetch_rank == 1 else fetch_rank))
+
+    rank_one_value, rank_one_grad = jax.value_and_grad(
+        lambda values: jnp.sum(apply(1, values) * upstream))(args)
+    rank_two_value, rank_two_grad = jax.value_and_grad(
+        lambda values: jnp.sum(apply(2, values) * upstream))(args)
+    np.testing.assert_allclose(rank_two_value, rank_one_value, rtol=1e-6, atol=1e-6)
+    for rank_two_item, rank_one_item in zip(rank_two_grad, rank_one_grad):
+      np.testing.assert_allclose(
+          rank_two_item, rank_one_item, rtol=2e-5, atol=5e-6)
+
   def test_bam_read_head_mapping_pads_or_adapts_only_v_side(self):
     direct = jnp.arange(96, dtype=jnp.float32).reshape(1, 1, 1, 96)
     padded = _fit_bam_read_to_head(direct, bam_k=64, head_dim=128)

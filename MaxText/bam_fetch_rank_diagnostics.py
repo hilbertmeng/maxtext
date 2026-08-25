@@ -264,6 +264,9 @@ def run(config) -> None:
     raise ValueError("Pile eval iterator is disabled")
   state, _, _, _ = max_utils.setup_training_state(
       model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager)
+  if capture_activations:
+    # Model initialization executes one synthetic forward; retain eval data only.
+    activation_records.clear()
   setup_seconds = time.perf_counter() - started
 
   variants = {

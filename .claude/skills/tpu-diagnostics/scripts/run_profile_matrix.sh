@@ -49,6 +49,7 @@ if [[ ${PROFILE_RUNNER_SEALED:-0} != 1 ]]; then
   exec env PROFILE_RUNNER_SEALED=1 PROFILE_MATRIX_ID="$matrix_id" \
     "$sealed" "$tpu" "$zone" "$commit" "$label" "$@"
 fi
+trap 'rm -f -- "$0"' EXIT
 
 "$preflight"
 export CLOUDSDK_ACTIVE_CONFIG_NAME="$configuration"

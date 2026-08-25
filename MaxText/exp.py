@@ -1878,6 +1878,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2(
 ):
     """Cross-scale control: add FetchRank2 to Medium Paired40 LocalQKRank2."""
     # code_commit: edaa144; EW4b ~0.564 steps/s (-12.6% vs Paired40 Rank2).
+    # Stopped at 7,049; dloss oscillated around 0 after 4,600 (-0.00112 @7,000): no capability gain.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

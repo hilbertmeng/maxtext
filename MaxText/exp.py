@@ -291,6 +291,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetch_rank = 1  # number of dynamically mixed temporal routes shared across head groups
     bam_fetch_mix_implementation = 'dot'  # dot | mul_reduce
     bam_fetch_rank_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
+    bam_fetch_stop_gradient_alpha = False  # detach attention alpha only on the BAM fetch branch
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
     bam_fetch_temporal_block_mode = 'none'  # none | mean | linear
@@ -1880,6 +1881,17 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2-fetch-rank2')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2StopGradAlpha(
+    BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2
+):
+    """Detach attention alpha before FetchRank2 mixing; keep MHA gradients intact."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2FetchRank2StopGradAlpha'
+    bam_fetch_stop_gradient_alpha = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2-stopgrad-alpha')
 
 
 class BamV2FetchRank2DotDotSixLayerProfile(

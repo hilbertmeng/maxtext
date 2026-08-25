@@ -2538,6 +2538,7 @@ class BamAttention(Attention):
     self._fetch_rank = int(cfg.bam_fetch_rank)
     self._fetch_mix_implementation = cfg.bam_fetch_mix_implementation
     self._fetch_rank_read_implementation = cfg.bam_fetch_rank_read_implementation
+    self._fetch_stop_gradient_alpha = bool(cfg.bam_fetch_stop_gradient_alpha)
     assert self._fetch_rank > 0
     assert self.num_query_heads % self._fetch_rank == 0
     assert self._fetch_mix_implementation in ('dot', 'mul_reduce')
@@ -3563,8 +3564,11 @@ class BamAttention(Attention):
     Mbar = None
     if fetch_state is not None:
       assert mix_weights is not None
+      fetch_alpha = (
+          jax.lax.stop_gradient(alpha)
+          if self._fetch_stop_gradient_alpha else alpha)
       Mbar = _bam_fetch_op(
-          alpha, fetch_state, mix_weights, source == target,
+          fetch_alpha, fetch_state, mix_weights, source == target,
           diagonal_one=self._fetch_diagonal_one,
           diagonal_value=fetch_self_gate,
           mix_implementation=self._fetch_mix_implementation)

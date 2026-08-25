@@ -265,8 +265,6 @@ def run(config) -> None:
   num_batches = int(os.environ.get("BAM_FETCH_RANK_BATCHES", "1"))
   capture_activations = os.environ.get("BAM_FETCH_RANK_CAPTURE_ACTIVATIONS", "0") == "1"
   activation_records = []
-  if capture_activations:
-    _install_activation_capture(activation_records)
 
   init_rng, writer, checkpoint_manager, mesh, model, _, tx = train.setup_mesh_and_model(config)
   data_iterator, eval_data_iterator = create_data_iterator(config, mesh)
@@ -275,8 +273,8 @@ def run(config) -> None:
   state, _, _, _ = max_utils.setup_training_state(
       model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager)
   if capture_activations:
-    # Model initialization executes one synthetic forward; retain eval data only.
-    activation_records.clear()
+    # Install after model initialization so only real eval batches are captured.
+    _install_activation_capture(activation_records)
   setup_seconds = time.perf_counter() - started
 
   variants = {

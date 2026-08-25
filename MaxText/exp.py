@@ -2452,7 +2452,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Train XL16 LocalQK-rank-2 with two dynamically mixed fetched-M routes."""
-    # 9bffc92; EW4b ~0.517 steps/s (-6.0% vs XL16 LocalQKRank2 ~0.550).
+    # 9bffc92; EW4b ~0.517 steps/s (-6.0% vs XL16 LocalQKRank2 ~0.550);
+    # paused at 7,140 to isolate FetchRank2 on clean XL16 V2. dloss vs Rank2
+    # shrank +.00818@500 -> ~+.0023 over 3k-7k, then stayed mildly harmful.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -2464,6 +2466,7 @@ class BamLlama2XLHead16x128V2C256FetchRank2(
     BamLlama2XLHead16x128V2C256
 ):
     """Clean XL16 V2 scaling test of two dynamically mixed fetched-M routes."""
+    # code_commit: 1034a24; EW4b ~0.533 steps/s.
     model_name = 'BamLlama2XLHead16x128V2C256FetchRank2'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

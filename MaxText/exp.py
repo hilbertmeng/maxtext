@@ -1859,6 +1859,17 @@ class BamFetchRank2MulMulProfileMixin:
     bam_fetch_rank_read_implementation = 'mul_reduce_btn'
 
 
+class BamLlama2MediumV2C256FetchRank2(
+    BamFetchRank2DotMulProfileMixin, BamV2C256FetchScheduleBase
+):
+    """Train Medium V2 C256 with two dynamically mixed fetched-M routes."""
+    # Full-24 profile predicts ~0.581 steps/s (-14.0% vs V2 C256 non-scan).
+    model_name = 'BamLlama2MediumV2C256FetchRank2'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-rank2')
+
+
 class BamV2FetchRank2DotDotSixLayerProfile(
     BamFetchRank2DotDotProfileMixin, BamV2GScanLayerSixLayerProfile
 ):
@@ -2434,6 +2445,18 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2(
+    BamFetchRank2DotMulProfileMixin,
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Train XL16 LocalQK-rank-2 with two dynamically mixed fetched-M routes."""
+    # Full-24 profile predicts ~0.523 steps/s (-5.0% vs XL16 LocalQKRank2).
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-local-qk-rank2-fetch-rank2')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2EmbeddingWriteR256Gelu(

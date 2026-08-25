@@ -276,20 +276,20 @@ empty before relaunch. Stop a standalone creator before deleting its TPU and que
 
 ## Create Standalone v6e-1
 
-For an unregistered diagnostic TPU, call tpu-ag's creator directly:
+For an unregistered diagnostic TPU, use the bounded standalone creator. It repairs/validates xd's
+named gcloud configuration, checks tpu-ag disk/log health, submits once, polls the accepted queue,
+records its exact PID, and exits after installation:
 
 ```bash
 NAME=xd-v6e-1-bamdiag ZONE=us-east5-a
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "cd /home/lishengping/xd/projects && mkdir -p logs && \
-   nohup python3 /home/lishengping/xd/projects/create_tpu.py \
-   --project newproject-1-451205 --tpu_name '$NAME' --type v6e-1 --zone '$ZONE' -p \
-   -inf install_xd_maxtext_jax081.sh \
+   nohup ./create_standalone_tpu.sh '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh \
    > 'logs/${NAME}-create.log' 2>&1 < /dev/null &"
 ```
 
-`-p` creates a best-effort spot queued resource; the creator waits for `READY`, then installs
-the environment. Inspect `logs/${NAME}-create.log` on tpu-ag.
+Inspect `logs/${NAME}-create.log` on tpu-ag. Release it only through `delete_tpu_xd.sh`, which
+stops the recorded creator before deleting and verifying both resources.
 
 ## Recover Preemption
 

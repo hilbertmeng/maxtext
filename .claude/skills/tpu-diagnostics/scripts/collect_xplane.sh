@@ -30,6 +30,7 @@ list_remote_profiles() {
     2>/dev/null || true
 }
 
+last_synced=
 while true; do
   state=$(gcloud compute tpus tpu-vm describe "$tpu" --zone="$zone" \
     --project="$project" --format='value(state)' 2>/dev/null || true)
@@ -44,7 +45,7 @@ while true; do
     candidate_profiles=$(list_remote_profiles "$candidate")
     remote_count=$(grep -c '\.xplane\.pb$' <<<"$candidate_profiles" || true)
     remote_trace_count=$(grep -c '\.trace\.json\.gz$' <<<"$candidate_profiles" || true)
-    if (( remote_count >= min_xplanes && remote_trace_count >= min_xplanes )); then
+    if (( remote_count >= 1 && remote_trace_count >= 1 )); then
       selected_worker=$candidate
       remote_xplanes=$candidate_profiles
       break
@@ -58,16 +59,23 @@ while true; do
       --worker="$selected_worker" --command='hostname' 2>/dev/null | tail -n 1)
     [[ -n "$remote_host" ]] || continue
     worker_prefix="$gcs_prefix/$remote_host"
-    gcloud compute tpus tpu-vm ssh "$tpu" --zone="$zone" --project="$project" \
-      --worker="$selected_worker" \
-      --command="gsutil -m rsync -r '$remote_dir' '$worker_prefix'" >/dev/null
+    sync_signature="$selected_worker:$stable_xplanes"
+    if [[ "$sync_signature" != "$last_synced" ]]; then
+      gcloud compute tpus tpu-vm ssh "$tpu" --zone="$zone" --project="$project" \
+        --worker="$selected_worker" \
+        --command="gsutil -m rsync -r -x '.*(xplane[.]pb|events[.]out[.]tfevents).*' \
+        '$remote_dir' '$worker_prefix' && \
+        gsutil -m rsync -r '$remote_dir' '$worker_prefix'" >/dev/null
+      last_synced=$sync_signature
+    fi
     uploaded=$(gsutil ls -l "$worker_prefix/**" 2>/dev/null || true)
     uploaded_xplanes=$(grep -c '\.xplane\.pb$' <<<"$uploaded" || true)
     uploaded_traces=$(grep -c '\.trace\.json\.gz$' <<<"$uploaded" || true)
-    (( uploaded_xplanes >= min_xplanes && uploaded_traces >= min_xplanes )) || continue
-    echo "selected_worker=$selected_worker"
-    grep -E '\.(xplane\.pb|trace\.json\.gz)$' <<<"$uploaded"
-    exit 0
+    if (( uploaded_xplanes >= min_xplanes && uploaded_traces >= min_xplanes )); then
+      echo "selected_worker=$selected_worker"
+      grep -E '\.(xplane\.pb|trace\.json\.gz)$' <<<"$uploaded"
+      exit 0
+    fi
   fi
   sleep 2
 done

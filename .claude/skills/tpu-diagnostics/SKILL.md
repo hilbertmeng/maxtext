@@ -66,25 +66,34 @@ comparisons, then verify the winning combination with full layers.
 
 - Launch direct TPU smoke/profile runs with `scripts/run_train_smoke.sh EXP RUN [STEPS]` from the
   checked-out commit; do not reconstruct its dataset/output/checkpoint CLI by hand.
+- Run paired matrices through `scripts/run_profile_matrix.sh TPU ZONE COMMIT LABEL EXP...`; it
+  executes an immutable runner snapshot, performs tpu-ag/gcloud preflight, stages all AOT objects,
+  derives the collector's trace count from the schedule, and closes each exact train process.
 - Keep profile TPU lifecycle separate from `auto-train`: create/install it standalone, launch
   paired arms directly, collect the complete profile set, then delete it. Keep `auto-train`
   detached from profile TPUs. For a large matrix, distribute arms across cheap spot `v6e-1`s;
   one shared control per TPU type is normally sufficient. Re-pair on one VM only for marginal or
   anomalous results. Keep every arm used for a cross-configuration conclusion on one TPU type
   (normally `v6e-1`); use the target training TPU only as a final confirmation.
+- Keep every full-layer arm in a paired throughput matrix in one zone as well as one TPU type;
+  if the zone changes, rerun the whole matrix rather than filling missing rows across zones.
+- Precompile every sealed full-layer target configuration for its exact topology on a cheap TPU/CPU with
+  `scripts/compile_aot_matrix.sh GCS_ROOT TARGET_TOPOLOGY STEPS EXP...`. Stage the sealed commit,
+  environment and executables during installation, then load them with
+  `scripts/run_train_smoke_compiled.sh`; require `Loaded compiled function!` and an actual first
+  step. Model/batch shapes, total steps/learning-rate schedule, JAX/libtpu and compiler flags must
+  match the target run.
 - If a spot `v5p-16` remains `WAITING_FOR_RESOURCES` in `us-central1-a` for 5 minutes, also queue
   one in `europe-west4-b`. If EW4b wins, retain the UC1a queue and first verify the identical Pile
   config at the same commit and steps on both regions; if stable step/s differs, use UC1a timing.
   Otherwise keep either validated TPU and immediately stop/delete the other exact resource.
+- For short `v5p` profiles, UC1a/EW4b/UE5a may be queued concurrently when acquisition latency
+  matters; run only the winner and delete the exact losers after its required trace/step succeeds.
 - Write XPlane on the TPU worker and upload it directly to a unique GCS prefix as soon as
-  `*.xplane.pb` appears; never route profile bytes through `tpu-ag`. For a critical
-  spot arm, race two zones and never use `us-east5-a` as its sole copy. Also record an insurance
-  trace at steps 2–6 and the primary trace at 10–14 with
-  `skip_first_n_steps_for_profiler=2 profile_periodically_period=8 profiler_steps=5`; analyze
-  `step_10`, using `step_2` only if preempted first. Before launch, run
-  `/home/lishengping/xd/projects/collect_xplane.sh TPU ZONE REMOTE_PROFILE_DIR GCS_PREFIX PROJECT 2`
-  on `tpu-ag`.
-  The collector auto-detects which pod worker owns the trace. After GCS verification, pull the
+  `*.xplane.pb` appears; never route profile bytes through `tpu-ag`. For a critical spot arm, race
+  two zones and never use `us-east5-a` as its sole copy. The matrix runner and collector derive
+  the required object count from the configured trace schedule and auto-detect the owning worker.
+  After GCS verification, pull the
   artifacts directly to `/data0/xd/bam_diagnostics/` on the local workstation.
 - Use the watcher as a `FIRST_STEP` hint, but declare failure only when the exact train process
   exits or its main thread fails; a background uploader traceback is not sufficient. Control

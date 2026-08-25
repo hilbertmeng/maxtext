@@ -2474,6 +2474,20 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Learned per-head write RMS scales with no P_loc or post-norm address bias."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias')
+    bam_write_v_mode = 'x'
+    bam_write_factor_norm = 'grouped_rms'
+    bam_write_address_norm_bias = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-grouped-write-rms-no-bias')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2(
     BamFetchRank2DotMulProfileMixin,
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2

@@ -69,6 +69,9 @@ comparisons, then verify the winning combination with full layers.
 - Run paired matrices through `scripts/run_profile_matrix.sh TPU ZONE COMMIT LABEL EXP...`; it
   executes an immutable runner snapshot, performs tpu-ag/gcloud preflight, stages all AOT objects,
   derives the collector's trace count from the schedule, and closes each exact train process.
+  Release raced backup resources with `scripts/release_profile_backups.sh MANIFEST TPU ZONE...`;
+  it requires a verified target trace. Pull only primary traces with
+  `scripts/pull_primary_xplanes.sh GCS_PREFIX LOCAL_DIR`.
 - Keep profile TPU lifecycle separate from `auto-train`: create/install it standalone, launch
   paired arms directly, collect the complete profile set, then delete it. Keep `auto-train`
   detached from profile TPUs. For a large matrix, distribute arms across cheap spot `v6e-1`s;

@@ -1863,7 +1863,7 @@ class BamLlama2MediumV2C256FetchRank2(
     BamFetchRank2DotMulProfileMixin, BamV2C256FetchScheduleBase
 ):
     """Train Medium V2 C256 with two dynamically mixed fetched-M routes."""
-    # Full-24 profile predicts ~0.581 steps/s (-14.0% vs V2 C256 non-scan).
+    # 9bffc92; ~0.570 steps/s (-15.6% vs V2 C256 non-scan ~0.675).
     model_name = 'BamLlama2MediumV2C256FetchRank2'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -2452,7 +2452,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Train XL16 LocalQK-rank-2 with two dynamically mixed fetched-M routes."""
-    # Full-24 profile predicts ~0.523 steps/s (-5.0% vs XL16 LocalQKRank2).
+    # 9bffc92; EW4b ~0.517 steps/s (-6.0% vs XL16 LocalQKRank2 ~0.550).
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

@@ -278,16 +278,16 @@ empty before relaunch. Stop a standalone creator before deleting its TPU and que
 
 ## Create Standalone v6e-1
 
-For an unregistered diagnostic TPU, use the bounded standalone creator. It repairs/validates xd's
-named gcloud configuration, checks tpu-ag disk/log health, submits once, polls the accepted queue,
-records its exact PID, and exits after installation:
+For an unregistered diagnostic TPU, use the bounded standalone launcher. It uses absolute paths
+for backgrounding/logging, repairs/validates xd's named gcloud configuration, checks tpu-ag
+disk/log health, submits once, polls the accepted queue, records its exact PID, and exits after
+installation:
 
 ```bash
 NAME=xd-v6e-1-bamdiag ZONE=us-east5-a
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "cd /home/lishengping/xd/projects && mkdir -p logs && \
-   nohup ./create_standalone_tpu.sh '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh \
-   > 'logs/${NAME}-create.log' 2>&1 < /dev/null &"
+  "/home/lishengping/xd/projects/start_standalone_tpu.sh \
+   '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh"
 ```
 
 Inspect `logs/${NAME}-create.log` on tpu-ag. Release it only through `delete_tpu_xd.sh`, which

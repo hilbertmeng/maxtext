@@ -507,6 +507,7 @@ task_features: ['input_ids']
 training_num_batches_to_skip: 0
 steps: 1000000 # If set to -1 then will inherit value from learning_rate_schedule_steps
 train_shuffle_buffer_size: 200
+eval_shuffle_buffer_size: 0
 iter_file_nums: 20
 pad_id: 0
 

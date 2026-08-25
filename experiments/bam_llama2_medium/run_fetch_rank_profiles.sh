@@ -25,7 +25,8 @@ DONE_STEP=${PROFILE_DONE_STEP:-15}
 gcloud compute tpus tpu-vm ssh --internal-ip "$TPU" --zone="$ZONE" \
   --project="$PROJECT" --worker=all --command="cd '$REPO' && \
   git fetch origin refactor-bam && git reset --hard && git clean -ffd && \
-  git checkout --detach '$COMMIT' && test \"\$(git rev-parse HEAD)\" = '$COMMIT'" \
+  git checkout --detach '$COMMIT' && \
+  test \"\$(git rev-parse HEAD)\" = \"\$(git rev-parse '$COMMIT^{commit}')\"" \
   </dev/null
 
 mkdir -p "$LOG_ROOT"

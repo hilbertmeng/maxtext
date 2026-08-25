@@ -28,27 +28,30 @@ from input_pipeline.input_pipeline_interface import create_data_iterator
 import train
 
 
-def _fetch_mixer_paths(params: Any) -> list[tuple[tuple[str, ...], jax.Array]]:
+def _fetch_mixer_paths(
+    params: Any, fetch_rank: int) -> list[tuple[tuple[str, ...], jax.Array, int]]:
   matches = []
   for path, value in flatten_dict(params).items():
     if len(path) >= 2 and path[-2] == "fetch_head_mix" and path[-1] in ("kernel", "bias"):
-      if value.shape[-2] <= 1:
-        raise ValueError(f"Fetch mixer has no route axis: {'/'.join(path)} {value.shape}")
-      matches.append((path, value))
+      route_axes = [axis for axis, size in enumerate(value.shape) if size == fetch_rank]
+      if len(route_axes) != 1:
+        raise ValueError(
+            f"Expected one size-{fetch_rank} route axis: {'/'.join(path)} {value.shape}")
+      matches.append((path, value, route_axes[0]))
   if not matches:
     raise ValueError("No fetch_head_mix kernel/bias parameters found")
   return matches
 
 
-def _tie_routes(params: Any, mode: str) -> Any:
+def _tie_routes(params: Any, mode: str, fetch_rank: int) -> Any:
   flat = dict(flatten_dict(params))
-  for path, value in _fetch_mixer_paths(params):
+  for path, value, route_axis in _fetch_mixer_paths(params, fetch_rank):
     if mode == "mean":
-      tied = jnp.mean(value, axis=-2, keepdims=True)
+      tied = jnp.mean(value, axis=route_axis, keepdims=True)
     elif mode == "first":
-      tied = value[..., :1, :]
+      tied = jnp.take(value, jnp.asarray([0]), axis=route_axis)
     elif mode == "second":
-      tied = value[..., 1:2, :]
+      tied = jnp.take(value, jnp.asarray([1]), axis=route_axis)
     else:
       raise ValueError(f"Unknown tie mode: {mode}")
     flat[path] = jnp.broadcast_to(tied, value.shape)
@@ -109,17 +112,25 @@ def _pair_stats(a: np.ndarray, b: np.ndarray) -> dict[str, float]:
   }
 
 
-def _parameter_route_stats(params: Any) -> dict[str, Any]:
+def _parameter_route_stats(
+    params: Any, fetch_rank: int, num_layers: int) -> dict[str, Any]:
   output = {}
-  for path, value in _fetch_mixer_paths(params):
+  for path, value, route_axis in _fetch_mixer_paths(params, fetch_rank):
     host = np.asarray(jax.device_get(value))
     name = "/".join(path)
     output[name] = {"shape": list(host.shape), "aggregate": _pair_stats(
-        np.take(host, 0, axis=-2), np.take(host, 1, axis=-2))}
-    if host.ndim >= 4 and host.shape[0] > 1:
+        np.take(host, 0, axis=route_axis), np.take(host, 1, axis=route_axis))}
+    layer_axes = [
+        axis for axis, size in enumerate(host.shape)
+        if axis != route_axis and size == num_layers]
+    if len(layer_axes) == 1:
+      route0 = np.take(host, 0, axis=route_axis)
+      route1 = np.take(host, 1, axis=route_axis)
+      layer_axis = layer_axes[0] - int(route_axis < layer_axes[0])
+      route0 = np.moveaxis(route0, layer_axis, 0)
+      route1 = np.moveaxis(route1, layer_axis, 0)
       output[name]["per_layer"] = [
-          _pair_stats(np.take(layer, 0, axis=-2), np.take(layer, 1, axis=-2))
-          for layer in host
+          _pair_stats(a, b) for a, b in zip(route0, route1)
       ]
   return output
 
@@ -146,9 +157,9 @@ def run(config) -> None:
 
   variants = {
       "original": state.params,
-      "tied_mean": _tie_routes(state.params, "mean"),
-      "tied_first": _tie_routes(state.params, "first"),
-      "tied_second": _tie_routes(state.params, "second"),
+      "tied_mean": _tie_routes(state.params, "mean", int(config.bam_fetch_rank)),
+      "tied_first": _tie_routes(state.params, "first", int(config.bam_fetch_rank)),
+      "tied_second": _tie_routes(state.params, "second", int(config.bam_fetch_rank)),
   }
   compiled_forward = jax.jit(
       lambda params, batch, rng: _forward(model, params, batch, rng))
@@ -206,7 +217,8 @@ def run(config) -> None:
           "total_seconds": time.perf_counter() - started,
           "checkpoint_mutated": False,
       },
-      "parameter_route_stats": _parameter_route_stats(state.params),
+      "parameter_route_stats": _parameter_route_stats(
+          state.params, int(config.bam_fetch_rank), int(config.base_num_decoder_layers)),
       "results": results,
   }
   output_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")

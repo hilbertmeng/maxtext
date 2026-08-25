@@ -28,7 +28,7 @@ cd "$ROOT" || exit 2
   dataset_path=gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord \
   load_parameters_path="$CHECKPOINT" \
   only_eval=True \
-  enable_checkpointing=False \
+  enable_checkpointing=True \
   async_checkpointing=False \
   per_device_batch_size=8 \
   eval_per_device_batch_size=8 \

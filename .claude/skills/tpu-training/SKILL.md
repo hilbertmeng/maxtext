@@ -204,7 +204,9 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
    tmux kill-session -t $SESSION 2>/dev/null"
 ```
 
-2. Stop only the intended train process. Make the pattern unable to match its own shell:
+2. Record the stop UTC, then stop only the intended train process. Make the pattern unable to
+   match its own shell; pass that UTC to the later registry `stop` so the final READY lease ends at
+   SIGTERM rather than after checkpointing and teardown:
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -232,7 +234,7 @@ Record the stop only after teardown is verified, then run Close Out:
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/run_registry.py stop $RUN \
-   --status stopped --step STEP --reason REASON"
+   --status stopped --step STEP --reason REASON --end-utc STOP_UTC"
 ```
 
 ## Close Out a Completed Run
@@ -248,7 +250,13 @@ For every stopped/completed run:
 1. Verify final step/status and resource teardown with `run_registry.py status --all` and GCP.
 2. Report final same-step/window gaps, cumulative trajectory, and whether prior extrapolation
    matched.
-3. Replace the experiment class's running comment with one terse line containing speed, final
+3. Run `run_registry.py lease-report RUN`; report the TPU type, full active-zone path and switch
+   points, preemption count, and **every** chronological READY lease—not only `status`'s recent
+   three. Keep unknown-duration leases visible and distinguish the final manual stop.
+4. Append the same evidence to `experiments/tpu_region_preemption_history.md`, one row per active
+   zone stint. Record passive candidates separately; they are not region switches. This shared
+   history is the evidence for later region selection.
+5. Replace the experiment class's running comment with one terse line containing speed, final
    step, and the main conclusion against its registered direct `compare_runs`; retain every
    decision-relevant direct baseline. Express loss, speed, parameters, cache, and compute as
    deltas or ratios versus that baseline; use absolute values only as supplemental context, e.g.:

@@ -159,7 +159,7 @@ class TrainXL:
     cosine_learning_rate_final_fraction = 0.1
     eval_interval = 50000
     per_device_batch_size = 16.0  # for v5p-32
-    checkpoint_period = 500
+    checkpoint_period = 250
 
 class TrainMedium:
     learning_rate = 3e-4
@@ -175,6 +175,7 @@ class TrainSmall:
 
 class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     # ~0.804 steps/s; completed 13,500 steps.
+    checkpoint_period = 200
     base_emb_dim = 1024
     base_num_query_heads = 16
     base_num_kv_heads = 16
@@ -3635,6 +3636,7 @@ class Llama2Large(Llama2Medium):
     eval_interval = 14500
 
 class Llama2XL(Llama2Medium):
+    checkpoint_period = 250
     base_emb_dim = 2048
     base_num_query_heads = 32
     base_num_kv_heads = 32

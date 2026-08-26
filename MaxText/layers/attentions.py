@@ -2615,7 +2615,6 @@ class BamAttention(Attention):
             'adjacent Q/K RoPE requires pre-RoPE LocalQK injection with QKNorm disabled')
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
     assert self._write_factor_norm in ('rms', 'grouped_rms')
-    assert not self._write_address_norm_bias or self._write_factor_norm == 'grouped_rms'
     assert self._write_u2_norm in ('rms', 'grouped_rms_bias')
     assert self._write_u2_norm == 'rms' or self._write_v_mode == 'o_tail'
     assert not (self._write_u2_norm != 'rms' and self._create_grouped_rw_norm)
@@ -3110,9 +3109,7 @@ class BamAttention(Attention):
           epsilon=self._rms_epsilon, dtype=self.dtype,
           statistics_dtype=self._write_rms_statistics_dtype,
           weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
-          scale_init=(
-              nn.initializers.zeros
-              if learned_write_scale or address_bias else None),
+          scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
 
     # Create the experimental adapter after all existing parameters so adding it

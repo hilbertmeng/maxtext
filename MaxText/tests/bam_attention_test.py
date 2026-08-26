@@ -1015,6 +1015,22 @@ class BamReadKeyTransformTest(absltest.TestCase):
         biased[:, 1], expected[:, 1] + bias[1], rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(biased[:, 2], expected[:, 2], rtol=1e-6, atol=1e-6)
 
+  def test_grouped_rmsnorm_supports_bias_without_learned_scale(self):
+    x = jnp.arange(1, 25, dtype=jnp.float32).reshape(2, 3, 4)
+    norm = GroupedRMSNorm(
+        scale_shape=(3, 4), epsilon=_RMS_EPSILON, dtype=jnp.float32,
+        weight_dtype=jnp.float32, kernel_axes=(None, None),
+        scale_init=None, use_bias=True)
+    variables = norm.init(jax.random.PRNGKey(0), x)
+    self.assertNotIn('scale', variables['params'])
+    self.assertEqual(variables['params']['bias'].value.shape, (3, 4))
+    expected = x * jax.lax.rsqrt(jnp.mean(x ** 2, axis=-1, keepdims=True) + 1e-6)
+    np.testing.assert_allclose(norm.apply(variables, x), expected, rtol=1e-6, atol=1e-6)
+
+    bias = jnp.zeros((3, 4)).at[1].set(jnp.arange(4, dtype=jnp.float32))
+    biased = norm.apply({'params': {'bias': bias}}, x)
+    np.testing.assert_allclose(biased, expected + bias, rtol=1e-6, atol=1e-6)
+
   def test_constant_matrix_update_matches_existing_decay(self):
     M_in = jnp.arange(12, dtype=jnp.float32).reshape(1, 1, 3, 4)
     dM = jnp.ones_like(M_in)

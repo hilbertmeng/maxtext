@@ -1279,6 +1279,28 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias(
         'jax_caches/xd-bam-v2-c256-paired40-rank2-grouped-write-rms-keep-bias')
 
 
+class BamLlama2MediumV2C256Paired40LocalQKRank2NoPreRMSBias(
+    BamLlama2MediumV2C256Paired40LocalQKRank2
+):
+    """Remove the P_loc_up bias while retaining fixed write RMS normalization."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2NoPreRMSBias'
+    bam_write_v_mode = 'x'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-rank2-no-pre-rms-bias')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2PostRMSAddressBias(
+    BamLlama2MediumV2C256Paired40LocalQKRank2NoPreRMSBias
+):
+    """Add a learned per-head address beta after fixed write RMS normalization."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2PostRMSAddressBias'
+    bam_write_address_norm_bias = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-rank2-post-rms-address-bias')
+
+
 class BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):

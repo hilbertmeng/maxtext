@@ -1284,6 +1284,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2NoPreRMSBias(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
     """Remove the P_loc_up bias while retaining fixed write RMS normalization."""
+    # a69a617; EW4b ~0.647 steps/s; stopped at 2,800. dloss +.01552 vs Rank2,
+    # shrinking from +.07384@400 but still harmful: the pre-RMS bias is useful.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2NoPreRMSBias'
     bam_write_v_mode = 'x'
     jax_cache_dir = (

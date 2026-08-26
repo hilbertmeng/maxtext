@@ -251,11 +251,12 @@ For every stopped/completed run:
 2. Report final same-step/window gaps, cumulative trajectory, and whether prior extrapolation
    matched.
 3. Run `run_registry.py lease-report RUN`; report the TPU type, full active-zone path and switch
-   points, preemption count, and **every** chronological READY lease—not only `status`'s recent
-   three. Keep unknown-duration leases visible and distinguish the final manual stop.
-4. Append the same evidence to `experiments/tpu_region_preemption_history.md`, one row per active
-   zone stint. Record passive candidates separately; they are not region switches. This shared
-   history is the evidence for later region selection.
+   points, preemption count, and **every** chronological READY lease with UTC start/end and
+   duration—not only `status`'s recent three. Keep unknown starts visible and distinguish the final
+   manual stop.
+4. Append the same evidence to `experiments/tpu_region_preemption_history.md`: one assignment row
+   per active-zone stint and one event row per READY lease. Record passive candidates separately;
+   they are not region switches. These timestamps are the evidence for region/time-of-day choices.
 5. Replace the experiment class's running comment with one terse line containing speed, final
    step, and the main conclusion against its registered direct `compare_runs`; retain every
    decision-relevant direct baseline. Express loss, speed, parameters, cache, and compute as

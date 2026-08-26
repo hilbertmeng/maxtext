@@ -10,7 +10,9 @@ gcs_root=${1%/}
 topology=$2
 steps=$3
 shift 3
-jobs=${AOT_COMPILE_JOBS:-4}
+# libtpu owns a per-VM lock even for cross-topology compilation. Parallelize
+# across TPU VMs, not concurrent compiler processes on one VM.
+jobs=${AOT_COMPILE_JOBS:-1}
 repo=${MAXTEXT_REPO:-/home/lishengping/xd/projects/maxtext}
 compiler=${AOT_COMPILER:-$repo/.claude/skills/tpu-diagnostics/scripts/compile_trainstep_aot.sh}
 commit=$(git -C "$repo" rev-parse HEAD)

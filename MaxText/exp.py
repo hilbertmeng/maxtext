@@ -301,6 +301,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
+    bam_fetched_output_gate_bottleneck_dim = None  # D -> r -> n*(k+c) readout gate
+    bam_fetched_output_gate_activation = 'none'  # none | gelu | silu
+    bam_fetched_output_gate_head_logits = False  # retain old 2n logits as common terms
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
@@ -1068,6 +1071,28 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256OutputGateR256Gelu(BamV2C256FetchScheduleBase):
+    """Replace fetched head gates with a D->256->n*(k+c) output gate."""
+    model_name = 'BamLlama2MediumV2C256OutputGateR256Gelu'
+    scan_layers = True
+    bam_fetched_output_gate_bottleneck_dim = 256
+    bam_fetched_output_gate_activation = 'gelu'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-output-gate-r256-gelu')
+
+
+class BamLlama2MediumV2C256OutputGateR256GeluHeadLogits(
+    BamLlama2MediumV2C256OutputGateR256Gelu
+):
+    """Add zero-init element logits to the historical per-head/side logits."""
+    model_name = 'BamLlama2MediumV2C256OutputGateR256GeluHeadLogits'
+    bam_fetched_output_gate_head_logits = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-output-gate-r256-gelu-head-logits')
 
 
 class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):

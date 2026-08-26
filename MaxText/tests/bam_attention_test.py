@@ -13,6 +13,7 @@ from layers.attentions import (
     _bam_fetch_op,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
+    _gate_fetched_read_output,
     _packed_factorized_local_qk_init,
     _paired_parameter_init,
     _mix_bam_write_v,
@@ -848,6 +849,35 @@ class BamReadKeyTransformTest(absltest.TestCase):
         rms_epsilon=_RMS_EPSILON, gate_logits=gate_logits)
     transformed_rms = jnp.sqrt(jnp.mean(transformed ** 2))
     np.testing.assert_allclose(transformed_rms, scale * gate, rtol=1e-6, atol=1e-6)
+
+  def test_rms_direction_omits_only_the_scalar_gate(self):
+    r = jnp.array([3.0, 4.0], dtype=jnp.float32)
+    direction = _transform_bam_read_key(
+        r, 'rms', 2.0, rms_epsilon=_RMS_EPSILON)
+    expected = normalizations.rms_norm(
+        r, dtype=r.dtype, epsilon=_RMS_EPSILON)
+    np.testing.assert_array_equal(direction, expected)
+
+  def test_fetched_output_head_logits_recover_scalar_key_gates(self):
+    read_k_dim = 3
+    read = jax.random.normal(jax.random.PRNGKey(91), (2, 5, 4, 5))
+    head_logits = jax.random.normal(jax.random.PRNGKey(92), (2, 5, 4, 2))
+    delta = jnp.zeros_like(read)
+    got = _gate_fetched_read_output(
+        read, delta, read_k_dim, 2.0, head_logits)
+    head_row, head_col = jnp.split(head_logits, [1], axis=-1)
+    expected = jnp.concatenate(
+        (2.0 * jax.nn.sigmoid(head_col) * read[..., :read_k_dim],
+         2.0 * jax.nn.sigmoid(head_row) * read[..., read_k_dim:]),
+        axis=-1)
+    np.testing.assert_array_equal(got, expected)
+
+  def test_fetched_output_element_gate_is_coordinate_wise(self):
+    read = jnp.ones((1, 1, 2, 4), dtype=jnp.float32)
+    logits = jnp.asarray(
+        [[[[0.0, 1.0, -1.0, 2.0], [2.0, -1.0, 1.0, 0.0]]]])
+    got = _gate_fetched_read_output(read, logits, 3, 2.0)
+    np.testing.assert_allclose(got, 2.0 * jax.nn.sigmoid(logits))
 
   def test_rms_gate_learned_norm_is_a_paired_identity_control(self):
     r = jnp.array([[3.0, 4.0]], dtype=jnp.float32)

@@ -2479,7 +2479,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBia
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Learned per-head write RMS scales with no P_loc or post-norm address bias."""
-    # code_commit: 86756a1; UC1a ~0.548 steps/s (~flat vs Rank2 ~0.550).
+    # code_commit: 86756a1; UC1a ~0.548 steps/s (~flat vs Rank2 ~0.550); stopped
+    # at 9,218. dloss +0.00726 (last six 500-step windows) vs Rank2: stable harm.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias')
     bam_write_v_mode = 'x'
@@ -2509,7 +2510,8 @@ class BamLlama2XLHead16x128V2C256FetchRank2(
     BamLlama2XLHead16x128V2C256
 ):
     """Clean XL16 V2 scaling test of two dynamically mixed fetched-M routes."""
-    # code_commit: 1034a24; EW4b ~0.533 steps/s.
+    # code_commit: 1034a24; EW4b ~0.533 steps/s; stopped at 16,158. dloss
+    # -0.00434 (last six 500-step windows) vs XL16 V2: persistent small gain.
     model_name = 'BamLlama2XLHead16x128V2C256FetchRank2'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

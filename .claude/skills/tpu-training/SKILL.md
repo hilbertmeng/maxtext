@@ -33,6 +33,7 @@ not cover; it is not a routine prerequisite for training.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
    Formal training defaults to `scan_layers=True`; verify the resolved class value before launch.
    Use another setting only when the user explicitly requests it.
+   Use `checkpoint_period=200` for Medium and `250` for XL.
 2. Before a parameter-tree change, use a new run name/GCS prefix. Commit the prepared runtime
    code, push it to `origin/refactor-bam`, and use its full hash. Commit/push first-step fixes and
    update the RUN hash before relaunch.

@@ -1297,11 +1297,36 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2PostRMSAddressBias(
     BamLlama2MediumV2C256Paired40LocalQKRank2NoPreRMSBias
 ):
     """Add a learned per-head address beta after fixed write RMS normalization."""
+    # code_commit: a69a617; EW4b ~0.643 steps/s; stopped at 2,918. dloss
+    # +.02128 vs Rank2 @2,800; beta did not rescue removing the pre-RMS bias.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2PostRMSAddressBias'
     bam_write_address_norm_bias = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-rank2-post-rms-address-bias')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2WriteAddressBiasOnly(
+    BamLlama2MediumV2C256Paired40LocalQKRank2
+):
+    """Retain P_loc bias and add post-RMS address beta without learned gamma."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2WriteAddressBiasOnly'
+    bam_write_address_norm_bias = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-rank2-write-address-bias-only')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormAddressBias(
+    BamLlama2MediumV2C256Paired40LocalQKRank2WriteAddressBiasOnly
+):
+    """Retain P_loc bias and add learned write gamma plus post-RMS address beta."""
+    model_name = (
+        'BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormAddressBias')
+    bam_write_factor_norm = 'grouped_rms'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-rank2-grouped-write-rms-address-bias')
 
 
 class BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm(
@@ -2540,6 +2565,30 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBia
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-grouped-write-rms-no-bias')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2WriteAddressBiasOnly(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Retain P_loc bias and add post-RMS address beta without learned gamma."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2WriteAddressBiasOnly')
+    bam_write_address_norm_bias = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-write-address-bias-only')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormAddressBias(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2WriteAddressBiasOnly
+):
+    """Retain P_loc bias and add learned write gamma plus post-RMS address beta."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormAddressBias')
+    bam_write_factor_norm = 'grouped_rms'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-grouped-write-rms-address-bias')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchRank2(

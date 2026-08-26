@@ -160,7 +160,9 @@ the transition explicitly and monitor it closely until its direction is clear.
 
 At every due milestone:
 
-1. Run one shared `status`, then `loss-report` once per due RUN.
+1. Run one shared `status`, verify each due RUN's latest checkpoint has
+   `commit_success.txt`, then run `loss-report`; summarize healthy checkpoints tersely and
+   investigate pending or rollback immediately.
 2. Report the cumulative horizontal rows; judge stability from signed-gap trends plus `r200`.
 3. Mark the cursor:
 

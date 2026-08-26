@@ -2628,7 +2628,7 @@ class BamAttention(Attention):
             matmul_precision=cfg.matmul_precision, use_bias=False)
         self.W_fetched_output_gate_up = DenseGeneral(
             features=read_features, axis=-1, kernel_init=zeros_init,
-            kernel_axes=(None, 'q_heads', 'fetch', 'kv'),
+            kernel_axes=('embed', 'q_heads', 'fetch', 'kv'),
             dtype=self.dtype, weight_dtype=self.weight_dtype,
             name='W_fetched_output_gate_up', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=False)

@@ -11,8 +11,8 @@ SSH socket `/tmp/ssh-tpu-ag-xd.sock`. Use `$tpu-diagnostics` for checkpoint prob
 Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 `/home/lishengping/xd/projects`; TPU VM repo `/home/lishengping/xd/projects/maxtext`;
 project `newproject-1-451205`; TPU `v5p-16`; formal v5p region policy
-`PRIMARY_ZONE=europe-west4-b`, `BACKUP_ZONES=`; output
-`gs://newproject-1-llm_base_models_us-central1/log/`.
+`PRIMARY_ZONE=europe-west4-b`, `BACKUP_ZONES=`. `run_exp_xd.sh` selects the zone-local output
+bucket and records it as the RUN's authoritative `base_output_directory`.
 Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
 exact files to tpu-ag and verify matching hashes.
 
@@ -166,9 +166,9 @@ the transition explicitly and monitor it closely until its direction is clear.
 
 At every due milestone:
 
-1. Run one shared `status`, verify each due RUN's latest checkpoint has
-   `commit_success.txt`, then run `loss-report`; summarize healthy checkpoints tersely and
-   investigate pending or rollback immediately.
+1. Run one shared `status`, verify each due RUN's latest checkpoint under its registered
+   `base_output_directory` has `commit_success.txt`, then run `loss-report`; summarize healthy
+   checkpoints tersely and investigate pending or rollback immediately.
 2. Report the cumulative horizontal rows; judge stability from signed-gap trends plus `r200`.
 3. Mark the cursor:
 

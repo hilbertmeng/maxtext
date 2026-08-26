@@ -1266,6 +1266,17 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2(
         'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2')
 
 
+class BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias(
+    BamLlama2MediumV2C256Paired40LocalQKRank2
+):
+    """Add learned per-head write RMS scales while retaining P_loc_up bias."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias'
+    bam_write_factor_norm = 'grouped_rms'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-rank2-grouped-write-rms-keep-bias')
+
+
 class BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
@@ -2473,6 +2484,18 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormKeepBias(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Add learned per-head write RMS scales while retaining P_loc_up bias."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormKeepBias')
+    bam_write_factor_norm = 'grouped_rms'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-grouped-write-rms-keep-bias')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormNoBias(

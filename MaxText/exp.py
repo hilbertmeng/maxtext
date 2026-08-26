@@ -1075,6 +1075,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256OutputGateR256Gelu(BamV2C256FetchScheduleBase):
     """Replace fetched head gates with a D->256->n*(k+c) output gate."""
+    # code_commit: bce2f02; EW4b ~0.648 steps/s (-2.3% vs V2 C256 scan ~0.663).
     model_name = 'BamLlama2MediumV2C256OutputGateR256Gelu'
     scan_layers = True
     bam_fetched_output_gate_bottleneck_dim = 256
@@ -1088,6 +1089,7 @@ class BamLlama2MediumV2C256OutputGateR256GeluHeadLogits(
     BamLlama2MediumV2C256OutputGateR256Gelu
 ):
     """Add zero-init element logits to the historical per-head/side logits."""
+    # code_commit: bce2f02; EW4b ~0.642 steps/s (-3.2% vs pure output gate).
     model_name = 'BamLlama2MediumV2C256OutputGateR256GeluHeadLogits'
     bam_fetched_output_gate_head_logits = True
     jax_cache_dir = (
@@ -2592,7 +2594,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2WriteAddressBiasOnly(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Retain P_loc bias and add post-RMS address beta without learned gamma."""
-    # code_commit: 5ee3bcb; EW4b ~0.544 steps/s.
+    # code_commit: 5ee3bcb; EW4b ~0.544 steps/s; paused at 5,356. dloss
+    # +.00096 (range +.00049..+.00146) vs Rank2 @3k-5k: beta alone is slight harm.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2WriteAddressBiasOnly')
     bam_write_address_norm_bias = True
@@ -2605,7 +2608,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormAddre
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2WriteAddressBiasOnly
 ):
     """Retain P_loc bias and add learned write gamma plus post-RMS address beta."""
-    # code_commit: 5ee3bcb; EW4b ~0.545 steps/s.
+    # code_commit: 5ee3bcb; EW4b ~0.545 steps/s; paused at 7,712. dloss
+    # +.00097 vs Rank2 @5k-7.5k; ~-.00025 vs G-only and ~+.00028 vs B-only:
+    # learned gamma and post-RMS beta are conditionally near-neutral, with no net gain.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormAddressBias')
     bam_write_factor_norm = 'grouped_rms'

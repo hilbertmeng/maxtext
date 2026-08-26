@@ -14,6 +14,7 @@ from layers.attentions import (
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
     _gate_fetched_read_output,
+    _factorized_fetched_output_gate_logits,
     _packed_factorized_local_qk_init,
     _paired_parameter_init,
     _mix_bam_write_v,
@@ -889,6 +890,41 @@ class BamReadKeyTransformTest(absltest.TestCase):
         2.0 * jax.nn.sigmoid(logits + head_logits[..., 1:2]) * read[..., :3])
     expected = jnp.concatenate((expected_u, read[..., 3:]), axis=-1)
     np.testing.assert_allclose(got, expected)
+
+  def test_fetched_output_row_gate_leaves_column_answer_unchanged(self):
+    read = jnp.arange(1, 11, dtype=jnp.float32).reshape(1, 1, 2, 5)
+    logits = jnp.asarray([[[[0.0, 1.0], [2.0, -1.0]]]])
+    head_logits = jnp.asarray([[[[4.0, -2.0], [-3.0, 0.5]]]])
+    got = _gate_fetched_read_output(
+        read, logits, 3, 2.0, head_logits, gate_side='row')
+    expected_v = (
+        2.0 * jax.nn.sigmoid(logits + head_logits[..., :1]) * read[..., 3:])
+    expected = jnp.concatenate((read[..., :3], expected_v), axis=-1)
+    np.testing.assert_allclose(got, expected)
+
+  def test_factorized_fetched_output_gate_broadcasts_shared_coordinates(self):
+    # Packed order is n column-head, k column-coordinate, n row-head,
+    # v row-coordinate. Coordinates are shared across heads.
+    packed = jnp.asarray([[[1.0, 2.0, 10.0, 20.0, 30.0,
+                            3.0, 4.0, 40.0, 50.0]]])
+    both, head = _factorized_fetched_output_gate_logits(
+        packed, num_heads=2, read_k_dim=3, read_v_dim=2,
+        gate_side='both')
+    expected_col = jnp.asarray(
+        [[[[11.0, 21.0, 31.0], [12.0, 22.0, 32.0]]]])
+    expected_row = jnp.asarray(
+        [[[[43.0, 53.0], [44.0, 54.0]]]])
+    np.testing.assert_array_equal(
+        both, jnp.concatenate((expected_col, expected_row), axis=-1))
+    np.testing.assert_array_equal(
+        head, jnp.asarray([[[[3.0, 1.0], [4.0, 2.0]]]]))
+
+    col, _ = _factorized_fetched_output_gate_logits(
+        packed, 2, 3, 2, gate_side='col')
+    row, _ = _factorized_fetched_output_gate_logits(
+        packed, 2, 3, 2, gate_side='row')
+    np.testing.assert_array_equal(col, expected_col)
+    np.testing.assert_array_equal(row, expected_row)
 
   def test_rms_gate_learned_norm_is_a_paired_identity_control(self):
     r = jnp.array([[3.0, 4.0]], dtype=jnp.float32)

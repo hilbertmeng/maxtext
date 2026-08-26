@@ -305,6 +305,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_output_gate_activation = 'none'  # none | gelu | silu
     bam_fetched_output_gate_head_logits = False  # retain old 2n logits as common terms
     bam_fetched_output_gate_side = 'both'  # both | col (column/U readout only)
+    # none | both | row | col; head scalar + cross-head-shared coordinate logits
+    bam_factorized_fetched_output_gate_side = 'none'
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
@@ -1120,6 +1122,38 @@ class BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-output-gate-col-only-r256-gelu-head-logits')
+
+
+class BamLlama2MediumV2C256FactorizedOutputGate(BamV2C256FetchScheduleBase):
+    """Gate both fetched readouts by head scalars plus shared coordinate logits."""
+    model_name = 'BamLlama2MediumV2C256FactorizedOutputGate'
+    scan_layers = True
+    bam_factorized_fetched_output_gate_side = 'both'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-factorized-output-gate')
+
+
+class BamLlama2MediumV2C256FactorizedOutputGateRowOnly(
+    BamLlama2MediumV2C256FactorizedOutputGate
+):
+    """Use the factorized output gate only on the row/V fetched readout."""
+    model_name = 'BamLlama2MediumV2C256FactorizedOutputGateRowOnly'
+    bam_factorized_fetched_output_gate_side = 'row'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-factorized-output-gate-row-only')
+
+
+class BamLlama2MediumV2C256FactorizedOutputGateColOnly(
+    BamLlama2MediumV2C256FactorizedOutputGate
+):
+    """Use the factorized output gate only on the column/U fetched readout."""
+    model_name = 'BamLlama2MediumV2C256FactorizedOutputGateColOnly'
+    bam_factorized_fetched_output_gate_side = 'col'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-factorized-output-gate-col-only')
 
 
 class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):

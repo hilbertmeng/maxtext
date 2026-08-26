@@ -289,10 +289,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_fetch_mix_num_heads = None  # None uses all MHA heads; otherwise use the first N
-    bam_fetch_rank = 1  # number of dynamically mixed temporal routes shared across head groups
     bam_fetch_mix_implementation = 'dot'  # dot | mul_reduce
-    bam_fetch_rank_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
-    bam_fetch_stop_gradient_alpha = False  # detach attention alpha only on the BAM fetch branch
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
     bam_fetch_temporal_block_mode = 'none'  # none | mean | linear
@@ -303,15 +300,10 @@ class BamLlama2Medium(Llama2Medium):
     bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
-    bam_fetch_self_gate_init = None  # None keeps fixed diagonal-one; otherwise dynamic sigmoid init
     bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
-    bam_fetched_row_rank = None  # dynamically factor fetched row keys through this rank
-    bam_fetched_row_second_implementation = 'dot'  # dot | mul_reduce
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
-    bam_fetch_read_bottleneck_dim = None  # optional fetched W_R: D -> r -> n*f*(k+v)
-    bam_fetch_read_bottleneck_activation = 'none'  # none | gelu
     bam_abs_k_compression_dim = None  # keep the cached absolute K axis full-width
     bam_abs_k_col_output = 'direct'  # direct | project; expand the compressed K-side answer
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
@@ -331,9 +323,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
     bam_write_outer_implementation = 'dot'  # dot | mul_reduce
-    bam_embedding_write = False
-    emb_bam_num_head = None  # None -> num_query_heads
-    emb_bam_v_bottleneck_dim = 256
 
     scan_layers = False
 

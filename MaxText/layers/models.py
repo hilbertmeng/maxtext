@@ -23,7 +23,6 @@ from flax import linen as nn
 import functools
 import jax
 import jax.numpy as jnp
-import math
 from jax.ad_checkpoint import checkpoint_name
 import common_types
 from layers import attentions
@@ -416,77 +415,6 @@ class OutputHead(nn.Module):
     return xents, correct, preds
 
 
-class EmbeddingBamWrite(nn.Module):
-  """Initialize the BAM stream with one learned write from token embeddings."""
-
-  config: Config
-  num_write_heads: int
-  dtype: DType
-  weight_dtype: DType
-  quant: Optional[Quant]
-  kernel_init: initializers.Initializer
-
-  @nn.compact
-  def __call__(self, inputs):
-    cfg = self.config
-    heads = self.num_write_heads
-    bam_k = int(cfg.bam_k)
-    bam_v = int(cfg.bam_v)
-    bottleneck = int(cfg.emb_bam_v_bottleneck_dim)
-
-    data = linears.DenseGeneral(
-        features=(heads, bam_k), axis=-1, kernel_init=self.kernel_init,
-        kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
-        weight_dtype=self.weight_dtype, name="W_emb_u", quant=self.quant,
-        matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
-    address = linears.DenseGeneral(
-        features=bottleneck, axis=-1, kernel_init=self.kernel_init,
-        kernel_axes=("embed", None), dtype=self.dtype,
-        weight_dtype=self.weight_dtype, name="W_emb_v_down", quant=self.quant,
-        matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
-    address = nn.gelu(address)
-    address = linears.DenseGeneral(
-        features=(heads, bam_v), axis=-1, kernel_init=self.kernel_init,
-        kernel_axes=("embed", "q_heads", "v_factor"), dtype=self.dtype,
-        weight_dtype=self.weight_dtype, name="W_emb_v_up", quant=self.quant,
-        matmul_precision=cfg.matmul_precision, use_bias=True)(address)
-
-    gate_logits = linears.DenseGeneral(
-        features=heads, axis=-1, kernel_init=self.kernel_init,
-        kernel_axes=("embed", "q_heads"), dtype=self.dtype,
-        weight_dtype=self.weight_dtype, name="W_emb_g", quant=self.quant,
-        matmul_precision=cfg.matmul_precision, use_bias=False)(inputs)
-    eps = float(cfg.bam_write_eps)
-    if not 0.0 < eps < 1.0:
-      raise ValueError(f"bam_write_eps must be in (0, 1), got {eps}")
-    gate_bias = self.param(
-        "emb_gw_b0",
-        nn.with_logical_partitioning(
-            lambda key, shape, dtype: jnp.full(
-                shape, math.log(eps / (1.0 - eps)), dtype),
-            ("q_heads",)),
-        (heads,), self.weight_dtype)
-    gate = jax.nn.sigmoid(
-        gate_logits + jnp.asarray(gate_bias, self.dtype))
-    if cfg.bam_sqrt_n_scale:
-      gate = gate / jnp.sqrt(jnp.asarray(heads, gate.dtype))
-
-    statistics_dtype = (
-        jnp.float32
-        if cfg.bam_write_rms_statistics_dtype == "float32"
-        else self.dtype)
-    data = normalizations.rms_norm(
-        data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
-        statistics_dtype=statistics_dtype)
-    address = normalizations.rms_norm(
-        address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
-        statistics_dtype=statistics_dtype)
-    with jax.named_scope("bam/embedding_write_outer"):
-      return jnp.sum(
-          gate[..., None, None] * data[..., :, None]
-          * address[..., None, :], axis=-3)
-
-
 class Decoder(nn.Module):
   """A stack of decoder layers as a part of an encoder-decoder architecture."""
 
@@ -499,23 +427,6 @@ class Decoder(nn.Module):
   def setup(self):
     """Initialize decoder layer."""
     self.decoder_layer = self.get_decoder_layers()
-    cfg = self.config
-    full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
-    self.embedding_bam_write = None
-    if full_bam and getattr(cfg, 'bam_embedding_write', False):
-      configured_heads = getattr(cfg, 'emb_bam_num_head', None)
-      write_heads = (
-          int(cfg.num_query_heads)
-          if configured_heads is None else int(configured_heads))
-      if not 0 < write_heads <= int(cfg.num_query_heads):
-        raise ValueError(
-            "emb_bam_num_head must be in [1, num_query_heads], got "
-            f"{write_heads} for {cfg.num_query_heads} query heads")
-      self.embedding_bam_write = EmbeddingBamWrite(
-          config=cfg, num_write_heads=write_heads, dtype=cfg.dtype,
-          weight_dtype=cfg.weight_dtype, quant=self.quant,
-          kernel_init=initializers.get_init_method(cfg.init_method),
-          name="embedding_bam_write")
     if self.config.using_pipeline_parallelism:
       pipeline_stage_module = self.get_pipeline_stage_module(self.decoder_layer[0])
       remat_policy = get_remat_policy(self.config)
@@ -524,8 +435,6 @@ class Decoder(nn.Module):
       )
 
   def initial_bam_matrix(self, inputs):
-    if self.embedding_bam_write is not None:
-      return self.embedding_bam_write(inputs)
     b, t = inputs.shape[:2]
     return jnp.zeros(
         (b, t, self.config.bam_k, self.config.bam_v),

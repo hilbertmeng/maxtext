@@ -4,10 +4,8 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from types import SimpleNamespace
 from layers import initializers
 from layers import normalizations
-from layers.models import EmbeddingBamWrite
 
 from layers.attentions import (
     GroupedRMSNorm,
@@ -15,15 +13,12 @@ from layers.attentions import (
     _bam_fetch_op,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
-    _packed_fetched_row_rank_init,
     _packed_factorized_local_qk_init,
-    _paired_fetch_rank_init,
     _paired_parameter_init,
     _mix_bam_write_v,
     _transform_bam_read_key,
     _update_bam_matrix,
     bam_read,
-    dynamic_rank_row_bam_read,
     factorized_head_bam_read,
 )
 
@@ -31,35 +26,6 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
-
-  def test_embedding_bam_write_parameter_shapes_output_and_gradient(self):
-    cfg = SimpleNamespace(
-        bam_k=3, bam_v=4, emb_bam_v_bottleneck_dim=5,
-        matmul_precision='default', bam_write_eps=0.1,
-        bam_sqrt_n_scale=False, bam_write_rms_statistics_dtype='float32',
-        normalization_layer_epsilon=1e-6)
-    module = EmbeddingBamWrite(
-        config=cfg, num_write_heads=2, dtype=jnp.float32,
-        weight_dtype=jnp.float32, quant=None,
-        kernel_init=initializers.nd_dense_init_normal(0.006))
-    inputs = jax.random.normal(jax.random.PRNGKey(103), (2, 3, 7))
-    variables = module.init(jax.random.PRNGKey(104), inputs)
-    output = module.apply(variables, inputs)
-    self.assertEqual(output.shape, (2, 3, 3, 4))
-    params = variables['params']
-    self.assertEqual(params['W_emb_u']['kernel'].value.shape, (7, 2, 3))
-    self.assertEqual(params['W_emb_v_down']['kernel'].value.shape, (7, 5))
-    self.assertEqual(params['W_emb_v_up']['kernel'].value.shape, (5, 2, 4))
-    self.assertEqual(params['W_emb_v_up']['bias'].value.shape, (2, 4))
-    self.assertEqual(params['W_emb_g']['kernel'].value.shape, (7, 2))
-    self.assertEqual(params['emb_gw_b0'].value.shape, (2,))
-    np.testing.assert_array_equal(params['W_emb_v_up']['bias'].value, 0.0)
-    np.testing.assert_allclose(
-        params['emb_gw_b0'].value, np.log(0.1 / 0.9), rtol=0.0, atol=1e-6)
-    gradient = jax.grad(
-        lambda x: jnp.sum(module.apply(variables, x)))(inputs)
-    self.assertTrue(np.all(np.isfinite(gradient)))
-    self.assertGreater(float(jnp.linalg.norm(gradient)), 0.0)
 
   def test_attention_op_matches_dense_and_chunk_values_and_gradients(self):
     b, t, n, d, chunk_size = 2, 6, 3, 4, 2
@@ -141,182 +107,29 @@ class BamReadKeyTransformTest(absltest.TestCase):
         fetch_alpha = jnp.where(diagonal_mask[None], 1, fetch_alpha)
       return jnp.einsum('bts,bskv->btkv', fetch_alpha, fetch_state)
 
-    def actual(values, diagonal_one):
+    def actual(values, diagonal_one, implementation):
       alpha, mix_weights, fetch_state = values
       return _bam_fetch_op(
           alpha, fetch_state, mix_weights, diagonal_mask,
-          diagonal_one=diagonal_one)
+          diagonal_one=diagonal_one, mix_implementation=implementation)
 
-    for diagonal_one in (False, True):
-      expected = reference(args, diagonal_one)
-      got = actual(args, diagonal_one)
-      np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
-
-      expected_value, expected_grad = jax.value_and_grad(
-          lambda values: jnp.sum(
-              reference(values, diagonal_one) * upstream))(args)
-      actual_value, actual_grad = jax.value_and_grad(
-          lambda values: jnp.sum(
-              actual(values, diagonal_one) * upstream))(args)
-      np.testing.assert_allclose(
-          actual_value, expected_value, rtol=1e-6, atol=1e-6)
-      for got_item, expected_item in zip(actual_grad, expected_grad):
-        np.testing.assert_allclose(
-            got_item, expected_item, rtol=1e-6, atol=1e-6)
-
-  def test_bam_fetch_op_accepts_token_wise_diagonal_values(self):
-    b, n, t, k, v = 2, 3, 5, 4, 6
-    keys = jax.random.split(jax.random.PRNGKey(89), 5)
-    alpha = jax.nn.softmax(jax.random.normal(keys[0], (b, n, t, t)), axis=-1)
-    mix_weights = jax.random.normal(keys[1], (b, t, n))
-    fetch_state = jax.random.normal(keys[2], (b, t, k, v))
-    diagonal_value = jax.nn.sigmoid(jax.random.normal(keys[3], (b, t)))
-    diagonal_mask = jnp.eye(t, dtype=bool)
-    upstream = jax.random.normal(keys[4], (b, t, k, v))
-
-    def reference(a, m, state, gate):
-      mixed = jnp.einsum('bnts,btn->bts', a, m)
-      mixed = jnp.where(diagonal_mask[None], gate[..., None], mixed)
-      return jnp.einsum('bts,bskv->btkv', mixed, state)
-
-    def actual(a, m, state, gate):
-      return _bam_fetch_op(
-          a, state, m, diagonal_mask, diagonal_one=True,
-          diagonal_value=gate)
-
-    args = (alpha, mix_weights, fetch_state, diagonal_value)
-    expected, expected_grad = jax.value_and_grad(
-        lambda *xs: jnp.sum(reference(*xs) * upstream), argnums=(0, 1, 2, 3))(*args)
-    got, got_grad = jax.value_and_grad(
-        lambda *xs: jnp.sum(actual(*xs) * upstream), argnums=(0, 1, 2, 3))(*args)
-    np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
-    for got_item, expected_item in zip(got_grad, expected_grad):
-      np.testing.assert_allclose(got_item, expected_item, rtol=1e-6, atol=1e-6)
-
-  def test_ranked_bam_fetch_matches_reference_and_implementations(self):
-    b, n, f, t, k, v = 2, 4, 2, 5, 3, 6
-    keys = jax.random.split(jax.random.PRNGKey(191), 5)
-    args = (
-        jax.nn.softmax(jax.random.normal(keys[0], (b, n, t, t)), axis=-1),
-        jax.random.normal(keys[1], (b, t, f, n)),
-        jax.random.normal(keys[2], (b, t, k, v)),
-        jax.nn.sigmoid(jax.random.normal(keys[3], (b, t))),
-    )
-    upstream = jax.random.normal(keys[4], (b, f, t, k, v))
-    diagonal_mask = jnp.eye(t, dtype=bool)
-
-    def reference(alpha, mix, state, gate):
-      mixed = jnp.einsum('bnts,btfn->bfts', alpha, mix)
-      mixed = jnp.where(
-          diagonal_mask[None, None], gate[:, None, :, None], mixed)
-      return jnp.einsum('bfts,bskv->bftkv', mixed, state)
-
-    def actual(implementation, values):
-      alpha, mix, state, gate = values
-      return _bam_fetch_op(
-          alpha, state, mix, diagonal_mask, diagonal_one=True,
-          diagonal_value=gate, mix_implementation=implementation)
-
-    expected = reference(*args)
-    expected_value, expected_grad = jax.value_and_grad(
-        lambda values: jnp.sum(reference(*values) * upstream))(args)
     for implementation in ('dot', 'mul_reduce'):
-      got = actual(implementation, args)
-      got_value, got_grad = jax.value_and_grad(
-          lambda values: jnp.sum(actual(implementation, values) * upstream))(args)
-      np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
-      np.testing.assert_allclose(got_value, expected_value, rtol=1e-6, atol=1e-6)
-      for got_item, expected_item in zip(got_grad, expected_grad):
-        np.testing.assert_allclose(got_item, expected_item, rtol=2e-5, atol=5e-6)
+      for diagonal_one in (False, True):
+        expected = reference(args, diagonal_one)
+        got = actual(args, diagonal_one, implementation)
+        np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
 
-  def test_grouped_fetch_read_matches_reference_and_implementations(self):
-    b, t, f, m, k, v, e = 2, 4, 2, 3, 5, 7, 9
-    n = f * m
-    keys = jax.random.split(jax.random.PRNGKey(193), 5)
-    args = (
-        jax.random.normal(keys[0], (b, f, t, k, v)),
-        jax.random.normal(keys[1], (b, t, e)),
-        jax.random.normal(keys[2], (e, n, k + v)),
-    )
-    upstream = jax.random.normal(keys[3], (b, t, n, k + v))
-
-    def projection(x, kernel):
-      return jnp.einsum('bte,end->btnd', x, kernel)
-
-    def reference(M, x, kernel):
-      row, col = jnp.split(projection(x, kernel), [k], axis=-1)
-      row = row.reshape(b, t, f, m, k)
-      col = col.reshape(b, t, f, m, v)
-      y_u = jnp.einsum('bftkv,btfmv->btfmk', M, col)
-      y_v = jnp.einsum('bftkv,btfmk->btfmv', M, row)
-      return jnp.concatenate(
-          (y_u.reshape(b, t, n, k), y_v.reshape(b, t, n, v)), axis=-1)
-
-    def actual(implementation, values):
-      M, x, kernel = values
-      return bam_read(
-          M, x, lambda z: projection(z, kernel), None,
-          rms_epsilon=_RMS_EPSILON, implementation=implementation,
-          grouped_fetch_rank=f)
-
-    expected = reference(*args)
-    expected_value, expected_grad = jax.value_and_grad(
-        lambda values: jnp.sum(reference(*values) * upstream))(args)
-    for implementation in ('dot_btn', 'mul_reduce_btn'):
-      got = actual(implementation, args)
-      got_value, got_grad = jax.value_and_grad(
-          lambda values: jnp.sum(actual(implementation, values) * upstream))(args)
-      np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
-      np.testing.assert_allclose(got_value, expected_value, rtol=1e-6, atol=1e-6)
-      for got_item, expected_item in zip(got_grad, expected_grad):
-        np.testing.assert_allclose(got_item, expected_item, rtol=2e-5, atol=5e-6)
-
-  def test_fetch_rank_initializer_pairs_routes_without_sharing_parameters(self):
-    def init(key, shape, dtype, _in_axis=0, _out_axis=1):
-      return jax.random.normal(key, shape, dtype)
-
-    kernel = _paired_fetch_rank_init(init, 2, 4)(
-        jax.random.PRNGKey(197), (7, 2, 4), jnp.float32)
-    np.testing.assert_array_equal(kernel[:, 0], kernel[:, 1])
-
-  def test_paired_fetch_rank_two_reproduces_rank_one_value_and_gradient(self):
-    b, t, n, f, k, v, e = 2, 5, 4, 2, 3, 2, 7
-    keys = jax.random.split(jax.random.PRNGKey(211), 7)
-    args = (
-        jax.nn.softmax(jax.random.normal(keys[0], (b, n, t, t)), axis=-1),
-        jax.random.normal(keys[1], (b, t, k, v)),
-        jax.random.normal(keys[2], (b, t, n)),
-        jax.random.normal(keys[3], (b, t, e)),
-        jax.random.normal(keys[4], (e, n, k + v)),
-    )
-    upstream = jax.random.normal(keys[5], (b, t, n, k + v))
-    diagonal_mask = jnp.eye(t, dtype=bool)
-
-    def projection(x, kernel):
-      return jnp.einsum('bte,end->btnd', x, kernel)
-
-    def apply(fetch_rank, values):
-      alpha, state, mix, x, kernel = values
-      if fetch_rank == 1:
-        mix_weights = mix
-      else:
-        mix_weights = jnp.broadcast_to(
-            mix[:, :, None], mix.shape[:2] + (fetch_rank, mix.shape[-1]))
-      fetched = _bam_fetch_op(
-          alpha, state, mix_weights, diagonal_mask, diagonal_one=True)
-      return bam_read(
-          fetched, x, lambda z: projection(z, kernel), None,
-          rms_epsilon=_RMS_EPSILON, implementation='mul_reduce_btn',
-          grouped_fetch_rank=(None if fetch_rank == 1 else fetch_rank))
-
-    rank_one_value, rank_one_grad = jax.value_and_grad(
-        lambda values: jnp.sum(apply(1, values) * upstream))(args)
-    rank_two_value, rank_two_grad = jax.value_and_grad(
-        lambda values: jnp.sum(apply(2, values) * upstream))(args)
-    np.testing.assert_allclose(rank_two_value, rank_one_value, rtol=1e-6, atol=1e-6)
-    for rank_two_item, rank_one_item in zip(rank_two_grad, rank_one_grad):
-      np.testing.assert_allclose(
-          rank_two_item, rank_one_item, rtol=2e-5, atol=5e-6)
+        expected_value, expected_grad = jax.value_and_grad(
+            lambda values: jnp.sum(
+                reference(values, diagonal_one) * upstream))(args)
+        actual_value, actual_grad = jax.value_and_grad(
+            lambda values: jnp.sum(
+                actual(values, diagonal_one, implementation) * upstream))(args)
+        np.testing.assert_allclose(
+            actual_value, expected_value, rtol=1e-6, atol=1e-6)
+        for got_item, expected_item in zip(actual_grad, expected_grad):
+          np.testing.assert_allclose(
+              got_item, expected_item, rtol=1e-6, atol=1e-6)
 
   def test_bam_read_head_mapping_pads_or_adapts_only_v_side(self):
     direct = jnp.arange(96, dtype=jnp.float32).reshape(1, 1, 1, 96)
@@ -429,71 +242,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
         jnp.concatenate((k, zeros), axis=-1), v, valid)
     for got, expected in zip(expanded, reference):
       np.testing.assert_array_equal(got, expected)
-
-  def test_dynamic_rank_row_read_matches_explicit_keys_and_gradients(self):
-    b, t, n, r, k, v = 2, 3, 4, 2, 4, 3
-    basis_chunk = r * k // n
-    keys = jax.random.split(jax.random.PRNGKey(89), 5)
-    args = (
-        jax.random.normal(keys[0], (b, t, k, v)),
-        jax.random.normal(keys[1], (b, t, n, basis_chunk + v + r)),
-        jax.random.normal(keys[2], (b, t, n, 2)),
-    )
-    upstream = jax.random.normal(keys[3], (b, t, n, k + v))
-    kwargs = dict(
-        key_mode='rms_gate', key_scale=2.0, rms_epsilon=1e-4,
-        rms_statistics_dtype=jnp.float32, first_implementation='mul_reduce_btn')
-
-    def explicit(values):
-      M, packed, gates = values
-      chunks, col, mix = jnp.split(
-          packed, [basis_chunk, basis_chunk + v], axis=-1)
-      basis = chunks.reshape((b, t, r, k))
-      row_gate, col_gate = jnp.split(gates, 2, axis=-1)
-      basis = normalizations.rms_norm(
-          basis, dtype=basis.dtype, epsilon=1e-4,
-          statistics_dtype=jnp.float32)
-      mix = normalizations.rms_norm(
-          mix, dtype=mix.dtype, epsilon=1e-4, axis=-1,
-          statistics_dtype=jnp.float32) / jnp.sqrt(jnp.asarray(r, mix.dtype))
-      mix = mix * (2.0 * jax.nn.sigmoid(row_gate))
-      row = jnp.einsum('btrk,btnr->btnk', basis, mix)
-      col = _transform_bam_read_key(
-          col, 'rms_gate', 2.0, rms_epsilon=1e-4,
-          rms_statistics_dtype=jnp.float32, gate_logits=col_gate)
-      return jnp.concatenate((
-          jnp.einsum('btkv,btnv->btnk', M, col),
-          jnp.einsum('btkv,btnk->btnv', M, row)), axis=-1)
-
-    def factorized(values, second_implementation):
-      M, packed, gates = values
-      return dynamic_rank_row_bam_read(
-          M, jnp.zeros((b, t, 1)), lambda _x: packed, r,
-          key_gate_logits=gates, second_implementation=second_implementation,
-          **kwargs)
-
-    expected = explicit(args)
-    expected_value, expected_grad = jax.value_and_grad(
-        lambda z: jnp.sum(explicit(z) * upstream))(args)
-    for second_implementation in ('dot', 'mul_reduce'):
-      actual = factorized(args, second_implementation)
-      actual_value, actual_grad = jax.value_and_grad(
-          lambda z: jnp.sum(
-              factorized(z, second_implementation) * upstream))(args)
-      np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
-      np.testing.assert_allclose(actual_value, expected_value, rtol=2e-5, atol=2e-5)
-      for got, want in zip(actual_grad, expected_grad):
-        np.testing.assert_allclose(got, want, rtol=3e-5, atol=3e-5)
-
-  def test_packed_dynamic_row_initializer_keeps_read_dormant(self):
-    e, n, r, k, v = 7, 4, 2, 4, 3
-    init = _packed_fetched_row_rank_init(
-        initializers.nd_dense_init(1.0, 'fan_in', 'truncated_normal'),
-        n, r, k, v)
-    packed_width = r * k // n + v + r
-    kernel = init(jax.random.PRNGKey(97), (e, n, packed_width), jnp.float32)
-    np.testing.assert_array_equal(kernel[..., :r * k // n + v], 0)
-    self.assertGreater(float(jnp.linalg.norm(kernel[..., -r:])), 0.0)
 
   def test_batched_factorized_qk_read_matches_separate_reads(self):
     b, t, qk, n, k, v, e = 2, 3, 2, 4, 3, 5, 7

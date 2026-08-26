@@ -255,8 +255,9 @@ For every stopped/completed run:
    duration—not only `status`'s recent three. Keep unknown starts visible and distinguish the final
    manual stop.
 4. Append the same evidence to `experiments/tpu_region_preemption_history.md`: one assignment row
-   per active-zone stint and one event row per READY lease. Record passive candidates separately;
-   they are not region switches. These timestamps are the evidence for region/time-of-day choices.
+   per active-zone stint grouped by RUN, plus one event row per READY lease globally sorted by UTC
+   end time. Record passive candidates separately; they are not region switches. This ordering
+   exposes correlated preemptions and supplies evidence for region/time-of-day choices.
 5. Replace the experiment class's running comment with one terse line containing speed, final
    step, and the main conclusion against its registered direct `compare_runs`; retain every
    decision-relevant direct baseline. Express loss, speed, parameters, cache, and compute as

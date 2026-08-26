@@ -10,7 +10,8 @@ SSH socket `/tmp/ssh-tpu-ag-xd.sock`. Use `$tpu-diagnostics` for checkpoint prob
 
 Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 `/home/lishengping/xd/projects`; TPU VM repo `/home/lishengping/xd/projects/maxtext`;
-project `newproject-1-451205`; zone `us-central1-a`; TPU `v5p-16`; output
+project `newproject-1-451205`; TPU `v5p-16`; formal v5p region policy
+`PRIMARY_ZONE=europe-west4-b`, `BACKUP_ZONES=`; output
 `gs://newproject-1-llm_base_models_us-central1/log/`.
 Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
 exact files to tpu-ag and verify matching hashes.
@@ -27,6 +28,8 @@ Default validation is the pinned local BAM test suite followed by the target RUN
 not cover; it is not a routine prerequisite for training.
 
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
+   For formal spot `v5p`, set `PRIMARY_ZONE` and the user-directed `BACKUP_ZONES`; `ZONE` defaults
+   to `PRIMARY_ZONE` for the active assignment.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
    Formal training defaults to `scan_layers=True`; verify the resolved class value before launch.
    Use another setting only when the user explicitly requests it.
@@ -50,11 +53,13 @@ waiting; ownership transfers only after the new RUN reaches `FIRST_STEP`.
 
 ```bash
 EXP=BamLlama2Medium ID=0 MODE=install+train
+PRIMARY_ZONE=europe-west4-b BACKUP_ZONES=
 CODE_COMMIT=$(git rev-parse HEAD)
 BASES=Llama2Medium
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "tmux new-session -d -s ${EXP}-TPU${ID}-xd \
-   'env EXP=$EXP ID=$ID MODE=$MODE BRANCH=bam CODE_COMMIT=$CODE_COMMIT \
+   'env EXP=$EXP ID=$ID MODE=$MODE PRIMARY_ZONE=$PRIMARY_ZONE BACKUP_ZONES=$BACKUP_ZONES \
+   BRANCH=bam CODE_COMMIT=$CODE_COMMIT \
    COMPARE_RUNS=$BASES bash /home/lishengping/xd/projects/run_exp_xd.sh'"
 ```
 
@@ -320,10 +325,8 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
 - If best-effort pods are repeatedly reclaimed before useful progress, first validate the exact
   topology/zone with a passive FLEX_START queued-resource. After creation succeeds, freeze the RUN
   and activate exactly one flex trainer with a duration longer than its ETA.
-- For a formal spot `v5p` RUN, retain its `us-central1-a` queue and add one passive
-  `europe-west4-b` candidate after 5 minutes of `WAITING_FOR_RESOURCES` or repeated short READY
-  leases. Activate only the first READY candidate; retain the passive loser until the migrated RUN
-  exceeds its checkpoint and commits the next periodic checkpoint; only then delete the loser.
+- For formal spot `v5p`, queue and recover in `PRIMARY_ZONE`; passive candidates come only from the
+  user-directed `BACKUP_ZONES`. Revisit both from the shared region/preemption history.
 - In xd's v5p experience, maintenance warning + refused SSH is almost always preemption. Start
   reclaim immediately.
 - A queued-resource `SUSPENDED; stateInitiator=SERVICE` is terminal even if the TPU node has

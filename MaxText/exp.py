@@ -1271,7 +1271,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
     """Add learned per-head write RMS scales while retaining P_loc_up bias."""
-    # code_commit: 1603b57; EW4b ~0.648 steps/s (cross-zone ~flat vs Paired40).
+    # code_commit: 1603b57; EW4b ~0.648 steps/s; stopped at 3,013. dloss +.00937
+    # vs Rank2 @2,800 after shrinking from +.03482 @400, then plateauing near +.009.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias'
     bam_write_factor_norm = 'grouped_rms'
     jax_cache_dir = (

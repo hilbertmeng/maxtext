@@ -1102,7 +1102,7 @@ class BamLlama2MediumV2C256OutputGateColOnlyR256Gelu(
     BamLlama2MediumV2C256OutputGateR256Gelu
 ):
     """Element-wise gate only the column/U fetched read; keep row/V head gating."""
-    # code_commit: cb0f2e8; EW4b ~0.647 steps/s (essentially tied with both-side Pure ~0.648).
+    # cb0f2e8; EW4b ~0.647 steps/s; stopped 3,012. dloss +.01396 vs V2, +.00705 vs Both-Pure @2,800.
     model_name = 'BamLlama2MediumV2C256OutputGateColOnlyR256Gelu'
     bam_fetched_output_gate_side = 'col'
     jax_cache_dir = (
@@ -1114,7 +1114,7 @@ class BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits(
     BamLlama2MediumV2C256OutputGateColOnlyR256Gelu
 ):
     """Use the column head logit as the common term of its element-wise gate."""
-    # code_commit: cb0f2e8; EW4b ~0.646 steps/s (~0.5% faster than both-side Common ~0.643).
+    # cb0f2e8; EW4b ~0.646 steps/s; stopped 2,833. dloss +.00512 vs V2, +.00360 vs Both-Common @2,800.
     model_name = 'BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits'
     bam_fetched_output_gate_head_logits = True
     jax_cache_dir = (

@@ -1310,7 +1310,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2WriteAddressBiasOnly(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
     """Retain P_loc bias and add post-RMS address beta without learned gamma."""
-    # code_commit: 5ee3bcb; EW4b ~0.642 steps/s (~flat vs Rank2).
+    # code_commit: 5ee3bcb; EW4b ~0.642 steps/s; stopped at 5,645. dloss
+    # +.00680 (last six 200-step windows) vs Rank2: B alone is stably harmful.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2WriteAddressBiasOnly'
     bam_write_address_norm_bias = True
     jax_cache_dir = (
@@ -1322,7 +1323,9 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormAddressBias(
     BamLlama2MediumV2C256Paired40LocalQKRank2WriteAddressBiasOnly
 ):
     """Retain P_loc bias and add learned write gamma plus post-RMS address beta."""
-    # code_commit: 5ee3bcb; EW4b ~0.644 steps/s (~flat vs Rank2).
+    # code_commit: 5ee3bcb; EW4b ~0.644 steps/s; stopped at 5,428. dloss
+    # +.00463 vs Rank2 and -.00227 vs B-only (last six windows). G and B alone
+    # are harmful, but have a positive, harm-canceling GxB interaction; net remains harmful.
     model_name = (
         'BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormAddressBias')
     bam_write_factor_norm = 'grouped_rms'
@@ -2544,7 +2547,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormKeepB
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Add learned per-head write RMS scales while retaining P_loc_up bias."""
-    # code_commit: 1603b57; EW4b ~0.549 steps/s (cross-zone ~flat vs Rank2).
+    # code_commit: 1603b57; EW4b ~0.549 steps/s; stopped at 9,786. dloss
+    # +.00069 vs Rank2 and -.00626 vs NoBias (last six windows): G is neutral,
+    # while removing the original P_loc_up bias is stably harmful on XL.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormKeepBias')
     bam_write_factor_norm = 'grouped_rms'

@@ -1126,6 +1126,7 @@ class BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits(
 
 class BamLlama2MediumV2C256FactorizedOutputGate(BamV2C256FetchScheduleBase):
     """Gate both fetched readouts by head scalars plus shared coordinate logits."""
+    # code_commit: 1dd0680; EW4b ~0.658 steps/s (-0.8% vs V2 C256).
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGate'
     scan_layers = True
     bam_factorized_fetched_output_gate_side = 'both'
@@ -1138,6 +1139,7 @@ class BamLlama2MediumV2C256FactorizedOutputGateRowOnly(
     BamLlama2MediumV2C256FactorizedOutputGate
 ):
     """Use the factorized output gate only on the row/V fetched readout."""
+    # code_commit: 1dd0680; EW4b ~0.666 steps/s (+0.5% vs V2 C256).
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGateRowOnly'
     bam_factorized_fetched_output_gate_side = 'row'
     jax_cache_dir = (
@@ -1149,6 +1151,7 @@ class BamLlama2MediumV2C256FactorizedOutputGateColOnly(
     BamLlama2MediumV2C256FactorizedOutputGate
 ):
     """Use the factorized output gate only on the column/U fetched readout."""
+    # code_commit: 1dd0680; EW4b ~0.663 steps/s (~flat vs V2 C256).
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGateColOnly'
     bam_factorized_fetched_output_gate_side = 'col'
     jax_cache_dir = (

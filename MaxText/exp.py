@@ -1089,7 +1089,7 @@ class BamLlama2MediumV2C256OutputGateR256GeluHeadLogits(
     BamLlama2MediumV2C256OutputGateR256Gelu
 ):
     """Add zero-init element logits to the historical per-head/side logits."""
-    # code_commit: bce2f02; EW4b ~0.642 steps/s (-3.2% vs pure output gate).
+    # code_commit: bce2f02; EW4b ~0.643 steps/s (-3.0% vs V2 C256 scan; -0.8% vs pure).
     model_name = 'BamLlama2MediumV2C256OutputGateR256GeluHeadLogits'
     bam_fetched_output_gate_head_logits = True
     jax_cache_dir = (

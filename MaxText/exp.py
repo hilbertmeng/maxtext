@@ -1076,7 +1076,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256OutputGateR256Gelu(BamV2C256FetchScheduleBase):
     """Replace fetched head gates with a D->256->n*(k+c) output gate."""
-    # code_commit: bce2f02; EW4b ~0.648 steps/s (-2.3% vs V2 C256 scan ~0.663).
+    # bce2f02; EW4b ~0.648 steps/s; stopped 2,900. dloss +.00691 vs V2 @2,800; gap still shrinking.
     model_name = 'BamLlama2MediumV2C256OutputGateR256Gelu'
     scan_layers = True
     bam_fetched_output_gate_bottleneck_dim = 256

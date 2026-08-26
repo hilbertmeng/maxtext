@@ -879,6 +879,17 @@ class BamReadKeyTransformTest(absltest.TestCase):
     got = _gate_fetched_read_output(read, logits, 3, 2.0)
     np.testing.assert_allclose(got, 2.0 * jax.nn.sigmoid(logits))
 
+  def test_fetched_output_col_gate_leaves_row_answer_unchanged(self):
+    read = jnp.arange(1, 11, dtype=jnp.float32).reshape(1, 1, 2, 5)
+    logits = jnp.asarray([[[[0.0, 1.0, -1.0], [2.0, -1.0, 1.0]]]])
+    head_logits = jnp.asarray([[[[4.0, -2.0], [-3.0, 0.5]]]])
+    got = _gate_fetched_read_output(
+        read, logits, 3, 2.0, head_logits, gate_side='col')
+    expected_u = (
+        2.0 * jax.nn.sigmoid(logits + head_logits[..., 1:2]) * read[..., :3])
+    expected = jnp.concatenate((expected_u, read[..., 3:]), axis=-1)
+    np.testing.assert_allclose(got, expected)
+
   def test_rms_gate_learned_norm_is_a_paired_identity_control(self):
     r = jnp.array([[3.0, 4.0]], dtype=jnp.float32)
     gate_logits = jnp.zeros((1, 1), dtype=jnp.float32)

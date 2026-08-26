@@ -1841,24 +1841,26 @@ def _project_bam_read_keys(
     row_width, x, W_R, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None, key_col_norm=None,
-    use_learned_key_norm=False):
+    use_learned_key_norm=False, key_row_mode=None, key_col_mode=None):
   """Project and independently transform the row/column runtime read keys."""
   with jax.named_scope("bam/read_key_projection"):
     projected_key = W_R(x) if callable(W_R) else jnp.broadcast_to(
         W_R, x.shape[:-1] + W_R.shape)
     raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
   with jax.named_scope("bam/read_key_transform"):
+    key_row_mode = key_mode if key_row_mode is None else key_row_mode
+    key_col_mode = key_mode if key_col_mode is None else key_col_mode
     if key_gate_logits is None:
       row_gate = col_gate = None
     else:
       row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
     r_row = _transform_bam_read_key(
-        raw_row, key_mode, key_scale, rms_epsilon=rms_epsilon,
+        raw_row, key_row_mode, key_scale, rms_epsilon=rms_epsilon,
         rms_statistics_dtype=rms_statistics_dtype,
         gate_logits=row_gate, learned_rms_norm=key_row_norm,
         use_learned_rms=use_learned_key_norm)
     r_col = _transform_bam_read_key(
-        raw_col, key_mode, key_scale, rms_epsilon=rms_epsilon,
+        raw_col, key_col_mode, key_scale, rms_epsilon=rms_epsilon,
         rms_statistics_dtype=rms_statistics_dtype,
         gate_logits=col_gate, learned_rms_norm=key_col_norm,
         use_learned_rms=use_learned_key_norm)
@@ -1925,23 +1927,34 @@ def _contract_bam_read(
 
 
 def _gate_fetched_read_output(
-    read, element_logits, read_k_dim, scale, head_logits=None):
+    read, element_logits, read_k_dim, scale, head_logits=None,
+    gate_side='both'):
   """Gate packed [column answer (K), row answer (V)] coordinates."""
-  if read.shape != element_logits.shape:
+  if gate_side not in ('both', 'col'):
+    raise ValueError(f'Unknown fetched output gate side: {gate_side}')
+  y_u, y_v = jnp.split(read, [read_k_dim], axis=-1)
+  expected_shape = read.shape if gate_side == 'both' else y_u.shape
+  if expected_shape != element_logits.shape:
     raise ValueError(
         f'fetched output gate expects matching read/logit shapes, got '
-        f'{read.shape} and {element_logits.shape}')
+        f'{expected_shape} and {element_logits.shape}')
   if head_logits is not None:
     if head_logits.shape != read.shape[:-1] + (2,):
       raise ValueError(
           f'fetched head logits expect {read.shape[:-1] + (2,)}, got '
           f'{head_logits.shape}')
-    delta_u, delta_v = jnp.split(element_logits, [read_k_dim], axis=-1)
     # Historical logits are [row-key, column-key]; their answers are [V, K].
     head_row, head_col = jnp.split(head_logits, [1], axis=-1)
-    element_logits = jnp.concatenate(
-        (delta_u + head_col, delta_v + head_row), axis=-1)
-  return jnp.asarray(scale, read.dtype) * jax.nn.sigmoid(element_logits) * read
+    if gate_side == 'both':
+      delta_u, delta_v = jnp.split(element_logits, [read_k_dim], axis=-1)
+      element_logits = jnp.concatenate(
+          (delta_u + head_col, delta_v + head_row), axis=-1)
+    else:
+      element_logits = element_logits + head_col
+  gated = jnp.asarray(scale, read.dtype) * jax.nn.sigmoid(element_logits)
+  if gate_side == 'both':
+    return gated * read
+  return jnp.concatenate((gated * y_u, y_v), axis=-1)
 
 
 def _fit_bam_read_to_head(read, bam_k, head_dim, v_adapter=None):
@@ -1970,7 +1983,8 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_gate_logits=None, return_key_stages=False,
              key_row_norm=None, key_col_norm=None,
              use_learned_key_norm=False, implementation='mul_reduce_btn',
-             read_side='both', return_sides=False):
+             read_side='both', return_sides=False,
+             key_row_mode=None, key_col_mode=None):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
   Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
@@ -1992,7 +2006,8 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
       key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
-      use_learned_key_norm=use_learned_key_norm)
+      use_learned_key_norm=use_learned_key_norm,
+      key_row_mode=key_row_mode, key_col_mode=key_col_mode)
   with jax.named_scope("bam/read_m_contract"):
     y_u, y_v = _contract_bam_read_sides(
         Mc, Mr, r_row, r_col, R is None, implementation, read_side)
@@ -2366,6 +2381,8 @@ class BamAttention(Attention):
         cfg, 'bam_fetched_output_gate_activation', 'none')
     self._fetched_output_gate_head_logits = bool(getattr(
         cfg, 'bam_fetched_output_gate_head_logits', False))
+    self._fetched_output_gate_side = getattr(
+        cfg, 'bam_fetched_output_gate_side', 'both')
     self._use_fetched_output_gate = (
         self._fetched_output_gate_bottleneck_dim is not None)
     self._m_read_norm = cfg.bam_m_read_norm
@@ -2442,14 +2459,17 @@ class BamAttention(Attention):
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     assert self._fetched_output_gate_activation in ('none', 'gelu', 'silu')
+    assert self._fetched_output_gate_side in ('both', 'col')
     if self._use_fetched_output_gate:
       assert 'full' in self._mode
       assert self._read_key_mode == 'rms_gate'
       assert self._fetched_output_gate_activation != 'none'
       assert 0 < self._fetched_output_gate_bottleneck_dim < cfg.emb_dim
+      assert self._fetched_output_gate_side == 'both' or self._fetched_read_side == 'both'
     else:
       assert self._fetched_output_gate_activation == 'none'
       assert not self._fetched_output_gate_head_logits
+      assert self._fetched_output_gate_side == 'both'
     assert self._local_qk_rank > 0
     assert self._local_qk_second_implementation in ('dot', 'mul_reduce')
     assert self._local_qk_post_read_v_layout in ('head_tail', 'qk_tail')
@@ -2615,11 +2635,16 @@ class BamAttention(Attention):
           kernel_axes=("embed", "q_heads", "fetch", "kv"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
-      if not self._use_fetched_output_gate or self._fetched_output_gate_head_logits:
+      if (not self._use_fetched_output_gate
+          or self._fetched_output_gate_head_logits
+          or self._fetched_output_gate_side == 'col'):
         add_read_gate('W_R_gate', (self.num_query_heads, cfg.bam_n_f, 2),
                       ('embed', 'q_heads', 'fetch', None),
                       ('q_heads', 'fetch', None), zero_key_gate_init)
       if self._use_fetched_output_gate:
+        output_gate_features = (
+            read_features if self._fetched_output_gate_side == 'both'
+            else (self.num_query_heads, cfg.bam_n_f, read_k_dim))
         self.W_fetched_output_gate_down = DenseGeneral(
             features=self._fetched_output_gate_bottleneck_dim, axis=-1,
             kernel_init=reg_init, kernel_axes=('embed', None),
@@ -2627,7 +2652,7 @@ class BamAttention(Attention):
             name='W_fetched_output_gate_down', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=False)
         self.W_fetched_output_gate_up = DenseGeneral(
-            features=read_features, axis=-1, kernel_init=zeros_init,
+            features=output_gate_features, axis=-1, kernel_init=zeros_init,
             kernel_axes=('embed', 'q_heads', 'fetch', 'kv'),
             dtype=self.dtype, weight_dtype=self.weight_dtype,
             name='W_fetched_output_gate_up', quant=self.quant,
@@ -2639,7 +2664,7 @@ class BamAttention(Attention):
               nn.with_logical_partitioning(
                   lambda key, shape, dtype: jnp.full(shape, bias_value, dtype),
                   ('q_heads', 'fetch', 'kv')),
-              read_features, self.weight_dtype)
+              output_gate_features, self.weight_dtype)
       add_grouped_read_norms(
           'W_R', (self.num_query_heads, cfg.bam_n_f, read_k_dim),
           (self.num_query_heads, cfg.bam_n_f, read_v_dim),
@@ -2988,12 +3013,15 @@ class BamAttention(Attention):
         bias = self.fetched_output_gate_b0
         if self._force_activation_dtype:
           bias = jnp.asarray(bias, self.dtype)
-        return element_logits + jnp.squeeze(bias, axis=-2), None
+        element_logits = element_logits + jnp.squeeze(bias, axis=-2)
 
-      head_bias = self.W_R_gate_b0
-      if self._force_activation_dtype:
-        head_bias = jnp.asarray(head_bias, self.dtype)
-      head_logits = jnp.squeeze(self.W_R_gate(x) + head_bias, axis=-2)
+      head_logits = None
+      if (self._fetched_output_gate_head_logits
+          or self._fetched_output_gate_side == 'col'):
+        head_bias = self.W_R_gate_b0
+        if self._force_activation_dtype:
+          head_bias = jnp.asarray(head_bias, self.dtype)
+        head_logits = jnp.squeeze(self.W_R_gate(x) + head_bias, axis=-2)
       return element_logits, head_logits
 
   def _fit_local_qk_reads(self, q_local, k_local):
@@ -3296,8 +3324,15 @@ class BamAttention(Attention):
     """Read fetched M into every BAM head."""
     with jax.named_scope("bam/read_fetched_m"):
       if self._use_fetched_output_gate:
-        full_read_kwargs = self._read_key_kwargs_from_logits(
-            'W_R', None, squeeze_fetch_axis=True, key_mode='rms')
+        element_logits, projected_head_logits = (
+            self._project_fetched_output_gate(inputs_q))
+        if self._fetched_output_gate_side == 'col':
+          full_read_kwargs = self._read_key_kwargs_from_logits(
+              'W_R', projected_head_logits, squeeze_fetch_axis=True)
+          full_read_kwargs['key_col_mode'] = 'rms'
+        else:
+          full_read_kwargs = self._read_key_kwargs_from_logits(
+              'W_R', None, squeeze_fetch_axis=True, key_mode='rms')
       else:
         full_read_kwargs = self._read_key_kwargs(
             'W_R_gate', inputs_q, squeeze_fetch_axis=True)
@@ -3309,10 +3344,13 @@ class BamAttention(Attention):
           implementation=self._read_implementation,
           read_side=self._fetched_read_side)
       if self._use_fetched_output_gate:
-        element_logits, head_logits = self._project_fetched_output_gate(inputs_q)
+        head_logits = (
+            projected_head_logits
+            if self._fetched_output_gate_head_logits else None)
         full_read = _gate_fetched_read_output(
             full_read, element_logits, self._abs_k_dim or self.bam_k,
-            self._read_key_scale, head_logits)
+            self._read_key_scale, head_logits,
+            self._fetched_output_gate_side)
       return self._expand_full_read(full_read)
 
   def _attention_block(

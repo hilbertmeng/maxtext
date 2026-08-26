@@ -304,6 +304,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_output_gate_bottleneck_dim = None  # D -> r -> n*(k+c) readout gate
     bam_fetched_output_gate_activation = 'none'  # none | gelu | silu
     bam_fetched_output_gate_head_logits = False  # retain old 2n logits as common terms
+    bam_fetched_output_gate_side = 'both'  # both | col (column/U readout only)
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
@@ -1095,6 +1096,28 @@ class BamLlama2MediumV2C256OutputGateR256GeluHeadLogits(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-output-gate-r256-gelu-head-logits')
+
+
+class BamLlama2MediumV2C256OutputGateColOnlyR256Gelu(
+    BamLlama2MediumV2C256OutputGateR256Gelu
+):
+    """Element-wise gate only the column/U fetched read; keep row/V head gating."""
+    model_name = 'BamLlama2MediumV2C256OutputGateColOnlyR256Gelu'
+    bam_fetched_output_gate_side = 'col'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-output-gate-col-only-r256-gelu')
+
+
+class BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits(
+    BamLlama2MediumV2C256OutputGateColOnlyR256Gelu
+):
+    """Use the column head logit as the common term of its element-wise gate."""
+    model_name = 'BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits'
+    bam_fetched_output_gate_head_logits = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-output-gate-col-only-r256-gelu-head-logits')
 
 
 class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):

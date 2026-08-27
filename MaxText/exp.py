@@ -1114,6 +1114,17 @@ class BamLlama2MediumV2C256OutputGateLinearHeadLogits(
         'jax_caches/xd-bam-v2-c256-output-gate-linear-head-logits')
 
 
+class BamLlama2MediumV2C256OutputGateR256SiluHeadLogits(
+    BamLlama2MediumV2C256OutputGateR256GeluHeadLogits
+):
+    """Replace Common's GELU bottleneck activation with SiLU."""
+    model_name = 'BamLlama2MediumV2C256OutputGateR256SiluHeadLogits'
+    bam_fetched_output_gate_activation = 'silu'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-output-gate-r256-silu-head-logits')
+
+
 class BamLlama2MediumV2C256OutputGateColOnlyR256Gelu(
     BamLlama2MediumV2C256OutputGateR256Gelu
 ):

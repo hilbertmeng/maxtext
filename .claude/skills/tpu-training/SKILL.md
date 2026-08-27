@@ -278,7 +278,7 @@ disk/log health, submits once, polls the accepted queue, records its exact PID, 
 installation:
 
 ```bash
-NAME=xd-v6e-1-bamdiag ZONE=us-east5-a
+NAME=xd-v6e-1-bamdiag ZONE=${ZONE:-europe-west4-b}
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/start_standalone_tpu.sh \
    '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh"

@@ -18,11 +18,23 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 - Use a spot non-pod `v6e-1` for inference probes; choose a larger TPU when memory requires it.
 - Use only Codex-owned diagnostic resources whose names start with `xd-`; never borrow an idle
   TPU owned by another workflow.
-- To acquire one `v6e-1`, queue concurrently in `us-central1-a`, `europe-west4-a`, and
-  `us-east5-a`; keep the other queues until one candidate reaches `FIRST_STEP`, then delete their
-  exact resources. If that candidate is preempted first, continue with the next queue. For
-  parallel profile arms, request multiple TPUs in one proven zone (prefer `us-central1-a`).
-- Create it with `$tpu-training`'s **Create Standalone v6e-1** command.
+- Acquire v6e candidates with this region policy and command:
+
+  ```bash
+  PRIMARY_ZONE=europe-west4-b
+  BACKUP_ZONES=(us-central1-a europe-west4-a us-east5-a)
+  NAME_PREFIX=xd-v6e-1-bamdiag
+  for ZONE in "$PRIMARY_ZONE" "${BACKUP_ZONES[@]}"; do
+    NAME="$NAME_PREFIX-$ZONE"
+    ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
+      "/home/lishengping/xd/projects/start_standalone_tpu.sh \
+       '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh"
+  done
+  ```
+
+  Keep candidates until one reaches `FIRST_STEP`, then delete their exact resources. If it is
+  preempted first, continue with the next queue. For parallel profile arms, request multiple TPUs
+  in `PRIMARY_ZONE`.
 - Restore the source checkpoint read-only; use `only_eval=True` and a local output dir.
 - Add only necessary raw `sow` values to `attentions.py`; keep statistics in standalone runners.
 - After the artifact workflow below completes, delete every diagnostic TPU; keep the reusable

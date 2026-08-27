@@ -2689,7 +2689,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColReadR128Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Factor only the fetched column read key as D -> 128 -> n*f*C."""
-    # 069f6e7; EW4b v5p-32 layer-scan ~0.544 steps/s (~flat vs Rank2).
+    # 069f6e7; EW4b ~0.544 steps/s (~flat vs Rank2); stopped 3,836.
+    # dloss plateaued at +.0121--.0125 vs Rank2 @2,500--3,500, so dominated.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColReadR128Gelu')
     scan_layers = True

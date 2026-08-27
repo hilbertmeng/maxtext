@@ -200,50 +200,24 @@ from steps/s and stay silent between wakes; modest overshoot is fine.
 
 ## Stop Training
 
-Uses the auto-train PID/tmux session, an exact train-process match, `delete_tpu_xd.sh`,
-`run_registry.py stop`, and the closeout procedure below.
-
-1. Stop the creator first, or it can recreate the TPU:
-
-```bash
-RUN=BamLlama2Medium SESSION=${RUN}-TPU0-xd
-ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "kill \$(cat /home/lishengping/xd/projects/logs/${RUN}.pid) 2>/dev/null; \
-   tmux kill-session -t $SESSION 2>/dev/null"
-```
-
-2. Record the stop UTC, then stop only the intended train process. Make the pattern unable to
-   match its own shell; pass that UTC to the later registry `stop` so the final READY lease ends at
-   SIGTERM rather than after checkpointing and teardown:
+Use `/home/lishengping/xd/projects/closeout_runs.py` for one or many RUNs. Its authoritative
+source is `/home/xd/projects/xd_tpu_scripts/closeout_runs.py`; deploy that exact file and verify
+its hash after a source change. The script resolves targets only from their registries, then uses
+barriered parallel phases: stop controllers and signal workers; wait for each Orbax checkpoint's
+`commit_success.txt`; collect loss and verify TPU/queue deletion; register the stop, publish the
+TensorBoard marker, and emit every lease. It retains every task handle and writes a summary JSON
+under `tpu-ag:/home/lishengping/xd/projects/logs/`. It never waits for local TensorBoard sync.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "gcloud compute tpus tpu-vm ssh --internal-ip xd-v5p-16-0-maxtext \
-   --zone=us-central1-a --project=newproject-1-451205 --worker=all \
-   --command=\"pkill -TERM -f '[M]axText/train.py.*run_name=$RUN'\""
+  '/home/lishengping/xd/projects/closeout_runs.py RUN1 RUN2 \
+   --reason "RUN1=REASON1" --reason "RUN2=REASON2"'
 ```
 
-Wait for any Orbax SIGTERM checkpoint to finish. Preserve the final log, then use the shared
-helper as the sole resource-release path:
-
-```bash
-ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "/home/lishengping/xd/projects/run_registry.py collect-loss $RUN"
-ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  'bash /home/lishengping/xd/projects/delete_tpu_xd.sh \
-   xd-v5p-16-0-maxtext us-central1-a newproject-1-451205'
-```
-
-The helper uses `gcloud compute tpus tpu-vm delete`, deletes the queued-resource, retries
-transient failures, and succeeds only after both describes return `NOT_FOUND`.
-
-Record the stop only after teardown is verified, then run Close Out:
-
-```bash
-ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  "/home/lishengping/xd/projects/run_registry.py stop $RUN \
-   --status stopped --step STEP --reason REASON --end-utc STOP_UTC"
-```
+Use `--dry-run` to inspect resolved TPU/zone/checkpoint targets. On failure, read `failures` and
+the per-RUN phase outputs in the summary; retry only failed RUNs. The operation is idempotent, but
+do not use it for two registries sharing one READY TPU—the hot-switch workflow owns that case.
+`exp.py` conclusions and the regional history remain judgment-bearing Close Out work below.
 
 ## Close Out a Completed Run
 

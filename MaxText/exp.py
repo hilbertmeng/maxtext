@@ -1164,7 +1164,7 @@ class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias(
     BamLlama2MediumV2C256FactorizedOutputGate
 ):
     """Keep the negative per-head prior; make shared coordinate logits bias-free."""
-    # code_commit: e327752; EW4b ~0.658 steps/s (flat vs Both).
+    # e327752; EW4b ~0.658 steps/s; invalid after 512: parameter-tree drift broke paired init.
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias'
     bam_factorized_fetched_output_gate_coordinate_bias = False
     jax_cache_dir = (
@@ -1176,6 +1176,7 @@ class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBiasPairedInit(
     BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias
 ):
     """Bias-free coordinate logits with the Both parameter tree preserved."""
+    # code_commit: c7e770b; EW4b ~0.660 steps/s (flat vs Both).
     model_name = (
         'BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBiasPairedInit')
     jax_cache_dir = (

@@ -2742,6 +2742,21 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Scaling test for a learned pre-RMS bias on the fetched column key."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias')
+    scan_layers = True
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    bam_fetch_read_key_pre_rms_bias_side = 'col'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-fetch-col-pre-rms-bias')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColReadR128Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

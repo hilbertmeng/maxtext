@@ -287,10 +287,11 @@ def save_checkpoint(
     dataset_type="c4",
     data_iterator=None,
     config=None,
+    force=False,
 ) -> bool:
   """Wrapper for saving checkpoint."""
   if config and config.enable_checkpointing:
-    if (step % config.checkpoint_period == 0) or (
+    if force or (step % config.checkpoint_period == 0) or (
         config.enable_emergency_checkpoint and step % config.local_checkpoint_period == 0
     ):
       blocking_until_ready_start = time.time()
@@ -316,6 +317,8 @@ def save_checkpoint(
           emergency_replicator_checkpoint_manager.ReplicatorCheckpointManager,
       ),
   ):
+    if force:
+      raise ValueError("force_final_checkpoint is not supported by emergency checkpoint managers")
     return checkpoint_manager.save(
         step,
         args=orbax.checkpoint.args.PyTreeSave(item=state, save_args=save_args, ocdbt_target_data_file_size=chunk_byte_size),
@@ -330,6 +333,7 @@ def save_checkpoint(
             ),
             iter=grain.PyGrainCheckpointSave(data_iterator.local_iterator),
         ),
+        force=force,
     )
   else:
     return checkpoint_manager.save(
@@ -339,6 +343,7 @@ def save_checkpoint(
                 item=state, save_args=save_args, ocdbt_target_data_file_size=chunk_byte_size
             )
         ),
+        force=force,
     )
 
 # # -----------------------------------------------------------------------------
@@ -1220,6 +1225,26 @@ def train_loop(config, state=None):
 
     if step == start_step:
       max_utils.print_mem_stats("After params initialized")
+
+  if (
+      checkpoint_manager is not None
+      and config.force_final_checkpoint
+      and not config.only_eval
+      and get_first_step(state) == config.steps
+  ):
+    final_step = get_first_step(state)
+    state_to_save = state if not config.use_dpo else _split_dpo_state(state)[0]
+    if save_checkpoint(
+        checkpoint_manager,
+        final_step,
+        state_to_save,
+        config.dataset_type,
+        data_iterator,
+        config,
+        force=True,
+    ):
+      checkpointing.print_save_message(final_step, config.async_checkpointing)
+      record_file_and_step(final_step, config, data_iterator)
 
   if checkpoint_manager is not None:
     checkpoint_manager.wait_until_finished()

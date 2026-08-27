@@ -617,6 +617,7 @@ enable_checkpointing: True
 async_checkpointing: True
 keep_period: 1000 # step / keep_period would not be deleted
 checkpoint_period: 10_000
+force_final_checkpoint: False # save the exact terminal state after a clean training completion
 max_to_keep: 4 # max save checkpoint nums nearby
 
 # ================================= [learning rate schedule] =================================

@@ -290,7 +290,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_fetch_mix_num_heads = None  # None uses all MHA heads; otherwise use the first N
     bam_fetch_mix_implementation = 'dot'  # dot | mul_reduce
-    bam_fetch_col_read_bottleneck_dim = None  # D -> r -> n*f*C GELU column read key
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
     bam_fetch_temporal_block_mode = 'none'  # none | mean | linear

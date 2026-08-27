@@ -2414,12 +2414,6 @@ class BamAttention(Attention):
     assert 0 < self._fetch_mix_num_heads <= self.num_query_heads
     self._fetch_mix_implementation = cfg.bam_fetch_mix_implementation
     assert self._fetch_mix_implementation in ('dot', 'mul_reduce')
-    self._fetch_col_read_bottleneck_dim = getattr(
-        cfg, 'bam_fetch_col_read_bottleneck_dim', None)
-    if self._fetch_col_read_bottleneck_dim is not None:
-      self._fetch_col_read_bottleneck_dim = int(
-          self._fetch_col_read_bottleneck_dim)
-      assert 0 < self._fetch_col_read_bottleneck_dim < cfg.emb_dim
     self._read_implementation = cfg.bam_read_implementation
     self._fetched_read_side = cfg.bam_fetched_read_side
     assert self._fetched_read_side in ('both', 'row', 'col')
@@ -2696,34 +2690,12 @@ class BamAttention(Attention):
 
       # Joint target-side read key is generated directly in both cached spaces.
       read_features = (self.num_query_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
-      if self._fetch_col_read_bottleneck_dim is None:
-        self.W_R = DenseGeneral(
-            features=read_features, axis=-1, kernel_init=zeros_init,
-            kernel_axes=("embed", "q_heads", "fetch", "kv"),
-            dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            use_bias=False)
-      else:
-        self.W_R = DenseGeneral(
-            features=(self.num_query_heads, cfg.bam_n_f, read_k_dim), axis=-1,
-            kernel_init=zeros_init,
-            kernel_axes=("embed", "q_heads", "fetch", "kv"),
-            dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            use_bias=False)
-        self.W_R_col_down = DenseGeneral(
-            features=self._fetch_col_read_bottleneck_dim, axis=-1,
-            kernel_init=reg_init, kernel_axes=("embed", None),
-            dtype=self.dtype, weight_dtype=self.weight_dtype,
-            name="W_R_col_down", quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False)
-        self.W_R_col_up = DenseGeneral(
-            features=(self.num_query_heads, cfg.bam_n_f, read_v_dim), axis=-1,
-            kernel_init=zeros_init,
-            kernel_axes=("embed", "q_heads", "fetch", "kv"),
-            dtype=self.dtype, weight_dtype=self.weight_dtype,
-            name="W_R_col_up", quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.W_R = DenseGeneral(
+          features=read_features, axis=-1, kernel_init=zeros_init,
+          kernel_axes=("embed", "q_heads", "fetch", "kv"),
+          dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
+          quant=self.quant, matmul_precision=cfg.matmul_precision,
+          use_bias=False)
       if (not self._use_fetched_output_gate
           and not self._use_factorized_fetched_output_gate
           or self._fetched_output_gate_head_logits
@@ -3474,14 +3446,6 @@ class BamAttention(Attention):
     return _fit_bam_read_to_head(
         jnp.concatenate((y_k, y_v), axis=-1), self.bam_k, self.head_dim)
 
-  def _project_full_read_key(self, x):
-    row_or_full_key = self.W_R(x)
-    if self._fetch_col_read_bottleneck_dim is None:
-      return row_or_full_key
-    col_key = nn.gelu(self.W_R_col_down(x))
-    col_key = self.W_R_col_up(col_key)
-    return jnp.concatenate((row_or_full_key, col_key), axis=-1)
-
   def _read_fetched_m(self, Mbar, inputs_q):
     """Read fetched M into every BAM head."""
     with jax.named_scope("bam/read_fetched_m"):
@@ -3510,8 +3474,7 @@ class BamAttention(Attention):
       else:
         full_read_kwargs = self._read_key_kwargs(
             'W_R_gate', inputs_q, squeeze_fetch_axis=True)
-      full_read_projection = lambda x: jnp.squeeze(
-          self._project_full_read_key(x), axis=-2)
+      full_read_projection = lambda x: jnp.squeeze(self.W_R(x), axis=-2)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,

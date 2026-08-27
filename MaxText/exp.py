@@ -1106,6 +1106,7 @@ class BamLlama2MediumV2C256OutputGateLinearHeadLogits(
     BamLlama2MediumV2C256OutputGateR256GeluHeadLogits
 ):
     """Replace Common's GELU LoRA residual with one D->n*(k+c) linear map."""
+    # code_commit: dd330c6; EW4b ~0.644 steps/s (flat vs Common).
     model_name = 'BamLlama2MediumV2C256OutputGateLinearHeadLogits'
     bam_fetched_output_gate_projection = 'linear'
     jax_cache_dir = (
@@ -1188,7 +1189,7 @@ class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBiasPairedInit(
     BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias
 ):
     """Bias-free coordinate logits with the Both parameter tree preserved."""
-    # code_commit: c7e770b; EW4b ~0.660 steps/s (flat vs Both).
+    # c7e770b; EW4b ~0.656 steps/s; stopped 2,696. mean dloss +.0092 vs Both, +.0163 vs V2, +.0139 vs Common @1,800-2,600.
     model_name = (
         'BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBiasPairedInit')
     jax_cache_dir = (

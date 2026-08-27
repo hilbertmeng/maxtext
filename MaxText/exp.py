@@ -1172,6 +1172,17 @@ class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias(
         'jax_caches/xd-bam-v2-c256-factorized-output-gate-no-coordinate-bias')
 
 
+class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBiasPairedInit(
+    BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias
+):
+    """Bias-free coordinate logits with the Both parameter tree preserved."""
+    model_name = (
+        'BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBiasPairedInit')
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-factorized-output-gate-no-coordinate-bias-paired')
+
+
 class BamLlama2MediumV2C256MlpWriteR128(BamV2C256FetchScheduleBase):
     """Add eight rank-one M writes from the pre-WO MLP hidden state per layer."""
     # aef0d97; ~0.643 steps/s (!? -4.7% vs V2 C256); stopped at 3,249. Early gain decayed through zero; dloss +.00106 @3,200.

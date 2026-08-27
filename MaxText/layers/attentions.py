@@ -2733,26 +2733,20 @@ class BamAttention(Attention):
             matmul_precision=cfg.matmul_precision, use_bias=False)
         bias_value = math.log(zero_key_gate_init / (1.0 - zero_key_gate_init))
 
-        if self._factorized_fetched_output_gate_coordinate_bias:
-          def factorized_gate_bias_init(_key, shape, dtype):
-            assert shape == (output_width,)
-            return jnp.concatenate((
-                jnp.full((self.num_query_heads,), bias_value, dtype),
-                jnp.zeros((read_k_dim,), dtype),
-                jnp.full((self.num_query_heads,), bias_value, dtype),
-                jnp.zeros((read_v_dim,), dtype)))
+        def factorized_gate_bias_init(_key, shape, dtype):
+          assert shape == (output_width,)
+          return jnp.concatenate((
+              jnp.full((self.num_query_heads,), bias_value, dtype),
+              jnp.zeros((read_k_dim,), dtype),
+              jnp.full((self.num_query_heads,), bias_value, dtype),
+              jnp.zeros((read_v_dim,), dtype)))
 
-          self.factorized_fetched_output_gate_b0 = self.param(
-              'factorized_fetched_output_gate_b0',
-              nn.with_logical_partitioning(factorized_gate_bias_init, (None,)),
-              (output_width,), self.weight_dtype)
-        else:
-          self.factorized_fetched_output_gate_head_b0 = self.param(
-              'factorized_fetched_output_gate_head_b0',
-              nn.with_logical_partitioning(
-                  lambda _key, shape, dtype: jnp.full(
-                      shape, bias_value, dtype), (None, 'q_heads')),
-              (2, self.num_query_heads), self.weight_dtype)
+        # Preserve one identical parameter tree for paired ablations. The
+        # bias-free arm keeps the coordinate slices dormant in the forward pass.
+        self.factorized_fetched_output_gate_b0 = self.param(
+            'factorized_fetched_output_gate_b0',
+            nn.with_logical_partitioning(factorized_gate_bias_init, (None,)),
+            (output_width,), self.weight_dtype)
       add_grouped_read_norms(
           'W_R', (self.num_query_heads, cfg.bam_n_f, read_k_dim),
           (self.num_query_heads, cfg.bam_n_f, read_v_dim),
@@ -3115,16 +3109,16 @@ class BamAttention(Attention):
   def _project_factorized_fetched_output_gate(self, x):
     with jax.named_scope('bam/factorized_fetched_output_gate_projection'):
       packed_logits = self.W_factorized_fetched_output_gate(x)
-      head_bias = None
+      bias = self.factorized_fetched_output_gate_b0
+      if self._force_activation_dtype:
+        bias = jnp.asarray(bias, self.dtype)
       if self._factorized_fetched_output_gate_coordinate_bias:
-        bias = self.factorized_fetched_output_gate_b0
-        if self._force_activation_dtype:
-          bias = jnp.asarray(bias, self.dtype)
         packed_logits = packed_logits + bias
+        head_bias = None
       else:
-        head_bias = self.factorized_fetched_output_gate_head_b0
-        if self._force_activation_dtype:
-          head_bias = jnp.asarray(head_bias, self.dtype)
+        n = self.num_query_heads
+        k = self._abs_k_dim or self.bam_k
+        head_bias = jnp.stack((bias[:n], bias[n + k:n + k + n]))
       return _factorized_fetched_output_gate_logits(
           packed_logits, self.num_query_heads,
           self._abs_k_dim or self.bam_k,

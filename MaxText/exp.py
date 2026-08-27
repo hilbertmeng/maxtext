@@ -1106,7 +1106,7 @@ class BamLlama2MediumV2C256OutputGateLinearHeadLogits(
     BamLlama2MediumV2C256OutputGateR256GeluHeadLogits
 ):
     """Replace Common's GELU LoRA residual with one D->n*(k+c) linear map."""
-    # code_commit: dd330c6; EW4b ~0.644 steps/s (flat vs Common).
+    # dd330c6; EW4b ~0.644 steps/s; stopped 2,030. dloss +.01582 vs Common, +.01784 vs V2 @2,000; Common gap still growing.
     model_name = 'BamLlama2MediumV2C256OutputGateLinearHeadLogits'
     bam_fetched_output_gate_projection = 'linear'
     jax_cache_dir = (
@@ -1118,6 +1118,7 @@ class BamLlama2MediumV2C256OutputGateR256SiluHeadLogits(
     BamLlama2MediumV2C256OutputGateR256GeluHeadLogits
 ):
     """Replace Common's GELU bottleneck activation with SiLU."""
+    # code_commit: ea8a474; EW4b ~0.640 steps/s.
     model_name = 'BamLlama2MediumV2C256OutputGateR256SiluHeadLogits'
     bam_fetched_output_gate_activation = 'silu'
     jax_cache_dir = (

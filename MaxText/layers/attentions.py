@@ -1965,7 +1965,8 @@ def _gate_fetched_read_output(
 
 
 def _factorized_fetched_output_gate_logits(
-    packed_logits, num_heads, read_k_dim, read_v_dim, gate_side):
+    packed_logits, num_heads, read_k_dim, read_v_dim, gate_side,
+    head_bias=None):
   """Factor output gates into per-head scalars and shared coordinates."""
   if gate_side not in ('both', 'row', 'col'):
     raise ValueError(f'Unknown factorized fetched output gate side: {gate_side}')
@@ -1979,6 +1980,13 @@ def _factorized_fetched_output_gate_logits(
       (num_heads, num_heads + read_k_dim,
        2 * num_heads + read_k_dim),
       axis=-1)
+  if head_bias is not None:
+    if head_bias.shape != (2, num_heads):
+      raise ValueError(
+          f'factorized fetched output head bias expects {(2, num_heads)}, '
+          f'got {head_bias.shape}')
+    head_col = head_col + head_bias[0]
+    head_row = head_row + head_bias[1]
   head_logits = jnp.stack((head_row, head_col), axis=-1)
   col_logits = head_col[..., :, None] + coord_u[..., None, :]
   row_logits = head_row[..., :, None] + coord_v[..., None, :]
@@ -2421,6 +2429,8 @@ class BamAttention(Attention):
         self._fetched_output_gate_bottleneck_dim is not None)
     self._factorized_fetched_output_gate_side = getattr(
         cfg, 'bam_factorized_fetched_output_gate_side', 'none')
+    self._factorized_fetched_output_gate_coordinate_bias = bool(getattr(
+        cfg, 'bam_factorized_fetched_output_gate_coordinate_bias', True))
     self._use_factorized_fetched_output_gate = (
         self._factorized_fetched_output_gate_side != 'none')
     self._m_read_norm = cfg.bam_m_read_norm
@@ -2723,18 +2733,26 @@ class BamAttention(Attention):
             matmul_precision=cfg.matmul_precision, use_bias=False)
         bias_value = math.log(zero_key_gate_init / (1.0 - zero_key_gate_init))
 
-        def factorized_gate_bias_init(_key, shape, dtype):
-          assert shape == (output_width,)
-          return jnp.concatenate((
-              jnp.full((self.num_query_heads,), bias_value, dtype),
-              jnp.zeros((read_k_dim,), dtype),
-              jnp.full((self.num_query_heads,), bias_value, dtype),
-              jnp.zeros((read_v_dim,), dtype)))
+        if self._factorized_fetched_output_gate_coordinate_bias:
+          def factorized_gate_bias_init(_key, shape, dtype):
+            assert shape == (output_width,)
+            return jnp.concatenate((
+                jnp.full((self.num_query_heads,), bias_value, dtype),
+                jnp.zeros((read_k_dim,), dtype),
+                jnp.full((self.num_query_heads,), bias_value, dtype),
+                jnp.zeros((read_v_dim,), dtype)))
 
-        self.factorized_fetched_output_gate_b0 = self.param(
-            'factorized_fetched_output_gate_b0',
-            nn.with_logical_partitioning(factorized_gate_bias_init, (None,)),
-            (output_width,), self.weight_dtype)
+          self.factorized_fetched_output_gate_b0 = self.param(
+              'factorized_fetched_output_gate_b0',
+              nn.with_logical_partitioning(factorized_gate_bias_init, (None,)),
+              (output_width,), self.weight_dtype)
+        else:
+          self.factorized_fetched_output_gate_head_b0 = self.param(
+              'factorized_fetched_output_gate_head_b0',
+              nn.with_logical_partitioning(
+                  lambda _key, shape, dtype: jnp.full(
+                      shape, bias_value, dtype), (None, 'q_heads')),
+              (2, self.num_query_heads), self.weight_dtype)
       add_grouped_read_norms(
           'W_R', (self.num_query_heads, cfg.bam_n_f, read_k_dim),
           (self.num_query_heads, cfg.bam_n_f, read_v_dim),
@@ -3097,14 +3115,21 @@ class BamAttention(Attention):
   def _project_factorized_fetched_output_gate(self, x):
     with jax.named_scope('bam/factorized_fetched_output_gate_projection'):
       packed_logits = self.W_factorized_fetched_output_gate(x)
-      bias = self.factorized_fetched_output_gate_b0
-      if self._force_activation_dtype:
-        bias = jnp.asarray(bias, self.dtype)
+      head_bias = None
+      if self._factorized_fetched_output_gate_coordinate_bias:
+        bias = self.factorized_fetched_output_gate_b0
+        if self._force_activation_dtype:
+          bias = jnp.asarray(bias, self.dtype)
+        packed_logits = packed_logits + bias
+      else:
+        head_bias = self.factorized_fetched_output_gate_head_b0
+        if self._force_activation_dtype:
+          head_bias = jnp.asarray(head_bias, self.dtype)
       return _factorized_fetched_output_gate_logits(
-          packed_logits + bias, self.num_query_heads,
+          packed_logits, self.num_query_heads,
           self._abs_k_dim or self.bam_k,
           self._abs_v_dim or self.bam_v,
-          self._factorized_fetched_output_gate_side)
+          self._factorized_fetched_output_gate_side, head_bias)
 
   def _fit_local_qk_reads(self, q_local, k_local):
     """Place K-side first and adapt/pad V-side into the remaining head width."""

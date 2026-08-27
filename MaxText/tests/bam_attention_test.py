@@ -926,6 +926,16 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_array_equal(col, expected_col)
     np.testing.assert_array_equal(row, expected_row)
 
+    head_bias = jnp.asarray([[5.0, 6.0], [7.0, 8.0]])
+    biased, biased_head = _factorized_fetched_output_gate_logits(
+        packed, 2, 3, 2, gate_side='both', head_bias=head_bias)
+    np.testing.assert_array_equal(
+        biased[..., :3], expected_col + head_bias[0, :, None])
+    np.testing.assert_array_equal(
+        biased[..., 3:], expected_row + head_bias[1, :, None])
+    np.testing.assert_array_equal(
+        biased_head, jnp.asarray([[[[10.0, 6.0], [12.0, 8.0]]]]))
+
   def test_rms_gate_learned_norm_is_a_paired_identity_control(self):
     r = jnp.array([[3.0, 4.0]], dtype=jnp.float32)
     gate_logits = jnp.zeros((1, 1), dtype=jnp.float32)

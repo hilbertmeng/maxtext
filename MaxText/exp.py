@@ -1084,6 +1084,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
     """Remove the static pre-RMS offsets from both packed LocalQ/K keys."""
+    # cd1ba4d; EW4b ~0.666 steps/s.
     model_name = 'BamLlama2MediumV2C256LocalQKNoPreRMSBias'
     scan_layers = True
     bam_local_qk_pre_rms_bias = False
@@ -1094,6 +1095,7 @@ class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchColPreRMSBias(BamV2C256FetchScheduleBase):
     """Add a learned pre-RMS offset to the fetched column/address key."""
+    # cd1ba4d; EW4b ~0.660 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchColPreRMSBias'
     scan_layers = True
     bam_fetch_read_key_pre_rms_bias_side = 'col'
@@ -1104,6 +1106,7 @@ class BamLlama2MediumV2C256FetchColPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchRowPreRMSBias(BamV2C256FetchScheduleBase):
     """Add a learned pre-RMS offset to the fetched row/data key."""
+    # cd1ba4d; EW4b ~0.657 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchRowPreRMSBias'
     scan_layers = True
     bam_fetch_read_key_pre_rms_bias_side = 'row'
@@ -1114,6 +1117,7 @@ class BamLlama2MediumV2C256FetchRowPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchColSiluReadKey(BamV2C256FetchScheduleBase):
     """Apply twice-SiLU to fetched column keys immediately before RMS."""
+    # cd1ba4d; EW4b ~0.661 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchColSiluReadKey'
     scan_layers = True
     bam_fetch_read_key_activation_side = 'col'
@@ -1124,6 +1128,7 @@ class BamLlama2MediumV2C256FetchColSiluReadKey(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LocalQKColSiluReadKey(BamV2C256FetchScheduleBase):
     """Apply twice-SiLU to LocalQ/K column keys immediately before RMS."""
+    # cd1ba4d; EW4b ~0.664 steps/s.
     model_name = 'BamLlama2MediumV2C256LocalQKColSiluReadKey'
     scan_layers = True
     bam_local_qk_read_key_activation_side = 'col'

@@ -1164,6 +1164,7 @@ class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias(
     BamLlama2MediumV2C256FactorizedOutputGate
 ):
     """Keep the negative per-head prior; make shared coordinate logits bias-free."""
+    # code_commit: e327752; EW4b ~0.658 steps/s (flat vs Both).
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias'
     bam_factorized_fetched_output_gate_coordinate_bias = False
     jax_cache_dir = (

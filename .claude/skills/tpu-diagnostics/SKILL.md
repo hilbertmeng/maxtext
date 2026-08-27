@@ -12,7 +12,8 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 
 - Keep this skill procedural. Put checkpoint-specific measurements and conclusions in
   `experiments/`.
-- Run local BAM unit tests with `scripts/run_bam_unit_tests.sh`; it uses the pinned CPU
+- Run local BAM unit tests with `.claude/skills/tpu-diagnostics/scripts/run_bam_unit_tests.sh`;
+  it uses the pinned CPU
   environment instead of whichever conda environment happens to be active.
 - Use a spot non-pod `v6e-1` for inference probes; choose a larger TPU when memory requires it.
 - Use only Codex-owned diagnostic resources whose names start with `xd-`; never borrow an idle

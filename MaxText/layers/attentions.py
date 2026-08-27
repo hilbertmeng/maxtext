@@ -2421,6 +2421,8 @@ class BamAttention(Attention):
         cfg, 'bam_fetched_output_gate_bottleneck_dim', None)
     self._fetched_output_gate_activation = getattr(
         cfg, 'bam_fetched_output_gate_activation', 'none')
+    self._fetched_output_gate_projection = getattr(
+        cfg, 'bam_fetched_output_gate_projection', 'lora')
     self._fetched_output_gate_head_logits = bool(getattr(
         cfg, 'bam_fetched_output_gate_head_logits', False))
     self._fetched_output_gate_side = getattr(
@@ -2507,6 +2509,7 @@ class BamAttention(Attention):
     assert self._forget_mode in ('constant', 'dynamic')
     assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     assert self._fetched_output_gate_activation in ('none', 'gelu', 'silu')
+    assert self._fetched_output_gate_projection in ('lora', 'linear')
     assert self._fetched_output_gate_side in ('both', 'col')
     assert self._factorized_fetched_output_gate_side in (
         'none', 'both', 'row', 'col')
@@ -3028,6 +3031,23 @@ class BamAttention(Attention):
             'local_k_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
 
+    # Keep Common's existing LoRA tree intact and append the zero-init linear
+    # alternative last, so this ablation cannot perturb control initialization.
+    if (self._use_fetched_output_gate
+        and self._fetched_output_gate_projection == 'linear'):
+      read_k_dim = self._abs_k_dim or self.bam_k
+      read_v_dim = self._abs_v_dim or self.bam_v
+      output_gate_features = (
+          (self.num_query_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
+          if self._fetched_output_gate_side == 'both'
+          else (self.num_query_heads, cfg.bam_n_f, read_k_dim))
+      self.W_fetched_output_gate_linear = DenseGeneral(
+          features=output_gate_features, axis=-1, kernel_init=zeros_init,
+          kernel_axes=('embed', 'q_heads', 'fetch', 'kv'),
+          dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name='W_fetched_output_gate_linear', quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False)
+
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
     if paired is not None:
@@ -3083,13 +3103,17 @@ class BamAttention(Attention):
 
   def _project_fetched_output_gate(self, x):
     with jax.named_scope('bam/fetched_output_gate_projection'):
-      hidden = self.W_fetched_output_gate_down(x)
-      if self._fetched_output_gate_activation == 'gelu':
-        hidden = nn.gelu(hidden)
+      if self._fetched_output_gate_projection == 'linear':
+        element_logits = jnp.squeeze(
+            self.W_fetched_output_gate_linear(x), axis=-2)
       else:
-        hidden = nn.silu(hidden)
-      element_logits = jnp.squeeze(
-          self.W_fetched_output_gate_up(hidden), axis=-2)
+        hidden = self.W_fetched_output_gate_down(x)
+        if self._fetched_output_gate_activation == 'gelu':
+          hidden = nn.gelu(hidden)
+        else:
+          hidden = nn.silu(hidden)
+        element_logits = jnp.squeeze(
+            self.W_fetched_output_gate_up(hidden), axis=-2)
 
       if not self._fetched_output_gate_head_logits:
         bias = self.fetched_output_gate_b0

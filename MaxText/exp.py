@@ -303,6 +303,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
     bam_fetched_output_gate_bottleneck_dim = None  # D -> r -> n*(k+c) readout gate
     bam_fetched_output_gate_activation = 'none'  # none | gelu | silu
+    bam_fetched_output_gate_projection = 'lora'  # lora | linear
     bam_fetched_output_gate_head_logits = False  # retain old 2n logits as common terms
     bam_fetched_output_gate_side = 'both'  # both | col (column/U readout only)
     # none | both | row | col; head scalar + cross-head-shared coordinate logits
@@ -1099,6 +1100,17 @@ class BamLlama2MediumV2C256OutputGateR256GeluHeadLogits(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-output-gate-r256-gelu-head-logits')
+
+
+class BamLlama2MediumV2C256OutputGateLinearHeadLogits(
+    BamLlama2MediumV2C256OutputGateR256GeluHeadLogits
+):
+    """Replace Common's GELU LoRA residual with one D->n*(k+c) linear map."""
+    model_name = 'BamLlama2MediumV2C256OutputGateLinearHeadLogits'
+    bam_fetched_output_gate_projection = 'linear'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-output-gate-linear-head-logits')
 
 
 class BamLlama2MediumV2C256OutputGateColOnlyR256Gelu(

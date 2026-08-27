@@ -1708,6 +1708,7 @@ class BamLlama2MediumV2C256FetchReadR512Gelu(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchColReadR128Gelu(BamV2C256FetchScheduleBase):
     """Factor only the fetched column read key as D -> 128 -> n*f*C."""
+    # 069f6e7; EW4b v5p-16 layer-scan ~0.654 steps/s (-1.4% vs V2 C256).
     model_name = 'BamLlama2MediumV2C256FetchColReadR128Gelu'
     scan_layers = True
     checkpoint_period = 200
@@ -2687,6 +2688,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColReadR128Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Factor only the fetched column read key as D -> 128 -> n*f*C."""
+    # 069f6e7; EW4b v5p-32 layer-scan ~0.544 steps/s (~flat vs Rank2).
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColReadR128Gelu')
     scan_layers = True

@@ -2746,6 +2746,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Scaling test for a learned pre-RMS bias on the fetched column key."""
+    # code_commit: 2a83a97; EW4b ~0.545 steps/s (flat vs Rank2); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias')
     scan_layers = True

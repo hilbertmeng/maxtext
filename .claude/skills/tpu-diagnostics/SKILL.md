@@ -21,8 +21,8 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
 - Acquire v6e candidates with this region policy and command:
 
   ```bash
-  PRIMARY_ZONE=europe-west4-b
-  BACKUP_ZONES=(us-central1-a europe-west4-a us-east5-a)
+  PRIMARY_ZONE=europe-west4-a
+  BACKUP_ZONES=(us-central1-a us-east5-a)
   NAME_PREFIX=xd-v6e-1-bamdiag
   for ZONE in "$PRIMARY_ZONE" "${BACKUP_ZONES[@]}"; do
     NAME="$NAME_PREFIX-$ZONE"

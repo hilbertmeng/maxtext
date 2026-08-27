@@ -148,8 +148,9 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   '/home/lishengping/xd/projects/run_registry.py loss-report RUN --through-step STEP'
 ```
 
-It samples `step % 5 == 0` inside each ±25-step window, preserving the historical 11-sample
-gap definition even though future TensorBoard files record every 10 steps. For each RUN−BASE,
+It samples `step % 10 == 0` inside each ±25-step window, preserving the historical reporting
+series across worker logs and 10-step TensorBoard records. Do not pass the milestone interval as
+`--sample-period`; the default is the window's raw-point stride. For each RUN−BASE,
 print one cumulative horizontal table with only `step`, `gap`, and `r200`; omit absolute losses
 and split after about 20 steps into another horizontal block. Report every direct `compare_runs`
 entry, including completed BASEs with no new common steps; omit one only after the user explicitly
@@ -278,7 +279,7 @@ disk/log health, submits once, polls the accepted queue, records its exact PID, 
 installation:
 
 ```bash
-NAME=xd-v6e-1-bamdiag ZONE=${ZONE:-europe-west4-b}
+NAME=xd-v6e-1-bamdiag ZONE=${ZONE:-europe-west4-a}
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/start_standalone_tpu.sh \
    '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh"

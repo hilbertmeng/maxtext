@@ -1164,7 +1164,7 @@ class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias(
     BamLlama2MediumV2C256FactorizedOutputGate
 ):
     """Keep the negative per-head prior; make shared coordinate logits bias-free."""
-    # e327752; EW4b ~0.658 steps/s; invalid after 512: parameter-tree drift broke paired init.
+    # e327752; EW4b ~0.658 steps/s; stopped 512; exact loss match to paired-init through 265.
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias'
     bam_factorized_fetched_output_gate_coordinate_bias = False
     jax_cache_dir = (

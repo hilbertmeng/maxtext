@@ -1118,7 +1118,7 @@ class BamLlama2MediumV2C256OutputGateR256SiluHeadLogits(
     BamLlama2MediumV2C256OutputGateR256GeluHeadLogits
 ):
     """Replace Common's GELU bottleneck activation with SiLU."""
-    # code_commit: ea8a474; EW4b ~0.640 steps/s.
+    # ea8a474; EW4b ~0.640 steps/s; stopped 3,394. dloss +.00417 vs GELU Common @2,800; +.00603 vs V2 @3,200.
     model_name = 'BamLlama2MediumV2C256OutputGateR256SiluHeadLogits'
     bam_fetched_output_gate_activation = 'silu'
     jax_cache_dir = (

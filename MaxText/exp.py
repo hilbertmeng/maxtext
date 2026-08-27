@@ -290,6 +290,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_fetch_mix_num_heads = None  # None uses all MHA heads; otherwise use the first N
     bam_fetch_mix_implementation = 'dot'  # dot | mul_reduce
+    bam_fetch_col_read_bottleneck_dim = None  # D -> r -> n*f*C GELU column read key
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
     bam_fetch_temporal_block_mode = 'none'  # none | mean | linear
@@ -1705,6 +1706,17 @@ class BamLlama2MediumV2C256FetchReadR512Gelu(BamV2C256FetchScheduleBase):
     bam_fetch_read_bottleneck_activation = 'gelu'
 
 
+class BamLlama2MediumV2C256FetchColReadR128Gelu(BamV2C256FetchScheduleBase):
+    """Factor only the fetched column read key as D -> 128 -> n*f*C."""
+    model_name = 'BamLlama2MediumV2C256FetchColReadR128Gelu'
+    scan_layers = True
+    checkpoint_period = 200
+    bam_fetch_col_read_bottleneck_dim = 128
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-col-read-r128-gelu')
+
+
 class BamLlama2MediumV2C256CompactAddressControlR384(
     BamV2C256FetchScheduleBase
 ):
@@ -2669,6 +2681,20 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColReadR128Gelu(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Factor only the fetched column read key as D -> 128 -> n*f*C."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColReadR128Gelu')
+    scan_layers = True
+    checkpoint_period = 250
+    bam_fetch_col_read_bottleneck_dim = 128
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-fetch-col-read-r128-gelu')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2GroupedWriteRMSNormKeepBias(

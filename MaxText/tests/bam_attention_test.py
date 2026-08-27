@@ -9,6 +9,8 @@ from layers import normalizations
 
 from layers.attentions import (
     GroupedRMSNorm,
+    _activate_bam_read_key,
+    _add_bam_read_key_bias,
     _attention_op,
     _bam_fetch_op,
     _dynamic_bam_fetch_mix_weights,
@@ -17,6 +19,7 @@ from layers.attentions import (
     _factorized_fetched_output_gate_logits,
     _packed_factorized_local_qk_init,
     _paired_parameter_init,
+    _project_bam_read_keys,
     _mix_bam_write_v,
     _transform_bam_read_key,
     _update_bam_matrix,
@@ -28,6 +31,38 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_read_key_bias_and_silu_precede_rms(self):
+    projected = jnp.asarray([[[[-2.0, 1.0, -1.0, 2.0]]]])
+    row_bias = jnp.asarray([[[0.5, -0.5]]])
+    col_bias = jnp.asarray([[[1.0, -1.0]]])
+    biased = _add_bam_read_key_bias(
+        projected, 2, row_bias=row_bias, col_bias=col_bias)
+    expected = jnp.asarray([[[[-1.5, 0.5, 0.0, 1.0]]]])
+    np.testing.assert_array_equal(biased, expected)
+
+    np.testing.assert_allclose(
+        _activate_bam_read_key(expected, 'silu'),
+        2.0 * jax.nn.silu(expected), rtol=1e-6, atol=1e-6)
+    zero_slope = jax.grad(
+        lambda z: jnp.sum(_activate_bam_read_key(z, 'silu')))(
+            jnp.zeros((4,)))
+    np.testing.assert_allclose(
+        zero_slope, jnp.ones((4,)), rtol=1e-6, atol=1e-6)
+
+    _, _, row_key, col_key = _project_bam_read_keys(
+        2, jnp.zeros((1, 1, 1)), lambda _x: biased,
+        rms_epsilon=_RMS_EPSILON, key_mode='rms',
+        key_col_activation='silu')
+    np.testing.assert_allclose(
+        row_key, normalizations.rms_norm(
+            expected[..., :2], dtype=expected.dtype,
+            epsilon=_RMS_EPSILON), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(
+        col_key, normalizations.rms_norm(
+            2.0 * jax.nn.silu(expected[..., 2:]),
+            dtype=expected.dtype, epsilon=_RMS_EPSILON),
+        rtol=1e-6, atol=1e-6)
 
   def test_attention_op_matches_dense_and_chunk_values_and_gradients(self):
     b, t, n, d, chunk_size = 2, 6, 3, 4, 2

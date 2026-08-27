@@ -245,6 +245,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_layer_modes = ['local_qk+local_o+full'] * 24
     bam_read_sides = 'both'  # both | row (M^T r_row) | col (M r_col); may be per-layer
     bam_fetched_read_side = 'both'  # fetched-M-only ablation; leaves LocalQK bilateral
+    bam_fetch_read_key_pre_rms_bias_side = 'none'  # none | row | col | both
+    bam_fetch_read_key_activation_side = 'none'  # none | row | col | both
 
     bam_k = 32
     bam_v = 32
@@ -270,6 +272,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_use_grouped_rw_norm = False
     bam_use_native_grouped_read_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
+    bam_local_qk_pre_rms_bias = True
+    bam_local_qk_read_key_activation_side = 'none'  # none | row | col | both
     bam_pack_factorized_local_qk = False  # fuse factorized Q/K key, gate, and head-mix projections
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
     bam_local_qk_rank = 1  # number of dynamic basis keys per Q/K and read side
@@ -1076,6 +1080,56 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
+    """Remove the static pre-RMS offsets from both packed LocalQ/K keys."""
+    model_name = 'BamLlama2MediumV2C256LocalQKNoPreRMSBias'
+    scan_layers = True
+    bam_local_qk_pre_rms_bias = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-local-qk-no-pre-rms-bias')
+
+
+class BamLlama2MediumV2C256FetchColPreRMSBias(BamV2C256FetchScheduleBase):
+    """Add a learned pre-RMS offset to the fetched column/address key."""
+    model_name = 'BamLlama2MediumV2C256FetchColPreRMSBias'
+    scan_layers = True
+    bam_fetch_read_key_pre_rms_bias_side = 'col'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-col-pre-rms-bias')
+
+
+class BamLlama2MediumV2C256FetchRowPreRMSBias(BamV2C256FetchScheduleBase):
+    """Add a learned pre-RMS offset to the fetched row/data key."""
+    model_name = 'BamLlama2MediumV2C256FetchRowPreRMSBias'
+    scan_layers = True
+    bam_fetch_read_key_pre_rms_bias_side = 'row'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-row-pre-rms-bias')
+
+
+class BamLlama2MediumV2C256FetchColSiluReadKey(BamV2C256FetchScheduleBase):
+    """Apply twice-SiLU to fetched column keys immediately before RMS."""
+    model_name = 'BamLlama2MediumV2C256FetchColSiluReadKey'
+    scan_layers = True
+    bam_fetch_read_key_activation_side = 'col'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-col-silu-read-key')
+
+
+class BamLlama2MediumV2C256LocalQKColSiluReadKey(BamV2C256FetchScheduleBase):
+    """Apply twice-SiLU to LocalQ/K column keys immediately before RMS."""
+    model_name = 'BamLlama2MediumV2C256LocalQKColSiluReadKey'
+    scan_layers = True
+    bam_local_qk_read_key_activation_side = 'col'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-local-qk-col-silu-read-key')
 
 
 class BamLlama2MediumV2C256OutputGateR256Gelu(BamV2C256FetchScheduleBase):

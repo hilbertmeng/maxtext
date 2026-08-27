@@ -1837,16 +1837,40 @@ def _transform_bam_read_key(
   raise ValueError(f'Unknown BAM read-key transform: {mode}')
 
 
+def _activate_bam_read_key(r, activation='none'):
+  """Apply an optional signed nonlinearity before read-key RMS normalization."""
+  if activation == 'none':
+    return r
+  if activation == 'silu':
+    # SiLU'(0)=1/2. The factor of two preserves the linear control's
+    # zero-point Jacobian; RMS removes the common scale once the key is active.
+    return 2.0 * jax.nn.silu(r)
+  raise ValueError(f'Unknown BAM read-key activation: {activation}')
+
+
+def _add_bam_read_key_bias(projected_key, row_width, row_bias=None, col_bias=None):
+  """Add independently parameterized row/column offsets before key transforms."""
+  raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
+  if row_bias is not None:
+    raw_row = raw_row + jnp.asarray(row_bias, raw_row.dtype)
+  if col_bias is not None:
+    raw_col = raw_col + jnp.asarray(col_bias, raw_col.dtype)
+  return jnp.concatenate((raw_row, raw_col), axis=-1)
+
+
 def _project_bam_read_keys(
     row_width, x, W_R, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None, key_col_norm=None,
-    use_learned_key_norm=False, key_row_mode=None, key_col_mode=None):
+    use_learned_key_norm=False, key_row_mode=None, key_col_mode=None,
+    key_row_activation='none', key_col_activation='none'):
   """Project and independently transform the row/column runtime read keys."""
   with jax.named_scope("bam/read_key_projection"):
     projected_key = W_R(x) if callable(W_R) else jnp.broadcast_to(
         W_R, x.shape[:-1] + W_R.shape)
     raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
+    raw_row = _activate_bam_read_key(raw_row, key_row_activation)
+    raw_col = _activate_bam_read_key(raw_col, key_col_activation)
   with jax.named_scope("bam/read_key_transform"):
     key_row_mode = key_mode if key_row_mode is None else key_row_mode
     key_col_mode = key_mode if key_col_mode is None else key_col_mode
@@ -2026,7 +2050,8 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_row_norm=None, key_col_norm=None,
              use_learned_key_norm=False, implementation='mul_reduce_btn',
              read_side='both', return_sides=False,
-             key_row_mode=None, key_col_mode=None):
+             key_row_mode=None, key_col_mode=None,
+             key_row_activation='none', key_col_activation='none'):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
   Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
@@ -2049,7 +2074,9 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
       key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm,
-      key_row_mode=key_row_mode, key_col_mode=key_col_mode)
+      key_row_mode=key_row_mode, key_col_mode=key_col_mode,
+      key_row_activation=key_row_activation,
+      key_col_activation=key_col_activation)
   with jax.named_scope("bam/read_m_contract"):
     y_u, y_v = _contract_bam_read_sides(
         Mc, Mr, r_row, r_col, R is None, implementation, read_side)
@@ -2095,7 +2122,8 @@ def factorized_head_bam_read(
     key_gate_logits=None, key_row_norm=None,
     key_col_norm=None, use_learned_key_norm=False,
     implementation='mul_reduce_btn', read_side='both', rank=1,
-    second_implementation='mul_reduce', v_projection=None):
+    second_implementation='mul_reduce', v_projection=None,
+    key_row_activation='none', key_col_activation='none'):
   """Read with rank-r shared runtime keys, then route dynamically across heads.
 
   For each side, the effective per-head key is factorized as
@@ -2145,7 +2173,9 @@ def factorized_head_bam_read(
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
       key_gate_logits=gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
-      use_learned_key_norm=use_learned_key_norm)
+      use_learned_key_norm=use_learned_key_norm,
+      key_row_activation=key_row_activation,
+      key_col_activation=key_col_activation)
 
   if rank > 1:
     if r_row.shape[-2:] != (rank, M.shape[-2]):
@@ -2397,6 +2427,9 @@ class BamAttention(Attention):
     self._use_native_grouped_read_norm = bool(
         cfg.bam_use_native_grouped_read_norm)
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
+    self._local_qk_pre_rms_bias = bool(cfg.bam_local_qk_pre_rms_bias)
+    self._local_qk_read_key_activation_side = (
+        cfg.bam_local_qk_read_key_activation_side)
     self._pack_factorized_local_qk = bool(cfg.bam_pack_factorized_local_qk)
     self._batch_factorized_local_qk_read = bool(
         cfg.bam_batch_factorized_local_qk_read)
@@ -2417,6 +2450,10 @@ class BamAttention(Attention):
     self._read_implementation = cfg.bam_read_implementation
     self._fetched_read_side = cfg.bam_fetched_read_side
     assert self._fetched_read_side in ('both', 'row', 'col')
+    self._fetch_read_key_pre_rms_bias_side = (
+        cfg.bam_fetch_read_key_pre_rms_bias_side)
+    self._fetch_read_key_activation_side = (
+        cfg.bam_fetch_read_key_activation_side)
     self._fetched_output_gate_bottleneck_dim = getattr(
         cfg, 'bam_fetched_output_gate_bottleneck_dim', None)
     self._fetched_output_gate_activation = getattr(
@@ -2475,6 +2512,20 @@ class BamAttention(Attention):
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert self._local_qk_key_mode in (
         'shared', 'factorized', 'per_head', 'per_head_static')
+    assert self._local_qk_read_key_activation_side in (
+        'none', 'row', 'col', 'both')
+    assert self._fetch_read_key_pre_rms_bias_side in (
+        'none', 'row', 'col', 'both')
+    assert self._fetch_read_key_activation_side in (
+        'none', 'row', 'col', 'both')
+    assert self._local_qk_pre_rms_bias or (
+        self._pack_factorized_local_qk
+        and self._local_qk_key_mode == 'factorized'), (
+            'disabling LocalQK pre-RMS bias requires packed factorized keys')
+    assert self._local_qk_read_key_activation_side == 'none' or (
+        self._pack_factorized_local_qk
+        and self._local_qk_key_mode == 'factorized'), (
+            'LocalQK key activation requires packed factorized keys')
     assert not self._pack_factorized_local_qk or (
         'local_qk' in self._mode
         and self._local_qk_key_mode == 'factorized'
@@ -3049,6 +3100,24 @@ class BamAttention(Attention):
           name='W_fetched_output_gate_linear', quant=self.quant,
           matmul_precision=cfg.matmul_precision, use_bias=False)
 
+    # Append fetched-key offsets after all existing parameters so adding one
+    # cannot perturb the V2 control's common-parameter initialization stream.
+    if 'full' in self._mode:
+      if self._fetch_read_key_pre_rms_bias_side in ('row', 'both'):
+        self.W_R_row_pre_rms_bias = self.param(
+            'W_R_row_pre_rms_bias',
+            nn.with_logical_partitioning(
+                zeros_init, ('q_heads', 'fetch', 'kv')),
+            (self.num_query_heads, cfg.bam_n_f,
+             self._abs_k_dim or self.bam_k), self.weight_dtype)
+      if self._fetch_read_key_pre_rms_bias_side in ('col', 'both'):
+        self.W_R_col_pre_rms_bias = self.param(
+            'W_R_col_pre_rms_bias',
+            nn.with_logical_partitioning(
+                zeros_init, ('q_heads', 'fetch', 'kv')),
+            (self.num_query_heads, cfg.bam_n_f,
+             self._abs_v_dim or self.bam_v), self.weight_dtype)
+
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
     if paired is not None:
@@ -3059,7 +3128,8 @@ class BamAttention(Attention):
         getattr(self, 'local_k_post_read_v_projection', shared),
     )
 
-  def _read_key_kwargs(self, gate_name, x, squeeze_fetch_axis=False):
+  def _read_key_kwargs(
+      self, gate_name, x, squeeze_fetch_axis=False, activation_side='none'):
     candidate_logits = None
     if self.config.bam_create_read_gate_params:
       with jax.named_scope("bam/read_gate_projection"):
@@ -3071,11 +3141,12 @@ class BamAttention(Attention):
           candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
     return self._read_key_kwargs_from_logits(
         gate_name.removesuffix('_gate'), candidate_logits,
-        squeeze_fetch_axis=squeeze_fetch_axis)
+        squeeze_fetch_axis=squeeze_fetch_axis,
+        activation_side=activation_side)
 
   def _read_key_kwargs_from_logits(
       self, projection_name, candidate_logits, squeeze_fetch_axis=False,
-      key_mode=None):
+      key_mode=None, activation_side='none'):
     key_mode = self._read_key_mode if key_mode is None else key_mode
     gate_logits = (
         candidate_logits if key_mode == 'rms_gate' else None)
@@ -3085,6 +3156,10 @@ class BamAttention(Attention):
         rms_epsilon=self._read_key_epsilon,
         rms_statistics_dtype=self._read_rms_statistics_dtype,
         key_gate_logits=gate_logits,
+        key_row_activation=(
+            'silu' if activation_side in ('row', 'both') else 'none'),
+        key_col_activation=(
+            'silu' if activation_side in ('col', 'both') else 'none'),
     )
     if self._create_grouped_rw_norm or self._use_native_grouped_read_norm:
       row_norm = getattr(self, f'{projection_name}_row_norm')
@@ -3180,13 +3255,16 @@ class BamAttention(Attention):
         qk_gate = packed[..., key_width:key_width + 2]
         qk_mix = packed[..., key_width + 2:].reshape(
             packed.shape[:-2] + (2, self.num_query_heads, 2))
-        qk_key = qk_key + jnp.asarray(
-            self.W_local_qk_bias, qk_key.dtype)
+        if self._local_qk_pre_rms_bias:
+          qk_key = qk_key + jnp.asarray(
+              self.W_local_qk_bias, qk_key.dtype)
         qk_gate = qk_gate + jnp.asarray(
             self.W_local_qk_gate_b0, qk_gate.dtype)
         qk_u, qk_v = bam_read(
             Mh, inputs_q, lambda _x: qk_key, None,
-            **self._read_key_kwargs_from_logits('W_local_qk', qk_gate),
+            **self._read_key_kwargs_from_logits(
+                'W_local_qk', qk_gate,
+                activation_side=self._local_qk_read_key_activation_side),
             implementation=self._read_implementation, read_side=self.read_side,
             return_sides=True)
         qk_mix = normalizations.rms_norm(
@@ -3222,20 +3300,25 @@ class BamAttention(Attention):
             q_mix.shape[:-1] + (self.num_query_heads, 2, rank))
         k_mix = k_mix.reshape(
             k_mix.shape[:-1] + (self.num_query_heads, 2, rank))
-      q_key = q_key + jnp.asarray(self.W_lq_bias, q_key.dtype)
-      k_key = k_key + jnp.asarray(self.W_lk_bias, k_key.dtype)
+      if self._local_qk_pre_rms_bias:
+        q_key = q_key + jnp.asarray(self.W_lq_bias, q_key.dtype)
+        k_key = k_key + jnp.asarray(self.W_lk_bias, k_key.dtype)
       q_gate = q_gate + jnp.asarray(self.W_lq_gate_b0, q_gate.dtype)
       k_gate = k_gate + jnp.asarray(self.W_lk_gate_b0, k_gate.dtype)
       q_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: q_key, lambda _x: q_mix,
-          **self._read_key_kwargs_from_logits('W_lq', q_gate),
+          **self._read_key_kwargs_from_logits(
+              'W_lq', q_gate,
+              activation_side=self._local_qk_read_key_activation_side),
           implementation=self._read_implementation, read_side=self.read_side,
           rank=rank,
           second_implementation=self._local_qk_second_implementation,
           v_projection=q_v_projection)
       k_local = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
-          **self._read_key_kwargs_from_logits('W_lk', k_gate),
+          **self._read_key_kwargs_from_logits(
+              'W_lk', k_gate,
+              activation_side=self._local_qk_read_key_activation_side),
           implementation=self._read_implementation, read_side=self.read_side,
           rank=rank,
           second_implementation=self._local_qk_second_implementation,
@@ -3455,10 +3538,12 @@ class BamAttention(Attention):
         side = self._factorized_fetched_output_gate_side
         if side == 'both':
           full_read_kwargs = self._read_key_kwargs_from_logits(
-              'W_R', None, squeeze_fetch_axis=True, key_mode='rms')
+              'W_R', None, squeeze_fetch_axis=True, key_mode='rms',
+              activation_side=self._fetch_read_key_activation_side)
         else:
           full_read_kwargs = self._read_key_kwargs_from_logits(
-              'W_R', projected_head_logits, squeeze_fetch_axis=True)
+              'W_R', projected_head_logits, squeeze_fetch_axis=True,
+              activation_side=self._fetch_read_key_activation_side)
           full_read_kwargs[
               'key_col_mode' if side == 'col' else 'key_row_mode'] = 'rms'
       elif self._use_fetched_output_gate:
@@ -3466,15 +3551,23 @@ class BamAttention(Attention):
             self._project_fetched_output_gate(inputs_q))
         if self._fetched_output_gate_side == 'col':
           full_read_kwargs = self._read_key_kwargs_from_logits(
-              'W_R', projected_head_logits, squeeze_fetch_axis=True)
+              'W_R', projected_head_logits, squeeze_fetch_axis=True,
+              activation_side=self._fetch_read_key_activation_side)
           full_read_kwargs['key_col_mode'] = 'rms'
         else:
           full_read_kwargs = self._read_key_kwargs_from_logits(
-              'W_R', None, squeeze_fetch_axis=True, key_mode='rms')
+              'W_R', None, squeeze_fetch_axis=True, key_mode='rms',
+              activation_side=self._fetch_read_key_activation_side)
       else:
         full_read_kwargs = self._read_key_kwargs(
-            'W_R_gate', inputs_q, squeeze_fetch_axis=True)
-      full_read_projection = lambda x: jnp.squeeze(self.W_R(x), axis=-2)
+            'W_R_gate', inputs_q, squeeze_fetch_axis=True,
+            activation_side=self._fetch_read_key_activation_side)
+      def full_read_projection(x):
+        projected_key = _add_bam_read_key_bias(
+            self.W_R(x), self._abs_k_dim or self.bam_k,
+            getattr(self, 'W_R_row_pre_rms_bias', None),
+            getattr(self, 'W_R_col_pre_rms_bias', None))
+        return jnp.squeeze(projected_key, axis=-2)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,

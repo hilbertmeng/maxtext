@@ -1084,7 +1084,7 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
     """Remove the static pre-RMS offsets from both packed LocalQ/K keys."""
-    # cd1ba4d; EW4b ~0.666 steps/s.
+    # cd1ba4d; EW4b ~0.666 steps/s; stopped 2,780. dloss +.00267 vs V2 @2,600; no benefit.
     model_name = 'BamLlama2MediumV2C256LocalQKNoPreRMSBias'
     scan_layers = True
     bam_local_qk_pre_rms_bias = False
@@ -1095,7 +1095,7 @@ class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchColPreRMSBias(BamV2C256FetchScheduleBase):
     """Add a learned pre-RMS offset to the fetched column/address key."""
-    # cd1ba4d; EW4b ~0.660 steps/s.
+    # cd1ba4d; EW4b ~0.660 steps/s; stopped 2,800. dloss -.00053 vs V2 @2,600; early gain vanished.
     model_name = 'BamLlama2MediumV2C256FetchColPreRMSBias'
     scan_layers = True
     bam_fetch_read_key_pre_rms_bias_side = 'col'
@@ -1106,7 +1106,7 @@ class BamLlama2MediumV2C256FetchColPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchRowPreRMSBias(BamV2C256FetchScheduleBase):
     """Add a learned pre-RMS offset to the fetched row/data key."""
-    # cd1ba4d; EW4b ~0.657 steps/s.
+    # cd1ba4d; EW4b ~0.657 steps/s; stopped 2,800. dloss +.00504 vs V2 @2,600; worsening.
     model_name = 'BamLlama2MediumV2C256FetchRowPreRMSBias'
     scan_layers = True
     bam_fetch_read_key_pre_rms_bias_side = 'row'

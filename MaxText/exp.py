@@ -1117,7 +1117,7 @@ class BamLlama2MediumV2C256FetchRowPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchColSiluReadKey(BamV2C256FetchScheduleBase):
     """Apply twice-SiLU to fetched column keys immediately before RMS."""
-    # cd1ba4d; EW4b ~0.661 steps/s.
+    # cd1ba4d; EW4b ~0.661 steps/s; stopped 1,945. dloss +.00486 vs V2 @1,800; positive since 800.
     model_name = 'BamLlama2MediumV2C256FetchColSiluReadKey'
     scan_layers = True
     bam_fetch_read_key_activation_side = 'col'
@@ -1128,7 +1128,7 @@ class BamLlama2MediumV2C256FetchColSiluReadKey(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LocalQKColSiluReadKey(BamV2C256FetchScheduleBase):
     """Apply twice-SiLU to LocalQ/K column keys immediately before RMS."""
-    # cd1ba4d; EW4b ~0.664 steps/s.
+    # cd1ba4d; EW4b ~0.664 steps/s; stopped 1,951. dloss +.00737 vs V2 @1,800; positive since 600.
     model_name = 'BamLlama2MediumV2C256LocalQKColSiluReadKey'
     scan_layers = True
     bam_local_qk_read_key_activation_side = 'col'

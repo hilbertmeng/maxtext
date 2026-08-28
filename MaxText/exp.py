@@ -2774,7 +2774,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Native(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Use the native full-width V axis for fetched M with no source projection."""
-    # running
+    # code_commit: c930d04; EW4b ~0.515 steps/s (-2.8% vs C16, -5.5% vs Rank2); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Native')
     bam_abs_v_compression_dim = None

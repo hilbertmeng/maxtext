@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import time
 from typing import Any
 
@@ -25,6 +26,9 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 import jax
 import jax.numpy as jnp
 import numpy as np
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "MaxText"))
 
 import max_utils
 import pyconfig

@@ -2764,7 +2764,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocLinear(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Replace the write-V GELU bottleneck with one D-to-(heads*V) projection."""
-    # code_commit: 6c8c1d8; EW4b ~0.551 steps/s (+1.1% vs Rank2); running.
+    # code_commit: 6c8c1d8; EW4b ~0.548 steps/s (+0.6% vs Rank2); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocLinear')
     checkpoint_period = 250
@@ -2780,7 +2780,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchedHeads32M32x64(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Swap M to 32x64/C16 and pack 32 fetched-M read heads into 16 MHA heads."""
-    # code_commit: 6c8c1d8; EW4b ~0.531 steps/s (-2.6% vs Rank2); running.
+    # code_commit: 6c8c1d8; EW4b ~0.528 steps/s (-3.1% vs Rank2); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchedHeads32M32x64')
     checkpoint_period = 250

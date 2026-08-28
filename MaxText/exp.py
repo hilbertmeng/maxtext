@@ -2746,6 +2746,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Scale the write-V GELU bottleneck from 256 to 512 on XL Rank2."""
+    # code_commit: dfedca5; EW4b ~0.544 steps/s (flat vs R256); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu')
     scan_layers = True
@@ -2962,6 +2963,7 @@ class BamLlama2XLHead32x64V2C256T2048Profile(
     # The two per-head 64->32 LocalQ/K adapters are intentionally replicated on
     # this fsdp-only mesh; together they raise the sharding audit to ~3.99%.
     sharding_tolerance = 0.05
+    # bam_write_v_bottleneck_dim = 512  # should have been set to this but in fact 256
 
 
 class BamXLV2FetchRankEightLayerProfileMixin:

@@ -61,7 +61,8 @@ def _capture_fetch(module, method_name: str) -> bool:
 
 def _stack_captures(collections, num_layers: int):
   grouped: dict[int, dict[str, jax.Array]] = defaultdict(dict)
-  for path, raw in flatten_dict(collections.get("intermediates", {})).items():
+  flat = flatten_dict(collections.get("intermediates", {}))
+  for path, raw in flat.items():
     layer = _layer_from_path(path)
     if layer is None:
       continue
@@ -74,7 +75,12 @@ def _stack_captures(collections, num_layers: int):
       grouped[layer]["y_std"], grouped[layer]["mbar"] = value
   expected = {"read", "y_std", "mbar"}
   if set(grouped) != set(range(num_layers)):
-    raise ValueError(f"captured layers differ: {sorted(grouped)}")
+    shapes = {
+        "/".join(path): jax.tree.map(lambda value: getattr(value, "shape", None), raw)
+        for path, raw in flat.items()
+    }
+    raise ValueError(
+        f"captured layers differ: {sorted(grouped)}; captures={shapes}")
   for layer, values in grouped.items():
     if set(values) != expected:
       raise ValueError(

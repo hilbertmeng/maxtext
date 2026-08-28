@@ -2747,7 +2747,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Reproduce the historical XL Rank2 control on the current BAM code."""
-    # code_commit: 06c7143; EW4b running.
+    # code_commit: 06c7143; EW4b ~0.548 steps/s; stopped 251. Exact loss match vs historical Rank2 at every 10 steps through 220.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro')
     jax_cache_dir = (
@@ -2792,7 +2792,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchedHeads32M32x64(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Swap M to 32x64/C16 and pack 32 fetched-M read heads into 16 MHA heads."""
-    # code_commit: 6c8c1d8; EW4b ~0.528 steps/s (-3.1% vs Rank2); running.
+    # code_commit: 6c8c1d8; EW4b ~0.528 steps/s (-3.1%); stopped 3,059. dloss +.01555 vs Rank2 @3,000; ~+.017 plateau from 1.5k.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchedHeads32M32x64')
     checkpoint_period = 250

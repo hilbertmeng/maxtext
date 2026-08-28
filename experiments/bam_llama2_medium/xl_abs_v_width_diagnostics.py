@@ -121,6 +121,15 @@ def _masked_sums(x, mask):
   return rms, mean_l2, jnp.sum(square, axis=tuple(range(1, x.ndim)))
 
 
+def _masked_dot(x, y, mask):
+  mask = mask.astype(jnp.float32)
+  while mask.ndim < x.ndim:
+    mask = mask[..., None]
+  return jnp.sum(
+      x.astype(jnp.float32) * y.astype(jnp.float32) * mask,
+      axis=tuple(range(1, x.ndim)))
+
+
 def _covariance_spectrum(x, mask):
   """Return ascending covariance eigenvalues for [layer,b,t,item,width]."""
   x = x.astype(jnp.float32)
@@ -141,16 +150,29 @@ def _capture_metrics(captured, mask, bam_k, read_v_dim):
   y_row = read[..., bam_k:bam_k + read_v_dim]
   col_rms, col_l2, col_sq = _masked_sums(y_col, mask[None])
   row_rms, row_l2, row_sq = _masked_sums(y_row, mask[None])
+  bam_rms, bam_l2, bam_sq = _masked_sums(read, mask[None])
   std_rms, std_l2, std_sq = _masked_sums(y_std, mask[None])
+  combined_rms, combined_l2, combined_sq = _masked_sums(
+      y_std + read, mask[None])
+  bam_std_dot = _masked_dot(read, y_std, mask[None])
   return {
       "col_rms": col_rms,
       "row_rms": row_rms,
+      "bam_rms": bam_rms,
       "std_rms": std_rms,
+      "combined_rms": combined_rms,
       "col_mean_l2": col_l2,
       "row_mean_l2": row_l2,
+      "bam_mean_l2": bam_l2,
       "std_mean_l2": std_l2,
+      "combined_mean_l2": combined_l2,
       "col_to_std_frobenius": jnp.sqrt(col_sq / jnp.maximum(std_sq, _EPS)),
       "row_to_std_frobenius": jnp.sqrt(row_sq / jnp.maximum(std_sq, _EPS)),
+      "bam_to_std_frobenius": jnp.sqrt(bam_sq / jnp.maximum(std_sq, _EPS)),
+      "combined_to_std_frobenius": jnp.sqrt(
+          combined_sq / jnp.maximum(std_sq, _EPS)),
+      "bam_std_cosine": bam_std_dot / jnp.sqrt(
+          jnp.maximum(bam_sq * std_sq, _EPS)),
       "col_spectrum": _covariance_spectrum(y_col, mask),
       "row_spectrum": _covariance_spectrum(y_row, mask),
       "mbar_v_spectrum": _covariance_spectrum(mbar, mask),

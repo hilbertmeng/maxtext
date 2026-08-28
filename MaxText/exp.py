@@ -2770,6 +2770,36 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16(
         'jax_caches/xd-bam-xl16-partial-rank2-absv16')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Native(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Use the native full-width V axis for fetched M with no source projection."""
+    # running
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Native')
+    bam_abs_v_compression_dim = None
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-absv32-native')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Projected(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Keep a learned full-width 32-to-32 source projection for fetched M."""
+    # running
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Projected')
+    bam_abs_v_compression_dim = 32
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-absv32-projected')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

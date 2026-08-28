@@ -2649,7 +2649,7 @@ class BamAttention(Attention):
       assert self._abs_v_dim is not None, (
           'absolute-K compression currently pairs with absolute-V compression')
     if self._abs_v_dim is not None:
-      assert 0 < self._abs_v_dim < self.bam_v
+      assert 0 < self._abs_v_dim <= self.bam_v
       assert 'full' in self._mode
     if self._local_qk_use_compressed_v:
       assert 'local_qk' in self._mode and 'full' in self._mode

@@ -2755,6 +2755,21 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro(
         'jax_caches/xd-bam-xl16-partial-rank2-current-repro')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Double fetched-M AbsV cache width from 8 to 16; keep full M and LocalQK unchanged."""
+    # running
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16')
+    bam_abs_v_compression_dim = 16
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-absv16')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

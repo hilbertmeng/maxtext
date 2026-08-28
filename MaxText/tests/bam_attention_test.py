@@ -18,6 +18,7 @@ from layers.attentions import (
     _gate_fetched_read_output,
     _factorized_fetched_output_gate_logits,
     _packed_factorized_local_qk_init,
+    _pack_fetched_bam_heads,
     _paired_parameter_init,
     _project_bam_read_keys,
     _mix_bam_write_v,
@@ -186,6 +187,21 @@ class BamReadKeyTransformTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, 'without an adapter'):
       _fit_bam_read_to_head(
           jnp.zeros((1, 1, 1, 96)), bam_k=32, head_dim=64)
+
+  def test_fetched_bam_heads_pack_adjacent_heads_then_pad_tail(self):
+    read = jnp.arange(32 * 48, dtype=jnp.float32).reshape(1, 1, 32, 48)
+    packed = _pack_fetched_bam_heads(
+        read, num_query_heads=16, head_dim=128)
+    self.assertEqual(packed.shape, (1, 1, 16, 128))
+    np.testing.assert_array_equal(
+        packed[..., :96], read.reshape(1, 1, 16, 96))
+    np.testing.assert_array_equal(packed[..., 96:], 0)
+
+  def test_fetched_bam_heads_reject_overwide_group(self):
+    with self.assertRaisesRegex(ValueError, 'need 144 coordinates'):
+      _pack_fetched_bam_heads(
+          jnp.zeros((1, 1, 48, 48)),
+          num_query_heads=16, head_dim=128)
 
   def test_dynamic_bam_fetch_rms_mix_weights(self):
     logits = jax.random.normal(jax.random.PRNGKey(13), (2, 4, 3))

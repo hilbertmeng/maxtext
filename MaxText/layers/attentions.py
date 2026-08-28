@@ -2043,6 +2043,28 @@ def _fit_bam_read_to_head(read, bam_k, head_dim, v_adapter=None):
   return jnp.concatenate((y_k, y_v), axis=-1)
 
 
+def _pack_fetched_bam_heads(read, num_query_heads, head_dim):
+  """Group adjacent fetched-read heads and pad the packed MHA-head tail."""
+  fetched_heads = read.shape[-2]
+  if fetched_heads < num_query_heads or fetched_heads % num_query_heads:
+    raise ValueError(
+        f'fetched BAM heads ({fetched_heads}) must be a positive multiple of '
+        f'MHA heads ({num_query_heads})')
+  heads_per_query = fetched_heads // num_query_heads
+  packed_width = heads_per_query * read.shape[-1]
+  if packed_width > head_dim:
+    raise ValueError(
+        f'{heads_per_query} fetched BAM heads need {packed_width} coordinates '
+        f'per MHA head, but head_dim={head_dim}')
+  read = read.reshape(
+      read.shape[:-2] + (num_query_heads, packed_width))
+  if packed_width < head_dim:
+    read = jnp.pad(
+        read, [(0, 0)] * (read.ndim - 1)
+        + [(0, head_dim - packed_width)])
+  return read
+
+
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              rms_epsilon,
              rms_statistics_dtype=jnp.float32,
@@ -2445,6 +2467,15 @@ class BamAttention(Attention):
         if cfg.bam_fetch_mix_num_heads is None
         else int(cfg.bam_fetch_mix_num_heads))
     assert 0 < self._fetch_mix_num_heads <= self.num_query_heads
+    fetched_read_num_heads = getattr(cfg, 'bam_fetched_read_num_heads', None)
+    self._fetched_read_num_heads = (
+        self.num_query_heads
+        if fetched_read_num_heads is None
+        else int(fetched_read_num_heads))
+    assert self._fetched_read_num_heads >= self.num_query_heads
+    assert self._fetched_read_num_heads % self.num_query_heads == 0
+    self._fetched_heads_per_query = (
+        self._fetched_read_num_heads // self.num_query_heads)
     self._fetch_mix_implementation = cfg.bam_fetch_mix_implementation
     assert self._fetch_mix_implementation in ('dot', 'mul_reduce')
     self._read_implementation = cfg.bam_read_implementation
@@ -2632,8 +2663,10 @@ class BamAttention(Attention):
               or (self._abs_v_row_output == 'project'
                   and self._abs_v_row_decoder_output == 'full'))
           else self._abs_v_dim)
-      assert full_v_output_dim <= self.head_dim - self.bam_k, (
-          f'fetched BAM output needs {self.bam_k}+{full_v_output_dim} head '
+      fetched_output_width = self._fetched_heads_per_query * (
+          self.bam_k + full_v_output_dim)
+      assert fetched_output_width <= self.head_dim, (
+          f'fetched BAM output needs {fetched_output_width} head '
           f'coordinates, but head_dim={self.head_dim}')
     assert self._read_key_scale > 0.0
     assert self._rms_epsilon > 0.0
@@ -2714,7 +2747,7 @@ class BamAttention(Attention):
         decoder_shape = (self._abs_v_dim, decoder_output_dim)
         decoder_axes = ('kv', 'v_factor')
         if not self._abs_v_row_decoder_share_heads:
-          decoder_shape = (self.num_query_heads,) + decoder_shape
+          decoder_shape = (self._fetched_read_num_heads,) + decoder_shape
           decoder_axes = ('q_heads',) + decoder_axes
         # Identity initialization makes every decoder arm start from the Direct
         # readout.  Direct keeps the historical unused per-head [C,V] parameter.
@@ -2737,10 +2770,12 @@ class BamAttention(Attention):
             'abs_k_col_decoder',
             nn.with_logical_partitioning(
                 decoder_init, ('q_heads', 'kv', 'v_factor')),
-            (self.num_query_heads, self._abs_k_dim, self.bam_k), self.weight_dtype)
+            (self._fetched_read_num_heads, self._abs_k_dim, self.bam_k),
+            self.weight_dtype)
 
       # Joint target-side read key is generated directly in both cached spaces.
-      read_features = (self.num_query_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
+      read_features = (
+          self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
       self.W_R = DenseGeneral(
           features=read_features, axis=-1, kernel_init=zeros_init,
           kernel_axes=("embed", "q_heads", "fetch", "kv"),
@@ -2751,13 +2786,13 @@ class BamAttention(Attention):
           and not self._use_factorized_fetched_output_gate
           or self._fetched_output_gate_head_logits
           or self._fetched_output_gate_side == 'col'):
-        add_read_gate('W_R_gate', (self.num_query_heads, cfg.bam_n_f, 2),
+        add_read_gate('W_R_gate', (self._fetched_read_num_heads, cfg.bam_n_f, 2),
                       ('embed', 'q_heads', 'fetch', None),
                       ('q_heads', 'fetch', None), zero_key_gate_init)
       if self._use_fetched_output_gate:
         output_gate_features = (
             read_features if self._fetched_output_gate_side == 'both'
-            else (self.num_query_heads, cfg.bam_n_f, read_k_dim))
+            else (self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim))
         self.W_fetched_output_gate_down = DenseGeneral(
             features=self._fetched_output_gate_bottleneck_dim, axis=-1,
             kernel_init=reg_init, kernel_axes=('embed', None),
@@ -2779,7 +2814,7 @@ class BamAttention(Attention):
                   ('q_heads', 'fetch', 'kv')),
               output_gate_features, self.weight_dtype)
       if self._use_factorized_fetched_output_gate:
-        output_width = 2 * self.num_query_heads + read_k_dim + read_v_dim
+        output_width = 2 * self._fetched_read_num_heads + read_k_dim + read_v_dim
         self.W_factorized_fetched_output_gate = DenseGeneral(
             features=output_width, axis=-1, kernel_init=zeros_init,
             kernel_axes=('embed', None), dtype=self.dtype,
@@ -2791,9 +2826,9 @@ class BamAttention(Attention):
         def factorized_gate_bias_init(_key, shape, dtype):
           assert shape == (output_width,)
           return jnp.concatenate((
-              jnp.full((self.num_query_heads,), bias_value, dtype),
+              jnp.full((self._fetched_read_num_heads,), bias_value, dtype),
               jnp.zeros((read_k_dim,), dtype),
-              jnp.full((self.num_query_heads,), bias_value, dtype),
+              jnp.full((self._fetched_read_num_heads,), bias_value, dtype),
               jnp.zeros((read_v_dim,), dtype)))
 
         # Preserve one identical parameter tree for paired ablations. The
@@ -2803,8 +2838,8 @@ class BamAttention(Attention):
             nn.with_logical_partitioning(factorized_gate_bias_init, (None,)),
             (output_width,), self.weight_dtype)
       add_grouped_read_norms(
-          'W_R', (self.num_query_heads, cfg.bam_n_f, read_k_dim),
-          (self.num_query_heads, cfg.bam_n_f, read_v_dim),
+          'W_R', (self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim),
+          (self._fetched_read_num_heads, cfg.bam_n_f, read_v_dim),
           ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
 
       # Signed RMS mixing needs a regular-initialized direction because RMSNorm
@@ -3090,9 +3125,9 @@ class BamAttention(Attention):
       read_k_dim = self._abs_k_dim or self.bam_k
       read_v_dim = self._abs_v_dim or self.bam_v
       output_gate_features = (
-          (self.num_query_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
+          (self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
           if self._fetched_output_gate_side == 'both'
-          else (self.num_query_heads, cfg.bam_n_f, read_k_dim))
+          else (self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim))
       self.W_fetched_output_gate_linear = DenseGeneral(
           features=output_gate_features, axis=-1, kernel_init=zeros_init,
           kernel_axes=('embed', 'q_heads', 'fetch', 'kv'),
@@ -3108,14 +3143,14 @@ class BamAttention(Attention):
             'W_R_row_pre_rms_bias',
             nn.with_logical_partitioning(
                 zeros_init, ('q_heads', 'fetch', 'kv')),
-            (self.num_query_heads, cfg.bam_n_f,
+            (self._fetched_read_num_heads, cfg.bam_n_f,
              self._abs_k_dim or self.bam_k), self.weight_dtype)
       if self._fetch_read_key_pre_rms_bias_side in ('col', 'both'):
         self.W_R_col_pre_rms_bias = self.param(
             'W_R_col_pre_rms_bias',
             nn.with_logical_partitioning(
                 zeros_init, ('q_heads', 'fetch', 'kv')),
-            (self.num_query_heads, cfg.bam_n_f,
+            (self._fetched_read_num_heads, cfg.bam_n_f,
              self._abs_v_dim or self.bam_v), self.weight_dtype)
 
   def _local_qk_post_read_v_projections(self):
@@ -3216,11 +3251,11 @@ class BamAttention(Attention):
         packed_logits = packed_logits + bias
         head_bias = None
       else:
-        n = self.num_query_heads
+        n = self._fetched_read_num_heads
         k = self._abs_k_dim or self.bam_k
         head_bias = jnp.stack((bias[:n], bias[n + k:n + k + n]))
       return _factorized_fetched_output_gate_logits(
-          packed_logits, self.num_query_heads,
+          packed_logits, self._fetched_read_num_heads,
           self._abs_k_dim or self.bam_k,
           self._abs_v_dim or self.bam_v,
           self._factorized_fetched_output_gate_side, head_bias)
@@ -3526,8 +3561,9 @@ class BamAttention(Attention):
       # Direct mode keeps only the compressed coordinates. Padding the complete
       # [K-side, V-side] result below is equivalent when k+v==head_dim and also
       # supports k+v>head_dim without an unnecessary fetched-read decoder.
-    return _fit_bam_read_to_head(
-        jnp.concatenate((y_k, y_v), axis=-1), self.bam_k, self.head_dim)
+    return _pack_fetched_bam_heads(
+        jnp.concatenate((y_k, y_v), axis=-1),
+        self.num_query_heads, self.head_dim)
 
   def _read_fetched_m(self, Mbar, inputs_q):
     """Read fetched M into every BAM head."""

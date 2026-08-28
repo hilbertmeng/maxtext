@@ -293,6 +293,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_fetch_mix_num_heads = None  # None uses all MHA heads; otherwise use the first N
+    bam_fetched_read_num_heads = None  # None uses one fetched-M read head per MHA head
     bam_fetch_mix_implementation = 'dot'  # dot | mul_reduce
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
@@ -2756,6 +2757,41 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-ploc-r512-gelu')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocLinear(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Replace the write-V GELU bottleneck with one D-to-(heads*V) projection."""
+    # running
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocLinear')
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-ploc-linear')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchedHeads32M32x64(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Swap M to 32x64/C16 and pack 32 fetched-M read heads into 16 MHA heads."""
+    # running
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchedHeads32M32x64')
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    bam_k = 32
+    bam_v = 64
+    bam_abs_v_compression_dim = 16
+    bam_fetched_read_num_heads = 32
+    bam_write_v_bottleneck_dim = 512
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-fetch-heads32-m32x64')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias(

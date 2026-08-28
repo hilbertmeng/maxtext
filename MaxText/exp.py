@@ -2747,7 +2747,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Reproduce the historical XL Rank2 control on the current BAM code."""
-    # running
+    # code_commit: 06c7143; EW4b running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro')
     jax_cache_dir = (

@@ -2742,6 +2742,21 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Scale the write-V GELU bottleneck from 256 to 512 on XL Rank2."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu')
+    scan_layers = True
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    bam_write_v_bottleneck_dim = 512
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-ploc-r512-gelu')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

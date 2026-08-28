@@ -239,7 +239,8 @@ def _json_tree(value):
 def run(config):
   if not config.only_eval:
     raise ValueError("xl_abs_v_width_diagnostics.py requires only_eval=True")
-  if config.bam_fetched_read_num_heads != config.num_query_heads:
+  fetched_read_heads = config.bam_fetched_read_num_heads or config.num_query_heads
+  if fetched_read_heads != config.num_query_heads:
     raise ValueError("diagnostic currently requires one fetched head per MHA head")
   num_batches = int(os.environ.get("BAM_ABSV_DIAG_BATCHES", "32"))
   capture_batches = int(os.environ.get("BAM_ABSV_DIAG_CAPTURE_BATCHES", "8"))

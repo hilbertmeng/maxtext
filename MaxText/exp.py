@@ -2747,7 +2747,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Scale the write-V GELU bottleneck from 256 to 512 on XL Rank2."""
-    # code_commit: dfedca5; EW4b ~0.544 steps/s (flat vs R256); running.
+    # code_commit: dfedca5; EW4b ~0.544 steps/s (flat vs R256); stopped at
+    # 6,030. dloss settled near +.004 vs Rank2 from 3k onward: mildly harmful.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu')
     scan_layers = True
@@ -2763,7 +2764,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocLinear(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Replace the write-V GELU bottleneck with one D-to-(heads*V) projection."""
-    # running
+    # code_commit: 6c8c1d8; EW4b ~0.551 steps/s (+1.1% vs Rank2); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocLinear')
     checkpoint_period = 250
@@ -2779,7 +2780,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchedHeads32M32x64(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Swap M to 32x64/C16 and pack 32 fetched-M read heads into 16 MHA heads."""
-    # running
+    # code_commit: 6c8c1d8; EW4b ~0.531 steps/s (-2.6% vs Rank2); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchedHeads32M32x64')
     checkpoint_period = 250
@@ -2815,7 +2816,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Scaling ablation removing both packed LocalQ/K pre-RMS offsets."""
-    # code_commit: a9f0eac; EW4b ~0.548 steps/s (+0.6% vs Rank2); running.
+    # code_commit: a9f0eac; EW4b ~0.548 steps/s (+0.6% vs Rank2); stopped at
+    # 4,325. dloss held +.0024--+.0033 vs Rank2 @2.5k--4k: mildly harmful.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias')
     scan_layers = True

@@ -2762,7 +2762,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Scaling test for a learned pre-RMS bias on the fetched column key."""
-    # code_commit: 2a83a97; EW4b ~0.545 steps/s (flat vs Rank2); running.
+    # code_commit: 2a83a97; EW4b ~0.545 steps/s; paused at 4,323. dloss
+    # +.01150 vs Rank2 @4,000; the ~+.010 harmful plateau did not shrink.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias')
     scan_layers = True
@@ -2778,6 +2779,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Scaling ablation removing both packed LocalQ/K pre-RMS offsets."""
+    # code_commit: a9f0eac; EW4b ~0.548 steps/s (+0.6% vs Rank2); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias')
     scan_layers = True

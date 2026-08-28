@@ -2759,7 +2759,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Double fetched-M AbsV cache width from 8 to 16; keep full M and LocalQK unchanged."""
-    # code_commit: fbde4ef; EW4b ~0.531–0.534 steps/s (-2.0–2.6% vs Rank2); running.
+    # code_commit: fbde4ef; EW4b ~0.530 steps/s (-2.8% vs Rank2, -3.3% vs current-code repro); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16')
     bam_abs_v_compression_dim = 16

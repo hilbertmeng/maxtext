@@ -2790,7 +2790,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Projected(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Keep a learned full-width 32-to-32 source projection for fetched M."""
-    # running
+    # code_commit: c930d04; EW4b ~0.510 steps/s (-1.0% vs Native C32, -3.8% vs C16); running.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Projected')
     bam_abs_v_compression_dim = 32

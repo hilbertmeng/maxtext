@@ -2774,6 +2774,21 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias(
         'jax_caches/xd-bam-xl16-partial-rank2-fetch-col-pre-rms-bias')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Scaling ablation removing both packed LocalQ/K pre-RMS offsets."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias')
+    scan_layers = True
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    bam_local_qk_pre_rms_bias = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-local-qk-no-pre-rms-bias')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColReadR128Gelu(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

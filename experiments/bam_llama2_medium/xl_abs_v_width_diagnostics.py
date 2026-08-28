@@ -62,9 +62,18 @@ def _capture_fetch(module, method_name: str) -> bool:
 def _stack_captures(collections, num_layers: int):
   grouped: dict[int, dict[str, jax.Array]] = defaultdict(dict)
   flat = flatten_dict(collections.get("intermediates", {}))
+  scanned = {}
   for path, raw in flat.items():
     layer = _layer_from_path(path)
     if layer is None:
+      value = _unwrap(raw)
+      if "_read_fetched_m" in path:
+        scanned["read"] = value
+      elif "_query_chunk_op" in path:
+        if not isinstance(value, (tuple, list)) or len(value) != 2:
+          raise ValueError(
+              f"unexpected scanned query-chunk capture at {path}: {type(value)}")
+        scanned["y_std"], scanned["mbar"] = value
       continue
     value = _unwrap(raw)
     if "_read_fetched_m" in path:
@@ -74,6 +83,12 @@ def _stack_captures(collections, num_layers: int):
         raise ValueError(f"unexpected query-chunk capture at {path}: {type(value)}")
       grouped[layer]["y_std"], grouped[layer]["mbar"] = value
   expected = {"read", "y_std", "mbar"}
+  if not grouped and set(scanned) == expected:
+    for name, value in scanned.items():
+      if value.shape[0] != num_layers:
+        raise ValueError(
+            f"scanned {name} has {value.shape[0]} layers, expected {num_layers}")
+    return scanned
   if set(grouped) != set(range(num_layers)):
     shapes = {
         "/".join(path): jax.tree.map(lambda value: getattr(value, "shape", None), raw)

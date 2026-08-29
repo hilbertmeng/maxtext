@@ -269,6 +269,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
     # Optional fetched-read-only amplitude outside sigmoid: a/sqrt(C).
     bam_fetched_read_amplitude_init = None
+    bam_fetched_read_amplitude_learnable = True
+    bam_record_fetched_read_amplitude_metrics = False
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
@@ -1120,6 +1122,65 @@ class BamLlama2MediumV2C256FetchAmplitudeC32A025(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-amplitude-c32-a025')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685(
+    BamV2C256FetchScheduleBase
+):
+    """V2-equivalent initial read strength with a learned external amplitude."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685'
+    scan_layers = True
+    bam_read_gate_init = 0.005
+    bam_fetched_read_amplitude_init = 5.65685
+    bam_record_fetched_read_amplitude_metrics = True
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c8-a565685')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeGate005C8A25(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685
+):
+    """Learned C8 amplitude at 44.2% of V2's initial read strength."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A25'
+    bam_fetched_read_amplitude_init = 2.5
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c8-a25')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C8A25
+):
+    """Fix the lower C8 external amplitude while retaining the learned read gate."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed'
+    bam_fetched_read_amplitude_learnable = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c8-a25-fixed')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeGate005C32A25(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C8A25
+):
+    """Learned native-C32 amplitude with the same initial total energy as C8 A=2.5."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A25'
+    bam_abs_v_compression_dim = None
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a25')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeGate005C32A25Fixed(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C32A25
+):
+    """Fix the native-C32 amplitude while retaining the learned read gate."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A25Fixed'
+    bam_fetched_read_amplitude_learnable = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a25-fixed')
 
 
 class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):

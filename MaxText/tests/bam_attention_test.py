@@ -33,6 +33,30 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 class BamReadKeyTransformTest(absltest.TestCase):
 
+  def test_external_amplitude_preserves_gate_and_controls_total_energy(self):
+    gate_opening = 0.005
+    gate_logits = jnp.full(
+        (1, 1, 1, 2), jnp.log(gate_opening / (1.0 - gate_opening)))
+    projected = jnp.ones((1, 1, 1, 16))
+
+    _, _, v2_row, v2_col = _project_bam_read_keys(
+        8, jnp.zeros((1, 1, 1)), lambda _x: projected,
+        rms_epsilon=_RMS_EPSILON, key_mode='rms_gate', key_scale=2.0,
+        key_gate_logits=gate_logits)
+    _, _, amplitude_row, amplitude_col = _project_bam_read_keys(
+        8, jnp.zeros((1, 1, 1)), lambda _x: projected,
+        rms_epsilon=_RMS_EPSILON, key_mode='rms_gate', key_scale=2.0,
+        key_row_scale=5.65685 / np.sqrt(8.0),
+        key_col_scale=5.65685 / np.sqrt(8.0),
+        key_gate_logits=gate_logits)
+    np.testing.assert_allclose(amplitude_row, v2_row, rtol=2e-6, atol=2e-6)
+    np.testing.assert_allclose(amplitude_col, v2_col, rtol=2e-6, atol=2e-6)
+
+    c8_total = (2.5 / np.sqrt(8.0)) * gate_opening * np.sqrt(8.0)
+    c32_total = (2.5 / np.sqrt(32.0)) * gate_opening * np.sqrt(32.0)
+    self.assertAlmostEqual(c8_total, 0.0125)
+    self.assertAlmostEqual(c32_total, 0.0125)
+
   def test_read_key_sides_accept_independent_external_amplitudes(self):
     projected = jnp.asarray([[[[3.0, 4.0, 5.0, 12.0]]]])
     gate_logits = jnp.zeros((1, 1, 1, 2))

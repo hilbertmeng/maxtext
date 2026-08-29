@@ -2446,6 +2446,10 @@ class BamAttention(Attention):
     self._fetched_read_amplitude_init = (
         None if fetched_read_amplitude_init is None
         else float(fetched_read_amplitude_init))
+    self._fetched_read_amplitude_learnable = bool(getattr(
+        cfg, 'bam_fetched_read_amplitude_learnable', True))
+    self._record_fetched_read_amplitude_metrics = bool(getattr(
+        cfg, 'bam_record_fetched_read_amplitude_metrics', False))
     def resolve_rms_statistics_dtype(mode):
       assert mode in ('float32', 'activation')
       return jnp.float32 if mode == 'float32' else self.dtype
@@ -2685,6 +2689,10 @@ class BamAttention(Attention):
     assert (self._fetched_read_amplitude_init is None
             or self._fetched_read_amplitude_init > 0.0)
     assert self._fetched_read_amplitude_init is None or 'full' in self._mode
+    assert (self._fetched_read_amplitude_learnable
+            or self._fetched_read_amplitude_init is not None)
+    assert (not self._record_fetched_read_amplitude_metrics
+            or self._fetched_read_amplitude_init is not None)
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
     assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm
     assert not self._create_grouped_rw_norm or self._read_key_mode == 'rms_gate'
@@ -2795,9 +2803,7 @@ class BamAttention(Attention):
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False)
-      fetched_gate_init = (
-          0.5 if self._fetched_read_amplitude_init is not None
-          else zero_key_gate_init)
+      fetched_gate_init = zero_key_gate_init
       if (not self._use_fetched_output_gate
           and not self._use_factorized_fetched_output_gate
           or self._fetched_output_gate_head_logits
@@ -3168,7 +3174,8 @@ class BamAttention(Attention):
                 zeros_init, ('q_heads', 'fetch', 'kv')),
             (self._fetched_read_num_heads, cfg.bam_n_f,
              self._abs_v_dim or self.bam_v), self.weight_dtype)
-      if self._fetched_read_amplitude_init is not None:
+      if (self._fetched_read_amplitude_init is not None
+          and self._fetched_read_amplitude_learnable):
         self.W_R_amplitude_scale = self.param(
             'W_R_amplitude_scale',
             nn.with_logical_partitioning(
@@ -3187,6 +3194,15 @@ class BamAttention(Attention):
         getattr(self, 'local_q_post_read_v_projection', shared),
         getattr(self, 'local_k_post_read_v_projection', shared),
     )
+
+  def _fetched_read_amplitude(self):
+    if self._fetched_read_amplitude_init is None:
+      return None
+    if self._fetched_read_amplitude_learnable:
+      return self.W_R_amplitude_scale
+    return jnp.full(
+        (self._fetched_read_num_heads, self.config.bam_n_f, 2),
+        self._fetched_read_amplitude_init, self.dtype)
 
   def _read_key_kwargs(
       self, gate_name, x, squeeze_fetch_axis=False, activation_side='none'):
@@ -3624,7 +3640,8 @@ class BamAttention(Attention):
             'W_R_gate', inputs_q, squeeze_fetch_axis=True,
             activation_side=self._fetch_read_key_activation_side)
       if self._fetched_read_amplitude_init is not None:
-        amplitude = jnp.squeeze(self.W_R_amplitude_scale, axis=-2)
+        amplitude = self._fetched_read_amplitude()
+        amplitude = jnp.squeeze(amplitude, axis=-2)
         row_amplitude, col_amplitude = jnp.split(amplitude, 2, axis=-1)
         width_scale = math.sqrt(self._abs_v_dim or self.bam_v)
         full_read_kwargs.update(
@@ -3737,6 +3754,10 @@ class BamAttention(Attention):
 
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
+    if self._record_fetched_read_amplitude_metrics:
+      self.sow(
+          'intermediates', 'fetched_read_amplitude',
+          self._fetched_read_amplitude())
 
     # ---- QKV projection (reuse parent) + optional pre-RoPE LocalQK + QKNorm + RoPE ----
     if cfg.fused_qkv:

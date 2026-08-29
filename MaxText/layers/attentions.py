@@ -2805,15 +2805,6 @@ class BamAttention(Attention):
         add_read_gate('W_R_gate', (self._fetched_read_num_heads, cfg.bam_n_f, 2),
                       ('embed', 'q_heads', 'fetch', None),
                       ('q_heads', 'fetch', None), fetched_gate_init)
-      if self._fetched_read_amplitude_init is not None:
-        self.W_R_amplitude_scale = self.param(
-            'W_R_amplitude_scale',
-            nn.with_logical_partitioning(
-                lambda key, shape, dtype: jnp.full(
-                    shape, self._fetched_read_amplitude_init, dtype),
-                ('q_heads', 'fetch', None)),
-            (self._fetched_read_num_heads, cfg.bam_n_f, 2),
-            self.weight_dtype)
       if self._use_fetched_output_gate:
         output_gate_features = (
             read_features if self._fetched_output_gate_side == 'both'
@@ -3177,6 +3168,15 @@ class BamAttention(Attention):
                 zeros_init, ('q_heads', 'fetch', 'kv')),
             (self._fetched_read_num_heads, cfg.bam_n_f,
              self._abs_v_dim or self.bam_v), self.weight_dtype)
+      if self._fetched_read_amplitude_init is not None:
+        self.W_R_amplitude_scale = self.param(
+            'W_R_amplitude_scale',
+            nn.with_logical_partitioning(
+                lambda key, shape, dtype: jnp.full(
+                    shape, self._fetched_read_amplitude_init, dtype),
+                ('q_heads', 'fetch', None)),
+            (self._fetched_read_num_heads, cfg.bam_n_f, 2),
+            self.weight_dtype)
 
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)

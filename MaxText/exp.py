@@ -1128,7 +1128,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685(
     BamV2C256FetchScheduleBase
 ):
     """V2-equivalent initial read strength with a learned external amplitude."""
-    # code_commit: cd946b2; EW4b ~0.665 steps/s.
+    # cd946b2; EW4b ~0.665 steps/s; stopped 7,040. Recent-6 dloss +.00237 vs V2.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685'
     scan_layers = True
     bam_read_gate_init = 0.005
@@ -1195,6 +1195,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A10Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed
 ):
     """Raise the fixed C8 fetched-read amplitude fourfold at gate opening .005."""
+    # code_commit: 2b912b7; EW4b ~0.665 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A10Fixed'
     bam_fetched_read_amplitude_init = 10.0
     jax_cache_dir = (
@@ -1206,6 +1207,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A25Fixed
 ):
     """Raise the fixed native-C32 fetched-read amplitude fourfold at gate .005."""
+    # code_commit: 2b912b7; EW4b ~0.623 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed'
     bam_fetched_read_amplitude_init = 10.0
     jax_cache_dir = (

@@ -1128,6 +1128,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685(
     BamV2C256FetchScheduleBase
 ):
     """V2-equivalent initial read strength with a learned external amplitude."""
+    # code_commit: cd946b2; EW4b ~0.665 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685'
     scan_layers = True
     bam_read_gate_init = 0.005
@@ -1143,6 +1144,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A25(
     BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685
 ):
     """Learned C8 amplitude at 44.2% of V2's initial read strength."""
+    # code_commit: cd946b2; EW4b ~0.665 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A25'
     bam_fetched_read_amplitude_init = 2.5
     jax_cache_dir = (
@@ -1154,6 +1156,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C8A25
 ):
     """Fix the lower C8 external amplitude while retaining the learned read gate."""
+    # code_commit: cd946b2; EW4b ~0.666 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed'
     bam_fetched_read_amplitude_learnable = False
     jax_cache_dir = (
@@ -1165,6 +1168,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A25(
     BamLlama2MediumV2C256FetchAmplitudeGate005C8A25
 ):
     """Learned native-C32 amplitude with the same initial total energy as C8 A=2.5."""
+    # code_commit: cd946b2; EW4b ~0.628 steps/s (-5.6% vs C8 learned).
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A25'
     bam_abs_v_compression_dim = None
     jax_cache_dir = (
@@ -1176,6 +1180,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A25Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A25
 ):
     """Fix the native-C32 amplitude while retaining the learned read gate."""
+    # code_commit: cd946b2; EW4b ~0.629 steps/s (-5.5% vs C8 fixed).
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A25Fixed'
     bam_fetched_read_amplitude_learnable = False
     jax_cache_dir = (

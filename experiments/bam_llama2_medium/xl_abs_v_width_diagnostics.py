@@ -111,6 +111,49 @@ def _stack_captures(collections, num_layers: int):
   }
 
 
+def _stack_unscanned_captures(collections, num_layers: int):
+  grouped: dict[int, dict[str, jax.Array]] = defaultdict(dict)
+  flat = flatten_dict(collections.get("bam_energy", {}))
+
+  def decode_attention(raw, path):
+    value = _unwrap(raw)
+    if (isinstance(value, (tuple, list)) and value
+        and all(isinstance(chunk, (tuple, list)) and len(chunk) == 2
+                for chunk in value)):
+      y_chunks, mbar_chunks = zip(*value)
+      return (
+          jnp.concatenate(y_chunks, axis=1),
+          jnp.concatenate(mbar_chunks, axis=-3),
+      )
+    if not isinstance(value, (tuple, list)) or len(value) != 2:
+      raise ValueError(f"unexpected attention capture at {path}: {type(value)}")
+    return value
+
+  for path, raw in flat.items():
+    layer = _layer_from_path(path)
+    if layer is None:
+      continue
+    if path[-1] == "read":
+      grouped[layer]["read"] = _unwrap(raw)
+    elif path[-1] == "attention":
+      grouped[layer]["y_std"], grouped[layer]["mbar"] = (
+          decode_attention(raw, path))
+
+  expected = {"read", "y_std", "mbar"}
+  if set(grouped) != set(range(num_layers)):
+    raise ValueError(
+        f"captured layers differ: {sorted(grouped)}; "
+        f"paths={sorted('/'.join(path) for path in flat)}")
+  for layer, values in grouped.items():
+    if set(values) != expected:
+      raise ValueError(
+          f"layer {layer} captures differ: {sorted(expected ^ set(values))}")
+  return {
+      name: jnp.stack([grouped[layer][name] for layer in range(num_layers)])
+      for name in sorted(expected)
+  }
+
+
 def _masked_sums(x, mask):
   mask = mask.astype(jnp.float32)
   while mask.ndim < x.ndim:
@@ -227,24 +270,54 @@ def _captured_forward(model, config, params, batch, rng, read_v_dim):
     return method_name in ("_read_fetched_m", attention_method)
 
   dropout_rng, params_rng = jax.random.split(rng)
-  (xent, _, _), collections = model.apply(
-      params,
-      batch["inputs"],
-      batch["inputs_position"],
+  apply_kwargs = dict(
       decoder_segment_ids=batch["inputs_segmentation"],
       decoder_target_mask=batch["targets_segmentation"],
-      decoder_target_tokens=batch["targets"],
-      enable_dropout=False,
-      rngs={"dropout": dropout_rng, "params": params_rng},
-      mutable=["intermediates"],
-      capture_intermediates=capture_intermediates,
-  )
+      decoder_target_tokens=batch["targets"], enable_dropout=False,
+      rngs={"dropout": dropout_rng, "params": params_rng})
+  if config.scan_layers:
+    (xent, _, _), collections = model.apply(
+        params, batch["inputs"], batch["inputs_position"],
+        mutable=["intermediates"],
+        capture_intermediates=capture_intermediates, **apply_kwargs)
+    captured = _stack_captures(collections, config.num_decoder_layers)
+  else:
+    def interceptor(next_fun, args, kwargs, context):
+      output = next_fun(*args, **kwargs)
+      if context.method_name == "_attention_block":
+        context.module.sow("bam_energy", "attention", output)
+      return output
+
+    with nn.intercept_methods(interceptor):
+      (xent, _, _), collections = model.apply(
+          params, batch["inputs"], batch["inputs_position"],
+          mutable=["bam_energy"], **apply_kwargs)
+    captured = _stack_unscanned_captures(
+        collections, config.num_decoder_layers)
   mask = batch["targets_segmentation"] != 0
-  captured = _stack_captures(collections, config.num_decoder_layers)
   return {
       "sequence_loss": _sequence_loss(xent, mask),
       "metrics": _capture_metrics(captured, mask, config.bam_k, read_v_dim),
   }
+
+
+def _install_fetched_read_capture():
+  """Sow dense fetched-read outputs without changing BamAttention source."""
+  from layers import attentions
+
+  original = attentions.BamAttention._read_fetched_m
+  if getattr(original, "_bam_energy_capture", False):
+    return
+
+  def captured(self, *args, **kwargs):
+    output = original(self, *args, **kwargs)
+    if (not self.is_initializing()
+        and self.is_mutable_collection("bam_energy")):
+      self.sow("bam_energy", "read", output)
+    return output
+
+  captured._bam_energy_capture = True
+  attentions.BamAttention._read_fetched_m = captured
 
 
 def _stats(values):
@@ -329,6 +402,7 @@ def _json_tree(value):
 def run(config):
   if not config.only_eval:
     raise ValueError("xl_abs_v_width_diagnostics.py requires only_eval=True")
+  _install_fetched_read_capture()
   fetched_read_heads = config.bam_fetched_read_num_heads or config.num_query_heads
   if fetched_read_heads != config.num_query_heads:
     raise ValueError("diagnostic currently requires one fetched head per MHA head")

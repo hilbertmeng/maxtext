@@ -37,6 +37,8 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV2C256FetchAmplitudeC8A05657` | v5p-16 | `europe-west4-b` | 2026-08-29 07:34:18 | 2026-08-29 10:06:01 | negative ablation; manual stop | none |
 | `BamLlama2MediumV2C256FetchAmplitudeC8A025` | v5p-16 | `europe-west4-b` | 2026-08-29 07:34:19 | 2026-08-29 10:06:04 | negative ablation; manual stop | none |
 | `BamLlama2MediumV2C256FetchAmplitudeC32A025` | v5p-16 | `europe-west4-b` | 2026-08-29 07:33:46 | 2026-08-29 10:06:08 | negative ablation; manual stop | none |
+| `BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685` | v5p-16 | `europe-west4-b` | 2026-08-29 12:17:25 | 2026-08-29 15:45:01 | near-identical to V2; TPU hot-switched | none |
+| `BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed` | v5p-16 | `europe-west4-b` | 2026-08-29 12:17:37 | 2026-08-29 16:56:16 | stable negative ablation; manual stop | none |
 
 ## READY leases
 
@@ -189,3 +191,5 @@ inventing a duration. A passive queue is not an active-zone switch.
 | FetchAmp C8 A=.05657 | 2 | `europe-west4-b` | 2026-08-29 08:55:07 | 2026-08-29 10:06:01 | 1h10m54s | manual stop |
 | FetchAmp C8 A=.025 | 1 | `europe-west4-b` | 2026-08-29 07:39:18 | 2026-08-29 10:06:04 | 2h26m46s | manual stop |
 | FetchAmp C32 A=.025 | 2 | `europe-west4-b` | 2026-08-29 08:56:42 | 2026-08-29 10:06:08 | 1h09m26s | manual stop |
+| FetchAmp C8 gate=.005 A=5.65685 | 1 | `europe-west4-b` | 2026-08-29 12:20:25 | 2026-08-29 15:45:01 | 3h24m36s | hot switch |
+| FetchAmp C8 gate=.005 A=2.5 fixed | 1 | `europe-west4-b` | 2026-08-29 12:20:37 | 2026-08-29 16:56:16 | 4h35m39s | manual stop |

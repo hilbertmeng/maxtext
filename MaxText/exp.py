@@ -1157,7 +1157,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C8A25
 ):
     """Fix the lower C8 external amplitude while retaining the learned read gate."""
-    # code_commit: cd946b2; EW4b ~0.666 steps/s.
+    # cd946b2; EW4b ~0.666 steps/s; stopped 9,553. Recent-6 dloss +.01431 vs V2.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed'
     bam_fetched_read_amplitude_learnable = False
     jax_cache_dir = (

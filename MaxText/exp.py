@@ -1195,7 +1195,8 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A10Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed
 ):
     """Raise the fixed C8 fetched-read amplitude fourfold at gate opening .005."""
-    # code_commit: 2b912b7; EW4b ~0.665 steps/s.
+    # 2b912b7; EW4b ~0.665 steps/s; stopped 3,060. dloss +.00588 vs V2 @3,000;
+    # the large early gain flipped sign at 1,600 and kept worsening.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A10Fixed'
     bam_fetched_read_amplitude_init = 10.0
     jax_cache_dir = (

@@ -34,6 +34,9 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2` | v5p-32 | `europe-west4-b` | 2026-08-27 04:39:25 | 2026-08-27 21:06:56 | completed 49,999 | none |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias` | v5p-32 | `europe-west4-b` | 2026-08-28 01:50:34 | 2026-08-28 07:34:12 | negative ablation; TPU hot-switched | none |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PLocR512Gelu` | v5p-32 | `europe-west4-b` | 2026-08-28 01:12:10 | 2026-08-28 07:36:02 | negative ablation; TPU hot-switched | none |
+| `BamLlama2MediumV2C256FetchAmplitudeC8A05657` | v5p-16 | `europe-west4-b` | 2026-08-29 07:34:18 | 2026-08-29 10:06:01 | negative ablation; manual stop | none |
+| `BamLlama2MediumV2C256FetchAmplitudeC8A025` | v5p-16 | `europe-west4-b` | 2026-08-29 07:34:19 | 2026-08-29 10:06:04 | negative ablation; manual stop | none |
+| `BamLlama2MediumV2C256FetchAmplitudeC32A025` | v5p-16 | `europe-west4-b` | 2026-08-29 07:33:46 | 2026-08-29 10:06:08 | negative ablation; manual stop | none |
 
 ## READY leases
 
@@ -181,3 +184,8 @@ inventing a duration. A passive queue is not an active-zone switch.
 | XL Rank2 PLocLinear | 6 | `europe-west4-b` | 2026-08-28 08:56:24 | 2026-08-28 09:00:54 | 4m30s | preempted |
 | XL Rank2 PLocLinear | 7 | `europe-west4-b` | 2026-08-28 09:08:22 | 2026-08-28 09:10:35 | 2m13s | preempted |
 | XL Rank2 PLocLinear | 8 | `europe-west4-b` | 2026-08-28 09:18:27 | 2026-08-28 10:40:17 | 1h21m50s | manual stop |
+| FetchAmp C8 A=.05657 | 1 | `europe-west4-b` | 2026-08-29 07:38:32 | 2026-08-29 08:49:37 | 1h11m05s | preempted |
+| FetchAmp C32 A=.025 | 1 | `europe-west4-b` | 2026-08-29 07:39:10 | 2026-08-29 08:50:59 | 1h11m49s | preempted |
+| FetchAmp C8 A=.05657 | 2 | `europe-west4-b` | 2026-08-29 08:55:07 | 2026-08-29 10:06:01 | 1h10m54s | manual stop |
+| FetchAmp C8 A=.025 | 1 | `europe-west4-b` | 2026-08-29 07:39:18 | 2026-08-29 10:06:04 | 2h26m46s | manual stop |
+| FetchAmp C32 A=.025 | 2 | `europe-west4-b` | 2026-08-29 08:56:42 | 2026-08-29 10:06:08 | 1h09m26s | manual stop |

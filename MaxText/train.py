@@ -359,7 +359,8 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
 
   l_step_len = max(config.base_num_decoder_layers // 8, 1)
   if config.scan_layers:
-    metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
+    layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
+    metrics_dict = layers_metrics.get('sub_0', layers_metrics)
     if getattr(config, 'bam_record_fetched_read_amplitude_metrics', False):
       amplitude = metrics_dict['block']['self_attention']['fetched_read_amplitude'][0]
       amplitude_init = float(config.bam_fetched_read_amplitude_init)

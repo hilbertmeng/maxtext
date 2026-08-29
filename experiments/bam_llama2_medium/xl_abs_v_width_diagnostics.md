@@ -201,6 +201,40 @@ separates C32's capacity gain from its scale cost.  Scaling raw `W_R(x)` before
 RMS would be cancelled; calibration must act on the post-RMS key, gate prior,
 or final fetched readout.
 
+## Absolute startup clipping versus MHA
+
+`raw_grad_norm > 1` is not by itself a BAM failure: the matched MHA controls
+also spend their early steps in the clipping regime.
+
+| model / interval | MHA clipped | BAM C8 clipped | BAM C32 clipped |
+|---|---:|---:|---:|
+| Medium 0-200 | 77.5% | 50% | 65% |
+| Medium 200-400 | 10% | 65% | 25% |
+| XL 0-250 | 100% | 100% | 100% |
+| XL 250-500 | 76% | 96% | 100% |
+| XL 500-1,000 | 2% | 2% | 30% |
+
+At step 0, removing the fetched `W_R` group's gradient in quadrature recovers
+the matched MHA raw gradient almost exactly:
+
+| scale | MHA raw grad | BAM C8 raw grad | C8 fetched grad | BAM without fetched term |
+|---|---:|---:|---:|---:|
+| Medium | 3.4007 | 4.2361 | 2.5258 | 3.4007 |
+| XL | 4.9706 | 6.0993 | 3.5317 | 4.9706 |
+
+Thus C8 adds a real BAM-specific startup gradient, but its duration is healthy;
+the pathological signal is the width-dependent excess and its persistence.
+Using `sqrt(C_ref/C)` with `C_ref=8` fixes only that width dependence: C8 stays
+unchanged and C32 gets a factor `.5`.  An absolute `1/sqrt(C)` would also shrink
+the already-working C8 path by `.354` and conflates two independent choices.
+
+If C8 itself is to be weakened, use a separate reference gain
+`a_ref * sqrt(8/C)` or reduce the fetched gate prior.  This controls BAM's
+overall startup learning strength, while the square-root term controls width
+invariance.  Raising the global clipping threshold does not solve the relative
+problem: it preserves the oversized fetched direction and merely increases the
+total update.
+
 ## Medium/XL C8 cross-scale check
 
 The completed Medium V2 step-13,250 and XL16 Rank2 step-49,720 checkpoints were

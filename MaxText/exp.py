@@ -1089,6 +1089,7 @@ class BamLlama2MediumV2C256FetchAmplitudeC8A05657(
     BamV2C256FetchScheduleBase
 ):
     """Separate fetched-read amplitude from its zero-centered sigmoid switch."""
+    # code_commit: 61faac2; EW4b ~0.663 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeC8A05657'
     scan_layers = True
     bam_fetched_read_amplitude_init = 0.05657
@@ -1101,6 +1102,7 @@ class BamLlama2MediumV2C256FetchAmplitudeC8A025(
     BamLlama2MediumV2C256FetchAmplitudeC8A05657
 ):
     """Lower the separated C8 fetched-read startup amplitude."""
+    # code_commit: 61faac2; EW4b ~0.664 steps/s (~flat vs C8 A=.05657).
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeC8A025'
     bam_fetched_read_amplitude_init = 0.025
     jax_cache_dir = (
@@ -1112,6 +1114,7 @@ class BamLlama2MediumV2C256FetchAmplitudeC32A025(
     BamLlama2MediumV2C256FetchAmplitudeC8A025
 ):
     """Native C32 under the same separated width-normalized read amplitude."""
+    # code_commit: 61faac2; EW4b ~0.629 steps/s (-5.2% vs C8 A=.025).
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeC32A025'
     bam_abs_v_compression_dim = None
     jax_cache_dir = (

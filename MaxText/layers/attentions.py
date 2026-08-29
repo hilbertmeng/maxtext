@@ -1861,6 +1861,7 @@ def _add_bam_read_key_bias(projected_key, row_width, row_bias=None, col_bias=Non
 def _project_bam_read_keys(
     row_width, x, W_R, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
+    key_row_scale=None, key_col_scale=None,
     key_gate_logits=None, key_row_norm=None, key_col_norm=None,
     use_learned_key_norm=False, key_row_mode=None, key_col_mode=None,
     key_row_activation='none', key_col_activation='none'):
@@ -1878,13 +1879,15 @@ def _project_bam_read_keys(
       row_gate = col_gate = None
     else:
       row_gate, col_gate = jnp.split(key_gate_logits, 2, axis=-1)
+    key_row_scale = key_scale if key_row_scale is None else key_row_scale
+    key_col_scale = key_scale if key_col_scale is None else key_col_scale
     r_row = _transform_bam_read_key(
-        raw_row, key_row_mode, key_scale, rms_epsilon=rms_epsilon,
+        raw_row, key_row_mode, key_row_scale, rms_epsilon=rms_epsilon,
         rms_statistics_dtype=rms_statistics_dtype,
         gate_logits=row_gate, learned_rms_norm=key_row_norm,
         use_learned_rms=use_learned_key_norm)
     r_col = _transform_bam_read_key(
-        raw_col, key_col_mode, key_scale, rms_epsilon=rms_epsilon,
+        raw_col, key_col_mode, key_col_scale, rms_epsilon=rms_epsilon,
         rms_statistics_dtype=rms_statistics_dtype,
         gate_logits=col_gate, learned_rms_norm=key_col_norm,
         use_learned_rms=use_learned_key_norm)
@@ -2066,6 +2069,7 @@ def _pack_fetched_bam_heads(read, num_query_heads, head_dim):
 
 
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
+             key_row_scale=None, key_col_scale=None,
              rms_epsilon,
              rms_statistics_dtype=jnp.float32,
              key_gate_logits=None, return_key_stages=False,
@@ -2092,6 +2096,7 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
   Mc, Mr = M if isinstance(M, tuple) else (M, M)
   raw_row, raw_col, r_row, r_col = _project_bam_read_keys(
       Mr.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
+      key_row_scale=key_row_scale, key_col_scale=key_col_scale,
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
       key_gate_logits=key_gate_logits,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
@@ -2436,6 +2441,11 @@ class BamAttention(Attention):
         else cfg.normalization_layer_epsilon)
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
+    fetched_read_amplitude_init = getattr(
+        cfg, 'bam_fetched_read_amplitude_init', None)
+    self._fetched_read_amplitude_init = (
+        None if fetched_read_amplitude_init is None
+        else float(fetched_read_amplitude_init))
     def resolve_rms_statistics_dtype(mode):
       assert mode in ('float32', 'activation')
       return jnp.float32 if mode == 'float32' else self.dtype
@@ -2672,6 +2682,9 @@ class BamAttention(Attention):
     assert self._rms_epsilon > 0.0
     assert self._read_key_epsilon > 0.0
     assert self._read_gate_init is None or 0.0 < self._read_gate_init < 1.0
+    assert (self._fetched_read_amplitude_init is None
+            or self._fetched_read_amplitude_init > 0.0)
+    assert self._fetched_read_amplitude_init is None or 'full' in self._mode
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
     assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm
     assert not self._create_grouped_rw_norm or self._read_key_mode == 'rms_gate'
@@ -2782,13 +2795,25 @@ class BamAttention(Attention):
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False)
+      fetched_gate_init = (
+          0.5 if self._fetched_read_amplitude_init is not None
+          else zero_key_gate_init)
       if (not self._use_fetched_output_gate
           and not self._use_factorized_fetched_output_gate
           or self._fetched_output_gate_head_logits
           or self._fetched_output_gate_side == 'col'):
         add_read_gate('W_R_gate', (self._fetched_read_num_heads, cfg.bam_n_f, 2),
                       ('embed', 'q_heads', 'fetch', None),
-                      ('q_heads', 'fetch', None), zero_key_gate_init)
+                      ('q_heads', 'fetch', None), fetched_gate_init)
+      if self._fetched_read_amplitude_init is not None:
+        self.W_R_amplitude_scale = self.param(
+            'W_R_amplitude_scale',
+            nn.with_logical_partitioning(
+                lambda key, shape, dtype: jnp.full(
+                    shape, self._fetched_read_amplitude_init, dtype),
+                ('q_heads', 'fetch', None)),
+            (self._fetched_read_num_heads, cfg.bam_n_f, 2),
+            self.weight_dtype)
       if self._use_fetched_output_gate:
         output_gate_features = (
             read_features if self._fetched_output_gate_side == 'both'
@@ -3598,6 +3623,13 @@ class BamAttention(Attention):
         full_read_kwargs = self._read_key_kwargs(
             'W_R_gate', inputs_q, squeeze_fetch_axis=True,
             activation_side=self._fetch_read_key_activation_side)
+      if self._fetched_read_amplitude_init is not None:
+        amplitude = jnp.squeeze(self.W_R_amplitude_scale, axis=-2)
+        row_amplitude, col_amplitude = jnp.split(amplitude, 2, axis=-1)
+        width_scale = math.sqrt(self._abs_v_dim or self.bam_v)
+        full_read_kwargs.update(
+            key_row_scale=row_amplitude / width_scale,
+            key_col_scale=col_amplitude / width_scale)
       def full_read_projection(x):
         projected_key = _add_bam_read_key_bias(
             self.W_R(x), self._abs_k_dim or self.bam_k,

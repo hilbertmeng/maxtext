@@ -267,6 +267,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
     bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
+    # Optional fetched-read-only amplitude outside sigmoid: a/sqrt(C).
+    bam_fetched_read_amplitude_init = None
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
@@ -1081,6 +1083,40 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256FetchAmplitudeC8A05657(
+    BamV2C256FetchScheduleBase
+):
+    """Separate fetched-read amplitude from its zero-centered sigmoid switch."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeC8A05657'
+    scan_layers = True
+    bam_fetched_read_amplitude_init = 0.05657
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-c8-a05657')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeC8A025(
+    BamLlama2MediumV2C256FetchAmplitudeC8A05657
+):
+    """Lower the separated C8 fetched-read startup amplitude."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeC8A025'
+    bam_fetched_read_amplitude_init = 0.025
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-c8-a025')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeC32A025(
+    BamLlama2MediumV2C256FetchAmplitudeC8A025
+):
+    """Native C32 under the same separated width-normalized read amplitude."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeC32A025'
+    bam_abs_v_compression_dim = None
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-c32-a025')
 
 
 class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):

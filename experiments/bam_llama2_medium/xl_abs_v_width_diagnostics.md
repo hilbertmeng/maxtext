@@ -120,14 +120,68 @@ less than the 2x compensation required.
 The gate kernel adapts downward by only about 14% from C8 to C32 and the bias
 hardly changes; neither approaches the 50% branch-scale correction required.
 
+## Medium/XL C8 cross-scale check
+
+The completed Medium V2 step-13,250 and XL16 Rank2 step-49,720 checkpoints were
+run on the same 32 fixed Pile-eval sequences.  Here `y_bam` is fetched-M readout
+at the `o_head = y_std + y_bam` addition.  The two models have `(K,C,H)` of
+`(32,8,64)` and `(64,8,128)`.
+
+| fetched-read scale | Medium | XL16 Rank2 |
+|---|---:|---:|
+| mean `||y_bam||/||y_std||`, layers 1-8 | .926 | .941 |
+| layers 9-16 | 1.349 | 1.253 |
+| layers 17-23 | 2.875 | 2.455 |
+| energy-weighted across layers | 2.187 | 2.284 |
+| mean `cos(y_bam,y_std)`, layers 1-23 | -.0467 | -.0550 |
+
+The mean of the 23 matched-layer XL/Medium ratios is `.995`; XL is slightly
+stronger early and weaker late.  The energy-weighted aggregate is only 4.5%
+higher in XL because it weights layers by absolute `y_std` energy.  Thus the
+healthy XL C8 checkpoint does not have a forward fetched-read scale explosion
+relative to Medium.
+
+TensorBoard per-parameter raw-gradient histories, aligned by relative training
+progress, give a complementary result:
+
+| relative progress | 20% | 40% | 60% | 80% | 98% |
+|---|---:|---:|---:|---:|---:|
+| Medium all-BAM / standard-attention | .687 | .617 | .546 | .518 | .490 |
+| XL all-BAM / standard-attention | .758 | .686 | .599 | .535 | .490 |
+| Medium fetched / standard-attention | .316 | .299 | .282 | .279 | .272 |
+| XL fetched / standard-attention | .448 | .416 | .378 | .339 | .318 |
+
+At 98%, LocalQK/standard is `.376/.354` and write/standard is `.158/.117`
+for Medium/XL.  XL therefore has a persistently stronger fetched branch but
+weaker LocalQK/write branches; their total BAM gradient budget converges to the
+same `.490` ratio.  This is a branch-composition difference, not global BAM
+instability.
+
+The equal initial gate prior across these two C8 models is dimensionally
+reasonable: fetched-read energy relative to one standard head scales as
+`2*K*C/H * gate^2`, and `2*K*C/H = 8` for both.  This does not make one fixed
+gate prior universally optimal.  Widening XL from C8 to C32 makes that factor
+four times larger, so the branch norm doubles unless calibrated.
+
+The apparent Medium/XL C32 contradiction is also not a matched ablation.
+Medium's `BamLlama2MediumV2C256CompressedVLocalQK` comparison changes the
+LocalQK source from the native full `32x32` M to the compressed `32x8` fetched
+view; compression costs about `.008` loss, while fetched read remains C8 in
+both runs.  XL's C32 runs leave LocalQK on the same full M and widen only the
+fetched cache/read from C8 to C32, exposing the width-scaling defect above.
+
 The next clean training control is therefore C32 with an explicit
 `sqrt(C_ref/C)` fetched-read calibration (`C_ref=8`).  It can be implemented in
 the gate prior, compressed-state view, or final fetched-read output; those are
 equivalent at initialization, while the gate-prior form still permits learned
-amplitude recovery.
+amplitude recovery.  Scaling the raw `W_R(x)` before RMS normalization would be
+cancelled by RMS; a fixed calibration must act on the post-RMS runtime key or
+readout.
 
 ## Reproduction
 
 - Script: `xl_abs_v_gradient_diagnostics.py`
+- Cross-scale readout script: `xl_abs_v_width_diagnostics.py`
 - Raw reports: `gs://newproject-1-llm_projects_europe-west4/log/diagnostics/c32_abs_v/`
+- Cross-scale readouts: `gs://newproject-1-llm_projects_europe-west4/log/diagnostics/cross_scale_readout/`
 - Diagnostic commits: `34bc7a9`, `1b9c0fc`, `ac7bca3`

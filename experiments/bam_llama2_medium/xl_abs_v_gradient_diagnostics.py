@@ -15,8 +15,9 @@ import sys
 import time
 
 from absl import app
+from flax.core import freeze, unfreeze
 from flax.linen import partitioning as nn_partitioning
-from flax.traverse_util import flatten_dict
+from flax.traverse_util import flatten_dict, unflatten_dict
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -95,6 +96,20 @@ def _global_l2(tree):
       for value in jax.tree.leaves(tree)))
 
 
+def _set_fetched_gate_init(params, initial_gate):
+  """Replace only fetched-read gate biases in an initialized parameter tree."""
+  if not 0.0 < initial_gate < 1.0:
+    raise ValueError(f"invalid fetched gate initialization: {initial_gate}")
+  flat = flatten_dict(unfreeze(params))
+  matches = [path for path in flat if path[-1] == "W_R_gate_b0"]
+  if not matches:
+    raise ValueError("no fetched W_R_gate_b0 parameters found")
+  logit = np.log(initial_gate / (1.0 - initial_gate))
+  for path in matches:
+    flat[path] = jnp.full_like(flat[path], logit)
+  return freeze(unflatten_dict(flat))
+
+
 def _capture_read_metrics(model, config, params, batch, rng, read_v_dim):
   rng1, params_rng = jax.random.split(rng)
   (_, _, _), collections = model.apply(
@@ -150,6 +165,7 @@ def run(config):
       if step
   }
   read_v_dim = config.bam_abs_v_compression_dim or config.bam_v
+  fetched_gate_init = os.environ.get("BAM_ABSV_GRAD_FETCH_GATE_INIT")
 
   started = time.perf_counter()
   init_rng, writer, checkpoint_manager, mesh, model, _, tx = (
@@ -159,6 +175,9 @@ def run(config):
     raise ValueError("Pile eval iterator is unavailable")
   state, _, _, _ = max_utils.setup_training_state(
       model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager)
+  if fetched_gate_init is not None:
+    state = state.replace(params=_set_fetched_gate_init(
+        state.params, float(fetched_gate_init)))
   batches = [next(eval_iterator) for _ in range(trace_steps + 1)]
 
   def diagnostic_step(state, batch, rng):
@@ -195,6 +214,8 @@ def run(config):
           "num_layers": config.num_decoder_layers,
           "sequence_length": config.max_target_length,
           "gradient_clipping_threshold": config.gradient_clipping_threshold,
+          "fetched_gate_init_override": (
+              None if fetched_gate_init is None else float(fetched_gate_init)),
       },
       "steps": {},
       "captures": {},

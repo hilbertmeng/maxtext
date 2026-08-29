@@ -15,7 +15,7 @@ import sys
 import time
 
 from absl import app
-from flax.core import freeze, unfreeze
+from flax.core import FrozenDict, freeze, unfreeze
 from flax.linen import partitioning as nn_partitioning
 from flax.traverse_util import flatten_dict, unflatten_dict
 import jax
@@ -100,6 +100,7 @@ def _set_fetched_gate_init(params, initial_gate):
   """Replace only fetched-read gate biases in an initialized parameter tree."""
   if not 0.0 < initial_gate < 1.0:
     raise ValueError(f"invalid fetched gate initialization: {initial_gate}")
+  was_frozen = isinstance(params, FrozenDict)
   flat = flatten_dict(unfreeze(params))
   matches = [path for path in flat if path[-1] == "W_R_gate_b0"]
   if not matches:
@@ -107,7 +108,8 @@ def _set_fetched_gate_init(params, initial_gate):
   logit = np.log(initial_gate / (1.0 - initial_gate))
   for path in matches:
     flat[path] = jnp.full_like(flat[path], logit)
-  return freeze(unflatten_dict(flat))
+  updated = unflatten_dict(flat)
+  return freeze(updated) if was_frozen else updated
 
 
 def _capture_read_metrics(model, config, params, batch, rng, read_v_dim):

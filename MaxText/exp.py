@@ -1168,7 +1168,8 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A25(
     BamLlama2MediumV2C256FetchAmplitudeGate005C8A25
 ):
     """Learned native-C32 amplitude with the same initial total energy as C8 A=2.5."""
-    # code_commit: cd946b2; EW4b ~0.628 steps/s (-5.6% vs C8 learned).
+    # cd946b2; EW4b ~0.628 steps/s (-5.6% vs C8); stopped 4,000.
+    # C32 gain vanished: dloss -.00229 vs C8, +.03180 vs V1 @3,800.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A25'
     bam_abs_v_compression_dim = None
     jax_cache_dir = (
@@ -1180,7 +1181,8 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A25Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A25
 ):
     """Fix the native-C32 amplitude while retaining the learned read gate."""
-    # code_commit: cd946b2; EW4b ~0.629 steps/s (-5.5% vs C8 fixed).
+    # cd946b2; EW4b ~0.629 steps/s (-5.5% vs C8 fixed); stopped 4,000.
+    # Fixed amplitude hurts: +.01780 vs learned C32, +.04959 vs V1 @3,800.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A25Fixed'
     bam_fetched_read_amplitude_learnable = False
     jax_cache_dir = (

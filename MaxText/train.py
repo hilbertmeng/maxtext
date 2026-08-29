@@ -350,6 +350,26 @@ def save_checkpoint(
 # Top-level Functions
 # -----------------------------------------------------------------------------
 # lsp
+def record_bam_fetched_read_amplitude_metrics(
+    output_metrics, intermediate_outputs, config):
+  """Adds per-layer fetched-read amplitude summaries to the metrics dict."""
+  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
+  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
+  amplitude = metrics_dict['block']['self_attention']['fetched_read_amplitude'][0]
+  amplitude_init = float(config.bam_fetched_read_amplitude_init)
+  for layer_num in range(config.base_num_decoder_layers):
+    for side_num, side in enumerate(('row', 'col')):
+      values = amplitude[layer_num, ..., side_num].astype(jnp.float32)
+      prefix = f'bam/fetched_read_amplitude/{side}/layer_{layer_num:03d}'
+      output_metrics['scalar'].update({
+          f'{prefix}/mean': jnp.mean(values),
+          f'{prefix}/std': jnp.std(values),
+          f'{prefix}/min': jnp.min(values),
+          f'{prefix}/max': jnp.max(values),
+          f'{prefix}/mean_over_init': jnp.mean(values) / amplitude_init,
+      })
+
+
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
   if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
@@ -359,22 +379,7 @@ def record_activation_metrics(output_metrics, intermediate_outputs, config):
 
   l_step_len = max(config.base_num_decoder_layers // 8, 1)
   if config.scan_layers:
-    layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
-    metrics_dict = layers_metrics.get('sub_0', layers_metrics)
-    if getattr(config, 'bam_record_fetched_read_amplitude_metrics', False):
-      amplitude = metrics_dict['block']['self_attention']['fetched_read_amplitude'][0]
-      amplitude_init = float(config.bam_fetched_read_amplitude_init)
-      for layer_num in range(config.base_num_decoder_layers):
-        for side_num, side in enumerate(('row', 'col')):
-          values = amplitude[layer_num, ..., side_num].astype(jnp.float32)
-          prefix = f'bam/fetched_read_amplitude/{side}/layer_{layer_num:03d}'
-          output_metrics['scalar'].update({
-              f'{prefix}/mean': jnp.mean(values),
-              f'{prefix}/std': jnp.std(values),
-              f'{prefix}/min': jnp.min(values),
-              f'{prefix}/max': jnp.max(values),
-              f'{prefix}/mean_over_init': jnp.mean(values) / amplitude_init,
-          })
+    metrics_dict = intermediate_outputs["intermediates"]["decoder"]["layers"]['sub_0'] # decode -> layers
     for layer_num in range(0, config.base_num_decoder_layers, l_step_len): # 每8层记录一下
       if config.num_experts >= 1 and layer_num in config.insert_moe_indexes:
         temp_dict = {
@@ -772,9 +777,11 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "scalars": {},
   }
 
-  if (config.record_internal_nn_metrics
-      or getattr(config, 'bam_record_fetched_read_amplitude_metrics', False)):
+  if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_fetched_read_amplitude_metrics', False):
+    record_bam_fetched_read_amplitude_metrics(
+        metrics, intermediate_outputs, config)
 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)

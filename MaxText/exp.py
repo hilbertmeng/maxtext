@@ -1208,7 +1208,8 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A25Fixed
 ):
     """Raise the fixed native-C32 fetched-read amplitude fourfold at gate .005."""
-    # code_commit: 2b912b7; EW4b ~0.623 steps/s.
+    # 2b912b7; EW4b ~0.623 steps/s; stopped 4,162. dloss +.00533 vs V1,
+    # -.00219 vs V2 @4,000; the small V2 gain kept shrinking.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed'
     bam_fetched_read_amplitude_init = 10.0
     jax_cache_dir = (
@@ -1220,7 +1221,8 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A20Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed
 ):
     """Match C8-a10's 1.77x-V2 zero-point Jacobian at native C32."""
-    # code_commit: 6074f36; EW4b ~0.624 steps/s.
+    # 6074f36; EW4b ~0.624 steps/s; stopped 2,910. dloss +.00581 vs C32-a10,
+    # +.01002 vs V1, -.00020 vs V2 @2,800; higher Jacobian was harmful.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A20Fixed'
     bam_fetched_read_amplitude_init = 20.0
     jax_cache_dir = (

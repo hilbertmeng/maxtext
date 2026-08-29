@@ -56,6 +56,20 @@ The initialized fetched M has the matching scaling:
 Per-coordinate state energy is invariant, while total state energy grows
 linearly with C.
 
+The first downstream divergence is also visible in the full-24 TB history:
+
+| group raw-grad L2 | C8 step 0 | C32P step 0 | C8 step 20 | C32P step 20 |
+|---|---:|---:|---:|---:|
+| `W_R` | 3.5317 | 7.1656 | .7700 | 1.6514 |
+| `P_loc_up` | 0 | 0 | .0869 | .1732 |
+| `W_local_qk_packed` | .0303 | .0303 | .0040 | .0073 |
+| `fetch_head_mix` | 0 | 0 | .0792 | .3562 |
+| standard V | 3.0241 | 3.0241 | .2379 | .2973 |
+| standard O | 3.0196 | 3.0196 | .2865 | .3603 |
+
+Thus P_loc/LocalQK/mix are not independent initial causes: they are identical
+or zero at step 0 and diverge only after `W_R` has opened the fetched-read loop.
+
 ## Why it happens
 
 `_matrix_for_read` gives M unit RMS per matrix element, not unit Frobenius norm.
@@ -96,6 +110,15 @@ explains why the default C32 path opens about four times as many coordinates at
 the same individual amplitude.  In the full runs, `W_R` parameter RMS remains
 nearly identical through 4k steps, and the learned scalar gate differs by much
 less than the 2x compensation required.
+
+| parameter statistic @4k | C8 | C16 | C32P |
+|---|---:|---:|---:|
+| `W_R` parameter RMS | .010658 | .010634 | .010590 |
+| `W_R_gate` kernel RMS | .007190 | .006644 | .006200 |
+| `abs(W_R_gate_b0)` RMS | 4.90496 | 4.90722 | 4.90991 |
+
+The gate kernel adapts downward by only about 14% from C8 to C32 and the bias
+hardly changes; neither approaches the 50% branch-scale correction required.
 
 The next clean training control is therefore C32 with an explicit
 `sqrt(C_ref/C)` fetched-read calibration (`C_ref=8`).  It can be implemented in

@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "MaxText"))
 import max_utils
 import pyconfig
 from input_pipeline.input_pipeline_interface import create_data_iterator
+from layers import attentions
 import train
 
 
@@ -54,34 +55,42 @@ def _layer_from_path(path: tuple[str, ...]) -> int | None:
   return None
 
 
-def _capture_fetch(module, method_name: str) -> bool:
-  del module
-  return method_name in ("_read_fetched_m", "_query_chunk_op")
-
-
 def _stack_captures(collections, num_layers: int):
   grouped: dict[int, dict[str, jax.Array]] = defaultdict(dict)
-  flat = flatten_dict(collections.get("intermediates", {}))
+  flat = flatten_dict(collections.get("bam_energy", {}))
   scanned = {}
   for path, raw in flat.items():
     layer = _layer_from_path(path)
+    name = path[-1]
     if layer is None:
       value = _unwrap(raw)
-      if "_read_fetched_m" in path:
+      if name == "read":
         scanned["read"] = value
-      elif "_query_chunk_op" in path:
+      elif name == "o_head":
+        scanned["o_head"] = value
+      elif name == "attention":
         if not isinstance(value, (tuple, list)) or len(value) != 2:
           raise ValueError(
-              f"unexpected scanned query-chunk capture at {path}: {type(value)}")
+              f"unexpected scanned attention capture at {path}: {type(value)}")
         scanned["y_std"], scanned["mbar"] = value
       continue
     value = _unwrap(raw)
-    if "_read_fetched_m" in path:
+    if name == "read":
       grouped[layer]["read"] = value
-    elif "_query_chunk_op" in path:
+    elif name == "o_head":
+      grouped[layer]["o_head"] = value
+    elif name == "attention":
       if not isinstance(value, (tuple, list)) or len(value) != 2:
-        raise ValueError(f"unexpected query-chunk capture at {path}: {type(value)}")
+        raise ValueError(f"unexpected attention capture at {path}: {type(value)}")
       grouped[layer]["y_std"], grouped[layer]["mbar"] = value
+  def derive_read(values):
+    if "read" not in values and "o_head" in values:
+      values["read"] = values["o_head"] - values["y_std"]
+    values.pop("o_head", None)
+    return values
+
+  scanned = derive_read(scanned)
+  grouped = {layer: derive_read(values) for layer, values in grouped.items()}
   expected = {"read", "y_std", "mbar"}
   if not grouped and set(scanned) == expected:
     for name, value in scanned.items():
@@ -99,7 +108,8 @@ def _stack_captures(collections, num_layers: int):
   for layer, values in grouped.items():
     if set(values) != expected:
       raise ValueError(
-          f"layer {layer} captures differ: {sorted(expected ^ set(values))}")
+          f"layer {layer} captures differ: {sorted(expected ^ set(values))}; "
+          f"paths={sorted('/'.join(path) for path in flat)}")
   return {
       name: jnp.stack([grouped[layer][name] for layer in range(num_layers)])
       for name in sorted(expected)
@@ -199,7 +209,7 @@ def _scaled_forward(model, params, batch, rng, bam_k, read_v_dim,
 
   dropout_rng, params_rng = jax.random.split(rng)
   with nn.intercept_methods(interceptor):
-    xent, _, _ = model.apply(
+    (xent, _, _), _ = model.apply(
         params,
         batch["inputs"],
         batch["inputs_position"],
@@ -208,30 +218,63 @@ def _scaled_forward(model, params, batch, rng, bam_k, read_v_dim,
         decoder_target_tokens=batch["targets"],
         enable_dropout=False,
         rngs={"dropout": dropout_rng, "params": params_rng},
+        mutable=["bam_energy"],
     )
   return _sequence_loss(xent, batch["targets_segmentation"] != 0)
 
 
 def _captured_forward(model, config, params, batch, rng, read_v_dim):
+  attention_method = (
+      "_query_chunk_op" if config.attention == "dot_product_chunk"
+      else "_attention_block")
+
+  def interceptor(next_fun, args, kwargs, context):
+    output = next_fun(*args, **kwargs)
+    if context.method_name == "_read_fetched_m":
+      context.module.sow("bam_energy", "read", output)
+    elif context.method_name == attention_method:
+      context.module.sow("bam_energy", "attention", output)
+    elif (context.method_name == "__call__"
+          and getattr(context.module, "name", None) == "out"):
+      context.module.sow("bam_energy", "o_head", args[0])
+    return output
+
   dropout_rng, params_rng = jax.random.split(rng)
-  (xent, _, _), collections = model.apply(
-      params,
-      batch["inputs"],
-      batch["inputs_position"],
-      decoder_segment_ids=batch["inputs_segmentation"],
-      decoder_target_mask=batch["targets_segmentation"],
-      decoder_target_tokens=batch["targets"],
-      enable_dropout=False,
-      rngs={"dropout": dropout_rng, "params": params_rng},
-      mutable=["intermediates"],
-      capture_intermediates=_capture_fetch,
-  )
+  with nn.intercept_methods(interceptor):
+    (xent, _, _), collections = model.apply(
+        params,
+        batch["inputs"],
+        batch["inputs_position"],
+        decoder_segment_ids=batch["inputs_segmentation"],
+        decoder_target_mask=batch["targets_segmentation"],
+        decoder_target_tokens=batch["targets"],
+        enable_dropout=False,
+        rngs={"dropout": dropout_rng, "params": params_rng},
+        mutable=["bam_energy"],
+    )
   mask = batch["targets_segmentation"] != 0
   captured = _stack_captures(collections, config.num_decoder_layers)
   return {
       "sequence_loss": _sequence_loss(xent, mask),
       "metrics": _capture_metrics(captured, mask, config.bam_k, read_v_dim),
   }
+
+
+def _install_fetched_read_capture():
+  """Instrument the helper directly; dense non-scan calls bypass Flax interceptors."""
+  original = attentions.BamAttention._read_fetched_m
+  if getattr(original, "_bam_energy_capture", False):
+    return
+
+  def captured(self, *args, **kwargs):
+    output = original(self, *args, **kwargs)
+    if (not self.is_initializing()
+        and self.is_mutable_collection("bam_energy")):
+      self.sow("bam_energy", "read", output)
+    return output
+
+  captured._bam_energy_capture = True
+  attentions.BamAttention._read_fetched_m = captured
 
 
 def _stats(values):
@@ -312,6 +355,7 @@ def run(config):
       "BAM_ABSV_DIAG_OUTPUT", "/tmp/xl_abs_v_width_diagnostics.json"))
   output_path.parent.mkdir(parents=True, exist_ok=True)
   read_v_dim = config.bam_abs_v_compression_dim or config.bam_v
+  _install_fetched_read_capture()
 
   started = time.perf_counter()
   init_rng, writer, checkpoint_manager, mesh, model, _, tx = (

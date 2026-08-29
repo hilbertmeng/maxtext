@@ -1144,7 +1144,8 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A25(
     BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685
 ):
     """Learned C8 amplitude at 44.2% of V2's initial read strength."""
-    # code_commit: cd946b2; EW4b ~0.665 steps/s.
+    # cd946b2; EW4b ~0.665 steps/s; stopped 4,943.
+    # dloss +.00957 vs fixed-a @4,800; disadvantage slowly expanded after ~2,200.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A25'
     bam_fetched_read_amplitude_init = 2.5
     jax_cache_dir = (

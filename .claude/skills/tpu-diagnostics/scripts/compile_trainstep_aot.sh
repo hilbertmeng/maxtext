@@ -16,7 +16,7 @@ TMP_DIR=$(mktemp -d /tmp/maxtext-aot.XXXXXX)
 COMPILED="$TMP_DIR/$EXP.pickle"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-[[ -e /dev/accel0 ]] || {
+[[ -e /dev/vfio/0 ]] || {
   echo "ERROR: AOT compilation requires an installed TPU VM" >&2
   exit 1
 }

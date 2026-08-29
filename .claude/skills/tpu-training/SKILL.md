@@ -95,8 +95,9 @@ Launch with `COMPILED_TRAINSTEP_GCS=gs://...`; auto-train stages that artifact o
 For checkpoint resume, compile the original total schedule, never the remaining-step count; the
 restored optimizer `state.step` selects the resumed learning rate. Require the first resumed step
 and logged LR to match the checkpoint and original schedule; stop immediately on mismatch.
-Generate formal AOT artifacts only in a validated TPU-VM environment. If the target TPU becomes
-READY first, start its native compile immediately and reserve any later AOT artifact for recovery;
+Run formal AOT compilation on an installed v6e TPU VM with its MaxText Python environment;
+tpu-ag only orchestrates it. If the target TPU becomes READY first, start its native compile
+immediately and reserve any later AOT artifact for recovery;
 do not replace a healthy pre-first-step compile merely because the artifact finishes.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct

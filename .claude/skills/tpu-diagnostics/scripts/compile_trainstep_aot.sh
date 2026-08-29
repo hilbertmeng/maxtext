@@ -15,6 +15,15 @@ PYTHON=${MAXTEXT_PYTHON:-/home/lishengping/miniconda3/bin/python}
 TMP_DIR=$(mktemp -d /tmp/maxtext-aot.XXXXXX)
 COMPILED="$TMP_DIR/$EXP.pickle"
 trap 'rm -rf "$TMP_DIR"' EXIT
+
+[[ -e /dev/accel0 ]] || {
+  echo "ERROR: AOT compilation requires an installed TPU VM" >&2
+  exit 1
+}
+[[ -x "$PYTHON" ]] || {
+  echo "ERROR: TPU-VM MaxText Python is unavailable: $PYTHON" >&2
+  exit 1
+}
 mkdir -p "$TMP_DIR/output/AOT_$EXP"
 
 cd "$REPO"

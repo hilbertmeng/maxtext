@@ -1230,6 +1230,28 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A20Fixed(
         'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a20-fixed')
 
 
+class BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685Fixed(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C8A25Fixed
+):
+    """Fixed external-amplitude control exactly matching V2's read-key scale."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685Fixed'
+    bam_fetched_read_amplitude_init = 5.65685
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c8-a565685-fixed')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed
+):
+    """Fixed external-amplitude control exactly matching V1's read-key scale."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed'
+    bam_fetched_read_amplitude_init = 11.3137
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a113137-fixed')
+
+
 class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
     """Remove the static pre-RMS offsets from both packed LocalQ/K keys."""
     # cd1ba4d; EW4b ~0.666 steps/s; stopped 2,780. dloss +.00267 vs V2 @2,600; no benefit.

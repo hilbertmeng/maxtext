@@ -1219,6 +1219,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A20Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed
 ):
     """Match C8-a10's 1.77x-V2 zero-point Jacobian at native C32."""
+    # code_commit: 6074f36; EW4b ~0.624 steps/s.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A20Fixed'
     bam_fetched_read_amplitude_init = 20.0
     jax_cache_dir = (

@@ -268,6 +268,23 @@ def _rank_approximation(params, rank, num_layers):
   return freeze(unflatten_dict(flat))
 
 
+def _projection_singular_values(params, num_layers):
+  flat = flatten_dict(unfreeze(params))
+  matches = [path for path in flat if path[-1] == "abs_v_cache_projection"]
+  if not matches:
+    return None
+  if len(matches) != 1:
+    raise ValueError(f"expected at most one AbsV projection, found {matches}")
+  matrix = np.asarray(jax.device_get(flat[matches[0]]), np.float32)
+  layer_axes = [i for i, width in enumerate(matrix.shape) if width == num_layers]
+  if len(layer_axes) != 1:
+    raise ValueError(f"cannot identify layer axis in AbsV shape {matrix.shape}")
+  matrices = np.moveaxis(matrix, layer_axes[0], 0)
+  return np.stack([
+      np.linalg.svd(value, compute_uv=False) for value in matrices
+  ])
+
+
 def _mean_tree(trees):
   return jax.tree.map(
       lambda *values: np.mean(np.stack(values), axis=0), *trees)
@@ -383,6 +400,8 @@ def run(config):
       },
       "modes": {},
       "capture_metrics": _json_tree(capture_metrics),
+      "abs_v_projection_singular_values": _json_tree(
+          _projection_singular_values(state.params, config.num_decoder_layers)),
   }
   for name, values in {**losses, **rank_losses}.items():
     delta = values - baseline

@@ -1215,6 +1215,17 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed(
         'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a10-fixed')
 
 
+class BamLlama2MediumV2C256FetchAmplitudeGate005C32A20Fixed(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed
+):
+    """Match C8-a10's 1.77x-V2 zero-point Jacobian at native C32."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A20Fixed'
+    bam_fetched_read_amplitude_init = 20.0
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a20-fixed')
+
+
 class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
     """Remove the static pre-RMS offsets from both packed LocalQ/K keys."""
     # cd1ba4d; EW4b ~0.666 steps/s; stopped 2,780. dloss +.00267 vs V2 @2,600; no benefit.

@@ -2,16 +2,19 @@
 
 ## Finding
 
-The C32 failure starts at the fetched-read `W_R` Jacobian, before any forward
-output differs.  The implementation keeps per-coordinate M/read-key scale
-fixed as AbsV width `C` grows, but has no `1/sqrt(C)` width calibration.  Thus
-fetched-read energy and the `W_R` Jacobian norm grow as `sqrt(C)`.  C32 starts
-with a 2x branch/Jacobian scale relative to C8; Adam then gives the extra
-coordinates essentially the same per-coordinate update, so the mismatch is
-not self-correcting.
+Increasing fetched-M AbsV width from C8 to C32 introduces the same initial
+width-scaling pressure in Medium and XL: fetched-read energy and the `W_R`
+Jacobian grow as `sqrt(C)`, so the step-0 fetched gradient is about 2x larger.
+This is the root cause of XL C32's optimization failure, but it is not a
+universal claim that C32 must hurt loss.  Medium partially compensates through
+smaller runtime gates, exits the clipping regime much sooner, and gains enough
+representation capacity for native C32 to beat C8.
 
-This is the root scaling defect.  Larger readout energy, clipping, and later
-P_loc/LocalQK gradient changes are downstream symptoms.
+Adam's coordinate-wise normalization does not itself provide the missing
+`sqrt(C_ref/C)` branch calibration.  The model may nevertheless learn a partial
+correction through its gates and surrounding projections.  XL does not learn
+enough correction soon enough; Medium does, and its residual 15% stronger
+readout is useful rather than fatal.
 
 ## Full-24 training evidence at step 0
 
@@ -120,6 +123,84 @@ less than the 2x compensation required.
 The gate kernel adapts downward by only about 14% from C8 to C32 and the bias
 hardly changes; neither approaches the 50% branch-scale correction required.
 
+## Matched Medium native-C32/C8 check
+
+This is the clean Medium comparison:
+
+- native C32: `BamLlama2MediumV1`, checkpoint 13,250;
+- C8: `BamLlama2MediumV1CompressAbsV8Direct`, checkpoint 13,250.
+
+Only the fetched cache/read view changes width.  M writes and LocalQK both keep
+the full native `32x32` M; this is **not** the later experiment that makes
+LocalQK read a compressed `32x8` M.  Both checkpoints were evaluated on the
+same 32 fixed, unique Pile sequences.
+
+| fetched-read metric, layers 1-23 | C8 | native C32 | C32 / C8 |
+|---|---:|---:|---:|
+| mean `||y_bam||/||y_std||` | 1.946 | 2.268 | 1.166 |
+| pooled-energy `||y_bam||/||y_std||` | 2.168 | 2.499 | 1.153 |
+| inverse `||y_std||/||y_bam||` | .461 | .400 | .868 |
+| column/U contribution over standard | 1.967 | 2.177 | 1.107 |
+| row/V contribution over standard | .911 | 1.227 | 1.346 |
+| post-RMS/post-gate read-key entry RMS | .02414 | .01892 | .784 |
+| same-batch eval loss | 2.39451 | 2.38917 | -0.00534 absolute |
+
+The C32 model therefore does have a stronger fetched branch, especially on the
+new V coordinates, but nowhere near the naive 2x norm increase.  Its learned
+runtime gate is 21.6% smaller than C8's; equivalently C8 opens its narrower
+read key 27.6% more.  The late-layer pooled ratios are 2.854/3.491 for C8/C32,
+so the residual scale difference is concentrated where BAM readout is already
+strongest.  The training-curve result agrees with the same-batch probe: C8 is
+about `+.0096` loss worse over steps 12,400-13,400.
+
+Medium also shows the predicted early gradient problem; it is just transient:
+
+| Medium training interval | C8 raw-grad mean / clipped fraction | C32 raw-grad mean / clipped fraction |
+|---|---:|---:|
+| 0-200 | 1.458 / 50% | 1.602 / 65% |
+| 200-400 | 1.100 / 65% | .904 / 25% |
+| 400-600 | .720 / 5% | .634 / 0% |
+
+At step 0, the fetched parameter-group gradient is `2.526 -> 5.132` (2.03x)
+and global raw grad is `4.236 -> 6.156` (1.45x), with clipping threshold 1.
+Thus Medium does not escape the width law.  It exits the excess-clipping phase
+by about step 400, and sampled fetched/standard gradient ratios over the full
+run average almost identically (`.252` C8, `.251` C32).
+
+XL differs mainly in persistence:
+
+| XL training interval | C8 raw-grad mean / clipped fraction | native C32 raw-grad mean / clipped fraction |
+|---|---:|---:|
+| 0-250 | 2.576 / 100% | 3.083 / 100% |
+| 250-500 | 1.555 / 96% | 2.074 / 100% |
+| 500-1,000 | .588 / 2% | .828 / 30% |
+
+XL C32 remains in the clipping regime substantially longer, then settles at
+about `+.0045` loss versus C8 from steps 3,500-8,500.  Its trained pooled
+fetched/standard ratio is 2.764 versus 2.177 for C8 (+27%); these checkpoints
+are not progress-matched (about 7.8k versus 49.7k), so this number is supporting
+evidence rather than the primary causal comparison.  The same-initialization
+step-0 and step-10 interventions above establish the causal width effect.
+
+Why the loss sign differs is therefore a benefit/cost tradeoff, not a different
+mechanism:
+
+1. The extra 24 fetched coordinates occupy 37.5% of a Medium H64 head but only
+   18.75% of an XL H128 head, so their marginal representational value is much
+   larger in Medium.
+2. Healthy XL C8 already assigns more gradient budget to fetched read than
+   Medium C8, while XL's Partial-RoPE + rank-2 LocalQK path supplies additional
+   memory-read capacity.  Extra fetched width is consequently more redundant.
+3. Medium learns a stronger gate compensation and rapidly leaves clipping;
+   XL C32 retains a larger forward/Jacobian mismatch long enough to alter its
+   optimization path.
+
+The decisive follow-up is not another C8/C32 comparison, but native C32 default
+versus native C32 with `sqrt(8/C)` calibration in both Medium and XL.  This
+separates C32's capacity gain from its scale cost.  Scaling raw `W_R(x)` before
+RMS would be cancelled; calibration must act on the post-RMS key, gate prior,
+or final fetched readout.
+
 ## Medium/XL C8 cross-scale check
 
 The completed Medium V2 step-13,250 and XL16 Rank2 step-49,720 checkpoints were
@@ -163,25 +244,11 @@ reasonable: fetched-read energy relative to one standard head scales as
 gate prior universally optimal.  Widening XL from C8 to C32 makes that factor
 four times larger, so the branch norm doubles unless calibrated.
 
-The apparent Medium/XL C32 contradiction is also not a matched ablation.
-Medium's `BamLlama2MediumV2C256CompressedVLocalQK` comparison changes the
-LocalQK source from the native full `32x32` M to the compressed `32x8` fetched
-view; compression costs about `.008` loss, while fetched read remains C8 in
-both runs.  XL's C32 runs leave LocalQK on the same full M and widen only the
-fetched cache/read from C8 to C32, exposing the width-scaling defect above.
-
-The next clean training control is therefore C32 with an explicit
-`sqrt(C_ref/C)` fetched-read calibration (`C_ref=8`).  It can be implemented in
-the gate prior, compressed-state view, or final fetched-read output; those are
-equivalent at initialization, while the gate-prior form still permits learned
-amplitude recovery.  Scaling the raw `W_R(x)` before RMS normalization would be
-cancelled by RMS; a fixed calibration must act on the post-RMS runtime key or
-readout.
-
 ## Reproduction
 
 - Script: `xl_abs_v_gradient_diagnostics.py`
 - Cross-scale readout script: `xl_abs_v_width_diagnostics.py`
 - Raw reports: `gs://newproject-1-llm_projects_europe-west4/log/diagnostics/c32_abs_v/`
 - Cross-scale readouts: `gs://newproject-1-llm_projects_europe-west4/log/diagnostics/cross_scale_readout/`
+- Matched Medium C32/C8 readouts: `gs://newproject-1-llm_projects_europe-west4/log/diagnostics/medium_native_c32_vs_c8/`
 - Diagnostic commits: `34bc7a9`, `1b9c0fc`, `ac7bca3`

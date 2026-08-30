@@ -615,6 +615,8 @@ class BamLlama2MediumV1(
 
 class BamLlama2MediumV1HistoricalCodeRepro(BamLlama2MediumV1):
     """Exact V1-code reproduction anchor with a distinct output directory."""
+    # code_commit: 5b04157; EW4b ~0.461 steps/s; running.
+    # Steps 0/10/20 match historical V1 within 0/8e-6/4.5e-5 loss.
     model_name = 'BamLlama2MediumV1HistoricalCodeRepro'
     checkpoint_period = 200
     jax_cache_dir = (

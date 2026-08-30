@@ -13,6 +13,7 @@ from layers.attentions import (
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
     _packed_factorized_local_qk_init,
+    _project_bam_read_keys,
     _dynamic_mixed_bam_fetch_alpha,
     _mix_bam_write_v,
     _select_bam_write_source,
@@ -30,6 +31,24 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_read_key_sides_accept_independent_external_amplitudes(self):
+    projected = jnp.asarray([[[[3.0, 4.0, 5.0, 12.0]]]])
+    gate_logits = jnp.zeros((1, 1, 1, 2))
+    _, _, row_key, col_key = _project_bam_read_keys(
+        2, jnp.zeros((1, 1, 1)), lambda _x: projected,
+        rms_epsilon=_RMS_EPSILON, key_mode='rms_gate', key_scale=2.0,
+        key_row_scale=jnp.asarray([[0.02]]),
+        key_col_scale=jnp.asarray([[0.04]]),
+        key_gate_logits=gate_logits)
+    expected_row = normalizations.rms_norm(
+        projected[..., :2], dtype=projected.dtype, epsilon=_RMS_EPSILON)
+    expected_col = normalizations.rms_norm(
+        projected[..., 2:], dtype=projected.dtype, epsilon=_RMS_EPSILON)
+    np.testing.assert_allclose(
+        row_key, 0.01 * expected_row, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(
+        col_key, 0.02 * expected_col, rtol=1e-6, atol=1e-6)
 
   def test_bam_read_head_mapping_pads_or_adapts_only_v_side(self):
     direct = jnp.arange(96, dtype=jnp.float32).reshape(1, 1, 1, 96)

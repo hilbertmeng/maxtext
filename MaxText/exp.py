@@ -1077,6 +1077,18 @@ class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
         'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-numerics')
 
 
+class BamLlama2MediumV1CompatC256ScanFixedAmplitude(
+    BamLlama2MediumV1CompatC256Scan
+):
+    """Coarse ABC endpoint with current fixed fetched-read amplitude."""
+    model_name = 'BamLlama2MediumV1CompatC256ScanFixedAmplitude'
+    bam_fetched_read_amplitude_init = 11.3137
+    bam_fetched_read_amplitude_learnable = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c256-scan-fixed-amplitude')
+
+
 class BamV2DenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """Dense-alpha six-layer control for shared query-chunk profiles."""
     # code_commit: da35a43

@@ -1086,6 +1086,7 @@ class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd(
     """B 2x2: express diagonal-one as cross-fetch plus an explicit local-M add."""
     # !? EW4b ~0.507 steps/s (-19.5% vs B) despite algebraic equivalence.
     model_name = 'BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd'
+    steps = 13500
     bam_query_chunk_diagonal_implementation = 'cross_plus_local'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -1098,6 +1099,7 @@ class BamLlama2MediumV1CompatCoarseExecutionBf16Rms(
     """B 2x2: keep diagonal-one and restore activation-dtype BAM RMS statistics."""
     # EW4b ~0.631 steps/s (flat vs B).
     model_name = 'BamLlama2MediumV1CompatCoarseExecutionBf16Rms'
+    steps = 13500
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'
     jax_cache_dir = (
@@ -1111,6 +1113,7 @@ class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms(
     """B 2x2: explicit local-M add with activation-dtype BAM RMS statistics."""
     # !? EW4b ~0.508 steps/s (-19.4% vs B) despite algebraic equivalence.
     model_name = 'BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms'
+    steps = 13500
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'
     jax_cache_dir = (

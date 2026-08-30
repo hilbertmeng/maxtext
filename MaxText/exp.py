@@ -1252,6 +1252,32 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed(
         'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a113137-fixed')
 
 
+class BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685FixedNativeJitControl(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685Fixed
+):
+    """Exact C8 control compiled natively on the target v5p-16."""
+    model_name = (
+        'BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685FixedNativeJitControl'
+    )
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c8-native-jit')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedNativeJitControl(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed
+):
+    """Exact native-C32 control compiled natively on the target v5p-16."""
+    model_name = (
+        'BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedNativeJitControl'
+    )
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c32-native-jit')
+
+
 class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
     """Remove the static pre-RMS offsets from both packed LocalQ/K keys."""
     # cd1ba4d; EW4b ~0.666 steps/s; stopped 2,780. dloss +.00267 vs V2 @2,600; no benefit.

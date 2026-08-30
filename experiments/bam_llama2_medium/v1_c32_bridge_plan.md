@@ -9,9 +9,9 @@ explain `C8 exact − V2`.
 
 | Anchor | Code/config | Status |
 |---|---|---|
-| Historical V1 | `03367ac` + `BamLlama2MediumV1` | completed reference; exact rerun preparing |
-| Current C32 | `31bfd45` + `BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed` | stopped 3,348; +.0162 vs V1 @3,200 |
-| Current C8 | `31bfd45` + `BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685Fixed` | running |
+| Historical V1 | `03367ac` + `BamLlama2MediumV1` | native-JIT exact through 800; cross-topology AOT +.0527 @1,800 |
+| Current C32 | `31bfd45` + `BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed` | stopped 3,348; +.0162 vs V1 @3,200; native-JIT − AOT −.0015 @400 |
+| Current C8 | `31bfd45` + `BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685Fixed` | stopped 10,285; recent-six +.00250 vs V2 |
 
 ## Factor inventory
 

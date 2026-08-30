@@ -1269,9 +1269,9 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedNativeJitControl(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed
 ):
     """Exact native-C32 control compiled natively on the target v5p-16."""
-    # code_commit: fab07ed; EW4b ~0.624 steps/s; running.
-    # dloss vs the AOT twin +.04583 @200 -> -.00151 @400: a large warmup
-    # transient that does not yet explain the persistent historical C32 gap.
+    # code_commit: fab07ed; EW4b ~0.621 steps/s; stopped 2,862.
+    # dloss +.01177 vs V1, +.00296 vs V2, -.00235 vs its AOT twin @2,800:
+    # native JIT removed only a tiny AOT penalty and did not rescue modern C32.
     model_name = (
         'BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedNativeJitControl'
     )

@@ -17,6 +17,7 @@ explain `C8 exact − V2`.
 
 | Factor | V1 | Current C32 | Evidence/control |
 |---|---|---|---|
+| compilation path | native v5 JIT | cross-topology AOT loaded on v5 | historical V1 AOT diverges while native-JIT is exact; modern native-JIT reverse controls required |
 | execution graph | dense, non-scan | C256, layer-scan | paired 2×2 required |
 | fetched/local read | shared combined `full+local_o` | no `local_o`, diagonal-one | forward/reverse controls required |
 | write contraction | dot | multiply+reduce | expected semantic no-op; verify |
@@ -30,7 +31,8 @@ explain `C8 exact − V2`.
 
 ## Procedure
 
-1. Re-run the historical V1 commit with identical seed/data/training settings.
+1. Re-run historical V1 with both native v5 JIT and cross-topology AOT; use
+   native-JIT as the exact anchor and measure AOT drift separately.
 2. Build a compatibility branch from the historical implementation; add one
    factor at a time forward and remove each factor from the current endpoint.
 3. Screen all factors to 2,800 steps; extend material/trending factors to 6,800
@@ -41,3 +43,5 @@ explain `C8 exact − V2`.
    require the residual endpoint gap to close.
 6. Repeat the top-factor 2×2 controls at C8 and test whether their combined
    effect explains `C8 exact − V2`.
+7. Run current C8/C32 native-v5-JIT reverse controls before attributing any
+   residual endpoint gap to architecture or parameterization.

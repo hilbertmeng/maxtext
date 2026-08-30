@@ -2383,7 +2383,7 @@ class BamAttention(Attention):
         None if fetched_read_amplitude_init is None
         else float(fetched_read_amplitude_init))
     self._fetched_read_amplitude_learnable = bool(getattr(
-        cfg, 'bam_fetched_read_amplitude_learnable', True))
+        cfg, 'bam_fetched_read_amplitude_learnable', False))
     def resolve_rms_statistics_dtype(mode):
       assert mode in ('float32', 'activation')
       return jnp.float32 if mode == 'float32' else self.dtype
@@ -2540,7 +2540,7 @@ class BamAttention(Attention):
     assert (self._fetched_read_amplitude_init is None
             or self._fetched_read_amplitude_init > 0.0)
     assert self._fetched_read_amplitude_init is None or 'full' in self._mode
-    assert (self._fetched_read_amplitude_learnable
+    assert (not self._fetched_read_amplitude_learnable
             or self._fetched_read_amplitude_init is not None)
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
     assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm

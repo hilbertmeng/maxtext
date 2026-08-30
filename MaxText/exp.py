@@ -1028,9 +1028,11 @@ class BamLlama2MediumV1CompatC256(BamLlama2MediumV1CompatModernNumerics):
 
 
 class BamLlama2MediumV1CompatC256Scan(BamLlama2MediumV1CompatC256):
-    """Native-C32 modern bridge with C256 attention and layer scan."""
+    """Coarse JIT midpoint: all supported modern changes on V1-compatible code."""
     model_name = 'BamLlama2MediumV1CompatC256Scan'
     scan_layers = True
+    steps = 2800
+    checkpoint_period = 200
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v1-c32-bridge/c256-scan')

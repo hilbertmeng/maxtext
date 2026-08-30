@@ -1029,6 +1029,7 @@ class BamLlama2MediumV1CompatC256(BamLlama2MediumV1CompatModernNumerics):
 
 class BamLlama2MediumV1CompatC256Scan(BamLlama2MediumV1CompatC256):
     """Coarse JIT midpoint: all supported modern changes on V1-compatible code."""
+    # code_commit: 6136f7f; EW4b ~0.625 steps/s.
     model_name = 'BamLlama2MediumV1CompatC256Scan'
     scan_layers = True
     steps = 2800
@@ -1040,6 +1041,7 @@ class BamLlama2MediumV1CompatC256Scan(BamLlama2MediumV1CompatC256):
 
 class BamLlama2MediumV1CompatCoarseParameterization(BamLlama2MediumV1Compat):
     """Coarse block A: modern P_loc parameterization only."""
+    # code_commit: 6136f7f; EW4b ~0.459 steps/s.
     model_name = 'BamLlama2MediumV1CompatCoarseParameterization'
     bam_write_v_mode = 'x_bias'
     bam_write_v_bottleneck_dim = 256
@@ -1053,6 +1055,7 @@ class BamLlama2MediumV1CompatCoarseParameterization(BamLlama2MediumV1Compat):
 
 class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
     """Coarse block B: modern execution/layout/numerics without P_loc changes."""
+    # code_commit: 6136f7f; EW4b ~0.630 steps/s.
     model_name = 'BamLlama2MediumV1CompatCoarseExecutionNumerics'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False

@@ -1246,7 +1246,8 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed
 ):
     """Fixed external-amplitude control exactly matching V1's read-key scale."""
-    # code_commit: 31bfd45; EW4b ~0.629 steps/s; running.
+    # 31bfd45; EW4b ~0.629 steps/s; stopped 3,348. dloss +.0162 vs V1,
+    # +.0064 vs V2 @3,200; equivalent read amplitude did not reproduce V1.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed'
     bam_fetched_read_amplitude_init = 11.3137
     jax_cache_dir = (

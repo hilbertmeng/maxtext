@@ -627,8 +627,8 @@ class BamLlama2MediumV1HistoricalCodeRepro(BamLlama2MediumV1):
 
 class BamLlama2MediumV1HistoricalJitRepro(BamLlama2MediumV1):
     """Historical V1 control compiled natively on the training v5p-16."""
-    # code_commit: f880264; EW4b ~0.460 steps/s; running.
-    # Exact raw-loss match to historical V1 through at least step 458.
+    # code_commit: f880264; EW4b ~0.461 steps/s; completed 2,799.
+    # Reproduced V1 across all 2,542 cached common raw steps (max |dloss| 5e-7).
     model_name = 'BamLlama2MediumV1HistoricalJitRepro'
     steps = 2800
     checkpoint_period = 250

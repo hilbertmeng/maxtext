@@ -196,6 +196,8 @@ unlikely to beat its direct baseline and offering no other gain may stop at 2,80
 clearly dominated by a prior failed configuration.
 Treat a planned step as a review point, not a hard stop: if the long-term gap is still shrinking,
 extend the RUN, up to full training when needed to determine whether the gap persists or vanishes.
+Set the experiment's automatic `steps` endpoint to that possible full-training bound; never use a
+review point as the clean-exit endpoint, because auto-train will immediately delete the TPU.
 
 For multiple runs, use one shared wake-up and batch-check all runs; use per-run wake-ups only
 for anomalies or imminent completion/decisions. Stable runs may accumulate about five 200-step

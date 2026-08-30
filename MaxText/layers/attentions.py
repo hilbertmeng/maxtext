@@ -2573,7 +2573,7 @@ class BamAttention(Attention):
           'QChunk BAM supports V2 local_qk layers with optional full fetch')
       if 'full' in self._mode:
         assert self._shared_fetch_mode == 'dynamic_rms_mix'
-        assert cfg.bam_n_f == 1 and self._fetch_diagonal_one
+        assert cfg.bam_n_f == 1
         assert not cfg.bam_dedicated_fetch
         assert self._fetch_sliding_window_size is None
         assert self._fetch_temporal_block_size is None
@@ -3440,14 +3440,15 @@ class BamAttention(Attention):
       with jax.named_scope("bam/mix_alpha"):
         fetch_alpha = jnp.einsum(
             'bncs,bcn->bcs', alpha[:, :mix_chunk.shape[-1]], mix_chunk)
-        if diagonal_select:
-          fetch_alpha = jnp.where(
-              diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype),
-              fetch_alpha)
-        else:
-          fetch_alpha = fetch_alpha.at[
-              :, jnp.arange(chunk_size), diag_col].set(
-                  jnp.asarray(1, fetch_alpha.dtype))
+        if self._fetch_diagonal_one:
+          if diagonal_select:
+            fetch_alpha = jnp.where(
+                diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype),
+                fetch_alpha)
+          else:
+            fetch_alpha = fetch_alpha.at[
+                :, jnp.arange(chunk_size), diag_col].set(
+                    jnp.asarray(1, fetch_alpha.dtype))
       with jax.named_scope("bam/fetch_m"):
         Mbar = jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
 

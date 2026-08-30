@@ -1254,6 +1254,17 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed(
         'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a113137-fixed')
 
 
+class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedLinearPLoc(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed
+):
+    """C32 exact-amplitude control with the original single-linear P_loc."""
+    model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedLinearPLoc'
+    bam_write_v_bottleneck_dim = None
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a113137-fixed-linear-ploc')
+
+
 class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
     """Remove the static pre-RMS offsets from both packed LocalQ/K keys."""
     # cd1ba4d; EW4b ~0.666 steps/s; stopped 2,780. dloss +.00267 vs V2 @2,600; no benefit.

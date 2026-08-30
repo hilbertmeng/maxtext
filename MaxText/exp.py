@@ -878,6 +878,8 @@ class BamLlama2MediumV2WriteMulControl(
 # compatibility branch so production BAM does not regain historical paths.
 class BamLlama2MediumV1Compat(BamLlama2MediumV1):
     """V1 semantics on one common compatibility codebase."""
+    # code_commit: d9a6011; ~0.463 steps/s. paused 2,845 after the 2,800 bridge anchor.
+    # Exact vs historical AOT through 2,800; AOT-native compiler gap +.06015 @2,800.
     model_name = 'BamLlama2MediumV1Compat'
     bam_read_key_epsilon = 1e-4
     bam_read_gate_init = 0.005

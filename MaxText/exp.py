@@ -1041,7 +1041,7 @@ class BamLlama2MediumV1CompatC256Scan(BamLlama2MediumV1CompatC256):
 
 class BamLlama2MediumV1CompatCoarseParameterization(BamLlama2MediumV1Compat):
     """Coarse block A: modern P_loc parameterization only."""
-    # code_commit: 6136f7f; resumed 70f944b; EW4b ~0.458 steps/s; stopped ~5,900.
+    # code_commit: 6136f7f; resumed 70f944b; EW4b ~0.458 steps/s; stopped 6,067.
     # dloss settled near +.007 vs H; modern P_loc alone is mildly harmful on native C32.
     model_name = 'BamLlama2MediumV1CompatCoarseParameterization'
     bam_write_v_mode = 'x_bias'
@@ -1081,11 +1081,8 @@ class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
 class BamLlama2MediumV1CompatCoarseExecutionNoDiagonal(
     BamLlama2MediumV1CompatCoarseExecutionNumerics
 ):
-    """B 2x2: restore the historical combined local-O/fetch read; keep fp32 RMS."""
+    """B 2x2: retain the dynamically mixed fetch diagonal; keep fp32 RMS."""
     model_name = 'BamLlama2MediumV1CompatCoarseExecutionNoDiagonal'
-    bam_layer_modes = ['local_qk+local_o+full'] * 24
-    bam_share_full_local_read = True
-    bam_combine_full_local_read = True
     bam_fetch_diagonal_one = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -1107,7 +1104,7 @@ class BamLlama2MediumV1CompatCoarseExecutionBf16Rms(
 class BamLlama2MediumV1CompatCoarseExecutionNoDiagonalBf16Rms(
     BamLlama2MediumV1CompatCoarseExecutionNoDiagonal
 ):
-    """B 2x2: restore both historical combined reads and activation-dtype BAM RMS."""
+    """B 2x2: retain the mixed fetch diagonal and restore activation-dtype BAM RMS."""
     model_name = 'BamLlama2MediumV1CompatCoarseExecutionNoDiagonalBf16Rms'
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'

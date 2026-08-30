@@ -624,6 +624,16 @@ class BamLlama2MediumV1HistoricalCodeRepro(BamLlama2MediumV1):
         'jax_caches/xd-bam-v1-historical-code-repro')
 
 
+class BamLlama2MediumV1HistoricalJitRepro(BamLlama2MediumV1):
+    """Historical V1 control compiled natively on the training v5p-16."""
+    model_name = 'BamLlama2MediumV1HistoricalJitRepro'
+    steps = 2800
+    checkpoint_period = 250
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-historical-jit-repro')
+
+
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
     """Write every layer; BAM-read only odd-numbered layers."""
     model_name = 'BamLlama2MediumV1AlternateLayerRead'

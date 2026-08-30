@@ -898,6 +898,14 @@ class BamLlama2MediumV1Compat(BamLlama2MediumV1):
         'jax_caches/xd-bam-v1-c32-bridge/v1-compat')
 
 
+class BamLlama2MediumV1CompatNativeJit(BamLlama2MediumV1Compat):
+    """Native-JIT baseline for current-code V1 compatibility controls."""
+    model_name = 'BamLlama2MediumV1CompatNativeJit'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/v1-compat-native-jit')
+
+
 class BamLlama2MediumV1CompatFp32Rms(BamLlama2MediumV1Compat):
     """V1 compatibility anchor with only BAM RMS statistics promoted to fp32."""
     model_name = 'BamLlama2MediumV1CompatFp32Rms'

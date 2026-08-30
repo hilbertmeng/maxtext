@@ -291,6 +291,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_squeeze_single_fetch_read = False  # profile: remove f=1 before the full read
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
+    bam_query_chunk_diagonal_implementation = 'set_one'  # set_one | cross_plus_local
     bam_fetch_read_bottleneck_dim = None  # optional fetched W_R: D -> r -> n*f*(k+v)
     bam_fetch_read_bottleneck_activation = 'none'  # none | gelu
     bam_abs_k_compression_dim = None  # keep the cached absolute K axis full-width
@@ -1078,15 +1079,15 @@ class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
         'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-numerics')
 
 
-class BamLlama2MediumV1CompatCoarseExecutionNoDiagonal(
+class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd(
     BamLlama2MediumV1CompatCoarseExecutionNumerics
 ):
-    """B 2x2: retain the dynamically mixed fetch diagonal; keep fp32 RMS."""
-    model_name = 'BamLlama2MediumV1CompatCoarseExecutionNoDiagonal'
-    bam_fetch_diagonal_one = False
+    """B 2x2: express diagonal-one as cross-fetch plus an explicit local-M add."""
+    model_name = 'BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd'
+    bam_query_chunk_diagonal_implementation = 'cross_plus_local'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
-        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-no-diagonal')
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-explicit-local-add')
 
 
 class BamLlama2MediumV1CompatCoarseExecutionBf16Rms(
@@ -1101,16 +1102,16 @@ class BamLlama2MediumV1CompatCoarseExecutionBf16Rms(
         'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-bf16-rms')
 
 
-class BamLlama2MediumV1CompatCoarseExecutionNoDiagonalBf16Rms(
-    BamLlama2MediumV1CompatCoarseExecutionNoDiagonal
+class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd
 ):
-    """B 2x2: retain the mixed fetch diagonal and restore activation-dtype BAM RMS."""
-    model_name = 'BamLlama2MediumV1CompatCoarseExecutionNoDiagonalBf16Rms'
+    """B 2x2: explicit local-M add with activation-dtype BAM RMS statistics."""
+    model_name = 'BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms'
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
-        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-no-diagonal-bf16-rms')
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-explicit-local-add-bf16-rms')
 
 
 class BamLlama2MediumV1CompatC256ScanFixedAmplitude(

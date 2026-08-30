@@ -2336,6 +2336,8 @@ class BamAttention(Attention):
     self._query_chunk_size = (
         cfg.query_chunk_size if self.attention_kernel == 'dot_product_chunk' else None)
     self._query_chunk_implementation = cfg.bam_query_chunk_implementation
+    self._query_chunk_diagonal_implementation = (
+        cfg.bam_query_chunk_diagonal_implementation)
     self._mha_control_segment_mask = bool(getattr(
         cfg, 'bam_mha_control_segment_mask', True))
     self._mha_control_inner_remat = bool(getattr(
@@ -2506,6 +2508,8 @@ class BamAttention(Attention):
     assert self._read_implementation in ('dot_bnt', 'dot_btn', 'mul_reduce_btn')
     assert self._query_chunk_implementation in (
         'legacy', 'no_remat', 'deferred_read', 'diag_select', 'optimized')
+    assert self._query_chunk_diagonal_implementation in (
+        'set_one', 'cross_plus_local')
     assert self._fetch_read_bottleneck_activation in ('none', 'gelu')
     if self._fetch_read_bottleneck_dim is None:
       assert self._fetch_read_bottleneck_activation == 'none'
@@ -2573,7 +2577,7 @@ class BamAttention(Attention):
           'QChunk BAM supports V2 local_qk layers with optional full fetch')
       if 'full' in self._mode:
         assert self._shared_fetch_mode == 'dynamic_rms_mix'
-        assert cfg.bam_n_f == 1
+        assert cfg.bam_n_f == 1 and self._fetch_diagonal_one
         assert not cfg.bam_dedicated_fetch
         assert self._fetch_sliding_window_size is None
         assert self._fetch_temporal_block_size is None
@@ -3440,7 +3444,11 @@ class BamAttention(Attention):
       with jax.named_scope("bam/mix_alpha"):
         fetch_alpha = jnp.einsum(
             'bncs,bcn->bcs', alpha[:, :mix_chunk.shape[-1]], mix_chunk)
-        if self._fetch_diagonal_one:
+        if self._query_chunk_diagonal_implementation == 'cross_plus_local':
+          fetch_alpha = jnp.where(
+              diagonal_mask[None], jnp.asarray(0, fetch_alpha.dtype),
+              fetch_alpha)
+        elif self._fetch_diagonal_one:
           if diagonal_select:
             fetch_alpha = jnp.where(
                 diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype),
@@ -3451,6 +3459,8 @@ class BamAttention(Attention):
                     jnp.asarray(1, fetch_alpha.dtype))
       with jax.named_scope("bam/fetch_m"):
         Mbar = jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
+        if self._query_chunk_diagonal_implementation == 'cross_plus_local':
+          Mbar = Mbar + M_chunk[:, diag_col]
 
       if defer_read:
         return y_std_chunk, Mbar

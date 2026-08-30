@@ -1260,6 +1260,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedLinearPLoc(
     """C32 exact-amplitude control with the original single-linear P_loc."""
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedLinearPLoc'
     bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-amplitude-g005-c32-a113137-fixed-linear-ploc')

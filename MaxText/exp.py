@@ -616,7 +616,8 @@ class BamLlama2MediumV1(
 class BamLlama2MediumV1HistoricalCodeRepro(BamLlama2MediumV1):
     """Exact V1-code reproduction anchor with a distinct output directory."""
     # code_commit: 5b04157; EW4b ~0.461 steps/s; running.
-    # Steps 0/10/20 match historical V1 within 0/8e-6/4.5e-5 loss.
+    # Cross-topology AOT diverges despite matching step 0: dloss +.01927 vs
+    # native V1 @1,200, after three consecutive worsening 200-step windows.
     model_name = 'BamLlama2MediumV1HistoricalCodeRepro'
     checkpoint_period = 200
     jax_cache_dir = (
@@ -626,6 +627,8 @@ class BamLlama2MediumV1HistoricalCodeRepro(BamLlama2MediumV1):
 
 class BamLlama2MediumV1HistoricalJitRepro(BamLlama2MediumV1):
     """Historical V1 control compiled natively on the training v5p-16."""
+    # code_commit: f880264; EW4b ~0.460 steps/s; running.
+    # Exact raw-loss match to historical V1 through at least step 458.
     model_name = 'BamLlama2MediumV1HistoricalJitRepro'
     steps = 2800
     checkpoint_period = 250

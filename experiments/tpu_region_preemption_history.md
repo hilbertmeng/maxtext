@@ -46,6 +46,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedLinearPLoc` | v5p-16 | `europe-west4-b` | 2026-08-30 00:35:41 | 2026-08-30 02:09:05 | linear P_loc did not rescue C32; manual stop | none |
 | `BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685Fixed` | v5p-16 | `europe-west4-b` | 2026-08-29 23:09:25 | 2026-08-30 04:28:45 | stable small regression; TPU hot-switched | none |
 | `BamLlama2MediumV1HistoricalCodeRepro` | v5p-16 | `europe-west4-b` | 2026-08-30 03:19:52 | 2026-08-30 05:39:55 | AOT control complete; TPU hot-switched | none |
+| `BamLlama2MediumV1HistoricalJitRepro` | v5p-16 | `europe-west4-b` | 2026-08-30 03:41:02 | 2026-08-30 06:27:53 | completed 2,799 | none |
 
 ## READY leases
 
@@ -213,5 +214,9 @@ inventing a duration. A passive queue is not an active-zone switch.
 | FetchAmp C8 gate=.005 A=5.65685 fixed | 3 | `europe-west4-b` | 2026-08-30 02:41:19 | 2026-08-30 02:46:04 | 4m45s | preempted |
 | FetchAmp C8 gate=.005 A=5.65685 fixed | 4 | `europe-west4-b` | 2026-08-30 02:52:37 | 2026-08-30 04:28:45 | 1h36m08s | manual stop |
 | V1 historical AOT | 1 | `europe-west4-b` | 2026-08-30 03:22:09 | 2026-08-30 04:34:23 | 1h12m14s | preempted |
+| V1 historical JIT | 1 | `europe-west4-b` | 2026-08-30 03:43:34 | 2026-08-30 04:34:41 | 51m07s | preempted |
 | V1 historical AOT | 2 | `europe-west4-b` | 2026-08-30 04:39:40 | 2026-08-30 04:43:38 | 3m58s | preempted |
+| V1 historical JIT | 2 | `europe-west4-b` | 2026-08-30 04:39:26 | 2026-08-30 04:43:58 | 4m32s | preempted |
 | V1 historical AOT | 3 | `europe-west4-b` | 2026-08-30 04:50:23 | 2026-08-30 05:39:55 | 49m32s | hot switch |
+| V1 historical JIT | 3 | `europe-west4-b` | 2026-08-30 04:50:47 | 2026-08-30 06:06:42 | 1h15m55s | preempted |
+| V1 historical JIT | 4 | `europe-west4-b` | 2026-08-30 06:11:48 | 2026-08-30 06:27:53 | 16m05s | completed |

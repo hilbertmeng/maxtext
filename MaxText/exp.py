@@ -908,6 +908,16 @@ class BamLlama2MediumV1CompatFp32Rms(BamLlama2MediumV1Compat):
         'jax_caches/xd-bam-v1-c32-bridge/fp32-rms')
 
 
+class BamLlama2MediumV1CompatFp32RmsNativeJit(BamLlama2MediumV1CompatFp32Rms):
+    """Native-JIT twin isolating fp32 BAM RMS from cross-topology AOT."""
+    model_name = 'BamLlama2MediumV1CompatFp32RmsNativeJit'
+    steps = 2800
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/fp32-rms-native-jit')
+
+
 class BamLlama2MediumV1CompatDiagonalOne(BamLlama2MediumV1Compat):
     """V1 compatibility anchor with only the diagonal-one fetched-read path."""
     model_name = 'BamLlama2MediumV1CompatDiagonalOne'

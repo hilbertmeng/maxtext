@@ -874,6 +874,145 @@ class BamLlama2MediumV2WriteMulControl(
     bam_write_outer_implementation = 'mul_reduce'
 
 
+# V1 -> modern native-C32 bridge.  These controls deliberately live on the
+# compatibility branch so production BAM does not regain historical paths.
+class BamLlama2MediumV1Compat(BamLlama2MediumV1):
+    """V1 semantics on one common compatibility codebase."""
+    model_name = 'BamLlama2MediumV1Compat'
+    bam_read_key_epsilon = 1e-4
+    bam_read_gate_init = 0.005
+    bam_read_rms_statistics_dtype = 'activation'
+    bam_write_rms_statistics_dtype = 'activation'
+    bam_factorized_head_output_layout = 'bnt'
+    bam_pack_factorized_local_qk = False
+    bam_abs_v_compression_dim = None
+    bam_write_v_mode = 'x'
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+    bam_fetch_diagonal_one = False
+    bam_write_outer_implementation = 'dot'
+    scan_layers = False
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/v1-compat')
+
+
+class BamLlama2MediumV1CompatFp32Rms(BamLlama2MediumV1Compat):
+    """V1 compatibility anchor with only BAM RMS statistics promoted to fp32."""
+    model_name = 'BamLlama2MediumV1CompatFp32Rms'
+    bam_read_rms_statistics_dtype = 'float32'
+    bam_write_rms_statistics_dtype = 'float32'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/fp32-rms')
+
+
+class BamLlama2MediumV1CompatDiagonalOne(BamLlama2MediumV1Compat):
+    """V1 compatibility anchor with only the diagonal-one fetched-read path."""
+    model_name = 'BamLlama2MediumV1CompatDiagonalOne'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_share_full_local_read = False
+    bam_combine_full_local_read = False
+    bam_fetch_diagonal_one = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/diagonal-one')
+
+
+class BamLlama2MediumV1CompatWriteMul(BamLlama2MediumV1Compat):
+    """V1 compatibility anchor with only multiply-reduce outer writes."""
+    model_name = 'BamLlama2MediumV1CompatWriteMul'
+    bam_write_outer_implementation = 'mul_reduce'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/write-mul')
+
+
+class BamLlama2MediumV1CompatFast(BamLlama2MediumV1CompatDiagonalOne):
+    """V1 compatibility anchor with both validated fast-path changes."""
+    model_name = 'BamLlama2MediumV1CompatFast'
+    bam_write_outer_implementation = 'mul_reduce'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/fast')
+
+
+class BamLlama2MediumV1CompatPLocBias(BamLlama2MediumV1CompatFast):
+    """Fast bridge with only a bias added to the original linear P_loc."""
+    model_name = 'BamLlama2MediumV1CompatPLocBias'
+    bam_write_v_mode = 'x_bias'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/ploc-bias')
+
+
+class BamLlama2MediumV1CompatPLocR256Gelu(BamLlama2MediumV1CompatFast):
+    """Fast bridge with a bias-free D->256->nV GELU P_loc."""
+    model_name = 'BamLlama2MediumV1CompatPLocR256Gelu'
+    bam_write_v_bottleneck_dim = 256
+    bam_write_v_bottleneck_activation = 'gelu'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/ploc-r256-gelu')
+
+
+class BamLlama2MediumV1CompatPLocR256GeluBias(
+    BamLlama2MediumV1CompatPLocR256Gelu
+):
+    """Fast bridge with the modern biased D->256->nV GELU P_loc."""
+    model_name = 'BamLlama2MediumV1CompatPLocR256GeluBias'
+    bam_write_v_mode = 'x_bias'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/ploc-r256-gelu-bias')
+
+
+class BamLlama2MediumV1CompatPackedLocalQK(
+    BamLlama2MediumV1CompatPLocR256GeluBias
+):
+    """Modern P_loc bridge with packed factorized LocalQK projections."""
+    model_name = 'BamLlama2MediumV1CompatPackedLocalQK'
+    bam_pack_factorized_local_qk = True
+    bam_factorized_head_output_layout = 'btn'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/packed-local-qk')
+
+
+class BamLlama2MediumV1CompatModernNumerics(
+    BamLlama2MediumV1CompatPackedLocalQK
+):
+    """Packed native-C32 bridge with current fp32 BAM RMS numerics."""
+    model_name = 'BamLlama2MediumV1CompatModernNumerics'
+    bam_read_rms_statistics_dtype = 'float32'
+    bam_write_rms_statistics_dtype = 'float32'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/modern-numerics')
+
+
+class BamLlama2MediumV1CompatC256(BamLlama2MediumV1CompatModernNumerics):
+    """Native-C32 modern bridge with C256 attention, without layer scan."""
+    model_name = 'BamLlama2MediumV1CompatC256'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    bam_query_chunk_implementation = 'optimized'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c256')
+
+
+class BamLlama2MediumV1CompatC256Scan(BamLlama2MediumV1CompatC256):
+    """Native-C32 modern bridge with C256 attention and layer scan."""
+    model_name = 'BamLlama2MediumV1CompatC256Scan'
+    scan_layers = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c256-scan')
+
+
 class BamV2DenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """Dense-alpha six-layer control for shared query-chunk profiles."""
     # code_commit: da35a43

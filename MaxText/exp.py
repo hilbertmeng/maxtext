@@ -1032,7 +1032,7 @@ class BamLlama2MediumV1CompatC256Scan(BamLlama2MediumV1CompatC256):
     # code_commit: 6136f7f; EW4b ~0.625 steps/s.
     model_name = 'BamLlama2MediumV1CompatC256Scan'
     scan_layers = True
-    steps = 2800
+    steps = 6800
     checkpoint_period = 200
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -1046,7 +1046,7 @@ class BamLlama2MediumV1CompatCoarseParameterization(BamLlama2MediumV1Compat):
     bam_write_v_mode = 'x_bias'
     bam_write_v_bottleneck_dim = 256
     bam_write_v_bottleneck_activation = 'gelu'
-    steps = 2800
+    steps = 6800
     checkpoint_period = 200
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -1070,7 +1070,7 @@ class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
     query_chunk_size = 256
     bam_query_chunk_implementation = 'optimized'
     scan_layers = True
-    steps = 2800
+    steps = 6800
     checkpoint_period = 200
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

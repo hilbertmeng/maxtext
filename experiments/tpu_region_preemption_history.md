@@ -48,6 +48,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV1HistoricalCodeRepro` | v5p-16 | `europe-west4-b` | 2026-08-30 03:19:52 | 2026-08-30 05:39:55 | AOT control complete; TPU hot-switched | none |
 | `BamLlama2MediumV1HistoricalJitRepro` | v5p-16 | `europe-west4-b` | 2026-08-30 03:41:02 | 2026-08-30 06:27:53 | completed 2,799 | none |
 | `BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedNativeJitControl` | v5p-16 | `europe-west4-b` | 2026-08-30 04:11:44 | 2026-08-30 06:22:55 | native C32 control complete; TPU hot-switched | none |
+| `BamLlama2MediumV1CompatC256ScanFixedAmplitude` | v5p-16 | `europe-west4-b` | 2026-08-30 11:24:40 | 2026-08-30 13:07:05 | exact no-op; manual stop | none |
 
 ## READY leases
 
@@ -224,3 +225,17 @@ inventing a duration. A passive queue is not an active-zone switch.
 | V1 historical JIT | 3 | `europe-west4-b` | 2026-08-30 04:50:47 | 2026-08-30 06:06:42 | 1h15m55s | preempted |
 | C32 native JIT | 3 | `europe-west4-b` | 2026-08-30 04:49:54 | 2026-08-30 06:22:55 | 1h33m01s | hot switch |
 | V1 historical JIT | 4 | `europe-west4-b` | 2026-08-30 06:11:48 | 2026-08-30 06:27:53 | 16m05s | completed |
+| V1Compat native JIT | 1 | `europe-west4-b` | 2026-08-30 06:59:07 | 2026-08-30 08:36:18 | 1h37m11s | preempted |
+| V1Compat ABC FixedAmp | 1 | `europe-west4-b` | 2026-08-30 11:32:26 | 2026-08-30 12:25:37 | 53m11s | preempted |
+| V1Compat ABC FixedAmp | 2 | `europe-west4-b` | 2026-08-30 12:30:55 | 2026-08-30 12:35:53 | 4m58s | preempted |
+| V1Compat ABC FixedAmp | 3 | `europe-west4-b` | 2026-08-30 12:41:50 | 2026-08-30 12:45:43 | 3m53s | preempted |
+| V1Compat ABC FixedAmp | 4 | `europe-west4-b` | 2026-08-30 12:53:08 | 2026-08-30 13:04:50 | 11m42s | preempted |
+| V1Compat native JIT | 2 | `europe-west4-b` | 2026-08-30 13:33:11 | 2026-08-30 13:35:36 | 2m25s | preempted |
+| V1Compat native JIT | 3 | `europe-west4-b` | 2026-08-30 13:46:32 | 2026-08-30 15:19:55 | 1h33m23s | preempted |
+| C32 native JIT | 4 | `europe-west4-b` | 2026-08-30 13:48:35 | 2026-08-30 14:31:11 | 42m36s | preempted |
+| C32 native JIT | 5 | `europe-west4-b` | 2026-08-30 14:36:49 | 2026-08-30 14:41:50 | 5m01s | preempted |
+| C32 native JIT | 6 | `europe-west4-b` | 2026-08-30 14:53:49 | 2026-08-30 15:01:53 | 8m04s | preempted |
+| C32 native JIT | 7 | `europe-west4-b` | 2026-08-30 15:06:20 | 2026-08-30 16:15:52 | 1h09m32s | manual stop |
+| V1Compat native JIT | 4 | `europe-west4-b` | 2026-08-30 15:26:41 | 2026-08-30 15:31:43 | 5m02s | preempted |
+| V1Compat native JIT | 5 | `europe-west4-b` | 2026-08-30 15:38:37 | 2026-08-30 15:42:06 | 3m29s | preempted |
+| V1Compat native JIT | 6 | `europe-west4-b` | 2026-08-30 15:49:26 | 2026-08-30 16:22:54 | 33m28s | manual stop |

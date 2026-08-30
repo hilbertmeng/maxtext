@@ -1081,7 +1081,8 @@ class BamLlama2MediumV1CompatC256ScanFixedAmplitude(
     BamLlama2MediumV1CompatC256Scan
 ):
     """Coarse ABC endpoint with current fixed fetched-read amplitude."""
-    # code_commit: 3a01b21; EW4b ~0.628 steps/s.
+    # code_commit: 3a01b21; EW4b ~0.628 steps/s; stopped 2,208. dloss 0 vs AB
+    # through 1,950 (max pointwise |dloss| 5e-7): fixed amplitude is an exact no-op.
     model_name = 'BamLlama2MediumV1CompatC256ScanFixedAmplitude'
     bam_fetched_read_amplitude_init = 11.3137
     bam_fetched_read_amplitude_learnable = False

@@ -158,8 +158,9 @@ entry, including completed BASEs with no new common steps; omit one only after t
 removes it or the registry is updated. Here
 `r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
 magnitude shrank from the preceding window, positive means it grew. Summarize the current gap
-level with the mean and range of the latest 5–8 reported points. Judge direction from successive
-signed-gap window means and sign changes; use `r200` only for magnitude change, especially near zero.
+level with the mean and range of the latest 5–8 reported points, but judge stability from the full
+cumulative series and long-window signed-gap trends; two or three local points never establish it.
+Use `r200` only for magnitude change, especially near zero.
 
 Investigate every anomalous monitoring metric immediately and restore 200-step reporting until
 its root cause is resolved.
@@ -193,6 +194,8 @@ gain longer—possibly to completion—to verify that the gain persists; materia
 with near-baseline loss counts even when wall-clock speed is unchanged. A configuration still
 unlikely to beat its direct baseline and offering no other gain may stop at 2,800. Also stop a run
 clearly dominated by a prior failed configuration.
+Treat a planned step as a review point, not a hard stop: if the long-term gap is still shrinking,
+extend the RUN, up to full training when needed to determine whether the gap persists or vanishes.
 
 For multiple runs, use one shared wake-up and batch-check all runs; use per-run wake-ups only
 for anomalies or imminent completion/decisions. Stable runs may accumulate about five 200-step

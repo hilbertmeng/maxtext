@@ -921,6 +921,8 @@ class BamLlama2MediumV1CompatFp32Rms(BamLlama2MediumV1Compat):
 
 class BamLlama2MediumV1CompatFp32RmsNativeJit(BamLlama2MediumV1CompatFp32Rms):
     """Native-JIT twin isolating fp32 BAM RMS from cross-topology AOT."""
+    # code_commit: 4774b2f; ~0.459 steps/s; finished 2,800 (last full window 2,600).
+    # dloss +0.00275 vs V1 JIT; AOT twin was -0.08431 vs AOT base @2,200.
     model_name = 'BamLlama2MediumV1CompatFp32RmsNativeJit'
     steps = 2800
     checkpoint_period = 200

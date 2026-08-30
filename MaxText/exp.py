@@ -902,6 +902,7 @@ class BamLlama2MediumV1Compat(BamLlama2MediumV1):
 
 class BamLlama2MediumV1CompatNativeJit(BamLlama2MediumV1Compat):
     """Native-JIT baseline for current-code V1 compatibility controls."""
+    # code_commit: 56cec64; ~0.463 steps/s.
     model_name = 'BamLlama2MediumV1CompatNativeJit'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

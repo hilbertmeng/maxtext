@@ -1259,7 +1259,8 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedLinearPLoc(
     BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed
 ):
     """C32 exact-amplitude control with the original single-linear P_loc."""
-    # code_commit: 7ce257f; EW4b ~0.630 steps/s; running.
+    # code_commit: 7ce257f; EW4b ~0.630 steps/s; stopped 2,920. dloss +.00525 vs GELU,
+    # +.02120 vs V1 @2,800; its large early gain reversed, so linear P_loc did not rescue C32.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedLinearPLoc'
     bam_write_v_bottleneck_dim = None
     bam_write_v_bottleneck_activation = 'none'

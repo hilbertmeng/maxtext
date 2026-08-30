@@ -42,6 +42,8 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV2C256FetchAmplitudeGate005C8A10Fixed` | v5p-16 | `europe-west4-b` | 2026-08-29 15:45:31 | 2026-08-29 17:20:55 | early gain became harmful; manual stop | none |
 | `BamLlama2MediumV2C256FetchAmplitudeGate005C32A10Fixed` | v5p-16 | `europe-west4-b` | 2026-08-29 15:30:52 | 2026-08-29 17:50:25 | no durable gain over V1; manual stop | none |
 | `BamLlama2MediumV2C256FetchAmplitudeGate005C32A20Fixed` | v5p-16 | `europe-west4-b` | 2026-08-29 16:17:31 | 2026-08-29 17:50:28 | higher Jacobian harmful; manual stop | none |
+| `BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed` | v5p-16 | `europe-west4-b` | 2026-08-29 23:09:25 | 2026-08-30 01:02:35 | equivalent read amplitude did not reproduce V1; manual stop | none |
+| `BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedLinearPLoc` | v5p-16 | `europe-west4-b` | 2026-08-30 00:35:41 | 2026-08-30 02:09:05 | linear P_loc did not rescue C32; manual stop | none |
 
 ## READY leases
 
@@ -201,3 +203,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | FetchAmp C8 gate=.005 A=10 fixed | 2 | `europe-west4-b` | 2026-08-29 17:08:41 | 2026-08-29 17:20:55 | 12m14s | manual stop |
 | FetchAmp C32 gate=.005 A=10 fixed | 2 | `europe-west4-b` | 2026-08-29 16:05:14 | 2026-08-29 17:50:25 | 1h45m11s | manual stop |
 | FetchAmp C32 gate=.005 A=20 fixed | 1 | `europe-west4-b` | 2026-08-29 16:20:26 | 2026-08-29 17:50:28 | 1h30m02s | manual stop |
+| FetchAmp C32 gate=.005 A=11.3137 fixed | 1 | `europe-west4-b` | 2026-08-29 23:11:59 | 2026-08-30 00:06:12 | 54m13s | preempted |
+| FetchAmp C32 gate=.005 A=11.3137 fixed | 2 | `europe-west4-b` | 2026-08-30 00:10:56 | 2026-08-30 01:02:35 | 51m39s | manual stop |
+| FetchAmp C8 gate=.005 A=5.65685 fixed | 1 | `europe-west4-b` | 2026-08-29 23:12:46 | 2026-08-30 01:48:18 | 2h35m32s | preempted |
+| C32 LinearPLoc exact | 1 | `europe-west4-b` | 2026-08-30 00:38:15 | 2026-08-30 02:09:05 | 1h30m50s | manual stop |

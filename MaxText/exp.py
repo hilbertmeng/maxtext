@@ -1038,6 +1038,42 @@ class BamLlama2MediumV1CompatC256Scan(BamLlama2MediumV1CompatC256):
         'jax_caches/xd-bam-v1-c32-bridge/c256-scan')
 
 
+class BamLlama2MediumV1CompatCoarseParameterization(BamLlama2MediumV1Compat):
+    """Coarse block A: modern P_loc parameterization only."""
+    model_name = 'BamLlama2MediumV1CompatCoarseParameterization'
+    bam_write_v_mode = 'x_bias'
+    bam_write_v_bottleneck_dim = 256
+    bam_write_v_bottleneck_activation = 'gelu'
+    steps = 2800
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-parameterization')
+
+
+class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
+    """Coarse block B: modern execution/layout/numerics without P_loc changes."""
+    model_name = 'BamLlama2MediumV1CompatCoarseExecutionNumerics'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_share_full_local_read = False
+    bam_combine_full_local_read = False
+    bam_fetch_diagonal_one = True
+    bam_write_outer_implementation = 'mul_reduce'
+    bam_pack_factorized_local_qk = True
+    bam_factorized_head_output_layout = 'btn'
+    bam_read_rms_statistics_dtype = 'float32'
+    bam_write_rms_statistics_dtype = 'float32'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    bam_query_chunk_implementation = 'optimized'
+    scan_layers = True
+    steps = 2800
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-numerics')
+
+
 class BamV2DenseSixLayerProfile(TrainStepProfile, BamLlama2MediumV2):
     """Dense-alpha six-layer control for shared query-chunk profiles."""
     # code_commit: da35a43

@@ -1057,7 +1057,7 @@ class BamLlama2MediumV1CompatCoarseParameterization(BamLlama2MediumV1Compat):
 
 class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
     """Coarse block B: modern execution/layout/numerics without P_loc changes."""
-    # code_commit: 6136f7f; resumed 70f944b; EW4b ~0.630 steps/s.
+    # code_commit: 6136f7f; resumed 70f944b; EW4b ~0.630 steps/s; completed 6,800.
     model_name = 'BamLlama2MediumV1CompatCoarseExecutionNumerics'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_share_full_local_read = False

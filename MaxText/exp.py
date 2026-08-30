@@ -613,6 +613,15 @@ class BamLlama2MediumV1(
     bam_read_implementation = 'mul_reduce_btn'
 
 
+class BamLlama2MediumV1HistoricalCodeRepro(BamLlama2MediumV1):
+    """Exact V1-code reproduction anchor with a distinct output directory."""
+    model_name = 'BamLlama2MediumV1HistoricalCodeRepro'
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-historical-code-repro')
+
+
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
     """Write every layer; BAM-read only odd-numbered layers."""
     model_name = 'BamLlama2MediumV1AlternateLayerRead'

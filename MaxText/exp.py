@@ -1095,6 +1095,7 @@ class BamLlama2MediumV1CompatCoarseExecutionBf16Rms(
     BamLlama2MediumV1CompatCoarseExecutionNumerics
 ):
     """B 2x2: keep diagonal-one and restore activation-dtype BAM RMS statistics."""
+    # EW4b ~0.631 steps/s (flat vs B).
     model_name = 'BamLlama2MediumV1CompatCoarseExecutionBf16Rms'
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'

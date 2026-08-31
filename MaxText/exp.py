@@ -3015,6 +3015,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanJitRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Retrain XL16 Partial-RoPE Rank2 with non-scan layers and ordinary JIT."""
+    # 03fbacb; UE5a ~0.528-0.531 steps/s; stopped 10,444. dloss vs Rank2
+    # stabilized near +.011 from 3k-10k; non-scan JIT is harmful (vs MHA -.06207 @10k).
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanJitRepro')
     scan_layers = False

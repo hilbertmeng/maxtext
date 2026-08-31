@@ -1177,14 +1177,35 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
         'jax_caches/xd-bam-v1-c32-bridge/d0n0-unpacked-bnt')
 
 
+class BamLlama2MediumV1CompatD0N0C256NonScan(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """Loss bridge: D0N0 C256 with only layer scan disabled."""
+    model_name = 'BamLlama2MediumV1CompatD0N0C256NonScan'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-c256-nonscan')
+
+
+class BamLlama2MediumV1CompatD0N0DenseScan(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """Loss bridge: D0N0 layer scan with only C256 replaced by dense attention."""
+    model_name = 'BamLlama2MediumV1CompatD0N0DenseScan'
+    attention = 'autoselected'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-scan')
+
+
 # TODO: after V1 loss reproduction is closed, run this and the dense-scan arm
 # as an EW4b v5p-16 2x2 speed isolate against the two existing endpoints.
 class BamLlama2MediumV1CompatD0N0C256NonScanSpeedProfile(
-    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+    BamLlama2MediumV1CompatD0N0C256NonScan
 ):
     """Speed isolate: D0N0 C256 with only layer scan disabled."""
     model_name = 'BamLlama2MediumV1CompatD0N0C256NonScanSpeedProfile'
-    scan_layers = False
     steps = 20
     enable_checkpointing = False
     async_checkpointing = False
@@ -1194,11 +1215,10 @@ class BamLlama2MediumV1CompatD0N0C256NonScanSpeedProfile(
 
 
 class BamLlama2MediumV1CompatD0N0DenseScanSpeedProfile(
-    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+    BamLlama2MediumV1CompatD0N0DenseScan
 ):
     """Speed isolate: D0N0 layer scan with only C256 replaced by dense attention."""
     model_name = 'BamLlama2MediumV1CompatD0N0DenseScanSpeedProfile'
-    attention = 'autoselected'
     steps = 20
     enable_checkpointing = False
     async_checkpointing = False

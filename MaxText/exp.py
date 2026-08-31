@@ -267,6 +267,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
     bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
+    bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
     # Optional fetched-read-only amplitude outside sigmoid: a/sqrt(C).
     bam_fetched_read_amplitude_init = None
     bam_fetched_read_amplitude_learnable = True
@@ -890,6 +891,30 @@ class BamLlama2MediumV2NonScanJitRepro(BamLlama2MediumV2):
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-medium-v2-nonscan-jit-repro')
+
+
+class BamLlama2MediumV2NonScanJitWRNormalInit(
+    BamLlama2MediumV2NonScanJitRepro
+):
+    """Regular-init fetched W_R to avoid its singular zero-parameter/large-gradient start."""
+    model_name = 'BamLlama2MediumV2NonScanJitWRNormalInit'
+    bam_fetched_read_kernel_init = 'normal'
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-medium-v2-nonscan-jit-wr-normal-init')
+
+
+class BamLlama2MediumV2NonScanJitWRGate0005(
+    BamLlama2MediumV2NonScanJitRepro
+):
+    """Keep exact zero-read initialization but reduce fetched W_R's zero-point Jacobian 10x."""
+    model_name = 'BamLlama2MediumV2NonScanJitWRGate0005'
+    bam_read_gate_init = 0.0005
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-medium-v2-nonscan-jit-wr-gate0005')
 
 
 class BamLlama2MediumV2ReadDiagonalOneControl(

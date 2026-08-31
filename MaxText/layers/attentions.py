@@ -2441,6 +2441,7 @@ class BamAttention(Attention):
         else cfg.normalization_layer_epsilon)
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
+    self._fetched_read_kernel_init = cfg.bam_fetched_read_kernel_init
     fetched_read_amplitude_init = getattr(
         cfg, 'bam_fetched_read_amplitude_init', None)
     self._fetched_read_amplitude_init = (
@@ -2685,6 +2686,7 @@ class BamAttention(Attention):
     assert self._read_key_scale > 0.0
     assert self._rms_epsilon > 0.0
     assert self._read_key_epsilon > 0.0
+    assert self._fetched_read_kernel_init in ('zero', 'normal')
     assert self._read_gate_init is None or 0.0 < self._read_gate_init < 1.0
     assert (self._fetched_read_amplitude_init is None
             or self._fetched_read_amplitude_init > 0.0)
@@ -2798,7 +2800,10 @@ class BamAttention(Attention):
       read_features = (
           self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
       self.W_R = DenseGeneral(
-          features=read_features, axis=-1, kernel_init=zeros_init,
+          features=read_features, axis=-1,
+          kernel_init=(
+              zeros_init
+              if self._fetched_read_kernel_init == 'zero' else reg_init),
           kernel_axes=("embed", "q_heads", "fetch", "kv"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision,

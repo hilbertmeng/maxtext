@@ -17,6 +17,7 @@ REMOTE_SCRIPT=/tmp/medium_v1_v2_gradient_profile.py
 OUTPUT_DIR=${BAM_GRAD_OUTPUT_DIR:-/home/lishengping/xd/projects/gradient_profiles}
 DATASET=${DATASET_PATH:-gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord}
 TRACE_STEPS=${BAM_GRAD_STEPS:-3}
+VARIANTS=${BAM_GRAD_VARIANTS:-baseline}
 
 mkdir -p "$OUTPUT_DIR"
 gcloud compute tpus tpu-vm scp --internal-ip "$SCRIPT" \
@@ -45,6 +46,7 @@ for profile in "${profiles[@]}"; do
       cp '$REMOTE_SCRIPT' experiments/bam_llama2_medium/medium_v1_v2_gradient_profile.py
       env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off \
         BAM_GRAD_GIT_COMMIT='$commit' BAM_GRAD_STEPS='$TRACE_STEPS' \
+        BAM_GRAD_VARIANTS='$VARIANTS' \
         BAM_GRAD_OUTPUT='$remote_output' '$PYTHON' \
         experiments/bam_llama2_medium/medium_v1_v2_gradient_profile.py \
         MaxText/configs/base.yml exp_class='$exp_class' \

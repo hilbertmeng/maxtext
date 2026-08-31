@@ -132,6 +132,27 @@ def _tree_metrics(tree, bam_k):
   return _aggregate_stats(flatten_dict(tree), bam_k)
 
 
+def _group_dots(left_tree, right_tree, bam_k):
+  left = flatten_dict(left_tree)
+  right = flatten_dict(right_tree)
+  grouped = {}
+  for path, left_value in left.items():
+    right_value = right[path]
+    group = _group_name(_path_name(path))
+    grouped[group] = grouped.get(group, 0.0) + jnp.sum(
+        left_value.astype(jnp.float32) * right_value.astype(jnp.float32))
+    if group == "fetched_W_R":
+      grouped["fetched_W_R_row"] = grouped.get(
+          "fetched_W_R_row", 0.0) + jnp.sum(
+              left_value[..., :bam_k].astype(jnp.float32)
+              * right_value[..., :bam_k].astype(jnp.float32))
+      grouped["fetched_W_R_col"] = grouped.get(
+          "fetched_W_R_col", 0.0) + jnp.sum(
+              left_value[..., bam_k:].astype(jnp.float32)
+              * right_value[..., bam_k:].astype(jnp.float32))
+  return grouped
+
+
 def _host_tree_to_json(value):
   if isinstance(value, dict):
     return {key: _host_tree_to_json(child) for key, child in value.items()}
@@ -219,6 +240,7 @@ def run(config):
     updates = jax.tree_util.tree_map(
         lambda new, old: new - old, new_state.params, warm_state.params)
     update_groups, update_layers = _tree_metrics(updates, config.bam_k)
+    gradient_update_dot_groups = _group_dots(raw_grads, updates, config.bam_k)
     def keep_only_w_r(path, new, old):
       names = tuple(getattr(part, "key", str(part)) for part in path)
       return new if names[-2:] == ("W_R", "kernel") else old
@@ -239,6 +261,7 @@ def run(config):
         "param_groups": param_groups,
         "update_groups": update_groups,
         "update_layers": update_layers,
+        "gradient_update_dot_groups": gradient_update_dot_groups,
     }
 
   step_fn = jax.jit(diagnostic_step)

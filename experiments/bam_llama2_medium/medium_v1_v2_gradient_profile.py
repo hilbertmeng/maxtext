@@ -242,6 +242,15 @@ def run(config):
         lambda new, old: new - old, new_state.params, warm_state.params)
     update_groups, update_layers = _tree_metrics(updates, config.bam_k)
     gradient_update_dot_groups = _group_dots(raw_grads, updates, config.bam_k)
+    # Global clipping scales every gradient by the same scalar. Adam should
+    # largely cancel that scalar; measure the residual instead of inferring it
+    # from the much larger raw W_R norm.
+    raw_warm_state = state.apply_gradients(grads=raw_grads)
+    raw_new_state = raw_warm_state.apply_gradients(grads=raw_grads)
+    raw_updates = jax.tree_util.tree_map(
+        lambda new, old: new - old,
+        raw_new_state.params, raw_warm_state.params)
+    raw_update_groups, _ = _tree_metrics(raw_updates, config.bam_k)
     def keep_only_w_r(path, new, old):
       names = tuple(getattr(part, "key", str(part)) for part in path)
       return new if names[-2:] == ("W_R", "kernel") else old
@@ -249,6 +258,10 @@ def run(config):
         keep_only_w_r, new_state.params, warm_state.params)
     (w_r_only_loss, _aux) = train.loss_fn(
         model, config, batch, rng, w_r_only_params, is_train=True)
+    raw_w_r_only_params = jax.tree_util.tree_map_with_path(
+        keep_only_w_r, raw_new_state.params, raw_warm_state.params)
+    (raw_w_r_only_loss, _aux) = train.loss_fn(
+        model, config, batch, rng, raw_w_r_only_params, is_train=True)
     w_r_scaled_loss_deltas = {}
     for update_scale in (0.1, math.sqrt(0.1)):
       def scale_only_w_r(path, new, old):
@@ -265,6 +278,8 @@ def run(config):
         "loss": loss,
         "w_r_only_post_update_loss": w_r_only_loss,
         "w_r_only_loss_delta": w_r_only_loss - loss,
+        "no_clip_w_r_only_post_update_loss": raw_w_r_only_loss,
+        "no_clip_w_r_only_loss_delta": raw_w_r_only_loss - loss,
         "w_r_scaled_loss_deltas": w_r_scaled_loss_deltas,
         "raw_grad_norm": raw_norm,
         "clipped_grad_norm": clipped_norm,
@@ -274,6 +289,7 @@ def run(config):
         "clipped_grad_groups": clipped_groups,
         "param_groups": param_groups,
         "update_groups": update_groups,
+        "no_clip_update_groups": raw_update_groups,
         "update_layers": update_layers,
         "gradient_update_dot_groups": gradient_update_dot_groups,
     }

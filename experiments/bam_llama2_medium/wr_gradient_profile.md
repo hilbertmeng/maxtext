@@ -53,6 +53,14 @@ clipping; their training behavior needs paired from-scratch runs.
   zero read and initially train only the LayerScale. It is principled but adds a
   staged-learning mechanism; test only if the simpler controls fail.
 
+Regular initialization alone has a structural tradeoff. With normalized
+1,024-D input, kernel RMS `.006` gives projected RMS around `.19`, far above
+`sqrt(1e-4)=.01`; RMSNorm therefore exposes an almost unit random direction.
+Keeping that random read small requires kernel RMS well below about `.00031`,
+but then the zero-point Jacobian is essentially unchanged. An external
+zero-init LayerScale (or another exact-zero wrapper) is needed to obtain both a
+finite regular kernel and an identity-preserving initial function.
+
 Artifacts: `diagnostics/medium_v1_wr_init_ablation.json` and
 `diagnostics/medium_v2_wr_init_ablation.json`.
 

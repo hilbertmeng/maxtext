@@ -883,6 +883,15 @@ class BamLlama2MediumV2(
     bam_write_outer_implementation = 'mul_reduce'
 
 
+class BamLlama2MediumV2NonScanJitRepro(BamLlama2MediumV2):
+    """Retrain V2 with explicit non-scan layers and ordinary JIT compilation."""
+    model_name = 'BamLlama2MediumV2NonScanJitRepro'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-medium-v2-nonscan-jit-repro')
+
+
 class BamLlama2MediumV2ReadDiagonalOneControl(
     BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl
 ):
@@ -2928,6 +2937,18 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanJitRepro(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Retrain XL16 Partial-RoPE Rank2 with non-scan layers and ordinary JIT."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanJitRepro')
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-nonscan-jit-repro')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro(

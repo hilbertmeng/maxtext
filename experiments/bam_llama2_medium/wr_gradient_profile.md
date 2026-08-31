@@ -133,3 +133,31 @@ steps 100/200/400, so the two controls should mainly alter roughly the first
 read path.
 
 Artifacts: `diagnostics/wr_read_epsilon_profile/`.
+
+## Function-space step
+
+On the same batch, apply Adam's first nonzero update but retain only the `W_R`
+parameter changes:
+
+| path | same-batch loss delta |
+|---|---:|
+| baseline epsilon, full `W_R` update | `-.06807` |
+| baseline epsilon, update x `.31623` | `-.00178` |
+| fetched epsilon `1e-3`, full update | `-.00164` |
+| baseline epsilon, update x `.1` | `+.02025` |
+| fetched epsilon `1e-2`, full update | `+.02029` |
+
+The paired values show that, at initialization, increasing epsilon is
+functionally equivalent to shrinking the `W_R` parameter step by the analytic
+Jacobian factor. The loss response is strongly nonlinear: weakening the update
+is not automatically safer and can turn a useful full-strength circuit update
+into a harmful partial activation.
+
+The first-order `grad dot update` contribution is largest for fetched `W_R`
+(`-.10194`, row/col `-.06695/-.03498`), versus MHA-V/O
+(`-.04693/-.04724`) and all MLP kernels (`-.03462`). Thus `W_R` is not merely
+creating a clipping artifact; it carries a large share of useful initial
+descent. Any stabilization must demonstrate that it preserves or recovers this
+learning rather than optimizing raw-gradient cosmetics.
+
+Artifacts: `diagnostics/wr_function_step_profile/`.

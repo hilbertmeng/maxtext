@@ -521,10 +521,10 @@ class Decoder(nn.Module):
             nn.broadcast,
             nn.broadcast,
             nn.broadcast,
-            0 if cfg.deep_embed_effective_layers is None else nn.broadcast, # deep_embedding
             nn.broadcast,
-            nn.broadcast, # hids
-            nn.broadcast, # 关键字参数不在这个范围内
+            nn.broadcast,
+            nn.broadcast,
+            nn.broadcast,
         ),
         length=length,
         metadata_params={nn.PARTITION_NAME: metdata_axis_name},
@@ -763,18 +763,26 @@ class Decoder(nn.Module):
         hids.append(y)
 
       if cfg.scan_layers:
-        assert not cfg.bam_enabled, "BAM v0.1 does not support scan_layers (M cannot be threaded across depth)"
         RemattedBlockLayer = RemattedBlockLayers[1]
-        y, _ = self.scan_decoder_layers(cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh)(
-            y,
+        if cfg.bam_enabled:
+          b, t = y.shape[:2]
+          M = jnp.zeros((b, t, cfg.bam_k, cfg.bam_v), dtype=cfg.dtype)
+          scan_carry = (y, M)
+        else:
+          scan_carry = y
+        scan_carry, _ = self.scan_decoder_layers(
+            cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh
+        )(
+            scan_carry,
             decoder_segment_ids,
             decoder_positions,
             decoder_input_tokens,
             deep_embeddings,
             deterministic,
             model_mode,
-            eos_sum=eos_sum,
+            eos_sum,
         )
+        y = scan_carry[0] if cfg.bam_enabled else scan_carry
 
       elif cfg.partial_scan_layers:
         assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"

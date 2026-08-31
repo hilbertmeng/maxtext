@@ -613,6 +613,16 @@ class BamLlama2MediumV1(
     bam_read_implementation = 'mul_reduce_btn'
 
 
+class BamLlama2MediumV1OriginalLayerScan(BamLlama2MediumV1):
+    """Historical V1 code with only matrix-stream layer scan backported."""
+    model_name = 'BamLlama2MediumV1OriginalLayerScan'
+    scan_layers = True
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-original-layer-scan')
+
+
 class BamLlama2MediumV1AlternateLayerRead(BamLlama2MediumV1):
     """Write every layer; BAM-read only odd-numbered layers."""
     model_name = 'BamLlama2MediumV1AlternateLayerRead'

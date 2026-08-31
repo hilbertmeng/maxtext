@@ -332,11 +332,17 @@ class FusionDecoderLayer(nn.Module):
       deep_embedding,
       deterministic,
       model_mode,
-      hids=None,
       eos_sum=None,
+      hids=None,
       M_in=None,
   ):
     cfg = self.config
+    if cfg.scan_layers:
+      assert not cfg.dense_conn, "BAM layer scan requires dense_conn=False"
+      if cfg.bam_enabled:
+        inputs, M_in = inputs
+      else:
+        M_in = None
     if cfg.partial_scan_layers:
       assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
       return self.partial_scan_call(
@@ -397,6 +403,9 @@ class FusionDecoderLayer(nn.Module):
           lidx=self.layer_inx,
         )
 
+    if cfg.scan_layers:
+      carry = (inputs, M_out) if cfg.bam_enabled else inputs
+      return carry, ()
     if cfg.bam_enabled:
       return inputs, hids, M_out
     return inputs, hids

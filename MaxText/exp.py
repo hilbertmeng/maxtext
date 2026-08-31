@@ -1184,6 +1184,10 @@ class BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt(
     BamLlama2MediumV1CompatD0N0DenseNonScan
 ):
     """Closure bridge: jointly restore H's dense non-scan and unpacked LocalQK."""
+    # code_commit: 59a9f2b; EW4b -> UE5a ~0.520 steps/s; stopped 6,871.
+    # From 2,200-6,800, dloss vs H oscillated around +.0021 without a zeroing
+    # trend (last +.0040): dense+non-scan+unpacked nearly, not exactly, closes H.
+    # It retained ~-.010..-.013 vs D0N0; unpacking contributed ~-.002 vs Dense.
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt'
     bam_pack_factorized_local_qk = False
     bam_factorized_head_output_layout = 'bnt'

@@ -49,6 +49,12 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV1HistoricalJitRepro` | v5p-16 | `europe-west4-b` | 2026-08-30 03:41:02 | 2026-08-30 06:27:53 | completed 2,799 | none |
 | `BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedNativeJitControl` | v5p-16 | `europe-west4-b` | 2026-08-30 04:11:44 | 2026-08-30 06:22:55 | native C32 control complete; TPU hot-switched | none |
 | `BamLlama2MediumV1CompatC256ScanFixedAmplitude` | v5p-16 | `europe-west4-b` | 2026-08-30 11:24:40 | 2026-08-30 13:07:05 | exact no-op; manual stop | none |
+| `BamLlama2MediumV1CompatD0N0DenseNonScan` | v5p-16 | `europe-west4-b` | 2026-08-31 00:43:20 | 2026-08-31 08:50:09 | manual stop | none |
+| `BamLlama2MediumV1CompatD0N0C256NonScan` | v5p-16 | `europe-west4-b` | 2026-08-31 02:04:14 | 2026-08-31 07:29:33 | resource switch | none |
+| `BamLlama2MediumV1CompatD0N0C256NonScan` | v5p-16 | `us-central1-a` | 2026-08-31 07:29:33 | 2026-08-31 07:48:36 | resource switch | none |
+| `BamLlama2MediumV1CompatD0N0C256NonScan` | v5p-16 | `us-east5-a` | 2026-08-31 07:48:36 | 2026-08-31 09:09:24 | manual stop | none |
+| `BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt` | v5p-16 | `europe-west4-b` | 2026-08-31 02:16:51 | 2026-08-31 07:29:33 | resource switch | none |
+| `BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt` | v5p-16 | `us-east5-a` | 2026-08-31 07:29:33 | 2026-08-31 10:10:31 | manual stop | none |
 
 ## READY leases
 
@@ -239,3 +245,70 @@ inventing a duration. A passive queue is not an active-zone switch.
 | V1Compat native JIT | 4 | `europe-west4-b` | 2026-08-30 15:26:41 | 2026-08-30 15:31:43 | 5m02s | preempted |
 | V1Compat native JIT | 5 | `europe-west4-b` | 2026-08-30 15:38:37 | 2026-08-30 15:42:06 | 3m29s | preempted |
 | V1Compat native JIT | 6 | `europe-west4-b` | 2026-08-30 15:49:26 | 2026-08-30 16:22:54 | 33m28s | manual stop |
+| D0N0 Dense | 1 | `europe-west4-b` | 2026-08-31 00:45:53 | 2026-08-31 01:03:45 | 17m52s | preempted |
+| D0N0 Dense | 2 | `europe-west4-b` | 2026-08-31 01:08:40 | 2026-08-31 01:31:56 | 23m16s | preempted |
+| D0N0 Dense | 3 | `europe-west4-b` | 2026-08-31 01:37:01 | 2026-08-31 01:40:55 | 3m54s | preempted |
+| D0N0 Dense | 4 | `europe-west4-b` | 2026-08-31 01:47:55 | 2026-08-31 02:30:35 | 42m40s | preempted |
+| D0N0 C256 non-scan | 1 | `europe-west4-b` | 2026-08-31 02:04:17 | 2026-08-31 02:32:35 | 28m18s | preempted |
+| D0N0 Joint | 1 | `europe-west4-b` | 2026-08-31 02:19:23 | 2026-08-31 02:32:41 | 13m18s | preempted |
+| D0N0 Joint | 2 | `europe-west4-b` | 2026-08-31 02:39:31 | 2026-08-31 02:44:06 | 4m35s | preempted |
+| D0N0 C256 non-scan | 2 | `europe-west4-b` | 2026-08-31 02:39:53 | 2026-08-31 02:44:21 | 4m28s | preempted |
+| D0N0 Joint | 3 | `europe-west4-b` | 2026-08-31 02:50:52 | 2026-08-31 03:02:14 | 11m22s | preempted |
+| D0N0 C256 non-scan | 3 | `europe-west4-b` | 2026-08-31 02:50:14 | 2026-08-31 03:02:21 | 12m07s | preempted |
+| D0N0 Joint | 4 | `europe-west4-b` | 2026-08-31 03:07:44 | 2026-08-31 03:09:26 | 1m42s | preempted |
+| D0N0 C256 non-scan | 4 | `europe-west4-b` | 2026-08-31 03:06:57 | 2026-08-31 03:09:41 | 2m44s | preempted |
+| D0N0 Dense | 5 | `europe-west4-b` | 2026-08-31 02:39:17 | 2026-08-31 03:44:37 | 1h05m20s | preempted |
+| D0N0 C256 non-scan | 5 | `europe-west4-b` | 2026-08-31 03:18:08 | 2026-08-31 03:44:45 | 26m37s | preempted |
+| D0N0 Joint | 5 | `europe-west4-b` | 2026-08-31 03:18:51 | 2026-08-31 03:45:01 | 26m10s | preempted |
+| D0N0 Joint | 6 | `europe-west4-b` | 2026-08-31 03:50:08 | 2026-08-31 03:53:36 | 3m28s | preempted |
+| D0N0 Dense | 6 | `europe-west4-b` | 2026-08-31 03:49:14 | 2026-08-31 03:53:49 | 4m35s | preempted |
+| D0N0 C256 non-scan | 6 | `europe-west4-b` | 2026-08-31 03:50:07 | 2026-08-31 03:53:56 | 3m49s | preempted |
+| D0N0 Joint | 7 | `europe-west4-b` | 2026-08-31 04:01:05 | 2026-08-31 04:03:49 | 2m44s | preempted |
+| D0N0 Dense | 7 | `europe-west4-b` | 2026-08-31 04:00:25 | 2026-08-31 04:03:58 | 3m33s | preempted |
+| D0N0 C256 non-scan | 7 | `europe-west4-b` | 2026-08-31 04:00:36 | 2026-08-31 04:04:04 | 3m28s | preempted |
+| D0N0 C256 non-scan | 8 | `europe-west4-b` | 2026-08-31 04:15:34 | 2026-08-31 04:21:19 | 5m45s | preempted |
+| D0N0 Joint | 8 | `europe-west4-b` | 2026-08-31 04:15:52 | 2026-08-31 04:21:28 | 5m36s | preempted |
+| D0N0 Joint | 9 | `europe-west4-b` | 2026-08-31 04:26:42 | 2026-08-31 04:36:44 | 10m02s | preempted |
+| D0N0 C256 non-scan | 9 | `europe-west4-b` | 2026-08-31 04:26:52 | 2026-08-31 04:36:51 | 9m59s | preempted |
+| D0N0 Dense | 8 | `europe-west4-b` | 2026-08-31 04:16:14 | 2026-08-31 04:37:05 | 20m51s | preempted |
+| D0N0 Joint | 10 | `europe-west4-b` | 2026-08-31 04:42:54 | 2026-08-31 04:48:31 | 5m37s | preempted |
+| D0N0 C256 non-scan | 10 | `europe-west4-b` | 2026-08-31 04:42:39 | 2026-08-31 04:48:43 | 6m04s | preempted |
+| D0N0 Joint | 11 | `europe-west4-b` | 2026-08-31 04:53:22 | 2026-08-31 04:58:01 | 4m39s | preempted |
+| D0N0 C256 non-scan | 11 | `europe-west4-b` | 2026-08-31 04:53:38 | 2026-08-31 04:58:15 | 4m37s | preempted |
+| D0N0 C256 non-scan | 12 | `europe-west4-b` | 2026-08-31 05:05:21 | 2026-08-31 05:08:12 | 2m51s | preempted |
+| D0N0 Joint | 12 | `europe-west4-b` | 2026-08-31 05:04:27 | 2026-08-31 05:08:18 | 3m51s | preempted |
+| D0N0 Dense | 9 | `europe-west4-b` | 2026-08-31 04:40:53 | 2026-08-31 05:17:15 | 36m22s | preempted |
+| D0N0 Joint | 13 | `europe-west4-b` | 2026-08-31 05:16:08 | 2026-08-31 05:18:01 | 1m53s | preempted |
+| D0N0 C256 non-scan | 13 | `europe-west4-b` | 2026-08-31 05:16:21 | 2026-08-31 05:18:13 | 1m52s | preempted |
+| D0N0 Dense | 10 | `europe-west4-b` | 2026-08-31 05:21:54 | 2026-08-31 05:26:26 | 4m32s | preempted |
+| D0N0 Joint | 14 | `europe-west4-b` | 2026-08-31 05:26:37 | 2026-08-31 05:27:26 | 49s | preempted |
+| D0N0 C256 non-scan | 14 | `europe-west4-b` | 2026-08-31 05:26:47 | 2026-08-31 05:27:27 | 40s | preempted |
+| D0N0 Dense | 11 | `europe-west4-b` | 2026-08-31 05:33:19 | 2026-08-31 05:35:52 | 2m33s | preempted |
+| D0N0 Joint | 15 | `europe-west4-b` | 2026-08-31 05:37:14 | 2026-08-31 05:37:51 | 37s | preempted |
+| D0N0 C256 non-scan | 15 | `europe-west4-b` | 2026-08-31 05:39:49 | 2026-08-31 05:43:53 | 4m04s | preempted |
+| D0N0 Dense | 12 | `europe-west4-b` | 2026-08-31 05:44:15 | 2026-08-31 05:44:58 | 43s | preempted |
+| D0N0 C256 non-scan | 16 | `europe-west4-b` | 2026-08-31 05:51:09 | 2026-08-31 05:51:49 | 40s | preempted |
+| D0N0 Joint | 16 | `europe-west4-b` | 2026-08-31 05:48:20 | 2026-08-31 05:53:00 | 4m40s | preempted |
+| D0N0 Dense | 13 | `europe-west4-b` | 2026-08-31 05:55:05 | 2026-08-31 06:02:28 | 7m23s | preempted |
+| D0N0 Joint | 17 | `europe-west4-b` | 2026-08-31 05:58:53 | 2026-08-31 06:02:44 | 3m51s | preempted |
+| D0N0 Dense | 14 | `europe-west4-b` | 2026-08-31 06:07:05 | 2026-08-31 06:09:13 | 2m08s | preempted |
+| D0N0 C256 non-scan | 17 | `europe-west4-b` | 2026-08-31 06:13:17 | 2026-08-31 06:13:58 | 41s | preempted |
+| D0N0 Joint | 18 | `europe-west4-b` | 2026-08-31 06:12:54 | 2026-08-31 06:38:40 | 25m46s | preempted |
+| D0N0 C256 non-scan | 18 | `europe-west4-b` | 2026-08-31 06:23:00 | 2026-08-31 06:44:29 | 21m29s | preempted |
+| D0N0 Dense | 15 | `europe-west4-b` | 2026-08-31 06:22:50 | 2026-08-31 06:44:30 | 21m40s | preempted |
+| D0N0 Joint | 19 | `europe-west4-b` | 2026-08-31 06:44:04 | 2026-08-31 06:48:10 | 4m06s | preempted |
+| D0N0 C256 non-scan | 19 | `europe-west4-b` | 2026-08-31 06:47:54 | 2026-08-31 06:48:30 | 36s | preempted |
+| D0N0 Dense | 16 | `europe-west4-b` | 2026-08-31 06:50:42 | 2026-08-31 06:51:32 | 50s | preempted |
+| D0N0 Joint | 20 | `europe-west4-b` | 2026-08-31 06:55:11 | 2026-08-31 06:55:55 | 44s | preempted |
+| D0N0 C256 non-scan | 20 | `europe-west4-b` | 2026-08-31 06:58:55 | 2026-08-31 07:00:45 | 1m50s | preempted |
+| D0N0 Dense | 17 | `europe-west4-b` | 2026-08-31 07:00:56 | 2026-08-31 07:01:47 | 51s | preempted |
+| D0N0 Joint | 21 | `europe-west4-b` | 2026-08-31 07:05:40 | 2026-08-31 07:10:39 | 4m59s | preempted |
+| D0N0 C256 non-scan | 21 | `europe-west4-b` | 2026-08-31 07:09:29 | 2026-08-31 07:11:25 | 1m56s | preempted |
+| D0N0 Joint | 22 | `europe-west4-b` | 2026-08-31 07:17:17 | 2026-08-31 07:20:27 | 3m10s | preempted |
+| D0N0 C256 non-scan | 22 | `europe-west4-b` | 2026-08-31 07:20:00 | 2026-08-31 07:20:41 | 41s | preempted |
+| D0N0 Dense | 18 | `europe-west4-b` | 2026-08-31 07:15:05 | 2026-08-31 07:36:09 | 21m04s | preempted |
+| D0N0 Dense | 19 | `europe-west4-b` | 2026-08-31 07:43:02 | 2026-08-31 08:02:28 | 19m26s | preempted |
+| D0N0 Dense | 20 | `europe-west4-b` | 2026-08-31 08:15:07 | 2026-08-31 08:31:28 | 16m21s | preempted |
+| D0N0 Dense | 21 | `europe-west4-b` | 2026-08-31 08:36:57 | 2026-08-31 08:50:09 | 13m12s | manual stop |
+| D0N0 C256 non-scan | 23 | `us-east5-a` | 2026-08-31 07:50:59 | 2026-08-31 09:09:24 | 1h18m25s | manual stop |
+| D0N0 Joint | 23 | `us-east5-a` | 2026-08-31 07:30:52 | 2026-08-31 10:10:31 | 2h39m39s | manual stop |

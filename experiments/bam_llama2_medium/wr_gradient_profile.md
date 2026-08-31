@@ -134,6 +134,27 @@ read path.
 
 Artifacts: `diagnostics/wr_read_epsilon_profile/`.
 
+### Step-200 effective read amplitude
+
+Checkpoint-paired inference on the same sequence shows that the larger epsilon
+does not remain a read-amplitude suppressor. Averaged over layers 1--23:
+
+| checkpoint | row gate | column gate | row post-gate key RMS | column post-gate key RMS | BAM/std readout | late-8 BAM/std |
+|---|---:|---:|---:|---:|---:|---:|
+| control `1e-4` | .02107 | .01632 | .04212 | .03263 | 4.890 | 6.916 |
+| fetched `1e-3` | .02431 | .01953 | .04852 | .03898 | 5.221 | 8.070 |
+| ratio | 1.154x | 1.197x | 1.152x | 1.195x | 1.068x | 1.167x |
+
+By step 200, training has compensated for the weaker zero-point Jacobian with
+larger gates; the actual BAM/std readout is larger, especially in late layers,
+not smaller. The same-sequence loss delta is `-.05038`, consistent with the
+formal run's large transient negative gap near step 200, but this single-sequence
+loss is mechanistic evidence rather than a population loss estimate. Together
+with nearly identical `W_R` parameter norms by step 400, this identifies epsilon
+as a transient trajectory shaper rather than a stable amplitude cap.
+
+Artifacts: `diagnostics/wr_epsilon_amplitude_pair/`.
+
 ## Function-space step
 
 On the same batch, apply Adam's first nonzero update but retain only the `W_R`

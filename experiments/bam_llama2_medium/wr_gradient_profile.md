@@ -70,3 +70,15 @@ step 0 to 7.1%/0.4%/1.4% at steps 10/50/200. The large gradient is therefore
 an initialization transient, not evidence by itself of a pathological update.
 Reducing it did not improve loss. A cleaner remaining test is kernel-gradient
 scaling, which preserves the exact forward function and read amplitude.
+
+## Backward-only control
+
+Scaling only the `W_R` kernel gradient by `.1` leaves the initial loss exactly
+unchanged (`10.84433651`). On the paired V2 batch it changes raw grad norm
+`24.3231 -> 11.8215`, clip multiplier `.04111 -> .08459`, and `W_R` grad²
+share `77.15% -> 3.27%`. Thus gradients of all other parameters survive global
+clipping at about `2.06x` their baseline scale, without changing the forward
+function or read amplitude. From-scratch training is needed because Adam mostly
+cancels a constant per-parameter gradient scale.
+
+Artifacts: `diagnostics/wr_gradient_scale_pair/`.

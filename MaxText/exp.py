@@ -1125,7 +1125,8 @@ class BamLlama2MediumV1CompatD0N0DenseNonScan(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """D0N0 with only C256+layer-scan restored to H's dense non-scan path."""
-    # code_commit: 74c72e6; !? EW4b ~0.537 steps/s (+5.7% vs D0N0 C256).
+    # code_commit: 74c72e6; !? EW4b ~0.536 steps/s (+5.5% vs D0N0 C256).
+    # dloss vs H peaked +.00375 @1,200 then narrowed to +.00286 @1,600.
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScan'
     attention = 'autoselected'
     scan_layers = False
@@ -1155,7 +1156,8 @@ class BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead(
     BamLlama2MediumV1CompatD0N0HistoricalCombinedRead
 ):
     """D0N0 with both H's dense non-scan and historical CombinedRead paths."""
-    # code_commit: 74c72e6; !? EW4b ~0.540 steps/s (+6.3% vs D0N0 C256).
+    # code_commit: 74c72e6; EW4b ~0.537 steps/s; stopped 798.
+    # dloss exactly 0 vs DenseNonScan @200/400/600: historical CombinedRead is a runtime no-op.
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead'
     attention = 'autoselected'
     scan_layers = False
@@ -1169,6 +1171,7 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
 ):
     """D0N0 with only LocalQK projection/layout restored to H's unpacked bnt path."""
     # code_commit: 6200a20; EW4b ~0.496 steps/s (-2.4% vs packed D0N0).
+    # dloss -0.00419 vs packed D0N0 @1,000; packed layout is a secondary loss cost so far.
     model_name = 'BamLlama2MediumV1CompatD0N0UnpackedBnt'
     bam_pack_factorized_local_qk = False
     bam_factorized_head_output_layout = 'bnt'
@@ -1193,6 +1196,7 @@ class BamLlama2MediumV1CompatD0N0C256NonScan(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """Loss bridge: D0N0 C256 with only layer scan disabled."""
+    # code_commit: 1a3498a; EW4b ~0.515 steps/s; running.
     model_name = 'BamLlama2MediumV1CompatD0N0C256NonScan'
     scan_layers = False
     jax_cache_dir = (
@@ -1204,6 +1208,8 @@ class BamLlama2MediumV1CompatD0N0DenseScan(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """Loss bridge: D0N0 layer scan with only C256 replaced by dense attention."""
+    # code_commit: 1a3498a; !! EW4b ~0.534 steps/s; running.
+    # dloss +3.231 vs H @200; raw_grad_norm exploded to 92,813: dense x scan is unstable.
     model_name = 'BamLlama2MediumV1CompatD0N0DenseScan'
     attention = 'autoselected'
     jax_cache_dir = (

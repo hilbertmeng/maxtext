@@ -1170,8 +1170,8 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """D0N0 with only LocalQK projection/layout restored to H's unpacked bnt path."""
-    # code_commit: 6200a20; EW4b ~0.496 steps/s (-2.4% vs packed D0N0).
-    # dloss -0.00419 vs packed D0N0 @1,000; packed layout is a secondary loss cost so far.
+    # code_commit: 6200a20; EW4b ~0.496 steps/s (-2.4% vs packed D0N0); stopped 3,800.
+    # dloss vs H plateaued near +0.0118 @2,800-3,600: unpacking alone cannot reproduce H.
     model_name = 'BamLlama2MediumV1CompatD0N0UnpackedBnt'
     bam_pack_factorized_local_qk = False
     bam_factorized_head_output_layout = 'bnt'

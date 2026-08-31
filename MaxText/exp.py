@@ -937,6 +937,22 @@ class BamLlama2MediumV2NonScanJitWRGradScale01(
         'jax_caches/xd-bam-medium-v2-nonscan-jit-wr-grad-scale01')
 
 
+class BamLlama2MediumV2NonScanJitWRReadEps1e3(
+    BamLlama2MediumV2NonScanJitRepro
+):
+    """Reduce fetched W_R's zero-point Jacobian through a transiently larger RMS epsilon."""
+    model_name = 'BamLlama2MediumV2NonScanJitWRReadEps1e3'
+    bam_read_key_epsilon = 1e-3
+
+
+class BamLlama2MediumV2NonScanJitWRReadEps1e2(
+    BamLlama2MediumV2NonScanJitRepro
+):
+    """Match the .1 gradient control's initial Jacobian without permanently closing the gate."""
+    model_name = 'BamLlama2MediumV2NonScanJitWRReadEps1e2'
+    bam_read_key_epsilon = 1e-2
+
+
 class BamLlama2MediumV2ReadDiagonalOneControl(
     BamLlama2MediumDirectPLocR256GeluFp32PackedLocalQKControl
 ):

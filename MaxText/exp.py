@@ -944,6 +944,10 @@ class BamLlama2MediumV2NonScanJitWRReadEps1e3(
     """Reduce fetched W_R's zero-point Jacobian through a transiently larger RMS epsilon."""
     model_name = 'BamLlama2MediumV2NonScanJitWRReadEps1e3'
     bam_fetched_read_key_epsilon = 1e-3
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-medium-v2-nonscan-jit-wr-read-eps1e3')
 
 
 class BamLlama2MediumV2NonScanJitWRReadEps1e2(

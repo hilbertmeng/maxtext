@@ -1196,7 +1196,10 @@ class BamLlama2MediumV1CompatD0N0C256NonScan(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """Loss bridge: D0N0 C256 with only layer scan disabled."""
-    # code_commit: 1a3498a; EW4b ~0.515 steps/s; running.
+    # code_commit: 1a3498a; EW4b -> UE5a ~0.515 steps/s; stopped 4,188.
+    # After warmup, dloss vs Dense stayed positive through 4,000: mostly
+    # +.0025..+.0037 from 2,400 onward (one +.0011 dip @3,200), recent mean +.0031.
+    # Thus C256 contributes a persistent ~+.003 loss penalty on the non-scan path.
     model_name = 'BamLlama2MediumV1CompatD0N0C256NonScan'
     scan_layers = False
     jax_cache_dir = (

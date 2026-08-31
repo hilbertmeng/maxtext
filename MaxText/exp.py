@@ -1177,6 +1177,34 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
         'jax_caches/xd-bam-v1-c32-bridge/d0n0-unpacked-bnt')
 
 
+class BamLlama2MediumV1CompatD0N0C256NonScanSpeedProfile(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """Speed isolate: D0N0 C256 with only layer scan disabled."""
+    model_name = 'BamLlama2MediumV1CompatD0N0C256NonScanSpeedProfile'
+    scan_layers = False
+    steps = 20
+    enable_checkpointing = False
+    async_checkpointing = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-c256-nonscan-speed')
+
+
+class BamLlama2MediumV1CompatD0N0DenseScanSpeedProfile(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """Speed isolate: D0N0 layer scan with only C256 replaced by dense attention."""
+    model_name = 'BamLlama2MediumV1CompatD0N0DenseScanSpeedProfile'
+    attention = 'autoselected'
+    steps = 20
+    enable_checkpointing = False
+    async_checkpointing = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-scan-speed')
+
+
 class BamLlama2MediumV1CompatC256ScanFixedAmplitude(
     BamLlama2MediumV1CompatC256Scan
 ):

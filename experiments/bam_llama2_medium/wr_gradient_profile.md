@@ -55,3 +55,18 @@ clipping; their training behavior needs paired from-scratch runs.
 
 Artifacts: `diagnostics/medium_v1_wr_init_ablation.json` and
 `diagnostics/medium_v2_wr_init_ablation.json`.
+
+## From-scratch controls
+
+Both controls used the same UE5a non-scan JIT baseline and ran to step 2,800.
+
+| control | initial gradient effect | dloss at 2,800 | conclusion |
+|---|---|---:|---|
+| normal(.006) `W_R` | grad² share 77.15% -> .80% | +.0137 | Stable negative effect from activating a random read direction. |
+| gate `.0005` | grad² share 77.15% -> 3.23%; exact initial forward | +.0468 | Near-parallel by 2,800; weaker read learning is strongly harmful. |
+
+On actual training batches, baseline `W_R` grad² share fell from 35.6% at
+step 0 to 7.1%/0.4%/1.4% at steps 10/50/200. The large gradient is therefore
+an initialization transient, not evidence by itself of a pathological update.
+Reducing it did not improve loss. A cleaner remaining test is kernel-gradient
+scaling, which preserves the exact forward function and read amplitude.

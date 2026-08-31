@@ -92,6 +92,7 @@ class DenseGeneral(nn.Module):
     kernel_init: initializer function for the weight matrix.
     use_bias: whether to add bias in linear transformation.
     bias_norm: whether to add normalization before adding bias.
+    kernel_gradient_scale: backward-only multiplier for the kernel gradient.
     quant: quantization config, defaults to None implying no quantization.
   """
 

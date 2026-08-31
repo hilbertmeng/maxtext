@@ -886,6 +886,7 @@ class BamLlama2MediumV2(
 
 class BamLlama2MediumV2NonScanJitRepro(BamLlama2MediumV2):
     """Retrain V2 with explicit non-scan layers and ordinary JIT compilation."""
+    # code_commit: 03fbacb; UE5a ~0.563 steps/s.
     model_name = 'BamLlama2MediumV2NonScanJitRepro'
     scan_layers = False
     jax_cache_dir = (
@@ -897,6 +898,7 @@ class BamLlama2MediumV2NonScanJitWRNormalInit(
     BamLlama2MediumV2NonScanJitRepro
 ):
     """Regular-init fetched W_R to avoid its singular zero-parameter/large-gradient start."""
+    # code_commit: 838742e; UE5a ~0.563 steps/s (flat vs non-scan JIT control).
     model_name = 'BamLlama2MediumV2NonScanJitWRNormalInit'
     bam_fetched_read_kernel_init = 'normal'
     checkpoint_period = 200
@@ -909,6 +911,7 @@ class BamLlama2MediumV2NonScanJitWRGate0005(
     BamLlama2MediumV2NonScanJitRepro
 ):
     """Keep exact zero-read initialization but reduce fetched W_R's zero-point Jacobian 10x."""
+    # code_commit: 838742e; UE5a ~0.567 steps/s (+0.7% vs control; no anomaly).
     model_name = 'BamLlama2MediumV2NonScanJitWRGate0005'
     bam_read_gate_init = 0.0005
     checkpoint_period = 200

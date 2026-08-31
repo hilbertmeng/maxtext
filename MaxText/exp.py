@@ -1125,6 +1125,7 @@ class BamLlama2MediumV1CompatD0N0AotControl(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """Exact D0N0 control compiled through cross-topology AOT."""
+    # code_commit: 6668675; UE5a ~0.507 steps/s; running.
     model_name = 'BamLlama2MediumV1CompatD0N0AotControl'
     steps = 6800
     jax_cache_dir = (

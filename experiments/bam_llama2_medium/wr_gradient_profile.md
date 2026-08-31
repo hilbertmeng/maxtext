@@ -161,3 +161,16 @@ descent. Any stabilization must demonstrate that it preserves or recovers this
 learning rather than optimizing raw-gradient cosmetics.
 
 Artifacts: `diagnostics/wr_function_step_profile/`.
+
+## Global-clipping control
+
+Removing global clipping on the same first nonzero Adam update changes fetched
+`W_R` update RMS only `2.1733e-6 -> 2.1753e-6` and its W_R-only loss delta only
+`-.068070 -> -.068092`. The large raw W_R norm therefore does **not** create a
+large W_R parameter step under Adam. Its main optimizer-side effect is on much
+smaller-gradient groups through Adam epsilon: MHA-Q update RMS rises
+`1.4717e-6 -> 2.0682e-6`, while MHA-V and MLP change only `.3%` and `3.1%`.
+The mildly harmful gradient-scale run is consistent with those displaced
+small-gradient updates not being an obvious optimization bottleneck.
+
+Artifact: `diagnostics/wr_clip_control/`.

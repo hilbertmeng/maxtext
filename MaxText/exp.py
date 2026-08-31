@@ -1138,7 +1138,8 @@ class BamLlama2MediumV1CompatD0N0HistoricalCombinedRead(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """D0N0 with local_o restored to H's shared CombinedRead parameterization."""
-    # code_commit: 4c6e942; EW4b ~0.508 steps/s (flat vs D0N0).
+    # code_commit: 4c6e942; EW4b ~0.508 steps/s; stopped 646.
+    # dloss within 3.3e-7 vs D0N0 @200/400/600: config differed, runtime was equivalent.
     model_name = 'BamLlama2MediumV1CompatD0N0HistoricalCombinedRead'
     bam_layer_modes = ['local_qk+local_o+full'] * 24
     bam_share_full_local_read = True
@@ -1167,6 +1168,7 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """D0N0 with only LocalQK projection/layout restored to H's unpacked bnt path."""
+    # code_commit: 6200a20; EW4b ~0.496 steps/s (-2.4% vs packed D0N0).
     model_name = 'BamLlama2MediumV1CompatD0N0UnpackedBnt'
     bam_pack_factorized_local_qk = False
     bam_factorized_head_output_layout = 'bnt'

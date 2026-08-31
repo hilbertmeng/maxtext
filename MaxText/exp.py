@@ -1121,6 +1121,17 @@ class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms(
         'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-explicit-local-add-bf16-rms')
 
 
+class BamLlama2MediumV1CompatD0N0AotControl(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """Exact D0N0 control compiled through cross-topology AOT."""
+    model_name = 'BamLlama2MediumV1CompatD0N0AotControl'
+    steps = 6800
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-aot-control')
+
+
 class BamLlama2MediumV1CompatC256ScanFixedAmplitude(
     BamLlama2MediumV1CompatC256Scan
 ):

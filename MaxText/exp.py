@@ -1177,6 +1177,18 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
         'jax_caches/xd-bam-v1-c32-bridge/d0n0-unpacked-bnt')
 
 
+class BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt(
+    BamLlama2MediumV1CompatD0N0DenseNonScan
+):
+    """Closure bridge: jointly restore H's dense non-scan and unpacked LocalQK."""
+    model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt'
+    bam_pack_factorized_local_qk = False
+    bam_factorized_head_output_layout = 'bnt'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-nonscan-unpacked-bnt')
+
+
 class BamLlama2MediumV1CompatD0N0C256NonScan(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):

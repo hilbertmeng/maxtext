@@ -1126,7 +1126,7 @@ class BamLlama2MediumV1CompatD0N0DenseNonScan(
 ):
     """D0N0 with only C256+layer-scan restored to H's dense non-scan path."""
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScan'
-    attention = 'dot_product'
+    attention = 'autoselected'
     scan_layers = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -1153,7 +1153,7 @@ class BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead(
 ):
     """D0N0 with both H's dense non-scan and historical CombinedRead paths."""
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead'
-    attention = 'dot_product'
+    attention = 'autoselected'
     scan_layers = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

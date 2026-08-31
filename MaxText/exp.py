@@ -1160,6 +1160,18 @@ class BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead(
         'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-nonscan-historical-combined-read')
 
 
+class BamLlama2MediumV1CompatD0N0UnpackedBnt(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """D0N0 with only LocalQK projection/layout restored to H's unpacked bnt path."""
+    model_name = 'BamLlama2MediumV1CompatD0N0UnpackedBnt'
+    bam_pack_factorized_local_qk = False
+    bam_factorized_head_output_layout = 'bnt'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-unpacked-bnt')
+
+
 class BamLlama2MediumV1CompatC256ScanFixedAmplitude(
     BamLlama2MediumV1CompatC256Scan
 ):

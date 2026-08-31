@@ -211,6 +211,10 @@ def run(config):
     raw_groups, raw_layers = _tree_metrics(raw_grads, config.bam_k)
     clipped_groups, _ = _tree_metrics(clipped, config.bam_k)
     param_groups, _ = _tree_metrics(state.params, config.bam_k)
+    new_state = state.apply_gradients(grads=clipped)
+    updates = jax.tree_util.tree_map(
+        lambda new, old: new - old, new_state.params, state.params)
+    update_groups, update_layers = _tree_metrics(updates, config.bam_k)
     return {
         "loss": loss,
         "raw_grad_norm": raw_norm,
@@ -220,6 +224,8 @@ def run(config):
         "raw_grad_layers": raw_layers,
         "clipped_grad_groups": clipped_groups,
         "param_groups": param_groups,
+        "update_groups": update_groups,
+        "update_layers": update_layers,
     }
 
   step_fn = jax.jit(diagnostic_step)

@@ -11,6 +11,7 @@ for exp_class in \
   BamLlama2MediumV2NonScanJitWRGradScale01; do
   output="$OUTPUT_DIR/${exp_class}.json"
   log="$OUTPUT_DIR/${exp_class}.log"
+  mkdir -p "$OUTPUT_DIR/$exp_class/${exp_class}GradientProfile"
   env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off \
     BAM_GRAD_STEPS=1 BAM_GRAD_VARIANTS=baseline BAM_GRAD_OUTPUT="$output" \
     "$PYTHON" experiments/bam_llama2_medium/medium_v1_v2_gradient_profile.py \

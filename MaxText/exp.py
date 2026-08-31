@@ -951,6 +951,10 @@ class BamLlama2MediumV2NonScanJitWRReadEps1e2(
     """Match the .1 gradient control's initial Jacobian without permanently closing the gate."""
     model_name = 'BamLlama2MediumV2NonScanJitWRReadEps1e2'
     bam_read_key_epsilon = 1e-2
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-medium-v2-nonscan-jit-wr-read-eps1e2')
 
 
 class BamLlama2MediumV2ReadDiagonalOneControl(

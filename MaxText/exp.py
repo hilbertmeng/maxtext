@@ -928,8 +928,10 @@ class BamLlama2MediumV2NonScanJitWRGradScale01(
     BamLlama2MediumV2NonScanJitRepro
 ):
     """Scale only fetched W_R gradients 10x; forward and read amplitude are unchanged."""
-    # code_commit: 57d8512; UE5a ~0.570 steps/s (!? +1.2% vs control; FLOPs unchanged).
-    # Initial loss exact; profile: W_R grad² 77.15% -> 3.27%, clip multiplier 2.06x.
+    # code_commit: 57d8512; UE5a ~0.570 steps/s (!? +1.2% vs control; FLOPs unchanged);
+    # stopped at 3,031. dloss +.00517 vs non-scan JIT @2,800: mildly harmful.
+    # It lowers raw W_R grad² 77.15% -> 3.27%, but Adam cancels the scale and leaves
+    # the first W_R parameter update essentially unchanged (~2.17e-6 RMS).
     model_name = 'BamLlama2MediumV2NonScanJitWRGradScale01'
     bam_fetched_read_kernel_gradient_scale = 0.1
     checkpoint_period = 200

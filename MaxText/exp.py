@@ -1177,6 +1177,8 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
         'jax_caches/xd-bam-v1-c32-bridge/d0n0-unpacked-bnt')
 
 
+# TODO: after V1 loss reproduction is closed, run this and the dense-scan arm
+# as an EW4b v5p-16 2x2 speed isolate against the two existing endpoints.
 class BamLlama2MediumV1CompatD0N0C256NonScanSpeedProfile(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):

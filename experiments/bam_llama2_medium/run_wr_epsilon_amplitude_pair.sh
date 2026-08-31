@@ -21,7 +21,7 @@ for exp_class in \
     dataset_path="$DATASET" base_output_directory="$OUTPUT_DIR/$exp_class" \
     tensorboard_dir="$OUTPUT_DIR/$exp_class/tensorboard" \
     per_device_batch_size=1 eval_per_device_batch_size=1 \
-    enable_checkpointing=False async_checkpointing=False \
+    enable_checkpointing=True async_checkpointing=False \
     >"$OUTPUT_DIR/${exp_class}.log" 2>&1
 done
 

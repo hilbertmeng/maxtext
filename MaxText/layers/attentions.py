@@ -2573,11 +2573,18 @@ class BamAttention(Attention):
       assert self._query_chunk_size > 0
       assert cfg.max_target_length % self._query_chunk_size == 0, (
           'BAM query chunk size must divide max_target_length')
-      assert self._mode in ({'local_qk'}, {'local_qk', 'full'}), (
-          'QChunk BAM supports V2 local_qk layers with optional full fetch')
+      historical_combined_read = (
+          self._mode == {'local_qk', 'local_o', 'full'}
+          and self._share_full_local_read
+          and self._combine_full_local_read)
+      assert (self._mode in ({'local_qk'}, {'local_qk', 'full'})
+              or historical_combined_read), (
+                  'QChunk BAM supports V2 local_qk layers with optional full fetch, '
+                  'or the historical shared CombinedRead path')
       if 'full' in self._mode:
         assert self._shared_fetch_mode == 'dynamic_rms_mix'
-        assert cfg.bam_n_f == 1 and self._fetch_diagonal_one
+        assert cfg.bam_n_f == 1 and (
+            self._fetch_diagonal_one or historical_combined_read)
         assert not cfg.bam_dedicated_fetch
         assert self._fetch_sliding_window_size is None
         assert self._fetch_temporal_block_size is None
@@ -3444,7 +3451,10 @@ class BamAttention(Attention):
       with jax.named_scope("bam/mix_alpha"):
         fetch_alpha = jnp.einsum(
             'bncs,bcn->bcs', alpha[:, :mix_chunk.shape[-1]], mix_chunk)
-        if self._query_chunk_diagonal_implementation == 'cross_plus_local':
+        combine_local_read = (
+            self._query_chunk_diagonal_implementation == 'cross_plus_local'
+            or self._combine_full_local_read)
+        if combine_local_read:
           fetch_alpha = jnp.where(
               diagonal_mask[None], jnp.asarray(0, fetch_alpha.dtype),
               fetch_alpha)
@@ -3459,7 +3469,7 @@ class BamAttention(Attention):
                     jnp.asarray(1, fetch_alpha.dtype))
       with jax.named_scope("bam/fetch_m"):
         Mbar = jnp.einsum('bcs,bskv->bckv', fetch_alpha, M_chunk)
-        if self._query_chunk_diagonal_implementation == 'cross_plus_local':
+        if combine_local_read:
           Mbar = Mbar + M_chunk[:, diag_col]
 
       if defer_read:
@@ -3764,7 +3774,11 @@ class BamAttention(Attention):
     fetch_mix_logits = None
     fetch_mix_weights = None
     fetch_alpha_pre_diagonal = None
-    diagonal_yield = 'local_o' in self._mode and not cfg.bam_keep_fetch_diagonal
+    explicit_local_add = (
+        self._query_chunk_diagonal_implementation == 'cross_plus_local')
+    diagonal_yield = (
+        ('local_o' in self._mode or explicit_local_add)
+        and not cfg.bam_keep_fetch_diagonal)
     if {'full', 'codebook'} & self._mode:  # V1 default
       with jax.named_scope("bam/mix_alpha"):
         if cfg.bam_dedicated_fetch:
@@ -3802,7 +3816,7 @@ class BamAttention(Attention):
           fetch_alpha = _sliding_window_bam_fetch_alpha(
               fetch_alpha, self._fetch_sliding_window_size,
               self._fetch_sliding_window_prefix_size, inputs_positions)
-        if self._fetch_diagonal_one:  # V1 default
+        if self._fetch_diagonal_one and not explicit_local_add:  # V1 default
           diagonal = jnp.arange(min(fetch_alpha.shape[-2:]))
           fetch_alpha = fetch_alpha.at[..., diagonal, diagonal].set(
               jnp.asarray(1, dtype=fetch_alpha.dtype))
@@ -3836,7 +3850,7 @@ class BamAttention(Attention):
         else:
           Mbar_fetch = jnp.einsum('bfts,bskv->bftkv', fetch_alpha, fetch_state)  # V1 default
         Mbar = Mbar_fetch
-        if self._combine_full_local_read:
+        if self._combine_full_local_read or explicit_local_add:
           # The shared runtime key makes Read linear in M.  Because fetch_alpha has
           # yielded its diagonal, adding normalized local Mh here exactly replaces
           # the separate local_o read with a fixed local coefficient of one.

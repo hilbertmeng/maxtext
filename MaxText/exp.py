@@ -1121,6 +1121,33 @@ class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms(
         'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-explicit-local-add-bf16-rms')
 
 
+class BamLlama2MediumV1CompatD0N0DenseNonScan(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """D0N0 with only C256+layer-scan restored to H's dense non-scan path."""
+    model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScan'
+    attention = None
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-nonscan')
+
+
+class BamLlama2MediumV1CompatD0N0HistoricalCombinedRead(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """D0N0 with local_o restored to H's shared CombinedRead parameterization."""
+    model_name = 'BamLlama2MediumV1CompatD0N0HistoricalCombinedRead'
+    bam_layer_modes = ['local_qk+local_o+full'] * 24
+    bam_share_full_local_read = True
+    bam_combine_full_local_read = True
+    bam_fetch_diagonal_one = False
+    bam_query_chunk_diagonal_implementation = 'set_one'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-historical-combined-read')
+
+
 class BamLlama2MediumV1CompatC256ScanFixedAmplitude(
     BamLlama2MediumV1CompatC256Scan
 ):

@@ -20,6 +20,7 @@ import time
 from typing import Any
 
 from absl import app
+from flax import linen as nn
 from flax.linen import partitioning as nn_partitioning
 from flax.traverse_util import flatten_dict
 import jax
@@ -140,6 +141,59 @@ def _stack_method_captures(collections, num_layers: int) -> dict[str, jax.Array]
   }
 
 
+def _stack_unscanned_captures(collections, num_layers: int) -> dict[str, jax.Array]:
+  grouped: dict[int, dict[str, jax.Array]] = defaultdict(dict)
+
+  def decode_attention(raw):
+    value = _unwrap(raw)
+    if (isinstance(value, (tuple, list)) and value
+        and all(isinstance(chunk, (tuple, list)) and len(chunk) == 2
+                for chunk in value)):
+      y_chunks, mbar_chunks = zip(*value)
+      return jnp.concatenate(y_chunks, axis=1), jnp.concatenate(mbar_chunks, axis=-3)
+    if not isinstance(value, (tuple, list)) or len(value) != 2:
+      raise ValueError(f"unexpected attention capture: {type(value)}")
+    return value
+
+  for path, raw in flatten_dict(collections.get("bam_fetchamp", {})).items():
+    layer = _layer_from_path(path)
+    if layer is None:
+      continue
+    if path[-1] == "read":
+      grouped[layer]["read"] = _unwrap(raw)
+    elif path[-1] == "attention":
+      grouped[layer]["y_std"], grouped[layer]["mbar"] = decode_attention(raw)
+  expected = {"read", "y_std", "mbar"}
+  if set(grouped) != set(range(num_layers)):
+    raise ValueError(f"captured layers differ: {sorted(grouped)}")
+  for layer, values in grouped.items():
+    if set(values) != expected:
+      raise ValueError(f"layer {layer} captures differ: {sorted(expected ^ set(values))}")
+  return {
+      name: jnp.stack([grouped[layer][name] for layer in range(num_layers)])
+      for name in expected
+  }
+
+
+def _install_fetched_read_capture():
+  """Capture fetched reads externally without instrumenting BamAttention."""
+  from layers import attentions
+
+  original = attentions.BamAttention._read_fetched_m
+  if getattr(original, "_bam_fetchamp_capture", False):
+    return
+
+  def captured(self, *args, **kwargs):
+    output = original(self, *args, **kwargs)
+    if (not self.is_initializing()
+        and self.is_mutable_collection("bam_fetchamp")):
+      self.sow("bam_fetchamp", "read", output)
+    return output
+
+  captured._bam_fetchamp_capture = True
+  attentions.BamAttention._read_fetched_m = captured
+
+
 def _capture(model, config, params, batch, rng):
   attention_method = (
       "_query_chunk_op" if config.query_chunk_size is not None
@@ -151,19 +205,30 @@ def _capture(model, config, params, batch, rng):
         or (method_name == "__call__" and module.name in ("W_R", "W_R_gate")))
 
   dropout_rng, params_rng = jax.random.split(rng)
-  (xent, _, _), collections = model.apply(
-      params,
-      batch["inputs"],
-      batch["inputs_position"],
+  apply_kwargs = dict(
       decoder_segment_ids=batch["inputs_segmentation"],
       decoder_target_mask=batch["targets_segmentation"],
-      decoder_target_tokens=batch["targets"],
-      enable_dropout=False,
+      decoder_target_tokens=batch["targets"], enable_dropout=False,
       rngs={"dropout": dropout_rng, "params": params_rng},
-      mutable=["intermediates"],
-      capture_intermediates=capture_intermediates,
-  )
-  captures = _stack_method_captures(collections, config.num_decoder_layers)
+      capture_intermediates=capture_intermediates)
+  if config.scan_layers:
+    (xent, _, _), collections = model.apply(
+        params, batch["inputs"], batch["inputs_position"],
+        mutable=["intermediates"], **apply_kwargs)
+    captures = _stack_method_captures(collections, config.num_decoder_layers)
+  else:
+    def interceptor(next_fun, args, kwargs, context):
+      output = next_fun(*args, **kwargs)
+      if context.method_name == "_attention_block":
+        context.module.sow("bam_fetchamp", "attention", output)
+      return output
+
+    with nn.intercept_methods(interceptor):
+      (xent, _, _), collections = model.apply(
+          params, batch["inputs"], batch["inputs_position"],
+          mutable=["intermediates", "bam_fetchamp"], **apply_kwargs)
+    captures = _stack_unscanned_captures(
+        collections, config.num_decoder_layers)
   captures["raw_key"] = _stack_module_capture(
       collections, "W_R", config.num_decoder_layers)
   captures["gate_projection"] = _stack_module_capture(
@@ -227,6 +292,8 @@ def run(config):
       "BAM_FETCHAMP_DIAG_OUTPUT", "/tmp/fetch_amplitude_diagnostics.json"))
   output_path.parent.mkdir(parents=True, exist_ok=True)
   started = time.perf_counter()
+
+  _install_fetched_read_capture()
 
   init_rng, writer, checkpoint_manager, mesh, model, _, tx = (
       train.setup_mesh_and_model(config))

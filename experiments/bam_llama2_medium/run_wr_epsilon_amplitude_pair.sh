@@ -4,14 +4,18 @@ set -euo pipefail
 PYTHON=${PYTHON:-/home/lishengping/miniconda3/bin/python}
 DATASET=${DATASET_PATH:-gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord}
 OUTPUT_DIR=${BAM_FETCHAMP_DIAG_OUTPUT_DIR:-/tmp/wr_epsilon_amplitude_pair}
-CHECKPOINT_ROOT=${CHECKPOINT_ROOT:-gs://newproject-1-llm_projects_us-east5/log}
+CHECKPOINT_ROOT=${CHECKPOINT_ROOT:-gs://newproject-1-llm_base_models_us-central1/diagnostics/wr_epsilon_checkpoints}
 
 mkdir -p "$OUTPUT_DIR"
-for exp_class in \
-  BamLlama2MediumV2NonScanJitRepro \
-  BamLlama2MediumV2NonScanJitWRReadEps1e3; do
+exp_classes=(
+  BamLlama2MediumV2NonScanJitRepro
+  BamLlama2MediumV2NonScanJitWRReadEps1e3
+)
+checkpoint_names=(control200 eps1e3_200)
+for index in "${!exp_classes[@]}"; do
+  exp_class=${exp_classes[$index]}
   run_name="${exp_class}FetchAmpDiag"
-  checkpoint="${CHECKPOINT_ROOT}/${exp_class}/checkpoints/200/items"
+  checkpoint="${CHECKPOINT_ROOT}/${checkpoint_names[$index]}/items"
   mkdir -p "$OUTPUT_DIR/$exp_class/$run_name"
   env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off \
     BAM_FETCHAMP_DIAG_OUTPUT="$OUTPUT_DIR/${exp_class}.json" \

@@ -211,9 +211,13 @@ def run(config):
     raw_groups, raw_layers = _tree_metrics(raw_grads, config.bam_k)
     clipped_groups, _ = _tree_metrics(clipped, config.bam_k)
     param_groups, _ = _tree_metrics(state.params, config.bam_k)
-    new_state = state.apply_gradients(grads=clipped)
+    # The schedule's step-0 learning rate is exactly zero. Advance Adam once,
+    # then measure its first nonzero update using the same gradient so the
+    # diagnostic isolates optimizer scaling rather than a second batch.
+    warm_state = state.apply_gradients(grads=clipped)
+    new_state = warm_state.apply_gradients(grads=clipped)
     updates = jax.tree_util.tree_map(
-        lambda new, old: new - old, new_state.params, state.params)
+        lambda new, old: new - old, new_state.params, warm_state.params)
     update_groups, update_layers = _tree_metrics(updates, config.bam_k)
     return {
         "loss": loss,

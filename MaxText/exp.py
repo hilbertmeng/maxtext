@@ -899,7 +899,8 @@ class BamLlama2MediumV2NonScanJitWRNormalInit(
     BamLlama2MediumV2NonScanJitRepro
 ):
     """Regular-init fetched W_R to avoid its singular zero-parameter/large-gradient start."""
-    # code_commit: 838742e; UE5a ~0.563 steps/s (flat vs non-scan JIT control).
+    # code_commit: 838742e; UE5a ~0.563 steps/s; stopped 2,800.
+    # dloss +.0137 vs non-scan JIT; settled near +.015 despite healthier initial gradients.
     model_name = 'BamLlama2MediumV2NonScanJitWRNormalInit'
     bam_fetched_read_kernel_init = 'normal'
     checkpoint_period = 200
@@ -912,7 +913,8 @@ class BamLlama2MediumV2NonScanJitWRGate0005(
     BamLlama2MediumV2NonScanJitRepro
 ):
     """Keep exact zero-read initialization but reduce fetched W_R's zero-point Jacobian 10x."""
-    # code_commit: 838742e; UE5a ~0.567 steps/s (+0.7% vs control; no anomaly).
+    # code_commit: 838742e; UE5a ~0.567 steps/s (+0.7%); stopped 2,800.
+    # dloss +.0468 vs non-scan JIT, r200 -.003; smaller Jacobian delays useful read learning.
     model_name = 'BamLlama2MediumV2NonScanJitWRGate0005'
     bam_read_gate_init = 0.0005
     checkpoint_period = 200

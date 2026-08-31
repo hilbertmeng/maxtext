@@ -1084,6 +1084,7 @@ class BamLlama2MediumV1CompatD1N1C256NonScanJit(
     BamLlama2MediumV1CompatCoarseExecutionNumerics
 ):
     """Historical linear P_loc with D1N1 and C256, without layer scan."""
+    # code_commit: 133f034; UE5a ~0.647 steps/s.
     model_name = 'BamLlama2MediumV1CompatD1N1C256NonScanJit'
     scan_layers = False
     jax_cache_dir = (
@@ -1095,6 +1096,7 @@ class BamLlama2MediumV1CompatD1N1C256NonScanAot(
     BamLlama2MediumV1CompatD1N1C256NonScanJit
 ):
     """AOT twin of the D1N1 C256 non-scan JIT bridge."""
+    # code_commit: 133f034; UE5a ~0.645 steps/s.
     model_name = 'BamLlama2MediumV1CompatD1N1C256NonScanAot'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

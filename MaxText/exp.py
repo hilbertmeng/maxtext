@@ -1080,6 +1080,27 @@ class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
         'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-numerics')
 
 
+class BamLlama2MediumV1CompatD1N1C256NonScanJit(
+    BamLlama2MediumV1CompatCoarseExecutionNumerics
+):
+    """Historical linear P_loc with D1N1 and C256, without layer scan."""
+    model_name = 'BamLlama2MediumV1CompatD1N1C256NonScanJit'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d1n1-c256-nonscan-jit')
+
+
+class BamLlama2MediumV1CompatD1N1C256NonScanAot(
+    BamLlama2MediumV1CompatD1N1C256NonScanJit
+):
+    """AOT twin of the D1N1 C256 non-scan JIT bridge."""
+    model_name = 'BamLlama2MediumV1CompatD1N1C256NonScanAot'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d1n1-c256-nonscan-aot')
+
+
 class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd(
     BamLlama2MediumV1CompatCoarseExecutionNumerics
 ):

@@ -223,8 +223,6 @@ def _readout_summary(
 def run(config):
   if not config.only_eval:
     raise ValueError("fetch_amplitude_diagnostics.py requires only_eval=True")
-  if config.bam_fetched_read_amplitude_init is None:
-    raise ValueError("fetched-read amplitude experiment is not enabled")
   output_path = Path(os.environ.get(
       "BAM_FETCHAMP_DIAG_OUTPUT", "/tmp/fetch_amplitude_diagnostics.json"))
   output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -247,14 +245,10 @@ def run(config):
     captured = capture_fn(state.params, batch, init_rng)
   captured = jax.device_get(captured)
 
-  amplitude = np.asarray(jax.device_get(_stack_parameter(
-      state.params, "W_R_amplitude_scale", config.num_decoder_layers)), np.float32)
   gate_bias = np.asarray(jax.device_get(_stack_parameter(
       state.params, "W_R_gate_b0", config.num_decoder_layers)), np.float32)
   gate_projection = np.asarray(captured["gate_projection"], np.float32)
   raw_key = np.asarray(captured["raw_key"], np.float32)
-  if amplitude.shape[-2] == 1:
-    amplitude = np.squeeze(amplitude, axis=-2)
   if gate_bias.shape[-2] == 1:
     gate_bias = np.squeeze(gate_bias, axis=-2)
   if gate_projection.shape[-2] == 1:
@@ -265,14 +259,26 @@ def run(config):
   logits = gate_projection + gate_bias[:, None, None]
   gate = 1.0 / (1.0 + np.exp(-logits))
   width_scale = math.sqrt(config.bam_abs_v_compression_dim or config.bam_v)
+  if config.bam_fetched_read_amplitude_init is None:
+    # The legacy path uses coefficient = 2 * sigmoid(gate).  Express it in
+    # the explicit-amplitude convention so both parameterizations share the
+    # same diagnostic formulas.
+    amplitude = np.full_like(gate_bias, 2.0 * width_scale)
+  else:
+    amplitude = np.asarray(jax.device_get(_stack_parameter(
+        state.params, "W_R_amplitude_scale", config.num_decoder_layers)), np.float32)
+    if amplitude.shape[-2] == 1:
+      amplitude = np.squeeze(amplitude, axis=-2)
   coefficient = amplitude[:, None, None] / width_scale * gate
   raw_row, raw_col = np.split(raw_key, [config.bam_k], axis=-1)
+  read_epsilon = float(getattr(
+      config, "bam_fetched_read_key_epsilon", config.bam_read_key_epsilon))
   row_direction_rms = np.sqrt(
       np.mean(np.square(raw_row), axis=-1)
-      / (np.mean(np.square(raw_row), axis=-1) + config.bam_read_key_epsilon))
+      / (np.mean(np.square(raw_row), axis=-1) + read_epsilon))
   col_direction_rms = np.sqrt(
       np.mean(np.square(raw_col), axis=-1)
-      / (np.mean(np.square(raw_col), axis=-1) + config.bam_read_key_epsilon))
+      / (np.mean(np.square(raw_col), axis=-1) + read_epsilon))
   row_key_rms = np.abs(coefficient[..., 0]) * row_direction_rms
   col_key_rms = np.abs(coefficient[..., 1]) * col_direction_rms
 
@@ -306,8 +312,9 @@ def run(config):
           "bam_k": int(config.bam_k),
           "bam_v": int(config.bam_v),
           "read_v_dim": int(config.bam_abs_v_compression_dim or config.bam_v),
-          "amplitude_init": float(config.bam_fetched_read_amplitude_init),
+          "amplitude_init": config.bam_fetched_read_amplitude_init,
           "width_scale": width_scale,
+          "fetched_read_key_epsilon": read_epsilon,
           "elapsed_seconds": time.perf_counter() - started,
       },
       "sequence_loss": np.asarray(captured["sequence_loss"]).tolist(),

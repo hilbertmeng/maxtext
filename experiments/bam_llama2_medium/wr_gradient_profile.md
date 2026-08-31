@@ -81,7 +81,16 @@ clipping at about `2.06x` their baseline scale, without changing the forward
 function or read amplitude. From-scratch training is needed because Adam mostly
 cancels a constant per-parameter gradient scale.
 
-Artifacts: `diagnostics/wr_gradient_scale_pair/`.
+The paired first nonzero Adam update confirms that cancellation: `W_R` update
+RMS is `2.173e-6 -> 2.167e-6`, essentially unchanged and comparable to MHA-V
+(`2.216e-6`) and MLP (`2.150e-6`). MHA-Q instead rises
+`1.472e-6 -> 1.659e-6`, so the control mainly perturbs other small-gradient
+parameters through clipping/Adam epsilon rather than restraining `W_R`.
+Likewise, training-time `W_R` parameter L2 is nearly identical by steps
+200/800/1600: `7.755/23.064/36.742` versus `7.586/23.089/36.644`.
+
+Artifacts: `diagnostics/wr_gradient_scale_pair/` and
+`diagnostics/wr_optimizer_update_pair/`.
 
 ## Larger read epsilon
 

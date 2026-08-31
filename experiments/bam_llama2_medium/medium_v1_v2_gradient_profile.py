@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -248,10 +249,23 @@ def run(config):
         keep_only_w_r, new_state.params, warm_state.params)
     (w_r_only_loss, _aux) = train.loss_fn(
         model, config, batch, rng, w_r_only_params, is_train=True)
+    w_r_scaled_loss_deltas = {}
+    for update_scale in (0.1, math.sqrt(0.1)):
+      def scale_only_w_r(path, new, old):
+        names = tuple(getattr(part, "key", str(part)) for part in path)
+        return (
+            old + update_scale * (new - old)
+            if names[-2:] == ("W_R", "kernel") else old)
+      scaled_params = jax.tree_util.tree_map_with_path(
+          scale_only_w_r, new_state.params, warm_state.params)
+      (scaled_loss, _aux) = train.loss_fn(
+          model, config, batch, rng, scaled_params, is_train=True)
+      w_r_scaled_loss_deltas[f"{update_scale:.9f}"] = scaled_loss - loss
     return {
         "loss": loss,
         "w_r_only_post_update_loss": w_r_only_loss,
         "w_r_only_loss_delta": w_r_only_loss - loss,
+        "w_r_scaled_loss_deltas": w_r_scaled_loss_deltas,
         "raw_grad_norm": raw_norm,
         "clipped_grad_norm": clipped_norm,
         "clip_multiplier": clipped_norm / jnp.maximum(raw_norm, 1e-30),

@@ -483,6 +483,14 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
     )
     model_name = run_name
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001MReadNormRMS(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001
+):
+    """Asymmetric grouped-RMS read arm with the BAM read norm initialized to RMS."""
+    bam_m_read_norm = 'rms'
+    steps = 3001  # materialize train/checkpoint/eval at steps 1000 and 3000
+    run_name = "Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001MReadNormRMS"
+    model_name = run_name
 
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001Continue3K(
     Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001

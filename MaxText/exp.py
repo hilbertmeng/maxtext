@@ -268,6 +268,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
+    bam_fetched_read_kernel_gradient_scale = 1.0
     # Optional fetched-read-only amplitude outside sigmoid: a/sqrt(C).
     bam_fetched_read_amplitude_init = None
     bam_fetched_read_amplitude_learnable = True
@@ -918,6 +919,18 @@ class BamLlama2MediumV2NonScanJitWRGate0005(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-medium-v2-nonscan-jit-wr-gate0005')
+
+
+class BamLlama2MediumV2NonScanJitWRGradScale01(
+    BamLlama2MediumV2NonScanJitRepro
+):
+    """Scale only fetched W_R gradients 10x; forward and read amplitude are unchanged."""
+    model_name = 'BamLlama2MediumV2NonScanJitWRGradScale01'
+    bam_fetched_read_kernel_gradient_scale = 0.1
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-medium-v2-nonscan-jit-wr-grad-scale01')
 
 
 class BamLlama2MediumV2ReadDiagonalOneControl(

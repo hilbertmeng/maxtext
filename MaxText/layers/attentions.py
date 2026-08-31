@@ -2442,6 +2442,8 @@ class BamAttention(Attention):
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
     self._fetched_read_kernel_init = cfg.bam_fetched_read_kernel_init
+    self._fetched_read_kernel_gradient_scale = float(
+        cfg.bam_fetched_read_kernel_gradient_scale)
     fetched_read_amplitude_init = getattr(
         cfg, 'bam_fetched_read_amplitude_init', None)
     self._fetched_read_amplitude_init = (
@@ -2807,7 +2809,8 @@ class BamAttention(Attention):
           kernel_axes=("embed", "q_heads", "fetch", "kv"),
           dtype=self.dtype, weight_dtype=self.weight_dtype, name="W_R",
           quant=self.quant, matmul_precision=cfg.matmul_precision,
-          use_bias=False)
+          use_bias=False,
+          kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
       fetched_gate_init = zero_key_gate_init
       if (not self._use_fetched_output_gate
           and not self._use_factorized_fetched_output_gate

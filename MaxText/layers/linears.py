@@ -105,6 +105,7 @@ class DenseGeneral(nn.Module):
   use_bias: bool = False
   bias_norm: str = ""
   matmul_precision: str = "default"
+  kernel_gradient_scale: float = 1.0
 
   @nn.compact
   def __call__(self, inputs: Array) -> Array:
@@ -150,6 +151,10 @@ class DenseGeneral(nn.Module):
           kernel_out_axis,
       )
     kernel = jnp.asarray(kernel, self.dtype)
+    if self.kernel_gradient_scale != 1.0:
+      # Preserve the exact forward value while scaling only the kernel gradient.
+      kernel_sg = lax.stop_gradient(kernel)
+      kernel = kernel_sg + self.kernel_gradient_scale * (kernel - kernel_sg)
 
     contract_ind = tuple(range(0, len(axis)))
     output = compute_dot_general(inputs, kernel, axis, contract_ind)

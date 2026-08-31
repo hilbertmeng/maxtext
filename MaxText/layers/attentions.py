@@ -2439,6 +2439,12 @@ class BamAttention(Attention):
         cfg.bam_read_key_epsilon
         if cfg.bam_read_key_epsilon is not None
         else cfg.normalization_layer_epsilon)
+    fetched_read_key_epsilon = getattr(
+        cfg, 'bam_fetched_read_key_epsilon', None)
+    self._fetched_read_key_epsilon = float(
+        self._read_key_epsilon
+        if fetched_read_key_epsilon is None
+        else fetched_read_key_epsilon)
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
     self._fetched_read_kernel_init = cfg.bam_fetched_read_kernel_init
@@ -3647,6 +3653,7 @@ class BamAttention(Attention):
         full_read_kwargs = self._read_key_kwargs(
             'W_R_gate', inputs_q, squeeze_fetch_axis=True,
             activation_side=self._fetch_read_key_activation_side)
+      full_read_kwargs['rms_epsilon'] = self._fetched_read_key_epsilon
       if self._fetched_read_amplitude_init is not None:
         amplitude = self._fetched_read_amplitude()
         amplitude = jnp.squeeze(amplitude, axis=-2)

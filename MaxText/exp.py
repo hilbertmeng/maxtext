@@ -265,6 +265,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_mode = 'none'       # none | soft_rms_cap | rms_gate
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
+    bam_fetched_read_key_epsilon = None  # None uses bam_read_key_epsilon
     bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
@@ -942,7 +943,7 @@ class BamLlama2MediumV2NonScanJitWRReadEps1e3(
 ):
     """Reduce fetched W_R's zero-point Jacobian through a transiently larger RMS epsilon."""
     model_name = 'BamLlama2MediumV2NonScanJitWRReadEps1e3'
-    bam_read_key_epsilon = 1e-3
+    bam_fetched_read_key_epsilon = 1e-3
 
 
 class BamLlama2MediumV2NonScanJitWRReadEps1e2(
@@ -950,7 +951,7 @@ class BamLlama2MediumV2NonScanJitWRReadEps1e2(
 ):
     """Match the .1 gradient control's initial Jacobian without permanently closing the gate."""
     model_name = 'BamLlama2MediumV2NonScanJitWRReadEps1e2'
-    bam_read_key_epsilon = 1e-2
+    bam_fetched_read_key_epsilon = 1e-2
     checkpoint_period = 200
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

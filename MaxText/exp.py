@@ -1208,7 +1208,7 @@ class BamLlama2MediumV1CompatD0N0DenseScan(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """Loss bridge: D0N0 layer scan with only C256 replaced by dense attention."""
-    # code_commit: 1a3498a; !! EW4b ~0.534 steps/s; running.
+    # code_commit: 1a3498a; !! EW4b ~0.534 steps/s; stopped 2,376.
     # dloss +3.231 vs H @200; raw_grad_norm exploded to 92,813: dense x scan is unstable.
     model_name = 'BamLlama2MediumV1CompatD0N0DenseScan'
     attention = 'autoselected'

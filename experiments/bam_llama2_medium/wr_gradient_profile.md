@@ -82,3 +82,23 @@ function or read amplitude. From-scratch training is needed because Adam mostly
 cancels a constant per-parameter gradient scale.
 
 Artifacts: `diagnostics/wr_gradient_scale_pair/`.
+
+## Larger read epsilon
+
+Increasing only the fetched-key RMS epsilon preserves the exact zero read and
+reduces the zero-point Jacobian without permanently closing the gate. Once the
+projected key RMS is well above the epsilon floor, its normalized amplitude
+returns toward the ordinary unit-RMS path.
+
+| read epsilon | raw grad norm | clip multiplier | `W_R` grad² share | `W_R/V` |
+|---:|---:|---:|---:|---:|
+| `1e-4` | 24.323 | .0411 | 77.15% | 3.47x |
+| `1e-3` | 13.446 | .0744 | 25.24% | 1.10x |
+| `1e-2` | 11.821 | .0846 | 3.27% | .35x |
+
+The measured scaling matches the analytic zero-point factor
+`sqrt(1e-4 / epsilon)`. `1e-2` reproduces the `.1` backward-gradient control's
+step-0 gradient geometry while retaining an asymptotic unit-RMS key; it is the
+cleaner next training control if backward-only scaling is neutral or harmful.
+
+Artifacts: `diagnostics/wr_read_epsilon_profile/`.

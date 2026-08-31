@@ -219,8 +219,17 @@ def run(config):
     updates = jax.tree_util.tree_map(
         lambda new, old: new - old, new_state.params, warm_state.params)
     update_groups, update_layers = _tree_metrics(updates, config.bam_k)
+    def keep_only_w_r(path, new, old):
+      names = tuple(getattr(part, "key", str(part)) for part in path)
+      return new if names[-2:] == ("W_R", "kernel") else old
+    w_r_only_params = jax.tree_util.tree_map_with_path(
+        keep_only_w_r, new_state.params, warm_state.params)
+    (w_r_only_loss, _aux) = train.loss_fn(
+        model, config, batch, rng, w_r_only_params, is_train=True)
     return {
         "loss": loss,
+        "w_r_only_post_update_loss": w_r_only_loss,
+        "w_r_only_loss_delta": w_r_only_loss - loss,
         "raw_grad_norm": raw_norm,
         "clipped_grad_norm": clipped_norm,
         "clip_multiplier": clipped_norm / jnp.maximum(raw_norm, 1e-30),

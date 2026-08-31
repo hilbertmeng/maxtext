@@ -338,8 +338,10 @@ def run(config):
       amplitude = np.squeeze(amplitude, axis=-2)
   coefficient = amplitude[:, None, None] / width_scale * gate
   raw_row, raw_col = np.split(raw_key, [config.bam_k], axis=-1)
-  read_epsilon = float(getattr(
-      config, "bam_fetched_read_key_epsilon", config.bam_read_key_epsilon))
+  fetched_read_epsilon = getattr(config, "bam_fetched_read_key_epsilon", None)
+  read_epsilon = float(
+      config.bam_read_key_epsilon
+      if fetched_read_epsilon is None else fetched_read_epsilon)
   row_direction_rms = np.sqrt(
       np.mean(np.square(raw_row), axis=-1)
       / (np.mean(np.square(raw_row), axis=-1) + read_epsilon))

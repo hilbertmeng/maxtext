@@ -88,6 +88,11 @@ RMS is `2.173e-6 -> 2.167e-6`, essentially unchanged and comparable to MHA-V
 parameters through clipping/Adam epsilon rather than restraining `W_R`.
 Likewise, training-time `W_R` parameter L2 is nearly identical by steps
 200/800/1600: `7.755/23.064/36.742` versus `7.586/23.089/36.644`.
+Relative to the ordinary `.006` kernel initialization scale, the baseline
+`W_R` update is `3.62e-4`; MHA-Q/V are `2.45e-4`/`3.69e-4`. Thus the literal
+update/parameter ratio is infinite only because `W_R` intentionally starts at
+zero; its optimizer step is not abnormally large on a conventional virtual
+parameter scale.
 
 Artifacts: `diagnostics/wr_gradient_scale_pair/` and
 `diagnostics/wr_optimizer_update_pair/`.

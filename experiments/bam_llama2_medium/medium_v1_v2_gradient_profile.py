@@ -39,21 +39,6 @@ def _path_name(path):
   return "/" + "/".join(str(part) for part in path)
 
 
-def _stats(value):
-  value = value.astype(jnp.float32)
-  count = value.size
-  square = jnp.sum(jnp.square(value))
-  absolute = jnp.sum(jnp.abs(value))
-  return {
-      "count": jnp.asarray(count, jnp.int32),
-      "l2": jnp.sqrt(square),
-      "rms": jnp.sqrt(square / count),
-      "mean_abs": absolute / count,
-      "max_abs": jnp.max(jnp.abs(value)),
-      "sum_sq": square,
-  }
-
-
 def _global_l2(tree):
   return jnp.sqrt(sum(
       jnp.sum(jnp.square(value.astype(jnp.float32)))
@@ -97,16 +82,13 @@ def _group_name(name):
 def _aggregate_stats(flat_tree, bam_k):
   grouped = {}
   layerwise = {}
-  leaves = {}
   for path, value in flat_tree.items():
     name = _path_name(path)
-    stat = _stats(value)
-    leaves[name] = stat
     group = _group_name(name)
     grouped.setdefault(group, []).append(value)
     if group == "fetched_W_R":
-      grouped.setdefault("fetched_W_R_col", []).append(value[..., :bam_k])
-      grouped.setdefault("fetched_W_R_row", []).append(value[..., bam_k:])
+      grouped.setdefault("fetched_W_R_row", []).append(value[..., :bam_k])
+      grouped.setdefault("fetched_W_R_col", []).append(value[..., bam_k:])
     match = _LAYER_RE.search(name)
     if match and group in {
         "fetched_W_R", "mha_query", "mha_key", "mha_value", "mha_out",
@@ -117,10 +99,10 @@ def _aggregate_stats(flat_tree, bam_k):
       layerwise.setdefault(key, []).append(value)
       if group == "fetched_W_R":
         layerwise.setdefault(
-            f"layer_{int(match.group(1)):02d}/fetched_W_R_col", []).append(
+            f"layer_{int(match.group(1)):02d}/fetched_W_R_row", []).append(
                 value[..., :bam_k])
         layerwise.setdefault(
-            f"layer_{int(match.group(1)):02d}/fetched_W_R_row", []).append(
+            f"layer_{int(match.group(1)):02d}/fetched_W_R_col", []).append(
                 value[..., bam_k:])
 
   def combine(values):
@@ -143,7 +125,6 @@ def _aggregate_stats(flat_tree, bam_k):
   return (
       {name: combine(values) for name, values in grouped.items()},
       {name: combine(values) for name, values in layerwise.items()},
-      leaves,
   )
 
 
@@ -151,11 +132,16 @@ def _tree_metrics(tree, bam_k):
   return _aggregate_stats(flatten_dict(tree), bam_k)
 
 
-def _json_tree(value):
+def _host_tree_to_json(value):
   if isinstance(value, dict):
-    return {key: _json_tree(child) for key, child in value.items()}
-  array = np.asarray(jax.device_get(value))
+    return {key: _host_tree_to_json(child) for key, child in value.items()}
+  array = np.asarray(value)
   return array.item() if array.ndim == 0 else array.tolist()
+
+
+def _json_tree(value):
+  # One batched device-to-host transfer avoids thousands of scalar TPU RPCs.
+  return _host_tree_to_json(jax.device_get(value))
 
 
 def _batch_fingerprint(batch):
@@ -194,11 +180,10 @@ def run(config):
     new_state = state.apply_gradients(grads=clipped)
     updates = jax.tree.map(
         lambda new, old: new - old, new_state.params, state.params)
-    raw_groups, raw_layers, raw_leaves = _tree_metrics(
-        raw_grads, config.bam_k)
-    clipped_groups, _, _ = _tree_metrics(clipped, config.bam_k)
-    param_groups, _, _ = _tree_metrics(state.params, config.bam_k)
-    update_groups, update_layers, update_leaves = _tree_metrics(
+    raw_groups, raw_layers = _tree_metrics(raw_grads, config.bam_k)
+    clipped_groups, _ = _tree_metrics(clipped, config.bam_k)
+    param_groups, _ = _tree_metrics(state.params, config.bam_k)
+    update_groups, update_layers = _tree_metrics(
         updates, config.bam_k)
     return new_state, {
         "loss": loss,
@@ -207,12 +192,10 @@ def run(config):
         "clip_multiplier": clipped_norm / jnp.maximum(raw_norm, 1e-30),
         "raw_grad_groups": raw_groups,
         "raw_grad_layers": raw_layers,
-        "raw_grad_leaves": raw_leaves,
         "clipped_grad_groups": clipped_groups,
         "param_groups": param_groups,
         "update_groups": update_groups,
         "update_layers": update_layers,
-        "update_leaves": update_leaves,
     }
 
   step_fn = jax.jit(diagnostic_step)

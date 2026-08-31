@@ -1217,8 +1217,9 @@ class BamLlama2MediumV1CompatD0N0DenseScan(
         'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-scan')
 
 
-# TODO: after V1 loss reproduction is closed, run this and the dense-scan arm
-# as an EW4b v5p-16 2x2 speed isolate against the two existing endpoints.
+# TODO: after V1 loss reproduction is closed, run an EW4b v5p-16 XPlane isolate for:
+# (1) the D0N0 dense/C256 x scan/non-scan 2x2 (!? dense non-scan was 5.5% faster), and
+# (2) original V1 scan/non-scan (!? scan was 9.8% faster in the first log measurement).
 class BamLlama2MediumV1CompatD0N0C256NonScanSpeedProfile(
     BamLlama2MediumV1CompatD0N0C256NonScan
 ):

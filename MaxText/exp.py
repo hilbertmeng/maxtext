@@ -1125,6 +1125,7 @@ class BamLlama2MediumV1CompatD0N0DenseNonScan(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """D0N0 with only C256+layer-scan restored to H's dense non-scan path."""
+    # code_commit: 74c72e6; !? EW4b ~0.537 steps/s (+5.7% vs D0N0 C256).
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScan'
     attention = 'autoselected'
     scan_layers = False
@@ -1137,6 +1138,7 @@ class BamLlama2MediumV1CompatD0N0HistoricalCombinedRead(
     BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
 ):
     """D0N0 with local_o restored to H's shared CombinedRead parameterization."""
+    # code_commit: 4c6e942; EW4b ~0.508 steps/s (flat vs D0N0).
     model_name = 'BamLlama2MediumV1CompatD0N0HistoricalCombinedRead'
     bam_layer_modes = ['local_qk+local_o+full'] * 24
     bam_share_full_local_read = True
@@ -1152,6 +1154,7 @@ class BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead(
     BamLlama2MediumV1CompatD0N0HistoricalCombinedRead
 ):
     """D0N0 with both H's dense non-scan and historical CombinedRead paths."""
+    # code_commit: 74c72e6; !? EW4b ~0.540 steps/s (+6.3% vs D0N0 C256).
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead'
     attention = 'autoselected'
     scan_layers = False

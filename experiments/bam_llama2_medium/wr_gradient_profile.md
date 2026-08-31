@@ -109,5 +109,8 @@ The measured scaling matches the analytic zero-point factor
 `sqrt(1e-4 / epsilon)`. `1e-2` reproduces the `.1` backward-gradient control's
 step-0 gradient geometry while retaining an asymptotic unit-RMS key; it is the
 cleaner next training control if backward-only scaling is neutral or harmful.
+Adam still gives `W_R` essentially the same first nonzero parameter update RMS
+(`2.172e-6`/`2.167e-6` for `1e-3`/`1e-2`); epsilon instead reduces how much
+that update moves the normalized read key, which is the intended distinction.
 
 Artifacts: `diagnostics/wr_read_epsilon_profile/`.

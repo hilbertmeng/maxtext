@@ -615,6 +615,7 @@ class BamLlama2MediumV1(
 
 class BamLlama2MediumV1OriginalLayerScan(BamLlama2MediumV1):
     """Historical V1 code with only matrix-stream layer scan backported."""
+    # code_commit: 562e03b; EW4b ~0.506 steps/s (+9.8% vs original V1); running.
     model_name = 'BamLlama2MediumV1OriginalLayerScan'
     scan_layers = True
     checkpoint_period = 200

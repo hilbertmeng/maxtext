@@ -112,5 +112,11 @@ cleaner next training control if backward-only scaling is neutral or harmful.
 Adam still gives `W_R` essentially the same first nonzero parameter update RMS
 (`2.172e-6`/`2.167e-6` for `1e-3`/`1e-2`); epsilon instead reduces how much
 that update moves the normalized read key, which is the intended distinction.
+For normalized 1,024-D inputs, the epsilon floor stops dominating near kernel
+RMS `sqrt(epsilon / 1024)`: about `.0010` for `1e-3` and `.0031` for `1e-2`.
+The control run's measured `W_R` kernel RMS is about `.00074/.00196/.00354` at
+steps 100/200/400, so the two controls should mainly alter roughly the first
+100--200 and 300--400 steps respectively rather than permanently weakening the
+read path.
 
 Artifacts: `diagnostics/wr_read_epsilon_profile/`.

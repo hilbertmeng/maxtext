@@ -1175,7 +1175,8 @@ class BamLlama2MediumV2C256FetchAmplitudeC8A05657(
     BamV2C256FetchScheduleBase
 ):
     """Separate fetched-read amplitude from its zero-centered sigmoid switch."""
-    # 61faac2; EW4b ~0.663 steps/s; stopped 5,000. dloss +.00577 vs V2 @4,600; less clipping gave no loss gain.
+    # 61faac2; EW4b ~0.663 steps/s; stopped 5,000. dloss +.00577 vs V2 @4,600.
+    # Historical gate=.5 makes the initial W_R Jacobian exactly V2's 1.0; no initial-gradient suppression by design.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeC8A05657'
     scan_layers = True
     bam_fetched_read_amplitude_init = 0.05657
@@ -1189,6 +1190,7 @@ class BamLlama2MediumV2C256FetchAmplitudeC8A025(
 ):
     """Lower the separated C8 fetched-read startup amplitude."""
     # 61faac2; EW4b ~0.659 steps/s; stopped 5,346. dloss +.03086 vs A=.05657, +.03663 vs V2 @4,600; lower a0 harmful.
+    # Initial W_R grad L2 fell to .442x, but non-W_R raw grad stayed 3.384, so clipping persisted.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeC8A025'
     bam_fetched_read_amplitude_init = 0.025
     jax_cache_dir = (
@@ -1201,6 +1203,7 @@ class BamLlama2MediumV2C256FetchAmplitudeC32A025(
 ):
     """Native C32 under the same separated width-normalized read amplitude."""
     # 61faac2; EW4b ~0.625 steps/s (-5.2% vs C8 A=.025); stopped 4,755. dloss -.02158 vs C8 A=.025, +.02385 vs V1, +.01505 vs V2 @4,600; C32 insufficient.
+    # Initial global W_R grad L2 matched C8 A=.025: 1/sqrt(C) lowered per-parameter, not total, gradient scale.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeC32A025'
     bam_abs_v_compression_dim = None
     jax_cache_dir = (
@@ -1213,6 +1216,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685(
 ):
     """V2-equivalent initial read strength with a learned external amplitude."""
     # cd946b2; EW4b ~0.665 steps/s; stopped 7,040. Recent-6 dloss +.00237 vs V2.
+    # gate=.005 and a=2sqrt(8) preserve V2's initial W_R Jacobian exactly.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A565685'
     scan_layers = True
     bam_read_gate_init = 0.005
@@ -1230,6 +1234,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C8A25(
     """Learned C8 amplitude at 44.2% of V2's initial read strength."""
     # cd946b2; EW4b ~0.665 steps/s; stopped 4,943.
     # dloss +.00957 vs fixed-a @4,800; disadvantage slowly expanded after ~2,200.
+    # Initial W_R Jacobian=.442; learned/fixed a both retained large per-parameter W_R gradients.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C8A25'
     bam_fetched_read_amplitude_init = 2.5
     jax_cache_dir = (
@@ -1255,6 +1260,7 @@ class BamLlama2MediumV2C256FetchAmplitudeGate005C32A25(
     """Learned native-C32 amplitude with the same initial total energy as C8 A=2.5."""
     # cd946b2; EW4b ~0.628 steps/s (-5.6% vs C8); stopped 4,000.
     # C32 gain vanished: dloss -.00229 vs C8, +.03180 vs V1 @3,800.
+    # Local-key Jacobian=.221, yet total step-0 W_R grad L2 matched C8-a2.5 because the read widened.
     model_name = 'BamLlama2MediumV2C256FetchAmplitudeGate005C32A25'
     bam_abs_v_compression_dim = None
     jax_cache_dir = (

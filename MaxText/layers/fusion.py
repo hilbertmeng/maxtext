@@ -89,6 +89,7 @@ class SubDecoderLayer(nn.Module):
       eos_sum,
       M_in=None,
       is_global=None,
+      layer_index=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -177,7 +178,8 @@ class SubDecoderLayer(nn.Module):
     )
     if cfg.bam_enabled:
         attention_lnx, M_out = attention_layer(
-            **call_kwargs, M_in=M_in, is_global=is_global)
+            **call_kwargs, M_in=M_in, is_global=is_global,
+            layer_index=layer_index)
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
@@ -339,6 +341,7 @@ class FusionDecoderLayer(nn.Module):
       is_global=None,
       hids=None,
       M_in=None,
+      layer_index=None,
   ):
     cfg = self.config
     scan_full_bam = (
@@ -352,6 +355,8 @@ class FusionDecoderLayer(nn.Module):
         M_in = None
       if self.all_global_attention:
         is_global = None
+    if layer_index is None:
+      layer_index = self.layer_inx
     if cfg.partial_scan_layers:
       assert not cfg.bam_enabled, "BAM v0.1 does not support partial_scan_layers"
       return self.partial_scan_call(
@@ -398,6 +403,7 @@ class FusionDecoderLayer(nn.Module):
         eos_sum,
         M_in=M_in,
         is_global=is_global,
+        layer_index=layer_index,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:

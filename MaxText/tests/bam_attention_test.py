@@ -1,6 +1,7 @@
 """Focused tests for BAM runtime read-key transforms."""
 
 from absl.testing import absltest
+from flax import linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -13,6 +14,7 @@ from layers.attentions import (
     _add_bam_read_key_bias,
     _attention_op,
     _bam_fetch_op,
+    _depth_scaled_bam_read_amplitude,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
     _gate_fetched_read_output,
@@ -31,7 +33,48 @@ from layers.attentions import (
 _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
+class _DepthAmplitudeLayer(nn.Module):
+
+  @nn.compact
+  def __call__(self, carry, layer_index):
+    log_scale = self.param(
+        'W_R_amplitude_log_scale', nn.initializers.zeros_init(), (2,))
+    amplitude = _depth_scaled_bam_read_amplitude(
+        1.0, log_scale, layer_index, 16, 16, jnp.float32)
+    return carry, amplitude
+
+
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_depth_scaled_read_amplitude_uses_scanned_layer_and_side_delta(self):
+    init = np.sqrt(8.0 * 1e-4) / 0.5
+    layer_one = _depth_scaled_bam_read_amplitude(
+        init, jnp.zeros((2,)), 1, 16, 16, jnp.float32)
+    layer_four = _depth_scaled_bam_read_amplitude(
+        init, jnp.log(jnp.asarray((2.0, 0.5))), 4, 16, 16,
+        jnp.float32)
+    np.testing.assert_allclose(layer_one, (init, init), rtol=1e-6)
+    np.testing.assert_allclose(
+        layer_four, (init, init / 4.0), rtol=1e-6)
+
+    wider_model = _depth_scaled_bam_read_amplitude(
+        init, jnp.zeros((2,)), 1, 64, 16, jnp.float32)
+    np.testing.assert_allclose(wider_model, layer_one / 2.0, rtol=1e-6)
+
+  def test_layer_scan_stacks_independent_amplitudes_and_uses_runtime_depth(self):
+    scanned = nn.scan(
+        _DepthAmplitudeLayer,
+        variable_axes={'params': 0}, split_rngs={'params': True},
+        in_axes=0, out_axes=0, length=4)()
+    variables = scanned.init(
+        jax.random.PRNGKey(0), jnp.asarray(0.0), jnp.arange(4))
+    self.assertEqual(
+        variables['params']['W_R_amplitude_log_scale'].shape, (4, 2))
+    _, amplitude = scanned.apply(
+        variables, jnp.asarray(0.0), jnp.arange(4))
+    expected = jnp.asarray((1.0, 1.0, 1 / np.sqrt(2), 1 / np.sqrt(3)))
+    np.testing.assert_allclose(amplitude[:, 0], expected, rtol=1e-6)
+    np.testing.assert_allclose(amplitude[:, 1], expected, rtol=1e-6)
 
   def test_external_amplitude_preserves_gate_and_controls_total_energy(self):
     gate_opening = 0.005

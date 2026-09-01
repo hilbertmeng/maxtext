@@ -1858,6 +1858,20 @@ def _add_bam_read_key_bias(projected_key, row_width, row_bias=None, col_bias=Non
   return jnp.concatenate((raw_row, raw_col), axis=-1)
 
 
+def _depth_scaled_bam_read_amplitude(
+    amplitude_init, log_delta, layer_index, num_heads, reference_num_heads,
+    dtype):
+  """Build a positive per-side amplitude with a 1/sqrt(prior-writes) prior."""
+  amplitude = jnp.asarray(amplitude_init, dtype) * jnp.exp(
+      jnp.asarray(log_delta, dtype))
+  prior_writes = jnp.maximum(jnp.asarray(layer_index, dtype), 1.0)
+  amplitude = amplitude * jax.lax.rsqrt(prior_writes)
+  if reference_num_heads is not None:
+    amplitude = amplitude * math.sqrt(
+        float(reference_num_heads) / num_heads)
+  return amplitude
+
+
 def _project_bam_read_keys(
     row_width, x, W_R, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
@@ -2447,6 +2461,10 @@ class BamAttention(Attention):
         else fetched_read_key_epsilon)
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
+    fetched_read_gate_init = getattr(cfg, 'bam_fetched_read_gate_init', None)
+    self._fetched_read_gate_init = (
+        None if fetched_read_gate_init is None
+        else float(fetched_read_gate_init))
     self._fetched_read_kernel_init = cfg.bam_fetched_read_kernel_init
     self._fetched_read_kernel_gradient_scale = float(
         cfg.bam_fetched_read_kernel_gradient_scale)
@@ -2457,8 +2475,16 @@ class BamAttention(Attention):
         else float(fetched_read_amplitude_init))
     self._fetched_read_amplitude_learnable = bool(getattr(
         cfg, 'bam_fetched_read_amplitude_learnable', True))
+    self._fetched_read_amplitude_granularity = getattr(
+        cfg, 'bam_fetched_read_amplitude_granularity', 'head')
+    self._fetched_read_amplitude_depth_scale = bool(getattr(
+        cfg, 'bam_fetched_read_amplitude_depth_scale', False))
+    self._fetched_read_amplitude_reference_num_heads = getattr(
+        cfg, 'bam_fetched_read_amplitude_reference_num_heads', None)
     self._record_fetched_read_amplitude_metrics = bool(getattr(
         cfg, 'bam_record_fetched_read_amplitude_metrics', False))
+    self._record_fetched_read_health_metrics = bool(getattr(
+        cfg, 'bam_record_fetched_read_health_metrics', False))
     def resolve_rms_statistics_dtype(mode):
       assert mode in ('float32', 'activation')
       return jnp.float32 if mode == 'float32' else self.dtype
@@ -2696,11 +2722,16 @@ class BamAttention(Attention):
     assert self._read_key_epsilon > 0.0
     assert self._fetched_read_kernel_init in ('zero', 'normal')
     assert self._read_gate_init is None or 0.0 < self._read_gate_init < 1.0
+    assert (self._fetched_read_gate_init is None
+            or 0.0 < self._fetched_read_gate_init < 1.0)
     assert (self._fetched_read_amplitude_init is None
             or self._fetched_read_amplitude_init > 0.0)
     assert self._fetched_read_amplitude_init is None or 'full' in self._mode
     assert (self._fetched_read_amplitude_learnable
             or self._fetched_read_amplitude_init is not None)
+    assert self._fetched_read_amplitude_granularity in ('head', 'layer_side')
+    assert (not self._fetched_read_amplitude_depth_scale
+            or self._fetched_read_amplitude_granularity == 'layer_side')
     assert (not self._record_fetched_read_amplitude_metrics
             or self._fetched_read_amplitude_init is not None)
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
@@ -2817,7 +2848,9 @@ class BamAttention(Attention):
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False,
           kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
-      fetched_gate_init = zero_key_gate_init
+      fetched_gate_init = (
+          zero_key_gate_init if self._fetched_read_gate_init is None
+          else self._fetched_read_gate_init)
       if (not self._use_fetched_output_gate
           and not self._use_factorized_fetched_output_gate
           or self._fetched_output_gate_head_logits
@@ -3190,14 +3223,21 @@ class BamAttention(Attention):
              self._abs_v_dim or self.bam_v), self.weight_dtype)
       if (self._fetched_read_amplitude_init is not None
           and self._fetched_read_amplitude_learnable):
-        self.W_R_amplitude_scale = self.param(
-            'W_R_amplitude_scale',
-            nn.with_logical_partitioning(
-                lambda key, shape, dtype: jnp.full(
-                    shape, self._fetched_read_amplitude_init, dtype),
-                ('q_heads', 'fetch', None)),
-            (self._fetched_read_num_heads, cfg.bam_n_f, 2),
-            self.weight_dtype)
+        if self._fetched_read_amplitude_granularity == 'head':
+          self.W_R_amplitude_scale = self.param(
+              'W_R_amplitude_scale',
+              nn.with_logical_partitioning(
+                  lambda key, shape, dtype: jnp.full(
+                      shape, self._fetched_read_amplitude_init, dtype),
+                  ('q_heads', 'fetch', None)),
+              (self._fetched_read_num_heads, cfg.bam_n_f, 2),
+              self.weight_dtype)
+        else:
+          self.W_R_amplitude_log_scale = self.param(
+              'W_R_amplitude_log_scale',
+              nn.with_logical_partitioning(
+                  nn.initializers.zeros_init(), (None,)),
+              (2,), self.weight_dtype)
 
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
@@ -3209,14 +3249,41 @@ class BamAttention(Attention):
         getattr(self, 'local_k_post_read_v_projection', shared),
     )
 
-  def _fetched_read_amplitude(self):
+  def _fetched_read_amplitude(self, layer_index=None):
     if self._fetched_read_amplitude_init is None:
       return None
-    if self._fetched_read_amplitude_learnable:
-      return self.W_R_amplitude_scale
-    return jnp.full(
-        (self._fetched_read_num_heads, self.config.bam_n_f, 2),
-        self._fetched_read_amplitude_init, self.dtype)
+    shape = (self._fetched_read_num_heads, self.config.bam_n_f, 2)
+    if self._fetched_read_amplitude_granularity == 'head':
+      if self._fetched_read_amplitude_learnable:
+        return self.W_R_amplitude_scale
+      return jnp.full(shape, self._fetched_read_amplitude_init, self.dtype)
+
+    log_delta = (
+        self.W_R_amplitude_log_scale
+        if self._fetched_read_amplitude_learnable
+        else jnp.zeros((2,), self.dtype))
+    if self._fetched_read_amplitude_depth_scale:
+      if layer_index is None:
+        raise ValueError('depth-scaled fetched-read amplitude needs layer_index')
+      amplitude = _depth_scaled_bam_read_amplitude(
+          self._fetched_read_amplitude_init, log_delta, layer_index,
+          self.num_query_heads,
+          self._fetched_read_amplitude_reference_num_heads, self.dtype)
+    else:
+      amplitude = jnp.asarray(self._fetched_read_amplitude_init, self.dtype)
+      amplitude = amplitude * jnp.exp(jnp.asarray(log_delta, self.dtype))
+    return jnp.broadcast_to(amplitude, shape)
+
+  def _record_fetched_gate_stats(self, gate_logits):
+    gate = jax.nn.sigmoid(gate_logits.astype(jnp.float32))
+    axes = tuple(range(gate.ndim - 1))
+    stats = jnp.stack((
+        jnp.mean(gate, axis=axes),
+        jnp.std(gate, axis=axes),
+        jnp.mean(gate < 0.05, axis=axes),
+        jnp.mean(gate > 0.95, axis=axes),
+    ), axis=-1)
+    self.sow('intermediates', 'fetched_read_gate_stats', stats)
 
   def _read_key_kwargs(
       self, gate_name, x, squeeze_fetch_axis=False, activation_side='none'):
@@ -3227,8 +3294,11 @@ class BamAttention(Attention):
         if self._force_activation_dtype:
           gate_bias = jnp.asarray(gate_bias, self.dtype)
         candidate_logits = getattr(self, gate_name)(x) + gate_bias
-        if squeeze_fetch_axis:
-          candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
+      if squeeze_fetch_axis:
+        candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
+      if (self._record_fetched_read_health_metrics
+          and gate_name == 'W_R_gate'):
+        self._record_fetched_gate_stats(candidate_logits)
     return self._read_key_kwargs_from_logits(
         gate_name.removesuffix('_gate'), candidate_logits,
         squeeze_fetch_axis=squeeze_fetch_axis,
@@ -3620,9 +3690,13 @@ class BamAttention(Attention):
         jnp.concatenate((y_k, y_v), axis=-1),
         self.num_query_heads, self.head_dim)
 
-  def _read_fetched_m(self, Mbar, inputs_q):
+  def _read_fetched_m(self, Mbar, inputs_q, layer_index=None):
     """Read fetched M into every BAM head."""
     with jax.named_scope("bam/read_fetched_m"):
+      m_rms = None
+      if self._record_fetched_read_health_metrics:
+        m_rms = jnp.sqrt(jnp.mean(jnp.square(Mbar.astype(jnp.float32))))
+        self.sow('intermediates', 'fetched_read_m_rms', m_rms)
       if self._use_factorized_fetched_output_gate:
         element_logits, projected_head_logits = (
             self._project_factorized_fetched_output_gate(inputs_q))
@@ -3655,13 +3729,23 @@ class BamAttention(Attention):
             activation_side=self._fetch_read_key_activation_side)
       full_read_kwargs['rms_epsilon'] = self._fetched_read_key_epsilon
       if self._fetched_read_amplitude_init is not None:
-        amplitude = self._fetched_read_amplitude()
+        amplitude = self._fetched_read_amplitude(layer_index)
         amplitude = jnp.squeeze(amplitude, axis=-2)
         row_amplitude, col_amplitude = jnp.split(amplitude, 2, axis=-1)
         width_scale = math.sqrt(self._abs_v_dim or self.bam_v)
         full_read_kwargs.update(
             key_row_scale=row_amplitude / width_scale,
             key_col_scale=col_amplitude / width_scale)
+      if self._record_fetched_read_health_metrics:
+        default_scale = jnp.asarray(
+            full_read_kwargs['key_scale'], jnp.float32)
+        row_scale = jnp.asarray(
+            full_read_kwargs.get('key_row_scale', default_scale), jnp.float32)
+        col_scale = jnp.asarray(
+            full_read_kwargs.get('key_col_scale', default_scale), jnp.float32)
+        self.sow(
+            'intermediates', 'fetched_read_pre_gate_effective_rms',
+            m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
       def full_read_projection(x):
         projected_key = _add_bam_read_key_bias(
             self.W_R(x), self._abs_k_dim or self.bam_k,
@@ -3686,6 +3770,15 @@ class BamAttention(Attention):
             full_read, element_logits, self._abs_k_dim or self.bam_k,
             self._read_key_scale, head_logits,
             self._fetched_output_gate_side)
+      if self._record_fetched_read_health_metrics:
+        read_k_dim = self._abs_k_dim or self.bam_k
+        y_col, y_row = jnp.split(full_read, [read_k_dim], axis=-1)
+        self.sow(
+            'intermediates', 'fetched_read_output_rms',
+            jnp.stack((
+                jnp.sqrt(jnp.mean(jnp.square(y_row.astype(jnp.float32)))),
+                jnp.sqrt(jnp.mean(jnp.square(y_col.astype(jnp.float32)))),
+            )))
       return self._expand_full_read(full_read)
 
   def _attention_block(
@@ -3758,6 +3851,7 @@ class BamAttention(Attention):
       deep_embedding: Array | None = None,
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
+      layer_index: Array | int | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3772,7 +3866,7 @@ class BamAttention(Attention):
     if self._record_fetched_read_amplitude_metrics:
       self.sow(
           'intermediates', 'fetched_read_amplitude',
-          self._fetched_read_amplitude())
+          self._fetched_read_amplitude(layer_index))
 
     # ---- QKV projection (reuse parent) + optional pre-RoPE LocalQK + QKNorm + RoPE ----
     if cfg.fused_qkv:
@@ -3860,7 +3954,15 @@ class BamAttention(Attention):
 
     o_head = y_std
     if Mbar is not None:
-      o_head = o_head + self._read_fetched_m(Mbar, inputs_q)
+      y_bam = self._read_fetched_m(Mbar, inputs_q, layer_index)
+      if self._record_fetched_read_health_metrics:
+        y_std_rms = jnp.sqrt(jnp.mean(jnp.square(y_std.astype(jnp.float32))))
+        y_bam_rms = jnp.sqrt(jnp.mean(jnp.square(y_bam.astype(jnp.float32))))
+        self.sow(
+            'intermediates', 'fetched_read_to_std_rms',
+            jnp.stack((y_bam_rms, y_std_rms,
+                       y_bam_rms / jnp.maximum(y_std_rms, 1e-12))))
+      o_head = o_head + y_bam
 
     if self._mha_control:
       M_out = M_in

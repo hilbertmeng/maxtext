@@ -507,7 +507,8 @@ class Decoder(nn.Module):
 
   def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh,
    sliding_window_size=None, scan_length=1, scan_deep_embedding=False,
-   runtime_schedule=False, scan_hids=False, all_global_attention=False):
+   runtime_schedule=False, scan_hids=False, all_global_attention=False,
+   scan_layer_index=False):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
@@ -516,6 +517,8 @@ class Decoder(nn.Module):
           nn.broadcast, nn.broadcast, nn.broadcast,
           0 if scan_deep_embedding else nn.broadcast,
           nn.broadcast, nn.broadcast, nn.broadcast, 0)
+      if scan_layer_index:
+        in_axes += (0,)
     elif scan_hids:
       in_axes = (
           nn.broadcast, nn.broadcast, nn.broadcast,
@@ -796,13 +799,15 @@ class Decoder(nn.Module):
           scan_carry = y
         local_sws = min(swss)
         all_global_attention = all(s >= cfg.max_target_length for s in swss)
-        scan_carry, _ = self.scan_decoder_layers(
+        scan_module = self.scan_decoder_layers(
             cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh,
             sliding_window_size=local_sws,
             scan_deep_embedding=deep_embeddings is not None,
             runtime_schedule=True,
             all_global_attention=all_global_attention,
-        )(
+            scan_layer_index=full_bam,
+        )
+        scan_inputs = (
             scan_carry,
             decoder_segment_ids,
             decoder_positions,
@@ -813,6 +818,9 @@ class Decoder(nn.Module):
             eos_sum,
             is_global,
         )
+        if full_bam:
+          scan_inputs += (jnp.arange(cfg.num_decoder_layers, dtype=jnp.int32),)
+        scan_carry, _ = scan_module(*scan_inputs)
         y = scan_carry[0] if full_bam else scan_carry
 
       elif cfg.partial_scan_layers:

@@ -370,6 +370,39 @@ def record_bam_fetched_read_amplitude_metrics(
       })
 
 
+def record_bam_fetched_read_health_metrics(
+    output_metrics, intermediate_outputs, config):
+  """Adds compact per-layer fetched-read health summaries."""
+  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
+  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
+  attention = metrics_dict['block']['self_attention']
+  gate_stats = attention['fetched_read_gate_stats'][0]
+  m_rms = attention['fetched_read_m_rms'][0]
+  pre_gate_rms = attention['fetched_read_pre_gate_effective_rms'][0]
+  output_rms = attention['fetched_read_output_rms'][0]
+  total_rms = attention['fetched_read_to_std_rms'][0]
+  gate_stat_names = ('mean', 'std', 'frac_lt_005', 'frac_gt_095')
+  for layer_num in range(config.base_num_decoder_layers):
+    for side_num, side in enumerate(('row', 'col')):
+      prefix = f'bam/fetched_read_gate/{side}/layer_{layer_num:03d}'
+      for stat_num, stat in enumerate(gate_stat_names):
+        output_metrics['scalar'][f'{prefix}/{stat}'] = (
+            gate_stats[layer_num, side_num, stat_num])
+      output_metrics['scalar'][
+          f'bam/fetched_read_output/{side}/layer_{layer_num:03d}/rms'] = (
+              output_rms[layer_num, side_num])
+      output_metrics['scalar'][
+          f'bam/fetched_read_pre_gate/{side}/layer_{layer_num:03d}/rms'] = (
+              pre_gate_rms[layer_num, side_num])
+    prefix = f'bam/fetched_read_health/layer_{layer_num:03d}'
+    output_metrics['scalar'].update({
+        f'{prefix}/m_rms': m_rms[layer_num],
+        f'{prefix}/y_bam_rms': total_rms[layer_num, 0],
+        f'{prefix}/y_std_rms': total_rms[layer_num, 1],
+        f'{prefix}/y_bam_over_y_std': total_rms[layer_num, 2],
+    })
+
+
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
   if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
@@ -781,6 +814,9 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     record_activation_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_amplitude_metrics', False):
     record_bam_fetched_read_amplitude_metrics(
+        metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_fetched_read_health_metrics', False):
+    record_bam_fetched_read_health_metrics(
         metrics, intermediate_outputs, config)
 
   if config.use_dpo:

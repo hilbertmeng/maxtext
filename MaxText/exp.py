@@ -268,12 +268,17 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_read_key_epsilon = None  # None uses bam_read_key_epsilon
     bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
+    bam_fetched_read_gate_init = None  # None follows bam_read_gate_init
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
     bam_fetched_read_kernel_gradient_scale = 1.0
     # Optional fetched-read-only amplitude outside sigmoid: a/sqrt(C).
     bam_fetched_read_amplitude_init = None
     bam_fetched_read_amplitude_learnable = True
+    bam_fetched_read_amplitude_granularity = 'head'  # head | layer_side
+    bam_fetched_read_amplitude_depth_scale = False
+    bam_fetched_read_amplitude_reference_num_heads = None
     bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetched_read_health_metrics = False
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
@@ -1169,6 +1174,64 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-fetch-schedules')
     jax_cache_explain_misses = True
+
+
+class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
+    """Current-code V2 C256 scan+AOT control for depth-scaled amplitudes."""
+    model_name = 'BamLlama2MediumV2C256ScanAotControl'
+    scan_layers = True
+    checkpoint_period = 200
+    bam_record_fetched_read_health_metrics = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-scan-aot-control')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeBase(
+    BamLlama2MediumV2C256ScanAotControl
+):
+    """Per-layer row/column amplitudes initialized to cancel sqrt(depth) M growth."""
+    bam_fetched_read_amplitude_granularity = 'layer_side'
+    bam_fetched_read_amplitude_depth_scale = True
+    bam_fetched_read_amplitude_reference_num_heads = 16
+    bam_fetched_read_amplitude_learnable = True
+    bam_record_fetched_read_amplitude_metrics = True
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate500(
+    BamLlama2MediumV2C256DepthAmplitudeBase
+):
+    """Neutral fetched-read gate with depth-scaled equal-strength amplitude."""
+    model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate500'
+    bam_fetched_read_gate_init = 0.5
+    bam_fetched_read_amplitude_init = 0.0565685425
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-amplitude-g500')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate100(
+    BamLlama2MediumV2C256DepthAmplitudeBase
+):
+    """Ten-percent fetched-read gate with matched depth-scaled amplitude."""
+    model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate100'
+    bam_fetched_read_gate_init = 0.1
+    bam_fetched_read_amplitude_init = 0.2828427125
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-amplitude-g100')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate050(
+    BamLlama2MediumV2C256DepthAmplitudeBase
+):
+    """Five-percent fetched-read gate with matched depth-scaled amplitude."""
+    model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050'
+    bam_fetched_read_gate_init = 0.05
+    bam_fetched_read_amplitude_init = 0.565685425
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-amplitude-g050')
 
 
 class BamLlama2MediumV2C256FetchAmplitudeC8A05657(

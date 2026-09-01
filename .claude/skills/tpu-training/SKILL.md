@@ -86,19 +86,18 @@ After `FIRST_STEP`, copy the RUN registry's seven-character `code_commit` prefix
 the comment after the successful relaunch. The registry remains authoritative for the full hash;
 the later metadata commit is not the RUN's runtime hash.
 
-For every sealed full-layer RUN, cross-topology AOT-compile the exact target topology before its
-target launch (in parallel with the resource queue when useful). Key the executable by commit,
-environment, topology, training shapes and schedule;
+For every sealed full-layer RUN, cross-topology AOT-compile the exact target topology before
+requesting its target TPU. Key the executable by commit, environment, topology, training shapes
+and schedule;
 stage the matching environment, detached commit and executable during TPU installation, then
 require `Loaded compiled function!` plus an actual first step. Recompile when any key changes.
-Launch with `COMPILED_TRAINSTEP_GCS=gs://...`; auto-train stages that artifact on every recovery.
+Verify the object with `gsutil stat`, then launch with `COMPILED_TRAINSTEP_GCS=gs://...`;
+`run_exp_xd.sh` rejects a missing artifact and auto-train stages it on every recovery.
 For checkpoint resume, compile the original total schedule, never the remaining-step count; the
 restored optimizer `state.step` selects the resumed learning rate. Require the first resumed step
 and logged LR to match the checkpoint and original schedule; stop immediately on mismatch.
 Run formal AOT compilation on an installed v6e TPU VM with its MaxText Python environment;
-tpu-ag only orchestrates it. If the target TPU becomes READY first, start its native compile
-immediately and reserve any later AOT artifact for recovery;
-do not replace a healthy pre-first-step compile merely because the artifact finishes.
+tpu-ag only orchestrates it.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`

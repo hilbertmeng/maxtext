@@ -12,7 +12,8 @@ Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 `/home/lishengping/xd/projects`; TPU VM repo `/home/lishengping/xd/projects/maxtext`;
 project `newproject-1-451205`; TPU `v5p-16`; formal v5p region policy
 `PRIMARY_ZONE=europe-west4-b`, `BACKUP_ZONES=`. `run_exp_xd.sh` selects the zone-local output
-bucket and records it as the RUN's authoritative `base_output_directory`.
+and Pile-data buckets and records `base_output_directory` plus `dataset_path` in the RUN. Set
+`DATASET_PATH` explicitly only for another dataset variant.
 Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
 exact files to tpu-ag and verify matching hashes.
 
@@ -31,6 +32,7 @@ not cover; it is not a routine prerequisite for training.
    For formal spot `v5p`, set `PRIMARY_ZONE` and the user-directed `BACKUP_ZONES`; `ZONE` defaults
    to `PRIMARY_ZONE` for the active assignment.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
+   Use `attach` to replace only the auto-train controller while leaving a healthy worker RUN alive.
    Formal training defaults to `scan_layers=True`; verify the resolved class value before launch.
    Use another setting only when the user explicitly requests it.
    Use `checkpoint_period=200` for Medium and `250` for XL.

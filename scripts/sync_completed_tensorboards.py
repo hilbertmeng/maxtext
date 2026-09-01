@@ -46,7 +46,8 @@ def main() -> int:
       destination.mkdir(parents=True, exist_ok=True)
       print(f"sync {run_name}", flush=True)
       synced = subprocess.run(
-          [GSUTIL, "-m", "rsync", "-r", source, f"{destination}/"], check=False)
+          [GSUTIL, "-m", "rsync", "-c", "-r", source, f"{destination}/"],
+          check=False)
       if synced.returncode:
         print(f"sync failed: {run_name}", file=sys.stderr)
         continue

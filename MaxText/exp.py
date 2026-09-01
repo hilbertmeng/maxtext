@@ -944,6 +944,7 @@ class BamLlama2MediumV2NonScanJitWRReadEps1e3(
     BamLlama2MediumV2NonScanJitRepro
 ):
     """Reduce fetched W_R's zero-point Jacobian through a transiently larger RMS epsilon."""
+    # b1f790b; ~0.565 steps/s; stopped 3,131. dloss grew from ~0 to +.0058 vs JIT @2,800: harmful.
     model_name = 'BamLlama2MediumV2NonScanJitWRReadEps1e3'
     bam_fetched_read_key_epsilon = 1e-3
     checkpoint_period = 200
@@ -956,6 +957,7 @@ class BamLlama2MediumV2NonScanJitWRReadEps1e2(
     BamLlama2MediumV2NonScanJitRepro
 ):
     """Match the .1 gradient control's initial Jacobian without permanently closing the gate."""
+    # b1f790b; ~0.565 steps/s; stopped 2,841. mean dloss +.0097 vs JIT @1,800–2,800: harmful plateau.
     model_name = 'BamLlama2MediumV2NonScanJitWRReadEps1e2'
     bam_fetched_read_key_epsilon = 1e-2
     checkpoint_period = 200

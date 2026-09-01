@@ -1212,6 +1212,17 @@ class BamLlama2MediumV2C256DepthAmplitudeGate500(
         'jax_caches/xd-bam-v2-c256-depth-amplitude-g500')
 
 
+class BamLlama2MediumV2C256DepthAmplitudeGate500AQuarter(
+    BamLlama2MediumV2C256DepthAmplitudeGate500
+):
+    """Keep the neutral gate while quartering its initial amplitude."""
+    model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate500AQuarter'
+    bam_fetched_read_amplitude_init = 0.014142135625
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-amplitude-g500-aquarter')
+
+
 class BamLlama2MediumV2C256DepthAmplitudeGate100(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):

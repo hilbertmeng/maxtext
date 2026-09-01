@@ -1178,7 +1178,8 @@ class BamV2C256FetchScheduleBase(BamLlama2MediumV2):
 
 class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
     """Current-code V2 C256 scan+AOT control for depth-scaled amplitudes."""
-    # 9f8b4cc; UE5a ~0.660 steps/s.
+    # 9f8b4cc; UE5a ~0.660 steps/s; finished 13,499. dloss +.00323 vs V2 and
+    # +.00504 vs NonScanJIT @13,400; both gaps were stable after ~4k.
     model_name = 'BamLlama2MediumV2C256ScanAotControl'
     scan_layers = True
     checkpoint_period = 200
@@ -1203,7 +1204,8 @@ class BamLlama2MediumV2C256DepthAmplitudeGate500(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Neutral fetched-read gate with depth-scaled equal-strength amplitude."""
-    # 9f8b4cc; UE5a ~0.657 steps/s.
+    # 9f8b4cc; UE5a ~0.657 steps/s; finished 13,499. dloss +.00044 vs control
+    # @13,400; converged to noise around zero despite strong amplitude/gate redistribution.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate500'
     bam_fetched_read_gate_init = 0.5
     bam_fetched_read_amplitude_init = 0.0565685425
@@ -1242,7 +1244,8 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Five-percent fetched-read gate with matched depth-scaled amplitude."""
-    # 9f8b4cc; UE5a ~0.660 steps/s.
+    # 9f8b4cc; UE5a ~0.660 steps/s; finished 13,499. dloss +.00014 vs control
+    # @13,400; converged to noise around zero despite a much healthier gate distribution.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050'
     bam_fetched_read_gate_init = 0.05
     bam_fetched_read_amplitude_init = 0.565685425

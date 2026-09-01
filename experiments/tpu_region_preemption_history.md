@@ -56,6 +56,9 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt` | v5p-16 | `europe-west4-b` | 2026-08-31 02:16:51 | 2026-08-31 07:29:33 | resource switch | none |
 | `BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt` | v5p-16 | `us-east5-a` | 2026-08-31 07:29:33 | 2026-08-31 10:10:31 | manual stop | none |
 | `BamLlama2MediumV2NonScanJitRepro` | v5p-16 | `us-east5-a` | 2026-08-31 14:49:01 | 2026-09-01 01:04:20 | completed 13,499 | none |
+| `BamLlama2MediumV2C256DepthAmplitudeGate500` | v5p-16 | `us-east5-a` | 2026-09-01 09:59:39 | 2026-09-01 15:56:24 | completed 13,499 | none |
+| `BamLlama2MediumV2C256ScanAotControl` | v5p-16 | `us-east5-a` | 2026-09-01 09:59:41 | 2026-09-01 15:59:23 | completed 13,499 | none |
+| `BamLlama2MediumV2C256DepthAmplitudeGate050` | v5p-16 | `us-east5-a` | 2026-09-01 09:59:55 | 2026-09-01 16:00:09 | completed 13,499 | none |
 
 ## READY leases
 
@@ -322,3 +325,6 @@ inventing a duration. A passive queue is not an active-zone switch.
 | Medium V2 JIT/no-scan | 7 | `us-east5-a` | 2026-08-31 20:14:24 | 2026-08-31 20:58:20 | 43m56s | preempted |
 | Medium V2 JIT/no-scan | 8 | `us-east5-a` | 2026-08-31 22:18:14 | 2026-08-31 22:35:47 | 17m33s | preempted |
 | Medium V2 JIT/no-scan | 9 | `us-east5-a` | 2026-08-31 23:02:07 | 2026-09-01 01:04:20 | 2h02m13s | run stop |
+| Depth amplitude p=.50 | 1 | `us-east5-a` | 2026-09-01 09:59:39 | 2026-09-01 15:56:24 | 5h56m45s | run stop |
+| V2 scan+AOT control | 1 | `us-east5-a` | 2026-09-01 09:59:41 | 2026-09-01 15:59:23 | 5h59m42s | run stop |
+| Depth amplitude p=.05 | 1 | `us-east5-a` | 2026-09-01 09:59:55 | 2026-09-01 16:00:09 | 6h00m14s | run stop |

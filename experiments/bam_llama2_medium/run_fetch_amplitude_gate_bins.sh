@@ -8,13 +8,14 @@ PYTHON=${PYTHON:-/home/lishengping/miniconda3/bin/python}
 DATASET_PATH=${DATASET_PATH:-gs://newproject-1-common_datasets_europe-west4/pythia_pile_idxmaps_tfrecord}
 EVAL_BATCH_SIZE=${EVAL_BATCH_SIZE:-32}
 OUT=/tmp/fetch_gate_bins_${EXP_CLASS}
+DIAG_RUN=${EXP_CLASS}GateBinDiag
 
-mkdir -p "$OUT/tensorboard"
+mkdir -p "$OUT/tensorboard" "$OUT/output/$DIAG_RUN"
 env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off \
   BAM_FETCHAMP_DIAG_OUTPUT="$OUT/report.json" \
   "$PYTHON" experiments/bam_llama2_medium/fetch_amplitude_diagnostics.py \
   MaxText/configs/base.yml exp_class="$EXP_CLASS" \
-  run_name="${EXP_CLASS}GateBinDiag" only_eval=True steps=1 \
+  run_name="$DIAG_RUN" only_eval=True steps=1 \
   load_parameters_path="$CHECKPOINT" dataset_path="$DATASET_PATH" \
   base_output_directory="$OUT/output" tensorboard_dir="$OUT/tensorboard" \
   per_device_batch_size=1 eval_per_device_batch_size="$EVAL_BATCH_SIZE" \

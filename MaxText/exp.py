@@ -888,7 +888,8 @@ class BamLlama2MediumV2(
 
 class BamLlama2MediumV2NonScanJitRepro(BamLlama2MediumV2):
     """Retrain V2 with explicit non-scan layers and ordinary JIT compilation."""
-    # code_commit: 03fbacb; UE5a ~0.563 steps/s.
+    # code_commit: 03fbacb; UE5a ~0.564 steps/s; completed 13,499. Mean dloss
+    # -.00248 vs V2 and -.08082 vs MHA @12,000-13,400; small gain stayed stable.
     model_name = 'BamLlama2MediumV2NonScanJitRepro'
     scan_layers = False
     jax_cache_dir = (
@@ -3031,6 +3032,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2ScanJitRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Complete the XL Rank2 compile/scan 2x2 with layer scan and ordinary JIT."""
+    # code_commit: f8a593a; UE5a ~0.547 steps/s; running to 2,000.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2ScanJitRepro')
     scan_layers = True
@@ -3046,6 +3048,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanAotRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Complete the XL Rank2 compile/scan 2x2 with non-scan layers and AOT."""
+    # code_commit: f8a593a; UE5a ~0.535-0.537 steps/s; running to 2,000.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanAotRepro')
     scan_layers = False

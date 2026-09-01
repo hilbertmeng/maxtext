@@ -55,6 +55,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV1CompatD0N0C256NonScan` | v5p-16 | `us-east5-a` | 2026-08-31 07:48:36 | 2026-08-31 09:09:24 | manual stop | none |
 | `BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt` | v5p-16 | `europe-west4-b` | 2026-08-31 02:16:51 | 2026-08-31 07:29:33 | resource switch | none |
 | `BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt` | v5p-16 | `us-east5-a` | 2026-08-31 07:29:33 | 2026-08-31 10:10:31 | manual stop | none |
+| `BamLlama2MediumV2NonScanJitRepro` | v5p-16 | `us-east5-a` | 2026-08-31 14:49:01 | 2026-09-01 01:04:20 | completed 13,499 | none |
 
 ## READY leases
 
@@ -312,3 +313,12 @@ inventing a duration. A passive queue is not an active-zone switch.
 | D0N0 Dense | 21 | `europe-west4-b` | 2026-08-31 08:36:57 | 2026-08-31 08:50:09 | 13m12s | manual stop |
 | D0N0 C256 non-scan | 23 | `us-east5-a` | 2026-08-31 07:50:59 | 2026-08-31 09:09:24 | 1h18m25s | manual stop |
 | D0N0 Joint | 23 | `us-east5-a` | 2026-08-31 07:30:52 | 2026-08-31 10:10:31 | 2h39m39s | manual stop |
+| Medium V2 JIT/no-scan | 1 | `us-east5-a` | 2026-08-31 14:53:49 | 2026-08-31 15:57:15 | 1h03m26s | preempted |
+| Medium V2 JIT/no-scan | 2 | `us-east5-a` | 2026-08-31 16:04:51 | 2026-08-31 17:13:11 | 1h08m20s | preempted |
+| Medium V2 JIT/no-scan | 3 | `us-east5-a` | 2026-08-31 17:21:15 | 2026-08-31 17:59:19 | 38m04s | preempted |
+| Medium V2 JIT/no-scan | 4 | `us-east5-a` | 2026-08-31 18:06:27 | 2026-08-31 18:47:39 | 41m12s | preempted |
+| Medium V2 JIT/no-scan | 5 | `us-east5-a` | 2026-08-31 18:59:04 | 2026-08-31 19:48:22 | 49m18s | preempted |
+| Medium V2 JIT/no-scan | 6 | `us-east5-a` | 2026-08-31 19:54:52 | 2026-08-31 19:57:23 | 2m31s | preempted |
+| Medium V2 JIT/no-scan | 7 | `us-east5-a` | 2026-08-31 20:14:24 | 2026-08-31 20:58:20 | 43m56s | preempted |
+| Medium V2 JIT/no-scan | 8 | `us-east5-a` | 2026-08-31 22:18:14 | 2026-08-31 22:35:47 | 17m33s | preempted |
+| Medium V2 JIT/no-scan | 9 | `us-east5-a` | 2026-08-31 23:02:07 | 2026-09-01 01:04:20 | 2h02m13s | run stop |

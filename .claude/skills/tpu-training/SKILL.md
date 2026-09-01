@@ -174,6 +174,14 @@ At every due milestone:
    `base_output_directory` has `commit_success.txt`, then run `loss-report`; summarize healthy
    checkpoints tersely and investigate pending or rollback immediately.
 2. Report the cumulative horizontal rows; judge stability from signed-gap trends plus `r200`.
+   When a RUN enables BAM read-health `sow` metrics, also run
+   `scripts/report_bam_read_health.py RUN --steps MILESTONES`. Report the compact layer-band
+   trends for learned amplitude, gate distribution, effective/output read RMS,
+   `y_bam/y_std`, raw-grad, W_R-grad, and clipping; do not instrument metrics and then monitor
+   loss alone. For a live RUN, execute it on worker 0 with the MaxText Python and pass the RUN's
+   `gs://.../summaries/train/RUN` as `--event-dir`; after closeout, use the automatically synced
+   local directory (the script's default). Report a multi-point sequence, never only the latest
+   value; use the same sampled steps across active RUNs so trends remain directly comparable.
 3. Mark the cursor:
 
 ```bash

@@ -3027,6 +3027,36 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanJitRepro(
         'jax_caches/xd-bam-xl16-partial-rank2-nonscan-jit-repro')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2ScanJitRepro(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Complete the XL Rank2 compile/scan 2x2 with layer scan and ordinary JIT."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2ScanJitRepro')
+    scan_layers = True
+    steps = 2000
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-scan-jit-repro')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanAotRepro(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Complete the XL Rank2 compile/scan 2x2 with non-scan layers and AOT."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanAotRepro')
+    scan_layers = False
+    steps = 2000
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-nonscan-aot-repro')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

@@ -1,0 +1,20 @@
+diff --git a/MaxText/exp.py b/MaxText/exp.py
+index 693d181..0bb9317 100644
+--- a/MaxText/exp.py
++++ b/MaxText/exp.py
+@@ -412,6 +412,15 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK(
+     bam_local_qk_key_mode = 'factorized'
+ 
+ 
++class BamLlama2MediumFactorizedLocalQKMNormDiagnostics(
++    BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
++):
++    """Temporary historical-commit raw-capture class for MNorm diagnostics."""
++    bam_diagnostics = True
++    tensorboard_dir = '/tmp/bam_mnorm_diag_tb/'
++    eval_shuffle_buffer_size = 32768
++
++
+ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm(
+     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
+ ):

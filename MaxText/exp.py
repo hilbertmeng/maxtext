@@ -1216,6 +1216,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate500AQuarter(
     BamLlama2MediumV2C256DepthAmplitudeGate500
 ):
     """Keep the neutral gate while quartering its initial amplitude."""
+    # 9a8a203; UE5a ~0.660 steps/s.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate500AQuarter'
     bam_fetched_read_amplitude_init = 0.014142135625
     jax_cache_dir = (
@@ -1227,7 +1228,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate100(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Ten-percent fetched-read gate with matched depth-scaled amplitude."""
-    # 9f8b4cc; UE5a ~0.659 steps/s.
+    # 9f8b4cc; UE5a ~0.659 steps/s; paused at 3,530. dloss +.005-.009 vs control after 1k, no improving trend.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate100'
     bam_fetched_read_gate_init = 0.1
     bam_fetched_read_amplitude_init = 0.2828427125
@@ -1253,6 +1254,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050AQuarter(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):
     """Keep the five-percent gate while quartering its initial amplitude."""
+    # 9a8a203; UE5a ~0.659 steps/s.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050AQuarter'
     bam_fetched_read_amplitude_init = 0.14142135625
     jax_cache_dir = (

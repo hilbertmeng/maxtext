@@ -38,6 +38,8 @@ import train
 
 _LAYER_RE = re.compile(r"layers_(\d+)")
 _EPS = 1.0e-12
+_GATE_BIN_EDGES = (0.0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5,
+                   0.75, 0.95, 1.0)
 
 
 def _unwrap(value: Any) -> Any:
@@ -285,6 +287,93 @@ def _readout_summary(
   }
 
 
+def _gate_binned_readout_summary(
+    gate: np.ndarray,
+    read: np.ndarray,
+    y_std: np.ndarray,
+    mask: np.ndarray,
+    bam_k: int,
+    read_v_dim: int,
+) -> dict[str, list[list[dict[str, float]]]]:
+  """Condition fetched-read energy on the corresponding runtime gate bin.
+
+  The row gate controls the K-dimensional row key and hence the V-side output;
+  the column gate controls the V-dimensional column key and hence the K-side
+  output.  Ratios are reported both in the aligned coordinate slice and against
+  the full standard-attention head energy.
+  """
+  read = np.asarray(read, np.float32)
+  y_std = np.asarray(y_std, np.float32)
+  gate = np.asarray(gate, np.float32)
+  valid = np.asarray(mask, bool)[None, ..., None]
+  sides = {
+      "row": (gate[..., 0], read[..., bam_k:bam_k + read_v_dim],
+              y_std[..., bam_k:bam_k + read_v_dim]),
+      "column": (gate[..., 1], read[..., :bam_k], y_std[..., :bam_k]),
+  }
+  full_std_square = np.sum(np.square(y_std), axis=-1)
+  result = {}
+  for side, (side_gate, side_read, side_std) in sides.items():
+    read_square = np.sum(np.square(side_read), axis=-1)
+    std_square = np.sum(np.square(side_std), axis=-1)
+    total_side_energy = np.sum(np.where(valid, read_square, 0.0), axis=(1, 2, 3))
+    layers = []
+    for layer in range(read.shape[0]):
+      bins = []
+      layer_valid = valid[0]
+      valid_count = max(int(np.sum(layer_valid)) * side_gate.shape[-1], 1)
+      for index, (lo, hi) in enumerate(zip(_GATE_BIN_EDGES[:-1], _GATE_BIN_EDGES[1:])):
+        in_bin = layer_valid & (side_gate[layer] >= lo)
+        in_bin &= ((side_gate[layer] <= hi) if index == len(_GATE_BIN_EDGES) - 2
+                   else (side_gate[layer] < hi))
+        count = int(np.sum(in_bin))
+        if count == 0:
+          bins.append({
+              "lo": lo, "hi": hi, "fraction": 0.0, "gate_mean": float("nan"),
+              "read_rms": float("nan"), "std_slice_rms": float("nan"),
+              "read_to_std_slice_rms": float("nan"),
+              "read_to_full_std_frobenius": float("nan"),
+              "share_of_side_read_energy": 0.0,
+          })
+          continue
+        selected_read_square = float(np.sum(read_square[layer][in_bin]))
+        selected_std_square = float(np.sum(std_square[layer][in_bin]))
+        selected_full_std_square = float(np.sum(full_std_square[layer][in_bin]))
+        bins.append({
+            "lo": lo,
+            "hi": hi,
+            "fraction": count / valid_count,
+            "gate_mean": float(np.mean(side_gate[layer][in_bin])),
+            "read_rms": math.sqrt(selected_read_square / (count * side_read.shape[-1])),
+            "std_slice_rms": math.sqrt(selected_std_square / (count * side_std.shape[-1])),
+            "read_to_std_slice_rms": math.sqrt(
+                selected_read_square / max(selected_std_square, _EPS)),
+            "read_to_full_std_frobenius": math.sqrt(
+                selected_read_square / max(selected_full_std_square, _EPS)),
+            "share_of_side_read_energy": (
+                selected_read_square / max(float(total_side_energy[layer]), _EPS)),
+        })
+      layers.append(bins)
+    result[side] = layers
+  return result
+
+
+def _mbar_summary(mbar: np.ndarray, mask: np.ndarray) -> dict[str, np.ndarray]:
+  """Summarize the fetched matrix operator seen by each layer's W_R key."""
+  mbar = np.asarray(mbar, np.float32)
+  mask = np.asarray(mask, np.float32)[None, ..., None, None]
+  square = np.square(mbar) * mask
+  token_frobenius = np.sqrt(np.sum(square, axis=(-2, -1)))
+  valid_tokens = np.maximum(np.sum(mask, axis=(1, 2, 3, 4)), 1.0)
+  element_count = valid_tokens * mbar.shape[-2] * mbar.shape[-1]
+  return {
+      "rms": np.sqrt(np.sum(square, axis=(1, 2, 3, 4)) / element_count),
+      "mean_token_frobenius": (
+          np.sum(token_frobenius, axis=(1, 2)) / valid_tokens),
+      "max_token_frobenius": np.max(token_frobenius, axis=(1, 2)),
+  }
+
+
 def run(config):
   if not config.only_eval:
     raise ValueError("fetch_amplitude_diagnostics.py requires only_eval=True")
@@ -354,6 +443,10 @@ def run(config):
   readout = _readout_summary(
       np.asarray(captured["read"]), np.asarray(captured["y_std"]), mask,
       int(config.bam_k), int(config.bam_abs_v_compression_dim or config.bam_v))
+  gate_binned_readout = _gate_binned_readout_summary(
+      gate, np.asarray(captured["read"]), np.asarray(captured["y_std"]), mask,
+      int(config.bam_k), int(config.bam_abs_v_compression_dim or config.bam_v))
+  mbar = _mbar_summary(np.asarray(captured["mbar"]), mask)
   layers = {}
   for layer in range(config.num_decoder_layers):
     layer_mask = mask
@@ -366,6 +459,13 @@ def run(config):
             coefficient[layer, ..., 1], col_key_rms[layer], layer_mask),
         "readout": {
             name: float(values[layer]) for name, values in readout.items()
+        },
+        "mbar": {
+            name: float(values[layer]) for name, values in mbar.items()
+        },
+        "gate_binned_readout": {
+            side: gate_binned_readout[side][layer]
+            for side in ("row", "column")
         },
     }
 
@@ -384,6 +484,7 @@ def run(config):
           "amplitude_init": config.bam_fetched_read_amplitude_init,
           "width_scale": width_scale,
           "fetched_read_key_epsilon": read_epsilon,
+          "gate_bin_edges": _GATE_BIN_EDGES,
           "elapsed_seconds": time.perf_counter() - started,
       },
       "sequence_loss": np.asarray(captured["sequence_loss"]).tolist(),

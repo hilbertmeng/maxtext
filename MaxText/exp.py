@@ -492,6 +492,13 @@ class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptat
     run_name = "Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001MReadNormRMS"
     model_name = run_name
 
+class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001MReadNormRMSContinueFull(
+    Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001MReadNormRMS
+):
+    """Continue the MReadNormRMS arm through its default full-run endpoint."""
+
+    steps = 12716
+
 class Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001Continue3K(
     Qwen3LargeArcPostTrainFullNVARC16ShuffleOneFileTiedCap303e4RerunBAMAdaptationV2GroupedRMSU1Scale1U2Scale001
 ):

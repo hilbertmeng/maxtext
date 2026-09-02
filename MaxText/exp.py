@@ -1956,6 +1956,30 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050(
         'jax_caches/xd-bam-v2-c256-rank2-shared-gate-amp050')
 
 
+class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude005(
+    BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005
+):
+    """Correctly depth-scale the coarse LocalQK amplitude under layer scan."""
+    # code_commit: pending; compare with SharedRankGate.
+    model_name = (
+        'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude005')
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-rank2-shared-gate-depth-amp005')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude050(
+    BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050
+):
+    """Raise the corrected depth-scaled LocalQK gate prior at matched strength."""
+    # code_commit: pending; compare with DepthAmplitude005 and SharedRankGate.
+    model_name = (
+        'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude050')
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-rank2-shared-gate-depth-amp050')
+
+
 class BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):

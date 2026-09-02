@@ -88,18 +88,21 @@ After `FIRST_STEP`, copy the RUN registry's seven-character `code_commit` prefix
 the comment after the successful relaunch. The registry remains authoritative for the full hash;
 the later metadata commit is not the RUN's runtime hash.
 
-For every sealed full-layer RUN, cross-topology AOT-compile the exact target topology before
-requesting its target TPU. Key the executable by commit, environment, topology, training shapes
-and schedule;
-stage the matching environment, detached commit and executable during TPU installation, then
-require `Loaded compiled function!` plus an actual first step. Recompile when any key changes.
-Verify the object with `gsutil stat`, then launch with `COMPILED_TRAINSTEP_GCS=gs://...`;
-`run_exp_xd.sh` rejects a missing artifact and auto-train stages it on every recovery.
-For checkpoint resume, compile the original total schedule, never the remaining-step count; the
-restored optimizer `state.step` selects the resumed learning rate. Require the first resumed step
-and logged LR to match the checkpoint and original schedule; stop immediately on mismatch.
-Run formal AOT compilation on an installed v6e TPU VM with its MaxText Python environment;
-tpu-ag only orchestrates it.
+For every sealed full-layer RUN, prepare the exact target-topology executable before requesting
+its target TPU. Run on tpu-ag:
+
+```bash
+/home/lishengping/xd/projects/prepare_train_aot.py \
+  EXP FULL_COMMIT TARGET_TOPOLOGY TOTAL_STEPS
+```
+
+The idempotent command races v6e compilers, keeps backups until the first artifact and manifest
+verify, retries on the next candidate after preemption/failure, and releases every compiler TPU.
+Use its `AOT_READY artifact=...` value as `COMPILED_TRAINSTEP_GCS`; `run_exp_xd.sh` stages it on
+every recovery. The manifest keys commit, pinned environment/compiler, topology, experiment
+shapes, and total schedule. Recompile when any key changes. For checkpoint resume, pass the
+original total schedule, never remaining steps; require the resumed step and LR to match it.
+After target launch, require `Loaded compiled function!` plus an actual first step.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`

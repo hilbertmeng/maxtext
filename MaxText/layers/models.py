@@ -518,7 +518,7 @@ class Decoder(nn.Module):
           0 if scan_deep_embedding else nn.broadcast,
           nn.broadcast, nn.broadcast, nn.broadcast, 0)
       if scan_layer_index:
-        in_axes += (0,)
+        in_axes += (nn.broadcast, nn.broadcast, 0)
     elif scan_hids:
       in_axes = (
           nn.broadcast, nn.broadcast, nn.broadcast,
@@ -819,7 +819,11 @@ class Decoder(nn.Module):
             is_global,
         )
         if full_bam:
-          scan_inputs += (jnp.arange(cfg.num_decoder_layers, dtype=jnp.int32),)
+          scan_inputs += (
+              None,
+              None,
+              jnp.arange(cfg.num_decoder_layers, dtype=jnp.int32),
+          )
         scan_carry, _ = scan_module(*scan_inputs)
         y = scan_carry[0] if full_bam else scan_carry
 

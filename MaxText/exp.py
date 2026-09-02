@@ -1199,6 +1199,8 @@ class BamLlama2MediumV2C256DepthAmplitudeBase(
     BamLlama2MediumV2C256ScanAotControl
 ):
     """Per-layer row/column amplitudes initialized to cancel sqrt(depth) M growth."""
+    # Historical descendants used scan's static layer_index=0, so their amplitudes were
+    # constant-init controls. Only the *ScanLayerFix reruns exercise true depth scaling.
     bam_fetched_read_amplitude_granularity = 'layer_side'
     bam_fetched_read_amplitude_depth_scale = True
     bam_fetched_read_amplitude_reference_num_heads = 16

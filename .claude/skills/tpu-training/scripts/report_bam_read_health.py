@@ -137,6 +137,44 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
   return result
 
 
+def _paired_metric(run_value, base_value):
+  if run_value is None or base_value is None:
+    return None
+  return {
+      "run": run_value,
+      "base": base_value,
+      "delta": _rounded(run_value - base_value),
+      "ratio": _rounded(run_value / base_value) if base_value != 0 else None,
+  }
+
+
+def _compare(run_result, base_result):
+  comparison = {"global": [], "bands": []}
+  base_global = {row["step"]: row for row in base_result["global"]}
+  for run_row in run_result["global"]:
+    base_row = base_global.get(run_row["step"])
+    if base_row is None:
+      continue
+    row = {"step": run_row["step"]}
+    for name in ("raw_grad", "wr_grad_l2", "clip_fraction_to_step"):
+      row[name] = _paired_metric(run_row.get(name), base_row.get(name))
+    comparison["global"].append(row)
+
+  base_bands = {
+      (row["step"], row["band"]): row for row in base_result["bands"]
+  }
+  for run_row in run_result["bands"]:
+    base_row = base_bands.get((run_row["step"], run_row["band"]))
+    if base_row is None:
+      continue
+    row = {"step": run_row["step"], "band": run_row["band"]}
+    for name in run_row:
+      if name not in ("step", "band"):
+        row[name] = _paired_metric(run_row.get(name), base_row.get(name))
+    comparison["bands"].append(row)
+  return comparison
+
+
 def _print_text(run: str, result) -> None:
   print(f"RUN={run}")
   print("step raw_grad W_R_grad clip_frac")
@@ -160,12 +198,43 @@ def _print_text(run: str, result) -> None:
         row["merged_over_std"])
 
 
+def _format_pair(pair):
+  if pair is None:
+    return "--"
+  return f'{pair["run"]}/{pair["base"]}({pair["delta"]:+g})'
+
+
+def _print_comparison(run: str, base_run: str, comparison) -> None:
+  print(f"RUN={run} BASE={base_run} values=RUN/BASE(delta)")
+  print("step raw_grad W_R_grad clip_frac")
+  for row in comparison["global"]:
+    print(row["step"], _format_pair(row["raw_grad"]),
+          _format_pair(row["wr_grad_l2"]),
+          _format_pair(row["clip_fraction_to_step"]))
+  print("\nstep band gateR_mean gateC_mean gateR_<.05 gateC_<.05 "
+        "gateR_>.95 gateC_>.95 M_rms yBAM/ySTD")
+  for row in comparison["bands"]:
+    print(
+        row["step"], row["band"], _format_pair(row["gate_mean_row"]),
+        _format_pair(row["gate_mean_col"]),
+        _format_pair(row["gate_frac_lt_005_row"]),
+        _format_pair(row["gate_frac_lt_005_col"]),
+        _format_pair(row["gate_frac_gt_095_row"]),
+        _format_pair(row["gate_frac_gt_095_col"]),
+        _format_pair(row["m_rms"]),
+        _format_pair(row["y_bam_over_y_std"]))
+
+
 def main() -> None:
   parser = argparse.ArgumentParser()
   parser.add_argument("run")
   parser.add_argument(
       "--event-dir",
       help="Local or gs:// event directory; defaults to the local synced RUN")
+  parser.add_argument("--base-run")
+  parser.add_argument(
+      "--base-event-dir",
+      help="Baseline event directory; defaults to the local synced BASE RUN")
   parser.add_argument("--steps", default="0,200,1000,2000,2800")
   parser.add_argument("--bands", default="0-7,8-15,16-23")
   parser.add_argument("--num-layers", type=int, default=24)
@@ -176,8 +245,25 @@ def main() -> None:
   result = _collect(
       Scalars(event_dir), _parse_steps(args.steps), _parse_bands(args.bands),
       args.num_layers)
+  base_result = comparison = None
+  if args.base_run:
+    base_event_dir = (
+        args.base_event_dir or DEFAULT_LOCAL_TB_ROOT / args.base_run)
+    base_result = _collect(
+        Scalars(base_event_dir), _parse_steps(args.steps),
+        _parse_bands(args.bands), args.num_layers)
+    comparison = _compare(result, base_result)
   if args.json:
-    print(json.dumps({"run": args.run, **result}, indent=2, sort_keys=True))
+    payload = {"run": args.run, **result}
+    if args.base_run:
+      payload.update({
+          "base_run": args.base_run,
+          "base": base_result,
+          "comparison": comparison,
+      })
+    print(json.dumps(payload, indent=2, sort_keys=True))
+  elif args.base_run:
+    _print_comparison(args.run, args.base_run, comparison)
   else:
     _print_text(args.run, result)
 

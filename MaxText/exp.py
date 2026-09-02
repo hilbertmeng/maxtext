@@ -1261,12 +1261,27 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):
     """Use each fetched-read gate to interpolate standard and BAM outputs."""
-    # code_commit: 443e6cf; UE5a ~0.656 steps/s; running to 13,500.
+    # code_commit: 443e6cf; UE5a ~0.656 steps/s; finished 13,499. Late dloss
+    # fluctuated near -.0015 vs Gate050/scan control: real but very small gain.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead'
     bam_fetched_read_merge = 'interpolate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-depth-amplitude-g050-interpolated-read')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude(
+    BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead
+):
+    """Give every fetched-read head and side an independent amplitude."""
+    # code_commit: pending; compare only with Gate050InterpolatedRead.
+    model_name = (
+        'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude')
+    bam_fetched_read_amplitude_granularity = 'head'
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-g050-interp-per-head-amplitude')
 
 
 class BamLlama2MediumV2C256ScanAotControlInterpolatedRead(

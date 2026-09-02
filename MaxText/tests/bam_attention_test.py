@@ -76,6 +76,17 @@ class BamReadKeyTransformTest(absltest.TestCase):
         init, jnp.zeros((2,)), 1, 64, 16, jnp.float32)
     np.testing.assert_allclose(wider_model, layer_one / 2.0, rtol=1e-6)
 
+  def test_depth_scaled_read_amplitude_supports_per_head_deltas(self):
+    log_delta = jnp.log(jnp.asarray(
+        [[[1.0, 2.0]], [[0.5, 1.5]], [[2.0, 0.25]]]))
+    amplitude = _depth_scaled_bam_read_amplitude(
+        4.0, log_delta, 4, 16, 16, jnp.float32)
+    self.assertEqual(amplitude.shape, (3, 1, 2))
+    np.testing.assert_allclose(
+        amplitude,
+        jnp.asarray([[[2.0, 4.0]], [[1.0, 3.0]], [[4.0, 0.5]]]),
+        rtol=1e-6)
+
   def test_layer_scan_stacks_independent_amplitudes_and_uses_runtime_depth(self):
     scanned = nn.scan(
         _DepthAmplitudeLayer,

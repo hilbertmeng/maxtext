@@ -2884,8 +2884,6 @@ class BamAttention(Attention):
             or self._fetched_read_amplitude_init is not None)
     assert self._fetched_read_amplitude_granularity in ('head', 'layer_side')
     assert self._fetched_read_merge in ('add', 'interpolate')
-    assert (not self._fetched_read_amplitude_depth_scale
-            or self._fetched_read_amplitude_granularity == 'layer_side')
     assert (not self._record_fetched_read_amplitude_metrics
             or self._fetched_read_amplitude_init is not None)
     if self._fetched_read_merge == 'interpolate':
@@ -3398,14 +3396,22 @@ class BamAttention(Attention):
       if (self._fetched_read_amplitude_init is not None
           and self._fetched_read_amplitude_learnable):
         if self._fetched_read_amplitude_granularity == 'head':
-          self.W_R_amplitude_scale = self.param(
-              'W_R_amplitude_scale',
-              nn.with_logical_partitioning(
-                  lambda key, shape, dtype: jnp.full(
-                      shape, self._fetched_read_amplitude_init, dtype),
-                  ('q_heads', 'fetch', None)),
-              (self._fetched_read_num_heads, cfg.bam_n_f, 2),
-              self.weight_dtype)
+          shape = (self._fetched_read_num_heads, cfg.bam_n_f, 2)
+          if self._fetched_read_amplitude_depth_scale:
+            self.W_R_amplitude_log_scale = self.param(
+                'W_R_amplitude_log_scale',
+                nn.with_logical_partitioning(
+                    nn.initializers.zeros_init(),
+                    ('q_heads', 'fetch', None)),
+                shape, self.weight_dtype)
+          else:
+            self.W_R_amplitude_scale = self.param(
+                'W_R_amplitude_scale',
+                nn.with_logical_partitioning(
+                    lambda key, shape, dtype: jnp.full(
+                        shape, self._fetched_read_amplitude_init, dtype),
+                    ('q_heads', 'fetch', None)),
+                shape, self.weight_dtype)
         else:
           self.W_R_amplitude_log_scale = self.param(
               'W_R_amplitude_log_scale',
@@ -3428,9 +3434,20 @@ class BamAttention(Attention):
       return None
     shape = (self._fetched_read_num_heads, self.config.bam_n_f, 2)
     if self._fetched_read_amplitude_granularity == 'head':
-      if self._fetched_read_amplitude_learnable:
-        return self.W_R_amplitude_scale
-      return jnp.full(shape, self._fetched_read_amplitude_init, self.dtype)
+      if not self._fetched_read_amplitude_depth_scale:
+        if self._fetched_read_amplitude_learnable:
+          return self.W_R_amplitude_scale
+        return jnp.full(shape, self._fetched_read_amplitude_init, self.dtype)
+      if layer_index is None:
+        raise ValueError('depth-scaled fetched-read amplitude needs layer_index')
+      log_delta = (
+          self.W_R_amplitude_log_scale
+          if self._fetched_read_amplitude_learnable
+          else jnp.zeros(shape, self.dtype))
+      return _depth_scaled_bam_read_amplitude(
+          self._fetched_read_amplitude_init, log_delta, layer_index,
+          self.num_query_heads,
+          self._fetched_read_amplitude_reference_num_heads, self.dtype)
 
     log_delta = (
         self.W_R_amplitude_log_scale

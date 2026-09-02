@@ -1259,6 +1259,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):
     """Use each fetched-read gate to interpolate standard and BAM outputs."""
+    # code_commit: 443e6cf; UE5a ~0.656 steps/s; running to 13,500.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead'
     bam_fetched_read_merge = 'interpolate'
     jax_cache_dir = (

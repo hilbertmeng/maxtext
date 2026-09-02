@@ -54,6 +54,19 @@ class Scalars:
         values.append(self.at(tag, step))
     return float(np.mean(values)) if values else None
 
+  def band_ratio_mean(
+      self, numerator: str, denominator: str, step: int, layers: range
+  ) -> float | None:
+    values = []
+    for layer in layers:
+      numerator_tag = numerator.format(layer=layer)
+      denominator_tag = denominator.format(layer=layer)
+      if numerator_tag in self.tags and denominator_tag in self.tags:
+        values.append(
+            self.at(numerator_tag, step)
+            / max(self.at(denominator_tag, step), 1e-12))
+    return float(np.mean(values)) if values else None
+
 
 def _rounded(value, digits=5):
   return None if value is None or not math.isfinite(value) else round(value, digits)
@@ -116,6 +129,10 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
           scalars.band_mean(health_prefix + "/y_bam_over_y_std", step, layers))
       row["removed_std_over_std"] = _rounded(scalars.band_mean(
           health_prefix + "/removed_std_over_std", step, layers))
+      for name in ("kept_std", "merged"):
+        row[f"{name}_over_std"] = _rounded(scalars.band_ratio_mean(
+            health_prefix + f"/{name}_rms",
+            health_prefix + "/y_std_rms", step, layers))
       result["bands"].append(row)
   return result
 
@@ -128,7 +145,7 @@ def _print_text(run: str, result) -> None:
           row["clip_fraction_to_step"])
   print("\nstep band aR/a0 aC/a0 gateR(mean/std/<.05/>.95) "
         "gateC(mean/std/<.05/>.95) preR/preC outR/outC M_rms "
-        "yBAM/ySTD removedSTD/STD")
+        "yBAM/ySTD removedSTD/STD keptSTD/STD merged/STD")
   for row in result["bands"]:
     def gate(side):
       return "/".join(str(row[f"gate_{field}_{side}"]) for field in (
@@ -139,7 +156,8 @@ def _print_text(run: str, result) -> None:
         f'{row["pre_gate_rms_row"]}/{row["pre_gate_rms_col"]}',
         f'{row["output_rms_row"]}/{row["output_rms_col"]}',
         row["m_rms"], row["y_bam_over_y_std"],
-        row["removed_std_over_std"])
+        row["removed_std_over_std"], row["kept_std_over_std"],
+        row["merged_over_std"])
 
 
 def main() -> None:

@@ -15,7 +15,8 @@ LAYER_BANDS = {
     "late_16_23": range(16, 24),
 }
 SIDES = ("row", "column")
-THRESHOLDS = (0.02, 0.05, 0.10, 0.20, 0.50, 0.80, 0.90, 0.95, 0.99)
+THRESHOLDS = (
+    0.02, 0.05, 0.10, 0.20, 0.25, 0.50, 0.75, 0.80, 0.90, 0.95, 0.99)
 
 
 def _layer(report, layer):
@@ -67,7 +68,7 @@ def _aggregate_side(report, layers, side):
         item["fraction"] * item["gate_mean"]
         for item in items if _finite(item["gate_mean"]))
     sensitivity_population = sum(
-        item["fraction"] * item["sigmoid_derivative_mean"]
+        item["fraction"] * item.get("sigmoid_derivative_mean", 0.0)
         for item in items if _finite(item.get("sigmoid_derivative_mean")))
     bins.append({
         "lo": items[0]["lo"],
@@ -88,7 +89,10 @@ def _aggregate_side(report, layers, side):
     })
 
   thresholds = {}
+  bin_edges = {item["lo"] for item in bins} | {bins[-1]["hi"]}
   for threshold in THRESHOLDS:
+    if threshold not in bin_edges:
+      continue
     selected = [item for item in bins if item["lo"] >= threshold]
     population = sum(item["population_fraction"] for item in selected)
     energy = sum(item["read_energy_fraction"] for item in selected)

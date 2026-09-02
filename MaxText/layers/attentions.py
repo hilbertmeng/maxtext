@@ -2082,6 +2082,43 @@ def _pack_fetched_bam_heads(read, num_query_heads, head_dim):
   return read
 
 
+def _interpolate_fetched_bam_read(
+    y_std, y_bam, gate_logits, read_k_dim, read_v_dim,
+    num_query_heads, head_dim, read_side='both'):
+  """Route BAM-covered head coordinates between standard and fetched reads.
+
+  Historical gate logits are [row-key, column-key], while their answers are
+  [V, K]. Coordinates not populated by a fetched read retain y_std unchanged.
+  `y_bam` is already gated by the same logits through the runtime read key.
+  """
+  if y_std.shape != y_bam.shape:
+    raise ValueError(
+        f'fetched-read interpolation needs matching outputs, got '
+        f'{y_std.shape} and {y_bam.shape}')
+  if gate_logits.shape[-1] != 2:
+    raise ValueError(
+        f'fetched-read interpolation expects [row, col] gate logits, got '
+        f'{gate_logits.shape}')
+  if read_side not in ('both', 'row', 'col'):
+    raise ValueError(f'Unknown fetched read side: {read_side}')
+  gate = jax.nn.sigmoid(gate_logits.astype(jnp.float32)).astype(y_std.dtype)
+  row_gate, col_gate = jnp.split(gate, 2, axis=-1)
+  k_gate = jnp.broadcast_to(
+      col_gate if read_side in ('both', 'col') else jnp.zeros_like(col_gate),
+      col_gate.shape[:-1] + (read_k_dim,))
+  v_gate = jnp.broadcast_to(
+      row_gate if read_side in ('both', 'row') else jnp.zeros_like(row_gate),
+      row_gate.shape[:-1] + (read_v_dim,))
+  gate_map = _pack_fetched_bam_heads(
+      jnp.concatenate((k_gate, v_gate), axis=-1),
+      num_query_heads, head_dim)
+  if gate_map.shape != y_std.shape:
+    raise ValueError(
+        f'fetched-read gate map must match attention output, got '
+        f'{gate_map.shape} and {y_std.shape}')
+  return y_std + y_bam - gate_map * y_std, gate_map
+
+
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_row_scale=None, key_col_scale=None,
              rms_epsilon,
@@ -2481,6 +2518,7 @@ class BamAttention(Attention):
         cfg, 'bam_fetched_read_amplitude_depth_scale', False))
     self._fetched_read_amplitude_reference_num_heads = getattr(
         cfg, 'bam_fetched_read_amplitude_reference_num_heads', None)
+    self._fetched_read_merge = getattr(cfg, 'bam_fetched_read_merge', 'add')
     self._record_fetched_read_amplitude_metrics = bool(getattr(
         cfg, 'bam_record_fetched_read_amplitude_metrics', False))
     self._record_fetched_read_health_metrics = bool(getattr(
@@ -2712,6 +2750,7 @@ class BamAttention(Attention):
               or (self._abs_v_row_output == 'project'
                   and self._abs_v_row_decoder_output == 'full'))
           else self._abs_v_dim)
+      self._fetched_output_v_dim = full_v_output_dim
       fetched_output_width = self._fetched_heads_per_query * (
           self.bam_k + full_v_output_dim)
       assert fetched_output_width <= self.head_dim, (
@@ -2730,10 +2769,19 @@ class BamAttention(Attention):
     assert (self._fetched_read_amplitude_learnable
             or self._fetched_read_amplitude_init is not None)
     assert self._fetched_read_amplitude_granularity in ('head', 'layer_side')
+    assert self._fetched_read_merge in ('add', 'interpolate')
     assert (not self._fetched_read_amplitude_depth_scale
             or self._fetched_read_amplitude_granularity == 'layer_side')
     assert (not self._record_fetched_read_amplitude_metrics
             or self._fetched_read_amplitude_init is not None)
+    if self._fetched_read_merge == 'interpolate':
+      assert 'full' in self._mode
+      assert self._read_key_mode == 'rms_gate'
+      assert cfg.bam_create_read_gate_params
+      assert not (self._use_fetched_output_gate
+                  or self._use_factorized_fetched_output_gate)
+      assert self._abs_k_dim is None, (
+          'interpolated fetched reads do not yet support padded K outputs')
     assert self._read_key_mode != 'rms_gate' or cfg.bam_create_read_gate_params
     assert not self._use_grouped_rw_norm or self._create_grouped_rw_norm
     assert not self._create_grouped_rw_norm or self._read_key_mode == 'rms_gate'
@@ -3285,8 +3333,8 @@ class BamAttention(Attention):
     ), axis=-1)
     self.sow('intermediates', 'fetched_read_gate_stats', stats)
 
-  def _read_key_kwargs(
-      self, gate_name, x, squeeze_fetch_axis=False, activation_side='none'):
+  def _project_read_gate_logits(
+      self, gate_name, x, squeeze_fetch_axis=False):
     candidate_logits = None
     if self.config.bam_create_read_gate_params:
       with jax.named_scope("bam/read_gate_projection"):
@@ -3299,6 +3347,12 @@ class BamAttention(Attention):
       if (self._record_fetched_read_health_metrics
           and gate_name == 'W_R_gate'):
         self._record_fetched_gate_stats(candidate_logits)
+    return candidate_logits
+
+  def _read_key_kwargs(
+      self, gate_name, x, squeeze_fetch_axis=False, activation_side='none'):
+    candidate_logits = self._project_read_gate_logits(
+        gate_name, x, squeeze_fetch_axis)
     return self._read_key_kwargs_from_logits(
         gate_name.removesuffix('_gate'), candidate_logits,
         squeeze_fetch_axis=squeeze_fetch_axis,
@@ -3694,6 +3748,7 @@ class BamAttention(Attention):
     """Read fetched M into every BAM head."""
     with jax.named_scope("bam/read_fetched_m"):
       m_rms = None
+      interpolation_gate_logits = None
       if self._record_fetched_read_health_metrics:
         m_rms = jnp.sqrt(jnp.mean(jnp.square(Mbar.astype(jnp.float32))))
         self.sow('intermediates', 'fetched_read_m_rms', m_rms)
@@ -3724,8 +3779,10 @@ class BamAttention(Attention):
               'W_R', None, squeeze_fetch_axis=True, key_mode='rms',
               activation_side=self._fetch_read_key_activation_side)
       else:
-        full_read_kwargs = self._read_key_kwargs(
-            'W_R_gate', inputs_q, squeeze_fetch_axis=True,
+        interpolation_gate_logits = self._project_read_gate_logits(
+            'W_R_gate', inputs_q, squeeze_fetch_axis=True)
+        full_read_kwargs = self._read_key_kwargs_from_logits(
+            'W_R', interpolation_gate_logits, squeeze_fetch_axis=True,
             activation_side=self._fetch_read_key_activation_side)
       full_read_kwargs['rms_epsilon'] = self._fetched_read_key_epsilon
       if self._fetched_read_amplitude_init is not None:
@@ -3779,7 +3836,7 @@ class BamAttention(Attention):
                 jnp.sqrt(jnp.mean(jnp.square(y_row.astype(jnp.float32)))),
                 jnp.sqrt(jnp.mean(jnp.square(y_col.astype(jnp.float32)))),
             )))
-      return self._expand_full_read(full_read)
+      return self._expand_full_read(full_read), interpolation_gate_logits
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,
@@ -3954,7 +4011,8 @@ class BamAttention(Attention):
 
     o_head = y_std
     if Mbar is not None:
-      y_bam = self._read_fetched_m(Mbar, inputs_q, layer_index)
+      y_bam, fetched_gate_logits = self._read_fetched_m(
+          Mbar, inputs_q, layer_index)
       if self._record_fetched_read_health_metrics:
         y_std_rms = jnp.sqrt(jnp.mean(jnp.square(y_std.astype(jnp.float32))))
         y_bam_rms = jnp.sqrt(jnp.mean(jnp.square(y_bam.astype(jnp.float32))))
@@ -3962,7 +4020,23 @@ class BamAttention(Attention):
             'intermediates', 'fetched_read_to_std_rms',
             jnp.stack((y_bam_rms, y_std_rms,
                        y_bam_rms / jnp.maximum(y_std_rms, 1e-12))))
-      o_head = o_head + y_bam
+      if self._fetched_read_merge == 'interpolate':
+        o_head, fetched_gate_map = _interpolate_fetched_bam_read(
+            y_std, y_bam, fetched_gate_logits,
+            self.bam_k, self._fetched_output_v_dim,
+            self.num_query_heads, self.head_dim, self._fetched_read_side)
+        if self._record_fetched_read_health_metrics:
+          removed_std = fetched_gate_map * y_std
+          kept_std = y_std - removed_std
+
+          def rms(value):
+            return jnp.sqrt(jnp.mean(jnp.square(value.astype(jnp.float32))))
+
+          self.sow(
+              'intermediates', 'fetched_read_merge_rms',
+              jnp.stack((rms(removed_std), rms(kept_std), rms(o_head))))
+      else:
+        o_head = o_head + y_bam
 
     if self._mha_control:
       M_out = M_in

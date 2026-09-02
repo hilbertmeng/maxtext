@@ -17,6 +17,7 @@ from layers.attentions import (
     _depth_scaled_bam_read_amplitude,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
+    _interpolate_fetched_bam_read,
     _gate_fetched_read_output,
     _factorized_fetched_output_gate_logits,
     _packed_factorized_local_qk_init,
@@ -287,6 +288,28 @@ class BamReadKeyTransformTest(absltest.TestCase):
       _pack_fetched_bam_heads(
           jnp.zeros((1, 1, 48, 48)),
           num_query_heads=16, head_dim=128)
+
+  def test_fetched_read_interpolation_routes_sides_and_preserves_tail(self):
+    y_std = jnp.ones((1, 1, 2, 8), dtype=jnp.float32)
+    row_opening, col_opening = 0.25, 0.75
+    gate_logits = jnp.asarray((
+        np.log(row_opening / (1.0 - row_opening)),
+        np.log(col_opening / (1.0 - col_opening)),
+    ), dtype=jnp.float32).reshape(1, 1, 1, 2)
+    gate_logits = jnp.broadcast_to(gate_logits, (1, 1, 2, 2))
+    # The existing read path has already multiplied each candidate by its gate.
+    y_bam = jnp.zeros_like(y_std)
+    y_bam = y_bam.at[..., :3].set(2.0 * col_opening)
+    y_bam = y_bam.at[..., 3:5].set(2.0 * row_opening)
+    actual, gate_map = _interpolate_fetched_bam_read(
+        y_std, y_bam, gate_logits, read_k_dim=3, read_v_dim=2,
+        num_query_heads=2, head_dim=8)
+    np.testing.assert_allclose(gate_map[..., :3], col_opening, rtol=1e-6)
+    np.testing.assert_allclose(gate_map[..., 3:5], row_opening, rtol=1e-6)
+    np.testing.assert_array_equal(gate_map[..., 5:], 0)
+    np.testing.assert_allclose(actual[..., :3], 1.75, rtol=1e-6)
+    np.testing.assert_allclose(actual[..., 3:5], 1.25, rtol=1e-6)
+    np.testing.assert_array_equal(actual[..., 5:], 1)
 
   def test_dynamic_bam_fetch_rms_mix_weights(self):
     logits = jax.random.normal(jax.random.PRNGKey(13), (2, 4, 3))

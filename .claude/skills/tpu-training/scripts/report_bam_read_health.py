@@ -114,6 +114,8 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
           scalars.band_mean(health_prefix + "/m_rms", step, layers))
       row["y_bam_over_y_std"] = _rounded(
           scalars.band_mean(health_prefix + "/y_bam_over_y_std", step, layers))
+      row["removed_std_over_std"] = _rounded(scalars.band_mean(
+          health_prefix + "/removed_std_over_std", step, layers))
       result["bands"].append(row)
   return result
 
@@ -125,7 +127,8 @@ def _print_text(run: str, result) -> None:
     print(row["step"], row["raw_grad"], row["wr_grad_l2"],
           row["clip_fraction_to_step"])
   print("\nstep band aR/a0 aC/a0 gateR(mean/std/<.05/>.95) "
-        "gateC(mean/std/<.05/>.95) preR/preC outR/outC M_rms yBAM/ySTD")
+        "gateC(mean/std/<.05/>.95) preR/preC outR/outC M_rms "
+        "yBAM/ySTD removedSTD/STD")
   for row in result["bands"]:
     def gate(side):
       return "/".join(str(row[f"gate_{field}_{side}"]) for field in (
@@ -135,7 +138,8 @@ def _print_text(run: str, result) -> None:
         row["amplitude_ratio_col"], gate("row"), gate("col"),
         f'{row["pre_gate_rms_row"]}/{row["pre_gate_rms_col"]}',
         f'{row["output_rms_row"]}/{row["output_rms_col"]}',
-        row["m_rms"], row["y_bam_over_y_std"])
+        row["m_rms"], row["y_bam_over_y_std"],
+        row["removed_std_over_std"])
 
 
 def main() -> None:

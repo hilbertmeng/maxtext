@@ -277,6 +277,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_read_amplitude_granularity = 'head'  # head | layer_side
     bam_fetched_read_amplitude_depth_scale = False
     bam_fetched_read_amplitude_reference_num_heads = None
+    bam_fetched_read_merge = 'add'  # add | interpolate
     bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetched_read_health_metrics = False
     bam_create_read_gate_params = False
@@ -1252,6 +1253,17 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-depth-amplitude-g050')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead(
+    BamLlama2MediumV2C256DepthAmplitudeGate050
+):
+    """Use each fetched-read gate to interpolate standard and BAM outputs."""
+    model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead'
+    bam_fetched_read_merge = 'interpolate'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-amplitude-g050-interpolated-read')
 
 
 class BamLlama2MediumV2C256DepthAmplitudeGate005(

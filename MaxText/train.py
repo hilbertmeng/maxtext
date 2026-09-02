@@ -381,6 +381,9 @@ def record_bam_fetched_read_health_metrics(
   pre_gate_rms = attention['fetched_read_pre_gate_effective_rms'][0]
   output_rms = attention['fetched_read_output_rms'][0]
   total_rms = attention['fetched_read_to_std_rms'][0]
+  merge_rms = (
+      attention['fetched_read_merge_rms'][0]
+      if 'fetched_read_merge_rms' in attention else None)
   gate_stat_names = ('mean', 'std', 'frac_lt_005', 'frac_gt_095')
   for layer_num in range(config.base_num_decoder_layers):
     for side_num, side in enumerate(('row', 'col')):
@@ -401,6 +404,15 @@ def record_bam_fetched_read_health_metrics(
         f'{prefix}/y_std_rms': total_rms[layer_num, 1],
         f'{prefix}/y_bam_over_y_std': total_rms[layer_num, 2],
     })
+    if merge_rms is not None:
+      output_metrics['scalar'].update({
+          f'{prefix}/removed_std_rms': merge_rms[layer_num, 0],
+          f'{prefix}/kept_std_rms': merge_rms[layer_num, 1],
+          f'{prefix}/merged_rms': merge_rms[layer_num, 2],
+          f'{prefix}/removed_std_over_std': (
+              merge_rms[layer_num, 0]
+              / jnp.maximum(total_rms[layer_num, 1], 1e-12)),
+      })
 
 
 def record_activation_metrics(output_metrics, intermediate_outputs, config):

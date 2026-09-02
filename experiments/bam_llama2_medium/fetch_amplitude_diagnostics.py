@@ -420,6 +420,24 @@ def run(config):
     # the explicit-amplitude convention so both parameterizations share the
     # same diagnostic formulas.
     amplitude = np.full_like(gate_bias, 2.0 * width_scale)
+  elif config.bam_fetched_read_amplitude_granularity == "layer_side":
+    log_delta = np.asarray(jax.device_get(_stack_parameter(
+        state.params, "W_R_amplitude_log_scale", config.num_decoder_layers)),
+                           np.float32)
+    if log_delta.shape[-2] == 1:
+      log_delta = np.squeeze(log_delta, axis=-2)
+    prior_writes = np.maximum(
+        np.arange(config.num_decoder_layers, dtype=np.float32), 1.0)
+    head_scale = 1.0
+    if config.bam_fetched_read_amplitude_reference_num_heads is not None:
+      head_scale = math.sqrt(
+          config.bam_fetched_read_amplitude_reference_num_heads
+          / config.num_query_heads)
+    layer_side_amplitude = (
+        config.bam_fetched_read_amplitude_init * np.exp(log_delta)
+        / np.sqrt(prior_writes[:, None]) * head_scale)
+    amplitude = np.broadcast_to(
+        layer_side_amplitude[:, None, :], gate_bias.shape)
   else:
     amplitude = np.asarray(jax.device_get(_stack_parameter(
         state.params, "W_R_amplitude_scale", config.num_decoder_layers)), np.float32)

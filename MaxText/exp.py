@@ -1278,7 +1278,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude
 ):
     """Give every fetched-read head and side an independent amplitude."""
     # code_commit: ccccb53; UE5a ~0.648 steps/s (!? -1.2% vs Gate050Interpolated);
-    # paused at 5,339. Gap stayed near zero, first turning negative at 5,000 (-.00041).
+    # paused at 5,412. Gap stayed near zero, first turning negative at 5,000 (-.00041).
     # Reconsider per-head amplitude only after corrected depth scaling is established.
     model_name = (
         'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude')

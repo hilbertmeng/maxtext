@@ -17,6 +17,7 @@ from layers.attentions import (
     _depth_scaled_bam_read_amplitude,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
+    _fetched_read_gate_bin_stats,
     _interpolate_fetched_bam_read,
     _gate_fetched_read_output,
     _factorized_fetched_output_gate_logits,
@@ -46,6 +47,19 @@ class _DepthAmplitudeLayer(nn.Module):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_fetched_read_gate_bins_cover_distribution_and_read_energy(self):
+    probabilities = jnp.asarray((0.1, 0.3, 0.5, 0.7, 0.9))
+    logits = jnp.log(probabilities / (1.0 - probabilities))
+    gate_logits = jnp.stack((logits, logits), axis=-1)[None, :, None, :]
+    y_bam = jnp.ones((1, 5, 1, 4), jnp.float32)
+    y_std = 2.0 * jnp.ones_like(y_bam)
+    stats = _fetched_read_gate_bin_stats(
+        gate_logits, y_bam, y_std, 2, 2, 1, 4)
+    self.assertEqual(stats.shape, (2, 5, 3))
+    np.testing.assert_allclose(stats[..., 0], 0.2, rtol=1e-6)
+    np.testing.assert_allclose(stats[..., 1], 0.5, rtol=1e-6)
+    np.testing.assert_allclose(stats[..., 2], 0.2, rtol=1e-6)
 
   def test_depth_scaled_read_amplitude_uses_scanned_layer_and_side_delta(self):
     init = np.sqrt(8.0 * 1e-4) / 0.5

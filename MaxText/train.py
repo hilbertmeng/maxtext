@@ -381,6 +381,9 @@ def record_bam_fetched_read_health_metrics(
   pre_gate_rms = attention['fetched_read_pre_gate_effective_rms'][0]
   output_rms = attention['fetched_read_output_rms'][0]
   total_rms = attention['fetched_read_to_std_rms'][0]
+  gate_bin_stats = (
+      attention['fetched_read_gate_bin_stats'][0]
+      if 'fetched_read_gate_bin_stats' in attention else None)
   merge_rms = (
       attention['fetched_read_merge_rms'][0]
       if 'fetched_read_merge_rms' in attention else None)
@@ -391,6 +394,17 @@ def record_bam_fetched_read_health_metrics(
       for stat_num, stat in enumerate(gate_stat_names):
         output_metrics['scalar'][f'{prefix}/{stat}'] = (
             gate_stats[layer_num, side_num, stat_num])
+      if gate_bin_stats is not None:
+        for bin_num, lo in enumerate(range(0, 100, 20)):
+          bin_prefix = f'{prefix}/bin_{lo:02d}_{lo + 20:02d}'
+          output_metrics['scalar'].update({
+              f'{bin_prefix}/population_fraction': (
+                  gate_bin_stats[layer_num, side_num, bin_num, 0]),
+              f'{bin_prefix}/y_bam_over_y_std': (
+                  gate_bin_stats[layer_num, side_num, bin_num, 1]),
+              f'{bin_prefix}/y_bam_energy_fraction': (
+                  gate_bin_stats[layer_num, side_num, bin_num, 2]),
+          })
       output_metrics['scalar'][
           f'bam/fetched_read_output/{side}/layer_{layer_num:03d}/rms'] = (
               output_rms[layer_num, side_num])

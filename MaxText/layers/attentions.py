@@ -2119,6 +2119,68 @@ def _interpolate_fetched_bam_read(
   return y_std + y_bam - gate_map * y_std, gate_map
 
 
+def _fetched_read_gate_bin_stats(
+    gate_logits, y_bam, y_std, read_k_dim, read_v_dim,
+    num_query_heads, head_dim):
+  """Return per-side 0.2-wide gate-bin population and readout statistics.
+
+  The result is ``[row/col, bin, population/read-over-std/energy-share]``.
+  Row-key gates control the V-side answer; column-key gates control K-side.
+  """
+  if y_bam.shape != y_std.shape:
+    raise ValueError(
+        f'fetched gate-bin stats need matching outputs, got '
+        f'{y_bam.shape} and {y_std.shape}')
+  gate = jax.nn.sigmoid(gate_logits.astype(jnp.float32))
+  row_gate, col_gate = jnp.split(gate, 2, axis=-1)
+  fetched_heads = gate_logits.shape[-2]
+  if fetched_heads % num_query_heads:
+    raise ValueError(
+        f'fetched gate-bin stats cannot map {fetched_heads} fetched heads '
+        f'to {num_query_heads} query heads')
+  read_width = read_k_dim + read_v_dim
+  packed_width = (fetched_heads // num_query_heads) * read_width
+  if packed_width > head_dim:
+    raise ValueError(
+        f'fetched gate-bin stats need {packed_width} packed coordinates, '
+        f'but head_dim={head_dim}')
+
+  def unpack(read):
+    return read[..., :packed_width].reshape(
+        read.shape[:-2] + (fetched_heads, read_width))
+
+  y_bam_unpacked = unpack(y_bam).astype(jnp.float32)
+  y_std_unpacked = unpack(y_std).astype(jnp.float32)
+  y_bam_col, y_bam_row = jnp.split(
+      y_bam_unpacked, [read_k_dim], axis=-1)
+  y_std_col, y_std_row = jnp.split(
+      y_std_unpacked, [read_k_dim], axis=-1)
+
+  side_stats = []
+  for side_gate, side_bam, side_std in (
+      (jnp.squeeze(row_gate, -1), y_bam_row, y_std_row),
+      (jnp.squeeze(col_gate, -1), y_bam_col, y_std_col)):
+    population = side_gate.size
+    bam_square = jnp.square(side_bam)
+    std_square = jnp.square(side_std)
+    total_read_energy = jnp.maximum(jnp.sum(bam_square), 1e-12)
+    bins = []
+    for bin_index in range(5):
+      lo, hi = bin_index / 5.0, (bin_index + 1) / 5.0
+      in_bin = side_gate >= lo
+      in_bin &= side_gate <= hi if bin_index == 4 else side_gate < hi
+      count = jnp.sum(in_bin)
+      read_energy = jnp.sum(jnp.where(in_bin[..., None], bam_square, 0.0))
+      std_energy = jnp.sum(jnp.where(in_bin[..., None], std_square, 0.0))
+      bins.append(jnp.stack((
+          count / population,
+          jnp.sqrt(read_energy / jnp.maximum(std_energy, 1e-12)),
+          read_energy / total_read_energy,
+      )))
+    side_stats.append(jnp.stack(bins))
+  return jnp.stack(side_stats)
+
+
 def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_row_scale=None, key_col_scale=None,
              rms_epsilon,
@@ -4151,6 +4213,13 @@ class BamAttention(Attention):
             'intermediates', 'fetched_read_to_std_rms',
             jnp.stack((y_bam_rms, y_std_rms,
                        y_bam_rms / jnp.maximum(y_std_rms, 1e-12))))
+        if fetched_gate_logits is not None:
+          self.sow(
+              'intermediates', 'fetched_read_gate_bin_stats',
+              _fetched_read_gate_bin_stats(
+                  fetched_gate_logits, y_bam, y_std,
+                  self.bam_k, self._fetched_output_v_dim,
+                  self.num_query_heads, self.head_dim))
       if self._fetched_read_merge == 'interpolate':
         o_head, fetched_gate_map = _interpolate_fetched_bam_read(
             y_std, y_bam, fetched_gate_logits,

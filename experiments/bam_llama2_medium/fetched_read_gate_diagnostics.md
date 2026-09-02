@@ -13,6 +13,26 @@ on the same 32 randomly sampled Pile-eval sequences. Raw reports and the
 aggregate report are in
 `/data0/xd/bam_diagnostics/depth_amplitude_gate_bins_13400/`.
 
+## Exact provenance
+
+All model configurations were trained from branch `refactor-bam` at commit
+`9f8b4cc`. Aliases used below map to the following complete configuration
+classes and immutable checkpoints:
+
+| Alias | `exp_class` in `MaxText/exp.py` | checkpoint `/items` | diagnostic replay code |
+|---|---|---|---|
+| control | `BamLlama2MediumV2C256ScanAotControl` | `gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotControl/checkpoints/13400/items` | `refactor-bam@f4ab521` |
+| p=.05 | `BamLlama2MediumV2C256DepthAmplitudeGate050` | `gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256DepthAmplitudeGate050/checkpoints/13400/items` | `refactor-bam@661f82c` |
+| p=.50 | `BamLlama2MediumV2C256DepthAmplitudeGate500` | `gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256DepthAmplitudeGate500/checkpoints/13400/items` | `refactor-bam@661f82c` |
+
+`661f82c` adds the layer-side amplitude reconstruction required by the two
+depth-amplitude configurations; the captured forward tensors and binning logic
+are otherwise the same as control. The three raw artifacts are also stored at
+`gs://newproject-1-llm_projects_europe-west4/log/diagnostics/depth_amplitude_gate_bins_13400/{control,p05,p50}.json`.
+Commit `75b2e1b` of `summarize_fetched_read_gate_bins.py` reproduces the
+layer-band tables from those raw reports while preserving their original bin
+schema.
+
 Terminology follows the actual contraction:
 
 - row gate: K-dimensional key, produces the V/address-side readout;
@@ -126,3 +146,15 @@ Reproduction:
 - `fetch_amplitude_diagnostics.py`: fixed-batch checkpoint replay;
 - `run_fetch_amplitude_gate_bins.sh`: TPU runner;
 - `summarize_fetched_read_gate_bins.py`: same-cohort layer-band aggregation.
+
+For each row in the provenance table, check out its diagnostic replay commit on
+a v6e TPU and run:
+
+```bash
+PYTHON=/home/lishengping/miniconda3/bin/python \
+  bash experiments/bam_llama2_medium/run_fetch_amplitude_gate_bins.sh \
+  EXP_CLASS CHECKPOINT_ITEMS OUTPUT_JSON_GCS_URI
+```
+
+Then check out `75b2e1b` and aggregate the three downloaded JSON files with
+`summarize_fetched_read_gate_bins.py --control ... --p05 ... --p50 ...`.

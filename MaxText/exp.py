@@ -1872,7 +1872,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
     """Current-code reproduction control for paired Rank2 routing ablations."""
-    # code_commit: 0038e21; UE5a ~0.629 steps/s.
+    # code_commit: 0038e21; UE5a ~0.629 steps/s; stopped at 1,662. Every
+    # 200-step loss window through 1,400 exactly matched old Rank2.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl'
     scan_layers = True
     checkpoint_period = 200

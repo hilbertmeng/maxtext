@@ -1277,7 +1277,9 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude
     BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead
 ):
     """Give every fetched-read head and side an independent amplitude."""
-    # code_commit: pending; compare only with Gate050InterpolatedRead.
+    # code_commit: ccccb53; UE5a ~0.648 steps/s (!? -1.2% vs Gate050Interpolated);
+    # paused at 5,339. Gap stayed near zero, first turning negative at 5,000 (-.00041).
+    # Reconsider per-head amplitude only after corrected depth scaling is established.
     model_name = (
         'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude')
     bam_fetched_read_amplitude_granularity = 'head'
@@ -1291,7 +1293,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):
     """Re-run fetched-read depth scaling with the real scanned layer index."""
-    # code_commit: pending; compare with ScanAotControl and historical Gate050.
+    # code_commit: 1e7c53c; UE5a ~0.652 steps/s; compare with ScanAotControl and old Gate050.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

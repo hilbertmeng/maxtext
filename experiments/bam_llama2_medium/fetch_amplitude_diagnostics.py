@@ -297,10 +297,10 @@ def _gate_binned_readout_summary(
 ) -> dict[str, list[list[dict[str, float]]]]:
   """Condition fetched-read energy on the corresponding runtime gate bin.
 
-  The row gate controls the K-dimensional row key and hence the V-side output;
-  the column gate controls the V-dimensional column key and hence the K-side
-  output.  Ratios are reported both in the aligned coordinate slice and against
-  the full standard-attention head energy.
+  The row gate controls the K-dimensional row key and hence the V/address-side
+  output; the column gate controls the V-dimensional column key and hence the
+  K/data-side output.  Ratios are reported both in the aligned coordinate slice
+  and against the full standard-attention head energy.
   """
   read = np.asarray(read, np.float32)
   y_std = np.asarray(y_std, np.float32)

@@ -415,6 +415,39 @@ def record_bam_fetched_read_health_metrics(
       })
 
 
+def record_bam_local_qk_routing_metrics(
+    output_metrics, intermediate_outputs, config):
+  """Adds per-layer LocalQK rank-gate distributions and read-strength ratios."""
+  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
+  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
+  attention = metrics_dict['block']['self_attention']
+  stat_names = (
+      'edge_mean', 'edge_std', 'edge_min', 'edge_max',
+      'edge_frac_lt_005', 'edge_frac_gt_095',
+      'rank_sum_mean', 'rank_sum_std', 'rank_sum_min', 'rank_sum_max',
+      'rank_mean_mean', 'rank_mean_std',
+      *(f'rank_mean_bin_{lo:02d}_{lo + 10:02d}' for lo in range(0, 100, 10)),
+      'rank_sum_head_std', 'dominant_rank_share')
+  for use_point in ('local_q', 'local_k'):
+    gate_stats = attention[f'{use_point}_rank_gate_stats'][0]
+    for layer_num in range(config.base_num_decoder_layers):
+      for side_num, side in enumerate(('row', 'col')):
+        prefix = f'bam/local_qk/{use_point}/{side}/layer_{layer_num:03d}'
+        for stat_num, stat in enumerate(stat_names):
+          output_metrics['scalar'][f'{prefix}/{stat}'] = (
+              gate_stats[layer_num, side_num, stat_num])
+
+  read_health = attention['local_qk_read_health'][0]
+  health_names = (
+      'q_bam_rms', 'q_std_rms', 'q_bam_over_std',
+      'k_bam_rms', 'k_std_rms', 'k_bam_over_std')
+  for layer_num in range(config.base_num_decoder_layers):
+    prefix = f'bam/local_qk/health/layer_{layer_num:03d}'
+    for stat_num, stat in enumerate(health_names):
+      output_metrics['scalar'][f'{prefix}/{stat}'] = (
+          read_health[layer_num, stat_num])
+
+
 def record_activation_metrics(output_metrics, intermediate_outputs, config):
   """Adds the activation metrics to the metrics dict"""
   if 'eos_sum' in intermediate_outputs["intermediates"]["decoder"]:
@@ -830,6 +863,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):
     record_bam_fetched_read_health_metrics(
         metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_local_qk_routing_metrics', False):
+    record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)
 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)

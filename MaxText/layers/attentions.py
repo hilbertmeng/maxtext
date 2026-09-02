@@ -2201,7 +2201,9 @@ def factorized_head_bam_read(
     key_col_norm=None, use_learned_key_norm=False,
     implementation='mul_reduce_btn', read_side='both', rank=1,
     second_implementation='mul_reduce', v_projection=None,
-    key_row_activation='none', key_col_activation='none'):
+    key_row_activation='none', key_col_activation='none',
+    rank_routing='legacy', head_rank_gate_bias=None,
+    return_rank_gate=False):
   """Read with rank-r shared runtime keys, then route dynamically across heads.
 
   For each side, the effective per-head key is factorized as
@@ -2211,11 +2213,12 @@ def factorized_head_bam_read(
   retains the original implementation and parameterization exactly.
 
   M must be the local matrix state [b,t,k,v].  W_R maps x -> [r,k+v] and
-  W_head_mix maps x -> [n,2,r], with independent row/column coefficients.  The
-  mixing matrix has the same total RMS energy as rank 1, so the result keeps
-  O(1) per-head scale as r changes.  Rank 1 retains the historical head-axis RMS
-  transform exactly.  An optional head-shared ``v_projection`` compresses the
-  V-side result before its scalar head expansion.
+  W_head_mix maps x -> [n,2,r], with independent row/column coefficients.
+  ``legacy`` preserves joint (head,rank) normalization and 1/sqrt(rank);
+  ``shared_rank_gate`` gates each basis independently and normalizes mixing only
+  over heads; ``head_rank_gate`` uses sigmoid(W_head_mix(x)+b0) directly.  Rank 1
+  retains the historical head-axis RMS transform exactly.  An optional
+  head-shared ``v_projection`` compresses the V-side result before expansion.
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
@@ -2226,6 +2229,10 @@ def factorized_head_bam_read(
   if second_implementation not in ('dot', 'mul_reduce'):
     raise ValueError(
         f'Unknown factorized local BAM second implementation: {second_implementation}')
+  if rank_routing not in ('legacy', 'shared_rank_gate', 'head_rank_gate'):
+    raise ValueError(f'Unknown factorized LocalQK rank routing: {rank_routing}')
+  if rank_routing != 'legacy' and rank == 1:
+    raise ValueError(f'{rank_routing} requires factorized LocalQK rank > 1')
   if rank > 1 and (key_row_norm is not None or key_col_norm is not None):
     raise ValueError('rank-r factorized local BAM read does not support learned key norms')
   v_output_dim = M.shape[-1]
@@ -2243,9 +2250,20 @@ def factorized_head_bam_read(
       return jnp.einsum(
           '...v,vc->...c', y_v, jnp.asarray(v_projection, y_v.dtype))
 
-  gate_logits = (
-      key_gate_logits[..., None, :] if rank > 1 and key_gate_logits is not None
-      else key_gate_logits)
+  if rank_routing == 'shared_rank_gate':
+    if key_gate_logits is None or key_gate_logits.shape[-2:] != (rank, 2):
+      raise ValueError(
+          f'shared rank gate expects [...,{rank},2], got '
+          f'{None if key_gate_logits is None else key_gate_logits.shape}')
+    gate_logits = key_gate_logits
+  elif rank_routing == 'head_rank_gate':
+    gate_logits = None
+    if key_mode == 'rms_gate':
+      key_mode = 'rms'
+  else:
+    gate_logits = (
+        key_gate_logits[..., None, :]
+        if rank > 1 and key_gate_logits is not None else key_gate_logits)
   _, _, r_row, r_col = _project_bam_read_keys(
       M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
@@ -2290,14 +2308,39 @@ def factorized_head_bam_read(
             f'got {raw_head_mix.shape}')
       output_dtype = (
           y_u_basis.dtype if y_u_basis is not None else y_v_basis.dtype)
-      raw_row_mix, raw_col_mix = raw_head_mix[..., 0, :], raw_head_mix[..., 1, :]
-      rank_scale = jnp.sqrt(jnp.asarray(rank, output_dtype))
-      row_mix = normalizations.rms_norm(
-          raw_row_mix, dtype=output_dtype, epsilon=rms_epsilon,
-          axis=(-2, -1)) / rank_scale
-      col_mix = normalizations.rms_norm(
-          raw_col_mix, dtype=output_dtype, epsilon=rms_epsilon,
-          axis=(-2, -1)) / rank_scale
+      if rank_routing == 'head_rank_gate':
+        if head_rank_gate_bias is None or head_rank_gate_bias.shape != (2,):
+          raise ValueError(
+              f'head-rank gate bias expects [2], got '
+              f'{None if head_rank_gate_bias is None else head_rank_gate_bias.shape}')
+        rank_gate = jax.nn.sigmoid(
+            raw_head_mix.astype(jnp.float32)
+            + jnp.asarray(head_rank_gate_bias, jnp.float32)[None, None, None, :, None]
+        ).astype(output_dtype)
+        row_mix, col_mix = rank_gate[..., 0, :], rank_gate[..., 1, :]
+      else:
+        raw_row_mix = raw_head_mix[..., 0, :]
+        raw_col_mix = raw_head_mix[..., 1, :]
+        mix_axis = (-2, -1) if rank_routing == 'legacy' else -2
+        row_mix = normalizations.rms_norm(
+            raw_row_mix, dtype=output_dtype, epsilon=rms_epsilon,
+            axis=mix_axis)
+        col_mix = normalizations.rms_norm(
+            raw_col_mix, dtype=output_dtype, epsilon=rms_epsilon,
+            axis=mix_axis)
+        if rank_routing == 'legacy':
+          rank_scale = jnp.sqrt(jnp.asarray(rank, output_dtype))
+          row_mix = row_mix / rank_scale
+          col_mix = col_mix / rank_scale
+
+        if rank_routing == 'shared_rank_gate':
+          shared_gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
+          rank_gate = jnp.swapaxes(shared_gate, -1, -2)[..., None, :, :]
+          rank_gate = jnp.broadcast_to(rank_gate, raw_head_mix.shape)
+        else:
+          shared_gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
+          rank_gate = shared_gate[..., None, :, None]
+          rank_gate = jnp.broadcast_to(rank_gate, raw_head_mix.shape)
 
     def expand(basis_read, mix):
       if basis_read is None:
@@ -2314,7 +2357,8 @@ def factorized_head_bam_read(
         y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
       if y_v is None:
         y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
-      return jnp.concatenate([y_u, y_v], axis=-1)
+      read = jnp.concatenate([y_u, y_v], axis=-1)
+      return (read, rank_gate) if return_rank_gate else read
 
   with jax.named_scope("bam/read_m_contract"):
     y_u = y_v = None
@@ -2354,15 +2398,19 @@ def factorized_head_bam_read(
 
 
 def _packed_factorized_local_qk_init(
-    kernel_init, num_heads, key_width, rank=1, paired_row_width=0):
+    kernel_init, num_heads, key_width, rank=1, paired_row_width=0,
+    rank_routing='legacy'):
   """Pack Q/K key, gate, and head-mix kernels while preserving their initializers."""
   if paired_row_width and (rank != 1 or not 0 < paired_row_width < key_width):
     raise ValueError(
         'paired LocalQK row-key init requires rank=1 and '
         f'0 < row_width < key_width, got {rank=}, {paired_row_width=}, {key_width=}')
   basis_width = rank * key_width
+  gate_width = (
+      2 * rank if rank_routing == 'shared_rank_gate'
+      else 0 if rank_routing == 'head_rank_gate' else 2)
   mix_width = 2 * num_heads * rank
-  packed_width = 2 * (basis_width + 2 + mix_width)
+  packed_width = 2 * (basis_width + gate_width + mix_width)
 
   def init_fn(key, shape, dtype, _in_axis=0, _out_axis=1):
     if len(shape) != 2 or shape[-1] != packed_width:
@@ -2386,8 +2434,8 @@ def _packed_factorized_local_qk_init(
     else:
       paired_key = zeros(basis_width)
     return jnp.concatenate((
-        paired_key, zeros(2), q_mix,
-        paired_key, zeros(2), k_mix,
+        paired_key, zeros(gate_width), q_mix,
+        paired_key, zeros(gate_width), k_mix,
     ), axis=-1)
 
   return init_fn
@@ -2543,6 +2591,10 @@ class BamAttention(Attention):
     self._batch_factorized_local_qk_read = bool(
         cfg.bam_batch_factorized_local_qk_read)
     self._local_qk_rank = int(getattr(cfg, 'bam_local_qk_rank', 1))
+    self._local_qk_rank_routing = getattr(
+        cfg, 'bam_local_qk_rank_routing', 'legacy')
+    self._record_local_qk_routing_metrics = bool(getattr(
+        cfg, 'bam_record_local_qk_routing_metrics', False))
     self._local_qk_second_implementation = getattr(
         cfg, 'bam_local_qk_second_implementation', 'mul_reduce')
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
@@ -3005,13 +3057,17 @@ class BamAttention(Attention):
           key_width = self._local_qk_key_width
           rank = self._local_qk_rank
           basis_width = rank * key_width
+          gate_width = (
+              2 * rank if self._local_qk_rank_routing == 'shared_rank_gate'
+              else 0 if self._local_qk_rank_routing == 'head_rank_gate' else 2)
           mix_width = 2 * self.num_query_heads * rank
-          packed_width = 2 * (basis_width + 2 + mix_width)
+          packed_width = 2 * (basis_width + gate_width + mix_width)
           self.W_local_qk_packed = DenseGeneral(
               features=packed_width, axis=-1,
               kernel_init=_packed_factorized_local_qk_init(
                   reg_init, self.num_query_heads, key_width, rank,
-                  self.bam_k if self._seed_paired_local_qk_row_key else 0),
+                  self.bam_k if self._seed_paired_local_qk_row_key else 0,
+                  self._local_qk_rank_routing),
               kernel_axes=("embed", None), dtype=self.dtype,
               weight_dtype=self.weight_dtype, name="W_local_qk_packed",
               quant=self.quant, matmul_precision=cfg.matmul_precision,
@@ -3042,12 +3098,20 @@ class BamAttention(Attention):
                   f'{_name}_bias',
                   nn.with_logical_partitioning(zeros_init, key_bias_axes),
                   key_bias_shape, self.weight_dtype))
+              gate_bias_shape = (
+                  (rank, 2)
+                  if self._local_qk_rank_routing == 'shared_rank_gate'
+                  else (2,))
+              gate_bias_axes = (
+                  (None, None)
+                  if self._local_qk_rank_routing == 'shared_rank_gate'
+                  else (None,))
               setattr(self, f'{_name}_gate_b0', self.param(
                   f'{_name}_gate_b0',
                   nn.with_logical_partitioning(
                       lambda key, shape, dtype: jnp.full(
-                          shape, bias_value, dtype), (None,)),
-                  (2,), self.weight_dtype))
+                          shape, bias_value, dtype), gate_bias_axes),
+                  gate_bias_shape, self.weight_dtype))
               add_grouped_read_norms(
                   _name,
                   ((self.bam_k,) if rank == 1 else (rank, self.bam_k)),
@@ -3333,6 +3397,49 @@ class BamAttention(Attention):
     ), axis=-1)
     self.sow('intermediates', 'fetched_read_gate_stats', stats)
 
+  def _record_local_qk_rank_gate(self, name, gate):
+    """Record the per-rank and rank-summed routing distribution."""
+    gate = gate.astype(jnp.float32)  # [b,t,n,side,rank]
+    rank_sum = jnp.sum(gate, axis=-1)
+    rank_mean = rank_sum / gate.shape[-1]
+    edge_stats = jnp.stack((
+        jnp.mean(gate, axis=(0, 1, 2, 4)),
+        jnp.std(gate, axis=(0, 1, 2, 4)),
+        jnp.min(gate, axis=(0, 1, 2, 4)),
+        jnp.max(gate, axis=(0, 1, 2, 4)),
+        jnp.mean(gate < 0.05, axis=(0, 1, 2, 4)),
+        jnp.mean(gate > 0.95, axis=(0, 1, 2, 4)),
+    ), axis=-1)
+    sum_stats = jnp.stack((
+        jnp.mean(rank_sum, axis=(0, 1, 2)),
+        jnp.std(rank_sum, axis=(0, 1, 2)),
+        jnp.min(rank_sum, axis=(0, 1, 2)),
+        jnp.max(rank_sum, axis=(0, 1, 2)),
+        jnp.mean(rank_mean, axis=(0, 1, 2)),
+        jnp.std(rank_mean, axis=(0, 1, 2)),
+    ), axis=-1)
+    histogram = jnp.stack(tuple(
+        jnp.mean(
+            (rank_mean >= lo / 10.0) & (rank_mean < (lo + 1) / 10.0),
+            axis=(0, 1, 2))
+        for lo in range(10)), axis=-1)
+    head_std = jnp.mean(jnp.std(rank_sum, axis=2), axis=(0, 1))
+    dominance = jnp.mean(
+        jnp.max(gate, axis=-1) / jnp.maximum(rank_sum, 1e-12),
+        axis=(0, 1, 2))
+    self.sow('intermediates', f'{name}_rank_gate_stats', jnp.concatenate(
+        (edge_stats, sum_stats, histogram,
+         head_std[:, None], dominance[:, None]), axis=-1))
+
+  def _record_local_qk_read_health(self, query, key, q_local, k_local):
+    def rms(value):
+      return jnp.sqrt(jnp.mean(jnp.square(value.astype(jnp.float32))))
+    q_std, k_std = rms(query), rms(key)
+    q_bam, k_bam = rms(q_local), rms(k_local)
+    self.sow('intermediates', 'local_qk_read_health', jnp.stack((
+        q_bam, q_std, q_bam / jnp.maximum(q_std, 1e-12),
+        k_bam, k_std, k_bam / jnp.maximum(k_std, 1e-12))))
+
   def _project_read_gate_logits(
       self, gate_name, x, squeeze_fetch_axis=False):
     candidate_logits = None
@@ -3492,15 +3599,19 @@ class BamAttention(Attention):
 
       # V1 default
       rank = self._local_qk_rank
+      rank_routing = self._local_qk_rank_routing
       q_v_projection, k_v_projection = self._local_qk_post_read_v_projections()
       basis_width = rank * key_width
+      gate_width = (
+          2 * rank if rank_routing == 'shared_rank_gate'
+          else 0 if rank_routing == 'head_rank_gate' else 2)
       mix_width = 2 * self.num_query_heads * rank
       split_points = (
           basis_width,
-          basis_width + 2,
-          basis_width + 2 + mix_width,
-          2 * basis_width + 2 + mix_width,
-          2 * basis_width + 4 + mix_width,
+          basis_width + gate_width,
+          basis_width + gate_width + mix_width,
+          2 * basis_width + gate_width + mix_width,
+          2 * basis_width + 2 * gate_width + mix_width,
       )
       q_key, q_gate, q_mix, k_key, k_gate, k_mix = jnp.split(
           packed, split_points, axis=-1)
@@ -3514,12 +3625,19 @@ class BamAttention(Attention):
             q_mix.shape[:-1] + (self.num_query_heads, 2, rank))
         k_mix = k_mix.reshape(
             k_mix.shape[:-1] + (self.num_query_heads, 2, rank))
+        if rank_routing == 'shared_rank_gate':
+          q_gate = q_gate.reshape(q_gate.shape[:-1] + (rank, 2))
+          k_gate = k_gate.reshape(k_gate.shape[:-1] + (rank, 2))
       if self._local_qk_pre_rms_bias:
         q_key = q_key + jnp.asarray(self.W_lq_bias, q_key.dtype)
         k_key = k_key + jnp.asarray(self.W_lk_bias, k_key.dtype)
-      q_gate = q_gate + jnp.asarray(self.W_lq_gate_b0, q_gate.dtype)
-      k_gate = k_gate + jnp.asarray(self.W_lk_gate_b0, k_gate.dtype)
-      q_local = factorized_head_bam_read(
+      if rank_routing != 'head_rank_gate':
+        q_gate = q_gate + jnp.asarray(self.W_lq_gate_b0, q_gate.dtype)
+        k_gate = k_gate + jnp.asarray(self.W_lk_gate_b0, k_gate.dtype)
+      else:
+        q_gate = k_gate = None
+      record_routing = self._record_local_qk_routing_metrics and rank > 1
+      q_result = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: q_key, lambda _x: q_mix,
           **self._read_key_kwargs_from_logits(
               'W_lq', q_gate,
@@ -3527,8 +3645,10 @@ class BamAttention(Attention):
           implementation=self._read_implementation, read_side=self.read_side,
           rank=rank,
           second_implementation=self._local_qk_second_implementation,
-          v_projection=q_v_projection)
-      k_local = factorized_head_bam_read(
+          v_projection=q_v_projection, rank_routing=rank_routing,
+          head_rank_gate_bias=getattr(self, 'W_lq_gate_b0', None),
+          return_rank_gate=record_routing)
+      k_result = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
           **self._read_key_kwargs_from_logits(
               'W_lk', k_gate,
@@ -3536,7 +3656,16 @@ class BamAttention(Attention):
           implementation=self._read_implementation, read_side=self.read_side,
           rank=rank,
           second_implementation=self._local_qk_second_implementation,
-          v_projection=k_v_projection)
+          v_projection=k_v_projection, rank_routing=rank_routing,
+          head_rank_gate_bias=getattr(self, 'W_lk_gate_b0', None),
+          return_rank_gate=record_routing)
+      if record_routing:
+        q_local, q_rank_gate = q_result
+        k_local, k_rank_gate = k_result
+        self._record_local_qk_rank_gate('local_q', q_rank_gate)
+        self._record_local_qk_rank_gate('local_k', k_rank_gate)
+      else:
+        q_local, k_local = q_result, k_result
       return self._fit_local_qk_reads(q_local, k_local)
 
     local_qk_q_kwargs = (
@@ -3589,6 +3718,8 @@ class BamAttention(Attention):
       pad = self._local_qk_post_read_v_dim
       query = jnp.pad(query, [(0, 0)] * (query.ndim - 1) + [(0, pad)])
       key = jnp.pad(key, [(0, 0)] * (key.ndim - 1) + [(0, pad)])
+    if self._record_local_qk_routing_metrics:
+      self._record_local_qk_read_health(query, key, q_local, k_local)
     return query + q_local, key + k_local
 
   def _apply_adjacent_rope(self, x, positions, name):

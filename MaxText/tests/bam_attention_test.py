@@ -339,6 +339,33 @@ class BamReadKeyTransformTest(absltest.TestCase):
     self.assertGreater(float(jnp.linalg.norm(k_mix)), 0.0)
     self.assertFalse(np.array_equal(q_mix, k_mix))
 
+  def test_packed_rank_routing_modes_have_expected_gate_segments(self):
+    embed, heads, key_width, rank = 32, 4, 12, 2
+    regular_init = initializers.nd_dense_init(
+        1.0, 'fan_in', 'truncated_normal')
+    for mode, gate_width in (
+        ('legacy', 2), ('shared_rank_gate', 2 * rank),
+        ('head_rank_gate', 0)):
+      mix_width = 2 * heads * rank
+      packed_width = 2 * (rank * key_width + gate_width + mix_width)
+      init = _packed_factorized_local_qk_init(
+          regular_init, heads, key_width, rank=rank, rank_routing=mode)
+      kernel = init(
+          jax.random.PRNGKey(100 + gate_width),
+          (embed, packed_width), jnp.float32)
+      q_key_end = rank * key_width
+      q_gate_end = q_key_end + gate_width
+      q_mix_end = q_gate_end + mix_width
+      k_key_end = q_mix_end + rank * key_width
+      k_gate_end = k_key_end + gate_width
+      q_key, q_gate, q_mix, k_key, k_gate, k_mix = jnp.split(
+          kernel, (q_key_end, q_gate_end, q_mix_end,
+                   k_key_end, k_gate_end), axis=-1)
+      for zero_segment in (q_key, q_gate, k_key, k_gate):
+        np.testing.assert_array_equal(zero_segment, 0)
+      self.assertGreater(float(jnp.linalg.norm(q_mix)), 0.0)
+      self.assertGreater(float(jnp.linalg.norm(k_mix)), 0.0)
+
   def test_paired_parameter_init_matches_single_init_in_both_slices(self):
     regular_init = initializers.nd_dense_init(
         1.0, 'fan_in', 'truncated_normal')
@@ -754,6 +781,66 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(dot_value, mul_value, rtol=2e-5, atol=2e-5)
     for got, expected in zip(dot_grad, mul_grad):
       np.testing.assert_allclose(got, expected, rtol=3e-5, atol=3e-5)
+
+  def test_factorized_head_shared_rank_gate_matches_explicit_read(self):
+    b, t, n, rank, k, v, e = 2, 3, 4, 2, 3, 5, 7
+    keys = jax.random.split(jax.random.PRNGKey(130), 6)
+    M = jax.random.normal(keys[0], (b, t, k, v))
+    x = jax.random.normal(keys[1], (b, t, e))
+    key_kernel = jax.random.normal(keys[2], (e, rank, k + v))
+    mix_kernel = jax.random.normal(keys[3], (e, n, 2, rank))
+    gate_kernel = jax.random.normal(keys[4], (e, rank, 2))
+    gate_bias = jax.random.normal(keys[5], (rank, 2))
+    projection = lambda z: jnp.einsum('bte,erd->btrd', z, key_kernel)
+    head_projection = lambda z: jnp.einsum(
+        'bte,ensr->btnsr', z, mix_kernel)
+    gate_logits = jnp.einsum('bte,ers->btrs', x, gate_kernel) + gate_bias
+    kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
+        key_gate_logits=gate_logits, implementation='mul_reduce_btn', rank=rank,
+        rank_routing='shared_rank_gate', return_rank_gate=True)
+
+    dot, dot_gate = factorized_head_bam_read(
+        M, x, projection, head_projection,
+        second_implementation='dot', **kwargs)
+    mul, mul_gate = factorized_head_bam_read(
+        M, x, projection, head_projection,
+        second_implementation='mul_reduce', **kwargs)
+    np.testing.assert_allclose(dot, mul, rtol=2e-5, atol=2e-5)
+    np.testing.assert_allclose(dot_gate, mul_gate, rtol=0, atol=0)
+    expected_gate = jnp.broadcast_to(
+        jnp.swapaxes(jax.nn.sigmoid(gate_logits), -1, -2)[..., None, :, :],
+        (b, t, n, 2, rank))
+    np.testing.assert_allclose(dot_gate, expected_gate, rtol=1e-6, atol=1e-6)
+
+  def test_factorized_head_rank_gate_is_direct_sigmoid_without_signed_mix(self):
+    b, t, n, rank, k, v, e = 2, 3, 4, 2, 3, 5, 7
+    keys = jax.random.split(jax.random.PRNGKey(140), 4)
+    M = jax.random.normal(keys[0], (b, t, k, v))
+    x = jax.random.normal(keys[1], (b, t, e))
+    key_kernel = jax.random.normal(keys[2], (e, rank, k + v))
+    mix_kernel = jax.random.normal(keys[3], (e, n, 2, rank))
+    projection = lambda z: jnp.einsum('bte,erd->btrd', z, key_kernel)
+    head_projection = lambda z: jnp.einsum(
+        'bte,ensr->btnsr', z, mix_kernel)
+    bias = jnp.asarray((-2.0, -3.0))
+    kwargs = dict(
+        key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
+        key_gate_logits=None, implementation='mul_reduce_btn', rank=rank,
+        rank_routing='head_rank_gate', head_rank_gate_bias=bias,
+        return_rank_gate=True)
+
+    dot, dot_gate = factorized_head_bam_read(
+        M, x, projection, head_projection,
+        second_implementation='dot', **kwargs)
+    mul, mul_gate = factorized_head_bam_read(
+        M, x, projection, head_projection,
+        second_implementation='mul_reduce', **kwargs)
+    expected_gate = jax.nn.sigmoid(
+        head_projection(x) + bias[None, None, None, :, None])
+    np.testing.assert_allclose(dot, mul, rtol=2e-5, atol=2e-5)
+    np.testing.assert_allclose(dot_gate, expected_gate, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(mul_gate, expected_gate, rtol=1e-6, atol=1e-6)
 
   def test_factorized_head_read_zero_key_starts_dormant_but_has_key_gradient(self):
     b, t, n, k, v, e = 1, 3, 4, 3, 5, 7

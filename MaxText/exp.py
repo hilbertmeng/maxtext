@@ -291,6 +291,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
     bam_local_qk_rank = 1  # number of dynamic basis keys per Q/K and read side
     bam_local_qk_second_implementation = 'mul_reduce'  # dot | mul_reduce
+    bam_local_qk_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_rank_gate
+    bam_record_local_qk_routing_metrics = False
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
@@ -1852,6 +1854,41 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl(
+    BamLlama2MediumV2C256Paired40LocalQKRank2
+):
+    """Current-code reproduction control for paired Rank2 routing ablations."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl'
+    scan_layers = True
+    checkpoint_period = 200
+    bam_record_local_qk_routing_metrics = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-rank2-current-control')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate(
+    BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl
+):
+    """Give every shared LocalQK basis its own gate; normalize mixing over heads."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate'
+    bam_local_qk_rank_routing = 'shared_rank_gate'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-rank2-shared-rank-gate')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate(
+    BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl
+):
+    """Use sigmoid head-rank gates directly, with no shared gate or signed mix."""
+    model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate'
+    bam_local_qk_rank_routing = 'head_rank_gate'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-paired40-rank2-head-rank-gate')
 
 
 class BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias(

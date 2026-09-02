@@ -1273,6 +1273,7 @@ class BamLlama2MediumV2C256ScanAotControlInterpolatedRead(
     BamLlama2MediumV2C256ScanAotControl
 ):
     """Isolate fetched-read interpolation on the plain scan+AOT control."""
+    # code_commit: 2173da5; UE5a ~0.656 steps/s.
     model_name = 'BamLlama2MediumV2C256ScanAotControlInterpolatedRead'
     bam_fetched_read_merge = 'interpolate'
     jax_cache_dir = (
@@ -1871,6 +1872,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
     """Current-code reproduction control for paired Rank2 routing ablations."""
+    # code_commit: 0038e21; UE5a ~0.629 steps/s.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl'
     scan_layers = True
     checkpoint_period = 200
@@ -1884,6 +1886,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate(
     BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl
 ):
     """Give every shared LocalQK basis its own gate; normalize mixing over heads."""
+    # code_commit: 0038e21; UE5a ~0.634 steps/s (+0.8% vs current control).
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate'
     bam_local_qk_rank_routing = 'shared_rank_gate'
     jax_cache_dir = (
@@ -1895,6 +1898,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate(
     BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl
 ):
     """Use sigmoid head-rank gates directly, with no shared gate or signed mix."""
+    # code_commit: 0038e21; UE5a ~0.635 steps/s (+1.0% vs current control).
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate'
     bam_local_qk_rank_routing = 'head_rank_gate'
     jax_cache_dir = (

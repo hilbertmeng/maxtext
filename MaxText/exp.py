@@ -1254,6 +1254,18 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050(
         'jax_caches/xd-bam-v2-c256-depth-amplitude-g050')
 
 
+class BamLlama2MediumV2C256DepthAmplitudeGate005(
+    BamLlama2MediumV2C256DepthAmplitudeBase
+):
+    """Restore the .005 gate prior while retaining learned depth amplitudes."""
+    model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate005'
+    bam_fetched_read_gate_init = 0.005
+    bam_fetched_read_amplitude_init = 5.65685425
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-amplitude-g005')
+
+
 class BamLlama2MediumV2C256DepthAmplitudeGate050AQuarter(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):

@@ -98,15 +98,35 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
       row = {"step": step, "band": band_name}
       for side in ("row", "col"):
         amp_ratios = []
+        amp_cvs = []
+        amp_min_over_means = []
+        amp_max_over_means = []
         for layer in layers:
-          tag = (
+          mean_tag = (
               f"bam/fetched_read_amplitude/{side}/layer_{layer:03d}/mean"
           )
-          if tag in scalars.tags:
-            initial = scalars.at(tag, 0)
-            amp_ratios.append(scalars.at(tag, step) / initial)
+          if mean_tag in scalars.tags:
+            mean = scalars.at(mean_tag, step)
+            initial = scalars.at(mean_tag, 0)
+            amp_ratios.append(mean / initial)
+            prefix = mean_tag.removesuffix("/mean")
+            std_tag, min_tag, max_tag = (
+                prefix + "/std", prefix + "/min", prefix + "/max")
+            if all(tag in scalars.tags for tag in (std_tag, min_tag, max_tag)):
+              denominator = max(abs(mean), 1e-12)
+              amp_cvs.append(scalars.at(std_tag, step) / denominator)
+              amp_min_over_means.append(
+                  scalars.at(min_tag, step) / denominator)
+              amp_max_over_means.append(
+                  scalars.at(max_tag, step) / denominator)
         row[f"amplitude_ratio_{side}"] = _rounded(
             np.mean(amp_ratios) if amp_ratios else None)
+        row[f"amplitude_cv_{side}"] = _rounded(
+            np.mean(amp_cvs) if amp_cvs else None)
+        row[f"amplitude_min_over_mean_{side}"] = _rounded(
+            np.mean(amp_min_over_means) if amp_min_over_means else None)
+        row[f"amplitude_max_over_mean_{side}"] = _rounded(
+            np.mean(amp_max_over_means) if amp_max_over_means else None)
         gate_prefix = f"bam/fetched_read_gate/{side}/layer_{{layer:03d}}"
         row[f"gate_mean_{side}"] = _rounded(
             scalars.band_mean(gate_prefix + "/mean", step, layers))
@@ -209,7 +229,8 @@ def _print_text(run: str, result) -> None:
   for row in result["global"]:
     print(row["step"], row["raw_grad"], row["wr_grad_l2"],
           row["clip_fraction_to_step"])
-  print("\nstep band aR/a0 aC/a0 gateR(mean/std/<.05/>.95) "
+  print("\nstep band aR/a0(cv/min/max) aC/a0(cv/min/max) "
+        "gateR(mean/std/<.05/>.95) "
         "gateC(mean/std/<.05/>.95) preR/preC outR/outC M_rms "
         "yBAM/ySTD removedSTD/STD keptSTD/STD merged/STD")
   for row in result["bands"]:
@@ -217,8 +238,12 @@ def _print_text(run: str, result) -> None:
       return "/".join(str(row[f"gate_{field}_{side}"]) for field in (
           "mean", "std", "frac_lt_005", "frac_gt_095"))
     print(
-        row["step"], row["band"], row["amplitude_ratio_row"],
-        row["amplitude_ratio_col"], gate("row"), gate("col"),
+        row["step"], row["band"],
+        "/".join(str(row[f"amplitude_{field}_row"]) for field in (
+            "ratio", "cv", "min_over_mean", "max_over_mean")),
+        "/".join(str(row[f"amplitude_{field}_col"]) for field in (
+            "ratio", "cv", "min_over_mean", "max_over_mean")),
+        gate("row"), gate("col"),
         f'{row["pre_gate_rms_row"]}/{row["pre_gate_rms_col"]}',
         f'{row["output_rms_row"]}/{row["output_rms_col"]}',
         row["m_rms"], row["y_bam_over_y_std"],

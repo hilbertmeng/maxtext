@@ -25,6 +25,21 @@ classes and immutable checkpoints:
 | p=.05 | `BamLlama2MediumV2C256DepthAmplitudeGate050` | `gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256DepthAmplitudeGate050/checkpoints/13400/items` | `refactor-bam@661f82c` |
 | p=.50 | `BamLlama2MediumV2C256DepthAmplitudeGate500` | `gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256DepthAmplitudeGate500/checkpoints/13400/items` | `refactor-bam@661f82c` |
 
+The compared parameterizations are not pure gate-prior ablations:
+
+| Alias | fetched gate init | explicit amplitude init | amplitude form | initial post-RMS key coefficient at layer `l` |
+|---|---:|---:|---|---:|
+| control | `.005` inherited from `bam_read_gate_init` | `None`; legacy fixed key scale `2` | no learned amplitude or depth scaling | `2 × .005 = .01` |
+| p=.05 | `.05` | `.565685425` | learned log-scale per layer and side; `1/sqrt(max(l,1))` prior | `.565685425/sqrt(8) × .05/sqrt(max(l,1)) = .01/sqrt(max(l,1))` |
+| p=.50 | `.50` | `.0565685425` | learned log-scale per layer and side; `1/sqrt(max(l,1))` prior | `.0565685425/sqrt(8) × .50/sqrt(max(l,1)) = .01/sqrt(max(l,1))` |
+
+Equivalently, control's legacy scale corresponds to an explicit amplitude
+`2*sqrt(8)=5.656854`. Thus p=.05 uses a gate prior 10× larger and a shallow-layer
+amplitude 10× smaller; p=.50 uses a gate prior 100× larger and amplitude 100×
+smaller. Layers 0 and 1 start with the same `.01` effective coefficient as
+control, while deeper explicit-amplitude layers additionally shrink it by
+`1/sqrt(l)` before learning.
+
 `661f82c` adds the layer-side amplitude reconstruction required by the two
 depth-amplitude configurations; the captured forward tensors and binning logic
 are otherwise the same as control. The three raw artifacts are also stored at

@@ -1258,6 +1258,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate005(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Restore the .005 gate prior while retaining learned depth amplitudes."""
+    # code_commit: 1c208f2; UE5a ~0.661 steps/s; running to 13,500.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate005'
     bam_fetched_read_gate_init = 0.005
     bam_fetched_read_amplitude_init = 5.65685425

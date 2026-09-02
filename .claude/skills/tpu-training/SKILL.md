@@ -120,8 +120,8 @@ completes.
 
 ## Monitor Training
 
-Use `run_registry.py status` for liveness and `loss-report` for loss. Reserve TensorBoard sync
-for run closeout.
+Use `run_registry.py status` for liveness. Auto-train materializes each mature cumulative loss
+report; Codex pulls the unacknowledged event and reserves TensorBoard sync for run closeout.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -140,14 +140,16 @@ SSH confirmations with valid speed, then recreates. Codex verifies watchdog heal
 loss/trend decisions.
 
 Each `run_registry/<RUN>.json` contains run/TPU/launch data, current `base_output_directory`,
-report interval/window/cursor, and direct `compare_runs`. `loss-report` refreshes live worker-0
-logs, merges repeated steps
+report interval/window/cursor, and direct `compare_runs`. Auto-train calls `emit-report` after a
+new milestone matures; retrieve it with `pending-report RUN`. `loss-report` remains the manual
+fallback. Both refresh live worker-0
+logs and merge repeated steps
 (latest launch wins) into persistent `run_registry/loss_cache/`, then prints every
 `gap = RUN loss - BASE loss` (negative favors RUN) at exact common steps:
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  '/home/lishengping/xd/projects/run_registry.py loss-report RUN --through-step STEP'
+  '/home/lishengping/xd/projects/run_registry.py pending-report RUN'
 ```
 
 It samples `step % 10 == 0` inside each ±25-step window, preserving the historical reporting
@@ -171,8 +173,9 @@ the transition explicitly and monitor it closely until its direction is clear.
 At every due milestone:
 
 1. Run one shared `status`, verify each due RUN's latest checkpoint under its registered
-   `base_output_directory` has `commit_success.txt`, then run `loss-report`; summarize healthy
-   checkpoints tersely and investigate pending or rollback immediately.
+   `base_output_directory` has `commit_success.txt`, then pull `pending-report` (use
+   `loss-report` only if event generation failed); summarize healthy checkpoints tersely and
+   investigate pending or rollback immediately.
 2. Report the cumulative horizontal rows; judge stability from signed-gap trends plus `r200`.
    When a RUN enables BAM read-health `sow` metrics, also run
    `scripts/report_bam_read_health.py RUN --steps MILESTONES`. Report the compact layer-band

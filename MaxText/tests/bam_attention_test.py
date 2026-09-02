@@ -838,6 +838,16 @@ class BamReadKeyTransformTest(absltest.TestCase):
         (b, t, n, 2, rank))
     np.testing.assert_allclose(dot_gate, expected_gate, rtol=1e-6, atol=1e-6)
 
+    amplitude = jnp.asarray((0.25, 0.75))
+    scaled, _ = factorized_head_bam_read(
+        M, x, projection, head_projection,
+        second_implementation='mul_reduce', side_amplitude=amplitude,
+        **kwargs)
+    expected = jnp.concatenate(
+        (mul[..., :k] * amplitude[1], mul[..., k:] * amplitude[0]),
+        axis=-1)
+    np.testing.assert_allclose(scaled, expected, rtol=2e-5, atol=2e-5)
+
   def test_factorized_head_rank_gate_is_direct_sigmoid_without_signed_mix(self):
     b, t, n, rank, k, v, e = 2, 3, 4, 2, 3, 5, 7
     keys = jax.random.split(jax.random.PRNGKey(140), 4)

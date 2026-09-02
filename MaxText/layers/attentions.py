@@ -2265,7 +2265,7 @@ def factorized_head_bam_read(
     second_implementation='mul_reduce', v_projection=None,
     key_row_activation='none', key_col_activation='none',
     rank_routing='legacy', head_rank_gate_bias=None,
-    return_rank_gate=False):
+    side_amplitude=None, return_rank_gate=False):
   """Read with rank-r shared runtime keys, then route dynamically across heads.
 
   For each side, the effective per-head key is factorized as
@@ -2419,6 +2419,11 @@ def factorized_head_bam_read(
         y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
       if y_v is None:
         y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
+      if side_amplitude is not None:
+        row_amplitude, col_amplitude = jnp.asarray(
+            side_amplitude, y_u.dtype)
+        y_u = y_u * col_amplitude
+        y_v = y_v * row_amplitude
       read = jnp.concatenate([y_u, y_v], axis=-1)
       return (read, rank_gate) if return_rank_gate else read
 
@@ -2456,6 +2461,10 @@ def factorized_head_bam_read(
       y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
       y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
+    if side_amplitude is not None:
+      row_amplitude, col_amplitude = jnp.asarray(side_amplitude, y_u.dtype)
+      y_u = y_u * col_amplitude
+      y_v = y_v * row_amplitude
     return jnp.concatenate([y_u, y_v], axis=-1)
 
 
@@ -2657,6 +2666,14 @@ class BamAttention(Attention):
         cfg, 'bam_local_qk_rank_routing', 'legacy')
     self._record_local_qk_routing_metrics = bool(getattr(
         cfg, 'bam_record_local_qk_routing_metrics', False))
+    local_qk_amplitude_init = getattr(cfg, 'bam_local_qk_amplitude_init', None)
+    self._local_qk_amplitude_init = (
+        None if local_qk_amplitude_init is None
+        else float(local_qk_amplitude_init))
+    self._local_qk_amplitude_depth_scale = bool(getattr(
+        cfg, 'bam_local_qk_amplitude_depth_scale', False))
+    self._record_local_qk_amplitude_metrics = bool(getattr(
+        cfg, 'bam_record_local_qk_amplitude_metrics', False))
     self._local_qk_second_implementation = getattr(
         cfg, 'bam_local_qk_second_implementation', 'mul_reduce')
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
@@ -2886,6 +2903,14 @@ class BamAttention(Attention):
     assert self._fetched_read_merge in ('add', 'interpolate')
     assert (not self._record_fetched_read_amplitude_metrics
             or self._fetched_read_amplitude_init is not None)
+    assert (self._local_qk_amplitude_init is None
+            or self._local_qk_amplitude_init > 0.0)
+    assert (not self._record_local_qk_amplitude_metrics
+            or self._local_qk_amplitude_init is not None)
+    if self._local_qk_amplitude_init is not None:
+      assert self._pack_factorized_local_qk
+      assert not self._batch_factorized_local_qk_read
+      assert self._local_qk_rank_routing == 'shared_rank_gate'
     if self._fetched_read_merge == 'interpolate':
       assert 'full' in self._mode
       assert self._read_key_mode == 'rms_gate'
@@ -3419,6 +3444,13 @@ class BamAttention(Attention):
                   nn.initializers.zeros_init(), (None,)),
               (2,), self.weight_dtype)
 
+    if self._local_qk_amplitude_init is not None:
+      self.W_local_qk_amplitude_log_scale = self.param(
+          'W_local_qk_amplitude_log_scale',
+          nn.with_logical_partitioning(
+              nn.initializers.zeros_init(), (None, None)),
+          (2, 2), self.weight_dtype)
+
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
     if paired is not None:
@@ -3464,6 +3496,19 @@ class BamAttention(Attention):
       amplitude = jnp.asarray(self._fetched_read_amplitude_init, self.dtype)
       amplitude = amplitude * jnp.exp(jnp.asarray(log_delta, self.dtype))
     return jnp.broadcast_to(amplitude, shape)
+
+  def _local_qk_amplitude(self, layer_index=None):
+    if self._local_qk_amplitude_init is None:
+      return None
+    amplitude = jnp.asarray(self._local_qk_amplitude_init, self.dtype)
+    amplitude = amplitude * jnp.exp(jnp.asarray(
+        self.W_local_qk_amplitude_log_scale, self.dtype))
+    if self._local_qk_amplitude_depth_scale:
+      if layer_index is None:
+        raise ValueError('depth-scaled LocalQK amplitude needs layer_index')
+      prior_writes = jnp.maximum(jnp.asarray(layer_index, self.dtype), 1.0)
+      amplitude = amplitude * jax.lax.rsqrt(prior_writes)
+    return amplitude
 
   def _record_fetched_gate_stats(self, gate_logits):
     gate = jax.nn.sigmoid(gate_logits.astype(jnp.float32))
@@ -3641,8 +3686,12 @@ class BamAttention(Attention):
         _fit_bam_read_to_head(k_local, self.bam_k, self.head_dim, k_adapter),
     )
 
-  def _read_local_qk(self, Mh, inputs_q):
+  def _read_local_qk(self, Mh, inputs_q, layer_index=None):
     """Read the local matrix into Q/K; callers choose the injection point."""
+    local_amplitude = self._local_qk_amplitude(layer_index)
+    if self._record_local_qk_amplitude_metrics:
+      self.sow(
+          'intermediates', 'local_qk_read_amplitude', local_amplitude)
     if self._pack_factorized_local_qk:  # V1 default
       with jax.named_scope("bam/local_qk_packed_projection"):
         packed = self.W_local_qk_packed(inputs_q)
@@ -3726,6 +3775,7 @@ class BamAttention(Attention):
           second_implementation=self._local_qk_second_implementation,
           v_projection=q_v_projection, rank_routing=rank_routing,
           head_rank_gate_bias=getattr(self, 'W_lq_gate_b0', None),
+          side_amplitude=(None if local_amplitude is None else local_amplitude[0]),
           return_rank_gate=record_routing)
       k_result = factorized_head_bam_read(
           Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
@@ -3737,6 +3787,7 @@ class BamAttention(Attention):
           second_implementation=self._local_qk_second_implementation,
           v_projection=k_v_projection, rank_routing=rank_routing,
           head_rank_gate_bias=getattr(self, 'W_lk_gate_b0', None),
+          side_amplitude=(None if local_amplitude is None else local_amplitude[1]),
           return_rank_gate=record_routing)
       if record_routing:
         q_local, q_rank_gate = q_result
@@ -4153,7 +4204,8 @@ class BamAttention(Attention):
         local_Mh = (
             self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
             if self._local_qk_use_compressed_v else Mh)
-        q_local, k_local = self._read_local_qk(local_Mh, inputs_q)
+        q_local, k_local = self._read_local_qk(
+            local_Mh, inputs_q, layer_index)
         query, key = self._add_local_qk(query, key, q_local, k_local)
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
@@ -4177,7 +4229,8 @@ class BamAttention(Attention):
         local_Mh = (
             self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
             if self._local_qk_use_compressed_v else Mh)
-        q_local, k_local = self._read_local_qk(local_Mh, inputs_q)
+        q_local, k_local = self._read_local_qk(
+            local_Mh, inputs_q, layer_index)
         query, key = self._add_local_qk(query, key, q_local, k_local)
 
     query = nn.with_logical_constraint(query, self.query_axis_names)

@@ -293,6 +293,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_second_implementation = 'mul_reduce'  # dot | mul_reduce
     bam_local_qk_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_rank_gate
     bam_record_local_qk_routing_metrics = False
+    bam_local_qk_amplitude_init = None  # optional Q/K x row/col scale outside the gate
+    bam_local_qk_amplitude_depth_scale = False
+    bam_record_local_qk_amplitude_metrics = False
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
@@ -1920,6 +1923,37 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-rank2-head-rank-gate')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005(
+    BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate
+):
+    """Depth-scale LocalQK Q/K x row/column amplitudes at the .005 gate prior."""
+    # code_commit: pending; compare with SharedRankGate.
+    model_name = (
+        'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005')
+    bam_local_qk_amplitude_init = 1.0
+    bam_local_qk_amplitude_depth_scale = True
+    bam_record_local_qk_amplitude_metrics = True
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-rank2-shared-gate-amp005')
+
+
+class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050(
+    BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005
+):
+    """Raise the LocalQK gate prior to .05 at matched initial effective strength."""
+    # code_commit: pending; compare with Amplitude005 and SharedRankGate.
+    model_name = (
+        'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050')
+    bam_read_gate_init = 0.05
+    bam_fetched_read_gate_init = 0.005
+    bam_local_qk_amplitude_init = 0.1
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-rank2-shared-gate-amp050')
 
 
 class BamLlama2MediumV2C256Paired40LocalQKRank2GroupedWriteRMSNormKeepBias(

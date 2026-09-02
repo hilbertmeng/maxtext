@@ -15,7 +15,7 @@ LAYER_BANDS = {
     "late_16_23": range(16, 24),
 }
 SIDES = ("row", "column")
-THRESHOLDS = (0.02, 0.05, 0.10, 0.25, 0.50, 0.75, 0.95)
+THRESHOLDS = (0.02, 0.05, 0.10, 0.20, 0.50, 0.80, 0.90, 0.95, 0.99)
 
 
 def _layer(report, layer):
@@ -63,13 +63,23 @@ def _aggregate_side(report, layers, side):
             and item["read_to_full_std_frobenius"] > 0))
     population_fraction = population / len(items)
     energy_fraction = read_energy / total_read_energy if total_read_energy else 0.0
+    gate_population = sum(
+        item["fraction"] * item["gate_mean"]
+        for item in items if _finite(item["gate_mean"]))
+    sensitivity_population = sum(
+        item["fraction"] * item["sigmoid_derivative_mean"]
+        for item in items if _finite(item.get("sigmoid_derivative_mean")))
     bins.append({
         "lo": items[0]["lo"],
         "hi": items[0]["hi"],
+        "count": sum(item.get("count", 0) for item in items),
         "population_fraction": population_fraction,
+        "gate_mean": gate_population / population if population else None,
         "read_energy_fraction": energy_fraction,
         "energy_enrichment": (
             energy_fraction / population_fraction if population_fraction else None),
+        "sigmoid_derivative_mean": (
+            sensitivity_population / population if population else None),
         "read_to_std_slice_rms": (
             math.sqrt(read_energy / std_energy) if std_energy else None),
         "side_read_to_full_y_std_frobenius": (

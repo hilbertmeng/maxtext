@@ -38,8 +38,11 @@ import train
 
 _LAYER_RE = re.compile(r"layers_(\d+)")
 _EPS = 1.0e-12
-_GATE_BIN_EDGES = (0.0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5,
-                   0.75, 0.95, 1.0)
+_GATE_BIN_EDGES = (
+    0.0, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1,
+    0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+    0.95, 0.98, 0.99, 0.995, 0.998, 0.999, 1.0,
+)
 
 
 def _unwrap(value: Any) -> Any:
@@ -329,7 +332,8 @@ def _gate_binned_readout_summary(
         count = int(np.sum(in_bin))
         if count == 0:
           bins.append({
-              "lo": lo, "hi": hi, "fraction": 0.0, "gate_mean": float("nan"),
+              "lo": lo, "hi": hi, "count": 0, "fraction": 0.0,
+              "gate_mean": float("nan"), "sigmoid_derivative_mean": float("nan"),
               "read_rms": float("nan"), "std_slice_rms": float("nan"),
               "read_to_std_slice_rms": float("nan"),
               "read_to_full_std_frobenius": float("nan"),
@@ -342,8 +346,11 @@ def _gate_binned_readout_summary(
         bins.append({
             "lo": lo,
             "hi": hi,
+            "count": count,
             "fraction": count / valid_count,
             "gate_mean": float(np.mean(side_gate[layer][in_bin])),
+            "sigmoid_derivative_mean": float(np.mean(
+                side_gate[layer][in_bin] * (1.0 - side_gate[layer][in_bin]))),
             "read_rms": math.sqrt(selected_read_square / (count * side_read.shape[-1])),
             "std_slice_rms": math.sqrt(selected_std_square / (count * side_std.shape[-1])),
             "read_to_std_slice_rms": math.sqrt(

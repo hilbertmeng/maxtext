@@ -1306,7 +1306,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadScanLayerFix(
     BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix
 ):
     """Re-test fetched-read interpolation with corrected depth scaling."""
-    # code_commit: pending; compare with corrected Gate050 and historical interpolation.
+    # code_commit: 1e7c53c; UE5a ~0.646 steps/s; compare with corrected and old interpolation.
     model_name = (
         'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadScanLayerFix')
     bam_fetched_read_merge = 'interpolate'

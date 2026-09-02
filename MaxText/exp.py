@@ -1269,6 +1269,17 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead(
         'jax_caches/xd-bam-v2-c256-depth-amplitude-g050-interpolated-read')
 
 
+class BamLlama2MediumV2C256ScanAotControlInterpolatedRead(
+    BamLlama2MediumV2C256ScanAotControl
+):
+    """Isolate fetched-read interpolation on the plain scan+AOT control."""
+    model_name = 'BamLlama2MediumV2C256ScanAotControlInterpolatedRead'
+    bam_fetched_read_merge = 'interpolate'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-scan-aot-control-interpolated-read')
+
+
 class BamLlama2MediumV2C256DepthAmplitudeGate005(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):

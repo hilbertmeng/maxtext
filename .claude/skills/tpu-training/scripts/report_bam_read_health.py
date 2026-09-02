@@ -165,6 +165,11 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
             prefix = (
                 f"bam/local_qk/{use_point}/{side}/layer_{{layer:03d}}")
             key = f'{use_point.removeprefix("local_")}_{side}'
+            row[f"{key}_amplitude_ratio"] = _rounded(
+                scalars.band_mean(
+                    f"bam/local_qk_amplitude/{key.removesuffix('_' + side)}/"
+                    f"{side}/layer_{{layer:03d}}/over_init",
+                    step, layers))
             for stat in (
                 "rank_sum_mean", "rank_sum_std", "rank_sum_min",
                 "rank_sum_max", "rank_sum_head_std", "dominant_rank_share"):
@@ -256,12 +261,13 @@ def _print_text(run: str, result) -> None:
       print(row["step"], row["band"], row["q_bam_over_std"],
             row["k_bam_over_std"])
       for key in ("q_row", "q_col", "k_row", "k_col"):
+        amplitude_ratio = row[f"{key}_amplitude_ratio"]
         summary = "/".join(str(row[f"{key}_{stat}"]) for stat in (
             "rank_sum_mean", "rank_sum_std", "rank_sum_head_std",
             "dominant_rank_share"))
         bins = "/".join(str(value) for value in row[
             f"{key}_rank_mean_bins"])
-        print(f"  {key} {summary} {bins}")
+        print(f"  {key} a/a0={amplitude_ratio} {summary} {bins}")
 
 
 def _format_pair(pair):

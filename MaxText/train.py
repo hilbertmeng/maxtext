@@ -370,6 +370,28 @@ def record_bam_fetched_read_amplitude_metrics(
       })
 
 
+def record_bam_local_qk_amplitude_metrics(
+    output_metrics, intermediate_outputs, config):
+  """Adds per-layer Q/K x row/column LocalQK amplitude summaries."""
+  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
+  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
+  amplitude = metrics_dict['block']['self_attention']['local_qk_read_amplitude'][0]
+  amplitude_init = float(config.bam_local_qk_amplitude_init)
+  for layer_num in range(config.base_num_decoder_layers):
+    prior_writes = max(layer_num, 1) if config.bam_local_qk_amplitude_depth_scale else 1
+    effective_init = amplitude_init / prior_writes**0.5
+    for use_num, use_point in enumerate(('q', 'k')):
+      for side_num, side in enumerate(('row', 'col')):
+        value = amplitude[layer_num, use_num, side_num].astype(jnp.float32)
+        prefix = (
+            f'bam/local_qk_amplitude/{use_point}/{side}/'
+            f'layer_{layer_num:03d}')
+        output_metrics['scalar'].update({
+            f'{prefix}/value': value,
+            f'{prefix}/over_init': value / effective_init,
+        })
+
+
 def record_bam_fetched_read_health_metrics(
     output_metrics, intermediate_outputs, config):
   """Adds compact per-layer fetched-read health summaries."""
@@ -874,6 +896,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   if getattr(config, 'bam_record_fetched_read_amplitude_metrics', False):
     record_bam_fetched_read_amplitude_metrics(
         metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_local_qk_amplitude_metrics', False):
+    record_bam_local_qk_amplitude_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):
     record_bam_fetched_read_health_metrics(
         metrics, intermediate_outputs, config)

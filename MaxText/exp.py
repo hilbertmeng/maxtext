@@ -1945,6 +1945,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate(
 ):
     """Give every shared LocalQK basis its own gate; normalize mixing over heads."""
     # code_commit: 0038e21; UE5a ~0.634 steps/s (+0.8% vs current control).
+    # completed 13,499; final ckpt 13,400. Stable dloss -0.00156 mean
+    # vs Rank2 @12,200-13,400 (range -0.00194..-0.00118).
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate'
     bam_local_qk_rank_routing = 'shared_rank_gate'
     jax_cache_dir = (

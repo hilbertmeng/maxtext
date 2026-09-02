@@ -73,7 +73,7 @@ def _rounded(value, digits=5):
 
 
 def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
-  result = {"global": [], "bands": []}
+  result = {"global": [], "bands": [], "local_qk": []}
   raw_grad_tag = "learning/raw_grad_norm"
   raw_grad_events = scalars.values(raw_grad_tag)
   for step in steps:
@@ -134,6 +134,34 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
             health_prefix + f"/{name}_rms",
             health_prefix + "/y_std_rms", step, layers))
       result["bands"].append(row)
+
+  local_qk_probe = "bam/local_qk/local_q/row/layer_000/rank_sum_mean"
+  if local_qk_probe in scalars.tags:
+    for band_name, layers in bands:
+      for step in steps:
+        row = {"step": step, "band": band_name}
+        for use_point in ("local_q", "local_k"):
+          for side in ("row", "col"):
+            prefix = (
+                f"bam/local_qk/{use_point}/{side}/layer_{{layer:03d}}")
+            key = f'{use_point.removeprefix("local_")}_{side}'
+            for stat in (
+                "rank_sum_mean", "rank_sum_std", "rank_sum_min",
+                "rank_sum_max", "rank_sum_head_std", "dominant_rank_share"):
+              row[f"{key}_{stat}"] = _rounded(
+                  scalars.band_mean(prefix + f"/{stat}", step, layers))
+            row[f"{key}_rank_mean_bins"] = [
+                _rounded(scalars.band_mean(
+                    prefix + f"/rank_mean_bin_{lo:02d}_{lo + 10:02d}",
+                    step, layers))
+                for lo in range(0, 100, 10)
+            ]
+        health = "bam/local_qk/health/layer_{layer:03d}"
+        row["q_bam_over_std"] = _rounded(
+            scalars.band_mean(health + "/q_bam_over_std", step, layers))
+        row["k_bam_over_std"] = _rounded(
+            scalars.band_mean(health + "/k_bam_over_std", step, layers))
+        result["local_qk"].append(row)
   return result
 
 
@@ -196,6 +224,19 @@ def _print_text(run: str, result) -> None:
         row["m_rms"], row["y_bam_over_y_std"],
         row["removed_std_over_std"], row["kept_std_over_std"],
         row["merged_over_std"])
+  if result["local_qk"]:
+    print("\nstep band q/std k/std point-side="
+          "sum_mean/sum_std/head_std/dominance bins(rank_mean:0-.1..9-1)")
+    for row in result["local_qk"]:
+      print(row["step"], row["band"], row["q_bam_over_std"],
+            row["k_bam_over_std"])
+      for key in ("q_row", "q_col", "k_row", "k_col"):
+        summary = "/".join(str(row[f"{key}_{stat}"]) for stat in (
+            "rank_sum_mean", "rank_sum_std", "rank_sum_head_std",
+            "dominant_rank_share"))
+        bins = "/".join(str(value) for value in row[
+            f"{key}_rank_mean_bins"])
+        print(f"  {key} {summary} {bins}")
 
 
 def _format_pair(pair):

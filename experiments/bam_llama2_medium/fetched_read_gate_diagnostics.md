@@ -51,6 +51,39 @@ Late-layer fixed-batch summaries:
 | p=.05 | 5.391 | .0920±.0507 | .0346/.0812/.1846 | .2918±.1749 | .0883/.2656/.5816 | 2.473 |
 | p=.50 | 13.801 | .3495±.1677 | .1353/.3238/.6509 | .7498±.1814 | .4135/.7864/.9606 | 2.169 |
 
+The following table gives the complete coarse `[0,1]` distribution for every
+RUN and side in layers 16–23. Each cell is
+`population % / side-read energy % / side-read-to-full-ySTD Frobenius`. The
+side-conditioned ratio is more causal than conditioning total BAM output on
+one side's gate, which would mix in the other independently gated side.
+
+| RUN/side | 0–.005 | .005–.01 | .01–.02 | .02–.05 | .05–.1 | .1–.25 | .25–.5 | .5–.75 | .75–.95 | .95–1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| control/row | 6.01/.623/.19 | 41.9/13.5/.41 | 42.5/43.9/.82 | 9.44/37.0/1.78 | .149/3.88/4.78 | .00394/1.11/15.16 | — | — | — | — |
+| control/column | .213/.00196/.13 | 1.70/.0473/.28 | 18.0/2.09/.79 | 57.7/26.3/1.74 | 17.8/36.3/3.82 | 4.47/31.7/7.22 | .0927/2.98/17.57 | .00162/.527/56.25 | — | — |
+| p=.05/row | — | .00834/.000056/.11 | .552/.0116/.14 | 18.1/2.00/.26 | 46.9/21.3/.53 | 33.2/62.9/1.15 | 1.28/12.8/3.03 | .0174/1.05/7.23 | .000227/.0595/19.99 | — |
+| p=.05/column | .00327/~0/.01 | .0344/.000016/.03 | .189/.000374/.06 | 1.54/.0189/.18 | 6.56/.343/.48 | 42.1/11.1/1.31 | 36.0/35.5/2.58 | 11.6/36.7/4.40 | 1.97/16.0/6.92 | .00880/.425/18.00 |
+| p=.50/row | — | — | .000083/~0/.04 | .0733/.000974/.09 | 2.27/.101/.16 | 30.2/6.89/.37 | 48.4/40.1/.73 | 17.0/42.8/1.41 | 2.00/10.1/2.16 | .00970/.106/3.41 |
+| p=.50/column | .000107/~0/.01 | .000143/~0/.02 | .000167/~0/.04 | .00494/.000009/.04 | .0629/.000352/.08 | 1.10/.0467/.29 | 9.91/2.37/.87 | 31.1/17.7/1.52 | 48.0/57.7/2.33 | 9.89/22.2/3.33 |
+
+Upper-tail scarcity and saturation must both be checked. Percentages below are
+early/middle/late layer bands:
+
+| RUN/side | >.75 population E/M/L | >.75 energy E/M/L | >.95 population E/M/L | >.95 energy E/M/L |
+|---|---:|---:|---:|---:|
+| control/row | 0/0/0 | 0/0/0 | 0/0/0 | 0/0/0 |
+| control/column | 0/0/.0000119 | 0/0/.0143 | 0/0/0 | 0/0/0 |
+| p=.05/row | .00720/.00132/.000227 | .422/.0497/.0595 | 0/0/0 | 0/0/0 |
+| p=.05/column | .0484/.0381/1.98 | 2.17/.779/16.4 | .0000273/0/.00880 | .00175/0/.425 |
+| p=.50/row | 7.39/6.49/2.01 | 27.0/20.1/10.2 | .120/.129/.00970 | .738/.404/.106 |
+| p=.50/column | 8.80/30.8/57.9 | 35.7/65.0/79.9 | .291/2.56/9.89 | 2.34/7.55/22.2 |
+
+Thus control does not merely avoid upper saturation: it almost never reaches a
+strongly open state at all. It uses the sigmoid as a low-range continuous gain.
+`p=.05` row behaves similarly, while its late column/data side develops a small
+but important strongly-open tail. `p=.50` column moves to the opposite failure
+mode: extensive upper-bound crowding.
+
 Gate-conditioned energy shows why the small control mean is misleading:
 
 | RUN/side | selected gate range | population | side-read energy | enrichment |

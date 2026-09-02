@@ -1287,6 +1287,30 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude
         'jax_caches/xd-bam-v2-c256-g050-interp-per-head-amplitude')
 
 
+class BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix(
+    BamLlama2MediumV2C256DepthAmplitudeGate050
+):
+    """Re-run fetched-read depth scaling with the real scanned layer index."""
+    # code_commit: pending; compare with ScanAotControl and historical Gate050.
+    model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-amplitude-g050-scan-layer-fix')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadScanLayerFix(
+    BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix
+):
+    """Re-test fetched-read interpolation with corrected depth scaling."""
+    # code_commit: pending; compare with corrected Gate050 and historical interpolation.
+    model_name = (
+        'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadScanLayerFix')
+    bam_fetched_read_merge = 'interpolate'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-g050-interp-scan-layer-fix')
+
+
 class BamLlama2MediumV2C256ScanAotControlInterpolatedRead(
     BamLlama2MediumV2C256ScanAotControl
 ):
@@ -1310,6 +1334,17 @@ class BamLlama2MediumV2C256DepthAmplitudeGate005(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-depth-amplitude-g005')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate005ScanLayerFix(
+    BamLlama2MediumV2C256DepthAmplitudeGate005
+):
+    """Re-test the .005 fetched-read prior with corrected depth scaling."""
+    # code_commit: pending; compare with corrected Gate050 and ScanAotControl.
+    model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate005ScanLayerFix'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-depth-amplitude-g005-scan-layer-fix')
 
 
 class BamLlama2MediumV2C256DepthAmplitudeGate050AQuarter(

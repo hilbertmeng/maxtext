@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import fcntl
 import os
 from pathlib import Path
 import re
@@ -110,12 +111,15 @@ def _sync_one(gsutil: str, remote: str, remote_size: int, local: Path) -> str:
 def _sync_run(args, run: str) -> list[str]:
   remote_dir = f"{args.gcs_root.rstrip('/')}/{run}"
   local_dir = args.local_root / run
-  outcomes = []
-  for remote_size, remote in _list_events(args.gsutil, remote_dir):
-    local = local_dir / remote.rsplit("/", 1)[-1]
-    outcome = _sync_one(args.gsutil, remote, remote_size, local)
-    outcomes.append(f"RUN={run} file={local.name} {outcome}")
-  return outcomes
+  local_dir.mkdir(parents=True, exist_ok=True)
+  with (local_dir / ".sync.lock").open("a+b") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    outcomes = []
+    for remote_size, remote in _list_events(args.gsutil, remote_dir):
+      local = local_dir / remote.rsplit("/", 1)[-1]
+      outcome = _sync_one(args.gsutil, remote, remote_size, local)
+      outcomes.append(f"RUN={run} file={local.name} {outcome}")
+    return outcomes
 
 
 def main() -> None:

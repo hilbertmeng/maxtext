@@ -3389,21 +3389,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
 
 
-class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12(
-    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
-):
-    """Balance M to 48x48/C12 while preserving K+V=96 and C/V=1/4."""
-    # code_commit: 0220884; expected near-flat to mildly harmful vs Rank2.
-    model_name = (
-        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12')
-    bam_k = 48
-    bam_v = 48
-    bam_abs_v_compression_dim = 12
-    jax_cache_dir = (
-        'gs://newproject-1-llm_base_models_us-central1/'
-        'jax_caches/xd-bam-xl16-partial-rank2-m48x48-c12')
-
-
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanJitRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
@@ -3480,6 +3465,21 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-health-repro')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
+):
+    """Balance M to 48x48/C12 while preserving K+V=96 and C/V=1/4."""
+    # expected near-flat to mildly harmful vs Rank2.
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12')
+    bam_k = 48
+    bam_v = 48
+    bam_abs_v_compression_dim = 12
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-m48x48-c12')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead(

@@ -2638,6 +2638,8 @@ class BamAttention(Attention):
     self._fetched_read_amplitude_reference_num_heads = getattr(
         cfg, 'bam_fetched_read_amplitude_reference_num_heads', None)
     self._fetched_read_merge = getattr(cfg, 'bam_fetched_read_merge', 'add')
+    self._fetched_read_merge_side = getattr(
+        cfg, 'bam_fetched_read_merge_side', 'both')
     self._record_fetched_read_amplitude_metrics = bool(getattr(
         cfg, 'bam_record_fetched_read_amplitude_metrics', False))
     self._record_fetched_read_health_metrics = bool(getattr(
@@ -2901,6 +2903,7 @@ class BamAttention(Attention):
             or self._fetched_read_amplitude_init is not None)
     assert self._fetched_read_amplitude_granularity in ('head', 'layer_side')
     assert self._fetched_read_merge in ('add', 'interpolate')
+    assert self._fetched_read_merge_side in ('both', 'row', 'col')
     assert (not self._record_fetched_read_amplitude_metrics
             or self._fetched_read_amplitude_init is not None)
     assert (self._local_qk_amplitude_init is None
@@ -4294,7 +4297,8 @@ class BamAttention(Attention):
         o_head, fetched_gate_map = _interpolate_fetched_bam_read(
             y_std, y_bam, fetched_gate_logits,
             self.bam_k, self._fetched_output_v_dim,
-            self.num_query_heads, self.head_dim, self._fetched_read_side)
+            self.num_query_heads, self.head_dim,
+            self._fetched_read_merge_side)
         if self._record_fetched_read_health_metrics:
           removed_std = fetched_gate_map * y_std
           kept_std = y_std - removed_std

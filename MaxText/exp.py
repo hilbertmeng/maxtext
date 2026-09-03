@@ -278,6 +278,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_read_amplitude_depth_scale = False
     bam_fetched_read_amplitude_reference_num_heads = None
     bam_fetched_read_merge = 'add'  # add | interpolate
+    bam_fetched_read_merge_side = 'both'  # both | row | col
     bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetched_read_health_metrics = False
     bam_create_read_gate_params = False
@@ -1273,6 +1274,38 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-depth-amplitude-g050-interpolated-read')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadRowOnly(
+    BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead
+):
+    """Interpolate only the row/address-side fetched read; keep col additive."""
+    model_name = (
+        'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadRowOnly')
+    bam_fetched_read_amplitude_depth_scale = False
+    bam_fetched_read_merge_side = 'row'
+    bam_record_fetched_read_health_metrics = True
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-g050-interpolated-read-row-only')
+
+
+class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadColOnly(
+    BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead
+):
+    """Interpolate only the col/data-side fetched read; keep row additive."""
+    model_name = (
+        'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadColOnly')
+    bam_fetched_read_amplitude_depth_scale = False
+    bam_fetched_read_merge_side = 'col'
+    bam_record_fetched_read_health_metrics = True
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-g050-interpolated-read-col-only')
 
 
 class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude(

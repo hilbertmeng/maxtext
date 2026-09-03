@@ -336,6 +336,22 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(actual[..., 3:5], 1.25, rtol=1e-6)
     np.testing.assert_array_equal(actual[..., 5:], 1)
 
+    row_actual, row_gate_map = _interpolate_fetched_bam_read(
+        y_std, y_bam, gate_logits, read_k_dim=3, read_v_dim=2,
+        num_query_heads=2, head_dim=8, read_side='row')
+    np.testing.assert_array_equal(row_gate_map[..., :3], 0)
+    np.testing.assert_allclose(row_gate_map[..., 3:5], row_opening, rtol=1e-6)
+    np.testing.assert_allclose(row_actual[..., :3], 2.5, rtol=1e-6)
+    np.testing.assert_allclose(row_actual[..., 3:5], 1.25, rtol=1e-6)
+
+    col_actual, col_gate_map = _interpolate_fetched_bam_read(
+        y_std, y_bam, gate_logits, read_k_dim=3, read_v_dim=2,
+        num_query_heads=2, head_dim=8, read_side='col')
+    np.testing.assert_allclose(col_gate_map[..., :3], col_opening, rtol=1e-6)
+    np.testing.assert_array_equal(col_gate_map[..., 3:5], 0)
+    np.testing.assert_allclose(col_actual[..., :3], 1.75, rtol=1e-6)
+    np.testing.assert_allclose(col_actual[..., 3:5], 1.5, rtol=1e-6)
+
   def test_dynamic_bam_fetch_rms_mix_weights(self):
     logits = jax.random.normal(jax.random.PRNGKey(13), (2, 4, 3))
     weights = _dynamic_bam_fetch_mix_weights(

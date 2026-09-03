@@ -56,9 +56,23 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt` | v5p-16 | `europe-west4-b` | 2026-08-31 02:16:51 | 2026-08-31 07:29:33 | resource switch | none |
 | `BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt` | v5p-16 | `us-east5-a` | 2026-08-31 07:29:33 | 2026-08-31 10:10:31 | manual stop | none |
 | `BamLlama2MediumV2NonScanJitRepro` | v5p-16 | `us-east5-a` | 2026-08-31 14:49:01 | 2026-09-01 01:04:20 | completed 13,499 | none |
+| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2ScanJitRepro` | v5p-32 | `europe-west4-b` | 2026-09-01 00:51:57 | 2026-09-01 01:30:04 | resource switch | none |
+| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2ScanJitRepro` | v5p-32 | `us-east5-a` | 2026-09-01 01:30:04 | 2026-09-01 02:36:07 | completed 2,000 | none |
+| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanAotRepro` | v5p-32 | `europe-west4-b` | 2026-09-01 00:54:12 | 2026-09-01 01:30:04 | resource switch | none |
+| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanAotRepro` | v5p-32 | `us-east5-a` | 2026-09-01 01:30:04 | 2026-09-01 03:06:04 | completed 2,000 | none |
 | `BamLlama2MediumV2C256DepthAmplitudeGate500` | v5p-16 | `us-east5-a` | 2026-09-01 09:59:39 | 2026-09-01 15:56:24 | completed 13,499 | none |
 | `BamLlama2MediumV2C256ScanAotControl` | v5p-16 | `us-east5-a` | 2026-09-01 09:59:41 | 2026-09-01 15:59:23 | completed 13,499 | none |
 | `BamLlama2MediumV2C256DepthAmplitudeGate050` | v5p-16 | `us-east5-a` | 2026-09-01 09:59:55 | 2026-09-01 16:00:09 | completed 13,499 | none |
+| `BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate` | v5p-16 | `europe-west4-b` | 2026-09-02 08:27:30 | 2026-09-02 08:33:08 | resource switch before READY | `us-east5-a` (became active) |
+| `BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate` | v5p-16 | `us-east5-a` | 2026-09-02 08:33:08 | 2026-09-02 15:12:48 | completed 13,499 | none |
+| `BamLlama2MediumV2C256DepthAmplitudeGate005ScanLayerFix` | v5p-16 | `us-east5-a` | 2026-09-02 16:15:34 | 2026-09-02 17:45:16 | negative ablation; manual stop | none |
+| `BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadScanLayerFix` | v5p-16 | `us-east5-a` | 2026-09-02 14:11:40 | 2026-09-02 17:49:43 | negative ablation; manual stop | none |
+| `BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix` | v5p-16 | `us-east5-a` | 2026-09-02 13:52:29 | 2026-09-02 17:49:46 | negative ablation; manual stop | none |
+| `BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude050` | v5p-16 | `us-east5-a` | 2026-09-02 13:19:17 | 2026-09-02 17:49:49 | negative ablation; manual stop | none |
+| `BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude` | v5p-16 | `us-east5-a` | 2026-09-02 11:21:21 | 2026-09-02 13:52:29 | paused; TPU hot-switched | none |
+| `BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude` | v5p-16 | `us-east5-a` | 2026-09-02 15:56:50 | 2026-09-02 19:43:03 | resumed; completed 13,500 | none |
+| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12` | v5p-32 | `us-east5-a` | 2026-09-03 09:30:10 | 2026-09-03 14:10:50 | negative ablation; manual stop at 8,225 | none |
+| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4` | v5p-32 | `us-east5-a` | 2026-09-03 10:12:11 | 2026-09-03 14:10:47 | negative ablation; manual stop at 7,250 | none |
 
 ## READY leases
 
@@ -325,6 +339,23 @@ inventing a duration. A passive queue is not an active-zone switch.
 | Medium V2 JIT/no-scan | 7 | `us-east5-a` | 2026-08-31 20:14:24 | 2026-08-31 20:58:20 | 43m56s | preempted |
 | Medium V2 JIT/no-scan | 8 | `us-east5-a` | 2026-08-31 22:18:14 | 2026-08-31 22:35:47 | 17m33s | preempted |
 | Medium V2 JIT/no-scan | 9 | `us-east5-a` | 2026-08-31 23:02:07 | 2026-09-01 01:04:20 | 2h02m13s | run stop |
+| XL Rank2 non-scan+AOT | 1 | `europe-west4-b` | 2026-09-01 01:05:31 | 2026-09-01 01:06:20 | 49s | preempted |
+| XL Rank2 scan+JIT | 1 | `europe-west4-b` | 2026-09-01 01:05:52 | 2026-09-01 01:10:45 | 4m53s | preempted |
+| XL Rank2 non-scan+AOT | 2 | `us-east5-a` | 2026-09-01 01:30:07 | 2026-09-01 01:48:35 | 18m28s | preempted |
+| XL Rank2 non-scan+AOT | 3 | `us-east5-a` | 2026-09-01 01:55:33 | 2026-09-01 02:27:57 | 32m24s | preempted |
+| XL Rank2 scan+JIT | 2 | `us-east5-a` | 2026-09-01 01:30:07 | 2026-09-01 02:36:07 | 1h06m00s | run stop |
+| XL Rank2 non-scan+AOT | 4 | `us-east5-a` | 2026-09-01 02:37:09 | 2026-09-01 03:06:04 | 28m55s | run stop |
 | Depth amplitude p=.50 | 1 | `us-east5-a` | 2026-09-01 09:59:39 | 2026-09-01 15:56:24 | 5h56m45s | run stop |
 | V2 scan+AOT control | 1 | `us-east5-a` | 2026-09-01 09:59:41 | 2026-09-01 15:59:23 | 5h59m42s | run stop |
 | Depth amplitude p=.05 | 1 | `us-east5-a` | 2026-09-01 09:59:55 | 2026-09-01 16:00:09 | 6h00m14s | run stop |
+| Gate050 Interpolated | 1 | `us-east5-a` | 2026-09-02 03:53:42 | 2026-09-02 04:09:47 | 16m05s | preempted |
+| Gate050 Interpolated | 2 | `us-east5-a` | 2026-09-02 04:16:59 | 2026-09-02 10:05:36 | 5h48m37s | run stop |
+| SharedRankGate | 1 | `us-east5-a` | 2026-09-02 08:36:40 | 2026-09-02 15:12:48 | 6h36m08s | completed |
+| Gate005 ScanLayerFix | 1 | `us-east5-a` | 2026-09-02 16:20:46 | 2026-09-02 17:45:16 | 1h24m30s | run stop |
+| Gate050 Interpolated ScanLayerFix | 1 | `us-east5-a` | 2026-09-02 14:14:57 | 2026-09-02 17:49:43 | 3h34m46s | run stop |
+| Gate050 ScanLayerFix | 1 | `us-east5-a` | 2026-09-02 13:52:32 | 2026-09-02 17:49:46 | 3h57m14s | run stop |
+| LocalQK DepthAmplitude050 | 1 | `us-east5-a` | 2026-09-02 13:19:19 | 2026-09-02 17:49:49 | 4h30m30s | run stop |
+| Interpolated PerHead amplitude | 1 | `us-east5-a` | 2026-09-02 11:26:34 | 2026-09-02 13:52:29 | 2h25m55s | hot switch |
+| Interpolated PerHead amplitude | 2 | `us-east5-a` | 2026-09-02 16:01:12 | 2026-09-02 19:43:03 | 3h41m51s | completed |
+| XL M48x48/C12 | 1 | `us-east5-a` | 2026-09-03 09:30:10 | 2026-09-03 14:10:50 | 4h40m40s | run stop |
+| XL AbsV4 | 1 | `us-east5-a` | 2026-09-03 10:12:11 | 2026-09-03 14:10:47 | 3h58m36s | run stop |

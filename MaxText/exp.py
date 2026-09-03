@@ -3471,7 +3471,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):
     """Balance M to 48x48/C12 while preserving K+V=96 and C/V=1/4."""
-    # code_commit: 31619d6; UE5a ~0.526 steps/s; expected near-flat to mildly harmful vs Rank2.
+    # code_commit: 31619d6; UE5a ~0.517 steps/s; stopped at 8,225.
+    # vs Rank2: +.005~+.006 from 3.5k-8k, near-parallel mild harm.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12')
     bam_k = 48
@@ -3486,7 +3487,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):
     """Halve fetched-M AbsV cache width from 8 to 4; keep full M and LocalQK unchanged."""
-    # code_commit: a4629aa; UE5a ~0.535 steps/s; expected mildly harmful vs Rank2; compare C4/C8/C16.
+    # code_commit: a4629aa; UE5a ~0.528 steps/s; stopped at 7,250.
+    # 2x cache compression vs C8 is harmful: +.0374@500 -> +.0110@7k, then near-flat.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4')
     bam_abs_v_compression_dim = 4

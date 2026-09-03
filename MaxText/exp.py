@@ -3371,6 +3371,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
 ):
     """XL16 Partial-RoPE scaling test of Medium's beneficial rank-2 LocalQK."""
     # code_commit: aef0d97; UC1a ~0.550 / EW4b ~0.545 steps/s; completed 49,999
+    # dloss vs PartialRoPE: -.02351 @500 -> ~-.010 @4k-10k -> -.00713 @21.5k;
+    # Rank2's benefit decayed slowly but remained clearly positive without Paired40.
     # (latest committed checkpoint 49,720). dloss vs MHA narrowed from -.06132
     # @21k to -.05023 @49k, but remained stably beneficial late in training.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2'

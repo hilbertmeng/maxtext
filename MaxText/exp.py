@@ -3482,6 +3482,19 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12(
         'jax_caches/xd-bam-xl16-partial-rank2-m48x48-c12')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
+):
+    """Halve fetched-M AbsV cache width from 8 to 4; keep full M and LocalQK unchanged."""
+    # expected mildly harmful vs Rank2; compare C4/C8/C16 capacity scaling.
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4')
+    bam_abs_v_compression_dim = 4
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-absv4')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):

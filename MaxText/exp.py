@@ -3471,7 +3471,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):
     """Balance M to 48x48/C12 while preserving K+V=96 and C/V=1/4."""
-    # code_commit: 31619d6; expected near-flat to mildly harmful vs Rank2.
+    # code_commit: 31619d6; UE5a ~0.526 steps/s; expected near-flat to mildly harmful vs Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12')
     bam_k = 48

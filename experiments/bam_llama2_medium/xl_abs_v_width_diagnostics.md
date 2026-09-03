@@ -16,6 +16,34 @@ correction through its gates and surrounding projections.  XL does not learn
 enough correction soon enough; Medium does, and its residual 15% stronger
 readout is useful rather than fatal.
 
+## Is XL Rank2 C8 still redundant?
+
+No evidence supports reducing the fetched-M cache from C8 to C4. On the
+completed XL Rank2 checkpoint at step 49,720, 128 fixed Pile-eval sequences give:
+
+| C8 object, layers 1--23 | top-4 energy | top-6 energy |
+|---|---:|---:|
+| learned `32->8` cache projection | 62.5% mean (50.0--70.0%) | -- |
+| actually mixed fetched `Mbar` | 71.2% mean (62.4--85.9%) | 88.1% |
+| fetched row-read output | 74.3% mean (62.5--80.0%) | 89.3% |
+
+A shape-preserving SVD intervention that reduces only one layer's learned
+`32->8` cache projection to rank 4 raises same-batch loss in every layer. The
+median increase is `+.01097`; the most sensitive layers are L2 `+.45612`, L4
+`+.10609`, L1 `+.09842`, and L3 `+.05566`. Applying rank 4 to all layers raises
+loss by `+4.30384`; even all-layer rank 6 raises it by `+2.66793`. This frozen
+intervention cannot rule out recovery through from-scratch retraining, but it
+shows that C8's trailing directions are used rather than obviously redundant.
+The concurrent native C4 run is the decisive trainable-capacity check; its first
+500-step gap is already `+.03740` versus C8, consistent with the diagnosis.
+
+Reproduction:
+
+- runner: `run_xl_rank2_c8_redundancy.sh`
+- analysis: `xl_abs_v_width_diagnostics.py`
+- code commit: `6a60760`
+- report: `gs://newproject-1-llm_projects_europe-west4/log/diagnostics/xl_rank2_c8_redundancy/6a60760/report.json`
+
 ## Full-24 training evidence at step 0
 
 All non-`W_R` gradients are identical across C8/C16/C32.  The global gradient

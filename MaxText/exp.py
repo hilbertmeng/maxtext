@@ -3450,6 +3450,18 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead(
         'jax_caches/xd-bam-xl16-partial-rank2-g050-interpolated-read')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedReadRowOnly(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead
+):
+    """Apply interpolated fetched read only on the row/data-side output."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedReadRowOnly')
+    bam_fetched_read_merge_side = 'row'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-g050-interpolated-read-row-only')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):

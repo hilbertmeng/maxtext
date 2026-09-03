@@ -4,18 +4,199 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import json
 import math
 from pathlib import Path
+import sqlite3
+import struct
 from types import SimpleNamespace
+import warnings
 
 import numpy as np
+with warnings.catch_warnings():
+  warnings.simplefilter("ignore")
+  try:
+    import google_crc32c
+  except ImportError:  # TensorBoard's reader remains the GCS fallback.
+    google_crc32c = None
 from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
 from tensorboard.compat import tf
+from tensorboard.compat.proto import event_pb2
 from tensorboard.util import tensor_util
 
 
 DEFAULT_LOCAL_TB_ROOT = Path("/data0/xd/tensorboard_logs")
+CACHE_ROOT = DEFAULT_LOCAL_TB_ROOT / ".bam_health_cache"
+CACHE_SCHEMA = 2
+
+
+def _masked_crc32c(data: bytes) -> int | None:
+  if google_crc32c is None:
+    return None
+  crc = google_crc32c.value(data)
+  return (((crc >> 15) | (crc << 17)) + 0xA282EAD8) & 0xFFFFFFFF
+
+
+def _scalar_value(value) -> float | None:
+  kind = value.WhichOneof("value")
+  if kind == "simple_value":
+    return float(value.simple_value)
+  if kind == "tensor":
+    array = np.asarray(tensor_util.make_ndarray(value.tensor))
+    if array.size == 1 and (
+        np.issubdtype(array.dtype, np.number)
+        or np.issubdtype(array.dtype, np.bool_)):
+      return float(array.reshape(-1)[0])
+  return None
+
+
+def _retain_tag(tag: str) -> bool:
+  return (
+      tag == "learning/raw_grad_norm"
+      or tag.startswith("bam/")
+      or (
+          tag.startswith("raw_grads/decoder/layers_")
+          and tag.endswith("/block/self_attention/W_R/kernel")
+      )
+  )
+
+
+def _prefix_fingerprint(path: Path, offset: int) -> str:
+  digest = hashlib.sha256()
+  with path.open("rb") as handle:
+    digest.update(handle.read(min(4096, offset)))
+    if offset > 4096:
+      handle.seek(offset - 4096)
+      digest.update(handle.read(4096))
+  return digest.hexdigest()
+
+
+def _ingest_local_file(
+    connection: sqlite3.Connection, path: Path, offset: int, cutoff: int
+) -> int:
+  batch = []
+  with path.open("rb") as handle:
+    handle.seek(offset)
+    while True:
+      record_offset = handle.tell()
+      header = handle.read(12)
+      if len(header) < 12:
+        break
+      length = struct.unpack("<Q", header[:8])[0]
+      data = handle.read(length)
+      footer = handle.read(4)
+      if len(data) != length or len(footer) != 4:
+        handle.seek(record_offset)
+        break
+      length_crc = _masked_crc32c(header[:8])
+      data_crc = _masked_crc32c(data)
+      if length_crc is not None and (
+          struct.unpack("<I", header[8:])[0] != length_crc
+          or struct.unpack("<I", footer)[0] != data_crc
+      ):
+        raise ValueError(f"invalid TFRecord CRC at {path}:{record_offset}")
+      event = event_pb2.Event.FromString(data)
+      step = int(event.step)
+      if step > cutoff:
+        handle.seek(record_offset)
+        break
+      for value in event.summary.value:
+        if not _retain_tag(value.tag):
+          continue
+        scalar = _scalar_value(value)
+        if scalar is not None:
+          batch.append((str(path), value.tag, step, scalar))
+      if len(batch) >= 4096:
+        connection.executemany(
+            "INSERT OR REPLACE INTO scalars VALUES (?, ?, ?, ?)", batch)
+        batch.clear()
+    if batch:
+      connection.executemany(
+          "INSERT OR REPLACE INTO scalars VALUES (?, ?, ?, ?)", batch)
+    return handle.tell()
+
+
+def _cached_local_points(event_dir: Path, target_steps: list[int]):
+  event_dir = event_dir.resolve()
+  event_files = sorted(event_dir.glob("events.out.tfevents.*"))
+  if not event_files:
+    raise FileNotFoundError(f"no TensorBoard event files under {event_dir}")
+  cache_key = hashlib.sha256(str(event_dir).encode()).hexdigest()[:16]
+  cache_dir = CACHE_ROOT / f"{event_dir.name}-{cache_key}"
+  cache_dir.mkdir(parents=True, exist_ok=True)
+  database = cache_dir / "scalars.sqlite3"
+  cutoff = max(target_steps, default=0) + 25
+
+  with (cache_dir / "lock").open("a+b") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    with sqlite3.connect(database) as connection:
+      connection.execute("PRAGMA journal_mode=WAL")
+      connection.execute(
+          "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+      schema = connection.execute(
+          "SELECT value FROM meta WHERE key='schema'").fetchone()
+      if schema != (str(CACHE_SCHEMA),):
+        connection.execute("DROP TABLE IF EXISTS files")
+        connection.execute("DROP TABLE IF EXISTS scalars")
+        connection.execute("DELETE FROM meta")
+        connection.execute(
+            "INSERT INTO meta VALUES ('schema', ?)", (str(CACHE_SCHEMA),))
+      connection.execute(
+          "CREATE TABLE IF NOT EXISTS files ("
+          "path TEXT PRIMARY KEY, offset INTEGER, fingerprint TEXT)")
+      connection.execute(
+          "CREATE TABLE IF NOT EXISTS scalars ("
+          "path TEXT, tag TEXT, step INTEGER, value REAL, "
+          "PRIMARY KEY(path, tag, step))")
+
+      cached_files = {
+          row[0]: (int(row[1]), row[2])
+          for row in connection.execute(
+              "SELECT path, offset, fingerprint FROM files")
+      }
+      current_paths = {str(path) for path in event_files}
+      invalid = set(cached_files) - current_paths
+      for path in event_files:
+        cached = cached_files.get(str(path))
+        if cached is None:
+          continue
+        offset, fingerprint = cached
+        if path.stat().st_size < offset or (
+            _prefix_fingerprint(path, offset) != fingerprint):
+          invalid.add(str(path))
+      if invalid:
+        connection.execute("DELETE FROM files")
+        connection.execute("DELETE FROM scalars")
+        cached_files = {}
+
+      for path in event_files:
+        offset = cached_files.get(str(path), (0, ""))[0]
+        new_offset = _ingest_local_file(connection, path, offset, cutoff)
+        connection.execute(
+            "INSERT OR REPLACE INTO files VALUES (?, ?, ?)",
+            (str(path), new_offset, _prefix_fingerprint(path, new_offset)),
+        )
+      connection.commit()
+
+      clauses = ["step = 0", "(tag = ? AND step <= ?)"]
+      parameters: list[object] = ["learning/raw_grad_norm", cutoff]
+      for step in target_steps:
+        clauses.append("step BETWEEN ? AND ?")
+        parameters.extend((step - 25, step + 25))
+      query = (
+          "SELECT path, tag, step, value FROM scalars WHERE "
+          + " OR ".join(f"({clause})" for clause in clauses)
+          + " ORDER BY path, tag, step"
+      )
+      points: dict[str, dict[int, float]] = {}
+      for _, tag, step, value in connection.execute(query, parameters):
+        points.setdefault(tag, {})[int(step)] = float(value)
+      tags = {
+          row[0] for row in connection.execute("SELECT DISTINCT tag FROM scalars")
+      }
+  return points, tags
 
 
 def _parse_steps(value: str) -> list[int]:
@@ -41,6 +222,10 @@ class Scalars:
     value while keeping memory proportional to the report, not run length.
     """
     event_dir = str(event_dir).rstrip("/")
+    if not event_dir.startswith("gs://"):
+      self._points, self.tags = _cached_local_points(
+          Path(event_dir), target_steps)
+      return
     event_files = sorted(tf.io.gfile.glob(event_dir + "/events.out.tfevents.*"))
     if not event_files:
       raise FileNotFoundError(f"no TensorBoard event files under {event_dir}")
@@ -61,23 +246,10 @@ class Scalars:
           self.tags.add(tag)
           if not near_target and not (tag == raw_grad_tag and step <= max_target):
             continue
-          scalar = self._scalar_value(value)
+          scalar = _scalar_value(value)
           if scalar is not None:
             points.setdefault(tag, {})[step] = scalar
     self._points = points
-
-  @staticmethod
-  def _scalar_value(value) -> float | None:
-    kind = value.WhichOneof("value")
-    if kind == "simple_value":
-      return float(value.simple_value)
-    if kind == "tensor":
-      array = np.asarray(tensor_util.make_ndarray(value.tensor))
-      if array.size == 1 and (
-          np.issubdtype(array.dtype, np.number)
-          or np.issubdtype(array.dtype, np.bool_)):
-        return float(array.reshape(-1)[0])
-    return None
 
   def values(self, tag: str):
     return [

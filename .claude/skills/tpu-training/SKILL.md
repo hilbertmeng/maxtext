@@ -124,7 +124,7 @@ completes.
 ## Monitor Training
 
 Use `run_registry.py status` for liveness. Auto-train materializes each mature cumulative loss
-report; Codex pulls the unacknowledged event and reserves TensorBoard sync for run closeout.
+report; Codex pulls the unacknowledged event and reserves full TensorBoard sync for run closeout.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -181,13 +181,14 @@ At every due milestone:
    investigate pending or rollback immediately.
 2. Report the cumulative horizontal rows; judge stability from signed-gap trends plus `r200`.
    When a RUN enables BAM read-health `sow` metrics, also run
-   `scripts/report_bam_read_health.py RUN --steps MILESTONES`. Report the compact layer-band
+   `scripts/sync_tensorboard_incremental.py RUN...`, then
+   `scripts/report_bam_read_health.py RUN --base-run BASE... --steps MILESTONES`. The sync verifies
+   a 1 MiB overlap and appends only the GCS event tail; the reporter incrementally caches scalar
+   records and scans each RUN/BASE once. Report the compact layer-band
    trends for learned amplitude, gate distribution, effective/output read RMS,
    `y_bam/y_std`, raw-grad, W_R-grad, and clipping; do not instrument metrics and then monitor
-   loss alone. For a live RUN, execute it on worker 0 with the MaxText Python and pass the RUN's
-   `gs://.../summaries/train/RUN` as `--event-dir`; after closeout, use the automatically synced
-   local directory (the script's default). Report a multi-point sequence, never only the latest
-   value; use the same sampled steps across active RUNs so trends remain directly comparable.
+   loss alone. Report a multi-point sequence, never only the latest value; use the same sampled
+   steps across active RUNs so trends remain directly comparable.
 3. Mark the cursor:
 
 ```bash

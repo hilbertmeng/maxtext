@@ -3382,7 +3382,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Current-code XL Rank2 reproduction with planned BAM health metrics."""
-    # code_commit: pending; compare exact 10-step losses with historical Rank2.
+    # code_commit: 58e585a; compare exact 10-step losses with historical Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro')
     scan_layers = True

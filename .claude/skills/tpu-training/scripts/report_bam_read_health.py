@@ -7,9 +7,12 @@ import argparse
 import json
 import math
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
+from tensorboard.compat import tf
+from tensorboard.util import tensor_util
 
 
 DEFAULT_LOCAL_TB_ROOT = Path("/data0/xd/tensorboard_logs")
@@ -29,20 +32,63 @@ def _parse_bands(value: str) -> list[tuple[str, range]]:
 
 class Scalars:
 
-  def __init__(self, event_dir):
-    accumulator = EventAccumulator(str(event_dir), size_guidance={"scalars": 0})
-    accumulator.Reload()
-    self._accumulator = accumulator
-    self.tags = set(accumulator.Tags()["scalars"])
-    self._cache = {}
+  def __init__(self, event_dir, target_steps: list[int]):
+    """Stream scalar events, retaining only requested neighborhoods.
+
+    Full BAM runs contain enough layerwise scalars for EventAccumulator's
+    unbounded scalar mode to exhaust host RAM.  Health metrics are emitted every
+    ten steps, so +/-25 around each requested milestone preserves the nearest
+    value while keeping memory proportional to the report, not run length.
+    """
+    event_dir = str(event_dir).rstrip("/")
+    event_files = sorted(tf.io.gfile.glob(event_dir + "/events.out.tfevents.*"))
+    if not event_files:
+      raise FileNotFoundError(f"no TensorBoard event files under {event_dir}")
+    target_steps = sorted(set(target_steps))
+    max_target = max(target_steps, default=0)
+    raw_grad_tag = "learning/raw_grad_norm"
+    points: dict[str, dict[int, float]] = {}
+    self.tags: set[str] = set()
+    for event_file in event_files:
+      for event in EventFileLoader(event_file).Load():
+        step = int(event.step)
+        if step > max_target + 25:
+          break
+        near_target = step == 0 or any(
+            abs(step - target) <= 25 for target in target_steps)
+        for value in event.summary.value:
+          tag = value.tag
+          self.tags.add(tag)
+          if not near_target and not (tag == raw_grad_tag and step <= max_target):
+            continue
+          scalar = self._scalar_value(value)
+          if scalar is not None:
+            points.setdefault(tag, {})[step] = scalar
+    self._points = points
+
+  @staticmethod
+  def _scalar_value(value) -> float | None:
+    kind = value.WhichOneof("value")
+    if kind == "simple_value":
+      return float(value.simple_value)
+    if kind == "tensor":
+      array = np.asarray(tensor_util.make_ndarray(value.tensor))
+      if array.size == 1 and (
+          np.issubdtype(array.dtype, np.number)
+          or np.issubdtype(array.dtype, np.bool_)):
+        return float(array.reshape(-1)[0])
+    return None
 
   def values(self, tag: str):
-    if tag not in self._cache:
-      self._cache[tag] = self._accumulator.Scalars(tag)
-    return self._cache[tag]
+    return [
+        SimpleNamespace(step=step, value=value)
+        for step, value in sorted(self._points.get(tag, {}).items())
+    ]
 
   def at(self, tag: str, step: int) -> float:
     events = self.values(tag)
+    if not events:
+      raise KeyError(f"no retained scalar values for {tag}")
     event = min(events, key=lambda item: abs(item.step - step))
     return float(event.value)
 
@@ -273,11 +319,11 @@ def _print_text(run: str, result) -> None:
 def _format_pair(pair):
   if pair is None:
     return "--"
-  return f'{pair["run"]}/{pair["base"]}({pair["delta"]:+g})'
+  return f'{pair["run"]}/{pair["base"]}'
 
 
 def _print_comparison(run: str, base_run: str, comparison) -> None:
-  print(f"RUN={run} BASE={base_run} values=RUN/BASE(delta)")
+  print(f"RUN={run} BASE={base_run} values=RUN/BASE")
   print("step raw_grad W_R_grad clip_frac")
   for row in comparison["global"]:
     print(row["step"], _format_pair(row["raw_grad"]),
@@ -314,15 +360,16 @@ def main() -> None:
   args = parser.parse_args()
 
   event_dir = args.event_dir or DEFAULT_LOCAL_TB_ROOT / args.run
+  steps = _parse_steps(args.steps)
   result = _collect(
-      Scalars(event_dir), _parse_steps(args.steps), _parse_bands(args.bands),
+      Scalars(event_dir, steps), steps, _parse_bands(args.bands),
       args.num_layers)
   base_result = comparison = None
   if args.base_run:
     base_event_dir = (
         args.base_event_dir or DEFAULT_LOCAL_TB_ROOT / args.base_run)
     base_result = _collect(
-        Scalars(base_event_dir), _parse_steps(args.steps),
+        Scalars(base_event_dir, steps), steps,
         _parse_bands(args.bands), args.num_layers)
     comparison = _compare(result, base_result)
   if args.json:

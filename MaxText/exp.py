@@ -3395,6 +3395,38 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
         'jax_caches/xd-bam-xl16-partial-rank2-health-repro')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
+):
+    """Scale Medium's no-depth Gate050 learned amplitude and interpolated read to XL."""
+    # code_commit: pending; compare with historical XL Rank2.
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead')
+    bam_fetched_read_gate_init = 0.05
+    bam_fetched_read_amplitude_init = 0.565685425
+    bam_fetched_read_amplitude_granularity = 'layer_side'
+    bam_fetched_read_amplitude_depth_scale = False
+    bam_fetched_read_amplitude_learnable = True
+    bam_fetched_read_merge = 'interpolate'
+    bam_record_fetched_read_amplitude_metrics = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-g050-interpolated-read')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
+):
+    """Scale Medium's per-basis shared LocalQK gate to XL Rank2."""
+    # code_commit: pending; compare with historical XL Rank2.
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate')
+    bam_local_qk_rank_routing = 'shared_rank_gate'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-shared-rank-gate')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

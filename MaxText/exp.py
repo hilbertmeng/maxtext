@@ -1196,6 +1196,30 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
         'jax_caches/xd-bam-v2-c256-scan-aot-control')
 
 
+class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(
+    BamLlama2MediumV2C256ScanAotControl
+):
+    """Add rank-2 legacy LocalQK routing to the current scan+AOT V2 control."""
+    model_name = 'BamLlama2MediumV2C256ScanAotControlLocalQKRank2'
+    bam_local_qk_rank = 2
+    bam_record_local_qk_routing_metrics = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-scan-aot-local-qk-rank2')
+
+
+class BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate(
+    BamLlama2MediumV2C256ScanAotControlLocalQKRank2
+):
+    """Give each clean-V2 LocalQK basis an independent shared gate."""
+    model_name = (
+        'BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate')
+    bam_local_qk_rank_routing = 'shared_rank_gate'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-scan-aot-local-qk-rank2-shared-gate')
+
+
 class BamLlama2MediumV2C256DepthAmplitudeBase(
     BamLlama2MediumV2C256ScanAotControl
 ):
@@ -3474,6 +3498,20 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-shared-rank-gate')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankGate(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate
+):
+    """Add paired Q/K V32 maps to XL Rank2 SharedRankGate."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankGate')
+    bam_local_qk_post_read_v_dim = 32
+    bam_local_qk_post_read_v_share_qk = False
+    bam_local_qk_post_read_v_paired_init = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-paired-orth-v32-shared-rank-gate')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16(

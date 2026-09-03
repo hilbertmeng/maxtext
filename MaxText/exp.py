@@ -1201,7 +1201,8 @@ class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(
     BamLlama2MediumV2C256ScanAotControl
 ):
     """Add rank-2 legacy LocalQK routing to the current scan+AOT V2 control."""
-    # c3cb677; UE5a ~0.618 steps/s; running vs ScanAotControl.
+    # c3cb677; UE5a ~0.618 steps/s; stopped 3,521. dloss vs ScanAotControl
+    # shrank +.10967 @200 -> +.00481 @2k -> noisy +.00287 @3.4k, but stayed harmful.
     model_name = 'BamLlama2MediumV2C256ScanAotControlLocalQKRank2'
     bam_local_qk_rank = 2
     bam_record_local_qk_routing_metrics = True
@@ -1214,7 +1215,9 @@ class BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate(
     BamLlama2MediumV2C256ScanAotControlLocalQKRank2
 ):
     """Give each clean-V2 LocalQK basis an independent shared gate."""
-    # c3cb677; UE5a ~0.613 steps/s; running vs legacy Rank2 and ScanAotControl.
+    # c3cb677; UE5a ~0.613 steps/s; stopped 3,494. After warmup it consistently
+    # helped Rank2, but the benefit decayed with noise: -.01178 @400 -> roughly
+    # -.0016 to -.0030 @1.4k-3.4k (latest -.00242); it did not reliably beat control.
     model_name = (
         'BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate')
     bam_local_qk_rank_routing = 'shared_rank_gate'

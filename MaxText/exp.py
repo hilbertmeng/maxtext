@@ -3393,7 +3393,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Balance M to 48x48/C12 while preserving K+V=96 and C/V=1/4."""
-    # code_commit: pending; expected near-flat to mildly harmful vs Rank2.
+    # code_commit: 0220884; expected near-flat to mildly harmful vs Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12')
     bam_k = 48

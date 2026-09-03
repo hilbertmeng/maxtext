@@ -262,6 +262,11 @@ class Scalars:
     if not events:
       raise KeyError(f"no retained scalar values for {tag}")
     event = min(events, key=lambda item: abs(item.step - step))
+    if abs(event.step - step) > 25:
+      raise KeyError(
+          f"no {tag} scalar within +/-25 steps of {step}; "
+          f"nearest retained step is {event.step}"
+      )
     return float(event.value)
 
   def band_mean(self, template: str, step: int, layers: range) -> float | None:

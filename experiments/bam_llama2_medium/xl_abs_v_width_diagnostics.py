@@ -2,8 +2,8 @@
 
 The diagnostic stays outside ``BamAttention``.  It measures post-gate fetched
 read scale/rank and uses a Flax method interceptor for paired row/column output
-scaling ablations.  For square learned AbsV projections it can also replace the
-checkpoint matrix by its rank-r SVD approximation without changing shapes.
+scaling ablations.  It can also replace each learned AbsV projection by its
+rank-r SVD approximation without changing runtime shapes.
 """
 
 from __future__ import annotations
@@ -460,8 +460,10 @@ def run(config):
         f"seconds={timings[name]:.1f}", flush=True)
 
   rank_losses = {}
-  if config.bam_abs_v_compression_dim == config.bam_v:
+  if config.bam_abs_v_compression_dim is not None:
     for rank in ranks:
+      if rank >= config.bam_abs_v_compression_dim:
+        continue
       rank_params = _rank_approximation(
           state.params, rank, config.num_decoder_layers)
       values = []

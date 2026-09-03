@@ -3454,6 +3454,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedReadR
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead
 ):
     """Apply interpolated fetched read only on the row/data-side output."""
+    # code_commit: d375745; UE5a ~0.525 steps/s; running vs XL Both and historical Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedReadRowOnly')
     bam_fetched_read_merge_side = 'row'

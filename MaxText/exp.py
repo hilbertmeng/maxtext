@@ -1310,7 +1310,9 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadRowOnly(
     BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead
 ):
     """Interpolate only the row/address-side fetched read; keep col additive."""
-    # code_commit: 744aeda; UE5a ~0.647 steps/s; running vs Both/Gate050.
+    # code_commit: 744aeda; UE5a ~0.644 steps/s; completed 13,500. dloss stayed
+    # near -.003 vs Gate050 and roughly -.001 to -.002 vs Both through 13.4k:
+    # row/address interpolation helps, while also interpolating col dilutes it.
     model_name = (
         'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadRowOnly')
     bam_fetched_read_amplitude_depth_scale = False
@@ -1327,7 +1329,9 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadColOnly(
     BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead
 ):
     """Interpolate only the col/data-side fetched read; keep row additive."""
-    # code_commit: 744aeda; UE5a ~0.647 steps/s; running vs Both/Gate050.
+    # code_commit: 744aeda; UE5a ~0.644 steps/s; completed 13,500. Late dloss
+    # was ~+.001 vs Gate050 and +.0022 to +.0028 vs Both: col/data-only
+    # interpolation is weakly harmful; Both's benefit comes from the row side.
     model_name = (
         'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadColOnly')
     bam_fetched_read_amplitude_depth_scale = False

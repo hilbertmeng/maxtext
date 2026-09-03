@@ -3522,6 +3522,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedIdentityV32SharedR
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankGate
 ):
     """Initialize the independent Q/K V32 maps to identity instead of random orthogonal."""
+    # 34ca0e2; UE5a ~0.527 steps/s; running vs Orth-Paired, SharedRankGate, and historical Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedIdentityV32SharedRankGate')
     bam_local_qk_post_read_v_init = 'identity'

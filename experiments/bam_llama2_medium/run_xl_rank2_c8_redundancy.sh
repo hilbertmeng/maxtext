@@ -7,8 +7,9 @@ DATASET_PATH=${DATASET_PATH:-gs://newproject-1-common_datasets_europe-west4/pyth
 OUTPUT_URI=${OUTPUT_URI:-gs://newproject-1-llm_projects_europe-west4/log/diagnostics/xl_rank2_c8_redundancy/report.json}
 CODE_COMMIT=${CODE_COMMIT:-$(git rev-parse HEAD)}
 OUT=${OUT:-/tmp/xl_rank2_c8_redundancy}
+DIAG_RUN=BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2C8RedundancyDiag
 
-mkdir -p "$OUT/output" "$OUT/tensorboard"
+mkdir -p "$OUT/output/$DIAG_RUN" "$OUT/tensorboard"
 env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off \
   BAM_ABSV_DIAG_BATCHES=8 BAM_ABSV_DIAG_CAPTURE_BATCHES=8 \
   BAM_ABSV_DIAG_SCALES=1 BAM_ABSV_DIAG_RANKS=2,4,6 \
@@ -17,7 +18,7 @@ env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off \
   "$PYTHON" experiments/bam_llama2_medium/xl_abs_v_width_diagnostics.py \
   MaxText/configs/base.yml \
   exp_class=BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2 \
-  run_name=BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2C8RedundancyDiag \
+  run_name="$DIAG_RUN" \
   only_eval=True steps=1 load_parameters_path="$CHECKPOINT" \
   dataset_path="$DATASET_PATH" base_output_directory="$OUT/output" \
   tensorboard_dir="$OUT/tensorboard" per_device_batch_size=1 \

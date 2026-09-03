@@ -65,6 +65,8 @@ def _stack_captures(collections, num_layers: int):
     if layer is None:
       value = _unwrap(raw)
       if is_read:
+        if isinstance(value, (tuple, list)):
+          value = value[0]
         scanned["read"] = value
       elif is_attention:
         if not isinstance(value, (tuple, list)) or len(value) != 2:
@@ -74,6 +76,8 @@ def _stack_captures(collections, num_layers: int):
       continue
     value = _unwrap(raw)
     if is_read:
+      if isinstance(value, (tuple, list)):
+        value = value[0]
       grouped[layer]["read"] = value
     elif is_attention:
       if not isinstance(value, (tuple, list)) or len(value) != 2:

@@ -3544,7 +3544,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankG
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate
 ):
     """Add paired Q/K V32 maps to XL Rank2 SharedRankGate."""
-    # c3cb677; EW4b ~0.522 steps/s; running vs SharedRankGate and historical Rank2.
+    # c3cb677; EW4b ~0.522 steps/s; stopped at 6,586.  vs SharedRankGate the
+    # benefit decayed -.0161 -> -.00085 (500-6,000), while remaining +.0029 ->
+    # +.0060 vs historical Rank2: the adapter mainly rescues SharedRankGate harm.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankGate')
     bam_local_qk_post_read_v_dim = 32

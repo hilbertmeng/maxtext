@@ -147,6 +147,86 @@ fetched-row reads with eight dynamic basis reads and a multiply-reduce head expa
 Rank-8 is speed-neutral under both layer implementations. Non-scan is 1.83% faster for the control
 and 1.75% faster for rank-8; layer-scan remains useful only for its much shorter compilation.
 
+### Generalized Factorized LocalQK rank
+
+Rank 1 is the production FactorizedLocalQK path. Rank 2/4 reads multiple dynamic LocalQK bases,
+then expands them to heads; the second contraction was paired as dot versus multiply+reduce.
+
+Eight-layer v6e screening:
+
+| Shape | Rank 1 | Rank 2 dot / mul | Rank 2 mul cost | Rank 4 dot / mul | Rank 4 mul cost |
+|---|---:|---:|---:|---:|---:|
+| Medium 16x64 | 675.37 ms | 799.89 / 707.10 ms | -4.49% throughput | 820.75 / 720.49 ms | -6.26% |
+| XL 16x128 | 568.77 | 639.05 / 595.77 | -4.53% | 659.64 / 615.42 | -7.58% |
+| XL 32x64 | 777.30 | 876.05 / 818.93 | -5.08% | 898.92 / 837.79 | -7.22% |
+
+Multiply+reduce raises throughput by 13.12/13.92% over dot at Medium rank 2/4, and by
+6.98–7.30% on the two XL shapes. It is the only viable rank-expansion implementation.
+
+Commit `8235ccd`, full-24 target profiles, all paired in EW4b:
+
+| Shape / TPU | Rank 1 | Rank 2 mul | Rank 2 throughput | Rank 4 mul | Rank 4 throughput |
+|---|---:|---:|---:|---:|---:|
+| Medium 16x64 / v5p-16 | 1,480.38 ms | 1,527.18 ms | -3.07% | 1,566.82 ms | -5.52% |
+| XL 16x128 / v5p-32 | 1,748.65 | 1,803.44 | -3.04% | 1,842.78 | -5.11% |
+| XL 32x64 / v5p-32 | 2,074.42 | 2,140.11 | -3.07% | 2,186.56 | -5.13% |
+
+The XL32 rank-4 value is the mean of two independent step-10 traces (2,188.60/2,184.53 ms,
+0.19% apart) captured after repeated spot preemptions. The target-TPU cost is strikingly stable
+across model shapes: about 3% at rank 2 and 5–5.5% at rank 4. v6e preserves the ordering but
+overstates the penalty. Keep rank 1 for speed; rank 2/4 requires a training-loss gain large enough
+to justify this measured target cost.
+
+### Grouped fetched-M rank
+
+Commit `e2c645d`. Fetch rank 2 learns two signed head mixtures, fetches two matrices, and assigns
+each contiguous half of the BAM heads to one fetched matrix. `D/M` below means dot for
+`bnts,btfn->bfts` and multiply+reduce for grouped Read-M.
+
+Eight-layer v6e implementation screening:
+
+| Shape | Rank 1 | D/D | D/M | M/D | M/M | Winning wall cost |
+|---|---:|---:|---:|---:|---:|---:|
+| Medium 16x64 | 507.56 ms | 651.13 | 595.12 | 709.66 | 654.44 | +17.25% |
+| XL 16x128 | 568.55 | 657.31 | 632.47 | 699.83 | 673.91 | +11.24% |
+| XL 32x64 | 769.53 | 951.01 | 886.05 | 1,009.81 | 954.80 | +15.14% |
+
+Dot mix plus multiply+reduce Read-M wins all three shapes. Multiply+reduce is unsuitable for the
+large alpha-mix broadcast; dot is unsuitable for the small grouped Read-M contraction.
+
+Full-24 target profiles, paired in UC1a:
+
+| Shape / TPU | Rank 1 | Rank 2 D/M | Wall cost | Throughput retained |
+|---|---:|---:|---:|---:|
+| Medium 16x64 / v5p-16 | 1,478.47 ms | 1,718.47 ms | +16.23% | 86.03% |
+| XL 16x128 / v5p-32 | 1,758.38 | 1,849.96 | +5.21% | 95.05% |
+| XL 32x64 / v5p-32 | 2,071.92 | 2,316.08 | +11.78% | 89.46% |
+
+Incremental per-layer theory at C256/T2048 (average causal source length 1,152), in units of one
+`W_Q = D*D` projection:
+
+| Shape | Extra parameters | Extra FLOPs | Read-M FLOPs |
+|---|---:|---:|---:|
+| Medium 16x64 | 0.0156 W_Q | 0.3145 W_Q | unchanged |
+| XL 16x128 | 0.0078 | 0.1528 | unchanged |
+| XL 32x64 | 0.0156 | 0.1650 | unchanged |
+
+The rank routes partition the existing heads, so Read-M arithmetic and M-cache do not grow; the
+extra work is the second alpha mixture/fetch and a doubled temporary fetched-M tensor. Fine-grained
+target traces locate the measured wall regression as follows (scope deltas are diagnostic and not
+additive because fused scopes overlap):
+
+| Shape | mix-alpha | fetch-M | fetched Read-M | QK logits | softmax | MHA AV |
+|---|---:|---:|---:|---:|---:|---:|
+| Medium | +49.75 ms | +10.03 | +7.55 | +4.43 | +91.76 | +63.51 |
+| XL 16x128 | +22.69 | +5.73 | +4.14 | +0.07 | +37.56 | +0.77 |
+| XL 32x64 | +42.58 | +5.95 | +1.72 | +1.37 | +73.50 | +33.53 |
+
+QK-logits FLOPs remain essentially unchanged, whereas the softmax scope is about 2x in every
+Rank-2 train trace. Thus the unexpected indirect cost is in softmax or its reverse pass, not QK;
+a forward-only trace or HLO inspection is needed to distinguish forward recomputation from a
+duplicated softmax VJP. Rank 2 now needs a substantial loss gain to justify its 5–16% target cost.
+
 ## Canonical v6e-1 eight-layer matrix
 
 Commit `91cb24a`; every arm has eight layers and explicitly selects optimized, non-streaming C256.

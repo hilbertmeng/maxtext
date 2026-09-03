@@ -3590,7 +3590,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Native(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Use the native full-width V axis for fetched M with no source projection."""
-    # code_commit: c930d04; EW4b ~0.515 steps/s (-2.8% vs C16, -5.5% vs Rank2); running.
+    # code_commit: c930d04; EW4b ~0.515 steps/s (-2.8% vs C16, -5.5% vs Rank2);
+    # paused at 8,811.  dloss vs Rank2 went -.0163 -> +.0027 by 1,500, then
+    # settled around +.0045~+.006 through 8,500: 4x M-cache with a small loss harm.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Native')
     bam_abs_v_compression_dim = None
@@ -3605,7 +3607,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Projected(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Keep a learned full-width 32-to-32 source projection for fetched M."""
-    # code_commit: c930d04; EW4b ~0.510 steps/s (-1.0% vs Native C32, -3.8% vs C16); running.
+    # code_commit: c930d04; EW4b ~0.510 steps/s (-1.0% vs Native C32, -3.8% vs C16);
+    # paused at 6,000.  dloss vs Rank2 went -.0254 -> near zero by 1,500, then
+    # fluctuated mostly 0~+.0012 (one +.0036 spike): no stable loss gain from C32.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Projected')
     bam_abs_v_compression_dim = 32

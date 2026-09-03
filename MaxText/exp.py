@@ -3382,7 +3382,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Current-code XL Rank2 reproduction with planned BAM health metrics."""
-    # code_commit: 58e585a; compare exact 10-step losses with historical Rank2.
+    # code_commit: 58e585a; UE5a ~0.523 steps/s; validation completed at 500.
+    # All 51 ten-step losses exactly matched historical Rank2 (max |delta| 5e-7).
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro')
     scan_layers = True
@@ -3399,7 +3400,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):
     """Scale Medium's no-depth Gate050 learned amplitude and interpolated read to XL."""
-    # code_commit: pending; compare with historical XL Rank2.
+    # code_commit: 0902e1e; UE5a ~0.522 steps/s; running vs historical XL Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedRead')
     bam_fetched_read_gate_init = 0.05
@@ -3418,7 +3419,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):
     """Scale Medium's per-basis shared LocalQK gate to XL Rank2."""
-    # code_commit: pending; compare with historical XL Rank2.
+    # code_commit: 0902e1e; EW4b ~0.528 steps/s; running vs historical XL Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate')
     bam_local_qk_rank_routing = 'shared_rank_gate'

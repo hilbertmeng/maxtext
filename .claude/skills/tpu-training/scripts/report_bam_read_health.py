@@ -349,10 +349,13 @@ def main() -> None:
   parser.add_argument(
       "--event-dir",
       help="Local or gs:// event directory; defaults to the local synced RUN")
-  parser.add_argument("--base-run")
   parser.add_argument(
-      "--base-event-dir",
-      help="Baseline event directory; defaults to the local synced BASE RUN")
+      "--base-run", action="append", default=[],
+      help="Baseline RUN; repeat the option to compare several BASEs while "
+      "scanning the RUN event file only once")
+  parser.add_argument(
+      "--base-event-dir", action="append", default=[],
+      help="Baseline event directory corresponding to each --base-run")
   parser.add_argument("--steps", default="0,200,1000,2000,2800")
   parser.add_argument("--bands", default="0-7,8-15,16-23")
   parser.add_argument("--num-layers", type=int, default=24)
@@ -364,25 +367,50 @@ def main() -> None:
   result = _collect(
       Scalars(event_dir, steps), steps, _parse_bands(args.bands),
       args.num_layers)
-  base_result = comparison = None
-  if args.base_run:
+  base_runs = [
+      run.strip()
+      for value in args.base_run
+      for run in value.split(",")
+      if run.strip()
+  ]
+  if args.base_event_dir and len(args.base_event_dir) != len(base_runs):
+    parser.error("repeat --base-event-dir once per --base-run")
+  base_results = {}
+  comparisons = {}
+  for index, base_run in enumerate(base_runs):
     base_event_dir = (
-        args.base_event_dir or DEFAULT_LOCAL_TB_ROOT / args.base_run)
+        args.base_event_dir[index]
+        if args.base_event_dir
+        else DEFAULT_LOCAL_TB_ROOT / base_run
+    )
     base_result = _collect(
         Scalars(base_event_dir, steps), steps,
         _parse_bands(args.bands), args.num_layers)
-    comparison = _compare(result, base_result)
+    base_results[base_run] = base_result
+    comparisons[base_run] = _compare(result, base_result)
   if args.json:
     payload = {"run": args.run, **result}
-    if args.base_run:
+    if len(base_runs) == 1:
+      base_run = base_runs[0]
       payload.update({
-          "base_run": args.base_run,
-          "base": base_result,
-          "comparison": comparison,
+          "base_run": base_run,
+          "base": base_results[base_run],
+          "comparison": comparisons[base_run],
       })
+    elif base_runs:
+      payload["comparisons"] = {
+          base_run: {
+              "base": base_results[base_run],
+              "comparison": comparisons[base_run],
+          }
+          for base_run in base_runs
+      }
     print(json.dumps(payload, indent=2, sort_keys=True))
-  elif args.base_run:
-    _print_comparison(args.run, args.base_run, comparison)
+  elif base_runs:
+    for index, base_run in enumerate(base_runs):
+      if index:
+        print()
+      _print_comparison(args.run, base_run, comparisons[base_run])
   else:
     _print_text(args.run, result)
 

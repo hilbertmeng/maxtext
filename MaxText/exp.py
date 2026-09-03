@@ -1279,9 +1279,9 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude
     BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead
 ):
     """Give every fetched-read head and side an independent amplitude."""
-    # code_commit: ccccb53; UE5a ~0.648 steps/s (!? -1.2% vs Gate050Interpolated);
-    # paused at 5,412. Gap stayed near zero, first turning negative at 5,000 (-.00041).
-    # Reconsider per-head amplitude only after corrected depth scaling is established.
+    # ccccb53; UE5a ~0.643-0.648 steps/s (!? -1.2% vs Gate050Interpolated);
+    # completed 13,500. After 1,200, dloss oscillated near +.001 vs Interpolated
+    # (isolated sign crossings, no durable benefit), ending +.00091 @13,400.
     model_name = (
         'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude')
     bam_fetched_read_amplitude_granularity = 'head'
@@ -1295,7 +1295,8 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):
     """Re-run fetched-read depth scaling with the real scanned layer index."""
-    # code_commit: 1e7c53c; UE5a ~0.652 steps/s; compare with ScanAotControl and old Gate050.
+    # 1e7c53c; UE5a ~0.647 steps/s; stopped at 8,869. Correct depth scaling is
+    # stably harmful: dloss ~+.017 vs ScanAotControl/old Gate050 @6,400-8,600.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -1306,7 +1307,8 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadScanLayerFix(
     BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix
 ):
     """Re-test fetched-read interpolation with corrected depth scaling."""
-    # code_commit: 1e7c53c; UE5a ~0.646 steps/s; compare with corrected and old interpolation.
+    # 1e7c53c; UE5a ~0.643 steps/s; stopped at 7,946. Interpolation helps the
+    # fixed lineage ~-.007, but corrected scaling stays ~+.012 vs old Interpolated.
     model_name = (
         'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadScanLayerFix')
     bam_fetched_read_merge = 'interpolate'
@@ -1319,7 +1321,8 @@ class BamLlama2MediumV2C256ScanAotControlInterpolatedRead(
     BamLlama2MediumV2C256ScanAotControl
 ):
     """Isolate fetched-read interpolation on the plain scan+AOT control."""
-    # code_commit: 2173da5; UE5a ~0.656 steps/s.
+    # code_commit: 2173da5; UE5a ~0.656 steps/s; paused at 6,110.
+    # Stable +.0043-.0048 loss vs ScanAotControl @4,200-5,600.
     model_name = 'BamLlama2MediumV2C256ScanAotControlInterpolatedRead'
     bam_fetched_read_merge = 'interpolate'
     jax_cache_dir = (
@@ -1331,7 +1334,8 @@ class BamLlama2MediumV2C256DepthAmplitudeGate005(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Restore the .005 gate prior while retaining learned depth amplitudes."""
-    # code_commit: 1c208f2; UE5a ~0.661 steps/s; running to 13,500.
+    # code_commit: 1c208f2; UE5a ~0.655 steps/s; stopped at 10,134. After 1.2k,
+    # dloss oscillated near zero vs Gate050/control; no material loss benefit.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate005'
     bam_fetched_read_gate_init = 0.005
     bam_fetched_read_amplitude_init = 5.65685425
@@ -1344,7 +1348,9 @@ class BamLlama2MediumV2C256DepthAmplitudeGate005ScanLayerFix(
     BamLlama2MediumV2C256DepthAmplitudeGate005
 ):
     """Re-test the .005 fetched-read prior with corrected depth scaling."""
-    # code_commit: pending; compare with corrected Gate050 and ScanAotControl.
+    # 1e7c53c; ~0.652 steps/s; stopped at 2,955. Correct depth scaling is strongly
+    # harmful: dloss +.0409 vs old Gate050 / +.0413 vs ScanAotControl @2,800;
+    # gaps still narrowed, but far too slowly to alter the conclusion.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate005ScanLayerFix'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -1958,7 +1964,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate(
     BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl
 ):
     """Use sigmoid head-rank gates directly, with no shared gate or signed mix."""
-    # code_commit: 0038e21; UE5a ~0.635 steps/s (+1.0% vs current control).
+    # code_commit: 0038e21; UE5a ~0.635 steps/s; stopped at 7,628.
+    # Stable +.0021-.0031 loss vs SharedRankGate @5,000-7,000.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate'
     bam_local_qk_rank_routing = 'head_rank_gate'
     jax_cache_dir = (
@@ -1970,7 +1977,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005(
     BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate
 ):
     """Depth-scale LocalQK Q/K x row/column amplitudes at the .005 gate prior."""
-    # code_commit: pending; compare with SharedRankGate.
+    # code_commit: 3e1a110; UE5a ~0.628 steps/s; compare with SharedRankGate.
     model_name = (
         'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005')
     bam_local_qk_amplitude_init = 1.0
@@ -1986,7 +1993,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050(
     BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005
 ):
     """Raise the LocalQK gate prior to .05 at matched initial effective strength."""
-    # code_commit: pending; compare with Amplitude005 and SharedRankGate.
+    # code_commit: 3e1a110; UE5a ~0.628 steps/s; compare with Amp005 and Shared.
     model_name = (
         'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050')
     bam_read_gate_init = 0.05
@@ -2001,7 +2008,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude005(
     BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005
 ):
     """Correctly depth-scale the coarse LocalQK amplitude under layer scan."""
-    # code_commit: pending; compare with SharedRankGate.
+    # 9ed0cde; UE5a ~0.626 steps/s; stopped at 4,462. p=.005/.05 stayed
+    # loss-equivalent; both remained ~+.006 vs SharedRankGate @3,800-4,400.
     model_name = (
         'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude005')
     jax_cache_dir = (
@@ -2013,7 +2021,8 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude050(
     BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050
 ):
     """Raise the corrected depth-scaled LocalQK gate prior at matched strength."""
-    # code_commit: pending; compare with DepthAmplitude005 and SharedRankGate.
+    # 9ed0cde; UE5a ~0.621 steps/s; stopped at 9,581. Stable dloss ~+.0047-.0055
+    # vs SharedRankGate @6,800-9,200; corrected LocalQK depth scaling is harmful.
     model_name = (
         'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude050')
     jax_cache_dir = (
@@ -3327,7 +3336,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2ScanJitRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Complete the XL Rank2 compile/scan 2x2 with layer scan and ordinary JIT."""
-    # code_commit: f8a593a; UE5a ~0.547 steps/s; running to 2,000.
+    # code_commit: f8a593a; UE5a ~0.542-0.547 steps/s; completed 2,000. dloss +.00507 vs
+    # scan+AOT Rank2, -.00975 vs non-scan+JIT @1,500: scan helps; AOT helps with scan.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2ScanJitRepro')
     scan_layers = True
@@ -3343,7 +3353,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanAotRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Complete the XL Rank2 compile/scan 2x2 with non-scan layers and AOT."""
-    # code_commit: f8a593a; UE5a ~0.535-0.537 steps/s; running to 2,000.
+    # code_commit: f8a593a; UE5a ~0.527-0.531 steps/s; completed 2,000. dloss +.01704 vs
+    # scan+AOT Rank2, +.00222 vs non-scan+JIT @1,500: scan helps; AOT does not without scan.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NonScanAotRepro')
     scan_layers = False
@@ -3365,6 +3376,23 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro(
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-current-repro')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Current-code XL Rank2 reproduction with planned BAM health metrics."""
+    # code_commit: pending; compare exact 10-step losses with historical Rank2.
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro')
+    scan_layers = True
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    bam_record_fetched_read_health_metrics = True
+    bam_record_local_qk_routing_metrics = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-health-repro')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16(

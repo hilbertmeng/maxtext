@@ -338,11 +338,15 @@ def _stats(values):
   }
 
 
-def _rank_approximation(params, rank, num_layers):
+def _rank_approximation(params, rank, num_layers, selected_layers=None):
+  selected_layers = (
+      set(range(num_layers)) if selected_layers is None else set(selected_layers))
   flat = flatten_dict(unfreeze(params))
   matches = [path for path in flat if path[-1] == "abs_v_cache_projection"]
   if len(matches) == num_layers:
     for path in matches:
+      if _layer_from_path(path) not in selected_layers:
+        continue
       matrix = np.asarray(jax.device_get(flat[path]))
       u, singular, vh = np.linalg.svd(
           matrix.astype(np.float32), full_matrices=False)
@@ -359,10 +363,13 @@ def _rank_approximation(params, rank, num_layers):
   layer_axis = layer_axes[0]
   matrices = np.moveaxis(matrix, layer_axis, 0)
   approximated = []
-  for value in matrices:
-    u, singular, vh = np.linalg.svd(value.astype(np.float32), full_matrices=False)
-    singular[rank:] = 0
-    approximated.append((u * singular[None]) @ vh)
+  for layer, value in enumerate(matrices):
+    if layer in selected_layers:
+      u, singular, vh = np.linalg.svd(
+          value.astype(np.float32), full_matrices=False)
+      singular[rank:] = 0
+      value = (u * singular[None]) @ vh
+    approximated.append(value)
   flat[path] = jnp.asarray(
       np.moveaxis(np.stack(approximated), 0, layer_axis), matrix.dtype)
   return freeze(unflatten_dict(flat))
@@ -418,6 +425,7 @@ def run(config):
       "BAM_ABSV_DIAG_SCALES", "1,0.70710678,0.5,0.25").split(","))
   ranks = tuple(int(x) for x in os.environ.get(
       "BAM_ABSV_DIAG_RANKS", "8,16").split(",") if x)
+  layerwise_rank = int(os.environ.get("BAM_ABSV_DIAG_LAYERWISE_RANK", "0"))
   output_path = Path(os.environ.get(
       "BAM_ABSV_DIAG_OUTPUT", "/tmp/xl_abs_v_width_diagnostics.json"))
   output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -484,6 +492,23 @@ def run(config):
       print(
           f"BAM_ABSV_DIAG mode=rank_{rank} loss={np.mean(values):.8f} "
           f"seconds={timings[f'rank_{rank}']:.1f}", flush=True)
+    if 0 < layerwise_rank < config.bam_abs_v_compression_dim:
+      for layer in range(1, config.num_decoder_layers):
+        rank_params = _rank_approximation(
+            state.params, layerwise_rank, config.num_decoder_layers, (layer,))
+        values = []
+        begin = time.perf_counter()
+        for index, batch in enumerate(batches):
+          rng = jax.random.fold_in(init_rng, index)
+          with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
+            result = scaled(rank_params, batch, rng, 1.0, 1.0)
+          values.extend(np.asarray(jax.device_get(result), np.float64))
+        name = f"layer_{layer:02d}_rank_{layerwise_rank}"
+        rank_losses[name] = np.asarray(values)
+        timings[name] = time.perf_counter() - begin
+        print(
+            f"BAM_ABSV_DIAG mode={name} loss={np.mean(values):.8f} "
+            f"seconds={timings[name]:.1f}", flush=True)
 
   capture = jax.jit(lambda params, batch, rng: _captured_forward(
       model, config, params, batch, rng, read_v_dim))

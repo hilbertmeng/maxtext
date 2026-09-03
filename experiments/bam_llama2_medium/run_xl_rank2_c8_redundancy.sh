@@ -13,6 +13,7 @@ mkdir -p "$OUT/output/$DIAG_RUN" "$OUT/tensorboard"
 env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off \
   BAM_ABSV_DIAG_BATCHES=8 BAM_ABSV_DIAG_CAPTURE_BATCHES=8 \
   BAM_ABSV_DIAG_SCALES=1 BAM_ABSV_DIAG_RANKS=2,4,6 \
+  BAM_ABSV_DIAG_LAYERWISE_RANK=4 \
   BAM_ABSV_DIAG_CODE_COMMIT="$CODE_COMMIT" \
   BAM_ABSV_DIAG_OUTPUT="$OUT/report.json" \
   "$PYTHON" experiments/bam_llama2_medium/xl_abs_v_width_diagnostics.py \

@@ -2522,6 +2522,14 @@ def _paired_parameter_init(kernel_init):
   return init_fn
 
 
+def _identity_matrix_init(key, shape, dtype):
+  """Initialize one square projection to the identity matrix."""
+  del key
+  if len(shape) != 2 or shape[0] != shape[1]:
+    raise ValueError(f'identity projection expects a square matrix, got {shape}')
+  return jnp.eye(shape[0], dtype=dtype)
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -2549,6 +2557,8 @@ class BamAttention(Attention):
         cfg, 'bam_local_qk_post_read_v_share_qk', True))
     self._local_qk_post_read_v_paired_init = bool(getattr(
         cfg, 'bam_local_qk_post_read_v_paired_init', False))
+    self._local_qk_post_read_v_init = getattr(
+        cfg, 'bam_local_qk_post_read_v_init', 'orthogonal')
     self._seed_paired_local_qk_row_key = bool(getattr(
         cfg, 'bam_seed_paired_local_qk_row_key', False))
     self._local_qk_post_read_v_layout = getattr(
@@ -2835,6 +2845,7 @@ class BamAttention(Attention):
     assert self._local_qk_rank > 0
     assert self._local_qk_second_implementation in ('dot', 'mul_reduce')
     assert self._local_qk_post_read_v_layout in ('head_tail', 'qk_tail')
+    assert self._local_qk_post_read_v_init in ('orthogonal', 'identity')
     if self._local_qk_post_read_v_dim is not None:
       self._local_qk_post_read_v_dim = int(self._local_qk_post_read_v_dim)
       assert 0 < self._local_qk_post_read_v_dim <= self.bam_v
@@ -3365,8 +3376,11 @@ class BamAttention(Attention):
     # Create the experimental adapter after all existing parameters so adding it
     # does not perturb the initialization stream of the V2 control parameters.
     if self._local_qk_post_read_v_dim is not None:
+      post_read_v_init = (
+          _identity_matrix_init
+          if self._local_qk_post_read_v_init == 'identity' else orth_init)
       projection_init = nn.with_logical_partitioning(
-          orth_init, ('v_factor', 'kv'))
+          post_read_v_init, ('v_factor', 'kv'))
       projection_shape = (self.bam_v, self._local_qk_post_read_v_dim)
       if self._local_qk_post_read_v_share_qk:
         self.local_qk_post_read_v_projection = self.param(
@@ -3376,7 +3390,7 @@ class BamAttention(Attention):
         self.local_qk_post_read_v_paired_projection = self.param(
             'local_qk_post_read_v_paired_projection',
             nn.with_logical_partitioning(
-                _paired_parameter_init(orth_init),
+                _paired_parameter_init(post_read_v_init),
                 (None, 'v_factor', 'kv')),
             (2,) + projection_shape, self.weight_dtype)
       else:

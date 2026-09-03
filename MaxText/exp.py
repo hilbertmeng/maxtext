@@ -304,6 +304,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_post_read_v_dim = None  # optionally project the full-M V-side answer before head mixing
     bam_local_qk_post_read_v_share_qk = True  # share that projection between Q and K reads
     bam_local_qk_post_read_v_paired_init = False  # separate Q/K params with identical initialization
+    bam_local_qk_post_read_v_init = 'orthogonal'  # orthogonal | identity
     bam_seed_paired_local_qk_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_local_qk_post_read_v_layout = 'head_tail'  # head_tail | qk_tail
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
@@ -3515,6 +3516,18 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankG
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-paired-orth-v32-shared-rank-gate')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedIdentityV32SharedRankGate(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankGate
+):
+    """Initialize the independent Q/K V32 maps to identity instead of random orthogonal."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedIdentityV32SharedRankGate')
+    bam_local_qk_post_read_v_init = 'identity'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-paired-identity-v32-shared-rank-gate')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16(

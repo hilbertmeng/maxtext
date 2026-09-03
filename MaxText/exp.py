@@ -1200,6 +1200,7 @@ class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(
     BamLlama2MediumV2C256ScanAotControl
 ):
     """Add rank-2 legacy LocalQK routing to the current scan+AOT V2 control."""
+    # c3cb677; UE5a ~0.618 steps/s; running vs ScanAotControl.
     model_name = 'BamLlama2MediumV2C256ScanAotControlLocalQKRank2'
     bam_local_qk_rank = 2
     bam_record_local_qk_routing_metrics = True
@@ -1212,6 +1213,7 @@ class BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate(
     BamLlama2MediumV2C256ScanAotControlLocalQKRank2
 ):
     """Give each clean-V2 LocalQK basis an independent shared gate."""
+    # c3cb677; UE5a ~0.613 steps/s; running vs legacy Rank2 and ScanAotControl.
     model_name = (
         'BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate')
     bam_local_qk_rank_routing = 'shared_rank_gate'
@@ -3491,7 +3493,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):
     """Scale Medium's per-basis shared LocalQK gate to XL Rank2."""
-    # code_commit: 0902e1e; EW4b ~0.528 steps/s; running vs historical XL Rank2.
+    # 0902e1e; EW4b ~0.528 steps/s; paused 6,851. Stable +.006-.007 dloss vs Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate')
     bam_local_qk_rank_routing = 'shared_rank_gate'
@@ -3504,6 +3506,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankG
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate
 ):
     """Add paired Q/K V32 maps to XL Rank2 SharedRankGate."""
+    # c3cb677; EW4b ~0.522 steps/s; running vs SharedRankGate and historical Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankGate')
     bam_local_qk_post_read_v_dim = 32

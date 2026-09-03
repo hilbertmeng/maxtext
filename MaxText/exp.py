@@ -3486,7 +3486,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro
 ):
     """Halve fetched-M AbsV cache width from 8 to 4; keep full M and LocalQK unchanged."""
-    # expected mildly harmful vs Rank2; compare C4/C8/C16 capacity scaling.
+    # code_commit: a4629aa; UE5a ~0.535 steps/s; expected mildly harmful vs Rank2; compare C4/C8/C16.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4')
     bam_abs_v_compression_dim = 4

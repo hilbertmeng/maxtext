@@ -238,12 +238,14 @@ def _scaled_forward(model, params, batch, rng, bam_k, read_v_dim,
     output = next_fun(*args, **kwargs)
     if context.method_name != "_read_fetched_m":
       return output
-    return jnp.concatenate((
-        output[..., :bam_k] * jnp.asarray(col_scale, output.dtype),
-        output[..., bam_k:bam_k + read_v_dim]
-        * jnp.asarray(row_scale, output.dtype),
-        output[..., bam_k + read_v_dim:],
+    read, gate_logits = output
+    scaled = jnp.concatenate((
+        read[..., :bam_k] * jnp.asarray(col_scale, read.dtype),
+        read[..., bam_k:bam_k + read_v_dim]
+        * jnp.asarray(row_scale, read.dtype),
+        read[..., bam_k + read_v_dim:],
     ), axis=-1)
+    return scaled, gate_logits
 
   dropout_rng, params_rng = jax.random.split(rng)
   with nn.intercept_methods(interceptor):
@@ -313,7 +315,7 @@ def _install_fetched_read_capture():
     output = original(self, *args, **kwargs)
     if (not self.is_initializing()
         and self.is_mutable_collection("bam_energy")):
-      self.sow("bam_energy", "read", output)
+      self.sow("bam_energy", "read", output[0])
     return output
 
   captured._bam_energy_capture = True

@@ -33,7 +33,7 @@ Matched comparisons use C8 replay checkpoints at 4250/6000/8750 against:
 | 6000 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Projected` | `c930d04a1302d045ef52d1cf38c6ce7768e221c5` |
 | 8750 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV32Native` | `c930d04a1302d045ef52d1cf38c6ce7768e221c5` |
 
-## Matched result at step 4250
+## Matched results at steps 4250 and 6000
 
 C16 - C8 same-cohort endpoint loss is `+0.00191`; its paired bootstrap 95%
 interval is `[-0.00138,+0.00517]`.
@@ -74,6 +74,40 @@ BAM branch is useful rather than a removable excess-amplitude artifact.
 The separated effects are `+.00131` from scaling col and `+.00697` from
 scaling row.
 
+## Matched result at step 8750
+
+C32 Native - C8 same-cohort endpoint loss is `+0.00469`; its paired bootstrap
+95% interval is `[+0.00152,+0.00773]`, confirming a statistically resolved
+disadvantage.
+
+| Component | Delta normalized energy | Delta normalized IG contribution | Efficiency, C8 -> C32 Native |
+|---|---:|---:|---:|
+| BAM total | +0.09455 | +0.05295 | .17187 -> .18906 |
+| BAM col | -0.02559 | +0.01927 | .22698 -> .24616 |
+| BAM row | +0.12014 | +0.03368 | .06785 -> .09873 |
+| BAM self | +0.14465 | +0.07017 | .19072 -> .22081 |
+| BAM cross | -0.05010 | -0.01722 | .14073 -> .12659 |
+| MHA | -0.05956 | -0.03704 | .15805 -> .12501 |
+| MLP | -0.03307 | -0.01593 | .27655 -> .27279 |
+
+C32 Native therefore learns and efficiently uses extra BAM capacity, especially
+row/self. Row-self contribution rises `.03343 -> .06182` and row-cross rises
+`.01451 -> .01979`; the loss of total cross-token utility comes from col-cross,
+which falls `.09377 -> .07126`. Normalized contribution shares sum to one, so
+their `+.05295/-.05297` cancellation is partly definitional. The unnormalized IG
+contributions independently show the same reallocation in loss units: BAM
+`+0.44266`, MHA `-0.31264`, and MLP `-0.13484`; their sum is `-0.00482`,
+consistent with the worse endpoint loss. The wider model is not failing because
+its new dimensions are idle or because row read lacks useful capacity; it
+changes the division of labor toward BAM self-read while degrading cross-token
+col read and the standard residual pathways.
+
+C32 Native's mean col/row readout-to-MHA ratios are `1.96897/1.19757`, versus
+C8's `1.75144/.89742`. Scaling them by `.88952/.74937` to match C8 makes loss
+`+.01375` worse (`+.00265` col-only, `+.01258` row-only). Its stronger row
+readout is decisively useful, not an excess-amplitude artifact that should be
+scaled away.
+
 ## Basis-invariant held-out subspace ablation
 
 Each batch is split into disjoint covariance-estimation and evaluation halves;
@@ -84,6 +118,7 @@ mixed `Mbar` is projected into each layer's top-r covariance eigenspace.
 |---|---|---:|
 | C8 @4250 | rank 4 | +0.21402 |
 | C8 @6000 | rank 4 | +0.22796 |
+| C8 @8750 | rank 4 | +0.25771 |
 | C16 @4250 | rank 8 | +0.13009 |
 | C32 Projected @6000 | rank 16 / rank 8 | +0.21851 / +1.27934 |
 | C32 Native @8750 | rank 16 / rank 8 | +0.37931 / +1.72410 |
@@ -101,13 +136,19 @@ normalized contribution. Most of this comes from row/V-side read: energy
 `+.23902`, contribution `+.05887`, and efficiency `.09158 -> .13409`.
 Unlike XL C16@4250, both self and cross-token contribution increase
 (`+.03750` and `+.02875`). The cross-scale sign difference is therefore visible
-inside BAM itself: Medium converts width primarily into more efficient row read
-without sacrificing cross-token utility, whereas XL C16 reallocates utility
-from cross/col toward self/row and loses total BAM efficiency.
+inside BAM itself: Medium converts width into net loss improvement while
+strengthening both self and cross-token BAM utility. XL C32 also strengthens
+row-self and row-cross, but loses col-cross and almost exactly cannibalizes
+MHA/MLP contribution, leaving a worse endpoint loss.
 
-## Pending
+## Conclusion
 
-- Repeat the matched C8 comparison at steps 6000 and 8750.
-- Repeat C8 rank-4 subspace ablation at those steps.
-- Test side-specific energy matching at each aligned checkpoint.
-- Contrast these XL findings with the completed Medium C8/C32 matched result.
+All three synchronized comparisons reject the simple explanations that wider
+XL BAM dimensions are unused or merely make the readout too large. C16 first
+shifts utility from cross/col toward self/row; by C32, the extra row capacity is
+clearly useful, including for cross-token row read, but the model loses
+cross-token col utility and standard MHA/MLP contribution. The XL failure is
+therefore a pathway-cooperation/optimization problem: extra BAM width changes
+which pathways solve the task, and the added BAM contribution does not become
+added model contribution. Medium avoids that cancellation and converts C32
+width into a real loss gain.

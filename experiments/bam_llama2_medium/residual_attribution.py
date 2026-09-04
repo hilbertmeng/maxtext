@@ -92,7 +92,7 @@ def _layer_collection(collections: dict[str, Any]) -> dict[str, jax.Array]:
     raise ValueError(
         f"expected {_LAYERS} residual-attribution layers, got {sorted(grouped)}")
   expected = {
-      "attention_total", "mlp", "layer_delta", "bam_full_head",
+      "attention_total", "mlp_residual", "layer_delta", "bam_full_head",
       "fetch_self_weight", *_BAM_HEAD_COMPONENTS,
   }
   for layer, values in grouped.items():
@@ -218,7 +218,7 @@ def _summarize_capture(
       precision=jax.lax.Precision(config.matmul_precision),
   ).astype(jnp.float32)
   layer_delta = captured["layer_delta"].astype(jnp.float32)
-  mlp = captured["mlp"].astype(jnp.float32)
+  mlp = captured["mlp_residual"].astype(jnp.float32)
   attention_total = captured["attention_total"].astype(jnp.float32)
   mha = layer_delta - mlp - jnp.sum(bam_residual, axis=3)
   components = jnp.concatenate(

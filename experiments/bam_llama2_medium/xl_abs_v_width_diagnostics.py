@@ -429,6 +429,10 @@ def run(config):
   capture_batches = int(os.environ.get("BAM_ABSV_DIAG_CAPTURE_BATCHES", "8"))
   scales = tuple(float(x) for x in os.environ.get(
       "BAM_ABSV_DIAG_SCALES", "1,0.70710678,0.5,0.25").split(","))
+  scale_pairs = tuple(
+      item.split(":")
+      for item in os.environ.get("BAM_ABSV_DIAG_SCALE_PAIRS", "").split(",")
+      if item)
   ranks = tuple(int(x) for x in os.environ.get(
       "BAM_ABSV_DIAG_RANKS", "8,16").split(",") if x)
   layerwise_rank = int(os.environ.get("BAM_ABSV_DIAG_LAYERWISE_RANK", "0"))
@@ -485,6 +489,8 @@ def run(config):
     modes[f"col_{scale:g}"] = (scale, 1.0)
     modes[f"row_{scale:g}"] = (1.0, scale)
     modes[f"both_{scale:g}"] = (scale, scale)
+  for name, col_scale, row_scale in scale_pairs:
+    modes[name] = (float(col_scale), float(row_scale))
 
   losses = {}
   timings = {}

@@ -69,10 +69,10 @@ def _stack_captures(collections, num_layers: int):
           value = value[0]
         scanned["read"] = value
       elif is_attention:
-        if not isinstance(value, (tuple, list)) or len(value) != 2:
+        if not isinstance(value, (tuple, list)) or len(value) < 2:
           raise ValueError(
               f"unexpected scanned attention capture at {path}: {type(value)}")
-        scanned["y_std"], scanned["mbar"] = value
+        scanned["y_std"], scanned["mbar"] = value[:2]
       continue
     value = _unwrap(raw)
     if is_read:
@@ -80,9 +80,9 @@ def _stack_captures(collections, num_layers: int):
         value = value[0]
       grouped[layer]["read"] = value
     elif is_attention:
-      if not isinstance(value, (tuple, list)) or len(value) != 2:
+      if not isinstance(value, (tuple, list)) or len(value) < 2:
         raise ValueError(f"unexpected attention capture at {path}: {type(value)}")
-      grouped[layer]["y_std"], grouped[layer]["mbar"] = value
+      grouped[layer]["y_std"], grouped[layer]["mbar"] = value[:2]
   expected = {"read", "y_std", "mbar"}
   if not grouped and set(scanned) == expected:
     for name, value in scanned.items():
@@ -129,9 +129,9 @@ def _stack_unscanned_captures(collections, num_layers: int):
           jnp.concatenate(y_chunks, axis=1),
           jnp.concatenate(mbar_chunks, axis=-3),
       )
-    if not isinstance(value, (tuple, list)) or len(value) != 2:
+    if not isinstance(value, (tuple, list)) or len(value) < 2:
       raise ValueError(f"unexpected attention capture at {path}: {type(value)}")
-    return value
+    return value[:2]
 
   for path, raw in flat.items():
     layer = _layer_from_path(path)

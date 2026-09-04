@@ -392,7 +392,7 @@ class SubDecoderLayer(nn.Module):
     layer_output = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(layer_output, deterministic=deterministic)
 
     if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
-      self.sow('residual_attribution', 'mlp', mlp_lnx)
+      self.sow('residual_attribution', 'mlp_residual', mlp_lnx)
       self.sow(
           'residual_attribution', 'layer_delta',
           layer_output.astype(jnp.float32) - inputs.astype(jnp.float32))

@@ -23,13 +23,14 @@ fi
 mkdir -p "$OUTPUT_DIR/maxtext-output/$OUTPUT_TAG"
 
 cd "$REPO"
+SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || cat .source_commit)"
 env \
   HARDWARE=tpu \
   JAX_TRACEBACK_FILTERING=off \
   BAM_RESIDUAL_ATTR_OUTPUT_DIR="$OUTPUT_DIR" \
   BAM_RESIDUAL_ATTR_SEQUENCES="$SEQUENCES" \
   BAM_RESIDUAL_ATTR_SEQUENCE_OFFSET="$SEQUENCE_OFFSET" \
-  BAM_RESIDUAL_ATTR_DIAGNOSTIC_COMMIT="$(git rev-parse HEAD)" \
+  BAM_RESIDUAL_ATTR_DIAGNOSTIC_COMMIT="$SOURCE_COMMIT" \
   "$PYTHON" experiments/bam_llama2_medium/residual_attribution.py \
     MaxText/configs/base.yml \
     exp_class=BamLlama2MediumV2ResidualAttribution \

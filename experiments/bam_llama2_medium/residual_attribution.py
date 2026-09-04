@@ -32,7 +32,12 @@ import max_utils
 from input_pipeline.input_pipeline_interface import create_data_iterator
 
 
-_LAYERS = 24
+_BASE_CONFIG_CLASS = os.environ.get(
+    "BAM_RESIDUAL_ATTR_BASE_CONFIG",
+    "BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2")
+_TRAINER_COMMIT = os.environ.get(
+    "BAM_RESIDUAL_ATTR_TRAINER_COMMIT", "aef0d97411a1725386ebba1aeae1bf4acb1bb79e")
+_LAYERS = int(os.environ.get("BAM_RESIDUAL_ATTR_LAYERS", "24"))
 _COMPONENTS = (
     "mlp",
     "mha",
@@ -51,20 +56,18 @@ _LAYER_RE = re.compile(r"layers_(\d+)")
 _EPS = 1.0e-12
 
 
-class BamLlama2MediumV2ResidualAttribution(exp.BamLlama2MediumV2):
-  """Read-only residual decomposition diagnostic for the completed V2 run."""
+class BamResidualAttribution(getattr(exp, _BASE_CONFIG_CLASS)):
+  """Read-only residual decomposition diagnostic for a sealed BAM run."""
 
   bam_diagnostics = False
   bam_readout_attribution = False
   bam_residual_attribution = True
-  scan_layers = False
   eval_per_device_batch_size = 16.0
   eval_shuffle_buffer_size = 32768
   tensorboard_dir = "/tmp/bam_residual_attribution_tb/"
 
 
-exp.BamLlama2MediumV2ResidualAttribution = (
-    BamLlama2MediumV2ResidualAttribution)
+exp.BamResidualAttribution = BamResidualAttribution
 
 
 def _unwrap(value: Any) -> Any:
@@ -81,27 +84,49 @@ def _layer_from_path(path: tuple[str, ...]) -> int | None:
   return None
 
 
-def _layer_collection(collections: dict[str, Any]) -> dict[str, jax.Array]:
-  grouped: dict[int, dict[str, Any]] = {}
-  for path, value in traverse_util.flatten_dict(
-      collections["residual_attribution"]).items():
-    layer = _layer_from_path(path)
-    if layer is not None:
-      grouped.setdefault(layer, {})[path[-1]] = _unwrap(value)
-  if set(grouped) != set(range(_LAYERS)):
+def _layer_axis_first(value: jax.Array, name: str) -> jax.Array:
+  axes = [axis for axis, size in enumerate(value.shape) if size == _LAYERS]
+  if len(axes) != 1:
     raise ValueError(
-        f"expected {_LAYERS} residual-attribution layers, got {sorted(grouped)}")
+        f"cannot identify unique {_LAYERS}-layer axis for {name}: {value.shape}")
+  return jnp.moveaxis(value, axes[0], 0)
+
+
+def _layer_collection(collections: dict[str, Any]) -> dict[str, jax.Array]:
   expected = {
       "attention_total", "mlp_residual", "layer_delta", "bam_full_head",
       "fetch_self_weight", *_BAM_HEAD_COMPONENTS,
   }
-  for layer, values in grouped.items():
-    if set(values) != expected:
+  grouped: dict[int, dict[str, Any]] = {}
+  scanned: dict[str, list[jax.Array]] = {}
+  for path, value in traverse_util.flatten_dict(
+      collections["residual_attribution"]).items():
+    if path[-1] not in expected:
+      continue
+    layer = _layer_from_path(path)
+    if layer is not None:
+      grouped.setdefault(layer, {})[path[-1]] = _unwrap(value)
+    else:
+      scanned.setdefault(path[-1], []).append(_unwrap(value))
+  if grouped:
+    if set(grouped) != set(range(_LAYERS)):
       raise ValueError(
-          f"layer {layer} collection mismatch: {set(values) ^ expected}")
+          f"expected {_LAYERS} residual-attribution layers, got {sorted(grouped)}")
+    for layer, values in grouped.items():
+      if set(values) != expected:
+        raise ValueError(
+            f"layer {layer} collection mismatch: {set(values) ^ expected}")
+    return {
+        name: jnp.stack([grouped[layer][name] for layer in range(_LAYERS)])
+        for name in sorted(expected)
+    }
+  if set(scanned) != expected or any(len(values) != 1 for values in scanned.values()):
+    raise ValueError(
+        f"scanned residual-attribution collection mismatch: "
+        f"names={sorted(scanned)}, counts={ {k: len(v) for k, v in scanned.items()} }")
   return {
-      name: jnp.stack([grouped[layer][name] for layer in range(_LAYERS)])
-      for name in sorted(expected)
+      name: _layer_axis_first(values[0], name)
+      for name, values in scanned.items()
   }
 
 
@@ -120,14 +145,21 @@ def _top_collection_value(
 
 def _out_kernels(params: dict[str, Any]) -> jax.Array:
   by_layer = {}
+  scanned = []
   for path, value in traverse_util.flatten_dict(params["params"]).items():
     layer = _layer_from_path(path)
-    if (layer is not None and "self_attention" in path
-        and path[-2:] == ("out", "kernel")):
-      by_layer[layer] = value
-  if set(by_layer) != set(range(_LAYERS)):
-    raise ValueError(f"expected {_LAYERS} W_O kernels, got {sorted(by_layer)}")
-  return jnp.stack([by_layer[layer] for layer in range(_LAYERS)])
+    if "self_attention" in path and path[-2:] == ("out", "kernel"):
+      if layer is None:
+        scanned.append(value)
+      else:
+        by_layer[layer] = value
+  if by_layer:
+    if set(by_layer) != set(range(_LAYERS)):
+      raise ValueError(f"expected {_LAYERS} W_O kernels, got {sorted(by_layer)}")
+    return jnp.stack([by_layer[layer] for layer in range(_LAYERS)])
+  if len(scanned) != 1:
+    raise ValueError(f"expected one scanned W_O kernel, got {len(scanned)}")
+  return _layer_axis_first(scanned[0], "W_O")
 
 
 def _output_head_parameters(
@@ -475,6 +507,9 @@ def _aggregate(output_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
 def run(config) -> None:
   if config.logits_via_embedding:
     raise ValueError("residual attribution currently requires logits_dense")
+  if config.num_decoder_layers != _LAYERS:
+    raise ValueError(
+        f"configured {config.num_decoder_layers} layers, expected {_LAYERS}")
   output_dir = Path(os.environ.get(
       "BAM_RESIDUAL_ATTR_OUTPUT_DIR", "/tmp/bam_residual_attribution"))
   output_dir.mkdir(parents=True, exist_ok=True)
@@ -482,13 +517,30 @@ def run(config) -> None:
   sequence_offset = int(os.environ.get("BAM_RESIDUAL_ATTR_SEQUENCE_OFFSET", "0"))
   batch_size = int(os.environ.get("BAM_RESIDUAL_ATTR_BATCH_SIZE", "2"))
   quadrature_order = int(os.environ.get("BAM_RESIDUAL_ATTR_IG_NODES", "8"))
+  cohort_path = os.environ.get("BAM_RESIDUAL_ATTR_COHORT_PATH")
   iterator_batch_size = int(
       config.eval_per_device_batch_size * jax.local_device_count())
-  if (target_sequences % batch_size or iterator_batch_size % batch_size
-      or sequence_offset % iterator_batch_size):
+  if (target_sequences % batch_size or iterator_batch_size % batch_size):
     raise ValueError(
         f"invalid {target_sequences=}, {sequence_offset=}, {batch_size=}, "
         f"{iterator_batch_size=}")
+  cohort = None
+  if cohort_path:
+    with np.load(cohort_path) as data:
+      cohort = {
+          key: np.asarray(data[key])
+          for key in (
+              "inputs", "targets", "inputs_position", "inputs_segmentation",
+              "targets_segmentation", "sequence_hashes")
+      }
+    if sequence_offset + target_sequences > cohort["inputs"].shape[0]:
+      raise ValueError(
+          f"cohort has {cohort['inputs'].shape[0]} sequences, requested "
+          f"[{sequence_offset}, {sequence_offset + target_sequences})")
+  elif sequence_offset % iterator_batch_size:
+    raise ValueError(
+        "iterator-backed sequence_offset must be divisible by iterator batch "
+        f"size {iterator_batch_size}")
 
   start = time.perf_counter()
   init_rng, writer, checkpoint_manager, mesh, model, _, tx = (
@@ -504,16 +556,20 @@ def run(config) -> None:
 
   metadata = {
       "checkpoint": config.load_parameters_path,
-      "checkpoint_trainer_commit": "1afd942",
+      "checkpoint_trainer_commit": _TRAINER_COMMIT,
       "diagnostic_commit": os.environ.get(
           "BAM_RESIDUAL_ATTR_DIAGNOSTIC_COMMIT", "unknown"),
-      "config_class": "BamLlama2MediumV2ResidualAttribution",
-      "base_config_class": "BamLlama2MediumV2",
+      "config_class": "BamResidualAttribution",
+      "base_config_class": _BASE_CONFIG_CLASS,
       "sequences": target_sequences,
       "sequence_offset": sequence_offset,
       "batch_size": batch_size,
       "iterator_batch_size": iterator_batch_size,
       "data_shuffle_seed": config.data_shuffle_seed,
+      "cohort_path": cohort_path,
+      "cohort_sha256": (
+          hashlib.sha256(Path(cohort_path).read_bytes()).hexdigest()
+          if cohort_path else None),
       "quadrature_order": quadrature_order,
       "component_order": list(_COMPONENTS),
       "component_semantics": {
@@ -536,39 +592,61 @@ def run(config) -> None:
       "setup_seconds": time.perf_counter() - start,
   }
 
-  for _ in range(sequence_offset // iterator_batch_size):
-    next(eval_data_iterator)
+  if cohort is None:
+    for _ in range(sequence_offset // iterator_batch_size):
+      next(eval_data_iterator)
   input_batch = None
   microbatches = iterator_batch_size // batch_size
   num_batches = target_sequences // batch_size
   output_offset = sequence_offset // batch_size
   for batch_index in range(num_batches):
-    microbatch_index = batch_index % microbatches
-    if microbatch_index == 0:
-      input_batch = next(eval_data_iterator)
-    start_index = microbatch_index * batch_size
-    batch = jax.tree.map(
-        lambda value: value[start_index:start_index + batch_size], input_batch)
+    if cohort is None:
+      microbatch_index = batch_index % microbatches
+      if microbatch_index == 0:
+        input_batch = next(eval_data_iterator)
+      start_index = microbatch_index * batch_size
+      batch = jax.tree.map(
+          lambda value: value[start_index:start_index + batch_size], input_batch)
+    else:
+      start_index = sequence_offset + batch_index * batch_size
+      end_index = start_index + batch_size
+      batch = {
+          key: jnp.asarray(cohort[key][start_index:end_index])
+          for key in (
+              "inputs", "targets", "inputs_position", "inputs_segmentation",
+              "targets_segmentation")
+      }
     rng = jax.random.fold_in(init_rng, output_offset + batch_index)
     batch_start = time.perf_counter()
     with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
       summary = compiled(state.params, batch, rng)
-    summary, inputs, targets, valid = jax.device_get((
+    (summary, inputs, targets, inputs_position, inputs_segmentation,
+     targets_segmentation) = jax.device_get((
         summary,
         batch["inputs"],
         batch["targets"],
-        batch["targets_segmentation"] != 0,
+        batch["inputs_position"],
+        batch["inputs_segmentation"],
+        batch["targets_segmentation"],
     ))
+    valid = targets_segmentation != 0
     sequence_hashes = np.asarray([
         hashlib.sha256(sequence.tobytes()).hexdigest()[:16]
         for sequence in np.asarray(inputs)
     ])
+    if cohort is not None:
+      expected_hashes = cohort["sequence_hashes"][start_index:end_index]
+      if not np.array_equal(sequence_hashes, expected_hashes):
+        raise ValueError("fixed-cohort sequence hash mismatch")
     np.savez_compressed(
         output_dir
         / f"residual_attribution_batch_{output_offset + batch_index:03d}.npz",
         **{key: np.asarray(value) for key, value in summary.items()},
         inputs=np.asarray(inputs),
         targets=np.asarray(targets),
+        inputs_position=np.asarray(inputs_position),
+        inputs_segmentation=np.asarray(inputs_segmentation),
+        targets_segmentation=np.asarray(targets_segmentation),
         valid=np.asarray(valid),
         sequence_hashes=sequence_hashes,
     )

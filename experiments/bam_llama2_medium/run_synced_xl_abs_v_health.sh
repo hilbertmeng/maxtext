@@ -32,30 +32,33 @@ for STEP in "$@"; do
   done
   mkdir -p "$OUTPUT/output/$TAG" "$OUTPUT/tensorboard"
   echo "$(date -u +%FT%TZ) running tag=$TAG"
-  env \
-    HARDWARE=tpu \
-    JAX_TRACEBACK_FILTERING=off \
-    BAM_ABSV_DIAG_BATCHES=8 \
-    BAM_ABSV_DIAG_CAPTURE_BATCHES=8 \
-    BAM_ABSV_DIAG_SCALES=1 \
-    BAM_ABSV_DIAG_RANKS= \
-    BAM_ABSV_DIAG_LAYERWISE_RANK=0 \
-    BAM_ABSV_DIAG_CODE_COMMIT="$CODE_COMMIT" \
-    BAM_ABSV_DIAG_TRAINER_COMMIT="$TRAINER_COMMIT" \
-    BAM_ABSV_DIAG_COHORT_PATH="$COHORT_PATH" \
-    BAM_ABSV_DIAG_OUTPUT="$OUTPUT/report.json" \
-    "$PYTHON" experiments/bam_llama2_medium/xl_abs_v_width_diagnostics.py \
-      MaxText/configs/base.yml \
-      "exp_class=$CONFIG" \
-      "run_name=$TAG" \
-      only_eval=True steps=1 \
-      "load_parameters_path=$CHECKPOINT" \
-      "dataset_path=$DATASET_PATH" \
-      "base_output_directory=$OUTPUT/output" \
-      "tensorboard_dir=$OUTPUT/tensorboard" \
-      per_device_batch_size=1 eval_per_device_batch_size=16 \
-      enable_checkpointing=True async_checkpointing=False \
-      >"$OUTPUT/run.log" 2>&1
+  (
+    flock 9
+    env \
+      HARDWARE=tpu \
+      JAX_TRACEBACK_FILTERING=off \
+      BAM_ABSV_DIAG_BATCHES=8 \
+      BAM_ABSV_DIAG_CAPTURE_BATCHES=8 \
+      BAM_ABSV_DIAG_SCALES=1 \
+      BAM_ABSV_DIAG_RANKS= \
+      BAM_ABSV_DIAG_LAYERWISE_RANK=0 \
+      BAM_ABSV_DIAG_CODE_COMMIT="$CODE_COMMIT" \
+      BAM_ABSV_DIAG_TRAINER_COMMIT="$TRAINER_COMMIT" \
+      BAM_ABSV_DIAG_COHORT_PATH="$COHORT_PATH" \
+      BAM_ABSV_DIAG_OUTPUT="$OUTPUT/report.json" \
+      "$PYTHON" experiments/bam_llama2_medium/xl_abs_v_width_diagnostics.py \
+        MaxText/configs/base.yml \
+        "exp_class=$CONFIG" \
+        "run_name=$TAG" \
+        only_eval=True steps=1 \
+        "load_parameters_path=$CHECKPOINT" \
+        "dataset_path=$DATASET_PATH" \
+        "base_output_directory=$OUTPUT/output" \
+        "tensorboard_dir=$OUTPUT/tensorboard" \
+        per_device_batch_size=1 eval_per_device_batch_size=16 \
+        enable_checkpointing=True async_checkpointing=False \
+        >"$OUTPUT/run.log" 2>&1
+  ) 9>"${BAM_DIAGNOSTIC_TPU_LOCK:-/tmp/bam-diagnostic-tpu.lock}"
   gsutil cp "$OUTPUT/report.json" "$OUTPUT_BASE/$TAG/report.json"
   gsutil cp "$OUTPUT/run.log" "$OUTPUT_BASE/$TAG/run.log"
   echo "$(date -u +%FT%TZ) done tag=$TAG"

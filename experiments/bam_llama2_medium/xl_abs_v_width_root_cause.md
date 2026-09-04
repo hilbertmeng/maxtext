@@ -51,9 +51,28 @@ read (`delta contribution=-0.03047/-0.04163`), while the wider row read is
 useful. C16 therefore changes the division of labor toward self-read and away
 from useful cross-token col read; it is not uniformly worse.
 
+Within row read, C16 improves self-read contribution `.03907 -> .05119` but
+slightly reduces cross-token contribution `.02042 -> .01842`. At step 6000,
+C32 Projected improves both relative to synchronized C8: row-self
+`.03571 -> .06546` and row-cross `.01744 -> .02570`. A larger C can therefore
+repair XL's weak row path, including row-cross; lack of row capacity is not the
+remaining explanation for the missing net loss gain.
+
 Scaling C16 col/row readouts by `.97244/.92958` to match C8's mean
 readout-to-MHA energy makes same-batch loss `+0.00048` worse. Pure excess
 readout amplitude is therefore not the cause at this checkpoint.
+The separated effects are `+0.00009` from scaling col only and `+0.00050` from
+scaling row only.
+
+At step 6000, C32 Projected - C8 same-cohort loss is `-0.00019`, again
+effectively tied. C32 adds `.07446` BAM energy and `.04319` BAM contribution,
+mostly through row (`+.03801`) and self-read (`+.05461`), but MHA and MLP
+contribution fall by `-.02143/-.02177` and cancel the BAM gain. Cross-token BAM
+contribution is still lower (`-.01142`). Scaling C32 col/row readouts by
+`.91572/.81547` to match C8's energy makes loss `+.00750` worse, so the stronger
+BAM branch is useful rather than a removable excess-amplitude artifact.
+The separated effects are `+.00131` from scaling col and `+.00697` from
+scaling row.
 
 ## Basis-invariant held-out subspace ablation
 
@@ -64,6 +83,7 @@ mixed `Mbar` is projected into each layer's top-r covariance eigenspace.
 | Model/checkpoint | Ablation | Same-batch delta loss |
 |---|---|---:|
 | C8 @4250 | rank 4 | +0.21402 |
+| C8 @6000 | rank 4 | +0.22796 |
 | C16 @4250 | rank 8 | +0.13009 |
 | C32 Projected @6000 | rank 16 / rank 8 | +0.21851 / +1.27934 |
 | C32 Native @8750 | rank 16 / rank 8 | +0.37931 / +1.72410 |
@@ -72,6 +92,18 @@ The wider models are fractionally more compressible than C8, but all use their
 additional subspace. Thus `extra dimensions are unused redundancy` is ruled
 out; this result alone does not establish that those dimensions improve a
 separately trained model.
+
+## Contrast with Medium
+
+At the matched final step 13250 on the same cohort, Medium V1 C32 beats its C8
+Direct variant by `-0.00872` loss. C32 adds `.26348` BAM energy and `.06625`
+normalized contribution. Most of this comes from row/V-side read: energy
+`+.23902`, contribution `+.05887`, and efficiency `.09158 -> .13409`.
+Unlike XL C16@4250, both self and cross-token contribution increase
+(`+.03750` and `+.02875`). The cross-scale sign difference is therefore visible
+inside BAM itself: Medium converts width primarily into more efficient row read
+without sacrificing cross-token utility, whereas XL C16 reallocates utility
+from cross/col toward self/row and loses total BAM efficiency.
 
 ## Pending
 

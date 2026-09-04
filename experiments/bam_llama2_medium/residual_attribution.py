@@ -95,7 +95,8 @@ def _layer_axis_first(value: jax.Array, name: str) -> jax.Array:
 def _layer_collection(collections: dict[str, Any]) -> dict[str, jax.Array]:
   expected = {
       "attention_total", "mlp_residual", "layer_delta", "bam_full_head",
-      "fetch_self_weight", *_BAM_HEAD_COMPONENTS,
+      "fetch_self_weight", "layer_input", "layer_output",
+      *_BAM_HEAD_COMPONENTS,
   }
   grouped: dict[int, dict[str, Any]] = {}
   scanned: dict[str, list[jax.Array]] = {}
@@ -269,6 +270,18 @@ def _summarize_capture(
   residual_closure_token = (
       jnp.sqrt(jnp.sum(jnp.square(residual_error), axis=-1))
       / final_l2)
+  layer_input = captured["layer_input"].astype(jnp.float32)
+  layer_output = captured["layer_output"].astype(jnp.float32)
+  initial_link_token = (
+      jnp.sqrt(jnp.sum(jnp.square(layer_input[0] - embedding), axis=-1))
+      / final_l2)
+  final_link_token = (
+      jnp.sqrt(jnp.sum(jnp.square(layer_output[-1] - final_hidden), axis=-1))
+      / final_l2)
+  continuity_token = (
+      jnp.sqrt(jnp.sum(jnp.square(
+          layer_input[1:] - layer_output[:-1]), axis=-1))
+      / final_l2[None])
   rounding_correction = layer_delta - mlp - attention_total
   rounding_ratio_token = (
       jnp.sqrt(jnp.sum(jnp.square(rounding_correction), axis=-1))
@@ -400,6 +413,11 @@ def _summarize_capture(
           residual_closure_token, valid),
       "residual_closure_max": jnp.max(
           jnp.where(valid, residual_closure_token, 0), axis=1),
+      "initial_link_error": _sequence_mean(initial_link_token, valid),
+      "final_link_error": _sequence_mean(final_link_token, valid),
+      "layer_continuity_error": jnp.transpose(
+          _sequence_mean(jnp.transpose(continuity_token, (1, 2, 0)), valid),
+          (0, 1)),
       "bam_head_closure_mean": jnp.transpose(
           _sequence_mean(jnp.transpose(head_closure_token, (1, 2, 0)), valid),
           (0, 1)),
@@ -459,6 +477,7 @@ def _aggregate(output_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
       "embedding_contribution_normalized", "contribution_total",
       "path_contribution", "ig_closure_error", "endpoint_loss_error",
       "residual_closure_mean", "residual_closure_max",
+      "initial_link_error", "final_link_error", "layer_continuity_error",
       "bam_head_closure_mean", "rounding_correction_ratio",
       "normalized_gram",
   )
@@ -481,6 +500,8 @@ def _aggregate(output_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
           for name in (
               "ig_closure_error", "endpoint_loss_error",
               "residual_closure_mean", "residual_closure_max",
+              "initial_link_error", "final_link_error",
+              "layer_continuity_error",
               "bam_head_closure_mean", "rounding_correction_ratio")
       },
       "component_order": list(_COMPONENTS),

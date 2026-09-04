@@ -646,6 +646,9 @@ class Decoder(nn.Module):
           config=cfg,
       )(decoder_positions)
 
+    if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
+      self.sow('residual_attribution', 'embedding', y)
+
     hids = []
     if cfg.dense_conn and not cfg.mudd_in_layer:
       max_logging.log(f'Outside layers don\'t use remat', debug=cfg.debug)
@@ -988,6 +991,9 @@ class Decoder(nn.Module):
       mtp_head_inputs, main_head_inputs = y if cfg.mtp_num_layers > 0 else [None, y[0]]
     else:
       main_head_inputs, mtp_head_inputs = [y, y] if cfg.mtp_num_layers > 0 else [y, None]
+
+    if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
+      self.sow('residual_attribution', 'final_hidden', main_head_inputs)
 
     # mtp share llm head params
     OutputHeadLayer = OutputHead(config=cfg, 

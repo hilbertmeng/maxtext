@@ -2470,6 +2470,8 @@ class BamAttention(Attention):
     self._batch_factorized_local_qk_read = bool(
         cfg.bam_batch_factorized_local_qk_read)
     self._readout_attribution = bool(cfg.bam_readout_attribution)
+    self._residual_attribution = bool(
+        getattr(cfg, 'bam_residual_attribution', False))
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
@@ -3753,6 +3755,17 @@ class BamAttention(Attention):
         else:
           Mbar_fetch, _, _ = _bam_fetch_op(fetch_alpha, fetch_state)
         Mbar = Mbar_fetch
+        if self._residual_attribution and not self.is_initializing():
+          if self._combine_full_local_read or self._fetch_temporal_block_size is not None:
+            raise ValueError(
+                'Residual attribution requires the direct full-fetch path')
+          diagonal_weight = jnp.diagonal(fetch_alpha, axis1=-2, axis2=-1)
+          if fetch_alpha.ndim == 4:
+            Mbar_self = (
+                fetch_state[:, None]
+                * diagonal_weight[..., None, None])
+          else:
+            Mbar_self = fetch_state * diagonal_weight[..., None, None]
         if self._combine_full_local_read:
           # The shared runtime key makes Read linear in M.  Because fetch_alpha has
           # yielded its diagonal, adding normalized local Mh here exactly replaces
@@ -3763,6 +3776,8 @@ class BamAttention(Attention):
         full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)
         if self._squeeze_single_fetch_read:
           Mbar = jnp.squeeze(Mbar, axis=1)
+          if self._residual_attribution and not self.is_initializing():
+            Mbar_self = jnp.squeeze(Mbar_self, axis=1)
           full_read_projection = lambda x: jnp.squeeze(
               self._project_full_read_key(x), axis=-2)
           full_read_kwargs = self._read_key_kwargs(
@@ -3779,6 +3794,36 @@ class BamAttention(Attention):
         y_full = (rearrange(full_read, 'b n t d -> b t n d')
                   if self._read_implementation == 'dot_bnt' else full_read)
         y_full = mask_read_side_gradients(y_full)
+        if self._residual_attribution and not self.is_initializing():
+          full_read_self = bam_read(
+              Mbar_self, inputs_q, full_read_projection, None,
+              **full_read_kwargs, implementation=self._read_implementation,
+              read_side=self.read_side)
+          full_read_self = self._expand_full_read(full_read_self)
+          y_full_self = (
+              rearrange(full_read_self, 'b n t d -> b t n d')
+              if self._read_implementation == 'dot_bnt' else full_read_self)
+          y_full_cross = y_full - y_full_self
+
+          def split_read_sides(read):
+            col = read.at[..., self.bam_k:].set(0)
+            return col, read - col
+
+          y_col_self, y_row_self = split_read_sides(y_full_self)
+          y_col_cross, y_row_cross = split_read_sides(y_full_cross)
+          self.sow('residual_attribution', 'bam_full_head', y_full)
+          self.sow(
+              'residual_attribution', 'fetch_self_weight',
+              jnp.squeeze(diagonal_weight, axis=1)
+              if diagonal_weight.ndim == 3 else diagonal_weight)
+          self.sow(
+              'residual_attribution', 'bam_col_self_head', y_col_self)
+          self.sow(
+              'residual_attribution', 'bam_col_cross_head', y_col_cross)
+          self.sow(
+              'residual_attribution', 'bam_row_self_head', y_row_self)
+          self.sow(
+              'residual_attribution', 'bam_row_cross_head', y_row_cross)
         y_bam = y_bam + y_full
     if 'local_o' in self._mode and not self._combine_full_local_read:
       assert Mh is not None, "local_o read requires M_in"

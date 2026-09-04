@@ -238,6 +238,7 @@ class BamLlama2Medium(Llama2Medium):
     # Flax collection; all reductions/statistics live outside the production model code.
     bam_diagnostics = False
     bam_readout_attribution = False
+    bam_residual_attribution = False
     # Capability-ceiling run: keep the full-read oracle enabled in every layer
     # for all 13.5k steps. Its measured cost is intentional for this experiment.
     bam_layer_modes = ['local_qk+local_o+full'] * 24

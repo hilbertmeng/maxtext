@@ -177,12 +177,11 @@ def _frozen_head_token_loss(
     end = min(start + config.loss_chunk_size, hidden.shape[1])
     logits = jnp.tensordot(
         normalized[:, start:end], kernel, axes=((-1,), (0,)))
-    max_logit = jnp.max(logits, axis=-1, keepdims=True)
-    shifted = logits - max_logit
-    log_z = jnp.log(jnp.sum(jnp.exp(shifted), axis=-1))
-    target_logit = jnp.take_along_axis(
-        shifted, targets[:, start:end, None], axis=-1)[..., 0]
-    losses.append(log_z - target_logit)
+    one_hot_targets = jax.nn.one_hot(
+        targets[:, start:end], config.vocab_size)
+    xent, _ = max_utils.cross_entropy_with_logits(
+        logits, one_hot_targets, 0.0)
+    losses.append(xent)
   return jnp.concatenate(losses, axis=1)
 
 
@@ -217,6 +216,14 @@ def _summarize_capture(
       jnp.asarray(w_o, bam_heads.dtype),
       precision=jax.lax.Precision(config.matmul_precision),
   ).astype(jnp.float32)
+  bam_total_residual = jnp.einsum(
+      "lbtnd,lnde->lbte",
+      captured["bam_full_head"],
+      jnp.asarray(w_o, captured["bam_full_head"].dtype),
+      precision=jax.lax.Precision(config.matmul_precision),
+  ).astype(jnp.float32)
+  bam_residual = bam_residual.at[..., -1, :].set(
+      bam_total_residual - jnp.sum(bam_residual[..., :-1, :], axis=3))
   layer_delta = captured["layer_delta"].astype(jnp.float32)
   mlp = captured["mlp_residual"].astype(jnp.float32)
   attention_total = captured["attention_total"].astype(jnp.float32)
@@ -228,11 +235,11 @@ def _summarize_capture(
   residual_error = reconstructed - final_hidden
   final_l2 = jnp.sqrt(jnp.sum(jnp.square(final_hidden), axis=-1) + _EPS)
   residual_closure_token = (
-      jnp.sqrt(jnp.sum(jnp.square(residual_error), axis=-1) + _EPS)
+      jnp.sqrt(jnp.sum(jnp.square(residual_error), axis=-1))
       / final_l2)
   rounding_correction = layer_delta - mlp - attention_total
   rounding_ratio_token = (
-      jnp.sqrt(jnp.sum(jnp.square(rounding_correction), axis=-1) + _EPS)
+      jnp.sqrt(jnp.sum(jnp.square(rounding_correction), axis=-1))
       / jnp.maximum(
           jnp.sqrt(jnp.sum(jnp.square(layer_delta), axis=-1) + _EPS),
           _EPS))
@@ -240,7 +247,8 @@ def _summarize_capture(
   head_sum = jnp.sum(bam_heads, axis=3)
   head_error = captured["bam_full_head"] - head_sum
   head_closure_token = (
-      jnp.sqrt(jnp.sum(jnp.square(head_error.astype(jnp.float32)), axis=(-2, -1)) + _EPS)
+      jnp.sqrt(jnp.sum(jnp.square(
+          head_error.astype(jnp.float32)), axis=(-2, -1)))
       / jnp.maximum(
           jnp.sqrt(jnp.sum(jnp.square(
               captured["bam_full_head"].astype(jnp.float32)), axis=(-2, -1)) + _EPS),

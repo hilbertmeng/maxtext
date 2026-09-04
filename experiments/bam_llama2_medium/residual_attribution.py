@@ -490,8 +490,9 @@ def _aggregate(output_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
     joined[key] = np.concatenate(values, axis=0)
   energy = joined["energy"]
   contribution = joined["contribution"]
+  contribution_normalized = joined["contribution_normalized"]
   efficiency = (
-      np.mean(contribution, axis=0)
+      np.mean(contribution_normalized, axis=0)
       / np.maximum(np.mean(energy, axis=0), _EPS))
   return {
       "metadata": metadata,
@@ -509,8 +510,8 @@ def _aggregate(output_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
       "mean_contribution_by_layer_component": np.mean(
           contribution, axis=0).tolist(),
       "mean_normalized_contribution_by_layer_component": np.mean(
-          joined["contribution_normalized"], axis=0).tolist(),
-      "ratio_of_mean_contribution_to_mean_energy": efficiency.tolist(),
+          contribution_normalized, axis=0).tolist(),
+      "ratio_of_mean_normalized_contribution_to_mean_energy": efficiency.tolist(),
       "embedding": {
           "mean_energy": float(np.mean(joined["embedding_energy"])),
           "mean_contribution": float(

@@ -553,12 +553,16 @@ def run(config) -> None:
     batch_start = time.perf_counter()
     with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
       summary = compiled(state.params, batch, rng)
-    summary, inputs, targets, valid = jax.device_get((
+    (summary, inputs, targets, inputs_position, inputs_segmentation,
+     targets_segmentation) = jax.device_get((
         summary,
         batch["inputs"],
         batch["targets"],
-        batch["targets_segmentation"] != 0,
+        batch["inputs_position"],
+        batch["inputs_segmentation"],
+        batch["targets_segmentation"],
     ))
+    valid = targets_segmentation != 0
     sequence_hashes = np.asarray([
         hashlib.sha256(sequence.tobytes()).hexdigest()[:16]
         for sequence in np.asarray(inputs)
@@ -569,6 +573,9 @@ def run(config) -> None:
         **{key: np.asarray(value) for key, value in summary.items()},
         inputs=np.asarray(inputs),
         targets=np.asarray(targets),
+        inputs_position=np.asarray(inputs_position),
+        inputs_segmentation=np.asarray(inputs_segmentation),
+        targets_segmentation=np.asarray(targets_segmentation),
         valid=np.asarray(valid),
         sequence_hashes=sequence_hashes,
     )
@@ -581,6 +588,27 @@ def run(config) -> None:
     )
 
   metadata["total_seconds"] = time.perf_counter() - start
+  cohort_keys = (
+      "inputs", "targets", "inputs_position", "inputs_segmentation",
+      "targets_segmentation")
+  batch_files = sorted(output_dir.glob("residual_attribution_batch_*.npz"))
+  cohort = {}
+  for key in cohort_keys:
+    values = []
+    for path in batch_files:
+      with np.load(path) as data:
+        values.append(np.asarray(data[key]))
+    cohort[key] = np.concatenate(values, axis=0)
+  sequence_hashes = []
+  for path in batch_files:
+    with np.load(path) as data:
+      sequence_hashes.append(np.asarray(data["sequence_hashes"]))
+  cohort["sequence_hashes"] = np.concatenate(sequence_hashes)
+  cohort_path = output_dir / "pile_eval_cohort.npz"
+  np.savez_compressed(cohort_path, **cohort)
+  metadata["cohort_file"] = "pile_eval_cohort.npz"
+  metadata["cohort_sha256"] = hashlib.sha256(
+      cohort_path.read_bytes()).hexdigest()
   report = _aggregate(output_dir, metadata)
   report_path = output_dir / "residual_attribution.json"
   report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

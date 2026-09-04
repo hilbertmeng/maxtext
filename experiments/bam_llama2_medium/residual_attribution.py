@@ -32,6 +32,10 @@ import max_utils
 from input_pipeline.input_pipeline_interface import create_data_iterator
 
 
+_BASE_CONFIG_CLASS = os.environ.get(
+    "BAM_RESIDUAL_ATTR_BASE_CONFIG", "BamLlama2MediumV2")
+_TRAINER_COMMIT = os.environ.get(
+    "BAM_RESIDUAL_ATTR_TRAINER_COMMIT", "1afd942")
 _LAYERS = 24
 _COMPONENTS = (
     "mlp",
@@ -51,20 +55,18 @@ _LAYER_RE = re.compile(r"layers_(\d+)")
 _EPS = 1.0e-12
 
 
-class BamLlama2MediumV2ResidualAttribution(exp.BamLlama2MediumV2):
-  """Read-only residual decomposition diagnostic for the completed V2 run."""
+class BamResidualAttribution(getattr(exp, _BASE_CONFIG_CLASS)):
+  """Read-only residual decomposition diagnostic for a sealed Medium run."""
 
   bam_diagnostics = False
   bam_readout_attribution = False
   bam_residual_attribution = True
-  scan_layers = False
   eval_per_device_batch_size = 16.0
   eval_shuffle_buffer_size = 32768
   tensorboard_dir = "/tmp/bam_residual_attribution_tb/"
 
 
-exp.BamLlama2MediumV2ResidualAttribution = (
-    BamLlama2MediumV2ResidualAttribution)
+exp.BamResidualAttribution = BamResidualAttribution
 
 
 def _unwrap(value: Any) -> Any:
@@ -505,11 +507,11 @@ def run(config) -> None:
 
   metadata = {
       "checkpoint": config.load_parameters_path,
-      "checkpoint_trainer_commit": "1afd942",
+      "checkpoint_trainer_commit": _TRAINER_COMMIT,
       "diagnostic_commit": os.environ.get(
           "BAM_RESIDUAL_ATTR_DIAGNOSTIC_COMMIT", "unknown"),
-      "config_class": "BamLlama2MediumV2ResidualAttribution",
-      "base_config_class": "BamLlama2MediumV2",
+      "config_class": "BamResidualAttribution",
+      "base_config_class": _BASE_CONFIG_CLASS,
       "sequences": target_sequences,
       "sequence_offset": sequence_offset,
       "batch_size": batch_size,

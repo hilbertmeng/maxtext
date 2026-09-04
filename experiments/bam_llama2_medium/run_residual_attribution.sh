@@ -33,7 +33,7 @@ env \
   BAM_RESIDUAL_ATTR_DIAGNOSTIC_COMMIT="$SOURCE_COMMIT" \
   "$PYTHON" experiments/bam_llama2_medium/residual_attribution.py \
     MaxText/configs/base.yml \
-    exp_class=BamLlama2MediumV2ResidualAttribution \
+    exp_class=BamResidualAttribution \
     "run_name=$OUTPUT_TAG" \
     "dataset_path=$DATASET" \
     "load_parameters_path=$CHECKPOINT" \

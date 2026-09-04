@@ -13,7 +13,7 @@ gsutil cp "$COHORT_GCS" "$COHORT_PATH"
 run_one() {
   local config="$1" trainer_commit="$2" step="$3" short_name="$4"
   local checkpoint="gs://newproject-1-llm_projects_europe-west4/log/$config/checkpoints/$step/items"
-  local run="xl-rank2-${short_name}-s${step}-health-pile128-c09b010"
+  local run="xl-rank2-${short_name}-s${step}-health-pile128-${CODE_COMMIT:0:7}"
   local output="/tmp/$run"
   mkdir -p "$output/output/$run" "$output/tensorboard"
   env \

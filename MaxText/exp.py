@@ -3398,10 +3398,10 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AttributionReplay(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
-  """Exact C8 replay retaining aligned checkpoints for AbsV attribution."""
-  # code_commit: 07a4266
-  model_name = (
-      'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AttributionReplay')
+    """Exact C8 replay retaining aligned checkpoints for AbsV attribution."""
+    # code_commit: 07a4266
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AttributionReplay')
     checkpoint_period = 250
     force_final_checkpoint = True
     jax_cache_dir = (

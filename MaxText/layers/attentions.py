@@ -3756,9 +3756,9 @@ class BamAttention(Attention):
           Mbar_fetch, _, _ = _bam_fetch_op(fetch_alpha, fetch_state)
         Mbar = Mbar_fetch
         if self._residual_attribution and not self.is_initializing():
-          if self._combine_full_local_read or self._fetch_temporal_block_size is not None:
+          if self._fetch_temporal_block_size is not None:
             raise ValueError(
-                'Residual attribution requires the direct full-fetch path')
+                'Residual attribution does not support temporal-block fetch')
           diagonal_weight = jnp.diagonal(fetch_alpha, axis1=-2, axis2=-1)
           if fetch_alpha.ndim == 4:
             Mbar_self = (
@@ -3771,6 +3771,10 @@ class BamAttention(Attention):
           # yielded its diagonal, adding normalized local Mh here exactly replaces
           # the separate local_o read with a fixed local coefficient of one.
           Mbar = Mbar + fetch_state[:, None]
+          if self._residual_attribution and not self.is_initializing():
+            # Preserve the same linear decomposition for attribution: the local
+            # identity term is self-read, while Mbar - Mbar_self is cross-token.
+            Mbar_self = Mbar_self + fetch_state[:, None]
       with jax.named_scope("bam/read_fetched_m"):
         full_read_projection = self._project_full_read_key
         full_read_kwargs = self._read_key_kwargs('W_R_gate', inputs_q)

@@ -549,6 +549,8 @@ def run(config):
           "checkpoint": config.load_parameters_path,
           "exp_class": config.exp_class,
           "code_commit": os.environ.get("BAM_ABSV_DIAG_CODE_COMMIT", ""),
+          "checkpoint_trainer_commit": os.environ.get(
+              "BAM_ABSV_DIAG_TRAINER_COMMIT", ""),
           "cohort_path": cohort_path,
           "cohort_sha256": (
               hashlib.sha256(Path(cohort_path).read_bytes()).hexdigest()

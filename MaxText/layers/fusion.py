@@ -274,6 +274,8 @@ class SubDecoderLayer(nn.Module):
     attention_lnx = nn.with_logical_constraint(
         attention_lnx, ("activation_batch", "activation_norm_length", "activation_embed")
     )
+    if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
+      self.sow('residual_attribution', 'attention_total', attention_lnx)
     intermediate_inputs = inputs + attention_lnx
 
     # Fully Connected
@@ -388,6 +390,12 @@ class SubDecoderLayer(nn.Module):
       raise ValueError("Both mlp_lnx and moe_lnx is None, it's not allowed.")
 
     layer_output = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(layer_output, deterministic=deterministic)
+
+    if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
+      self.sow('residual_attribution', 'mlp', mlp_lnx)
+      self.sow(
+          'residual_attribution', 'layer_delta',
+          layer_output.astype(jnp.float32) - inputs.astype(jnp.float32))
 
     layer_output = nn.with_logical_constraint(
         layer_output,

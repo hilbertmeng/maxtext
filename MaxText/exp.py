@@ -3395,6 +3395,19 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
         'jax_caches/xd-bam-xl16-partial-rank2-health-repro')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AttributionReplay(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Exact C8 replay retaining aligned checkpoints for AbsV attribution."""
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AttributionReplay')
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-attribution-replay')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV16(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

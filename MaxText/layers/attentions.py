@@ -1766,7 +1766,8 @@ def _attention_op(
 
 
 def _bam_fetch_op(
-    alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one):
+    alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
+    return_alpha=False):
   """Mix standard-attention routes, optionally set the local coefficient, and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     fetch_alpha = jnp.einsum(
@@ -1775,7 +1776,8 @@ def _bam_fetch_op(
       fetch_alpha = jnp.where(
           diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype), fetch_alpha)
   with jax.named_scope("bam/fetch_m"):
-    return jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
+    fetched = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
+  return (fetched, fetch_alpha) if return_alpha else fetched
 
 
 def _mix_bam_write_v(x_v, o_head, bam_k, mix_scale, bias):
@@ -2426,6 +2428,8 @@ class BamAttention(Attention):
     self._local_qk_rank = int(getattr(cfg, 'bam_local_qk_rank', 1))
     self._local_qk_second_implementation = getattr(
         cfg, 'bam_local_qk_second_implementation', 'mul_reduce')
+    self._residual_attribution = bool(
+        getattr(cfg, 'bam_residual_attribution', False))
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._local_qk_injection = cfg.bam_local_qk_injection
     self._local_qk_rope_pairing = cfg.bam_local_qk_rope_pairing
@@ -3410,13 +3414,26 @@ class BamAttention(Attention):
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,
         float32_logits=cfg.float32_logits)
-    Mbar = None
+    Mbar = Mbar_self = fetch_self_weight = None
     if fetch_state is not None:
       assert mix_weights is not None
-      Mbar = _bam_fetch_op(
-          alpha, fetch_state, mix_weights, source == target,
-          diagonal_one=self._fetch_diagonal_one)
-    return y_std, Mbar
+      diagonal_mask = source == target
+      capture = self._residual_attribution and not self.is_initializing()
+      fetched = _bam_fetch_op(
+          alpha, fetch_state, mix_weights, diagonal_mask,
+          diagonal_one=self._fetch_diagonal_one, return_alpha=capture)
+      if capture:
+        Mbar, fetch_alpha = fetched
+        with jax.named_scope("bam/fetch_m_self"):
+          self_alpha = jnp.where(
+              diagonal_mask[None], fetch_alpha,
+              jnp.asarray(0, fetch_alpha.dtype))
+          Mbar_self = jnp.einsum(
+              'bqs,bskv->bqkv', self_alpha, fetch_state)
+          fetch_self_weight = jnp.sum(self_alpha, axis=-1)
+      else:
+        Mbar = fetched
+    return y_std, Mbar, Mbar_self, fetch_self_weight
 
   def _query_chunk_op(
       self, query, key, value, decoder_segment_ids, window_size, *,
@@ -3427,21 +3444,30 @@ class BamAttention(Attention):
     chunk_size = int(self._query_chunk_size)
     assert t % chunk_size == 0
     y_chunks, Mbar_chunks = [], []
+    Mbar_self_chunks, fetch_self_weight_chunks = [], []
     for q0 in range(0, t, chunk_size):
       q1 = q0 + chunk_size
       s0 = max(0, q0 - window_size) if window_size < t else 0
       s1 = q1
-      y_chunk, Mbar_chunk = self._attention_block(
+      y_chunk, Mbar_chunk, Mbar_self_chunk, fetch_self_weight_chunk = (
+          self._attention_block(
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
           decoder_segment_ids, q0=q0, s0=s0, window_size=window_size,
           fetch_state=(None if fetch_state is None else fetch_state[:, s0:s1]),
-          mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1]))
+          mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1])))
       y_chunks.append(y_chunk)
       if Mbar_chunk is not None:
         Mbar_chunks.append(Mbar_chunk)
+      if Mbar_self_chunk is not None:
+        Mbar_self_chunks.append(Mbar_self_chunk)
+        fetch_self_weight_chunks.append(fetch_self_weight_chunk)
     return (
         jnp.concatenate(y_chunks, axis=1),
-        jnp.concatenate(Mbar_chunks, axis=1) if Mbar_chunks else None)
+        jnp.concatenate(Mbar_chunks, axis=1) if Mbar_chunks else None,
+        (jnp.concatenate(Mbar_self_chunks, axis=1)
+         if Mbar_self_chunks else None),
+        (jnp.concatenate(fetch_self_weight_chunks, axis=1)
+         if fetch_self_weight_chunks else None))
 
   @nn.compact
   def __call__(
@@ -3545,18 +3571,40 @@ class BamAttention(Attention):
     if is_global:
       local_window = t
     if self._query_chunk_size is not None:
-      y_std, Mbar = self._query_chunk_op(
+      y_std, Mbar, Mbar_self, fetch_self_weight = self._query_chunk_op(
           query, key, value, decoder_segment_ids, local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
     else:
-      y_std, Mbar = self._attention_block(
+      y_std, Mbar, Mbar_self, fetch_self_weight = self._attention_block(
           query, key, value, decoder_segment_ids,
           q0=0, s0=0, window_size=local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
 
     o_head = y_std
     if Mbar is not None:
-      o_head = o_head + self._read_fetched_m(Mbar, inputs_q)
+      y_full = self._read_fetched_m(Mbar, inputs_q)
+      o_head = o_head + y_full
+      if self._residual_attribution and not self.is_initializing():
+        y_full_self = self._read_fetched_m(Mbar_self, inputs_q)
+        y_full_cross = y_full - y_full_self
+
+        def split_read_sides(read):
+          col = read.at[..., self.bam_k:].set(0)
+          return col, read - col
+
+        y_col_self, y_row_self = split_read_sides(y_full_self)
+        y_col_cross, y_row_cross = split_read_sides(y_full_cross)
+        self.sow('residual_attribution', 'bam_full_head', y_full)
+        self.sow(
+            'residual_attribution', 'fetch_self_weight', fetch_self_weight)
+        self.sow(
+            'residual_attribution', 'bam_col_self_head', y_col_self)
+        self.sow(
+            'residual_attribution', 'bam_col_cross_head', y_col_cross)
+        self.sow(
+            'residual_attribution', 'bam_row_self_head', y_row_self)
+        self.sow(
+            'residual_attribution', 'bam_row_cross_head', y_row_cross)
 
     if self._mha_control:
       M_out = M_in

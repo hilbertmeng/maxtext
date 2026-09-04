@@ -527,6 +527,7 @@ class Decoder(nn.Module):
             "params": params_spec,
             "cache": cache_spec,
             "intermediates": 0,
+            "residual_attribution": 0,
             "aqt": 0,
             "_overwrite_with_gradient": 0,
         },

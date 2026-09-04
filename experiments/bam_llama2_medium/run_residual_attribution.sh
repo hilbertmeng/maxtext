@@ -15,12 +15,18 @@ PYTHON="${MAXTEXT_PYTHON:-/home/lishengping/miniconda3/bin/python}"
 DATASET="${DATASET_PATH:-gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord}"
 CHECKPOINT="${BAM_RESIDUAL_ATTR_CHECKPOINT:-gs://newproject-1-llm_base_models_us-central1/log/BamLlama2MediumV2/checkpoints/13250/items}"
 OUTPUT_DIR="/tmp/$OUTPUT_TAG"
+COHORT_GCS="${BAM_RESIDUAL_ATTR_COHORT_GCS:-}"
+COHORT_PATH=""
 
 if [[ -e "$OUTPUT_DIR" ]]; then
   echo "refusing to mix attribution shards in existing $OUTPUT_DIR" >&2
   exit 1
 fi
 mkdir -p "$OUTPUT_DIR/maxtext-output/$OUTPUT_TAG"
+if [[ -n "$COHORT_GCS" ]]; then
+  COHORT_PATH="$OUTPUT_DIR/cohort_input.npz"
+  gsutil cp "$COHORT_GCS" "$COHORT_PATH"
+fi
 
 cd "$REPO"
 SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || cat .source_commit)"
@@ -31,9 +37,10 @@ env \
   BAM_RESIDUAL_ATTR_SEQUENCES="$SEQUENCES" \
   BAM_RESIDUAL_ATTR_SEQUENCE_OFFSET="$SEQUENCE_OFFSET" \
   BAM_RESIDUAL_ATTR_DIAGNOSTIC_COMMIT="$SOURCE_COMMIT" \
+  BAM_RESIDUAL_ATTR_COHORT_PATH="$COHORT_PATH" \
   "$PYTHON" experiments/bam_llama2_medium/residual_attribution.py \
     MaxText/configs/base.yml \
-    exp_class=BamLlama2MediumV2ResidualAttribution \
+    exp_class=BamResidualAttribution \
     "run_name=$OUTPUT_TAG" \
     "dataset_path=$DATASET" \
     "load_parameters_path=$CHECKPOINT" \

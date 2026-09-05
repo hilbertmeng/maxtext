@@ -76,6 +76,8 @@ inventing a duration. A passive queue is not an active-zone switch.
 
 | `BamLlama2MediumV2C256RowRelayRowSlot` | v5p-16 | `us-east5-a` | 2026-09-05 07:19:15 | 2026-09-05 10:14:03 | user stop; checkpoint 6,216; no preemption or zone switch | none |
 
+| `BamLlama2MediumV2C256FetchNoRMSNormalInit` | v5p-16 | `us-east5-a` | 2026-09-05 11:02:58 | 2026-09-05 12:50:21 | user stop; checkpoint 3,517; no preemption or zone switch | `europe-west4-b` (never READY; deleted after UE5a FIRST_STEP) |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -362,3 +364,4 @@ inventing a duration. A passive queue is not an active-zone switch.
 | XL M48x48/C12 | 1 | `us-east5-a` | 2026-09-03 09:30:10 | 2026-09-03 14:10:50 | 4h40m40s | run stop |
 | XL AbsV4 | 1 | `us-east5-a` | 2026-09-03 10:12:11 | 2026-09-03 14:10:47 | 3h58m36s | run stop |
 | RowRelayRowSlot | 1 | `us-east5-a` | 2026-09-05 07:25:01 | 2026-09-05 10:14:03 | 2h49m02s | run stop; deletion verified 10:16:03 |
+| FetchNoRMSNormalInit | 1 | `us-east5-a` | 2026-09-05 11:16:15 | 2026-09-05 12:50:21 | 1h34m06s | run stop; deletion verified 12:52:59 |

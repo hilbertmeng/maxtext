@@ -1821,6 +1821,10 @@ def _transform_bam_read_key(
   scale = jnp.asarray(scale, dtype=r.dtype)
   if mode == 'soft_rms_cap':
     return r * scale * jax.lax.rsqrt(jnp.mean(r ** 2, axis=-1, keepdims=True) + scale ** 2)
+  if mode == 'gate':
+    if gate_logits is None:
+      raise ValueError('gate requires gate logits')
+    return scale * jax.nn.sigmoid(gate_logits) * r
   if mode in ('rms', 'rms_gate'):
     direction = normalizations.rms_norm(
         r, dtype=r.dtype, epsilon=rms_epsilon,
@@ -2613,6 +2617,7 @@ class BamAttention(Attention):
     reg_init = self.kernel_init
 
     self._read_key_mode = cfg.bam_read_key_mode
+    self._fetched_read_key_rms = cfg.bam_fetched_read_key_rms
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
     self._read_key_epsilon = float(
@@ -2904,6 +2909,12 @@ class BamAttention(Attention):
     assert self._rms_epsilon > 0.0
     assert self._read_key_epsilon > 0.0
     assert self._fetched_read_kernel_init in ('zero', 'normal')
+    if not self._fetched_read_key_rms:
+      assert self._read_key_mode == 'rms_gate'
+      assert not (self._use_fetched_output_gate
+                  or self._use_factorized_fetched_output_gate
+                  or self._use_grouped_rw_norm
+                  or self._use_native_grouped_read_norm)
     assert self._read_gate_init is None or 0.0 < self._read_gate_init < 1.0
     assert (self._fetched_read_gate_init is None
             or 0.0 < self._fetched_read_gate_init < 1.0)
@@ -3611,7 +3622,7 @@ class BamAttention(Attention):
       key_mode=None, activation_side='none'):
     key_mode = self._read_key_mode if key_mode is None else key_mode
     gate_logits = (
-        candidate_logits if key_mode == 'rms_gate' else None)
+        candidate_logits if key_mode in ('rms_gate', 'gate') else None)
     kwargs = dict(
         key_mode=key_mode,
         key_scale=self._read_key_scale,
@@ -4061,6 +4072,7 @@ class BamAttention(Attention):
             'W_R_gate', inputs_q, squeeze_fetch_axis=True)
         full_read_kwargs = self._read_key_kwargs_from_logits(
             'W_R', interpolation_gate_logits, squeeze_fetch_axis=True,
+            key_mode=None if self._fetched_read_key_rms else 'gate',
             activation_side=self._fetch_read_key_activation_side)
       full_read_kwargs['rms_epsilon'] = self._fetched_read_key_epsilon
       if self._fetched_read_amplitude_init is not None:
@@ -4078,15 +4090,25 @@ class BamAttention(Attention):
             full_read_kwargs.get('key_row_scale', default_scale), jnp.float32)
         col_scale = jnp.asarray(
             full_read_kwargs.get('key_col_scale', default_scale), jnp.float32)
-        self.sow(
-            'intermediates', 'fetched_read_pre_gate_effective_rms',
-            m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
+        if self._fetched_read_key_rms:
+          self.sow(
+              'intermediates', 'fetched_read_pre_gate_effective_rms',
+              m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
       def full_read_projection(x):
         projected_key = _add_bam_read_key_bias(
             self.W_R(x), self._abs_k_dim or self.bam_k,
             getattr(self, 'W_R_row_pre_rms_bias', None),
             getattr(self, 'W_R_col_pre_rms_bias', None))
-        return jnp.squeeze(projected_key, axis=-2)
+        projected_key = jnp.squeeze(projected_key, axis=-2)
+        if self._record_fetched_read_health_metrics and not self._fetched_read_key_rms:
+          raw_row, raw_col = jnp.split(
+              projected_key.astype(jnp.float32), [self._abs_k_dim or self.bam_k], axis=-1)
+          # Without key RMS, include the raw key magnitude in the read-scale proxy.
+          self.sow('intermediates', 'fetched_read_pre_gate_effective_rms',
+                   m_rms * jnp.stack((
+                       jnp.sqrt(jnp.mean(jnp.square(row_scale * raw_row))),
+                       jnp.sqrt(jnp.mean(jnp.square(col_scale * raw_col))))))
+        return projected_key
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,

@@ -48,6 +48,30 @@ class _DepthAmplitudeLayer(nn.Module):
 
 class BamReadKeyTransformTest(absltest.TestCase):
 
+  def test_gate_only_retains_raw_key_magnitude_and_gate_gradients(self):
+    raw = jnp.asarray([[0., 0.2, -0.4], [0.1, -0.3, 0.5]])
+    logits = jnp.full((2, 1), jnp.log(.005 / .995))
+    def transform(x, g):
+      return _transform_bam_read_key(
+          x, 'gate', 2., rms_epsilon=1e-4, gate_logits=g)
+    expected = 2. * jax.nn.sigmoid(logits) * raw
+    np.testing.assert_allclose(transform(raw, logits), expected, rtol=1e-6)
+    np.testing.assert_allclose(transform(3. * raw, logits), 3. * expected, rtol=1e-6)
+    grad_x, grad_gate = jax.grad(lambda x, g: transform(x, g).sum(), (0, 1))(raw, logits)
+    np.testing.assert_allclose(grad_x, .01, rtol=1e-6)
+    np.testing.assert_allclose(grad_gate, 2. * .005 * .995 * raw.sum(-1, keepdims=True), rtol=1e-6)
+
+  def test_fetched_no_rms_normal_init_keeps_local_qk_and_training_control(self):
+    from exp import BamLlama2MediumV2C256FetchNoRMSNormalInit as arm
+    from exp import BamLlama2MediumV2C256ScanAotControl as base
+    self.assertEqual(arm.bam_read_key_mode, 'rms_gate')
+    self.assertEqual(arm.bam_read_gate_init, base.bam_read_gate_init)
+    self.assertFalse(arm.bam_fetched_read_key_rms)
+    self.assertTrue(base.bam_fetched_read_key_rms)
+    self.assertEqual(arm.bam_fetched_read_kernel_init, 'normal')
+    self.assertTrue(arm.scan_layers)
+    self.assertEqual(arm.checkpoint_period, 200)
+
   def test_fetched_read_gate_bins_cover_distribution_and_read_energy(self):
     probabilities = jnp.asarray((0.1, 0.3, 0.5, 0.7, 0.9))
     logits = jnp.log(probabilities / (1.0 - probabilities))

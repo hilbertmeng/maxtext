@@ -266,6 +266,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
     bam_fetched_read_key_epsilon = None  # None uses bam_read_key_epsilon
+    bam_fetched_read_key_rms = True  # keep head gates when disabling fetched-key RMS
     bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
     bam_fetched_read_gate_init = None  # None follows bam_read_gate_init
@@ -1195,6 +1196,14 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-scan-aot-control')
+
+
+class BamLlama2MediumV2C256FetchNoRMSNormalInit(BamLlama2MediumV2C256ScanAotControl):
+    """Fetched keys: normal(0, .006) W_R and 2*sigmoid(g)*W_R(x), no RMS."""
+    model_name = 'BamLlama2MediumV2C256FetchNoRMSNormalInit'
+    bam_fetched_read_key_rms = False
+    bam_fetched_read_kernel_init = 'normal'
+    steps = 13500
 
 
 class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(

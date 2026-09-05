@@ -69,29 +69,28 @@ Split downstream fetched-output patches by coordinate side (col=data/K prefix,
 row=address/V suffix). Patch only the selected side; leave the other side live,
 including in joint multi-layer arms. Use the same bidirectional/null controls.
 
-## Parallel work
+## Parallel work (complete)
 
 - L11 lifetime, fine MHA/V and MLP/BAM/M, joint restoration, QK routing,
   serial clamps and downstream row/col maps are complete (128 each). See
   [the current report](bam_row_mediation.md) for calibrated results and artifacts.
-- L10 self coarse, fine MHA/V and downstream joint pairs are complete (128 each).
-- L10 source-MLP joint pair is complete (128 each).
-- Current `xd-v6e-rowmed-d-ue5a` (us-east5-a): selected Medium L8 joint pair,
-  `/tmp/row-mediation-medium-L8-joint-pair.log`; runtime `c2b271d`, staged at
-  `/home/lishengping/xd/projects/row-mediation-c2b271d`.
+- L10 self coarse, fine MHA/V, MLP/BAM/M, joint/source-MLP and read-sides pairs
+  are complete (128 each). Selected Medium L8 joint, serial and read-sides pairs
+  are also complete. Runtime `c2b271d` is staged on retained
+  `xd-v6e-rowmed-d-ue5a` at `/home/lishengping/xd/projects/row-mediation-c2b271d`.
 - `xd-v6e-rowmed-e-ew4a` was preempted after the complete fine MHA/V pair was
   uploaded; data recovered, node/queue verified deleted. Replacement
-  `xd-v6e-rowmed-f-ew4a` installed runtime `c2b271d` and launched L10
-  fine MLP/BAM/M, followed by a selected all-downstream read-sides pair;
-  `/tmp/row-mediation-L10-mlpbam-sides-pairs.log`.
+  `xd-v6e-rowmed-f-ew4a` was also preempted and verified deleted. The fine
+  control's last 44 sequences were resumed on UE5a; read-sides completed there
+  under the distinct `spare-sides` label. All controls agree exactly across workers.
   The earlier `rowcross-xl-ew4a`, `rowmed-b-ew4a` and `rowmed-c-ew4a` TPUs were
   preempted and deleted; the UC1a raced candidates were also verified deleted.
 - Keep using each run's own clean/deleted and self-reference controls; merge by
   sequence hashes. Expanded graphs can drift slightly from previous graphs.
 - L12 is a secondary candidate, not grounds to displace the L11 main question.
-- After L11, repeat lifetime cuts and bidirectional path localization for **XL
-  L10 row-self**, keeping that layer's row-cross and col unchanged. Its negative
-  direct residual attribution alone does not establish harmful total effect.
+- L10 row-self follow-up kept row-cross and col unchanged. Its negative direct
+  residual attribution did not imply harmful total effect; source MLP was a
+  positive mediator, unlike the L11 cross-source conditional response.
 
 ## L12–17 screen (complete, 128)
 

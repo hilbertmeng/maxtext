@@ -1,7 +1,7 @@
-# XL row-cross downstream mediation
+# Row-read downstream mediation
 
-Status: L11 lifetime/coarse, MHA/V, MLP/BAM/M, joint, QK, serial and row/col maps
-complete; L10 row-self checks in progress. Layer indices are zero-based.
+Status: XL L11 row-cross maps, XL L10 row-self follow-up and selected Medium L8
+comparison complete (128 sequences per paired arm). Layer indices are zero-based.
 This is checkpoint causal diagnosis, not a validated training modification.
 
 ## Reproduction
@@ -246,6 +246,36 @@ Runtime `c2b271d`; phase `source_mlp_joint`, artifacts
 The source BAM output remains deleted in rescue arms; this is not a trivial
 restoration of the original intervention. All 128 clean/deleted controls match.
 
+### L10 fine paths and downstream sides
+
+| Layer | MLP rescue / block | M_out rescue / block | Fetched BAM rescue / block |
+|---|---:|---:|---:|
+| 10 | −.003016 / +.003010 | 0 / 0 | source-undo control; excluded |
+| 11 | +.002560 / +.002907 | −.002046 / +.000933 | −.000386 / +.000792 |
+| 15 | −.001834 / +.001111 | −.003149 / +.001248 | −.001473 / +.000506 |
+| 18 | −.001786 / +.000600 | −.004317 / +.001794 | −.000867 / +.000111 |
+| 21 | −.001234 / +.000788 | −.004623 / +.001682 | −.002419 / +.001275 |
+| 23 | +.004950 / +.002437 | 0 / 0 | −.003054 / +.001044 |
+
+MLP in L14–21 consistently has negative rescue and positive reverse-block means;
+L11 and L23 instead harm in both directions. Consequently neither “MLP is the
+main route” nor “MLP is irrelevant” captures the layer/context dependence.
+M-state substitutions grow in rescue strength into later layers; final unused
+M_out remains an exact zero control.
+
+All-downstream BAM side patches (L11–23) give col rescue **−.009092 ±.000941**,
+block **+.007185 ±.000902**; row rescue **+.000291 ±.000325**, block
+**+.001512 ±.000304**. Both sides together give −.009356 / +.007851.
+Col dominates rescue, but row's positive reverse-block cost prevents concluding
+that it can safely be removed.
+
+Runtime `c2b271d`. Artifacts: `bam-row-mediation-xl-L10-fine-mlpbam-c2b271d-rowself`
+and `bam-row-mediation-xl-L10-read_sides-spare-sides-c2b271d-rowself`, each with
+`-selfref`. The fine control resumed from 84 to 128 after EW4a preemption on the
+UE5a worker, at the same source commit; all paired controls remain bit-identical.
+Full per-layer statistics are in `mediation-L10-mlpbam-final.json` under the local
+artifact root, reproducible with the tracked analyzer.
+
 ## Medium comparison: downstream dependence is not XL-specific
 
 `BamLlama2MediumV2`, checkpoint 13250, trainer commit `1afd942`, same fixed 128
@@ -299,3 +329,16 @@ test as evidence that increasing C must help Medium but hurt XL.
 Artifacts `bam-row-mediation-medium-L8-read_sides-sides-c2b271d` and `-selfref`,
 runtime `c2b271d`, 128 exact-control pairs. No architecture change or retraining
 follows automatically.
+
+## Completion and retained resources
+
+All result tables above use complete 128-sequence cohorts; cached-value patch
+effects use matched self-reference correction. Scripts and conclusions are
+committed on `codex/bam-row-mediation`;
+runtime hashes identify the exact worker source independently of later report edits.
+No production architecture changes or formal training were performed.
+
+`xd-v6e-rowmed-d-ue5a` is retained in `us-east5-a` at the user's request. The two
+EW4a workers `xd-v6e-rowmed-e-ew4a` and `xd-v6e-rowmed-f-ew4a` were preempted;
+their nodes and queues were deleted and verified absent. Complete uploaded arms
+were reused; only the missing 44 fine-control sequences were recomputed.

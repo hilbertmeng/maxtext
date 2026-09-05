@@ -11,7 +11,10 @@ This is checkpoint causal diagnosis, not a validated training modification.
 - Trainer commit: `aef0d97411a1725386ebba1aeae1bf4acb1bb79e`.
 - Diagnostic branch: `codex/bam-row-mediation`, worktree `/data0/xd/bam-row-mediation`.
 - Scripts: [runner](row_mediation.py), [launcher](run_row_mediation.sh),
-  [host analysis](analyze_row_mediation.py), [unit tests](row_mediation_test.py).
+  [host analysis](analyze_row_mediation.py), [unit tests](row_mediation_test.py),
+  [collect-and-analyze](collect_row_mediation.sh). The latter takes an output
+  label followed by artifact directory names, transfers at most two concurrently,
+  and parses only after every transfer succeeds.
 - Fixed 128 Pile T2048 sequences, seed9876. Cohort SHA256:
   `68239ae352be31f968984c18a2a7e3290cdbfb665f350563aad6ff77eea84661`.
   URI: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz`.
@@ -172,3 +175,11 @@ Negative direct IG does not imply a beneficial deletion here either. Source-laye
 M_out remains exactly unchanged. Runtime `ee578fb`; artifacts
 `bam-row-mediation-xl-L10-coarse-lifetime-ee578fb-rowself` (matched-null and
 downstream localization still in progress).
+
+The source-layer MLP interaction differs between the sources. Moving the source
+cancellation from pre-MLP to post-MLP changes loss by **−.003101 ±.000445** for
+L10 self, versus **+.002443 ±.001058** for L11 cross (paired 128). Thus preserving
+the source MLP's clean response helps L10 self under subsequent source removal,
+but not L11 cross. This conditional contrast is not the effect of removing MLP
+from the model. It warrants fine MLP localization for L10 rather than assuming
+the L11 path balance transfers unchanged.

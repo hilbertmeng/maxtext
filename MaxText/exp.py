@@ -1204,6 +1204,7 @@ class BamLlama2MediumV2C256RowRelayRowSlot(
     BamLlama2MediumV2C256ScanAotControl
 ):
     """Also relay each fetched row answer through the next layer's MHA V row slot."""
+    # code_commit: cfd85a5; UE5a ~0.649 steps/s (-1.7% vs scan+AOT control).
     model_name = 'BamLlama2MediumV2C256RowRelayRowSlot'
     bam_row_relay_to_next_value = True
     bam_record_row_relay_health_metrics = True

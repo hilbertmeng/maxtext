@@ -95,6 +95,13 @@ The serial test below addresses whether early V acts through later BAM/M.
 Do not interpret the small *additional* MLP rescue
 conditional on both attention families as a standalone measure of MLP importance.
 
+Per-sequence remaining deletion cost is `(deleted-clean) + corrected rescue`,
+not a ratio of per-sequence effects. For joint MHA+BAM it is **+.000408 ±.000564**,
+median +.000611, with 81/128 still positive (5th/95th percentiles
+−.001955/+.003690). For cross-V alone it remains **+.005384 ±.001323**, positive
+in 124/128. Thus the missing effect is not merely an aggregate-mean artifact;
+the broad joint patch largely removes it, but does not recover every sequence.
+
 Artifacts: `bam-row-mediation-xl-L11-joint-downstream-e0eb3f1` and its `-selfref`
 companion; fine MLP/BAM/M uses `bam-row-mediation-xl-L11-fine-mlpbam-e0eb3f1`
 and `-selfref`. All paired clean/deleted controls agree exactly, across all 128.

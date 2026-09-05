@@ -62,7 +62,11 @@ def analyze(roots):
           raise ValueError('intervention mismatch')
         diff=np.asarray([x[a,q]-y[b,q2] for a,b in pairs])
         if modes[0]=='self':diff=-diff
-        corrected.append(dict(name=arm['name'],opposite_minus_self=stats(diff)))
+        entry=dict(name=arm['name'],opposite_minus_self=stats(diff))
+        if arm['corrupted']:
+          deletion=np.asarray([x[a,1]-x[a,0] for a,b in pairs])
+          entry['remaining_deletion_cost']=stats(deletion+diff)
+        corrected.append(entry)
       report['matched_self_reference'].append(dict(first=j,second=i,
           control_maximum_absolute=float(abs(d).max()),arms=corrected))
   return report

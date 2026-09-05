@@ -59,6 +59,12 @@ explicitly combined with a V patch. Compare QK-only, V-only and joint QK+V;
 do not interpret the numerical difference between whole-MHA and V-only rescues
 as an independently additive routing contribution.
 
+Serial-path check: restore early cross-V (L12–13 / L12–15 / L12–17) while
+clamping subsequent BAM read or M_out to the deleted recipient's cached values;
+reverse the clean/deleted roles for blocking. Compare against the early-V-only
+effect, each corrected by its own null patch. Loss of rescue under the downstream
+clamp tests whether the earlier V route operates through the later BAM/M route.
+
 ## Parallel work
 
 - Existing EW4a TPU: completed XL L12–17 signed/causal screen; next L11 coarse

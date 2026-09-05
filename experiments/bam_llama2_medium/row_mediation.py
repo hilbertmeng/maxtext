@@ -96,6 +96,22 @@ def arms(source, phase, chosen=None):
       for f in fields: c[l,CONTROL_NAMES.index(f)]=1
     result.append(dict(name=name,corrupted=corrupted,donor_corrupted=donor_corrupted,control=c))
   add('clean'); add('ablated',True)
+  if phase=='serial':
+    # Test whether an early cross-V rescue survives clamping later BAM/M to
+    # the recipient's own trajectory. Mixed donors distinguish a serial path
+    # from two merely overlapping restoration effects.
+    for early_end,late_start in [(source+2,source+3),(source+4,source+7),
+                                 (source+6,source+7)]:
+      early=list(range(source+1,early_end+1)); late=list(range(late_start,24))
+      label=f'V{early[0]}-{early[-1]}'
+      for corrupt,verb in [(True,'rescue'),(False,'block')]:
+        add(f'{verb}_{label}',corrupt,not corrupt,early,['v_cross'])
+        for clamp in ('full','M'):
+          add(f'{verb}_{label}_clamp_{clamp}{late[0]}-23',corrupt,not corrupt,early,['v_cross'])
+          arm=result[-1]
+          arm['control'][late,CONTROL_NAMES.index(clamp)]=1
+          arm['donor_overrides']={clamp:corrupt}
+    return result
   if phase=='coarse':
     # No final-output subtraction arm: each lifetime cut precedes a real consumer.
     add(f'cut_L{source}_attention',targets=[source],fields=['cancel_attention'])
@@ -188,8 +204,12 @@ def run(config):
       losses=[]; tokens=[]
       for a in matrix:
         donor_corrupted=a['corrupted'] if reference_mode=='self' else a['donor_corrupted']
+        reference=dict(corrupt_ref if donor_corrupted else clean_ref)
+        if reference_mode!='self':
+          for name,donor in a.get('donor_overrides',{}).items():
+            reference[name]=(corrupt_ref if donor else clean_ref)[name]
         loss,tok=infer(state.params,batch,rng,corrupt_s if a['corrupted'] else clean_s,
-            corrupt_ref if donor_corrupted else clean_ref,jnp.asarray(a['control']),z)
+            reference,jnp.asarray(a['control']),z)
         loss,tok=jax.device_get((loss,tok)); losses.append(loss); tokens.append(tok)
       loss=np.stack(losses,axis=1)
       validation=np.stack([loss[:,0]-np.asarray(clean_loss),loss[:,1]-np.asarray(corrupt_loss)],axis=1)

@@ -58,6 +58,12 @@ class MediationTest(unittest.TestCase):
     np.testing.assert_array_equal(qk[6:10],[0,0,1,0])
     qkv=by_name['rescue_L12_qk_mha+v_self+v_cross']['control'][12]
     np.testing.assert_array_equal(qkv[6:10],[1,1,1,0])
+    serial={a['name']:a for a in arms(11,'serial')}
+    arm=serial['rescue_V12-15_clamp_full18-23']
+    self.assertEqual(arm['donor_overrides'],{'full':True})
+    np.testing.assert_array_equal(arm['control'][12:16,7],1)
+    np.testing.assert_array_equal(arm['control'][18:,3],1)
+    self.assertEqual(serial['block_V12-15_clamp_full18-23']['donor_overrides'],{'full':False})
 
 
 if __name__=='__main__':unittest.main()

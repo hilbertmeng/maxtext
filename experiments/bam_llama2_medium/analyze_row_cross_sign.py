@@ -41,6 +41,13 @@ def analyze(root, reference=None):
        positive_negative_cosine=describe(metrics['pos_neg_cosine'][:,i]),
        cancellation_ratio=describe(metrics['cancellation_ratio'][:,i]),
        decomposition_relative_error=describe(metrics['decomposition_relative_error'][:,i]))
+    arm=f'L{layer}_no_negative'
+    if arm in summary['arms']:
+      harm=raw['loss'][:,summary['arms'].index(arm)]-raw['loss'][:,0]
+      negative_mass=a[:,4]/(a[:,3]+a[:,4])
+      entry['sample_correlations']=dict(
+          negative_mass_fraction_vs_removal_loss=float(np.corrcoef(negative_mass,harm)[0,1]),
+          negative_part_direct_ig_vs_removal_loss=float(np.corrcoef(v[:,2],harm)[0,1]))
     result['layers'].append(entry)
   if reference:
     old=join(reference,'residual_attribution_batch_*.npz',

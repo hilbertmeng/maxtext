@@ -269,5 +269,33 @@ would retain a much larger direct effect is not strongly supported by these
 joint patches; its remaining cost is only modestly larger.
 
 Runtime `c2b271d`; artifacts `bam-row-mediation-medium-L8-joint-selected-c2b271d`
-and `-selfref`. All paired controls are exact. Medium serial/side-specific checks
-are in progress; no architecture change or retraining follows automatically.
+and `-selfref`. All paired controls are exact.
+
+Medium serial checks also support early V → later BAM dependence. Restoring
+L9–12 cross-V rescues −.005089; holding L15–23 BAM output at the deleted
+trajectory reduces that to −.002821. The paired attenuation is
+**+.002268 ±.001493** (108/128), versus +.004564 ±.000642 for XL's corresponding
+relative bands. Reverse block changes from +.005561 to +.001850: attenuation
+**−.003711 ±.000900**, in 115/128 sequences. M_out clamping attenuates reverse
+blocking too, but its rescue-side contrast +.000942 ±.001192 includes zero;
+do not overstate that side of the evidence.
+
+Restoring all downstream cross-V+BAM jointly rescues −.016499, with reverse
+cost +.015639. Artifacts `bam-row-mediation-medium-L8-serial-chain-c2b271d` and
+`-selfref`, same runtime and 128 exact-control pairs.
+
+Side-specific patches are also complete:
+
+| Medium L9–23 BAM output | Rescue Δloss | Reverse block Δloss |
+|---|---:|---:|
+| Col/data only | −.014200 ±.002773 | +.011844 ±.002792 |
+| Row/address only | −.001892 ±.001569 | +.001172 ±.000837 |
+| Both | −.014691 ±.002905 | +.012917 ±.003234 |
+
+Downstream col readout dominates here too. The Medium row-only rescue is larger
+than XL's, but strongly overlaps col: its extra rescue after col is restored is
+only .000491 (XL .000383). Do not sum side effects or use this single-source
+test as evidence that increasing C must help Medium but hurt XL.
+Artifacts `bam-row-mediation-medium-L8-read_sides-sides-c2b271d` and `-selfref`,
+runtime `c2b271d`, 128 exact-control pairs. No architecture change or retraining
+follows automatically.

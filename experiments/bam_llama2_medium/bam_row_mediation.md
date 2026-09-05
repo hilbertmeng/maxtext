@@ -1,7 +1,7 @@
 # XL row-cross downstream mediation
 
-Status: L11 lifetime/coarse, MHA/V, fine MLP/BAM/M and joint maps complete;
-QK routing and serial-path checks in progress. L10 row-self follows L11.
+Status: L11 lifetime/coarse, MHA/V, MLP/BAM/M, joint, QK and serial maps complete;
+downstream row/col refinement and L10 row-self checks in progress.
 This is checkpoint causal diagnosis, not a validated training modification.
 
 ## Reproduction
@@ -116,11 +116,26 @@ graph has a small numerical drift versus the earlier graph: in the first 105
 paired sequences, control mean differences were +.000062/+ .000093 and maximum
 absolute .001701. Compare effects within each graph's matched-null pair.
 
-## Next discriminating checks
+## Q/K routing (128, matched-null corrected)
+
+Q/K routing has now completed (128, corrected):
+
+| Layer / routing substitution | Rescue Δloss | Reverse block Δloss |
+|---|---:|---:|
+| L12 QK → MHA | −.000396 | +.001963 |
+| L12 QK → BAM | −.000585 | +.000039 |
+| L12 QK → MHA + cross-V | −.006402 | +.007701 |
+| L13 QK → MHA | −.002235 | +.000718 |
+| L13 QK → BAM | −.001769 | +.000726 |
+| L13 QK → MHA + cross-V | −.003987 | +.001537 |
+
+V dominates the immediate L12 response, but L13 routing also matters. Substituting
+QK into MHA leaves BAM alpha untouched, and vice versa. These remain conditional
+interventions, not additive shares. Artifacts:
+`bam-row-mediation-xl-L11-routing-qk-03628c6` and `-selfref`.
+
+## Remaining checks
 
 1. Split downstream fetched BAM output into row and col mediators.
-2. Separate QK routing into MHA AV versus BAM fetch, and pair QK-only with
-   QK+V substitution. Quantify remaining deletion loss instead of stopping at
-   the first successful rescue.
-3. After L11, repeat for L10 row-self, with its cross/col untouched. L12 is a
+2. Repeat for L10 row-self (now started), with its cross/col untouched. L12 is a
    weaker secondary candidate from the [L12–17 screen](bam_row_mediation_plan.md).

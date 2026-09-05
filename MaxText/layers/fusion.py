@@ -90,6 +90,7 @@ class SubDecoderLayer(nn.Module):
       M_in=None,
       is_global=None,
       layer_index=None,
+      row_relay_in=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -177,12 +178,18 @@ class SubDecoderLayer(nn.Module):
         deep_embedding=deep_embedding,
     )
     if cfg.bam_enabled:
-        attention_lnx, M_out = attention_layer(
+        attention_result = attention_layer(
             **call_kwargs, M_in=M_in, is_global=is_global,
-            layer_index=layer_index)
+            layer_index=layer_index, row_relay_in=row_relay_in)
+        if getattr(cfg, 'bam_row_relay_to_next_value', False):
+          attention_lnx, M_out, row_relay_out = attention_result
+        else:
+          attention_lnx, M_out = attention_result
+          row_relay_out = None
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
+        row_relay_out = None
 
     if cfg.record_internal_nn_metrics:
         attention_lnx_l2norm = jnp.sqrt(jnp.sum(jnp.square(attention_lnx)))
@@ -285,7 +292,10 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
-    return layer_output, M_out
+    result = (layer_output, M_out)
+    return (result + (row_relay_out,)
+            if getattr(cfg, 'bam_row_relay_to_next_value', False)
+            else result)
 
 
 class FusionDecoderLayer(nn.Module):
@@ -342,15 +352,21 @@ class FusionDecoderLayer(nn.Module):
       hids=None,
       M_in=None,
       layer_index=None,
+      row_relay_in=None,
   ):
     cfg = self.config
     scan_full_bam = (
         cfg.scan_layers and cfg.bam_enabled
         and not getattr(cfg, 'bam_mha_control', False))
+    row_relay_enabled = bool(getattr(
+        cfg, 'bam_row_relay_to_next_value', False))
     if cfg.scan_layers:
       assert not cfg.dense_conn, 'flat layer scan currently requires dense_conn=False'
       if scan_full_bam:
-        inputs, M_in = inputs
+        if row_relay_enabled:
+          inputs, M_in, row_relay_in = inputs
+        else:
+          inputs, M_in = inputs
       else:
         M_in = None
       if self.all_global_attention:
@@ -392,7 +408,7 @@ class FusionDecoderLayer(nn.Module):
             lidx=self.layer_inx,
           )
     # return's inputs length is 1
-    inputs, M_out = self.layer(
+    layer_result = self.layer(
         inputs,
         decoder_segment_ids,
         decoder_positions,
@@ -404,7 +420,13 @@ class FusionDecoderLayer(nn.Module):
         M_in=M_in,
         is_global=is_global,
         layer_index=layer_index,
+        row_relay_in=row_relay_in,
     )
+    if row_relay_enabled:
+      inputs, M_out, row_relay_out = layer_result
+    else:
+      inputs, M_out = layer_result
+      row_relay_out = None
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
       C = self.get_C(cfg)
@@ -420,10 +442,14 @@ class FusionDecoderLayer(nn.Module):
         )
 
     if cfg.scan_layers:
-      carry = (inputs, M_out) if scan_full_bam else inputs
+      carry = (
+          (inputs, M_out, row_relay_out)
+          if row_relay_enabled else
+          (inputs, M_out) if scan_full_bam else inputs)
       return carry, ()
     if cfg.bam_enabled:
-      return inputs, hids, M_out
+      result = (inputs, hids, M_out)
+      return result + (row_relay_out,) if row_relay_enabled else result
     return inputs, hids
 
   def partial_scan_call(

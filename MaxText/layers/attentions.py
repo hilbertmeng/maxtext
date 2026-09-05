@@ -2082,6 +2082,28 @@ def _pack_fetched_bam_heads(read, num_query_heads, head_dim):
   return read
 
 
+def _pack_fetched_bam_row_relay(
+    row_read, read_k_dim, num_query_heads, head_dim):
+  """Place a compact fetched row answer in its existing post-K head slot."""
+  col_zeros = jnp.zeros(
+      row_read.shape[:-1] + (read_k_dim,), dtype=row_read.dtype)
+  return _pack_fetched_bam_heads(
+      jnp.concatenate((col_zeros, row_read), axis=-1),
+      num_query_heads, head_dim)
+
+
+def _gate_fetched_bam_row_reads(
+    raw_row_read, current_gate_logits, relay_gate_logits, scale):
+  """Independently gate one raw row contraction for current-Y and next-V paths."""
+  scale = jnp.asarray(scale, raw_row_read.dtype)
+  current_gate = jax.nn.sigmoid(current_gate_logits)
+  relay_gate = jax.nn.sigmoid(relay_gate_logits)
+  return (
+      scale * current_gate * raw_row_read,
+      scale * relay_gate * raw_row_read,
+  )
+
+
 def _interpolate_fetched_bam_read(
     y_std, y_bam, gate_logits, read_k_dim, read_v_dim,
     num_query_heads, head_dim, read_side='both'):
@@ -2542,6 +2564,12 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
+    self._row_relay_to_next_value = bool(getattr(
+        cfg, 'bam_row_relay_to_next_value', False))
+    self._row_relay_gate_init = float(getattr(
+        cfg, 'bam_row_relay_gate_init', 0.005))
+    self._record_row_relay_health_metrics = bool(getattr(
+        cfg, 'bam_record_row_relay_health_metrics', False))
     self._local_qk_use_compressed_v = bool(
         cfg.bam_local_qk_use_compressed_v)
     compressed_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
@@ -2583,6 +2611,7 @@ class BamAttention(Attention):
     assert not cfg.bam_diagnostics, (
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
+      assert not self._row_relay_to_next_value
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
@@ -2917,6 +2946,20 @@ class BamAttention(Attention):
     assert self._fetched_read_merge_side in ('both', 'row', 'col')
     assert (not self._record_fetched_read_amplitude_metrics
             or self._fetched_read_amplitude_init is not None)
+    if self._row_relay_to_next_value:
+      assert cfg.scan_layers, 'row relay currently requires flat layer scan'
+      assert self._mode == {'local_qk', 'full'}
+      assert self._fetched_read_side == 'both'
+      assert self._read_key_mode == 'rms_gate'
+      assert not (self._use_fetched_output_gate
+                  or self._use_factorized_fetched_output_gate)
+      assert self._fetched_read_amplitude_init is None
+      assert self._fetched_read_merge == 'add'
+      assert self._fetched_heads_per_query == 1
+      assert cfg.global_attn_head_dim == 0
+      assert 0.0 < self._row_relay_gate_init < 1.0
+    assert (not self._record_row_relay_health_metrics
+            or self._row_relay_to_next_value)
     assert (self._local_qk_amplitude_init is None
             or self._local_qk_amplitude_init > 0.0)
     assert (not self._record_local_qk_amplitude_metrics
@@ -3467,6 +3510,26 @@ class BamAttention(Attention):
           nn.with_logical_partitioning(
               nn.initializers.zeros_init(), (None, None)),
           (2, 2), self.weight_dtype)
+
+    # Append the relay gate so the experiment preserves every existing
+    # parameter's initialization stream. Its explicit b0 is excluded from decay.
+    if self._row_relay_to_next_value:
+      relay_bias = math.log(
+          self._row_relay_gate_init / (1.0 - self._row_relay_gate_init))
+
+      self.W_row_relay_gate = DenseGeneral(
+          features=(self._fetched_read_num_heads, 1), axis=-1,
+          kernel_init=zeros_init,
+          kernel_axes=('embed', 'q_heads', None),
+          dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name='W_row_relay_gate', quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.W_row_relay_gate_b0 = self.param(
+          'W_row_relay_gate_b0',
+          nn.with_logical_partitioning(
+              lambda _key, shape, dtype: jnp.full(shape, relay_bias, dtype),
+              ('q_heads', None)),
+          (self._fetched_read_num_heads, 1), self.weight_dtype)
 
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
@@ -4087,11 +4150,46 @@ class BamAttention(Attention):
             getattr(self, 'W_R_row_pre_rms_bias', None),
             getattr(self, 'W_R_col_pre_rms_bias', None))
         return jnp.squeeze(projected_key, axis=-2)
-      full_read = bam_read(
-          Mbar, inputs_q, full_read_projection, None,
-          **full_read_kwargs,
-          implementation=self._read_implementation,
-          read_side=self._fetched_read_side)
+      row_relay = None
+      if self._row_relay_to_next_value:
+        # Move the existing scalar row gate after the contraction so the same
+        # ungated answer can feed a separately gated next-layer value relay.
+        full_read_kwargs['key_row_mode'] = 'rms'
+        y_col, raw_y_row = bam_read(
+            Mbar, inputs_q, full_read_projection, None,
+            **full_read_kwargs,
+            implementation=self._read_implementation,
+            read_side=self._fetched_read_side, return_sides=True)
+        row_gate_logits = interpolation_gate_logits[..., :1]
+        relay_gate_logits = self.W_row_relay_gate(inputs_q)
+        relay_gate_logits += jnp.asarray(
+            self.W_row_relay_gate_b0, relay_gate_logits.dtype)
+        y_row, row_relay = _gate_fetched_bam_row_reads(
+            raw_y_row, row_gate_logits, relay_gate_logits,
+            full_read_kwargs['key_scale'])
+        full_read = jnp.concatenate((y_col, y_row), axis=-1)
+        if self._record_row_relay_health_metrics:
+          relay_gate = jax.nn.sigmoid(
+              relay_gate_logits.astype(jnp.float32))
+          bins = []
+          for bin_index in range(5):
+            lo, hi = bin_index / 5.0, (bin_index + 1) / 5.0
+            in_bin = relay_gate >= lo
+            in_bin &= relay_gate <= hi if bin_index == 4 else relay_gate < hi
+            bins.append(jnp.mean(in_bin))
+          self.sow(
+              'intermediates', 'row_relay_gate_stats',
+              jnp.concatenate((jnp.asarray([jnp.mean(relay_gate)]),
+                               jnp.stack(bins))))
+          self.sow(
+              'intermediates', 'row_relay_output_rms',
+              jnp.sqrt(jnp.mean(jnp.square(row_relay.astype(jnp.float32)))))
+      else:
+        full_read = bam_read(
+            Mbar, inputs_q, full_read_projection, None,
+            **full_read_kwargs,
+            implementation=self._read_implementation,
+            read_side=self._fetched_read_side)
       if self._use_factorized_fetched_output_gate:
         full_read = _gate_fetched_read_output(
             full_read, element_logits, self._abs_k_dim or self.bam_k,
@@ -4114,7 +4212,9 @@ class BamAttention(Attention):
                 jnp.sqrt(jnp.mean(jnp.square(y_row.astype(jnp.float32)))),
                 jnp.sqrt(jnp.mean(jnp.square(y_col.astype(jnp.float32)))),
             )))
-      return self._expand_full_read(full_read), interpolation_gate_logits
+      return (
+          self._expand_full_read(full_read), interpolation_gate_logits,
+          row_relay)
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,
@@ -4187,8 +4287,9 @@ class BamAttention(Attention):
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
+      row_relay_in: Array | None = None,
   ):
-    """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
+    """BAM forward, optionally carrying a compact fetched-row relay one layer.
 
     v0.1 supports train mode and n==n_kv only; prefill/decode error out, deferred to v0.2.
     """
@@ -4210,6 +4311,28 @@ class BamAttention(Attention):
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
+
+    if self._row_relay_to_next_value:
+      if row_relay_in is None:
+        raise ValueError('row relay requires the previous-layer carry')
+      value_relay = _pack_fetched_bam_row_relay(
+          row_relay_in, self._abs_k_dim or self.bam_k,
+          self.num_query_heads, self.head_dim)
+      if value_relay.shape != value.shape:
+        raise ValueError(
+            f'row relay/value shapes differ: {value_relay.shape} vs {value.shape}')
+      if self._record_row_relay_health_metrics:
+        def rms(x):
+          return jnp.sqrt(jnp.mean(jnp.square(x.astype(jnp.float32))))
+        relay_rms = rms(value_relay)
+        value_rms = rms(value)
+        self.sow(
+            'intermediates', 'row_relay_to_value_rms',
+            jnp.stack((relay_rms, value_rms,
+                       relay_rms / jnp.maximum(value_rms, 1e-12))))
+      value = value + value_relay
+    elif row_relay_in is not None:
+      raise ValueError('row_relay_in supplied while row relay is disabled')
 
     Mh = local_Mh = None
     if 'local_qk' in self._mode and self._local_qk_injection == 'pre_qknorm_rope':
@@ -4290,8 +4413,9 @@ class BamAttention(Attention):
           fetch_state=fetch_state, mix_weights=mix_weights)
 
     o_head = y_std
+    row_relay_out = None
     if Mbar is not None:
-      y_bam, fetched_gate_logits = self._read_fetched_m(
+      y_bam, fetched_gate_logits, row_relay_out = self._read_fetched_m(
           Mbar, inputs_q, layer_index)
       if self._record_fetched_read_health_metrics:
         y_std_rms = jnp.sqrt(jnp.mean(jnp.square(y_std.astype(jnp.float32))))
@@ -4336,4 +4460,5 @@ class BamAttention(Attention):
       M_out = M_in
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_out
+    result = (self.out_projection(inputs_q.shape[-1], out), M_out)
+    return result + (row_relay_out,) if self._row_relay_to_next_value else result

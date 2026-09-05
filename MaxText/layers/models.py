@@ -440,6 +440,18 @@ class Decoder(nn.Module):
         (b, t, self.config.bam_k, self.config.bam_v),
         dtype=self.config.dtype)
 
+  def initial_bam_row_relay(self, inputs):
+    """Initialize the compact one-layer fetched-row value relay."""
+    cfg = self.config
+    b, t = inputs.shape[:2]
+    num_heads = cfg.bam_fetched_read_num_heads or cfg.num_query_heads
+    row_dim = cfg.bam_abs_v_compression_dim or cfg.bam_v
+    if (cfg.bam_abs_v_compression_dim is not None
+        and cfg.bam_abs_v_row_output == 'project'
+        and cfg.bam_abs_v_row_decoder_output == 'full'):
+      row_dim = cfg.bam_v
+    return jnp.zeros((b, t, num_heads, row_dim), dtype=cfg.dtype)
+
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
     for block_layer in block_layers:
@@ -794,7 +806,10 @@ class Decoder(nn.Module):
         full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
         if full_bam:
           M = self.initial_bam_matrix(y)
-          scan_carry = (y, M)
+          scan_carry = (
+              (y, M, self.initial_bam_row_relay(y))
+              if getattr(cfg, 'bam_row_relay_to_next_value', False)
+              else (y, M))
         else:
           scan_carry = y
         local_sws = min(swss)

@@ -281,6 +281,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_read_merge_side = 'both'  # both | row | col
     bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetched_read_health_metrics = False
+    bam_row_relay_to_next_value = False
+    bam_row_relay_gate_init = 0.005
+    bam_record_row_relay_health_metrics = False
     bam_create_read_gate_params = False
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
@@ -1195,6 +1198,18 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-scan-aot-control')
+
+
+class BamLlama2MediumV2C256RowRelayRowSlot(
+    BamLlama2MediumV2C256ScanAotControl
+):
+    """Also relay each fetched row answer through the next layer's MHA V row slot."""
+    model_name = 'BamLlama2MediumV2C256RowRelayRowSlot'
+    bam_row_relay_to_next_value = True
+    bam_record_row_relay_health_metrics = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-row-relay-row-slot')
 
 
 class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(

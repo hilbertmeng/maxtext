@@ -18,11 +18,13 @@ from layers.attentions import (
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
     _fetched_read_gate_bin_stats,
+    _gate_fetched_bam_row_reads,
     _interpolate_fetched_bam_read,
     _gate_fetched_read_output,
     _factorized_fetched_output_gate_logits,
     _packed_factorized_local_qk_init,
     _pack_fetched_bam_heads,
+    _pack_fetched_bam_row_relay,
     _paired_parameter_init,
     _project_bam_read_keys,
     _mix_bam_write_v,
@@ -47,6 +49,23 @@ class _DepthAmplitudeLayer(nn.Module):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_fetched_row_relay_uses_row_slot_and_independent_gate(self):
+    raw_row = jnp.arange(12, dtype=jnp.float32).reshape(1, 2, 2, 3)
+    current_logits = jnp.zeros((1, 2, 2, 1), jnp.float32)
+    relay_logits = jnp.full(
+        (1, 2, 2, 1), jnp.log(jnp.asarray(0.25 / 0.75)))
+    current, relay = _gate_fetched_bam_row_reads(
+        raw_row, current_logits, relay_logits, 2.0)
+    np.testing.assert_allclose(current, raw_row, rtol=1e-6)
+    np.testing.assert_allclose(relay, 0.5 * raw_row, rtol=1e-6)
+
+    packed = _pack_fetched_bam_row_relay(
+        relay, read_k_dim=4, num_query_heads=2, head_dim=8)
+    self.assertEqual(packed.shape, (1, 2, 2, 8))
+    np.testing.assert_array_equal(packed[..., :4], 0.0)
+    np.testing.assert_allclose(packed[..., 4:7], relay, rtol=1e-6)
+    np.testing.assert_array_equal(packed[..., 7:], 0.0)
 
   def test_fetched_read_gate_bins_cover_distribution_and_read_energy(self):
     probabilities = jnp.asarray((0.1, 0.3, 0.5, 0.7, 0.9))

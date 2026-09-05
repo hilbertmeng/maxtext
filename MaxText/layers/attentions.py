@@ -1767,7 +1767,7 @@ def _attention_op(
 
 def _bam_fetch_op(
     alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
-    return_alpha=False):
+    return_alpha=False, cross_scale=None):
   """Mix standard-attention routes, optionally set the local coefficient, and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     fetch_alpha = jnp.einsum(
@@ -1775,6 +1775,10 @@ def _bam_fetch_op(
     if diagonal_one:
       fetch_alpha = jnp.where(
           diagonal_mask[None], jnp.asarray(1, fetch_alpha.dtype), fetch_alpha)
+    if cross_scale is not None:
+      fetch_alpha = jnp.where(
+          diagonal_mask[None], fetch_alpha,
+          fetch_alpha * jnp.asarray(cross_scale, fetch_alpha.dtype))
   with jax.named_scope("bam/fetch_m"):
     fetched = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
   return (fetched, fetch_alpha) if return_alpha else fetched
@@ -3421,7 +3425,8 @@ class BamAttention(Attention):
       capture = self._residual_attribution and not self.is_initializing()
       fetched = _bam_fetch_op(
           alpha, fetch_state, mix_weights, diagonal_mask,
-          diagonal_one=self._fetch_diagonal_one, return_alpha=capture)
+          diagonal_one=self._fetch_diagonal_one, return_alpha=capture,
+          cross_scale=self.get_variable('causal_ablation', 'cross_scale'))
       if capture:
         Mbar, fetch_alpha = fetched
         with jax.named_scope("bam/fetch_m_self"):

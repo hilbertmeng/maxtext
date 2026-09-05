@@ -74,6 +74,8 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2M48x48C12` | v5p-32 | `us-east5-a` | 2026-09-03 09:30:10 | 2026-09-03 14:10:50 | negative ablation; manual stop at 8,225 | none |
 | `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AbsV4` | v5p-32 | `us-east5-a` | 2026-09-03 10:12:11 | 2026-09-03 14:10:47 | negative ablation; manual stop at 7,250 | none |
 
+| `BamLlama2MediumV2C256RowRelayRowSlot` | v5p-16 | `us-east5-a` | 2026-09-05 07:19:15 | 2026-09-05 10:14:03 | user stop; checkpoint 6,216; no preemption or zone switch | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -359,3 +361,4 @@ inventing a duration. A passive queue is not an active-zone switch.
 | Interpolated PerHead amplitude | 2 | `us-east5-a` | 2026-09-02 16:01:12 | 2026-09-02 19:43:03 | 3h41m51s | completed |
 | XL M48x48/C12 | 1 | `us-east5-a` | 2026-09-03 09:30:10 | 2026-09-03 14:10:50 | 4h40m40s | run stop |
 | XL AbsV4 | 1 | `us-east5-a` | 2026-09-03 10:12:11 | 2026-09-03 14:10:47 | 3h58m36s | run stop |
+| RowRelayRowSlot | 1 | `us-east5-a` | 2026-09-05 07:25:01 | 2026-09-05 10:14:03 | 2h49m02s | run stop; deletion verified 10:16:03 |

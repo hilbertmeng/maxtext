@@ -69,6 +69,11 @@ class MediationTest(unittest.TestCase):
     np.testing.assert_array_equal(arm['control'][12:16,7],1)
     np.testing.assert_array_equal(arm['control'][18:,3],1)
     self.assertEqual(serial['block_V12-15_clamp_full18-23']['donor_overrides'],{'full':False})
+    source_joint={a['name']:a for a in arms(10,'source_mlp_joint')}
+    sj=source_joint['rescue_downstream_std+full+source_mlp']['control']
+    self.assertEqual(sj[10,5],1)
+    self.assertEqual(sj[10,3],0)  # source deleted BAM output is never restored
+    np.testing.assert_array_equal(sj[11:,3],1)
     c=jnp.zeros((24,len(CONTROL_NAMES))).at[12,10].set(1)
     layers={'layers':{'self_attention':{'abs_v_cache_projection':jnp.zeros((24,32,8))}}}
     x=patch_tree({'params':{'decoder':layers}},jnp.ones((24,2)),refs,c,jnp.zeros((1,2,3)),True)

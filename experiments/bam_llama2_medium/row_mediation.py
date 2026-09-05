@@ -111,6 +111,16 @@ def arms(source, phase, chosen=None):
       for f in fields: c[l,CONTROL_NAMES.index(f)]=1
     result.append(dict(name=name,corrupted=corrupted,donor_corrupted=donor_corrupted,control=c))
   add('clean'); add('ablated',True)
+  if phase=='source_mlp_joint':
+    downstream=list(range(source+1,24))
+    for corrupt,verb in [(True,'rescue'),(False,'block')]:
+      add(f'{verb}_source_mlp',corrupt,not corrupt,[source],['mlp'])
+      for fields in (['std','full'],['std','full','mlp','M']):
+        label='+'.join(fields)
+        add(f'{verb}_downstream_{label}',corrupt,not corrupt,downstream,fields)
+        add(f'{verb}_downstream_{label}+source_mlp',corrupt,not corrupt,downstream,fields)
+        result[-1]['control'][source,CONTROL_NAMES.index('mlp')]=1
+    return result
   if phase=='serial':
     # Test whether an early cross-V rescue survives clamping later BAM/M to
     # the recipient's own trajectory. Mixed donors distinguish a serial path

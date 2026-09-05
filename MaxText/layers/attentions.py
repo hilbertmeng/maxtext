@@ -3639,13 +3639,13 @@ class BamAttention(Attention):
 
     capture_mediation = self.is_mutable_collection('mediation_capture') and not self.is_initializing()
     if capture_mediation:
-      self.sow('mediation_capture', 'value', value)
+      self.sow('mediation_capture', 'trace_value', value)
     if self.has_variable('causal_ablation', 'med_std'):
       y_std = _mediation_replace(y_std,
           self.get_variable('causal_ablation', 'med_std'),
           self.get_variable('causal_ablation', 'med_std_scale'))
     if capture_mediation:
-      self.sow('mediation_capture', 'std', y_std)
+      self.sow('mediation_capture', 'trace_std', y_std)
     o_head = y_std
     if Mbar is not None:
       y_full = self._read_fetched_m(Mbar, inputs_q)
@@ -3666,7 +3666,7 @@ class BamAttention(Attention):
             self.get_variable('causal_ablation', 'med_full'),
             self.get_variable('causal_ablation', 'med_full_scale'))
       if capture_mediation:
-        self.sow('mediation_capture', 'full', y_full)
+        self.sow('mediation_capture', 'trace_full', y_full)
       o_head = o_head + y_full
       if self._residual_attribution and not self.is_initializing():
         y_full_self = self._read_fetched_m(Mbar_self, inputs_q)
@@ -3704,6 +3704,6 @@ class BamAttention(Attention):
           self.get_variable('causal_ablation', 'med_M'),
           self.get_variable('causal_ablation', 'med_M_scale'))
     if capture_mediation:
-      self.sow('mediation_capture', 'M', M_out)
+      self.sow('mediation_capture', 'trace_M', M_out)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
     return self.out_projection(inputs_q.shape[-1], out), M_out

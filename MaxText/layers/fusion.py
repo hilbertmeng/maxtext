@@ -279,7 +279,7 @@ class SubDecoderLayer(nn.Module):
     intermediate_inputs = inputs + attention_lnx
     capture_mediation = self.is_mutable_collection('mediation_capture') and not self.is_initializing()
     if capture_mediation:
-      self.sow('mediation_capture', 'post_attention', intermediate_inputs)
+      self.sow('mediation_capture', 'trace_post_attention', intermediate_inputs)
     if self.has_variable('causal_ablation', 'med_z'):
       intermediate_inputs = (intermediate_inputs.astype(jnp.float32) -
           self.get_variable('causal_ablation', 'med_cancel')[0] *
@@ -392,7 +392,7 @@ class SubDecoderLayer(nn.Module):
           self.get_variable('causal_ablation', 'med_mlp'),
           self.get_variable('causal_ablation', 'med_mlp_scale'))
     if capture_mediation:
-      self.sow('mediation_capture', 'mlp', mlp_lnx)
+      self.sow('mediation_capture', 'trace_mlp', mlp_lnx)
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx
     elif mlp_lnx is not None and moe_lnx is None:

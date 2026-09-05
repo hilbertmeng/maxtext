@@ -35,7 +35,7 @@ REF_NAMES = ['value', 'std', 'full', 'M', 'mlp', 'post_attention']
 def stack_capture(captured):
   grouped, scanned = {}, {}
   for path, value in traverse_util.flatten_dict(captured['mediation_capture']).items():
-    name=path[-1]
+    name=path[-1].removeprefix('trace_')
     if name not in REF_NAMES: continue
     layer=base._layer_from_path(path)
     if layer is None:

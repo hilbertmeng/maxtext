@@ -53,19 +53,23 @@ The L12 cross-V rescue is about 35% of the deletion loss, not an adequate total
 mechanism. Other layers also matter. These rescues are conditional and can
 overlap along the same causal chain: summing them is not a mediation partition.
 
-## Additional leads (coarse, 128; not yet self-patch-corrected)
+## MLP and memory paths (128, matched-null corrected)
 
 | Patched band/path | Rescue vs deleted recipient | Reverse block vs clean recipient |
 |---|---:|---:|
-| L14–17 fetched BAM output | −.006239 | +.002811 |
-| L18–22 fetched BAM output | −.007897 | +.004818 |
-| L18–22 M_out | −.007952 | +.003877 |
-| L11–13 MLP output | +.016258 | +.018362 |
+| L11 MLP output | +.002399 | +.007391 |
+| L12 MLP output | +.002536 | +.002711 |
+| L13 M_out | −.003605 | +.001437 |
+| L18 M_out | −.006229 | +.002686 |
+| L20 M_out | −.005926 | +.002567 |
+| L23 fetched BAM output | −.004373 | +.001417 |
+| L23 MLP output | +.012226 | +.002340 |
 
 Late BAM/M is a substantial candidate, potentially downstream of earlier MHA V.
 MLP rescue and blocking both harm: context interactions preclude calling MLP
 irrelevant or assigning it a single additive sign. Source-containing full-BAM
 restoration is a trivial undo control and is excluded from downstream evidence.
+L11 M_out and unused final L23 M_out both have exactly zero corrected effect.
 
 ## Joint downstream restoration (128, matched-null corrected)
 
@@ -79,21 +83,44 @@ restoration is a trivial undo control and is excluded from downstream evidence.
 
 These interventions do not restore the deleted source output. The two attention
 output families cover most of the deletion loss jointly, but overlap strongly.
-The next question is whether early V acts through later BAM/M rather than forming
-independent parallel routes. Do not interpret the small *additional* MLP rescue
+The serial test below addresses whether early V acts through later BAM/M.
+Do not interpret the small *additional* MLP rescue
 conditional on both attention families as a standalone measure of MLP importance.
 
 Artifacts: `bam-row-mediation-xl-L11-joint-downstream-e0eb3f1` and its `-selfref`
 companion; fine MLP/BAM/M uses `bam-row-mediation-xl-L11-fine-mlpbam-e0eb3f1`
 and `-selfref`. All paired clean/deleted controls agree exactly, across all 128.
 
+## Early V → later BAM/M dependence (128, matched-null corrected)
+
+| Early V intervention | Later clamp | Rescue Δloss | Reverse block Δloss |
+|---|---|---:|---:|
+| Cross-V L12–15 | none | −.009152 | +.007959 |
+| Cross-V L12–15 | BAM output L18–23 | −.004587 | +.003536 |
+| Cross-V L12–15 | M_out L18–23 | −.006458 | +.003702 |
+| Cross-V L12–17 | none | −.009769 | +.008518 |
+| Cross-V L12–17 | BAM output L18–23 | −.004464 | +.003799 |
+
+For rescue, the later clamp retains the deleted trajectory's values; for reverse
+blocking it protects the clean trajectory's values. About half of the early-V
+effect disappears when later BAM output is fixed. This supports serial dependence,
+not a decomposition into independent additive percentages. M-state clamping also
+attenuates the effect, but less symmetrically.
+
+Restoring **cross-V + BAM output** jointly through L12–23 rescues −.014294;
+reverse blocking costs +.013869. Thus cross-token V plus subsequent BAM accounts
+for most of the loss even without restoring the whole standard-MHA output.
+Runtime `0d6539f`; artifacts `bam-row-mediation-xl-L11-serial-chain-0d6539f`
+and `-selfref`. Both share exact controls over all 128. The expanded QK-probe
+graph has a small numerical drift versus the earlier graph: in the first 105
+paired sequences, control mean differences were +.000062/+ .000093 and maximum
+absolute .001701. Compare effects within each graph's matched-null pair.
+
 ## Next discriminating checks
 
-1. Finish fine MLP/BAM/M maps with matched self-reference controls.
-2. Joint downstream bands L12, L12–13, L12–15 and L12–23: V, standard MHA,
-   MLP, BAM read, M state, and combinations; both rescue and block.
-3. Separate QK routing into MHA AV versus BAM fetch, and pair QK-only with
+1. Split downstream fetched BAM output into row and col mediators.
+2. Separate QK routing into MHA AV versus BAM fetch, and pair QK-only with
    QK+V substitution. Quantify remaining deletion loss instead of stopping at
    the first successful rescue.
-4. After L11, repeat for L10 row-self, with its cross/col untouched. L12 is a
+3. After L11, repeat for L10 row-self, with its cross/col untouched. L12 is a
    weaker secondary candidate from the [L12–17 screen](bam_row_mediation_plan.md).

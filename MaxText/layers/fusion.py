@@ -277,6 +277,13 @@ class SubDecoderLayer(nn.Module):
     if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
       self.sow('residual_attribution', 'attention_total', attention_lnx)
     intermediate_inputs = inputs + attention_lnx
+    capture_mediation = self.is_mutable_collection('mediation_capture') and not self.is_initializing()
+    if capture_mediation:
+      self.sow('mediation_capture', 'post_attention', intermediate_inputs)
+    if self.has_variable('causal_ablation', 'med_z'):
+      intermediate_inputs = (intermediate_inputs.astype(jnp.float32) -
+          self.get_variable('causal_ablation', 'med_cancel')[0] *
+          self.get_variable('causal_ablation', 'med_z')).astype(intermediate_inputs.dtype)
 
     # Fully Connected
     hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs)
@@ -380,6 +387,12 @@ class SubDecoderLayer(nn.Module):
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
+    if self.has_variable('causal_ablation', 'med_mlp'):
+      mlp_lnx = attentions._mediation_replace(mlp_lnx,
+          self.get_variable('causal_ablation', 'med_mlp'),
+          self.get_variable('causal_ablation', 'med_mlp_scale'))
+    if capture_mediation:
+      self.sow('mediation_capture', 'mlp', mlp_lnx)
     if mlp_lnx is not None and moe_lnx is not None:
       layer_output = mlp_lnx + intermediate_inputs + moe_lnx
     elif mlp_lnx is not None and moe_lnx is None:
@@ -390,6 +403,11 @@ class SubDecoderLayer(nn.Module):
       raise ValueError("Both mlp_lnx and moe_lnx is None, it's not allowed.")
 
     layer_output = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(layer_output, deterministic=deterministic)
+
+    if self.has_variable('causal_ablation', 'med_z'):
+      layer_output = (layer_output.astype(jnp.float32) -
+          self.get_variable('causal_ablation', 'med_cancel')[1] *
+          self.get_variable('causal_ablation', 'med_z')).astype(layer_output.dtype)
 
     if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
       self.sow('residual_attribution', 'layer_input', inputs)

@@ -530,6 +530,7 @@ class Decoder(nn.Module):
             "residual_attribution": 0,
             "causal_ablation": 0,
             "row_cross_probe": 0,
+            "mediation_capture": 0,
             "aqt": 0,
             "_overwrite_with_gradient": 0,
         },

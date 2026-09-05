@@ -1793,6 +1793,26 @@ def _scale_row_cross(total, local, positive, negative, scales):
   return jnp.where((p == 1) & (n == 1), total, changed)
 
 
+def _mediation_replace(value, reference, scale):
+  """Read-only probe: exact endpoints, float32 arithmetic between endpoints."""
+  mixed = (value.astype(jnp.float32) + scale * (
+      reference.astype(jnp.float32) - value.astype(jnp.float32))).astype(value.dtype)
+  return jnp.where(scale == 0, value, jnp.where(scale == 1, reference, mixed))
+
+
+def _mediation_value_edges(y, alpha, value, reference, diagonal, scales):
+  """Patch MHA V on self/cross edges; routing and BAM fetch alpha stay unchanged."""
+  ref_y = jnp.einsum('bnqs,bsnd->bqnd', alpha, reference).astype(y.dtype)
+  self_alpha = jnp.where(diagonal[None, None], alpha, 0)
+  self_delta = jnp.einsum('bnqs,bsnd->bqnd', self_alpha,
+      reference.astype(jnp.float32) - value.astype(jnp.float32))
+  total_delta = ref_y.astype(jnp.float32) - y.astype(jnp.float32)
+  s, c = scales
+  split = (y.astype(jnp.float32) + s * self_delta + c * (
+      total_delta - self_delta)).astype(y.dtype)
+  return jnp.where(s == c, _mediation_replace(y, ref_y, s), split)
+
+
 def _mix_bam_write_v(x_v, o_head, bam_k, mix_scale, bias):
   """Mix local and attention-output V factors with a per-head affine selector."""
   o_v = o_head[..., bam_k:bam_k + x_v.shape[-1]]
@@ -3427,6 +3447,10 @@ class BamAttention(Attention):
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,
         float32_logits=cfg.float32_logits)
+    if self.has_variable('causal_ablation', 'med_value'):
+      reference = self.get_variable('causal_ablation', 'med_value')[:, s0:s1]
+      y_std = _mediation_value_edges(y_std, alpha, value, reference,
+          source == target, self.get_variable('causal_ablation', 'med_v_edges'))
     Mbar = Mbar_self = fetch_self_weight = row_probe = None
     if fetch_state is not None:
       assert mix_weights is not None
@@ -3613,6 +3637,15 @@ class BamAttention(Attention):
           q0=0, s0=0, window_size=local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
 
+    capture_mediation = self.is_mutable_collection('mediation_capture') and not self.is_initializing()
+    if capture_mediation:
+      self.sow('mediation_capture', 'value', value)
+    if self.has_variable('causal_ablation', 'med_std'):
+      y_std = _mediation_replace(y_std,
+          self.get_variable('causal_ablation', 'med_std'),
+          self.get_variable('causal_ablation', 'med_std_scale'))
+    if capture_mediation:
+      self.sow('mediation_capture', 'std', y_std)
     o_head = y_std
     if Mbar is not None:
       y_full = self._read_fetched_m(Mbar, inputs_q)
@@ -3628,6 +3661,12 @@ class BamAttention(Attention):
         self.sow('row_cross_probe', 'row_parts', jnp.stack(
             (row_self, row_pos, row_neg, row_total), axis=2))
         self.sow('row_cross_probe', 'alpha_stats', alpha_stats)
+      if self.has_variable('causal_ablation', 'med_full'):
+        y_full = _mediation_replace(y_full,
+            self.get_variable('causal_ablation', 'med_full'),
+            self.get_variable('causal_ablation', 'med_full_scale'))
+      if capture_mediation:
+        self.sow('mediation_capture', 'full', y_full)
       o_head = o_head + y_full
       if self._residual_attribution and not self.is_initializing():
         y_full_self = self._read_fetched_m(Mbar_self, inputs_q)
@@ -3660,5 +3699,11 @@ class BamAttention(Attention):
     else:
       M_out = M_in
 
+    if self.has_variable('causal_ablation', 'med_M'):
+      M_out = _mediation_replace(M_out,
+          self.get_variable('causal_ablation', 'med_M'),
+          self.get_variable('causal_ablation', 'med_M_scale'))
+    if capture_mediation:
+      self.sow('mediation_capture', 'M', M_out)
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
     return self.out_projection(inputs_q.shape[-1], out), M_out

@@ -1200,6 +1200,7 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchNoRMSNormalInit(BamLlama2MediumV2C256ScanAotControl):
     """Fetched keys: normal(0, .006) W_R and 2*sigmoid(g)*W_R(x), no RMS."""
+    # a2ef6b5; UE5a scan+AOT ~0.657 steps/s (10-14), -0.5% vs ScanAotControl.
     model_name = 'BamLlama2MediumV2C256FetchNoRMSNormalInit'
     bam_fetched_read_key_rms = False
     bam_fetched_read_kernel_init = 'normal'

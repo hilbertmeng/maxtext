@@ -71,11 +71,18 @@ including in joint multi-layer arms. Use the same bidirectional/null controls.
 
 ## Parallel work
 
-- Existing EW4a TPU: completed XL L12–17 signed/causal screen; next L11 coarse
-  lifetime and mediator bands, then MLP/BAM/M fine localization.
-- New `xd-v6e-rowmed-b-ew4a`: L11 individual-layer MHA/V localization, L11–23.
-- Both use identical code, cohort and their own clean/deleted controls. Merge by
-  sequence hashes and check common-control drift before cross-TPU conclusions.
+- L11 lifetime, fine MHA/V and MLP/BAM/M, joint restoration, QK routing,
+  serial clamps and downstream row/col maps are complete (128 each). See
+  [the current report](bam_row_mediation.md) for calibrated results and artifacts.
+- Current `xd-v6e-rowmed-d-ue5a` (us-east5-a): L10 self coarse pair,
+  `/tmp/row-mediation-L10-self-pair.log`; follow with L10 joint restoration.
+- Current `xd-v6e-rowmed-e-ew4a` (europe-west4-a): L10 self fine MHA/V pair,
+  `/tmp/row-mediation-L10-mhav-pair.log`; selected Medium L8 comparison can follow.
+- Runtime on both is staged at `/home/lishengping/xd/projects/row-mediation-ee578fb`.
+  The earlier `rowcross-xl-ew4a`, `rowmed-b-ew4a` and `rowmed-c-ew4a` TPUs were
+  preempted and deleted; the UC1a raced candidates were also verified deleted.
+- Keep using each run's own clean/deleted and self-reference controls; merge by
+  sequence hashes. Expanded graphs can drift slightly from previous graphs.
 - L12 is a secondary candidate, not grounds to displace the L11 main question.
 - After L11, repeat lifetime cuts and bidirectional path localization for **XL
   L10 row-self**, keeping that layer's row-cross and col unchanged. Its negative

@@ -1,7 +1,7 @@
 # XL row-cross downstream mediation
 
-Status: L11 lifetime/coarse, MHA/V, MLP/BAM/M, joint, QK and serial maps complete;
-downstream row/col refinement and L10 row-self checks in progress.
+Status: L11 lifetime/coarse, MHA/V, MLP/BAM/M, joint, QK, serial and row/col maps
+complete; L10 row-self checks in progress. Layer indices are zero-based.
 This is checkpoint causal diagnosis, not a validated training modification.
 
 ## Reproduction
@@ -134,8 +134,41 @@ QK into MHA leaves BAM alpha untouched, and vice versa. These remain conditional
 interventions, not additive shares. Artifacts:
 `bam-row-mediation-xl-L11-routing-qk-03628c6` and `-selfref`.
 
-## Remaining checks
+## Which downstream BAM side cashes out the source signal?
 
-1. Split downstream fetched BAM output into row and col mediators.
-2. Repeat for L10 row-self (now started), with its cross/col untouched. L12 is a
-   weaker secondary candidate from the [L12–17 screen](bam_row_mediation_plan.md).
+All 128, matched-null corrected. Patch only the selected side, leaving the other
+side live; col is the K/data prefix, row the V/address suffix.
+
+| L12–23 fetched output | Rescue Δloss | Reverse block Δloss |
+|---|---:|---:|
+| Col/data only | −.011008 | +.012282 |
+| Row/address only | −.000362 | +.000587 |
+| Both | −.011391 | +.012885 |
+
+The source is **row-cross**, but its downstream BAM payoff is predominantly
+**col/data readout**. This supports an address/transport → later data-read chain,
+not the claim that row paths are globally redundant. These are effects of this
+particular source perturbation. Combined with the serial clamps, the evidence
+supports early cross-token V feeding later BAM/M and then col readout; QK routing
+also contributes. A direct final-residual attribution does not count those
+downstream changes back to the originating row contribution.
+
+Runtime `ee578fb`; artifacts `bam-row-mediation-xl-L11-read_sides-sides-ee578fb`
+and `-selfref`. All 128 paired clean/deleted controls are exact.
+
+## L10 row-self follow-up: source dose response
+
+Same XL checkpoint/cohort, 128 sequences; keep row-cross and col unchanged.
+
+| Self retention | Δloss vs original | Harmed /128 |
+|---|---:|---:|
+| 0 | +.014154 ±.001109 | 128 |
+| .25 | +.007924 ±.000744 | 127 |
+| .5 | +.003656 ±.000471 | 116 |
+| 1 | 0 | — |
+| 1.5 | +.004462 ±.000523 | 123 |
+
+Negative direct IG does not imply a beneficial deletion here either. Source-layer
+M_out remains exactly unchanged. Runtime `ee578fb`; artifacts
+`bam-row-mediation-xl-L10-coarse-lifetime-ee578fb-rowself` (matched-null and
+downstream localization still in progress).

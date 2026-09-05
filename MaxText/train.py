@@ -451,6 +451,32 @@ def record_bam_fetched_read_health_metrics(
       })
 
 
+def record_bam_row_relay_health_metrics(
+    output_metrics, intermediate_outputs, config):
+  """Adds per-layer next-value row-relay gate and strength summaries."""
+  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
+  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
+  attention = metrics_dict['block']['self_attention']
+  gate_stats = attention['row_relay_gate_stats'][0]
+  output_rms = attention['row_relay_output_rms'][0]
+  value_rms = attention['row_relay_to_value_rms'][0]
+  stat_names = (
+      'mean', 'bin_00_20', 'bin_20_40', 'bin_40_60', 'bin_60_80',
+      'bin_80_100')
+  for layer_num in range(config.base_num_decoder_layers):
+    gate_prefix = f'bam/row_relay_gate/layer_{layer_num:03d}'
+    for stat_num, stat in enumerate(stat_names):
+      output_metrics['scalar'][f'{gate_prefix}/{stat}'] = (
+          gate_stats[layer_num, stat_num])
+    prefix = f'bam/row_relay/layer_{layer_num:03d}'
+    output_metrics['scalar'].update({
+        f'{prefix}/output_rms': output_rms[layer_num],
+        f'{prefix}/injected_rms': value_rms[layer_num, 0],
+        f'{prefix}/standard_value_rms': value_rms[layer_num, 1],
+        f'{prefix}/injected_over_standard_value': value_rms[layer_num, 2],
+    })
+
+
 def record_bam_local_qk_routing_metrics(
     output_metrics, intermediate_outputs, config):
   """Adds per-layer LocalQK rank-gate distributions and read-strength ratios."""
@@ -900,6 +926,9 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     record_bam_local_qk_amplitude_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):
     record_bam_fetched_read_health_metrics(
+        metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_row_relay_health_metrics', False):
+    record_bam_row_relay_health_metrics(
         metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_local_qk_routing_metrics', False):
     record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)

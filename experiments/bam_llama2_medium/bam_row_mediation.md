@@ -86,6 +86,11 @@ L11 M_out and unused final L23 M_out both have exactly zero corrected effect.
 
 These interventions do not restore the deleted source output. The two attention
 output families cover most of the deletion loss jointly, but overlap strongly.
+Restoring many downstream outputs also reconstructs much of the clean residual
+trajectory by construction: 97.4% is an intervention-coverage check, not proof
+that an independently manipulable circuit explains exactly 97.4%. The selective
+V-edge, routing, side-specific and serial-clamp tests carry the finer mechanistic
+evidence. None yet establishes a trainable architecture improvement.
 The serial test below addresses whether early V acts through later BAM/M.
 Do not interpret the small *additional* MLP rescue
 conditional on both attention families as a standalone measure of MLP importance.
@@ -173,8 +178,8 @@ Same XL checkpoint/cohort, 128 sequences; keep row-cross and col unchanged.
 
 Negative direct IG does not imply a beneficial deletion here either. Source-layer
 M_out remains exactly unchanged. Runtime `ee578fb`; artifacts
-`bam-row-mediation-xl-L10-coarse-lifetime-ee578fb-rowself` (matched-null and
-downstream localization still in progress).
+`bam-row-mediation-xl-L10-coarse-lifetime-ee578fb-rowself` and its `-selfref`
+companion (both complete).
 
 The source-layer MLP interaction differs between the sources. Moving the source
 cancellation from pre-MLP to post-MLP changes loss by **−.003101 ±.000445** for
@@ -183,3 +188,28 @@ the source MLP's clean response helps L10 self under subsequent source removal,
 but not L11 cross. This conditional contrast is not the effect of removing MLP
 from the model. It warrants fine MLP localization for L10 rather than assuming
 the L11 path balance transfers unchanged.
+
+### L10 downstream localization (128, matched-null corrected)
+
+| Path | Rescue Δloss | Reverse block Δloss |
+|---|---:|---:|
+| L11 cross-token V | −.001110 | +.001616 |
+| L12 cross-token V | −.003074 | +.001625 |
+| L11–23 cross-token V | −.008834 | +.007834 |
+| L11–23 standard MHA | −.011221 | +.010696 |
+| L11–23 fetched BAM | −.009356 | +.007851 |
+| L11–23 standard MHA + fetched BAM | −.012960 | +.012936 |
+| L11–23 standard MHA + MLP + fetched BAM + M_out | −.013471 | +.014390 |
+
+The strongest nearby V rescue moves to L12, two layers after the source. Global
+attention-output restoration leaves about +.001195 of the +.014154 deletion
+cost; including downstream MLP/M leaves about +.000684. These interventions
+exclude source L10 MLP. A separate joint test includes it without restoring the
+deleted source BAM output, motivated by the lifetime contrast above. Do not add
+the −.003101 lifetime contrast to these rescue estimates across contexts.
+
+Runtime `ee578fb`; artifacts `bam-row-mediation-xl-L10-fine-mhav-ee578fb-rowself`
+and `bam-row-mediation-xl-L10-joint-downstream-ee578fb-rowself`, each with its
+`-selfref` pair. All paired controls match exactly; source L10 standard MHA/V
+effects are exactly zero. The EW4a worker was preempted after both fine-V arms
+had uploaded all 128 sequences; no rerun of those completed arms is needed.

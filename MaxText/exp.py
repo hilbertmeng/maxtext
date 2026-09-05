@@ -1200,7 +1200,9 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchNoRMSNormalInit(BamLlama2MediumV2C256ScanAotControl):
     """Fetched keys: normal(0, .006) W_R and 2*sigmoid(g)*W_R(x), no RMS."""
-    # a2ef6b5; UE5a scan+AOT ~0.657 steps/s (10-14), -0.5% vs ScanAotControl.
+    # a2ef6b5; UE5a scan+AOT ~0.657 steps/s, -0.5% vs ScanAotControl; stopped 3,517.
+    # dloss vs ScanAotControl shrank +.3368 @200 -> +.0174 mean plateau @2400-3400.
+    # Lower W_R gradients did not improve cumulative clipping or loss.
     model_name = 'BamLlama2MediumV2C256FetchNoRMSNormalInit'
     bam_fetched_read_key_rms = False
     bam_fetched_read_kernel_init = 'normal'

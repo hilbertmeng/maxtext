@@ -75,13 +75,15 @@ including in joint multi-layer arms. Use the same bidirectional/null controls.
   serial clamps and downstream row/col maps are complete (128 each). See
   [the current report](bam_row_mediation.md) for calibrated results and artifacts.
 - L10 self coarse, fine MHA/V and downstream joint pairs are complete (128 each).
-- Current `xd-v6e-rowmed-d-ue5a` (us-east5-a): source-MLP joint pair,
-  `/tmp/row-mediation-L10-source-mlp-pair.log`; runtime `c2b271d`, staged at
+- L10 source-MLP joint pair is complete (128 each).
+- Current `xd-v6e-rowmed-d-ue5a` (us-east5-a): selected Medium L8 joint pair,
+  `/tmp/row-mediation-medium-L8-joint-pair.log`; runtime `c2b271d`, staged at
   `/home/lishengping/xd/projects/row-mediation-c2b271d`.
 - `xd-v6e-rowmed-e-ew4a` was preempted after the complete fine MHA/V pair was
   uploaded; data recovered, node/queue verified deleted. Replacement
-  `xd-v6e-rowmed-f-ew4a` is acquiring/installing runtime `c2b271d` for L10
-  fine MLP/BAM/M. A selected Medium L8 comparison follows the XL priority work.
+  `xd-v6e-rowmed-f-ew4a` installed runtime `c2b271d` and launched L10
+  fine MLP/BAM/M, followed by a selected all-downstream read-sides pair;
+  `/tmp/row-mediation-L10-mlpbam-sides-pairs.log`.
   The earlier `rowcross-xl-ew4a`, `rowmed-b-ew4a` and `rowmed-c-ew4a` TPUs were
   preempted and deleted; the UC1a raced candidates were also verified deleted.
 - Keep using each run's own clean/deleted and self-reference controls; merge by

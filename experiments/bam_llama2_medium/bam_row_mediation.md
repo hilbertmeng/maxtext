@@ -122,6 +122,11 @@ effect disappears when later BAM output is fixed. This supports serial dependenc
 not a decomposition into independent additive percentages. M-state clamping also
 attenuates the effect, but less symmetrically.
 
+Paired across sequences, the full-output clamp reduces the L12–15 V rescue by
+**.004564 ±.000642**, in 122/128 sequences. It reduces the reverse-block cost by
+**.004423 ±.000774**, in 117/128. These within-sequence contrasts, reported by
+the analyzer as `serial_contrasts`, strengthen the serial-dependence evidence.
+
 Restoring **cross-V + BAM output** jointly through L12–23 rescues −.014294;
 reverse blocking costs +.013869. Thus cross-token V plus subsequent BAM accounts
 for most of the loss even without restoring the whole standard-MHA output.
@@ -220,3 +225,23 @@ and `bam-row-mediation-xl-L10-joint-downstream-ee578fb-rowself`, each with its
 `-selfref` pair. All paired controls match exactly; source L10 standard MHA/V
 effects are exactly zero. The EW4a worker was preempted after both fine-V arms
 had uploaded all 128 sequences; no rerun of those completed arms is needed.
+
+### Source MLP is real but overlapping (128, matched-null corrected)
+
+| Restoration / reverse substitution | Rescue Δloss | Reverse block Δloss |
+|---|---:|---:|
+| L10 MLP only | −.003016 ±.000435 | +.003010 ±.000427 |
+| Downstream MHA+BAM, plus L10 MLP | −.013508 | +.013513 |
+| All downstream output families, plus L10 MLP | −.013467 | +.014439 |
+
+Isolated L10 MLP helps in 115/128 rescues; reverse blocking harms 114/128.
+Conditioned on downstream MHA+BAM restoration, its additional rescue is only
+−.000548. With all downstream outputs restored, it adds effectively nothing.
+This is consistent with its effect flowing through those descendants, not a
+separate additive .003 contribution. Unlike L11 cross, a beneficial source-MLP
+response is supported in both intervention directions for L10 self.
+
+Runtime `c2b271d`; phase `source_mlp_joint`, artifacts
+`bam-row-mediation-xl-L10-source_mlp_joint-source-c2b271d-rowself` and `-selfref`.
+The source BAM output remains deleted in rescue arms; this is not a trivial
+restoration of the original intervention. All 128 clean/deleted controls match.

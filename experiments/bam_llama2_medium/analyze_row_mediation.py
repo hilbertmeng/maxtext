@@ -52,7 +52,7 @@ def analyze(roots):
       if m['cohort_sha256']!=m2['cohort_sha256']:raise ValueError('cohort mismatch')
       # Pair by sequence and arm identity, never by snapshot length or file order.
       names2={a['name']:q for q,a in enumerate(m2['arms'])}
-      corrected=[]
+      corrected=[]; effects={}
       for q,arm in enumerate(m['arms']):
         if not arm['name'].startswith(('rescue_','block_')):continue
         if arm['name'] not in names2:continue
@@ -62,13 +62,22 @@ def analyze(roots):
           raise ValueError('intervention mismatch')
         diff=np.asarray([x[a,q]-y[b,q2] for a,b in pairs])
         if modes[0]=='self':diff=-diff
+        effects[arm['name']]=diff
         entry=dict(name=arm['name'],opposite_minus_self=stats(diff))
         if arm['corrupted']:
           deletion=np.asarray([x[a,1]-x[a,0] for a,b in pairs])
           entry['remaining_deletion_cost']=stats(deletion+diff)
         corrected.append(entry)
+      serial=[]
+      for name,effect in effects.items():
+        if '_clamp_' not in name:continue
+        baseline=name.split('_clamp_',1)[0]
+        if baseline in effects:
+          serial.append(dict(arm=name,baseline=baseline,
+              clamp_minus_unclamped=stats(effect-effects[baseline])))
       report['matched_self_reference'].append(dict(first=j,second=i,
-          control_maximum_absolute=float(abs(d).max()),arms=corrected))
+          control_maximum_absolute=float(abs(d).max()),arms=corrected,
+          serial_contrasts=serial))
   return report
 
 

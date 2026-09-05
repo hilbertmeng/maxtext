@@ -29,7 +29,7 @@ class BamRowMediation(base.BamResidualAttribution):
 
 base.exp.BamRowMediation = BamRowMediation
 CONTROL_NAMES = ['cancel_attention', 'cancel_mlp', 'std', 'full', 'M', 'mlp', 'v_self', 'v_cross',
-                 'qk_mha', 'qk_bam']
+                 'qk_mha', 'qk_bam', 'full_col', 'full_row']
 REF_NAMES = ['value', 'std', 'full', 'M', 'mlp', 'post_attention', 'query', 'key']
 
 
@@ -71,6 +71,11 @@ def patch_tree(params, scales, refs, control, z, scanned):
       tree[attn+(f'med_{name}',)]=take(refs[name])
     for name,idx in [('std',2),('full',3),('M',4)]:
       tree[attn+(f'med_{name}_scale',)]=c[...,idx]
+    # Fetched outputs are already in per-head injection coordinates: K/data
+    # prefix (col read), then V/address output (row read), then optional zeros.
+    d=refs['full'].shape[-1]; k=refs['M'].shape[-2]
+    side_scales=jnp.where(jnp.arange(d)<k,control[:,10,None],control[:,11,None])
+    tree[attn+('med_full_scale',)]=take(jnp.maximum(control[:,3,None],side_scales))
     tree[attn+('med_v_edges',)]=c[...,6:8]
     tree[attn+('med_qk_routes',)]=c[...,8:10]
     tree[parent+('med_mlp',)]=take(refs['mlp'])
@@ -142,11 +147,14 @@ def arms(source, phase, chosen=None):
     groups=[list(range(source+1,end+1)) for end in (source+1,source+2,source+4,23) if end<24]
   else:
     groups=[[x] for x in chosen]
+    if phase=='read_sides':groups.append(list(range(source+1,24)))
   for group in groups:
     label=f'L{group[0]}' if len(group)==1 else f'L{group[0]}-{group[-1]}'
     field_sets=['std','mlp','full','M','v_self','v_cross','v_both']
     if phase=='routing':
       field_sets=['qk_mha','qk_bam','qk_mha+qk_bam','qk_mha+v_cross','qk_mha+v_self+v_cross']
+    elif phase=='read_sides':
+      field_sets=['full_col','full_row','full']
     if phase=='joint':
       field_sets+=['v_cross+mlp','std+mlp','std+full','std+M','std+mlp+full+M']
     for field in field_sets:

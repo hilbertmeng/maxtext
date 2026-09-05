@@ -69,6 +69,10 @@ class MediationTest(unittest.TestCase):
     np.testing.assert_array_equal(arm['control'][12:16,7],1)
     np.testing.assert_array_equal(arm['control'][18:,3],1)
     self.assertEqual(serial['block_V12-15_clamp_full18-23']['donor_overrides'],{'full':False})
+    c=jnp.zeros((24,len(CONTROL_NAMES))).at[12,10].set(1)
+    layers={'layers':{'self_attention':{'abs_v_cache_projection':jnp.zeros((24,32,8))}}}
+    x=patch_tree({'params':{'decoder':layers}},jnp.ones((24,2)),refs,c,jnp.zeros((1,2,3)),True)
+    np.testing.assert_array_equal(x['decoder']['layers']['self_attention']['med_full_scale'][12],[1,1,0])
 
 
 if __name__=='__main__':unittest.main()

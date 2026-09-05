@@ -18,6 +18,7 @@ esac
 source_layer=${BAM_MEDIATION_SOURCE:-11}
 phase=${BAM_MEDIATION_PHASE:-coarse}
 tag="bam-row-mediation-$model-L$source_layer-$phase-${BAM_MEDIATION_LABEL:-all}-${commit:0:7}"
+if [[ ${BAM_MEDIATION_COMPONENT:-cross} == self ]]; then tag="$tag-rowself"; fi
 if [[ ${BAM_MEDIATION_REFERENCE:-opposite} == self ]]; then tag="$tag-selfref"; fi
 output="/tmp/$tag"
 gcs="gs://newproject-1-llm_base_models_us-central1/log/diagnostics/$tag"

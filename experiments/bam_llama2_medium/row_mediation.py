@@ -49,8 +49,18 @@ def stack_capture(captured):
   return {n:base._layer_axis_first(v[0],n) for n,v in scanned.items()}
 
 
+def source_controls(params, scales, scanned):
+  tree=traverse_util.flatten_dict(sign.controls(params, scales[:,:2], scanned))
+  if scales.shape[-1]==3:
+    for path in list(tree):
+      if path[-1]!='row_sign_scales':continue
+      layer=base._layer_from_path(path)
+      tree[path[:-1]+('row_self_scale',)]=scales[:,2] if scanned else scales[layer,2]
+  return traverse_util.unflatten_dict(tree)
+
+
 def patch_tree(params, scales, refs, control, z, scanned):
-  tree=traverse_util.flatten_dict(sign.controls(params, scales, scanned))
+  tree=traverse_util.flatten_dict(source_controls(params, scales, scanned))
   paths=[p[:-1] for p in tree if p[-1]=='row_sign_scales']
   for attn in paths:
     layer=base._layer_from_path(attn)
@@ -72,7 +82,7 @@ def patch_tree(params, scales, refs, control, z, scanned):
 
 def apply(model, params, batch, rng, config, scales, refs=None, control=None, z=None, capture=False):
   variables=dict(params)
-  variables['causal_ablation']=(sign.controls(params,scales,config.scan_layers) if refs is None
+  variables['causal_ablation']=(source_controls(params,scales,config.scan_layers) if refs is None
       else patch_tree(params,scales,refs,control,z,config.scan_layers))
   rng1,rng2=jax.random.split(rng)
   result=model.apply(variables,batch['inputs'],batch['inputs_position'],
@@ -117,6 +127,9 @@ def arms(source, phase, chosen=None):
             list(range(source+1,24)),['v_cross',field])
     return result
   if phase=='coarse':
+    for coefficient in (.25,.5,1.5):
+      add(f'source_retain_{coefficient}',True)
+      result[-1]['source_coefficient']=coefficient
     # No final-output subtraction arm: each lifetime cut precedes a real consumer.
     add(f'cut_L{source}_attention',targets=[source],fields=['cancel_attention'])
     for l in range(source,23):
@@ -163,6 +176,8 @@ def aggregate(output, meta):
 def run(config):
   assert not getattr(config,'bam_mlp_write',False)
   source=int(os.environ.get('BAM_MEDIATION_SOURCE','11'))
+  component=os.environ.get('BAM_MEDIATION_COMPONENT','cross')
+  if component not in ('cross','self'):raise ValueError(f'unknown source component: {component}')
   phase=os.environ.get('BAM_MEDIATION_PHASE','coarse')
   reference_mode=os.environ.get('BAM_MEDIATION_REFERENCE','opposite')
   if reference_mode not in ('opposite','self'):
@@ -185,10 +200,11 @@ def run(config):
   state,_,_,_=base.max_utils.setup_training_state(model,iterator,tx,config,rng,mesh,manager)
   capture=jax.jit(lambda p,b,r,s:apply(model,p,b,r,config,s,capture=True))
   infer=jax.jit(lambda p,b,r,s,ref,c,z:apply(model,p,b,r,config,s,ref,c,z))
-  clean_s=jnp.ones((24,2),jnp.float32); corrupt_s=clean_s.at[source].set(0)
+  clean_s=jnp.ones((24,3 if component=='self' else 2),jnp.float32)
+  corrupt_s=clean_s.at[source,2].set(0) if component=='self' else clean_s.at[source].set(0)
   meta=dict(base_config_class=base._BASE_CONFIG_CLASS,checkpoint=config.load_parameters_path,
       diagnostic_commit=os.environ['DIAGNOSTIC_COMMIT'],trainer_commit=base._TRAINER_COMMIT,
-      cohort_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),source_layer=source,
+      cohort_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),source_layer=source,source_component=component,
       phase=phase,reference_mode=reference_mode,scan_layers=config.scan_layers,batch_size=bs,requested_sequences=n,
       controls=CONTROL_NAMES,arms=[dict(a,control=a['control'].tolist()) for a in matrix],
       setup_seconds=time.perf_counter()-start)
@@ -212,7 +228,11 @@ def run(config):
         if reference_mode!='self':
           for name,donor in a.get('donor_overrides',{}).items():
             reference[name]=(corrupt_ref if donor else clean_ref)[name]
-        loss,tok=infer(state.params,batch,rng,corrupt_s if a['corrupted'] else clean_s,
+        scales=corrupt_s if a['corrupted'] else clean_s
+        if 'source_coefficient' in a:
+          scales=(scales.at[source,2].set(a['source_coefficient']) if component=='self'
+              else scales.at[source].set(a['source_coefficient']))
+        loss,tok=infer(state.params,batch,rng,scales,
             reference,jnp.asarray(a['control']),z)
         loss,tok=jax.device_get((loss,tok)); losses.append(loss); tokens.append(tok)
       loss=np.stack(losses,axis=1)

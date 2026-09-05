@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from layers.attentions import _mediation_replace, _mediation_value_edges
-from row_mediation import patch_tree, arms, REF_NAMES, CONTROL_NAMES
+from row_mediation import patch_tree, source_controls, arms, REF_NAMES, CONTROL_NAMES
 
 
 class MediationTest(unittest.TestCase):
@@ -38,10 +38,15 @@ class MediationTest(unittest.TestCase):
       layers={'layers':{'self_attention':{'abs_v_cache_projection':jnp.zeros((24,32,8))}}} if scan else {
           f'layers_{i}':{'self_attention':{'abs_v_cache_projection':jnp.zeros((32,8))}} for i in range(24)}
       x=patch_tree({'params':{'decoder':layers}},jnp.ones((24,2)),refs,c,jnp.zeros((1,2,3)),scan)
+      self_tree=source_controls({'params':{'decoder':layers}},jnp.ones((24,3)).at[10,2].set(0),scan)
       if scan:
         np.testing.assert_array_equal(x['decoder']['layers']['self_attention']['med_v_edges'],c[:,6:8])
         np.testing.assert_array_equal(x['decoder']['layers']['self_attention']['med_qk_routes'],c[:,8:10])
+        np.testing.assert_array_equal(self_tree['decoder']['layers']['self_attention']['row_sign_scales'],1)
+        self.assertEqual(float(self_tree['decoder']['layers']['self_attention']['row_self_scale'][10]),0)
       else:
+        self.assertEqual(float(self_tree['decoder']['layers_10']['self_attention']['row_self_scale']),0)
+        np.testing.assert_array_equal(self_tree['decoder']['layers_10']['self_attention']['row_sign_scales'],1)
         for i in range(24):np.testing.assert_array_equal(
             x['decoder'][f'layers_{i}']['self_attention']['med_v_edges'],c[i,6:8])
     a=arms(11,'coarse'); names=[x['name'] for x in a]

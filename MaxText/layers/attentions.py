@@ -3671,6 +3671,11 @@ class BamAttention(Attention):
         row_total = y_full.at[..., :self.bam_k].set(0)
         scales = self.get_variable('causal_ablation', 'row_sign_scales')
         scaled_row = _scale_row_cross(row_total, row_self, row_pos, row_neg, scales)
+        if self.has_variable('causal_ablation', 'row_self_scale'):
+          self_scale = self.get_variable('causal_ablation', 'row_self_scale')
+          changed = (scaled_row.astype(jnp.float32) + (self_scale - 1) *
+              row_self.astype(jnp.float32)).astype(scaled_row.dtype)
+          scaled_row = jnp.where(self_scale == 1, scaled_row, changed)
         y_full = y_full.at[..., self.bam_k:].set(scaled_row[..., self.bam_k:])
         self.sow('row_cross_probe', 'row_parts', jnp.stack(
             (row_self, row_pos, row_neg, row_total), axis=2))

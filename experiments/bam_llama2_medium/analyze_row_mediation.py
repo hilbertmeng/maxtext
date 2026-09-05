@@ -40,6 +40,7 @@ def analyze(roots):
   for i,(m,x,h) in enumerate(loaded):
     for j,(m2,y,h2) in enumerate(loaded[:i]):
       if m['source_layer']!=m2['source_layer'] or m['checkpoint']!=m2['checkpoint']:continue
+      if m.get('source_component','cross')!=m2.get('source_component','cross'):continue
       iy={k:v for v,k in enumerate(h2)}
       pairs=[(a,iy[k]) for a,k in enumerate(h) if k in iy]
       if not pairs:continue

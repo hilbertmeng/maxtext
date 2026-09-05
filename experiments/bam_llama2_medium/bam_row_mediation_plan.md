@@ -38,6 +38,13 @@ Save all per-sequence/per-token arm losses, hashes and numerical drift; no vecto
 Patch effects are conditional and need not add. Restoration alone is insufficient:
 require reverse blocking and localize temporally before proposing an architecture.
 
+Reference capture and patched inference compile as different graphs. For every
+rescue/block, also patch the recipient's own cached activation into itself, using
+the identical intervention. Subtract this matched self-patch loss, not only the
+unpatched recipient loss; source-layer standard MHA/V provide negative controls.
+Restoring a band containing the deleted source BAM output is an undo control,
+not evidence for a downstream BAM mediator.
+
 ## Parallel work
 
 - Existing EW4a TPU: completed XL L12–17 signed/causal screen; next L11 coarse
@@ -46,6 +53,9 @@ require reverse blocking and localize temporally before proposing an architectur
 - Both use identical code, cohort and their own clean/deleted controls. Merge by
   sequence hashes and check common-control drift before cross-TPU conclusions.
 - L12 is a secondary candidate, not grounds to displace the L11 main question.
+- After L11, repeat lifetime cuts and bidirectional path localization for **XL
+  L10 row-self**, keeping that layer's row-cross and col unchanged. Its negative
+  direct residual attribution alone does not establish harmful total effect.
 
 ## L12–17 screen (complete, 128)
 

@@ -134,6 +134,9 @@ def run(config):
   assert not getattr(config,'bam_mlp_write',False)
   source=int(os.environ.get('BAM_MEDIATION_SOURCE','11'))
   phase=os.environ.get('BAM_MEDIATION_PHASE','coarse')
+  reference_mode=os.environ.get('BAM_MEDIATION_REFERENCE','opposite')
+  if reference_mode not in ('opposite','self'):
+    raise ValueError(f'unknown reference mode: {reference_mode}')
   chosen=[int(x) for x in os.environ.get('BAM_MEDIATION_LAYERS','11,12,13,14,15,16,17').split(',')]
   matrix=arms(source,phase,chosen)
   selector=os.environ.get('BAM_MEDIATION_ARM_FILTER')
@@ -156,7 +159,7 @@ def run(config):
   meta=dict(base_config_class=base._BASE_CONFIG_CLASS,checkpoint=config.load_parameters_path,
       diagnostic_commit=os.environ['DIAGNOSTIC_COMMIT'],trainer_commit=base._TRAINER_COMMIT,
       cohort_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),source_layer=source,
-      phase=phase,scan_layers=config.scan_layers,batch_size=bs,requested_sequences=n,
+      phase=phase,reference_mode=reference_mode,scan_layers=config.scan_layers,batch_size=bs,requested_sequences=n,
       controls=CONTROL_NAMES,arms=[dict(a,control=a['control'].tolist()) for a in matrix],
       setup_seconds=time.perf_counter()-start)
   print('MEDIATION_RESTORED '+json.dumps({k:v for k,v in meta.items() if k!='arms'}),flush=True)
@@ -174,8 +177,9 @@ def run(config):
       if source_m_error!=0:raise ValueError(f'source M unexpectedly changed: {source_m_error}')
       losses=[]; tokens=[]
       for a in matrix:
+        donor_corrupted=a['corrupted'] if reference_mode=='self' else a['donor_corrupted']
         loss,tok=infer(state.params,batch,rng,corrupt_s if a['corrupted'] else clean_s,
-            corrupt_ref if a['donor_corrupted'] else clean_ref,jnp.asarray(a['control']),z)
+            corrupt_ref if donor_corrupted else clean_ref,jnp.asarray(a['control']),z)
         loss,tok=jax.device_get((loss,tok)); losses.append(loss); tokens.append(tok)
       loss=np.stack(losses,axis=1)
       validation=np.stack([loss[:,0]-np.asarray(clean_loss),loss[:,1]-np.asarray(corrupt_loss)],axis=1)

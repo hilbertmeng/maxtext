@@ -1,7 +1,7 @@
 # XL row-cross downstream mediation
 
-Status: L11 lifetime/coarse and MHA/V maps complete; fine MLP/BAM/M,
-joint interventions and QK routing checks in progress. L10 row-self follows L11.
+Status: L11 lifetime/coarse, MHA/V, fine MLP/BAM/M and joint maps complete;
+QK routing and serial-path checks in progress. L10 row-self follows L11.
 This is checkpoint causal diagnosis, not a validated training modification.
 
 ## Reproduction
@@ -66,6 +66,26 @@ Late BAM/M is a substantial candidate, potentially downstream of earlier MHA V.
 MLP rescue and blocking both harm: context interactions preclude calling MLP
 irrelevant or assigning it a single additive sign. Source-containing full-BAM
 restoration is a trivial undo control and is excluded from downstream evidence.
+
+## Joint downstream restoration (128, matched-null corrected)
+
+| L12–23 path(s) | Rescue Δloss | Reverse block Δloss | Rescue / .015583 |
+|---|---:|---:|---:|
+| Cross-token V | −.010199 | +.009211 | 65.5% |
+| Standard MHA output | −.012470 | +.011723 | 80.0% |
+| Fetched BAM output | −.011400 | +.012863 | 73.2% |
+| Standard MHA + fetched BAM | −.015175 | +.014980 | 97.4% |
+| Standard MHA + MLP + fetched BAM + M_out | −.015283 | +.015844 | 98.1% |
+
+These interventions do not restore the deleted source output. The two attention
+output families cover most of the deletion loss jointly, but overlap strongly.
+The next question is whether early V acts through later BAM/M rather than forming
+independent parallel routes. Do not interpret the small *additional* MLP rescue
+conditional on both attention families as a standalone measure of MLP importance.
+
+Artifacts: `bam-row-mediation-xl-L11-joint-downstream-e0eb3f1` and its `-selfref`
+companion; fine MLP/BAM/M uses `bam-row-mediation-xl-L11-fine-mlpbam-e0eb3f1`
+and `-selfref`. All paired clean/deleted controls agree exactly, across all 128.
 
 ## Next discriminating checks
 

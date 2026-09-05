@@ -111,6 +111,10 @@ def arms(source, phase, chosen=None):
           arm=result[-1]
           arm['control'][late,CONTROL_NAMES.index(clamp)]=1
           arm['donor_overrides']={clamp:corrupt}
+    for corrupt,verb in [(True,'rescue'),(False,'block')]:
+      for field in ('full','M'):
+        add(f'{verb}_L{source+1}-23_v_cross+{field}',corrupt,not corrupt,
+            list(range(source+1,24)),['v_cross',field])
     return result
   if phase=='coarse':
     # No final-output subtraction arm: each lifetime cut precedes a real consumer.

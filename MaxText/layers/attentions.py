@@ -1784,6 +1784,15 @@ def _bam_fetch_op(
   return (fetched, fetch_alpha) if return_alpha else fetched
 
 
+def _scale_row_cross(total, local, positive, negative, scales):
+  """Diagnostic-only row intervention; preserve the all-one endpoint exactly."""
+  p, n = scales.astype(total.dtype)
+  signed = total + (p - 1) * positive + (n - 1) * negative
+  uniform = local + p * (total - local)
+  changed = jnp.where(p == n, uniform, signed)
+  return jnp.where((p == 1) & (n == 1), total, changed)
+
+
 def _mix_bam_write_v(x_v, o_head, bam_k, mix_scale, bias):
   """Mix local and attention-output V factors with a per-head affine selector."""
   o_v = o_head[..., bam_k:bam_k + x_v.shape[-1]]
@@ -3418,16 +3427,17 @@ class BamAttention(Attention):
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,
         float32_logits=cfg.float32_logits)
-    Mbar = Mbar_self = fetch_self_weight = None
+    Mbar = Mbar_self = fetch_self_weight = row_probe = None
     if fetch_state is not None:
       assert mix_weights is not None
       diagonal_mask = source == target
       capture = self._residual_attribution and not self.is_initializing()
+      probe = self.has_variable('causal_ablation', 'row_sign_scales')
       fetched = _bam_fetch_op(
           alpha, fetch_state, mix_weights, diagonal_mask,
-          diagonal_one=self._fetch_diagonal_one, return_alpha=capture,
+          diagonal_one=self._fetch_diagonal_one, return_alpha=capture or probe,
           cross_scale=self.get_variable('causal_ablation', 'cross_scale'))
-      if capture:
+      if capture or probe:
         Mbar, fetch_alpha = fetched
         with jax.named_scope("bam/fetch_m_self"):
           self_alpha = jnp.where(
@@ -3436,9 +3446,22 @@ class BamAttention(Attention):
           Mbar_self = jnp.einsum(
               'bqs,bskv->bqkv', self_alpha, fetch_state)
           fetch_self_weight = jnp.sum(self_alpha, axis=-1)
+        if probe:
+          cross_valid = valid & ~diagonal_mask[None]
+          cross_alpha = jnp.where(cross_valid, fetch_alpha, 0)
+          positive = jnp.maximum(cross_alpha, 0)
+          negative = jnp.minimum(cross_alpha, 0)
+          row_probe = (
+              jnp.einsum('bqs,bskv->bqkv', positive, fetch_state),
+              jnp.einsum('bqs,bskv->bqkv', negative, fetch_state),
+              jnp.stack((jnp.sum(cross_alpha > 0, -1),
+                         jnp.sum(cross_alpha < 0, -1),
+                         jnp.sum(cross_valid, -1),
+                         jnp.sum(positive.astype(jnp.float32), -1),
+                         -jnp.sum(negative.astype(jnp.float32), -1)), -1))
       else:
         Mbar = fetched
-    return y_std, Mbar, Mbar_self, fetch_self_weight
+    return y_std, Mbar, Mbar_self, fetch_self_weight, row_probe
 
   def _query_chunk_op(
       self, query, key, value, decoder_segment_ids, window_size, *,
@@ -3450,17 +3473,20 @@ class BamAttention(Attention):
     assert t % chunk_size == 0
     y_chunks, Mbar_chunks = [], []
     Mbar_self_chunks, fetch_self_weight_chunks = [], []
+    row_probe_chunks = []
     for q0 in range(0, t, chunk_size):
       q1 = q0 + chunk_size
       s0 = max(0, q0 - window_size) if window_size < t else 0
       s1 = q1
-      y_chunk, Mbar_chunk, Mbar_self_chunk, fetch_self_weight_chunk = (
+      y_chunk, Mbar_chunk, Mbar_self_chunk, fetch_self_weight_chunk, row_probe_chunk = (
           self._attention_block(
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
           decoder_segment_ids, q0=q0, s0=s0, window_size=window_size,
           fetch_state=(None if fetch_state is None else fetch_state[:, s0:s1]),
           mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1])))
       y_chunks.append(y_chunk)
+      if row_probe_chunk is not None:
+        row_probe_chunks.append(row_probe_chunk)
       if Mbar_chunk is not None:
         Mbar_chunks.append(Mbar_chunk)
       if Mbar_self_chunk is not None:
@@ -3472,7 +3498,9 @@ class BamAttention(Attention):
         (jnp.concatenate(Mbar_self_chunks, axis=1)
          if Mbar_self_chunks else None),
         (jnp.concatenate(fetch_self_weight_chunks, axis=1)
-         if fetch_self_weight_chunks else None))
+         if fetch_self_weight_chunks else None),
+        (jax.tree.map(lambda *xs: jnp.concatenate(xs, axis=1), *row_probe_chunks)
+         if row_probe_chunks else None))
 
   @nn.compact
   def __call__(
@@ -3576,11 +3604,11 @@ class BamAttention(Attention):
     if is_global:
       local_window = t
     if self._query_chunk_size is not None:
-      y_std, Mbar, Mbar_self, fetch_self_weight = self._query_chunk_op(
+      y_std, Mbar, Mbar_self, fetch_self_weight, row_probe = self._query_chunk_op(
           query, key, value, decoder_segment_ids, local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
     else:
-      y_std, Mbar, Mbar_self, fetch_self_weight = self._attention_block(
+      y_std, Mbar, Mbar_self, fetch_self_weight, row_probe = self._attention_block(
           query, key, value, decoder_segment_ids,
           q0=0, s0=0, window_size=local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
@@ -3588,6 +3616,18 @@ class BamAttention(Attention):
     o_head = y_std
     if Mbar is not None:
       y_full = self._read_fetched_m(Mbar, inputs_q)
+      if row_probe is not None:
+        pos_m, neg_m, alpha_stats = row_probe
+        row_pos = self._read_fetched_m(pos_m, inputs_q).at[..., :self.bam_k].set(0)
+        row_neg = self._read_fetched_m(neg_m, inputs_q).at[..., :self.bam_k].set(0)
+        row_self = self._read_fetched_m(Mbar_self, inputs_q).at[..., :self.bam_k].set(0)
+        row_total = y_full.at[..., :self.bam_k].set(0)
+        scales = self.get_variable('causal_ablation', 'row_sign_scales')
+        scaled_row = _scale_row_cross(row_total, row_self, row_pos, row_neg, scales)
+        y_full = y_full.at[..., self.bam_k:].set(scaled_row[..., self.bam_k:])
+        self.sow('row_cross_probe', 'row_parts', jnp.stack(
+            (row_self, row_pos, row_neg, row_total), axis=2))
+        self.sow('row_cross_probe', 'alpha_stats', alpha_stats)
       o_head = o_head + y_full
       if self._residual_attribution and not self.is_initializing():
         y_full_self = self._read_fetched_m(Mbar_self, inputs_q)

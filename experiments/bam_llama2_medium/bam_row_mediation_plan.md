@@ -52,6 +52,13 @@ MLP, BAM read, M state, and their combinations in both directions with matched
 self-reference controls. Sequential and parallel mediators can overlap;
 single-site rescue fractions are not disjoint attribution percentages.
 
+Route refinement: cache post-RoPE/scaled Q/K, recompute the donor attention
+probabilities with the same masks, and substitute them into MHA AV or BAM
+mix/fetch independently. Keep recipient V, mix weights and M unchanged unless
+explicitly combined with a V patch. Compare QK-only, V-only and joint QK+V;
+do not interpret the numerical difference between whole-MHA and V-only rescues
+as an independently additive routing contribution.
+
 ## Parallel work
 
 - Existing EW4a TPU: completed XL L12–17 signed/causal screen; next L11 coarse

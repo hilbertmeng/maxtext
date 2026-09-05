@@ -28,8 +28,9 @@ class BamRowMediation(base.BamResidualAttribution):
 
 
 base.exp.BamRowMediation = BamRowMediation
-CONTROL_NAMES = ['cancel_attention', 'cancel_mlp', 'std', 'full', 'M', 'mlp', 'v_self', 'v_cross']
-REF_NAMES = ['value', 'std', 'full', 'M', 'mlp', 'post_attention']
+CONTROL_NAMES = ['cancel_attention', 'cancel_mlp', 'std', 'full', 'M', 'mlp', 'v_self', 'v_cross',
+                 'qk_mha', 'qk_bam']
+REF_NAMES = ['value', 'std', 'full', 'M', 'mlp', 'post_attention', 'query', 'key']
 
 
 def stack_capture(captured):
@@ -56,11 +57,12 @@ def patch_tree(params, scales, refs, control, z, scanned):
     take=lambda x: x if scanned else x[layer]
     c=take(control)
     parent=attn[:-1]
-    for name in ('value','std','full','M'):
+    for name in ('value','std','full','M','query','key'):
       tree[attn+(f'med_{name}',)]=take(refs[name])
     for name,idx in [('std',2),('full',3),('M',4)]:
       tree[attn+(f'med_{name}_scale',)]=c[...,idx]
     tree[attn+('med_v_edges',)]=c[...,6:8]
+    tree[attn+('med_qk_routes',)]=c[...,8:10]
     tree[parent+('med_mlp',)]=take(refs['mlp'])
     tree[parent+('med_mlp_scale',)]=c[...,5]
     tree[parent+('med_cancel',)]=c[...,:2]
@@ -89,7 +91,7 @@ def apply(model, params, batch, rng, config, scales, refs=None, control=None, z=
 def arms(source, phase, chosen=None):
   result=[]
   def add(name, corrupted=False, donor_corrupted=False, targets=(), fields=()):
-    c=np.zeros((24,8),np.float32)
+    c=np.zeros((24,len(CONTROL_NAMES)),np.float32)
     for l in targets:
       for f in fields: c[l,CONTROL_NAMES.index(f)]=1
     result.append(dict(name=name,corrupted=corrupted,donor_corrupted=donor_corrupted,control=c))
@@ -110,6 +112,8 @@ def arms(source, phase, chosen=None):
   for group in groups:
     label=f'L{group[0]}' if len(group)==1 else f'L{group[0]}-{group[-1]}'
     field_sets=['std','mlp','full','M','v_self','v_cross','v_both']
+    if phase=='routing':
+      field_sets=['qk_mha','qk_bam','qk_mha+qk_bam','qk_mha+v_cross','qk_mha+v_self+v_cross']
     if phase=='joint':
       field_sets+=['v_cross+mlp','std+mlp','std+full','std+M','std+mlp+full+M']
     for field in field_sets:

@@ -3447,9 +3447,21 @@ class BamAttention(Attention):
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,
         float32_logits=cfg.float32_logits)
+    mha_alpha = alpha
+    if self.has_variable('causal_ablation', 'med_qk_routes'):
+      ref_q = self.get_variable('causal_ablation', 'med_query')[:, q0:q1]
+      ref_k = self.get_variable('causal_ablation', 'med_key')[:, s0:s1]
+      _, ref_alpha = _attention_op(ref_q, ref_k, value, valid,
+          attn_logits_soft_cap=cfg.attn_logits_soft_cap,
+          float32_logits=cfg.float32_logits)
+      route_scales = self.get_variable('causal_ablation', 'med_qk_routes')
+      mha_alpha = _mediation_replace(alpha, ref_alpha, route_scales[0])
+      routed_y = jnp.einsum('bnqs,bsnd->bqnd', mha_alpha, value)
+      y_std = _mediation_replace(y_std, routed_y, route_scales[0])
+      alpha = _mediation_replace(alpha, ref_alpha, route_scales[1])
     if self.has_variable('causal_ablation', 'med_value'):
       reference = self.get_variable('causal_ablation', 'med_value')[:, s0:s1]
-      y_std = _mediation_value_edges(y_std, alpha, value, reference,
+      y_std = _mediation_value_edges(y_std, mha_alpha, value, reference,
           source == target, self.get_variable('causal_ablation', 'med_v_edges'))
     Mbar = Mbar_self = fetch_self_weight = row_probe = None
     if fetch_state is not None:
@@ -3639,6 +3651,8 @@ class BamAttention(Attention):
 
     capture_mediation = self.is_mutable_collection('mediation_capture') and not self.is_initializing()
     if capture_mediation:
+      self.sow('mediation_capture', 'trace_query', query)
+      self.sow('mediation_capture', 'trace_key', key)
       self.sow('mediation_capture', 'trace_value', value)
     if self.has_variable('causal_ablation', 'med_std'):
       y_std = _mediation_replace(y_std,

@@ -102,12 +102,18 @@ def arms(source, phase, chosen=None):
     bands=[list(range(source,min(source+3,24))),list(range(source+3,min(source+7,24))),
            list(range(source+7,23)),[23]]
     groups=[x for x in bands if x]
+  elif phase=='joint':
+    # Exclude the source: restoring its deleted read would trivially undo the ablation.
+    groups=[list(range(source+1,end+1)) for end in (source+1,source+2,source+4,23) if end<24]
   else:
     groups=[[x] for x in chosen]
   for group in groups:
     label=f'L{group[0]}' if len(group)==1 else f'L{group[0]}-{group[-1]}'
-    for field in ['std','mlp','full','M','v_self','v_cross','v_both']:
-      fields=['v_self','v_cross'] if field=='v_both' else [field]
+    field_sets=['std','mlp','full','M','v_self','v_cross','v_both']
+    if phase=='joint':
+      field_sets+=['v_cross+mlp','std+mlp','std+full','std+M','std+mlp+full+M']
+    for field in field_sets:
+      fields=['v_self','v_cross'] if field=='v_both' else field.split('+')
       add(f'rescue_{label}_{field}',True,False,group,fields)
       add(f'block_{label}_{field}',False,True,group,fields)
   return result

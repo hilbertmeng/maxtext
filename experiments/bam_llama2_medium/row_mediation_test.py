@@ -47,6 +47,10 @@ class MediationTest(unittest.TestCase):
     self.assertEqual(len(set(names)),len(names))
     self.assertNotIn('cut_L23_mlp',names)
     self.assertIn('cut_L11_attention',names)
+    joint=arms(11,'joint')
+    self.assertTrue(any(x['name']=='rescue_L12-23_std+mlp+full+M' for x in joint))
+    for arm in joint:
+      self.assertFalse(np.any(arm['control'][:12]))
 
 
 if __name__=='__main__':unittest.main()

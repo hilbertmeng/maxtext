@@ -45,6 +45,13 @@ unpatched recipient loss; source-layer standard MHA/V provide negative controls.
 Restoring a band containing the deleted source BAM output is an undo control,
 not evidence for a downstream BAM mediator.
 
+One L12 cross-V rescue explains only part of the deletion cost. Complete the
+single-layer MHA/V and MLP/BAM/M maps, then jointly patch downstream bands
+L12, L12–13, L12–15 and L12–23. Compare cross-V alone, all standard MHA,
+MLP, BAM read, M state, and their combinations in both directions with matched
+self-reference controls. Sequential and parallel mediators can overlap;
+single-site rescue fractions are not disjoint attribution percentages.
+
 ## Parallel work
 
 - Existing EW4a TPU: completed XL L12–17 signed/causal screen; next L11 coarse

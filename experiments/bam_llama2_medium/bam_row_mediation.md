@@ -245,3 +245,29 @@ Runtime `c2b271d`; phase `source_mlp_joint`, artifacts
 `bam-row-mediation-xl-L10-source_mlp_joint-source-c2b271d-rowself` and `-selfref`.
 The source BAM output remains deleted in rescue arms; this is not a trivial
 restoration of the original intervention. All 128 clean/deleted controls match.
+
+## Medium comparison: downstream dependence is not XL-specific
+
+`BamLlama2MediumV2`, checkpoint 13250, trainer commit `1afd942`, same fixed 128
+Pile sequences (microbatch 2). Checkpoint:
+`gs://newproject-1-llm_base_models_us-central1/log/BamLlama2MediumV2/checkpoints/13250/items`.
+Source L8 row-cross has positive direct IG (+.24955% in the prior signed study),
+unlike XL L11 (−.26680%). Current graph deletion cost is +.018124 ±.003180.
+
+| Model/source; all downstream | Cross-V rescue | MHA rescue | BAM rescue | MHA+BAM rescue | Remaining cost after MHA+BAM |
+|---|---:|---:|---:|---:|---:|
+| Medium L8 | −.008894 | −.012424 | −.014691 | −.017402 | +.000722 ±.000276 |
+| XL L11 | −.010199 | −.012470 | −.011400 | −.015175 | +.000408 ±.000564 |
+
+Medium reverse-block costs are respectively +.009122, +.012691, +.012917,
+and +.017095. Global cross-V rescues about 49% in Medium versus 65% in XL;
+joint MHA+BAM restores about 96% versus 97%. These single-layer examples do not
+establish a model-wide scaling law. In particular, opposite direct-IG signs
+coexist with strong downstream dependence in both models: final-residual IG is
+not a full-network causal-share decomposition. The expectation that Medium
+would retain a much larger direct effect is not strongly supported by these
+joint patches; its remaining cost is only modestly larger.
+
+Runtime `c2b271d`; artifacts `bam-row-mediation-medium-L8-joint-selected-c2b271d`
+and `-selfref`. All paired controls are exact. Medium serial/side-specific checks
+are in progress; no architecture change or retraining follows automatically.

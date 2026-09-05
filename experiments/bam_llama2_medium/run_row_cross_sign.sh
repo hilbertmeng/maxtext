@@ -15,6 +15,7 @@ case "$model" in
   trainer=aef0d97411a1725386ebba1aeae1bf4acb1bb79e; batch=1; layers=11,6,10 ;;
  *) exit 2 ;;
 esac
+layers=${BAM_ROW_SIGN_LAYERS:-$layers}
 tag="bam-row-cross-sign-$model-${commit:0:7}"
 output="/tmp/$tag"
 gcs="gs://newproject-1-llm_base_models_us-central1/log/diagnostics/$tag"

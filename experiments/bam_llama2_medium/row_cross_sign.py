@@ -87,7 +87,8 @@ def stacked(collections, name):
 
 def summarize(model, params, batch, rng, scales, config):
   xent, captured = forward(model, params, batch, rng, scales, config, True)
-  layers = jnp.arange(6, 12)
+  layers = jnp.asarray([int(x) for x in os.environ.get(
+      'BAM_ROW_SIGN_METRIC_LAYERS', '6,7,8,9,10,11').split(',')])
   # Parts: self, alpha-positive cross, alpha-negative cross, total row.
   heads = stacked(captured, 'row_parts')[layers]
   w_o = base._out_kernels(params)[layers]
@@ -184,7 +185,9 @@ def run(config):
       diagnostic_commit=os.environ['DIAGNOSTIC_COMMIT'], trainer_commit=base._TRAINER_COMMIT,
       cohort_sha256=hashlib.sha256(cohort_path.read_bytes()).hexdigest(),
       scan_layers=config.scan_layers,batch_size=batch_size,arms=names,scales=matrices,
-      metric_layers=list(range(6,12)),parts=['row_self','row_cross_positive','row_cross_negative','row_total'],
+      metric_layers=[int(x) for x in os.environ.get('BAM_ROW_SIGN_METRIC_LAYERS',
+          '6,7,8,9,10,11').split(',')],
+      parts=['row_self','row_cross_positive','row_cross_negative','row_total'],
       alpha_columns=['positive_count','negative_count','valid_cross_count','positive_mass','negative_abs_mass'],
       setup_seconds=time.perf_counter()-start)
   meta['scales']=[x.tolist() for x in matrices]

@@ -36,12 +36,15 @@ env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off DIAGNOSTIC_COMMIT="$commit" \
  enable_checkpointing=True async_checkpointing=False &
 pid=$!
 upload() { gsutil -m rsync -r -x 'maxtext-output/.*|tensorboard/.*' "$output" "$gcs"; }
-while kill -0 "$pid" 2>/dev/null; do
- sleep 60
- upload || true
-done
+periodic_upload() { while sleep 60; do upload || true; done; }
+periodic_upload &
+uploader=$!
 rc=0
 wait "$pid" || rc=$?
+# Reap the computation immediately; periodic artifact upload must not insert
+# an extra polling interval between paired jobs on the same spot worker.
+kill "$uploader" 2>/dev/null || true
+wait "$uploader" 2>/dev/null || true
 upload
 echo "MEDIATION_UPLOADED model=$model gcs=$gcs exit=$rc"
 exit "$rc"

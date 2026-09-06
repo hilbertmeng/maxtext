@@ -128,6 +128,21 @@ actual write-gate openings or dM norms, so the write-gate-to-gradient causal cha
 is not quantitatively closed by the available TB data. Gradient-budget localization
 identifies affected components, not the causal mediator.
 
+The same reader's `--parameter-norm gw_b0 --steps 0,100,200,400,600` directly
+checks the changed parameter. Below are layer-band means of each layer's 16-head
+bias-vector L2 norm (Clean / WDFix), not write-gate activation means.
+
+| Layers | 0 | 100 | 200 | 400 | 600 |
+|---|---|---|---|---|---|
+| L0-7 | 8.7889 / 8.7889 | 8.7862 / 8.7768 | 8.7838 / 8.7499 | 8.7837 / 8.6995 | 8.7859 / 8.6523 |
+| L8-15 | 8.7889 / 8.7889 | 8.7900 / 8.7806 | 8.7867 / 8.7510 | 8.7752 / 8.6857 | 8.7679 / 8.6260 |
+| L16-23 | 8.7889 / 8.7889 | 8.7891 / 8.7795 | 8.7813 / 8.7459 | 8.7651 / 8.6755 | 8.7561 / 8.6139 |
+
+This confirms the expected norm shrinkage under decay versus near-flat no-decay
+bias norms. For negative biases this is consistent with a drift toward a larger
+write-gate prior. Norms alone do not establish signs, per-head logits, actual gate
+openings (which also depend on W_gw x), or the magnitude of downstream gradient effects.
+
 ## Early WD comparison: Clean / old Control
 
 Same-step TB values below are RUN/BASE, not differences; L16-23 entries are

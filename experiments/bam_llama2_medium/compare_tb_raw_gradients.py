@@ -39,7 +39,7 @@ def read_scalars(directory, steps):
                 if event.step not in steps:
                     continue
                 for item in event.summary.value:
-                    if item.tag.startswith("raw_grads/") or item.tag == "learning/raw_grad_norm":
+                    if item.tag.startswith(("raw_grads/", "total_params/")) or item.tag == "learning/raw_grad_norm":
                         value = helper._scalar_value(item)
                         if value is not None:
                             result[event.step][item.tag] = value
@@ -78,8 +78,20 @@ if __name__ == "__main__":
     parser.add_argument("base_events")
     parser.add_argument("--steps", default="100,200,400,600")
     parser.add_argument("--by-layer", action="store_true")
+    parser.add_argument("--parameter-norm", help="Compare a recorded parameter leaf norm instead, e.g. gw_b0")
     args = parser.parse_args()
     steps = {int(s) for s in args.steps.split(",")}
-    result = compare(read_scalars(args.run_events, steps), read_scalars(args.base_events, steps), steps, args.by_layer)
+    run, base = read_scalars(args.run_events, steps), read_scalars(args.base_events, steps)
+    if args.parameter_norm:
+        result = []
+        for step in sorted(steps):
+            keys = sorted(k for k in run[step] if k.startswith("total_params/")
+                          and k.endswith("/" + args.parameter_norm))
+            if not keys or any(k not in base[step] for k in keys):
+                raise ValueError(f"Missing parameter norms at step {step}")
+            result.append({"step": step, "parameter_norms": [
+                {"parameter": k, "run": run[step][k], "base": base[step][k]} for k in keys]})
+    else:
+        result = compare(run, base, steps, args.by_layer)
     print(json.dumps({"run_events": args.run_events, "base_events": args.base_events,
                       "results": result}, indent=2))

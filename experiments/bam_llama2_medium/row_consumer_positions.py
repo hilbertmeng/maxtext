@@ -44,6 +44,9 @@ def intervention_tree(params, scales, mask, controls, z, scanned):
     tree[attn[:-1] + ('row_consumers',)] = c
     tree[attn[:-1] + ('row_consumer_z',)] = (
         jnp.broadcast_to(z, (24,) + z.shape) if scanned else z)
+    if os.environ.get('BAM_CONSUMER_BARRIER') == '1':
+      tree[attn[:-1] + ('row_consumer_barrier',)] = (
+          jnp.zeros(24) if scanned else jnp.asarray(0))
   if not paths:
     raise ValueError('no BAM attention paths found')
   return traverse_util.unflatten_dict(tree)
@@ -61,10 +64,22 @@ def forward(model, params, batch, rng, config, scales, mask, controls, z, source
       enable_dropout=False, rngs={'dropout': r1, 'params': r2},
       mutable=['mediation_capture'])
   refs = med.stack_capture(captured)
+  audit_refs = []
+  if os.environ.get('BAM_CONSUMER_AUDIT') == '1':
+    flat = traverse_util.flatten_dict(captured['mediation_capture'])
+    for name in ('trace_consumer_post_cut','trace_consumer_mlp_input'):
+      if config.scan_layers:
+        values = [base._unwrap(v) for p,v in flat.items() if p[-1]==name]
+        if len(values)!=1:raise ValueError(name)
+        audit_refs.append(base._layer_axis_first(values[0],name)[source])
+      else:
+        audit_refs.append(next(base._unwrap(v) for p,v in flat.items()
+                              if p[-1]==name and base._layer_from_path(p)==source))
+    audit_refs.append(refs['mlp'][source])
   # Always return the same outputs, including for null and intervention arms:
   # source capture and measurement therefore use ONE compiled executable.
   return (base._sequence_mean(token_loss, batch['targets_segmentation'] != 0),
-          token_loss, refs['post_attention'][source], refs['M'][source])
+          token_loss, refs['post_attention'][source], refs['M'][source], tuple(audit_refs))
 
 
 def arms(source):
@@ -190,6 +205,7 @@ def run(config):
         cut = infer(state.params,batch,rng,clean_s,mask,cut_control,z)
         reconstructed = (clean[2].astype(jnp.float32)-z).astype(clean[2].dtype)
         audit = dict(position=pos.tolist(),residual_dtype=str(clean[2].dtype),
+            barrier=os.environ.get('BAM_CONSUMER_BARRIER')=='1',
             zero_control_nonzero_z_token_error=float(jnp.max(abs(unchanged[1]-clean[1]))),
             zero_control_nonzero_z_source_error=float(jnp.max(abs(unchanged[2]-clean[2]))),
             cut_source_pre_input_error=float(jnp.max(abs(cut[2]-clean[2]))),
@@ -198,6 +214,9 @@ def run(config):
             reconstructed_source_different_coordinates=int(jnp.count_nonzero(reconstructed!=deleted[2])),
             source_cut_delete_token_error=float(jnp.max(abs(cut[1]-deleted[1]))),
             source_cut_delete_mean_error=float(jnp.mean(cut[1]-deleted[1])))
+        for i,name in enumerate(('post_cut','mlp_input','mlp_output')):
+          audit[f'cut_delete_{name}_max_error']=float(jnp.max(abs(cut[4][i]-deleted[4][i])))
+          audit[f'cut_delete_{name}_different_coordinates']=int(jnp.count_nonzero(cut[4][i]!=deleted[4][i]))
         (output/'audit.json').write_text(json.dumps(audit,indent=2)+'\n')
         print('CONSUMER_AUDIT '+json.dumps(audit),flush=True)
         return

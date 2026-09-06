@@ -283,6 +283,9 @@ class SubDecoderLayer(nn.Module):
     if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
       self.sow('residual_attribution', 'attention_total', attention_lnx)
     intermediate_inputs = inputs + attention_lnx
+    consumer_barrier = self.has_variable('causal_ablation', 'row_consumer_barrier')
+    if consumer_barrier:
+      intermediate_inputs = jax.lax.optimization_barrier(intermediate_inputs)
     capture_mediation = self.is_mutable_collection('mediation_capture') and not self.is_initializing()
     if capture_mediation:
       self.sow('mediation_capture', 'trace_post_attention', intermediate_inputs)
@@ -298,9 +301,12 @@ class SubDecoderLayer(nn.Module):
       scale = c[attentions.ROW_CONSUMER_NAMES.index(name)]
       changed = (x.astype(jnp.float32) - scale *
           self.get_variable('causal_ablation', 'row_consumer_z')).astype(x.dtype)
-      return jnp.where(scale == 0, x, changed)
+      result = jnp.where(scale == 0, x, changed)
+      return jax.lax.optimization_barrier(result) if consumer_barrier else result
 
     intermediate_inputs = deny_row(intermediate_inputs, 'cut_attention')
+    if capture_mediation and self.has_variable('causal_ablation', 'row_consumer_z'):
+      self.sow('mediation_capture', 'trace_consumer_post_cut', intermediate_inputs)
 
     # Fully Connected
     hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(
@@ -308,6 +314,8 @@ class SubDecoderLayer(nn.Module):
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
+    if capture_mediation and self.has_variable('causal_ablation', 'row_consumer_z'):
+      self.sow('mediation_capture', 'trace_consumer_mlp_input', hidden_states)
     
     mlp_lnx = None
     if cfg.shared_experts == 1:

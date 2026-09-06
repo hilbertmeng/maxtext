@@ -19,7 +19,7 @@ def load(root):
   return validated, dict(zip(validated['metadata']['arms'], loss.T))
 
 
-def compare(root, prefix):
+def compare(root, prefix, terminal_prefix=None):
   loaded = {}
   reference_meta = None
   clean_reference = None
@@ -43,6 +43,22 @@ def compare(root, prefix):
       merged.update(values)
       controls.append(dict(root=str(path), n=checked['n'], exact_controls=True))
     np.testing.assert_array_equal(merged['cut_L11_attention'], merged['own_origin_only_deleted'])
+    if terminal_prefix:
+      path = Path(root) / (terminal_prefix + suffix)
+      checked, values = load(path)
+      meta = checked['metadata']
+      assert meta['source_component'] == component
+      for key in ('base_config_class', 'checkpoint', 'trainer_commit',
+                  'cohort_sha256', 'source_layer', 'requested_sequences'):
+        assert meta[key] == reference_meta[key], key
+      shared = merged.keys() & values.keys()
+      assert {'clean', 'cut_L11_attention', 'cut_L22_mlp'} <= shared
+      for name in shared:
+        np.testing.assert_array_equal(merged[name], values[name])
+      merged.update(values)
+      controls.append(dict(root=str(path), n=checked['n'], exact_controls=True,
+                           diagnostic_commit=meta['diagnostic_commit'],
+                           exact_shared_arms=sorted(shared)))
     loaded[component] = merged
   names = list(loaded['cross'])
   for component in ('self', 'both'):
@@ -67,10 +83,11 @@ if __name__ == '__main__':
   parser.add_argument('root')
   parser.add_argument('--prefix', default='bam-row-mediation-xl-L11-own_consumers-{group}-968f84c')
   parser.add_argument('--output', required=True)
+  parser.add_argument('--terminal-prefix')
   args = parser.parse_args()
-  result = compare(args.root, args.prefix)
+  result = compare(args.root, args.prefix, args.terminal_prefix)
   Path(args.output).write_text(json.dumps(result, indent=2) + '\n')
-  print('PAIRED_OK: all six complete cohorts, controls, shared arms and immediate cuts exact')
+  print(f"PAIRED_OK: all {len(result['controls'])} complete cohorts, controls, shared arms and immediate cuts exact")
   for row in result['rows']:
     print(row['arm'], ' '.join(f"{c}={row[c]['mean']:+.7f}±{row[c]['ci95']:.7f}"
                                for c in ('cross','self','both')))

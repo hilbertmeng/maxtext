@@ -293,9 +293,9 @@ self already absent **improves** own-position loss −.005004 ± .000767, wherea
 deleting cross with self present harms it +.003989. Their context dependence is
 therefore not solely a receiver-position phenomenon. Do not divide own by
 collective effects and call the ratio an additive transported-benefit fraction.
-Which same-origin consumers account for this interaction still needs measurement.
+The same-origin consumer localization below measures these conditional effects.
 
-The follow-up is running with diagnostic runtime `968f84c`:
+The follow-up completed with diagnostic runtime `968f84c`:
 [own-consumer probe](row_own_consumers.py), reusing the validated causal worlds.
 It freezes foreign prefixes, screens original-position L11 MLP and joint
 L12–15 Q/K, V-self, LocalQK, mix, fetched read, write, and MLP consumers, then
@@ -314,9 +314,11 @@ XL launcher. GCS prefixes are
 `bam-row-mediation-xl-L11-own_consumers-joint-968f84c`, with `-rowself`/`-rowboth`;
 analyze with [the audited scalar/token-loss analyzer](analyze_row_token_worlds.py).
 The joint screen is complete: 128/128 sequences for each source component, with
-all seven exact controls passing. The **individual-layer** screen is running
+all seven exact controls passing. The **individual-layer** screen is also complete
 under the same runtime/cohort (`BAM_MEDIATION_LABEL=individual`,
-`BAM_OWN_CONSUMER_SET=individual`); it remains necessary to localize joint effects.
+`BAM_OWN_CONSUMER_SET=individual`). All six cohort analyses share bitwise-identical
+clean losses and common-arm losses, verified by
+[the paired analyzer](analyze_row_own_comparison.py).
 
 | Original-position intervention | Cross | Self | Whole row |
 |---|---:|---:|---:|
@@ -346,6 +348,56 @@ cross +.003144/+.001138/+.000469/+.000331, self
 +.004485/+.001911/+.000758/+.000297, whole
 +.001794/+.000827/+.000297/+.000087. Transformed descendants are retained;
 these results do not authorize removal of all inherited information.
+
+Individual localization (paired mean ± sequence-level 95% CI):
+
+| Original-position consumer | Cross | Self | Whole row |
+|---|---:|---:|---:|
+| L12 MLP | +.000475 ± .000283 | +.001912 ± .000686 | +.000481 ± .000205 |
+| L13 MLP | +.000144 ± .000303 | +.000753 ± .000366 | +.000150 ± .000172 |
+| L14 MLP | +.000058 ± .000381 | +.000528 ± .000261 | +.000181 ± .000208 |
+| L15 MLP | +.000258 ± .000366 | +.000218 ± .000377 | +.000142 ± .000164 |
+| L12 LocalQK | +.000382 ± .000195 | +.000250 ± .000185 | +.000027 ± .000132 |
+| L12 fetched read | +.000227 ± .000151 | −.000047 ± .000194 | +.000032 ± .000142 |
+
+L11/L12 MLP is the clearest own-position consumer, particularly for self. For
+cross, L12 LocalQK and fetched read also have positive paired effects. Many later
+individual effects span zero; ranking tiny positive means alone is unwarranted.
+These exploratory CIs are not corrected for multiple comparisons.
+
+### Final-layer lifetime endpoint
+
+The original cut sweep ended at L22. Runtime `17dd1de2758f85809cb13b4069bedd90d29f5d51`
+adds L23 endpoints through the same runner with `BAM_OWN_CONSUMER_SET=terminal`
+and `BAM_MEDIATION_LABEL=terminal`. Cross/self/whole again each retain all 128
+sequences. All seven exact controls pass; every shared arm, including L11 and
+L22 cut anchors, exactly matches the preceding runtime.
+
+| Endpoint | Cross | Self | Whole row |
+|---|---:|---:|---:|
+| Deny L23 MLP | +.000426 ± .000269 | +.000784 ± .000329 | +.000282 ± .000192 |
+| Cut original vector after L23 attention | +.000235 ± .000293 | +.000178 ± .000346 | +.000131 ± .000187 |
+| Cut original vector after L23 MLP | +.000398 ± .000189 | +.001527 ± .000298 | +.000555 ± .000194 |
+
+Thus the decreasing mid/late-layer cut effect does **not** establish an exact
+discard boundary: necessity remains at the final residual endpoint, especially
+for self. This is a finite intervention with the normal final RMS denominator,
+not the frozen-denominator direct-IG experiment. Negative direct IG does not
+guarantee that deleting the vector improves normal-forward loss. Neither
+individual effects nor self/cross effects can be added as independent shares.
+
+All nine paired analyses and CIs:
+`/data0/xd/bam_diagnostics/own-consumers-paired-terminal-analysis.json`.
+Raw terminal artifacts use the previous GCS/local root with prefix
+`bam-row-mediation-xl-L11-own_consumers-terminal-17dd1de` and the same
+`-rowself`/`-rowboth` suffixes. The exact command is:
+
+```bash
+python experiments/bam_llama2_medium/analyze_row_own_comparison.py \
+  /data0/xd/bam_diagnostics \
+  --terminal-prefix bam-row-mediation-xl-L11-own_consumers-terminal-17dd1de \
+  --output /data0/xd/bam_diagnostics/own-consumers-paired-terminal-analysis.json
+```
 
 Analysis files (including sequence CIs):
 `/data0/xd/bam_diagnostics/own-consumers-{cross,self,both}-analysis.json`.

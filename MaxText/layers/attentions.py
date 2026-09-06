@@ -2591,6 +2591,7 @@ class BamAttention(Attention):
             'BAM MHA-control query chunk size must divide max_target_length')
       self._mode = set()
       self._has_write = False
+      self._record_fetched_read_amplitude_metrics = False
       return
 
     assert 0 < self.bam_k < self.head_dim, (

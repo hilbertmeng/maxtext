@@ -1,6 +1,8 @@
 """Focused tests for BAM runtime read-key transforms."""
 
 from absl.testing import absltest
+from pathlib import Path
+import tempfile
 from flax import linen as nn
 import jax
 import jax.numpy as jnp
@@ -9,6 +11,7 @@ from layers import initializers
 from layers import normalizations
 
 from layers.attentions import (
+    BamAttention,
     GroupedRMSNorm,
     _activate_bam_read_key,
     _add_bam_read_key_bias,
@@ -47,6 +50,49 @@ class _DepthAmplitudeLayer(nn.Module):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_mha_control_initializes_without_bam_health_state(self):
+    import max_utils
+    import pyconfig
+    from flax.traverse_util import flatten_dict
+
+    output = tempfile.TemporaryDirectory()
+    self.addCleanup(output.cleanup)
+    (Path(output.name) / 'test-mha-control').mkdir()
+    cfg = pyconfig.initialize(
+        [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+        exp_class='BamMHALlama2MediumC256ScanAotCleanControl',
+        run_name='test-mha-control', enable_checkpointing=False,
+        base_output_directory=output.name + '/',
+        jax_cache_dir='', log_config=False, dataset_type='synthetic',
+        base_emb_dim=64, base_num_query_heads=2, base_num_kv_heads=2,
+        base_num_decoder_layers=2, base_mlp_dim=128, head_dim=32,
+        max_target_length=8, max_prefill_predict_length=8,
+        query_chunk_size=4, per_device_batch_size=1.0)
+    cfg.get_keys()['bam_record_fetched_read_amplitude_metrics'] = True
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    x = jax.random.normal(jax.random.key(1), (1, 8, 64), dtype=cfg.dtype)
+    positions = jnp.arange(8)[None]
+    segments = jnp.ones((1, 8), dtype=jnp.int32)
+    for kernel in ('dot_product', 'dot_product_chunk'):
+      with self.subTest(kernel=kernel):
+        attention = BamAttention(
+            config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=32,
+            max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+            attention_kernel=kernel, dtype=cfg.dtype, layer_mode='none',
+            attention_type=cfg.attention_type)
+        variables = attention.init(
+            {'params': jax.random.key(2), 'aqt': jax.random.key(3)},
+            x, x, positions, segments, deterministic=True)
+        (y, matrix), updates = attention.apply(
+            variables, x, x, positions, segments, deterministic=True,
+            mutable=['intermediates'])
+        self.assertEqual(y.shape, x.shape)
+        self.assertIsNone(matrix)
+        self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
+        paths = ['/'.join(p) for p in flatten_dict(variables['params'])]
+        self.assertFalse(any('W_R' in p or 'P_loc' in p for p in paths))
+        self.assertNotIn('fetched_read_amplitude', updates.get('intermediates', {}))
 
   def test_fetched_read_gate_bins_cover_distribution_and_read_energy(self):
     probabilities = jnp.asarray((0.1, 0.3, 0.5, 0.7, 0.9))

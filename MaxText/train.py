@@ -409,6 +409,10 @@ def record_bam_fetched_read_health_metrics(
   merge_rms = (
       attention['fetched_read_merge_rms'][0]
       if 'fetched_read_merge_rms' in attention else None)
+  route_sums = (sum(attention['fetch_route_sums'])
+                if 'fetch_route_sums' in attention else None)
+  mix_stats = (attention['fetch_mix_weight_stats'][0]
+               if 'fetch_mix_weight_stats' in attention else None)
   gate_stat_names = ('mean', 'std', 'frac_lt_005', 'frac_gt_095')
   for layer_num in range(config.base_num_decoder_layers):
     for side_num, side in enumerate(('row', 'col')):
@@ -440,6 +444,18 @@ def record_bam_fetched_read_health_metrics(
         f'{prefix}/y_std_rms': total_rms[layer_num, 1],
         f'{prefix}/y_bam_over_y_std': total_rms[layer_num, 2],
     })
+    if route_sums is not None:
+      negative, zero, mass, square, edges, queries = route_sums[layer_num]
+      route_prefix = f'bam/fetch_route/layer_{layer_num:03d}'
+      output_metrics['scalar'].update({
+          f'{route_prefix}/preclip_negative_fraction': negative / jnp.maximum(edges, 1),
+          f'{route_prefix}/zero_fraction': zero / jnp.maximum(edges, 1),
+          f'{route_prefix}/cross_mass_per_query': mass / jnp.maximum(queries, 1),
+          f'{route_prefix}/cross_l2_rms_per_query': jnp.sqrt(square / jnp.maximum(queries, 1)),
+          f'{route_prefix}/mix_weight_mean': mix_stats[layer_num, 0],
+          f'{route_prefix}/mix_weight_rms': mix_stats[layer_num, 1],
+          f'{route_prefix}/mix_weight_negative_fraction': mix_stats[layer_num, 2],
+      })
     if merge_rms is not None:
       output_metrics['scalar'].update({
           f'{prefix}/removed_std_rms': merge_rms[layer_num, 0],

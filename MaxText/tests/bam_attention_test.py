@@ -14,6 +14,7 @@ from layers.attentions import (
     _add_bam_read_key_bias,
     _attention_op,
     _bam_fetch_op,
+    _bam_fetch_route_sums,
     _depth_scaled_bam_read_amplitude,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
@@ -47,6 +48,75 @@ class _DepthAmplitudeLayer(nn.Module):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_fetch_alpha_clips_after_signed_mixture_not_before(self):
+    alpha = jnp.asarray([[[[.9, .1]], [[.1, .9]]]])
+    weights = jnp.asarray([[[1., -.5]]])
+    state = jnp.eye(2)[None, :, None, :]
+    diagonal = jnp.asarray([[False, True]])
+    for implementation in ('dot', 'mul_reduce'):
+      def actual(w):
+        return _bam_fetch_op(
+            alpha, state, w, diagonal, diagonal_one=True,
+            mix_implementation=implementation, clip_nonnegative=True,
+            return_route=True)
+      out, raw, route = actual(weights)
+      np.testing.assert_allclose(raw, [[[.85, -.35]]], atol=1e-7)
+      np.testing.assert_allclose(route, [[[.85, 1.]]], atol=1e-7)
+      np.testing.assert_allclose(out, [[[[.85, 1.]]]], atol=1e-7)
+      grad = jax.grad(lambda w: actual(w)[0].sum())(weights)
+      np.testing.assert_allclose(grad, [[[.9, .1]]], atol=1e-7)
+      # Clipping coefficients would instead produce .9 on the first edge.
+      self.assertNotAlmostEqual(float(route[0, 0, 0]), .9)
+
+  def test_fetch_alpha_clip_values_and_gradients_match_reference(self):
+    keys = jax.random.split(jax.random.PRNGKey(982), 4)
+    alpha = jax.nn.softmax(jax.random.normal(keys[0], (2, 3, 4, 4)), -1)
+    weights = jax.random.normal(keys[1], (2, 4, 3))
+    state = jax.random.normal(keys[2], (2, 4, 2, 3))
+    upstream = jax.random.normal(keys[3], (2, 4, 2, 3))
+    diagonal = jnp.eye(4, dtype=bool)
+    def reference(a, w, m):
+      route = jnp.maximum(jnp.einsum('bnqs,bqn->bqs', a, w), 0)
+      route = jnp.where(diagonal[None], 1, route)
+      return (jnp.einsum('bqs,bskv->bqkv', route, m) * upstream).sum()
+    expected = jax.value_and_grad(reference, argnums=(0, 1, 2))(alpha, weights, state)
+    for implementation in ('dot', 'mul_reduce'):
+      def actual(a, w, m):
+        return (_bam_fetch_op(a, m, w, diagonal, diagonal_one=True,
+            mix_implementation=implementation, clip_nonnegative=True) * upstream).sum()
+      got = jax.value_and_grad(actual, argnums=(0, 1, 2))(alpha, weights, state)
+      for x, y in zip(jax.tree.leaves(got), jax.tree.leaves(expected)):
+        np.testing.assert_allclose(x, y, atol=2e-6, rtol=2e-6)
+
+  def test_fetch_route_metrics_ignore_masked_edges_and_diagonal(self):
+    raw = jnp.asarray([[[.2, -9., -9.], [-.5, .3, -9.], [.2, .3, .4]]])
+    valid = jnp.asarray([[[1, 0, 0], [1, 1, 0], [0, 0, 0]]], bool)
+    diag = jnp.eye(3, dtype=bool)
+    route = jnp.where(diag[None], 1, jnp.maximum(raw, 0))
+    np.testing.assert_array_equal(
+        _bam_fetch_route_sums(raw, route, valid, diag), [1, 1, 0, 0, 1, 2])
+
+  def test_fetch_mix_softmax_and_unnormalized_coefficients(self):
+    logits = jnp.asarray([[[1., -2., 3.]]])
+    raw = _dynamic_bam_fetch_mix_weights(
+        logits, jnp.float32, rms_epsilon=1e-6, normalization='none')
+    np.testing.assert_array_equal(raw, logits)
+    soft = _dynamic_bam_fetch_mix_weights(
+        logits, jnp.float32, rms_epsilon=1e-6, normalization='softmax')
+    np.testing.assert_allclose(soft, jax.nn.softmax(logits, -1), rtol=1e-6)
+    self.assertTrue(bool(jnp.all(soft >= 0)))
+
+  def test_nonnegative_mix_configs_keep_scan_diagonal_and_checkpoint_period(self):
+    import exp
+    for name in ('BamLlama2MediumV2C256SoftmaxMix',
+                 'BamLlama2MediumV2C256ClippedAlphaMix',
+                 'BamLlama2MediumV2C256StaticClippedAlphaMix'):
+      cfg = getattr(exp, name)
+      self.assertTrue(cfg.scan_layers)
+      self.assertTrue(cfg.bam_fetch_diagonal_one)
+      self.assertEqual(cfg.checkpoint_period, 200)
+      self.assertEqual(cfg.query_chunk_size, 256)
 
   def test_fetched_read_gate_bins_cover_distribution_and_read_energy(self):
     probabilities = jnp.asarray((0.1, 0.3, 0.5, 0.7, 0.9))

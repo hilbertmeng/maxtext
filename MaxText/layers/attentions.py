@@ -1737,9 +1737,15 @@ class GroupedRMSNorm(nn.Module):
     return y
 
 
-def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon):
-  """Build a signed unit-L2 mixture over standard-attention heads."""
+def _dynamic_bam_fetch_mix_weights(
+    mix_logits, alpha_dtype, *, rms_epsilon, normalization='rms'):
+  """Transform head-mixture coefficients; clipping belongs after mixing alpha."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
+  if normalization == 'softmax':
+    return jax.nn.softmax(mix_logits, axis=-1).astype(alpha_dtype)
+  if normalization == 'none':
+    return mix_logits.astype(alpha_dtype)
+  assert normalization == 'rms'
   normalized = normalizations.rms_norm(
       mix_logits, dtype=alpha_dtype, epsilon=rms_epsilon)
   return normalized / jnp.sqrt(mix_logits.shape[-1])
@@ -1767,7 +1773,7 @@ def _attention_op(
 
 def _bam_fetch_op(
     alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
-    mix_implementation='dot'):
+    mix_implementation='dot', clip_nonnegative=False, return_route=False):
   """Mix attention heads into one temporal route and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     alpha = alpha[:, :mix_weights.shape[-1]]
@@ -1779,10 +1785,27 @@ def _bam_fetch_op(
           axis=-2)
     else:
       raise ValueError(f'Unknown BAM fetch-mix implementation: {mix_implementation}')
+    raw_alpha = fetch_alpha
+    if clip_nonnegative:
+      fetch_alpha = jnp.maximum(fetch_alpha, 0)
     if diagonal_one:
       fetch_alpha = jnp.where(diagonal_mask[None], 1, fetch_alpha)
   with jax.named_scope("bam/fetch_m"):
-    return jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
+    fetched = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
+  return (fetched, raw_alpha, fetch_alpha) if return_route else fetched
+
+
+def _bam_fetch_route_sums(raw_alpha, fetch_alpha, valid, diagonal):
+  """Additive sufficient statistics, excluding masked and diagonal edges."""
+  cross = valid & ~diagonal[None]
+  route = fetch_alpha.astype(jnp.float32)
+  return jnp.stack((
+      jnp.sum(cross & (raw_alpha < 0), dtype=jnp.float32),
+      jnp.sum(cross & (route == 0), dtype=jnp.float32),
+      jnp.sum(jnp.where(cross, route, 0)),
+      jnp.sum(jnp.where(cross, route * route, 0)),
+      jnp.sum(cross, dtype=jnp.float32),
+      jnp.sum(jnp.any(valid, axis=-1), dtype=jnp.float32)))
 
 
 def _mix_bam_write_v(x_v, o_head, bam_k, mix_scale, bias):
@@ -2708,6 +2731,11 @@ class BamAttention(Attention):
         self._fetched_read_num_heads // self.num_query_heads)
     self._fetch_mix_implementation = cfg.bam_fetch_mix_implementation
     assert self._fetch_mix_implementation in ('dot', 'mul_reduce')
+    self._fetch_mix_mode = cfg.bam_shared_fetch_mode
+    self._clip_fetch_alpha = self._fetch_mix_mode in (
+        'dynamic_clipped_mix', 'static_clipped_mix')
+    self._record_fetch_route_metrics = bool(getattr(
+        cfg, 'bam_record_fetch_route_metrics', False))
     self._read_implementation = cfg.bam_read_implementation
     self._fetched_read_side = cfg.bam_fetched_read_side
     assert self._fetched_read_side in ('both', 'row', 'col')
@@ -2750,7 +2778,8 @@ class BamAttention(Attention):
     self._abs_v_source_implementation = getattr(
         cfg, 'bam_abs_v_source_implementation', 'dot')
     if 'full' in self._mode:
-      assert cfg.bam_shared_fetch_mode == 'dynamic_rms_mix'
+      assert self._fetch_mix_mode in (
+          'dynamic_rms_mix', 'dynamic_mix', 'dynamic_clipped_mix', 'static_clipped_mix')
       assert cfg.bam_n_f == 1
       assert not cfg.bam_dedicated_fetch
       assert cfg.bam_fetch_sliding_window_size is None
@@ -3113,11 +3142,20 @@ class BamAttention(Attention):
       # Signed RMS mixing needs a regular-initialized direction because RMSNorm
       # at an all-zero vector is singular. W_R remains zero-initialized, so the
       # complete BAM read still starts at zero.
-      self.fetch_head_mix = DenseGeneral(
-          features=self._fetch_mix_num_heads, axis=-1, kernel_init=reg_init,
-          kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=True)
+      if self._fetch_mix_mode == 'static_clipped_mix':
+        # A per-layer bias-only route, shared across tokens, not across layers.
+        # The existing .*bias$ rule excludes these coefficients from weight decay.
+        self.fetch_head_mix_bias = self.param(
+            'fetch_head_mix_bias',
+            nn.with_logical_partitioning(
+                nn.initializers.constant(1.0 / self._fetch_mix_num_heads), ('q_heads',)),
+            (self._fetch_mix_num_heads,), self.weight_dtype)
+      else:
+        self.fetch_head_mix = DenseGeneral(
+            features=self._fetch_mix_num_heads, axis=-1, kernel_init=reg_init,
+            kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
+            weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=True)
 
     if 'local_qk' in self._mode:
       if self._local_qk_key_mode == 'per_head_static':
@@ -4143,7 +4181,16 @@ class BamAttention(Attention):
       Mbar = _bam_fetch_op(
           alpha, fetch_state, mix_weights, source == target,
           diagonal_one=self._fetch_diagonal_one,
-          mix_implementation=self._fetch_mix_implementation)
+          mix_implementation=self._fetch_mix_implementation,
+          clip_nonnegative=self._clip_fetch_alpha,
+          return_route=self._record_fetch_route_metrics)
+      if self._record_fetch_route_metrics:
+        Mbar, raw_route, route = Mbar
+        health_valid = jnp.broadcast_to(valid, route.shape)
+        if decoder_segment_ids is not None:
+          health_valid &= decoder_segment_ids[:, q0:q1, None] != 0
+        self.sow('intermediates', 'fetch_route_sums',
+                 _bam_fetch_route_sums(raw_route, route, health_valid, source == target))
     return y_std, Mbar
 
   def _query_chunk_op(
@@ -4265,9 +4312,21 @@ class BamAttention(Attention):
         with jax.named_scope("bam/normalize_m"):
           Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/mix_alpha_projection"):
+        if self._fetch_mix_mode == 'static_clipped_mix':
+          mix_logits = jnp.broadcast_to(
+              self.fetch_head_mix_bias.astype(query.dtype),
+              inputs_q.shape[:-1] + (self._fetch_mix_num_heads,))
+        else:
+          mix_logits = self.fetch_head_mix(inputs_q)
         mix_weights = _dynamic_bam_fetch_mix_weights(
-            self.fetch_head_mix(inputs_q), query.dtype,
-            rms_epsilon=self._rms_epsilon)
+            mix_logits, query.dtype, rms_epsilon=self._rms_epsilon,
+            normalization=('none' if self._clip_fetch_alpha else
+                           'softmax' if self._fetch_mix_mode == 'dynamic_mix' else 'rms'))
+        if self._record_fetch_route_metrics:
+          weights = mix_weights.astype(jnp.float32)
+          self.sow('intermediates', 'fetch_mix_weight_stats', jnp.stack((
+              jnp.mean(weights), jnp.sqrt(jnp.mean(weights * weights)),
+              jnp.mean((weights < 0).astype(jnp.float32)))))
       fetch_state = (
           local_Mh if self._local_qk_use_compressed_v
           else self._compress_full_fetch_state(Mh))

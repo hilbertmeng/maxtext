@@ -1,0 +1,42 @@
+# Nonnegative fetch-alpha controls
+
+Branch `codex/bam-nonnegative-mix`, worktree `/data0/xd/bam-nonnegative-mix`,
+branched from `e610c3634a14414a84d2e13290eda16637f9516b`. Diagnostic hooks remain
+in the separate `codex/bam-row-mediation` branch.
+
+All runs inherit `BamLlama2MediumV2C256ScanAotControl`: full-24, C256,
+layer-scan + v6e-precompiled AOT, C8, 13,500 planned steps, checkpoint every 200.
+Keep fixed-one fetch diagonal, LocalQK, read keys/gates, and write path unchanged.
+Clip **after mixing attention heads**, not the head-mixture coefficients; set the
+diagonal to one afterward. MHA attention itself is unchanged.
+
+| Class suffix after `BamLlama2MediumV2C256` | Mixture | Direct comparisons | Predicted final gap vs control |
+|---|---|---|---:|
+| `SoftmaxMix` | `w=softmax(Wx+b); alpha=sum(w*A)` | ScanAotControl | +.003 |
+| `ClippedAlphaMix` | `w=Wx+b; alpha=max(sum(w*A),0)` | ScanAotControl, SoftmaxMix | +.001 |
+| `StaticClippedAlphaMix` | per-layer `w[n]`; `alpha=max(sum(w*A),0)` | ScanAotControl, ClippedAlphaMix | +.007 |
+
+These numbers are pre-run bets, not measurements. The first two preserve the
+current dynamic projection's regular initialization and zero bias. The static
+coefficients start at `1/n`, can become signed, and are shared across tokens but
+not layers. They are named `fetch_head_mix_bias` and excluded by the existing
+`.*bias$` weight-decay rule. Attention heads remain input-dependent even in the
+static-mixture arm. Different initial mixtures confound early optimization-speed
+comparisons; do not infer final capacity from a step-200 gap.
+
+Primary TPU region: UE5a, based on recent formal v5p lease history. Request formal
+v5p-16 only after the corresponding `prepare_train_aot.py` artifact verifies.
+Check FIRST_STEP and steps 10–14 speed; report unexpected speed changes.
+
+Alongside cumulative 200-step loss gaps and checkpoints, monitor existing
+fetched gate/read-health and gradient/clipping metrics. New per-layer TB tags
+`bam/fetch_route/layer_NNN/` retain preclip-negative fraction, final-zero fraction,
+cross mass/query, cross L2 RMS/query, coefficient mean/RMS/negative fraction.
+Masked/padding and diagonal edges are excluded from cross-edge denominators;
+sum chunk sufficient statistics before taking ratios. This distinguishes a
+healthy self path from a cross path made inactive by clipping.
+
+Implementation: `MaxText/layers/attentions.py`; TB export: `MaxText/train.py`;
+configuration classes: `MaxText/exp.py`; value/gradient/masking tests:
+`MaxText/tests/bam_attention_test.py`. Runtime hashes and measured speed/results
+will be recorded in the configuration classes after launch.

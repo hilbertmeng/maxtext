@@ -315,6 +315,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetch_mix_num_heads = None  # None uses all MHA heads; otherwise use the first N
     bam_fetched_read_num_heads = None  # None uses one fetched-M read head per MHA head
     bam_fetch_mix_implementation = 'dot'  # dot | mul_reduce
+    bam_record_fetch_route_metrics = False
     bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
     bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
     bam_fetch_temporal_block_mode = 'none'  # none | mean | linear
@@ -1195,6 +1196,27 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-scan-aot-control')
+
+
+class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
+    """Nonnegative softmax head mixture; retain the fixed-one self diagonal."""
+    model_name = 'BamLlama2MediumV2C256SoftmaxMix'
+    bam_shared_fetch_mode = 'dynamic_mix'
+    bam_record_fetch_route_metrics = True
+
+
+class BamLlama2MediumV2C256ClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
+    """Unnormalized signed dynamic coefficients; clip mixed alpha, then set diagonal one."""
+    model_name = 'BamLlama2MediumV2C256ClippedAlphaMix'
+    bam_shared_fetch_mode = 'dynamic_clipped_mix'
+    bam_record_fetch_route_metrics = True
+
+
+class BamLlama2MediumV2C256StaticClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
+    """Per-layer token-shared coefficients initialized to 1/n; clip mixed alpha."""
+    model_name = 'BamLlama2MediumV2C256StaticClippedAlphaMix'
+    bam_shared_fetch_mode = 'static_clipped_mix'
+    bam_record_fetch_route_metrics = True
 
 
 class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(

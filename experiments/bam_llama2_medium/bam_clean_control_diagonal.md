@@ -93,6 +93,41 @@ Both decrease over training but remain majority-negative. WD-fix lowers the
 middle/high-layer fractions while raising the low-layer fraction, not a uniform
 shift to positive routing. Continue this metric on WDFix and GELU-Clean.
 
+### GELU-Clean / WDFix: early gradient difference
+
+Runtime commits: `b235a5d` / `03f0a0f`, full class names in the table above.
+The intended isolated change is excluding `gw_b0` from decay; both already honor
+the remaining WD exemptions. AdamW decay is applied after raw-gradient calculation.
+Decay moves the initially negative write-gate bias toward zero, tending to open
+the gate; its effect on later gradients is indirect, through changed training states.
+
+Read existing local events with `experiments/bam_llama2_medium/compare_tb_raw_gradients.py`
+using `/data0/xd/tensorboard_logs/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix`
+and `/data0/xd/tensorboard_logs/BamLlama2MediumV2C256RmsGeluAlphaMixWDFix`,
+`--steps 100,200,400,600`; add `--by-layer` for individual leaves. The script
+checks TFRecord integrity and matching tags, and exposes summed leaf squared norms
+alongside the logged global norm for reconciliation. No checkpoint rerun is involved.
+
+| Metric, Clean / WDFix | 100 | 200 | 400 | 600 |
+|---|---|---|---|---|
+| raw gradient L2 | 1.320 / 1.120 | 1.211 / 1.813 | .743 / 1.138 | .582 / .578 |
+| fetched W_R gradient L2 | .249 / .141 | .156 / .205 | .104 / .140 | .090 / .094 |
+| cumulative sampled clipping fraction | .727 / 1.000 | .857 / .905 | .781 / .854 | .557 / .590 |
+
+At 200/400, fetched W_R accounts for only 0.97%/1.17% of the reduction in total
+gradient squared norm. At 200, L0 `P_loc_up/bias` contributes .455 (25.0% of the
+1.822 total reduction), L13 packed LocalQK .283 (15.6%), and embedding .213 (11.7%).
+At 400, packed LocalQK across layers contributes .459 (61.9% of the .743 reduction),
+chiefly L15 (.289) and L13 (.099). Thus the difference is not principally a smaller
+fetched-W_R gradient. The global difference largely disappears at 600, and reverses
+at 100: it is not a uniform suppression throughout warmup.
+
+At 200, M RMS is slightly larger in Clean in every layer band; this contradicts a
+simple explanation based only on smaller accumulated M. These RUNs do not record
+actual write-gate openings or dM norms, so the write-gate-to-gradient causal chain
+is not quantitatively closed by the available TB data. Gradient-budget localization
+identifies affected components, not the causal mediator.
+
 ## Early WD comparison: Clean / old Control
 
 Same-step TB values below are RUN/BASE, not differences; L16-23 entries are

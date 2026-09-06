@@ -213,6 +213,53 @@ ownership/atomicity. The durable direction is to coordinate cursor saving with
 Orbax's checkpoint transaction; synchronizing directory creation alone can remove
 the immediate race while keeping weight transfer asynchronous.
 
+## BAM-only WD completion
+
+`BamLlama2MediumV2C256ScanAotBamOnlyWDControl`, runtime `66f1dcc`, completed
+13,500 updates (last logged step 13,499; committed checkpoint 13,400).
+Final six common windows, 12,400–13,400:
+
+| Direct comparison | Mean gap | Range |
+|---|---:|---:|
+| BAM-only − old ScanAotControl | +.0013577 | +.0010982 to +.0017748 |
+| BAM-only − CleanControl | −.0013783 | −.0019050 to −.0011374 |
+
+Against old Control, the +.02525 peak at 400 narrowed strongly, then more slowly
+late; it never crossed zero. Against Clean, early sign changes gave way to a
+persistent small advantage after 3,400, retained through completion. The final
+gap to old Control is within the pre-run 0 to +.002 bet, but the RUN finishes
+approximately midway between the controls, not overwhelmingly closer to old.
+
+The matched final-window accounting is
+`Clean-old = (BAM-only-old) + (Clean-BAM-only)`:
+`+.0027360 = +.0013577 + .0013783`, approximately half each. This supersedes the
+early-window impression that BAM exemptions account for almost all the deficit.
+It is a conditional path decomposition: without a non-BAM-only fourth arm it
+does not identify independent effects or the BAM/non-BAM interaction. Both
+steps worsened final loss in this seed/context; correct optimizer semantics
+do not guarantee improvement under an unchanged training recipe.
+
+Selected matched TB health, BAM-only / Clean:
+
+| Metric | 200 | 2,000 | 6,000 | 12,000 |
+|---|---:|---:|---:|---:|
+| Raw gradient norm | 1.670 / .967 | .310 / .352 | .250 / .254 | .260 / .258 |
+| W_R gradient L2 | .1672 / .1453 | .0427 / .0431 | .0315 / .0308 | .0331 / .0318 |
+| Cumulative sampled clipping fraction | .9524 / .8095 | .1592 / .1542 | .0549 / .0549 | .0275 / .0275 |
+| L16–23 M RMS | 9.991 / 9.965 | 8.393 / 8.373 | 8.306 / 8.056 | 7.534 / 7.244 |
+| L16–23 yBAM/ySTD | 9.281 / 9.173 | 3.772 / 3.908 | 3.092 / 3.184 | 2.693 / 2.788 |
+
+The larger initial gradient/clipping did not persist. A late gradient explosion
+does not explain the small loss difference; the upper-layer net read strength
+remains close, slightly smaller in BAM-only. These are observations rather than
+a causal decomposition. The same health reporter used below reproduces this
+table with the BAM-only/Clean configuration names and these four milestones.
+
+One UE5a v5p-16 READY lease lasted 2026-09-06 14:52:29–21:02:12 UTC
+(6h09m43s), with zero preemptions, zero zone switches and no checkpoint recovery.
+Clean exit at 21:00:19 preceded verified TPU/queue deletion by 1m53s;
+the automatic TensorBoard completion marker was published at 21:02:17.
+
 ## GELU-Clean completion
 
 `BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix`, runtime `b235a5d`,
@@ -286,7 +333,7 @@ then +.002736 mean over 12,400-13,400 (range +.002342 to +.003090).
 Thus the disadvantage narrowed but did not vanish. Against the matched clean
 MHA, the same final six-window mean is -.073362 (range -.074653 to -.072753).
 The pre-run sign was explicitly uncertain; correct WD is not empirically a
-loss improvement here. BAM-only is the ongoing conditional attribution test,
+loss improvement here. BAM-only is the completed conditional attribution test,
 not evidence that the individual exemptions have additive effects.
 
 Same-step TB values below are RUN/BASE, not differences; L16-23 entries are

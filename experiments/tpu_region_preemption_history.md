@@ -85,6 +85,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV2C256ScanAotCleanControl` | v5p-16 | `us-east5-a` | 2026-09-06 09:42:11 | 2026-09-06 16:00:37 | completed through 13,499; checkpoint 13,400; one preemption; same-zone recovery; TPU and queue deletion verified | none |
 | `BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude` | v5p-16 | `us-east5-a` | 2026-09-06 11:56:29 | 2026-09-06 18:04:18 | hot-switched from NativeDiagonal; completed through 13,499; checkpoint 13,400; zero preemptions; TPU and queue deletion verified | none |
 | `BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix` | v5p-16 | `us-east5-a` | 2026-09-06 12:30:39 | 2026-09-06 18:56:49 | completed through 13,499; checkpoint 13,400; zero preemptions; one same-TPU checkpoint-failure recovery; TPU and queue deletion verified | none |
+| `BamLlama2MediumV2C256ScanAotBamOnlyWDControl` | v5p-16 | `us-east5-a` | 2026-09-06 14:47:43 | 2026-09-06 21:02:12 | completed through 13,499; checkpoint 13,400; zero preemptions or process recoveries; TPU and queue deletion verified | none |
 
 ## READY leases
 
@@ -381,3 +382,4 @@ inventing a duration. A passive queue is not an active-zone switch.
 | CleanControl | 2 | `us-east5-a` | 2026-09-06 13:13:15 | 2026-09-06 16:00:37 | 2h47m22s | completed; TPU and queue deletion verified |
 | CleanGate050FixedAmplitude | 1 | `us-east5-a` | 2026-09-06 11:56:32 | 2026-09-06 18:04:18 | 6h07m46s | completed; zero preemptions; TPU and queue deletion verified |
 | CleanGeluAlphaMix | 1 | `us-east5-a` | 2026-09-06 12:36:58 | 2026-09-06 18:56:49 | 6h19m51s | completed; zero preemptions; checkpoint failure caused a process restart within this lease |
+| BamOnlyWDControl | 1 | `us-east5-a` | 2026-09-06 14:52:29 | 2026-09-06 21:02:12 | 6h09m43s | completed; zero preemptions; TPU and queue deletion verified |

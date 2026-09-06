@@ -395,7 +395,37 @@ the local and GCS diagnostic roots. Local analyses:
 The raw files retain per-token scalar coefficients/geometry and per-arm losses,
 not activation vectors.
 
-#### In progress: early cross-V to later component mediation
+#### Early cross-V to later component mediation (cross complete; self/both pending)
+
+The L11 **cross** arm is complete on all 128 sequences with runtime `a0177c7`.
+Deleting row-cross gives Δloss **+.015582 ± .001915**; denying its input only
+to L12 cross-token V gives **+.010552 ± .001761**. In that denied world:
+
+| Restore clean recipient | Δloss vs denied world (95% CI) | Remaining Δloss vs clean |
+|---|---:|---:|
+| L13–23 fetched col | −.007257 ± .001446 | +.003295 |
+| L13–23 M-out | −.006669 ± .001273 | +.003882 |
+| L13–23 fetched row | +.000373 ± .000419 | +.010925 |
+| L13–23 MLP | +.003736 ± .001401 | +.014287 |
+
+This supports cross-position V export followed by downstream M/col readout,
+not primarily another row readout. Restoring col recovers about 69% of this
+specific V-denial penalty, **not** 69% of total row-cross necessity. M and col
+are overlapping, nonlinear mediation interventions; their effects cannot be
+added. MLP restoration alone worsens the denied world, despite MLP input-denial
+being harmful in the clean world: necessity and sufficiency depend on context.
+No single tested col layer dominates (individual L13–18 restorations recover
+.00099–.00166), supporting a distributed downstream pathway.
+
+All seven within-graph audits are exactly zero. Against the older neighbor
+graph, mean clean-loss drift is +.000023 and deletion-effect drift −.000122
+± .000188; maximum individual token-loss drift is 1.0. Thus the old and new
+graphs are **not** tokenwise interchangeable, even though aggregate drift is
+small. All reported mediation comparisons use the same new graph.
+Analysis: `/data0/xd/bam_diagnostics/row-v-export-cross-analysis.json`;
+raw prefix `bam-row-mediation-xl-L11-v_export-L12-a0177c7/` under the diagnostic
+GCS/local roots. Self/both completion and the joint L12–15 first-hop test
+remain necessary before generalizing this result to the entire row pathway.
 
 Runner [row_v_export.py](row_v_export.py) first denies the original L11 row
 increment **only to L12 cross-token V edges**. The donor pair therefore differs

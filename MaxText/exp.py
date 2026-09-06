@@ -1225,7 +1225,9 @@ class BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix(BamLlama2MediumV2C256ScanAot
 
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):
     """Keep the mixed alpha diagonal; no separate local-O read."""
-    # code_commit: 4cf1556; UE5a ~0.649 steps/s (-0.3% vs CleanControl); running.
+    # 4cf1556; UE5a ~0.649 steps/s (-0.3% vs CleanControl); stopped 4,714.
+    # vs Clean: +.2783 @200 -> +.0331 mean @3800-4600, only slow late narrowing;
+    # vs clean MHA -.0944 @3000. Native diagonal lost useful self-read, with no speed gain.
     model_name = 'BamLlama2MediumV2C256ScanAotCleanNativeDiagonal'
     bam_fetch_diagonal_one = False
 

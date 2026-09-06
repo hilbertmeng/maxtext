@@ -1789,10 +1789,15 @@ def _bam_fetch_op(
           fetch_alpha * jnp.asarray(cross_scale, fetch_alpha.dtype))
   with jax.named_scope("bam/fetch_m"):
     source_state = fetch_state if foreign_state is None else foreign_state
+    if foreign_state is not None:
+      # Counterfactual caches are bf16 values, not unrounded producer expressions.
+      fetch_state, source_state = jax.lax.optimization_barrier((fetch_state, source_state))
     fetched = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, source_state)
     if foreign_state is not None:
+      fetched = jax.lax.optimization_barrier(fetched)
       self_alpha = jnp.where(diagonal_mask[None], fetch_alpha, 0).astype(jnp.float32)
-      delta = fetch_state.astype(jnp.float32)-foreign_state.astype(jnp.float32)
+      delta = jax.lax.optimization_barrier(
+          fetch_state.astype(jnp.float32)-source_state.astype(jnp.float32))
       fetched = (fetched.astype(jnp.float32)+jnp.einsum(
           'bqs,bskv->bqkv', self_alpha, delta)).astype(fetched.dtype)
   return (fetched, fetch_alpha) if return_alpha else fetched

@@ -143,6 +143,20 @@ bias norms. For negative biases this is consistent with a drift toward a larger
 write-gate prior. Norms alone do not establish signs, per-head logits, actual gate
 openings (which also depend on W_gw x), or the magnitude of downstream gradient effects.
 
+### GELU-Clean checkpoint 3000 failure (2026-09-06 UTC)
+
+Runtime `b235a5d`, UE5a `xd-v5p-16-clean-gelu`. Worker-0 async save began
+13:58:44; at 13:58:53 Orbax's temporary-directory creation raised `FileExistsError`
+for checkpoint 3000. Evidence: [filtered worker log](diagnostics/gelu_clean_checkpoint_3000_failure.log).
+This was a checkpoint failure while training continued, not an observed TPU preemption.
+The directory-creation race remains unresolved; this case does not isolate its competing writers.
+
+Auto-train detected the missing commit marker at 14:04:11 (316s pending), cached
+steps 0–3198, restored the data cursor from committed checkpoint 2800, removed the
+incomplete 3000 prefix, and began same-TPU relaunch at 14:04:38. The 300s timeout
+recovery worked in that checking round; 398 completed updates need replay. Recovery
+acceptance requires a restored first step and a newly committed checkpoint 3000.
+
 ## Early WD comparison: Clean / old Control
 
 Same-step TB values below are RUN/BASE, not differences; L16-23 entries are

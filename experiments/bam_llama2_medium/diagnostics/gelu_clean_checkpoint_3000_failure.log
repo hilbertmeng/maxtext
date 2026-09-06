@@ -1,0 +1,84 @@
+RUN: BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix
+Runtime: b235a5d; TPU: xd-v5p-16-clean-gelu; zone: us-east5-a
+Source: worker-0 train log, captured before automatic same-TPU restart on 2026-09-06 UTC
+Filtered checkpoint/error/stack-frame lines; not a complete worker log.
+Waiting for step 3000 to finish before checkpoint...
+Waited 1.4979426860809326 seconds for step 3000 to finish before starting checkpointing.
+I0906 13:58:44.869276 140581265266688 checkpoint_manager.py:2049] [process=0][thread=MainThread][wait_until_finished] No Save Finalize thread to wait for. Returning.
+I0906 13:58:44.870984 140581265266688 checkpoint_manager.py:1526] [process=0] Saving checkpoint at step 3000
+I0906 13:58:44.872505 140581265266688 event_tracking.py:76] [process=0] [async] Started save checkpoint @ gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000.
+I0906 13:58:44.966202 140581265266688 jax_array_handlers.py:536] Scheduling D2H of 92 prioritized jax.Array.
+I0906 13:58:44.966299 140581265266688 replica_slices.py:425] Transferring arrays to host memory with options: use_replica_parallel=True, min_slice_bytes_for_replica_parallel=None, max_replicas_for_replica_parallel=None, enable_pinned_host_transfer=False
+I0906 13:58:45.049507 140581265266688 async_io_engine.py:155] [process=0][thread=MainThread] Initiated "orbax.checkpoint._src.serialization.jax_array_handlers.ArrayHandler".serialize. Time taken: 0.084212s
+I0906 13:58:45.049706 140581265266688 async_io_engine.py:226] MemoryRegulated: Peak usage: 0.000000 GiB
+I0906 13:58:45.050724 140581265266688 async_io_engine.py:127] [process=0] /jax/orbax/write/blocking_gbytes_per_sec: 55.224 GiB/s (total size: 5.0 GiB) (time elapsed: 0.08971047401428223 s) (global)
+I0906 13:58:45.050794 140581265266688 base_pytree_checkpoint_handler.py:757] [process=0][thread=MainThread] Initiated Pytree async_save. Time taken: 0.089808s (batch_requests_ready=0.004262s, total_serialization_initiated=0.084539s, others=0.001008s)
+I0906 13:58:45.050886 140581265266688 composite_checkpoint_handler.py:718] [process=0][thread=MainThread] Initiated CompositeCheckpointHandler.async_save. Time taken: 0.093217s (all_items=0.000014s, per_item={'items': '0.00001407'}, temp_paths=0.093203)
+I0906 13:58:45.051496 140581265266688 event_tracking.py:171] [process=0] [async] Finished blocking save in 0.18 seconds. Continuing save @ gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000.
+I0906 13:58:45.051738 140529236801088 async_checkpointer.py:76] [process=0][thread=async_save] Background save thread started. Deadline for this save operation is 2026-09-06 14:18:45.051697
+I0906 13:58:45.056499 140581265266688 checkpoint_manager.py:1585] [process=0][thread=MainThread][step=3000] Starting CheckpointManager Save Finalize thread=save_finalize
+I0906 13:58:45.056728 140529220015680 async_checkpointer.py:303] [process=0][thread=save_finalize] Waiting for background save thread=async_save.
+I0906 13:58:45.056833 140581265266688 standard_logger.py:34] {'step': 3000, 'event_type': 'save', 'directory': 'gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints', 'reached_preemption': False, 'preemption_received_at': None, 'synchronous': False, 'wait_for_prev_start_time': 1788703124.869217, 'wait_for_prev_duration_secs': 0.00014328956604003906, 'time_between_consecutive_saves_sec': 298.95534920692444, 'checkpointer_blocking_start_time': 1788703124.871042, 'checkpointer_blocking_duration_secs': 0.18078947067260742, 'get_old_steps_start_time': 1788703125.0518436, 'get_old_steps_duration_secs': 0.00010061264038085938, 'checkpoint_manager_blocking_start_time': 1788703124.867212, 'checkpoint_manager_blocking_duration_secs': 0.1895906925201416}
+Started an asynchronous checkpoint save for step 3000
+save_path: gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000/skip_file_and_step.json
+meta_dict: {'seed': 9876, 'cur_files': ['gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord/pile.tfrecord.b0', 'gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord/pile.tfrecord.b500'], 'file_in_data': 0, 'step_in_file': 3001, 'iter_file_nums': 2, 'checkpoint_step': 3000, 'global_batch_size': 256, 'num_infeed_hosts': 2}
+completed step: 3000, steps/s: 0.641 TFLOP/s/device: 116.163 total_weights: 523957 loss: 2.721263 accuracy: 48.162 lr: 27.053e-5
+W0906 13:58:53.436531 140529400219200 atomicity.py:134] Attempted to create temporary directory gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000 which already exists. Removing existing directory since it is not finalized.
+I0906 13:58:53.527352 140529400219200 atomicity.py:140] Creating tmp directory gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000
+E0906 13:58:53.559288 140529400219200 future.py:387] [process=0][thread=Thread-195 (_target_setting_result)][operation_id=16] _SignalingThread.run() raised an exception: gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000 already exists.
+Traceback (most recent call last):
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 378, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/threading.py", line 1012, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 336, in _target_setting_result
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 492, in <lambda>
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/asyncio_utils.py", line 100, in run_sync
+  File "/home/lishengping/miniconda3/lib/python3.12/asyncio/runners.py", line 195, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/asyncio_utils.py", line 91, in _coro_with_registration
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/atomicity.py", line 798, in _create_paths
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/atomicity.py", line 649, in create
+    return await _create_tmp_directory(
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/atomicity.py", line 144, in _create_tmp_directory
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/async_path.py", line 51, in mkdir
+    return await asyncio.to_thread(_mkdir_sync, **thread_kwargs)
+  File "/home/lishengping/miniconda3/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+  File "/home/lishengping/miniconda3/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/async_path.py", line 48, in _mkdir_sync
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/etils/epath/gpath.py", line 207, in mkdir
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/etils/epath/backend.py", line 314, in makedirs
+    raise FileExistsError(f'{path} already exists.')
+FileExistsError: gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000 already exists.
+E0906 13:58:53.561694 140529236801088 async_checkpointer.py:260] [process=0] Failed to run 3 Handler Commit operations or the Commit callback in background save thread, directory: gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000
+Traceback (most recent call last):
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/checkpointers/async_checkpointer.py", line 235, in _thread_func
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/checkpointers/async_checkpointer.py", line 86, in _background_wait_for_commit_futures
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 208, in result
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 572, in result
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 499, in result
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 446, in result
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 443, in join
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 378, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/threading.py", line 1012, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 336, in _target_setting_result
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/futures/future.py", line 492, in <lambda>
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/asyncio_utils.py", line 100, in run_sync
+  File "/home/lishengping/miniconda3/lib/python3.12/asyncio/runners.py", line 195, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/asyncio/runners.py", line 118, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/asyncio_utils.py", line 91, in _coro_with_registration
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/atomicity.py", line 798, in _create_paths
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/atomicity.py", line 649, in create
+    return await _create_tmp_directory(
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/atomicity.py", line 144, in _create_tmp_directory
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/async_path.py", line 51, in mkdir
+    return await asyncio.to_thread(_mkdir_sync, **thread_kwargs)
+  File "/home/lishengping/miniconda3/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+  File "/home/lishengping/miniconda3/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/orbax/checkpoint/_src/path/async_path.py", line 48, in _mkdir_sync
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/etils/epath/gpath.py", line 207, in mkdir
+  File "/home/lishengping/miniconda3/lib/python3.12/site-packages/etils/epath/backend.py", line 314, in makedirs
+    raise FileExistsError(f'{path} already exists.')
+FileExistsError: gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix/checkpoints/3000 already exists.
+I0906 13:58:53.563104 140529220015680 async_checkpointer.py:311] [process=0][thread=save_finalize] Done with waiting for background save thread=async_save.
+I0906 13:58:53.563204 140529220015680 checkpoint_manager.py:2187] [process=0][thread=save_finalize][step=3000] CheckpointManager Save Finalize is syncing with other hosts...

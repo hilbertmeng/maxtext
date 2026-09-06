@@ -60,14 +60,19 @@ def run(config):
     cohort = {k:np.asarray(data[k]) for k in ('inputs','targets','inputs_position',
         'inputs_segmentation','targets_segmentation','sequence_hashes')}
   bs = int(os.environ['BAM_RESIDUAL_ATTR_BATCH_SIZE'])
-  names = ['clean','all_origins_deleted','own_origin_only_deleted','earlier_origins_only_deleted']
+  own_only = os.environ.get('BAM_TOKEN_WORLDS_OWN_ONLY','1') == '1'
+  names = ['clean','all_origins_deleted','own_origin_only_deleted']
+  if not own_only:
+    names.append('earlier_origins_only_deleted')
   meta = dict(base_config_class=base._BASE_CONFIG_CLASS, checkpoint=config.load_parameters_path,
       trainer_commit=base._TRAINER_COMMIT, diagnostic_commit=os.environ['DIAGNOSTIC_COMMIT'],
       cohort_sha256=hashlib.sha256(path.read_bytes()).hexdigest(), source_layer=source,
       source_component=component, batch_size=bs, requested_sequences=len(cohort['inputs']),
       arms=names, source_positions='all valid; exact causal diagonal construction in real arithmetic',
       checks=['clean_self_reference','deleted_self_reference','clean_disabled_reference','deleted_disabled_reference'],
-      limitation='foreign/own effects interact; report both conditional differences and interaction')
+      limitation=('own-only loss measures the original position; collective deletion is not an additive '
+                  'sum of source effects and does not identify receiver-side consumers'),
+      own_only=own_only)
   records=resume_batches(output,meta,cohort,os.environ.get('BAM_MEDIATION_RESUME_COMMIT'))
   rng,writer,manager,mesh,model,_,tx=base.train.setup_mesh_and_model(config)
   iterator,_=base.create_data_iterator(config,mesh)
@@ -109,8 +114,10 @@ def run(config):
             checks=dict(zip(meta['checks'],checks)),isolated=diagnostics))
         raise ValueError(dict(zip(meta['checks'],checks)))
       own=infer(state.params,batch,deleted,clean[2],active)
-      earlier=infer(state.params,batch,scales,removed[2],active)
-      values=[jax.device_get(x[:2]) for x in (clean,removed,own,earlier)]
+      worlds=[clean,removed,own]
+      if not own_only:
+        worlds.append(infer(state.params,batch,scales,removed[2],active))
+      values=[jax.device_get(x[:2]) for x in worlds]
     loss=np.stack([v[0] for v in values],1);tokens=np.stack([v[1] for v in values],1)
     if not np.isfinite(tokens).all():raise ValueError('nonfinite token loss')
     save_batch(output/f'batch_{offset:03d}.npz',loss=loss,token_loss=tokens,
@@ -118,9 +125,10 @@ def run(config):
         sequence_hashes=cohort['sequence_hashes'][offset:offset+bs])
     records[offset]=loss
     a=np.concatenate([records[k] for k in sorted(records)]).astype(float)
-    contrasts={'all_deleted':a[:,1]-a[:,0], 'own_only':a[:,2]-a[:,0],
-        'earlier_only':a[:,3]-a[:,0], 'earlier_given_own_deleted':a[:,1]-a[:,2],
-        'own_given_earlier_deleted':a[:,1]-a[:,3], 'interaction':a[:,1]-a[:,2]-a[:,3]+a[:,0]}
+    contrasts={'all_deleted':a[:,1]-a[:,0], 'own_only':a[:,2]-a[:,0]}
+    if not own_only:
+      contrasts.update(earlier_only=a[:,3]-a[:,0], earlier_given_own_deleted=a[:,1]-a[:,2],
+          own_given_earlier_deleted=a[:,1]-a[:,3], interaction=a[:,1]-a[:,2]-a[:,3]+a[:,0])
     meta.update(completed_sequences=len(a),results={k:stats(v) for k,v in contrasts.items()})
     save_summary(output/'summary.json',meta)
     print(f'TOKEN_WORLDS_BATCH {len(a)}/{len(cohort["inputs"])}',flush=True)

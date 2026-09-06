@@ -11,7 +11,7 @@
    consumers and required lifetime? L10-self cannot answer this comparison.
 4. Which same-origin consumers preserve useful information or compensate local
    harm? Follow only the original position; downstream receiver-position
-   consumption after cross-token export is outside this round's scope.
+consumption after cross-token export is outside this round's scope.
 5. Could normal forward computation selectively deliver row information to those
    consumers without carrying its harmful direct residual contribution forever?
    The failed Medium RowRelay retained the original residual and added total row
@@ -83,7 +83,12 @@ row increment at its **source position** and how long that position needs it.
 V-cross export is a boundary event; tracing M/col/row/MLP consumption after it
 arrives at another position is outside scope. Retain completed conditional
 export results with that limitation, and defer the foreign-position worlds
-below. Do not launch further receiver-side descendant sweeps.
+below. Do not launch further receiver-side descendant sweeps. A restricted
+`BAM_TOKEN_WORLDS_OWN_ONLY=1` probe may measure only each original position's
+loss response, holding earlier positions to the clean reference. It is not a
+study of components at those earlier/receiver positions. This is needed to
+avoid relabeling compensation at the source as useful transport, and requires
+passing its numerical controls before any interpretation.
 
 The collective input-denial results do not themselves resolve question 1's loss
 location. Add a causal diagonal-world construction, not point-origin sampling.

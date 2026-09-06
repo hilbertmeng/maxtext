@@ -3476,7 +3476,7 @@ class BamAttention(Attention):
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,
-      fetch_state=None, mix_weights=None, consumer_value=None):
+      fetch_state=None, mix_weights=None, consumer_value=None, foreign_fetch_state=None):
     """Apply one dense/chunk attention block and its optional BAM fetch."""
     q1 = q0 + query.shape[1]
     s1 = s0 + key.shape[1]
@@ -3499,9 +3499,7 @@ class BamAttention(Attention):
       foreign_value = jnp.where(enabled[1], self.get_variable(
           'causal_ablation', 'row_foreign_value')[:, s0:s1], value)
       if fetch_state is not None:
-        reference_M = self.get_variable('causal_ablation', 'row_foreign_M')[:, s0:s1]
-        reference_state = self._compress_full_fetch_state(self._matrix_for_read(reference_M))
-        foreign_state = jnp.where(enabled[2], reference_state, fetch_state)
+        foreign_state = jnp.where(enabled[2], foreign_fetch_state, fetch_state)
     y_std, alpha = _attention_op(
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,
@@ -3570,7 +3568,7 @@ class BamAttention(Attention):
 
   def _query_chunk_op(
       self, query, key, value, decoder_segment_ids, window_size, *,
-      fetch_state=None, mix_weights=None, consumer_value=None):
+      fetch_state=None, mix_weights=None, consumer_value=None, foreign_fetch_state=None):
     """Slice query/source blocks, call `_attention_block`, and concatenate."""
     _, t, _, _ = query.shape
     assert self._query_chunk_size is not None
@@ -3588,6 +3586,7 @@ class BamAttention(Attention):
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
           decoder_segment_ids, q0=q0, s0=s0, window_size=window_size,
           fetch_state=(None if fetch_state is None else fetch_state[:, s0:s1]),
+          foreign_fetch_state=(None if foreign_fetch_state is None else foreign_fetch_state[:, s0:s1]),
           mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1]),
           consumer_value=(None if consumer_value is None else consumer_value[:, s0:s1])))
       y_chunks.append(y_chunk)
@@ -3707,7 +3706,7 @@ class BamAttention(Attention):
 
     if self.has_variable('causal_ablation', 'row_foreign_enabled'):
       key, value = jax.lax.optimization_barrier((key, value))
-    fetch_state = mix_weights = None
+    fetch_state = mix_weights = foreign_fetch_state = None
     if 'full' in self._mode:
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
@@ -3719,6 +3718,10 @@ class BamAttention(Attention):
       fetch_state = (
           local_Mh if self._local_qk_use_compressed_v
           else self._compress_full_fetch_state(Mh))
+      if self.has_variable('causal_ablation', 'row_foreign_enabled'):
+        # Match the live full-sequence projection shape before slicing chunks.
+        reference_M = self.get_variable('causal_ablation', 'row_foreign_M')
+        foreign_fetch_state = self._compress_full_fetch_state(self._matrix_for_read(reference_M))
 
     _, t, _, _ = query.shape
 
@@ -3730,12 +3733,14 @@ class BamAttention(Attention):
     if self._query_chunk_size is not None:
       y_std, Mbar, Mbar_self, fetch_self_weight, row_probe = self._query_chunk_op(
           query, key, value, decoder_segment_ids, local_window,
-          fetch_state=fetch_state, mix_weights=mix_weights, consumer_value=consumer_value)
+          fetch_state=fetch_state, mix_weights=mix_weights, consumer_value=consumer_value,
+          foreign_fetch_state=foreign_fetch_state)
     else:
       y_std, Mbar, Mbar_self, fetch_self_weight, row_probe = self._attention_block(
           query, key, value, decoder_segment_ids,
           q0=0, s0=0, window_size=local_window,
-          fetch_state=fetch_state, mix_weights=mix_weights, consumer_value=consumer_value)
+          fetch_state=fetch_state, mix_weights=mix_weights, consumer_value=consumer_value,
+          foreign_fetch_state=foreign_fetch_state)
 
     capture_mediation = self.is_mutable_collection('mediation_capture') and not self.is_initializing()
     if capture_mediation:

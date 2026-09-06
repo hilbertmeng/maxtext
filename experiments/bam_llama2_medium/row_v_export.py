@@ -27,15 +27,27 @@ def recipient_arms(source, early_end):
   result = []
   groups = [(f'L{l}', [l]) for l in range(early_end + 1, min(early_end + 7, 24))]
   groups += [(f'L{early_end+1}-23', range(early_end+1, 24))]
+  fields = ('full_col', 'full_row', 'M', 'mlp')
+  if os.environ.get('BAM_V_EXPORT_RECIPIENT_SET') == 'expanded':
+    # Complementary output families and temporal bands. Keep original all-origin
+    # first-hop denial; a same-layer std patch would trivially undo that hop.
+    groups = []
+    for low, high in ((early_end+1, 15), (max(early_end+1, 16), 19),
+                      (max(early_end+1, 20), 23), (early_end+1, 23)):
+      if low <= high and not any(label == f'L{low}-{high}' for label, _ in groups):
+        groups.append((f'L{low}-{high}', range(low, high+1)))
+    fields = ('std', 'full_col', 'full_row', 'M', 'mlp',
+              'std+full_col', 'full_col+mlp', 'std+full_col+mlp')
   # Same-layer M is written after MHA V read; same-layer fetched read is before
   # its write and cannot consume that newly produced M.
   groups += [(f'L{early_end}', [early_end])]
   for label, layers in groups:
-    for field in ('full_col', 'full_row', 'M', 'mlp'):
-      if label == f'L{early_end}' and field in ('full_col', 'full_row'):
+    for field in fields:
+      if label == f'L{early_end}' and field not in ('M', 'mlp'):
         continue
       control = np.zeros((24, len(med.CONTROL_NAMES)), np.float32)
-      control[list(layers), med.CONTROL_NAMES.index(field)] = 1
+      for member in field.split('+'):
+        control[list(layers), med.CONTROL_NAMES.index(member)] = 1
       for world in ('block', 'rescue'):
         result.append(dict(name=f'{world}_{label}_{field}', world=world,
                            control=control))
@@ -80,6 +92,7 @@ def run(config):
       trainer_commit=base._TRAINER_COMMIT, diagnostic_commit=os.environ['DIAGNOSTIC_COMMIT'],
       cohort_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
       source_layer=source, source_component=component, source_positions='all valid',
+      recipient_set=os.environ.get('BAM_V_EXPORT_RECIPIENT_SET', 'screen'),
       early_v_cross_layers=list(range(source+1, early_end+1)), batch_size=bs,
       requested_sequences=len(cohort['inputs']), arms=names,
       intervention='original row denied only to early cross-V; downstream exact-endpoint donor patch',

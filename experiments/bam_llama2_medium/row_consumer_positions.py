@@ -50,6 +50,9 @@ def intervention_tree(params, scales, mask, controls, z, scanned):
     if os.environ.get('BAM_CONSUMER_MLP_EXPORT') == '1':
       tree[attn[:-1] + ('row_export_capture',)] = (
           jnp.zeros(24) if scanned else jnp.asarray(0))
+    if os.environ.get('BAM_V_EXPORT_RECIPIENT_SET') == 'expanded':
+      tree[attn + ('row_export_std_boundary',)] = (
+          jnp.zeros(24) if scanned else jnp.asarray(0))
   if not paths:
     raise ValueError('no BAM attention paths found')
   return traverse_util.unflatten_dict(tree)
@@ -71,6 +74,8 @@ def forward(model, params, batch, rng, config, scales, mask, controls, z, source
     # residual-cancellation machinery changes the compiled graph unnecessarily.
     names = {'med_full', 'med_full_scale', 'med_M', 'med_M_scale',
              'med_mlp', 'med_mlp_scale'}
+    if os.environ.get('BAM_V_EXPORT_RECIPIENT_SET') == 'expanded':
+      names.update({'med_std', 'med_std_scale'})
     tree.update({p: value for p, value in patch.items() if p[-1] in names})
     variables['causal_ablation'] = traverse_util.unflatten_dict(tree)
   r1, r2 = jax.random.split(rng)

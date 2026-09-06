@@ -3692,6 +3692,8 @@ class BamAttention(Attention):
       self.sow('mediation_capture', 'trace_query', query)
       self.sow('mediation_capture', 'trace_key', key)
       self.sow('mediation_capture', 'trace_value', value)
+    if capture_mediation and self.has_variable('causal_ablation', 'row_export_std_boundary'):
+      y_std = jax.lax.optimization_barrier(y_std)
     if self.has_variable('causal_ablation', 'med_std'):
       y_std = _mediation_replace(y_std,
           self.get_variable('causal_ablation', 'med_std'),

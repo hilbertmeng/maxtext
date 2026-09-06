@@ -10,9 +10,24 @@ from flax import linen as nn
 from layers import normalizations
 from layers.attentions import _row_consumer_value_edges, ROW_CONSUMER_NAMES
 from row_consumer_positions import arms, intervention_tree, origin_positions, position_effects
+from row_v_export import recipient_arms, med
 
 
 class ConsumerTest(unittest.TestCase):
+  def test_v_export_expanded_recipients(self):
+    with patch.dict(os.environ, {'BAM_V_EXPORT_RECIPIENT_SET': 'expanded'}):
+      for end in (12, 15):
+        matrix = recipient_arms(11, end)
+        self.assertEqual(len({a['name'] for a in matrix}), len(matrix))
+        for arm in matrix:
+          c = arm['control']
+          np.testing.assert_array_equal(c[:end], 0)
+          for field in ('std', 'full_col', 'full_row'):
+            self.assertEqual(c[end, med.CONTROL_NAMES.index(field)], 0)
+        joint = next(a for a in matrix if a['name'] == f'rescue_L{end+1}-23_std+full_col')
+        np.testing.assert_array_equal(joint['control'][end+1:, 2], 1)
+        np.testing.assert_array_equal(joint['control'][end+1:, 10], 1)
+
   def test_v_source_and_edges(self):
     q0, s0, q, s, n, d = 3, 1, 4, 6, 2, 3
     targets = jnp.arange(q0,q0+q)[:,None]

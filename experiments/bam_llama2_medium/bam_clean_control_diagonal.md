@@ -1,18 +1,20 @@
 # Clean scan+AOT control and native-diagonal ablation
 
-Both runs use Medium V2 C256, layer scan, AOT, seed/data unchanged,
+All runs use Medium C256, layer scan, AOT, seed/data unchanged,
 13,500 steps and checkpoints every 200 steps. Formal TPU preference: UE5a.
 
 | Configuration class | Change | compare_runs |
 |---|---|---|
-| BamLlama2MediumV2C256ScanAotCleanControl | Correct AOT WD tree; also exclude `gw_b0`; diagonal=1 | BamLlama2MediumV2C256ScanAotControl |
-| BamLlama2MediumV2C256ScanAotCleanNativeDiagonal | Keep the native mixed diagonal; no local-O branch | BamLlama2MediumV2C256ScanAotCleanControl |
+| BamLlama2MediumV2C256ScanAotCleanControl | Correct AOT WD tree; also exclude `gw_b0`; diagonal=1 | BamLlama2MediumV2C256ScanAotControl, BamMHALlama2MediumC256ScanAotCleanControl |
+| BamLlama2MediumV2C256ScanAotCleanNativeDiagonal | Keep the native mixed diagonal; no local-O branch | BamLlama2MediumV2C256ScanAotCleanControl, BamMHALlama2MediumC256ScanAotCleanControl |
 | BamMHALlama2MediumC256ScanAotCleanControl | Same C256/scan/AOT and correct WD; disable every BAM read/write | Llama2Medium |
 
 The new MHA baseline uses `bam_mha_control=True`, `float32_logits=False`,
 13,500 steps and a forced final checkpoint. It reuses the BAM attention pipeline
-without BAM parameters or matrix carry. Add it to both clean BAM runs' comparisons
-once launched. Historical `Llama2Medium` TB records `scan_layers=False`, empty
+without BAM parameters or matrix carry. It is included in both clean BAM runs' comparisons.
+Runtime `50784e0`, UE5a, first-step AOT loading verified; steps 10-14 average
+0.906 steps/s, versus clean BAM 0.651 (71.9% throughput retention).
+Historical `Llama2Medium` TB records `scan_layers=False`, empty
 `compiled_trainstep_file`, and scale/bias WD exclusions; its ordinary JIT optimizer
 received the WD tree, so it was not affected by the AOT omission. New MHA versus
 historical MHA measures the combined execution/backend/logit-precision changes,

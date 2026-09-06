@@ -6093,8 +6093,9 @@ class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
 
 class BamLlama2MediumV2C256RmsGeluAlphaMixWDFix(BamLlama2MediumV2C256RmsGeluAlphaMix):
     """Same GELU model; AOT honors ordinary training weight-decay rules."""
-    # code_commit: 03f0a0f; UE5a ~0.648 steps/s (+0.1% vs RmsGeluAlphaMix), steps 10–14.
-    # vs RmsGeluAlphaMix: positive @1000-2400, negative since 3200; mean -.00091 @4600-6000 -> -.00180 @6200-7600.
+    # code_commit: 03f0a0f; UE5a ~0.648 steps/s (+0.1% vs RmsGeluAlphaMix); completed 13,499, ckpt 13,400.
+    # vs RmsGeluAlphaMix: positive @1000-2400, negative since 3200; mean -.00091 @4600-6000 -> -.00213 @9800-10800.
+    # vs ScanAotControl: +.1672 @200 steadily narrowed to zero; mean -.00010 @12400-13400, no clear final gain.
     model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMixWDFix'
 
 

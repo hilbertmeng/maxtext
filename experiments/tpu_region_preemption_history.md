@@ -80,6 +80,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 
 | `BamLlama2MediumV2C256RmsGeluAlphaMix` | v5p-16 | `us-east5-a` | 2026-09-06 05:50:20 | 2026-09-06 10:43:36 | user stop; checkpoint 10,860; no preemption or zone switch | none |
 | `BamLlama2MediumV2C256ScanAotCleanNativeDiagonal` | v5p-16 | `us-east5-a` | 2026-09-06 09:42:11 | 2026-09-06 11:54:28 | user stop; checkpoint 4,714; no preemption; TPU hot-switched to CleanGate050FixedAmplitude | none |
+| `BamLlama2MediumV2C256RmsGeluAlphaMixWDFix` | v5p-16 | `us-east5-a` | 2026-09-06 07:08:19 | 2026-09-06 13:21:54 | completed 13,499; checkpoint 13,400; no preemption; TPU and queue deletion verified | none |
 
 ## READY leases
 
@@ -370,3 +371,4 @@ inventing a duration. A passive queue is not an active-zone switch.
 | FetchNoRMSNormalInit | 1 | `us-east5-a` | 2026-09-05 11:16:15 | 2026-09-05 12:50:21 | 1h34m06s | run stop; deletion verified 12:52:59 |
 | RmsGeluAlphaMix | 1 | `us-east5-a` | 2026-09-06 05:50:23 | 2026-09-06 10:43:36 | 4h53m13s | run stop; TPU and queue deletion verified 10:46:06 |
 | CleanNativeDiagonal | 1 | `us-east5-a` | 2026-09-06 09:47:38 | 2026-09-06 11:54:28 | 2h06m50s | hot switch; no preemption; TPU retained for CleanGate050FixedAmplitude |
+| RmsGeluAlphaMixWDFix | 1 | `us-east5-a` | 2026-09-06 07:12:11 | 2026-09-06 13:21:54 | 6h09m43s | completed; zero preemptions; TPU and queue deletion verified |

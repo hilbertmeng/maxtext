@@ -93,5 +93,15 @@ class ConsumerTest(unittest.TestCase):
     self.assertEqual(matrix['joint_source_and_downstream_mlp_cross_v'].sum(),9)
     self.assertEqual(matrix['joint_downstream_all_v'].sum(),8)
 
+  def test_neighbor_arms(self):
+    from row_neighbors import neighbor_arms
+    names,scales=neighbor_arms(range(8,15))
+    self.assertEqual(len(names),22)
+    for layer in range(8,15):
+      for name,expected in [('cross',[0,0,1]),('self',[1,1,0]),('both',[0,0,0])]:
+        s=scales[names.index(f'L{layer}_{name}')]
+        np.testing.assert_array_equal(s[layer],expected)
+        np.testing.assert_array_equal(np.delete(s,layer,axis=0),1)
+
 
 if __name__=='__main__':unittest.main()

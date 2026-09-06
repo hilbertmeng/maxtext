@@ -5529,3 +5529,532 @@ class MuonMuddDEDcMuddMTP1KVshiftV4p5XLData400BGH128T20A5Align(MuonMuddDEDcMuddM
 # 2、rms 改为 1 + scale 并decay
 # 3、mtp updated_mlp_dim adjust
 # 4、global head dim set 128, 对应的head个数减半, local head dim keep 64.
+
+
+# Archived worktree experiment ledger. Restore each recorded runtime commit to
+# reproduce; historical architecture implementations intentionally remain off-main.
+
+class BamLlama2MediumV1Compat(BamLlama2MediumV1):
+    """V1 semantics on one common compatibility codebase."""
+    # code_commit: d9a6011; ~0.463 steps/s. paused 2,845 after the 2,800 bridge anchor.
+    # Exact vs historical AOT through 2,800; AOT-native compiler gap +.06015 @2,800.
+    model_name = 'BamLlama2MediumV1Compat'
+    bam_read_key_epsilon = 1e-4
+    bam_read_gate_init = 0.005
+    bam_read_rms_statistics_dtype = 'activation'
+    bam_write_rms_statistics_dtype = 'activation'
+    bam_factorized_head_output_layout = 'bnt'
+    bam_pack_factorized_local_qk = False
+    bam_abs_v_compression_dim = None
+    bam_write_v_mode = 'x'
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+    bam_fetch_diagonal_one = False
+    bam_write_outer_implementation = 'dot'
+    scan_layers = False
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/v1-compat')
+
+
+class BamLlama2MediumV1CompatNativeJit(BamLlama2MediumV1Compat):
+    """Native-JIT baseline for current-code V1 compatibility controls."""
+    # code_commit: 56cec64; EW4b ~0.463 steps/s; stopped 6,848.
+    # Exactly reproduced historical V1 loss through 6,800; 5 preemptions.
+    model_name = 'BamLlama2MediumV1CompatNativeJit'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/v1-compat-native-jit')
+
+
+class BamLlama2MediumV1CompatFp32Rms(BamLlama2MediumV1Compat):
+    """V1 compatibility anchor with only BAM RMS statistics promoted to fp32."""
+    # code_commit: d9a6011
+    model_name = 'BamLlama2MediumV1CompatFp32Rms'
+    bam_read_rms_statistics_dtype = 'float32'
+    bam_write_rms_statistics_dtype = 'float32'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/fp32-rms')
+
+
+class BamLlama2MediumV1CompatFp32RmsNativeJit(BamLlama2MediumV1CompatFp32Rms):
+    """Native-JIT twin isolating fp32 BAM RMS from cross-topology AOT."""
+    # code_commit: 4774b2f; ~0.459 steps/s; finished 2,800 (last full window 2,600).
+    # dloss +0.00275 vs V1 JIT; AOT twin was -0.08431 vs AOT base @2,200.
+    model_name = 'BamLlama2MediumV1CompatFp32RmsNativeJit'
+    steps = 2800
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/fp32-rms-native-jit')
+
+
+class BamLlama2MediumV1CompatDiagonalOne(BamLlama2MediumV1Compat):
+    """V1 compatibility anchor with only the diagonal-one fetched-read path."""
+    # code_commit: 4774b2f
+    model_name = 'BamLlama2MediumV1CompatDiagonalOne'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_share_full_local_read = False
+    bam_combine_full_local_read = False
+    bam_fetch_diagonal_one = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/diagonal-one')
+
+
+class BamLlama2MediumV1CompatFast(BamLlama2MediumV1CompatDiagonalOne):
+    """V1 compatibility anchor with both validated fast-path changes."""
+    # Config-only bridge dependency; config_source: 0a9cdb0
+    model_name = 'BamLlama2MediumV1CompatFast'
+    bam_write_outer_implementation = 'mul_reduce'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/fast')
+
+
+class BamLlama2MediumV1CompatPLocR256Gelu(BamLlama2MediumV1CompatFast):
+    """Fast bridge with a bias-free D->256->nV GELU P_loc."""
+    # Config-only bridge dependency; config_source: 0a9cdb0
+    model_name = 'BamLlama2MediumV1CompatPLocR256Gelu'
+    bam_write_v_bottleneck_dim = 256
+    bam_write_v_bottleneck_activation = 'gelu'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/ploc-r256-gelu')
+
+
+class BamLlama2MediumV1CompatPLocR256GeluBias(
+    BamLlama2MediumV1CompatPLocR256Gelu
+):
+    """Fast bridge with the modern biased D->256->nV GELU P_loc."""
+    # Config-only bridge dependency; config_source: 0a9cdb0
+    model_name = 'BamLlama2MediumV1CompatPLocR256GeluBias'
+    bam_write_v_mode = 'x_bias'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/ploc-r256-gelu-bias')
+
+
+class BamLlama2MediumV1CompatPackedLocalQK(
+    BamLlama2MediumV1CompatPLocR256GeluBias
+):
+    """Modern P_loc bridge with packed factorized LocalQK projections."""
+    # Config-only bridge dependency; config_source: 0a9cdb0
+    model_name = 'BamLlama2MediumV1CompatPackedLocalQK'
+    bam_pack_factorized_local_qk = True
+    bam_factorized_head_output_layout = 'btn'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/packed-local-qk')
+
+
+class BamLlama2MediumV1CompatModernNumerics(
+    BamLlama2MediumV1CompatPackedLocalQK
+):
+    """Packed native-C32 bridge with current fp32 BAM RMS numerics."""
+    # Config-only bridge dependency; config_source: 0a9cdb0
+    model_name = 'BamLlama2MediumV1CompatModernNumerics'
+    bam_read_rms_statistics_dtype = 'float32'
+    bam_write_rms_statistics_dtype = 'float32'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/modern-numerics')
+
+
+class BamLlama2MediumV1CompatC256(BamLlama2MediumV1CompatModernNumerics):
+    """Native-C32 modern bridge with C256 attention, without layer scan."""
+    # Config-only bridge dependency; config_source: 0a9cdb0
+    model_name = 'BamLlama2MediumV1CompatC256'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    bam_query_chunk_implementation = 'optimized'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c256')
+
+
+class BamLlama2MediumV1CompatC256Scan(BamLlama2MediumV1CompatC256):
+    """Coarse JIT midpoint: all supported modern changes on V1-compatible code."""
+    # complete at 6,799; archived run record.
+    # code_commit: 6136f7f; resumed 70f944b; EW4b ~0.627 steps/s.
+    model_name = 'BamLlama2MediumV1CompatC256Scan'
+    scan_layers = True
+    steps = 6800
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c256-scan')
+
+
+class BamLlama2MediumV1CompatCoarseParameterization(BamLlama2MediumV1Compat):
+    """Coarse block A: modern P_loc parameterization only."""
+    # code_commit: 6136f7f; resumed 70f944b; EW4b ~0.458 steps/s; stopped 6,067.
+    # dloss settled near +.007 vs H; modern P_loc alone is mildly harmful on native C32.
+    model_name = 'BamLlama2MediumV1CompatCoarseParameterization'
+    bam_write_v_mode = 'x_bias'
+    bam_write_v_bottleneck_dim = 256
+    bam_write_v_bottleneck_activation = 'gelu'
+    steps = 6800
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-parameterization')
+
+
+class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
+    """Coarse block B: modern execution/layout/numerics without P_loc changes."""
+    # code_commit: 6136f7f; resumed 70f944b; EW4b ~0.630 steps/s; completed 6,800.
+    model_name = 'BamLlama2MediumV1CompatCoarseExecutionNumerics'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_share_full_local_read = False
+    bam_combine_full_local_read = False
+    bam_fetch_diagonal_one = True
+    bam_write_outer_implementation = 'mul_reduce'
+    bam_pack_factorized_local_qk = True
+    bam_factorized_head_output_layout = 'btn'
+    bam_read_rms_statistics_dtype = 'float32'
+    bam_write_rms_statistics_dtype = 'float32'
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    bam_query_chunk_implementation = 'optimized'
+    scan_layers = True
+    steps = 6800
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-numerics')
+
+
+class BamLlama2MediumV1CompatD1N1C256NonScanJit(
+    BamLlama2MediumV1CompatCoarseExecutionNumerics
+):
+    """Historical linear P_loc with D1N1 and C256, without layer scan."""
+    # complete at 6,799; archived run record.
+    # code_commit: 133f034; UE5a ~0.647 steps/s.
+    model_name = 'BamLlama2MediumV1CompatD1N1C256NonScanJit'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d1n1-c256-nonscan-jit')
+
+
+class BamLlama2MediumV1CompatD1N1C256NonScanAot(
+    BamLlama2MediumV1CompatD1N1C256NonScanJit
+):
+    """AOT twin of the D1N1 C256 non-scan JIT bridge."""
+    # complete at 6,799; archived run record.
+    # code_commit: 133f034; UE5a ~0.645 steps/s.
+    model_name = 'BamLlama2MediumV1CompatD1N1C256NonScanAot'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d1n1-c256-nonscan-aot')
+
+
+class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd(
+    BamLlama2MediumV1CompatCoarseExecutionNumerics
+):
+    """B 2x2: express diagonal-one as cross-fetch plus an explicit local-M add."""
+    # code_commit: e460af9
+    # stopped at 7,740; archived run record.
+    # !? EW4b ~0.507 steps/s (-19.5% vs B) despite algebraic equivalence.
+    model_name = 'BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd'
+    steps = 13500
+    bam_query_chunk_diagonal_implementation = 'cross_plus_local'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-explicit-local-add')
+
+
+class BamLlama2MediumV1CompatCoarseExecutionBf16Rms(
+    BamLlama2MediumV1CompatCoarseExecutionNumerics
+):
+    """B 2x2: keep diagonal-one and restore activation-dtype BAM RMS statistics."""
+    # code_commit: e460af9
+    # stopped at 8,194; archived run record.
+    # EW4b ~0.631 steps/s (flat vs B).
+    model_name = 'BamLlama2MediumV1CompatCoarseExecutionBf16Rms'
+    steps = 13500
+    bam_read_rms_statistics_dtype = 'activation'
+    bam_write_rms_statistics_dtype = 'activation'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-bf16-rms')
+
+
+class BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAdd
+):
+    """B 2x2: explicit local-M add with activation-dtype BAM RMS statistics."""
+    # code_commit: e460af9
+    # stopped at 7,522; archived run record.
+    # !? EW4b ~0.508 steps/s (-19.4% vs B) despite algebraic equivalence.
+    model_name = 'BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms'
+    steps = 13500
+    bam_read_rms_statistics_dtype = 'activation'
+    bam_write_rms_statistics_dtype = 'activation'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/coarse-execution-explicit-local-add-bf16-rms')
+
+
+class BamLlama2MediumV1CompatD0N0DenseNonScan(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """D0N0 with only C256+layer-scan restored to H's dense non-scan path."""
+    # stopped at 6,883; archived run record.
+    # code_commit: 74c72e6; !? EW4b ~0.536 steps/s (+5.5% vs D0N0 C256).
+    # dloss vs H peaked +.00375 @1,200 then narrowed to +.00286 @1,600.
+    model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScan'
+    attention = 'autoselected'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-nonscan')
+
+
+class BamLlama2MediumV1CompatD0N0HistoricalCombinedRead(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """D0N0 with local_o restored to H's shared CombinedRead parameterization."""
+    # code_commit: 4c6e942; EW4b ~0.508 steps/s; stopped 646.
+    # dloss within 3.3e-7 vs D0N0 @200/400/600: config differed, runtime was equivalent.
+    model_name = 'BamLlama2MediumV1CompatD0N0HistoricalCombinedRead'
+    bam_layer_modes = ['local_qk+local_o+full'] * 24
+    bam_share_full_local_read = True
+    bam_combine_full_local_read = True
+    bam_fetch_diagonal_one = False
+    bam_query_chunk_diagonal_implementation = 'set_one'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-historical-combined-read')
+
+
+class BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead(
+    BamLlama2MediumV1CompatD0N0HistoricalCombinedRead
+):
+    """D0N0 with both H's dense non-scan and historical CombinedRead paths."""
+    # code_commit: 74c72e6; EW4b ~0.537 steps/s; stopped 798.
+    # dloss exactly 0 vs DenseNonScan @200/400/600: historical CombinedRead is a runtime no-op.
+    model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanHistoricalCombinedRead'
+    attention = 'autoselected'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-nonscan-historical-combined-read')
+
+
+class BamLlama2MediumV1CompatD0N0UnpackedBnt(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """D0N0 with only LocalQK projection/layout restored to H's unpacked bnt path."""
+    # code_commit: 6200a20; EW4b ~0.496 steps/s (-2.4% vs packed D0N0); stopped 3,800.
+    # dloss vs H plateaued near +0.0118 @2,800-3,600: unpacking alone cannot reproduce H.
+    model_name = 'BamLlama2MediumV1CompatD0N0UnpackedBnt'
+    bam_pack_factorized_local_qk = False
+    bam_factorized_head_output_layout = 'bnt'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-unpacked-bnt')
+
+
+class BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt(
+    BamLlama2MediumV1CompatD0N0DenseNonScan
+):
+    """Closure bridge: jointly restore H's dense non-scan and unpacked LocalQK."""
+    # code_commit: 59a9f2b; EW4b -> UE5a ~0.520 steps/s; stopped 6,871.
+    # From 2,200-6,800, dloss vs H oscillated around +.0021 without a zeroing
+    # trend (last +.0040): dense+non-scan+unpacked nearly, not exactly, closes H.
+    # It retained ~-.010..-.013 vs D0N0; unpacking contributed ~-.002 vs Dense.
+    model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt'
+    bam_pack_factorized_local_qk = False
+    bam_factorized_head_output_layout = 'bnt'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-nonscan-unpacked-bnt')
+
+
+class BamLlama2MediumV1CompatD0N0C256NonScan(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """Loss bridge: D0N0 C256 with only layer scan disabled."""
+    # code_commit: 1a3498a; EW4b -> UE5a ~0.515 steps/s; stopped 4,188.
+    # After warmup, dloss vs Dense stayed positive through 4,000: mostly
+    # +.0025..+.0037 from 2,400 onward (one +.0011 dip @3,200), recent mean +.0031.
+    # Thus C256 contributes a persistent ~+.003 loss penalty on the non-scan path.
+    model_name = 'BamLlama2MediumV1CompatD0N0C256NonScan'
+    scan_layers = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-c256-nonscan')
+
+
+class BamLlama2MediumV1CompatD0N0DenseScan(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """Loss bridge: D0N0 layer scan with only C256 replaced by dense attention."""
+    # code_commit: 1a3498a; !! EW4b ~0.534 steps/s; stopped 2,376.
+    # dloss +3.231 vs H @200; raw_grad_norm exploded to 92,813: dense x scan is unstable.
+    model_name = 'BamLlama2MediumV1CompatD0N0DenseScan'
+    attention = 'autoselected'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-dense-scan')
+
+
+class BamLlama2MediumV1CompatC256ScanFixedAmplitude(
+    BamLlama2MediumV1CompatC256Scan
+):
+    """Coarse ABC endpoint with current fixed fetched-read amplitude."""
+    # code_commit: 3a01b21; EW4b ~0.628 steps/s; stopped 2,208. dloss 0 vs AB
+    # through 1,950 (max pointwise |dloss| 5e-7): fixed amplitude is an exact no-op.
+    model_name = 'BamLlama2MediumV1CompatC256ScanFixedAmplitude'
+    bam_fetched_read_amplitude_init = 11.3137
+    bam_fetched_read_amplitude_learnable = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c256-scan-fixed-amplitude')
+
+
+class BamLlama2MediumV1CompatD0N0AotControl(
+    BamLlama2MediumV1CompatCoarseExecutionExplicitLocalAddBf16Rms
+):
+    """Exact D0N0 control compiled through cross-topology AOT."""
+    # complete at 6,799; archived run record.
+    # code_commit: 6668675; UE5a ~0.507 steps/s; running.
+    model_name = 'BamLlama2MediumV1CompatD0N0AotControl'
+    steps = 6800
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/d0n0-aot-control')
+
+
+class BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedNativeJitControl(
+    BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137Fixed
+):
+    """Exact native-C32 control compiled natively on the target v5p-16."""
+    # code_commit: fab07ed; EW4b ~0.621 steps/s; stopped 6,865.
+    # dloss stabilized at ~+.011 vs V1 and ~+.004 vs V2 from 3,000–6,800;
+    # native JIT removed only a tiny AOT penalty and did not rescue modern C32.
+    model_name = (
+        'BamLlama2MediumV2C256FetchAmplitudeGate005C32A113137FixedNativeJitControl'
+    )
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-c32-bridge/c32-native-jit')
+
+
+class BamLlama2MediumV1OriginalLayerScan(BamLlama2MediumV1):
+    """Historical V1 code with only matrix-stream layer scan backported."""
+    # code_commit: 562e03b; EW4b ~0.506 steps/s (+9.8% vs original V1 !?); stopped 537.
+    # dloss +4.558 vs original V1 @400: original V1 also becomes unstable under layer scan.
+    model_name = 'BamLlama2MediumV1OriginalLayerScan'
+    scan_layers = True
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-original-layer-scan')
+
+
+class BamLlama2MediumV1HistoricalCodeRepro(BamLlama2MediumV1):
+    """Exact V1-code reproduction anchor with a distinct output directory."""
+    # code_commit: 5b04157; EW4b ~0.461 steps/s; stopped 2,855.
+    # Cross-topology AOT diverged from native V1: dloss +.05629 @2,800
+    # (peaked +.08589 @2,200); native JIT reproduced V1 exactly.
+    model_name = 'BamLlama2MediumV1HistoricalCodeRepro'
+    checkpoint_period = 200
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-historical-code-repro')
+
+
+class BamLlama2MediumV1HistoricalJitRepro(BamLlama2MediumV1):
+    """Historical V1 control compiled natively on the training v5p-16."""
+    # code_commit: f880264; EW4b ~0.461 steps/s; completed 2,799.
+    # Reproduced V1 across all 2,542 cached common raw steps (max |dloss| 5e-7).
+    model_name = 'BamLlama2MediumV1HistoricalJitRepro'
+    steps = 2800
+    checkpoint_period = 250
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v1-historical-jit-repro')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AttributionReplay(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Exact C8 replay retaining aligned checkpoints for AbsV attribution."""
+    # stopped at 8,800; archived run record.
+    # code_commit: 07a4266
+    model_name = (
+        'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AttributionReplay')
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-partial-rank2-attribution-replay')
+
+
+class BamLlama2MediumV2C256RowRelayRowSlot(
+    BamLlama2MediumV2C256ScanAotControl
+):
+    """Also relay each fetched row answer through the next layer's MHA V row slot."""
+    # c70af94; UE5a ~0.646 steps/s (-2.1% vs ScanAotControl); stopped at 6,216.
+    # dloss vs ScanAotControl: +.02144 @200 -> +.00270 mean @4.6k-6k
+    # (range +.00137..+.00423); early narrowing, then noisy small harm; no gain observed.
+    model_name = 'BamLlama2MediumV2C256RowRelayRowSlot'
+    bam_row_relay_to_next_value = True
+    bam_record_row_relay_health_metrics = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-v2-c256-row-relay-row-slot')
+
+
+class BamLlama2MediumV2C256FetchNoRMSNormalInit(BamLlama2MediumV2C256ScanAotControl):
+    """Fetched keys: normal(0, .006) W_R and 2*sigmoid(g)*W_R(x), no RMS."""
+    # a2ef6b5; UE5a scan+AOT ~0.657 steps/s, -0.5% vs ScanAotControl; stopped 3,517.
+    # dloss vs ScanAotControl shrank +.3368 @200 -> +.0174 mean plateau @2400-3400.
+    # Lower W_R gradients did not improve cumulative clipping or loss.
+    model_name = 'BamLlama2MediumV2C256FetchNoRMSNormalInit'
+    bam_fetched_read_key_rms = False
+    bam_fetched_read_kernel_init = 'normal'
+    steps = 13500
+
+
+class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
+    """Nonnegative softmax head mixture; retain the fixed-one self diagonal."""
+    # code_commit: feef259; UE5a ~0.650 steps/s; stopped 6,810. vs ScanAotControl: +.405→+.0445, still slowly narrowing.
+    model_name = 'BamLlama2MediumV2C256SoftmaxMix'
+    bam_shared_fetch_mode = 'dynamic_mix'
+    bam_record_fetch_route_metrics = True
+
+
+class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
+    """RMS head mixture with learned per-layer scale; GELU alpha, then diagonal one."""
+    # code_commit: bef8312; UE5a ~0.647 steps/s (-1.9% vs ScanAotControl), steps 10–14.
+    # AOT optimizer omits wd_mults: learned mix scale is actually decayed; not a no-decay trial.
+    model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMix'
+    bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
+    bam_record_fetch_route_metrics = True
+
+
+class BamLlama2MediumV2C256ClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
+    """Unnormalized signed dynamic coefficients; clip mixed alpha, then set diagonal one."""
+    # code_commit: feef259; UE5a ~0.646 steps/s (-2.1%); stopped 7,969.
+    # vs ScanAotControl: +.3788 @200 -> +.0346 @4k -> +.0262 @7.8k; slowly narrowing, still harmful.
+    model_name = 'BamLlama2MediumV2C256ClippedAlphaMix'
+    bam_shared_fetch_mode = 'dynamic_clipped_mix'
+    bam_record_fetch_route_metrics = True
+
+
+class BamLlama2MediumV2C256StaticClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
+    """Per-layer token-shared coefficients initialized to 1/n; clip mixed alpha."""
+    # code_commit: feef259; UE5a ~0.658 steps/s (-0.3%); stopped 8,097.
+    # vs ScanAotControl: +.4134 @200 -> +.0366 @4k -> +.0273 @8k; slowly narrowing, no gain.
+    # vs ClippedAlphaMix: early +.035 -> noisy +.0013 @7.8k; both remain substantially worse than Control.
+    model_name = 'BamLlama2MediumV2C256StaticClippedAlphaMix'
+    bam_shared_fetch_mode = 'static_clipped_mix'
+    bam_record_fetch_route_metrics = True

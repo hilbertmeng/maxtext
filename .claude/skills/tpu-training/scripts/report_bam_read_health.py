@@ -296,10 +296,19 @@ def _rounded(value, digits=5):
 
 
 def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
-  result = {"global": [], "bands": [], "local_qk": []}
+  result = {"global": [], "bands": [], "local_qk": [], "mix_scale": []}
   raw_grad_tag = "learning/raw_grad_norm"
   raw_grad_events = scalars.values(raw_grad_tag)
   for step in steps:
+    scale_tags = [f"bam/fetch_route/layer_{layer:03d}/mix_scale_over_init"
+                  for layer in range(num_layers)]
+    if any(tag in scalars.tags for tag in scale_tags):
+      if not all(tag in scalars.tags for tag in scale_tags):
+        raise ValueError("incomplete layerwise fetch mix scale metrics")
+      result["mix_scale"].append({
+          "step": step,
+          "ratio_by_layer": [_rounded(scalars.at(tag, step)) for tag in scale_tags],
+      })
     wr_norms = []
     for layer in range(num_layers):
       tag = (
@@ -493,6 +502,13 @@ def _print_text(run: str, result) -> None:
         print(f"  {key} a/a0={amplitude_ratio} {summary} {bins}")
 
 
+def _print_mix_scale(run, result):
+  if result.get("mix_scale"):
+    print(f"\nRUN={run} fetch mix scale / initial(1/sqrt(N)); columns=L0..L{len(result['mix_scale'][0]['ratio_by_layer'])-1}")
+    for row in result["mix_scale"]:
+      print(row["step"], " ".join(f"{value:.4f}" for value in row["ratio_by_layer"]))
+
+
 def _format_pair(pair):
   if pair is None:
     return "--"
@@ -590,6 +606,8 @@ def main() -> None:
       _print_comparison(args.run, base_run, comparisons[base_run])
   else:
     _print_text(args.run, result)
+  if not args.json:
+    _print_mix_scale(args.run, result)
 
 
 if __name__ == "__main__":

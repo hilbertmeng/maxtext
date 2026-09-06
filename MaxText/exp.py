@@ -1216,6 +1216,13 @@ class BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude(BamLlama2MediumV2C2
     bam_record_fetched_read_amplitude_metrics = True
 
 
+class BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix(BamLlama2MediumV2C256ScanAotCleanControl):
+    """GELU mixed alpha on Clean; identical WD rules, including no-decay gw_b0."""
+    model_name = 'BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix'
+    bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
+    bam_record_fetch_route_metrics = True
+
+
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):
     """Keep the mixed alpha diagonal; no separate local-O read."""
     # code_commit: 4cf1556; UE5a ~0.649 steps/s (-0.3% vs CleanControl); running.

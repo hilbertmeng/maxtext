@@ -9,6 +9,7 @@ All runs use Medium C256, layer scan, AOT, seed/data unchanged,
 | BamLlama2MediumV2C256ScanAotCleanNativeDiagonal | Keep the native mixed diagonal; no local-O branch | BamLlama2MediumV2C256ScanAotCleanControl, BamMHALlama2MediumC256ScanAotCleanControl |
 | BamMHALlama2MediumC256ScanAotCleanControl | Same C256/scan/AOT and correct WD; disable every BAM read/write | Llama2Medium |
 | BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude | Fetched gate .005→.05; fixed pre-gate multiplier 2→.2; no depth scaling | BamLlama2MediumV2C256ScanAotCleanControl |
+| BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix | GELU mixed alpha + learned layer scale on Clean's WD rules | BamLlama2MediumV2C256ScanAotCleanControl, BamLlama2MediumV2C256RmsGeluAlphaMixWDFix |
 
 The new MHA baseline uses `bam_mha_control=True`, `float32_logits=False`,
 13,500 steps and a forced final checkpoint. It reuses the BAM attention pipeline
@@ -60,6 +61,13 @@ equal. Expect essentially unchanged throughput and a small, uncertain loss delta
 (tentative final ±.005), not automatic suppression of the initial W_R gradient spike.
 Compare gate distributions, W_R gradients/clipping and yBAM/ySTD against Clean.
 Prepare v6e AOT before replacing NativeDiagonal's allocated UE5a TPU.
+
+GELU-Clean versus Clean isolates the GELU/learned-mix-scale package, unlike
+WDFix versus old Control, which also changes the optimizer's WD exclusions.
+GELU-Clean versus WDFix isolates skipping `gw_b0` decay in the GELU context.
+Tentative final bet versus Clean: -.002, with uncertainty roughly ±.005;
+the observed context-dependent WD effects prevent a reliable additive prediction.
+Expect ~.65 steps/s, close to WDFix/Clean. Allocate its UE5a TPU after AOT is ready.
 
 ## Early WD comparison: Clean / old Control
 

@@ -260,8 +260,56 @@ All-origin loss does not decompose own-position compensation and other-position
 benefit, so do not label a necessary local MLP as purely beneficial transport.
 Finite-lifetime selective delivery tests a realizable architectural direction
 without needing to claim such a decomposition. It has not improved checkpoint
-loss. The foreign-world runner remains an unvalidated numerical prototype, not
-support for a token-lineage claim and not a new pending receiver-side task.
+loss. The restricted own-origin runner is now validated below. Receiver-side
+descendant analysis remains outside scope; own-origin consumer attribution is
+the remaining step needed to distinguish local compensation from net usefulness.
+
+## All-origin own-position loss: validated cross/self/whole comparison
+
+Runtime `73d1f89defbd0547f3978502d6b4da0c9741ca5a`, branch
+`codex/bam-row-mediation`, script `row_token_worlds.py`; same XL Rank2 checkpoint
+49,720 and fixed 128-example cohort as above. For every valid target t, delete
+only its own L11 increment while supplying clean earlier-position K/V/M.
+Causality allows all target-specific worlds in parallel; no origin sampling.
+Only t's own prediction enters the own-position loss statistic.
+
+| L11 source removed | Own-position Δloss ± 95% CI | Harmed sequences /128 | Collective deletion Δloss ± 95% CI |
+|---|---:|---:|---:|
+| row-cross | +.003989 ± .001526 | 117 | +.015693 ± .001961 |
+| row-self | +.007837 ± .000775 | 125 | +.068443 ± .005878 |
+| entire row | +.002833 ± .000459 | 118 | +.021799 ± .002282 |
+
+All three runs completed 128 unique sequences and passed four **exact** token-loss
+controls on every batch; clean baselines also match exactly between the three.
+The analyzer verifies cohort hashes, finite losses, controls, and reconstruction
+of sequence losses from token losses/masks. Versus the older selective-delivery
+graph, clean loss changes by −.000023 ± .000141 (maximum per-sequence difference
+.002579); comparisons above are strictly within the new, common graph.
+
+**Cross is useful even at its own origin after downstream processing.** Negative
+direct residual IG does not imply negative total own-position contribution. The
+own-position self/cross interaction is −.008994 ± .002125: deleting cross with
+self already absent **improves** own-position loss −.005004 ± .000767, whereas
+deleting cross with self present harms it +.003989. Their context dependence is
+therefore not solely a receiver-position phenomenon. Do not divide own by
+collective effects and call the ratio an additive transported-benefit fraction.
+Which same-origin consumers account for this interaction still needs measurement.
+
+Numerical audit: full-T donor compression (`ae57335`) did not fix self-reference
+drift. Instrumentation (`943cad3`) proved donor and live raw/compressed M identical
+at L12; the first difference was fetched M. Explicit bf16 cache/fetch rounding
+boundaries before the float32 diagonal correction (`73d1f89`) restored exact
+controls. The particular HLO fusion was not separately profiled.
+
+Reproduce with `DIAGNOSTIC_COMMIT=73d1f89defbd0547f3978502d6b4da0c9741ca5a`,
+`BAM_MEDIATION_PHASE=token_worlds`, `BAM_MEDIATION_SOURCE=11`,
+`BAM_MEDIATION_LABEL=fetch-rounding`, `BAM_TOKEN_WORLDS_OWN_ONLY=1`, and
+`BAM_MEDIATION_COMPONENT=cross/self/both`, using `run_row_mediation.sh xl`.
+GCS prefixes under the diagnostics root:
+`bam-row-mediation-xl-L11-token_worlds-fetch-rounding-73d1f89`, plus
+`-rowself` and `-rowboth`. Analyze each downloaded prefix with
+`python analyze_row_token_worlds.py ROOT --output ANALYSIS.json`.
+Per-token losses, masks and cohort remain stored; no activation vectors are saved.
 
 ## L8–14 context: direct harm versus whole-network necessity
 

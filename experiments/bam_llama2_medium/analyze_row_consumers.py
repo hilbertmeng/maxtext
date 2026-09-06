@@ -12,7 +12,8 @@ def load(root):
   records=[]
   for path in sorted(root.glob('batch_*.npz')):
     with np.load(path) as x:
-      for name in ('null_max_error','past_max_error','source_scope_error'):
+      for name in ('null_max_error','past_max_error','source_scope_error',
+                   'unused_reference_error','immediate_cut_error'):
         if np.any(x[name]!=0):raise ValueError(f'{path}: {name}')
       for i,h in enumerate(x['sequence_hashes']):
         records.append(dict(hash=str(h),position=int(x['positions'][i]),
@@ -75,8 +76,12 @@ def summarize(roots):
               origin=stats(differences[:,q,0]),future=stats(differences[:,q,1:6].sum(-1)))
               for q,a in enumerate(m['arms'])]))
       if m.get('source_mode','point')=='all':
-        for a in output['self_cross'][-1]['arms']:
+        for q,a in enumerate(output['self_cross'][-1]['arms']):
           a.pop('origin');a.pop('future')
+          delta=np.asarray([(x['loss'][q]-x['loss'][0])-(y['loss'][q]-y['loss'][0])
+                            for x,y in pairs])
+          if m['source_component']=='self':delta=-delta
+          a['mean_token_delta']=stats(delta)
   return output
 
 

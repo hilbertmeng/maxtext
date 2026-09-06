@@ -15,6 +15,10 @@
    consumers without carrying its harmful direct residual contribution forever?
    The failed Medium RowRelay retained the original residual and added total row
    output to only the next layer's V; it did not test source/lifetime selection.
+6. Among L8–14, does L11 combine exceptional whole-network importance with its
+   largest negative direct IG, or ordinary importance with exceptional direct
+   harm? Rank same-cohort row-cross deletion costs, keeping their units separate
+   from normalized direct IG. Reuse L10–14; supplement L8/9 with L11 as an anchor.
 
 ## Stage 1: direct input denial, two parallel XL probes
 

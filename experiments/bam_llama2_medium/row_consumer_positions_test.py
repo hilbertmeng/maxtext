@@ -2,6 +2,7 @@
 import os
 os.environ.setdefault('BAM_RESIDUAL_ATTR_BASE_CONFIG', 'BamLlama2MediumV2')
 import unittest
+from unittest.mock import patch
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -80,6 +81,17 @@ class ConsumerTest(unittest.TestCase):
       np.testing.assert_array_equal(a,b)
     a,b=module.apply(p,x,jnp.zeros_like(x))
     np.testing.assert_array_equal(a,b)
+
+  def test_interaction_arms(self):
+    with patch.dict(os.environ, {'BAM_CONSUMER_ARM_SET':'interactions'}):
+      matrix={a['name']:a['control'] for a in arms(11)}
+    mlp=ROW_CONSUMER_NAMES.index('mlp');v=ROW_CONSUMER_NAMES.index('v_cross')
+    joint=matrix['joint_source_mlp_cross_v']
+    self.assertEqual(joint[11,mlp],1)
+    np.testing.assert_array_equal(joint[12:16,v],1)
+    self.assertEqual(joint.sum(),5)
+    self.assertEqual(matrix['joint_source_and_downstream_mlp_cross_v'].sum(),9)
+    self.assertEqual(matrix['joint_downstream_all_v'].sum(),8)
 
 
 if __name__=='__main__':unittest.main()

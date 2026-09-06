@@ -106,6 +106,17 @@ def arms(source):
   add('joint_all_direct_consumers', range(source + 1, min(source + 5, 24)),
       ROW_CONSUMER_NAMES[:9])
   result[-1]['control'][source, ROW_CONSUMER_NAMES.index('mlp')] = 1
+  if os.environ.get('BAM_CONSUMER_ARM_SET') == 'interactions':
+    # Retain the validated screen arms and add joint tests. Interactions are
+    # paired contrasts, not sums of isolated consumer importance percentages.
+    downstream = list(range(source + 1, min(source + 5, 24)))
+    add('joint_source_mlp_cross_v', downstream, ['v_cross'])
+    result[-1]['control'][source, ROW_CONSUMER_NAMES.index('mlp')] = 1
+    add('joint_source_and_downstream_mlp_cross_v', downstream, ['mlp','v_cross'])
+    result[-1]['control'][source, ROW_CONSUMER_NAMES.index('mlp')] = 1
+    add('joint_downstream_all_v', downstream, ['v_self','v_cross'])
+    for end in downstream[1:]:
+      add(f'cumulative_L{source+1}-{end}_cross_v', range(source+1,end+1), ['v_cross'])
   add(f'cut_L{source}_attention', [source], ['cut_attention'])
   for layer in range(source, 23):
     add(f'cut_L{layer}_mlp', [layer], ['cut_mlp'])
@@ -180,6 +191,7 @@ def run(config):
       cohort_sha256=hashlib.sha256(cohort_path.read_bytes()).hexdigest(),
       source_layer=source, source_component=component, scan_layers=config.scan_layers,
       source_mode=source_mode, calculation_barrier=os.environ.get('BAM_CONSUMER_BARRIER')=='1',
+      arm_set=os.environ.get('BAM_CONSUMER_ARM_SET','screen'),
       positions=positions.tolist(), position_rule='row-origin-v1: hash, [64,T-256)',
       prediction_semantics='loss at position s predicts token s+1',
       batch_size=bs, requested_sequences=n, bins=BINS, controls=ROW_CONSUMER_NAMES,

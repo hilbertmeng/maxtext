@@ -6060,7 +6060,8 @@ class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
 
 class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """RMS head mixture with learned per-layer scale; GELU alpha, then diagonal one."""
-    # code_commit: bef8312; UE5a ~0.647 steps/s (-1.9% vs ScanAotControl), steps 10–14.
+    # bef8312; UE5a ~0.647 steps/s (-1.9% vs ScanAotControl); stopped 10,860.
+    # vs ScanAotControl: +.229 @200 -> +.0061 @4k -> +.0027 mean @8200-10800; late positive plateau.
     # AOT optimizer omits wd_mults: learned mix scale is actually decayed; not a no-decay trial.
     model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMix'
     bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
@@ -6070,6 +6071,7 @@ class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
 class BamLlama2MediumV2C256RmsGeluAlphaMixWDFix(BamLlama2MediumV2C256RmsGeluAlphaMix):
     """Same GELU model; AOT honors ordinary training weight-decay rules."""
     # code_commit: 03f0a0f; UE5a ~0.648 steps/s (+0.1% vs RmsGeluAlphaMix), steps 10–14.
+    # vs RmsGeluAlphaMix: positive @1000-2400, negative since 3200; mean -.00091 @4600-6000 -> -.00180 @6200-7600.
     model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMixWDFix'
 
 

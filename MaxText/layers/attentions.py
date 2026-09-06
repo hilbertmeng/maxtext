@@ -3494,14 +3494,14 @@ class BamAttention(Attention):
     foreign_key = foreign_value = foreign_state = None
     if self.has_variable('causal_ablation', 'row_foreign_enabled'):
       enabled = self.get_variable('causal_ablation', 'row_foreign_enabled')
-      foreign_key = jnp.where(enabled, self.get_variable(
+      foreign_key = jnp.where(enabled[0], self.get_variable(
           'causal_ablation', 'row_foreign_key')[:, s0:s1], key)
-      foreign_value = jnp.where(enabled, self.get_variable(
+      foreign_value = jnp.where(enabled[1], self.get_variable(
           'causal_ablation', 'row_foreign_value')[:, s0:s1], value)
       if fetch_state is not None:
         reference_M = self.get_variable('causal_ablation', 'row_foreign_M')[:, s0:s1]
         reference_state = self._compress_full_fetch_state(self._matrix_for_read(reference_M))
-        foreign_state = jnp.where(enabled, reference_state, fetch_state)
+        foreign_state = jnp.where(enabled[2], reference_state, fetch_state)
     y_std, alpha = _attention_op(
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,

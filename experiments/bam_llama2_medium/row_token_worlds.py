@@ -47,7 +47,7 @@ def forward(model, params, batch, rng, config, scales, refs, enabled):
   # The cache read at l is M_out[l-1]. Layer zero is disabled in all interventions.
   refs = dict(key=captured['key'], value=captured['value'],
       M=jnp.concatenate((jnp.zeros_like(captured['M'][:1]),captured['M'][:-1]),0))
-  return base._sequence_mean(tokens,batch['targets_segmentation']!=0), tokens, refs
+  return base._sequence_mean(tokens,batch['targets_segmentation']!=0), tokens, refs, captured
 
 
 def run(config):
@@ -76,8 +76,8 @@ def run(config):
   infer=jax.jit(lambda p,b,s,r,e:forward(model,p,b,rng,config,s,r,e))
   scales=jnp.ones((24,3),jnp.float32)
   deleted=scales.at[source,jnp.asarray(columns)].set(0)
-  inactive=jnp.zeros(24,jnp.bool_)
-  active=jnp.arange(24)>source
+  inactive=jnp.zeros((24,3),jnp.bool_)
+  active=jnp.broadcast_to((jnp.arange(24)>source)[:,None],(24,3))
   for offset in range(0,len(cohort['inputs']),bs):
     if offset in records:continue
     batch={k:jnp.asarray(v[offset:offset+bs]) for k,v in cohort.items() if k!='sequence_hashes'}
@@ -95,7 +95,18 @@ def run(config):
         actual=infer(state.params,batch,s,r,enable)
         checks.append(float(jnp.max(abs(actual[1].astype(jnp.float32)-expected[1].astype(jnp.float32)))))
       if any(checks):
-        save_summary(output/'failed_checks.json',dict(offset=offset,checks=dict(zip(meta['checks'],checks))))
+        diagnostics={}
+        for world,s,expected in [('clean',scales,clean),('deleted',deleted,removed)]:
+          for index,name in enumerate(('K','V','M','all')):
+            enable=active if index==3 else inactive.at[:,index].set(active[:,index])
+            actual=infer(state.params,batch,s,expected[2],enable)
+            fields={}
+            for field in expected[3]:
+              delta=abs(actual[3][field].astype(jnp.float32)-expected[3][field].astype(jnp.float32))
+              fields[field]=np.asarray(jnp.max(delta,axis=tuple(range(1,delta.ndim)))).tolist()
+            diagnostics[world+'_'+name]=dict(token_max=float(jnp.max(abs(actual[1].astype(jnp.float32)-expected[1].astype(jnp.float32)))),layer_max=fields)
+        save_summary(output/'failed_checks.json',dict(offset=offset,
+            checks=dict(zip(meta['checks'],checks)),isolated=diagnostics))
         raise ValueError(dict(zip(meta['checks'],checks)))
       own=infer(state.params,batch,deleted,clean[2],active)
       earlier=infer(state.params,batch,scales,removed[2],active)

@@ -1215,6 +1215,11 @@ class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     bam_record_fetch_route_metrics = True
 
 
+class BamLlama2MediumV2C256RmsGeluAlphaMixWDFix(BamLlama2MediumV2C256RmsGeluAlphaMix):
+    """Same GELU model; AOT honors the ordinary training weight-decay rules."""
+    model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMixWDFix'
+
+
 class BamLlama2MediumV2C256ClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """Unnormalized signed dynamic coefficients; clip mixed alpha, then set diagonal one."""
     # code_commit: feef259; UE5a ~0.646 steps/s (-2.1%); stopped 7,969.

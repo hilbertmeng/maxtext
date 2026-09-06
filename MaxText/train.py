@@ -129,6 +129,16 @@ def model_init(model, config, key):
   return params
 
 
+def create_model_optimizer(config, model, learning_rate_schedule, init_rng):
+  """One optimizer contract for ordinary training and AOT compilation."""
+  wd_tree = None
+  if config.wd_mults:
+    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
+    wd_tree = get_wd_tree(config, params_shape)
+    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}', debug=config.debug)
+  return optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
+
+
 def compute_accuracy(logits, targets, masks):
   batch_weights = jnp.maximum(jnp.sum(masks, axis=-1), 1e-10)
   correct = jnp.where(
@@ -1016,15 +1026,7 @@ def setup_mesh_and_model(config):
   model = Transformer(config, mesh, quant=quant)
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
 
-   # lsp: add rule param weight decay
-  if config.wd_mults:
-    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
-    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}', debug=config.debug)
-    wd_tree = get_wd_tree(config=config, params=params_shape)
-  else:
-    wd_tree = None
-
-  tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
+  tx = create_model_optimizer(config, model, learning_rate_schedule, init_rng)
   logger = checkpointing.setup_checkpoint_logger(config)
   if config.enable_emergency_checkpoint:
     if config.use_replicator_service:

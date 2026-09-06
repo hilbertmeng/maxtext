@@ -6078,6 +6078,8 @@ class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
     bam_record_fetch_route_metrics = True
 
 
+# Historical GELU family: codex/bam-nonnegative-mix (/data0/xd/bam-nonnegative-mix).
+# Implementation ported to main at b235a5d; reproduce each RUN using its runtime hash below.
 class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """RMS head mixture with learned per-layer scale; GELU alpha, then diagonal one."""
     # bef8312; UE5a ~0.647 steps/s (-1.9% vs ScanAotControl); stopped 10,860.

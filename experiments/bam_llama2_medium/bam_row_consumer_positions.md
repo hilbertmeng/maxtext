@@ -327,6 +327,9 @@ is noise, nor that the remaining difference is beneficial by itself.
 | Token cosine p05 / p50 / p95 | −.98244 / −.89716 / −.56878 |
 | Mean `norm(row) / (norm(self)+norm(cross))` | .38913 ± .01147 |
 | Mean self / cross / entire-row residual norm | 16.3779 / 10.3008 / 8.7599 |
+| Cross squared-norm fraction parallel to self | 74.99% |
+| Mean coefficient in `cross = -beta * self + perpendicular` | beta = .51313 |
+| Algebraic `(self+cross)` squared-norm fraction perpendicular to self | 30.09% |
 
 Each reported mean/fraction first averages valid tokens within a sequence, then
 averages the 128 sequences. Quantiles pool valid tokens. Geometry uses actual
@@ -335,6 +338,11 @@ addition), not private head coordinates. Their additive-closure discrepancy is
 1.48% of `norm(self)+norm(cross)`; treat that as numerical granularity, not a new
 path. Clean and whole-row deletion token losses match the earlier `8c24ec3`
 neighbor sweep **exactly for every token**. All null/boundary/scope checks pass.
+The final three rows are per-token scalar projection decompositions, averaged
+within sequences then across sequences. Their sum uses the algebraic `self+cross`
+rather than the separately rounded whole-row deletion increment. They suggest
+both self-amplitude subtraction and an additional context direction; cross is
+not merely a scalar self gate. These squared-norm fractions are not loss shares.
 
 Thus opposition is widespread, not merely a cancellation of averages. Coupled
 with the conditional deletion results, this supports useful **self-minus-context**

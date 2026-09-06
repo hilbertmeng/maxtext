@@ -10,6 +10,7 @@ All runs use Medium C256, layer scan, AOT, seed/data unchanged,
 | BamMHALlama2MediumC256ScanAotCleanControl | Same C256/scan/AOT and correct WD; disable every BAM read/write | Llama2Medium |
 | BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude | Fetched gate .005→.05; fixed pre-gate multiplier 2→.2; no depth scaling | BamLlama2MediumV2C256ScanAotCleanControl |
 | BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix | GELU mixed alpha + learned layer scale on Clean's WD rules | BamLlama2MediumV2C256ScanAotCleanControl, BamLlama2MediumV2C256RmsGeluAlphaMixWDFix |
+| BamLlama2MediumV2C256ScanAotBamOnlyWDControl | Exempt only BAM biases; standard Transformer RMS scales still decay | BamLlama2MediumV2C256ScanAotControl, BamLlama2MediumV2C256ScanAotCleanControl |
 
 The new MHA baseline uses `bam_mha_control=True`, `float32_logits=False`,
 13,500 steps and a forced final checkpoint. It reuses the BAM attention pipeline
@@ -50,6 +51,18 @@ loss comparisons retain their cumulative 200-step sequences.
 
 Launch commit, AOT artifact and live resource identity: RUN registry on tpu-ag;
 successful runtime short hashes and measured speed are copied to `MaxText/exp.py`.
+
+BAM-only WD arm: runtime `66f1dcc`, main `refactor-bam` (published as
+`codex/main-exp-ledger`). Only `self_attention/{P_loc_up/bias,gw_b0,W_lq_bias,
+W_lk_bias,W_lq_gate_b0,W_lk_gate_b0,W_R_gate_b0}` are exempt; all kernels and
+standard Transformer RMS scales decay. No learned BAM norm scale/amplitude exists
+in this V2 configuration. Versus old Control it isolates the BAM exemptions;
+versus Clean it isolates restoring standard-scale decay conditional on those
+BAM exemptions. This is not a complete interaction factorial. Tentative bet:
+closer to old Control than Clean (final ~0 to +.002 vs old Control), with
+essentially unchanged ~.65 steps/s. The explicit parameter-mask regression also
+checks non-BAM biases remain decayed. It keeps the corrected AOT optimizer,
+scan, 13,500-step schedule, 200-step checkpoints and identical health capture.
 
 The Gate050 arm uses the existing fixed amplitude path: `a=.2*sqrt(8)`,
 so `a/sqrt(C)=.2` and initial scale×gate remains `.01` on both fetched-read sides.
@@ -149,7 +162,7 @@ Runtime `b235a5d`, UE5a `xd-v5p-16-clean-gelu`. Worker-0 async save began
 13:58:44; at 13:58:53 Orbax's temporary-directory creation raised `FileExistsError`
 for checkpoint 3000. Evidence: [filtered worker log](diagnostics/gelu_clean_checkpoint_3000_failure.log).
 This was a checkpoint failure while training continued, not an observed TPU preemption.
-The directory-creation race remains unresolved; this case does not isolate its competing writers.
+The root cause was subsequently reproduced without a second writer (below).
 
 Auto-train detected the missing commit marker at 14:04:11 (316s pending), cached
 steps 0–3198, restored the data cursor from committed checkpoint 2800, removed the
@@ -159,6 +172,41 @@ acceptance requires a restored first step and a newly committed checkpoint 3000.
 Both verified: original AOT loaded, first restored step 2801 had LR `27.435e-5`;
 at the 14:12 UTC check training reached 3030 and checkpoint 3000 was committed.
 The TPU, zone, and runtime commit were unchanged.
+
+Root-cause probe: [probe_checkpoint_directory_race.py](probe_checkpoint_directory_race.py),
+run on the same worker with TensorFlow 2.19.1 / etils 1.14.0, CPU-only, in a
+fresh UUID under `gs://newproject-1-llm_projects_us-east5/log/diagnostics/checkpoint_directory_probe/`.
+It writes one cursor object, checks directory existence, deletes it, independently
+lists GCS objects, and attempts `mkdir(exist_ok=False)`. All probe objects were
+removed; no RUN checkpoint was touched.
+
+| Probe | GCS objects after delete | TF directory exists | mkdir |
+|---|---|---|---|
+| Default cache (`4a9275d642b04398b5976a0c5da3b228`) | empty | true | same FileExistsError |
+| `GCS_STAT_CACHE_MAX_AGE=0` (`c5bee85524c74167b522c257056eb91a`) | empty | false | succeeds |
+
+The application calls `record_file_and_step` immediately after asynchronous
+`save_checkpoint` returns (`train.py`), outside Orbax's directory-creation signals.
+Writing `STEP/skip_file_and_step.json` creates an implicit GCS directory before
+Orbax creates its temporary step directory. Orbax sees it, deletes the uncommitted
+prefix, then tries to recreate it. TensorFlow caches the implicit directory's
+existence: `FolderExists` caches `dirname/`, whereas deletion invalidates only
+each deleted object, leaving the parent cache entry. Etils checks that stale
+existence result before mkdir and raises. The installed Orbax 0.12.4 defaults to
+asynchronous directory creation and primary host 0; ordinary root creation is
+not performed independently by every worker.
+
+Source evidence: TensorFlow [v2.19.1 GCS implementation](https://github.com/tensorflow/tensorflow/blob/v2.19.1/third_party/xla/xla/tsl/platform/cloud/gcs_file_system.cc)
+(`FolderExists`, `DeleteRecursively`, `ClearFileCaches`; default stat-cache age 5s).
+The cursor write dates to commit `47c9d85e` (2025-03-01). This is not the first
+failure: the retained RowOnly log
+`tpu-ag:/home/lishengping/xd/projects/logs/BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadRowOnly.failure.20260903T070920Z.log`
+contains the same FileExistsError at checkpoint 10400. No evidence yet identifies
+a particular environment upgrade as its first trigger. No production workaround
+was applied: disabling the cache avoids this exception but does not fix cursor
+ownership/atomicity. The durable direction is to coordinate cursor saving with
+Orbax's checkpoint transaction; synchronizing directory creation alone can remove
+the immediate race while keeping weight transfer asynchronous.
 
 ## Early WD comparison: Clean / old Control
 

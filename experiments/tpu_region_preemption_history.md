@@ -368,3 +368,5 @@ inventing a duration. A passive queue is not an active-zone switch.
 | RowRelayRowSlot | 1 | `us-east5-a` | 2026-09-05 07:25:01 | 2026-09-05 10:14:03 | 2h49m02s | run stop; deletion verified 10:16:03 |
 | FetchNoRMSNormalInit | 1 | `us-east5-a` | 2026-09-05 11:16:15 | 2026-09-05 12:50:21 | 1h34m06s | run stop; deletion verified 12:52:59 |
 | SoftmaxMix | 1 | `us-east5-a` | 2026-09-06 02:46:01 | 2026-09-06 05:49:17 | 3h03m16s | manual stop; TPU retained for hot switch |
+| ClippedAlphaMix | 1 | `us-east5-a` | 2026-09-06 02:46:19 | 2026-09-06 06:21:01 | 3h34m42s | manual stop at checkpoint 7,969; no preemptions/zone switch; resources absent 06:23:32 |
+| StaticClippedAlphaMix | 1 | `us-east5-a` | 2026-09-06 02:46:02 | 2026-09-06 06:21:03 | 3h35m01s | manual stop at checkpoint 8,097; no preemptions/zone switch; resources absent 06:23:32 |

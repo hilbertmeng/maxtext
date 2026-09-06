@@ -1209,6 +1209,7 @@ class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
 class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """RMS head mixture with learned per-layer scale; GELU alpha, then diagonal one."""
     # code_commit: bef8312; UE5a ~0.647 steps/s (-1.9% vs ScanAotControl), steps 10–14.
+    # AOT optimizer omits wd_mults: learned mix scale is actually decayed; not a no-decay trial.
     model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMix'
     bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
     bam_record_fetch_route_metrics = True
@@ -1216,7 +1217,8 @@ class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
 
 class BamLlama2MediumV2C256ClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """Unnormalized signed dynamic coefficients; clip mixed alpha, then set diagonal one."""
-    # code_commit: feef259; UE5a ~0.646 steps/s (-2.1% vs ScanAotControl; route metrics enabled).
+    # code_commit: feef259; UE5a ~0.646 steps/s (-2.1%); stopped 7,969.
+    # vs ScanAotControl: +.3788 @200 -> +.0346 @4k -> +.0262 @7.8k; slowly narrowing, still harmful.
     model_name = 'BamLlama2MediumV2C256ClippedAlphaMix'
     bam_shared_fetch_mode = 'dynamic_clipped_mix'
     bam_record_fetch_route_metrics = True
@@ -1224,7 +1226,9 @@ class BamLlama2MediumV2C256ClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
 
 class BamLlama2MediumV2C256StaticClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """Per-layer token-shared coefficients initialized to 1/n; clip mixed alpha."""
-    # code_commit: feef259; UE5a ~0.658 steps/s (-0.3% vs ScanAotControl; route metrics enabled).
+    # code_commit: feef259; UE5a ~0.658 steps/s (-0.3%); stopped 8,097.
+    # vs ScanAotControl: +.4134 @200 -> +.0366 @4k -> +.0273 @8k; slowly narrowing, no gain.
+    # vs ClippedAlphaMix: early +.035 -> noisy +.0013 @7.8k; both remain substantially worse than Control.
     model_name = 'BamLlama2MediumV2C256StaticClippedAlphaMix'
     bam_shared_fetch_mode = 'static_clipped_mix'
     bam_record_fetch_route_metrics = True

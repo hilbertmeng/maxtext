@@ -23,7 +23,7 @@ def sign_summary(root):
               limitation='These are within-sequence means, not per-token coefficient distributions.')
 
 
-def consumer_geometry(root):
+def consumer_geometry(root, neighbor_root=None):
   root=Path(root);m=json.loads((root/'summary.json').read_text())
   geometry=[];coefficients=[];per_sequence=[];hashes=[];decomposition=[]
   for p in sorted(root.glob('batch_*.npz')):
@@ -53,17 +53,38 @@ def consumer_geometry(root):
   d=np.asarray(decomposition)
   dn=['cross_energy_parallel_to_self','subtracted_self_coefficient',
       'algebraic_sum_energy_perpendicular_to_self','algebraic_sum_self_cosine']
-  return dict(root=str(root),metadata=m,n=len(s),sequence_means={k:stats(s[:,i]) for i,k in enumerate(names)},
+  result=dict(root=str(root),metadata=m,n=len(s),sequence_means={k:stats(s[:,i]) for i,k in enumerate(names)},
       projection_geometry={k:stats(d[:,i]) for i,k in enumerate(dn)},
       token_coefficient_quantiles=np.quantile(a,[0,.05,.25,.5,.75,.95,1]).tolist(),
       token_self_cross_cosine_quantiles=np.quantile(g[:,3],[0,.05,.25,.5,.75,.95,1]).tolist(),
       token_cosine_coefficient_correlation=float(np.corrcoef(a,g[:,3])[0,1]))
+  if neighbor_root:
+    neighbor_root=Path(neighbor_root)
+    nm=json.loads((neighbor_root/'summary.json').read_text())
+    if nm['checkpoint']!=m['checkpoint']:raise ValueError('different checkpoints')
+    arm=nm['arms'].index(f'L{m["source_layer"]}_both')
+    baseline={}
+    for p in sorted(neighbor_root.glob('batch_*.npz')):
+      with np.load(p) as x:
+        for i,h in enumerate(x['sequence_hashes']):
+          if str(h) in baseline:raise ValueError('duplicate neighbor sequence')
+          baseline[str(h)]=x['token_loss'][i,[0,arm]]
+    error=np.zeros(2)
+    for p in sorted(root.glob('batch_*.npz')):
+      with np.load(p) as x:
+        for i,h in enumerate(x['sequence_hashes']):
+          error=np.maximum(error,np.max(abs(x['token_loss'][i,[0,1]]-baseline[str(h)]),axis=-1))
+    result['neighbor_anchor']=dict(root=str(neighbor_root),clean_token_max_error=float(error[0]),
+        whole_row_deletion_token_max_error=float(error[1]))
+    if np.any(error!=0):raise ValueError(result['neighbor_anchor'])
+  return result
 
 
 if __name__=='__main__':
   parser=argparse.ArgumentParser();parser.add_argument('--sign-root',action='append',default=[])
-  parser.add_argument('--consumer-root');parser.add_argument('--output',required=True);args=parser.parse_args()
+  parser.add_argument('--consumer-root');parser.add_argument('--neighbor-root')
+  parser.add_argument('--output',required=True);args=parser.parse_args()
   result=dict(sign_runs=[sign_summary(p) for p in args.sign_root])
-  if args.consumer_root:result['consumer']=consumer_geometry(args.consumer_root)
+  if args.consumer_root:result['consumer']=consumer_geometry(args.consumer_root,args.neighbor_root)
   Path(args.output).write_text(json.dumps(result,indent=2)+'\n')
   print('ROUTE_GEOMETRY_ANALYSIS_READY '+args.output)

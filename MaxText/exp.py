@@ -1219,7 +1219,9 @@ class BamLlama2MediumV2C256ScanAotBamOnlyWDControl(BamLlama2MediumV2C256ScanAotC
 
 class BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude(BamLlama2MediumV2C256ScanAotCleanControl):
     """Fetched gate .05 and fixed .2 pre-gate scale; same initial strength as Clean."""
-    # code_commit: 211ce4d; UE5a ~0.652 steps/s (+0.1% vs Clean), steps 10-14.
+    # 211ce4d; UE5a ~0.652 steps/s (+0.1% vs Clean); completed 13,500 updates.
+    # vs Clean: early near-zero/sign changes -> persistent ~-.001 to -.002 after 3.2k;
+    # final 12400-13400 mean -.00158: larger gate + 10x smaller fixed amplitude gives a small gain.
     model_name = 'BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude'
     bam_fetched_read_gate_init = 0.05
     bam_fetched_read_amplitude_init = 0.2 * (8 ** 0.5)  # a/sqrt(C)=.2; Clean uses 2.

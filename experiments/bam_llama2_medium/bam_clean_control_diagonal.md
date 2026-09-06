@@ -213,7 +213,35 @@ ownership/atomicity. The durable direction is to coordinate cursor saving with
 Orbax's checkpoint transaction; synchronizing directory creation alone can remove
 the immediate race while keeping weight transfer asynchronous.
 
-## Early WD comparison: Clean / old Control
+## Fixed-amplitude Gate050 completion
+
+`BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude`, runtime `211ce4d`,
+completed 13,500 updates. Against Clean, early near-zero/sign-changing gaps
+became persistently negative after 3.2k; the 12,400-13,400 mean is -.0015833
+(range -.0023006 to -.0008480). No additional parameters or depth scaling:
+the initial gate is .05 instead of .005 and the fixed pre-gate multiplier is
+.2 instead of 2. This modest benefit fits the broad pre-run +/- .005 bet.
+
+Health data use the existing `report_bam_read_health.py` in the tpu-training
+skill, with these full RUN/BASE names and steps 2000,6000,12000. Values below
+are RUN/BASE in L16-23, not differences:
+
+| Metric | 2000 | 6000 | 12000 |
+|---|---|---|---|
+| row gate mean | .07385/.00810 | .08478/.00883 | .08111/.00852 |
+| col gate mean | .16422/.01906 | .22618/.02386 | .23210/.02473 |
+| yBAM/ySTD | 3.7505/3.9082 | 3.1605/3.1839 | 2.7732/2.7881 |
+| M RMS | 7.9149/8.3727 | 7.6328/8.0564 | 7.0437/7.2440 |
+
+At 12000, high-layer col-gate populations in bins [0,.2,.4,.6,.8,1]
+are 52.486/35.210/8.691/3.039/.575% versus Clean's
+99.990/.010/.001/0/0% (rounding). The corresponding row populations are
+97.236/2.682/.075/.007/.001% versus 100/0/0/0/0%.
+Thus especially the col gate uses a wider sigmoid range, while high-layer
+net read strength remains close. This is not evidence that larger net
+read amplitude caused the loss gain, nor a causal proof about gate spread.
+
+## WD comparison: Clean / old Control
 
 Completed 13,500 updates (last logged step 13,499) on runtime `4cf1556`.
 Clean minus old Control fell from +.08954 at 200 to roughly +.004 at 4k-8k,

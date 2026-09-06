@@ -1800,6 +1800,21 @@ def _mediation_replace(value, reference, scale):
   return jnp.where(scale == 0, value, jnp.where(scale == 1, reference, mixed))
 
 
+ROW_CONSUMER_NAMES = (
+    'q', 'k', 'v_self', 'v_cross', 'local_qk', 'mix', 'read', 'write',
+    'mlp', 'cut_attention', 'cut_mlp')
+
+
+def _row_consumer_value_edges(y, alpha, value, reference, diagonal, self_scale, cross_scale):
+  """Deny a point-source increment on selected V edges, with an exact null."""
+  delta = reference.astype(jnp.float32) - value.astype(jnp.float32)
+  weights = alpha.astype(jnp.float32) * jnp.where(
+      diagonal[None, None], self_scale, cross_scale)
+  changed = (y.astype(jnp.float32) + jnp.einsum(
+      'bnqs,bsnd->bqnd', weights, delta)).astype(y.dtype)
+  return jnp.where((self_scale == 0) & (cross_scale == 0), y, changed)
+
+
 def _mediation_value_edges(y, alpha, value, reference, diagonal, scales):
   """Patch MHA V on self/cross edges; routing and BAM fetch alpha stay unchanged."""
   ref_y = jnp.einsum('bnqs,bsnd->bqnd', alpha, reference).astype(y.dtype)
@@ -3428,7 +3443,7 @@ class BamAttention(Attention):
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,
-      fetch_state=None, mix_weights=None):
+      fetch_state=None, mix_weights=None, consumer_value=None):
     """Apply one dense/chunk attention block and its optional BAM fetch."""
     q1 = q0 + query.shape[1]
     s1 = s0 + key.shape[1]
@@ -3463,6 +3478,12 @@ class BamAttention(Attention):
       reference = self.get_variable('causal_ablation', 'med_value')[:, s0:s1]
       y_std = _mediation_value_edges(y_std, mha_alpha, value, reference,
           source == target, self.get_variable('causal_ablation', 'med_v_edges'))
+    if consumer_value is not None:
+      c = self.get_variable('causal_ablation', 'row_consumers')
+      y_std = _row_consumer_value_edges(
+          y_std, mha_alpha, value, consumer_value, source == target,
+          c[ROW_CONSUMER_NAMES.index('v_self')],
+          c[ROW_CONSUMER_NAMES.index('v_cross')])
     Mbar = Mbar_self = fetch_self_weight = row_probe = None
     if fetch_state is not None:
       assert mix_weights is not None
@@ -3501,7 +3522,7 @@ class BamAttention(Attention):
 
   def _query_chunk_op(
       self, query, key, value, decoder_segment_ids, window_size, *,
-      fetch_state=None, mix_weights=None):
+      fetch_state=None, mix_weights=None, consumer_value=None):
     """Slice query/source blocks, call `_attention_block`, and concatenate."""
     _, t, _, _ = query.shape
     assert self._query_chunk_size is not None
@@ -3519,7 +3540,8 @@ class BamAttention(Attention):
           query[:, q0:q1], key[:, s0:s1], value[:, s0:s1],
           decoder_segment_ids, q0=q0, s0=s0, window_size=window_size,
           fetch_state=(None if fetch_state is None else fetch_state[:, s0:s1]),
-          mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1])))
+          mix_weights=(None if mix_weights is None else mix_weights[:, q0:q1]),
+          consumer_value=(None if consumer_value is None else consumer_value[:, s0:s1])))
       y_chunks.append(y_chunk)
       if row_probe_chunk is not None:
         row_probe_chunks.append(row_probe_chunk)
@@ -3553,6 +3575,7 @@ class BamAttention(Attention):
       deep_embedding: Array | None = None,
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
+      consumer_reference: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3565,13 +3588,28 @@ class BamAttention(Attention):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
+    def consumer_input(name, original=inputs_q):
+      if consumer_reference is None:
+        return original
+      c = self.get_variable('causal_ablation', 'row_consumers')
+      return _mediation_replace(original, consumer_reference, c[ROW_CONSUMER_NAMES.index(name)])
+
+    consumer_value = None
+
     # ---- QKV projection (reuse parent) + optional pre-RoPE LocalQK + QKNorm + RoPE ----
     if cfg.fused_qkv:
+      assert consumer_reference is None, 'consumer diagnosis requires separate Q/K/V projections'
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
-      query = self.query_projection(inputs_q)
-      key = self.kv_projection(inputs_kv, proj_name="key")
-      value = self.kv_projection(inputs_kv, proj_name="value")
+      query = self.query_projection(consumer_input('q'))
+      key = self.kv_projection(consumer_input('k', inputs_kv), proj_name="key")
+      if consumer_reference is None:
+        value = self.kv_projection(inputs_kv, proj_name="value")
+      else:
+        # One module/parameter set; compute both V inputs in the same projection.
+        value_pair = self.kv_projection(
+            jnp.concatenate((inputs_kv, consumer_reference), axis=0), proj_name="value")
+        value, consumer_value = jnp.split(value_pair, 2, axis=0)
 
     Mh = local_Mh = None
     if 'local_qk' in self._mode and self._local_qk_injection == 'pre_qknorm_rope':
@@ -3583,7 +3621,7 @@ class BamAttention(Attention):
         local_Mh = (
             self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
             if self._local_qk_use_compressed_v else Mh)
-        q_local, k_local = self._read_local_qk(local_Mh, inputs_q)
+        q_local, k_local = self._read_local_qk(local_Mh, consumer_input('local_qk'))
         query, key = self._add_local_qk(query, key, q_local, k_local)
 
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
@@ -3607,7 +3645,7 @@ class BamAttention(Attention):
         local_Mh = (
             self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
             if self._local_qk_use_compressed_v else Mh)
-        q_local, k_local = self._read_local_qk(local_Mh, inputs_q)
+        q_local, k_local = self._read_local_qk(local_Mh, consumer_input('local_qk'))
         query, key = self._add_local_qk(query, key, q_local, k_local)
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
@@ -3626,7 +3664,7 @@ class BamAttention(Attention):
           Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/mix_alpha_projection"):
         mix_weights = _dynamic_bam_fetch_mix_weights(
-            self.fetch_head_mix(inputs_q), query.dtype,
+            self.fetch_head_mix(consumer_input('mix')), query.dtype,
             rms_epsilon=self._rms_epsilon)
       fetch_state = (
           local_Mh if self._local_qk_use_compressed_v
@@ -3642,12 +3680,12 @@ class BamAttention(Attention):
     if self._query_chunk_size is not None:
       y_std, Mbar, Mbar_self, fetch_self_weight, row_probe = self._query_chunk_op(
           query, key, value, decoder_segment_ids, local_window,
-          fetch_state=fetch_state, mix_weights=mix_weights)
+          fetch_state=fetch_state, mix_weights=mix_weights, consumer_value=consumer_value)
     else:
       y_std, Mbar, Mbar_self, fetch_self_weight, row_probe = self._attention_block(
           query, key, value, decoder_segment_ids,
           q0=0, s0=0, window_size=local_window,
-          fetch_state=fetch_state, mix_weights=mix_weights)
+          fetch_state=fetch_state, mix_weights=mix_weights, consumer_value=consumer_value)
 
     capture_mediation = self.is_mutable_collection('mediation_capture') and not self.is_initializing()
     if capture_mediation:
@@ -3662,12 +3700,13 @@ class BamAttention(Attention):
       self.sow('mediation_capture', 'trace_std', y_std)
     o_head = y_std
     if Mbar is not None:
-      y_full = self._read_fetched_m(Mbar, inputs_q)
+      read_inputs = consumer_input('read')
+      y_full = self._read_fetched_m(Mbar, read_inputs)
       if row_probe is not None:
         pos_m, neg_m, alpha_stats = row_probe
-        row_pos = self._read_fetched_m(pos_m, inputs_q).at[..., :self.bam_k].set(0)
-        row_neg = self._read_fetched_m(neg_m, inputs_q).at[..., :self.bam_k].set(0)
-        row_self = self._read_fetched_m(Mbar_self, inputs_q).at[..., :self.bam_k].set(0)
+        row_pos = self._read_fetched_m(pos_m, read_inputs).at[..., :self.bam_k].set(0)
+        row_neg = self._read_fetched_m(neg_m, read_inputs).at[..., :self.bam_k].set(0)
+        row_self = self._read_fetched_m(Mbar_self, read_inputs).at[..., :self.bam_k].set(0)
         row_total = y_full.at[..., :self.bam_k].set(0)
         scales = self.get_variable('causal_ablation', 'row_sign_scales')
         scaled_row = _scale_row_cross(row_total, row_self, row_pos, row_neg, scales)
@@ -3676,6 +3715,9 @@ class BamAttention(Attention):
           changed = (scaled_row.astype(jnp.float32) + (self_scale - 1) *
               row_self.astype(jnp.float32)).astype(scaled_row.dtype)
           scaled_row = jnp.where(self_scale == 1, scaled_row, changed)
+        if self.has_variable('causal_ablation', 'row_source_mask'):
+          mask = self.get_variable('causal_ablation', 'row_source_mask')
+          scaled_row = jnp.where(mask[..., None, None], scaled_row, row_total)
         y_full = y_full.at[..., self.bam_k:].set(scaled_row[..., self.bam_k:])
         self.sow('row_cross_probe', 'row_parts', jnp.stack(
             (row_self, row_pos, row_neg, row_total), axis=2))
@@ -3688,7 +3730,7 @@ class BamAttention(Attention):
         self.sow('mediation_capture', 'trace_full', y_full)
       o_head = o_head + y_full
       if self._residual_attribution and not self.is_initializing():
-        y_full_self = self._read_fetched_m(Mbar_self, inputs_q)
+        y_full_self = self._read_fetched_m(Mbar_self, read_inputs)
         y_full_cross = y_full - y_full_self
 
         def split_read_sides(read):
@@ -3714,7 +3756,7 @@ class BamAttention(Attention):
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _, _ = self._write(o_head, inputs_q, M_in)
+        M_out, _, _ = self._write(o_head, consumer_input('write'), M_in)
     else:
       M_out = M_in
 

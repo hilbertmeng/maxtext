@@ -188,7 +188,8 @@ class SubDecoderLayer(nn.Module):
     else:
       inputs = nn.with_logical_constraint(inputs, ("activation_batch", "activation_norm_length", "activation_embed"))
       inputs = checkpoint_name(inputs, "decoder_layer_input")
-      lnx = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)(inputs)
+      attention_norm = normalizations.get_rmsnorm("pre_self_attention_layer_norm", cfg)
+      lnx = attention_norm(inputs)
       lnx = nn.with_logical_constraint(lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
       lnx_kv = [lnx, lnx]
 
@@ -261,6 +262,11 @@ class SubDecoderLayer(nn.Module):
         deep_embedding=deep_embedding,
     )
     if cfg.bam_enabled:
+        if self.has_variable('causal_ablation', 'row_consumer_z'):
+            assert not cfg.dense_conn
+            consumer_input = (inputs.astype(jnp.float32) -
+                self.get_variable('causal_ablation', 'row_consumer_z')).astype(inputs.dtype)
+            call_kwargs['consumer_reference'] = attention_norm(consumer_input)
         attention_lnx, M_out = attention_layer(
             **call_kwargs, M_in=M_in, is_global=is_global)
     else:
@@ -285,8 +291,20 @@ class SubDecoderLayer(nn.Module):
           self.get_variable('causal_ablation', 'med_cancel')[0] *
           self.get_variable('causal_ablation', 'med_z')).astype(intermediate_inputs.dtype)
 
+    def deny_row(x, name):
+      if not self.has_variable('causal_ablation', 'row_consumer_z'):
+        return x
+      c = self.get_variable('causal_ablation', 'row_consumers')
+      scale = c[attentions.ROW_CONSUMER_NAMES.index(name)]
+      changed = (x.astype(jnp.float32) - scale *
+          self.get_variable('causal_ablation', 'row_consumer_z')).astype(x.dtype)
+      return jnp.where(scale == 0, x, changed)
+
+    intermediate_inputs = deny_row(intermediate_inputs, 'cut_attention')
+
     # Fully Connected
-    hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(intermediate_inputs)
+    hidden_states = normalizations.get_rmsnorm("post_self_attention_layer_norm", cfg)(
+        deny_row(intermediate_inputs, 'mlp'))
     hidden_states = nn.with_logical_constraint(
         hidden_states, ("activation_batch", "activation_norm_length", "activation_embed")
     )
@@ -408,6 +426,7 @@ class SubDecoderLayer(nn.Module):
       layer_output = (layer_output.astype(jnp.float32) -
           self.get_variable('causal_ablation', 'med_cancel')[1] *
           self.get_variable('causal_ablation', 'med_z')).astype(layer_output.dtype)
+    layer_output = deny_row(layer_output, 'cut_mlp')
 
     if getattr(cfg, 'bam_residual_attribution', False) and not self.is_initializing():
       self.sow('residual_attribution', 'layer_input', inputs)

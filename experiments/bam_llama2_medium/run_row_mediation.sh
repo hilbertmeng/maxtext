@@ -17,6 +17,8 @@ case "$model" in
 esac
 source_layer=${BAM_MEDIATION_SOURCE:-11}
 phase=${BAM_MEDIATION_PHASE:-coarse}
+program=row_mediation.py
+if [[ $phase == consumers ]]; then program=row_consumer_positions.py; fi
 tag="bam-row-mediation-$model-L$source_layer-$phase-${BAM_MEDIATION_LABEL:-all}-${commit:0:7}"
 if [[ ${BAM_MEDIATION_COMPONENT:-cross} == self ]]; then tag="$tag-rowself"; fi
 if [[ ${BAM_MEDIATION_REFERENCE:-opposite} == self ]]; then tag="$tag-selfref"; fi
@@ -29,7 +31,7 @@ env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off DIAGNOSTIC_COMMIT="$commit" \
  BAM_MEDIATION_OUTPUT="$output" BAM_RESIDUAL_ATTR_BASE_CONFIG="$base" \
  BAM_RESIDUAL_ATTR_TRAINER_COMMIT="$trainer" BAM_RESIDUAL_ATTR_BATCH_SIZE="$batch" \
  BAM_RESIDUAL_ATTR_COHORT_PATH="$output/cohort.npz" \
- "$python" experiments/bam_llama2_medium/row_mediation.py MaxText/configs/base.yml \
+ "$python" "experiments/bam_llama2_medium/$program" MaxText/configs/base.yml \
  exp_class=BamRowMediation run_name="$tag" load_parameters_path="$checkpoint" \
  base_output_directory="$output/maxtext-output" tensorboard_dir="$output/tensorboard" \
  only_eval=True dataset_path=gs://newproject-1-common_datasets_europe-west4/pythia_pile_idxmaps_tfrecord \

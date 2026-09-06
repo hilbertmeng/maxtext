@@ -151,6 +151,9 @@ def run(config):
   assert not getattr(config, 'bam_mlp_write', False)
   source = int(os.environ.get('BAM_MEDIATION_SOURCE', '11'))
   component = os.environ.get('BAM_MEDIATION_COMPONENT', 'cross')
+  source_mode = os.environ.get('BAM_CONSUMER_SOURCE_MODE', 'point')
+  if source_mode not in ('point','all'):
+    raise ValueError(source_mode)
   if component not in ('self', 'cross'):
     raise ValueError(component)
   matrix = arms(source)
@@ -176,11 +179,16 @@ def run(config):
       diagnostic_commit=os.environ['DIAGNOSTIC_COMMIT'], trainer_commit=base._TRAINER_COMMIT,
       cohort_sha256=hashlib.sha256(cohort_path.read_bytes()).hexdigest(),
       source_layer=source, source_component=component, scan_layers=config.scan_layers,
+      source_mode=source_mode, calculation_barrier=os.environ.get('BAM_CONSUMER_BARRIER')=='1',
       positions=positions.tolist(), position_rule='row-origin-v1: hash, [64,T-256)',
       prediction_semantics='loss at position s predicts token s+1',
       batch_size=bs, requested_sequences=n, bins=BINS, controls=ROW_CONSUMER_NAMES,
       arms=[dict(a,control=a['control'].tolist()) for a in matrix],
       setup_seconds=time.perf_counter()-start)
+  if source_mode=='all':
+    meta['positions']=None
+    meta['position_rule']='all valid origins; no origin/future loss partition'
+    meta['bins']=[('all_predictions',0,100000)]+[(f'unused_{i}',0,0) for i in range(1,7)]
   print('CONSUMERS_RESTORED ' + json.dumps({k:v for k,v in meta.items() if k!='arms'}), flush=True)
   for offset in range(0,n,bs):
     target = output / f'batch_{offset:03d}.npz'
@@ -189,6 +197,8 @@ def run(config):
     batch = {k:jnp.asarray(v[offset:offset+bs]) for k,v in cohort.items() if k!='sequence_hashes'}
     pos = positions[offset:offset+bs]
     mask = jnp.arange(batch['inputs'].shape[1])[None,:] == jnp.asarray(pos)[:,None]
+    if source_mode=='all':
+      mask = batch['targets_segmentation'] != 0
     z0 = jnp.zeros(batch['inputs'].shape + (config.emb_dim,), jnp.float32)
     batch_start = time.perf_counter()
     with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
@@ -225,12 +235,21 @@ def run(config):
       null_error = float(jnp.max(abs(null_result[1]-clean[1])))
       if null_error != 0:
         raise ValueError(f'zero-increment control failed before arm sweep: {null_error}')
+      unused_reference = infer(state.params,batch,rng,clean_s,mask,c0,z)
+      unused_error = float(jnp.max(abs(unused_reference[1]-clean[1])))
+      cut_control = c0.at[source,ROW_CONSUMER_NAMES.index('cut_attention')].set(1)
+      immediate_cut = infer(state.params,batch,rng,clean_s,mask,cut_control,z)
+      cut_error = float(jnp.max(abs(immediate_cut[1]-deleted[1])))
+      if unused_error!=0 or cut_error!=0:
+        raise ValueError(f'boundary controls failed: unused={unused_error}, cut={cut_error}')
       losses, tokens = [], []
       for i,a in enumerate(matrix):
         if i < 2:
           result = (clean,deleted)[i]
         elif a.get('null'):
           result = null_result
+        elif a['name']==f'cut_L{source}_attention':
+          result = immediate_cut
         else:
           result = infer(state.params,batch,rng,clean_s,mask,jnp.asarray(a['control']),
                          z0 if a.get('null') else z)
@@ -245,6 +264,10 @@ def run(config):
       past_mask = np.arange(valid.shape[1])[None,:] < pos[:,None]
       past_error = float(np.max(np.where(past_mask[:,None,:],
           abs(token-token[:,:1]),0)))
+      if source_mode=='all':
+        effects = np.zeros_like(effects)
+        effects[...,0] = np.sum((token.astype(np.float64)-token[:,:1].astype(np.float64))*valid[:,None],-1)
+        past_error = 0  # No unaffected prefix exists under all-position denial.
       if null_error != 0 or past_error != 0:
         raise ValueError(f'negative control failed: null={null_error}, past={past_error}')
     if not np.isfinite(token).all():
@@ -252,7 +275,8 @@ def run(config):
     np.savez_compressed(target,loss=np.stack(losses,axis=1),token_loss=token,valid=valid,
         positions=pos,position_effects=effects,source_scope_error=np.asarray([outside,source_m_error]),
         null_max_error=null_error,past_max_error=past_error,
-        source_z_norm=np.asarray(jnp.linalg.norm(z,axis=-1))[np.asarray(mask)],
+        unused_reference_error=unused_error,immediate_cut_error=cut_error,
+        source_z_norm=np.asarray(jnp.sqrt(jnp.sum(z*z,axis=(1,2)))),
         sequence_hashes=cohort['sequence_hashes'][offset:offset+bs])
     meta['elapsed_seconds'] = time.perf_counter()-start
     aggregate(output,meta)

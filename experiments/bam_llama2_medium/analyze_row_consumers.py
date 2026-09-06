@@ -41,6 +41,9 @@ def summarize(roots):
       row=dict(name=arm['name'],total=stats(e[:,i,:6].sum(-1)),
           origin=stats(e[:,i,0]),future=stats(e[:,i,1:6].sum(-1)),
           bins={b[0]:stats(e[:,i,j]) for j,b in enumerate(meta['bins'])})
+      if meta.get('source_mode','point')=='all':
+        row.pop('origin');row.pop('future');row.pop('bins')
+        row['mean_token_delta']=stats(np.array([r['loss'][i]-r['loss'][0] for r in records]))
       if arm['name'].startswith('joint_') and arm['name']!='joint_all_direct_consumers':
         fields=np.asarray(arm['control'])
         single=[]
@@ -57,6 +60,7 @@ def summarize(roots):
     for j,(m2,r2) in enumerate(loaded[:i]):
       if m['checkpoint']!=m2['checkpoint'] or m['source_layer']!=m2['source_layer']:continue
       if m['source_component']==m2['source_component']:continue
+      if m.get('source_mode','point')!=m2.get('source_mode','point'):continue
       if m['arms']!=m2['arms'] or m['cohort_sha256']!=m2['cohort_sha256']:
         raise ValueError('unmatched self/cross experiments')
       idx={(x['hash'],x['position']):x for x in r2}
@@ -70,6 +74,9 @@ def summarize(roots):
           arms=[dict(name=a['name'],total=stats(differences[:,q,:6].sum(-1)),
               origin=stats(differences[:,q,0]),future=stats(differences[:,q,1:6].sum(-1)))
               for q,a in enumerate(m['arms'])]))
+      if m.get('source_mode','point')=='all':
+        for a in output['self_cross'][-1]['arms']:
+          a.pop('origin');a.pop('future')
   return output
 
 

@@ -19,6 +19,15 @@
    largest negative direct IG, or ordinary importance with exceptional direct
    harm? Rank same-cohort row-cross deletion costs, keeping their units separate
    from normalized direct IG. Reuse L10–14; supplement L8/9 with L11 as an anchor.
+   Follow with matched self and cross+self deletions at every neighbor, not only
+   at L11. Measure joint-minus-individual interaction rather than assuming additivity.
+
+Position resolution is currently **same position / other positions** only;
+distance bins are unnecessary. Cover all valid origins. A diagonal/off-diagonal
+V split establishes the first transport edge, not the eventual loss location:
+later attention can transport the effect again. Likewise, a source MLP can
+compensate local harm and/or prepare a useful message for later transport. Keep
+these possibilities distinct until controlled downstream paths distinguish them.
 
 ## Stage 1: direct input denial, two parallel XL probes
 

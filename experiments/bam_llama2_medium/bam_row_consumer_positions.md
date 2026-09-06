@@ -198,6 +198,19 @@ L9/10/13/14 effects. L11 is exceptional on both axes: largest direct harm and
 largest global necessity. That prioritizes separating its delivery/use from its
 persistent direct residual effect, not suppressing the whole read.
 
+**This ranking concerns cross only.** L11 self's direct IG is +.622187%, so its
+whole row direct IG is **+.355393%**, not negative. L10's corresponding self/cross/
+whole values are −.393694% / +.076884% / −.316811%. Complete self and joint deletion
+at every L8–14 layer is therefore necessary before ranking whole-row necessity;
+neither direct IG nor the sum of separate deletion costs substitutes for that test.
+
+The all-position 22-arm neighbor sweep and added source-MLP/cross-V interaction
+sweeps use runtime `8c24ec3fb6aeea26c705a31577622f595d38a81f`. Scripts:
+[row_neighbors.py](row_neighbors.py), [analyze_row_neighbors.py](analyze_row_neighbors.py).
+Launch neighbors with `BAM_MEDIATION_PHASE=neighbors`, or consumer interactions
+with `BAM_MEDIATION_PHASE=consumers BAM_CONSUMER_ARM_SET=interactions`; both use
+`BAM_CONSUMER_SOURCE_MODE=all BAM_CONSUMER_BARRIER=1` and the launcher above.
+
 Supplement reproduction:
 ```bash
 DIAGNOSTIC_COMMIT=53090883874c2d9374b16c0540090072397c4fca \

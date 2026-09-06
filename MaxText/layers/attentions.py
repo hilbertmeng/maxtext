@@ -1738,7 +1738,7 @@ class GroupedRMSNorm(nn.Module):
 
 
 def _dynamic_bam_fetch_mix_weights(
-    mix_logits, alpha_dtype, *, rms_epsilon, normalization='rms'):
+    mix_logits, alpha_dtype, *, rms_epsilon, normalization='rms', scale=None):
   """Transform head-mixture coefficients; clipping belongs after mixing alpha."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
   if normalization == 'softmax':
@@ -1748,6 +1748,8 @@ def _dynamic_bam_fetch_mix_weights(
   assert normalization == 'rms'
   normalized = normalizations.rms_norm(
       mix_logits, dtype=alpha_dtype, epsilon=rms_epsilon)
+  if scale is not None:
+    return normalized * jnp.asarray(scale, alpha_dtype)
   return normalized / jnp.sqrt(mix_logits.shape[-1])
 
 
@@ -3161,6 +3163,12 @@ class BamAttention(Attention):
             kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
             weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=True)
+      if self._fetch_mix_mode == 'dynamic_rms_gelu_mix':
+        # One scalar per layer (stacked by layer_scan); .*scale$ skips decay.
+        self.fetch_mix_scale = self.param(
+            'fetch_mix_scale', nn.with_logical_partitioning(
+                nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), ()),
+            (), self.weight_dtype)
 
     if 'local_qk' in self._mode:
       if self._local_qk_key_mode == 'per_head_static':
@@ -4326,9 +4334,14 @@ class BamAttention(Attention):
           mix_logits = self.fetch_head_mix(inputs_q)
         mix_weights = _dynamic_bam_fetch_mix_weights(
             mix_logits, query.dtype, rms_epsilon=self._rms_epsilon,
+            scale=(self.fetch_mix_scale
+                   if self._fetch_mix_mode == 'dynamic_rms_gelu_mix' else None),
             normalization=('none' if self._clip_fetch_alpha else
                            'softmax' if self._fetch_mix_mode == 'dynamic_mix' else 'rms'))
         if self._record_fetch_route_metrics:
+          if self._fetch_mix_mode == 'dynamic_rms_gelu_mix':
+            self.sow('intermediates', 'fetch_mix_scale',
+                     self.fetch_mix_scale.astype(jnp.float32))
           weights = mix_weights.astype(jnp.float32)
           self.sow('intermediates', 'fetch_mix_weight_stats', jnp.stack((
               jnp.mean(weights), jnp.sqrt(jnp.mean(weights * weights)),

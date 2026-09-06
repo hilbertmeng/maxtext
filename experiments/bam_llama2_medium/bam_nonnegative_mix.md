@@ -15,14 +15,19 @@ diagonal to one afterward. MHA attention itself is unchanged.
 | `SoftmaxMix` | `w=softmax(Wx+b); alpha=sum(w*A)` | ScanAotControl | +.003 |
 | `ClippedAlphaMix` | `w=Wx+b; alpha=max(sum(w*A),0)` | ScanAotControl, SoftmaxMix | +.001 |
 | `StaticClippedAlphaMix` | per-layer `w[n]`; `alpha=max(sum(w*A),0)` | ScanAotControl, ClippedAlphaMix | +.007 |
-| `RmsGeluAlphaMix` | `w=RMSNorm(Wx+b)/sqrt(n); alpha=GELU(sum(w*A))` | ScanAotControl, ClippedAlphaMix | +.010 |
+| `RmsGeluAlphaMix` | `w=s_l*RMSNorm(Wx+b); alpha=GELU(sum(w*A))` | ScanAotControl, ClippedAlphaMix | +.010 |
 
 The GELU follow-up replaces SoftmaxMix only after its v6e AOT artifact is ready.
 Unlike the original three arms it permits negative alpha. GELU is applied before
 the fixed-one diagonal and only to BAM's mixed route. Near zero it halves the
 cross coefficient; neither nonnegativity nor matched cross/self scale is claimed.
 Versus ClippedAlphaMix it changes both coefficient normalization and activation;
-versus ScanAotControl only the post-mix GELU is added. Parameter count is unchanged.
+versus ScanAotControl it adds post-mix GELU and one learned scalar per layer.
+`fetch_mix_scale` initializes to `1/sqrt(n)` (.25 for Medium), is shared across
+tokens/heads, and is excluded from decay by `.*scale$`. It is unconstrained, not
+an exponentiated log-scale. Layer-scan stacks independent scalar parameters.
+TB records per-layer `bam/fetch_route/layer_NNN/mix_scale` and
+`mix_scale_over_init`, so amplitude compensation can be checked over training.
 
 These numbers are pre-run bets, not measurements. The first two preserve the
 current dynamic projection's regular initialization and zero bias. The static

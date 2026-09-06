@@ -47,7 +47,41 @@ class _DepthAmplitudeLayer(nn.Module):
     return carry, amplitude
 
 
+class _FetchMixScaleLayer(nn.Module):
+  @nn.compact
+  def __call__(self, carry, layer_index):
+    scale = self.param('fetch_mix_scale', nn.with_logical_partitioning(
+        nn.initializers.constant(.25), ()), (), jnp.float32)
+    return carry, scale
+
+
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_fetch_mix_learned_scale_init_gradient_and_scanned_independence(self):
+    import exp
+    import re
+    logits = jnp.arange(16, dtype=jnp.float32)[None, None] - 7.5
+    def weights(s):
+      return _dynamic_bam_fetch_mix_weights(
+          logits, jnp.float32, rms_epsilon=1e-6, scale=s)
+    expected = _dynamic_bam_fetch_mix_weights(
+        logits, jnp.float32, rms_epsilon=1e-6)
+    np.testing.assert_allclose(weights(.25), expected, atol=1e-7)
+    self.assertGreater(float(jax.grad(lambda s: (weights(s) ** 2).sum())(.25)), 0)
+    Scanned = nn.scan(_FetchMixScaleLayer, variable_axes={'params': 0},
+        split_rngs={'params': True}, in_axes=0, out_axes=0, length=24,
+        metadata_params={nn.PARTITION_NAME: 'layers'})
+    model = Scanned()
+    params = model.init(jax.random.PRNGKey(0), 0, jnp.arange(24))
+    np.testing.assert_array_equal(model.apply(params, 0, jnp.arange(24))[1],
+                                  np.full(24, .25))
+    leaf = params['params']['fetch_mix_scale']
+    self.assertEqual(leaf.value.shape, (24,))
+    params['params']['fetch_mix_scale'] = leaf.replace(value=leaf.value.at[11].set(.5))
+    expected_scales = np.full(24, .25); expected_scales[11] = .5
+    np.testing.assert_array_equal(model.apply(params, 0, jnp.arange(24))[1], expected_scales)
+    self.assertTrue(any(re.match(pattern, 'decoder/layers/fetch_mix_scale') and mult == 0
+        for pattern, mult in exp.BamLlama2MediumV2C256RmsGeluAlphaMix.wd_mults))
 
   def test_rms_gelu_mixed_alpha_values_gradients_and_diagonal(self):
     alpha = jnp.asarray([[[[.9, .1, 0.]], [[.1, .9, 0.]]]])

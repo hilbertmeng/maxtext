@@ -13,6 +13,7 @@ METRICS = (
     'preclip_negative_fraction', 'zero_fraction', 'cross_mass_per_query',
     'cross_l2_rms_per_query', 'mix_weight_mean', 'mix_weight_rms',
     'mix_weight_negative_fraction',
+    'mix_scale', 'mix_scale_over_init',
 )
 
 

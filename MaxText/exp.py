@@ -1207,7 +1207,7 @@ class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
 
 
 class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
-    """RMS-normalized signed head mixture, GELU on mixed alpha, then diagonal one."""
+    """RMS head mixture with learned per-layer scale; GELU alpha, then diagonal one."""
     model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMix'
     bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
     bam_record_fetch_route_metrics = True

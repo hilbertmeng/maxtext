@@ -413,6 +413,8 @@ def record_bam_fetched_read_health_metrics(
                 if 'fetch_route_sums' in attention else None)
   mix_stats = (attention['fetch_mix_weight_stats'][0]
                if 'fetch_mix_weight_stats' in attention else None)
+  mix_scale = (attention['fetch_mix_scale'][0]
+               if 'fetch_mix_scale' in attention else None)
   gate_stat_names = ('mean', 'std', 'frac_lt_005', 'frac_gt_095')
   for layer_num in range(config.base_num_decoder_layers):
     for side_num, side in enumerate(('row', 'col')):
@@ -456,6 +458,12 @@ def record_bam_fetched_read_health_metrics(
           f'{route_prefix}/mix_weight_rms': mix_stats[layer_num, 1],
           f'{route_prefix}/mix_weight_negative_fraction': mix_stats[layer_num, 2],
       })
+      if mix_scale is not None:
+        mix_heads = config.bam_fetch_mix_num_heads or config.num_query_heads
+        output_metrics['scalar'].update({
+            f'{route_prefix}/mix_scale': mix_scale[layer_num],
+            f'{route_prefix}/mix_scale_over_init': mix_scale[layer_num] * mix_heads ** 0.5,
+        })
     if merge_rms is not None:
       output_metrics['scalar'].update({
           f'{prefix}/removed_std_rms': merge_rms[layer_num, 0],

@@ -204,6 +204,40 @@ whole values are −.393694% / +.076884% / −.316811%. Complete self and joint 
 at every L8–14 layer is therefore necessary before ranking whole-row necessity;
 neither direct IG nor the sum of separate deletion costs substitutes for that test.
 
+### Whole-row net effect: completed joint deletion
+
+The primary neighbor comparison is **joint self+cross deletion followed by full
+network recomputation**, including same-/other-position and direct/downstream
+effects. It is neither direct IG nor the sum of isolated deletions.
+
+| Layer | Delete cross | Delete self | Delete entire row ± 95% CI | Joint − self − cross |
+|---|---:|---:|---:|---:|
+| 8 | +.002462 | +.005156 | +.008708 ± .000783 | +.001091 |
+| 9 | +.000334 | +.001316 | +.001894 ± .000918 | +.000244 |
+| 10 | +.001128 | +.014247 | +.009806 ± .000847 | −.005568 |
+| **11** | **+.015704** | **+.068412** | **+.021792 ± .002274** | **−.062324** |
+| 12 | +.006236 | +.004354 | +.013415 ± .006473 | +.002825 |
+| 13 | +.000778 | +.001286 | +.001664 ± .000371 | −.000400 |
+| 14 | +.000138 | +.002558 | +.002537 ± .000383 | −.000159 |
+
+L11's **entire-row** deletion cost is largest. Its paired contrast with L12 is
++.008377 ± .006932; 108/128 sequences have the larger cost at L11. L12 uncertainty
+retains its extreme example, not silently trimmed. Baseline and L11 cross/self
+deletion match the validated consumer sweep **exactly per sequence**.
+
+At L11, removing cross when self is present harms loss +.015704; removing cross
+after self has already been removed improves loss **−.046620**. Removing both is
+far less harmful than removing self alone. This is strong conditional dependence,
+not independent self/cross contribution. Geometric cancellation, local
+compensation and downstream cooperation remain distinct candidate explanations;
+the table alone does not select one. Joint source-consumer probes and source
+geometry are being checked to distinguish them.
+
+Raw: `/data0/xd/bam_diagnostics/bam-row-mediation-xl-L11-neighbors-interactions-8c24ec3-rowself/`
+(the suffix identifies the worker pipeline, **not** a self-only measurement).
+Analysis: `/data0/xd/bam_diagnostics/row-neighbors-all-analysis.json`. Both raw and
+metadata are mirrored under the GCS diagnostic root specified above.
+
 The all-position 22-arm neighbor sweep and added source-MLP/cross-V interaction
 sweeps use runtime `8c24ec3fb6aeea26c705a31577622f595d38a81f`. Scripts:
 [row_neighbors.py](row_neighbors.py), [analyze_row_neighbors.py](analyze_row_neighbors.py).

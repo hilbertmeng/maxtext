@@ -47,6 +47,9 @@ def intervention_tree(params, scales, mask, controls, z, scanned):
     if os.environ.get('BAM_CONSUMER_BARRIER') == '1':
       tree[attn[:-1] + ('row_consumer_barrier',)] = (
           jnp.zeros(24) if scanned else jnp.asarray(0))
+    if os.environ.get('BAM_CONSUMER_MLP_EXPORT') == '1':
+      tree[attn[:-1] + ('row_export_capture',)] = (
+          jnp.zeros(24) if scanned else jnp.asarray(0))
   if not paths:
     raise ValueError('no BAM attention paths found')
   return traverse_util.unflatten_dict(tree)
@@ -65,6 +68,16 @@ def forward(model, params, batch, rng, config, scales, mask, controls, z, source
       mutable=['mediation_capture'])
   refs = med.stack_capture(captured)
   audit_refs = []
+  if os.environ.get('BAM_CONSUMER_MLP_EXPORT') == '1':
+    flat=traverse_util.flatten_dict(captured['mediation_capture'])
+    name='trace_consumer_post_mlp'
+    if config.scan_layers:
+      values=[base._unwrap(v) for p,v in flat.items() if p[-1]==name]
+      if len(values)!=1:raise ValueError(name)
+      audit_refs.append(base._layer_axis_first(values[0],name)[source])
+    else:
+      audit_refs.append(next(base._unwrap(v) for p,v in flat.items()
+                            if p[-1]==name and base._layer_from_path(p)==source))
   if os.environ.get('BAM_CONSUMER_AUDIT') == '1':
     flat = traverse_util.flatten_dict(captured['mediation_capture'])
     for name in ('trace_consumer_post_cut','trace_consumer_mlp_input'):

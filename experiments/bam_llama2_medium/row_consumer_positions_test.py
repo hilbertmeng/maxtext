@@ -103,5 +103,14 @@ class ConsumerTest(unittest.TestCase):
         np.testing.assert_array_equal(s[layer],expected)
         np.testing.assert_array_equal(np.delete(s,layer,axis=0),1)
 
+  def test_mlp_export_arms(self):
+    from row_mlp_export import export_arms
+    matrix=export_arms(11)
+    self.assertEqual(len(matrix),35)
+    for a in matrix[2:-2]:
+      np.testing.assert_array_equal(a['control'][:12],0)
+    self.assertEqual(matrix[-2]['name'],'immediate_cut')
+    self.assertEqual(matrix[-1]['name'],'null')
+
 
 if __name__=='__main__':unittest.main()

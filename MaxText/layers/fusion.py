@@ -430,6 +430,11 @@ class SubDecoderLayer(nn.Module):
 
     layer_output = nn.Dropout(rate=cfg.dropout_rate, broadcast_dims=(-2,))(layer_output, deterministic=deterministic)
 
+    if self.has_variable('causal_ablation', 'row_export_capture'):
+      layer_output = jax.lax.optimization_barrier(layer_output)
+      if capture_mediation:
+        self.sow('mediation_capture', 'trace_consumer_post_mlp', layer_output)
+
     if self.has_variable('causal_ablation', 'med_z'):
       layer_output = (layer_output.astype(jnp.float32) -
           self.get_variable('causal_ablation', 'med_cancel')[1] *

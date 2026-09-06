@@ -340,7 +340,10 @@ committed on `codex/bam-row-mediation`;
 runtime hashes identify the exact worker source independently of later report edits.
 No production architecture changes or formal training were performed.
 
-`xd-v6e-rowmed-d-ue5a` is retained in `us-east5-a` at the user's request. The two
+At this stage, `xd-v6e-rowmed-d-ue5a` was retained in `us-east5-a`. The two
 EW4a workers `xd-v6e-rowmed-e-ew4a` and `xd-v6e-rowmed-f-ew4a` were preempted;
 their nodes and queues were deleted and verified absent. Complete uploaded arms
 were reused; only the missing 44 fine-control sequences were recomputed.
+
+Current follow-up and retained-resource status:
+[original-position consumer analysis](bam_row_consumer_positions.md).

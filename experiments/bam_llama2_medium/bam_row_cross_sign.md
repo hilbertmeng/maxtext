@@ -175,8 +175,10 @@ The XL L11 anomaly is reproducible and is largely a **negative-alpha-derived neg
 direct term with positive full-network necessity**. Medium supplies a concrete opposite
 case: negative-alpha-derived positive direct terms with positive necessity.
 
-To locate the mechanism rather than rename it, a next experiment could selectively
-restore downstream MHA/MLP outputs or M states after the L11 intervention and measure
-which restoration rescues loss. This would distinguish same-token representation
-correction from later cross-token mediation. The current data do not identify that
-mediator and do not settle whether C8→C32 behavior originates here.
+The follow-up is now in [downstream mediation](bam_row_mediation.md) and
+[original-position consumer/lifetime analysis](bam_row_consumer_positions.md).
+It identifies interacting V-export and local MLP consumers, with separate
+cross/self/whole-row and own-position interventions. It does not establish that
+a direct-V replacement improves retraining, or settle whether C8→C32 behavior
+originates here. The L12–17 screen is recorded in the
+[mediation plan](bam_row_mediation_plan.md#l1217-screen-complete-128).

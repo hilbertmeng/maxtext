@@ -10,6 +10,10 @@ V-cross is the export boundary, not permission to follow later receiver-position
 M/col/row/MLP chains. Those completed sweeps remain supplemental evidence, not
 an unfinished requirement. Foreign-position counterfactual development is deferred.
 
+Retained diagnostic TPU verified READY on 2026-09-06:
+`xd-v6e-row-own-ew4a-r1`, `europe-west4-a`. The runtime and raw artifacts remain
+available for follow-up; source-workflow validation used a separate directory.
+
 - L11 is exceptional in **whole-row net necessity**, not only negative direct
   row-cross IG. Self and cross interact strongly; their deletion costs cannot
   be added.

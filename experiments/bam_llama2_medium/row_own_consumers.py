@@ -18,7 +18,7 @@ import row_token_worlds as worlds
 from row_consumer_positions import arms as consumer_arms
 from row_probe_resume import resume_batches, save_batch, save_summary
 from analyze_row_mediation import stats
-from layers.attentions import _split_row_difference
+from layers.attentions import _split_row_difference, ROW_CONSUMER_NAMES
 
 base = worlds.base
 
@@ -26,7 +26,18 @@ base = worlds.base
 def selected_arms(source):
   """Joint screen plus lifetime, then optional per-layer localization."""
   all_arms = consumer_arms(source)
-  if os.environ.get('BAM_OWN_CONSUMER_SET', 'joint') == 'individual':
+  arm_set = os.environ.get('BAM_OWN_CONSUMER_SET', 'joint')
+  if arm_set == 'terminal':
+    # Close the lifetime curve through the final layer, with shared anchors.
+    result = [a for a in all_arms if a['name'] in (
+        f'cut_L{source}_attention', 'cut_L22_mlp')]
+    for field in ('mlp', 'cut_attention', 'cut_mlp'):
+      control = np.zeros_like(all_arms[0]['control'])
+      control[23, ROW_CONSUMER_NAMES.index(field)] = 1
+      name = 'deny_L23_mlp' if field == 'mlp' else 'cut_L23_' + field.removeprefix('cut_')
+      result.append(dict(name=name, control=control))
+    return result
+  if arm_set == 'individual':
     return [a for a in all_arms if a['name'].startswith('deny_')]
   return [a for a in all_arms if a['name'].startswith(('joint_', 'cut_'))
           or a['name'] == f'deny_L{source}_mlp']

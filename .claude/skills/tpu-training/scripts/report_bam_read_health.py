@@ -436,13 +436,14 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
 
 
 def _paired_metric(run_value, base_value):
-  if run_value is None or base_value is None:
+  if run_value is None and base_value is None:
     return None
+  both_present = run_value is not None and base_value is not None
   return {
       "run": run_value,
       "base": base_value,
-      "delta": _rounded(run_value - base_value),
-      "ratio": _rounded(run_value / base_value) if base_value != 0 else None,
+      "delta": _rounded(run_value - base_value) if both_present else None,
+      "ratio": _rounded(run_value / base_value) if both_present and base_value != 0 else None,
   }
 
 
@@ -525,7 +526,7 @@ def _print_mix_scale(run, result):
 def _format_pair(pair):
   if pair is None:
     return "--"
-  return f'{pair["run"]}/{pair["base"]}'
+  return '/'.join('--' if pair[key] is None else str(pair[key]) for key in ('run', 'base'))
 
 
 def _print_route(run, result, base_results):

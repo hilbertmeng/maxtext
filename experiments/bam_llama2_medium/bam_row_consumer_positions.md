@@ -4,8 +4,8 @@
 
 The main XL L11 cross/self/whole-row consumer, lifetime, and downstream
 mediation sweeps are complete on the fixed 128 sequences and all valid origins.
-The study is **not closed**: selective-delivery numerical-floor controls are
-running; the Medium L8 delivery comparison stopped at 94/128 after a nonzero
+The study is **not closed**: final self controls and all-token own/earlier-origin
+counterfactuals remain; the Medium L8 delivery comparison stopped at 94/128 after a nonzero
 immediate-cut/deletion check and is not accepted as a completed result.
 
 - L11 is exceptional in **whole-row net necessity**, not only negative direct
@@ -577,9 +577,12 @@ much better than separately restricted self/cross would suggest, again showing
 their interaction.
 
 These are collective all-origin interventions, not additive origin-level
-attributions. Small positive delayed-cut effects should also be interpreted
-against the pending no-consumer numerical-floor controls: repeated bf16
-`h-z` operations need not exactly reproduce a world where `z` was never added.
+attributions. Completed cross/whole no-consumer controls (128 each) quantify
+the representation error from repeated bf16 `h-z`: at L12/13/15/17 their loss
+differences versus outright deletion are cross −.000048/+.000008/+.000068/+.000075,
+whole −.000065/−.000114/−.000115/−.000078. These are much smaller than the
+selective policies' .002–.012 penalties. The all-consumer cutoff means exactly
+match the previous sweep. Self controls remain in progress.
 
 Runtime `359b559923022700b357073a275b02ed9bfc5627`; launcher
 `BAM_MEDIATION_PHASE=delivery BAM_MEDIATION_SOURCE=11
@@ -599,6 +602,18 @@ failed the immediate-cut check at batch offset 94 (token-loss max .125); its
 94 completed examples are retained for audit, not used as a full Medium/XL
 comparison. Locate the arithmetic discrepancy before rerunning or interpreting
 that comparison; do not relax the exact check merely to finish the sweep.
+
+The failure was localized by runtime `cfb7716`, `BAM_CONSUMER_AUDIT=1
+BAM_DELIVERY_AUDIT_OFFSET=94`: one post-cut residual coordinate differs by
+7.45058e-9, already present in the standalone `clean-(clean-deleted)`
+reconstruction. The MLP output then differs in two coordinates (max .0004883),
+and one sequence's mean loss differs by .0008876. Source/M scope and unused/zero
+controls are exact. This is float32 subtraction losing a tiny coordinate, not
+evidence that the selected path failed to be removed. A compensated TwoDiff
+representation retains high/low parts of the source increment; the updated
+probe will rerun the endpoint and full cohort with exact checks. CPU tests
+verify reconstruction across 1024 bf16 pairs spanning widely different scales.
+Raw audit: `bam-row-mediation-medium-L8-delivery-audit94-cfb7716-rowboth/audit.json`.
 
 #### Historical SoftmaxMix/RmsMix is not a matched diagonal-one comparison
 

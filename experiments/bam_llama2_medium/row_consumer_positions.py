@@ -33,6 +33,7 @@ def origin_positions(cohort):
 
 
 def intervention_tree(params, scales, mask, controls, z, scanned):
+  z, z_low = z if isinstance(z, tuple) else (z, None)
   tree = traverse_util.flatten_dict(med.source_controls(params, scales, scanned))
   paths = [p[:-1] for p in tree if p[-1] == 'row_sign_scales']
   for attn in paths:
@@ -44,6 +45,9 @@ def intervention_tree(params, scales, mask, controls, z, scanned):
     tree[attn[:-1] + ('row_consumers',)] = c
     tree[attn[:-1] + ('row_consumer_z',)] = (
         jnp.broadcast_to(z, (24,) + z.shape) if scanned else z)
+    if z_low is not None:
+      tree[attn[:-1] + ('row_consumer_z_low',)] = (
+          jnp.broadcast_to(z_low, (24,) + z_low.shape) if scanned else z_low)
     if os.environ.get('BAM_CONSUMER_BARRIER') == '1':
       tree[attn[:-1] + ('row_consumer_barrier',)] = (
           jnp.zeros(24) if scanned else jnp.asarray(0))
@@ -68,7 +72,7 @@ def forward(model, params, batch, rng, config, scales, mask, controls, z, source
       raise ValueError('patch references require explicit recipient controls')
     tree = traverse_util.flatten_dict(variables['causal_ablation'])
     patch = traverse_util.flatten_dict(med.patch_tree(
-        params, scales, patch_refs, patch_controls, jnp.zeros_like(z),
+        params, scales, patch_refs, patch_controls, jnp.zeros_like(z[0] if isinstance(z,tuple) else z),
         config.scan_layers))
     # Only instantiate the recipients under test. Unused QK/V routing and
     # residual-cancellation machinery changes the compiled graph unnecessarily.

@@ -17,6 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import row_consumer_positions as c
+from layers.attentions import _split_row_difference, _subtract_row_increment
 from analyze_row_mediation import stats
 from row_probe_resume import resume_batches, save_batch, save_summary
 
@@ -50,6 +51,7 @@ def run(config):
   if os.environ.get('BAM_CONSUMER_BARRIER') != '1':
     raise ValueError('requires the validated bf16 residual boundary')
   source = int(os.environ.get('BAM_MEDIATION_SOURCE', '11'))
+  compensated = os.environ.get('BAM_CONSUMER_COMPENSATED') == '1'
   component = os.environ.get('BAM_MEDIATION_COMPONENT', 'both')
   columns = {'cross': [0, 1], 'self': [2], 'both': [0, 1, 2]}[component]
   output = Path(os.environ['BAM_MEDIATION_OUTPUT']); output.mkdir(parents=True, exist_ok=True)
@@ -69,6 +71,7 @@ def run(config):
       intervention='causal source carrier with selective consumers and intermediate lifetime cutoff',
       checks=['unused_reference', 'zero_z', 'immediate_cut_equals_deletion', 'source_M_scope'],
       limitation='collective all-origin intervention; checkpoint feasibility, not retraining outcome')
+  meta['compensated_source_difference'] = compensated
   records = resume_batches(output, meta, cohort, os.environ.get('BAM_MEDIATION_RESUME_COMMIT'))
   start = time.perf_counter()
   audit_offset = os.environ.get('BAM_DELIVERY_AUDIT_OFFSET')
@@ -92,12 +95,15 @@ def run(config):
       continue
     batch = {k:jnp.asarray(v[offset:offset+bs]) for k,v in cohort.items() if k!='sequence_hashes'}
     z0 = jnp.zeros(batch['inputs'].shape+(config.emb_dim,),jnp.float32)
+    if compensated:
+      z0 = (z0, jnp.zeros_like(z0))
     with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
       clean = infer(state.params,batch,scales,empty,z0)
       removed = infer(state.params,batch,deleted,empty,z0)
       # This source output precedes every intervention, so it is available in a
       # single ordinary forward. No downstream clean trajectory is consulted.
-      z = clean[2].astype(jnp.float32)-removed[2].astype(jnp.float32)
+      z = (_split_row_difference(clean[2], removed[2]) if compensated else
+           clean[2].astype(jnp.float32)-removed[2].astype(jnp.float32))
       unused = infer(state.params,batch,scales,empty,z)
       null = infer(state.params,batch,scales,null_control,z0)
       cut = infer(state.params,batch,scales,immediate,z)
@@ -108,7 +114,8 @@ def run(config):
           a, b = np.asarray(a), np.asarray(b)
           return dict(max_abs=float(np.max(abs(a.astype(float)-b.astype(float)))),
                       differing_coordinates=int(np.count_nonzero(a != b)))
-        reconstructed = (clean[2].astype(jnp.float32)-z).astype(clean[2].dtype)
+        reconstructed = (_subtract_row_increment(clean[2], *z) if compensated else
+                         _subtract_row_increment(clean[2], z))
         audit = dict(metadata=meta, offset=offset,
             sequence_hashes=cohort['sequence_hashes'][offset:offset+bs].tolist(),
             endpoint_checks=dict(zip(meta['checks'],checks.tolist())),

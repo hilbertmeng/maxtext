@@ -1747,10 +1747,13 @@ def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon):
 
 def _attention_op(
     query, key, value, valid, *, attn_logits_soft_cap=0.0,
-    float32_logits=False):
+    float32_logits=False, foreign_key=None, foreign_value=None, diagonal_mask=None):
   """Apply masked QK/softmax/AV to one dense or query-chunk block."""
   with jax.named_scope("attention/qk_logits"):
     logits = jnp.einsum('bqnd,bsnd->bnqs', query, key)
+    if foreign_key is not None:
+      foreign_logits = jnp.einsum('bqnd,bsnd->bnqs', query, foreign_key)
+      logits = jnp.where(diagonal_mask[None, None], logits, foreign_logits)
   if attn_logits_soft_cap:
     logits = (
         jnp.tanh(logits / attn_logits_soft_cap) * attn_logits_soft_cap)
@@ -1761,13 +1764,18 @@ def _attention_op(
   with jax.named_scope("attention/softmax"):
     alpha = jax.nn.softmax(logits, axis=-1)
   with jax.named_scope("attention/av"):
-    y_std = jnp.einsum('bnqs,bsnd->bqnd', alpha, value)
+    if foreign_value is None:
+      y_std = jnp.einsum('bnqs,bsnd->bqnd', alpha, value)
+    else:
+      y_std = jnp.einsum('bnqs,bsnd->bqnd', alpha, foreign_value)
+      y_std = _row_consumer_value_edges(
+          y_std, alpha, foreign_value, value, diagonal_mask, 1, 0)
   return y_std, alpha
 
 
 def _bam_fetch_op(
     alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
-    return_alpha=False, cross_scale=None):
+    return_alpha=False, cross_scale=None, foreign_state=None):
   """Mix standard-attention routes, optionally set the local coefficient, and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     fetch_alpha = jnp.einsum(
@@ -1780,7 +1788,13 @@ def _bam_fetch_op(
           diagonal_mask[None], fetch_alpha,
           fetch_alpha * jnp.asarray(cross_scale, fetch_alpha.dtype))
   with jax.named_scope("bam/fetch_m"):
-    fetched = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
+    source_state = fetch_state if foreign_state is None else foreign_state
+    fetched = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, source_state)
+    if foreign_state is not None:
+      self_alpha = jnp.where(diagonal_mask[None], fetch_alpha, 0).astype(jnp.float32)
+      delta = fetch_state.astype(jnp.float32)-foreign_state.astype(jnp.float32)
+      fetched = (fetched.astype(jnp.float32)+jnp.einsum(
+          'bqs,bskv->bqkv', self_alpha, delta)).astype(fetched.dtype)
   return (fetched, fetch_alpha) if return_alpha else fetched
 
 
@@ -1803,6 +1817,25 @@ def _mediation_replace(value, reference, scale):
 ROW_CONSUMER_NAMES = (
     'q', 'k', 'v_self', 'v_cross', 'local_qk', 'mix', 'read', 'write',
     'mlp', 'cut_attention', 'cut_mlp')
+
+
+def _split_row_difference(a, b):
+  """Error-free float32 TwoDiff; retain tiny residual coordinates in a-b."""
+  barrier = jax.lax.optimization_barrier
+  a, b = a.astype(jnp.float32), b.astype(jnp.float32)
+  high = barrier(a-b)
+  b_virtual = barrier(a-high)
+  a_virtual = barrier(high+b_virtual)
+  low = barrier(a-a_virtual) + barrier(b_virtual-b)
+  return high, low
+
+
+def _subtract_row_increment(x, high, low=None, scale=1):
+  if low is None:
+    return (x.astype(jnp.float32)-scale*high).astype(x.dtype)
+  remainder = jax.lax.optimization_barrier(x.astype(jnp.float32)-scale*high)
+  correction = jax.lax.optimization_barrier(scale*low)
+  return (remainder-correction).astype(x.dtype)
 
 
 def _row_consumer_value_edges(y, alpha, value, reference, diagonal, self_scale, cross_scale):
@@ -3458,10 +3491,22 @@ class BamAttention(Attention):
           == decoder_segment_ids[:, None, s0:s1])
 
     cfg = self.config
+    foreign_key = foreign_value = foreign_state = None
+    if self.has_variable('causal_ablation', 'row_foreign_enabled'):
+      enabled = self.get_variable('causal_ablation', 'row_foreign_enabled')
+      foreign_key = jnp.where(enabled, self.get_variable(
+          'causal_ablation', 'row_foreign_key')[:, s0:s1], key)
+      foreign_value = jnp.where(enabled, self.get_variable(
+          'causal_ablation', 'row_foreign_value')[:, s0:s1], value)
+      if fetch_state is not None:
+        reference_M = self.get_variable('causal_ablation', 'row_foreign_M')[:, s0:s1]
+        reference_state = self._compress_full_fetch_state(self._matrix_for_read(reference_M))
+        foreign_state = jnp.where(enabled, reference_state, fetch_state)
     y_std, alpha = _attention_op(
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,
-        float32_logits=cfg.float32_logits)
+        float32_logits=cfg.float32_logits, foreign_key=foreign_key,
+        foreign_value=foreign_value, diagonal_mask=source == target)
     mha_alpha = alpha
     if self.has_variable('causal_ablation', 'med_qk_routes'):
       ref_q = self.get_variable('causal_ablation', 'med_query')[:, q0:q1]
@@ -3493,7 +3538,8 @@ class BamAttention(Attention):
       fetched = _bam_fetch_op(
           alpha, fetch_state, mix_weights, diagonal_mask,
           diagonal_one=self._fetch_diagonal_one, return_alpha=capture or probe,
-          cross_scale=self.get_variable('causal_ablation', 'cross_scale'))
+          cross_scale=self.get_variable('causal_ablation', 'cross_scale'),
+          foreign_state=foreign_state)
       if capture or probe:
         Mbar, fetch_alpha = fetched
         with jax.named_scope("bam/fetch_m_self"):
@@ -3509,8 +3555,10 @@ class BamAttention(Attention):
           positive = jnp.maximum(cross_alpha, 0)
           negative = jnp.minimum(cross_alpha, 0)
           row_probe = (
-              jnp.einsum('bqs,bskv->bqkv', positive, fetch_state),
-              jnp.einsum('bqs,bskv->bqkv', negative, fetch_state),
+              jnp.einsum('bqs,bskv->bqkv', positive,
+                         fetch_state if foreign_state is None else foreign_state),
+              jnp.einsum('bqs,bskv->bqkv', negative,
+                         fetch_state if foreign_state is None else foreign_state),
               jnp.stack((jnp.sum(cross_alpha > 0, -1),
                          jnp.sum(cross_alpha < 0, -1),
                          jnp.sum(cross_valid, -1),
@@ -3657,6 +3705,8 @@ class BamAttention(Attention):
       query = query.astype(jnp.float32)
       key = key.astype(jnp.float32)
 
+    if self.has_variable('causal_ablation', 'row_foreign_enabled'):
+      key, value = jax.lax.optimization_barrier((key, value))
     fetch_state = mix_weights = None
     if 'full' in self._mode:
       if Mh is None:

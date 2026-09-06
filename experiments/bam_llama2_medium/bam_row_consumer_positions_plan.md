@@ -74,3 +74,33 @@ distinguish these possibilities; total loss alone cannot label its mechanism.
   transported benefit; do not silently equate necessity with useful transport.
 - No formal architectural retraining until these results support a concrete
   normal-forward mechanism. Keep healthy diagnostic TPUs for follow-up.
+
+## All-token own/earlier-origin counterfactuals
+
+The collective input-denial results do not themselves resolve question 1's loss
+location. Add a causal diagonal-world construction, not point-origin sampling.
+For each target t, evolve its own hidden/M state while using donor-world K/V/M
+for every source s<t, and its own K/V/M for s=t. Recompute logits and softmax
+with this hybrid key set. Causality ensures earlier source states cannot depend
+on t's intervention, so all targets' own-origin worlds can be represented in
+parallel. Source-layer row outputs precede these downstream interventions.
+
+Use four worlds on every one of the fixed 128 sequences:
+
+1. Clean.
+2. All L11 source increments deleted.
+3. Own source deleted; foreign K/V/M from clean (only-own effect at each target).
+4. Own source retained; foreign K/V/M from all-deleted (only-earlier effect).
+
+Report joint deletion, each marginal effect, both conditional effects and their
+interaction. Do not sum marginal effects and discard the interaction. Reuse
+the construction for cross, self, and whole row. All sources/targets participate;
+no per-sequence position sampling. In real arithmetic this is exact, not a
+Jacobian approximation. In bf16, separately audit self-donor/disabled-donor
+endpoints and the mixed-world contraction's numerical behavior.
+
+`row_token_worlds_test.py` exhaustively compares every target's hybrid result
+with explicit one-origin/all-except-one interventions in a small multilayer
+causal attention + M-write/fetch model. This is a verification test, not sampled
+diagnostic data. The production probe saves only losses, masks, hashes and
+scalar checks; donor activations stay on device.

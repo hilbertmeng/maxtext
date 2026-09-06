@@ -264,8 +264,9 @@ class SubDecoderLayer(nn.Module):
     if cfg.bam_enabled:
         if self.has_variable('causal_ablation', 'row_consumer_z'):
             assert not cfg.dense_conn
-            consumer_input = (inputs.astype(jnp.float32) -
-                self.get_variable('causal_ablation', 'row_consumer_z')).astype(inputs.dtype)
+            consumer_input = attentions._subtract_row_increment(inputs,
+                self.get_variable('causal_ablation', 'row_consumer_z'),
+                self.get_variable('causal_ablation', 'row_consumer_z_low'))
             call_kwargs['consumer_reference'] = attention_norm(consumer_input)
         attention_lnx, M_out = attention_layer(
             **call_kwargs, M_in=M_in, is_global=is_global)
@@ -299,8 +300,9 @@ class SubDecoderLayer(nn.Module):
         return x
       c = self.get_variable('causal_ablation', 'row_consumers')
       scale = c[attentions.ROW_CONSUMER_NAMES.index(name)]
-      changed = (x.astype(jnp.float32) - scale *
-          self.get_variable('causal_ablation', 'row_consumer_z')).astype(x.dtype)
+      changed = attentions._subtract_row_increment(x,
+          self.get_variable('causal_ablation', 'row_consumer_z'),
+          self.get_variable('causal_ablation', 'row_consumer_z_low'), scale)
       result = jnp.where(scale == 0, x, changed)
       return jax.lax.optimization_barrier(result) if consumer_barrier else result
 

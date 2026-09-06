@@ -395,6 +395,25 @@ the local and GCS diagnostic roots. Local analyses:
 The raw files retain per-token scalar coefficients/geometry and per-arm losses,
 not activation vectors.
 
+#### In progress: early cross-V to later component mediation
+
+Runner [row_v_export.py](row_v_export.py) first denies the original L11 row
+increment **only to L12 cross-token V edges**. The donor pair therefore differs
+at that consumer, not at the original row output everywhere. In both directions,
+patch later fetched-col, fetched-row, M-out, and MLP from the opposite donor;
+screen individual L13–18 and jointly L13–23, plus L12 M-out/MLP. Repeat for
+row-cross, row-self, and their sum; `BAM_V_EXPORT_END=15` additionally tests the
+joint L12–15 export if the single-L12 results leave substantial effects.
+
+Use `BAM_MEDIATION_PHASE=v_export BAM_CONSUMER_BARRIER=1` with the standard
+launcher and record the sealed diagnostic commit. Require exact token-loss
+agreement for the seed graph, unused references, zero-z, both self-patching
+worlds, and unchanged source residual/M before accepting any result. All 128
+sequences and all valid origins participate. Save token losses/checks, not
+reference vectors. This is conditional component mediation: it distinguishes
+the first hop's same/other-position edge but does not assign multi-hop effects
+to individual origins or turn nonlinear restoration effects into additive shares.
+
 #### Historical SoftmaxMix/RmsMix is not a matched diagonal-one comparison
 
 `BamLlama2MediumRmsGateOnlyDynamicMixFull1` and

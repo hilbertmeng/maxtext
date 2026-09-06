@@ -55,10 +55,19 @@ def intervention_tree(params, scales, mask, controls, z, scanned):
   return traverse_util.unflatten_dict(tree)
 
 
-def forward(model, params, batch, rng, config, scales, mask, controls, z, source):
+def forward(model, params, batch, rng, config, scales, mask, controls, z, source,
+            patch_refs=None, patch_controls=None, return_references=False):
   variables = dict(params)
   variables['causal_ablation'] = intervention_tree(
       params, scales, mask, controls, z, config.scan_layers)
+  if patch_refs is not None:
+    if patch_controls is None:
+      raise ValueError('patch references require explicit recipient controls')
+    tree = traverse_util.flatten_dict(variables['causal_ablation'])
+    tree.update(traverse_util.flatten_dict(med.patch_tree(
+        params, scales, patch_refs, patch_controls, jnp.zeros_like(z),
+        config.scan_layers)))
+    variables['causal_ablation'] = traverse_util.unflatten_dict(tree)
   r1, r2 = jax.random.split(rng)
   (token_loss, _, _), captured = model.apply(
       variables, batch['inputs'], batch['inputs_position'],
@@ -68,6 +77,9 @@ def forward(model, params, batch, rng, config, scales, mask, controls, z, source
       mutable=(['mediation_capture','row_cross_probe'] if
                os.environ.get('BAM_CONSUMER_ALPHA_GEOMETRY')=='1' else ['mediation_capture']))
   refs = med.stack_capture(captured)
+  if return_references:
+    return (base._sequence_mean(token_loss, batch['targets_segmentation'] != 0),
+            token_loss, refs)
   audit_refs = []
   if os.environ.get('BAM_CONSUMER_ALPHA_GEOMETRY')=='1':
     audit_refs.append(med.sign.stacked(captured,'alpha_stats')[source])

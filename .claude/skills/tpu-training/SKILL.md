@@ -186,11 +186,9 @@ At every due milestone:
    `scripts/sync_tensorboard_incremental.py RUN...`, then
    `scripts/report_bam_read_health.py RUN --base-run BASE... --steps MILESTONES`. The sync verifies
    a 1 MiB overlap and appends only the GCS event tail; the reporter incrementally caches scalar
-   records and scans each RUN/BASE once. Report the compact layer-band
-   trends for learned amplitude, gate distribution, effective/output read RMS,
-   `y_bam/y_std`, raw-grad, W_R-grad, and clipping; do not instrument metrics and then monitor
-   loss alone. Report a multi-point sequence, never only the latest value; use the same sampled
-   steps across active RUNs so trends remain directly comparable.
+   records and scans each RUN/BASE once. Select health metrics with explanatory value or meaningful
+   changes/anomalies; omit the health section when there is nothing worth reporting. For selected
+   metrics, show compact multi-point RUN/BASE sequences at matching steps and layer bands.
 3. Mark the cursor:
 
 ```bash

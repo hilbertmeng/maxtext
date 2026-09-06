@@ -1188,6 +1188,7 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
     """Current-code V2 C256 scan+AOT control for depth-scaled amplitudes."""
     # 9f8b4cc; UE5a ~0.660 steps/s; finished 13,499. dloss +.00323 vs V2 and
     # +.00504 vs NonScanJIT @13,400; both gaps were stable after ~4k.
+    # Historical AOT omitted wd_mults; use ScanAotCleanControl for corrected WD.
     model_name = 'BamLlama2MediumV2C256ScanAotControl'
     scan_layers = True
     checkpoint_period = 200

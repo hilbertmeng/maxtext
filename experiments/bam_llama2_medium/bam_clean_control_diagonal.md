@@ -156,6 +156,9 @@ steps 0–3198, restored the data cursor from committed checkpoint 2800, removed
 incomplete 3000 prefix, and began same-TPU relaunch at 14:04:38. The 300s timeout
 recovery worked in that checking round; 398 completed updates need replay. Recovery
 acceptance requires a restored first step and a newly committed checkpoint 3000.
+Both verified: original AOT loaded, first restored step 2801 had LR `27.435e-5`;
+at the 14:12 UTC check training reached 3030 and checkpoint 3000 was committed.
+The TPU, zone, and runtime commit were unchanged.
 
 ## Early WD comparison: Clean / old Control
 

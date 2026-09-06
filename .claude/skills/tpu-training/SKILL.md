@@ -16,6 +16,8 @@ and Pile-data buckets and records `base_output_directory` plus `dataset_path` in
 `DATASET_PATH` explicitly only for another dataset variant.
 Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
 exact files to tpu-ag and verify matching hashes.
+Compiler and training workers obtain source from Git over HTTPS at the registered commit;
+shared environment packages and per-configuration AOT executables remain in GCS.
 
 Classify by intent: a short speed/profile arm is `$tpu-diagnostics` even at full layer count;
 use `run_exp_xd.sh` only for a RUN intended to train through its registered plan.
@@ -37,11 +39,11 @@ not cover; it is not a routine prerequisite for training.
    Use another setting only when the user explicitly requests it.
    Use `checkpoint_period=200` for Medium and `250` for XL.
 2. Before a parameter-tree change, use a new run name/GCS prefix. Commit the prepared runtime
-   code, push it to `origin/refactor-bam`, and use its full hash. Commit/push first-step fixes and
+   code, push its worktree branch, and use its full hash. Commit/push first-step fixes and
    update the RUN hash before relaunch.
 
 ```bash
-git status --short --branch && git push origin refactor-bam
+git status --short --branch && git push origin HEAD
 CODE_COMMIT=$(git rev-parse HEAD)
 ```
 
@@ -302,9 +304,10 @@ installation:
 
 ```bash
 NAME=xd-v6e-1-bamdiag ZONE=${ZONE:-europe-west4-a}
+COMMIT=FULL_40_CHAR_HASH
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   "/home/lishengping/xd/projects/start_standalone_tpu.sh \
-   '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh"
+   '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh '$COMMIT'"
 ```
 
 Inspect `logs/${NAME}-create.log` on tpu-ag. Release it only through `delete_tpu_xd.sh`, which

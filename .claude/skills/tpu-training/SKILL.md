@@ -26,6 +26,11 @@ use `run_exp_xd.sh` only for a RUN intended to train through its registered plan
 
 Uses `run_exp_xd.sh` → `auto_train_xd_maxtext.sh` and `run_registry.py`.
 
+Choose the code location first: large, uncertain architectural changes start in an isolated
+worktree; keep an inheritance-related experiment family in the same branch/worktree. Main
+`exp.py` remains the shared ledger. Before deriving a RUN, verify its parent's implementation
+and runtime commit in that location as well as its configuration class.
+
 Default validation is the pinned local BAM test suite followed by the target RUN's
 `FIRST_STEP`. Add a standalone v6e check only for TPU-specific uncertainty those two gates do
 not cover; it is not a routine prerequisite for training.

@@ -422,7 +422,31 @@ def record_bam_fetched_read_health_metrics(
   gate_stat_names = ('mean', 'std', 'frac_lt_005', 'frac_gt_095')
   diagonal_sums = (sum(attention['fetch_diagonal_sums'])
                    if 'fetch_diagonal_sums' in attention else None)
+  route_sums = (sum(attention['fetch_route_sums'])
+                if 'fetch_route_sums' in attention else None)
+  mix_stats = (attention['fetch_mix_weight_stats'][0]
+               if 'fetch_mix_weight_stats' in attention else None)
+  mix_scale = (attention['fetch_mix_scale'][0]
+               if 'fetch_mix_scale' in attention else None)
   for layer_num in range(config.base_num_decoder_layers):
+    if route_sums is not None:
+      negative, zero, mass, square, edges, queries = route_sums[layer_num]
+      prefix = f'bam/fetch_route/layer_{layer_num:03d}'
+      output_metrics['scalar'].update({
+          f'{prefix}/preclip_negative_fraction': negative / jnp.maximum(edges, 1),
+          f'{prefix}/zero_fraction': zero / jnp.maximum(edges, 1),
+          f'{prefix}/cross_mass_per_query': mass / jnp.maximum(queries, 1),
+          f'{prefix}/cross_l2_rms_per_query': jnp.sqrt(square / jnp.maximum(queries, 1)),
+          f'{prefix}/mix_weight_mean': mix_stats[layer_num, 0],
+          f'{prefix}/mix_weight_rms': mix_stats[layer_num, 1],
+          f'{prefix}/mix_weight_negative_fraction': mix_stats[layer_num, 2],
+      })
+      if mix_scale is not None:
+        mix_heads = config.bam_fetch_mix_num_heads or config.num_query_heads
+        output_metrics['scalar'].update({
+            f'{prefix}/mix_scale': mix_scale[layer_num],
+            f'{prefix}/mix_scale_over_init': mix_scale[layer_num] * mix_heads ** 0.5,
+        })
     if diagonal_sums is not None:
       diag, diag_sq, diag_neg, count, cross, queries = diagonal_sums[layer_num]
       count, queries = jnp.maximum(count, 1), jnp.maximum(queries, 1)

@@ -17,6 +17,7 @@ from layers.attentions import (
     _add_bam_read_key_bias,
     _attention_op,
     _bam_fetch_op,
+    _bam_fetch_route_sums,
     _depth_scaled_bam_read_amplitude,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
@@ -50,6 +51,72 @@ class _DepthAmplitudeLayer(nn.Module):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+
+  def test_clean_gelu_full_module_initializes_and_records_route(self):
+    import max_utils
+    import pyconfig
+    from flax.traverse_util import flatten_dict
+
+    output = tempfile.TemporaryDirectory()
+    self.addCleanup(output.cleanup)
+    (Path(output.name) / 'test-clean-gelu').mkdir()
+    cfg = pyconfig.initialize(
+        [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+        exp_class='BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix',
+        run_name='test-clean-gelu', enable_checkpointing=False,
+        base_output_directory=output.name + '/',
+        jax_cache_dir='', log_config=False, dataset_type='synthetic',
+        base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
+        base_num_decoder_layers=2, base_mlp_dim=256, head_dim=64,
+        max_target_length=8, max_prefill_predict_length=8,
+        query_chunk_size=4, per_device_batch_size=1.0)
+    cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    attention = BamAttention(
+        config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+        max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+        attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+        layer_mode='local_qk+full', attention_type=cfg.attention_type)
+    x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
+    matrix = jnp.ones((1, 8, 32, 32), cfg.dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    variables = attention.init(
+        {'params': jax.random.key(2), 'aqt': jax.random.key(3)},
+        *args, M_in=matrix, deterministic=True, layer_index=1)
+    (y, m), updates = attention.apply(
+        variables, *args, M_in=matrix, deterministic=True, layer_index=1,
+        mutable=['intermediates'])
+    self.assertEqual(y.shape, x.shape)
+    self.assertEqual(m.shape, matrix.shape)
+    self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
+    paths = ['/'.join(p) for p in flatten_dict(variables['params'])]
+    self.assertIn('fetch_mix_scale', paths)
+    self.assertIn('fetch_route_sums', updates['intermediates'])
+    self.assertIn('fetch_mix_scale', updates['intermediates'])
+
+  def test_gelu_fetch_values_gradients_and_raw_negative_statistics(self):
+    alpha = jnp.asarray([[[[.8, .2], [.3, .7]], [[.2, .8], [.7, .3]]]])
+    weights = jnp.asarray([[[-.5, .2], [.4, -.7]]])
+    matrix = jnp.arange(8, dtype=jnp.float32).reshape(1, 2, 2, 2)
+    diagonal = jnp.eye(2, dtype=bool)
+    def reference(w):
+      raw = jnp.einsum('bnts,btn->bts', alpha, w)
+      route = jnp.where(diagonal[None], 1, nn.gelu(raw))
+      return jnp.einsum('bts,bskv->btkv', route, matrix)
+    for implementation in ('dot', 'mul_reduce'):
+      actual = lambda w: _bam_fetch_op(
+          alpha, matrix, w, diagonal, diagonal_one=True,
+          gelu_alpha=True, mix_implementation=implementation)
+      np.testing.assert_allclose(actual(weights), reference(weights), rtol=1e-6)
+      np.testing.assert_allclose(
+          jax.grad(lambda w: jnp.sum(actual(w)))(weights),
+          jax.grad(lambda w: jnp.sum(reference(w)))(weights), rtol=1e-6)
+    _, raw, route = _bam_fetch_op(
+        alpha, matrix, weights, diagonal, diagonal_one=True,
+        gelu_alpha=True, return_route=True)
+    stats = _bam_fetch_route_sums(raw, route, jnp.ones_like(route, bool), diagonal)
+    self.assertEqual(float(stats[0]), 1.)
+    self.assertEqual(float(stats[4]), 2.)
 
   def test_mha_control_initializes_without_bam_health_state(self):
     import max_utils
@@ -347,7 +414,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         expected = reference(args, diagonal_one)
         got = actual(args, diagonal_one, implementation)
         np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
-        fetched, route = _bam_fetch_op(
+        fetched, raw_route, route = _bam_fetch_op(
             args[0], args[2], args[1], diagonal_mask,
             diagonal_one=diagonal_one, mix_implementation=implementation,
             return_route=True)

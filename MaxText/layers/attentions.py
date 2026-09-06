@@ -1737,11 +1737,13 @@ class GroupedRMSNorm(nn.Module):
     return y
 
 
-def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon):
+def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon, scale=None):
   """Build a signed unit-L2 mixture over standard-attention heads."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
   normalized = normalizations.rms_norm(
       mix_logits, dtype=alpha_dtype, epsilon=rms_epsilon)
+  if scale is not None:
+    return normalized * jnp.asarray(scale, alpha_dtype)
   return normalized / jnp.sqrt(mix_logits.shape[-1])
 
 
@@ -1767,7 +1769,7 @@ def _attention_op(
 
 def _bam_fetch_op(
     alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
-    mix_implementation='dot', return_route=False):
+    mix_implementation='dot', gelu_alpha=False, return_route=False):
   """Mix attention heads into one temporal route and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     alpha = alpha[:, :mix_weights.shape[-1]]
@@ -1779,11 +1781,27 @@ def _bam_fetch_op(
           axis=-2)
     else:
       raise ValueError(f'Unknown BAM fetch-mix implementation: {mix_implementation}')
+    raw_alpha = fetch_alpha
+    if gelu_alpha:
+      fetch_alpha = nn.gelu(fetch_alpha)
     if diagonal_one:
       fetch_alpha = jnp.where(diagonal_mask[None], 1, fetch_alpha)
   with jax.named_scope("bam/fetch_m"):
     fetched = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
-  return (fetched, fetch_alpha) if return_route else fetched
+  return (fetched, raw_alpha, fetch_alpha) if return_route else fetched
+
+
+def _bam_fetch_route_sums(raw_alpha, fetch_alpha, valid, diagonal):
+  """Additive route statistics over valid non-diagonal edges, before/after GELU."""
+  cross = valid & ~diagonal[None]
+  route = fetch_alpha.astype(jnp.float32)
+  return jnp.stack((
+      jnp.sum(cross & (raw_alpha < 0), dtype=jnp.float32),
+      jnp.sum(cross & (route == 0), dtype=jnp.float32),
+      jnp.sum(jnp.where(cross, route, 0)),
+      jnp.sum(jnp.where(cross, route * route, 0)),
+      jnp.sum(cross, dtype=jnp.float32),
+      jnp.sum(jnp.any(valid, axis=-1), dtype=jnp.float32)))
 
 
 def _mix_bam_write_v(x_v, o_head, bam_k, mix_scale, bias):
@@ -2710,6 +2728,9 @@ class BamAttention(Attention):
         self._fetched_read_num_heads // self.num_query_heads)
     self._fetch_mix_implementation = cfg.bam_fetch_mix_implementation
     assert self._fetch_mix_implementation in ('dot', 'mul_reduce')
+    self._gelu_fetch_alpha = cfg.bam_shared_fetch_mode == 'dynamic_rms_gelu_mix'
+    self._record_fetch_route_metrics = bool(getattr(
+        cfg, 'bam_record_fetch_route_metrics', False))
     self._read_implementation = cfg.bam_read_implementation
     self._fetched_read_side = cfg.bam_fetched_read_side
     assert self._fetched_read_side in ('both', 'row', 'col')
@@ -2752,7 +2773,7 @@ class BamAttention(Attention):
     self._abs_v_source_implementation = getattr(
         cfg, 'bam_abs_v_source_implementation', 'dot')
     if 'full' in self._mode:
-      assert cfg.bam_shared_fetch_mode == 'dynamic_rms_mix'
+      assert cfg.bam_shared_fetch_mode in ('dynamic_rms_mix', 'dynamic_rms_gelu_mix')
       assert cfg.bam_n_f == 1
       assert not cfg.bam_dedicated_fetch
       assert cfg.bam_fetch_sliding_window_size is None
@@ -3120,6 +3141,12 @@ class BamAttention(Attention):
           kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
           weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
           matmul_precision=cfg.matmul_precision, use_bias=True)
+      if self._gelu_fetch_alpha:
+        # Singleton storage supports param_scan_axis=1; .*scale$ skips decay.
+        self.fetch_mix_scale = self.param(
+            'fetch_mix_scale', nn.with_logical_partitioning(
+                nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), (None,)),
+            (1,), self.weight_dtype)
 
     if 'local_qk' in self._mode:
       if self._local_qk_key_mode == 'per_head_static':
@@ -4146,12 +4173,17 @@ class BamAttention(Attention):
           alpha, fetch_state, mix_weights, source == target,
           diagonal_one=self._fetch_diagonal_one,
           mix_implementation=self._fetch_mix_implementation,
-          return_route=self._record_fetched_read_health_metrics)
-      if self._record_fetched_read_health_metrics:
-        Mbar, route = Mbar
+          gelu_alpha=self._gelu_fetch_alpha,
+          return_route=(self._record_fetched_read_health_metrics
+                        or self._record_fetch_route_metrics))
+      if self._record_fetched_read_health_metrics or self._record_fetch_route_metrics:
+        Mbar, raw_route, route = Mbar
         health_valid = jnp.broadcast_to(valid, route.shape)
         if decoder_segment_ids is not None:
           health_valid &= decoder_segment_ids[:, q0:q1, None] != 0
+        if self._record_fetch_route_metrics:
+          self.sow('intermediates', 'fetch_route_sums',
+                   _bam_fetch_route_sums(raw_route, route, health_valid, source == target))
         diagonal = health_valid & (source == target)[None]
         cross = health_valid & ~(source == target)[None]
         route = route.astype(jnp.float32)
@@ -4286,7 +4318,16 @@ class BamAttention(Attention):
       with jax.named_scope("bam/mix_alpha_projection"):
         mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype,
-            rms_epsilon=self._rms_epsilon)
+            rms_epsilon=self._rms_epsilon,
+            scale=self.fetch_mix_scale[0] if self._gelu_fetch_alpha else None)
+        if self._record_fetch_route_metrics:
+          if self._gelu_fetch_alpha:
+            self.sow('intermediates', 'fetch_mix_scale',
+                     self.fetch_mix_scale[0].astype(jnp.float32))
+          weights = mix_weights.astype(jnp.float32)
+          self.sow('intermediates', 'fetch_mix_weight_stats', jnp.stack((
+              jnp.mean(weights), jnp.sqrt(jnp.mean(weights * weights)),
+              jnp.mean((weights < 0).astype(jnp.float32)))))
       fetch_state = (
           local_Mh if self._local_qk_use_compressed_v
           else self._compress_full_fetch_state(Mh))

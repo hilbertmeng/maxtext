@@ -68,6 +68,30 @@ GELU-Clean versus WDFix isolates skipping `gw_b0` decay in the GELU context.
 Tentative final bet versus Clean: -.002, with uncertainty roughly ±.005;
 the observed context-dependent WD effects prevent a reliable additive prediction.
 Expect ~.65 steps/s, close to WDFix/Clean. Allocate its UE5a TPU after AOT is ready.
+The first preparation at `7b549b1` failed before compilation: main had archived
+GELU classes but not the implementation from `03f0a0f`. The minimal GELU path and
+route metrics were ported; a real small-module init/apply regression now guards
+the configuration, alongside fetch value/gradient tests. No training used that failed artifact.
+
+## GELU route health
+
+Compare `BamLlama2MediumV2C256RmsGeluAlphaMixWDFix` (`03f0a0f`) with
+`BamLlama2MediumV2C256RmsGeluAlphaMix` (`bef8312`). Read via
+`.claude/skills/tpu-training/scripts/report_bam_read_health.py RUN --base-run BASE`
+with `--steps 200,1000,2000,4000,6000,8000,10000` after incremental TB sync.
+`bam/fetch_route/layer_NNN/preclip_negative_fraction` means **pre-GELU** negative
+mixed-alpha fraction over valid non-diagonal edges; the historical tag name is retained.
+Values are WDFix/GELU, percent, averaged over each layer band.
+
+| Layer band | 200 | 1000 | 2000 | 4000 | 6000 | 8000 | 10000 |
+|---|---|---|---|---|---|---|---|
+| L0-7 | 73.4/75.1 | 70.6/67.9 | 67.9/65.2 | 64.7/63.3 | 63.7/61.3 | 61.7/60.3 | 59.5/57.6 |
+| L8-15 | 89.4/86.7 | 76.0/80.9 | 76.0/79.4 | 73.6/76.0 | 72.0/74.8 | 69.8/72.7 | 69.4/71.3 |
+| L16-23 | 78.7/80.1 | 73.0/71.8 | 69.8/70.1 | 67.3/68.3 | 65.7/67.5 | 64.1/66.0 | 62.4/64.1 |
+
+Both decrease over training but remain majority-negative. WD-fix lowers the
+middle/high-layer fractions while raising the low-layer fraction, not a uniform
+shift to positive routing. Continue this metric on WDFix and GELU-Clean.
 
 ## Early WD comparison: Clean / old Control
 

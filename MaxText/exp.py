@@ -1200,6 +1200,7 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
     """Nonnegative softmax head mixture; retain the fixed-one self diagonal."""
+    # code_commit: feef259; UE5a ~0.650 steps/s (-1.5% vs ScanAotControl; route metrics enabled).
     model_name = 'BamLlama2MediumV2C256SoftmaxMix'
     bam_shared_fetch_mode = 'dynamic_mix'
     bam_record_fetch_route_metrics = True
@@ -1207,6 +1208,7 @@ class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
 
 class BamLlama2MediumV2C256ClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """Unnormalized signed dynamic coefficients; clip mixed alpha, then set diagonal one."""
+    # code_commit: feef259; UE5a ~0.646 steps/s (-2.1% vs ScanAotControl; route metrics enabled).
     model_name = 'BamLlama2MediumV2C256ClippedAlphaMix'
     bam_shared_fetch_mode = 'dynamic_clipped_mix'
     bam_record_fetch_route_metrics = True
@@ -1214,6 +1216,7 @@ class BamLlama2MediumV2C256ClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
 
 class BamLlama2MediumV2C256StaticClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """Per-layer token-shared coefficients initialized to 1/n; clip mixed alpha."""
+    # code_commit: feef259; UE5a ~0.658 steps/s (-0.3% vs ScanAotControl; route metrics enabled).
     model_name = 'BamLlama2MediumV2C256StaticClippedAlphaMix'
     bam_shared_fetch_mode = 'static_clipped_mix'
     bam_record_fetch_route_metrics = True

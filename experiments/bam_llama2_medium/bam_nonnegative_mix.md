@@ -47,3 +47,20 @@ Implementation: `MaxText/layers/attentions.py`; TB export: `MaxText/train.py`;
 configuration classes: `MaxText/exp.py`; value/gradient/masking tests:
 `MaxText/tests/bam_attention_test.py`. Runtime hashes and measured speed/results
 will be recorded in the configuration classes after launch.
+
+## Launch and early health
+
+All three loaded the v6e-precompiled function and reached FIRST_STEP on UE5a
+v5p-16. Runtime `feef2596e78b916ba27fa2f9fb5ec9233e18da8a`; source and AOT
+manifests are recorded in their RUN registries. Steps 10–14 average throughput:
+Softmax .650, dynamic clip .6456, static clip .6576 steps/s, versus control .660.
+The new route-metric reductions are included in those numbers.
+
+At step 50, dynamic clip's L8–15 cross-edge zero fraction reached .99975 and
+cross mass/query .000620, compared with about .98 mass and zero clipped edges
+for Softmax/static. This early cross-route collapse was stronger than predicted;
+watch recovery versus persistent hard-clip inactivity, without changing the arm.
+These are training-batch TB statistics, not the fixed-cohort checkpoint probe.
+TB remains at the inherited UC1 summary prefix; dataset and checkpoint/output
+prefixes are zone-local UE5a. Use the registry for checkpoint checks and the
+class's actual TensorBoard prefix for incremental health sync.

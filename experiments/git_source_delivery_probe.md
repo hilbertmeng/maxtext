@@ -1,6 +1,7 @@
 # Exact-commit Git source delivery
 
-2026-09-06. Isolated test; existing compiler/trainer source delivery unchanged.
+2026-09-06. Initial isolated benchmark, followed by the user-authorized rollout
+described below. Existing healthy compiler/trainer processes were not restarted.
 Closeout: the test TPU and its queued resource were both verified absent by
 07:29 UTC. The runner and downloaded raw results are retained; the separate
 row-mediation diagnostic TPU is unaffected.
@@ -41,6 +42,42 @@ speed, prove superiority over GCS, reproduce historical SSH failures, or establi
 long-term/multi-region reliability. Before rollout, retain explicit full-commit
 verification and bounded, observable failures. A local verified commit can avoid
 an unnecessary same-commit network fetch on an already installed VM.
+
+## Deployed workflow
+
+Source: anonymous Git/HTTPS, exact detached commit and clean tracked files.
+Environment packages and AOT executables: GCS, unchanged. The installer is shared
+by standalone acquisition, AOT preparation and formal initial/recovery launches.
+`prepare_train_aot.py verify-commit SHA` resolves/validates a pushed hash in a
+temporary Git repository, without touching tpu-ag's main worktree. Compiler
+entry checks Git HEAD and tracked cleanliness, not a source-marker file alone.
+
+Seven regression tests passed locally and on tpu-ag: cold checkout, same-commit
+offline reuse, stale marker/commit switch, dirty-file preservation, old-controller
+argument compatibility, shell syntax, and AOT candidate launch arguments. The
+production installer also passed cold source checkout, exact verification, and
+offline reuse in `/home/lishengping/xd/git-rollout-validation` on retained TPU
+`xd-v6e-row-own-ew4a-r1`; its diagnostic runtime was untouched. This last check
+tested source delivery, not a fresh full environment installation or training.
+
+Canonical sources: `/home/xd/projects/xd_tpu_scripts`; deployed to
+`tpu-ag:/home/lishengping/xd/projects`. Before/after snapshots and test copies:
+`tpu-ag:/home/lishengping/xd/projects/.git-source-rollout.5x2mIG/`.
+All six deployed hashes matched their local sources:
+
+| Script | SHA256 |
+|---|---|
+| `install_xd_maxtext_jax081.sh` | `0ae3f58971e6b06d9eac2aa752115ea43f66b9869553698dea20ac7d501d1186` |
+| `start_standalone_tpu.sh` | `608d0f74cb672c50f87ba7abd3287a5bd75ece308be80392a247e28239f32049` |
+| `create_standalone_tpu.sh` | `b78b2765a1711a049b0c69be7d2313e9dc6482f236196ca0df0d9a6fa6fe768c` |
+| `prepare_train_aot.py` | `d9479dab61deef4a7f001c5d18c70fdb29d523501d18813c2dcc19655c33f9fd` |
+| `run_exp_xd.sh` | `bac5a165295858fc133e3b9054dc97f7f055ba923bef4e7198248071dba9e0da` |
+| `auto_train_xd_maxtext.sh` | `93c390bc3f6bf3786f1efb9af78062ecc7ce0aeb94417c4001b0796c3b292b82` |
+
+New invocations use these defaults. Already-running controllers keep their
+in-memory code; the installer accepts their previous three-argument form so a
+later installation can fetch Git source without changing the registered runtime
+commit. Existing runtime/AOT objects were not replaced.
 
 ## Reproduction and artifacts
 

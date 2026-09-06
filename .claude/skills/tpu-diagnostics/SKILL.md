@@ -7,6 +7,7 @@ description: Run reproducible, read-only BAM checkpoint diagnostics on GCP TPUs.
 
 Repo: `/home/xd/projects/maxtext`; TPU VM copy: `/home/lishengping/xd/projects/maxtext`.
 Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
+Source uses Git/HTTPS at the exact pushed commit; environment packages and AOT use GCS.
 
 ## Rules
 
@@ -24,11 +25,12 @@ Use `$tpu-ag` for VM commands and `$tpu-training` only for TPU lifecycle.
   PRIMARY_ZONE=europe-west4-a
   BACKUP_ZONES=(us-central1-a us-east5-a)
   NAME_PREFIX=xd-v6e-1-bamdiag
+  COMMIT=FULL_40_CHAR_HASH
   for ZONE in "$PRIMARY_ZONE" "${BACKUP_ZONES[@]}"; do
     NAME="$NAME_PREFIX-$ZONE"
     ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
       "/home/lishengping/xd/projects/start_standalone_tpu.sh \
-       '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh"
+       '$NAME' v6e-1 '$ZONE' install_xd_maxtext_jax081.sh '$COMMIT'"
   done
   ```
 

@@ -52,6 +52,7 @@ fi
 trap 'rm -f -- "$0"' EXIT
 
 "$preflight"
+commit=$("$root/prepare_train_aot.py" verify-commit "$commit")
 export CLOUDSDK_ACTIVE_CONFIG_NAME="$configuration"
 gcloud_base=(gcloud --configuration="$configuration" --account="$account")
 manifest="$log_root/profile-matrix-${commit:0:7}-${label}-${matrix_id}.tsv"
@@ -74,7 +75,8 @@ fi
 
 "${gcloud_base[@]}" compute tpus tpu-vm ssh --internal-ip "$tpu" --zone="$zone" \
   --project="$project" --worker=all --command="cd '$repo' && \
-  git fetch origin refactor-bam && git reset --hard && git clean -ffd && \
+  git diff --quiet && git diff --cached --quiet && \
+  git -c credential.helper= fetch --no-tags https://github.com/hilbertmeng/maxtext.git '$commit' && \
   git checkout --detach '$commit' && \
   test \"\$(git rev-parse HEAD)\" = \"\$(git rev-parse '$commit^{commit}')\"" </dev/null
 

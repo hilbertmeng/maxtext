@@ -94,3 +94,8 @@ should be interpreted alongside route mass/concentration, not zero fraction alon
 TB remains at the inherited UC1 summary prefix; dataset and checkpoint/output
 prefixes are zone-local UE5a. Use the registry for checkpoint checks and the
 class's actual TensorBoard prefix for incremental health sync.
+
+The first learned-scale AOT exposed a storage-shape bug before training:
+MaxText inserts the layer axis at `param_scan_axis=1`, so the per-layer scalar
+is stored as `(1,)` (scanned `(1,L)`), not a rank-zero parameter. The regression
+test uses that actual scan axis. This changes storage only, not scale semantics.

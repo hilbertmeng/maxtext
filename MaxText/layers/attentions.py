@@ -3164,11 +3164,12 @@ class BamAttention(Attention):
             weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=True)
       if self._fetch_mix_mode == 'dynamic_rms_gelu_mix':
-        # One scalar per layer (stacked by layer_scan); .*scale$ skips decay.
+        # Singleton storage supports param_scan_axis=1; one scalar per layer.
+        # .*scale$ skips decay.
         self.fetch_mix_scale = self.param(
             'fetch_mix_scale', nn.with_logical_partitioning(
-                nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), ()),
-            (), self.weight_dtype)
+                nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), (None,)),
+            (1,), self.weight_dtype)
 
     if 'local_qk' in self._mode:
       if self._local_qk_key_mode == 'per_head_static':
@@ -4334,14 +4335,14 @@ class BamAttention(Attention):
           mix_logits = self.fetch_head_mix(inputs_q)
         mix_weights = _dynamic_bam_fetch_mix_weights(
             mix_logits, query.dtype, rms_epsilon=self._rms_epsilon,
-            scale=(self.fetch_mix_scale
+            scale=(self.fetch_mix_scale[0]
                    if self._fetch_mix_mode == 'dynamic_rms_gelu_mix' else None),
             normalization=('none' if self._clip_fetch_alpha else
                            'softmax' if self._fetch_mix_mode == 'dynamic_mix' else 'rms'))
         if self._record_fetch_route_metrics:
           if self._fetch_mix_mode == 'dynamic_rms_gelu_mix':
             self.sow('intermediates', 'fetch_mix_scale',
-                     self.fetch_mix_scale.astype(jnp.float32))
+                     self.fetch_mix_scale[0].astype(jnp.float32))
           weights = mix_weights.astype(jnp.float32)
           self.sow('intermediates', 'fetch_mix_weight_stats', jnp.stack((
               jnp.mean(weights), jnp.sqrt(jnp.mean(weights * weights)),

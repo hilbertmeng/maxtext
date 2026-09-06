@@ -51,8 +51,9 @@ class _FetchMixScaleLayer(nn.Module):
   @nn.compact
   def __call__(self, carry, layer_index):
     scale = self.param('fetch_mix_scale', nn.with_logical_partitioning(
-        nn.initializers.constant(.25), ()), (), jnp.float32)
-    return carry, scale
+        nn.initializers.constant(.25), (None,)), (1,), jnp.float32)
+    self.sow('intermediates', 'fetch_mix_scale', scale[0])
+    return carry, scale[0]
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
@@ -68,7 +69,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         logits, jnp.float32, rms_epsilon=1e-6)
     np.testing.assert_allclose(weights(.25), expected, atol=1e-7)
     self.assertGreater(float(jax.grad(lambda s: (weights(s) ** 2).sum())(.25)), 0)
-    Scanned = nn.scan(_FetchMixScaleLayer, variable_axes={'params': 0},
+    Scanned = nn.scan(_FetchMixScaleLayer, variable_axes={'params': 1, 'intermediates': 0},
         split_rngs={'params': True}, in_axes=0, out_axes=0, length=24,
         metadata_params={nn.PARTITION_NAME: 'layers'})
     model = Scanned()
@@ -76,8 +77,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_array_equal(model.apply(params, 0, jnp.arange(24))[1],
                                   np.full(24, .25))
     leaf = params['params']['fetch_mix_scale']
-    self.assertEqual(leaf.value.shape, (24,))
-    params['params']['fetch_mix_scale'] = leaf.replace(value=leaf.value.at[11].set(.5))
+    self.assertEqual(leaf.value.shape, (1, 24))
+    params['params']['fetch_mix_scale'] = leaf.replace(value=leaf.value.at[0, 11].set(.5))
     expected_scales = np.full(24, .25); expected_scales[11] = .5
     np.testing.assert_array_equal(model.apply(params, 0, jnp.arange(24))[1], expected_scales)
     self.assertTrue(any(re.match(pattern, 'decoder/layers/fetch_mix_scale') and mult == 0

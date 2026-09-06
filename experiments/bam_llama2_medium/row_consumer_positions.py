@@ -65,9 +65,12 @@ def forward(model, params, batch, rng, config, scales, mask, controls, z, source
       decoder_segment_ids=batch['inputs_segmentation'],
       decoder_target_mask=batch['targets_segmentation'], decoder_target_tokens=batch['targets'],
       enable_dropout=False, rngs={'dropout': r1, 'params': r2},
-      mutable=['mediation_capture'])
+      mutable=(['mediation_capture','row_cross_probe'] if
+               os.environ.get('BAM_CONSUMER_ALPHA_GEOMETRY')=='1' else ['mediation_capture']))
   refs = med.stack_capture(captured)
   audit_refs = []
+  if os.environ.get('BAM_CONSUMER_ALPHA_GEOMETRY')=='1':
+    audit_refs.append(med.sign.stacked(captured,'alpha_stats')[source])
   if os.environ.get('BAM_CONSUMER_MLP_EXPORT') == '1':
     flat=traverse_util.flatten_dict(captured['mediation_capture'])
     name='trace_consumer_post_mlp'
@@ -246,6 +249,12 @@ def run(config):
             nb/jnp.maximum(ns+nc,1e-12),
             jnp.linalg.norm(z-zs-zc,axis=-1)/jnp.maximum(ns+nc,1e-12)],axis=-1)
         geometry['source_geometry']=np.asarray(base._sequence_mean(terms,mask))
+        if os.environ.get('BAM_CONSUMER_ALPHA_GEOMETRY')=='1':
+          # Scalar per-token data, not residual/read vectors. These distinguish
+          # true per-token centering from cancellation only after averaging.
+          alpha_stats=clean[4][0].astype(jnp.float32)
+          geometry['alpha_coefficient_sum']=np.asarray(1+alpha_stats[...,3]-alpha_stats[...,4])
+          geometry['source_geometry_token']=np.asarray(terms)
       outside = float(jnp.max(jnp.where(mask[...,None],0,abs(z))))
       source_m_error = float(jnp.max(abs(clean[3]-deleted[3])))
       if outside != 0 or source_m_error != 0:

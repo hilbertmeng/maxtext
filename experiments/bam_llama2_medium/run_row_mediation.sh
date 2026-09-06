@@ -29,6 +29,10 @@ if [[ ${BAM_MEDIATION_REFERENCE:-opposite} == self ]]; then tag="$tag-selfref"; 
 output="/tmp/$tag"
 gcs="gs://newproject-1-llm_base_models_us-central1/log/diagnostics/$tag"
 mkdir -p "$output/maxtext-output/$tag"
+if [[ -n ${BAM_MEDIATION_RESUME_GCS:-} ]]; then
+  gsutil -m rsync -r -x 'maxtext-output/.*|tensorboard/.*|.*\.pending' \
+    "$BAM_MEDIATION_RESUME_GCS" "$output"
+fi
 gsutil cp gs://newproject-1-llm_base_models_us-central1/log/diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz "$output/cohort.npz"
 cd "$repo"
 env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off DIAGNOSTIC_COMMIT="$commit" \
@@ -41,7 +45,7 @@ env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off DIAGNOSTIC_COMMIT="$commit" \
  only_eval=True dataset_path=gs://newproject-1-common_datasets_europe-west4/pythia_pile_idxmaps_tfrecord \
  enable_checkpointing=True async_checkpointing=False &
 pid=$!
-upload() { gsutil -m rsync -r -x 'maxtext-output/.*|tensorboard/.*' "$output" "$gcs"; }
+upload() { gsutil -m rsync -r -x 'maxtext-output/.*|tensorboard/.*|.*\.pending' "$output" "$gcs"; }
 periodic_upload() { while sleep 60; do upload || true; done; }
 periodic_upload &
 uploader=$!

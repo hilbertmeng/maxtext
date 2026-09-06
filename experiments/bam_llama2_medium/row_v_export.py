@@ -18,6 +18,7 @@ import numpy as np
 
 import row_consumer_positions as c
 from analyze_row_mediation import stats
+from row_probe_resume import resume_batches, save_batch, save_summary
 
 base, med = c.base, c.med
 
@@ -86,8 +87,12 @@ def run(config):
       checks=['seed_graph', 'unused_reference', 'zero_z', 'clean_self_patch', 'denied_self_patch',
               'source_residual_scope', 'source_M_scope'])
   print('V_EXPORT_RESTORED ' + json.dumps(meta), flush=True)
-  records = []
+  records = resume_batches(output, meta, cohort,
+                           os.environ.get('BAM_MEDIATION_RESUME_COMMIT'))
+  print(f'V_EXPORT_RESUME batches={len(records)}', flush=True)
   for offset in range(0, len(cohort['inputs']), bs):
+    if offset in records:
+      continue
     batch = {k: jnp.asarray(v[offset:offset+bs]) for k, v in cohort.items() if k != 'sequence_hashes'}
     z0 = jnp.zeros(batch['inputs'].shape + (config.emb_dim,), jnp.float32)
     with mesh, nn_partitioning.axis_rules(config.logical_axis_rules):
@@ -117,13 +122,14 @@ def run(config):
         loss, token = jax.device_get(result[:2]); losses.append(loss); tokens.append(token)
     loss, token = np.stack(losses, 1), np.stack(tokens, 1)
     if not np.isfinite(token).all(): raise ValueError('nonfinite token loss')
-    np.savez_compressed(output/f'batch_{offset:03d}.npz', loss=loss, token_loss=token,
+    save_batch(output/f'batch_{offset:03d}.npz', loss=loss, token_loss=token,
         valid=np.asarray(batch['targets_segmentation']) != 0, checks=errors,
         sequence_hashes=cohort['sequence_hashes'][offset:offset+bs])
-    records.append(loss); a = np.concatenate(records).astype(float)
+    records[offset] = loss
+    a = np.concatenate([records[k] for k in sorted(records)]).astype(float)
     meta.update(completed_sequences=len(a), elapsed_seconds=time.perf_counter()-start,
                 results=[dict(arm=name, **stats(a[:, i]-a[:, 0])) for i, name in enumerate(names)])
-    (output/'summary.json').write_text(json.dumps(meta, indent=2)+'\n')
+    save_summary(output/'summary.json', meta)
     print(f'V_EXPORT_BATCH {len(a)}/{len(cohort["inputs"])}', flush=True)
   if writer: writer.flush()
   print('V_EXPORT_COMPLETE', flush=True)

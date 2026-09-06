@@ -1200,7 +1200,7 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
     """Nonnegative softmax head mixture; retain the fixed-one self diagonal."""
-    # code_commit: feef259; UE5a ~0.650 steps/s (-1.5% vs ScanAotControl; route metrics enabled).
+    # code_commit: feef259; UE5a ~0.650 steps/s; stopped 6,810. vs ScanAotControl: +.405→+.0445, still slowly narrowing.
     model_name = 'BamLlama2MediumV2C256SoftmaxMix'
     bam_shared_fetch_mode = 'dynamic_mix'
     bam_record_fetch_route_metrics = True
@@ -1208,6 +1208,7 @@ class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
 
 class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """RMS head mixture with learned per-layer scale; GELU alpha, then diagonal one."""
+    # code_commit: bef8312; UE5a ~0.647 steps/s (-1.9% vs ScanAotControl), steps 10–14.
     model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMix'
     bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
     bam_record_fetch_route_metrics = True

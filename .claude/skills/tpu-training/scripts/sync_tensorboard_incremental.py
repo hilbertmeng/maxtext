@@ -17,7 +17,9 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 
 
 DEFAULT_GCS_ROOT = (
@@ -29,7 +31,19 @@ OVERLAP_BYTES = 1 << 20
 
 
 def _run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
-  return subprocess.run(command, check=True, **kwargs)
+  output = kwargs.get("stdout")
+  offset = output.tell() if hasattr(output, "seekable") and output.seekable() else None
+  for attempt in range(3):
+    if offset is not None:
+      output.seek(offset)
+      output.truncate()
+    try:
+      return subprocess.run(command, check=True, **kwargs)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+      if attempt == 2:
+        raise
+      print(f"GCS {command[1]} failed; retry {attempt + 2}/3", file=sys.stderr)
+      time.sleep(attempt + 1)
 
 
 def _list_events(gsutil: str, remote_dir: str) -> list[tuple[int, str]]:

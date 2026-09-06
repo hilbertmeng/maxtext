@@ -313,7 +313,44 @@ BAM_CONSUMER_BARRIER=1 BAM_MEDIATION_COMPONENT=cross|self|both` and the existing
 XL launcher. GCS prefixes are
 `bam-row-mediation-xl-L11-own_consumers-joint-968f84c`, with `-rowself`/`-rowboth`;
 analyze with [the audited scalar/token-loss analyzer](analyze_row_token_worlds.py).
-Results remain pending; no consumer ranking is inferred from a submitted job.
+The joint screen is complete: 128/128 sequences for each source component, with
+all seven exact controls passing. The **individual-layer** screen is running
+under the same runtime/cohort (`BAM_MEDIATION_LABEL=individual`,
+`BAM_OWN_CONSUMER_SET=individual`); it remains necessary to localize joint effects.
+
+| Original-position intervention | Cross | Self | Whole row |
+|---|---:|---:|---:|
+| Delete this origin's source increment | +.003971 | +.007884 | +.002737 |
+| Deny L11 MLP | +.001054 | +.004132 | +.000881 |
+| Deny L12–15 Q | +.000282 | +.000806 | +.000257 |
+| Deny L12–15 K | +.000057 | −.000022 | −.000034 |
+| Deny L12–15 V-self | +.000162 | +.000087 | +.000129 |
+| Deny L12–15 V-cross | 0 (exact) | 0 (exact) | 0 (exact) |
+| Deny L12–15 LocalQK | +.000996 | +.000752 | +.000237 |
+| Deny L12–15 mix | −.000005 | +.000185 | +.000010 |
+| Deny L12–15 fetched-read projections | +.000262 | +.000266 | +.000106 |
+| Deny L12–15 write projections | +.000264 | +.000257 | −.000023 |
+| Deny L11–15 MLP | +.002284 | +.007930 | +.001877 |
+| Deny all tested direct consumers | +.003220 | +.007105 | +.002213 |
+
+The largest tested own-position consumer group is MLP, especially for self.
+This does not contradict the strong collective V-cross effect: causal export
+cannot return to the origin, so the own-position V-cross null is required.
+MLP necessity can include compensating the original residual disturbance; it is
+not proof of beneficial transport. Near-zero K/V-self effects have confidence
+intervals spanning zero. Joint effects are nonadditive and must not be converted
+to additive shares of total necessity.
+
+Cutting only the original vector after L11/L15/L19/L22 MLP gives respectively
+cross +.003144/+.001138/+.000469/+.000331, self
++.004485/+.001911/+.000758/+.000297, whole
++.001794/+.000827/+.000297/+.000087. Transformed descendants are retained;
+these results do not authorize removal of all inherited information.
+
+Analysis files (including sequence CIs):
+`/data0/xd/bam_diagnostics/own-consumers-{cross,self,both}-analysis.json`.
+The matching runtime is `968f84c9d012bf72c38044ad1b498b764cd622b6`; TPU
+`xd-v6e-row-own-ew4a-r1`, `europe-west4-a`.
 
 Numerical audit: full-T donor compression (`ae57335`) did not fix self-reference
 drift. Instrumentation (`943cad3`) proved donor and live raw/compressed M identical

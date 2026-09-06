@@ -49,6 +49,32 @@ class _DepthAmplitudeLayer(nn.Module):
 
 class BamReadKeyTransformTest(absltest.TestCase):
 
+  def test_rms_gelu_mixed_alpha_values_gradients_and_diagonal(self):
+    alpha = jnp.asarray([[[[.9, .1, 0.]], [[.1, .9, 0.]]]])
+    logits = jnp.asarray([[[-.7, .3]]])
+    state = jnp.eye(3)[None, :, None, :]
+    diagonal = jnp.asarray([[False, True, False]])
+    def reference(z):
+      w = _dynamic_bam_fetch_mix_weights(
+          z, jnp.float32, rms_epsilon=1e-6)
+      raw = jnp.einsum('bnqs,bqn->bqs', alpha, w)
+      route = jnp.where(diagonal[None], 1, nn.gelu(raw))
+      return jnp.einsum('bqs,bskv->bqkv', route, state)
+    for implementation in ('dot', 'mul_reduce'):
+      def actual(z):
+        w = _dynamic_bam_fetch_mix_weights(
+            z, jnp.float32, rms_epsilon=1e-6)
+        return _bam_fetch_op(
+            alpha, state, w, diagonal, diagonal_one=True,
+            mix_implementation=implementation, gelu_alpha=True)
+      np.testing.assert_allclose(actual(logits), reference(logits), atol=1e-7)
+      np.testing.assert_allclose(
+          jax.grad(lambda z: actual(z).sum())(logits),
+          jax.grad(lambda z: reference(z).sum())(logits), atol=1e-7)
+      self.assertLess(float(actual(logits)[0, 0, 0, 0]), 0)
+      self.assertEqual(float(actual(logits)[0, 0, 0, 1]), 1)
+      self.assertEqual(float(actual(logits)[0, 0, 0, 2]), 0)
+
   def test_fetch_alpha_clips_after_signed_mixture_not_before(self):
     alpha = jnp.asarray([[[[.9, .1]], [[.1, .9]]]])
     weights = jnp.asarray([[[1., -.5]]])
@@ -111,6 +137,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     import exp
     for name in ('BamLlama2MediumV2C256SoftmaxMix',
                  'BamLlama2MediumV2C256ClippedAlphaMix',
+                 'BamLlama2MediumV2C256RmsGeluAlphaMix',
                  'BamLlama2MediumV2C256StaticClippedAlphaMix'):
       cfg = getattr(exp, name)
       self.assertTrue(cfg.scan_layers)

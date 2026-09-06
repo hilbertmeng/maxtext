@@ -1206,6 +1206,13 @@ class BamLlama2MediumV2C256SoftmaxMix(BamLlama2MediumV2C256ScanAotControl):
     bam_record_fetch_route_metrics = True
 
 
+class BamLlama2MediumV2C256RmsGeluAlphaMix(BamLlama2MediumV2C256ScanAotControl):
+    """RMS-normalized signed head mixture, GELU on mixed alpha, then diagonal one."""
+    model_name = 'BamLlama2MediumV2C256RmsGeluAlphaMix'
+    bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
+    bam_record_fetch_route_metrics = True
+
+
 class BamLlama2MediumV2C256ClippedAlphaMix(BamLlama2MediumV2C256ScanAotControl):
     """Unnormalized signed dynamic coefficients; clip mixed alpha, then set diagonal one."""
     # code_commit: feef259; UE5a ~0.646 steps/s (-2.1% vs ScanAotControl; route metrics enabled).

@@ -1773,7 +1773,8 @@ def _attention_op(
 
 def _bam_fetch_op(
     alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
-    mix_implementation='dot', clip_nonnegative=False, return_route=False):
+    mix_implementation='dot', clip_nonnegative=False, gelu_alpha=False,
+    return_route=False):
   """Mix attention heads into one temporal route and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     alpha = alpha[:, :mix_weights.shape[-1]]
@@ -1786,8 +1787,11 @@ def _bam_fetch_op(
     else:
       raise ValueError(f'Unknown BAM fetch-mix implementation: {mix_implementation}')
     raw_alpha = fetch_alpha
+    assert not (clip_nonnegative and gelu_alpha)
     if clip_nonnegative:
       fetch_alpha = jnp.maximum(fetch_alpha, 0)
+    elif gelu_alpha:
+      fetch_alpha = nn.gelu(fetch_alpha)
     if diagonal_one:
       fetch_alpha = jnp.where(diagonal_mask[None], 1, fetch_alpha)
   with jax.named_scope("bam/fetch_m"):
@@ -2779,7 +2783,8 @@ class BamAttention(Attention):
         cfg, 'bam_abs_v_source_implementation', 'dot')
     if 'full' in self._mode:
       assert self._fetch_mix_mode in (
-          'dynamic_rms_mix', 'dynamic_mix', 'dynamic_clipped_mix', 'static_clipped_mix')
+          'dynamic_rms_mix', 'dynamic_mix', 'dynamic_clipped_mix',
+          'static_clipped_mix', 'dynamic_rms_gelu_mix')
       assert cfg.bam_n_f == 1
       assert not cfg.bam_dedicated_fetch
       assert cfg.bam_fetch_sliding_window_size is None
@@ -4183,6 +4188,7 @@ class BamAttention(Attention):
           diagonal_one=self._fetch_diagonal_one,
           mix_implementation=self._fetch_mix_implementation,
           clip_nonnegative=self._clip_fetch_alpha,
+          gelu_alpha=self._fetch_mix_mode == 'dynamic_rms_gelu_mix',
           return_route=self._record_fetch_route_metrics)
       if self._record_fetch_route_metrics:
         Mbar, raw_route, route = Mbar

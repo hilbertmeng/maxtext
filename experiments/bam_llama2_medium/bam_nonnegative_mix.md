@@ -15,6 +15,14 @@ diagonal to one afterward. MHA attention itself is unchanged.
 | `SoftmaxMix` | `w=softmax(Wx+b); alpha=sum(w*A)` | ScanAotControl | +.003 |
 | `ClippedAlphaMix` | `w=Wx+b; alpha=max(sum(w*A),0)` | ScanAotControl, SoftmaxMix | +.001 |
 | `StaticClippedAlphaMix` | per-layer `w[n]`; `alpha=max(sum(w*A),0)` | ScanAotControl, ClippedAlphaMix | +.007 |
+| `RmsGeluAlphaMix` | `w=RMSNorm(Wx+b)/sqrt(n); alpha=GELU(sum(w*A))` | ScanAotControl, ClippedAlphaMix | +.010 |
+
+The GELU follow-up replaces SoftmaxMix only after its v6e AOT artifact is ready.
+Unlike the original three arms it permits negative alpha. GELU is applied before
+the fixed-one diagonal and only to BAM's mixed route. Near zero it halves the
+cross coefficient; neither nonnegativity nor matched cross/self scale is claimed.
+Versus ClippedAlphaMix it changes both coefficient normalization and activation;
+versus ScanAotControl only the post-mix GELU is added. Parameter count is unchanged.
 
 These numbers are pre-run bets, not measurements. The first two preserve the
 current dynamic projection's regular initialization and zero bias. The static

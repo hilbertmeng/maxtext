@@ -31,6 +31,15 @@ class ConsumerTest(unittest.TestCase):
         np.testing.assert_array_equal(c[:, ROW_CONSUMER_NAMES.index('v_cross')], 0)
         np.testing.assert_array_equal(c[:, ROW_CONSUMER_NAMES.index('mlp')], 0)
         np.testing.assert_array_equal(c[12:cuts[0]+1, ROW_CONSUMER_NAMES.index('v_self')], 1)
+    with patch.dict(os.environ, {'BAM_DELIVERY_CONTROL_ONLY': '1'}):
+      controls = delivery_arms(11)
+      self.assertEqual(len(controls), 8)
+      for arm in controls:
+        if arm['name'].startswith('keep_none_'):
+          c = arm['control']
+          end = np.flatnonzero(c[:,ROW_CONSUMER_NAMES.index('cut_mlp')])[0]
+          np.testing.assert_array_equal(c[12:end+1,:9], 1)
+          self.assertEqual(c[11,ROW_CONSUMER_NAMES.index('mlp')], 1)
 
   def test_v_export_expanded_recipients(self):
     with patch.dict(os.environ, {'BAM_V_EXPORT_RECIPIENT_SET': 'expanded'}):

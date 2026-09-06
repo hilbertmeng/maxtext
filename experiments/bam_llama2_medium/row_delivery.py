@@ -28,6 +28,8 @@ def delivery_arms(source):
   policies = dict(all=fields, crossV=['v_cross'], crossV_mlp=['v_cross', 'mlp'],
       crossV_mlp_localQK=['v_cross', 'mlp', 'local_qk'],
       mha_mlp=['q', 'k', 'v_self', 'v_cross', 'mlp'])
+  if os.environ.get('BAM_DELIVERY_CONTROL_ONLY') == '1':
+    policies = dict(all=fields, none=[])
   arms = []
   for end in (source+1, source+2, source+4, source+6):
     if end >= 23:

@@ -91,6 +91,32 @@ def check_optimizer_serialization_contract(with_rules):
 
 
 class AotOptimizerContractTest(unittest.TestCase):
+  def test_bam_only_exclusions(self):
+    cfg = SimpleNamespace(
+        wd_mults=exp.BamLlama2MediumV2C256ScanAotBamOnlyWDControl.wd_mults,
+        adam_weight_decay=.1)
+    bam = {name: 1. for name in (
+        'gw_b0', 'W_lq_bias', 'W_lk_bias', 'W_lq_gate_b0',
+        'W_lk_gate_b0', 'W_R_gate_b0')}
+    bam['P_loc_up'] = {'kernel': 1., 'bias': 1.}
+    for name in ('W_R', 'W_R_gate', 'W_gw', 'W_local_qk_packed', 'P_loc_down',
+                 'query', 'key', 'value', 'out'):
+      bam[name] = {'kernel': 1.}
+    block = {'self_attention': bam,
+             'pre_self_attention_layer_norm': {'scale': 1.},
+             'post_self_attention_layer_norm': {'scale': 1.},
+             'mlp': {'wi_0': {'kernel': 1., 'bias': 1.}}}
+    params = {'params': {'decoder': {'layers': {'block': block},
+                                    'decoder_norm': {'scale': 1.}}}}
+    actual = train.get_wd_tree(cfg, params)
+    expected = jax.tree.map(lambda _: .1, params)
+    expected_bam = expected['params']['decoder']['layers']['block']['self_attention']
+    for name in ('gw_b0', 'W_lq_bias', 'W_lk_bias', 'W_lq_gate_b0',
+                 'W_lk_gate_b0', 'W_R_gate_b0'):
+      expected_bam[name] = 0.
+    expected_bam['P_loc_up']['bias'] = 0.
+    self.assertEqual(actual, expected)
+
   def test_with_rules(self):
     check_optimizer_serialization_contract(True)
 
@@ -100,4 +126,3 @@ class AotOptimizerContractTest(unittest.TestCase):
 
 if __name__ == '__main__':
   unittest.main()
-

@@ -1207,6 +1207,13 @@ class BamLlama2MediumV2C256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotContr
     bam_fetch_diagonal_one = True
 
 
+class BamLlama2MediumV2C256ScanAotBamOnlyWDControl(BamLlama2MediumV2C256ScanAotCleanControl):
+    """Exempt only V2 BAM biases; retain decay on standard Transformer RMS scales."""
+    model_name = 'BamLlama2MediumV2C256ScanAotBamOnlyWDControl'
+    wd_mults = [(r'.*/self_attention/(P_loc_up/bias|gw_b0|W_l[qk]_bias|'
+                 r'W_l[qk]_gate_b0|W_R_gate_b0)$', 0.)]
+
+
 class BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude(BamLlama2MediumV2C256ScanAotCleanControl):
     """Fetched gate .05 and fixed .2 pre-gate scale; same initial strength as Clean."""
     # code_commit: 211ce4d; UE5a ~0.652 steps/s (+0.1% vs Clean), steps 10-14.

@@ -22,6 +22,7 @@ from row_probe_resume import resume_batches, save_batch, save_summary
 from analyze_row_mediation import stats
 
 base = med.base
+med.REF_NAMES += ['fetch_state', 'fetched_matrix', 'foreign_fetch_gap', 'foreign_input_gap']
 
 
 def variables_for(params, scales, refs, enabled, scanned):
@@ -109,7 +110,9 @@ def run(config):
             for field in expected[3]:
               delta=abs(actual[3][field].astype(jnp.float32)-expected[3][field].astype(jnp.float32))
               fields[field]=np.asarray(jnp.max(delta,axis=tuple(range(1,delta.ndim)))).tolist()
-            diagnostics[world+'_'+name]=dict(token_max=float(jnp.max(abs(actual[1].astype(jnp.float32)-expected[1].astype(jnp.float32)))),layer_max=fields)
+            diagnostics[world+'_'+name]=dict(token_max=float(jnp.max(abs(actual[1].astype(jnp.float32)-expected[1].astype(jnp.float32)))),layer_max=fields,
+                donor_input_gap=np.asarray(actual[3]['foreign_input_gap']).tolist(),
+                donor_fetch_gap=np.asarray(actual[3]['foreign_fetch_gap']).tolist())
         save_summary(output/'failed_checks.json',dict(offset=offset,
             checks=dict(zip(meta['checks'],checks)),isolated=diagnostics))
         raise ValueError(dict(zip(meta['checks'],checks)))

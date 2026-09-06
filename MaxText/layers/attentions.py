@@ -3747,6 +3747,13 @@ class BamAttention(Attention):
       self.sow('mediation_capture', 'trace_query', query)
       self.sow('mediation_capture', 'trace_key', key)
       self.sow('mediation_capture', 'trace_value', value)
+      if self.has_variable('causal_ablation', 'row_foreign_enabled'):
+        self.sow('mediation_capture', 'trace_fetch_state', fetch_state)
+        self.sow('mediation_capture', 'trace_fetched_matrix', Mbar)
+        self.sow('mediation_capture', 'trace_foreign_fetch_gap', jnp.max(jnp.abs(
+            fetch_state.astype(jnp.float32) - foreign_fetch_state.astype(jnp.float32))))
+        self.sow('mediation_capture', 'trace_foreign_input_gap', jnp.max(jnp.abs(
+            M_in.astype(jnp.float32) - reference_M.astype(jnp.float32))))
     if capture_mediation and self.has_variable('causal_ablation', 'row_export_std_boundary'):
       y_std = jax.lax.optimization_barrier(y_std)
     if self.has_variable('causal_ablation', 'med_std'):

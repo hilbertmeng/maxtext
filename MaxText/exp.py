@@ -1200,6 +1200,7 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotControl):
     """V2 scan+AOT with correct WD exclusions, including the write-gate bias."""
+    # code_commit: 4cf1556; UE5a ~0.651 steps/s (-1.3% vs old ScanAotControl); running.
     model_name = 'BamLlama2MediumV2C256ScanAotCleanControl'
     steps = 13500
     wd_mults = BamLlama2MediumV2C256ScanAotControl.wd_mults + [('.*gw_b0$', 0.)]
@@ -1208,6 +1209,7 @@ class BamLlama2MediumV2C256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotContr
 
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):
     """Keep the mixed alpha diagonal; no separate local-O read."""
+    # code_commit: 4cf1556; UE5a ~0.649 steps/s (-0.3% vs CleanControl); running.
     model_name = 'BamLlama2MediumV2C256ScanAotCleanNativeDiagonal'
     bam_fetch_diagonal_one = False
 

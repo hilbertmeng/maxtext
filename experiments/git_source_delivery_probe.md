@@ -1,6 +1,9 @@
 # Exact-commit Git source delivery
 
 2026-09-06. Isolated test; existing compiler/trainer source delivery unchanged.
+Closeout: the test TPU and its queued resource were both verified absent by
+07:29 UTC. The runner and downloaded raw results are retained; the separate
+row-mediation diagnostic TPU is unaffected.
 
 | Item | Value |
 |---|---|

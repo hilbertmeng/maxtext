@@ -356,6 +356,33 @@ V-cross, versus +.000039 ± .000148 for V-self; source L11 MLP gives
 +.003503 ± .000443. The combined self/cross response, not only either isolated
 large component, therefore has a needed cross-position export.
 
+The matched 128-sequence geometry controls are now complete:
+
+| Model/layer | Mean `q` | `abs(q)<.25` | Self/cross cosine | Cosine < 0 | `norm(sum)/(norm(self)+norm(cross))` | Sum energy perpendicular to self |
+|---|---:|---:|---:|---:|---:|---:|
+| XL L8 | 1.58540 | 1.72% | +.19851 | 27.24% | .78166 | 17.70% |
+| XL L11 | −.04002 | 76.73% | −.85113 | 99.49% | .38913 | 30.09% |
+| XL L12 | 2.25497 | 0% | +.36134 | 13.03% | .83436 | 22.47% |
+| Medium L8 | +.10061 | 66.71% | −.82263 | 99.10% | .46714 | 12.83% |
+
+Medium L8 is also a strongly opposed self/cross read, yet its direct row-cross
+IG is positive. Thus negative mixing/opposition is **not sufficient** to explain
+XL L11's negative direct IG. The larger perpendicular share in XL L11 is a
+directional clue, not proof of the causal recipient or a loss contribution.
+All means use the same token-then-sequence averaging; the energy column uses
+the algebraic sum defined above. XL L8/L11/L12 clean and whole-row deletion
+losses match the earlier neighbor sweep token-for-token. Medium has the same
+zero-error internal controls, but no corresponding neighbor-sweep anchor.
+
+Models/checkpoints are the XL Rank2 @49,720 and Medium V2 @13,250 listed in
+Reproduction. All four use runtime `85dca29786eaaea8bc4b88fbd9ef6b20354f3d8f`.
+Additional raw prefixes are
+`bam-row-mediation-{xl-L8,xl-L12,medium-L8}-consumers-alpha-geometry-85dca29-rowboth/`;
+analyses are `row-route-geometry-{xl8,xl11,xl12,medium8}-analysis.json` under the
+local diagnostic root. XL L8 and the resumed Medium sweep completed on
+`xd-v6e-rowcons-geometry-ew4a` in `europe-west4-a`; the original XL L11/L12 and
+first Medium batches used the UC1a/UE5a workers recorded in their metadata.
+
 Scripts: [probe](row_consumer_positions.py),
 [geometry analyzer](analyze_row_route_geometry.py),
 [consumer analyzer](analyze_row_consumers.py). Use the consumer launch above with

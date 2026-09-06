@@ -1207,6 +1207,15 @@ class BamLlama2MediumV2C256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotContr
     bam_fetch_diagonal_one = True
 
 
+class BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude(BamLlama2MediumV2C256ScanAotCleanControl):
+    """Fetched gate .05 and fixed .2 pre-gate scale; same initial strength as Clean."""
+    model_name = 'BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude'
+    bam_fetched_read_gate_init = 0.05
+    bam_fetched_read_amplitude_init = 0.2 * (8 ** 0.5)  # a/sqrt(C)=.2; Clean uses 2.
+    bam_fetched_read_amplitude_learnable = False
+    bam_record_fetched_read_amplitude_metrics = True
+
+
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):
     """Keep the mixed alpha diagonal; no separate local-O read."""
     # code_commit: 4cf1556; UE5a ~0.649 steps/s (-0.3% vs CleanControl); running.

@@ -8,6 +8,7 @@ All runs use Medium C256, layer scan, AOT, seed/data unchanged,
 | BamLlama2MediumV2C256ScanAotCleanControl | Correct AOT WD tree; also exclude `gw_b0`; diagonal=1 | BamLlama2MediumV2C256ScanAotControl, BamMHALlama2MediumC256ScanAotCleanControl |
 | BamLlama2MediumV2C256ScanAotCleanNativeDiagonal | Keep the native mixed diagonal; no local-O branch | BamLlama2MediumV2C256ScanAotCleanControl, BamMHALlama2MediumC256ScanAotCleanControl |
 | BamMHALlama2MediumC256ScanAotCleanControl | Same C256/scan/AOT and correct WD; disable every BAM read/write | Llama2Medium |
+| BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude | Fetched gate .005→.05; fixed pre-gate multiplier 2→.2; no depth scaling | BamLlama2MediumV2C256ScanAotCleanControl |
 
 The new MHA baseline uses `bam_mha_control=True`, `float32_logits=False`,
 13,500 steps and a forced final checkpoint. It reuses the BAM attention pipeline
@@ -48,6 +49,17 @@ loss comparisons retain their cumulative 200-step sequences.
 
 Launch commit, AOT artifact and live resource identity: RUN registry on tpu-ag;
 successful runtime short hashes and measured speed are copied to `MaxText/exp.py`.
+
+The Gate050 arm uses the existing fixed amplitude path: `a=.2*sqrt(8)`,
+so `a/sqrt(C)=.2` and initial scale×gate remains `.01` on both fetched-read sides.
+LocalQK gates and the parameter tree are unchanged. This matches the initial
+read-key Jacobian, not the entire optimization: the gate-logit derivative ratio
+is `.95/.995`, and later learned gate openings can differ. CPU regression checks
+nonzero-key reads and zero-key Jacobians in fp32; bf16 execution need not be bitwise
+equal. Expect essentially unchanged throughput and a small, uncertain loss delta
+(tentative final ±.005), not automatic suppression of the initial W_R gradient spike.
+Compare gate distributions, W_R gradients/clipping and yBAM/ySTD against Clean.
+Prepare v6e AOT before replacing NativeDiagonal's allocated UE5a TPU.
 
 ## Early WD comparison: Clean / old Control
 

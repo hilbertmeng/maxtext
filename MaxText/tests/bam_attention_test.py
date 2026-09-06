@@ -172,6 +172,40 @@ class BamReadKeyTransformTest(absltest.TestCase):
     self.assertAlmostEqual(c8_total, 0.0125)
     self.assertAlmostEqual(c32_total, 0.0125)
 
+  def test_clean_gate050_fixed_amplitude_matches_initial_read_and_key_jacobian(self):
+    from exp import (
+        BamLlama2MediumV2C256ScanAotCleanControl as Control,
+        BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude as Gate050,
+    )
+
+    self.assertFalse(Gate050.bam_fetched_read_amplitude_learnable)
+    self.assertFalse(Gate050.bam_fetched_read_amplitude_depth_scale)
+    self.assertEqual(Gate050.bam_read_gate_init, Control.bam_read_gate_init)
+    self.assertEqual(Gate050.wd_mults, Control.wd_mults)
+    self.assertTrue(Gate050.scan_layers)
+    self.assertEqual(Gate050.checkpoint_period, 200)
+    width = Gate050.bam_abs_v_compression_dim
+    scale = Gate050.bam_fetched_read_amplitude_init / np.sqrt(width)
+    self.assertAlmostEqual(scale * Gate050.bam_fetched_read_gate_init,
+                           2.0 * Control.bam_read_gate_init)
+
+    def read_keys(projected, p, amplitude):
+      logits = jnp.full((1, 1, 1, 2), np.log(p / (1 - p)))
+      _, _, row, col = _project_bam_read_keys(
+          32, jnp.zeros((1, 1, 1)), lambda _x: projected,
+          rms_epsilon=Control.bam_read_key_epsilon, key_mode='rms_gate',
+          key_scale=2.0, key_row_scale=amplitude, key_col_scale=amplitude,
+          key_gate_logits=logits)
+      return jnp.concatenate((row, col), axis=-1)
+
+    old = lambda x: read_keys(x, Control.bam_read_gate_init, 2.0)
+    new = lambda x: read_keys(x, Gate050.bam_fetched_read_gate_init, scale)
+    projected = jnp.linspace(-1, 1, 32 + width).reshape((1, 1, 1, -1))
+    np.testing.assert_allclose(new(projected), old(projected), rtol=2e-6, atol=1e-8)
+    zero = jnp.zeros_like(projected)
+    np.testing.assert_allclose(jax.jacfwd(new)(zero), jax.jacfwd(old)(zero),
+                               rtol=2e-6, atol=1e-8)
+
   def test_read_key_sides_accept_independent_external_amplitudes(self):
     projected = jnp.asarray([[[[3.0, 4.0, 5.0, 12.0]]]])
     gate_logits = jnp.zeros((1, 1, 1, 2))

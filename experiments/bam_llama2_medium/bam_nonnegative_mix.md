@@ -74,6 +74,23 @@ cross mass/query .000620, compared with about .98 mass and zero clipped edges
 for Softmax/static. This early cross-route collapse was stronger than predicted;
 watch recovery versus persistent hard-clip inactivity, without changing the arm.
 These are training-batch TB statistics, not the fixed-cohort checkpoint probe.
+By 4,200 the dynamic clip path recovered cross mass through sparse large edges,
+not through widespread reopening. L8–15 route trends:
+
+| Statistic | 200 | 1,000 | 2,000 | 3,000 | 4,000 | 4,200 |
+|---|---:|---:|---:|---:|---:|---:|
+| Dynamic clip zero-edge fraction | .994 | .968 | .961 | .960 | .957 | .958 |
+| Dynamic clip cross coefficient sum/query | .242 | 1.820 | 2.460 | 2.673 | 2.760 | 2.768 |
+| Softmax cross coefficient sum/query | .941 | .954 | .958 | .958 | .953 | .952 |
+| Static clip zero-edge fraction | .000 | .114 | .250 | .332 | .371 | .384 |
+| Static clip cross coefficient sum/query | .944 | .801 | .810 | .833 | .836 | .839 |
+
+Thus near-total edge sparsity does not imply a small aggregate cross read. At
+4,200, loss gaps versus ScanAotControl are Softmax +.05226, clip +.03442,
+static +.03741. All are much worse than the pre-run bets; long-term gaps have
+shrunk substantially but slowly lately. Static's last-point rebound versus
+clip does not alone reverse its longer convergence trend. GELU's learned scale
+should be interpreted alongside route mass/concentration, not zero fraction alone.
 TB remains at the inherited UC1 summary prefix; dataset and checkpoint/output
 prefixes are zone-local UE5a. Use the registry for checkpoint checks and the
 class's actual TensorBoard prefix for incremental health sync.

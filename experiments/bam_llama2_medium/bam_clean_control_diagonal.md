@@ -215,6 +215,15 @@ the immediate race while keeping weight transfer asynchronous.
 
 ## Early WD comparison: Clean / old Control
 
+Completed 13,500 updates (last logged step 13,499) on runtime `4cf1556`.
+Clean minus old Control fell from +.08954 at 200 to roughly +.004 at 4k-8k,
+then +.002736 mean over 12,400-13,400 (range +.002342 to +.003090).
+Thus the disadvantage narrowed but did not vanish. Against the matched clean
+MHA, the same final six-window mean is -.073362 (range -.074653 to -.072753).
+The pre-run sign was explicitly uncertain; correct WD is not empirically a
+loss improvement here. BAM-only is the ongoing conditional attribution test,
+not evidence that the individual exemptions have additive effects.
+
 Same-step TB values below are RUN/BASE, not differences; L16-23 entries are
 layer means. Extract with `.claude/skills/tpu-training/scripts/report_bam_read_health.py`
 using the two full configuration names above and `--steps 1000,2000,3000,3400`.

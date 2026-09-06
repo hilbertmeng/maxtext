@@ -82,6 +82,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV2C256ScanAotCleanNativeDiagonal` | v5p-16 | `us-east5-a` | 2026-09-06 09:42:11 | 2026-09-06 11:54:28 | user stop; checkpoint 4,714; no preemption; TPU hot-switched to CleanGate050FixedAmplitude | none |
 | `BamLlama2MediumV2C256RmsGeluAlphaMixWDFix` | v5p-16 | `us-east5-a` | 2026-09-06 07:08:19 | 2026-09-06 13:21:54 | completed 13,499; checkpoint 13,400; no preemption; TPU and queue deletion verified | none |
 | `BamMHALlama2MediumC256ScanAotCleanControl` | v5p-16 | `us-east5-a` | 2026-09-06 10:50:47 | 2026-09-06 15:18:17 | completed 13,500; checkpoint 13,500; zero preemptions; TPU and queue deletion verified | none |
+| `BamLlama2MediumV2C256ScanAotCleanControl` | v5p-16 | `us-east5-a` | 2026-09-06 09:42:11 | 2026-09-06 16:00:37 | completed through 13,499; checkpoint 13,400; one preemption; same-zone recovery; TPU and queue deletion verified | none |
 
 ## READY leases
 
@@ -372,5 +373,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | FetchNoRMSNormalInit | 1 | `us-east5-a` | 2026-09-05 11:16:15 | 2026-09-05 12:50:21 | 1h34m06s | run stop; deletion verified 12:52:59 |
 | RmsGeluAlphaMix | 1 | `us-east5-a` | 2026-09-06 05:50:23 | 2026-09-06 10:43:36 | 4h53m13s | run stop; TPU and queue deletion verified 10:46:06 |
 | CleanNativeDiagonal | 1 | `us-east5-a` | 2026-09-06 09:47:38 | 2026-09-06 11:54:28 | 2h06m50s | hot switch; no preemption; TPU retained for CleanGate050FixedAmplitude |
+| CleanControl | 1 | `us-east5-a` | 2026-09-06 09:47:39 | 2026-09-06 13:05:07 | 3h17m28s | preempted; recovered in the same zone |
 | RmsGeluAlphaMixWDFix | 1 | `us-east5-a` | 2026-09-06 07:12:11 | 2026-09-06 13:21:54 | 6h09m43s | completed; zero preemptions; TPU and queue deletion verified |
 | MHA C256 ScanAotCleanControl | 1 | `us-east5-a` | 2026-09-06 10:57:01 | 2026-09-06 15:18:17 | 4h21m16s | completed; zero preemptions; TPU and queue deletion verified |
+| CleanControl | 2 | `us-east5-a` | 2026-09-06 13:13:15 | 2026-09-06 16:00:37 | 2h47m22s | completed; TPU and queue deletion verified |

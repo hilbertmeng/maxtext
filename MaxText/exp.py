@@ -1200,7 +1200,9 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotControl):
     """V2 scan+AOT with correct WD exclusions, including the write-gate bias."""
-    # code_commit: 4cf1556; UE5a ~0.651 steps/s (-1.3% vs old ScanAotControl); running.
+    # 4cf1556; UE5a ~0.651 steps/s (-1.3% vs old ScanAotControl); completed 13,500 updates.
+    # vs old Control: +.08954 @200 -> ~+.004 @4-8k -> +.00274 mean @12400-13400;
+    # WD correction's deficit narrowed but persisted; vs clean MHA -.07336 in the same final window.
     model_name = 'BamLlama2MediumV2C256ScanAotCleanControl'
     steps = 13500
     wd_mults = BamLlama2MediumV2C256ScanAotControl.wd_mults + [('.*gw_b0$', 0.)]

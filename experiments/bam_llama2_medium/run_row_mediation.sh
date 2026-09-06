@@ -22,6 +22,7 @@ if [[ $phase == consumers ]]; then program=row_consumer_positions.py; fi
 if [[ $phase == neighbors ]]; then program=row_neighbors.py; fi
 if [[ $phase == mlp_export ]]; then program=row_mlp_export.py; fi
 if [[ $phase == v_export ]]; then program=row_v_export.py; fi
+if [[ $phase == delivery ]]; then program=row_delivery.py; fi
 tag="bam-row-mediation-$model-L$source_layer-$phase-${BAM_MEDIATION_LABEL:-all}-${commit:0:7}"
 if [[ ${BAM_MEDIATION_COMPONENT:-cross} == self ]]; then tag="$tag-rowself"; fi
 if [[ ${BAM_MEDIATION_COMPONENT:-cross} == both ]]; then tag="$tag-rowboth"; fi

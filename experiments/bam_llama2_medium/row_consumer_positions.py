@@ -162,9 +162,9 @@ def run(config):
   assert not getattr(config, 'bam_mlp_write', False)
   source = int(os.environ.get('BAM_MEDIATION_SOURCE', '11'))
   component = os.environ.get('BAM_MEDIATION_COMPONENT', 'cross')
-  source_mode = os.environ.get('BAM_CONSUMER_SOURCE_MODE', 'point')
-  if source_mode not in ('point','all'):
-    raise ValueError(source_mode)
+  source_mode = os.environ.get('BAM_CONSUMER_SOURCE_MODE', 'all')
+  if source_mode != 'all':
+    raise ValueError('Consumer probes cover all valid source positions; sparse point sampling is retired.')
   if component not in ('self', 'cross'):
     raise ValueError(component)
   matrix = arms(source)

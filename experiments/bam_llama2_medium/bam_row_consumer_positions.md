@@ -30,13 +30,13 @@ harm at the origin rather than transport useful information elsewhere.
 ```bash
 DIAGNOSTIC_COMMIT=53090883874c2d9374b16c0540090072397c4fca \
 BAM_MEDIATION_PHASE=consumers BAM_MEDIATION_SOURCE=11 \
-BAM_MEDIATION_COMPONENT=cross BAM_MEDIATION_LABEL=barrier-point \
-BAM_CONSUMER_BARRIER=1 BAM_CONSUMER_SOURCE_MODE=point BAM_MEDIATION_N=128 \
+BAM_MEDIATION_COMPONENT=cross BAM_MEDIATION_LABEL=barrier-all \
+BAM_CONSUMER_BARRIER=1 BAM_CONSUMER_SOURCE_MODE=all BAM_MEDIATION_N=128 \
 bash experiments/bam_llama2_medium/run_row_mediation.sh xl
 ```
 
-Use `self` for the paired source component; `SOURCE_MODE=all` with label
-`barrier-all` for all-origin denial. Artifacts are under
+Use `self` for the paired source component. Current probes cover all valid source
+positions; point sampling is retired. Historical artifacts are under
 `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/` and local
 `/data0/xd/bam_diagnostics/`, with prefixes
 `bam-row-mediation-xl-L11-consumers-barrier-{point,all}-5309088` (append
@@ -146,15 +146,16 @@ fixing the explicit bf16 boundary.
 Both increments are most necessary near their creation, but "after L15 no longer
 needed" would overstate the result. Absolute self-read necessity is larger.
 
-### Individual-origin resolution is not yet sufficient
+### Retired point-source experiment: not a basis for token-lineage conclusions
 
 For one fixed random origin per sequence, deleting cross gives summed token
 Δloss **+.00802 ± .18241 per origin** (origin +.01038, later tokens −.00235).
 Deleting self gives −.01950 ± .18889. These intervals are too wide to rank paths
 or infer a beneficial/harmful future-token effect. They do not invalidate the
 all-origin result: collective deletion is a different nonlinear intervention.
-The exact numerical controls pass; sparse signal and sample heterogeneity remain
-limitations. The V split is an edge-specific intervention with unchanged alpha,
+The exact numerical controls pass, but the sparse source-selection design is not
+accepted for this question. Retain its artifacts for audit, do not rerun or extend
+point sampling. The V split is an edge-specific intervention with unchanged alpha,
 but it does not by itself locate which later M/col receivers redeem the benefit.
 
 ## Next discriminating checks
@@ -164,10 +165,11 @@ but it does not by itself locate which later M/col receivers redeem the benefit.
 2. Separate source-MLP and L12–15 cross-V interactions, rather than adding their
    isolated effects. Validate V edge arithmetic endpoints before interpreting
    sub-milliloss effects.
-3. Increase useful single-origin coverage or use label-free outgoing-V leverage
-   strata, retaining a uniform-sample reference. Only then split later M/col
-   consumers into source versus receiver positions. Do not claim that the present
-   broad result has already resolved this token lineage.
+3. Resolve same-position compensation versus cross-position benefit using
+   route-specific controls covering all valid source positions. All-origin loss
+   alone cannot provide that decomposition; do not substitute sparse source
+   sampling or label a necessary component as beneficial transport without this
+   distinction. The present broad result has not resolved later M/col token lineage.
 
 ## L8–14 context: direct harm versus whole-network necessity
 

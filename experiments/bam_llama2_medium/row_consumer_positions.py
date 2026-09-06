@@ -64,9 +64,14 @@ def forward(model, params, batch, rng, config, scales, mask, controls, z, source
     if patch_controls is None:
       raise ValueError('patch references require explicit recipient controls')
     tree = traverse_util.flatten_dict(variables['causal_ablation'])
-    tree.update(traverse_util.flatten_dict(med.patch_tree(
+    patch = traverse_util.flatten_dict(med.patch_tree(
         params, scales, patch_refs, patch_controls, jnp.zeros_like(z),
-        config.scan_layers)))
+        config.scan_layers))
+    # Only instantiate the recipients under test. Unused QK/V routing and
+    # residual-cancellation machinery changes the compiled graph unnecessarily.
+    names = {'med_full', 'med_full_scale', 'med_M', 'med_M_scale',
+             'med_mlp', 'med_mlp_scale'}
+    tree.update({p: value for p, value in patch.items() if p[-1] in names})
     variables['causal_ablation'] = traverse_util.unflatten_dict(tree)
   r1, r2 = jax.random.split(rng)
   (token_loss, _, _), captured = model.apply(

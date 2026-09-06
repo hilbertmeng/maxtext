@@ -413,6 +413,8 @@ class SubDecoderLayer(nn.Module):
         self.sow("intermediates", "moe_lb_loss", load_balance_loss)
       moe_lnx = nn.with_logical_constraint(moe_lnx, ("activation_batch", "activation_norm_length", "activation_embed"))
 
+    if capture_mediation and self.has_variable('causal_ablation', 'row_consumers'):
+      mlp_lnx = jax.lax.optimization_barrier(mlp_lnx)
     if self.has_variable('causal_ablation', 'med_mlp'):
       mlp_lnx = attentions._mediation_replace(mlp_lnx,
           self.get_variable('causal_ablation', 'med_mlp'),

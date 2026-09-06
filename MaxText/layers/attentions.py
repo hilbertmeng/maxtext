@@ -3722,6 +3722,8 @@ class BamAttention(Attention):
         self.sow('row_cross_probe', 'row_parts', jnp.stack(
             (row_self, row_pos, row_neg, row_total), axis=2))
         self.sow('row_cross_probe', 'alpha_stats', alpha_stats)
+      if capture_mediation and self.has_variable('causal_ablation', 'row_consumers'):
+        y_full = jax.lax.optimization_barrier(y_full)
       if self.has_variable('causal_ablation', 'med_full'):
         y_full = _mediation_replace(y_full,
             self.get_variable('causal_ablation', 'med_full'),
@@ -3760,6 +3762,8 @@ class BamAttention(Attention):
     else:
       M_out = M_in
 
+    if capture_mediation and self.has_variable('causal_ablation', 'row_consumers'):
+      M_out = jax.lax.optimization_barrier(M_out)
     if self.has_variable('causal_ablation', 'med_M'):
       M_out = _mediation_replace(M_out,
           self.get_variable('causal_ablation', 'med_M'),

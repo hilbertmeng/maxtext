@@ -26,6 +26,15 @@ an unfinished requirement. Foreign-position counterfactual development is deferr
   supports distributed, interacting consumers, not a proven loss-improving
   replacement for residual injection. See the delivery table below.
 
+For the original architecture question—replace row residual injection with gated
+direct injection into the next 2–3 MHA V streams—the answer is **not established**.
+The V-only delivery penalty (+.008105 for whole row, versus +.000577 with all
+consumers through the same L17 cutoff) weakens V-only sufficiency in this trained
+model. It is not the predicted loss of the proposed retraining: the diagnostic
+uses existing projections and normalization, whereas that architecture would
+learn new direct-V delivery. Neither the negative direct IG nor this intervention
+proves the sign of its eventual training gain.
+
 ## Purpose and scope
 
 Identify which components need L11's original row-cross/self residual increment,
@@ -260,9 +269,11 @@ All-origin loss does not decompose own-position compensation and other-position
 benefit, so do not label a necessary local MLP as purely beneficial transport.
 Finite-lifetime selective delivery tests a realizable architectural direction
 without needing to claim such a decomposition. It has not improved checkpoint
-loss. The restricted own-origin runner is now validated below. Receiver-side
-descendant analysis remains outside scope; own-origin consumer attribution is
-the remaining step needed to distinguish local compensation from net usefulness.
+loss. The restricted own-origin consumer and terminal-lifetime sweeps are complete
+below. They measure local necessity, while the collective V-export interventions
+measure transported dependence; these nonlinear effects are not an additive
+decomposition into compensation and useful transport. Receiver-side descendant
+analysis remains outside scope.
 
 ## All-origin own-position loss: validated cross/self/whole comparison
 
@@ -449,9 +460,9 @@ persistent direct residual effect, not suppressing the whole read.
 
 **This ranking concerns cross only.** L11 self's direct IG is +.622187%, so its
 whole row direct IG is **+.355393%**, not negative. L10's corresponding self/cross/
-whole values are −.393694% / +.076884% / −.316811%. Complete self and joint deletion
-at every L8–14 layer is therefore necessary before ranking whole-row necessity;
-neither direct IG nor the sum of separate deletion costs substitutes for that test.
+whole values are −.393694% / +.076884% / −.316811%. The next table supplies the
+completed joint deletion at every L8–14 layer for whole-row necessity; neither
+direct IG nor the sum of separate deletion costs substitutes for that test.
 
 ### Whole-row net effect: completed joint deletion
 

@@ -48,3 +48,25 @@ loss comparisons retain their cumulative 200-step sequences.
 
 Launch commit, AOT artifact and live resource identity: RUN registry on tpu-ag;
 successful runtime short hashes and measured speed are copied to `MaxText/exp.py`.
+
+## Early WD comparison: Clean / old Control
+
+Same-step TB values below are RUN/BASE, not differences; L16-23 entries are
+layer means. Extract with `.claude/skills/tpu-training/scripts/report_bam_read_health.py`
+using the two full configuration names above and `--steps 1000,2000,3000,3400`.
+
+| Metric | 1000 | 2000 | 3000 | 3400 |
+|---|---|---|---|---|
+| Cumulative sampled clipping fraction | .297/.257 | .154/.134 | .103/.090 | .094/.079 |
+| W_R gradient L2 | .0607/.0615 | .0431/.0429 | .0354/.0368 | .0339/.0357 |
+| L16-23 M RMS | 8.34/7.30 | 8.37/6.75 | 8.41/6.43 | 8.29/6.22 |
+| L16-23 row gate mean | .00914/.01006 | .00810/.00957 | .00815/.01022 | .00813/.01045 |
+| L16-23 col gate mean | .01781/.01951 | .01906/.02260 | .02087/.02626 | .02154/.02755 |
+| L16-23 yBAM/ySTD | 4.71/4.65 | 3.91/3.81 | 3.58/3.53 | 3.48/3.43 |
+
+Clean retains larger upper-layer M and smaller read gates while net read strength
+stays close. This suggests compensating amplitude changes, not a large sustained
+read-output or W_R-gradient explosion. More early clipping is observed, but these
+statistics do not identify whether `gw_b0`, read biases, or scales cause the loss
+gap. The GELU WD-fix pair keeps `gw_b0` decay and additionally has a learned mix
+scale, so its WD benefit cannot be transferred as a context-independent effect.

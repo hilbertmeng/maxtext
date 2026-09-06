@@ -129,6 +129,16 @@ def model_init(model, config, key):
   return params
 
 
+def create_model_optimizer(config, model, learning_rate_schedule, init_rng):
+  """One optimizer contract for ordinary training and AOT compilation."""
+  wd_tree = None
+  if config.wd_mults:
+    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
+    wd_tree = get_wd_tree(config, params_shape)
+    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}', debug=config.debug)
+  return optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
+
+
 def compute_accuracy(logits, targets, masks):
   batch_weights = jnp.maximum(jnp.sum(masks, axis=-1), 1e-10)
   correct = jnp.where(
@@ -410,7 +420,19 @@ def record_bam_fetched_read_health_metrics(
       attention['fetched_read_merge_rms'][0]
       if 'fetched_read_merge_rms' in attention else None)
   gate_stat_names = ('mean', 'std', 'frac_lt_005', 'frac_gt_095')
+  diagonal_sums = (sum(attention['fetch_diagonal_sums'])
+                   if 'fetch_diagonal_sums' in attention else None)
   for layer_num in range(config.base_num_decoder_layers):
+    if diagonal_sums is not None:
+      diag, diag_sq, diag_neg, count, cross, queries = diagonal_sums[layer_num]
+      count, queries = jnp.maximum(count, 1), jnp.maximum(queries, 1)
+      prefix = f'bam/fetch_route/layer_{layer_num:03d}'
+      output_metrics['scalar'].update({
+          f'{prefix}/diagonal_mean': diag / count,
+          f'{prefix}/diagonal_rms': jnp.sqrt(diag_sq / count),
+          f'{prefix}/diagonal_negative_fraction': diag_neg / count,
+          f'{prefix}/cross_mass_per_query': cross / queries,
+      })
     for side_num, side in enumerate(('row', 'col')):
       prefix = f'bam/fetched_read_gate/{side}/layer_{layer_num:03d}'
       for stat_num, stat in enumerate(gate_stat_names):
@@ -992,15 +1014,7 @@ def setup_mesh_and_model(config):
   model = Transformer(config, mesh, quant=quant)
   learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
 
-   # lsp: add rule param weight decay
-  if config.wd_mults:
-    params_shape = jax.eval_shape(functools.partial(model_init, model, config), init_rng)
-    max_logging.log(f'wd_mults is not None, -> {config.wd_mults}', debug=config.debug)
-    wd_tree = get_wd_tree(config=config, params=params_shape)
-  else:
-    wd_tree = None
-
-  tx = optimizers.get_optimizer(config, learning_rate_schedule, wd_tree)
+  tx = create_model_optimizer(config, model, learning_rate_schedule, init_rng)
   logger = checkpointing.setup_checkpoint_logger(config)
   if config.enable_emergency_checkpoint:
     if config.use_replicator_service:

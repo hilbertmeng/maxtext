@@ -1197,6 +1197,20 @@ class BamLlama2MediumV2C256ScanAotControl(BamV2C256FetchScheduleBase):
         'jax_caches/xd-bam-v2-c256-scan-aot-control')
 
 
+class BamLlama2MediumV2C256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotControl):
+    """V2 scan+AOT with correct WD exclusions, including the write-gate bias."""
+    model_name = 'BamLlama2MediumV2C256ScanAotCleanControl'
+    steps = 13500
+    wd_mults = BamLlama2MediumV2C256ScanAotControl.wd_mults + [('.*gw_b0$', 0.)]
+    bam_fetch_diagonal_one = True
+
+
+class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):
+    """Keep the mixed alpha diagonal; no separate local-O read."""
+    model_name = 'BamLlama2MediumV2C256ScanAotCleanNativeDiagonal'
+    bam_fetch_diagonal_one = False
+
+
 class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(
     BamLlama2MediumV2C256ScanAotControl
 ):

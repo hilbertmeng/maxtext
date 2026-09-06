@@ -1767,7 +1767,7 @@ def _attention_op(
 
 def _bam_fetch_op(
     alpha, fetch_state, mix_weights, diagonal_mask, *, diagonal_one,
-    mix_implementation='dot'):
+    mix_implementation='dot', return_route=False):
   """Mix attention heads into one temporal route and fetch M."""
   with jax.named_scope("bam/mix_alpha"):
     alpha = alpha[:, :mix_weights.shape[-1]]
@@ -1782,7 +1782,8 @@ def _bam_fetch_op(
     if diagonal_one:
       fetch_alpha = jnp.where(diagonal_mask[None], 1, fetch_alpha)
   with jax.named_scope("bam/fetch_m"):
-    return jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
+    fetched = jnp.einsum('bqs,bskv->bqkv', fetch_alpha, fetch_state)
+  return (fetched, fetch_alpha) if return_route else fetched
 
 
 def _mix_bam_write_v(x_v, o_head, bam_k, mix_scale, bias):
@@ -4143,7 +4144,24 @@ class BamAttention(Attention):
       Mbar = _bam_fetch_op(
           alpha, fetch_state, mix_weights, source == target,
           diagonal_one=self._fetch_diagonal_one,
-          mix_implementation=self._fetch_mix_implementation)
+          mix_implementation=self._fetch_mix_implementation,
+          return_route=self._record_fetched_read_health_metrics)
+      if self._record_fetched_read_health_metrics:
+        Mbar, route = Mbar
+        health_valid = jnp.broadcast_to(valid, route.shape)
+        if decoder_segment_ids is not None:
+          health_valid &= decoder_segment_ids[:, q0:q1, None] != 0
+        diagonal = health_valid & (source == target)[None]
+        cross = health_valid & ~(source == target)[None]
+        route = route.astype(jnp.float32)
+        self.sow('intermediates', 'fetch_diagonal_sums', jnp.stack((
+            jnp.sum(jnp.where(diagonal, route, 0)),
+            jnp.sum(jnp.where(diagonal, route * route, 0)),
+            jnp.sum(diagonal & (route < 0), dtype=jnp.float32),
+            jnp.sum(diagonal, dtype=jnp.float32),
+            jnp.sum(jnp.where(cross, route, 0)),
+            jnp.sum(jnp.any(health_valid, axis=-1), dtype=jnp.float32),
+        )))
     return y_std, Mbar
 
   def _query_chunk_op(

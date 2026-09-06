@@ -267,6 +267,15 @@ class BamReadKeyTransformTest(absltest.TestCase):
         expected = reference(args, diagonal_one)
         got = actual(args, diagonal_one, implementation)
         np.testing.assert_allclose(got, expected, rtol=1e-6, atol=1e-6)
+        fetched, route = _bam_fetch_op(
+            args[0], args[2], args[1], diagonal_mask,
+            diagonal_one=diagonal_one, mix_implementation=implementation,
+            return_route=True)
+        np.testing.assert_array_equal(fetched, got)
+        expected_route = jnp.einsum('bnts,btn->bts', args[0], args[1])
+        if diagonal_one:
+          expected_route = jnp.where(diagonal_mask[None], 1, expected_route)
+        np.testing.assert_allclose(route, expected_route, rtol=1e-6, atol=1e-6)
 
         expected_value, expected_grad = jax.value_and_grad(
             lambda values: jnp.sum(

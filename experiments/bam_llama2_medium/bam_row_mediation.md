@@ -4,6 +4,8 @@ Status: XL L11 row-cross maps, XL L10 row-self follow-up and selected Medium L8
 comparison complete (128 sequences per paired arm). Layer indices are zero-based.
 This is checkpoint causal diagnosis, not a validated training modification.
 
+Follow-up: [original-position consumers and same-layer self/cross comparison](bam_row_consumer_positions.md).
+
 ## Reproduction
 
 - Model: `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2`, checkpoint

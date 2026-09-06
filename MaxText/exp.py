@@ -1231,7 +1231,9 @@ class BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude(BamLlama2MediumV2C2
 
 class BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix(BamLlama2MediumV2C256ScanAotCleanControl):
     """GELU mixed alpha on Clean; identical WD rules, including no-decay gw_b0."""
-    # code_commit: b235a5d; UE5a ~0.647 steps/s (-0.6% vs Clean; ~equal to WDFix), steps 10-14.
+    # b235a5d; UE5a ~0.647 steps/s (-0.6% vs Clean; ~equal to WDFix); completed 13,500 updates.
+    # vs Clean: +.1158 @200 -> persistent gain after 4.4k -> -.00276 mean @12400-13400;
+    # vs WDFix: early ~-.005 gain faded to zero (+.00008 final mean), not a lasting improvement.
     model_name = 'BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix'
     bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
     bam_record_fetch_route_metrics = True

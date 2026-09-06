@@ -213,6 +213,43 @@ ownership/atomicity. The durable direction is to coordinate cursor saving with
 Orbax's checkpoint transaction; synchronizing directory creation alone can remove
 the immediate race while keeping weight transfer asynchronous.
 
+## GELU-Clean completion
+
+`BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix`, runtime `b235a5d`,
+completed 13,500 updates (last logged step 13,499; committed checkpoint 13,400).
+Final six common windows, 12,400–13,400:
+
+| Direct comparison | Mean gap | Range |
+|---|---:|---:|
+| GELU-Clean − CleanControl | −.0027561 | −.0030616 to −.0024202 |
+| GELU-Clean − RmsGeluAlphaMixWDFix | +.0000762 | −.0004598 to +.0012420 |
+
+Against Clean, the +.1158 early deficit crossed into a persistent benefit after
+4,400, reaching roughly −.002 to −.003 late: consistent with the tentative
+−.002 final bet. Against WDFix, the early ~−.005 advantage gradually disappeared;
+repeated late sign crossings and the near-zero final mean do not support a lasting
+benefit from additionally excluding `gw_b0` in this GELU context.
+
+Pre-GELU mixed-alpha negative fractions remain above one half and decline in both
+runs. Each cell is GELU-Clean / WDFix (%), from matched TB milestones:
+
+| Layers | 2,000 | 6,000 | 10,000 | 12,000 |
+|---|---:|---:|---:|---:|
+| 0–7 | 71.4 / 67.9 | 65.4 / 63.7 | 60.1 / 59.5 | 59.6 / 57.7 |
+| 8–15 | 74.4 / 76.0 | 70.6 / 72.0 | 67.7 / 69.4 | 67.2 / 68.2 |
+| 16–23 | 67.6 / 69.8 | 63.7 / 65.7 | 61.2 / 62.4 | 59.5 / 60.5 |
+
+This is not a uniform layerwise reduction and does not establish a causal
+explanation of the loss difference. Reproduce with
+`.agents/skills/tpu-training/scripts/report_bam_read_health.py`, the two full
+configuration names above and `--steps 2000,6000,10000,12000`.
+
+UE5a v5p-16 had one READY lease, 2026-09-06 12:36:58–18:56:49 UTC
+(6h19m51s), zero service preemptions or zone switches. The checkpoint-3000
+failure documented above was a same-TPU process recovery, not a preemption.
+Clean exit at 18:54:57 preceded verified node/queue deletion by 1m52s;
+the automatic TensorBoard completion marker was published at 18:56:54.
+
 ## Fixed-amplitude Gate050 completion
 
 `BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude`, runtime `211ce4d`,

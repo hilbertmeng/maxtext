@@ -30,6 +30,9 @@ from tensorboard.util import tensor_util
 DEFAULT_LOCAL_TB_ROOT = Path("/data0/xd/tensorboard_logs")
 CACHE_ROOT = DEFAULT_LOCAL_TB_ROOT / ".bam_health_cache"
 CACHE_SCHEMA = 2
+ROUTE_METRICS = (
+    "mix_scale_over_init", "preclip_negative_fraction", "zero_fraction",
+    "cross_mass_per_query", "cross_l2_rms_per_query")
 
 
 def _masked_crc32c(data: bytes) -> int | None:
@@ -386,6 +389,9 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
           scalars.band_mean(health_prefix + "/m_rms", step, layers))
       row["y_bam_over_y_std"] = _rounded(
           scalars.band_mean(health_prefix + "/y_bam_over_y_std", step, layers))
+      for metric in ROUTE_METRICS:
+        row[f"route_{metric}"] = _rounded(scalars.band_mean(
+            "bam/fetch_route/layer_{layer:03d}/" + metric, step, layers))
       row["removed_std_over_std"] = _rounded(scalars.band_mean(
           health_prefix + "/removed_std_over_std", step, layers))
       for name in ("kept_std", "merged"):
@@ -522,6 +528,23 @@ def _format_pair(pair):
   return f'{pair["run"]}/{pair["base"]}'
 
 
+def _print_route(run, result, base_results):
+  if not any(row.get("route_cross_mass_per_query") is not None
+             for row in result["bands"]):
+    return
+  for base_run, base in (base_results.items() if base_results else [(None, None)]):
+    print(f"\nRUN={run} BASE={base_run or '--'} fetch-route layer means; values=RUN/BASE")
+    print("step band", *ROUTE_METRICS)
+    reference = {(r["step"], r["band"]): r for r in base["bands"]} if base else {}
+    for row in result["bands"]:
+      other = reference.get((row["step"], row["band"]), {})
+      pairs = []
+      for metric in ROUTE_METRICS:
+        values = (row.get(f"route_{metric}"), other.get(f"route_{metric}"))
+        pairs.append('/'.join('--' if v is None else str(v) for v in values))
+      print(row["step"], row["band"], *pairs)
+
+
 def _print_comparison(run: str, base_run: str, comparison) -> None:
   print(f"RUN={run} BASE={base_run} values=RUN/BASE")
   print("step raw_grad W_R_grad clip_frac")
@@ -625,6 +648,7 @@ def main() -> None:
     _print_text(args.run, result)
   if not args.json:
     _print_mix_scale(args.run, result)
+    _print_route(args.run, result, base_results)
 
 
 if __name__ == "__main__":

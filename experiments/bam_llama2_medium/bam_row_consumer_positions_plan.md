@@ -42,6 +42,10 @@ needs the increment **in that context**, not that adding an extra relay will
 improve loss. This removes the original additive vector, not all transformed
 copies of its information. Re-normalization is part of the intervention.
 
+A necessary consumer may either transmit useful information or compensate for
+the source increment's harmful direct effect. Separate origin/future loss to
+distinguish these possibilities; total loss alone cannot label its mechanism.
+
 ## Controls, outputs, and next stage
 
 - Same compiled graph for all arms; zero-increment arms must reproduce baseline.

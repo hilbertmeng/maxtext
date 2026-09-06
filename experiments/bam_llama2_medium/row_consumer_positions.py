@@ -184,6 +184,23 @@ def run(config):
       source_m_error = float(jnp.max(abs(clean[3]-deleted[3])))
       if outside != 0 or source_m_error != 0:
         raise ValueError(f'source scope error: outside={outside}, M={source_m_error}')
+      if os.environ.get('BAM_CONSUMER_AUDIT') == '1':
+        cut_control = c0.at[source,ROW_CONSUMER_NAMES.index('cut_attention')].set(1)
+        unchanged = infer(state.params,batch,rng,clean_s,mask,c0,z)
+        cut = infer(state.params,batch,rng,clean_s,mask,cut_control,z)
+        reconstructed = (clean[2].astype(jnp.float32)-z).astype(clean[2].dtype)
+        audit = dict(position=pos.tolist(),residual_dtype=str(clean[2].dtype),
+            zero_control_nonzero_z_token_error=float(jnp.max(abs(unchanged[1]-clean[1]))),
+            zero_control_nonzero_z_source_error=float(jnp.max(abs(unchanged[2]-clean[2]))),
+            cut_source_pre_input_error=float(jnp.max(abs(cut[2]-clean[2]))),
+            cut_source_M_error=float(jnp.max(abs(cut[3]-clean[3]))),
+            reconstructed_source_max_error=float(jnp.max(abs(reconstructed-deleted[2]))),
+            reconstructed_source_different_coordinates=int(jnp.count_nonzero(reconstructed!=deleted[2])),
+            source_cut_delete_token_error=float(jnp.max(abs(cut[1]-deleted[1]))),
+            source_cut_delete_mean_error=float(jnp.mean(cut[1]-deleted[1])))
+        (output/'audit.json').write_text(json.dumps(audit,indent=2)+'\n')
+        print('CONSUMER_AUDIT '+json.dumps(audit),flush=True)
+        return
       null_result = infer(state.params,batch,rng,clean_s,mask,
                           jnp.asarray(matrix[-1]['control']),z0)
       null_error = float(jnp.max(abs(null_result[1]-clean[1])))

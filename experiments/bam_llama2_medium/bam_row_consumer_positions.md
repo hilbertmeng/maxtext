@@ -1,5 +1,28 @@
 # XL L11 original-position row consumers
 
+## Current answer and completion status (2026-09-06 UTC)
+
+The main XL L11 cross/self/whole-row consumer, lifetime, and downstream
+mediation sweeps are complete on the fixed 128 sequences and all valid origins.
+The study is **not closed**: selective-delivery numerical-floor controls are
+running; the Medium L8 delivery comparison stopped at 94/128 after a nonzero
+immediate-cut/deletion check and is not accepted as a completed result.
+
+- L11 is exceptional in **whole-row net necessity**, not only negative direct
+  row-cross IG. Self and cross interact strongly; their deletion costs cannot
+  be added.
+- L12–15 cross-token V is an important first hop. Later standard MHA and
+  BAM-col jointly realize much of that hop's benefit. For the isolated L12
+  cross-V intervention, descendants cannot causally return to the source token.
+- MLP is not dispensable: source-MLP responses also feed cross-token V, and
+  retaining V alone fails the normal-forward-compatible delivery test.
+- The original vector becomes much less necessary after L15–17, but its
+  transformed descendants remain. This is not permission to delete all row
+  information there.
+- No tested selective-delivery policy yet improves checkpoint loss. The evidence
+  supports distributed, interacting consumers, not a proven loss-improving
+  replacement for residual injection. See the delivery table below.
+
 ## Purpose and scope
 
 Identify which components need L11's original row-cross/self residual increment,
@@ -395,7 +418,7 @@ the local and GCS diagnostic roots. Local analyses:
 The raw files retain per-token scalar coefficients/geometry and per-arm losses,
 not activation vectors.
 
-#### Early cross-V to later component mediation (cross complete; self/both pending)
+#### Early cross-V to later component mediation (cross/self/whole complete)
 
 The L11 **cross** arm is complete on all 128 sequences with runtime `a0177c7`.
 Deleting row-cross gives Δloss **+.015582 ± .001915**; denying its input only
@@ -424,8 +447,26 @@ graphs are **not** tokenwise interchangeable, even though aggregate drift is
 small. All reported mediation comparisons use the same new graph.
 Analysis: `/data0/xd/bam_diagnostics/row-v-export-cross-analysis.json`;
 raw prefix `bam-row-mediation-xl-L11-v_export-L12-a0177c7/` under the diagnostic
-GCS/local roots. Self/both completion and the joint L12–15 first-hop test
-remain necessary before generalizing this result to the entire row pathway.
+GCS/local roots. The completed whole-row and joint L12–15 tests below qualify
+how far this isolated-cross result generalizes.
+
+The matched **self** source has also completed all 128 sequences with seven
+exact-zero audits. Its row deletion costs +.068428 ± .005829 and L12 V-cross
+input denial +.025504 ± .001814. The downstream pattern is similar to cross:
+
+| Restored L13–23 recipient | Self: Δloss vs denied | Self: remaining Δloss vs clean |
+|---|---:|---:|
+| fetched col | −.014432 ± .001437 | +.011072 |
+| M-out | −.012498 ± .001056 | +.013006 |
+| fetched row | −.000981 ± .000345 | +.024523 |
+| MLP | +.004630 ± .003402 | +.030134 |
+
+Thus col/M mediation is not unique to row-cross. The self MLP restoration has
+a near-zero median (−.000495), unlike its positive mean; do not characterize
+that worsening as uniform across examples. Self clean/deletion-effect drift
+against the old graph is +.000023/+.000016, with per-token maxima 1/.6875.
+Analysis: `/data0/xd/bam_diagnostics/row-v-export-self-analysis.json`; raw prefix
+is the cross prefix plus `-rowself`.
 
 Runner [row_v_export.py](row_v_export.py) first denies the original L11 row
 increment **only to L12 cross-token V edges**. The donor pair therefore differs
@@ -461,9 +502,103 @@ sweep, this graph is not bitwise identical to the historical neighbor sweep;
 [analyze_row_v_export.py](analyze_row_v_export.py) quantifies clean/deleted
 tokenwise and mean-loss drift against that anchor separately. Do not interpret
 small cross-run differences as mediation effects. References remain on device.
-The two active arms use UC1a (whole row) and UE5a (cross), the same cohort,
-checkpoint, and runtime. Their raw prefixes are
-`bam-row-mediation-xl-L11-v_export-L12-a0177c7{,-rowboth}/`.
+The original whole-row UC1a arm was preempted after 65 uploaded sequences;
+cross/self completed on UE5a, whose later whole-row retry uploaded 29 before
+preemption. Preserve these partial prefixes but do not report them as complete.
+Runtime `52a0c190f5aa8f3bc3c7410c0b713e71aef5cdf2` adds validated batch resume
+and atomic publication only; the attention/decoder/forward files are unchanged
+from `a0177c7`. Four resume tests and all 65 saved batches pass cohort, mask,
+shape, finite-value, metadata and exact-control checks. Use
+`BAM_MEDIATION_RESUME_GCS` plus the explicitly audited
+`BAM_MEDIATION_RESUME_COMMIT` to inherit the saved prefix. The new metadata
+records the previous runtime and inherited batch offsets.
+
+Expanded runtime `818a3f0dd8a11a6b63b48f741bd7ca460a35e68a` additionally tests
+standard MHA outputs and joint standard-MHA/col/MLP recipients in temporal
+bands. This addresses the unaccounted part of V-denial effects without assuming
+that col is the whole explanation. Set `BAM_V_EXPORT_RECIPIENT_SET=expanded`;
+the standard-output boundary is materialized in both seed and patched graphs,
+and all seven exact audits remain required. The prior screen is unchanged when
+this flag is absent; eight consumer/unit tests pass.
+
+Expanded results (128 sequences each; seven exact-zero audits) report the
+**remaining loss penalty versus clean** after restoring later recipients:
+
+| Source / denied first hop | Denial penalty | Restore MHA | Restore col | MHA + col | MHA + col + MLP |
+|---|---:|---:|---:|---:|---:|
+| cross / L12 V-cross; restore L13–23 | +.010552 | +.004527 | +.003295 | +.000930 | +.000330 |
+| whole / L12 V-cross; restore L13–23 | +.005050 | +.002382 | +.002283 | +.001063 | +.000454 |
+| whole / L12–15 V-cross; restore L16–23 | +.010924 | +.006414 | +.005585 | +.002974 | +.001638 |
+
+The first row's last two residuals have 95% CI half-widths .000285/.000221.
+The triple restoration recovers about 97%, 91%, and 85% of these **specific
+denial penalties**, respectively; these are not additive shares of the total
+row contribution. The wider first-hop intervention exposes more distributed
+dependency, leaving a larger unaccounted residual. MLP alone does not rescue
+these donor worlds, yet helps jointly with MHA/col: single-component signs do
+not transfer to joint interventions.
+
+Expanded raw prefixes under the GCS/local diagnostic roots:
+`bam-row-mediation-xl-L11-v_export-L12-expanded-818a3f0` (cross; append
+`-rowboth` for whole), and
+`bam-row-mediation-xl-L11-v_export-L12-15-expanded-818a3f0-rowboth`.
+Analyses: `row-v-export-expanded-{cross,both,joint-both}-analysis.json`.
+The basic whole-row L12 sweep resumed the validated first 65 examples into
+`bam-row-mediation-xl-L11-v_export-L12-52a0c19-rowboth`; all 128 are complete.
+
+#### Selective finite-lifetime delivery: causal feasibility, not future patching
+
+[row_delivery.py](row_delivery.py) keeps the source row increment `z` as a
+private carrier. Selected consumers see `h`, the others see `h-z`; after the
+selected cutoff layer's MLP, subtract `z` once. The source precedes every
+intervention, so `z` can be computed in a normal causal forward without labels,
+gradients, clean future activations, or final-layer cancellation. This is a
+testable architectural restriction, not a guaranteed improvement.
+
+All three XL sweeps completed 128 sequences with four exact-zero endpoint
+checks. Entries are Δloss versus the unmodified checkpoint, cutoff after L17:
+
+| Retained consumers through cutoff | row-cross | row-self | whole row |
+|---|---:|---:|---:|
+| All (ordinary delayed removal control) | +.000670 | +.001586 | +.000577 |
+| Cross-token V only | +.012427 | +.052083 | +.008105 |
+| Cross-token V + MLP | +.006017 | +.008724 | +.003159 |
+| Cross-token V + MLP + LocalQK | +.004297 | +.006478 | +.002377 |
+| Standard MHA Q/K/V + MLP | +.005085 | +.006841 | +.002179 |
+
+For comparison, removing each source outright costs +.015582 / +.068428 /
++.021820. Extending V-only delivery from L12 to L17 barely helps cross
+(+.012617 → +.012427): lack of lifetime alone is not its main problem.
+Adding MLP is a large improvement, especially for self, but even the broader
+tested subsets underperform the matched all-consumer cutoff. This contradicts
+the strongest version of “only nearby MHA V needs this information”; it does
+not contradict V being an important transport channel. The full row performs
+much better than separately restricted self/cross would suggest, again showing
+their interaction.
+
+These are collective all-origin interventions, not additive origin-level
+attributions. Small positive delayed-cut effects should also be interpreted
+against the pending no-consumer numerical-floor controls: repeated bf16
+`h-z` operations need not exactly reproduce a world where `z` was never added.
+
+Runtime `359b559923022700b357073a275b02ed9bfc5627`; launcher
+`BAM_MEDIATION_PHASE=delivery BAM_MEDIATION_SOURCE=11
+BAM_MEDIATION_COMPONENT=cross|self|both BAM_MEDIATION_LABEL=selective
+BAM_CONSUMER_BARRIER=1`, model `xl`. Raw prefix
+`bam-row-mediation-xl-L11-delivery-selective-359b559` (append `-rowself` or
+`-rowboth`). [Analyzer](analyze_row_delivery.py) validates cohort completeness,
+unique sample hashes, finite losses and endpoint checks before aggregation;
+outputs `row-delivery-{cross,self,both}-analysis.json` locally. Reproduction
+uses the model/checkpoint/cohort specified above.
+
+Runtime `f9091ec6ddb344024e9666ad440b8381c132ed01` adds
+`BAM_DELIVERY_CONTROL_ONLY=1` (all/none policies only, unchanged forward) for
+the numerical-floor controls. Medium L8/whole uses `BamLlama2MediumV2`, checkpoint
+13250, trainer `1afd942`, the same cohort, batch 2/non-scan. Its selective sweep
+failed the immediate-cut check at batch offset 94 (token-loss max .125); its
+94 completed examples are retained for audit, not used as a full Medium/XL
+comparison. Locate the arithmetic discrepancy before rerunning or interpreting
+that comparison; do not relax the exact check merely to finish the sweep.
 
 #### Historical SoftmaxMix/RmsMix is not a matched diagonal-one comparison
 

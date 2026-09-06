@@ -71,6 +71,9 @@ def run(config):
       limitation='collective all-origin intervention; checkpoint feasibility, not retraining outcome')
   records = resume_batches(output, meta, cohort, os.environ.get('BAM_MEDIATION_RESUME_COMMIT'))
   start = time.perf_counter()
+  audit_offset = os.environ.get('BAM_DELIVERY_AUDIT_OFFSET')
+  if audit_offset is not None and os.environ.get('BAM_CONSUMER_AUDIT') != '1':
+    raise ValueError('delivery audit requires the intermediate capture audit flag')
   rng, writer, manager, mesh, model, _, tx = base.train.setup_mesh_and_model(config)
   iterator, _ = base.create_data_iterator(config, mesh)
   state, _, _, _ = base.max_utils.setup_training_state(model, iterator, tx, config, rng, mesh, manager)
@@ -83,6 +86,8 @@ def run(config):
   null_control = jnp.asarray(np.maximum.reduce([a['control'] for a in matrix]))
   print('DELIVERY_RESTORED ' + json.dumps(meta), flush=True)
   for offset in range(0,len(cohort['inputs']),bs):
+    if audit_offset is not None and offset != int(audit_offset):
+      continue
     if offset in records:
       continue
     batch = {k:jnp.asarray(v[offset:offset+bs]) for k,v in cohort.items() if k!='sequence_hashes'}
@@ -98,6 +103,25 @@ def run(config):
       cut = infer(state.params,batch,scales,immediate,z)
       pairs = [(unused[1],clean[1]),(null[1],clean[1]),(cut[1],removed[1]),(clean[3],removed[3])]
       checks = np.asarray([float(jnp.max(abs(a.astype(jnp.float32)-b.astype(jnp.float32)))) for a,b in pairs])
+      if audit_offset is not None:
+        def difference(a, b):
+          a, b = np.asarray(a), np.asarray(b)
+          return dict(max_abs=float(np.max(abs(a.astype(float)-b.astype(float)))),
+                      differing_coordinates=int(np.count_nonzero(a != b)))
+        reconstructed = (clean[2].astype(jnp.float32)-z).astype(clean[2].dtype)
+        audit = dict(metadata=meta, offset=offset,
+            sequence_hashes=cohort['sequence_hashes'][offset:offset+bs].tolist(),
+            endpoint_checks=dict(zip(meta['checks'],checks.tolist())),
+            source_dtype=str(clean[2].dtype),
+            reconstructed_source=difference(reconstructed, removed[2]),
+            cut_source=difference(cut[2], clean[2]),
+            unused_source=difference(unused[2], clean[2]),
+            cut_deleted_mean_loss=difference(cut[0], removed[0]))
+        for i, name in enumerate(('post_cut', 'mlp_input', 'mlp_output')):
+          audit[name] = difference(cut[4][i], removed[4][i])
+        save_summary(output/'audit.json', audit)
+        print('DELIVERY_AUDIT '+json.dumps(audit), flush=True)
+        return
       if np.any(checks != 0):
         raise ValueError(dict(zip(meta['checks'],checks.tolist())))
       values = [jax.device_get(x[:2]) for x in (clean,removed)]

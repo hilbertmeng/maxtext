@@ -36,6 +36,13 @@ Masked/padding and diagonal edges are excluded from cross-edge denominators;
 sum chunk sufficient statistics before taking ratios. This distinguishes a
 healthy self path from a cross path made inactive by clipping.
 
+After the standard incremental TB sync/read-health report, run
+`experiments/bam_llama2_medium/report_fetch_route_health.py RUN... --steps 0,200,...`.
+It reuses the same local scalar cache, prints complete horizontal route series
+for each layer band and RUN, and represents unavailable historical tags as `--`.
+Pass all three RUNs together for direct comparisons rather than subtracting
+health metrics. These reporting-only changes do not alter the AOT runtime hash.
+
 Implementation: `MaxText/layers/attentions.py`; TB export: `MaxText/train.py`;
 configuration classes: `MaxText/exp.py`; value/gradient/masking tests:
 `MaxText/tests/bam_attention_test.py`. Runtime hashes and measured speed/results

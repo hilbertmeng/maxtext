@@ -368,6 +368,13 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
             scalars.band_mean(gate_prefix + "/frac_lt_005", step, layers))
         row[f"gate_frac_gt_095_{side}"] = _rounded(
             scalars.band_mean(gate_prefix + "/frac_gt_095", step, layers))
+        for lo in range(0, 100, 20):
+          for metric in ("population_fraction", "y_bam_over_y_std",
+                         "y_bam_energy_fraction"):
+            row[f"gate_bin_{lo:02d}_{lo + 20:02d}_{metric}_{side}"] = _rounded(
+                scalars.band_mean(
+                    gate_prefix + f"/bin_{lo:02d}_{lo + 20:02d}/{metric}",
+                    step, layers))
         row[f"pre_gate_rms_{side}"] = _rounded(scalars.band_mean(
             f"bam/fetched_read_pre_gate/{side}/layer_{{layer:03d}}/rms",
             step, layers))
@@ -534,6 +541,16 @@ def _print_comparison(run: str, base_run: str, comparison) -> None:
         _format_pair(row["gate_frac_gt_095_col"]),
         _format_pair(row["m_rms"]),
         _format_pair(row["y_bam_over_y_std"]))
+  print("\nstep band side gate-bin population(RUN/BASE) "
+        "yBAM/ySTD(RUN/BASE) energy-share(RUN/BASE); layer means")
+  for row in comparison["bands"]:
+    for side in ("row", "col"):
+      for lo in range(0, 100, 20):
+        metrics = [row[f"gate_bin_{lo:02d}_{lo + 20:02d}_{metric}_{side}"]
+                   for metric in ("population_fraction", "y_bam_over_y_std",
+                                  "y_bam_energy_fraction")]
+        print(row["step"], row["band"], side, f"{lo/100:.1f}-{(lo+20)/100:.1f}",
+              *(_format_pair(metric) for metric in metrics))
 
 
 def main() -> None:

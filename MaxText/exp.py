@@ -1244,7 +1244,9 @@ class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanA
 
 class BamMHALlama2MediumC256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotCleanControl):
     """Matched C256 scan+AOT MHA with the corrected optimizer WD mask."""
-    # 50784e0; UE5a scan+AOT ~0.906 steps/s (10-14); clean BAM/MHA throughput ~71.9%.
+    # 50784e0; UE5a scan+AOT ~0.906 steps/s; completed 13,500 (final checkpoint 13,500).
+    # vs Llama2Medium: +.08486 @200 -> +.00094 mean @12400-13400;
+    # large early deficit mostly vanished, leaving ~+.001 late; clean BAM/MHA throughput ~71.9%.
     model_name = 'BamMHALlama2MediumC256ScanAotCleanControl'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 24

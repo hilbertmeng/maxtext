@@ -9,8 +9,9 @@
    write projections, or MLP? Do multiple consumers substitute for one another?
 3. At the **same layer and positions**, do row-self and row-cross have the same
    consumers and required lifetime? L10-self cannot answer this comparison.
-4. After cross-token transport, where do later M/BAM-col consumers need it?
-   Component-level patching alone does not identify this token lineage.
+4. Which same-origin consumers preserve useful information or compensate local
+   harm? Follow only the original position; downstream receiver-position
+   consumption after cross-token export is outside this round's scope.
 5. Could normal forward computation selectively deliver row information to those
    consumers without carrying its harmful direct residual contribution forever?
    The failed Medium RowRelay retained the original residual and added total row
@@ -67,8 +68,8 @@ distinguish these possibilities; total loss alone cannot label its mechanism.
   hashes, config/checkpoint/runtime commit and elapsed time; no activation vectors.
 - Report same-sequence mean Δloss with paired uncertainty. All-origin intervention
   does not separate source versus receiver loss: positions have both roles.
-- Separate diagonal/off-diagonal V edges and joint source-MLP/V consumers first;
-  then design all-position route controls for later M/col receivers. Use references
+- Separate diagonal/off-diagonal V edges and joint source-MLP/V consumers at the
+  original position. Existing receiver-side controls are supplemental only. Use references
   from the identified upstream intervention, not unrelated whole-sequence
   ablations. Preserve the distinction between source-local compensation and
   transported benefit; do not silently equate necessity with useful transport.
@@ -76,6 +77,13 @@ distinguish these possibilities; total loss alone cannot label its mechanism.
   normal-forward mechanism. Keep healthy diagnostic TPUs for follow-up.
 
 ## All-token own/earlier-origin counterfactuals
+
+Scope update (user, 2026-09-06): this round follows consumers of the original
+row increment at its **source position** and how long that position needs it.
+V-cross export is a boundary event; tracing M/col/row/MLP consumption after it
+arrives at another position is outside scope. Retain completed conditional
+export results with that limitation, and defer the foreign-position worlds
+below. Do not launch further receiver-side descendant sweeps.
 
 The collective input-denial results do not themselves resolve question 1's loss
 location. Add a causal diagonal-world construction, not point-origin sampling.

@@ -4,15 +4,18 @@
 
 The main XL L11 cross/self/whole-row consumer, lifetime, and downstream
 mediation sweeps are complete on the fixed 128 sequences and all valid origins.
-The study is **not closed**: final self controls and all-token own/earlier-origin
-counterfactuals remain; the Medium L8 delivery comparison stopped at 94/128 after a nonzero
-immediate-cut/deletion check and is not accepted as a completed result.
+Medium L8 delivery now also passes all endpoint checks on all 128 sequences.
+The user narrowed the remaining scope to consumers at the **original position**:
+V-cross is the export boundary, not permission to follow later receiver-position
+M/col/row/MLP chains. Those completed sweeps remain supplemental evidence, not
+an unfinished requirement. Foreign-position counterfactual development is deferred.
 
 - L11 is exceptional in **whole-row net necessity**, not only negative direct
   row-cross IG. Self and cross interact strongly; their deletion costs cannot
   be added.
 - L12–15 cross-token V is an important first hop. Later standard MHA and
-  BAM-col jointly realize much of that hop's benefit. For the isolated L12
+  BAM-col jointly realize much of that hop's benefit (outside the newly narrowed
+  main scope). For the isolated L12
   cross-V intervention, descendants cannot causally return to the source token.
 - MLP is not dispensable: source-MLP responses also feed cross-token V, and
   retaining V alone fails the normal-forward-compatible delivery test.
@@ -596,7 +599,13 @@ uses the model/checkpoint/cohort specified above.
 
 Runtime `f9091ec6ddb344024e9666ad440b8381c132ed01` adds
 `BAM_DELIVERY_CONTROL_ONLY=1` (all/none policies only, unchanged forward) for
-the numerical-floor controls. Medium L8/whole uses `BamLlama2MediumV2`, checkpoint
+the numerical-floor controls. Cross/self/whole controls now each cover all 128
+sequences. Self's none-minus-delete at cutoffs L12/13/15/17 is
++.000019/−.000006/−.000075/−.000018, below the selective-delivery penalties.
+The self resume prefix is
+`bam-row-mediation-xl-L11-delivery-controls-resume-f9091ec-rowself`;
+analysis `row-delivery-controls-self-analysis.json`.
+Medium L8/whole uses `BamLlama2MediumV2`, checkpoint
 13250, trainer `1afd942`, the same cohort, batch 2/non-scan. Its selective sweep
 failed the immediate-cut check at batch offset 94 (token-loss max .125); its
 94 completed examples are retained for audit, not used as a full Medium/XL
@@ -610,10 +619,31 @@ reconstruction. The MLP output then differs in two coordinates (max .0004883),
 and one sequence's mean loss differs by .0008876. Source/M scope and unused/zero
 controls are exact. This is float32 subtraction losing a tiny coordinate, not
 evidence that the selected path failed to be removed. A compensated TwoDiff
-representation retains high/low parts of the source increment; the updated
-probe will rerun the endpoint and full cohort with exact checks. CPU tests
+representation retains high/low parts of the source increment; runtime
+`6d5b71df090531cbed857486151f8699d50702ef`, with
+`BAM_CONSUMER_COMPENSATED=1`, completed all 128 sequences with exact endpoint
+checks. CPU tests
 verify reconstruction across 1024 bf16 pairs spanning widely different scales.
 Raw audit: `bam-row-mediation-medium-L8-delivery-audit94-cfb7716-rowboth/audit.json`.
+
+Accepted Medium whole-row deletion costs +.017323. Retaining the original
+increment through L14 yields the following losses versus clean:
+
+| Same-origin consumers allowed access | Medium L8 whole row, cut after L14 |
+|---|---:|
+| All | +.001943 |
+| V-cross only | +.014530 |
+| V-cross + MLP | +.005811 |
+| V-cross + MLP + LocalQK | +.005476 |
+| MHA Q/K/V + MLP | +.004135 |
+
+Thus the Medium control also rejects V-only selective delivery as a sufficient
+replacement. MLP helps substantially, but none of these selective policies
+beats unrestricted access at the same cutoff. This measures downstream loss
+after **original-position** input restrictions, not an attribution to receiver
+components. Raw prefix:
+`bam-row-mediation-medium-L8-delivery-compensated-6d5b71d-rowboth`;
+local analysis `row-delivery-medium-both-analysis.json`.
 
 #### Historical SoftmaxMix/RmsMix is not a matched diagonal-one comparison
 

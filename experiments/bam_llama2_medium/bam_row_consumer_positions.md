@@ -251,18 +251,17 @@ accepted for this question. Retain its artifacts for audit, do not rerun or exte
 point sampling. The V split is an edge-specific intervention with unchanged alpha,
 but it does not by itself locate which later M/col receivers redeem the benefit.
 
-## Next discriminating checks
+## Interpretation boundary
 
-1. Test whether the measured self/cross opposition is a difference-reading
-   mechanism, using token-level coefficient/geometry comparisons with neighboring
-   XL layers and Medium, not a coefficient mean alone.
-2. Locate downstream M/col receivers of the specifically isolated early V-cross
-   response; distinguish this from the old whole-row-deletion donor trajectory.
-3. Resolve same-position compensation versus cross-position benefit using
-   route-specific controls covering all valid source positions. All-origin loss
-   alone cannot provide that decomposition; do not substitute sparse source
-   sampling or label a necessary component as beneficial transport without this
-   distinction. The present broad result has not resolved later M/col token lineage.
+The geometry and original-position consumer/lifetime sweeps below are complete.
+The expanded receiver-side mediation was performed before the user narrowed the
+scope; keep it as supplemental evidence, not as a requirement to trace further.
+All-origin loss does not decompose own-position compensation and other-position
+benefit, so do not label a necessary local MLP as purely beneficial transport.
+Finite-lifetime selective delivery tests a realizable architectural direction
+without needing to claim such a decomposition. It has not improved checkpoint
+loss. The foreign-world runner remains an unvalidated numerical prototype, not
+support for a token-lineage claim and not a new pending receiver-side task.
 
 ## L8–14 context: direct harm versus whole-network necessity
 
@@ -585,7 +584,7 @@ the representation error from repeated bf16 `h-z`: at L12/13/15/17 their loss
 differences versus outright deletion are cross −.000048/+.000008/+.000068/+.000075,
 whole −.000065/−.000114/−.000115/−.000078. These are much smaller than the
 selective policies' .002–.012 penalties. The all-consumer cutoff means exactly
-match the previous sweep. Self controls remain in progress.
+match the previous sweep. Completed self controls are recorded below.
 
 Runtime `359b559923022700b357073a275b02ed9bfc5627`; launcher
 `BAM_MEDIATION_PHASE=delivery BAM_MEDIATION_SOURCE=11

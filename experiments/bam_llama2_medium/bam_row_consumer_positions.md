@@ -164,7 +164,7 @@ L12–13 (+.015341/+.038896), L12–14 (+.018361/+.044198), L12–15
 Jointly denying MLP does **not** simply add its isolated harm to V denial.
 Analysis: `/data0/xd/bam_diagnostics/row-consumer-interactions-analysis.json`.
 
-### MLP response → same/other-position export (running)
+### MLP response → same/other-position export
 
 Runtime `2be0d92e5dc0ebc3a70504c6b6a8689779257970`, script
 [row_mlp_export.py](row_mlp_export.py), same model/checkpoint/cohort. First deny
@@ -195,6 +195,24 @@ bash experiments/bam_llama2_medium/run_row_mediation.sh xl
 Repeat `self` and `both`. Artifact prefixes:
 `bam-row-mediation-xl-L11-mlp_export-all-2be0d92` and `-rowself`/`-rowboth`.
 
+All three completed 128 sequences and passed every exact control. Same-batch
+Δloss, with sequence-level 95% CI half-width:
+
+| Denial | Cross source | Self source | Entire-row source |
+|---|---:|---:|---:|
+| Original row input to L11 MLP | +.007353 ± .000884 | +.032167 ± .003608 | +.003503 ± .000443 |
+| MLP response to L12–15 V-self | +.000072 ± .000127 | +.000261 ± .000165 | −.000009 ± .000133 |
+| MLP response to L12–15 V-cross | +.004732 ± .000647 | +.023490 ± .002841 | +.002054 ± .000352 |
+| MLP response to L12–15 MLP | +.003819 ± .001211 | +.008200 ± .001280 | +.001883 ± .000333 |
+| MLP response to both V-cross and MLP | +.005835 ± .000929 | +.019368 ± .002033 | +.002489 ± .000403 |
+
+The MLP is **not only repairing local harm**: its response is needed on strictly
+off-diagonal V edges. Conversely, separate self/cross numbers overstate what can
+be assigned to the whole row: its source-MLP dependence is only +.003503, compared
+with +.021792 for deleting the entire row. Conditional effects are not additive
+contribution fractions. These results refine, rather than replace, the direct
+L12–15 V consumer result.
+
 ### Retired point-source experiment: not a basis for token-lineage conclusions
 
 For one fixed random origin per sequence, deleting cross gives summed token
@@ -209,11 +227,11 @@ but it does not by itself locate which later M/col receivers redeem the benefit.
 
 ## Next discriminating checks
 
-1. Complete L8–14 whole-network deletion ranking alongside direct IG (L8/9 gap;
-   repeat L11 as an anchor). This tells whether L11 is an exceptional trade-off.
-2. Separate source-MLP and L12–15 cross-V interactions, rather than adding their
-   isolated effects. Validate V edge arithmetic endpoints before interpreting
-   sub-milliloss effects.
+1. Test whether the measured self/cross opposition is a difference-reading
+   mechanism, using token-level coefficient/geometry comparisons with neighboring
+   XL layers and Medium, not a coefficient mean alone.
+2. Locate downstream M/col receivers of the specifically isolated early V-cross
+   response; distinguish this from the old whole-row-deletion donor trajectory.
 3. Resolve same-position compensation versus cross-position benefit using
    route-specific controls covering all valid source positions. All-origin loss
    alone cannot provide that decomposition; do not substitute sparse source
@@ -279,8 +297,88 @@ after self has already been removed improves loss **−.046620**. Removing both 
 far less harmful than removing self alone. This is strong conditional dependence,
 not independent self/cross contribution. Geometric cancellation, local
 compensation and downstream cooperation remain distinct candidate explanations;
-the table alone does not select one. Joint source-consumer probes and source
-geometry are being checked to distinguish them.
+the table alone does not select one. The following geometric and consumer probes
+further constrain these explanations.
+
+### L11 signed routing and self/cross opposition
+
+Write `q_t = 1 + sum_{s != t} alpha_ts`. Algebraically,
+
+```math
+\bar M_t=q_t M_t+\sum_{s\ne t}\alpha_{ts}(M_s-M_t).
+```
+
+A position-independent common matrix is multiplied by `q_t`; small `q_t` permits
+common-component rejection. It does not establish that the suppressed component
+is noise, nor that the remaining difference is beneficial by itself.
+
+128 sequences, all valid token positions, runtime
+`85dca29786eaaea8bc4b88fbd9ef6b20354f3d8f` on
+`xd-v6e-rowcons-path-ue5a` / `us-east5-a`:
+
+| Statistic | Result |
+|---|---:|
+| Mean `q_t` | −.040015 ± .006991 |
+| Fraction `abs(q_t) < .10` / `< .25` | 36.69% / 76.73% |
+| Fraction `q_t < 0` | 62.83% |
+| Token `q_t` p05 / p50 / p95 | −.3668 / −.06235 / +.3578 |
+| Mean residual-space self/cross cosine | −.85113 ± .00726 |
+| Fraction with negative cosine | 99.49% |
+| Token cosine p05 / p50 / p95 | −.98244 / −.89716 / −.56878 |
+| Mean `norm(row) / (norm(self)+norm(cross))` | .38913 ± .01147 |
+| Mean self / cross / entire-row residual norm | 16.3779 / 10.3008 / 8.7599 |
+
+Each reported mean/fraction first averages valid tokens within a sequence, then
+averages the 128 sequences. Quantiles pool valid tokens. Geometry uses actual
+clean-minus-deletion post-attention residual increments (including W_O and bf16
+addition), not private head coordinates. Their additive-closure discrepancy is
+1.48% of `norm(self)+norm(cross)`; treat that as numerical granularity, not a new
+path. Clean and whole-row deletion token losses match the earlier `8c24ec3`
+neighbor sweep **exactly for every token**. All null/boundary/scope checks pass.
+
+Thus opposition is widespread, not merely a cancellation of averages. Coupled
+with the conditional deletion results, this supports useful **self-minus-context**
+reading as a candidate mechanism. It does not justify labelling negative alpha
+as interference or clipping it to zero. Medium L8 also has a small mean total
+coefficient (+.10057), despite positive direct row-cross IG: difference reading
+alone cannot explain the sign of direct attribution.
+
+Whole-row original-input denial gives +.011063 ± .000894 for joint L12–15
+V-cross, versus +.000039 ± .000148 for V-self; source L11 MLP gives
++.003503 ± .000443. The combined self/cross response, not only either isolated
+large component, therefore has a needed cross-position export.
+
+Scripts: [probe](row_consumer_positions.py),
+[geometry analyzer](analyze_row_route_geometry.py),
+[consumer analyzer](analyze_row_consumers.py). Use the consumer launch above with
+`BAM_MEDIATION_COMPONENT=both BAM_CONSUMER_ALPHA_GEOMETRY=1`
+`BAM_CONSUMER_ARM_SET=interactions BAM_MEDIATION_LABEL=alpha-geometry` and the
+runtime hash above. Raw prefix:
+`bam-row-mediation-xl-L11-consumers-alpha-geometry-85dca29-rowboth/` under both
+the local and GCS diagnostic roots. Local analyses:
+`row-route-geometry-xl11-analysis.json`, `row-consumer-both-geometry-analysis.json`.
+The raw files retain per-token scalar coefficients/geometry and per-arm losses,
+not activation vectors.
+
+#### Historical SoftmaxMix/RmsMix is not a matched diagonal-one comparison
+
+`BamLlama2MediumRmsGateOnlyDynamicMixFull1` and
+`BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1` both retain `local_o`, zero the
+fetch diagonal, and use **independent** `W_R`/`W_R_gate` and
+`W_Ro`/`W_Ro_gate`. They inherit `bam_share_full_local_read=False`,
+`bam_combine_full_local_read=False`, `bam_keep_fetch_diagonal=False`, and
+`bam_fetch_diagonal_one=False`. Historical implementation verified in commit
+`346bb35`, `MaxText/layers/attentions.py`: mixture/masking 1751–1768,
+separate projections 1998–2008 and 2069–2080, routing/read 2280–2368.
+
+Their sum is `Read(cross M, r_fetch) + Read(local M, r_local)`, not
+`Read(cross M + local M, r_fetch)`. Only the later shared-key/shared-gate variant
+admits the latter equivalence. The reported −.0006 RmsMix/SoftmaxMix difference
+at 6200 steps therefore does **not** establish that signed mixing is dispensable
+under today's diagonal-one/shared-read architecture. Mixture normalization and
+initialization also differ in the old pair (softmax/zero vs unit-L2/regular).
+The old registries contain comparisons but no sealed runtime hash; `346bb35`
+is the checked-in historical implementation, not a newly inferred launch hash.
 
 Raw: `/data0/xd/bam_diagnostics/bam-row-mediation-xl-L11-neighbors-interactions-8c24ec3-rowself/`
 (the suffix identifies the worker pipeline, **not** a self-only measurement).

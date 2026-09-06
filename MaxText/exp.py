@@ -1209,6 +1209,7 @@ class BamLlama2MediumV2C256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotContr
 
 class BamLlama2MediumV2C256ScanAotBamOnlyWDControl(BamLlama2MediumV2C256ScanAotCleanControl):
     """Exempt only V2 BAM biases; retain decay on standard Transformer RMS scales."""
+    # code_commit: 66f1dcc; UE5a ~0.650 steps/s (-0.2% vs Clean), steps 10-14.
     model_name = 'BamLlama2MediumV2C256ScanAotBamOnlyWDControl'
     wd_mults = [(r'.*/self_attention/(P_loc_up/bias|gw_b0|W_l[qk]_bias|'
                  r'W_l[qk]_gate_b0|W_R_gate_b0)$', 0.)]

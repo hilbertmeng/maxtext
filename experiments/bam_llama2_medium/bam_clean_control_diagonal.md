@@ -63,6 +63,11 @@ closer to old Control than Clean (final ~0 to +.002 vs old Control), with
 essentially unchanged ~.65 steps/s. The explicit parameter-mask regression also
 checks non-BAM biases remain decayed. It keeps the corrected AOT optimizer,
 scan, 13,500-step schedule, 200-step checkpoints and identical health capture.
+Launch verified on UE5a `xd-v5p-16-bam-only-wd`: `Loaded compiled function!`,
+FIRST_STEP, and steps 10-14 `.650/.649/.651/.650/.650` (mean .650 steps/s,
+~-.2% vs Clean). UC1a v6e prepared the 179,504,610-byte AOT artifact; all three
+compiler candidates were released by `prepare_train_aot.py` after verification.
+Local validation passed 55 BAM tests and 3 optimizer-contract tests.
 
 The Gate050 arm uses the existing fixed amplitude path: `a=.2*sqrt(8)`,
 so `a/sqrt(C)=.2` and initial scale×gate remains `.01` on both fetched-read sides.

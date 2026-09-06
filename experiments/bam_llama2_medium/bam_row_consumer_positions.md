@@ -414,6 +414,27 @@ reference vectors. This is conditional component mediation: it distinguishes
 the first hop's same/other-position edge but does not assign multi-hop effects
 to individual origins or turn nonlinear restoration effects into additive shares.
 
+For the isolated first hop there is also a structural position guarantee:
+causal V-cross carries source position `s` only to `t>s`. Every later attention
+or BAM fetch is causal and every M write/MLP is token-local, so its descendants
+cannot return to `s`. A mediated benefit downstream of this isolated hop is
+therefore a later-position benefit, not repair of that source position's own
+loss. This does not assign nonlinear effects to individual sources when all
+origins are perturbed together, and does not cover row paths bypassing that hop.
+
+Runtime `cfa5251` was rejected before collecting intervention results: seed/self
+replacement failed numerical endpoint checks. Runtime
+`a0177c77890e51e6710e62851d81a6d339cad05f` instantiates only the full-read/M/MLP
+patch recipients and materializes their bf16 boundaries in both donor worlds.
+All seven within-graph checks then pass exactly. Unlike the earlier geometry
+sweep, this graph is not bitwise identical to the historical neighbor sweep;
+[analyze_row_v_export.py](analyze_row_v_export.py) quantifies clean/deleted
+tokenwise and mean-loss drift against that anchor separately. Do not interpret
+small cross-run differences as mediation effects. References remain on device.
+The two active arms use UC1a (whole row) and UE5a (cross), the same cohort,
+checkpoint, and runtime. Their raw prefixes are
+`bam-row-mediation-xl-L11-v_export-L12-a0177c7{,-rowboth}/`.
+
 #### Historical SoftmaxMix/RmsMix is not a matched diagonal-one comparison
 
 `BamLlama2MediumRmsGateOnlyDynamicMixFull1` and

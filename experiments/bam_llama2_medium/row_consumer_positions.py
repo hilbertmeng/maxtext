@@ -165,7 +165,7 @@ def run(config):
   source_mode = os.environ.get('BAM_CONSUMER_SOURCE_MODE', 'all')
   if source_mode != 'all':
     raise ValueError('Consumer probes cover all valid source positions; sparse point sampling is retired.')
-  if component not in ('self', 'cross'):
+  if component not in ('self', 'cross', 'both'):
     raise ValueError(component)
   matrix = arms(source)
   output = Path(os.environ['BAM_MEDIATION_OUTPUT'])
@@ -185,6 +185,7 @@ def run(config):
   clean_s = jnp.ones((24,3), jnp.float32)
   deleted_s = (clean_s.at[source,2].set(0) if component == 'self'
                else clean_s.at[source,:2].set(0))
+  if component == 'both':deleted_s=clean_s.at[source].set(0)
   c0 = jnp.zeros((24,len(ROW_CONSUMER_NAMES)), jnp.float32)
   meta = dict(base_config_class=base._BASE_CONFIG_CLASS, checkpoint=config.load_parameters_path,
       diagnostic_commit=os.environ['DIAGNOSTIC_COMMIT'], trainer_commit=base._TRAINER_COMMIT,
@@ -197,6 +198,9 @@ def run(config):
       batch_size=bs, requested_sequences=n, bins=BINS, controls=ROW_CONSUMER_NAMES,
       arms=[dict(a,control=a['control'].tolist()) for a in matrix],
       setup_seconds=time.perf_counter()-start)
+  geometry_names=['self_norm','cross_norm','both_norm','self_cross_cosine',
+      'cosine_negative_fraction','both_over_self_plus_cross_norm','additive_closure_relative']
+  if component=='both':meta['source_geometry_columns']=geometry_names
   if source_mode=='all':
     meta['positions']=None
     meta['position_rule']='all valid origins; no origin/future loss partition'
@@ -217,6 +221,18 @@ def run(config):
       clean = infer(state.params,batch,rng,clean_s,mask,c0,z0)
       deleted = infer(state.params,batch,rng,deleted_s,mask,c0,z0)
       z = clean[2].astype(jnp.float32) - deleted[2].astype(jnp.float32)
+      geometry={}
+      if component=='both':
+        self_ref=infer(state.params,batch,rng,clean_s.at[source,2].set(0),mask,c0,z0)
+        cross_ref=infer(state.params,batch,rng,clean_s.at[source,:2].set(0),mask,c0,z0)
+        zs=clean[2].astype(jnp.float32)-self_ref[2].astype(jnp.float32)
+        zc=clean[2].astype(jnp.float32)-cross_ref[2].astype(jnp.float32)
+        ns,nc,nb=[jnp.linalg.norm(x,axis=-1) for x in (zs,zc,z)]
+        cosine=jnp.sum(zs*zc,-1)/jnp.maximum(ns*nc,1e-12)
+        terms=jnp.stack([ns,nc,nb,cosine,(cosine<0).astype(jnp.float32),
+            nb/jnp.maximum(ns+nc,1e-12),
+            jnp.linalg.norm(z-zs-zc,axis=-1)/jnp.maximum(ns+nc,1e-12)],axis=-1)
+        geometry['source_geometry']=np.asarray(base._sequence_mean(terms,mask))
       outside = float(jnp.max(jnp.where(mask[...,None],0,abs(z))))
       source_m_error = float(jnp.max(abs(clean[3]-deleted[3])))
       if outside != 0 or source_m_error != 0:
@@ -289,7 +305,7 @@ def run(config):
         null_max_error=null_error,past_max_error=past_error,
         unused_reference_error=unused_error,immediate_cut_error=cut_error,
         source_z_norm=np.asarray(jnp.sqrt(jnp.sum(z*z,axis=(1,2)))),
-        sequence_hashes=cohort['sequence_hashes'][offset:offset+bs])
+        sequence_hashes=cohort['sequence_hashes'][offset:offset+bs],**geometry)
     meta['elapsed_seconds'] = time.perf_counter()-start
     aggregate(output,meta)
     print(f'CONSUMERS_BATCH {offset+bs}/{n} seconds={time.perf_counter()-batch_start:.2f} '

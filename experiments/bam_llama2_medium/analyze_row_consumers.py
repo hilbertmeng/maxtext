@@ -60,7 +60,7 @@ def summarize(roots):
   for i,(m,r) in enumerate(loaded):
     for j,(m2,r2) in enumerate(loaded[:i]):
       if m['checkpoint']!=m2['checkpoint'] or m['source_layer']!=m2['source_layer']:continue
-      if m['source_component']==m2['source_component']:continue
+      if {m['source_component'],m2['source_component']}!={'self','cross'}:continue
       if m.get('source_mode','point')!=m2.get('source_mode','point'):continue
       if m['arms']!=m2['arms'] or m['cohort_sha256']!=m2['cohort_sha256']:
         raise ValueError('unmatched self/cross experiments')

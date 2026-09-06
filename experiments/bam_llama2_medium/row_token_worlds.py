@@ -25,8 +25,14 @@ base = med.base
 med.REF_NAMES += ['fetch_state', 'fetched_matrix', 'foreign_fetch_gap', 'foreign_input_gap']
 
 
-def variables_for(params, scales, refs, enabled, scanned):
-  tree = traverse_util.flatten_dict(med.source_controls(params, scales, scanned))
+def variables_for(params, scales, refs, enabled, scanned, consumer=None):
+  if consumer is None:
+    controls = med.source_controls(params, scales, scanned)
+  else:
+    from row_consumer_positions import intervention_tree
+    mask, c, z = consumer
+    controls = intervention_tree(params, scales, mask, c, z, scanned)
+  tree = traverse_util.flatten_dict(controls)
   for attn in [p[:-1] for p in tree if p[-1] == 'row_sign_scales']:
     layer = base._layer_from_path(attn)
     take = lambda x: x if scanned else x[layer]
@@ -37,8 +43,8 @@ def variables_for(params, scales, refs, enabled, scanned):
   return dict(params, causal_ablation=traverse_util.unflatten_dict(tree))
 
 
-def forward(model, params, batch, rng, config, scales, refs, enabled):
-  variables = variables_for(params, scales, refs, enabled, config.scan_layers)
+def forward(model, params, batch, rng, config, scales, refs, enabled, consumer=None):
+  variables = variables_for(params, scales, refs, enabled, config.scan_layers, consumer)
   r1, r2 = jax.random.split(rng)
   (tokens, _, _), captured = model.apply(variables, batch['inputs'],
       batch['inputs_position'], decoder_segment_ids=batch['inputs_segmentation'],

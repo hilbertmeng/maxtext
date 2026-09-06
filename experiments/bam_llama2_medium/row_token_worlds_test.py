@@ -4,10 +4,29 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from layers.attentions import (_attention_op, _bam_fetch_op,
-    _split_row_difference, _subtract_row_increment)
+    _split_row_difference, _subtract_row_increment, _row_consumer_value_edges)
 
 
 class TokenWorldTest(unittest.TestCase):
+  def test_own_world_value_consumers_match_each_origin(self):
+    rng = np.random.default_rng(19)
+    value = jnp.asarray(rng.normal(size=(1,5,2,3)), jnp.float32)
+    reference = value + .2
+    alpha = jnp.asarray(rng.uniform(size=(1,2,5,5)), jnp.float32)
+    alpha *= jnp.tril(jnp.ones((5,5)))[None,None]
+    y = jnp.einsum('bnts,bsnd->btnd', alpha, value)
+    diagonal = jnp.eye(5, dtype=bool)
+    for self_scale, cross_scale in [(0,1),(1,0),(1,1)]:
+      actual = _row_consumer_value_edges(y,alpha,value,reference,diagonal,
+          self_scale,cross_scale,foreign_prefix=True)
+      for origin in range(5):
+        one_ref = value.at[:,origin].set(reference[:,origin])
+        exhaustive = _row_consumer_value_edges(y,alpha,value,one_ref,diagonal,
+            self_scale,cross_scale)
+        np.testing.assert_array_equal(actual[:,origin],exhaustive[:,origin])
+      if not self_scale:
+        np.testing.assert_array_equal(actual,y)
+
   def test_compensated_difference(self):
     rng=np.random.default_rng(2)
     a=jnp.asarray(rng.choice([-1,1],1024)*np.exp2(rng.uniform(-35,15,1024)),jnp.bfloat16)

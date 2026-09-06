@@ -1843,8 +1843,12 @@ def _subtract_row_increment(x, high, low=None, scale=1):
   return (remainder-correction).astype(x.dtype)
 
 
-def _row_consumer_value_edges(y, alpha, value, reference, diagonal, self_scale, cross_scale):
+def _row_consumer_value_edges(y, alpha, value, reference, diagonal, self_scale, cross_scale,
+                              foreign_prefix=False):
   """Deny a point-source increment on selected V edges, with an exact null."""
+  # In own-origin worlds earlier V belongs to an unchanged donor prefix. An
+  # intervention at t can modify t's diagonal V edge, never earlier sources.
+  cross_scale = jnp.where(foreign_prefix, 0, cross_scale)
   delta = reference.astype(jnp.float32) - value.astype(jnp.float32)
   weights = alpha.astype(jnp.float32) * jnp.where(
       diagonal[None, None], self_scale, cross_scale)
@@ -3531,7 +3535,9 @@ class BamAttention(Attention):
       y_std = _row_consumer_value_edges(
           y_std, mha_alpha, value, consumer_value, source == target,
           c[ROW_CONSUMER_NAMES.index('v_self')],
-          c[ROW_CONSUMER_NAMES.index('v_cross')])
+          c[ROW_CONSUMER_NAMES.index('v_cross')],
+          foreign_prefix=(enabled[1] if self.has_variable(
+              'causal_ablation', 'row_foreign_enabled') else False))
     Mbar = Mbar_self = fetch_self_weight = row_probe = None
     if fetch_state is not None:
       assert mix_weights is not None

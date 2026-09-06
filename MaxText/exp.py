@@ -1214,6 +1214,15 @@ class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanA
     bam_fetch_diagonal_one = False
 
 
+class BamMHALlama2MediumC256ScanAotCleanControl(BamLlama2MediumV2C256ScanAotCleanControl):
+    """Matched C256 scan+AOT MHA with the corrected optimizer WD mask."""
+    model_name = 'BamMHALlama2MediumC256ScanAotCleanControl'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 24
+    bam_record_fetched_read_health_metrics = False
+    force_final_checkpoint = True
+
+
 class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(
     BamLlama2MediumV2C256ScanAotControl
 ):

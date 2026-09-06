@@ -1,5 +1,6 @@
 """Audit all-origin own-loss probes; retain conditional, non-additive semantics."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from analyze_row_mediation import stats
 def analyze(root):
   root = Path(root)
   meta = json.loads((root / 'summary.json').read_text())
+  if hashlib.sha256((root / 'cohort.npz').read_bytes()).hexdigest() != meta['cohort_sha256']:
+    raise ValueError('cohort file checksum mismatch')
   names = meta['arms']
   losses, hashes = [], []
   for path in sorted(root.glob('batch_*.npz')):
@@ -39,6 +42,8 @@ def analyze(root):
       ('clean', 'all_origins_deleted', 'own_origin_only_deleted'))
   return dict(metadata=meta, exact_controls=True, n=len(a),
       collective_deletion=stats(joint-clean), own_origin_deletion=stats(own-clean),
+      own_consumers={name:stats(a[:,index]-clean) for index,name in enumerate(names)
+          if name.startswith(('deny_', 'joint_', 'cut_'))},
       interpretation=('Own-origin deletion measures that origin prediction only. '
           'Collective minus own is conditional on own deletion, not an additive '
           'fraction of transported benefit; receiver consumers are outside scope.'))

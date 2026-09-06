@@ -295,6 +295,26 @@ therefore not solely a receiver-position phenomenon. Do not divide own by
 collective effects and call the ratio an additive transported-benefit fraction.
 Which same-origin consumers account for this interaction still needs measurement.
 
+The follow-up is running with diagnostic runtime `968f84c`:
+[own-consumer probe](row_own_consumers.py), reusing the validated causal worlds.
+It freezes foreign prefixes, screens original-position L11 MLP and joint
+L12–15 Q/K, V-self, LocalQK, mix, fetched read, write, and MLP consumers, then
+measures residual cuts through L22. Cross/self/whole are separate 128-sequence
+jobs on the same cohort/checkpoint. V-cross denial is an exact null endpoint
+in this own-origin world, not an additional path to recipients. Seven exact
+controls precede each sample's intervention arms. Per-layer consumer localization
+is available with `BAM_OWN_CONSUMER_SET=individual`; the default joint screen
+does not substitute for that localization. Necessity at the original position
+must still be interpreted as useful computation **or** compensation, not
+automatically useful export.
+
+Launch with `BAM_MEDIATION_PHASE=own_consumers BAM_MEDIATION_LABEL=joint
+BAM_CONSUMER_BARRIER=1 BAM_MEDIATION_COMPONENT=cross|self|both` and the existing
+XL launcher. GCS prefixes are
+`bam-row-mediation-xl-L11-own_consumers-joint-968f84c`, with `-rowself`/`-rowboth`;
+analyze with [the audited scalar/token-loss analyzer](analyze_row_token_worlds.py).
+Results remain pending; no consumer ranking is inferred from a submitted job.
+
 Numerical audit: full-T donor compression (`ae57335`) did not fix self-reference
 drift. Instrumentation (`943cad3`) proved donor and live raw/compressed M identical
 at L12; the first difference was fetched M. Explicit bf16 cache/fetch rounding

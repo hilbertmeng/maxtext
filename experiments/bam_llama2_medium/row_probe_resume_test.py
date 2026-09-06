@@ -48,6 +48,16 @@ class ResumeTest(unittest.TestCase):
       with self.subTest(key=key), self.assertRaises(ValueError):
         resume_batches(self.path, self.meta, self.cohort)
 
+  def test_own_world_metadata_without_export_fields(self):
+    meta = dict(self.meta)
+    del meta['early_v_cross_layers']
+    save_summary(self.path / 'summary.json', meta)
+    self.assertEqual(list(resume_batches(self.path, meta, self.cohort)), [0])
+    with self.assertRaises(ValueError):
+      resume_batches(self.path, dict(meta, early_v_cross_layers=[]), self.cohort)
+    with self.assertRaises(ValueError):
+      resume_batches(self.path, dict(meta, controls={'clean': [0]}), self.cohort)
+
 
 if __name__ == '__main__':
   unittest.main()

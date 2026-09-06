@@ -19,7 +19,10 @@ def resume_batches(output, metadata, cohort, previous_commit=None):
   for key in ('base_config_class', 'checkpoint', 'trainer_commit', 'cohort_sha256',
               'source_layer', 'source_component', 'source_positions',
               'early_v_cross_layers', 'batch_size', 'requested_sequences', 'arms', 'checks'):
-    if old[key] != metadata[key]:
+    if (key in old) != (key in metadata) or old.get(key) != metadata.get(key):
+      raise ValueError(f'incompatible resume metadata: {key}')
+  for key in ('controls', 'arm_set', 'own_only'):
+    if (key in old) != (key in metadata) or old.get(key) != metadata.get(key):
       raise ValueError(f'incompatible resume metadata: {key}')
   saved = {}
   size = metadata['batch_size']

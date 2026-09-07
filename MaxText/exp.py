@@ -1288,6 +1288,122 @@ class BamLlama2MediumV2C256ScanAotCleanMixScaleOnly(BamLlama2MediumV2C256ScanAot
     force_final_checkpoint = True
 
 
+# Ledger only: runtime is NOT implemented on this branch. Restore each code_commit below.
+# Source: codex/bam-alternating-local-fetch, /data0/xd/bam-alternating-local-fetch.
+# FullSharedReadScan is defined at 3210379; formal FIRST_STEP/speed pending.
+class BamLocalFetchBase(BamLlama2MediumV2C256ScanAotCleanControl):
+    """One 13,500-step executable for profiling and training; health metrics disabled."""
+    steps = 13500
+    enable_checkpointing = True
+    async_checkpointing = True
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    record_internal_nn_metrics = False
+    record_training_health_metrics = False
+    bam_pair_scan = False
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'none'
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_qk_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    scan_layers = False
+
+
+class BamLlama2MediumV2C256LocalFetchControlNonScan(BamLocalFetchBase):
+    # code_commit: a77952e; UE5a v5p-16 ~0.683 steps/s; XPlane 1450.4 ms; profile only.
+    model_name = 'BamLlama2MediumV2C256LocalFetchControlNonScan'
+
+
+class BamLlama2MediumV2C256LocalFetchControlScan(BamLlama2MediumV2C256LocalFetchControlNonScan):
+    # code_commit: a77952e; UE5a v5p-16 ~0.673 steps/s; XPlane 1478.6 ms; profile only.
+    model_name = 'BamLlama2MediumV2C256LocalFetchControlScan'
+    scan_layers = True
+    bam_pair_scan = False
+
+
+class BamLlama2MediumV2C256LocalFetchC8NonScan(BamLocalFetchBase):
+    # code_commit: a77952e; UE5a v5p-16 ~0.714 steps/s; XPlane 1389.2 ms; profile only.
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8NonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'none'
+
+
+class BamLlama2MediumV2C256LocalFetchC8Scan(BamLlama2MediumV2C256LocalFetchC8NonScan):
+    # code_commit: a77952e; UE5a v5p-16 ~0.705 steps/s; XPlane 1410.8 ms; profile (formal uses the same AOT).
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8Scan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchC8LocalVNonScan(BamLocalFetchBase):
+    # code_commit: a77952e; UE5a v5p-16 ~0.699 steps/s; XPlane 1418.2 ms; profile only.
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVNonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'rank2'
+
+
+class BamLlama2MediumV2C256LocalFetchC8LocalVScan(BamLlama2MediumV2C256LocalFetchC8LocalVNonScan):
+    # code_commit: a77952e; UE5a v5p-16 ~0.691 steps/s; XPlane 1440.0 ms; profile (formal uses the same AOT).
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVScan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchFullNonScan(BamLocalFetchBase):
+    # code_commit: a77952e; UE5a v5p-16 ~0.699 steps/s; XPlane 1419.0 ms; profile only.
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullNonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = False
+    bam_local_o_v_mode = 'none'
+
+
+class BamLlama2MediumV2C256LocalFetchFullScan(BamLlama2MediumV2C256LocalFetchFullNonScan):
+    # code_commit: a77952e; UE5a v5p-16 ~0.689 steps/s; XPlane 1444.1 ms; profile (formal uses the same AOT).
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullScan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchFullLocalVNonScan(BamLocalFetchBase):
+    # code_commit: a77952e; UE5a v5p-16 ~0.685 steps/s; XPlane 1448.3 ms; profile only.
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullLocalVNonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = False
+    bam_local_o_v_mode = 'rank2'
+
+
+class BamLlama2MediumV2C256LocalFetchFullLocalVScan(BamLlama2MediumV2C256LocalFetchFullLocalVNonScan):
+    # code_commit: a77952e; UE5a v5p-16 ~0.675 steps/s; XPlane 1473.7 ms; profile only.
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullLocalVScan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan(BamLocalFetchBase):
+    # code_commit: a77952e; UE5a v5p-16 ~0.707 steps/s; XPlane 1403.9 ms; profile only.
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'shared'
+
+
+class BamLlama2MediumV2C256LocalFetchC8SharedReadScan(BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan):
+    # code_commit: a77952e; UE5a v5p-16 ~0.699 steps/s; XPlane 1423.3 ms; profile (formal uses the same AOT).
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadScan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchFullSharedReadScan(BamLlama2MediumV2C256LocalFetchC8SharedReadScan):
+    """Full-M LocalO/LocalV share one read; measure speed during formal training."""
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullSharedReadScan'
+    bam_local_o_compress_v = False
+
+
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):
     """Keep the mixed alpha diagonal; no separate local-O read."""
     # 4cf1556; UE5a ~0.649 steps/s (-0.3% vs CleanControl); stopped 4,714.

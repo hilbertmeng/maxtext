@@ -88,6 +88,13 @@ fi
   git checkout --detach '$commit' && \
   test \"\$(git rev-parse HEAD)\" = \"\$(git rev-parse '$commit^{commit}')\"" </dev/null
 
+if [[ -n "$aot_root" ]]; then
+  "${gcloud_base[@]}" compute tpus tpu-vm ssh --internal-ip "$tpu" --zone="$zone" \
+    --project="$project" --worker=all --command="install -m 755 \
+    '$repo/.claude/skills/tpu-diagnostics/scripts/run_train_smoke_compiled.sh' \
+    '$compiled_smoke'" </dev/null
+fi
+
 aot_dir="/tmp/xd-profile-aot/${commit:0:7}-$label"
 if [[ -n "$aot_root" ]]; then
   for exp in "$@"; do

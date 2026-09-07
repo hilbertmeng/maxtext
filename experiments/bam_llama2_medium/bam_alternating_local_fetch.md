@@ -66,8 +66,8 @@ required. Diagnostic lifecycle is standalone; auto-train does not own or delete 
 
 AOT batch entry (on tpu-ag):
 `.claude/skills/tpu-diagnostics/scripts/prepare_local_fetch_aot.sh COMMIT`.
-`prepare_local_fetch_aot.py` reserves two concurrent configurations for each of the scan and
-non-scan queues. Existing preparers are adopted; a verified artifact frees its compile slot
+`prepare_local_fetch_aot.py --per-lane N` reserves independent scan/non-scan concurrency
+(this matrix uses four per lane). Existing preparers are adopted; a verified artifact frees its compile slot
 immediately while candidate cleanup continues. Each six-arm group emits `AOT_GROUP_READY`
 independently, so scan measurements can start while non-scan compilation continues.
 Each preparer retains its multi-zone candidates until its artifact verifies; logs/manifests persist.
@@ -75,3 +75,6 @@ The compiled smoke entry inherits checkpoint settings and enables XPlane explici
 On the installed standalone v5p-16, launch each ready group via tpu-ag's
 `profile_local_fetch_matrix.sh TPU ZONE COMMIT Scan|NonScan`; it fixes the 13,500-step
 schedule, trace window and zone-local output bucket before calling `run_profile_matrix.sh`.
+`run_local_fetch_pipeline.sh COMMIT TPU ZONE` waits for the verified scan group, requests and
+installs the standalone target, then measures scan while non-scan compilation continues.
+It measures non-scan on that same target when ready and retains it after the matrix completes.

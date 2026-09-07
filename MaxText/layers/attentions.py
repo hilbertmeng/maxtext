@@ -2554,6 +2554,7 @@ class BamAttention(Attention):
 
   layer_mode: str = 'none'      # per-layer read mode (each layer is a separate instance under non-scan)
   read_side: str = 'both'       # both | row (M^T r_row) | col (M r_col)
+  local_v_mode: str | None = None
   bam_k: int = 32
   bam_v: int = 32
 
@@ -2625,7 +2626,8 @@ class BamAttention(Attention):
     self._local_o = 'local_o' in self._mode
     self._output_read = 'full' in self._mode or self._local_o
     self._local_v_mode = (
-        getattr(cfg, 'bam_local_o_v_mode', 'none') if self._local_o else 'none')
+        (self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none'))
+        if self._local_o else 'none')
     assert self._local_v_mode in ('none', 'rank2', 'shared')
     self._local_v_rank_routing = getattr(cfg, 'bam_local_v_rank_routing', None) or 'legacy'
     assert self._local_v_rank_routing in ('legacy', 'shared_rank_gate')

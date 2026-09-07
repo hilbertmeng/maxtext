@@ -798,6 +798,9 @@ class Decoder(nn.Module):
           assert cfg.decoder_block == 'fusion' and cfg.bam_enabled
           assert cfg.bam_layer_modes == (
               ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
+          local_v_modes = getattr(cfg, 'bam_local_o_v_mode', 'none')
+          if isinstance(local_v_modes, list):
+            assert local_v_modes == local_v_modes[:block_size] * (scan_length // block_size)
           RemattedBlockLayer = fusion.BamLayerPair
           scan_length //= block_size
         swss = format_swss(sws_list)[:cfg.num_decoder_layers]

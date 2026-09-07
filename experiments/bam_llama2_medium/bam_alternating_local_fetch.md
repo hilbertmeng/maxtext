@@ -168,3 +168,14 @@ LLF versus Clean, means of the existing identical ±25-step/10-stride windows:
 Shared LLF enters a long plateau near 2.8k–3k; independent LLF continues narrowing
 until roughly 10k. At matched relative progress these correspond to about 11k and 37k
 of a 50k XL run, not a guarantee that stabilization transfers across scales.
+
+### LLLF shared–independent–shared LocalV
+
+`BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan` retains LLLF,
+but uses `bam_local_o_v_mode = ['shared', 'rank2', 'shared', 'none'] * 6`.
+Only the middle LocalV uses an independent rank-2 full-M read; its LocalO still uses C8.
+The other two LocalV branches reuse their compressed LocalO read. This tests whether sparse
+independent reads improve quality without paying for them at every local layer.
+Direct compare: `BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan`.
+Prediction: final gap -.0015 to 0, throughput -0.3–1%; no guaranteed gain.
+Same mainline, scan+AOT, health-off, 13,500 steps/checkpoint 200, preferred zone UE5a.

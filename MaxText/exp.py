@@ -1442,6 +1442,12 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan(BamLlama2MediumV2C256L
     bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
 
 
+class BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan(BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan):
+    """LLLF: shared, independent rank-2, shared LocalV; fetch unchanged."""
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan'
+    bam_local_o_v_mode = ['shared', 'rank2', 'shared', 'none'] * 6
+
+
 class BamLlama2MediumV2C256LocalFetchC8LocalVSharedRankGateScan(BamLlama2MediumV2C256LocalFetchC8LocalVScan):
     # code_commit: c74c8f6; UE5a v5p-16 ~0.692 steps/s @10-14; +0.1% vs C8LocalVScan.
     # Completed 13,500; vs LocalV: early -.0340 @200 decayed, with repeated late zero crossings;

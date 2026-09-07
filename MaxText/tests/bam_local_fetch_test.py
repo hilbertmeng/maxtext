@@ -115,11 +115,14 @@ class LocalFetchTest(absltest.TestCase):
 
   def test_llf_scan_has_two_independent_local_layers(self):
     for suffix, block_size in (('C8LocalVLLFScan', 3), ('C8SharedReadLLFScan', 3),
-                               ('C8SharedReadLLLFScan', 4)):
+                               ('C8SharedReadLLLFScan', 4),
+                               ('C8SharedIndependentSharedLLLFScan', 4)):
       cfg = self.config('BamLlama2MediumV2C256LocalFetch' + suffix)
       cfg.get_keys()['num_decoder_layers'] = block_size * 2
       cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']
       cfg.get_keys()['bam_layer_modes'] *= 2
+      if isinstance(cfg.bam_local_o_v_mode, list):
+        cfg.get_keys()['bam_local_o_v_mode'] = cfg.bam_local_o_v_mode[:block_size] * 2
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
       module = nn.scan(
           BamLayerPair, variable_axes={'params': cfg.param_scan_axis},
@@ -136,6 +139,11 @@ class LocalFetchTest(absltest.TestCase):
       (y, final_m), _ = module.apply(variables, *args)
       self.assertEqual(set(variables['params']),
                        {f'local_{i}' for i in range(block_size - 1)} | {f'fetch_{block_size - 1}'})
+      if suffix == 'C8SharedIndependentSharedLLLFScan':
+        for i in range(3):
+          attention = variables['params'][f'local_{i}']['block']['self_attention']
+          self.assertEqual('W_local_v_packed' in attention, i == 1)
+          self.assertEqual('W_lv_gate' in attention, i != 1)
       self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
       self.assertEqual(final_m.shape, m.shape)
       jaxpr = str(jax.make_jaxpr(lambda hh, mm: module.apply(

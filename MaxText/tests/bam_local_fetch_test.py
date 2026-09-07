@@ -5,12 +5,13 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from types import SimpleNamespace
 from flax import linen as nn
 from flax.linen import partitioning as nn_partitioning
 from flax.traverse_util import flatten_dict
 import max_utils
 import pyconfig
-from layers.attentions import BamAttention
+from layers.attentions import BamAttention, _transform_bam_read_key
 from layers.fusion import BamLayerPair
 import train
 import train_compile
@@ -108,6 +109,24 @@ class LocalFetchTest(absltest.TestCase):
         self.assertFalse(any('norm' in name or 'bam/' in name for name in metrics['scalar']))
         self.assertEqual(cfg.steps, 13500)
         self.assertEqual(cfg.checkpoint_period, 200)
+
+  def test_shared_output_gate_preserves_key_gate_scale(self):
+    m = jax.random.normal(jax.random.key(10), (1, 3, 32, 8))
+    row = jax.random.normal(jax.random.key(11), (1, 3, 2, 32))
+    col = jax.random.normal(jax.random.key(12), (1, 3, 2, 8))
+    logits = jax.random.normal(jax.random.key(13), (1, 3, 2, 2))
+    def read(mode):
+      r = _transform_bam_read_key(row, mode, 2., rms_epsilon=1e-4,
+                                 gate_logits=logits[..., :1])
+      c = _transform_bam_read_key(col, mode, 2., rms_epsilon=1e-4,
+                                 gate_logits=logits[..., 1:])
+      return jnp.pad(jnp.concatenate((jnp.einsum('btkv,btnv->btnk', m, c),
+                                     jnp.einsum('btkv,btnk->btnv', m, r)), -1),
+                     [(0, 0)] * 3 + [(0, 24)])
+    cfg = SimpleNamespace(bam_k=32, bam_v=32, _abs_v_dim=8, _read_key_scale=2.)
+    # Invoke the pure arithmetic with an attribute-only receiver.
+    got = BamAttention._gate_local_output.__wrapped__(cfg, read('rms'), logits)
+    np.testing.assert_allclose(got, read('rms_gate'), rtol=2e-5, atol=2e-5)
 
 
 if __name__ == '__main__':

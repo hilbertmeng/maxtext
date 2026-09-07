@@ -4207,7 +4207,7 @@ class BamAttention(Attention):
     """Gate [col/data, row/address] output coordinates independently."""
     col, row, tail = jnp.split(
         read, [self.bam_k, self.bam_k + (self._abs_v_dim or self.bam_v)], axis=-1)
-    gates = jax.nn.sigmoid(logits)
+    gates = self._read_key_scale * jax.nn.sigmoid(logits)
     return jnp.concatenate((col * gates[..., 1:2], row * gates[..., :1], tail), axis=-1)
 
   def _attention_block(

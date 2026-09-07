@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Keep branch pushes on the source branch, including HEAD and SHA refspecs."""
+import subprocess
+import sys
+
+
+def git(*args):
+    result = subprocess.run(["git", *args], capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def main():
+    current = git("symbolic-ref", "--quiet", "--short", "HEAD")
+    head = git("rev-parse", "HEAD")
+    protected = {"refactor-bam", "main", "master"}
+    errors = []
+    for line in sys.stdin:
+        fields = line.split()
+        if len(fields) != 4:
+            errors.append("invalid pre-push input")
+            continue
+        local_ref, local_oid, remote_ref, _remote_oid = fields
+        if not remote_ref.startswith("refs/heads/"):
+            continue  # Tags do not update branch pointers.
+        destination = remote_ref.removeprefix("refs/heads/")
+        if set(local_oid) == {"0"}:
+            if destination in protected:
+                errors.append(f"deletion of protected branch {destination}")
+            continue
+        if local_ref.startswith("refs/heads/"):
+            source = local_ref.removeprefix("refs/heads/")
+        elif local_ref == "HEAD" or local_ref == local_oid:
+            source = current if local_oid == head else None
+        else:
+            source = None
+        if source != destination:
+            errors.append(f"{local_ref} ({source or 'unresolved/detached'}) -> {destination}")
+        elif destination in protected and current != destination:
+            errors.append(f"push to {destination} while checked out on {current or 'detached HEAD'}")
+    if errors:
+        print("pre-push: branch-target guard rejected this push:", file=sys.stderr)
+        for error in errors:
+            print(f"  {error}", file=sys.stderr)
+        print("Push a branch to its same-named remote branch. Merge ledger changes in the main worktree first.",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

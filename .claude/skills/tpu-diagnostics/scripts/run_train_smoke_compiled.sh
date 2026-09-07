@@ -14,6 +14,7 @@ REPO=${MAXTEXT_REPO:-/home/lishengping/xd/projects/maxtext}
 PYTHON=${MAXTEXT_PYTHON:-/home/lishengping/miniconda3/bin/python}
 DATASET=${DATASET_PATH:-gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord}
 OUTPUT=${SMOKE_OUTPUT:-gs://newproject-1-llm_base_models_us-central1/log/diagnostics/smoke}
+BASE_OUTPUT=${PROFILE_BASE_OUTPUT:-$OUTPUT}
 PROFILE_SKIP=${PROFILE_SKIP:-}
 PROFILE_PERIOD=${PROFILE_PERIOD:-}
 PROFILE_DURATION=${PROFILE_DURATION:-}
@@ -38,7 +39,6 @@ exec env HARDWARE=tpu JAX_TRACEBACK_FILTERING=off "$PYTHON" \
   MaxText/train.py MaxText/configs/base.yml \
   "exp_class=$EXP" "run_name=$RUN" "steps=$STEPS" \
   "compiled_trainstep_file=$COMPILED" \
-  "dataset_path=$DATASET" "base_output_directory=$OUTPUT" \
+  "dataset_path=$DATASET" "base_output_directory=$BASE_OUTPUT" \
   "tensorboard_dir=$OUTPUT/tensorboard" \
-  enable_checkpointing=False async_checkpointing=False \
-  upload_all_profiler_results=False "${profile_args[@]}"
+  profiler=xplane upload_all_profiler_results=False "${profile_args[@]}"

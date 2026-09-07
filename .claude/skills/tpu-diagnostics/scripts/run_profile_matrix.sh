@@ -30,6 +30,14 @@ done_step=${PROFILE_DONE_STEP:-15}
 profile_skip=${PROFILE_SKIP:-10}
 profile_period=${PROFILE_PERIOD:-1000}
 profile_duration=${PROFILE_DURATION:-5}
+dataset=${DATASET_PATH:-}
+if [[ -z "$dataset" ]]; then
+  case "${zone%-*}" in
+    us-central1) dataset=gs://newproject-1-llm_base_models_us-central1/data/pythia_pile_idxmaps_tfrecord ;;
+    europe-west4|us-east5) dataset="gs://newproject-1-common_datasets_${zone%-*}/pythia_pile_idxmaps_tfrecord" ;;
+    *) echo "Set DATASET_PATH for zone $zone" >&2; exit 2 ;;
+  esac
+fi
 trace_count=${PROFILE_TRACE_COUNT:-}
 matrix_id=${PROFILE_MATRIX_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}
 
@@ -133,6 +141,7 @@ for exp in "$@"; do
   "${gcloud_base[@]}" compute tpus tpu-vm ssh --internal-ip "$tpu" --zone="$zone" \
     --project="$project" --worker=all --command="rm -rf '$remote_run'; mkdir -p '$remote_run'; \
     sudo rm -f /tmp/libtpu_lockfile; cd '$repo'; nohup env SMOKE_OUTPUT='$remote_run' \
+    PROFILE_BASE_OUTPUT='$gcs_run/' DATASET_PATH='$dataset' \
     $smoke_command >'$train_log' 2>&1 </dev/null &" </dev/null
 
   "$collector" "$tpu" "$zone" "$remote_run/tensorboard" "$gcs_run" \

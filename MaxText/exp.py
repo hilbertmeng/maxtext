@@ -1288,6 +1288,102 @@ class BamLlama2MediumV2C256ScanAotCleanMixScaleOnly(BamLlama2MediumV2C256ScanAot
     force_final_checkpoint = True
 
 
+# Isolated LocalO/fetch alternation family; runtime lives on codex/bam-alternating-local-fetch.
+class BamLocalFetchBase(BamLlama2MediumV2C256ScanAotCleanControl):
+    """One 13,500-step executable for profiling and training; health metrics disabled."""
+    steps = 13500
+    enable_checkpointing = True
+    async_checkpointing = True
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    record_internal_nn_metrics = False
+    record_training_health_metrics = False
+    bam_pair_scan = False
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'none'
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_qk_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    scan_layers = False
+
+
+class BamLlama2MediumV2C256LocalFetchControlNonScan(BamLocalFetchBase):
+    model_name = 'BamLlama2MediumV2C256LocalFetchControlNonScan'
+
+
+class BamLlama2MediumV2C256LocalFetchControlScan(BamLlama2MediumV2C256LocalFetchControlNonScan):
+    model_name = 'BamLlama2MediumV2C256LocalFetchControlScan'
+    scan_layers = True
+    bam_pair_scan = False
+
+
+class BamLlama2MediumV2C256LocalFetchC8NonScan(BamLocalFetchBase):
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8NonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'none'
+
+
+class BamLlama2MediumV2C256LocalFetchC8Scan(BamLlama2MediumV2C256LocalFetchC8NonScan):
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8Scan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchC8LocalVNonScan(BamLocalFetchBase):
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVNonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'rank2'
+
+
+class BamLlama2MediumV2C256LocalFetchC8LocalVScan(BamLlama2MediumV2C256LocalFetchC8LocalVNonScan):
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVScan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchFullNonScan(BamLocalFetchBase):
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullNonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = False
+    bam_local_o_v_mode = 'none'
+
+
+class BamLlama2MediumV2C256LocalFetchFullScan(BamLlama2MediumV2C256LocalFetchFullNonScan):
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullScan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchFullLocalVNonScan(BamLocalFetchBase):
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullLocalVNonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = False
+    bam_local_o_v_mode = 'rank2'
+
+
+class BamLlama2MediumV2C256LocalFetchFullLocalVScan(BamLlama2MediumV2C256LocalFetchFullLocalVNonScan):
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullLocalVScan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
+class BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan(BamLocalFetchBase):
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan'
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'shared'
+
+
+class BamLlama2MediumV2C256LocalFetchC8SharedReadScan(BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan):
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadScan'
+    scan_layers = True
+    bam_pair_scan = True
+
+
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):
     """Keep the mixed alpha diagonal; no separate local-O read."""
     # 4cf1556; UE5a ~0.649 steps/s (-0.3% vs CleanControl); stopped 4,714.

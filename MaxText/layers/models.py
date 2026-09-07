@@ -788,9 +788,22 @@ class Decoder(nn.Module):
 
       if cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]
+        pair_scan = getattr(cfg, 'bam_pair_scan', False)
+        scan_length = cfg.num_decoder_layers
+        if pair_scan:
+          from layers import fusion
+
+          assert scan_length % 2 == 0
+          assert cfg.decoder_block == 'fusion' and cfg.bam_enabled
+          assert cfg.bam_layer_modes == ['local_qk+local_o', 'local_qk+full'] * (scan_length // 2)
+          RemattedBlockLayer = fusion.BamLayerPair
+          scan_length //= 2
         swss = format_swss(sws_list)[:cfg.num_decoder_layers]
         is_global = jnp.asarray(
             [s >= cfg.max_target_length for s in swss], dtype=jnp.bool_)
+        if pair_scan:
+          assert all(s >= cfg.max_target_length for s in swss)
+          is_global = is_global[::2]
         full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
         if full_bam:
           M = self.initial_bam_matrix(y)
@@ -800,7 +813,7 @@ class Decoder(nn.Module):
         local_sws = min(swss)
         all_global_attention = all(s >= cfg.max_target_length for s in swss)
         scan_module = self.scan_decoder_layers(
-            cfg, RemattedBlockLayer, cfg.num_decoder_layers, "layers", mesh,
+            cfg, RemattedBlockLayer, scan_length, "layers", mesh,
             sliding_window_size=local_sws,
             scan_deep_embedding=deep_embeddings is not None,
             runtime_schedule=True,
@@ -822,7 +835,7 @@ class Decoder(nn.Module):
           scan_inputs += (
               None,
               None,
-              jnp.arange(cfg.num_decoder_layers, dtype=jnp.int32),
+              jnp.arange(scan_length, dtype=jnp.int32),
           )
         scan_carry, _ = scan_module(*scan_inputs)
         y = scan_carry[0] if full_bam else scan_carry

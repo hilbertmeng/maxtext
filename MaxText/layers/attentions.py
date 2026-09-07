@@ -2602,6 +2602,7 @@ class BamAttention(Attention):
     assert not cfg.bam_diagnostics, (
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
+      self._local_o = False
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
@@ -2618,8 +2619,14 @@ class BamAttention(Attention):
         set() if self.layer_mode == 'none'
         else set(self.layer_mode.replace('+', ' ').split()))
     assert self._mode in (
-        set(), {'write'}, {'local_qk'}, {'local_qk', 'full'}), (
+        set(), {'write'}, {'local_qk'}, {'local_qk', 'full'},
+        {'local_qk', 'local_o'}), (
             f'unsupported production BAM layer mode: {self.layer_mode}')
+    self._local_o = 'local_o' in self._mode
+    self._output_read = 'full' in self._mode or self._local_o
+    self._local_v_mode = (
+        getattr(cfg, 'bam_local_o_v_mode', 'none') if self._local_o else 'none')
+    assert self._local_v_mode in ('none', 'rank2', 'shared')
     self._has_write = bool(self._mode)
     assert self.read_side in ('both', 'row', 'col')
     assert cfg.bam_write_source == 'std+cross+local_o', (
@@ -2766,7 +2773,8 @@ class BamAttention(Attention):
     self._abs_k_col_output = getattr(cfg, 'bam_abs_k_col_output', 'direct')
     self._abs_v_dim = (
         getattr(cfg, 'bam_abs_v_compression_dim', None)
-        if 'full' in self._mode else None)
+        if ('full' in self._mode or self._local_o
+            and getattr(cfg, 'bam_local_o_compress_v', True)) else None)
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
     self._abs_v_row_decoder_output = getattr(
         cfg, 'bam_abs_v_row_decoder_output', 'full')
@@ -2907,13 +2915,13 @@ class BamAttention(Attention):
           'absolute-K compression currently pairs with absolute-V compression')
     if self._abs_v_dim is not None:
       assert 0 < self._abs_v_dim <= self.bam_v
-      assert 'full' in self._mode
+      assert self._output_read
     if self._local_qk_use_compressed_v:
       assert 'local_qk' in self._mode and 'full' in self._mode
       assert self._abs_v_dim == self._local_qk_v_dim
       assert self._abs_k_dim is None, (
           'compressed-V LocalQK keeps the K axis full-width')
-    if 'full' in self._mode:
+    if self._output_read:
       full_v_output_dim = (
           self.bam_v
           if (self._abs_v_dim is None
@@ -2971,8 +2979,8 @@ class BamAttention(Attention):
       assert self._query_chunk_size > 0
       assert cfg.max_target_length % self._query_chunk_size == 0, (
           'BAM query chunk size must divide max_target_length')
-      assert self._mode in ({'local_qk'}, {'local_qk', 'full'}), (
-          'QChunk BAM supports V2 local_qk layers with optional full fetch')
+      assert self._mode in ({'local_qk'}, {'local_qk', 'full'}, {'local_qk', 'local_o'}), (
+          'QChunk BAM supports LocalQK with optional full or local output read')
       assert cfg.bam_query_chunk_implementation == 'optimized'
       assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
@@ -3011,7 +3019,7 @@ class BamAttention(Attention):
         else math.sqrt(self._read_key_epsilon) / self._read_key_scale)
     assert zero_key_gate_init < 1.0
 
-    if 'full' in self._mode:
+    if self._output_read:
       read_k_dim = self._abs_k_dim or self.bam_k
       read_v_dim = self._abs_v_dim or self.bam_v
 
@@ -3404,6 +3412,33 @@ class BamAttention(Attention):
           weight_dtype=self.weight_dtype, kernel_axes=('q_heads', 'kv'),
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
+
+    if self._local_v_mode == 'rank2':
+      rank, width = 2, self.bam_k + self.bam_v
+      prefix = rank * width + 2
+      mix_width = self.num_query_heads * 2 * rank
+
+      def local_v_init(key, shape, dtype, _in_axis=0, _out_axis=1):
+        return jnp.concatenate((
+            jnp.zeros((shape[0], prefix), dtype),
+            reg_init(key, (shape[0], mix_width), dtype)), axis=-1)
+
+      self.W_local_v_packed = DenseGeneral(
+          features=prefix + mix_width, axis=-1, kernel_init=local_v_init,
+          kernel_axes=('embed', None), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name='W_local_v_packed',
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.W_lv_bias = self.param(
+          'W_lv_bias', nn.with_logical_partitioning(zeros_init, (None, 'kv')),
+          (rank, width), self.weight_dtype)
+      self.W_lv_gate_b0 = self.param(
+          'W_lv_gate_b0', nn.with_logical_partitioning(
+              lambda key, shape, dtype: jnp.full(
+                  shape, math.log(zero_key_gate_init / (1 - zero_key_gate_init)), dtype),
+              (None,)), (2,), self.weight_dtype)
+    elif self._local_v_mode == 'shared':
+      add_read_gate('W_lv_gate', (self.num_query_heads, 2),
+                    ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
 
     # Create the experimental adapter after all existing parameters so adding it
     # does not perturb the initialization stream of the V2 control parameters.
@@ -4054,7 +4089,7 @@ class BamAttention(Attention):
         jnp.concatenate((y_k, y_v), axis=-1),
         self.num_query_heads, self.head_dim)
 
-  def _read_fetched_m(self, Mbar, inputs_q, layer_index=None):
+  def _read_fetched_m(self, Mbar, inputs_q, layer_index=None, *, ungated=False):
     """Read fetched M into every BAM head."""
     with jax.named_scope("bam/read_fetched_m"):
       m_rms = None
@@ -4095,6 +4130,9 @@ class BamAttention(Attention):
             'W_R', interpolation_gate_logits, squeeze_fetch_axis=True,
             activation_side=self._fetch_read_key_activation_side)
       full_read_kwargs['rms_epsilon'] = self._fetched_read_key_epsilon
+      if ungated:
+        # Share the normalized-key contraction, not one destination's gate.
+        full_read_kwargs.update(key_mode='rms', key_gate_logits=None)
       if self._fetched_read_amplitude_init is not None:
         amplitude = self._fetched_read_amplitude(layer_index)
         amplitude = jnp.squeeze(amplitude, axis=-2)
@@ -4147,6 +4185,30 @@ class BamAttention(Attention):
                 jnp.sqrt(jnp.mean(jnp.square(y_col.astype(jnp.float32)))),
             )))
       return self._expand_full_read(full_read), interpolation_gate_logits
+
+  def _read_local_v(self, M, x):
+    """Independent rank-2 source-local value read; same legacy routing as LocalQK."""
+    with jax.named_scope('bam/read_local_v'):
+      rank, width = 2, self.bam_k + self.bam_v
+      packed = self.W_local_v_packed(x)
+      key, gate, mix = jnp.split(packed, [rank * width, rank * width + 2], axis=-1)
+      key = key.reshape(key.shape[:-1] + (rank, width))
+      key = key + self.W_lv_bias.astype(key.dtype)
+      gate = gate + self.W_lv_gate_b0.astype(gate.dtype)
+      mix = mix.reshape(mix.shape[:-1] + (self.num_query_heads, 2, rank))
+      read = factorized_head_bam_read(
+          M, x, lambda _: key, lambda _: mix, rank=rank,
+          **self._read_key_kwargs_from_logits('W_lv', gate),
+          implementation=self._read_implementation,
+          second_implementation=self._local_qk_second_implementation)
+      return _pack_fetched_bam_heads(read, self.num_query_heads, self.head_dim)
+
+  def _gate_local_output(self, read, logits):
+    """Gate [col/data, row/address] output coordinates independently."""
+    col, row, tail = jnp.split(
+        read, [self.bam_k, self.bam_k + (self._abs_v_dim or self.bam_v)], axis=-1)
+    gates = jax.nn.sigmoid(logits)
+    return jnp.concatenate((col * gates[..., 1:2], row * gates[..., :1], tail), axis=-1)
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,
@@ -4308,6 +4370,20 @@ class BamAttention(Attention):
     key = nn.with_logical_constraint(key, self.key_axis_names)
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
+    local_output = None
+    if self._local_o:
+      if Mh is None:
+        Mh = self._matrix_for_read(M_in)
+      local_state = self._compress_full_fetch_state(Mh)
+      local_output, output_logits = self._read_fetched_m(
+          local_state, inputs_q, layer_index, ungated=self._local_v_mode == 'shared')
+      if self._local_v_mode == 'shared':
+        value = value + self._gate_local_output(
+            local_output, self._project_read_gate_logits('W_lv_gate', inputs_q))
+        local_output = self._gate_local_output(local_output, output_logits)
+      elif self._local_v_mode == 'rank2':
+        value = value + self._read_local_v(Mh, inputs_q)
+
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:
       query = query.astype(jnp.float32)
@@ -4352,7 +4428,7 @@ class BamAttention(Attention):
           q0=0, s0=0, window_size=local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
 
-    o_head = y_std
+    o_head = y_std if local_output is None else y_std + local_output
     if Mbar is not None:
       y_bam, fetched_gate_logits = self._read_fetched_m(
           Mbar, inputs_q, layer_index)

@@ -2,6 +2,9 @@
 
 Code branch: `codex/bam-alternating-local-fetch`; worktree:
 `/data0/xd/bam-alternating-local-fetch`. Main repository remains unchanged.
+Runtime commit: `a77952e98e28eb8508c7c8a9ec16982c37f9b72d`.
+AOT root: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/local-fetch/a77952e98e28eb8508c7c8a9ec16982c37f9b72d/`.
+Each `<CLASS>.pickle.manifest.json` records the source, compiler/environment hashes and topology.
 
 ## Contract
 
@@ -56,7 +59,9 @@ results must replace the pending entries before deciding the subsequent training
 
 Pinned local suite: `.claude/skills/tpu-diagnostics/scripts/run_bam_unit_tests.sh WORKTREE`.
 New tests: `MaxText/tests/bam_local_fetch_test.py`; five full attention module forward/gradient
-checks and two-block scan parameter/layout checks. Target FIRST_STEP and device profiling remain
+checks, two-block scan parameter/layout checks, shared output-gate scale equivalence, and both
+full train-step signatures without health outputs. All four tests pass (83.8 s); the existing
+57-test BAM suite also passes (184.4 s). Target FIRST_STEP and device profiling remain
 required. Diagnostic lifecycle is standalone; auto-train does not own or delete this profile TPU.
 
 AOT batch entry (on tpu-ag):

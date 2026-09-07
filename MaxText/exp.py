@@ -1246,6 +1246,7 @@ class BamLlama2MediumV2C256ScanAotOldGate050FixedAmplitude(
     BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude
 ):
     """Fixed Gate050 on the old Control's all-decay optimizer, explicitly configured."""
+    # code_commit: 42a1ffa; UE5a ~0.647 steps/s (-2.0% vs old ScanAotControl).
     model_name = 'BamLlama2MediumV2C256ScanAotOldGate050FixedAmplitude'
     wd_mults = []
     force_final_checkpoint = True
@@ -1253,6 +1254,7 @@ class BamLlama2MediumV2C256ScanAotOldGate050FixedAmplitude(
 
 class BamLlama2MediumV2C256ScanAotOldMixScaleOnly(BamLlama2MediumV2C256ScanAotControl):
     """Learn the RMS mix scale without GELU; only the new scale skips decay."""
+    # code_commit: 42a1ffa; UE5a ~0.649 steps/s (-1.6% vs old ScanAotControl).
     model_name = 'BamLlama2MediumV2C256ScanAotOldMixScaleOnly'
     steps = 13500
     bam_shared_fetch_mode = 'dynamic_rms_scale_mix'
@@ -1265,12 +1267,14 @@ class BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD(
     BamLlama2MediumV2C256ScanAotOldMixScaleOnly
 ):
     """Add GELU to OldMixScaleOnly; preserve decay on every original parameter."""
+    # code_commit: 42a1ffa; UE5a ~0.648 steps/s (-0.2% vs OldMixScaleOnly).
     model_name = 'BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD'
     bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
 
 
 class BamLlama2MediumV2C256ScanAotCleanMixScaleOnly(BamLlama2MediumV2C256ScanAotCleanControl):
     """Learn the RMS mix scale without GELU under Clean's unchanged WD rules."""
+    # code_commit: 42a1ffa; UE5a ~0.648 steps/s (-0.5% vs CleanControl).
     model_name = 'BamLlama2MediumV2C256ScanAotCleanMixScaleOnly'
     bam_shared_fetch_mode = 'dynamic_rms_scale_mix'
     bam_record_fetch_route_metrics = True

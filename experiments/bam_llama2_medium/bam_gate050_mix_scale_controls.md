@@ -30,7 +30,8 @@ non-diagonal routing changes; the fetch diagonal remains one.
 - Clean ScaleOnly: could explain part or all of GELU-Clean's ~-.0028 gain; its
   difference from GELU-Clean tests whether the activation adds value.
 
-Monitor cumulative loss gaps and checkpoint commits every 200 steps. Selected TB
+Report every 1,000 steps after the 5,000-step report, retaining the full 200-step
+gap/r200 series; check resource/checkpoint health between reports. Selected TB
 health: raw_grad/clipping, W_R gradients, per-layer mix_scale/init and pre-GELU
 negative-edge fraction; for Gate050 compare gate distributions, M RMS and
 yBAM/ySTD with Old Control. Negative-edge fractions exclude masked/diagonal edges.

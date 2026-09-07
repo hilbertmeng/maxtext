@@ -55,3 +55,20 @@ anomaly relative to the recent same-code-family ~.65 steps/s runs.
 Validation: 57 local BAM tests and six optimizer/AOT-serialization contract tests
 passed. Tests verify the scale-only initial weights equal the original 16-head
 fixed-scale weights and that only the intended parameter leaves skip decay.
+
+## Outcomes
+
+Loss gaps below average the final six comparable 200-step windows, not a stopping-point sample.
+
+| RUN suffix | Stopped/checkpoint | Direct comparisons and trajectory |
+|---|---:|---|
+| OldGate050FixedAmplitude | 11,357 | vs old Control: +.1083 at 200 shrank to near-zero sign changes after 7k; mean +.00042 over 10200–11200. No durable gain; near-zero pre-training expectation broadly met. |
+| OldGeluMixScaleNoWD | 11,445 | vs old Control: +.233 at 200 shrank to a late +.00262 plateau; vs OldMixScaleOnly +.00366 (both 10400–11400). vs historical RmsGeluAlphaMix: early benefit faded, mean -.00004 over 9800–10800. GELU remained harmful on the old optimizer background; exempting only mix-scale WD did not deliver the hoped-for lasting improvement. |
+
+Both user stops used one parallel closeout on 2026-09-07: 212.9 seconds, committed
+final checkpoints, no lost steps, and both TPU/queue deletions verified. Automatic
+TensorBoard sync markers were published. Source summary:
+`tpu-ag:/home/lishengping/xd/projects/logs/closeout-20260907T063947Z.json`.
+Each had one uninterrupted UE5a lease (~5h10m), zero preemptions and no region
+switch; exact UTC intervals are in `experiments/tpu_region_preemption_history.md`.
+OldMixScaleOnly and CleanMixScaleOnly continue; their benefits remain under observation.

@@ -1246,7 +1246,8 @@ class BamLlama2MediumV2C256ScanAotOldGate050FixedAmplitude(
     BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude
 ):
     """Fixed Gate050 on the old Control's all-decay optimizer, explicitly configured."""
-    # code_commit: 42a1ffa; UE5a ~0.647 steps/s (-2.0% vs old ScanAotControl).
+    # code_commit: 42a1ffa; UE5a ~0.647 steps/s (-2.0% vs old ScanAotControl); stopped 11,357.
+    # vs ScanAotControl: +.1083 @200 -> near-zero sign changes after 7k; late mean +.00042, no durable gain.
     model_name = 'BamLlama2MediumV2C256ScanAotOldGate050FixedAmplitude'
     wd_mults = []
     force_final_checkpoint = True
@@ -1267,7 +1268,9 @@ class BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD(
     BamLlama2MediumV2C256ScanAotOldMixScaleOnly
 ):
     """Add GELU to OldMixScaleOnly; preserve decay on every original parameter."""
-    # code_commit: 42a1ffa; UE5a ~0.648 steps/s (-0.2% vs OldMixScaleOnly).
+    # code_commit: 42a1ffa; UE5a ~0.648 steps/s (-0.2% vs OldMixScaleOnly); stopped 11,445.
+    # vs ScanAotControl: +.233 @200 -> late plateau +.00262; vs OldMixScaleOnly +.00366, GELU still harmful.
+    # vs RmsGeluAlphaMix: early benefit faded to zero (mean -.00004 through 10,800); scale-only WD exemption gave no durable gain.
     model_name = 'BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD'
     bam_shared_fetch_mode = 'dynamic_rms_gelu_mix'
 

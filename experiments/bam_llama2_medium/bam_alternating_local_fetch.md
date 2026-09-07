@@ -145,6 +145,15 @@ Before-launch prediction versus LLF: final gap -.001 to +.002, throughput +0–2
 Use scan+AOT, 13,500 steps, checkpoint every 200 steps, health metrics disabled;
 UE5a selected from the recent uninterrupted same-model leases.
 
+Runtime `2980161dd2678a2ce0835777312554b27ec574c3`; local validation: 5 LocalFetch
+tests (including LLLF) and 57 BAM tests pass. AOT prepared by tpu-ag
+`prepare_train_aot.py EXP COMMIT v5p-16 13500`, artifact:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/2980161/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan.pickle`.
+Formal TPU `xd-v5p-16-shared-lllf`, UE5a; launch 2026-09-07 23:43 UTC;
+compiled function loaded and FIRST_STEP verified. Steps 10–14 average .7122 steps/s:
++0.9% vs shared LLF (.706), +5.8% vs matched health-off Clean (.673), within prediction.
+Registry: tpu-ag `run_registry/BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan.json`.
+
 LLF versus Clean, means of the existing identical ±25-step/10-stride windows:
 
 | Steps | Independent LocalV | Shared LocalV |

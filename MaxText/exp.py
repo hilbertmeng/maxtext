@@ -1435,6 +1435,8 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan(BamLlama2MediumV2C256Lo
 
 class BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan(BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan):
     """Three compressed shared LocalO/LocalV layers per fetched-read layer."""
+    # code_commit: 2980161; UE5a v5p-16 scan+AOT ~0.712 steps/s @10-14;
+    # +0.9% vs SharedReadLLFScan, +5.8% vs matched health-off Clean speed control.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan'
     bam_local_fetch_block_size = 4
     bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6

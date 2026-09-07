@@ -6230,6 +6230,7 @@ class BamLlama2MediumV2C256RowRelayRowSlot(
     BamLlama2MediumV2C256ScanAotControl
 ):
     """Also relay each fetched row answer through the next layer's MHA V row slot."""
+    # Ledger only; runtime: codex/row-relay-row-slot (/data0/xd/row-relay-row-slot), not mainline.
     # c70af94; UE5a ~0.646 steps/s (-2.1% vs ScanAotControl); stopped at 6,216.
     # dloss vs ScanAotControl: +.02144 @200 -> +.00270 mean @4.6k-6k
     # (range +.00137..+.00423); early narrowing, then noisy small harm; no gain observed.

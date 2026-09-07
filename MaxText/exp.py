@@ -1384,6 +1384,12 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadScan(BamLlama2MediumV2C256Local
     bam_pair_scan = True
 
 
+class BamLlama2MediumV2C256LocalFetchFullSharedReadScan(BamLlama2MediumV2C256LocalFetchC8SharedReadScan):
+    """Full-M LocalO/LocalV share one read; measure speed during formal training."""
+    model_name = 'BamLlama2MediumV2C256LocalFetchFullSharedReadScan'
+    bam_local_o_compress_v = False
+
+
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):
     """Keep the mixed alpha diagonal; no separate local-O read."""
     # 4cf1556; UE5a ~0.649 steps/s (-0.3% vs CleanControl); stopped 4,714.

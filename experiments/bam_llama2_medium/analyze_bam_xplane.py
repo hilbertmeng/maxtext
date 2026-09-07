@@ -102,7 +102,7 @@ def classify_fetch(op):
   return "other"
 
 
-def summarize(path):
+def load_trace(path):
   with gzip.open(path, "rt") as stream:
     events = json.load(stream)["traceEvents"]
   device_pids = {
@@ -110,6 +110,22 @@ def summarize(path):
       if event.get("ph") == "M" and event.get("name") == "process_name"
       and str(event.get("args", {}).get("name", "")).startswith("/device:TPU:")
   }
+  return events, device_pids
+
+
+def summarize_steps(path):
+  """One event pass for throughput-only matrices; omit the detailed scope inventory."""
+  events, device_pids = load_trace(path)
+  durations = collections.defaultdict(list)
+  for event in events:
+    if (event.get("pid") in device_pids and event.get("ph") == "X"
+        and str(event.get("name", "")).startswith("jit_train_step(")):
+      durations[event["pid"]].append(float(event.get("dur", 0.0)) / 1000.0)
+  return {pid: (sum(values) / len(values), {}) for pid, values in durations.items()}
+
+
+def summarize(path):
+  events, device_pids = load_trace(path)
   steps = collections.Counter(
       event["pid"] for event in events
       if event.get("pid") in device_pids and event.get("ph") == "X"
@@ -230,18 +246,21 @@ def summarize(path):
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("traces", nargs="+")
+  parser.add_argument("--steps-only", action="store_true")
   args = parser.parse_args()
   paths = []
   for pattern in args.traces:
     paths.extend(glob.glob(pattern))
   devices = []
   for path in paths:
-    devices.extend(summarize(path).values())
+    devices.extend((summarize_steps(path) if args.steps_only else summarize(path)).values())
   names = sorted({name for _, buckets in devices for name in buckets})
   print(f"traces={len(paths)} devices={len(devices)}")
   step_values = [step for step, _ in devices]
   print(f"step_ms={sum(step_values) / len(step_values):.3f} "
         f"range={min(step_values):.3f}..{max(step_values):.3f}")
+  if args.steps_only:
+    return
   print("bucket\tms\tTF\tGB")
   for name in names:
     values = []

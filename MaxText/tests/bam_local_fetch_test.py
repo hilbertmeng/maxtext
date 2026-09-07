@@ -35,10 +35,11 @@ class LocalFetchTest(absltest.TestCase):
     cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_o', 'local_qk+full'] * 2
     return cfg
 
-  def test_five_local_modules_forward_and_gradients(self):
-    for suffix in ('C8', 'C8LocalV', 'Full', 'FullLocalV', 'C8SharedRead'):
+  def test_local_modules_forward_and_gradients(self):
+    for suffix in ('C8', 'C8LocalV', 'Full', 'FullLocalV', 'C8SharedRead', 'FullSharedRead'):
       with self.subTest(suffix=suffix):
-        cfg = self.config('BamLlama2MediumV2C256LocalFetch' + suffix + 'NonScan')
+        layout = 'Scan' if suffix == 'FullSharedRead' else 'NonScan'
+        cfg = self.config('BamLlama2MediumV2C256LocalFetch' + suffix + layout)
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
         module = BamAttention(
             config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,

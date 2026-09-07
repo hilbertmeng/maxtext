@@ -17,7 +17,7 @@ Each `<CLASS>.pickle.manifest.json` records the source, compiler/environment has
 - Independent LocalV is rank 2, bilateral, full-M, legacy signed head/rank RMS mixing,
   with zero-init keys/pre-RMS bias and .005 gates. It is present only in LocalO layers.
   Its key/gate/head-mix projections are packed, and its read is injected into V before AV.
-- SharedRead uses the compressed LocalO per-head read once with ungated normalized keys;
+- SharedRead uses the compressed or full LocalO per-head read once with ungated normalized keys;
   independent O/V row/column gates route that answer to both destinations. It is not a
   semantics-preserving implementation of the independently parameterized rank-2 LocalV.
 - Scan uses 12 static two-layer blocks, with separate local/fetch parameter subtrees.
@@ -38,22 +38,34 @@ Compare each column to its own control; additionally compare scan/non-scan reten
 each variant. The baseline uses conventional single-layer scan; alternating variants use
 pair scan, so cross-row deltas include the necessary scan-body change.
 
-| Variant | Non-scan class | Scan class | Non-scan speed | Scan speed |
+Log speed is the median of steps 10–14 (robust to starting the profiler at step 10);
+device time is the mean of the eight devices' captured train steps. All measurements use
+`xd-v5p-16-local-fetch-ue5a`, `us-east5-a`.
+
+| Variant | Non-scan class | Scan class | Non-scan step/s / ms | Scan step/s / ms |
 |---|---|---|---|---|
-| V2 control | BamLlama2MediumV2C256LocalFetchControlNonScan | BamLlama2MediumV2C256LocalFetchControlScan | pending | pending |
-| compressed LocalO | BamLlama2MediumV2C256LocalFetchC8NonScan | BamLlama2MediumV2C256LocalFetchC8Scan | pending | pending |
-| compressed LocalO + rank2 LocalV | BamLlama2MediumV2C256LocalFetchC8LocalVNonScan | BamLlama2MediumV2C256LocalFetchC8LocalVScan | pending | pending |
-| full LocalO | BamLlama2MediumV2C256LocalFetchFullNonScan | BamLlama2MediumV2C256LocalFetchFullScan | pending | pending |
-| full LocalO + rank2 LocalV | BamLlama2MediumV2C256LocalFetchFullLocalVNonScan | BamLlama2MediumV2C256LocalFetchFullLocalVScan | pending | pending |
-| compressed LocalO/V shared read | BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan | BamLlama2MediumV2C256LocalFetchC8SharedReadScan | pending | pending |
+| V2 control | BamLlama2MediumV2C256LocalFetchControlNonScan | BamLlama2MediumV2C256LocalFetchControlScan | 0.683 / 1450.4 | 0.673 / 1478.6 |
+| compressed LocalO | BamLlama2MediumV2C256LocalFetchC8NonScan | BamLlama2MediumV2C256LocalFetchC8Scan | 0.714 / 1389.2 | 0.705 / 1410.8 |
+| compressed LocalO + rank2 LocalV | BamLlama2MediumV2C256LocalFetchC8LocalVNonScan | BamLlama2MediumV2C256LocalFetchC8LocalVScan | 0.699 / 1418.2 | 0.691 / 1440.0 |
+| full LocalO | BamLlama2MediumV2C256LocalFetchFullNonScan | BamLlama2MediumV2C256LocalFetchFullScan | 0.699 / pending | 0.689 / 1444.1 |
+| full LocalO + rank2 LocalV (profile only) | BamLlama2MediumV2C256LocalFetchFullLocalVNonScan | BamLlama2MediumV2C256LocalFetchFullLocalVScan | 0.685 / pending | 0.675 / 1473.7 |
+| compressed LocalO/V shared read | BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan | BamLlama2MediumV2C256LocalFetchC8SharedReadScan | 0.707 / pending | 0.699 / 1423.3 |
 
 Provisional bets versus matched all-fetch control: compressed LocalO +4–7% throughput;
 independent LocalV consumes part of that saving; shared read should recover most of its
 projection/contraction overhead. Full LocalO adds read-key width and contraction traffic,
 so neither its speed gain nor its accuracy gain is assured. These are predictions, not results.
 
-No formal long training is launched by this speed matrix. Runtime/artifact hashes and measured
-results must replace the pending entries before deciding the subsequent training matrix.
+All 12 target logs confirm `Loaded compiled function!`; both standalone groups completed.
+Non-scan log throughput improves only 1.1–1.5% over scan, versus 7–11x AOT preparation time.
+Choose scan for formal training. The user replaced full-M + independent LocalV with full-M
+shared LocalO/V read; retain the former's profile evidence, but do not train it. The five formal
+variants are C8, C8LocalV, Full, C8SharedRead and FullSharedRead. For the last one, prepare only
+the formal scan AOT and measure steps 10–14 during training (no additional standalone profile).
+Its class is `BamLlama2MediumV2C256LocalFetchFullSharedReadScan`; it reuses the existing shared
+runtime with `bam_local_o_compress_v=False`. All formal runs compare to
+`BamLlama2MediumV2C256ScanAotCleanControl`; C8LocalV/C8SharedRead additionally compare to C8,
+FullSharedRead to Full, and Full to C8, separating the changes within this family.
 
 ## AOT preparation time
 
@@ -68,6 +80,9 @@ Full configuration names are in the throughput matrix above.
 |---|---:|---:|---:|
 | Control | 33.0 | 360.7 | 10.9× |
 | compressed LocalO | 46.8 | 337.2 | 7.2× |
+| compressed LocalO + rank2 LocalV | 49.6 | 394.1 | 7.9× |
+| full LocalO | 46.7 | 357.0 | 7.7× |
+| full LocalO + rank2 LocalV | 50.5 | 384.6 | 7.6× |
 | compressed LocalO/V shared read | 48.8 | 374.6 | 7.7× |
 
 Raw compiler logs: `tpu-ag:/home/lishengping/xd/projects/logs/local-fetch-aot-a77952e98e28eb8508c7c8a9ec16982c37f9b72d/<CLASS>.log`.

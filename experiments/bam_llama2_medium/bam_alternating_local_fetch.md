@@ -72,4 +72,6 @@ immediately while candidate cleanup continues. Each six-arm group emits `AOT_GRO
 independently, so scan measurements can start while non-scan compilation continues.
 Each preparer retains its multi-zone candidates until its artifact verifies; logs/manifests persist.
 The compiled smoke entry inherits checkpoint settings and enables XPlane explicitly.
-Use `PROFILE_STEPS=13500` with `run_profile_matrix.sh` and the reported AOT root.
+On the installed standalone v5p-16, launch each ready group via tpu-ag's
+`profile_local_fetch_matrix.sh TPU ZONE COMMIT Scan|NonScan`; it fixes the 13,500-step
+schedule, trace window and zone-local output bucket before calling `run_profile_matrix.sh`.

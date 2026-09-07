@@ -1,7 +1,7 @@
 # Alternating LocalO / fetched-M read
 
 Code branch: `codex/bam-alternating-local-fetch`; worktree:
-`/data0/xd/bam-alternating-local-fetch`. Main repository remains unchanged.
+`/data0/xd/bam-alternating-local-fetch`. Main repository contains ledger-only configuration records; runtime changes stay in this worktree.
 Runtime commit: `a77952e98e28eb8508c7c8a9ec16982c37f9b72d`.
 AOT root: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/local-fetch/a77952e98e28eb8508c7c8a9ec16982c37f9b72d/`.
 Each `<CLASS>.pickle.manifest.json` records the source, compiler/environment hashes and topology.
@@ -47,9 +47,9 @@ device time is the mean of the eight devices' captured train steps. All measurem
 | V2 control | BamLlama2MediumV2C256LocalFetchControlNonScan | BamLlama2MediumV2C256LocalFetchControlScan | 0.683 / 1450.4 | 0.673 / 1478.6 |
 | compressed LocalO | BamLlama2MediumV2C256LocalFetchC8NonScan | BamLlama2MediumV2C256LocalFetchC8Scan | 0.714 / 1389.2 | 0.705 / 1410.8 |
 | compressed LocalO + rank2 LocalV | BamLlama2MediumV2C256LocalFetchC8LocalVNonScan | BamLlama2MediumV2C256LocalFetchC8LocalVScan | 0.699 / 1418.2 | 0.691 / 1440.0 |
-| full LocalO | BamLlama2MediumV2C256LocalFetchFullNonScan | BamLlama2MediumV2C256LocalFetchFullScan | 0.699 / pending | 0.689 / 1444.1 |
-| full LocalO + rank2 LocalV (profile only) | BamLlama2MediumV2C256LocalFetchFullLocalVNonScan | BamLlama2MediumV2C256LocalFetchFullLocalVScan | 0.685 / pending | 0.675 / 1473.7 |
-| compressed LocalO/V shared read | BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan | BamLlama2MediumV2C256LocalFetchC8SharedReadScan | 0.707 / pending | 0.699 / 1423.3 |
+| full LocalO | BamLlama2MediumV2C256LocalFetchFullNonScan | BamLlama2MediumV2C256LocalFetchFullScan | 0.699 / 1419.0 | 0.689 / 1444.1 |
+| full LocalO + rank2 LocalV (profile only) | BamLlama2MediumV2C256LocalFetchFullLocalVNonScan | BamLlama2MediumV2C256LocalFetchFullLocalVScan | 0.685 / 1448.3 | 0.675 / 1473.7 |
+| compressed LocalO/V shared read | BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan | BamLlama2MediumV2C256LocalFetchC8SharedReadScan | 0.707 / 1403.9 | 0.699 / 1423.3 |
 
 Provisional bets versus matched all-fetch control: compressed LocalO +4–7% throughput;
 independent LocalV consumes part of that saving; shared read should recover most of its
@@ -93,7 +93,7 @@ measurements; cleanup completion must not gate artifact consumption.
 
 Pinned local suite: `.claude/skills/tpu-diagnostics/scripts/run_bam_unit_tests.sh WORKTREE`.
 New tests: `MaxText/tests/bam_local_fetch_test.py`; five full attention module forward/gradient
-checks, two-block scan parameter/layout checks, shared output-gate scale equivalence, and both
+checks (six after adding FullSharedRead), two-block scan parameter/layout checks, shared output-gate scale equivalence, and both
 full train-step signatures without health outputs. All four tests pass (83.8 s); the existing
 57-test BAM suite also passes (184.4 s). Target FIRST_STEP and device profiling remain
 required. Diagnostic lifecycle is standalone; auto-train does not own or delete this profile TPU.
@@ -112,3 +112,20 @@ schedule, trace window and zone-local output bucket before calling `run_profile_
 `run_local_fetch_pipeline.sh COMMIT TPU ZONE` waits for the verified scan group, requests and
 installs the standalone target, then measures scan while non-scan compilation continues.
 It measures non-scan on that same target when ready and retains it after the matrix completes.
+
+## Evidence and formal launch
+
+Scan matrix: `20260907T094351Z-2562631`; non-scan matrix: `20260907T095637Z-2572369`.
+GCS traces: `gs://newproject-1-llm_projects_us-east5/log/diagnostics/local-fetch/a77952e/`.
+Local artifacts: `/data0/xd/bam_diagnostics/local-fetch-a77952e/<VARIANT><LAYOUT>/`.
+Device-step extraction: `python3 experiments/bam_llama2_medium/analyze_bam_xplane.py --steps-only 'TRACE_GLOB'`.
+The fast mode counts each device train step once, without summing overlapping HLO scopes.
+
+FullSharedRead runtime/config commit: `3210379c20cd80b792816a849d81fbf7f4b9f6ad`.
+Only configuration/test/report tooling changed since the original matrix runtime; attention,
+model, optimizer and training runtime files are unchanged. Its six-variant forward/gradient
+module test passed in 63.3 seconds. Formal scan AOT preparation uses `prepare_train_aot.py`.
+C8, C8LocalV, Full and C8SharedRead formal launches submitted to UE5a at 10:21 UTC,
+2026-09-07; C8 reuses the standalone profile TPU and reached step 18 by 10:23 UTC.
+The other three require their own FIRST_STEP verification. FullSharedRead waits for AOT_READY
+before target allocation. Training uses the measured original AOTs for the four existing arms.

@@ -2627,6 +2627,8 @@ class BamAttention(Attention):
     self._local_v_mode = (
         getattr(cfg, 'bam_local_o_v_mode', 'none') if self._local_o else 'none')
     assert self._local_v_mode in ('none', 'rank2', 'shared')
+    self._local_v_rank_routing = getattr(cfg, 'bam_local_v_rank_routing', None) or 'legacy'
+    assert self._local_v_rank_routing in ('legacy', 'shared_rank_gate')
     self._has_write = bool(self._mode)
     assert self.read_side in ('both', 'row', 'col')
     assert cfg.bam_write_source == 'std+cross+local_o', (
@@ -3415,7 +3417,8 @@ class BamAttention(Attention):
 
     if self._local_v_mode == 'rank2':
       rank, width = 2, self.bam_k + self.bam_v
-      prefix = rank * width + 2
+      gate_width = 2 * rank if self._local_v_rank_routing == 'shared_rank_gate' else 2
+      prefix = rank * width + gate_width
       mix_width = self.num_query_heads * 2 * rank
 
       def local_v_init(key, shape, dtype, _in_axis=0, _out_axis=1):
@@ -3435,7 +3438,7 @@ class BamAttention(Attention):
           'W_lv_gate_b0', nn.with_logical_partitioning(
               lambda key, shape, dtype: jnp.full(
                   shape, math.log(zero_key_gate_init / (1 - zero_key_gate_init)), dtype),
-              (None,)), (2,), self.weight_dtype)
+              (None,)), (gate_width,), self.weight_dtype)
     elif self._local_v_mode == 'shared':
       add_read_gate('W_lv_gate', (self.num_query_heads, 2),
                     ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
@@ -4187,17 +4190,21 @@ class BamAttention(Attention):
       return self._expand_full_read(full_read), interpolation_gate_logits
 
   def _read_local_v(self, M, x):
-    """Independent rank-2 source-local value read; same legacy routing as LocalQK."""
+    """Independent rank-2 source-local value read using LocalQK's routing modes."""
     with jax.named_scope('bam/read_local_v'):
       rank, width = 2, self.bam_k + self.bam_v
       packed = self.W_local_v_packed(x)
-      key, gate, mix = jnp.split(packed, [rank * width, rank * width + 2], axis=-1)
+      gate_width = 2 * rank if self._local_v_rank_routing == 'shared_rank_gate' else 2
+      key, gate, mix = jnp.split(packed, [rank * width, rank * width + gate_width], axis=-1)
       key = key.reshape(key.shape[:-1] + (rank, width))
       key = key + self.W_lv_bias.astype(key.dtype)
       gate = gate + self.W_lv_gate_b0.astype(gate.dtype)
+      if self._local_v_rank_routing == 'shared_rank_gate':
+        gate = gate.reshape(gate.shape[:-1] + (rank, 2))
       mix = mix.reshape(mix.shape[:-1] + (self.num_query_heads, 2, rank))
       read = factorized_head_bam_read(
           M, x, lambda _: key, lambda _: mix, rank=rank,
+          rank_routing=self._local_v_rank_routing,
           **self._read_key_kwargs_from_logits('W_lv', gate),
           implementation=self._read_implementation,
           second_implementation=self._local_qk_second_implementation)

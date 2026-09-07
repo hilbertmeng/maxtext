@@ -36,9 +36,9 @@ class LocalFetchTest(absltest.TestCase):
     return cfg
 
   def test_local_modules_forward_and_gradients(self):
-    for suffix in ('C8', 'C8LocalV', 'Full', 'FullLocalV', 'C8SharedRead', 'FullSharedRead'):
+    for suffix in ('C8', 'C8LocalV', 'Full', 'FullLocalV', 'C8SharedRead', 'FullSharedRead', 'C8LocalVSharedRankGate'):
       with self.subTest(suffix=suffix):
-        layout = 'Scan' if suffix == 'FullSharedRead' else 'NonScan'
+        layout = 'Scan' if suffix in ('FullSharedRead', 'C8LocalVSharedRankGate') else 'NonScan'
         cfg = self.config('BamLlama2MediumV2C256LocalFetch' + suffix + layout)
         mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
         module = BamAttention(
@@ -59,6 +59,8 @@ class LocalFetchTest(absltest.TestCase):
         grads = jax.grad(loss)(variables['params'])
         self.assertTrue(all(bool(jnp.all(jnp.isfinite(a))) for a in jax.tree.leaves(grads)))
         paths = ['/'.join(p) for p in flatten_dict(variables['params'])]
+        if suffix == 'C8LocalVSharedRankGate':
+          self.assertEqual(variables['params']['W_lv_gate_b0'].value.shape, (4,))
         self.assertFalse(any('fetch_head_mix' in p for p in paths))
         self.assertEqual(any('W_local_v_packed' in p for p in paths), 'LocalV' in suffix)
         self.assertEqual(any('abs_v_cache_projection' in p for p in paths), suffix.startswith('C8'))

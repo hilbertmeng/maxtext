@@ -793,17 +793,19 @@ class Decoder(nn.Module):
         if pair_scan:
           from layers import fusion
 
-          assert scan_length % 2 == 0
+          block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
+          assert block_size >= 2 and scan_length % block_size == 0
           assert cfg.decoder_block == 'fusion' and cfg.bam_enabled
-          assert cfg.bam_layer_modes == ['local_qk+local_o', 'local_qk+full'] * (scan_length // 2)
+          assert cfg.bam_layer_modes == (
+              ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
           RemattedBlockLayer = fusion.BamLayerPair
-          scan_length //= 2
+          scan_length //= block_size
         swss = format_swss(sws_list)[:cfg.num_decoder_layers]
         is_global = jnp.asarray(
             [s >= cfg.max_target_length for s in swss], dtype=jnp.bool_)
         if pair_scan:
           assert all(s >= cfg.max_target_length for s in swss)
-          is_global = is_global[::2]
+          is_global = is_global[::block_size]
         full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
         if full_bam:
           M = self.initial_bam_matrix(y)

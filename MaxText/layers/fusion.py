@@ -289,7 +289,7 @@ class SubDecoderLayer(nn.Module):
 
 
 class BamLayerPair(nn.Module):
-  """Static LocalO/fetch pair; scan only the homogeneous sequence of pairs."""
+  """Static LocalO...LocalO/fetch block; retain LF parameter names for compatibility."""
 
   config: Any
   mesh: Mesh
@@ -310,13 +310,15 @@ class BamLayerPair(nn.Module):
         FusionDecoderLayer, prevent_cse=True,
         policy=models.get_remat_policy(cfg), static_argnums=(6, 7),
         rngs={'params': True, 'aqt': True, 'dropout': True})
-    for offset, name in enumerate(('local_0', 'fetch_1')):
+    block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
+    for offset in range(block_size):
+      name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       carry, _ = Layer(
           cfg, self.mesh, self.sliding_window_size, self.quant,
           all_global_attention=True, static_layer_index=offset, name=name)(
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
-              2 * block_index + offset)
+              block_size * block_index + offset)
     return carry, ()
 
 

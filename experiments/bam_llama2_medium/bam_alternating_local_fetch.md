@@ -89,6 +89,22 @@ Raw compiler logs: `tpu-ag:/home/lishengping/xd/projects/logs/local-fetch-aot-a7
 The much shorter scan critical path motivates independent compile lanes and pipelined target
 measurements; cleanup completion must not gate artifact consumption.
 
+## LLF follow-up
+
+`BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan` compares only with
+`BamLlama2MediumV2C256LocalFetchC8LocalVScan`;
+`BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan` compares only with
+`BamLlama2MediumV2C256LocalFetchC8SharedReadScan`.
+Both use eight static LLF blocks (24 layers), preserving independent parameters per
+layer; no `lax.cond`. LocalQK and M writes remain in every layer. LocalV remains
+independent full-M rank2 or shared compressed LocalO read, respectively.
+Health metrics remain off; schedule/checkpoints remain 13,500/200.
+Pre-run prediction vs each LF parent: final gap -0.002 to +0.002 (slightly favor
+improvement), throughput +1–2%; neither is a measured result. Fetch layers/cache
+count falls from 12 to 8, not a one-third reduction in total MHA+BAM cache.
+Prepare both exact v5p-16 AOTs before hot-switching FullScan/FullSharedReadScan's
+UE5a pods; keep the other three LF runs running.
+
 ## Validation
 
 Pinned local suite: `.claude/skills/tpu-diagnostics/scripts/run_bam_unit_tests.sh WORKTREE`.

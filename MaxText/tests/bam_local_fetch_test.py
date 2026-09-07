@@ -111,6 +111,33 @@ class LocalFetchTest(absltest.TestCase):
         self.assertEqual(cfg.steps, 13500)
         self.assertEqual(cfg.checkpoint_period, 200)
 
+  def test_llf_scan_has_two_independent_local_layers(self):
+    for suffix in ('C8LocalV', 'C8SharedRead'):
+      cfg = self.config('BamLlama2MediumV2C256LocalFetch' + suffix + 'LLFScan')
+      cfg.get_keys()['num_decoder_layers'] = 6
+      cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_o'] * 2 + ['local_qk+full']
+      cfg.get_keys()['bam_layer_modes'] *= 2
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = nn.scan(
+          BamLayerPair, variable_axes={'params': cfg.param_scan_axis},
+          split_rngs={'params': True, 'dropout': False},
+          in_axes=(nn.broadcast,) * 10 + (0,), length=2,
+          metadata_params={nn.PARTITION_NAME: 'layers'})(
+              cfg, mesh, 8, all_global_attention=True)
+      h = jnp.ones((1, 8, 128), cfg.dtype)
+      m = jnp.zeros((1, 8, 32, 32), cfg.dtype)
+      args = ((h, m), jnp.ones((1, 8), jnp.int32), jnp.arange(8)[None],
+              jnp.ones((1, 8), jnp.int32), None, True, 'train', None,
+              None, None, None, jnp.arange(2))
+      variables = module.init({'params': jax.random.key(8), 'aqt': jax.random.key(9)}, *args)
+      (y, final_m), _ = module.apply(variables, *args)
+      self.assertEqual(set(variables['params']), {'local_0', 'local_1', 'fetch_2'})
+      self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
+      self.assertEqual(final_m.shape, m.shape)
+      jaxpr = str(jax.make_jaxpr(lambda hh, mm: module.apply(
+          variables, (hh, mm), *args[1:]))(h, m))
+      self.assertNotIn('cond[', jaxpr)
+
   def test_shared_output_gate_preserves_key_gate_scale(self):
     m = jax.random.normal(jax.random.key(10), (1, 3, 32, 8))
     row = jax.random.normal(jax.random.key(11), (1, 3, 2, 32))

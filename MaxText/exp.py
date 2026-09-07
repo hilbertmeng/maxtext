@@ -1398,8 +1398,23 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadScan(BamLlama2MediumV2C256Local
 
 class BamLlama2MediumV2C256LocalFetchFullSharedReadScan(BamLlama2MediumV2C256LocalFetchC8SharedReadScan):
     """Full-M LocalO/LocalV share one read; measure speed during formal training."""
+    # code_commit: 3210379; UE5a v5p-16 ~0.682 steps/s @10-14; -1.0% vs FullScan, +1.3% vs matched scan control.
     model_name = 'BamLlama2MediumV2C256LocalFetchFullSharedReadScan'
     bam_local_o_compress_v = False
+
+
+class BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan(BamLlama2MediumV2C256LocalFetchC8LocalVScan):
+    """LLF vs LF: compressed LocalO, independent full-M rank2 LocalV."""
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan'
+    bam_local_fetch_block_size = 3
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+
+
+class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan(BamLlama2MediumV2C256LocalFetchC8SharedReadScan):
+    """LLF vs LF: compressed LocalO/LocalV share the same local read."""
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan'
+    bam_local_fetch_block_size = 3
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
 
 
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):

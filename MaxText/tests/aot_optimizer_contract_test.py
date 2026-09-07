@@ -25,9 +25,10 @@ def assert_tree_equal(a, b):
     np.testing.assert_array_equal(x, y)
 
 
-def check_optimizer_serialization_contract(with_rules):
+def check_optimizer_serialization_contract(with_rules, config_class=None):
   cfg = SimpleNamespace(
-      wd_mults=exp.BamLlama2MediumV2C256ScanAotCleanControl.wd_mults if with_rules else None,
+      wd_mults=(config_class.wd_mults if config_class else
+                exp.BamLlama2MediumV2C256ScanAotCleanControl.wd_mults if with_rules else None),
       adam_weight_decay=.1, adam_b1=.9, adam_b2=.95, adam_eps=1e-8,
       adam_eps_root=0., opt_type='adam_pax', init_weights_seed=0, debug=False)
   leaves = {'fetch_mix_scale': jnp.full((1, 24), .25),
@@ -81,16 +82,42 @@ def check_optimizer_serialization_contract(with_rules):
     p_jit, s_jit = jit_step(p_jit, s_jit, grads)
     assert_tree_equal((p_aot, s_aot), (p_jit, s_jit))
     if step == 199:
-      actual = p_aot['params']['decoder']['layers']['block']['self_attention']
-      if with_rules:
-        for name in ('fetch_mix_scale', 'W_lq_bias', 'gw_b0', 'W_R_gate_b0', 'norm'):
-          assert_tree_equal(actual[name], leaves[name])
-      else:
-        assert float(actual['fetch_mix_scale'][0, 0]) < .25
-      assert float(actual['W_R']['kernel'][0, 0]) < .006
+      wd = train.get_wd_tree(cfg, params)
+      wd = jax.tree.map(lambda _: cfg.adam_weight_decay, params) if wd is None else wd
+      for actual, initial, decay in zip(
+          jax.tree.leaves(p_aot), jax.tree.leaves(params), jax.tree.leaves(wd)):
+        if decay == 0:
+          np.testing.assert_array_equal(actual, initial)
+        else:
+          assert bool(jnp.all(jnp.abs(actual) < jnp.abs(initial)))
 
 
 class AotOptimizerContractTest(unittest.TestCase):
+  def test_only_new_mix_scale_skips_decay(self):
+    cls = exp.BamLlama2MediumV2C256ScanAotOldMixScaleOnly
+    self.assertEqual(cls.wd_mults, exp.BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD.wd_mults)
+    params = {'params': {'decoder': {'layers': {
+        'self_attention': {'fetch_mix_scale': 1., 'W_R_gate_b0': 1.,
+                           'gw_b0': 1., 'fetch_head_mix': {'bias': 1.},
+                           'P_loc_up': {'bias': 1., 'kernel': 1.}},
+        'pre_self_attention_layer_norm': {'scale': 1.},
+        'mlp': {'bias': 1., 'kernel': 1.}}}}}
+    cfg = SimpleNamespace(wd_mults=cls.wd_mults, adam_weight_decay=.1)
+    expected = jax.tree.map(lambda _: .1, params)
+    expected['params']['decoder']['layers']['self_attention']['fetch_mix_scale'] = 0.
+    self.assertEqual(train.get_wd_tree(cfg, params), expected)
+    check_optimizer_serialization_contract(True, cls)
+
+  def test_old_gate050_keeps_all_decay(self):
+    cls = exp.BamLlama2MediumV2C256ScanAotOldGate050FixedAmplitude
+    self.assertEqual(cls.wd_mults, [])
+    check_optimizer_serialization_contract(False, cls)
+
+  def test_clean_scale_only_preserves_clean_rules(self):
+    self.assertEqual(
+        exp.BamLlama2MediumV2C256ScanAotCleanMixScaleOnly.wd_mults,
+        exp.BamLlama2MediumV2C256ScanAotCleanControl.wd_mults)
+
   def test_bam_only_exclusions(self):
     cfg = SimpleNamespace(
         wd_mults=exp.BamLlama2MediumV2C256ScanAotBamOnlyWDControl.wd_mults,

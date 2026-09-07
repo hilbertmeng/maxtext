@@ -1738,7 +1738,7 @@ class GroupedRMSNorm(nn.Module):
 
 
 def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon, scale=None):
-  """Build a signed unit-L2 mixture over standard-attention heads."""
+  """RMS-normalize signed head weights, then apply a fixed or learned scale."""
   mix_logits = jnp.asarray(mix_logits, jnp.float32)
   normalized = normalizations.rms_norm(
       mix_logits, dtype=alpha_dtype, epsilon=rms_epsilon)
@@ -2729,6 +2729,8 @@ class BamAttention(Attention):
     self._fetch_mix_implementation = cfg.bam_fetch_mix_implementation
     assert self._fetch_mix_implementation in ('dot', 'mul_reduce')
     self._gelu_fetch_alpha = cfg.bam_shared_fetch_mode == 'dynamic_rms_gelu_mix'
+    self._learnable_fetch_mix_scale = cfg.bam_shared_fetch_mode in (
+        'dynamic_rms_scale_mix', 'dynamic_rms_gelu_mix')
     self._record_fetch_route_metrics = bool(getattr(
         cfg, 'bam_record_fetch_route_metrics', False))
     self._read_implementation = cfg.bam_read_implementation
@@ -2773,7 +2775,8 @@ class BamAttention(Attention):
     self._abs_v_source_implementation = getattr(
         cfg, 'bam_abs_v_source_implementation', 'dot')
     if 'full' in self._mode:
-      assert cfg.bam_shared_fetch_mode in ('dynamic_rms_mix', 'dynamic_rms_gelu_mix')
+      assert cfg.bam_shared_fetch_mode in (
+          'dynamic_rms_mix', 'dynamic_rms_scale_mix', 'dynamic_rms_gelu_mix')
       assert cfg.bam_n_f == 1
       assert not cfg.bam_dedicated_fetch
       assert cfg.bam_fetch_sliding_window_size is None
@@ -3141,8 +3144,8 @@ class BamAttention(Attention):
           kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
           weight_dtype=self.weight_dtype, name='fetch_head_mix', quant=self.quant,
           matmul_precision=cfg.matmul_precision, use_bias=True)
-      if self._gelu_fetch_alpha:
-        # Singleton storage supports param_scan_axis=1; .*scale$ skips decay.
+      if self._learnable_fetch_mix_scale:
+        # Singleton storage supports param_scan_axis=1; the RUN sets its WD rule.
         self.fetch_mix_scale = self.param(
             'fetch_mix_scale', nn.with_logical_partitioning(
                 nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), (None,)),
@@ -4319,9 +4322,9 @@ class BamAttention(Attention):
         mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype,
             rms_epsilon=self._rms_epsilon,
-            scale=self.fetch_mix_scale[0] if self._gelu_fetch_alpha else None)
+            scale=self.fetch_mix_scale[0] if self._learnable_fetch_mix_scale else None)
         if self._record_fetch_route_metrics:
-          if self._gelu_fetch_alpha:
+          if self._learnable_fetch_mix_scale:
             self.sow('intermediates', 'fetch_mix_scale',
                      self.fetch_mix_scale[0].astype(jnp.float32))
           weights = mix_weights.astype(jnp.float32)

@@ -53,6 +53,12 @@ class _DepthAmplitudeLayer(nn.Module):
 class BamReadKeyTransformTest(absltest.TestCase):
 
   def test_clean_gelu_full_module_initializes_and_records_route(self):
+    self._check_mix_full_module('BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix')
+
+  def test_scale_only_full_module_initializes_and_records_route(self):
+    self._check_mix_full_module('BamLlama2MediumV2C256ScanAotOldMixScaleOnly')
+
+  def _check_mix_full_module(self, exp_class):
     import max_utils
     import pyconfig
     from flax.traverse_util import flatten_dict
@@ -62,7 +68,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     (Path(output.name) / 'test-clean-gelu').mkdir()
     cfg = pyconfig.initialize(
         [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
-        exp_class='BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix',
+        exp_class=exp_class,
         run_name='test-clean-gelu', enable_checkpointing=False,
         base_output_directory=output.name + '/',
         jax_cache_dir='', log_config=False, dataset_type='synthetic',
@@ -93,6 +99,18 @@ class BamReadKeyTransformTest(absltest.TestCase):
     self.assertIn('fetch_mix_scale', paths)
     self.assertIn('fetch_route_sums', updates['intermediates'])
     self.assertIn('fetch_mix_scale', updates['intermediates'])
+
+  def test_scale_only_matches_legacy_initial_weights_and_has_scale_gradient(self):
+    logits = jax.random.normal(jax.random.key(23), (2, 8, 16))
+    for dtype in (jnp.float32, jnp.bfloat16):
+      legacy = _dynamic_bam_fetch_mix_weights(
+          logits, dtype, rms_epsilon=_RMS_EPSILON)
+      scaled = lambda s: _dynamic_bam_fetch_mix_weights(
+          logits, dtype, rms_epsilon=_RMS_EPSILON, scale=s)
+      np.testing.assert_array_equal(legacy, scaled(jnp.asarray(.25)))
+      gradient = jax.grad(lambda s: jnp.sum(scaled(s).astype(jnp.float32) ** 2))(.25)
+      self.assertTrue(bool(jnp.isfinite(gradient)))
+      self.assertGreater(float(gradient), 0.)
 
   def test_gelu_fetch_values_gradients_and_raw_negative_statistics(self):
     alpha = jnp.asarray([[[[.8, .2], [.3, .7]], [[.2, .8], [.7, .3]]]])

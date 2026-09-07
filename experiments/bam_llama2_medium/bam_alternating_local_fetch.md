@@ -129,3 +129,33 @@ C8, C8LocalV, Full and C8SharedRead formal launches submitted to UE5a at 10:21 U
 2026-09-07; C8 reuses the standalone profile TPU and reached step 18 by 10:23 UTC.
 The other three require their own FIRST_STEP verification. FullSharedRead waits for AOT_READY
 before target allocation. Training uses the measured original AOTs for the four existing arms.
+
+## Mainline promotion and LLLF
+
+The LocalO, independent rank-2 LocalV, shared LocalO/LocalV and static multi-layer scan
+implementation is promoted to `/home/xd/projects/maxtext`, branch `refactor-bam`.
+Historical runtime hashes remain in `MaxText/exp.py`; new runs use the mainline implementation.
+
+`BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan` changes LLF to LLLF:
+six static four-layer blocks, compressed C8 LocalO/LocalV share one read on each local layer.
+All 24 layers still write M and read LocalQK. Compare runs:
+`BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan` and
+`BamLlama2MediumV2C256ScanAotCleanControl`.
+Before-launch prediction versus LLF: final gap -.001 to +.002, throughput +0–2%.
+Use scan+AOT, 13,500 steps, checkpoint every 200 steps, health metrics disabled;
+UE5a selected from the recent uninterrupted same-model leases.
+
+LLF versus Clean, means of the existing identical ±25-step/10-stride windows:
+
+| Steps | Independent LocalV | Shared LocalV |
+|---|---:|---:|
+| 2000–3800 | -.01272 | -.00823 |
+| 4000–5800 | -.01020 | -.00788 |
+| 6000–7800 | -.00921 | -.00847 |
+| 8000–9800 | -.00840 | -.00770 |
+| 10000–11800 | -.00801 | -.00780 |
+| 12000–13400 | -.00800 | -.00776 |
+
+Shared LLF enters a long plateau near 2.8k–3k; independent LLF continues narrowing
+until roughly 10k. At matched relative progress these correspond to about 11k and 37k
+of a 50k XL run, not a guarantee that stabilization transfers across scales.

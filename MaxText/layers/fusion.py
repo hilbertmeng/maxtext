@@ -288,6 +288,40 @@ class SubDecoderLayer(nn.Module):
     return layer_output, M_out
 
 
+class BamLayerPair(nn.Module):
+  """Static LocalO...LocalO/fetch block; retain LF parameter names for compatibility."""
+
+  config: Any
+  mesh: Mesh
+  sliding_window_size: int
+  quant: Optional[Quant] = None
+  scan_length: int = 1
+  all_global_attention: bool = True
+
+  @nn.compact
+  def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
+               deterministic, model_mode, eos_sum, is_global, hids, M_in,
+               block_index):
+    cfg = self.config
+    assert cfg.scan_layers and cfg.bam_enabled and not cfg.bam_mha_control
+    assert deep_embedding is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
+    assert self.all_global_attention, 'pair experiment uses all-global MHA'
+    Layer = nn.remat(
+        FusionDecoderLayer, prevent_cse=True,
+        policy=models.get_remat_policy(cfg), static_argnums=(6, 7),
+        rngs={'params': True, 'aqt': True, 'dropout': True})
+    block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
+    for offset in range(block_size):
+      name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
+      carry, _ = Layer(
+          cfg, self.mesh, self.sliding_window_size, self.quant,
+          all_global_attention=True, static_layer_index=offset, name=name)(
+              carry, segment_ids, positions, tokens, None,
+              deterministic, model_mode, eos_sum, None, None, None,
+              block_size * block_index + offset)
+    return carry, ()
+
+
 class FusionDecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
 
@@ -297,10 +331,13 @@ class FusionDecoderLayer(nn.Module):
   quant: Optional[Quant] = None
   scan_length: int = 1
   all_global_attention: bool = False
+  static_layer_index: int | None = None
 
   def setup(self):
     cfg = self.config
     self.layer_inx = 0 if cfg.scan_layers else int(self.name.split('_')[-1])
+    if self.static_layer_index is not None:
+      self.layer_inx = self.static_layer_index
     sws = self.sliding_window_size
     max_logging.log(f'fusion layer sws: {sws}', debug=cfg.debug)
     if sws is None:

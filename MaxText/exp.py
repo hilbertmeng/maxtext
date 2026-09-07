@@ -1288,9 +1288,8 @@ class BamLlama2MediumV2C256ScanAotCleanMixScaleOnly(BamLlama2MediumV2C256ScanAot
     force_final_checkpoint = True
 
 
-# Ledger only: runtime is NOT implemented on this branch. Restore each code_commit below.
-# Source: codex/bam-alternating-local-fetch, /data0/xd/bam-alternating-local-fetch.
-# FullSharedReadScan is defined at 3210379; formal FIRST_STEP/speed pending.
+# Local/fetch runtime merged from codex/bam-alternating-local-fetch.
+# Historical results retain their original runtime hashes below.
 class BamLocalFetchBase(BamLlama2MediumV2C256ScanAotCleanControl):
     """One 13,500-step executable for profiling and training; health metrics disabled."""
     steps = 13500
@@ -1333,6 +1332,7 @@ class BamLlama2MediumV2C256LocalFetchC8NonScan(BamLocalFetchBase):
 
 class BamLlama2MediumV2C256LocalFetchC8Scan(BamLlama2MediumV2C256LocalFetchC8NonScan):
     # code_commit: a77952e; UE5a v5p-16 ~0.705 steps/s; XPlane 1410.8 ms; profile (formal uses the same AOT).
+    # Completed 13,500; vs Clean: early +.154 shrank to near-zero fluctuations after ~6.8k; -.00040 @13.4k. +4.8% speed (matched health-off control).
     model_name = 'BamLlama2MediumV2C256LocalFetchC8Scan'
     scan_layers = True
     bam_pair_scan = True
@@ -1347,6 +1347,7 @@ class BamLlama2MediumV2C256LocalFetchC8LocalVNonScan(BamLocalFetchBase):
 
 
 class BamLlama2MediumV2C256LocalFetchC8LocalVScan(BamLlama2MediumV2C256LocalFetchC8LocalVNonScan):
+    # Completed 13,500: vs Clean early -.0417 decayed to ~-.0065 late (-.00719 @13.4k); vs C8 early -.196 -> ~-.0065 late. +2.7% speed vs matched health-off Clean, -2.0% vs C8.
     # code_commit: a77952e; UE5a v5p-16 ~0.691 steps/s; XPlane 1440.0 ms; profile (formal uses the same AOT).
     model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVScan'
     scan_layers = True
@@ -1362,6 +1363,8 @@ class BamLlama2MediumV2C256LocalFetchFullNonScan(BamLocalFetchBase):
 
 
 class BamLlama2MediumV2C256LocalFetchFullScan(BamLlama2MediumV2C256LocalFetchFullNonScan):
+    # Stopped 7,756: vs Clean early -.096 -> near-zero/slightly worse (~+.001 @6k–7.6k);
+    # vs C8 early advantage vanished around 6k, then crossed zero repeatedly; 2.3% slower.
     # code_commit: a77952e; UE5a v5p-16 ~0.689 steps/s; XPlane 1444.1 ms; profile (formal uses the same AOT).
     model_name = 'BamLlama2MediumV2C256LocalFetchFullScan'
     scan_layers = True
@@ -1392,6 +1395,7 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan(BamLocalFetchBase):
 
 
 class BamLlama2MediumV2C256LocalFetchC8SharedReadScan(BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan):
+    # Completed 13,500: vs Clean sustained ~-.007 after early transient; vs C8LocalV early +.099 -> near zero -> small late gain (-.00039 @13.4k); +1.2% speed vs LocalV.
     # code_commit: a77952e; UE5a v5p-16 ~0.699 steps/s; XPlane 1423.3 ms; profile (formal uses the same AOT).
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadScan'
     scan_layers = True
@@ -1400,8 +1404,50 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadScan(BamLlama2MediumV2C256Local
 
 class BamLlama2MediumV2C256LocalFetchFullSharedReadScan(BamLlama2MediumV2C256LocalFetchC8SharedReadScan):
     """Full-M LocalO/LocalV share one read; measure speed during formal training."""
+    # code_commit: 3210379; UE5a v5p-16 ~0.682 steps/s @10-14; -1.0% vs FullScan, +1.3% vs matched scan control.
     model_name = 'BamLlama2MediumV2C256LocalFetchFullSharedReadScan'
     bam_local_o_compress_v = False
+    # Stopped 7,410: vs Clean early gain shrank, then held ~-.0086 @6k–7.2k;
+    # vs Full held ~-.0098; vs C8SharedRead ~-.0011 for 2.4% slower. Replaced by LLF trial.
+
+
+class BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan(BamLlama2MediumV2C256LocalFetchC8LocalVScan):
+    # code_commit: f6af33c; UE5a v5p-16 ~0.696 steps/s @10-14; +0.7% vs C8LocalVScan.
+    # Completed 13,500; vs LF: -.0232 @400 decayed to small persistent late benefit,
+    # -.00137 mean @12400-13400 (final window -.001251), no sustained convergence to zero.
+    """LLF vs LF; independent full-M rank2 LocalV, compressed LocalO."""
+    # vs Clean: benefit kept shrinking through ~10k, then held ~-.0080 to completion.
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan'
+    bam_local_fetch_block_size = 3
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+
+
+class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan(BamLlama2MediumV2C256LocalFetchC8SharedReadScan):
+    # code_commit: f6af33c; UE5a v5p-16 ~0.706 steps/s @10-14; +1.0% vs C8SharedReadScan.
+    # Completed 13,500; vs LF: +.0495 @200 -> small late benefit, -.00076 mean @12400-13400.
+    # Occasional near-zero crossings, no sustained late loss penalty; final window -.000861.
+    """LLF vs LF; compressed LocalO/LocalV share one read."""
+    # vs Clean: entered a ~-.008 plateau around 2.8k–3k, retained through completion.
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan'
+    bam_local_fetch_block_size = 3
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+
+
+class BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan(BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan):
+    """Three compressed shared LocalO/LocalV layers per fetched-read layer."""
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan'
+    bam_local_fetch_block_size = 4
+    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+
+
+class BamLlama2MediumV2C256LocalFetchC8LocalVSharedRankGateScan(BamLlama2MediumV2C256LocalFetchC8LocalVScan):
+    # code_commit: c74c8f6; UE5a v5p-16 ~0.692 steps/s @10-14; +0.1% vs C8LocalVScan.
+    # Completed 13,500; vs LocalV: early -.0340 @200 decayed, with repeated late zero crossings;
+    # only -.00029 mean @12400-13400 remains (final -.000509), little final quality/speed benefit.
+    """LF LocalV: per-basis side gates; head-only mix RMS, no sqrt(rank) divisor."""
+    # Implementation: codex/bam-alternating-local-fetch, /data0/xd/bam-alternating-local-fetch.
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVSharedRankGateScan'
+    bam_local_v_rank_routing = 'shared_rank_gate'
 
 
 class BamLlama2MediumV2C256ScanAotCleanNativeDiagonal(BamLlama2MediumV2C256ScanAotCleanControl):

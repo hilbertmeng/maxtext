@@ -8,8 +8,12 @@ AOT, 13,500 total updates, checkpoint period 200, and UE5a formal v5p-16 workers
 |---|---|---|
 | BamLlama2MediumV2C256ScanAotOldGate050FixedAmplitude | Old all-decay Control; fetched p=.05, fixed a/sqrt(C)=.2; additive, no depth scaling | BamLlama2MediumV2C256ScanAotControl |
 | BamLlama2MediumV2C256ScanAotOldMixScaleOnly | Learned scalar per layer, init 1/sqrt(16)=.25; signed RMS mixing without GELU; only fetch_mix_scale skips WD | BamLlama2MediumV2C256ScanAotControl |
-| BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD | Same as OldMixScaleOnly plus GELU after alpha mixing; original parameters retain old WD | BamLlama2MediumV2C256ScanAotControl; BamLlama2MediumV2C256ScanAotOldMixScaleOnly; BamLlama2MediumV2C256RmsGeluAlphaMix; BamLlama2MediumV2C256RmsGeluAlphaMixWDFix |
-| BamLlama2MediumV2C256ScanAotCleanMixScaleOnly | Scale-only with Clean's unchanged WD exemptions | BamLlama2MediumV2C256ScanAotCleanControl; BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix; BamLlama2MediumV2C256ScanAotOldMixScaleOnly |
+| BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD | Same as OldMixScaleOnly plus GELU after alpha mixing; original parameters retain old WD | BamLlama2MediumV2C256ScanAotControl; BamLlama2MediumV2C256ScanAotOldMixScaleOnly; BamLlama2MediumV2C256RmsGeluAlphaMix |
+| BamLlama2MediumV2C256ScanAotCleanMixScaleOnly | Scale-only with Clean's unchanged WD exemptions | BamLlama2MediumV2C256ScanAotCleanControl; BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix |
+
+New-GELU versus historical GELU isolates decay on the new mix scale. New-GELU
+versus GELU-WDFix and Clean-Scale versus Old-Scale are reserved for occasional WD
+interaction analysis, not routine monitoring (comparison set revised after step 2800).
 
 Old all-decay behavior is expressed as `wd_mults=[]` in the corrected optimizer,
 not by bypassing its WD-rule construction. Scale-only and GELU use the same

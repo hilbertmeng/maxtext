@@ -55,6 +55,25 @@ so neither its speed gain nor its accuracy gain is assured. These are prediction
 No formal long training is launched by this speed matrix. Runtime/artifact hashes and measured
 results must replace the pending entries before deciding the subsequent training matrix.
 
+## AOT preparation time
+
+Matched v6e-1 EW4a successful attempts, runtime `a77952e`. Time below starts at train-step
+tracing and ends when the serialized executable is created in GCS: it includes lowering,
+compilation, serialization and upload, but excludes queue/install/retry/cleanup. It is not
+pure XLA compile time. Start = the `train_compile.py:132` tracing-warning timestamp minus its
+reported tracing duration; end = `gsutil stat` object's `Creation time`.
+Full configuration names are in the throughput matrix above.
+
+| Variant | Scan seconds | Non-scan seconds | Non-scan / scan |
+|---|---:|---:|---:|
+| Control | 33.0 | 360.7 | 10.9× |
+| compressed LocalO | 46.8 | 337.2 | 7.2× |
+| compressed LocalO/V shared read | 48.8 | 374.6 | 7.7× |
+
+Raw compiler logs: `tpu-ag:/home/lishengping/xd/projects/logs/local-fetch-aot-a77952e98e28eb8508c7c8a9ec16982c37f9b72d/<CLASS>.log`.
+The much shorter scan critical path motivates independent compile lanes and pipelined target
+measurements; cleanup completion must not gate artifact consumption.
+
 ## Validation
 
 Pinned local suite: `.claude/skills/tpu-diagnostics/scripts/run_bam_unit_tests.sh WORKTREE`.

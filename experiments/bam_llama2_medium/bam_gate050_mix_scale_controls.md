@@ -64,6 +64,8 @@ Loss gaps below average the final six comparable 200-step windows, not a stoppin
 |---|---:|---|
 | OldGate050FixedAmplitude | 11,357 | vs old Control: +.1083 at 200 shrank to near-zero sign changes after 7k; mean +.00042 over 10200–11200. No durable gain; near-zero pre-training expectation broadly met. |
 | OldGeluMixScaleNoWD | 11,445 | vs old Control: +.233 at 200 shrank to a late +.00262 plateau; vs OldMixScaleOnly +.00366 (both 10400–11400). vs historical RmsGeluAlphaMix: early benefit faded, mean -.00004 over 9800–10800. GELU remained harmful on the old optimizer background; exempting only mix-scale WD did not deliver the hoped-for lasting improvement. |
+| OldMixScaleOnly | 13,500 | vs old Control: +.0896 at 200 became a sustained small benefit after ~3.4k; ~-.001 around 7k–12k narrowed to mean -.00069 over 12400–13400. A small scale-only gain survives, consistent with the modest-benefit forecast. |
+| CleanMixScaleOnly | 13,500 | vs CleanControl: sustained benefit after 600; ~-.004 at 5k–6k narrowed to mean -.00295 over 12400–13400. vs CleanGeluAlphaMix: the early lead steadily vanished into sign changes after 11k, late mean -.00019. Scale-only explains the final GELU-Clean gain within this resolution; GELU added no demonstrated durable benefit. |
 
 Both user stops used one parallel closeout on 2026-09-07: 212.9 seconds, committed
 final checkpoints, no lost steps, and both TPU/queue deletions verified. Automatic
@@ -71,4 +73,22 @@ TensorBoard sync markers were published. Source summary:
 `tpu-ag:/home/lishengping/xd/projects/logs/closeout-20260907T063947Z.json`.
 Each had one uninterrupted UE5a lease (~5h10m), zero preemptions and no region
 switch; exact UTC intervals are in `experiments/tpu_region_preemption_history.md`.
-OldMixScaleOnly and CleanMixScaleOnly continue; their benefits remain under observation.
+Both ScaleOnly runs completed with checkpoint 13,500 committed, both TPU/queued resources
+verified absent, and automatic TB sync markers published. Old exited at 07:30:49 UTC and its
+registry closed after deletion at 07:32:40; Clean exited at 07:34:07 and closed at 07:35:57
+on 2026-09-07. Each had one uninterrupted UE5a lease, zero preemptions and zero switches;
+the regional ledger retains the full intervals. Runtime launcher logs are
+`tpu-ag:/home/lishengping/xd/projects/logs/<FULL_CLASS>.log`.
+
+The learned mix-scale/init ratio (baseline Control is fixed at 1) grew more under Clean's
+optimizer background. At steps 2000 / 6000 / 10000 / 13000:
+
+| RUN | L0–7 | L8–15 | L16–23 |
+|---|---|---|---|
+| OldMixScaleOnly | 1.215 / 1.467 / 1.531 / 1.539 | 1.253 / 1.466 / 1.521 / 1.531 | 1.072 / 1.254 / 1.342 / 1.370 |
+| CleanMixScaleOnly | 1.271 / 1.565 / 1.648 / 1.661 | 1.306 / 1.610 / 1.704 / 1.723 | 1.144 / 1.371 / 1.477 / 1.510 |
+
+With diagonal-one, this scale strengthens cross fetch relative to fixed self read, not both
+together. Its larger learned adjustment and larger loss benefit under Clean are correlated,
+not proof of which WD-exempt parameter group causes the difference. Both ScaleOnly runs exempt
+the scale itself from WD, so this pair does not isolate scale WD.

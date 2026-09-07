@@ -1255,7 +1255,9 @@ class BamLlama2MediumV2C256ScanAotOldGate050FixedAmplitude(
 
 class BamLlama2MediumV2C256ScanAotOldMixScaleOnly(BamLlama2MediumV2C256ScanAotControl):
     """Learn the RMS mix scale without GELU; only the new scale skips decay."""
-    # code_commit: 42a1ffa; UE5a ~0.649 steps/s (-1.6% vs old ScanAotControl).
+    # code_commit: 42a1ffa; UE5a ~0.649 steps/s (-1.6% vs old ScanAotControl); completed 13,500.
+    # vs ScanAotControl: +.0896 @200 -> sustained small benefit after ~3.4k;
+    # ~-.001 around 7k-12k narrowed to mean -.00069 @12400-13400; small gain survives.
     model_name = 'BamLlama2MediumV2C256ScanAotOldMixScaleOnly'
     steps = 13500
     bam_shared_fetch_mode = 'dynamic_rms_scale_mix'
@@ -1277,7 +1279,9 @@ class BamLlama2MediumV2C256ScanAotOldGeluMixScaleNoWD(
 
 class BamLlama2MediumV2C256ScanAotCleanMixScaleOnly(BamLlama2MediumV2C256ScanAotCleanControl):
     """Learn the RMS mix scale without GELU under Clean's unchanged WD rules."""
-    # code_commit: 42a1ffa; UE5a ~0.648 steps/s (-0.5% vs CleanControl).
+    # code_commit: 42a1ffa; UE5a ~0.648 steps/s (-0.5% vs CleanControl); completed 13,500.
+    # vs CleanControl: sustained benefit after 600, ~-.004 at 5k-6k -> mean -.00295 @12400-13400.
+    # vs CleanGeluAlphaMix: early lead steadily vanished into sign changes after 11k; late mean -.00019, no durable extra GELU gain.
     model_name = 'BamLlama2MediumV2C256ScanAotCleanMixScaleOnly'
     bam_shared_fetch_mode = 'dynamic_rms_scale_mix'
     bam_record_fetch_route_metrics = True

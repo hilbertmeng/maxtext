@@ -3903,6 +3903,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
 ):
     """LLF with independent rank-2 LocalV instead of shared LocalO/LocalV read."""
+    # code_commit: 05fac4c; UE5a v5p-32; FIRST_STEP and steps10-14 verified.
+    # !? ~.5564 steps/s, +.58% vs shared LLF .5532 (same window), not predicted -1..-3%.
     # Ledger: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
     # Compare shared XL LLF and historical XL Rank2; same all-decay/no-health protocol.
     # Pre-run vs shared LLF: speed -1..-3%; late gap -.003..+.002, center slightly negative.
@@ -3919,6 +3921,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingShar
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
 ):
     """All F; even layers add local-V reads sharing the fetched read-key projection."""
+    # code_commit: 7f23e2b; UE5a 10-14 ~.5436 steps/s, -1.59% vs matched XL Rank2 repro .5524.
     # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
     # Compare XL Rank2 and shared LLF. Pre-run vs Rank2: speed -1..-3%, gap -.003..+.002.
     # No history-M cache reduction; keeps all cross-fetches to isolate adding LocalV.

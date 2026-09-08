@@ -366,7 +366,8 @@ M and **4.16 ms** in O-read scopes. Other small deltas leave only ~.97 ms net sa
 Gate application is backward/recompute dominated (~27.4 of29.2 ms), especially
 coordinate reduction and accumulation from the two consumers. Shared contraction
 does not make those two gated consumers free. Non-scan reproduces this cancellation.
-Consider compact-side gating and joint gradient/layout handling for a future paired
+Gating already multiplies only compact row/column slices, not the padded tail.
+Investigate joint gradient/layout handling for a future paired
 optimization; the present measurements do not yet establish a faster implementation.
 
 Historical Medium S/U mix+fetch is **9.98%** of its step; XL is **3.67%**. The

@@ -168,6 +168,17 @@ class LocalFetchTest(absltest.TestCase):
     got = BamAttention._gate_local_output.__wrapped__(cfg, read('rms'), logits)
     np.testing.assert_allclose(got, read('rms_gate'), rtol=2e-5, atol=2e-5)
 
+  def test_llf_native_diagonal_changes_only_fetch_override(self):
+    import exp
+    baseline = exp.BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan
+    variant = exp.BamLlama2MediumV2C256LocalFetchC8SharedReadLLFNativeDiagonalScan
+    differences = {name for name in dir(baseline) if not name.startswith('_')
+                   and getattr(baseline, name) != getattr(variant, name)}
+    self.assertEqual(differences, {'model_name', 'bam_fetch_diagonal_one'})
+    self.assertFalse(variant.bam_fetch_diagonal_one)
+    self.assertTrue(variant.scan_layers)
+    self.assertEqual(variant.checkpoint_period, 200)
+
 
 if __name__ == '__main__':
   absltest.main()

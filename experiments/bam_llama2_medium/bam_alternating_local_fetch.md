@@ -188,3 +188,14 @@ All compiler candidates were released. Formal TPU `xd-v5p-16-sis-lllf`, UE5a;
 registered 2026-09-08 00:10 UTC, compiled function loaded and FIRST_STEP verified.
 Steps 10–14: .7072 steps/s, -0.7% vs all-shared LLLF (.7122), within prediction.
 Versus shared LLF (.706), throughput is effectively tied (+0.2%).
+
+### Shared LLF native fetch diagonal
+
+`BamLlama2MediumV2C256LocalFetchC8SharedReadLLFNativeDiagonalScan` inherits
+`BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan` and only sets
+`bam_fetch_diagonal_one=False`: preserve the mixed-alpha diagonal, rather than zero it.
+LocalO/LocalV and LocalQK are unchanged. The sole compare_run is the shared LLF parent.
+Question: do dedicated local layers remove the need for forced fetch self-read?
+Before-launch prediction: final gap -.002 to +.005 (center slightly unfavorable),
+essentially unchanged speed and historical M-cache. Mainline scan+AOT, health-off,
+13,500 steps/checkpoint 200; UE5a chosen from recent successful leases.

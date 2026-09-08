@@ -3917,6 +3917,32 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     learning_rate_schedule_steps = 50000
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF
+):
+    """LF: compressed LocalO plus independent full-M rank-2 LocalV."""
+    # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 91b6da0.
+    # Compare independent LLF, shared LFHealth and historical XL Rank2.
+    # Pre-run vs independent LLF: speed 0..-2%, late gap +/-.003.
+    # Fetch M-cache is 1/2 of Rank2 (1.5x LLF); preserve historical all-decay.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF'
+    bam_local_fetch_block_size = 2
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingIndependentLocalV(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF
+):
+    """All F; even layers add independent full-M rank-2 LocalV, without LocalO."""
+    # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 6778f5c.
+    # Compare all-F alternating shared LocalV, independent LF and historical Rank2.
+    # Pre-run vs shared: speed -1..-3%, late gap -.010..-.003 (uncertain).
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingIndependentLocalV'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_local_o_v_mode = ['rank2', 'none'] * 12
+    bam_full_independent_local_v = True
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
 ):

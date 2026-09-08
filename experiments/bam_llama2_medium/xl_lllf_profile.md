@@ -30,3 +30,25 @@ depend on hardware-normalized differences.
 
 Artifacts go worker -> GCS -> local /data0/xd/bam_diagnostics, never through tpu-ag.
 Retain runners; release diagnostics resources after verified artifact collection.
+
+## Premeasurement theory
+
+At T2048 and C256, executed attention-pair fraction is 9/16. Per-layer
+contraction-only FLOPs in one W_Q projection unit (same forward/backward convention):
+
+| Component | Formula | Medium V2 | XL Rank2 |
+|---|---|---:|---:|
+| mixed alpha | (9/16) T n / D^2 | .017578 | .004395 |
+| temporal fetch M | (9/16) T K C / D^2 | .281250 | .140625 |
+| fetched key projection | n(K+C)/D | .625000 | .562500 |
+
+Medium D1024/K32/V32/C8/rank1; XL D2048/K64/V32/C8/rank2. Thus fetch
+removal has less arithmetic leverage in XL relative to its ordinary projections.
+This does not predict wall time directly: memory traffic/layout/remat can dominate.
+Local shared reads retain the fetched-key projection and matrix-read work; only
+the temporal route is removed, with extra LocalV gating/injection added.
+
+Validation: five class resolutions have 24 layers and batch16; all-F=24 fetches,
+LLLF=6 fetches; 57 local BAM tests passed (176.7s). Runtime ca17342496d54681f4529c93df2e7677838b9e99.
+Five prepare_train_aot jobs aot-xl-lllf-0..4 run on tpu-ag, with one EW4a v6e
+per unique configuration and automatic same-zone candidate retries.

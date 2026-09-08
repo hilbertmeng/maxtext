@@ -3866,6 +3866,23 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf-health')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
+):
+    """XL Rank2 shared LLLF: test whether a further local layer helps at scale."""
+    # Implementation: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
+    # Pre-run vs LLF: gap @5000 -.004..+.002, center negative; later near zero or mildly worse.
+    # Speed bet +0..2% vs LLF; fetched history-M cache -25% vs LLF (1/4 of Rank2).
+    # Compare historical XL Rank2 and shared LLF; retain historical all-decay optimizer.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF'
+    bam_local_fetch_block_size = 4
+    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+    record_training_health_metrics = False
+    checkpoint_period = 250
+    steps = 50000
+    learning_rate_schedule_steps = 50000
+
+
 class BamXLRank2LayerScanProfile(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200):
     """Full-24 v5p-32 all-F control; standard layer scan, no health capture."""

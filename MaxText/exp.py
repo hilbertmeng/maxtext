@@ -3782,6 +3782,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Current scan+AOT code, explicit historical all-decay optimizer; compare steps 0..200."""
+    # code_commit: 1b39c64; UE5a v5p-32; all 21 ten-step losses 0..200 match
+    # historical Rank2 within log rounding (max |delta|=5e-7); completed 201 updates.
+    # UE5a ~.549 steps/s (10..199), consistent with historical ~.545-.550.
     # Reference runtime aef0d97: AOT ignored wd_mults. Reproduce its EFFECT, not its bug.
     # Pre-run bet: ten-step losses match to ~5e-7; ~.545-.550 steps/s on v5p-32.
     # This is a 201-update prefix of the original 50k LR schedule, not a 201-step schedule.
@@ -3807,6 +3810,10 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
 ):
     """XL Rank2: shared compressed LocalO/LocalV in L, fetched read in F; LLF block scan."""
+    # code_commit: 1b39c64; UE5a v5p-32 ~.549 steps/s; same-window 10..199
+    # throughput +.12% vs control (!? effectively flat, below predicted +3..8%).
+    # Matched timing control: BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
+    # Same UE5a v5p-32, scan+AOT, BAM sow off: ~.549 steps/s; matches historical speed.
     # Explicit all-decay matches historical XL Rank2's actual AOT optimizer.
     # Pre-run bet vs Rank2: throughput +3..8%; late dloss center -.005,
     # uncertain -.015..+.005. Fetched M-cache is one third; local full M unchanged.

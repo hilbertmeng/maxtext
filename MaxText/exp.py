@@ -1445,7 +1445,7 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan(BamLlama2MediumV2C256L
 class BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan(BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan):
     """LLLF: shared, independent rank-2, shared LocalV; fetch unchanged."""
     # code_commit: b7eb1d2; UE5a v5p-16 scan+AOT ~0.707 steps/s @10-14;
-    # -0.7% vs all-shared LLLF (.7122); compare C8SharedReadLLLFScan.
+    # -0.7% vs all-shared LLLF (.7122), +0.2% vs shared LLF (.706); both are compare_runs.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan'
     bam_local_o_v_mode = ['shared', 'rank2', 'shared', 'none'] * 6
 

@@ -176,7 +176,9 @@ but uses `bam_local_o_v_mode = ['shared', 'rank2', 'shared', 'none'] * 6`.
 Only the middle LocalV uses an independent rank-2 full-M read; its LocalO still uses C8.
 The other two LocalV branches reuse their compressed LocalO read. This tests whether sparse
 independent reads improve quality without paying for them at every local layer.
-Direct compare: `BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan`.
+Direct compares: `BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan` isolates
+the middle independent LocalV; `BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan`
+tests overall quality/throughput against the validated LLF design.
 Prediction: final gap -.0015 to 0, throughput -0.3–1%; no guaranteed gain.
 Same mainline, scan+AOT, health-off, 13,500 steps/checkpoint 200, preferred zone UE5a.
 Runtime `b7eb1d235c61dc36246138e65c01479d430b6789`; 5 LocalFetch regression tests pass.
@@ -185,3 +187,4 @@ Runtime `b7eb1d235c61dc36246138e65c01479d430b6789`; 5 LocalFetch regression test
 All compiler candidates were released. Formal TPU `xd-v5p-16-sis-lllf`, UE5a;
 registered 2026-09-08 00:10 UTC, compiled function loaded and FIRST_STEP verified.
 Steps 10–14: .7072 steps/s, -0.7% vs all-shared LLLF (.7122), within prediction.
+Versus shared LLF (.706), throughput is effectively tied (+0.2%).

@@ -3866,6 +3866,50 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf-health')
 
 
+class BamXLRank2LayerScanProfile(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200):
+    """Full-24 v5p-32 all-F control; standard layer scan, no health capture."""
+    model_name = 'BamXLRank2LayerScanProfile'
+    steps = 100
+    learning_rate_schedule_steps = 50000
+    scan_layers = True
+    bam_pair_scan = False
+    record_training_health_metrics = False
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    profile_cleanly = True
+    upload_all_profiler_results = True
+    enable_checkpointing = False
+    async_checkpointing = False
+    force_final_checkpoint = False
+
+
+class BamXLRank2Block4ScanProfile(BamXLRank2LayerScanProfile):
+    """All-F with the identical four-layer block scanner used by LLLF."""
+    model_name = 'BamXLRank2Block4ScanProfile'
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 4
+
+
+class BamXLRank2NoScanProfile(BamXLRank2LayerScanProfile):
+    model_name = 'BamXLRank2NoScanProfile'
+    scan_layers = False
+
+
+class BamXLLocalSharedLLLFBlock4ScanProfile(BamXLRank2Block4ScanProfile):
+    model_name = 'BamXLLocalSharedLLLFBlock4ScanProfile'
+    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'shared'
+
+
+class BamXLLocalSharedLLLFNoScanProfile(BamXLLocalSharedLLLFBlock4ScanProfile):
+    model_name = 'BamXLLocalSharedLLLFNoScanProfile'
+    scan_layers = False
+    bam_pair_scan = False
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

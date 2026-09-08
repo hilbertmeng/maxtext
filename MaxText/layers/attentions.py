@@ -3300,7 +3300,11 @@ class BamAttention(Attention):
           ))
 
       local_v_output_dim = self.head_dim - self.bam_k
-      if self.bam_v > local_v_output_dim:
+      # A basis-side post-read projection already fits the answer into the head.
+      # Do not create unused per-head adapters (or consume their initializer keys).
+      if (self.bam_v > local_v_output_dim
+          and self._local_qk_post_read_v_dim is None
+          and not self._local_qk_use_compressed_v):
         def local_v_adapter_init(key, shape, dtype):
           return reg_init(key, shape, dtype, 1, 2)
         for _name in ('local_q_v_adapter', 'local_k_v_adapter'):

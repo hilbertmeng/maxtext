@@ -1433,6 +1433,23 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan(BamLlama2MediumV2C256Lo
     bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
 
 
+class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan(
+    BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan
+):
+    """M32x64/C8 LLF; full-M LocalQK with paired Q/K V64-to-V32 basis adapters."""
+    # Runtime: codex/bam-llf-v64, /data0/xd/bam-llf-v64. Parent runtime f6af33c.
+    # Pre-run bet vs shared LLF: throughput -2..-5%; late dloss center -.003,
+    # uncertain -.010..+.005. Historical M-cache unchanged; full M state doubles.
+    model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan'
+    bam_v = 64
+    bam_local_qk_post_read_v_dim = 32
+    bam_local_qk_post_read_v_share_qk = False
+    bam_local_qk_post_read_v_paired_init = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-llf-v64-post-read-v32')
+
+
 class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFNativeDiagonalScan(BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan):
     """LLF: retain native mixed-alpha diagonal on fetch layers; local reads unchanged."""
     # code_commit: 53bbadf; UE5a v5p-16 scan+AOT ~0.708 steps/s @10-14;

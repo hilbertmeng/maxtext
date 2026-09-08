@@ -97,6 +97,65 @@ class LocalFetchTest(absltest.TestCase):
     self.assertNotIn('cond[', jaxpr)
     self.assertIn('length=2', jaxpr)
 
+  def test_llf_v64_full_read_adapters_are_live_on_local_and_fetch_layers(self):
+    exp = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan'
+    cfg = self.config(exp)
+    self.assertEqual((cfg.bam_k, cfg.bam_v, cfg.bam_abs_v_compression_dim), (32, 64, 8))
+    self.assertFalse(cfg.bam_local_qk_use_compressed_v)
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    for mode in ('local_qk+local_o', 'local_qk+full'):
+      with self.subTest(mode=mode):
+        module = BamAttention(
+            config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+            bam_k=32, bam_v=64,
+            max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+            attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+            layer_mode=mode, attention_type=cfg.attention_type)
+        x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
+        m = jax.random.normal(jax.random.key(2), (1, 8, 32, 64), dtype=cfg.dtype)
+        args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+        variables = module.init(
+            {'params': jax.random.key(3), 'aqt': jax.random.key(4)},
+            *args, M_in=m, deterministic=True, layer_index=2)
+        params = variables['params']
+        adapter = params['local_qk_post_read_v_paired_projection'].value
+        self.assertEqual(adapter.shape, (2, 64, 32))
+        np.testing.assert_array_equal(adapter[0], adapter[1])
+        self.assertNotIn('local_q_v_adapter', params)
+        self.assertNotIn('local_k_v_adapter', params)
+        self.assertEqual(params['abs_v_cache_projection'].value.shape, (64, 8))
+        # After the first nonzero update, both independent basis adapters must learn.
+        # At initialization all LocalQK keys are deliberately zero, so their adapter
+        # gradients are also zero; use nonzero keys to test the live execution path.
+        packed = params['W_local_qk_packed']['kernel']
+        params['W_local_qk_packed']['kernel'] = packed.replace(
+            value=packed.value + .01 * jax.random.normal(
+                jax.random.key(5), packed.value.shape, dtype=packed.value.dtype))
+        def loss(p):
+          y, next_m = module.apply({'params': p}, *args,
+                                  M_in=m, deterministic=True, layer_index=2)
+          self.assertEqual(next_m.shape, m.shape)
+          return jnp.mean(y.astype(jnp.float32)**2) + jnp.mean(next_m.astype(jnp.float32)**2)
+        grads = jax.grad(loss)(params)
+        self.assertTrue(all(bool(jnp.all(jnp.isfinite(a))) for a in jax.tree.leaves(grads)))
+        adapter_grad = grads['local_qk_post_read_v_paired_projection'].value
+        for side in range(2):
+          self.assertGreater(float(jnp.linalg.norm(adapter_grad[side])), 0.)
+
+  def test_llf_v64_scanned_training_signature(self):
+    cfg = self.config('BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan')
+    cfg.get_keys()['num_decoder_layers'] = 6
+    cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    cfg.get_keys()['vocab_size'] = 128
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    args, _, shardings, model = train_compile.get_shaped_inputs(mesh, cfg)
+    with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
+      _, metrics = jax.eval_shape(
+          lambda state, data, rng: train.train_step(model, cfg, shardings, state, data, rng),
+          *args)
+    self.assertIn('learning/loss', metrics['scalar'])
+    self.assertFalse(any('norm' in name or 'bam/' in name for name in metrics['scalar']))
+
   def test_training_signature_has_loss_but_no_health_metrics(self):
     for layout in ('Scan', 'NonScan'):
       with self.subTest(layout=layout):

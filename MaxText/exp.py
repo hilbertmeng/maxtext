@@ -3823,6 +3823,12 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     # uncertain -.015..+.005. Fetched M-cache is one third; local full M unchanged.
     # Keep K/V/C=64/32/8, full-M rank2 LocalQK and partial RoPE (last32) unchanged.
     # LLF changes scan parameter grouping/native initialization as in Medium LLF.
+    # Paused at committed checkpoint 6,133; TPU released, original 50k schedule retained.
+    # Provisional vs historical XL Rank2: +.02032 @500,
+    # crossed near zero @1000-2000, then all positive @2500-6000 with a widening trend.
+    # Latest six windows @3500-6000: mean +.00289 (range +.00150..+.00379), not converging to zero.
+    # Unlike Medium shared LLF, no sustained loss gain so far; throughput effectively flat,
+    # but fetched history-M cache is 1/3 of Rank2. Not a final 50k convergence verdict.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF'
     steps = 50000
     bam_pair_scan = True
@@ -3858,12 +3864,73 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
 ):
     """Restart LF from step zero with standard gradient/parameter health metrics."""
     # code_commit: 9c738f4; UE5a v5p-32; confirmed standard TB scalars present, BAM sow absent.
+    # Steps 10..199: ~.544 steps/s, -1.24% vs no-health LF; includes standard metrics cost.
     # Same model/WD/schedule as LF; BAM sow remains off. New RUN isolates pre-restart data.
+    # Paused at committed checkpoint 5,328; TPU released, original 50k schedule retained.
+    # Provisional vs historical Rank2: +.05383 @500
+    # narrowed monotonically to +.01094 @5000; last six windows mean +.01283.
+    # vs shared LLF: +.03351 @500 -> +.00754 @5000, narrowing except tiny @4500 reversal.
+    # No sustained loss benefit yet, but still narrowing: not a final convergence verdict.
+    # Fair health-off timing: LF +.28% vs LLF, +.40% vs matched Rank2 repro; cache 1/2 of Rank2.
+    # Standard raw-gradient health near Rank2; sampled clip rate @510-1000 is 2% for both.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLFHealth'
     record_training_health_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf-health')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
+):
+    """XL Rank2 shared LLLF; formal scaling test."""
+    # code_commit: 1681b97; UE5a v5p-32, block4-scan+AOT; FIRST_STEP verified.
+    # Steps10-14 ~.556 steps/s; +.65% vs matched Rank2 repro .5524, +.51% vs LLF .5532.
+    # Ledger: runtime branch codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
+    # Pre-run vs LLF: @5000 gap -.004..+.002, center negative; later near zero or mildly worse.
+    # Speed bet +0..2% vs LLF; history-M cache -25% vs LLF (1/4 of Rank2).
+    # Compare historical XL Rank2 and shared LLF; historical all-decay, health metrics off.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF'
+    bam_local_fetch_block_size = 4
+    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+    record_training_health_metrics = False
+    checkpoint_period = 250
+    steps = 50000
+    learning_rate_schedule_steps = 50000
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
+):
+    """LLF with independent rank-2 LocalV instead of shared LocalO/LocalV read."""
+    # Ledger: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
+    # Compare shared XL LLF and historical XL Rank2; same all-decay/no-health protocol.
+    # Pre-run vs shared LLF: speed -1..-3%; late gap -.003..+.002, center slightly negative.
+    # Same 1/3 fetched history-M cache as shared LLF; extra independent local-read parameters.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF'
+    bam_local_o_v_mode = 'rank2'
+    record_training_health_metrics = False
+    checkpoint_period = 250
+    steps = 50000
+    learning_rate_schedule_steps = 50000
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
+):
+    """All F; even layers add local-V reads sharing the fetched read-key projection."""
+    # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
+    # Compare XL Rank2 and shared LLF. Pre-run vs Rank2: speed -1..-3%, gap -.003..+.002.
+    # No history-M cache reduction; keeps all cross-fetches to isolate adding LocalV.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_local_fetch_block_size = 2
+    bam_local_o_v_mode = ['shared', 'none'] * 12
+    bam_full_shared_local_v = True
+    record_training_health_metrics = False
+    checkpoint_period = 250
+    steps = 50000
+    learning_rate_schedule_steps = 50000
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(

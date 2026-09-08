@@ -339,6 +339,43 @@ Manual Q/K batching does not improve this contraction. On the same non-scan v6e-
 `8.03→5.78 ms`), but backward rises `14.58→19.56 ms`; backward read-M traffic rises
 `4.97→7.58 GB`. Training is backward-dominated, so keep the separate Q/K implementation.
 
+### XL Rank2 all-F versus shared LLLF paired main profile
+
+Full-24, T2048, v5p-32 **EW4b**, runtime `ca17342`, historical all-decay,
+health metrics disabled. Implementation and fine-grained report:
+[/data0/xd/xl-lllf-profile/experiments/bam_llama2_medium/xl_lllf_profile.md](/data0/xd/xl-lllf-profile/experiments/bam_llama2_medium/xl_lllf_profile.md),
+branch `codex/xl-lllf-profile`. Five unique configurations answer the three requested
+pairs. Device timings use the complete first step on all eight recorded primary-worker
+devices; partial second-step kernel records are excluded.
+
+| Configuration | Scanner | Device step ms |
+|---|---|---:|
+| BamXLRank2LayerScanProfile | layer scan | 1796.94 |
+| BamXLRank2Block4ScanProfile | block4 scan | 1786.64 |
+| BamXLLocalSharedLLLFBlock4ScanProfile | block4 scan | 1785.67 |
+| BamXLRank2NoScanProfile | none | 1825.86 |
+| BamXLLocalSharedLLLFNoScanProfile | none | 1818.73 |
+
+LLLF throughput gains: **+.63%** versus actual layer-scan Rank2, **+.05%** with
+matched block4, **+.39%** without scan. Thus scanner grouping is not the principal
+explanation for the unexpectedly small architectural gain.
+
+Matched block4 LLLF saves **50.06 ms** of mix+fetch, but adds **38.60 ms** of
+LocalV gate projection and shared LocalO/LocalV output gating, **9.78 ms** in write
+M and **4.16 ms** in O-read scopes. Other small deltas leave only ~.97 ms net saving.
+Gate application is backward/recompute dominated (~27.4 of29.2 ms), especially
+coordinate reduction and accumulation from the two consumers. Shared contraction
+does not make those two gated consumers free. Non-scan reproduces this cancellation.
+Consider compact-side gating and joint gradient/layout handling for a future paired
+optimization; the present measurements do not yet establish a faster implementation.
+
+Historical Medium S/U mix+fetch is **9.98%** of its step; XL is **3.67%**. The
+former is 8-layer v6e-1 and the latter 24-layer v5p-32: this is descriptive, not a
+hardware-controlled scaling claim. Both temporal fetch/W_Q and MHA AV/W_Q halve
+from Medium to XL; fetch/AV remains25%, so reduced fetch leverage cannot be explained
+by comparison to AV alone. Detailed scope/theory definitions and raw per-device
+JSON are in the linked report. Existing Medium main profiles above/below are retained.
+
 ### V2 fine-grained main profile
 
 The most detailed operator breakdown is the six-layer graph of

@@ -3941,6 +3941,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingInde
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF
 ):
     """All F; even layers add independent full-M rank-2 LocalV, without LocalO."""
+    # code_commit: 6778f5c; UE5a v5p-32; AOT load and FIRST_STEP verified.
+    # !? 10-14 ~.5468 steps/s: +.59% vs shared .5436 (predicted -1..-3%),
+    # -1.58% vs independent LF .5556; -1.01% vs Rank2 repro .5524.
     # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 6778f5c.
     # Compare all-F alternating shared LocalV, independent LF and historical Rank2.
     # Pre-run vs shared: speed -1..-3%, late gap -.010..-.003 (uncertain).

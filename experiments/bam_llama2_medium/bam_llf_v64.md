@@ -54,3 +54,22 @@ Pinned CPU validation passed: 57 BAM tests (177.4 s) and 8 LocalFetch tests
 LocalQK keys, independent live paired adapters, no unused per-head parameters,
 C8 source shape and the static LLF scanned train-step signature without health
 metrics. Formal FIRST_STEP / steps 10-14 and cumulative loss reports are pending.
+
+Parameter-shape audit (full 24 layers, D1024/head16) gives baseline 443555680 and candidate 448490848 parameters: +4935168 = 0.196106 W_Q/layer. This includes the inherited, unused Direct row decoder whose shape follows V; active major projections account for about 0.192 W_Q/layer. Parent resolved configuration matches historical f6af33c exactly; all seven BAM/generic health flags resolve false.
+
+## Formal launch
+
+Runtime: `0379c828adb172c6ce1e043144750fddc8fc0209`. AOT prepared and manifest
+verified for v5p-16/13,500 steps:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/0379c82/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan.pickle`.
+All three compiler candidates were verified released (`AOT_CLEANUP_DONE`).
+Formal RUN registered 2026-09-08 03:44:16 UTC on `xd-v5p-16-llf-v64`, UE5a;
+training process launched 03:50:45 UTC. Registry and controller environment agree
+on runtime hash, AOT and sole compare_run (shared LLF).
+
+Worker log confirms `Loaded compiled function!` and FIRST_STEP. Steps 10-14:
+0.671, 0.671, 0.671, 0.671, 0.672 steps/s; mean **0.6712**, **-4.93% throughput**
+(**+5.18% step time**) versus historical UE5a shared LLF 0.706. This is a
+same-zone/topology/config historical comparison, not a same-VM paired profile.
+All seven BAM/generic health metric flags are false in the actual worker config.
+Speed is within the predicted -2..-5% range, at its slow end.

@@ -1440,6 +1440,8 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan(
     # Runtime: codex/bam-llf-v64, /data0/xd/bam-llf-v64. Parent runtime f6af33c.
     # Pre-run bet vs shared LLF: throughput -2..-5%; late dloss center -.003,
     # uncertain -.010..+.005. Historical M-cache unchanged; full M state doubles.
+    # code_commit: 0379c82; UE5a v5p-16 scan+AOT ~0.6712 steps/s @10-14,
+    # -4.9% throughput vs shared LLF (.706); running, compare shared LLF.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan'
     bam_v = 64
     bam_local_qk_post_read_v_dim = 32

@@ -1445,6 +1445,11 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan(BamLlama2MediumV2C256L
     """Three compressed shared LocalO/LocalV layers per fetched-read layer."""
     # code_commit: 2980161; UE5a v5p-16 scan+AOT ~0.712 steps/s @10-14;
     # +0.9% vs SharedReadLLFScan, +5.8% vs matched health-off Clean speed control.
+    # Stopped 4,479 (checkpoint committed): vs shared LLF, early +.00997 @600 narrowed near zero @1600-1800,
+    # then reopened to ~+.002 (mean +.00198 @3000-4000), not a persistent loss improvement.
+    # vs Clean: -.01177 @1200 weakened to ~-.00589 @3000-4000; 25% less history-M cache
+    # than LLF and modest speed gain, but LLF retains the better loss tradeoff so far.
+    # Final window @4400: +.001770 vs LLF, -.005575 vs Clean; LLF gap ~+.00175 @3400-4400.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan'
     bam_local_fetch_block_size = 4
     bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
@@ -1454,6 +1459,11 @@ class BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan(BamLlama2
     """LLLF: shared, independent rank-2, shared LocalV; fetch unchanged."""
     # code_commit: b7eb1d2; UE5a v5p-16 scan+AOT ~0.707 steps/s @10-14;
     # -0.7% vs all-shared LLLF (.7122), +0.2% vs shared LLF (.706); both are compare_runs.
+    # Stopped 3,327 (checkpoint committed): vs all-shared LLLF, -.04440 @200 shrank to mean -.00136
+    # @2000-3000; vs shared LLF, negative @1000-1800 crossed positive @2000 and
+    # stayed ~+.001 @2400-3000. Independent LocalV recovers some LLLF loss, but has
+    # not beaten shared LLF; speed is effectively tied with LLF (history-M cache -25%).
+    # Final @3200: -.000479 vs all-shared, +.001303 vs LLF; @2200-3200 means -.00109 / +.00106.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan'
     bam_local_o_v_mode = ['shared', 'rank2', 'shared', 'none'] * 6
 

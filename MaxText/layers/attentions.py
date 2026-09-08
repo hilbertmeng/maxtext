@@ -2604,6 +2604,7 @@ class BamAttention(Attention):
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
       self._local_o = False
+      self._full_shared_local_v = False
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0

@@ -9,8 +9,8 @@ not a qualified loss baseline.
 
 | Configuration | Existing v6e-AOT steps/s (10–14) | New target-JIT steps/s | JIT/AOT−1 |
 |---|---:|---:|---:|
-| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF` | .5564 | pending | pending |
-| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF` | .5532 | pending | pending |
+| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF` | .5564 | .5534 | −0.54% |
+| `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF` | .5532 | .5512 | −0.36% |
 
 Existing AOT timings were measured on UE5a v5p-32 training workers. Independent
 LLF used `05fac4c`; shared LLF used `1b39c64`. The attention, fusion, train,
@@ -37,3 +37,18 @@ Controller: tpu-ag tmux `xl-llf-jit-timing`; output log
 `/home/lishengping/xd/projects/logs/xl-llf-jit-timing.log`.
 Prediction: each JIT/AOT throughput difference within roughly 1%; larger
 differences require investigation, not automatic attribution to noise.
+
+## Result
+
+Both target-JIT arms completed on 2026-09-08. Log speeds at steps 10–14:
+independent `[.553,.553,.554,.553,.554]`; shared `[.551,.551,.551,.551,.552]`.
+Independent/shared throughput is +0.40% under JIT, versus +0.58% for the existing
+AOT runs. The small differences agree with the pre-run expectation; AOT is not
+the main explanation for the unexpectedly small LLF throughput gain. This is a
+log-throughput comparison, not a new operator-level causal profile or loss test.
+Both no-checkpoint train processes were stopped and checked absent on all workers.
+
+Local raw timing artifacts:
+`/data0/xd/bam_diagnostics/xl_llf_jit_aot_timing/05fac4c/` contains the summary JSON
+and two complete short-run loss/speed logs. Runner commit `80b0d63` (model runtime
+remains `05fac4c`). Diagnostic TPU deletion requested after successful collection.

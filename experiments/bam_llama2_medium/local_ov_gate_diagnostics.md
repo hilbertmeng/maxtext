@@ -29,7 +29,10 @@
 The production attention implementation is unchanged. Linen interceptors record scalar
 gate logits and squared ungated read norms; interventions replace only the selected gate
 kernel/bias in a new parameter tree. An untouched no-capture forward must match the capture
-baseline within 2e-5 per-sequence loss before accepting results. Tiny CPU scan tests pass.
+baseline is checked explicitly. Tiny CPU scan tests pass at 2e-5, but the restored
+bf16 TPU model showed a 0.000945 maximum first-batch scheduling difference. Therefore
+all causal deltas use a no-op parameter-select control in the exact same compiled
+executable as the interventions; capture loss is saved separately, not used as their base.
 
 ## Results
 

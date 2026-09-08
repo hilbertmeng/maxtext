@@ -189,11 +189,15 @@ def run(config):
       continue
     batch = {k: jnp.asarray(cohort[k][start:start + bs]) for k in KEYS}
     with mesh, partitioning.axis_rules(config.logical_axis_rules):
-      baseline, raw = capture(params, batch)
-      baseline, raw = jax.device_get((baseline, raw))
-      identity = np.asarray(forward(params, batch, -2, 0, 0))
-      np.testing.assert_allclose(identity, baseline, atol=2e-5, rtol=0)
-      print(f'FIRST_STEP batch={start} loss={baseline.mean():.7f} identity_max={abs(identity-baseline).max():.3g}', flush=True)
+      capture_loss, raw = capture(params, batch)
+      capture_loss, raw = jax.device_get((capture_loss, raw))
+      # Baseline and every intervention use the exact SAME executable, including
+      # the parameter-select graph. Capture changes XLA scheduling in bf16 and is
+      # kept separate from all causal loss contrasts.
+      baseline = np.asarray(forward(params, batch, -2, 0, 0))
+      if not np.isfinite(capture_loss).all() or not np.isfinite(baseline).all():
+        raise ValueError('nonfinite baseline')
+      print(f'FIRST_STEP batch={start} loss={baseline.mean():.7f} capture_drift_max={abs(capture_loss-baseline).max():.3g}', flush=True)
       losses = []
       for index, (layer, side, direction) in enumerate(arms):
         losses.append(np.asarray(forward(params, batch, layer, side, direction)))
@@ -201,7 +205,7 @@ def run(config):
           print(f'PROGRESS batch={start} arm={index}/{len(arms)}', flush=True)
     # bf16 training logits -> fp32 captures; lossless compression, all tokens retained.
     pending = output / f'.pending_{start:03d}.npz'
-    np.savez_compressed(pending, baseline=baseline, losses=np.stack(losses),
+    np.savez_compressed(pending, baseline=baseline, capture_loss=capture_loss, losses=np.stack(losses),
                         mask=np.asarray(batch['targets_segmentation'] != 0), **raw)
     pending.replace(path)
     print(f'BATCH_DONE start={start} elapsed={time.time()-started:.1f}', flush=True)

@@ -6,6 +6,7 @@ import collections
 import glob
 import gzip
 import json
+import re
 
 
 OUTER = {
@@ -16,6 +17,8 @@ OUTER = {
     "fetch_m": "bam/fetch_m",
     "local_qk": "bam/read_local_m_for_qk",
     "fetched": "bam/read_fetched_m",
+    "local_v_gate_projection": "read_gate_projection/W_lv_gate",
+    "local_output_gating": "self_attention._gate_local_output/",
 }
 
 
@@ -110,23 +113,46 @@ def summarize(path):
       if event.get("ph") == "M" and event.get("name") == "process_name"
       and str(event.get("args", {}).get("name", "")).startswith("/device:TPU:")
   }
-  steps = collections.Counter(
-      event["pid"] for event in events
-      if event.get("pid") in device_pids and event.get("ph") == "X"
-      and str(event.get("name", "")).startswith("jit_train_step(")
-  )
   per_device = {}
-  for pid, step_count in steps.items():
+  for pid in sorted(device_pids):
+    device_events = [e for e in events if e.get("pid") == pid and e.get("ph") == "X"]
+    step_events = [e for e in device_events if str(e.get("name", "")).startswith("jit_train_step(")]
+    valid_steps = []
+    for step in step_events:
+      start, end = step["ts"], step["ts"] + step["dur"]
+      intervals = []
+      for e in device_events:
+        name = str(e.get("name", "")).lower()
+        if name.startswith(("jit_train_step(", "while.")) or (name.isdigit() and not e.get("args", {}).get("tf_op")):
+          continue
+        if start <= e["ts"] and e["ts"] + e.get("dur", 0) <= end + 1:
+          intervals.append((e["ts"], min(end, e["ts"] + e.get("dur", 0))))
+      covered, cursor = 0.0, start
+      for left, right in sorted(intervals):
+        covered += max(0.0, right - max(cursor, left))
+        cursor = max(cursor, right)
+      coverage = covered / step["dur"]
+      if coverage >= .98:
+        valid_steps.append(step)
+      else:
+        print(f"discard_partial_device_step pid={pid} ts={start} kernel_coverage={coverage:.4f}")
+    if not valid_steps:
+      raise ValueError(f"No complete kernel-covered steps on device {pid}: {path}")
+    step_count = len(valid_steps)
+    windows = [(s["ts"], s["ts"] + s["dur"]) for s in valid_steps]
     buckets = collections.defaultdict(lambda: [0.0, 0.0, 0.0])
-    step_ms = 0.0
-    for event in events:
-      if event.get("pid") != pid or event.get("ph") != "X":
+    step_ms = sum(s["dur"] for s in valid_steps) / 1000.0
+    for event in device_events:
+      if not any(left <= event["ts"] and event["ts"] + event.get("dur", 0) <= right + 1 for left, right in windows):
         continue
       if str(event.get("name", "")).startswith("jit_train_step("):
-        step_ms += float(event.get("dur", 0.0)) / 1000.0
         continue
       op = str(event.get("args", {}).get("tf_op", ""))
       hlo_name = str(event.get("name", "")).lower()
+      # AOT traces can include numeric step/region markers spanning the entire
+      # executable alongside its kernels. These are wrappers, not extra work.
+      if hlo_name.isdigit() and not op:
+        continue
       value = metric(event)
       # A scanned layer appears as a device-side while parent whose duration,
       # FLOPs, and bytes already include the nested body kernels. Keep the
@@ -175,6 +201,13 @@ def summarize(path):
         if scope not in op:
           continue
         add(buckets[name], value)
+        # Diagnostic subsets, not additional additive categories. In block scans
+        # the offset names are structural labels; callers interpret their modes.
+        phase = "backward_or_recompute" if "transpose(jvp(" in op else "forward"
+        add(buckets[f"phase.{phase}.{name}"], value)
+        offset = re.search(r"/(local_[0-9]+|fetch_[0-9]+)/", op)
+        if offset:
+          add(buckets[f"offset.{offset.group(1)}.{name}"], value)
         if name == "write_m":
           add(buckets[f"write.{classify_write(op)}"], value)
         elif name == "mix_alpha":
@@ -230,6 +263,7 @@ def summarize(path):
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("traces", nargs="+")
+  parser.add_argument("--json-output", help="Save per-device scopes and exact trace paths")
   args = parser.parse_args()
   paths = []
   for pattern in args.traces:
@@ -237,6 +271,9 @@ def main():
   devices = []
   for path in paths:
     devices.extend(summarize(path).values())
+  if args.json_output:
+    with open(args.json_output, "w") as stream:
+      json.dump({"traces": paths, "devices": devices}, stream, indent=2)
   names = sorted({name for _, buckets in devices for name in buckets})
   print(f"traces={len(paths)} devices={len(devices)}")
   step_values = [step for step, _ in devices]

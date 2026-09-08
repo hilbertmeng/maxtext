@@ -343,7 +343,7 @@ Manual Q/K batching does not improve this contraction. On the same non-scan v6e-
 
 Full-24, T2048, v5p-32 **EW4b**, runtime `ca17342`, historical all-decay,
 health metrics disabled. Implementation and fine-grained report:
-[/data0/xd/xl-lllf-profile/experiments/bam_llama2_medium/xl_lllf_profile.md](/data0/xd/xl-lllf-profile/experiments/bam_llama2_medium/xl_lllf_profile.md),
+[XL fine-grained paired report](xl_lllf_profile.md),
 branch `codex/xl-lllf-profile`. Five unique configurations answer the three requested
 pairs. Device timings use the complete first step on all eight recorded primary-worker
 devices; partial second-step kernel records are excluded.

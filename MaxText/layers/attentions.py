@@ -2625,9 +2625,12 @@ class BamAttention(Attention):
             f'unsupported production BAM layer mode: {self.layer_mode}')
     self._local_o = 'local_o' in self._mode
     self._output_read = 'full' in self._mode or self._local_o
+    local_v_mode = self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none')
+    self._full_shared_local_v = (
+        'full' in self._mode and local_v_mode == 'shared'
+        and bool(getattr(cfg, 'bam_full_shared_local_v', False)))
     self._local_v_mode = (
-        (self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none'))
-        if self._local_o else 'none')
+        local_v_mode if self._local_o or self._full_shared_local_v else 'none')
     assert self._local_v_mode in ('none', 'rank2', 'shared')
     self._local_v_rank_routing = getattr(cfg, 'bam_local_v_rank_routing', None) or 'legacy'
     assert self._local_v_rank_routing in ('legacy', 'shared_rank_gate')
@@ -4094,7 +4097,8 @@ class BamAttention(Attention):
         jnp.concatenate((y_k, y_v), axis=-1),
         self.num_query_heads, self.head_dim)
 
-  def _read_fetched_m(self, Mbar, inputs_q, layer_index=None, *, ungated=False):
+  def _read_fetched_m(self, Mbar, inputs_q, layer_index=None, *, ungated=False,
+                      key_projection=None):
     """Read fetched M into every BAM head."""
     with jax.named_scope("bam/read_fetched_m"):
       m_rms = None
@@ -4158,7 +4162,8 @@ class BamAttention(Attention):
             m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
       def full_read_projection(x):
         projected_key = _add_bam_read_key_bias(
-            self.W_R(x), self._abs_k_dim or self.bam_k,
+            self.W_R(x) if key_projection is None else key_projection,
+            self._abs_k_dim or self.bam_k,
             getattr(self, 'W_R_row_pre_rms_bias', None),
             getattr(self, 'W_R_col_pre_rms_bias', None))
         return jnp.squeeze(projected_key, axis=-2)
@@ -4380,16 +4385,23 @@ class BamAttention(Attention):
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
     local_output = None
-    if self._local_o:
+    full_key_projection = None
+    if self._local_o or self._full_shared_local_v:
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       local_state = self._compress_full_fetch_state(Mh)
+      if self._full_shared_local_v:
+        # One projection, two distinct M reads; only the local read feeds V.
+        full_key_projection = self.W_R(inputs_q)
       local_output, output_logits = self._read_fetched_m(
-          local_state, inputs_q, layer_index, ungated=self._local_v_mode == 'shared')
+          local_state, inputs_q, layer_index, ungated=self._local_v_mode == 'shared',
+          key_projection=full_key_projection)
       if self._local_v_mode == 'shared':
         value = value + self._gate_local_output(
             local_output, self._project_read_gate_logits('W_lv_gate', inputs_q))
-        local_output = self._gate_local_output(local_output, output_logits)
+        local_output = (
+            None if self._full_shared_local_v
+            else self._gate_local_output(local_output, output_logits))
       elif self._local_v_mode == 'rank2':
         value = value + self._read_local_v(Mh, inputs_q)
 
@@ -4417,7 +4429,8 @@ class BamAttention(Attention):
               jnp.mean(weights), jnp.sqrt(jnp.mean(weights * weights)),
               jnp.mean((weights < 0).astype(jnp.float32)))))
       fetch_state = (
-          local_Mh if self._local_qk_use_compressed_v
+          local_state if self._full_shared_local_v
+          else local_Mh if self._local_qk_use_compressed_v
           else self._compress_full_fetch_state(Mh))
 
     _, t, _, _ = query.shape
@@ -4440,7 +4453,7 @@ class BamAttention(Attention):
     o_head = y_std if local_output is None else y_std + local_output
     if Mbar is not None:
       y_bam, fetched_gate_logits = self._read_fetched_m(
-          Mbar, inputs_q, layer_index)
+          Mbar, inputs_q, layer_index, key_projection=full_key_projection)
       if self._record_fetched_read_health_metrics:
         y_std_rms = jnp.sqrt(jnp.mean(jnp.square(y_std.astype(jnp.float32))))
         y_bam_rms = jnp.sqrt(jnp.mean(jnp.square(y_bam.astype(jnp.float32))))

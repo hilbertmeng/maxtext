@@ -97,6 +97,34 @@ class LocalFetchTest(absltest.TestCase):
     self.assertNotIn('cond[', jaxpr)
     self.assertIn('length=2', jaxpr)
 
+  def test_full_fetch_can_add_shared_local_v_without_local_o(self):
+    cfg = self.config('BamLlama2MediumV2C256LocalFetchC8SharedReadScan')
+    cfg.get_keys()['bam_full_shared_local_v'] = True
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
+    m = jax.random.normal(jax.random.key(2), (1, 8, 32, 32), dtype=cfg.dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    for mode in ('shared', 'none'):
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+full', local_v_mode=mode,
+          attention_type=cfg.attention_type)
+      variables = module.init(
+          {'params': jax.random.key(3), 'aqt': jax.random.key(4)},
+          *args, M_in=m, deterministic=True, layer_index=2)
+      params = variables['params']
+      self.assertIn('fetch_head_mix', params)
+      self.assertEqual('W_lv_gate' in params, mode == 'shared')
+      self.assertNotIn('W_local_v_packed', params)
+      def loss(p):
+        y, next_m = module.apply({'params': p}, *args, M_in=m,
+                                deterministic=True, layer_index=2)
+        return jnp.mean(y.astype(jnp.float32)**2) + jnp.mean(next_m.astype(jnp.float32)**2)
+      grads = jax.grad(loss)(params)
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(a))) for a in jax.tree.leaves(grads)))
+
   def test_training_signature_has_loss_but_no_health_metrics(self):
     for layout in ('Scan', 'NonScan'):
       with self.subTest(layout=layout):

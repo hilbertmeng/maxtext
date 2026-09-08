@@ -3901,6 +3901,24 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     learning_rate_schedule_steps = 50000
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
+):
+    """All F; even layers add local-V reads sharing the fetched read-key projection."""
+    # Implementation: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
+    # Compare XL Rank2 and shared LLF. Pre-run vs Rank2: speed -1..-3%, gap -.003..+.002.
+    # No history-M cache reduction; keeps all cross-fetches to isolate adding LocalV.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_local_fetch_block_size = 2
+    bam_local_o_v_mode = ['shared', 'none'] * 12
+    bam_full_shared_local_v = True
+    record_training_health_metrics = False
+    checkpoint_period = 250
+    steps = 50000
+    learning_rate_schedule_steps = 50000
+
+
 class BamXLRank2LayerScanProfile(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200):
     """Full-24 v5p-32 all-F control; standard layer scan, no health capture."""

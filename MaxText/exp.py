@@ -3876,6 +3876,11 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     # Pre-run vs LLF: gap @5000 -.004..+.002, center negative; later near zero or mildly worse.
     # Speed bet +0..2% vs LLF; fetched history-M cache -25% vs LLF (1/4 of Rank2).
     # Compare historical XL Rank2 and shared LLF; retain historical all-decay optimizer.
+    # Stopped at committed 3467; user hot-switch to independent LocalV LF, TPU retained.
+    # vs Rank2: +.02249@500 -> +.00368@1000, then widened to +.00578@2500;
+    # +.00539@3000 is a small pullback, not sustained convergence toward zero.
+    # vs shared LLF: all positive, +.00217@500; .00361.. .00689@1000-3000.
+    # Extra cache reduction (1/4 vs Rank2, 3/4 vs LLF), but no loss gain observed.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF'
     bam_local_fetch_block_size = 4
     bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
@@ -3907,6 +3912,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF
 ):
     """LF: compressed LocalO plus independent full-M rank-2 LocalV."""
+    # code_commit: 91b6da0; UE5a v5p-32 FIRST_STEP verified after LLLF hot-switch.
+    # 10-14 ~.5556 steps/s: -.14% vs independent LLF .5564, +.58% vs Rank2 repro .5524.
     # Implementation: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
     # Compare independent LLF, shared LFHealth and historical XL Rank2.
     # Pre-run vs independent LLF: speed 0..-2%, late gap +/-.003.

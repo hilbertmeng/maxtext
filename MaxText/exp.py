@@ -3839,6 +3839,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
 ):
     """LF vs LLF: identical shared compressed LocalO/LocalV, twice-layer block scan."""
+    # code_commit: 15863f9; UE5a v5p-32; scan+AOT, same all-decay/no-health protocol as LLF.
     # Pre-run bet vs shared LLF: throughput 0..-2%; final dloss roughly +/-.003.
     # Historical fetched M-cache is 1/2 of Rank2 (1.5x LLF); all-decay, no BAM sow.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF'
@@ -3847,6 +3848,18 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLFHealth(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
+):
+    """Restart LF from step zero with standard gradient/parameter health metrics."""
+    # Same model/WD/schedule as LF; BAM sow remains off. New RUN isolates pre-restart data.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLFHealth'
+    record_training_health_metrics = True
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf-health')
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(

@@ -174,3 +174,20 @@ not transfer directly across TPU types. XL LocalQK rank2 and larger projections
 also occupy more of the step. In XL, shared-read gate backward consumes most of
 the smaller gross saving. A hardware-matched Medium pair would be required to
 separate model scale from v6e/v5p effects quantitatively.
+
+## Reproduction and closeout
+
+Analysis commit: `b80c48a` (subsequent regression test does not change reported values).
+All five primary XPlanes and trace JSONs verified locally, not merely listed in GCS.
+The EW4b profile TPU and queued resource were deleted and verified absent; the raced
+UE5a backup was also deleted. Formal training TPUs are separate and remain managed
+by auto-train. Scripts and raw local/GCS artifacts are retained.
+
+Workflow audit: the principal analysis error was assuming intact step markers imply
+complete kernel records. Check interval coverage before aggregation; a regression
+test now covers this failure. Large uncompressed XPlanes took several minutes to
+download directly from GCS, but trace JSON analysis proceeded as soon as the small
+compressed object arrived. No XPlane bytes or parsing passed through tpu-ag.
+The full-F alternating-LocalV change also exposed a missing default in the MHA-only
+setup early-return; the existing regression caught it and the corrected test passed.
+That MHA-only branch is not used by any of the three new BAM training RUNs.

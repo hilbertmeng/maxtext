@@ -1428,6 +1428,9 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan(BamLlama2MediumV2C256Lo
     # Occasional near-zero crossings, no sustained late loss penalty; final window -.000861.
     """LLF vs LF; compressed LocalO/LocalV share one read."""
     # vs Clean: entered a ~-.008 plateau around 2.8k–3k, retained through completion.
+    # Final-ckpt O/V and row/col gate diagnostic: experiments/bam_llama2_medium/local_ov_gate_diagnostics.md.
+    # Shared read != shared gate: all-L O/V gate replacement costs +.021..+.062 row, +.304..+.475 col.
+    # Signed cross-head structure exists; this does not establish shared-GELU retraining benefit.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan'
     bam_local_fetch_block_size = 3
     bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8

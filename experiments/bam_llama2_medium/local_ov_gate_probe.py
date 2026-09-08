@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'MaxText'))
 from absl import app
@@ -34,7 +35,7 @@ LAYERS = [l for l in range(24) if l % 3 != 2]
 
 class LocalOVGateProbe(getattr(exp, BASE)):
   only_eval = True
-  enable_checkpointing = False
+  enable_checkpointing = True
   per_device_batch_size = 4
   eval_per_device_batch_size = 4
   tensorboard_dir = '/tmp/local-ov-gate-tb'
@@ -163,7 +164,9 @@ def run(config):
   hashes = [hashlib.sha256(row.tobytes()).hexdigest()[:16] for row in cohort['inputs'][:n]]
   assert hashes == list(cohort['sequence_hashes'][:n]), 'cohort hashes differ'
   rng, writer, manager, mesh, model, _, tx = train.setup_mesh_and_model(config)
-  state, _, _, _ = max_utils.setup_training_state(model, None, tx, config, rng, mesh, manager)
+  # The restore API reads this cursor even for explicit read-only parameter restore.
+  cursor = SimpleNamespace(meta_dict={'checkpoint_step': None})
+  state, _, _, _ = max_utils.setup_training_state(model, cursor, tx, config, rng, mesh, manager)
   params = state.params
   flat_shapes = {'/'.join(p): list(v.shape) for p, v in flatten_dict(params).items()}
   (output / 'parameter_shapes.json').write_text(json.dumps(flat_shapes, indent=2))

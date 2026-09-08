@@ -3929,10 +3929,28 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     learning_rate_schedule_steps = 50000
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLLF(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF
+):
+    """LLLF: compressed LocalO and independent full-M rank-2 LocalV on L layers."""
+    # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 98dedc0.
+    # Compare independent LLF and historical XL Rank2; keep all-decay/no-health protocol.
+    # Pre-run bet vs independent LLF: speed 0..+2%, late gap -.001..+.004.
+    # Fetch M-cache -25% vs LLF (1/4 of Rank2); 18 rather than 16 LocalV layers.
+    # User allows stopping before 10000 if clearly dominated by independent LLF.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLLF'
+    bam_local_fetch_block_size = 4
+    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF
 ):
     """LF: compressed LocalO plus independent full-M rank-2 LocalV."""
+    # User stop (2026-09-08), committed checkpoint 4783. vs Rank2: early -.00670@500 crossed positive at1500;
+    # 1500..4500 remained +.00090..+.00268, not a persistent loss gain.
+    # vs independent LLF: +.03185@500 shrank to +.00391@4000, +.00416@4500;
+    # still worse loss, -.14% throughput and 1.5x fetched M-cache vs independent LLF.
     # code_commit: 91b6da0; UE5a v5p-32 FIRST_STEP verified after LLLF hot-switch.
     # 10-14 ~.5556 steps/s: -.14% vs independent LLF .5564, +.58% vs Rank2 repro .5524.
     # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 91b6da0.
@@ -3948,6 +3966,11 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingInde
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF
 ):
     """All F; even layers add independent full-M rank-2 LocalV, without LocalO."""
+    # User stop (2026-09-08), committed checkpoint 4379. vs Rank2: +.01089@500 shrank to ~+.0026..+.0035
+    # over1000..3500, then rebounded +.00440@4000; no positive loss/speed/cache result.
+    # vs all-F shared LocalV: benefit -.02091@500 decayed to -.00233@4000.
+    # vs independent LF: +.01758@500 narrowed, but stayed positive through4000
+    # (+.00172); also -1.58% throughput and 2x fetched M-cache vs independent LF.
     # code_commit: 6778f5c; UE5a v5p-32; AOT load and FIRST_STEP verified.
     # !? 10-14 ~.5468 steps/s: +.59% vs shared .5436 (predicted -1..-3%),
     # -1.58% vs independent LF .5556; -1.01% vs Rank2 repro .5524.
@@ -3964,6 +3987,9 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingShar
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
 ):
     """All F; even layers add local-V reads sharing the fetched read-key projection."""
+    # User stop (2026-09-08), committed checkpoint 7509. vs Rank2: +.03179@500 initially narrowed;
+    # 2000..7000 plateaued around +.006 (+.00534..+.00697), no sustained convergence.
+    # -1.59% throughput and unchanged fetched M-cache vs Rank2: no observed benefit.
     # code_commit: 7f23e2b; UE5a 10-14 ~.5436 steps/s, -1.59% vs matched XL Rank2 repro .5524.
     # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
     # Routine compare: XL Rank2; shared LLF removed at user request (suspect control).

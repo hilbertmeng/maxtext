@@ -3,7 +3,7 @@ import tempfile
 import jax
 import jax.numpy as jnp
 import numpy as np
-from flax.traverse_util import flatten_dict
+from flax.traverse_util import flatten_dict, unflatten_dict
 from flax.linen import partitioning
 import local_ov_gate_probe as probe
 from layers import models
@@ -11,6 +11,30 @@ from layers.quantizations import configure_quantization
 
 
 def main():
+  # Unequal sentinels verify block/side/direction masking independently of model
+  # initialization (the two original gate trees start with identical values).
+  flat = {}
+  for offset in (0, 1):
+    p = ('params', f'local_{offset}', 'attention')
+    flat[p + ('W_lv_gate', 'kernel')] = jnp.full((3,8,2,2), 7.)
+    flat[p + ('W_R_gate', 'kernel')] = jnp.full((3,8,2,1,2), 11.)
+    flat[p + ('W_lv_gate_b0',)] = jnp.full((2,8,2), 13.)
+    flat[p + ('W_R_gate_b0',)] = jnp.full((2,8,1,2), 17.)
+  for layer in (-2, -1, 4):
+    for side in (0, 1):
+      for direction in (0, 1):
+        actual = flatten_dict(probe.swap_gate_params(unflatten_dict(flat),layer,side,direction))
+        for path, original in flat.items():
+          expected = np.array(original)
+          is_v = 'W_lv_gate' in path or path[-1] == 'W_lv_gate_b0'
+          offset = int(path[1][-1])
+          if (is_v and direction == 0) or (not is_v and direction == 1):
+            for block in range(8):
+              if layer == -1 or layer == 3*block+offset:
+                selector = [slice(None)] * expected.ndim
+                selector[1], selector[-1] = block, side
+                expected[tuple(selector)] = (11. if path[-1]=='kernel' else 17.) if is_v else (7. if path[-1]=='kernel' else 13.)
+          np.testing.assert_array_equal(actual[path],expected)
   with tempfile.TemporaryDirectory() as out:
     probe.Path(out, 'ov-test').mkdir()
     cfg = probe.pyconfig.initialize(

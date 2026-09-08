@@ -3778,6 +3778,52 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2CurrentRepro(
         'jax_caches/xd-bam-xl16-partial-rank2-current-repro')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
+):
+    """Current scan+AOT code, explicit historical all-decay optimizer; compare steps 0..200."""
+    # Reference runtime aef0d97: AOT ignored wd_mults. Reproduce its EFFECT, not its bug.
+    # Pre-run bet: ten-step losses match to ~5e-7; ~.545-.550 steps/s on v5p-32.
+    # This is a 201-update prefix of the original 50k LR schedule, not a 201-step schedule.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200'
+    wd_mults = []
+    scan_layers = True
+    steps = 201
+    learning_rate_schedule_steps = 50000
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    record_internal_nn_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_fetch_route_metrics = False
+    bam_record_local_qk_routing_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-rank2-all-decay-repro200')
+
+
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
+):
+    """XL Rank2: shared compressed LocalO/LocalV in L, fetched read in F; LLF block scan."""
+    # Explicit all-decay matches historical XL Rank2's actual AOT optimizer.
+    # Pre-run bet vs Rank2: throughput +3..8%; late dloss center -.005,
+    # uncertain -.015..+.005. Fetched M-cache is one third; local full M unchanged.
+    # Keep K/V/C=64/32/8, full-M rank2 LocalQK and partial RoPE (last32) unchanged.
+    # LLF changes scan parameter grouping/native initialization as in Medium LLF.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF'
+    steps = 50000
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    bam_local_o_compress_v = True
+    bam_local_o_v_mode = 'shared'
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-rank2-all-decay-shared-llf')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

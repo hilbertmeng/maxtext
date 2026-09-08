@@ -3814,6 +3814,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
 ):
     """XL Rank2: shared compressed LocalO/LocalV in L, fetched read in F; LLF block scan."""
+    # User excludes this anomalous-trajectory RUN from routine compare_runs;
+    # retain historical comparisons for diagnosis, not as positive-efficacy evidence.
     # code_commit: 1b39c64; UE5a v5p-32 ~.549 steps/s; same-window 10..199
     # throughput +.12% vs control (!? effectively flat, below predicted +3..8%).
     # Matched timing control: BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
@@ -3897,7 +3899,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     # code_commit: 05fac4c; UE5a v5p-32; FIRST_STEP and steps10-14 verified.
     # !? ~.5564 steps/s, +.58% vs shared LLF .5532 (same window), not predicted -1..-3%.
     # Implementation: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
-    # Compare shared XL LLF and historical XL Rank2; same all-decay/no-health protocol.
+    # Routine compare: historical XL Rank2; shared LLF removed at user request (suspect control).
+    # Same all-decay/no-health protocol.
     # Pre-run vs shared LLF: speed -1..-3%; late gap -.003..+.002, center slightly negative.
     # Same 1/3 fetched history-M cache as shared LLF; extra independent local-read parameters.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF'
@@ -3945,7 +3948,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingShar
     """All F; even layers add local-V reads sharing the fetched read-key projection."""
     # code_commit: 7f23e2b; UE5a 10-14 ~.5436 steps/s, -1.59% vs matched XL Rank2 repro .5524.
     # Implementation: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
-    # Compare XL Rank2 and shared LLF. Pre-run vs Rank2: speed -1..-3%, gap -.003..+.002.
+    # Routine compare: XL Rank2; shared LLF removed at user request (suspect control).
+    # Pre-run vs Rank2: speed -1..-3%, gap -.003..+.002.
     # No history-M cache reduction; keeps all cross-fetches to isolate adding LocalV.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV'
     bam_layer_modes = ['local_qk+full'] * 24

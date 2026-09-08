@@ -3859,6 +3859,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
 ):
     """Restart LF from step zero with standard gradient/parameter health metrics."""
+    # Health means metric capture, not validated training health. User excludes this
+    # anomalous-trajectory RUN from routine compare_runs; retain data for diagnosis.
     # code_commit: 9c738f4; UE5a v5p-32; confirmed standard TB scalars present, BAM sow absent.
     # Same model/WD/schedule as LF; BAM sow remains off. New RUN isolates pre-restart data.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLFHealth'
@@ -3918,7 +3920,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF(
     # code_commit: 91b6da0; UE5a v5p-32 FIRST_STEP verified after LLLF hot-switch.
     # 10-14 ~.5556 steps/s: -.14% vs independent LLF .5564, +.58% vs Rank2 repro .5524.
     # Implementation: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
-    # Compare independent LLF, shared LFHealth and historical XL Rank2.
+    # Compare independent LLF and historical XL Rank2; suspect shared LFHealth excluded.
     # Pre-run vs independent LLF: speed 0..-2%, late gap +/-.003.
     # Fetch M-cache is 1/2 of Rank2 (1.5x LLF); preserve historical all-decay.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF'

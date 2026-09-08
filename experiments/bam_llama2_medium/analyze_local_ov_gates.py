@@ -25,6 +25,7 @@ def main(root):
   metadata = json.loads((root/'metadata.json').read_text())
   stats, loss, baseline = [], [], []
   spectrum = {l: [0, np.zeros(64), np.zeros((64,64))] for l in LAYERS}
+  gate_spectrum = {l: [0, np.zeros(64), np.zeros((64,64))] for l in LAYERS}
   hists, weighted_hists = [], []
   for file in sorted(root.glob('batch_*.npz')):
     with np.load(file) as data:
@@ -61,6 +62,10 @@ def main(root):
         spectrum[layer][0] += len(z)
         spectrum[layer][1] += z.sum(0)
         spectrum[layer][2] += z.T @ z
+        g = gates[:,::8].reshape(-1,64)[mask[:,::8].ravel().astype(bool)]
+        gate_spectrum[layer][0] += len(g)
+        gate_spectrum[layer][1] += g.sum(0)
+        gate_spectrum[layer][2] += g.T @ g
       stats.append(np.stack(per_layer,1))
       hists.append(np.stack(hist_layer,1))
       weighted_hists.append(np.stack(whist_layer,1))
@@ -89,6 +94,16 @@ def main(root):
     cov = gram - np.outer(su,su)/max(count,1)
     eig = np.maximum(np.linalg.eigvalsh(cov)[::-1],0)
     out['runtime_logit_spectrum_energy'] = (eig/max(eig.sum(),1e-30)).tolist()
+    # All head x side pairs, not only matched heads. Interleaved destination axis:
+    # even indices O, odd V. Preserve signed correlations, including anti-correlation.
+    for name, source in [('logit', spectrum), ('gate', gate_spectrum)]:
+      nn, ss, gg = source[layer]
+      cv = gg - np.outer(ss,ss)/max(nn,1)
+      denom = np.sqrt(np.maximum(np.diag(cv),0))
+      den = np.outer(denom,denom)
+      cc = np.divide(cv, den, out=np.zeros_like(cv), where=den>1e-20)
+      out[f'cross_head_side_{name}_corr_O_by_V'] = cc[::2,1::2].tolist()
+      out[f'cross_head_side_{name}_valid_O_by_V'] = (den[::2,1::2]>1e-20).tolist()
     report['layers'][str(layer)] = out
   for index, arm in enumerate(metadata['arms']):
     delta = losses[index] - base

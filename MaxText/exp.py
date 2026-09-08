@@ -1441,7 +1441,11 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan(
     # Pre-run bet vs shared LLF: throughput -2..-5%; late dloss center -.003,
     # uncertain -.010..+.005. Historical M-cache unchanged; full M state doubles.
     # code_commit: 0379c82; UE5a v5p-16 scan+AOT ~0.6712 steps/s @10-14,
-    # -4.9% throughput vs shared LLF (.706); running, compare shared LLF.
+    # -4.9% throughput vs shared LLF (.706); stopped 2,876, final checkpoint committed.
+    # vs shared LLF: early -.187 @200 vanished; 600-2800 oscillates near zero,
+    # latest five windows mean +.00012 (range -.00027..+.00070), @2800 -.00017.
+    # +4.935M params = +.1961 W_Q/layer; historical M-cache unchanged, full M 2x.
+    # No credible gain at 2800 review; 1 preemption, same-zone recovery; resources released.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan'
     bam_v = 64
     bam_local_qk_post_read_v_dim = 32

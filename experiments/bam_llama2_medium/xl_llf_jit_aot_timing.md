@@ -51,4 +51,5 @@ Both no-checkpoint train processes were stopped and checked absent on all worker
 Local raw timing artifacts:
 `/data0/xd/bam_diagnostics/xl_llf_jit_aot_timing/05fac4c/` contains the summary JSON
 and two complete short-run loss/speed logs. Runner commit `80b0d63` (model runtime
-remains `05fac4c`). Diagnostic TPU deletion requested after successful collection.
+remains `05fac4c`). Diagnostic TPU and queued resource were deleted and both
+verified absent after successful collection.

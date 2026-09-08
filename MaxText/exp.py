@@ -3835,6 +3835,20 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-llf')
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
+):
+    """LF vs LLF: identical shared compressed LocalO/LocalV, twice-layer block scan."""
+    # Pre-run bet vs shared LLF: throughput 0..-2%; final dloss roughly +/-.003.
+    # Historical fetched M-cache is 1/2 of Rank2 (1.5x LLF); all-decay, no BAM sow.
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF'
+    bam_local_fetch_block_size = 2
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    jax_cache_dir = (
+        'gs://newproject-1-llm_base_models_us-central1/'
+        'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf')
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):

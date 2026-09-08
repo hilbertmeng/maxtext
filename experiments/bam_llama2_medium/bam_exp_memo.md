@@ -341,6 +341,11 @@ Manual Q/K batching does not improve this contraction. On the same non-scan v6e-
 
 ### XL Rank2 all-F versus shared LLLF paired main profile
 
+Related [LLF JIT/AOT timing check](xl_llf_jit_aot_timing.md): UE5a full-24 scan,
+independent LocalV JIT/AOT .5534/.5564 steps/s (−.54%); shared LocalV
+.5512/.5532 (−.36%). Switching compilation method does not recover a material
+throughput gain; full class names, exact commits and raw logs are in that report.
+
 Full-24, T2048, v5p-32 **EW4b**, runtime `ca17342`, historical all-decay,
 health metrics disabled. Implementation and fine-grained report:
 [XL fine-grained paired report](xl_lllf_profile.md),

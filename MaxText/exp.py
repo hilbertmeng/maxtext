@@ -3814,6 +3814,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
 ):
     """XL Rank2: shared compressed LocalO/LocalV in L, fetched read in F; LLF block scan."""
+    # UE5a full-24 block-scan JIT: .5512 vs v6e-AOT .5532 steps/s, -.36% (10..14).
     # code_commit: 1b39c64; UE5a v5p-32 ~.549 steps/s; same-window 10..199
     # throughput +.12% vs control (!? effectively flat, below predicted +3..8%).
     # Matched timing control: BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
@@ -3916,6 +3917,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     # !? ~.5564 steps/s, +.58% vs shared LLF .5532 (same window), not predicted -1..-3%.
     # Ledger: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
     # Routine compare: historical XL Rank2; shared LLF removed at user request (suspect control).
+    # UE5a full-24 block-scan JIT: .5534 vs v6e-AOT .5564 steps/s, -.54% (10..14).
     # Same all-decay/no-health protocol.
     # Pre-run vs shared LLF: speed -1..-3%; late gap -.003..+.002, center slightly negative.
     # Same 1/3 fetched history-M cache as shared LLF; extra independent local-read parameters.

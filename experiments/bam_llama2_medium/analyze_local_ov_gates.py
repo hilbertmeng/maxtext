@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import sys
 import hashlib
+import argparse
 import numpy as np
 
 LAYERS = [i for i in range(24) if i % 3 != 2]
@@ -179,10 +180,17 @@ def main(root):
         replacement=['V<-O','O<-V'][arm[2]], mean=float(delta.mean()),
         ci95=float(1.96*delta.std(ddof=1)/np.sqrt(len(delta)))))
   (root/'summary.json').write_text(json.dumps(report,indent=2,allow_nan=False))
-  plot_summary(root,report)
   print(json.dumps({'baseline':report['baseline_loss'],'sequences':len(base),
                     'global_ablations':report['ablations'][:4]},indent=2))
 
 
 if __name__ == '__main__':
-  main(sys.argv[1])
+  parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument('root', type=Path)
+  parser.add_argument('--plot-only', action='store_true',
+                      help='Render existing summary.json; requires matplotlib, unlike statistics.')
+  args = parser.parse_args()
+  if args.plot_only:
+    plot_summary(args.root, json.loads((args.root/'summary.json').read_text()))
+  else:
+    main(args.root)

@@ -179,3 +179,9 @@ independent reads improve quality without paying for them at every local layer.
 Direct compare: `BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan`.
 Prediction: final gap -.0015 to 0, throughput -0.3–1%; no guaranteed gain.
 Same mainline, scan+AOT, health-off, 13,500 steps/checkpoint 200, preferred zone UE5a.
+Runtime `b7eb1d235c61dc36246138e65c01479d430b6789`; 5 LocalFetch regression tests pass.
+`prepare_train_aot.py` produced and verified
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/b7eb1d2/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan.pickle`.
+All compiler candidates were released. Formal TPU `xd-v5p-16-sis-lllf`, UE5a;
+registered 2026-09-08 00:10 UTC, compiled function loaded and FIRST_STEP verified.
+Steps 10–14: .7072 steps/s, -0.7% vs all-shared LLLF (.7122), within prediction.

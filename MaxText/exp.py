@@ -3933,6 +3933,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLLF(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF
 ):
     """LLLF: compressed LocalO and independent full-M rank-2 LocalV on L layers."""
+    # code_commit: 98dedc0; UE5a v5p-32, block4-scan+v6e-AOT; FIRST_STEP verified.
+    # 10-14 ~.5584 steps/s: +.36% vs independent LLF .5564, +1.09% vs Rank2 repro .5524.
     # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 98dedc0.
     # Compare independent LLF and historical XL Rank2; keep all-decay/no-health protocol.
     # Pre-run bet vs independent LLF: speed 0..+2%, late gap -.001..+.004.

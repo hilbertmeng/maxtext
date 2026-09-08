@@ -197,8 +197,10 @@ def run(config):
         if index % 16 == 0:
           print(f'PROGRESS batch={start} arm={index}/{len(arms)}', flush=True)
     # bf16 training logits -> fp32 captures; lossless compression, all tokens retained.
-    np.savez_compressed(path, baseline=baseline, losses=np.stack(losses),
+    pending = output / f'.pending_{start:03d}.npz'
+    np.savez_compressed(pending, baseline=baseline, losses=np.stack(losses),
                         mask=np.asarray(batch['targets_segmentation'] != 0), **raw)
+    pending.replace(path)
     print(f'BATCH_DONE start={start} elapsed={time.time()-started:.1f}', flush=True)
   print(f'DONE output={output} elapsed={time.time()-started:.1f}', flush=True)
   if writer:

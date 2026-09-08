@@ -1446,7 +1446,7 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan(BamLlama2MediumV2C256L
     # code_commit: 2980161; UE5a v5p-16 scan+AOT ~0.712 steps/s @10-14;
     # +0.9% vs SharedReadLLFScan, +5.8% vs matched health-off Clean speed control.
     # Stopped 4,479 (checkpoint committed): vs shared LLF, early +.00997 @600 narrowed near zero @1600-1800,
-    # then reopened to ~+.002 (mean +.00198 @3000-4000), not a persistent loss improvement.
+    # then reopened to ~+.002 (mean +.00198 @3000-4000); consistently worse loss from @400 onward.
     # vs Clean: -.01177 @1200 weakened to ~-.00589 @3000-4000; 25% less history-M cache
     # than LLF and modest speed gain, but LLF retains the better loss tradeoff so far.
     # Final window @4400: +.001770 vs LLF, -.005575 vs Clean; LLF gap ~+.00175 @3400-4400.

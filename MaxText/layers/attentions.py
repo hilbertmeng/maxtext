@@ -2605,6 +2605,7 @@ class BamAttention(Attention):
     if self._mha_control:
       self._local_o = False
       self._full_shared_local_v = False
+      self._full_independent_local_v = False
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
@@ -2630,8 +2631,13 @@ class BamAttention(Attention):
     self._full_shared_local_v = (
         'full' in self._mode and local_v_mode == 'shared'
         and bool(getattr(cfg, 'bam_full_shared_local_v', False)))
+    self._full_independent_local_v = (
+        'full' in self._mode and local_v_mode == 'rank2'
+        and bool(getattr(cfg, 'bam_full_independent_local_v', False)))
     self._local_v_mode = (
-        local_v_mode if self._local_o or self._full_shared_local_v else 'none')
+        local_v_mode if (
+            self._local_o or self._full_shared_local_v or self._full_independent_local_v)
+        else 'none')
     assert self._local_v_mode in ('none', 'rank2', 'shared')
     self._local_v_rank_routing = getattr(cfg, 'bam_local_v_rank_routing', None) or 'legacy'
     assert self._local_v_rank_routing in ('legacy', 'shared_rank_gate')
@@ -4405,6 +4411,11 @@ class BamAttention(Attention):
             else self._gate_local_output(local_output, output_logits))
       elif self._local_v_mode == 'rank2':
         value = value + self._read_local_v(Mh, inputs_q)
+
+    if self._full_independent_local_v:
+      if Mh is None:
+        Mh = self._matrix_for_read(M_in)
+      value = value + self._read_local_v(Mh, inputs_q)
 
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:

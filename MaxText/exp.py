@@ -3916,6 +3916,19 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF(
     bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
 
 
+class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingIndependentLocalV(
+    BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF
+):
+    """All F; even layers add independent full-M rank-2 LocalV, without LocalO."""
+    # Implementation: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
+    # Compare all-F alternating shared LocalV, independent LF and historical Rank2.
+    # Pre-run vs shared: speed -1..-3%, late gap -.010..-.003 (uncertain).
+    model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingIndependentLocalV'
+    bam_layer_modes = ['local_qk+full'] * 24
+    bam_local_o_v_mode = ['rank2', 'none'] * 12
+    bam_full_independent_local_v = True
+
+
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
 ):

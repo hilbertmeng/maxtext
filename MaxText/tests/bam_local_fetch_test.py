@@ -100,11 +100,12 @@ class LocalFetchTest(absltest.TestCase):
   def test_full_fetch_can_add_shared_local_v_without_local_o(self):
     cfg = self.config('BamLlama2MediumV2C256LocalFetchC8SharedReadScan')
     cfg.get_keys()['bam_full_shared_local_v'] = True
+    cfg.get_keys()['bam_full_independent_local_v'] = True
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
     m = jax.random.normal(jax.random.key(2), (1, 8, 32, 32), dtype=cfg.dtype)
     args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
-    for mode in ('shared', 'none'):
+    for mode in ('shared', 'rank2', 'none'):
       module = BamAttention(
           config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
           max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
@@ -117,7 +118,7 @@ class LocalFetchTest(absltest.TestCase):
       params = variables['params']
       self.assertIn('fetch_head_mix', params)
       self.assertEqual('W_lv_gate' in params, mode == 'shared')
-      self.assertNotIn('W_local_v_packed', params)
+      self.assertEqual('W_local_v_packed' in params, mode == 'rank2')
       def loss(p):
         y, next_m = module.apply({'params': p}, *args, M_in=m,
                                 deterministic=True, layer_index=2)

@@ -1435,6 +1435,8 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan(BamLlama2MediumV2C256Lo
 
 class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFNativeDiagonalScan(BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan):
     """LLF: retain native mixed-alpha diagonal on fetch layers; local reads unchanged."""
+    # code_commit: 53bbadf; UE5a v5p-16 scan+AOT ~0.708 steps/s @10-14;
+    # +0.3% vs shared LLF (.706), essentially unchanged; compare C8SharedReadLLFScan.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFNativeDiagonalScan'
     bam_fetch_diagonal_one = False
 

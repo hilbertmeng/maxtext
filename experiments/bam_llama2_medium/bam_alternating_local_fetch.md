@@ -199,3 +199,10 @@ Question: do dedicated local layers remove the need for forced fetch self-read?
 Before-launch prediction: final gap -.002 to +.005 (center slightly unfavorable),
 essentially unchanged speed and historical M-cache. Mainline scan+AOT, health-off,
 13,500 steps/checkpoint 200; UE5a chosen from recent successful leases.
+Runtime `53bbadf703e12b443740d502dd4ea5d847741ec9`; two targeted tests verify
+the single configuration difference and fetch diagonal value/gradient semantics.
+AOT artifact:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/53bbadf/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamLlama2MediumV2C256LocalFetchC8SharedReadLLFNativeDiagonalScan.pickle`.
+TPU `xd-v5p-16-shared-llf-native`, UE5a; registered 2026-09-08 00:48:56 UTC.
+Compiled function loaded and FIRST_STEP verified; steps 10–14 mean .7078 steps/s,
++0.3% vs shared LLF (.706), essentially unchanged as predicted. All v6e candidates released.

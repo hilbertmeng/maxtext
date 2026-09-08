@@ -1,39 +1,309 @@
-# Shared LLF: LocalO / LocalV gate diagnostic
+# Shared LLF：LocalO / LocalV 门控诊断
 
-## Reproduction
+## 结论与边界
 
-- Training RUN: `BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan`.
-- Training commit: `f6af33c7d1cb313a8db06bb55aabc133b1b450e5`.
-- Read-only checkpoint: `gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan/checkpoints/13500/items` (committed step 13500).
-- Diagnostic branch/worktree: `codex/llf-gate-diagnostics`, `/data0/xd/bam-llf-gate-diagnostics`.
-- Runners: `experiments/bam_llama2_medium/{run_local_ov_gate_probe.sh,local_ov_gate_probe.py,analyze_local_ov_gates.py}`.
-- Command on the installed worker: `bash experiments/bam_llama2_medium/run_local_ov_gate_probe.sh`.
-- Exact diagnostic commit, parameter shapes, cohort SHA256 and per-sequence hashes are saved in `metadata.json` / `parameter_shapes.json`.
-- Cohort: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz`; all 128 sequences, T2048.
-- Artifacts: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/local-ov-gate-final128`; local `/data0/xd/bam_diagnostics/local-ov-gate-final128`.
-- TPU candidates: `xd-v6e-1-ovgate-{europe-west4-a,us-central1-a,us-east5-a}`; only the first successful worker executes the full probe.
+对象是完成 13,500 步的 `BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan`，固定 128 条 Pile eval，24 层 LLF。
+本报告只研究 **L 层** 的门控。层号从 0 开始；row→V/address，col→K/data；O/V 表示注入目的地 LocalO/LocalV，不是矩阵轴的别名。
 
-## Questions and scope
+1. **共享读结果不意味着应该共享门值。** 所有 L 层以 O 门替换 V 门，row/col 的 Δloss 分别 +.02082/+.30439；反向分别 +.06168/+.47532。列侧的用途专门化尤其重要。
+2. **共同结构存在，且包括负相关，但不是简单的一对一同头关系。** 同头 O↔V 汇总相关通常较小；完整跨头、跨侧矩阵可同时出现强正与强负相关。弱平均不能解释为独立。
+3. **用户追加的 row↔col 维度更值得保留。** LocalO 内同头两侧相关在 L3/L12 为 +.481/+.536；末端 L21/L22 汇总接近零，但正、负头对同时很多，发生的是关系变化/抵消，不能说相关性消失。
+4. **不支持极低秩的共同线性表示。** 64 路联合 gate kernel 的 95% 能量秩为 48–54，运行时中心化 logits 为 38–44；rank32 保留运行时方差约 89.3%–93.2%，不是近乎无损。
+5. **共享 GELU 隐层 + 独立 64 路输出值得作为表达力实验，但诊断没有证明它会降训练 loss。** 相反符号的输出权重可以把共同特征变成互补门；应保留 O/V、row/col、每头的独立输出及偏置。把两门直接绑死是另一种、更强的约束。
+6. 所有结果来自一个完成训练的模型；相关性、同-batch 门参数替换、从头重训收益是三个不同问题。未诊断 XL，未证明跨尺度迁移。
 
-1. O/V gate correlation per local layer, separately row/address and col/data;
-   distinguish pooled correlation from within-head centered correlation.
-2. Full five-bin joint distribution over [0,1], plus weighting by shared ungated
-   read energy (not residual contribution). Keep all-token scalar data and per-sequence moments.
-3. Joint gate-kernel singular spectrum and centered runtime-logit spectrum
-   (the latter uses every eighth token, explicitly recorded; other statistics use all valid tokens).
-4. Whole-network same-batch loss after replacing V gates by O or vice versa,
-   independently for each side and each of the 16 local layers, plus all-local-layer controls.
-   All downstream paths remain active. These are stronger interventions than a shared
-   GELU hidden representation and cannot by themselves prove its retraining benefit.
+## 可复现信息
 
-The production attention implementation is unchanged. Linen interceptors record scalar
-gate logits and squared ungated read norms; interventions replace only the selected gate
-kernel/bias in a new parameter tree. An untouched no-capture forward must match the capture
-baseline is checked explicitly. Tiny CPU scan tests pass at 2e-5, but the restored
-bf16 TPU model showed a 0.000945 maximum first-batch scheduling difference. Therefore
-all causal deltas use a no-op parameter-select control in the exact same compiled
-executable as the interventions; capture loss is saved separately, not used as their base.
+- 完整配置类：`BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan`。
+- 训练 runtime：`f6af33c7d1cb313a8db06bb55aabc133b1b450e5`。
+- checkpoint：`gs://newproject-1-llm_projects_us-east5/log/BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan/checkpoints/13500/items`，实际提交步数 **13500**。
+- TPU 取数/干预 runtime：`476057300c689630c044bbcf028fa07fdadfe4ca`；诊断类 `LocalOVGateProbe`。
+- 实现分支：`codex/llf-gate-diagnostics`；工作树：`/data0/xd/bam-llf-gate-diagnostics`。主干只登记本报告，不混入诊断实现。
+- 本地统计/测试代码 commit：`02b0b1fde1e97e2c346b1f4bf6f9deff1d308707`。
+- 脚本（均已进 Git）：`experiments/bam_llama2_medium/local_ov_gate_probe.py`、`run_local_ov_gate_probe.sh`、`analyze_local_ov_gates.py`、`local_ov_gate_probe_test.py`。
+- 固定 cohort：`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz`。
+- cohort 文件 SHA256：`68239ae352be31f968984c18a2a7e3290cdbfb665f350563aad6ff77eea84661`；128 个逐样本 hash 在 `metadata.json` 和 `per_sequence_stats.npz`。
+- batch=4，T=2048，32 个完整 batch 文件；保留所有有效 token 的四组 gate logits 和 ungated 两侧读出能量。未保存 M/hidden/read 向量。
+- artifact：`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/local-ov-gate-final128`。
+- 本机：`/data0/xd/bam_diagnostics/local-ov-gate-final128`，原始 batch 文件合计 **800,977,493 bytes**。
+- 原始文件从 worker 上传 GCS，再直接同步本机，tpu-ag 不承载数据/统计。
 
-## Results
+在上述诊断工作树中：
 
-Pending diagnostic completion.
+```bash
+# 已安装精确 runtime 的 TPU worker；原 checkpoint 只读
+bash experiments/bam_llama2_medium/run_local_ov_gate_probe.sh
+
+# 本机：统计不依赖 matplotlib
+OPENBLAS_NUM_THREADS=2 /data0/xd/conda/envs/maxtext-cpu/bin/python \
+  experiments/bam_llama2_medium/analyze_local_ov_gates.py \
+  /data0/xd/bam_diagnostics/local-ov-gate-final128
+
+# 绘图复用已生成的 summary，不重复统计；使用已有绘图环境
+/home/xd/miniconda3/envs/tune/bin/python \
+  experiments/bam_llama2_medium/analyze_local_ov_gates.py \
+  /data0/xd/bam_diagnostics/local-ov-gate-final128 --plot-only
+
+JAX_PLATFORMS=cpu PYTHONPATH=MaxText /data0/xd/conda/envs/maxtext-cpu/bin/python \
+  experiments/bam_llama2_medium/local_ov_gate_probe_test.py
+```
+
+### 形状、统计与数值语义
+
+`g_O,g_V:[B,T,16,2]`，最后轴为 row/col；每个目的地各有 32 个 gate。
+O 投影原本多一个长度 1 的 fetch 轴，统计中 squeeze 掉。
+scan 参数轴为 1，8 个 LLF block；原始参数形状：
+
+| 参数 | 完整 scanned shape |
+| --- | --- |
+| W_R_gate/kernel | [1024,8,16,1,2] |
+| W_R_gate_b0 | [16,8,1,2] |
+| W_lv_gate/kernel | [1024,8,16,2] |
+| W_lv_gate_b0 | [16,8,2] |
+
+- 门值统计从捕获的 logits 在 CPU float64 重算 sigmoid；不是直接逐 bit 捕获 bf16 sigmoid 输出。
+- 同头统计使用所有有效 token，先在每个头内减均值，再累加 covariance/variance；不是把各头 Pearson 简单平均。这样避免头均值差异制造虚假相关。
+- 完整 64×64 相关矩阵及谱使用每 8 个 token 一个的固定位置子集；完整矩阵包含符号和有效性 mask。每层四组的展平顺序为 `head,side,destination`。
+- 能量权重为共享 **ungated read** 两侧各自的模长平方；不是 W_O 后残差贡献，也不是 token 的因果贡献。使用同一权重比较 O/V 避免人为偏袒某个门。
+- L0 的 M=0，gate kernel 无有效变化；方差为零，相关性/归一化谱不可定义，报告为 —，不能写成零相关。
+- raw-capture 与 no-capture 在 bf16 编译调度上不严格同轨：逐样本 loss 漂移均值 4.230e-6，最大绝对值 0.001696。**所有因果 Δloss 的 baseline 与干预共享同一个 no-capture 编译可执行程序**，用动态参数选择构造 identity/替换；capture loss 单独保存，不参与因果差值。
+- CPU 测试覆盖非相同 gate 参数的层/侧/方向掩码、identity 和 scan 捕获形状；真实 checkpoint 的 L0 四种替换 Δloss 均精确为 0。
+- Δloss 按逐样本平均；±为 128 条样本的近似 95% CI，不包含 cohort 外分布不确定性或重新训练方差。
+
+## 1. 两个相关性维度：逐层结果
+
+| L | O↔V row | O↔V col | LocalO row↔col | LocalV row↔col |
+| --- | --- | --- | --- | --- |
+| 0 | — | — | — | — |
+| 1 | -0.014 | 0.025 | 0.155 | 0.006 |
+| 3 | 0.129 | 0.098 | 0.481 | 0.164 |
+| 4 | 0.098 | 0.036 | 0.435 | 0.335 |
+| 6 | 0.273 | 0.042 | 0.405 | 0.223 |
+| 7 | 0.225 | 0.054 | 0.285 | 0.144 |
+| 9 | 0.264 | 0.092 | 0.206 | 0.253 |
+| 10 | 0.136 | 0.135 | 0.131 | 0.157 |
+| 12 | 0.147 | -0.004 | 0.536 | 0.054 |
+| 13 | 0.049 | 0.053 | 0.270 | 0.205 |
+| 15 | -0.089 | 0.008 | 0.139 | 0.267 |
+| 16 | -0.045 | 0.036 | 0.286 | 0.487 |
+| 18 | 0.177 | 0.104 | 0.168 | 0.166 |
+| 19 | 0.039 | -0.019 | 0.245 | 0.185 |
+| 21 | 0.129 | 0.175 | -0.006 | 0.248 |
+| 22 | 0.066 | 0.230 | 0.005 | 0.054 |
+
+![逐层同头门相关](/data0/xd/bam_diagnostics/local-ov-gate-final128/gate_correlation_depth.png)
+
+**层间变化不是单调的。** O 的 row/col 在 L3/L4/L6、L12 较协同；V 在 L16 最明显。
+O/V 同侧的关系通常更弱，row 在 L15/L16 明确转为负相关。
+能量加权、头内中心化后仍分别约 −.083/−.036；这一点不是只由近零能量 token 造成。
+
+### 不能忽略负相关或跨头结构
+
+下表是完整跨头配对的门值相关，范围为 min…max；比例统计所有头对，不只挑最极端一对。
+O↔V 每层包含 32×32 头/侧组合；O 内、V 内 row↔col 各为 16×16。
+
+| L | 关系 | min…max | ρ<−.3 | ρ>+.3 |
+| --- | --- | --- | --- | --- |
+| 3 | O↔V | -0.349…0.634 | 0.5% | 14.3% |
+| 3 | O row↔col | -0.192…0.791 | 0.0% | 76.2% |
+| 3 | V row↔col | -0.238…0.458 | 0.0% | 14.1% |
+| 12 | O↔V | -0.427…0.633 | 1.3% | 11.6% |
+| 12 | O row↔col | -0.180…0.829 | 0.0% | 46.5% |
+| 12 | V row↔col | -0.370…0.406 | 1.2% | 2.0% |
+| 21 | O↔V | -0.561…0.656 | 14.1% | 10.0% |
+| 21 | O row↔col | -0.471…0.515 | 17.2% | 21.9% |
+| 21 | V row↔col | -0.340…0.628 | 1.6% | 0.8% |
+| 22 | O↔V | -0.561…0.715 | 9.8% | 6.5% |
+| 22 | O row↔col | -0.574…0.501 | 21.5% | 27.7% |
+| 22 | V row↔col | -0.339…0.483 | 0.4% | 2.0% |
+
+L22 的 O row↔col 汇总仅 +.005，但 **21.5%** 跨头配对低于 −.3、**27.7%** 高于 +.3。
+因此“相关性弱”最多描述某个汇总值，不能描述整个联合门控结构。
+正、负相关都可能来自共同输入特征；它们不是因果连接证据。
+
+![四组门的完整有符号相关矩阵](/data0/xd/bam_diagnostics/local-ov-gate-final128/gate_correlation_matrices.png)
+
+同一组内部的跨头关系也不对称。以下为剔除自相关对角后的头对相关中位数：
+
+| L | O-row | O-col | V-row | V-col |
+| --- | --- | --- | --- | --- |
+| 3 | .568 | .367 | .227 | .065 |
+| 12 | .463 | .202 | .219 | .051 |
+| 21 | .599 | .305 | .124 | .131 |
+| 22 | .635 | .253 | .041 | .066 |
+
+共同变化最明显的结构之一是 **LocalO row 门的头间协同**，不是全部 O/V 门共用一个开关。
+尤其 L22，O-row 头间仍高度协同，V-row 却明显更分化；将这两类平均为一个“门相关性”会丢掉关键结构。
+
+### logits 空间的同头对照
+
+| L | O↔V row logits | O↔V col logits | O row↔col logits | V row↔col logits |
+| --- | --- | --- | --- | --- |
+| 0 | — | — | — | — |
+| 1 | -0.054 | 0.168 | 0.062 | 0.017 |
+| 3 | 0.151 | 0.100 | 0.504 | 0.227 |
+| 4 | 0.138 | 0.050 | 0.423 | 0.251 |
+| 6 | 0.382 | 0.001 | 0.468 | 0.256 |
+| 7 | 0.291 | 0.051 | 0.342 | 0.270 |
+| 9 | 0.372 | 0.012 | 0.246 | 0.232 |
+| 10 | 0.300 | 0.026 | 0.043 | 0.256 |
+| 12 | 0.350 | -0.014 | 0.379 | 0.060 |
+| 13 | 0.115 | 0.048 | 0.322 | 0.208 |
+| 15 | -0.059 | -0.081 | 0.299 | 0.298 |
+| 16 | 0.010 | 0.061 | 0.377 | 0.409 |
+| 18 | 0.266 | 0.127 | 0.250 | 0.174 |
+| 19 | 0.122 | 0.000 | 0.369 | 0.104 |
+| 21 | 0.211 | 0.093 | 0.056 | 0.149 |
+| 22 | 0.051 | 0.053 | 0.124 | 0.040 |
+
+GELU 隐层生成的是 logits，因此门值和 logits 两种相关均保存；二者不能默认相同。
+
+## 2. 门开度与能量加权
+
+| L | row O | row V | col O | col V | row 能量加权ρ | col 能量加权ρ |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 0.0051 | 0.0051 | 0.0051 | 0.0051 | — | — |
+| 1 | 0.0063 | 0.0093 | 0.0021 | 0.0036 | 0.021 | 0.004 |
+| 3 | 0.0074 | 0.0096 | 0.0094 | 0.0085 | 0.058 | 0.086 |
+| 4 | 0.0067 | 0.0121 | 0.0095 | 0.0119 | 0.080 | 0.012 |
+| 6 | 0.0081 | 0.0105 | 0.0105 | 0.0104 | 0.265 | 0.037 |
+| 7 | 0.0076 | 0.0116 | 0.0066 | 0.0190 | 0.211 | 0.078 |
+| 9 | 0.0064 | 0.0126 | 0.0060 | 0.0262 | 0.284 | 0.097 |
+| 10 | 0.0052 | 0.0130 | 0.0037 | 0.0251 | 0.146 | 0.155 |
+| 12 | 0.0080 | 0.0107 | 0.0101 | 0.0279 | 0.157 | -0.008 |
+| 13 | 0.0052 | 0.0130 | 0.0099 | 0.0243 | 0.052 | 0.052 |
+| 15 | 0.0074 | 0.0136 | 0.0091 | 0.0302 | -0.083 | 0.019 |
+| 16 | 0.0084 | 0.0128 | 0.0121 | 0.0324 | -0.036 | 0.025 |
+| 18 | 0.0082 | 0.0042 | 0.0147 | 0.0056 | 0.133 | 0.104 |
+| 19 | 0.0069 | 0.0054 | 0.0137 | 0.0124 | 0.030 | -0.031 |
+| 21 | 0.0075 | 0.0033 | 0.0221 | 0.0127 | 0.107 | 0.107 |
+| 22 | 0.0082 | 0.0022 | 0.0266 | 0.0119 | 0.028 | 0.165 |
+
+中层 LocalV 的 col 门比 LocalO 大，如 L16 为 .03235 vs .01212；末层反过来，L22 为 .01186 vs .02664。
+row 也有类似末层逆转。故两路不能通过固定的全层比例互相代替。
+
+### 完整五段分布
+
+按有效 token×head×所列 L 层计数；每格为 **频率% / ungated-energy 占比%**。
+能量占比回答这些开度区间是否落在较强的共享读出上，不代表该门最终 gated 能量或 loss 贡献。
+所有逐层 5×5 O/V 联合分箱在 `summary.json`；逐样本计数在 `per_sequence_stats.npz`。
+
+| L 范围 | 侧/目的地 | [0,.2) | [.2,.4) | [.4,.6) | [.6,.8) | [.8,1] |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1–7 | row O | 100.0000 / 99.9999 | 0.0000 / 0.0001 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 1–7 | row V | 99.9991 / 99.9984 | 0.0009 / 0.0016 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 1–7 | col O | 99.9974 / 99.9929 | 0.0026 / 0.0070 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 1–7 | col V | 99.9912 / 99.9761 | 0.0088 / 0.0239 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 9–16 | row O | 99.9999 / 99.9995 | 0.0001 / 0.0005 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 9–16 | row V | 99.9778 / 99.9609 | 0.0221 / 0.0389 | 0.0001 / 0.0002 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 9–16 | col O | 99.9987 / 99.9957 | 0.0013 / 0.0043 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 9–16 | col V | 99.9059 / 99.7565 | 0.0934 / 0.2414 | 0.0007 / 0.0020 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 18–22 | row O | 99.9984 / 99.9751 | 0.0016 / 0.0249 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 18–22 | row V | 99.9997 / 99.9995 | 0.0003 / 0.0005 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 18–22 | col O | 99.9943 / 99.9593 | 0.0057 / 0.0405 | 0.0000 / 0.0003 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+| 18–22 | col V | 99.9991 / 99.9983 | 0.0009 / 0.0017 | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 0.0000 / 0.0000 |
+
+**高开度极其稀少：本 cohort 四组门均没有 ≥.6 的样本。** 但不应据此说它们没有作用：
+这里测到的功能更像低开度的连续幅度/选择调制；门参数互换对 col 的显著损伤证明了其专门化的重要性。
+五段箱内结构可由保留的逐 token logits 重新细分，无需再抢 TPU。
+
+## 3. 因果门替换：同一编译程序、同一 batch
+
+替换某一目的地该侧的 **kernel 与 bias**，另一目的地保持原值。
+例如 V←O 是让 V 用 O 的门控函数，不是冻结为 baseline 前传门值；干预后的下游状态仍正常重算。
+因此全部 L 同时替换还包含层间反馈，不能与逐层损伤线性等同。
+
+| 范围 | 侧 | 替换方向 | Δloss ± 95% CI |
+| --- | --- | --- | --- |
+| 所有 L | row | V<-O | 0.02082 ± 0.00226 |
+| 所有 L | row | O<-V | 0.06168 ± 0.00378 |
+| 所有 L | col | V<-O | 0.30439 ± 0.03055 |
+| 所有 L | col | O<-V | 0.47532 ± 0.05340 |
+
+### 逐层 Δloss
+
+| L | row V←O | row O←V | col V←O | col O←V |
+| --- | --- | --- | --- | --- |
+| 0 | 0.00000 ± 0.00000 | 0.00000 ± 0.00000 | 0.00000 ± 0.00000 | 0.00000 ± 0.00000 |
+| 1 | 0.00292 ± 0.00046 | 0.00268 ± 0.00045 | 0.00011 ± 0.00015 | 0.00010 ± 0.00017 |
+| 3 | 0.00156 ± 0.00054 | 0.00291 ± 0.00076 | 0.00082 ± 0.00039 | 0.00232 ± 0.00043 |
+| 4 | 0.00129 ± 0.00031 | 0.00254 ± 0.00042 | 0.00738 ± 0.00081 | 0.00901 ± 0.00113 |
+| 6 | 0.00066 ± 0.00021 | 0.00132 ± 0.00025 | 0.00162 ± 0.00072 | 0.00184 ± 0.00037 |
+| 7 | 0.00139 ± 0.00034 | 0.00162 ± 0.00031 | 0.00131 ± 0.00042 | 0.00339 ± 0.00045 |
+| 9 | 0.00065 ± 0.00024 | 0.00268 ± 0.00039 | 0.01561 ± 0.00177 | 0.02491 ± 0.00139 |
+| 10 | 0.00187 ± 0.00042 | 0.01152 ± 0.00111 | 0.01703 ± 0.00166 | 0.01568 ± 0.00127 |
+| 12 | 0.00067 ± 0.00024 | 0.00401 ± 0.00053 | 0.01089 ± 0.00104 | 0.01497 ± 0.00102 |
+| 13 | 0.00158 ± 0.00034 | 0.00670 ± 0.00061 | 0.01156 ± 0.00133 | 0.01631 ± 0.00121 |
+| 15 | 0.00190 ± 0.00134 | 0.00565 ± 0.00077 | 0.01512 ± 0.00156 | 0.02095 ± 0.00116 |
+| 16 | 0.00072 ± 0.00019 | 0.00496 ± 0.00052 | 0.02742 ± 0.00527 | 0.02983 ± 0.00205 |
+| 18 | 0.00044 ± 0.00018 | 0.00239 ± 0.00036 | 0.00099 ± 0.00024 | 0.00422 ± 0.00065 |
+| 19 | 0.00098 ± 0.00030 | 0.00231 ± 0.00038 | 0.00433 ± 0.00084 | 0.00542 ± 0.00084 |
+| 21 | 0.00031 ± 0.00013 | 0.00148 ± 0.00051 | 0.00152 ± 0.00026 | 0.00402 ± 0.00057 |
+| 22 | 0.00153 ± 0.00058 | 0.00212 ± 0.00039 | 0.00282 ± 0.00047 | 0.01049 ± 0.00096 |
+
+- 最敏感的 col 区间主要在 **L9–L16**，其中 L16 单层两方向约 +.0274/+.0298。
+- col 全层替换 +.3044/+.4753，而逐层损伤之和仅 +.1185/+.1635，存在明显非加和效应。
+- row 相应为 +.0208/+.0617，逐层和 +.0185/+.0549，非加和较弱。
+- L1 col 单层区间包含零，不能单凭微小正均值说它必要；其他表内 CI 是逐项区间，未作多重比较校正。
+- **尚未做 row↔col 门参数互换**：本轮用户新增的侧间问题是相关性维度；不能将 O/V 替换结果冒充侧间共享的因果验证。
+
+## 4. 共同表示的秩与下一步选择
+
+| L | kernel r95/64 | runtime-logit r95/64 | kernel top32 | runtime top32 |
+| --- | --- | --- | --- | --- |
+| 0 | — | — | 0.000 | 0.000 |
+| 1 | 50 | 40 | 0.799 | 0.915 |
+| 3 | 54 | 40 | 0.772 | 0.920 |
+| 4 | 54 | 41 | 0.778 | 0.917 |
+| 6 | 54 | 44 | 0.769 | 0.897 |
+| 7 | 53 | 42 | 0.784 | 0.912 |
+| 9 | 51 | 40 | 0.817 | 0.920 |
+| 10 | 49 | 39 | 0.839 | 0.922 |
+| 12 | 51 | 40 | 0.821 | 0.920 |
+| 13 | 51 | 41 | 0.808 | 0.910 |
+| 15 | 51 | 40 | 0.823 | 0.921 |
+| 16 | 50 | 38 | 0.838 | 0.932 |
+| 18 | 52 | 44 | 0.805 | 0.893 |
+| 19 | 53 | 43 | 0.800 | 0.902 |
+| 21 | 50 | 41 | 0.823 | 0.915 |
+| 22 | 48 | 38 | 0.848 | 0.928 |
+
+kernel 谱是合并 O/V 两组 `[1024,32]` 为 `[1024,64]` 的平方奇异值能量。
+runtime 谱是 **按通道中心化、未按通道方差标准化** 的联合 logits covariance；所以它衡量方差压缩，不等于所有门同权的功能保真度。
+此处无 bias 的 kernel 谱也不计常数偏置。
+
+### 诊断支持什么实验，而不是提前宣布哪种会获胜
+
+可以保留四组独立输出，试：
+`x → shared GELU hidden → [O_row,O_col,V_row,V_col]`，总输出 4N=64；门仍各自 sigmoid。
+
+- **r=64**：投影参数从 `D×64` 变成 `D×64+64×64`，对 D=1024 仅多 **0.00390625 W_Q / L层**；小开销的非线性表达力实验。
+- **r=128**：变成 `D×128+128×64`，比原门投影多 **0.0703125 W_Q / L层**，按 LLF 全层平均多 .046875 W_Q。
+  它还有一个明确的表达力理由：对通常的 GELU，`GELU(z)−GELU(−z)=z`。
+  用成对的 64+64 隐单元可以表示现有任意 64 输出线性门投影，原有独立 gate bias 留在输出层即可；因此不是强行丢掉旧线性函数空间。
+- **r=16/32** 不作为“几乎无损低秩”的首选；当前谱没有这种证据。
+- 上述参数数值不加隐藏层 bias；保持原输出 bias 数量不变。不代表实测速度，尚未 profile/重训。
+- 共享隐层并不要求门正相关：输出权重可异号。同头/跨头专门化由独立输出保留。
+- 从本结果不能断言 GELU 会改善 loss：共同输入本就会产生相关性，非线性训练优化及最终收益仍需正式对照实验。
+
+## 原始数据索引与完整性
+
+- `batch_000.npz…batch_124.npz`：每4条一份，包含 identity baseline、capture loss、68 路 arm loss、有效 token mask、每层四组原始 logits 与两侧 ungated energy。
+- `metadata.json`：原 checkpoint、runtime、cohort SHA256/128 个样本 hash、68个干预臂、参数谱。
+- `parameter_shapes.json`：实际恢复参数树各叶子形状。
+- `per_sequence_stats.npz`：逐样本 O/V 与 row/col moments、5×5联合计数及能量权重、所有配对 loss 和样本 hash。
+- `summary.json`：逐层有符号完整相关矩阵/valid mask、匹配头统计、谱、配对损伤 CI、capture drift、分析脚本 SHA256。
+- 两张 PNG 是上述 JSON 的可再生可视化，不是额外诊断数据。
+
+32个原始文件都成功解压读取；128条样本完整且无重复batch号；logits/energy/loss 有限，能量非负；cohort 输入hash在worker验证通过。
+运行时 L0 的四个零影响控制全部精确为零，CPU 非同值参数掩码测试通过。
+
+## 资源与工作流复盘
+
+- 首轮 UC1a `xd-v6e-1-ovgate-us-central1-a` 先完成有效 probe，但约13分钟 READY 租约内被回收，只来得及上传88条。用户关于 UC1a 短租约的提醒在本次得到实例支持，不能凭一次事件推出稳定区域排名。
+- 后由 EW4a `xd-v6e-1-ovgate-r2-ew4a` 用同一 runtime、同一 cohort 从 GCS 恢复已提交batch，补齐剩余40条；不是更换样本或把失败batch当完成。
+- 两轮 UE5a 候选只排队，未参与计算；首轮 EW4a 备选在 UC1a 首个成功batch后按流程释放，后来为恢复重排。
+- 所有5个候选（首轮UC1a/EW4a/UE5a及第二轮EW4a/UE5a）的node/queued-resource均已通过精确名称删除并核验不存在。诊断脚本/原始数据保留。
+- 本次入口问题：恢复显式参数仍依赖只读checkpoint manager开关和data-cursor占位；已固化到runner。原子batch提交和GCS周期上传/恢复让抢占不丢整轮工作。
+- 新发现的 bf16 capture 调度漂移通过“同一可执行程序内的 identity/干预”隔离；不能只靠小模型capture等价测试推断已训模型也精确等价。
+- 本机统计与绘图环境分离：统计不依赖 matplotlib，绘图用已有 tune 环境，只读summary；避免绘图依赖阻断已完成的统计。

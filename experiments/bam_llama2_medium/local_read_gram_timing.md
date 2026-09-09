@@ -57,7 +57,88 @@ Owned initial resources: `xd-v6e-gram-medium`, `xd-v6e-gram-xl`, both EW4a.
 Orchestrators: tpu-ag tmux `gram-medium` / `gram-xl`, logs `logs/gram-*-screen.log`.
 Artifacts: matrix collector uploads directly to GCS under
 `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/3b94075/Gram{Medium,XL}/`.
-Timing results pending; no target v5p requested before AOT readiness.
+Full-shape AOTs for Base/MulOutput/MulMix completed for both sizes before their
+target requests. Target matrices are queued in UE5a on `xd-v5p16-gram-medium` and
+`xd-v5p32-gram-xl`; every size's three arms use the same pod, batch and schedule.
+
+## Six-layer v6e screen
+
+EW4a v6e-1, batch2, runtime `3b94075`, XPlane device steps10-14. The class name is
+`BamMediumIndependentLLFGram<variant>SixLayer` / `BamXLIndependentLLFGram<variant>SixLayer`;
+the two complete parent names and resolved ranks are specified above.
+Ratios are baseline step time / variant step time - 1 (throughput change).
+
+| Variant | Medium ms | vs Base | XL ms | vs Base |
+|---|---:|---:|---:|---:|
+| Base | 35.154 | — | 86.975 | — |
+| DotOutput | 35.789 | -1.77% | 90.197 | -3.57% |
+| MulOutput | 35.030 | +0.36% | 87.120 | -0.17% |
+| DotMix | 35.811 | -1.83% | 89.756 | -3.10% |
+| MulMix | 34.910 | +0.70% | 86.146 | +0.96% |
+
+The candidate is MulMix, with MulOutput retained in the target matrix to check
+whether moving the scale into H also wins at full training shape. Dot is slower
+in both sizes; arithmetic equivalence does not ensure equivalent lowering.
+These are screening results, not target-v5p speed claims.
+
+| Scoped time (ms/step) | Med Base | Med DotOutput | Med MulOutput | Med MulMix | XL Base | XL DotOutput | XL MulOutput | XL MulMix |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Local Q/K | .524 | .529 | .571 | .529 | 2.458 | 5.138 | 2.832 | 2.453 |
+| Local V | .633 | 1.495 | .672 | .619 | 1.219 | 2.538 | 1.722 | 1.252 |
+| Q/K Gram | — | .036 | .023 | .020 | — | 1.931 | .092 | .087 |
+| V Gram | — | .654 | .022 | .020 | — | .667 | .058 | .052 |
+
+The dot penalty concentrates in rank2 Gram; Medium rank1 Q/K avoids most of it.
+Mul-reduce reduces that Gram scope substantially. Scaling H before expansion
+also reduces XL LocalV head expansion/gating cost (MulOutput vs MulMix).
+Scope attribution follows fused-kernel metadata, so a removed scope's time is
+not automatically an independently removable wall time. Dot Gram kernels are
+themselves named `multiply_reduce_fusion`; the gain is not evidence of switching
+from MXU to VPU, and exact layout/fusion differences require HLO inspection.
+
+Artifacts live under the GCS matrix roots above and
+`/data0/xd/bam_diagnostics/local-read-gram/{medium,xl}/` locally. Parsed per-arm
+scope JSONs are `<size>-<variant>-scopes.json` in that local root. Reproduce with
+`analyze_bam_xplane.py 'LOCAL_ARM/**/*.trace.json.gz' --json-output OUTPUT.json`.
+The parser excludes nested scan custom-call containers from additive totals:
+XL containers contain >5,000 named child kernels and ~97.6% occupied time;
+counting them too double-counts device work. Device-step timings are unaffected.
+
+## Full-shape AOT / target reproduction
+
+`compile_gram_on_ready.py` reuses each now-idle screening TPU and delegates to
+the authoritative `prepare_train_aot.py` compiler, cache key and manifest verifier;
+only allocation/retention differs. It compiles MulOutput/MulMix sequentially on
+each VM, in parallel across Medium/XL. The same compiler as Base preserves the
+13500/50000 schedules and inherited checkpoint configuration.
+
+`run_gram_target_timing.py` validates all three artifact manifests, waits for the
+standalone installer, loads the AOT on all workers, verifies `Loaded compiled
+function!`, records actual steps10-14, then stops only its exact no-checkpoint
+timing processes while retaining the pod between arms. Short runtime checkpoint
+disabling does not change the sealed optimizer or learning-rate schedule.
+Artifact roots (each also contains `.manifest.json`):
+
+- Medium: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/3b94075/jax081-i0ae3f58-c17f538a/v5p-16/s13500/`
+- XL: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/3b94075/jax081-i0ae3f58-c17f538a/v5p-32/s50000/`
+
+Target result/log paths: tpu-ag `logs/gram-target-{medium,xl}.{json,log}`.
+
+## Added parameters and arithmetic
+
+For each local arm the shared side gate's 2 outputs become 2N outputs, so the
+packed projection grows by `2(N-1)D` weights and `2(N-1)` biases. Q/K occur in
+every layer; independent V occurs in 2/3 of LLF layers. At N=16 the mean increase
+per layer is **.07813 W_Q in Medium** and **.03906 W_Q in XL**, excluding tiny
+biases (.07820/.03908 including them). There are no Gram parameters. The first
+read-M and rank-to-head contraction dimensions remain unchanged.
+
+Per side Gram adds roughly `2R²K + 2NR² + 2NR` scalar FLOPs/token before epsilon,
+rsqrt and output scaling; multiply-reduce and dot have the same arithmetic order.
+This is small next to projections but dot lowering cost is disproportionate at
+R=2, as the scope measurements demonstrate. Moving scaling from expanded
+`[B,T,N,V]` answers to `[B,T,N,R]` coefficients reduces scaling work/bandwidth
+when V>R, though fusion and backward propagation determine actual speed.
 
 ## Validation and workflow observations
 

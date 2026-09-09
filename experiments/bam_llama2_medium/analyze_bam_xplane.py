@@ -137,7 +137,10 @@ def summarize(path):
       for left, right in sorted(spans):
         covered += max(0., right - max(cursor, left))
         cursor = max(cursor, right)
-      if parent['dur'] > 0 and covered / parent['dur'] >= .98:
+      # Host/dispatch gaps within the region are real: the XL scan body has
+      # >5,000 contained kernels covering ~97.6%, not 98%. Two or more named
+      # children and >=90% coverage identify a container, not a leaf kernel.
+      if len(spans) >= 2 and parent['dur'] > 0 and covered / parent['dur'] >= .90:
         nested_calls.add(id(parent))
     step_events = [e for e in device_events if str(e.get("name", "")).startswith("jit_train_step(")]
     valid_steps = []

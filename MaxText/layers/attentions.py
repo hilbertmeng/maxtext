@@ -1883,16 +1883,6 @@ def _depth_scaled_bam_read_amplitude(
   return amplitude
 
 
-def _add_bam_read_key_bias(projected_key, row_width, row_bias=None, col_bias=None):
-  """Add independently parameterized row/column offsets before key transforms."""
-  raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
-  if row_bias is not None:
-    raw_row = raw_row + jnp.asarray(row_bias, raw_row.dtype)
-  if col_bias is not None:
-    raw_col = raw_col + jnp.asarray(col_bias, raw_col.dtype)
-  return jnp.concatenate((raw_row, raw_col), axis=-1)
-
-
 def _project_bam_read_keys(
     row_width, x, W_R, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
@@ -1994,7 +1984,7 @@ def _fit_bam_read_to_head(read, bam_k, head_dim, v_adapter=None):
   """Map a bilateral [K-side, V-side] BAM read into one attention head."""
   if not 0 < bam_k < head_dim:
     raise ValueError(f'bam_k={bam_k} must be smaller than head_dim={head_dim}')
-  y_k, y_v = jnp.split(read, [bam_k], axis=-1)
+  y_k, y_v = read if isinstance(read, tuple) else jnp.split(read, [bam_k], axis=-1)
   target_v_dim = head_dim - bam_k
   if y_v.shape[-1] > target_v_dim:
     if v_adapter is None:
@@ -2215,7 +2205,7 @@ def factorized_head_bam_read(
     second_implementation='mul_reduce', v_projection=None,
     key_row_activation='none', key_col_activation='none',
     rank_routing='legacy', head_rank_gate_bias=None,
-    side_amplitude=None, return_rank_gate=False):
+    side_amplitude=None, return_rank_gate=False, return_sides=True):
   """Read with rank-r shared runtime keys, then route dynamically across heads.
 
   For each side, the effective per-head key is factorized as
@@ -2329,19 +2319,13 @@ def factorized_head_bam_read(
       ).astype(output_dtype)
       row_mix, col_mix = rank_gate[..., 0, :], rank_gate[..., 1, :]
     else:
-      raw_row_mix = raw_head_mix[..., 0, :]
-      raw_col_mix = raw_head_mix[..., 1, :]
-      mix_axis = (-2, -1) if rank_routing == 'legacy' else -2
-      row_mix = normalizations.rms_norm(
-          raw_row_mix, dtype=output_dtype, epsilon=rms_epsilon,
-          axis=mix_axis)
-      col_mix = normalizations.rms_norm(
-          raw_col_mix, dtype=output_dtype, epsilon=rms_epsilon,
+      mix_axis = (-3, -1) if rank_routing == 'legacy' else -3
+      head_mix = normalizations.rms_norm(
+          raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon,
           axis=mix_axis)
       if rank_routing == 'legacy':
-        rank_scale = jnp.sqrt(jnp.asarray(rank, output_dtype))
-        row_mix = row_mix / rank_scale
-        col_mix = col_mix / rank_scale
+        head_mix = head_mix / jnp.sqrt(jnp.asarray(rank, output_dtype))
+      row_mix, col_mix = head_mix[..., 0, :], head_mix[..., 1, :]
 
       if return_rank_gate and rank > 1:
         if rank_routing == 'shared_rank_gate':
@@ -2373,7 +2357,7 @@ def factorized_head_bam_read(
           side_amplitude, y_u.dtype)
       y_u = y_u * col_amplitude
       y_v = y_v * row_amplitude
-    read = jnp.concatenate([y_u, y_v], axis=-1)
+    read = (y_u, y_v) if return_sides else jnp.concatenate([y_u, y_v], axis=-1)
     return (read, rank_gate) if return_rank_gate and rank > 1 else read
 
 
@@ -3477,9 +3461,9 @@ class BamAttention(Attention):
     """Place K-side first and adapt/pad V-side into the remaining head width."""
     if self._local_qk_post_read_v_layout == 'qk_tail':
       def extend_qk(read):
-        y_u, y_v = jnp.split(read, [self.bam_k], axis=-1)
+        y_u, y_v = read if isinstance(read, tuple) else jnp.split(read, [self.bam_k], axis=-1)
         middle = jnp.zeros(
-            y_u.shape[:-1] + (self.head_dim - self.bam_k,), dtype=read.dtype)
+            y_u.shape[:-1] + (self.head_dim - self.bam_k,), dtype=y_u.dtype)
         return jnp.concatenate((y_u, middle, y_v), axis=-1)
       return extend_qk(q_local), extend_qk(k_local)
     q_adapter = getattr(self, 'local_q_v_adapter', None)
@@ -3843,11 +3827,7 @@ class BamAttention(Attention):
             'intermediates', 'fetched_read_pre_gate_effective_rms',
             m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
       def full_read_projection(x):
-        projected_key = _add_bam_read_key_bias(
-            self.W_R(x), self._abs_k_dim or self.bam_k,
-            getattr(self, 'W_R_row_pre_rms_bias', None),
-            getattr(self, 'W_R_col_pre_rms_bias', None))
-        return jnp.squeeze(projected_key, axis=-2)
+        return jnp.squeeze(self.W_R(x), axis=-2)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,
@@ -3884,7 +3864,8 @@ class BamAttention(Attention):
           **self._read_key_kwargs_from_logits('W_lv', gate),
           implementation=self._read_implementation,
           second_implementation=self._local_qk_second_implementation)
-      return _pack_fetched_bam_heads(read, self.num_query_heads, self.head_dim)
+      return _pack_fetched_bam_heads(
+          jnp.concatenate(read, axis=-1), self.num_query_heads, self.head_dim)
 
   def _gate_local_output(self, read, logits):
     """Gate compact (col/data, row/address) sides before packing the head."""

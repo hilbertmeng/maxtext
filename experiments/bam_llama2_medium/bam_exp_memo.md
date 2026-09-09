@@ -341,6 +341,20 @@ Manual Q/K batching does not improve this contraction. On the same non-scan v6e-
 
 ### XL Rank2 all-F versus shared LLLF paired main profile
 
+Shared LLF [tuple-return refactor timing](xl_shared_tuple_timing.md): same UE5a
+v5p-32 full-24 block-scan+AOT, old `1b39c64` .5550 → tuple `9c44858` .5584
+steps/s (**+.61%**, steps 10–14). Small measured gain from avoiding intermediate
+readout concat/split; not evidence that the larger shared-LocalV overhead is resolved.
+The full-fetch XL Rank2 tuple control reaches .5540 vs its reused same-zone/window
+old result .5524 (+.29%); LLF's ratio-of-speedups is therefore only about +.32%.
+
+Follow-up [LocalQK/read simplification matrix](xl_read_simplification_timing.md):
+UE5a v5p-32 full-24 XL Rank2 scan+AOT, High1/High2/High3/combined each .5540;
+shared contraction + unified rank1/rankR (Mid1) .5538 (−.036%). No resolvable
+speed change versus .5540. Combined `f549622` matches the recent `1b39c64`
+reproduction at every printed step0–100; historical ten-step points differ by
+at most 5e-7. Keep the simpler code for maintainability, without claiming speed gain.
+
 Related [LLF JIT/AOT timing check](xl_llf_jit_aot_timing.md): UE5a full-24 scan,
 independent LocalV JIT/AOT .5534/.5564 steps/s (−.54%); shared LocalV
 .5512/.5532 (−.36%). Switching compilation method does not recover a material

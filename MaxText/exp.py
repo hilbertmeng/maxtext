@@ -245,7 +245,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_layer_modes = ['local_qk+local_o+full'] * 24
     bam_read_sides = 'both'  # both | row (M^T r_row) | col (M r_col); may be per-layer
     bam_fetched_read_side = 'both'  # fetched-M-only ablation; leaves LocalQK bilateral
-    bam_fetch_read_key_pre_rms_bias_side = 'none'  # none | row | col | both
     bam_fetch_read_key_activation_side = 'none'  # none | row | col | both
 
     bam_k = 32
@@ -326,14 +325,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
-    bam_fetched_output_gate_bottleneck_dim = None  # D -> r -> n*(k+c) readout gate
-    bam_fetched_output_gate_activation = 'none'  # none | gelu | silu
-    bam_fetched_output_gate_projection = 'lora'  # lora | linear
-    bam_fetched_output_gate_head_logits = False  # retain old 2n logits as common terms
-    bam_fetched_output_gate_side = 'both'  # both | col (column/U readout only)
-    # none | both | row | col; head scalar + cross-head-shared coordinate logits
-    bam_factorized_fetched_output_gate_side = 'none'
-    bam_factorized_fetched_output_gate_coordinate_bias = True
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
     # legacy | no_remat | deferred_read | diag_select | optimized
     bam_query_chunk_implementation = 'legacy'
@@ -1974,6 +1965,7 @@ class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchColPreRMSBias(BamV2C256FetchScheduleBase):
     """Add a learned pre-RMS offset to the fetched column/address key."""
+    # Ledger only: fetched-key bias removed from main; reproduce with runtime below.
     # cd1ba4d; EW4b ~0.660 steps/s; stopped 2,800. dloss -.00053 vs V2 @2,600; early gain vanished.
     model_name = 'BamLlama2MediumV2C256FetchColPreRMSBias'
     scan_layers = True
@@ -1985,6 +1977,7 @@ class BamLlama2MediumV2C256FetchColPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchRowPreRMSBias(BamV2C256FetchScheduleBase):
     """Add a learned pre-RMS offset to the fetched row/data key."""
+    # Ledger only: fetched-key bias removed from main; reproduce with runtime below.
     # cd1ba4d; EW4b ~0.657 steps/s; stopped 2,800. dloss +.00504 vs V2 @2,600; worsening.
     model_name = 'BamLlama2MediumV2C256FetchRowPreRMSBias'
     scan_layers = True
@@ -2018,6 +2011,8 @@ class BamLlama2MediumV2C256LocalQKColSiluReadKey(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256OutputGateR256Gelu(BamV2C256FetchScheduleBase):
     """Replace fetched head gates with a D->256->n*(k+c) output gate."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # bce2f02; EW4b ~0.648 steps/s; stopped 2,900. dloss +.00691 vs V2 @2,800; gap still shrinking.
     model_name = 'BamLlama2MediumV2C256OutputGateR256Gelu'
     scan_layers = True
@@ -2032,6 +2027,8 @@ class BamLlama2MediumV2C256OutputGateR256GeluHeadLogits(
     BamLlama2MediumV2C256OutputGateR256Gelu
 ):
     """Add zero-init element logits to the historical per-head/side logits."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # bce2f02; EW4b ~0.643 steps/s; stopped 2,986. dloss +.00153 vs V2 @2,800; -.00701 vs Pure @2,000.
     model_name = 'BamLlama2MediumV2C256OutputGateR256GeluHeadLogits'
     bam_fetched_output_gate_head_logits = True
@@ -2044,6 +2041,8 @@ class BamLlama2MediumV2C256OutputGateLinearHeadLogits(
     BamLlama2MediumV2C256OutputGateR256GeluHeadLogits
 ):
     """Replace Common's GELU LoRA residual with one D->n*(k+c) linear map."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # dd330c6; EW4b ~0.644 steps/s; stopped 2,030. dloss +.01582 vs Common, +.01784 vs V2 @2,000; Common gap still growing.
     model_name = 'BamLlama2MediumV2C256OutputGateLinearHeadLogits'
     bam_fetched_output_gate_projection = 'linear'
@@ -2056,6 +2055,8 @@ class BamLlama2MediumV2C256OutputGateR256SiluHeadLogits(
     BamLlama2MediumV2C256OutputGateR256GeluHeadLogits
 ):
     """Replace Common's GELU bottleneck activation with SiLU."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # ea8a474; EW4b ~0.640 steps/s; stopped 3,394. dloss +.00417 vs GELU Common @2,800; +.00603 vs V2 @3,200.
     model_name = 'BamLlama2MediumV2C256OutputGateR256SiluHeadLogits'
     bam_fetched_output_gate_activation = 'silu'
@@ -2068,6 +2069,8 @@ class BamLlama2MediumV2C256OutputGateColOnlyR256Gelu(
     BamLlama2MediumV2C256OutputGateR256Gelu
 ):
     """Element-wise gate only the column/U fetched read; keep row/V head gating."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # cb0f2e8; EW4b ~0.647 steps/s; stopped 3,012. dloss +.01396 vs V2, +.00705 vs Both-Pure @2,800.
     model_name = 'BamLlama2MediumV2C256OutputGateColOnlyR256Gelu'
     bam_fetched_output_gate_side = 'col'
@@ -2080,6 +2083,8 @@ class BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits(
     BamLlama2MediumV2C256OutputGateColOnlyR256Gelu
 ):
     """Use the column head logit as the common term of its element-wise gate."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # cb0f2e8; EW4b ~0.646 steps/s; stopped 2,833. dloss +.00512 vs V2, +.00360 vs Both-Common @2,800.
     model_name = 'BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits'
     bam_fetched_output_gate_head_logits = True
@@ -2090,6 +2095,8 @@ class BamLlama2MediumV2C256OutputGateColOnlyR256GeluHeadLogits(
 
 class BamLlama2MediumV2C256FactorizedOutputGate(BamV2C256FetchScheduleBase):
     """Gate both fetched readouts by head scalars plus shared coordinate logits."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # 1dd0680; EW4b ~0.658 steps/s; stopped 4,778. dloss +.0074 mean @2,600-4,000 vs V2; plateaued.
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGate'
     scan_layers = True
@@ -2103,6 +2110,8 @@ class BamLlama2MediumV2C256FactorizedOutputGateRowOnly(
     BamLlama2MediumV2C256FactorizedOutputGate
 ):
     """Use the factorized output gate only on the row/V fetched readout."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # 1dd0680; EW4b ~0.663 steps/s; stopped 3,364. dloss +.00686 vs V2, +.00027 vs Both @3,200.
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGateRowOnly'
     bam_factorized_fetched_output_gate_side = 'row'
@@ -2115,6 +2124,8 @@ class BamLlama2MediumV2C256FactorizedOutputGateColOnly(
     BamLlama2MediumV2C256FactorizedOutputGate
 ):
     """Use the factorized output gate only on the column/U fetched readout."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # 1dd0680; EW4b ~0.663 steps/s; stopped 4,680. dloss +.00669 mean vs V2; -.00091 vs Both @4,400.
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGateColOnly'
     bam_factorized_fetched_output_gate_side = 'col'
@@ -2127,6 +2138,8 @@ class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias(
     BamLlama2MediumV2C256FactorizedOutputGate
 ):
     """Keep the negative per-head prior; make shared coordinate logits bias-free."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # e327752; EW4b ~0.658 steps/s; stopped 512; exact loss match to paired-init through 265.
     model_name = 'BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias'
     bam_factorized_fetched_output_gate_coordinate_bias = False
@@ -2139,6 +2152,8 @@ class BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBiasPairedInit(
     BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBias
 ):
     """Bias-free coordinate logits with the Both parameter tree preserved."""
+    # Ledger only: fetched-output-gate implementation removed from refactor-bam;
+    # restore this class's recorded historical runtime commit to reproduce.
     # c7e770b; EW4b ~0.656 steps/s; stopped 2,696. mean dloss +.0092 vs Both, +.0163 vs V2, +.0139 vs Common @1,800-2,600.
     model_name = (
         'BamLlama2MediumV2C256FactorizedOutputGateNoCoordinateBiasPairedInit')
@@ -3786,6 +3801,11 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Current scan+AOT code, explicit historical all-decay optimizer; compare steps 0..200."""
+    # Tuple-read 9c44858: UE5a v5p-32 scan+AOT 10..14 .5540 steps/s,
+    # +.29% vs existing same-zone/window old-code .5524; timing only, old arm reused.
+    # Read simplification f549622: same .5540 steps/s; all steps0..100 match
+    # the 1b39c64 repro at printed precision (historical max gap 5e-7 at 10-step points).
+    # Individual/combined timing and source hashes: xl_read_simplification_timing.md.
     # code_commit: 1b39c64; UE5a v5p-32; all 21 ten-step losses 0..200 match
     # historical Rank2 within log rounding (max |delta|=5e-7); completed 201 updates.
     # UE5a ~.549 steps/s (10..199), consistent with historical ~.545-.550.
@@ -3814,6 +3834,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
 ):
     """XL Rank2: shared compressed LocalO/LocalV in L, fetched read in F; LLF block scan."""
+    # Tuple-read refactor 9c44858 vs 1b39c64: same UE5a v5p-32 full-24 block-scan+AOT,
+    # steps 10..14: .5584 vs .5550 steps/s (+.61%); small speed gain, no retraining.
     # UE5a full-24 block-scan JIT: .5512 vs v6e-AOT .5532 steps/s, -.36% (10..14).
     # code_commit: 1b39c64; UE5a v5p-32 ~.549 steps/s; same-window 10..199
     # throughput +.12% vs control (!? effectively flat, below predicted +3..8%).
@@ -3913,6 +3935,11 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
 ):
     """LLF with independent rank-2 LocalV instead of shared LocalO/LocalV read."""
+    # Paused at committed checkpoint21372 (2026-09-08); resumable, TPU released. Provisional vs XL Rank2:
+    # early gap -.03854@500 shrank to ~-.001 by6000; thereafter small negative fluctuations,
+    # not sustained convergence to zero (17000 briefly +.000014, then negative again).
+    # 18500..21000 mean -.001411, range -.001976..-.000831; keep checkpoint for possible resume.
+    # +.72% throughput vs matched Rank2 repro .5524; fetched M-cache 1/3 of Rank2.
     # code_commit: 05fac4c; UE5a v5p-32; FIRST_STEP and steps10-14 verified.
     # !? ~.5564 steps/s, +.58% vs shared LLF .5532 (same window), not predicted -1..-3%.
     # Ledger: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
@@ -4237,6 +4264,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FetchColPreRMSBias(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2
 ):
     """Scaling test for a learned pre-RMS bias on the fetched column key."""
+    # Ledger only: fetched-key bias removed from main; reproduce with runtime below.
     # code_commit: 2a83a97; EW4b ~0.545 steps/s; paused at 4,323. dloss
     # +.01150 vs Rank2 @4,000; the ~+.010 harmful plateau did not shrink.
     model_name = (

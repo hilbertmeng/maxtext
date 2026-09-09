@@ -58,8 +58,49 @@ Orchestrators: tpu-ag tmux `gram-medium` / `gram-xl`, logs `logs/gram-*-screen.l
 Artifacts: matrix collector uploads directly to GCS under
 `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/3b94075/Gram{Medium,XL}/`.
 Full-shape AOTs for Base/MulOutput/MulMix completed for both sizes before their
-target requests. Target matrices are queued in UE5a on `xd-v5p16-gram-medium` and
-`xd-v5p32-gram-xl`; every size's three arms use the same pod, batch and schedule.
+target requests. UE5a candidates remained queued; EW4b candidates won. Every
+size's three arms ran on the same EW4b pod, batch and schedule.
+
+## Full-24 result (primary speed conclusion)
+
+Runtime `3b94075`, v6e-precompiled AOT, LLF block scan, all Q/K/V use the selected
+local routing. No BAM health captures. Original batch, optimizer and total LR
+schedule preserved; no formal long training was started. Same-step logs10-14:
+
+| Configuration class | TPU / zone | steps/s | vs matched Base |
+|---|---|---:|---:|
+| `BamMediumIndependentLLFGramBase` | v5p-16 / EW4b | .6960 | — |
+| `BamMediumIndependentLLFGramMulOutput` | same pod | .6890 | -1.01% |
+| **`BamMediumIndependentLLFGramMulMix`** | same pod | **.6926** | **-.49%** |
+| `BamXLIndependentLLFGramBase` | v5p-32 / EW4b | .5588 | — |
+| `BamXLIndependentLLFGramMulOutput` | same pod | .5452 | -2.43% |
+| **`BamXLIndependentLLFGramMulMix`** | same pod | **.5540** | **-.86%** |
+
+Medium batch/device32, XL16, T2048, C256, 24 layers. Each baseline is the current
+independent-LocalV LLF implementation, not a historical full-fetch control.
+All-worker AOT-load checks and exact process teardown passed for all six arms.
+Raw10-14 rates:
+
+```
+Medium Base       .696 .696 .696 .696 .696
+Medium MulOutput  .689 .689 .689 .689 .689
+Medium MulMix     .692 .692 .693 .693 .693
+XL Base           .558 .559 .559 .559 .559
+XL MulOutput      .545 .545 .545 .546 .545
+XL MulMix         .554 .554 .554 .554 .554
+```
+
+**Selection: MulMix for both sizes.** Scheme C costs <1% throughput at the real
+training shapes. The six-layer v6e's small apparent speedup does not transfer;
+full batch/topology/backend change the balance. The direction of the placement
+optimization does transfer: scaling H improves throughput over scaling expanded
+outputs by .52% Medium / 1.61% XL. No training-quality conclusion is claimed.
+
+Use `bam_local_{q,k,v}_rank_routing='effective_key'`,
+`bam_local_gram_implementation='mul_reduce'`,
+`bam_local_gram_scale_placement='mix'`. Implementation remains on
+`codex/local-read-gram`, not merged into production. Main exp.py records the
+full-shape classes as ledger-only; restore their runtime commit for reproduction.
 
 ## Six-layer v6e screen
 
@@ -122,7 +163,23 @@ Artifact roots (each also contains `.manifest.json`):
 - Medium: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/3b94075/jax081-i0ae3f58-c17f538a/v5p-16/s13500/`
 - XL: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/3b94075/jax081-i0ae3f58-c17f538a/v5p-32/s50000/`
 
-Target result/log paths: tpu-ag `logs/gram-target-{medium,xl}.{json,log}`.
+Target result/log paths: tpu-ag `logs/gram-target-{medium,xl}-ew.{json,log}`;
+local copies plus per-arm raw loss/speed logs are in
+`/data0/xd/bam_diagnostics/local-read-gram/target/`.
+Six AOT manifests are retained locally in the sibling `aot-manifests/` directory.
+Runner commit `a59cbd2` (or this report's later commit), runtime `3b94075`:
+
+```
+python3 run_gram_target_timing.py --tpu xd-v5p16-gram-medium-ew \
+  --zone europe-west4-b --commit 3b94075d9f9a10cc49155e0205d23abd4e5af276 \
+  --size Medium --artifact-root MEDIUM_ROOT_ABOVE --output RESULT.json
+# XL: --tpu xd-v5p32-gram-xl-ew --size XL --artifact-root XL_ROOT_ABOVE
+```
+
+The UE5a target candidates were deleted after the corresponding EW4b FIRST_STEP;
+they never ran a timing arm. Both v6e screen/compiler VMs and the two separate
+baseline AOT compiler candidates are deleted; final target cleanup is recorded
+after all-worker process-stop and local result verification.
 
 ## Added parameters and arithmetic
 
@@ -146,6 +203,11 @@ when V>R, though fusion and backward propagation determine actual speed.
 - Explicit effective-key forward/VJP test: 24 rank/backend/placement combinations
   passed (45.184s), including finite gradients at zero keys.
 - Packed Q/K/V module initialization and gradient: passed (61.694s).
+- bf16 forward vs fp32 explicit-key reference: 12 variants passed (20.647s),
+  relative L2 error .00355-.00429; dot/mul Gram outputs identical in these cases.
+- Parser regression: two tests pass, including nested wrapper accounting and
+  truncated trace rejection. All ten summaries have additive leaf-kernel totals
+  consistent with measured device-step duration.
 - Initial acquisition was blocked before queue submission by the hub's 10GiB disk
   preflight. Cause: obsolete Aug31 `lsp/create_tpu.py` process PID2922649 kept polling
   a nonexistent `xd-v6e-1-wrgrad-uc`, repeatedly logging its entire status history.

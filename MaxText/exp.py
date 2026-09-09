@@ -6731,6 +6731,8 @@ class BamLlama2MediumV2C256StaticClippedAlphaMix(BamLlama2MediumV2C256ScanAotCon
 
 # Scheme C timing family: isolated codex/local-read-gram; all local Q/K/V arms.
 class BamMediumIndependentLLFGramBase(BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan):
+    # code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-16 full-24 block-scan/AOT: .6960 steps/s; current independent LLF speed control.
     model_name = 'BamMediumIndependentLLFGramBase'
     scan_layers = True
     record_training_health_metrics = False
@@ -6779,6 +6781,8 @@ class BamMediumIndependentLLFGramDotOutputSixLayer(BamMediumIndependentLLFGramDo
 
 
 class BamMediumIndependentLLFGramMulOutput(BamMediumIndependentLLFGramBase):
+    # code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-16 full-24: .6890 steps/s, -1.01% vs GramBase; slower than MulMix.
     model_name = 'BamMediumIndependentLLFGramMulOutput'
     bam_local_q_rank_routing = 'effective_key'
     bam_local_k_rank_routing = 'effective_key'
@@ -6827,6 +6831,8 @@ class BamMediumIndependentLLFGramDotMixSixLayer(BamMediumIndependentLLFGramDotMi
 
 
 class BamMediumIndependentLLFGramMulMix(BamMediumIndependentLLFGramBase):
+    # code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-16 full-24: .6926 steps/s, -.49% vs GramBase; fastest tested scheme C.
     model_name = 'BamMediumIndependentLLFGramMulMix'
     bam_local_q_rank_routing = 'effective_key'
     bam_local_k_rank_routing = 'effective_key'
@@ -6851,6 +6857,8 @@ class BamMediumIndependentLLFGramMulMixSixLayer(BamMediumIndependentLLFGramMulMi
 
 
 class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF):
+    # code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-32 full-24 block-scan/AOT: .5588 steps/s; current independent LLF speed control.
     model_name = 'BamXLIndependentLLFGramBase'
     scan_layers = True
     record_training_health_metrics = False
@@ -6899,6 +6907,8 @@ class BamXLIndependentLLFGramDotOutputSixLayer(BamXLIndependentLLFGramDotOutput)
 
 
 class BamXLIndependentLLFGramMulOutput(BamXLIndependentLLFGramBase):
+    # code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-32 full-24: .5452 steps/s, -2.43% vs GramBase; slower than MulMix.
     model_name = 'BamXLIndependentLLFGramMulOutput'
     bam_local_q_rank_routing = 'effective_key'
     bam_local_k_rank_routing = 'effective_key'
@@ -6947,6 +6957,8 @@ class BamXLIndependentLLFGramDotMixSixLayer(BamXLIndependentLLFGramDotMix):
 
 
 class BamXLIndependentLLFGramMulMix(BamXLIndependentLLFGramBase):
+    # code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-32 full-24: .5540 steps/s, -.86% vs GramBase; fastest tested scheme C.
     model_name = 'BamXLIndependentLLFGramMulMix'
     bam_local_q_rank_routing = 'effective_key'
     bam_local_k_rank_routing = 'effective_key'

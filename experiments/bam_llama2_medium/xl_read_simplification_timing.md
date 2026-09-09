@@ -19,11 +19,11 @@ model/parameter/configuration change versus the timed reference is intended.
 
 | Arm | Runtime commit | Change versus local source reference | steps/s | Delta |
 |---|---|---|---|---|
-| High1 | 02be9be | factorized read side tuples through LocalQK fitting and independent LocalV | pending | pending |
-| High2 | dc42921 | eliminate inactive fetched-bias split/concat | pending | pending |
-| High3 | be296a8 | one batched side-independent head-mix RMS | pending | pending |
-| Mid1 | 5053036 | shared contraction; rank1 canonical R axis and unified factorized pipeline | pending | pending |
-| Combined | f549622 | all four | pending | pending |
+| High1 | 02be9be | factorized read side tuples through LocalQK fitting and independent LocalV | .5540 | 0.00% |
+| High2 | dc42921 | eliminate inactive fetched-bias split/concat | .5540 | 0.00% |
+| High3 | be296a8 | one batched side-independent head-mix RMS | .5540 | 0.00% |
+| Mid1 | 5053036 | shared contraction; rank1 canonical R axis and unified factorized pipeline | .5538 | −0.036% |
+| Combined | f549622 | all four | .5540 | 0.00% |
 
 Single-factor commits are independently constructed from 5066e56, not cumulative
 speed changes despite their linear Git ancestry. High2 is a disabled-feature code
@@ -40,7 +40,7 @@ If differences are marginal/anomalous, use a same-pod control rerun only as need
 Logs: /tmp/xl-read-simplify-tests.log and /tmp/xl-read-simplify-local-tests.log.
 Nonzero M/key/mix VJP comparison: 84 cases, ranks1/2/4, fp32/bf16,
 legacy/shared-rank/head-rank gate, row/col/both, dot/multiply-reduce, V projection.
-Maximum relative L2 difference .006596 (bf16); no claim of bitwise equivalence.
+Maximum relative L2 difference .006596 (bf16) on arbitrary CPU test tensors; no claim of bitwise equivalence for arbitrary inputs.
 The random output cotangent avoids the near-zero derivative of a squared RMS
 output norm. Script: check_read_simplification.py --reference 5066e56,
 with pinned CPU Python, JAX_PLATFORMS=cpu and PYTHONPATH=MaxText.
@@ -64,3 +64,38 @@ endpoint. AOT/runtime matrix details and full raw logs stay in the final report.
 No target TPU should be allocated before an executable is ready.
 After verified collection, release diagnostic TPUs; keep scripts and data.
 Independent XL LLLF training remains monitored separately, next full report21000.
+
+## Completed target measurement — 2026-09-09 UTC
+
+All five AOTs loaded successfully on xd-v5p-32-xl-read-simplify, UE5a.
+The four single arms stop after their step15 observation (a few extra steps occur
+during SSH collection); the combined arm stopped after observing step100.
+Each arm's step10–14 rates were [.554,.554,.554,.554,.554], except Mid1:
+[.553,.554,.554,.554,.554]. No resolvable throughput improvement; the −.036%
+Mid1 delta is below the practical resolution of this rounded-log measurement.
+This result supports keeping the readability refactor, not claiming a speedup.
+Without HLO/XPlane comparison it does not prove which transformations XLA removed.
+
+Combined versus recent AllDecayRepro200, step0/10/.../100: all eleven gaps are 0.
+Combined versus original historical Rank2, gaps in units of 1e-7:
+
+```text
+step     0    10    20    30    40    50    60    70    80    90   100
+gap   -1.0  -5.0  -2.8  +0.8  -2.6  -2.0  +2.5  +2.7  -4.5  +1.7  +2.9
+```
+
+Maximum historical difference 5e-7 is within six-decimal log rounding;
+no observed ten-step trajectory divergence. Raw logs contain all steps, not
+only these checkpoints. This is a successful 100-step prefix reproduction,
+not a claim about every future training step or every configuration.
+
+Raw artifacts: /data0/xd/bam_diagnostics/xl-read-simplification/:
+xl-read-simplify-timing.json, xl-read-simplify-timing.log,
+five TimingReadSimplify_*.log files, reference_loss_0_100.json,
+and the CPU validation logs. The JSON contains full AOT URIs/runtime hashes,
+every captured loss, timing window and both reference comparison tables.
+The runner and matrix manifest are committed on codex/xl-read-simplify.
+All five compiler jobs report ready with cleanup_failures=[]. Target release
+verified both TPU and queued resource absent; the independent LLLF training TPU
+was not affected. Only disposable diagnostic compute was removed; artifacts and
+reusable scripts are retained.

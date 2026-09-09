@@ -43,3 +43,24 @@ then respectively `1b39c64/` and `9c44858/`, followed by
 `jax081-i0ae3f58-c17f538a/v5p-32/s50000/CONFIG.pickle`.
 The JSON records exact URIs. The runner uses the new commit for host startup and
 loads each sealed executable; model parameter structure is unchanged.
+
+## Full-fetch XL Rank2 control
+
+Configuration: `BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200`.
+Same tuple runtime `9c44858`, full24 layer-scan+AOT, historical all-decay, health off.
+The 201-update repro configuration retains the original 50k LR schedule; timing stops
+after step15. TPU `xd-v5p-32-xl-rank2-tuple`, UE5a v5p-32.
+
+| Implementation | Steps/s 10–14 | Mean | Gain |
+|---|---|---:|---:|
+| old `1b39c64`, reused prior same-zone/window result | previously measured | .5524 | reference |
+| tuple `9c44858` | .554, .554, .554, .554, .554 | .5540 | +.29% |
+
+Per user direction the old arm was cancelled before launch, not remeasured.
+Runner invocation adds `--new-only --exp CONFIG --steps 201`; AOT URI uses
+the same environment prefix as above, with `s201/CONFIG.pickle`.
+Raw artifacts alongside the LLF files: `xl-rank2-tuple-timing.json` and
+`TimingTupleLLF_tuple_1788916621.log`.
+The ratio-of-speedups is `(0.5584/0.5550)/(0.5540/0.5524)-1 = +.32%`:
+some of the LLF gain also benefits the full-fetch baseline. These are small
+log-timing differences, not a resolved large performance bottleneck.

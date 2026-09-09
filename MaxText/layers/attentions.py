@@ -1987,14 +1987,15 @@ def _contract_bam_read(
 
 
 def _gate_fetched_read_output(
-    read, element_logits, read_k_dim, scale, head_logits=None,
+    read, element_logits, scale, head_logits=None,
     gate_side='both'):
-  """Gate packed [column answer (K), row answer (V)] coordinates."""
+  """Gate compact (column/data, row/address) read sides independently."""
   if gate_side not in ('both', 'row', 'col'):
     raise ValueError(f'Unknown fetched output gate side: {gate_side}')
-  y_u, y_v = jnp.split(read, [read_k_dim], axis=-1)
+  y_u, y_v = read
+  read_k_dim = y_u.shape[-1]
   expected_shape = (
-      read.shape if gate_side == 'both'
+      y_u.shape[:-1] + (read_k_dim + y_v.shape[-1],) if gate_side == 'both'
       else y_u.shape if gate_side == 'col'
       else y_v.shape)
   if expected_shape != element_logits.shape:
@@ -2002,26 +2003,22 @@ def _gate_fetched_read_output(
         f'fetched output gate expects matching read/logit shapes, got '
         f'{expected_shape} and {element_logits.shape}')
   if head_logits is not None:
-    if head_logits.shape != read.shape[:-1] + (2,):
+    if head_logits.shape != y_u.shape[:-1] + (2,):
       raise ValueError(
-          f'fetched head logits expect {read.shape[:-1] + (2,)}, got '
+          f'fetched head logits expect {y_u.shape[:-1] + (2,)}, got '
           f'{head_logits.shape}')
-    # Historical logits are [row-key, column-key]; their answers are [V, K].
-    head_row, head_col = jnp.split(head_logits, [1], axis=-1)
-    if gate_side == 'both':
-      delta_u, delta_v = jnp.split(element_logits, [read_k_dim], axis=-1)
-      element_logits = jnp.concatenate(
-          (delta_u + head_col, delta_v + head_row), axis=-1)
-    elif gate_side == 'col':
-      element_logits = element_logits + head_col
-    else:
-      element_logits = element_logits + head_row
-  gated = jnp.asarray(scale, read.dtype) * jax.nn.sigmoid(element_logits)
+  # Historical logits are [row-key, column-key]; their answers are [V, K].
+  def gate(y, logits, side):
+    if head_logits is not None:
+      logits = logits + head_logits[..., side:side + 1]
+    return jnp.asarray(scale, y.dtype) * jax.nn.sigmoid(logits) * y
+
   if gate_side == 'both':
-    return gated * read
+    logits_u, logits_v = jnp.split(element_logits, [read_k_dim], axis=-1)
+    return gate(y_u, logits_u, 1), gate(y_v, logits_v, 0)
   if gate_side == 'col':
-    return jnp.concatenate((gated * y_u, y_v), axis=-1)
-  return jnp.concatenate((y_u, gated * y_v), axis=-1)
+    return gate(y_u, element_logits, 1), y_v
+  return y_u, gate(y_v, element_logits, 0)
 
 
 def _factorized_fetched_output_gate_logits(
@@ -2207,12 +2204,12 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
              key_gate_logits=None, return_key_stages=False,
              key_row_norm=None, key_col_norm=None,
              use_learned_key_norm=False, implementation='mul_reduce_btn',
-             read_side='both', return_sides=False,
+             read_side='both', return_sides=True,
              key_row_mode=None, key_col_mode=None,
              key_row_activation='none', key_col_activation='none'):
   """Unified read primitive (§4.6.1) — every read mode shares this.
 
-  Projection -> split row/col -> bilateral contraction -> merge (§4.3 type alignment).
+  Projection -> split row/col -> bilateral contraction -> (column/data, row/address).
   M: single tensor [b,{f},t,k,v] (U⊗V same) OR (M_col, M_row) tuple (codebook read uses
      (Zcᵀ, Zr), each side its own matrix state). The f axis appears iff M is 5-D
      (cross-token fetch); it is summed into the contraction (Σ_f).
@@ -2222,8 +2219,8 @@ def bam_read(M, x, W_R, R=None, *, key_mode='none', key_scale=1.0,
      bt{n}{f}{side}). Split widths adapt to M's k/v (or C/C for codebook).
   R: [n,d,d] rematrix given => shared tier (key has no head axis, read once then per-head
      rematrix); R is None => per-head tier (key carries head axis, no rematrix).
-  Both implementations return [b,t,n,d].
-  `return_sides=True` returns the row/column contractions separately before concatenation.
+  By default returns the (u, v) contraction tuple. `return_sides=False` concatenates
+  the answers into [b,t,n,d] and is required when R supplies a rematrix.
   """
   Mc, Mr = M if isinstance(M, tuple) else (M, M)
   raw_row, raw_col, r_row, r_col = _project_bam_read_keys(
@@ -3803,8 +3800,7 @@ class BamAttention(Attention):
             **self._read_key_kwargs_from_logits(
                 'W_local_qk', qk_gate,
                 activation_side=self._local_qk_read_key_activation_side),
-            implementation=self._read_implementation, read_side=self.read_side,
-            return_sides=True)
+            implementation=self._read_implementation, read_side=self.read_side)
         qk_mix = normalizations.rms_norm(
             qk_mix, dtype=qk_u.dtype, epsilon=self._read_key_epsilon,
             axis=-2)
@@ -3918,9 +3914,11 @@ class BamAttention(Attention):
     local_qk_R_k = None if local_qk_per_head else self.R_k
     q_local = bam_read(
         Mh, inputs_q, self.W_lq, local_qk_R_q, **local_qk_q_kwargs,
+        return_sides=False,
         implementation=self._read_implementation, read_side=self.read_side)
     k_local = bam_read(
         Mh, inputs_q, self.W_lk, local_qk_R_k, **local_qk_k_kwargs,
+        return_sides=False,
         implementation=self._read_implementation, read_side=self.read_side)
     return self._fit_local_qk_reads(q_local, k_local)
 
@@ -4068,8 +4066,7 @@ class BamAttention(Attention):
 
   def _expand_full_read(self, full_read):
     """Restore compressed read sides and place them in one attention head."""
-    read_k_dim = self._abs_k_dim or self.bam_k
-    y_k, y_v = jnp.split(full_read, [read_k_dim], axis=-1)
+    y_k, y_v = full_read
 
     def decode(y, decoder):
       decoder = decoder.astype(y.dtype)
@@ -4095,7 +4092,7 @@ class BamAttention(Attention):
         self.num_query_heads, self.head_dim)
 
   def _read_fetched_m(self, Mbar, inputs_q, layer_index=None, *, ungated=False):
-    """Read fetched M into every BAM head."""
+    """Read fetched M; ungated sharing returns compact (col/u, row/v) sides."""
     with jax.named_scope("bam/read_fetched_m"):
       m_rms = None
       interpolation_gate_logits = None
@@ -4169,7 +4166,7 @@ class BamAttention(Attention):
           read_side=self._fetched_read_side)
       if self._use_factorized_fetched_output_gate:
         full_read = _gate_fetched_read_output(
-            full_read, element_logits, self._abs_k_dim or self.bam_k,
+            full_read, element_logits,
             self._read_key_scale,
             gate_side=self._factorized_fetched_output_gate_side)
       elif self._use_fetched_output_gate:
@@ -4177,18 +4174,19 @@ class BamAttention(Attention):
             projected_head_logits
             if self._fetched_output_gate_head_logits else None)
         full_read = _gate_fetched_read_output(
-            full_read, element_logits, self._abs_k_dim or self.bam_k,
+            full_read, element_logits,
             self._read_key_scale, head_logits,
             self._fetched_output_gate_side)
       if self._record_fetched_read_health_metrics:
-        read_k_dim = self._abs_k_dim or self.bam_k
-        y_col, y_row = jnp.split(full_read, [read_k_dim], axis=-1)
+        y_col, y_row = full_read
         self.sow(
             'intermediates', 'fetched_read_output_rms',
             jnp.stack((
                 jnp.sqrt(jnp.mean(jnp.square(y_row.astype(jnp.float32)))),
                 jnp.sqrt(jnp.mean(jnp.square(y_col.astype(jnp.float32)))),
             )))
+      if ungated:
+        return full_read, interpolation_gate_logits
       return self._expand_full_read(full_read), interpolation_gate_logits
 
   def _read_local_v(self, M, x):
@@ -4213,11 +4211,10 @@ class BamAttention(Attention):
       return _pack_fetched_bam_heads(read, self.num_query_heads, self.head_dim)
 
   def _gate_local_output(self, read, logits):
-    """Gate [col/data, row/address] output coordinates independently."""
-    col, row, tail = jnp.split(
-        read, [self.bam_k, self.bam_k + (self._abs_v_dim or self.bam_v)], axis=-1)
+    """Gate compact (col/data, row/address) sides before packing the head."""
+    col, row = read
     gates = self._read_key_scale * jax.nn.sigmoid(logits)
-    return jnp.concatenate((col * gates[..., 1:2], row * gates[..., :1], tail), axis=-1)
+    return self._expand_full_read((col * gates[..., 1:2], row * gates[..., :1]))
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,

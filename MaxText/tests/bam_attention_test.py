@@ -665,8 +665,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
       y_u, y_v = bam_read(
           M, x, lambda _x: projected_key, None, key_mode='rms_gate',
           key_scale=2.0, rms_epsilon=_RMS_EPSILON,
-          key_gate_logits=gates, implementation='mul_reduce_btn',
-          return_sides=True)
+          key_gate_logits=gates, implementation='mul_reduce_btn')
       mix = normalizations.rms_norm(
           raw_mix, dtype=y_u.dtype, epsilon=_RMS_EPSILON, axis=-2)
       row_mix, col_mix = mix[..., 0], mix[..., 1]
@@ -776,7 +775,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         y = bam_read(
             M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
             rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
-            implementation=implementation)
+            implementation=implementation, return_sides=False)
         return y
 
       reference = output(args, 'dot_btn')
@@ -834,7 +833,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         y = bam_read(
             M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
             rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
-            implementation=implementation, read_side=read_side)
+            implementation=implementation, read_side=read_side, return_sides=False)
         outputs[read_side] = y
       np.testing.assert_array_equal(outputs['row'][..., :k], 0)
       np.testing.assert_allclose(
@@ -887,12 +886,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
         return bam_read(
             M[:, 0], x, projection, None, key_mode='rms_gate', key_scale=2.0,
             rms_epsilon=_RMS_EPSILON, key_gate_logits=gates[..., 0, :],
-            implementation='dot_btn')
+            implementation='dot_btn', return_sides=False)
       projection = lambda z: jnp.einsum('bte,enfD->btnfD', z, kernel)
       return bam_read(
           M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
           rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
-          implementation='dot_btn')
+          implementation='dot_btn', return_sides=False)
 
     expected = output(args, False)
     actual = output(args, True)
@@ -1122,7 +1121,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
       Mbar = jnp.einsum('bfts,bskv->bftkv', routed_alpha, Mh)
       kwargs = dict(
           key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
-          key_gate_logits=gate_logits)
+          key_gate_logits=gate_logits, return_sides=False)
       if combine == 'diag_one':
         y = bam_read(Mbar, x, projection, None, **kwargs)
       elif combine:
@@ -1133,7 +1132,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
             Mh, x, lambda z: jnp.squeeze(projection(z), axis=-2), None,
             key_mode='rms_gate', key_scale=2.0,
             rms_epsilon=_RMS_EPSILON,
-            key_gate_logits=jnp.squeeze(gate_logits, axis=-2))
+            key_gate_logits=jnp.squeeze(gate_logits, axis=-2), return_sides=False)
       return y
 
     def objective(args, combine):
@@ -1336,42 +1335,42 @@ class BamReadKeyTransformTest(absltest.TestCase):
     head_logits = jax.random.normal(jax.random.PRNGKey(92), (2, 5, 4, 2))
     delta = jnp.zeros_like(read)
     got = _gate_fetched_read_output(
-        read, delta, read_k_dim, 2.0, head_logits)
+        tuple(jnp.split(read, [read_k_dim], axis=-1)), delta, 2.0, head_logits)
     head_row, head_col = jnp.split(head_logits, [1], axis=-1)
     expected = jnp.concatenate(
         (2.0 * jax.nn.sigmoid(head_col) * read[..., :read_k_dim],
          2.0 * jax.nn.sigmoid(head_row) * read[..., read_k_dim:]),
         axis=-1)
-    np.testing.assert_array_equal(got, expected)
+    np.testing.assert_array_equal(jnp.concatenate(got, axis=-1), expected)
 
   def test_fetched_output_element_gate_is_coordinate_wise(self):
     read = jnp.ones((1, 1, 2, 4), dtype=jnp.float32)
     logits = jnp.asarray(
         [[[[0.0, 1.0, -1.0, 2.0], [2.0, -1.0, 1.0, 0.0]]]])
-    got = _gate_fetched_read_output(read, logits, 3, 2.0)
-    np.testing.assert_allclose(got, 2.0 * jax.nn.sigmoid(logits))
+    got = _gate_fetched_read_output(tuple(jnp.split(read, [3], axis=-1)), logits, 2.0)
+    np.testing.assert_allclose(jnp.concatenate(got, axis=-1), 2.0 * jax.nn.sigmoid(logits))
 
   def test_fetched_output_col_gate_leaves_row_answer_unchanged(self):
     read = jnp.arange(1, 11, dtype=jnp.float32).reshape(1, 1, 2, 5)
     logits = jnp.asarray([[[[0.0, 1.0, -1.0], [2.0, -1.0, 1.0]]]])
     head_logits = jnp.asarray([[[[4.0, -2.0], [-3.0, 0.5]]]])
     got = _gate_fetched_read_output(
-        read, logits, 3, 2.0, head_logits, gate_side='col')
+        tuple(jnp.split(read, [3], axis=-1)), logits, 2.0, head_logits, gate_side='col')
     expected_u = (
         2.0 * jax.nn.sigmoid(logits + head_logits[..., 1:2]) * read[..., :3])
     expected = jnp.concatenate((expected_u, read[..., 3:]), axis=-1)
-    np.testing.assert_allclose(got, expected)
+    np.testing.assert_allclose(jnp.concatenate(got, axis=-1), expected)
 
   def test_fetched_output_row_gate_leaves_column_answer_unchanged(self):
     read = jnp.arange(1, 11, dtype=jnp.float32).reshape(1, 1, 2, 5)
     logits = jnp.asarray([[[[0.0, 1.0], [2.0, -1.0]]]])
     head_logits = jnp.asarray([[[[4.0, -2.0], [-3.0, 0.5]]]])
     got = _gate_fetched_read_output(
-        read, logits, 3, 2.0, head_logits, gate_side='row')
+        tuple(jnp.split(read, [3], axis=-1)), logits, 2.0, head_logits, gate_side='row')
     expected_v = (
         2.0 * jax.nn.sigmoid(logits + head_logits[..., :1]) * read[..., 3:])
     expected = jnp.concatenate((read[..., :3], expected_v), axis=-1)
-    np.testing.assert_allclose(got, expected)
+    np.testing.assert_allclose(jnp.concatenate(got, axis=-1), expected)
 
   def test_factorized_fetched_output_gate_broadcasts_shared_coordinates(self):
     # Packed order is n column-head, k column-coordinate, n row-head,

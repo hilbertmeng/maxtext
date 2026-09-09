@@ -273,7 +273,9 @@ def main():
   args = parser.parse_args()
   paths = []
   for pattern in args.traces:
-    paths.extend(glob.glob(pattern))
+    paths.extend(glob.glob(pattern, recursive=True))
+  if not paths:
+    parser.error('No trace files matched the supplied paths')
   devices = []
   for path in paths:
     devices.extend(summarize(path).values())

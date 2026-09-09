@@ -107,6 +107,24 @@ def main():
                 r'completed step: (\d+),[^\n]*? loss: ([\d.eE+-]+)', text)}
             arm.update(state='complete', losses=losses, speeds_10_14=rates,
                        mean_steps_per_second=sum(rates)/len(rates))
+            if suffix == 'all':
+                comparisons = {}
+                for base in (
+                    'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2',
+                    'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200',
+                ):
+                    cache = root / 'run_registry' / 'loss_cache' / (base + '.json')
+                    points = json.loads(cache.read_text())['points']
+                    common = [s for s in range(0, 101, 10)
+                              if s in losses and str(s) in points]
+                    gaps = {s: losses[s] - float(points[str(s)]) for s in common}
+                    comparisons[base] = {
+                        'gaps_10_step': gaps,
+                        'max_abs_gap': max(map(abs, gaps.values())) if gaps else None,
+                        'first_gap_above_1e6': next((s for s in common if abs(gaps[s]) > 1e-6), None),
+                        'missing_steps': [s for s in range(0, 101, 10) if s not in common],
+                    }
+                arm['loss_comparisons'] = comparisons
             output.with_name(run + '.log').write_text(text)
             print(json.dumps(arm), flush=True)
         finally:

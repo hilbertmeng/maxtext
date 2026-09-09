@@ -120,6 +120,25 @@ def summarize(path):
   per_device = {}
   for pid in sorted(device_pids):
     device_events = [e for e in events if e.get("pid") == pid and e.get("ph") == "X"]
+    nested_calls = set()
+    # Some TPU scan bodies are also exposed as unscoped custom-call regions.
+    # Exclude only calls whose interval is covered by their named child kernels;
+    # genuine leaf custom calls remain in the additive work totals.
+    for parent in device_events:
+      if not str(parent.get('name', '')).startswith('custom-call.') or parent.get('args', {}).get('tf_op'):
+        continue
+      start, end = parent['ts'], parent['ts'] + parent['dur']
+      spans = [(e['ts'], e['ts'] + e['dur']) for e in device_events
+               if e.get('tid') == parent.get('tid') and e.get('args', {}).get('tf_op')
+               and not str(e.get('name', '')).startswith(('while.', 'custom-call.'))
+               and start <= e['ts'] and e['ts'] + e['dur'] <= end
+               and e['dur'] < parent['dur']]
+      covered, cursor = 0., start
+      for left, right in sorted(spans):
+        covered += max(0., right - max(cursor, left))
+        cursor = max(cursor, right)
+      if parent['dur'] > 0 and covered / parent['dur'] >= .98:
+        nested_calls.add(id(parent))
     step_events = [e for e in device_events if str(e.get("name", "")).startswith("jit_train_step(")]
     valid_steps = []
     for step in step_events:
@@ -161,7 +180,7 @@ def summarize(path):
       # A scanned layer appears as a device-side while parent whose duration,
       # FLOPs, and bytes already include the nested body kernels. Keep the
       # wrapper visible, but exclude it from additive leaf-work totals.
-      if hlo_name.startswith("while."):
+      if hlo_name.startswith("while.") or id(event) in nested_calls:
         add(buckets["kernel.control_wrapper"], value)
         continue
       add(buckets["all_xla_ops"], value)

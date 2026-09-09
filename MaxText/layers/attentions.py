@@ -1994,7 +1994,7 @@ def _fit_bam_read_to_head(read, bam_k, head_dim, v_adapter=None):
   """Map a bilateral [K-side, V-side] BAM read into one attention head."""
   if not 0 < bam_k < head_dim:
     raise ValueError(f'bam_k={bam_k} must be smaller than head_dim={head_dim}')
-  y_k, y_v = jnp.split(read, [bam_k], axis=-1)
+  y_k, y_v = read if isinstance(read, tuple) else jnp.split(read, [bam_k], axis=-1)
   target_v_dim = head_dim - bam_k
   if y_v.shape[-1] > target_v_dim:
     if v_adapter is None:
@@ -2215,7 +2215,7 @@ def factorized_head_bam_read(
     second_implementation='mul_reduce', v_projection=None,
     key_row_activation='none', key_col_activation='none',
     rank_routing='legacy', head_rank_gate_bias=None,
-    side_amplitude=None, return_rank_gate=False):
+    side_amplitude=None, return_rank_gate=False, return_sides=True):
   """Read with rank-r shared runtime keys, then route dynamically across heads.
 
   For each side, the effective per-head key is factorized as
@@ -2374,7 +2374,7 @@ def factorized_head_bam_read(
             side_amplitude, y_u.dtype)
         y_u = y_u * col_amplitude
         y_v = y_v * row_amplitude
-      read = jnp.concatenate([y_u, y_v], axis=-1)
+      read = (y_u, y_v) if return_sides else jnp.concatenate([y_u, y_v], axis=-1)
       return (read, rank_gate) if return_rank_gate else read
 
   with jax.named_scope("bam/read_m_contract"):
@@ -2415,7 +2415,7 @@ def factorized_head_bam_read(
       row_amplitude, col_amplitude = jnp.asarray(side_amplitude, y_u.dtype)
       y_u = y_u * col_amplitude
       y_v = y_v * row_amplitude
-    return jnp.concatenate([y_u, y_v], axis=-1)
+    return (y_u, y_v) if return_sides else jnp.concatenate([y_u, y_v], axis=-1)
 
 
 def _packed_factorized_local_qk_init(
@@ -3517,9 +3517,9 @@ class BamAttention(Attention):
     """Place K-side first and adapt/pad V-side into the remaining head width."""
     if self._local_qk_post_read_v_layout == 'qk_tail':
       def extend_qk(read):
-        y_u, y_v = jnp.split(read, [self.bam_k], axis=-1)
+        y_u, y_v = read if isinstance(read, tuple) else jnp.split(read, [self.bam_k], axis=-1)
         middle = jnp.zeros(
-            y_u.shape[:-1] + (self.head_dim - self.bam_k,), dtype=read.dtype)
+            y_u.shape[:-1] + (self.head_dim - self.bam_k,), dtype=y_u.dtype)
         return jnp.concatenate((y_u, middle, y_v), axis=-1)
       return extend_qk(q_local), extend_qk(k_local)
     q_adapter = getattr(self, 'local_q_v_adapter', None)
@@ -3924,7 +3924,8 @@ class BamAttention(Attention):
           **self._read_key_kwargs_from_logits('W_lv', gate),
           implementation=self._read_implementation,
           second_implementation=self._local_qk_second_implementation)
-      return _pack_fetched_bam_heads(read, self.num_query_heads, self.head_dim)
+      return _pack_fetched_bam_heads(
+          jnp.concatenate(read, axis=-1), self.num_query_heads, self.head_dim)
 
   def _gate_local_output(self, read, logits):
     """Gate compact (col/data, row/address) sides before packing the head."""

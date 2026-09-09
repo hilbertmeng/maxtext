@@ -16,6 +16,8 @@ OUTER = {
     "compress_abs_v": "bam/compress_abs_v_cache",
     "fetch_m": "bam/fetch_m",
     "local_qk": "bam/read_local_m_for_qk",
+    "local_v": "bam/read_local_m_for_v",
+    "local_packed_projection": "bam/local_packed_projection",
     "fetched": "bam/read_fetched_m",
     "local_v_gate_projection": "read_gate_projection/W_lv_gate",
     "local_output_gating": "self_attention._gate_local_output/",
@@ -37,6 +39,8 @@ def add(dst, value):
 
 
 def classify_local(op):
+  if "effective_key_gram" in op:
+    return "effective_key_gram"
   if "local_qk_packed_projection" in op or "W_local_qk_packed" in op:
     return "packed_projection"
   if "read_gate_projection" in op or "W_lq_gate" in op or "W_lk_gate" in op:
@@ -216,6 +220,8 @@ def summarize(path):
           add(buckets[f"fetch.{classify_fetch(op)}"], value)
         elif name == "local_qk":
           add(buckets[f"local.{classify_local(op)}"], value)
+        elif name == "local_v":
+          add(buckets[f"local_v.{classify_local(op)}"], value)
         elif name == "fetched":
           add(buckets[f"fetched.{classify_fetched(op)}"], value)
         break

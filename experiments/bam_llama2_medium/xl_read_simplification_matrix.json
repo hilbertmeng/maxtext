@@ -1,0 +1,44 @@
+{
+  "control": {
+    "commit": "9c44858",
+    "steps_per_second": 0.554,
+    "window": [
+      10,
+      14
+    ],
+    "zone": "us-east5-a",
+    "topology": "v5p-32"
+  },
+  "arms": [
+    {
+      "label": "high1",
+      "commit": "02be9be8d65606d85d87f17a47ea0df657b9a15f",
+      "aot_log": "/home/lishengping/xd/projects/logs/xl-simplify-high1-aot.log",
+      "final_step": 15
+    },
+    {
+      "label": "high2",
+      "commit": "dc42921bd6f1e2b6e1e45d3c30881f5850bfbb55",
+      "aot_log": "/home/lishengping/xd/projects/logs/xl-simplify-high2-aot.log",
+      "final_step": 15
+    },
+    {
+      "label": "high3",
+      "commit": "be296a80751c619b73cb123b16ef77479678415b",
+      "aot_log": "/home/lishengping/xd/projects/logs/xl-simplify-high3-aot.log",
+      "final_step": 15
+    },
+    {
+      "label": "mid1",
+      "commit": "5053036e631c20477e37891ec3ddfb61809189a9",
+      "aot_log": "/home/lishengping/xd/projects/logs/xl-simplify-mid1-aot.log",
+      "final_step": 15
+    },
+    {
+      "label": "all",
+      "commit": "f5496229a5e93e50c9213cfb6e3cfbd6248017ff",
+      "aot_log": "/home/lishengping/xd/projects/logs/xl-simplify-all-aot.log",
+      "final_step": 100
+    }
+  ]
+}

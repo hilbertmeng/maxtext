@@ -14,6 +14,7 @@
 
 """Attentions Layers."""
 
+import dataclasses
 import enum
 import functools
 import math
@@ -2098,16 +2099,16 @@ def factorized_head_bam_read(
   For each side, the effective per-head key is factorized as
   ``key[b,t,n,:] = sum_r head_mix[b,t,n,r] * shared_key[b,t,r,:]``.
   Bilinearity lets the implementation read M with the r basis keys, then perform
-  a small r-to-head contraction without materializing per-head keys.  ``rank=1``
-  retains the original implementation and parameterization exactly.
+  a small r-to-head contraction without materializing per-head keys.
 
   M must be the local matrix state [b,t,k,v].  W_R maps x -> [r,k+v] and
-  W_head_mix maps x -> [n,2,r], with independent row/column coefficients.
-  ``legacy`` preserves joint (head,rank) normalization and 1/sqrt(rank);
-  ``shared_rank_gate`` gates each basis independently and normalizes mixing only
-  over heads; ``head_rank_gate`` uses sigmoid(W_head_mix(x)+b0) directly.  Rank 1
-  retains the historical head-axis RMS transform exactly.  An optional
-  head-shared ``v_projection`` compresses the V-side result before expansion.
+  W_head_mix maps x -> [n,2,r], with independent row/column coefficients; the
+  rank axis is always present (rank 1 is simply r=1, not a separate layout).
+  ``legacy`` shares one gate pair across the basis and normalizes mixing jointly
+  over (head, rank) with 1/sqrt(rank); ``shared_rank_gate`` gates each basis
+  independently and normalizes mixing only over heads; ``head_rank_gate`` uses
+  sigmoid(W_head_mix(x)+b0) directly.  An optional head-shared ``v_projection``
+  compresses the V-side result before expansion.
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
@@ -2120,10 +2121,6 @@ def factorized_head_bam_read(
         f'Unknown factorized local BAM second implementation: {second_implementation}')
   if rank_routing not in ('legacy', 'shared_rank_gate', 'head_rank_gate'):
     raise ValueError(f'Unknown factorized LocalQK rank routing: {rank_routing}')
-  if rank_routing != 'legacy' and rank == 1:
-    raise ValueError(f'{rank_routing} requires factorized LocalQK rank > 1')
-  if rank > 1 and (key_row_norm is not None or key_col_norm is not None):
-    raise ValueError('rank-r factorized local BAM read does not support learned key norms')
   v_output_dim = M.shape[-1]
   if v_projection is not None:
     if v_projection.ndim != 2 or v_projection.shape[0] != M.shape[-1]:
@@ -2150,9 +2147,9 @@ def factorized_head_bam_read(
     if key_mode == 'rms_gate':
       key_mode = 'rms'
   else:
+    # One gate pair shared across the basis: broadcast over the rank axis.
     gate_logits = (
-        key_gate_logits[..., None, :]
-        if rank > 1 and key_gate_logits is not None else key_gate_logits)
+        key_gate_logits[..., None, :] if key_gate_logits is not None else None)
   _, _, r_row, r_col = _project_bam_read_keys(
       M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
@@ -2160,10 +2157,6 @@ def factorized_head_bam_read(
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
 
-  if rank == 1:
-    # Preserve the projection/norm parameter tree; canonicalize only activations.
-    r_row = r_row[..., None, :]
-    r_col = r_col[..., None, :]
   if r_row.shape[-2:] != (rank, M.shape[-2]):
     raise ValueError(
         f'factorized row bases must end in [{rank},{M.shape[-2]}], got {r_row.shape}')
@@ -2183,8 +2176,6 @@ def factorized_head_bam_read(
 
   with jax.named_scope("bam/read_head_mix_projection"):
     raw_head_mix = W_head_mix(x)
-    if rank == 1:
-      raw_head_mix = raw_head_mix[..., None]
   with jax.named_scope("bam/read_head_mix_transform"):
     if raw_head_mix.ndim != 5 or raw_head_mix.shape[-2:] != (2, rank):
       raise ValueError(
@@ -2211,7 +2202,7 @@ def factorized_head_bam_read(
         head_mix = head_mix / jnp.sqrt(jnp.asarray(rank, output_dtype))
       row_mix, col_mix = head_mix[..., 0, :], head_mix[..., 1, :]
 
-      if return_rank_gate and rank > 1:
+      if return_rank_gate:
         if rank_routing == 'shared_rank_gate':
           shared_gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
           rank_gate = jnp.swapaxes(shared_gate, -1, -2)[..., None, :, :]
@@ -2237,49 +2228,117 @@ def factorized_head_bam_read(
     if y_v is None:
       y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
     read = (y_u, y_v) if return_sides else jnp.concatenate([y_u, y_v], axis=-1)
-    return (read, rank_gate) if return_rank_gate and rank > 1 else read
+    return (read, rank_gate) if return_rank_gate else read
 
 
-def _packed_factorized_local_qk_init(
-    kernel_init, num_heads, key_width, rank=1, paired_row_width=0,
-    rank_routing='legacy'):
-  """Pack Q/K key, gate, and head-mix kernels while preserving their initializers."""
-  if paired_row_width and (rank != 1 or not 0 < paired_row_width < key_width):
+@dataclasses.dataclass(frozen=True)
+class _LocalReadArm:
+  """Configuration of one factorized local read arm (q, k, or v).
+
+  The arms run the same primitive; everything that differs between them lives
+  here as data.  The rank axis is always present in parameters and activations
+  (rank 1 is r=1, not a separate layout).
+  """
+  name: str            # 'q' | 'k' | 'v'
+  rank: int
+  k_dim: int           # K-side basis width
+  v_dim: int           # V-side basis width
+  rank_routing: str    # legacy | shared_rank_gate | head_rank_gate
+  num_heads: int
+  pre_rms_bias: bool   # add the learned key bias before the RMS transform
+  read_side: str
+
+  @property
+  def prefix(self):
+    return f'W_l{self.name}'
+
+  @property
+  def key_width(self):
+    return self.k_dim + self.v_dim
+
+  @property
+  def basis_width(self):
+    return self.rank * self.key_width
+
+  @property
+  def gate_shape(self):
+    """Trailing shape of the projected gate logits; () means none."""
+    return {
+        'legacy': (2,),
+        'shared_rank_gate': (self.rank, 2),
+        'head_rank_gate': (),
+    }[self.rank_routing]
+
+  @property
+  def gate_bias_shape(self):
+    """head_rank_gate has no projected gate but still biases the head-rank gate."""
+    return self.gate_shape or (2,)
+
+  @property
+  def gate_width(self):
+    return math.prod(self.gate_shape) if self.gate_shape else 0
+
+  @property
+  def mix_width(self):
+    return 2 * self.num_heads * self.rank
+
+
+def _packed_local_layout(arms):
+  """Slices of every arm's (basis, gate, mix) segments in one packed projection.
+
+  The packed projection is the concatenation of arm slots in arm order; the
+  function is indifferent to how many arms there are.
+  """
+  layout, offset = [], 0
+  for arm in arms:
+    segments = []
+    for width in (arm.basis_width, arm.gate_width, arm.mix_width):
+      segments.append(slice(offset, offset + width))
+      offset += width
+    layout.append(tuple(segments))
+  return layout, offset
+
+
+def _packed_local_arms_init(kernel_init, arms, paired_row_width=0):
+  """Initializer for a packed local-read projection.
+
+  Key and gate segments start at zero (the read is dormant, gates sit on their
+  calibrated bias); each arm's head-mix segment takes a regular draw from its
+  own split of the group key.  ``paired_row_width`` seeds the same nonzero
+  K-side row key into every arm and rank slot (identical, independently
+  trainable), leaving the V-side of the basis at zero.
+  """
+  layout, packed_width = _packed_local_layout(arms)
+  if paired_row_width and not all(
+      0 < paired_row_width < arm.key_width for arm in arms):
     raise ValueError(
-        'paired LocalQK row-key init requires rank=1 and '
-        f'0 < row_width < key_width, got {rank=}, {paired_row_width=}, {key_width=}')
-  basis_width = rank * key_width
-  gate_width = (
-      2 * rank if rank_routing == 'shared_rank_gate'
-      else 0 if rank_routing == 'head_rank_gate' else 2)
-  mix_width = 2 * num_heads * rank
-  packed_width = 2 * (basis_width + gate_width + mix_width)
+        f'paired row-key init needs 0 < row_width < key_width, got '
+        f'{paired_row_width=} for {[arm.key_width for arm in arms]}')
 
   def init_fn(key, shape, dtype, _in_axis=0, _out_axis=1):
     if len(shape) != 2 or shape[-1] != packed_width:
       raise ValueError(
-          f'packed local-QK kernel expects [embed,{packed_width}], got {shape}')
-    q_mix_key, k_mix_key = jax.random.split(key)
-    zeros = lambda width: jnp.zeros((shape[0], width), dtype)
-    mix_shape = (
-        (shape[0], num_heads, 2)
-        if rank == 1 else (shape[0], num_heads, 2, rank))
-    mix_out_axes = (1, 2) if rank == 1 else (1, 2, 3)
-    q_mix = kernel_init(
-        q_mix_key, mix_shape, dtype, 0, mix_out_axes).reshape(shape[0], mix_width)
-    k_mix = kernel_init(
-        k_mix_key, mix_shape, dtype, 0, mix_out_axes).reshape(shape[0], mix_width)
-    if paired_row_width:
-      row_key = kernel_init(
-          jax.random.fold_in(key, 2), (shape[0], paired_row_width), dtype, 0, 1)
-      paired_key = jnp.concatenate(
-          (row_key, zeros(key_width - paired_row_width)), axis=-1)
-    else:
-      paired_key = zeros(basis_width)
-    return jnp.concatenate((
-        paired_key, zeros(gate_width), q_mix,
-        paired_key, zeros(gate_width), k_mix,
-    ), axis=-1)
+          f'packed local-read kernel expects [embed,{packed_width}], got {shape}')
+    embed = shape[0]
+    zeros = lambda width: jnp.zeros((embed, width), dtype)
+    arm_keys = jax.random.split(key, len(arms))
+    pieces = []
+    for arm, arm_key in zip(arms, arm_keys):
+      if paired_row_width:
+        slots = []
+        for r in range(arm.rank):
+          row_key = kernel_init(
+              jax.random.fold_in(key, 2 + r), (embed, paired_row_width), dtype, 0, 1)
+          slots.append(jnp.concatenate(
+              (row_key, zeros(arm.key_width - paired_row_width)), axis=-1))
+        basis = jnp.concatenate(slots, axis=-1)
+      else:
+        basis = zeros(arm.basis_width)
+      mix = kernel_init(
+          arm_key, (embed, arm.num_heads, 2, arm.rank), dtype, 0, (1, 2, 3)
+      ).reshape(embed, arm.mix_width)
+      pieces.extend((basis, zeros(arm.gate_width), mix))
+    return jnp.concatenate(pieces, axis=-1)
 
   return init_fn
 
@@ -2316,15 +2375,6 @@ class BamAttention(Attention):
     cfg = self.config
     validate_bam_config(cfg, layer_mode=self.layer_mode)
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
-    self._local_qk_use_compressed_v = bool(
-        cfg.bam_local_qk_use_compressed_v)
-    compressed_v_dim = getattr(cfg, 'bam_abs_v_compression_dim', None)
-    if self._local_qk_use_compressed_v and compressed_v_dim is None:
-      raise ValueError('compressed-V LocalQK requires bam_abs_v_compression_dim')
-    self._local_qk_v_dim = (
-        int(compressed_v_dim)
-        if self._local_qk_use_compressed_v else self.bam_v)
-    self._local_qk_key_width = self.bam_k + self._local_qk_v_dim
     self._local_qk_post_read_v_dim = getattr(
         cfg, 'bam_local_qk_post_read_v_dim', None)
     self._local_qk_post_read_v_share_qk = bool(getattr(
@@ -2333,12 +2383,12 @@ class BamAttention(Attention):
         cfg, 'bam_local_qk_post_read_v_paired_init', False))
     self._local_qk_post_read_v_init = getattr(
         cfg, 'bam_local_qk_post_read_v_init', 'orthogonal')
-    self._seed_paired_local_qk_row_key = bool(getattr(
-        cfg, 'bam_seed_paired_local_qk_row_key', False))
+    self._seed_paired_local_row_key = bool(getattr(
+        cfg, 'bam_seed_paired_local_row_key', False))
     self._local_qk_output_width = self.bam_k + (
         int(self._local_qk_post_read_v_dim)
         if self._local_qk_post_read_v_dim is not None
-        else self._local_qk_v_dim)
+        else self.bam_v)
     self._partial_rope = bool(cfg.bam_partial_rope)
     self._partial_rope_nope_dim = None
     if self._partial_rope:
@@ -2362,6 +2412,7 @@ class BamAttention(Attention):
         assert cfg.max_target_length % self._query_chunk_size == 0, (
             'BAM MHA-control query chunk size must divide max_target_length')
       self._mode = set()
+      self._local_arms = {}
       self._has_write = False
       self._record_fetched_read_amplitude_metrics = False
       return
@@ -2381,8 +2432,28 @@ class BamAttention(Attention):
         (self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none'))
         if self._local_o else 'none')
     assert self._local_v_mode in ('none', 'rank2', 'shared')
-    self._local_v_rank_routing = getattr(cfg, 'bam_local_v_rank_routing', None) or 'legacy'
-    assert self._local_v_rank_routing in ('legacy', 'shared_rank_gate')
+
+    # Local read arms: bam_local_<name>_<key>; k and v fall back to q's value
+    # when their own key is unset.
+    def arm_setting(name, key):
+      value = getattr(cfg, f'bam_local_{name}_{key}', None)
+      return getattr(cfg, f'bam_local_q_{key}') if value is None else value
+
+    arm_names = (
+        (('q', 'k') if 'local_qk' in self._mode else ())
+        + (('v',) if self._local_v_mode == 'rank2' else ()))
+    self._local_arms = {
+        name: _LocalReadArm(
+            name=name, k_dim=self.bam_k, v_dim=self.bam_v,
+            num_heads=self.num_query_heads, read_side=self.read_side,
+            **{key: arm_setting(name, key)
+               for key in ('rank', 'rank_routing', 'pre_rms_bias')})
+        for name in arm_names}
+    for arm in self._local_arms.values():
+      assert arm.rank > 0, arm
+      assert arm.rank_routing in ('legacy', 'shared_rank_gate', 'head_rank_gate'), arm
+    assert not self._local_arms or cfg.bam_create_read_gate_params, (
+        'local reads require explicit read gates')
     self._has_write = bool(self._mode)
     assert self.read_side in ('both', 'row', 'col')
     assert cfg.bam_write_source == 'std+cross+local_o', (
@@ -2446,15 +2517,10 @@ class BamAttention(Attention):
     self._use_native_grouped_read_norm = bool(
         cfg.bam_use_native_grouped_read_norm)
     self._local_qk_key_mode = cfg.bam_local_qk_key_mode
-    self._local_qk_pre_rms_bias = bool(cfg.bam_local_qk_pre_rms_bias)
-    self._pack_factorized_local_qk = bool(cfg.bam_pack_factorized_local_qk)
-    self._local_qk_rank = int(getattr(cfg, 'bam_local_qk_rank', 1))
-    self._local_qk_rank_routing = getattr(
-        cfg, 'bam_local_qk_rank_routing', 'legacy')
-    self._record_local_qk_routing_metrics = bool(getattr(
-        cfg, 'bam_record_local_qk_routing_metrics', False))
-    self._local_qk_second_implementation = getattr(
-        cfg, 'bam_local_qk_second_implementation', 'mul_reduce')
+    self._record_local_routing_metrics = bool(getattr(
+        cfg, 'bam_record_local_routing_metrics', False))
+    self._local_second_implementation = getattr(
+        cfg, 'bam_local_second_implementation', 'mul_reduce')
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
     self._fetch_mix_num_heads = (
@@ -2519,15 +2585,6 @@ class BamAttention(Attention):
     self._write_outer_implementation = cfg.bam_write_outer_implementation
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert 'local_qk' not in self._mode or self._local_qk_key_mode == 'factorized'
-    assert self._local_qk_pre_rms_bias or (
-        self._pack_factorized_local_qk
-        and self._local_qk_key_mode == 'factorized'), (
-            'disabling LocalQK pre-RMS bias requires packed factorized keys')
-    assert not self._pack_factorized_local_qk or (
-        'local_qk' in self._mode
-        and self._local_qk_key_mode == 'factorized'
-        and cfg.bam_create_read_gate_params), (
-            'packed local-QK requires factorized keys with explicit read gates')
     assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
     assert self._write_factor_norm in ('rms', 'grouped_rms')
     assert self._write_u2_norm in ('rms', 'grouped_rms_bias')
@@ -2545,8 +2602,7 @@ class BamAttention(Attention):
     assert self._write_outer_implementation in ('dot', 'mul_reduce')
     assert self._m_read_norm in ('rms', 'none')
     assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
-    assert self._local_qk_rank > 0
-    assert self._local_qk_second_implementation in ('dot', 'mul_reduce')
+    assert self._local_second_implementation in ('dot', 'mul_reduce')
     assert self._local_qk_post_read_v_init in ('orthogonal', 'identity')
     if self._local_qk_post_read_v_dim is not None:
       self._local_qk_post_read_v_dim = int(self._local_qk_post_read_v_dim)
@@ -2556,16 +2612,7 @@ class BamAttention(Attention):
           and self._local_qk_post_read_v_paired_init)
       assert 'local_qk' in self._mode
       assert self._local_qk_key_mode == 'factorized'
-      assert not self._local_qk_use_compressed_v
-    if self._seed_paired_local_qk_row_key:
-      assert self._local_qk_key_mode == 'factorized'
-      assert self._pack_factorized_local_qk
-      assert self._local_qk_rank == 1
-    assert self._local_qk_rank == 1 or (
-        self._local_qk_key_mode == 'factorized'
-        and self._pack_factorized_local_qk
-        and not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm)
-    ), 'rank-r LocalQK requires the separate-Q/K packed factorized path'
+    assert not self._seed_paired_local_row_key or self._local_arms
     assert self._abs_k_col_output in ('direct', 'project')
     assert self._abs_v_row_output in ('direct', 'project')
     assert self._abs_v_row_decoder_output in ('full', 'compressed')
@@ -2576,11 +2623,6 @@ class BamAttention(Attention):
     if self._abs_v_dim is not None:
       assert 0 < self._abs_v_dim <= self.bam_v
       assert self._output_read
-    if self._local_qk_use_compressed_v:
-      assert 'local_qk' in self._mode and 'full' in self._mode
-      assert self._abs_v_dim == self._local_qk_v_dim
-      assert self._abs_k_dim is None, (
-          'compressed-V LocalQK keeps the K axis full-width')
     if self._output_read:
       full_v_output_dim = (
           self.bam_v
@@ -2757,88 +2799,42 @@ class BamAttention(Attention):
                 nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), (None,)),
             (1,), self.weight_dtype)
 
-    if 'local_qk' in self._mode:
-      if self._pack_factorized_local_qk:
-        key_width = self._local_qk_key_width
-        rank = self._local_qk_rank
-        basis_width = rank * key_width
-        gate_width = (
-            2 * rank if self._local_qk_rank_routing == 'shared_rank_gate'
-            else 0 if self._local_qk_rank_routing == 'head_rank_gate' else 2)
-        mix_width = 2 * self.num_query_heads * rank
-        packed_width = 2 * (basis_width + gate_width + mix_width)
-        self.W_local_qk_packed = DenseGeneral(
-            features=packed_width, axis=-1,
-            kernel_init=_packed_factorized_local_qk_init(
-                reg_init, self.num_query_heads, key_width, rank,
-                self.bam_k if self._seed_paired_local_qk_row_key else 0,
-                self._local_qk_rank_routing),
-            kernel_axes=("embed", None), dtype=self.dtype,
-            weight_dtype=self.weight_dtype, name="W_local_qk_packed",
-            quant=self.quant, matmul_precision=cfg.matmul_precision,
-            use_bias=False)
-        bias_value = math.log(
-            zero_key_gate_init / (1.0 - zero_key_gate_init))
-        for _name in ("W_lq", "W_lk"):
-          key_bias_shape = (
-              (key_width,) if rank == 1 else (rank, key_width))
-          key_bias_axes = (
-              ('kv',) if rank == 1 else (None, 'kv'))
-          setattr(self, f'{_name}_bias', self.param(
-              f'{_name}_bias',
-              nn.with_logical_partitioning(zeros_init, key_bias_axes),
-              key_bias_shape, self.weight_dtype))
-          gate_bias_shape = (
-              (rank, 2)
-              if self._local_qk_rank_routing == 'shared_rank_gate'
-              else (2,))
-          gate_bias_axes = (
-              (None, None)
-              if self._local_qk_rank_routing == 'shared_rank_gate'
-              else (None,))
-          setattr(self, f'{_name}_gate_b0', self.param(
-              f'{_name}_gate_b0',
-              nn.with_logical_partitioning(
-                  lambda key, shape, dtype: jnp.full(
-                      shape, bias_value, dtype), gate_bias_axes),
-              gate_bias_shape, self.weight_dtype))
-          add_grouped_read_norms(
-              _name,
-              ((self.bam_k,) if rank == 1 else (rank, self.bam_k)),
-              ((self._local_qk_v_dim,)
-               if rank == 1 else (rank, self._local_qk_v_dim)),
-              (('kv',) if rank == 1 else (None, 'kv')),
-              (('kv',) if rank == 1 else (None, 'kv')))
-      else:
-        for _name in ("W_lq", "W_lk"):
-          setattr(self, _name, DenseGeneral(
-              features=(self.bam_k + self.bam_v,), axis=-1, kernel_init=zeros_init,
-              kernel_axes=("embed", "kv"), dtype=self.dtype,
-              weight_dtype=self.weight_dtype, name=_name, quant=self.quant,
-              matmul_precision=cfg.matmul_precision, use_bias=True))
-          add_read_gate(f'{_name}_gate', (2,), ('embed', None), (None,),
-                        zero_key_gate_init)
-          setattr(self, f'{_name}_head_mix', DenseGeneral(
-              features=(self.num_query_heads, 2), axis=-1, kernel_init=reg_init,
-              kernel_axes=("embed", "q_heads", None), dtype=self.dtype,
-              weight_dtype=self.weight_dtype, name=f'{_name}_head_mix',
-              quant=self.quant, matmul_precision=cfg.matmul_precision,
-              use_bias=False))
-          add_grouped_read_norms(
-              _name, (self.bam_k,), (self.bam_v,), ('kv',), ('kv',))
-
-      local_v_output_dim = self.head_dim - self.bam_k
-      if self.bam_v > local_v_output_dim:
-        def local_v_adapter_init(key, shape, dtype):
-          return reg_init(key, shape, dtype, 1, 2)
-        for _name in ('local_q_v_adapter', 'local_k_v_adapter'):
-          setattr(self, _name, self.param(
-              _name,
-              nn.with_logical_partitioning(
-                  local_v_adapter_init, ('q_heads', 'v_factor', 'kv')),
-              (self.num_query_heads, self.bam_v, local_v_output_dim),
-              self.weight_dtype,
-          ))
+    # ---- Local read parameters: one packed projection over every arm, then
+    # the same per-arm bias / gate bias / norms / adapter. ----
+    if self._local_arms:
+      arms = list(self._local_arms.values())
+      _, packed_width = _packed_local_layout(arms)
+      self.W_local_packed = DenseGeneral(
+          features=packed_width, axis=-1,
+          kernel_init=_packed_local_arms_init(
+              reg_init, arms, self.bam_k if self._seed_paired_local_row_key else 0),
+          kernel_axes=("embed", None), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name='W_local_packed',
+          quant=self.quant, matmul_precision=cfg.matmul_precision,
+          use_bias=False)
+    gate_bias_value = math.log(zero_key_gate_init / (1.0 - zero_key_gate_init))
+    local_v_output_dim = self.head_dim - self.bam_k
+    for arm in self._local_arms.values():
+      setattr(self, f'{arm.prefix}_bias', self.param(
+          f'{arm.prefix}_bias',
+          nn.with_logical_partitioning(zeros_init, (None, 'kv')),
+          (arm.rank, arm.key_width), self.weight_dtype))
+      setattr(self, f'{arm.prefix}_gate_b0', self.param(
+          f'{arm.prefix}_gate_b0',
+          nn.with_logical_partitioning(
+              lambda key, shape, dtype: jnp.full(shape, gate_bias_value, dtype),
+              (None,) * len(arm.gate_bias_shape)),
+          arm.gate_bias_shape, self.weight_dtype))
+      add_grouped_read_norms(
+          arm.prefix, (arm.rank, arm.k_dim), (arm.rank, arm.v_dim),
+          (None, 'kv'), (None, 'kv'))
+      if arm.v_dim > local_v_output_dim:
+        setattr(self, f'local_{arm.name}_v_adapter', self.param(
+            f'local_{arm.name}_v_adapter',
+            nn.with_logical_partitioning(
+                lambda key, shape, dtype: reg_init(key, shape, dtype, 1, 2),
+                ('q_heads', 'v_factor', 'kv')),
+            (arm.num_heads, arm.v_dim, local_v_output_dim), self.weight_dtype))
 
     if self._has_write:
       if cfg.bam_write_u_proj or cfg.bam_create_write_u_proj_params:
@@ -2930,31 +2926,7 @@ class BamAttention(Attention):
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
 
-    if self._local_v_mode == 'rank2':
-      rank, width = 2, self.bam_k + self.bam_v
-      gate_width = 2 * rank if self._local_v_rank_routing == 'shared_rank_gate' else 2
-      prefix = rank * width + gate_width
-      mix_width = self.num_query_heads * 2 * rank
-
-      def local_v_init(key, shape, dtype, _in_axis=0, _out_axis=1):
-        return jnp.concatenate((
-            jnp.zeros((shape[0], prefix), dtype),
-            reg_init(key, (shape[0], mix_width), dtype)), axis=-1)
-
-      self.W_local_v_packed = DenseGeneral(
-          features=prefix + mix_width, axis=-1, kernel_init=local_v_init,
-          kernel_axes=('embed', None), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name='W_local_v_packed',
-          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
-      self.W_lv_bias = self.param(
-          'W_lv_bias', nn.with_logical_partitioning(zeros_init, (None, 'kv')),
-          (rank, width), self.weight_dtype)
-      self.W_lv_gate_b0 = self.param(
-          'W_lv_gate_b0', nn.with_logical_partitioning(
-              lambda key, shape, dtype: jnp.full(
-                  shape, math.log(zero_key_gate_init / (1 - zero_key_gate_init)), dtype),
-              (None,)), (gate_width,), self.weight_dtype)
-    elif self._local_v_mode == 'shared':
+    if self._local_v_mode == 'shared':
       add_read_gate('W_lv_gate', (self.num_query_heads, 2),
                     ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
 
@@ -3044,7 +3016,7 @@ class BamAttention(Attention):
     ), axis=-1)
     self.sow('intermediates', 'fetched_read_gate_stats', stats)
 
-  def _record_local_qk_rank_gate(self, name, gate):
+  def _record_local_rank_gate(self, name, gate):
     """Record the per-rank and rank-summed routing distribution."""
     gate = gate.astype(jnp.float32)  # [b,t,n,side,rank]
     rank_sum = jnp.sum(gate, axis=-1)
@@ -3141,103 +3113,50 @@ class BamAttention(Attention):
     return kwargs
 
 
-  def _fit_local_qk_reads(self, q_local, k_local):
-    """Place K-side first and adapt/pad V-side into the remaining head width."""
-    q_adapter = getattr(self, 'local_q_v_adapter', None)
-    k_adapter = getattr(self, 'local_k_v_adapter', None)
-    return (
-        _fit_bam_read_to_head(q_local, self.bam_k, self.head_dim, q_adapter),
-        _fit_bam_read_to_head(k_local, self.bam_k, self.head_dim, k_adapter),
-    )
+  # ---- Local reads (q / k / v): one packed projection, one read primitive. ----
 
-  def _read_local_qk(self, Mh, inputs_q):
-    """Read the local matrix into Q/K for injection after RoPE."""
-    if self._pack_factorized_local_qk:  # V1 default
-      with jax.named_scope("bam/local_qk_packed_projection"):
-        packed = self.W_local_qk_packed(inputs_q)
-      key_width = self._local_qk_key_width
+  def _local_inputs(self, x):
+    """Project x once and slice per arm into (key [..,r,k+v], gate, mix [..,n,2,r])."""
+    arms = list(self._local_arms.values())
+    with jax.named_scope("bam/local_packed_projection"):
+      packed = self.W_local_packed(x)
+    layout, _ = _packed_local_layout(arms)
+    lead = packed.shape[:-1]
+    return {
+        arm.name: (
+            packed[..., basis].reshape(lead + (arm.rank, arm.key_width)),
+            (packed[..., gate].reshape(lead + arm.gate_shape)
+             if arm.gate_width else None),
+            packed[..., mix].reshape(lead + (arm.num_heads, 2, arm.rank)))
+        for arm, (basis, gate, mix) in zip(arms, layout)}
 
-      # V1 default
-      rank = self._local_qk_rank
-      rank_routing = self._local_qk_rank_routing
-      q_v_projection, k_v_projection = self._local_qk_post_read_v_projections()
-      basis_width = rank * key_width
-      gate_width = (
-          2 * rank if rank_routing == 'shared_rank_gate'
-          else 0 if rank_routing == 'head_rank_gate' else 2)
-      mix_width = 2 * self.num_query_heads * rank
-      split_points = (
-          basis_width,
-          basis_width + gate_width,
-          basis_width + gate_width + mix_width,
-          2 * basis_width + gate_width + mix_width,
-          2 * basis_width + 2 * gate_width + mix_width,
-      )
-      q_key, q_gate, q_mix, k_key, k_gate, k_mix = jnp.split(
-          packed, split_points, axis=-1)
-      if rank == 1:
-        q_mix = q_mix.reshape(q_mix.shape[:-1] + (self.num_query_heads, 2))
-        k_mix = k_mix.reshape(k_mix.shape[:-1] + (self.num_query_heads, 2))
-      else:
-        q_key = q_key.reshape(q_key.shape[:-1] + (rank, key_width))
-        k_key = k_key.reshape(k_key.shape[:-1] + (rank, key_width))
-        q_mix = q_mix.reshape(
-            q_mix.shape[:-1] + (self.num_query_heads, 2, rank))
-        k_mix = k_mix.reshape(
-            k_mix.shape[:-1] + (self.num_query_heads, 2, rank))
-        if rank_routing == 'shared_rank_gate':
-          q_gate = q_gate.reshape(q_gate.shape[:-1] + (rank, 2))
-          k_gate = k_gate.reshape(k_gate.shape[:-1] + (rank, 2))
-      if self._local_qk_pre_rms_bias:
-        q_key = q_key + jnp.asarray(self.W_lq_bias, q_key.dtype)
-        k_key = k_key + jnp.asarray(self.W_lk_bias, k_key.dtype)
-      if rank_routing != 'head_rank_gate':
-        q_gate = q_gate + jnp.asarray(self.W_lq_gate_b0, q_gate.dtype)
-        k_gate = k_gate + jnp.asarray(self.W_lk_gate_b0, k_gate.dtype)
-      else:
-        q_gate = k_gate = None
-      record_routing = self._record_local_qk_routing_metrics and rank > 1
-      q_result = factorized_head_bam_read(
-          Mh, inputs_q, lambda _x: q_key, lambda _x: q_mix,
-          **self._read_key_kwargs_from_logits(
-              'W_lq', q_gate),
-          implementation=self._read_implementation, read_side=self.read_side,
-          rank=rank,
-          second_implementation=self._local_qk_second_implementation,
-          v_projection=q_v_projection, rank_routing=rank_routing,
-          head_rank_gate_bias=getattr(self, 'W_lq_gate_b0', None),
-          return_rank_gate=record_routing)
-      k_result = factorized_head_bam_read(
-          Mh, inputs_q, lambda _x: k_key, lambda _x: k_mix,
-          **self._read_key_kwargs_from_logits(
-              'W_lk', k_gate),
-          implementation=self._read_implementation, read_side=self.read_side,
-          rank=rank,
-          second_implementation=self._local_qk_second_implementation,
-          v_projection=k_v_projection, rank_routing=rank_routing,
-          head_rank_gate_bias=getattr(self, 'W_lk_gate_b0', None),
-          return_rank_gate=record_routing)
-      if record_routing:
-        q_local, q_rank_gate = q_result
-        k_local, k_rank_gate = k_result
-        self._record_local_qk_rank_gate('local_q', q_rank_gate)
-        self._record_local_qk_rank_gate('local_k', k_rank_gate)
-      else:
-        q_local, k_local = q_result, k_result
-      return self._fit_local_qk_reads(q_local, k_local)
-
-    local_qk_q_kwargs = self._read_key_kwargs('W_lq_gate', inputs_q)
-    local_qk_k_kwargs = self._read_key_kwargs('W_lk_gate', inputs_q)
-    q_v_projection, k_v_projection = self._local_qk_post_read_v_projections()
-    q_local = factorized_head_bam_read(
-        Mh, inputs_q, self.W_lq, self.W_lq_head_mix,
-        **local_qk_q_kwargs, implementation=self._read_implementation,
-        read_side=self.read_side, v_projection=q_v_projection)
-    k_local = factorized_head_bam_read(
-        Mh, inputs_q, self.W_lk, self.W_lk_head_mix,
-        **local_qk_k_kwargs, implementation=self._read_implementation,
-        read_side=self.read_side, v_projection=k_v_projection)
-    return self._fit_local_qk_reads(q_local, k_local)
+  def _read_local(self, name, M, x, local_inputs):
+    """Read arm ``name`` from M: bias -> gate -> factorized read -> head fit."""
+    arm = self._local_arms[name]
+    key, gate, mix = local_inputs[name]
+    if arm.pre_rms_bias:
+      key = key + jnp.asarray(getattr(self, f'{arm.prefix}_bias'), key.dtype)
+    gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
+    head_rank_gate_bias = None
+    if arm.rank_routing == 'head_rank_gate':
+      head_rank_gate_bias = gate_bias
+    else:
+      gate = gate + jnp.asarray(gate_bias, gate.dtype)
+    q_projection, k_projection = self._local_qk_post_read_v_projections()
+    result = factorized_head_bam_read(
+        M, x, lambda _x: key, lambda _x: mix,
+        **self._read_key_kwargs_from_logits(arm.prefix, gate),
+        implementation=self._read_implementation, read_side=arm.read_side,
+        rank=arm.rank, second_implementation=self._local_second_implementation,
+        v_projection={'q': q_projection, 'k': k_projection}.get(name),
+        rank_routing=arm.rank_routing, head_rank_gate_bias=head_rank_gate_bias,
+        return_rank_gate=self._record_local_routing_metrics)
+    if self._record_local_routing_metrics:
+      result, rank_gate = result
+      self._record_local_rank_gate(f'local_{name}', rank_gate)
+    return _fit_bam_read_to_head(
+        result, self.bam_k, self.head_dim,
+        getattr(self, f'local_{name}_v_adapter', None))
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3248,7 +3167,7 @@ class BamAttention(Attention):
 
   def _add_local_qk(self, query, key, q_local, k_local):
     """Inject LocalQK into the standard Q/K arm."""
-    if self._record_local_qk_routing_metrics:
+    if self._record_local_routing_metrics:
       self._record_local_qk_read_health(query, key, q_local, k_local)
     return query + q_local, key + k_local
 
@@ -3433,28 +3352,6 @@ class BamAttention(Attention):
         return full_read, interpolation_gate_logits
       return self._expand_full_read(full_read), interpolation_gate_logits
 
-  def _read_local_v(self, M, x):
-    """Independent rank-2 source-local value read using LocalQK's routing modes."""
-    with jax.named_scope('bam/read_local_v'):
-      rank, width = 2, self.bam_k + self.bam_v
-      packed = self.W_local_v_packed(x)
-      gate_width = 2 * rank if self._local_v_rank_routing == 'shared_rank_gate' else 2
-      key, gate, mix = jnp.split(packed, [rank * width, rank * width + gate_width], axis=-1)
-      key = key.reshape(key.shape[:-1] + (rank, width))
-      key = key + self.W_lv_bias.astype(key.dtype)
-      gate = gate + self.W_lv_gate_b0.astype(gate.dtype)
-      if self._local_v_rank_routing == 'shared_rank_gate':
-        gate = gate.reshape(gate.shape[:-1] + (rank, 2))
-      mix = mix.reshape(mix.shape[:-1] + (self.num_query_heads, 2, rank))
-      read = factorized_head_bam_read(
-          M, x, lambda _: key, lambda _: mix, rank=rank,
-          rank_routing=self._local_v_rank_routing,
-          **self._read_key_kwargs_from_logits('W_lv', gate),
-          implementation=self._read_implementation,
-          second_implementation=self._local_qk_second_implementation)
-      return _pack_fetched_bam_heads(
-          jnp.concatenate(read, axis=-1), self.num_query_heads, self.head_dim)
-
   def _gate_local_output(self, read, logits):
     """Gate compact (col/data, row/address) sides before packing the head."""
     col, row = read
@@ -3578,7 +3475,8 @@ class BamAttention(Attention):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
-    Mh = local_Mh = None
+    Mh = None
+    local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     if self._partial_rope:
       query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
@@ -3594,12 +3492,9 @@ class BamAttention(Attention):
           Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
-        local_Mh = (
-            self._compress_abs_v_state(Mh, "bam/compress_local_qk_v")
-            if self._local_qk_use_compressed_v else Mh)
-        q_local, k_local = self._read_local_qk(
-            local_Mh, inputs_q)
-        query, key = self._add_local_qk(query, key, q_local, k_local)
+        query, key = self._add_local_qk(
+            query, key, self._read_local('q', Mh, inputs_q, local_inputs),
+            self._read_local('k', Mh, inputs_q, local_inputs))
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
@@ -3617,7 +3512,8 @@ class BamAttention(Attention):
             local_output, self._project_read_gate_logits('W_lv_gate', inputs_q))
         local_output = self._gate_local_output(local_output, output_logits)
       elif self._local_v_mode == 'rank2':
-        value = value + self._read_local_v(Mh, inputs_q)
+        with jax.named_scope("bam/read_local_m_for_v"):
+          value = value + self._read_local('v', Mh, inputs_q, local_inputs)
 
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:
@@ -3642,9 +3538,7 @@ class BamAttention(Attention):
           self.sow('intermediates', 'fetch_mix_weight_stats', jnp.stack((
               jnp.mean(weights), jnp.sqrt(jnp.mean(weights * weights)),
               jnp.mean((weights < 0).astype(jnp.float32)))))
-      fetch_state = (
-          local_Mh if self._local_qk_use_compressed_v
-          else self._compress_full_fetch_state(Mh))
+      fetch_state = self._compress_full_fetch_state(Mh)
 
     _, t, _, _ = query.shape
 

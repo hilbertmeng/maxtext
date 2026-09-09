@@ -949,7 +949,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):
     record_bam_fetched_read_health_metrics(
         metrics, intermediate_outputs, config)
-  if getattr(config, 'bam_record_local_qk_routing_metrics', False):
+  if getattr(config, 'bam_record_local_routing_metrics', False):
     record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)
 
   if config.use_dpo:

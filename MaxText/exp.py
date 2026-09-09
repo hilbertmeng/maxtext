@@ -286,26 +286,26 @@ class BamLlama2Medium(Llama2Medium):
     bam_use_grouped_rw_norm = False
     bam_use_native_grouped_read_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
-    bam_local_qk_pre_rms_bias = True
+    bam_local_q_pre_rms_bias = True
     bam_local_qk_read_key_activation_side = 'none'  # none | row | col | both
-    bam_pack_factorized_local_qk = False  # fuse factorized Q/K key, gate, and head-mix projections
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
-    bam_local_qk_rank = 1  # number of dynamic basis keys per Q/K and read side
-    bam_local_qk_second_implementation = 'mul_reduce'  # dot | mul_reduce
-    bam_local_qk_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_rank_gate
-    bam_record_local_qk_routing_metrics = False
+    bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
+    bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
+    bam_local_v_rank_routing = 'legacy'
+    bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
+    bam_local_q_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_rank_gate
+    bam_record_local_routing_metrics = False
     bam_local_qk_amplitude_init = None  # optional Q/K x row/col scale outside the gate
     bam_local_qk_amplitude_depth_scale = False
     bam_record_local_qk_amplitude_metrics = False
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
     bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
     bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
-    bam_local_qk_use_compressed_v = False  # read LocalQK from the same k*C view as fetched M
     bam_local_qk_post_read_v_dim = None  # optionally project the full-M V-side answer before head mixing
     bam_local_qk_post_read_v_share_qk = True  # share that projection between Q and K reads
     bam_local_qk_post_read_v_paired_init = False  # separate Q/K params with identical initialization
     bam_local_qk_post_read_v_init = 'orthogonal'  # orthogonal | identity
-    bam_seed_paired_local_qk_row_key = False  # identical nonzero Q/K row-key init without tying params
+    bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_local_qk_post_read_v_layout = 'head_tail'  # head_tail | qk_tail
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
     bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
@@ -885,7 +885,6 @@ class BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK(
     model_name = 'BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK'
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'
-    bam_pack_factorized_local_qk = True
     bam_read_key_epsilon = 1e-4
     bam_read_gate_init = 0.005
 
@@ -1322,7 +1321,7 @@ class BamLocalFetchBase(BamLlama2MediumV2C256ScanAotCleanControl):
     bam_record_fetched_read_health_metrics = False
     bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetch_route_metrics = False
-    bam_record_local_qk_routing_metrics = False
+    bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
     scan_layers = False
 
@@ -1554,8 +1553,8 @@ class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(
     # c3cb677; UE5a ~0.618 steps/s; stopped 3,521. dloss vs ScanAotControl
     # shrank +.10967 @200 -> +.00481 @2k -> noisy +.00287 @3.4k, but stayed harmful.
     model_name = 'BamLlama2MediumV2C256ScanAotControlLocalQKRank2'
-    bam_local_qk_rank = 2
-    bam_record_local_qk_routing_metrics = True
+    bam_local_q_rank = 2
+    bam_record_local_routing_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-scan-aot-local-qk-rank2')
@@ -1570,7 +1569,7 @@ class BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate(
     # -.0016 to -.0030 @1.4k-3.4k (latest -.00242); it did not reliably beat control.
     model_name = (
         'BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate')
-    bam_local_qk_rank_routing = 'shared_rank_gate'
+    bam_local_q_rank_routing = 'shared_rank_gate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-scan-aot-local-qk-rank2-shared-gate')
@@ -1995,7 +1994,7 @@ class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
     # cd1ba4d; EW4b ~0.666 steps/s; stopped 2,780. dloss +.00267 vs V2 @2,600; no benefit.
     model_name = 'BamLlama2MediumV2C256LocalQKNoPreRMSBias'
     scan_layers = True
-    bam_local_qk_pre_rms_bias = False
+    bam_local_q_pre_rms_bias = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-local-qk-no-pre-rms-bias')
@@ -2285,7 +2284,7 @@ class BamLlama2MediumV2C256CompressedVLocalQK(BamV2C256FetchScheduleBase):
     # dloss -.07048 vs MHA.
     model_name = 'BamLlama2MediumV2C256CompressedVLocalQK'
     scan_layers = True
-    bam_local_qk_use_compressed_v = True
+    # Retired feature (compressed-V LocalQK read); reproduce at code_commit 3e57ddc.
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-compressed-v-local-qk')
@@ -2384,7 +2383,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2(
     # code_commit: 5b26aec; UC1a ~0.645 steps/s (-2.7% vs Paired40); completed
     # 13,500. dloss -0.00368 vs Paired40 @13,400; Rank4 was slower and worse.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2'
-    bam_local_qk_rank = 2
+    bam_local_q_rank = 2
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2')
@@ -2399,7 +2398,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl(
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl'
     scan_layers = True
     checkpoint_period = 200
-    bam_record_local_qk_routing_metrics = True
+    bam_record_local_routing_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-rank2-current-control')
@@ -2413,7 +2412,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate(
     # completed 13,499; final ckpt 13,400. Stable dloss -0.00156 mean
     # vs Rank2 @12,200-13,400 (range -0.00194..-0.00118).
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate'
-    bam_local_qk_rank_routing = 'shared_rank_gate'
+    bam_local_q_rank_routing = 'shared_rank_gate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-rank2-shared-rank-gate')
@@ -2426,7 +2425,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate(
     # code_commit: 0038e21; UE5a ~0.635 steps/s; stopped at 7,628.
     # Stable +.0021-.0031 loss vs SharedRankGate @5,000-7,000.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate'
-    bam_local_qk_rank_routing = 'head_rank_gate'
+    bam_local_q_rank_routing = 'head_rank_gate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-rank2-head-rank-gate')
@@ -2582,7 +2581,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank4(
     # code_commit: 5b26aec; UC1a ~0.622 steps/s; stopped at 7,542. dloss
     # -0.00300 vs Paired40, but +0.00050 and 3.1% slower vs Rank2 @7,400.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank4'
-    bam_local_qk_rank = 4
+    bam_local_q_rank = 4
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank4')
@@ -2609,7 +2608,7 @@ class BamLlama2MediumV2C256SeededPaired40(
     # 5f4e06d; UC1a ~0.663 steps/s; stopped at 3,150. Mean dloss +.0057 vs
     # Paired40 @2,600–3,000: identical nonzero row-key seeding is harmful.
     model_name = 'BamLlama2MediumV2C256SeededPaired40'
-    bam_seed_paired_local_qk_row_key = True
+    bam_seed_paired_local_row_key = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-seeded-paired40')
@@ -2624,7 +2623,7 @@ class BamLlama2MediumV2C256SeededPaired72(
     # Shared72, +.0003 vs Paired40, +.0015 vs V2 @2,600–3,400: activating the
     # V8 tail helps the dead-tail control but gives no independent QK72 gain.
     model_name = 'BamLlama2MediumV2C256SeededPaired72'
-    bam_seed_paired_local_qk_row_key = True
+    bam_seed_paired_local_row_key = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-seeded-paired72')
@@ -3351,21 +3350,21 @@ class BamV2GScanLayerRowRank8MulReduceEightLayerProfile(
 
 
 class BamLocalQKRank2DotProfileMixin:
-    bam_local_qk_rank = 2
-    bam_local_qk_second_implementation = 'dot'
+    bam_local_q_rank = 2
+    bam_local_second_implementation = 'dot'
 
 
 class BamLocalQKRank2MulReduceProfileMixin(BamLocalQKRank2DotProfileMixin):
-    bam_local_qk_second_implementation = 'mul_reduce'
+    bam_local_second_implementation = 'mul_reduce'
 
 
 class BamLocalQKRank4DotProfileMixin:
-    bam_local_qk_rank = 4
-    bam_local_qk_second_implementation = 'dot'
+    bam_local_q_rank = 4
+    bam_local_second_implementation = 'dot'
 
 
 class BamLocalQKRank4MulReduceProfileMixin(BamLocalQKRank4DotProfileMixin):
-    bam_local_qk_second_implementation = 'mul_reduce'
+    bam_local_second_implementation = 'mul_reduce'
 
 
 class BamV2GScanLayerLocalQKRankControlEightLayerProfile(
@@ -3782,7 +3781,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
     # (latest committed checkpoint 49,720). dloss vs MHA narrowed from -.06132
     # @21k to -.05023 @49k, but remained stably beneficial late in training.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2'
-    bam_local_qk_rank = 2
+    bam_local_q_rank = 2
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
@@ -3874,7 +3873,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200(
     bam_record_fetched_read_health_metrics = False
     bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetch_route_metrics = False
-    bam_record_local_qk_routing_metrics = False
+    bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -4011,6 +4010,10 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLLF(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF
 ):
     """LLLF: compressed LocalO and independent full-M rank-2 LocalV on L layers."""
+    # Paused at committed21108 after21000 report; TPU released, TB synced; conclusions provisional.
+    # vs independent LLF: early gain crossed positive at4500, then stayed near +.001 (latest six +.00143).
+    # vs Rank2: early gain vanished by ~9500, then fluctuated around zero (latest six +.00002).
+    # Main benefit: fetch M-cache -25% vs LLF / -75% vs Rank2; speed gains only +.36% / +1.09%.
     # code_commit: 98dedc0; UE5a v5p-32, block4-scan+v6e-AOT; FIRST_STEP verified.
     # 10-14 ~.5584 steps/s: +.36% vs independent LLF .5564, +1.09% vs Rank2 repro .5524.
     # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 98dedc0.
@@ -4098,7 +4101,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
     checkpoint_period = 250
     force_final_checkpoint = True
     bam_record_fetched_read_health_metrics = True
-    bam_record_local_qk_routing_metrics = True
+    bam_record_local_routing_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-health-repro')
@@ -4173,7 +4176,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate(
     # 0902e1e; EW4b ~0.528 steps/s; paused 6,851. Stable +.006-.007 dloss vs Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate')
-    bam_local_qk_rank_routing = 'shared_rank_gate'
+    bam_local_q_rank_routing = 'shared_rank_gate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-shared-rank-gate')
@@ -4340,7 +4343,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias(
     scan_layers = True
     checkpoint_period = 250
     force_final_checkpoint = True
-    bam_local_qk_pre_rms_bias = False
+    bam_local_q_pre_rms_bias = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-local-qk-no-pre-rms-bias')
@@ -4972,7 +4975,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(
     # code_commit: 0223a7c
     # ~0.523 steps/s (+2.8%); completed 2,800. mean dloss -.0044 vs Fp32RMS, -.0002 vs Direct @1,800–2,600.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl'
-    bam_pack_factorized_local_qk = True
     bam_replicate_ploc_up = False
     load_parameters_path = (
         'gs://newproject-1-llm_base_models_us-central1/log/diagnostics/'
@@ -5039,7 +5041,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(
     # ~0.533 steps/s; stopped 2,295. dloss +.0598 vs Direct @2,200; gate .0005 is too closed.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQK'
     bam_replicate_ploc_up = True
-    bam_pack_factorized_local_qk = True
     sharding_tolerance = 0.06  # measured 0.05238 with replicated P_loc_up
     steps = 2800
 
@@ -6205,7 +6206,6 @@ class BamLlama2MediumV1Compat(BamLlama2MediumV1):
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'
     bam_factorized_head_output_layout = 'bnt'
-    bam_pack_factorized_local_qk = False
     bam_abs_v_compression_dim = None
     bam_write_v_mode = 'x'
     bam_write_v_bottleneck_dim = None
@@ -6304,7 +6304,6 @@ class BamLlama2MediumV1CompatPackedLocalQK(
     """Modern P_loc bridge with packed factorized LocalQK projections."""
     # Config-only bridge dependency; config_source: 0a9cdb0
     model_name = 'BamLlama2MediumV1CompatPackedLocalQK'
-    bam_pack_factorized_local_qk = True
     bam_factorized_head_output_layout = 'btn'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -6374,7 +6373,6 @@ class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
     bam_combine_full_local_read = False
     bam_fetch_diagonal_one = True
     bam_write_outer_implementation = 'mul_reduce'
-    bam_pack_factorized_local_qk = True
     bam_factorized_head_output_layout = 'btn'
     bam_read_rms_statistics_dtype = 'float32'
     bam_write_rms_statistics_dtype = 'float32'
@@ -6514,7 +6512,6 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
     # code_commit: 6200a20; EW4b ~0.496 steps/s (-2.4% vs packed D0N0); stopped 3,800.
     # dloss vs H plateaued near +0.0118 @2,800-3,600: unpacking alone cannot reproduce H.
     model_name = 'BamLlama2MediumV1CompatD0N0UnpackedBnt'
-    bam_pack_factorized_local_qk = False
     bam_factorized_head_output_layout = 'bnt'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -6530,7 +6527,6 @@ class BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt(
     # trend (last +.0040): dense+non-scan+unpacked nearly, not exactly, closes H.
     # It retained ~-.010..-.013 vs D0N0; unpacking contributed ~-.002 vs Dense.
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt'
-    bam_pack_factorized_local_qk = False
     bam_factorized_head_output_layout = 'bnt'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'

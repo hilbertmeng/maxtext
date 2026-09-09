@@ -60,9 +60,10 @@ class LocalFetchTest(absltest.TestCase):
         self.assertTrue(all(bool(jnp.all(jnp.isfinite(a))) for a in jax.tree.leaves(grads)))
         paths = ['/'.join(p) for p in flatten_dict(variables['params'])]
         if suffix == 'C8LocalVSharedRankGate':
-          self.assertEqual(variables['params']['W_lv_gate_b0'].value.shape, (4,))
+          self.assertEqual(variables['params']['W_lv_gate_b0'].value.shape, (2, 2))
         self.assertFalse(any('fetch_head_mix' in p for p in paths))
-        self.assertEqual(any('W_local_v_packed' in p for p in paths), 'LocalV' in suffix)
+        self.assertEqual(any(p.startswith('W_lv_bias') for p in paths), 'LocalV' in suffix)
+        self.assertTrue(any('W_local_packed' in p for p in paths))
         self.assertEqual(any('abs_v_cache_projection' in p for p in paths), suffix.startswith('C8'))
         wr = grads['W_R']['kernel']
         wr = wr.value if hasattr(wr, 'value') else wr
@@ -90,8 +91,8 @@ class LocalFetchTest(absltest.TestCase):
     self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
     params = variables['params']
     self.assertEqual(set(params), {'local_0', 'fetch_1'})
-    self.assertIn('W_local_v_packed', params['local_0']['block']['self_attention'])
-    self.assertNotIn('W_local_v_packed', params['fetch_1']['block']['self_attention'])
+    self.assertIn('W_lv_bias', params['local_0']['block']['self_attention'])
+    self.assertNotIn('W_lv_bias', params['fetch_1']['block']['self_attention'])
     jaxpr = str(jax.make_jaxpr(lambda hh, mm: module.apply(
         variables, (hh, mm), *args[1:]))(h, m))
     self.assertNotIn('cond[', jaxpr)
@@ -142,7 +143,7 @@ class LocalFetchTest(absltest.TestCase):
       if suffix == 'C8SharedIndependentSharedLLLFScan':
         for i in range(3):
           attention = variables['params'][f'local_{i}']['block']['self_attention']
-          self.assertEqual('W_local_v_packed' in attention, i == 1)
+          self.assertEqual('W_lv_bias' in attention, i == 1)
           self.assertEqual('W_lv_gate' in attention, i != 1)
       self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
       self.assertEqual(final_m.shape, m.shape)

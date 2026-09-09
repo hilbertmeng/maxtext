@@ -20,7 +20,9 @@ from layers.attentions import (
     _fit_bam_read_to_head,
     _fetched_read_gate_bin_stats,
     _interpolate_fetched_bam_read,
-    _packed_factorized_local_qk_init,
+    _LocalReadArm,
+    _packed_local_arms_init,
+    _packed_local_layout,
     _pack_fetched_bam_heads,
     _paired_parameter_init,
     _project_bam_read_keys,
@@ -37,7 +39,7 @@ _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 def _factorized_read_joined(*args, **kwargs):
   """Exercise default side tuples while retaining joined reference assertions."""
   result = factorized_head_bam_read(*args, **kwargs)
-  if kwargs.get('return_rank_gate', False) and kwargs.get('rank', 1) > 1:
+  if kwargs.get('return_rank_gate', False):
     sides, gate = result
     return jnp.concatenate(sides, axis=-1), gate
   return jnp.concatenate(result, axis=-1)
@@ -453,53 +455,67 @@ class BamReadKeyTransformTest(absltest.TestCase):
     self.assertEqual(weights.shape, logits.shape)
     self.assertEqual(weights.dtype, jnp.bfloat16)
 
-  def test_packed_local_qk_preserves_segment_initializers(self):
+  def _local_arms(self, names, rank, routing, heads=4, k_dim=5, v_dim=7):
+    return [
+        _LocalReadArm(
+            name=name, rank=rank, k_dim=k_dim, v_dim=v_dim,
+            rank_routing=routing, num_heads=heads, pre_rms_bias=True,
+            read_side='both')
+        for name in names]
+
+  def test_packed_local_arms_preserve_segment_initializers(self):
     embed, heads, key_width = 64, 4, 12
     regular_init = initializers.nd_dense_init(
         1.0, 'fan_in', 'truncated_normal')
-    init = _packed_factorized_local_qk_init(
-        regular_init, heads, key_width)
-    kernel = init(
-        jax.random.PRNGKey(0),
-        (embed, 2 * (key_width + 2 + 2 * heads)), jnp.float32)
-    q_key, q_gate, q_mix, k_key, k_gate, k_mix = jnp.split(
-        kernel,
-        (key_width, key_width + 2, key_width + 2 + 2 * heads,
-         2 * key_width + 2 + 2 * heads,
-         2 * key_width + 4 + 2 * heads),
-        axis=-1)
+    arms = self._local_arms(('q', 'k'), rank=1, routing='legacy', heads=heads)
+    layout, packed_width = _packed_local_layout(arms)
+    self.assertEqual(packed_width, 2 * (key_width + 2 + 2 * heads))
+    kernel = _packed_local_arms_init(regular_init, arms)(
+        jax.random.PRNGKey(0), (embed, packed_width), jnp.float32)
+    (q_key, q_gate, q_mix), (k_key, k_gate, k_mix) = (
+        tuple(kernel[:, s] for s in segments) for segments in layout)
     for zero_segment in (q_key, q_gate, k_key, k_gate):
       np.testing.assert_array_equal(zero_segment, 0)
     self.assertGreater(float(jnp.linalg.norm(q_mix)), 0.0)
     self.assertGreater(float(jnp.linalg.norm(k_mix)), 0.0)
     self.assertFalse(np.array_equal(q_mix, k_mix))
 
-  def test_packed_rank_routing_modes_have_expected_gate_segments(self):
+  def test_packed_layout_serves_any_group_and_routing_mode(self):
     embed, heads, key_width, rank = 32, 4, 12, 2
     regular_init = initializers.nd_dense_init(
         1.0, 'fan_in', 'truncated_normal')
     for mode, gate_width in (
         ('legacy', 2), ('shared_rank_gate', 2 * rank),
         ('head_rank_gate', 0)):
-      mix_width = 2 * heads * rank
-      packed_width = 2 * (rank * key_width + gate_width + mix_width)
-      init = _packed_factorized_local_qk_init(
-          regular_init, heads, key_width, rank=rank, rank_routing=mode)
-      kernel = init(
-          jax.random.PRNGKey(100 + gate_width),
-          (embed, packed_width), jnp.float32)
-      q_key_end = rank * key_width
-      q_gate_end = q_key_end + gate_width
-      q_mix_end = q_gate_end + mix_width
-      k_key_end = q_mix_end + rank * key_width
-      k_gate_end = k_key_end + gate_width
-      q_key, q_gate, q_mix, k_key, k_gate, k_mix = jnp.split(
-          kernel, (q_key_end, q_gate_end, q_mix_end,
-                   k_key_end, k_gate_end), axis=-1)
-      for zero_segment in (q_key, q_gate, k_key, k_gate):
-        np.testing.assert_array_equal(zero_segment, 0)
-      self.assertGreater(float(jnp.linalg.norm(q_mix)), 0.0)
-      self.assertGreater(float(jnp.linalg.norm(k_mix)), 0.0)
+      for names in (('q', 'k'), ('v',), ('q', 'k', 'v')):
+        arms = self._local_arms(names, rank=rank, routing=mode, heads=heads)
+        layout, packed_width = _packed_local_layout(arms)
+        mix_width = 2 * heads * rank
+        self.assertEqual(
+            packed_width, len(names) * (rank * key_width + gate_width + mix_width))
+        kernel = _packed_local_arms_init(regular_init, arms)(
+            jax.random.PRNGKey(100 + gate_width), (embed, packed_width), jnp.float32)
+        for basis, gate, mix in layout:
+          np.testing.assert_array_equal(kernel[:, basis], 0)
+          np.testing.assert_array_equal(kernel[:, gate], 0)
+          self.assertEqual(kernel[:, gate].shape[-1], gate_width)
+          self.assertGreater(float(jnp.linalg.norm(kernel[:, mix])), 0.0)
+
+  def test_paired_row_key_seeds_every_rank_slot_identically_across_arms(self):
+    embed, heads, rank, k_dim, v_dim = 16, 2, 2, 5, 7
+    regular_init = initializers.nd_dense_init(
+        1.0, 'fan_in', 'truncated_normal')
+    arms = self._local_arms(
+        ('q', 'k'), rank=rank, routing='legacy', heads=heads, k_dim=k_dim, v_dim=v_dim)
+    layout, packed_width = _packed_local_layout(arms)
+    kernel = _packed_local_arms_init(regular_init, arms, paired_row_width=k_dim)(
+        jax.random.PRNGKey(3), (embed, packed_width), jnp.float32)
+    bases = [kernel[:, segments[0]].reshape(embed, rank, k_dim + v_dim)
+             for segments in layout]
+    np.testing.assert_array_equal(bases[0], bases[1])
+    np.testing.assert_array_equal(bases[0][..., k_dim:], 0)
+    self.assertGreater(float(jnp.linalg.norm(bases[0][:, 0, :k_dim])), 0.0)
+    self.assertFalse(np.array_equal(bases[0][:, 0, :k_dim], bases[0][:, 1, :k_dim]))
 
   def test_paired_parameter_init_matches_single_init_in_both_slices(self):
     regular_init = initializers.nd_dense_init(
@@ -537,8 +553,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
 
     def output(values, implementation):
       M, x, key_kernel, mix_kernel, gates = values
-      projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
-      head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+      projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)[..., None, :]
+      head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)[..., None]
       return _factorized_read_joined(
           M, x, projection, head_projection, key_mode='rms_gate',
           key_scale=2.0, rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
@@ -574,8 +590,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
     key_kernel = jax.random.normal(random[2], (e, k + v))
     mix_kernel = jax.random.normal(random[3], (e, n, 2))
     gates = jax.random.normal(random[4], (b, t, 2))
-    projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
-    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)[..., None, :]
+    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)[..., None]
     kwargs = dict(
         key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=gates, implementation='mul_reduce_btn')
@@ -604,8 +620,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
     mix_kernel = jax.random.normal(random[3], (e, n, 2))
     gates = jax.random.normal(random[4], (b, t, 2))
     projection = jax.random.normal(random[5], (v, c))
-    key_fn = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
-    mix_fn = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    key_fn = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)[..., None, :]
+    mix_fn = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)[..., None]
     kwargs = dict(
         key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=gates, implementation='mul_reduce_btn')
@@ -712,8 +728,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
     local_M = jax.random.normal(random[4], (b, t, k, v))
     key_kernel = jax.random.normal(random[3], (e, k + v))
     mix_kernel = jax.random.normal(random[5], (e, n, 2))
-    key_projection = lambda z: jnp.einsum('bte,eD->btD', z, key_kernel)
-    mix_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    key_projection = lambda z: jnp.einsum('bte,eD->btD', z, key_kernel)[..., None, :]
+    mix_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)[..., None]
     local_gates = gates[:, :, 0, 0]
     both = _factorized_read_joined(
         local_M, x, key_projection, mix_projection, key_mode='rms_gate',
@@ -780,8 +796,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
     mix_kernel = jax.random.normal(keys[3], (e, n, 2))
     gate_kernel = jax.random.normal(keys[4], (e, 2))
     gate_bias = jax.random.normal(keys[5], (2,))
-    projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
-    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)[..., None, :]
+    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)[..., None]
     gate_logits = jnp.einsum('bte,er->btr', x, gate_kernel) + gate_bias
     kwargs = dict(
         key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
@@ -792,7 +808,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     actual_mul = _factorized_read_joined(
         M, x, projection, head_projection, **kwargs,
         implementation='mul_reduce_btn')
-    raw_row, raw_col = jnp.split(projection(x), [k], axis=-1)
+    raw_row, raw_col = jnp.split(projection(x)[..., 0, :], [k], axis=-1)
     row_gate, col_gate = jnp.split(gate_logits, 2, axis=-1)
     row = _transform_bam_read_key(
         raw_row, 'rms_gate', 2.0, rms_epsilon=_RMS_EPSILON,
@@ -800,7 +816,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     col = _transform_bam_read_key(
         raw_col, 'rms_gate', 2.0, rms_epsilon=_RMS_EPSILON,
         gate_logits=col_gate)
-    raw_mix = head_projection(x)
+    raw_mix = head_projection(x)[..., 0]
     mix = normalizations.rms_norm(
         raw_mix, dtype=raw_mix.dtype, epsilon=_RMS_EPSILON, axis=-2)
     explicit_row = row[:, :, None, :] * mix[..., 0, None]
@@ -929,12 +945,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
     x = jax.random.normal(jax.random.PRNGKey(32), (b, t, e))
     mix_kernel = jax.random.normal(jax.random.PRNGKey(33), (e, n, 2))
     upstream = jax.random.normal(jax.random.PRNGKey(34), (b, t, n, k + v))
-    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
+    head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)[..., None]
     gate_init = np.sqrt(_RMS_EPSILON) / 2.0
     gate_logits = jnp.full((b, t, 2), np.log(gate_init / (1.0 - gate_init)))
 
     def objective(key_kernel):
-      projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
+      projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)[..., None, :]
       y = _factorized_read_joined(
           M, x, projection, head_projection, key_mode='rms_gate',
           key_scale=2.0, rms_epsilon=_RMS_EPSILON,

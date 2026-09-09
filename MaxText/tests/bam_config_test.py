@@ -36,9 +36,9 @@ class BamConfigTest(unittest.TestCase):
 
   def test_six_explicitly_retained_options_are_valid(self):
     validate_bam_config(dict(bam_enabled=True,
-        bam_local_qk_rank_routing='head_rank_gate',
-        bam_seed_paired_local_qk_row_key=True,
-        bam_local_qk_pre_rms_bias=False, bam_fetch_diagonal_one=False,
+        bam_local_q_rank_routing='head_rank_gate',
+        bam_seed_paired_local_row_key=True,
+        bam_local_q_pre_rms_bias=False, bam_fetch_diagonal_one=False,
         bam_write_data_rms=False, bam_m_read_norm='rms'))
 
   def test_retired_local_qk_tiers_only_reject_active_local_qk(self):

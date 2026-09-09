@@ -17,6 +17,8 @@ def main():
     parser.add_argument('--output', required=True)
     parser.add_argument('--old-aot', required=True)
     parser.add_argument('--new-aot', required=True)
+    parser.add_argument('--exp', default='BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF')
+    parser.add_argument('--steps', type=int, default=50000)
     args = parser.parse_args()
     assert args.tpu.startswith('xd-') and re.fullmatch('[0-9a-f]{40}', args.commit)
     root = Path('/home/lishengping/xd/projects')
@@ -50,9 +52,8 @@ def main():
     dataset = 'gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord'
     if args.zone != 'us-east5-a':
         raise ValueError('This sealed pair uses the UE5a dataset and historical timing control')
-    prefix = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8'
     for suffix, artifact in (('old', args.old_aot), ('tuple', args.new_aot)):
-        exp = prefix + 'SharedReadLLF'
+        exp = args.exp
         compiled = '/tmp/shared-llf-' + suffix + '.pickle'
         ssh('gsutil -q cp ' + shlex.quote(artifact) + ' ' + shlex.quote(compiled), 'all')
         run = 'TimingTupleLLF_' + suffix + '_' + str(int(time.time()))
@@ -61,12 +62,12 @@ def main():
         arm = {'exp': exp, 'run': run, 'log': log, 'state': 'launching', 'artifact': artifact}
         result['arms'].append(arm)
         save()
-        # Both AOT arms preserve the same 50k schedule and no-health configuration.
+        # Both arms preserve the sealed configuration's LR schedule and health flags.
         smoke = repo + '/.claude/skills/tpu-diagnostics/scripts/run_train_smoke_compiled.sh'
         command = ('cd ' + shlex.quote(repo) + '; nohup env DATASET_PATH=' + shlex.quote(dataset)
                    + ' SMOKE_OUTPUT=' + shlex.quote('/tmp/' + run)
                    + ' bash ' + shlex.quote(smoke) + ' ' + exp + ' ' + run
-                   + ' ' + shlex.quote(compiled) + ' 50000 >' + shlex.quote(log) + ' 2>&1 </dev/null &')
+                   + ' ' + shlex.quote(compiled) + ' ' + str(args.steps) + ' >' + shlex.quote(log) + ' 2>&1 </dev/null &')
         ssh(command, 'all')
         print('LAUNCHED ' + run, flush=True)
         try:

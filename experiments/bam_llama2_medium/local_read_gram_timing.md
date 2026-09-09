@@ -178,8 +178,9 @@ python3 run_gram_target_timing.py --tpu xd-v5p16-gram-medium-ew \
 
 The UE5a target candidates were deleted after the corresponding EW4b FIRST_STEP;
 they never ran a timing arm. Both v6e screen/compiler VMs and the two separate
-baseline AOT compiler candidates are deleted; final target cleanup is recorded
-after all-worker process-stop and local result verification.
+baseline AOT compiler candidates are deleted. Both EW4b target pods and their
+queued resources were also verified absent after all-worker process-stop and
+local result verification. No diagnostic resources remain allocated for this task.
 
 ## Added parameters and arithmetic
 

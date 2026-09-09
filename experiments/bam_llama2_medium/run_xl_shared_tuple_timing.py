@@ -82,6 +82,7 @@ def main():
                 time.sleep(10)
             else:
                 raise TimeoutError('no step15 within one hour')
+            ssh('grep -q "Loaded compiled function!" ' + shlex.quote(log))
             text = ssh('grep "completed step:" ' + shlex.quote(log))
             records = {int(s): float(v) for s, v in re.findall(
                 r'completed step: (\d+), steps/s:\s*([\d.]+)', text)}

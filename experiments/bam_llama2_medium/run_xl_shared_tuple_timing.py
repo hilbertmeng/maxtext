@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--new-aot', required=True)
     parser.add_argument('--exp', default='BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF')
     parser.add_argument('--steps', type=int, default=50000)
+    parser.add_argument('--new-only', action='store_true', help='Reuse an existing old-arm measurement')
     args = parser.parse_args()
     assert args.tpu.startswith('xd-') and re.fullmatch('[0-9a-f]{40}', args.commit)
     root = Path('/home/lishengping/xd/projects')
@@ -52,7 +53,8 @@ def main():
     dataset = 'gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord'
     if args.zone != 'us-east5-a':
         raise ValueError('This sealed pair uses the UE5a dataset and historical timing control')
-    for suffix, artifact in (('old', args.old_aot), ('tuple', args.new_aot)):
+    arms = [('tuple', args.new_aot)] if args.new_only else [('old', args.old_aot), ('tuple', args.new_aot)]
+    for suffix, artifact in arms:
         exp = args.exp
         compiled = '/tmp/shared-llf-' + suffix + '.pickle'
         ssh('gsutil -q cp ' + shlex.quote(artifact) + ' ' + shlex.quote(compiled), 'all')

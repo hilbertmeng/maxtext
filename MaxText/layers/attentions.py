@@ -1883,6 +1883,16 @@ def _depth_scaled_bam_read_amplitude(
   return amplitude
 
 
+def _add_bam_read_key_bias(projected_key, row_width, row_bias=None, col_bias=None):
+  """Add independently parameterized row/column offsets before key transforms."""
+  raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
+  if row_bias is not None:
+    raw_row = raw_row + jnp.asarray(row_bias, raw_row.dtype)
+  if col_bias is not None:
+    raw_col = raw_col + jnp.asarray(col_bias, raw_col.dtype)
+  return jnp.concatenate((raw_row, raw_col), axis=-1)
+
+
 def _project_bam_read_keys(
     row_width, x, W_R, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
@@ -3873,7 +3883,11 @@ class BamAttention(Attention):
             'intermediates', 'fetched_read_pre_gate_effective_rms',
             m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
       def full_read_projection(x):
-        return jnp.squeeze(self.W_R(x), axis=-2)
+        projected_key = _add_bam_read_key_bias(
+            self.W_R(x), self._abs_k_dim or self.bam_k,
+            getattr(self, 'W_R_row_pre_rms_bias', None),
+            getattr(self, 'W_R_col_pre_rms_bias', None))
+        return jnp.squeeze(projected_key, axis=-2)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,

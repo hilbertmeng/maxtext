@@ -13,11 +13,9 @@ from layers import normalizations
 from layers.attentions import (
     BamAttention,
     GroupedRMSNorm,
-    _activate_bam_read_key,
     _attention_op,
     _bam_fetch_op,
     _bam_fetch_route_sums,
-    _depth_scaled_bam_read_amplitude,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
     _fetched_read_gate_bin_stats,
@@ -36,7 +34,6 @@ from layers.attentions import (
 _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
-
 def _factorized_read_joined(*args, **kwargs):
   """Exercise default side tuples while retaining joined reference assertions."""
   result = factorized_head_bam_read(*args, **kwargs)
@@ -44,17 +41,6 @@ def _factorized_read_joined(*args, **kwargs):
     sides, gate = result
     return jnp.concatenate(sides, axis=-1), gate
   return jnp.concatenate(result, axis=-1)
-
-
-class _DepthAmplitudeLayer(nn.Module):
-
-  @nn.compact
-  def __call__(self, carry, layer_index):
-    log_scale = self.param(
-        'W_R_amplitude_log_scale', nn.initializers.zeros_init(), (2,))
-    amplitude = _depth_scaled_bam_read_amplitude(
-        1.0, log_scale, layer_index, 16, 16, jnp.float32)
-    return carry, amplitude
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
@@ -199,47 +185,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(stats[..., 1], 0.5, rtol=1e-6)
     np.testing.assert_allclose(stats[..., 2], 0.2, rtol=1e-6)
 
-  def test_depth_scaled_read_amplitude_uses_scanned_layer_and_side_delta(self):
-    init = np.sqrt(8.0 * 1e-4) / 0.5
-    layer_one = _depth_scaled_bam_read_amplitude(
-        init, jnp.zeros((2,)), 1, 16, 16, jnp.float32)
-    layer_four = _depth_scaled_bam_read_amplitude(
-        init, jnp.log(jnp.asarray((2.0, 0.5))), 4, 16, 16,
-        jnp.float32)
-    np.testing.assert_allclose(layer_one, (init, init), rtol=1e-6)
-    np.testing.assert_allclose(
-        layer_four, (init, init / 4.0), rtol=1e-6)
-
-    wider_model = _depth_scaled_bam_read_amplitude(
-        init, jnp.zeros((2,)), 1, 64, 16, jnp.float32)
-    np.testing.assert_allclose(wider_model, layer_one / 2.0, rtol=1e-6)
-
-  def test_depth_scaled_read_amplitude_supports_per_head_deltas(self):
-    log_delta = jnp.log(jnp.asarray(
-        [[[1.0, 2.0]], [[0.5, 1.5]], [[2.0, 0.25]]]))
-    amplitude = _depth_scaled_bam_read_amplitude(
-        4.0, log_delta, 4, 16, 16, jnp.float32)
-    self.assertEqual(amplitude.shape, (3, 1, 2))
-    np.testing.assert_allclose(
-        amplitude,
-        jnp.asarray([[[2.0, 4.0]], [[1.0, 3.0]], [[4.0, 0.5]]]),
-        rtol=1e-6)
-
-  def test_layer_scan_stacks_independent_amplitudes_and_uses_runtime_depth(self):
-    scanned = nn.scan(
-        _DepthAmplitudeLayer,
-        variable_axes={'params': 0}, split_rngs={'params': True},
-        in_axes=0, out_axes=0, length=4)()
-    variables = scanned.init(
-        jax.random.PRNGKey(0), jnp.asarray(0.0), jnp.arange(4))
-    self.assertEqual(
-        variables['params']['W_R_amplitude_log_scale'].shape, (4, 2))
-    _, amplitude = scanned.apply(
-        variables, jnp.asarray(0.0), jnp.arange(4))
-    expected = jnp.asarray((1.0, 1.0, 1 / np.sqrt(2), 1 / np.sqrt(3)))
-    np.testing.assert_allclose(amplitude[:, 0], expected, rtol=1e-6)
-    np.testing.assert_allclose(amplitude[:, 1], expected, rtol=1e-6)
-
   def test_external_amplitude_preserves_gate_and_controls_total_energy(self):
     gate_opening = 0.005
     gate_logits = jnp.full(
@@ -315,32 +260,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
         row_key, 0.01 * expected_row, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(
         col_key, 0.02 * expected_col, rtol=1e-6, atol=1e-6)
-
-  def test_read_key_silu_precedes_rms(self):
-    expected = jnp.asarray([[[[-1.5, 0.5, 0.0, 1.0]]]])
-
-    np.testing.assert_allclose(
-        _activate_bam_read_key(expected, 'silu'),
-        2.0 * jax.nn.silu(expected), rtol=1e-6, atol=1e-6)
-    zero_slope = jax.grad(
-        lambda z: jnp.sum(_activate_bam_read_key(z, 'silu')))(
-            jnp.zeros((4,)))
-    np.testing.assert_allclose(
-        zero_slope, jnp.ones((4,)), rtol=1e-6, atol=1e-6)
-
-    _, _, row_key, col_key = _project_bam_read_keys(
-        2, jnp.zeros((1, 1, 1)), lambda _x: expected,
-        rms_epsilon=_RMS_EPSILON, key_mode='rms',
-        key_col_activation='silu')
-    np.testing.assert_allclose(
-        row_key, normalizations.rms_norm(
-            expected[..., :2], dtype=expected.dtype,
-            epsilon=_RMS_EPSILON), rtol=1e-6, atol=1e-6)
-    np.testing.assert_allclose(
-        col_key, normalizations.rms_norm(
-            2.0 * jax.nn.silu(expected[..., 2:]),
-            dtype=expected.dtype, epsilon=_RMS_EPSILON),
-        rtol=1e-6, atol=1e-6)
 
   def test_attention_op_matches_dense_and_chunk_values_and_gradients(self):
     b, t, n, d, chunk_size = 2, 6, 3, 4, 2
@@ -647,59 +566,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
     for got, expected in zip(expanded, reference):
       np.testing.assert_array_equal(got, expected)
 
-  def test_batched_factorized_qk_read_matches_separate_reads(self):
-    b, t, qk, n, k, v, e = 2, 3, 2, 4, 3, 5, 7
-    random = jax.random.split(jax.random.PRNGKey(71), 6)
-    args = (
-        jax.random.normal(random[0], (b, t, k, v)),
-        jax.random.normal(random[1], (b, t, e)),
-        jax.random.normal(random[2], (e, qk, k + v)),
-        jax.random.normal(random[3], (e, qk, n, 2)),
-        jax.random.normal(random[4], (b, t, qk, 2)),
-    )
-    upstream = jax.random.normal(random[5], (b, t, qk, n, k + v))
-
-    def combined(values):
-      M, x, key_kernel, mix_kernel, gates = values
-      projected_key = jnp.einsum('bte,eqd->btqd', x, key_kernel)
-      raw_mix = jnp.einsum('bte,eqnr->btqnr', x, mix_kernel)
-      y_u, y_v = bam_read(
-          M, x, lambda _x: projected_key, None, key_mode='rms_gate',
-          key_scale=2.0, rms_epsilon=_RMS_EPSILON,
-          key_gate_logits=gates, implementation='mul_reduce_btn')
-      mix = normalizations.rms_norm(
-          raw_mix, dtype=y_u.dtype, epsilon=_RMS_EPSILON, axis=-2)
-      row_mix, col_mix = mix[..., 0], mix[..., 1]
-      y_u = jnp.einsum('btqk,btqn->btqnk', y_u, col_mix)
-      y_v = jnp.einsum('btqv,btqn->btqnv', y_v, row_mix)
-      return jnp.concatenate((y_u, y_v), axis=-1)
-
-    def separate(values):
-      M, x, key_kernel, mix_kernel, gates = values
-      outputs = []
-      for index in range(qk):
-        projection = lambda z, i=index: jnp.einsum(
-            'bte,ed->btd', z, key_kernel[:, i])
-        mix_projection = lambda z, i=index: jnp.einsum(
-            'bte,enr->btnr', z, mix_kernel[:, i])
-        outputs.append(_factorized_read_joined(
-            M, x, projection, mix_projection, key_mode='rms_gate',
-            key_scale=2.0, rms_epsilon=_RMS_EPSILON,
-            key_gate_logits=gates[:, :, index],
-            implementation='mul_reduce_btn'))
-      return jnp.stack(outputs, axis=2)
-
-    reference = separate(args)
-    actual = combined(args)
-    np.testing.assert_allclose(actual, reference, rtol=1e-5, atol=1e-5)
-    reference_value, reference_grad = jax.value_and_grad(
-        lambda z: jnp.sum(separate(z) * upstream))(args)
-    actual_value, actual_grad = jax.value_and_grad(
-        lambda z: jnp.sum(combined(z) * upstream))(args)
-    np.testing.assert_allclose(actual_value, reference_value, rtol=1e-5, atol=1e-5)
-    for got, expected in zip(actual_grad, reference_grad):
-      np.testing.assert_allclose(got, expected, rtol=2e-5, atol=2e-5)
-
   def test_factorized_head_read_supports_shared_learned_key_norm(self):
     b, t, n, k, v, e = 2, 3, 4, 3, 5, 7
     random = jax.random.split(jax.random.PRNGKey(61), 5)
@@ -774,7 +640,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
             'bte,enfD->btnfD', z, kernel) if fetched else jnp.einsum(
                 'bte,enD->btnD', z, kernel)
         y = bam_read(
-            M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
+            M, x, projection, key_mode='rms_gate', key_scale=2.0,
             rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
             implementation=implementation, return_sides=False)
         return y
@@ -806,7 +672,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
       M, x, kernel, gates = values
       projection = lambda z: jnp.einsum('bte,end->btnd', z, kernel)
       y = bam_read(
-          M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
+          M, x, projection, key_mode='rms_gate', key_scale=2.0,
           rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
           implementation='mul_reduce_btn', return_sides=return_sides)
       return jnp.concatenate(y, axis=-1) if return_sides else y
@@ -832,7 +698,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
       outputs = {}
       for read_side in ('both', 'row', 'col'):
         y = bam_read(
-            M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
+            M, x, projection, key_mode='rms_gate', key_scale=2.0,
             rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
             implementation=implementation, read_side=read_side, return_sides=False)
         outputs[read_side] = y
@@ -885,12 +751,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
       if squeeze:
         projection = lambda z: jnp.einsum('bte,enD->btnD', z, kernel[:, :, 0])
         return bam_read(
-            M[:, 0], x, projection, None, key_mode='rms_gate', key_scale=2.0,
+            M[:, 0], x, projection, key_mode='rms_gate', key_scale=2.0,
             rms_epsilon=_RMS_EPSILON, key_gate_logits=gates[..., 0, :],
             implementation='dot_btn', return_sides=False)
       projection = lambda z: jnp.einsum('bte,enfD->btnfD', z, kernel)
       return bam_read(
-          M, x, projection, None, key_mode='rms_gate', key_scale=2.0,
+          M, x, projection, key_mode='rms_gate', key_scale=2.0,
           rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
           implementation='dot_btn', return_sides=False)
 
@@ -1028,16 +894,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
         (b, t, n, 2, rank))
     np.testing.assert_allclose(dot_gate, expected_gate, rtol=1e-6, atol=1e-6)
 
-    amplitude = jnp.asarray((0.25, 0.75))
-    scaled, _ = _factorized_read_joined(
-        M, x, projection, head_projection,
-        second_implementation='mul_reduce', side_amplitude=amplitude,
-        **kwargs)
-    expected = jnp.concatenate(
-        (mul[..., :k] * amplitude[1], mul[..., k:] * amplitude[0]),
-        axis=-1)
-    np.testing.assert_allclose(scaled, expected, rtol=2e-5, atol=2e-5)
-
   def test_factorized_head_rank_gate_is_direct_sigmoid_without_signed_mix(self):
     b, t, n, rank, k, v, e = 2, 3, 4, 2, 3, 5, 7
     keys = jax.random.split(jax.random.PRNGKey(140), 4)
@@ -1124,13 +980,13 @@ class BamReadKeyTransformTest(absltest.TestCase):
           key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
           key_gate_logits=gate_logits, return_sides=False)
       if combine == 'diag_one':
-        y = bam_read(Mbar, x, projection, None, **kwargs)
+        y = bam_read(Mbar, x, projection, **kwargs)
       elif combine:
-        y = bam_read(Mbar + Mh[:, None], x, projection, None, **kwargs)
+        y = bam_read(Mbar + Mh[:, None], x, projection, **kwargs)
       else:
-        y = bam_read(Mbar, x, projection, None, **kwargs)
+        y = bam_read(Mbar, x, projection, **kwargs)
         y += bam_read(
-            Mh, x, lambda z: jnp.squeeze(projection(z), axis=-2), None,
+            Mh, x, lambda z: jnp.squeeze(projection(z), axis=-2),
             key_mode='rms_gate', key_scale=2.0,
             rms_epsilon=_RMS_EPSILON,
             key_gate_logits=jnp.squeeze(gate_logits, axis=-2), return_sides=False)
@@ -1255,21 +1111,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
   def test_constant_matrix_update_matches_existing_decay(self):
     M_in = jnp.arange(12, dtype=jnp.float32).reshape(1, 1, 3, 4)
     dM = jnp.ones_like(M_in)
-    M_out, forget_gate = _update_bam_matrix(M_in, dM, 0.75)
+    M_out = _update_bam_matrix(M_in, dM, 0.75)
     np.testing.assert_array_equal(M_out, 0.75 * M_in + dM)
-    self.assertIsNone(forget_gate)
-
-  def test_dynamic_forget_starts_at_requested_retention_and_has_gradient(self):
-    forget_init = 0.01
-    logits = jnp.full((1, 2, 1), np.log(forget_init / (1.0 - forget_init)))
-    M_in = jnp.ones((1, 2, 3, 4))
-    dM = jnp.zeros_like(M_in)
-    M_out, forget_gate = _update_bam_matrix(M_in, dM, 1.0, logits)
-    np.testing.assert_allclose(forget_gate, forget_init, rtol=1e-6, atol=1e-7)
-    np.testing.assert_allclose(M_out, 1.0 - forget_init, rtol=1e-6, atol=1e-7)
-    grad = jax.grad(
-        lambda z: _update_bam_matrix(M_in, dM, 1.0, z)[0].sum())(logits)
-    self.assertTrue(np.all(np.asarray(grad) < 0.0))
 
   def test_write_v_mix_starts_as_local_projection(self):
     x_v = jax.random.normal(jax.random.PRNGKey(3), (2, 5, 4, 3))
@@ -1329,7 +1172,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
     expected = normalizations.rms_norm(
         r, dtype=r.dtype, epsilon=_RMS_EPSILON)
     np.testing.assert_array_equal(direction, expected)
-
 
   def test_rms_gate_learned_norm_is_a_paired_identity_control(self):
     r = jnp.array([[3.0, 4.0]], dtype=jnp.float32)

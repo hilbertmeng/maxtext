@@ -15,10 +15,9 @@ def load_reference(commit):
   source = subprocess.check_output(
       ['git', 'show', f'{commit}:MaxText/layers/attentions.py'], text=True)
   tree = ast.parse(source)
-  node = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
-              and n.name == 'factorized_head_bam_read')
+  nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef)]
   namespace = dict(vars(att))
-  exec(compile(ast.Module(body=[node], type_ignores=[]), '<reference>', 'exec'), namespace)
+  exec(compile(ast.Module(body=nodes, type_ignores=[]), '<reference>', 'exec'), namespace)
   return namespace['factorized_head_bam_read']
 
 
@@ -48,8 +47,7 @@ def main():
           options = dict(rank=rank, rank_routing=routing, read_side=side,
                          rms_epsilon=1e-4, key_mode='rms_gate', key_scale=2.,
                          key_gate_logits=gate, v_projection=projection,
-                         head_rank_gate_bias=jnp.array([-2., -3.], dtype),
-                         side_amplitude=jnp.array([.7, 1.2], dtype))
+                         head_rank_gate_bias=jnp.array([-2., -3.], dtype))
           for implementation in ('dot_btn', 'mul_reduce_btn'):
             options['implementation'] = implementation
             def forward(fn, m, k, h):

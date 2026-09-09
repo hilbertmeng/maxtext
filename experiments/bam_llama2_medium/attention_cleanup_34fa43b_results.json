@@ -1,0 +1,83 @@
+{
+  "reference": "34fa43b4910d1e62fff7c7becf544b7d8952cb8c",
+  "attention_sha256": "14d1c2055a5a316b466b62390f00ee2afd4862e75a4b5c0d9963834abdf37c26",
+  "platform": "CPU",
+  "tests": {
+    "bam_config": 5,
+    "bam_attention": 46,
+    "bam_local_fetch": 6
+  },
+  "read_comparison": {
+    "cases": 84,
+    "max_relative_l2": 0.0
+  },
+  "module_comparison": [
+    {
+      "experiment": "BamLlama2MediumV2C256ScanAotCleanControl",
+      "mode": "local_qk+full",
+      "overrides": {},
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan",
+      "mode": "local_qk+local_o",
+      "overrides": {},
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan",
+      "mode": "local_qk+full",
+      "overrides": {},
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2MediumV2C256SeededPaired40",
+      "mode": "local_qk+full",
+      "overrides": {},
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate",
+      "mode": "local_qk+full",
+      "overrides": {},
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2",
+      "mode": "local_qk+full",
+      "overrides": {},
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2",
+      "mode": "local_qk+full",
+      "overrides": {
+        "bam_local_qk_pre_rms_bias": false,
+        "bam_fetch_diagonal_one": false,
+        "bam_write_data_rms": false,
+        "bam_m_read_norm": "rms"
+      },
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2Gate050InterpolatedReadRowOnly",
+      "mode": "local_qk+full",
+      "overrides": {},
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude",
+      "mode": "local_qk+full",
+      "overrides": {},
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    },
+    {
+      "experiment": "BamLlama2MediumV2C256ScanAotCleanControl",
+      "mode": "local_qk+full",
+      "overrides": {
+        "bam_pack_factorized_local_qk": false
+      },
+      "params_output_Mout_param_x_M_grad_max_abs_error": 0.0
+    }
+  ]
+}

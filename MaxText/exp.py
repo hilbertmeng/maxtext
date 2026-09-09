@@ -231,6 +231,7 @@ class Llama2MediumFloat32LogitsFalse(Llama2Medium):
 
 class BamLlama2Medium(Llama2Medium):
     # ~0.277 steps/s; stopped at 9,850.
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     model_name = 'BamLlama2Medium'
     bam_enabled = True
     bam_mha_control = False
@@ -353,6 +354,7 @@ class BamLlama2Medium(Llama2Medium):
 
 class BamLlama2MediumDedicatedFetch(BamLlama2Medium):
     """v1 with independent full-read fetch Q/K; single-variable ablation."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.300 steps/s (+8.29% legacy, +2.46% recompute); stopped 6,044. dloss +0.00948 (+0.37%) vs v1 @6,000
     model_name = 'BamLlama2MediumDedicatedFetch'
     bam_dedicated_fetch = True
@@ -360,6 +362,7 @@ class BamLlama2MediumDedicatedFetch(BamLlama2Medium):
 
 class BamLlama2MediumFetchCompact(BamLlama2Medium):
     """v1 benchmark: slice shared attention before diagonal masking."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.278 steps/s; no speed change vs legacy (same-TPU fullx24 benchmark).
     model_name = 'BamLlama2MediumFetchCompact'
     bam_shared_fetch_mode = 'compact'
@@ -367,6 +370,7 @@ class BamLlama2MediumFetchCompact(BamLlama2Medium):
 
 class BamLlama2MediumFetchRecompute(BamLlama2Medium):
     """v1 benchmark: recompute compact shared-Q/K fetch attention."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.294 steps/s; +5.69% vs legacy, same loss through 46 same-TPU steps.
     model_name = 'BamLlama2MediumFetchRecompute'
     bam_shared_fetch_mode = 'recompute'
@@ -374,6 +378,7 @@ class BamLlama2MediumFetchRecompute(BamLlama2Medium):
 
 class BamLlama2MediumV2Common(BamLlama2Medium):
     """Common higher-capability backbone for read-key normalization comparisons."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # Keep an identical parameter tree and PRNG consumption across raw/cap/gate arms.
     # The first two arms create but do not execute these gate projections.
     bam_create_read_gate_params = True
@@ -389,6 +394,7 @@ class BamLlama2MediumV2Common(BamLlama2Medium):
 
 class BamLlama2MediumV2Raw(BamLlama2MediumV2Common):
     """Control for the v2 router/write changes, with unmodified runtime read keys."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.295 steps/s; stopped at 2,615.  dloss +0.0343 (+1.23%) vs v1
     model_name = 'BamLlama2MediumV2Raw'
     bam_read_key_mode = 'none'
@@ -396,6 +402,7 @@ class BamLlama2MediumV2Raw(BamLlama2MediumV2Common):
 
 class BamLlama2MediumV2SoftCap(BamLlama2MediumV2Common):
     """Separate row/column soft RMS caps on every BAM runtime read key."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.290 steps/s; stopped at 2,550.  dloss +0.0435 (+1.55%) vs v1
     model_name = 'BamLlama2MediumV2SoftCap'
     bam_read_key_mode = 'soft_rms_cap'
@@ -403,6 +410,7 @@ class BamLlama2MediumV2SoftCap(BamLlama2MediumV2Common):
 
 class BamLlama2MediumV2RmsGate(BamLlama2MediumV2Common):
     """Separate row/column RMSNorm directions with learned sigmoid read gates."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.281 steps/s; stopped at 5,757.  dloss -0.0361 (-1.39%) vs v1
     model_name = 'BamLlama2MediumV2RmsGate'
     bam_read_key_mode = 'rms_gate'
@@ -410,6 +418,7 @@ class BamLlama2MediumV2RmsGate(BamLlama2MediumV2Common):
 
 class BamLlama2MediumRmsGateOnly(BamLlama2Medium):
     """v1 plus RMS-gated runtime read keys; no other capability changes."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.280 steps/s; completed 13,500. dloss -0.0678 (-2.77%) vs MHA @13,400
     model_name = 'BamLlama2MediumRmsGateOnly'
     bam_create_read_gate_params = True
@@ -421,6 +430,7 @@ class BamLlama2MediumRmsGateOnly(BamLlama2Medium):
 
 class BamLlama2MediumRmsGateOnlyFull3NoLocalO(BamLlama2MediumRmsGateOnly):
     """Equal-parameter read-slot control: three full fetches, no local_o read."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.277 steps/s; stopped at 2,860. dloss +0.0015 (+0.06%) vs RmsGateOnly @2,800; three fixed fetches add no gain.
     model_name = 'BamLlama2MediumRmsGateOnlyFull3NoLocalO'
     bam_layer_modes = ['local_qk+full'] * 24
@@ -429,6 +439,7 @@ class BamLlama2MediumRmsGateOnlyFull3NoLocalO(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyFull1LocalO(BamLlama2MediumRmsGateOnly):
     """One nonlocal full fetch plus local_o."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.329 steps/s; stopped at 5,150. dloss +0.0074 (+0.28%) vs RmsGateOnly @5,000
     model_name = 'BamLlama2MediumRmsGateOnlyFull1LocalO'
     bam_n_f = 1
@@ -436,6 +447,7 @@ class BamLlama2MediumRmsGateOnlyFull1LocalO(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyDynamicMixFull1(BamLlama2MediumRmsGateOnly):
     """One full fetch dynamically mixed from all standard MHA routing heads."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.295 steps/s; stopped at 7,000. dloss -0.0016 (-0.06%) vs RmsGateOnly @6,800; same loss at lower fetch cost.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicMixFull1'
     bam_n_f = 1
@@ -444,6 +456,7 @@ class BamLlama2MediumRmsGateOnlyDynamicMixFull1(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1(BamLlama2MediumRmsGateOnly):
     """One full fetch using a signed, parameter-free unit-L2 MHA-head mixture."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.295 steps/s; stopped at 6,403. dloss -0.0006 (-0.02%) vs SoftmaxMix @6,200; signed mixing adds no gain.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1'
     bam_n_f = 1
@@ -454,6 +467,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1NoLocalO(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1
 ):
     """Signed dynamic full route including self; no separate local_o read."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.327 steps/s; stopped at 4,699. dloss +0.0091 (+0.35%) vs RmsMix @4,600
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1NoLocalO'
     bam_layer_modes = ['local_qk+full'] * 24
@@ -463,6 +477,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1
 ):
     """Share the full/local_o runtime-key and RMS-gate projections."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.298 steps/s; stopped at 425. dloss +0.0100 (+0.27%) vs RmsMix @400
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead'
     bam_share_full_local_read = True
@@ -472,6 +487,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedReadRerun(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead
 ):
     """Exact rerun used to measure same-config training reproducibility."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.298 steps/s; stopped at 555. loss bit-identical to original through step 400.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedReadRerun'
 
@@ -480,6 +496,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1SharedRead
 ):
     """Algebraically combine fetched/local matrices before one shared read."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 346bb35
     # ~0.316 steps/s; stopped at 8,218. dloss -0.0019 (-0.07%) vs RmsMix @6,200; same loss with lower read cost.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead'
@@ -490,6 +507,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """CombinedRead plus per-head runtime local-Q/K keys; paired norm control."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: e60fa4d
     # ~0.283 steps/s; stopped at 7,819. dloss -0.0087 (-0.35%) vs Combined @7,600; small gain at high parameter/speed cost.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK'
@@ -522,6 +540,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKN
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNorm
 ):
     """Normalize the combined standard/LocalQK vectors before applying RoPE."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 4701e77
     # ~0.383 steps/s; stopped at 4,205. dloss +0.0041 (+0.15%) vs NoMNorm @4,000; !! QKNorm's bf16 Q/K cast explains the speedup.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNormPreRopeQKNorm'
@@ -543,6 +562,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKP
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQK
 ):
     """Inject FactorizedLocalQK before QKNorm and RoPE."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: d0e6f85
     # ~0.317 steps/s; stopped at 2,865. dloss +0.0101 vs Factorized @2,800; pre-RoPE injection hurts.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope'
@@ -554,6 +574,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKP
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRope
 ):
     """Apply adjacent-pair RoPE to the complete Q/K after pre-RoPE LocalQK injection."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: d0e6f85
     # ~0.305 steps/s; stopped at 3,138. dloss +0.0038 vs PreRope, +0.0140 vs Factorized @2,800.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKPreRopeAdjacent'
@@ -602,6 +623,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocal
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Replace shared local-Q/K reads with static per-layer/per-head keys; no read gates."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: e15713c
     # ~0.305 steps/s; stopped at 4,969. dloss +0.0120 vs Combined, +0.0209 vs PerHead @4,800; static keys fail.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadStaticLocalQK'
@@ -612,6 +634,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGrou
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQK
 ):
     """Use per-head learned RMS scales for runtime read keys and write factors."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: e60fa4d
     # ~0.283 steps/s; stopped at 2,869. dloss -0.0015 (-0.06%) vs PerHead @2,800; learned RMS scales are negligible.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadPerHeadLocalQKGroupedRMSNorm'
@@ -622,6 +645,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1
 ):
     """No local_o branch; directly replace the sole fetch-alpha diagonal with one."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.316 steps/s; no measurable speedup vs CombinedRead (~0.315).
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne'
     bam_layer_modes = ['local_qk+full'] * 24
@@ -671,6 +695,7 @@ class BamNoMNormPostNoQKProfile(
 
 class BamNoMNormPreNoQKProfile(BamNoMNormPostNoQKProfile):
     """2x2 speed control: pre-RoPE LocalQK, QKNorm off."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 6c7c26c
     # ~0.325 steps/s; XPlane 3,072.6 ms. Pre-RoPE alone is neutral (-0.45%).
     model_name = 'BamNoMNormPreNoQKProfile'
@@ -1137,6 +1162,7 @@ class BamV2GQChunk256BatchedLocalQKReadEightLayerProfile(
     BamV2GQChunk256OptimizedEightLayerProfile
 ):
     """Non-scan G C256 BAM with Q/K batched as two parallel LocalQK reads."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 2646f97; v6e-1 XPlane 650.57 vs 644.20 ms separate-Q/K control.
     # Forward LocalQK is faster, but backward read traffic dominates; -0.98% throughput. Reject.
     model_name = 'BamV2GQChunk256BatchedLocalQKReadEightLayerProfile'
@@ -1554,6 +1580,7 @@ class BamLlama2MediumV2C256DepthAmplitudeBase(
     BamLlama2MediumV2C256ScanAotControl
 ):
     """Per-layer row/column amplitudes initialized to cancel sqrt(depth) M growth."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # Historical descendants used scan's static layer_index=0, so their amplitudes were
     # constant-init controls. Only the *ScanLayerFix reruns exercise true depth scaling.
     bam_fetched_read_amplitude_granularity = 'layer_side'
@@ -1567,6 +1594,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate500(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Neutral fetched-read gate with depth-scaled equal-strength amplitude."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 9f8b4cc; UE5a ~0.657 steps/s; finished 13,499. dloss +.00044 vs control
     # @13,400; converged to noise around zero despite strong amplitude/gate redistribution.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate500'
@@ -1581,6 +1609,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate500AQuarter(
     BamLlama2MediumV2C256DepthAmplitudeGate500
 ):
     """Keep the neutral gate while quartering its initial amplitude."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 9a8a203; UE5a ~0.660 steps/s; stopped 2,938. dloss +.07786 vs p=.50 @2,800;
     # gap kept shrinking but decelerated, so quartering amplitude was clearly harmful.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate500AQuarter'
@@ -1594,6 +1623,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate100(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Ten-percent fetched-read gate with matched depth-scaled amplitude."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 9f8b4cc; UE5a ~0.659 steps/s; paused at 3,530. dloss +.005-.009 vs control after 1k, no improving trend.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate100'
     bam_fetched_read_gate_init = 0.1
@@ -1607,6 +1637,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Five-percent fetched-read gate with matched depth-scaled amplitude."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 9f8b4cc; UE5a ~0.660 steps/s; finished 13,499. dloss +.00014 vs control
     # @13,400; converged to noise around zero despite a much healthier gate distribution.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050'
@@ -1621,6 +1652,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):
     """Use each fetched-read gate to interpolate standard and BAM outputs."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 443e6cf; UE5a ~0.656 steps/s; finished 13,499. Late dloss
     # fluctuated near -.0015 vs Gate050/scan control: real but very small gain.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead'
@@ -1672,6 +1704,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadPerHeadAmplitude
     BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedRead
 ):
     """Give every fetched-read head and side an independent amplitude."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ccccb53; UE5a ~0.643-0.648 steps/s (!? -1.2% vs Gate050Interpolated);
     # completed 13,500. After 1,200, dloss oscillated near +.001 vs Interpolated
     # (isolated sign crossings, no durable benefit), ending +.00091 @13,400.
@@ -1688,6 +1721,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):
     """Re-run fetched-read depth scaling with the real scanned layer index."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 1e7c53c; UE5a ~0.647 steps/s; stopped at 8,869. Correct depth scaling is
     # stably harmful: dloss ~+.017 vs ScanAotControl/old Gate050 @6,400-8,600.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix'
@@ -1700,6 +1734,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050InterpolatedReadScanLayerFix(
     BamLlama2MediumV2C256DepthAmplitudeGate050ScanLayerFix
 ):
     """Re-test fetched-read interpolation with corrected depth scaling."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 1e7c53c; UE5a ~0.643 steps/s; stopped at 7,946. Interpolation helps the
     # fixed lineage ~-.007, but corrected scaling stays ~+.012 vs old Interpolated.
     model_name = (
@@ -1727,6 +1762,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate005(
     BamLlama2MediumV2C256DepthAmplitudeBase
 ):
     """Restore the .005 gate prior while retaining learned depth amplitudes."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 1c208f2; UE5a ~0.655 steps/s; stopped at 10,134. After 1.2k,
     # dloss oscillated near zero vs Gate050/control; no material loss benefit.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate005'
@@ -1741,6 +1777,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate005ScanLayerFix(
     BamLlama2MediumV2C256DepthAmplitudeGate005
 ):
     """Re-test the .005 fetched-read prior with corrected depth scaling."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 1e7c53c; ~0.652 steps/s; stopped at 2,955. Correct depth scaling is strongly
     # harmful: dloss +.0409 vs old Gate050 / +.0413 vs ScanAotControl @2,800;
     # gaps still narrowed, but far too slowly to alter the conclusion.
@@ -1754,6 +1791,7 @@ class BamLlama2MediumV2C256DepthAmplitudeGate050AQuarter(
     BamLlama2MediumV2C256DepthAmplitudeGate050
 ):
     """Keep the five-percent gate while quartering its initial amplitude."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 9a8a203; UE5a ~0.659 steps/s; stopped 3,138. dloss +.04012 vs p=.05 @2,800;
     # gap kept shrinking but decelerated, so quartering amplitude was clearly harmful.
     model_name = 'BamLlama2MediumV2C256DepthAmplitudeGate050AQuarter'
@@ -1989,6 +2027,7 @@ class BamLlama2MediumV2C256FetchRowPreRMSBias(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256FetchColSiluReadKey(BamV2C256FetchScheduleBase):
     """Apply twice-SiLU to fetched column keys immediately before RMS."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # cd1ba4d; EW4b ~0.661 steps/s; stopped 1,945. dloss +.00486 vs V2 @1,800; positive since 800.
     model_name = 'BamLlama2MediumV2C256FetchColSiluReadKey'
     scan_layers = True
@@ -2000,6 +2039,7 @@ class BamLlama2MediumV2C256FetchColSiluReadKey(BamV2C256FetchScheduleBase):
 
 class BamLlama2MediumV2C256LocalQKColSiluReadKey(BamV2C256FetchScheduleBase):
     """Apply twice-SiLU to LocalQ/K column keys immediately before RMS."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # cd1ba4d; EW4b ~0.664 steps/s; stopped 1,951. dloss +.00737 vs V2 @1,800; positive since 600.
     model_name = 'BamLlama2MediumV2C256LocalQKColSiluReadKey'
     scan_layers = True
@@ -2286,6 +2326,7 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE(
     BamLlama2MediumV2C256FullMPostReadV8PartialRoPE
 ):
     """Append LocalQK V8 to Q/K only: [NoPE U32, RoPE std32, NoPE V8]."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 8b81623; UC1a ~0.663 steps/s; replaced at 12,714. dloss -.0024 vs
     # Shared40 but +.0034 vs V2 @12,600; the shrinking benefit comes from removing
     # head-tail row read/changing RoPE layout because the appended V8 stayed dead.
@@ -2314,6 +2355,7 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPE
 ):
     """Use separate head-shared V32->8 adapters for Q/K-only expansion."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 0d32bfd; UC1a ~0.663 steps/s; stopped at 3,327. dloss +0.0038 vs Shared72 and +0.0002 vs Separate40 at 3,200; the gains do not stack.
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK'
     bam_local_qk_post_read_v_share_qk = False
@@ -2394,6 +2436,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005(
     BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate
 ):
     """Depth-scale LocalQK Q/K x row/column amplitudes at the .005 gate prior."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 3e1a110; UE5a ~0.628 steps/s; compare with SharedRankGate.
     model_name = (
         'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005')
@@ -2410,6 +2453,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050(
     BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005
 ):
     """Raise the LocalQK gate prior to .05 at matched initial effective strength."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 3e1a110; UE5a ~0.628 steps/s; compare with Amp005 and Shared.
     model_name = (
         'BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050')
@@ -2425,6 +2469,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude005(
     BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude005
 ):
     """Correctly depth-scale the coarse LocalQK amplitude under layer scan."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 9ed0cde; UE5a ~0.626 steps/s; stopped at 4,462. p=.005/.05 stayed
     # loss-equivalent; both remained ~+.006 vs SharedRankGate @3,800-4,400.
     model_name = (
@@ -2438,6 +2483,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateDepthAmplitude050(
     BamLlama2MediumV2C256Paired40LocalQKRank2SharedGateAmplitude050
 ):
     """Raise the corrected depth-scaled LocalQK gate prior at matched strength."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 9ed0cde; UE5a ~0.621 steps/s; stopped at 9,581. Stable dloss ~+.0047-.0055
     # vs SharedRankGate @6,800-9,200; corrected LocalQK depth scaling is harmful.
     model_name = (
@@ -2518,6 +2564,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm(
     BamLlama2MediumV2C256Paired40LocalQKRank2
 ):
     """Apply QKNorm after adding Rank2 LocalQK and before partial RoPE."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 9cbf6d6; UC1a ~0.631 steps/s (-2.2% vs Rank2); stopped 6,549.
     # dloss -.00111 vs Rank2 @6,400, decaying to zero; interaction vs MHA QKNorm +.02170.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2PreRoPEQKNorm'
@@ -2545,6 +2592,7 @@ class BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQK
 ):
     """QK72 with separate Q/K V32->8 adapters initialized identically."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # e7990ef; UC1a ~0.668 steps/s; stopped at 3,221. Loss was bit-identical to
     # Shared72: row-key and adapter gradients stayed exactly zero (dead V8 tail).
     model_name = 'BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit'
@@ -2571,6 +2619,7 @@ class BamLlama2MediumV2C256SeededPaired72(
     BamLlama2MediumV2C256FullMPostReadV8QK72PartialRoPESeparateQKPairedInit
 ):
     """Paired72 with an active V8 tail from identical nonzero Q/K row keys."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # 5f4e06d; UC1a ~0.663 steps/s; stopped at 3,550. Mean dloss -.0026 vs
     # Shared72, +.0003 vs Paired40, +.0015 vs V2 @2,600–3,400: activating the
     # V8 tail helps the dead-tail control but gives no independent QK72 gain.
@@ -3365,6 +3414,7 @@ class BamV2GScanLayerBatchedLocalQKReadEightLayerProfile(
     BamV2GScanLayerOptimizedEightLayerProfile
 ):
     """G C256 BAM S/U with Q/K batched as two parallel LocalQK reads."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 66c8173; v6e-1 XPlane 679.40 ms vs 672.17 ms baseline (+1.08%).
     # LocalQK contraction 7.06->11.62 ms; compile 30.71->32.80 s. Rejected.
     model_name = 'BamV2GScanLayerBatchedLocalQKReadEightLayerProfile'
@@ -3574,6 +3624,7 @@ class BamV2GScanLayerBatchedLocalQKReadFullLayerProfile(
     BamV2GScanLayerFullLayerProfile
 ):
     """Full-24 G C256 BAM S/U with batched Q/K LocalQK contractions."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     model_name = 'BamV2GScanLayerBatchedLocalQKReadFullLayerProfile'
     bam_batch_factorized_local_qk_read = True
 
@@ -4898,6 +4949,7 @@ class BamDirectPLocR256GeluBf16PackedSourceMulSixLayerProfile(
     BamDirectPLocR256GeluBf16PackedSixLayerProfile
 ):
     """Paired profile using multiply+reduce for AbsV source compression."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~1.383 vs 1.399 steps/s; XPlane 716.26 vs 708.95 ms (+1.03%, slower).
     model_name = 'BamDirectPLocR256GeluBf16PackedSourceMulSixLayerProfile'
     bam_abs_v_source_implementation = 'mul_reduce'
@@ -5229,6 +5281,7 @@ class BamNoMNormPreQKProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadFactorizedLocalQKNoMNormPreRopeQKNorm,
 ):
     """2x2 speed target: pre-RoPE LocalQK, combined QKNorm on."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 6c7c26c
     # ~0.385 steps/s; XPlane 2,588.6 ms; +18.70% vs Pre/no-QKNorm from lower attention-backward traffic.
     model_name = 'BamNoMNormPreQKProfile'
@@ -5245,6 +5298,7 @@ class BamNoMNormPostNoQKHlo(BamNoMNormPostNoQKProfile):
 
 class BamNoMNormPreNoQKHlo(BamNoMNormPreNoQKProfile):
     """Dump the optimized train-step HLO for the matched pre-RoPE control."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     model_name = 'BamNoMNormPreNoQKHlo'
     profiler = ''
     dump_hlo = True
@@ -5253,6 +5307,7 @@ class BamNoMNormPreNoQKHlo(BamNoMNormPreNoQKProfile):
 
 class BamNoMNormPreQKHlo(BamNoMNormPreQKProfile):
     """Dump the optimized train-step HLO for the anomalously fast 2x2 arm."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     model_name = 'BamNoMNormPreQKHlo'
     profiler = ''
     dump_hlo = True
@@ -5311,6 +5366,7 @@ class BamLlama2MediumDynamicPerHeadQKDirectReadProfile(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1DirectDiagonalOne,
 ):
     """Profile target: Dynamic PerHead QK with diag(alpha)=1 and no local_o branch."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: d9c65ef
     # ~0.289 steps/s; profiled through 167. XPlane device step 3.422 s.
     model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadProfile'
@@ -5322,6 +5378,7 @@ class BamLlama2MediumReadKernelLayoutProfile(
     BamLlama2MediumDynamicPerHeadQKDirectReadProfile
 ):
     """B: dot read with direct [b,t,n,d] output; no trailing transpose."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 07a4223
     # ~0.290 steps/s; stopped at 55. XPlane 3.412 s (-0.4% vs A).
     model_name = 'BamLlama2MediumReadKernelLayoutProfile'
@@ -5332,6 +5389,7 @@ class BamLlama2MediumReadKernelMulReduceProfile(
     BamLlama2MediumReadKernelLayoutProfile
 ):
     """C: broadcast multiply+reduce read with direct [b,t,n,d] output."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 07a4223
     # ~0.311 steps/s; stopped at 55. XPlane 3.192 s (-6.8% vs A).
     model_name = 'BamLlama2MediumReadKernelMulReduceProfile'
@@ -5342,6 +5400,7 @@ class BamLlama2MediumReadKernelSqueezedFetchProfile(
     BamLlama2MediumReadKernelLayoutProfile
 ):
     """E: direct-layout dot read with the sole full-fetch axis removed."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 07a4223
     # ~0.291 steps/s; stopped at 55. XPlane 3.407 s (no gain vs B).
     model_name = 'BamLlama2MediumReadKernelSqueezedFetchProfile'
@@ -5366,6 +5425,7 @@ class BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile(
     BamLlama2MediumDynamicPerHeadQKDirectReadProfile
 ):
     """Paired profile removing dynamic alpha mixing while retaining fetch and read."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: d9c65ef
     # ~0.287 steps/s; profiled through 89. XPlane 3.447 s; mix has ~0 marginal wall cost.
     model_name = 'BamLlama2MediumDynamicPerHeadQKDirectReadFixedAlphaProfile'
@@ -5377,6 +5437,7 @@ class BamLlama2MediumDynamicPerHeadQKOnlyProfile(
     BamLlama2MediumRmsGateOnly,
 ):
     """Paired profile retaining write and PerHead local-Q/K reads but no content read."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: d9c65ef
     # ~0.378 steps/s; profiled through 87. XPlane device step 2.613 s.
     model_name = 'BamLlama2MediumDynamicPerHeadQKOnlyProfile'
@@ -5389,6 +5450,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal(
     BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedRead
 ):
     """Combined shared read with the dynamic fetch-alpha diagonal retained."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # code_commit: 346bb35
     # ~0.319 steps/s; stopped at 6,407. dloss +0.0012 (+0.05%) vs Combined @6,400
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal'
@@ -5397,6 +5459,7 @@ class BamLlama2MediumRmsGateOnlyDynamicRmsMixFull1CombinedReadDiagonal(
 
 class BamLlama2MediumRmsGateOnlyFull3LocalO(BamLlama2MediumRmsGateOnly):
     """Three nonlocal full fetches plus local_o."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.257 steps/s; stopped at 1,678. dloss +0.0106 (+0.37%) vs RmsGateOnly @1,600
     model_name = 'BamLlama2MediumRmsGateOnlyFull3LocalO'
     bam_n_f = 3
@@ -5404,6 +5467,7 @@ class BamLlama2MediumRmsGateOnlyFull3LocalO(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyNoFullLocalO(BamLlama2MediumRmsGateOnly):
     """No full fetch; retain local_qk and local_o reads."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.383 steps/s; stopped at 6,050. dloss +0.0305 (+1.21%) vs RmsGateOnly @6,000; full fetch contributes materially.
     model_name = 'BamLlama2MediumRmsGateOnlyNoFullLocalO'
     bam_layer_modes = ['local_qk+local_o'] * 24
@@ -5411,6 +5475,7 @@ class BamLlama2MediumRmsGateOnlyNoFullLocalO(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyDiagnostics(BamLlama2MediumRmsGateOnly):
     """Inference-only raw capture for a RmsGateOnly checkpoint."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     bam_diagnostics = True
     tensorboard_dir = "/tmp/bamdiag_tb/"
     eval_shuffle_buffer_size = 32768
@@ -5418,6 +5483,7 @@ class BamLlama2MediumRmsGateOnlyDiagnostics(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyPerHeadLocalQK(BamLlama2MediumRmsGateOnly):
     """RmsGateOnly with independent runtime local-Q/K keys for every head."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.246 steps/s; stopped at 12,716. dloss -0.0080 (-0.34%) vs RmsGateOnly @12,600
     model_name = 'BamLlama2MediumRmsGateOnlyPerHeadLocalQK'
     bam_local_qk_key_mode = 'per_head'
@@ -5425,6 +5491,7 @@ class BamLlama2MediumRmsGateOnlyPerHeadLocalQK(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyNoGwDecay(BamLlama2MediumRmsGateOnly):
     """RmsGateOnly with all BAM gate biases exempted from weight decay."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.280 steps/s; stopped at 2,844.  dloss -0.0006 (-0.02%) vs RmsGateOnly @2,800
     model_name = 'BamLlama2MediumRmsGateOnlyNoGwDecay'
     wd_mults = [('.*scale$', 0.0), ('.*bias$', 0.0), ('.*_b0$', 0.0)]
@@ -5432,6 +5499,7 @@ class BamLlama2MediumRmsGateOnlyNoGwDecay(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyU2Bias(BamLlama2MediumRmsGateOnly):
     """B arm: u2 = P_loc(x) + a learned per-head bias."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.280 steps/s; stopped at 2,943. dloss -0.0011 (-0.04%) vs RmsGateOnly @2,800; learned bias is null.
     model_name = 'BamLlama2MediumRmsGateOnlyU2Bias'
     bam_write_v_mode = 'x_bias'
@@ -5439,6 +5507,7 @@ class BamLlama2MediumRmsGateOnlyU2Bias(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyU2Mix(BamLlama2MediumRmsGateOnly):
     """A-initialized learned mix: u2 = a_x P_loc(x) + a_o o_tail + b."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.280 steps/s; stopped at 2,933. dloss -0.0037 (-0.14%) vs RmsGateOnly @2,800; learned mix is negligible.
     model_name = 'BamLlama2MediumRmsGateOnlyU2Mix'
     bam_write_v_mode = 'mix'
@@ -5446,6 +5515,7 @@ class BamLlama2MediumRmsGateOnlyU2Mix(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumRmsGateOnlyDynamicForget(BamLlama2MediumRmsGateOnly):
     """Token-wise scalar forget gate on prior-depth M; initial retention is 0.99."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.293 steps/s; stopped at 2,867. dloss -0.0007 (-0.03%) vs RmsGateOnly @2,800; dynamic forgetting is null.
     model_name = 'BamLlama2MediumRmsGateOnlyDynamicForget'
     bam_forget_mode = 'dynamic'
@@ -5453,6 +5523,7 @@ class BamLlama2MediumRmsGateOnlyDynamicForget(BamLlama2MediumRmsGateOnly):
 
 class BamLlama2MediumV2RawNoLocalWrite(BamLlama2MediumV2Raw):
     """Write y_std plus cross-token BAM reads, excluding direct local_o writeback."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.294 steps/s; stopped at 2,885.  dloss +0.0331 (+1.18%) vs v1
     model_name = 'BamLlama2MediumV2RawNoLocalWrite'
     bam_write_source = 'std+cross'
@@ -5460,6 +5531,7 @@ class BamLlama2MediumV2RawNoLocalWrite(BamLlama2MediumV2Raw):
 
 class BamLlama2MediumV2RawNoLocalWriteFixedU(BamLlama2MediumV2RawNoLocalWrite):
     """No-local-write arm with the original fixed first-32-dimension U factor."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     # ~0.298 steps/s; stopped at 2,979.  dloss +0.0134 (+0.48%) vs v1
     model_name = 'BamLlama2MediumV2RawNoLocalWriteFixedU'
     bam_write_u_proj = False
@@ -5467,6 +5539,7 @@ class BamLlama2MediumV2RawNoLocalWriteFixedU(BamLlama2MediumV2RawNoLocalWrite):
 
 class BamLlama2MediumDiagnostics(BamLlama2Medium):
     """Inference-only raw capture; keep the training experiment unchanged."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     bam_diagnostics = True
     tensorboard_dir = "/tmp/bamdiag_tb/"
     # The validation set is ~20k sequences.  Shuffle before batching so a one-batch
@@ -5476,6 +5549,7 @@ class BamLlama2MediumDiagnostics(BamLlama2Medium):
 
 class BamLlama2MediumReadAblation(BamLlama2Medium):
     """Inference-only parameter ablation with no raw activation capture."""
+    # Ledger only: option retired by attention cleanup; restore recorded runtime to reproduce.
     tensorboard_dir = "/tmp/bam_ablation_tb/"
     eval_shuffle_buffer_size = 32768
 

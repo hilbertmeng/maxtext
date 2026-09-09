@@ -25,6 +25,7 @@ from typing import Any, Union
 import jax
 from jax.experimental.compilation_cache import compilation_cache
 from layers.attentions import AttentionType
+from bam_config import validate_bam_config
 import accelerator_to_spec_map
 import max_logging
 import max_utils
@@ -122,6 +123,7 @@ def validate_rope_type(rope_type: str) -> None:
 
 
 def validate_keys(keys):
+  validate_bam_config(keys)
   validate_attention_kernel(keys["attention"])
   validate_attention_type(keys["attention_type"])
   validate_profiler_type(keys["profiler"])

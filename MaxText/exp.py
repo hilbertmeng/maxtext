@@ -6750,6 +6750,7 @@ class BamMediumIndependentLLFGramBaseSixLayer(BamMediumIndependentLLFGramBase):
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6773,6 +6774,7 @@ class BamMediumIndependentLLFGramDotOutputSixLayer(BamMediumIndependentLLFGramDo
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6796,6 +6798,7 @@ class BamMediumIndependentLLFGramMulOutputSixLayer(BamMediumIndependentLLFGramMu
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6819,6 +6822,7 @@ class BamMediumIndependentLLFGramDotMixSixLayer(BamMediumIndependentLLFGramDotMi
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6842,6 +6846,7 @@ class BamMediumIndependentLLFGramMulMixSixLayer(BamMediumIndependentLLFGramMulMi
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6865,6 +6870,7 @@ class BamXLIndependentLLFGramBaseSixLayer(BamXLIndependentLLFGramBase):
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6888,6 +6894,7 @@ class BamXLIndependentLLFGramDotOutputSixLayer(BamXLIndependentLLFGramDotOutput)
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6911,6 +6918,7 @@ class BamXLIndependentLLFGramMulOutputSixLayer(BamXLIndependentLLFGramMulOutput)
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6934,6 +6942,7 @@ class BamXLIndependentLLFGramDotMixSixLayer(BamXLIndependentLLFGramDotMix):
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False
 
 
@@ -6957,4 +6966,5 @@ class BamXLIndependentLLFGramMulMixSixLayer(BamXLIndependentLLFGramMulMix):
     profiler = 'xplane'
     skip_first_n_steps_for_profiler = 10
     profiler_steps = 5
+    profile_periodically_period = 1000
     enable_checkpointing = False

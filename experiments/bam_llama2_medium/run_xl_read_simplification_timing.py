@@ -59,7 +59,7 @@ def main():
         deadline = time.monotonic() + 10800
         while not artifact:
             compiler_log = Path(spec['aot_log'])
-            matches = re.findall(r'AOT_READY artifact=(gs://\\S+)',
+            matches = re.findall(r'AOT_READY[^\n]*?\bartifact=(gs://\S+)',
                                  compiler_log.read_text() if compiler_log.exists() else '')
             if matches:
                 artifact = matches[-1]
@@ -91,7 +91,7 @@ def main():
                 text = ssh('tail -80 ' + shlex.quote(log)
                            + '; if pgrep -f ' + shlex.quote(pattern)
                            + ' >/dev/null; then echo PROCESS_ALIVE; fi')
-                if re.search(r'completed step: (\\d+),', text) and max(map(int, re.findall(r'completed step: (\\d+),', text))) >= final_step:
+                if re.search(r'completed step: (\d+),', text) and max(map(int, re.findall(r'completed step: (\d+),', text))) >= final_step:
                     break
                 if 'PROCESS_ALIVE' not in text:
                     raise RuntimeError('train process exited: ' + text[-4000:])

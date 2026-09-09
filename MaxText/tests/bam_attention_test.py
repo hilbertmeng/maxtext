@@ -36,6 +36,16 @@ from layers.attentions import (
 _RMS_EPSILON = normalizations.DEFAULT_RMS_EPSILON
 
 
+
+def _factorized_read_joined(*args, **kwargs):
+  """Exercise default side tuples while retaining joined reference assertions."""
+  result = factorized_head_bam_read(*args, **kwargs)
+  if kwargs.get('return_rank_gate', False) and kwargs.get('rank', 1) > 1:
+    sides, gate = result
+    return jnp.concatenate(sides, axis=-1), gate
+  return jnp.concatenate(result, axis=-1)
+
+
 class _DepthAmplitudeLayer(nn.Module):
 
   @nn.compact
@@ -610,7 +620,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
       M, x, key_kernel, mix_kernel, gates = values
       projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
       head_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
-      return factorized_head_bam_read(
+      return _factorized_read_joined(
           M, x, projection, head_projection, key_mode='rms_gate',
           key_scale=2.0, rms_epsilon=_RMS_EPSILON, key_gate_logits=gates,
           implementation=implementation)
@@ -672,7 +682,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
             'bte,ed->btd', z, key_kernel[:, i])
         mix_projection = lambda z, i=index: jnp.einsum(
             'bte,enr->btnr', z, mix_kernel[:, i])
-        outputs.append(factorized_head_bam_read(
+        outputs.append(_factorized_read_joined(
             M, x, projection, mix_projection, key_mode='rms_gate',
             key_scale=2.0, rms_epsilon=_RMS_EPSILON,
             key_gate_logits=gates[:, :, index],
@@ -703,18 +713,18 @@ class BamReadKeyTransformTest(absltest.TestCase):
     kwargs = dict(
         key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=gates, implementation='mul_reduce_btn')
-    baseline = factorized_head_bam_read(
+    baseline = _factorized_read_joined(
         M, x, projection, head_projection, **kwargs)
     identity_norm = lambda z: normalizations.rms_norm(
         z, dtype=z.dtype, epsilon=_RMS_EPSILON)
-    identity = factorized_head_bam_read(
+    identity = _factorized_read_joined(
         M, x, projection, head_projection, key_row_norm=identity_norm,
         key_col_norm=identity_norm, use_learned_key_norm=True, **kwargs)
     np.testing.assert_allclose(identity, baseline, rtol=1e-6, atol=1e-6)
 
     scaled_norm = lambda z: 1.5 * normalizations.rms_norm(
         z, dtype=z.dtype, epsilon=_RMS_EPSILON)
-    scaled = factorized_head_bam_read(
+    scaled = _factorized_read_joined(
         M, x, projection, head_projection, key_row_norm=scaled_norm,
         key_col_norm=scaled_norm, use_learned_key_norm=True, **kwargs)
     np.testing.assert_allclose(scaled, 1.5 * baseline, rtol=2e-5, atol=2e-5)
@@ -733,12 +743,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
     kwargs = dict(
         key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=gates, implementation='mul_reduce_btn')
-    full = factorized_head_bam_read(M, x, key_fn, mix_fn, **kwargs)
+    full = _factorized_read_joined(M, x, key_fn, mix_fn, **kwargs)
     expected_u, expected_v = jnp.split(full, [k], axis=-1)
     expected = jnp.concatenate((
         expected_u, jnp.einsum('btnv,vc->btnc', expected_v, projection)),
         axis=-1)
-    actual = factorized_head_bam_read(
+    actual = _factorized_read_joined(
         M, x, key_fn, mix_fn, v_projection=projection, **kwargs)
     np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
 
@@ -839,17 +849,17 @@ class BamReadKeyTransformTest(absltest.TestCase):
     key_projection = lambda z: jnp.einsum('bte,eD->btD', z, key_kernel)
     mix_projection = lambda z: jnp.einsum('bte,enr->btnr', z, mix_kernel)
     local_gates = gates[:, :, 0, 0]
-    both = factorized_head_bam_read(
+    both = _factorized_read_joined(
         local_M, x, key_projection, mix_projection, key_mode='rms_gate',
         key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=local_gates,
         implementation='mul_reduce_btn')
-    row = factorized_head_bam_read(
+    row = _factorized_read_joined(
         local_M, x, key_projection, mix_projection, key_mode='rms_gate',
         key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=local_gates,
         implementation='mul_reduce_btn', read_side='row')
-    col = factorized_head_bam_read(
+    col = _factorized_read_joined(
         local_M, x, key_projection, mix_projection, key_mode='rms_gate',
         key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=local_gates,
@@ -911,9 +921,9 @@ class BamReadKeyTransformTest(absltest.TestCase):
         key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=gate_logits)
 
-    actual = factorized_head_bam_read(
+    actual = _factorized_read_joined(
         M, x, projection, head_projection, **kwargs)
-    actual_mul = factorized_head_bam_read(
+    actual_mul = _factorized_read_joined(
         M, x, projection, head_projection, **kwargs,
         implementation='mul_reduce_btn')
     raw_row, raw_col = jnp.split(projection(x), [k], axis=-1)
@@ -957,10 +967,10 @@ class BamReadKeyTransformTest(absltest.TestCase):
         key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
         key_gate_logits=gate_logits, implementation='mul_reduce_btn', rank=rank)
 
-    dot = factorized_head_bam_read(
+    dot = _factorized_read_joined(
         M, x, projection, head_projection,
         second_implementation='dot', **kwargs)
-    mul = factorized_head_bam_read(
+    mul = _factorized_read_joined(
         M, x, projection, head_projection,
         second_implementation='mul_reduce', **kwargs)
     np.testing.assert_allclose(dot, mul, rtol=2e-5, atol=2e-5)
@@ -970,7 +980,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
 
     def output(values, second_implementation):
       matrix, hidden, key_w, mix_w, gate_w, gate_b = values
-      return factorized_head_bam_read(
+      return _factorized_read_joined(
           matrix, hidden,
           lambda z: jnp.einsum('bte,erd->btrd', z, key_w),
           lambda z: jnp.einsum('bte,ensr->btnsr', z, mix_w),
@@ -1005,10 +1015,10 @@ class BamReadKeyTransformTest(absltest.TestCase):
         key_gate_logits=gate_logits, implementation='mul_reduce_btn', rank=rank,
         rank_routing='shared_rank_gate', return_rank_gate=True)
 
-    dot, dot_gate = factorized_head_bam_read(
+    dot, dot_gate = _factorized_read_joined(
         M, x, projection, head_projection,
         second_implementation='dot', **kwargs)
-    mul, mul_gate = factorized_head_bam_read(
+    mul, mul_gate = _factorized_read_joined(
         M, x, projection, head_projection,
         second_implementation='mul_reduce', **kwargs)
     np.testing.assert_allclose(dot, mul, rtol=2e-5, atol=2e-5)
@@ -1019,7 +1029,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_allclose(dot_gate, expected_gate, rtol=1e-6, atol=1e-6)
 
     amplitude = jnp.asarray((0.25, 0.75))
-    scaled, _ = factorized_head_bam_read(
+    scaled, _ = _factorized_read_joined(
         M, x, projection, head_projection,
         second_implementation='mul_reduce', side_amplitude=amplitude,
         **kwargs)
@@ -1045,10 +1055,10 @@ class BamReadKeyTransformTest(absltest.TestCase):
         rank_routing='head_rank_gate', head_rank_gate_bias=bias,
         return_rank_gate=True)
 
-    dot, dot_gate = factorized_head_bam_read(
+    dot, dot_gate = _factorized_read_joined(
         M, x, projection, head_projection,
         second_implementation='dot', **kwargs)
-    mul, mul_gate = factorized_head_bam_read(
+    mul, mul_gate = _factorized_read_joined(
         M, x, projection, head_projection,
         second_implementation='mul_reduce', **kwargs)
     expected_gate = jax.nn.sigmoid(
@@ -1069,7 +1079,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
 
     def objective(key_kernel):
       projection = lambda z: jnp.einsum('bte,ed->btd', z, key_kernel)
-      y = factorized_head_bam_read(
+      y = _factorized_read_joined(
           M, x, projection, head_projection, key_mode='rms_gate',
           key_scale=2.0, rms_epsilon=_RMS_EPSILON,
           key_gate_logits=gate_logits)

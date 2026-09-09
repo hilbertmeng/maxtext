@@ -163,10 +163,29 @@ class LocalFetchTest(absltest.TestCase):
       return jnp.pad(jnp.concatenate((jnp.einsum('btkv,btnv->btnk', m, c),
                                      jnp.einsum('btkv,btnk->btnv', m, r)), -1),
                      [(0, 0)] * 3 + [(0, 24)])
-    cfg = SimpleNamespace(bam_k=32, bam_v=32, _abs_v_dim=8, _read_key_scale=2.)
+    cfg = SimpleNamespace(bam_k=32, bam_v=32, _abs_v_dim=8, _read_key_scale=2.,
+                          _abs_k_dim=None, _abs_v_row_output='direct',
+                          num_query_heads=2, head_dim=64)
+    cfg._expand_full_read = lambda sides: BamAttention._expand_full_read.__wrapped__(cfg, sides)
     # Invoke the pure arithmetic with an attribute-only receiver.
-    got = BamAttention._gate_local_output.__wrapped__(cfg, read('rms'), logits)
+    ungated = read('rms')
+    sides = (ungated[..., :32], ungated[..., 32:40])
+    got = BamAttention._gate_local_output.__wrapped__(cfg, sides, logits)
     np.testing.assert_allclose(got, read('rms_gate'), rtol=2e-5, atol=2e-5)
+    def old_gate(col, row, gate_logits):
+      expanded = cfg._expand_full_read((col, row))
+      u, v, tail = jnp.split(expanded, [32, 40], axis=-1)
+      gates = 2. * jax.nn.sigmoid(gate_logits)
+      return jnp.concatenate((u * gates[..., 1:2], v * gates[..., :1], tail), -1)
+    def new_gate(col, row, gate_logits):
+      return BamAttention._gate_local_output.__wrapped__(cfg, (col, row), gate_logits)
+    for dtype in (jnp.float32, jnp.bfloat16):
+      args = tuple(x.astype(dtype) for x in (*sides, logits))
+      np.testing.assert_array_equal(new_gate(*args), old_gate(*args))
+      old_grad = jax.grad(lambda *a: old_gate(*a).astype(jnp.float32).sum(), (0, 1, 2))(*args)
+      new_grad = jax.grad(lambda *a: new_gate(*a).astype(jnp.float32).sum(), (0, 1, 2))(*args)
+      for old, new in zip(old_grad, new_grad):
+        np.testing.assert_array_equal(old, new)
 
   def test_llf_native_diagonal_changes_only_fetch_override(self):
     import exp

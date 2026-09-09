@@ -7,6 +7,26 @@ from layers.attentions import _effective_key_bam_read
 
 
 class GramReadTest(absltest.TestCase):
+  def test_bf16_variants(self):
+    for rank in (1, 2, 4):
+      keys = jax.random.split(jax.random.key(80 + rank), 4)
+      args = tuple(jax.random.normal(k, shape).astype(jnp.bfloat16)
+                   for k, shape in zip(keys, ((1, 4, 64, 32), (1, 4, rank, 96),
+                                             (1, 4, 16, 2, rank), (1, 4, 16, 2))))
+      def run(args, gram, placement):
+        return _effective_key_bam_read(
+            *args, rms_epsilon=1e-4, key_scale=2., implementation='mul_reduce_btn',
+            second_implementation='mul_reduce', gram_implementation=gram,
+            scale_placement=placement, read_side='both', v_projection=None,
+            return_sides=False)
+      ref = run(tuple(x.astype(jnp.float32) for x in args), 'dot', 'output')
+      for gram in ('dot', 'mul_reduce'):
+        for placement in ('output', 'mix'):
+          out = run(args, gram, placement).astype(jnp.float32)
+          rel = float(jnp.linalg.norm(out - ref) / jnp.linalg.norm(ref))
+          print(f'bf16 rank={rank} gram={gram} scale={placement} relative_L2={rel:.6g}', flush=True)
+          self.assertLess(rel, .02)
+
   def test_packed_qkv_module(self):
     from bam_local_fetch_test import LocalFetchTest
     import max_utils

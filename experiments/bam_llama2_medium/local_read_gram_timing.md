@@ -51,4 +51,24 @@ CPU: pinned environment via diagnostics skill; additional test:
 `JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= PYTHONPATH=MaxText:MaxText/tests /data0/xd/conda/envs/maxtext-cpu/bin/python MaxText/tests/bam_gram_read_test.py`.
 TPU runner: `.claude/skills/tpu-diagnostics/scripts/run_profile_matrix.sh`.
 AOT orchestration: tpu-ag `prepare_train_aot.py`.
-Results, exact runtime hashes, resource names and GCS/local artifacts pending.
+Screen runtime: `3b94075d9f9a10cc49155e0205d23abd4e5af276`.
+Runner with zone-local data: `run_gram_profile_matrix.sh` at `85f8b0c`.
+Owned initial resources: `xd-v6e-gram-medium`, `xd-v6e-gram-xl`, both EW4a.
+Orchestrators: tpu-ag tmux `gram-medium` / `gram-xl`, logs `logs/gram-*-screen.log`.
+Artifacts: matrix collector uploads directly to GCS under
+`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/3b94075/Gram{Medium,XL}/`.
+Timing results pending; no target v5p requested before AOT readiness.
+
+## Validation and workflow observations
+
+- Existing BAM tests: 47 passed (170.325s).
+- Explicit effective-key forward/VJP test: 24 rank/backend/placement combinations
+  passed (45.184s), including finite gradients at zero keys.
+- Packed Q/K/V module initialization and gradient: passed (61.694s).
+- Initial acquisition was blocked before queue submission by the hub's 10GiB disk
+  preflight. Cause: obsolete Aug31 `lsp/create_tpu.py` process PID2922649 kept polling
+  a nonexistent `xd-v6e-1-wrgrad-uc`, repeatedly logging its entire status history.
+  Node and queue were both NOT_FOUND. Stopped only that verified orphan, gzip-preserved
+  its 7.4GB log as `/tmp/xd-v6e-1-wrgrad-uc.log.gz` (~52MiB); free disk recovered to17GiB.
+  The current standalone creator already exits on node+queue disappearance and logs
+  bounded state transitions. Its protection threshold was retained.

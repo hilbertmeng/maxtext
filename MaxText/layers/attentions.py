@@ -2285,60 +2285,65 @@ def factorized_head_bam_read(
       key_row_activation=key_row_activation,
       key_col_activation=key_col_activation)
 
-  if rank > 1:
-    if r_row.shape[-2:] != (rank, M.shape[-2]):
-      raise ValueError(
-          f'factorized row bases must end in [{rank},{M.shape[-2]}], got {r_row.shape}')
-    if r_col.shape[-2:] != (rank, M.shape[-1]):
-      raise ValueError(
-          f'factorized column bases must end in [{rank},{M.shape[-1]}], got {r_col.shape}')
+  if rank == 1:
+    # Preserve the projection/norm parameter tree; canonicalize only activations.
+    r_row = r_row[..., None, :]
+    r_col = r_col[..., None, :]
+  if r_row.shape[-2:] != (rank, M.shape[-2]):
+    raise ValueError(
+        f'factorized row bases must end in [{rank},{M.shape[-2]}], got {r_row.shape}')
+  if r_col.shape[-2:] != (rank, M.shape[-1]):
+    raise ValueError(
+        f'factorized column bases must end in [{rank},{M.shape[-1]}], got {r_col.shape}')
 
-    with jax.named_scope("bam/read_m_contract"):
-      y_u_basis = y_v_basis = None
-      if implementation == 'dot_btn':
-        if read_side in ('both', 'col'):
-          y_u_basis = jnp.einsum('btkv,btrv->btrk', M, r_col)
-        if read_side in ('both', 'row'):
-          y_v_basis = jnp.einsum('btkv,btrk->btrv', M, r_row)
-      elif implementation == 'mul_reduce_btn':
-        if read_side in ('both', 'col'):
-          y_u_basis = jnp.sum(
-              M[:, :, None] * r_col[..., None, :], axis=-1)
-        if read_side in ('both', 'row'):
-          y_v_basis = jnp.sum(
-              M[:, :, None] * r_row[..., :, None], axis=-2)
-      else:
-        raise ValueError(f'Unknown BAM read implementation: {implementation}')
-    y_v_basis = project_v(y_v_basis)
+  with jax.named_scope("bam/read_m_contract"):
+    y_u_basis, y_v_basis = _contract_bam_read_sides(
+        M, M, r_row, r_col, per_head=True,
+        implementation=implementation, read_side=read_side)
+    # Keep omitted sides absent until final output packing.
+    if read_side == 'row':
+      y_u_basis = None
+    elif read_side == 'col':
+      y_v_basis = None
+  y_v_basis = project_v(y_v_basis)
 
-    with jax.named_scope("bam/read_head_mix_projection"):
-      raw_head_mix = W_head_mix(x)
-    with jax.named_scope("bam/read_head_mix_transform"):
-      if raw_head_mix.ndim != 5 or raw_head_mix.shape[-2:] != (2, rank):
+  with jax.named_scope("bam/read_head_mix_projection"):
+    raw_head_mix = W_head_mix(x)
+    if rank == 1:
+      raw_head_mix = raw_head_mix[..., None]
+  with jax.named_scope("bam/read_head_mix_transform"):
+    if raw_head_mix.ndim != 5 or raw_head_mix.shape[-2:] != (2, rank):
+      raise ValueError(
+          f'rank-r factorized head mix expects [b,t,n,2,{rank}], '
+          f'got {raw_head_mix.shape}')
+    output_dtype = (
+        y_u_basis.dtype if y_u_basis is not None else y_v_basis.dtype)
+    if rank_routing == 'head_rank_gate':
+      if head_rank_gate_bias is None or head_rank_gate_bias.shape != (2,):
         raise ValueError(
-            f'rank-r factorized head mix expects [b,t,n,2,{rank}], '
-            f'got {raw_head_mix.shape}')
-      output_dtype = (
-          y_u_basis.dtype if y_u_basis is not None else y_v_basis.dtype)
-      if rank_routing == 'head_rank_gate':
-        if head_rank_gate_bias is None or head_rank_gate_bias.shape != (2,):
-          raise ValueError(
-              f'head-rank gate bias expects [2], got '
-              f'{None if head_rank_gate_bias is None else head_rank_gate_bias.shape}')
-        rank_gate = jax.nn.sigmoid(
-            raw_head_mix.astype(jnp.float32)
-            + jnp.asarray(head_rank_gate_bias, jnp.float32)[None, None, None, :, None]
-        ).astype(output_dtype)
-        row_mix, col_mix = rank_gate[..., 0, :], rank_gate[..., 1, :]
-      else:
-        mix_axis = (-3, -1) if rank_routing == 'legacy' else -3
-        head_mix = normalizations.rms_norm(
-            raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon,
-            axis=mix_axis)
-        if rank_routing == 'legacy':
-          head_mix = head_mix / jnp.sqrt(jnp.asarray(rank, output_dtype))
-        row_mix, col_mix = head_mix[..., 0, :], head_mix[..., 1, :]
+            f'head-rank gate bias expects [2], got '
+            f'{None if head_rank_gate_bias is None else head_rank_gate_bias.shape}')
+      rank_gate = jax.nn.sigmoid(
+          raw_head_mix.astype(jnp.float32)
+          + jnp.asarray(head_rank_gate_bias, jnp.float32)[None, None, None, :, None]
+      ).astype(output_dtype)
+      row_mix, col_mix = rank_gate[..., 0, :], rank_gate[..., 1, :]
+    else:
+      raw_row_mix = raw_head_mix[..., 0, :]
+      raw_col_mix = raw_head_mix[..., 1, :]
+      mix_axis = (-2, -1) if rank_routing == 'legacy' else -2
+      row_mix = normalizations.rms_norm(
+          raw_row_mix, dtype=output_dtype, epsilon=rms_epsilon,
+          axis=mix_axis)
+      col_mix = normalizations.rms_norm(
+          raw_col_mix, dtype=output_dtype, epsilon=rms_epsilon,
+          axis=mix_axis)
+      if rank_routing == 'legacy':
+        rank_scale = jnp.sqrt(jnp.asarray(rank, output_dtype))
+        row_mix = row_mix / rank_scale
+        col_mix = col_mix / rank_scale
 
+      if return_rank_gate and rank > 1:
         if rank_routing == 'shared_rank_gate':
           shared_gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
           rank_gate = jnp.swapaxes(shared_gate, -1, -2)[..., None, :, :]
@@ -2348,68 +2353,29 @@ def factorized_head_bam_read(
           rank_gate = shared_gate[..., None, :, None]
           rank_gate = jnp.broadcast_to(rank_gate, raw_head_mix.shape)
 
-    def expand(basis_read, mix):
-      if basis_read is None:
-        return None
-      if second_implementation == 'dot':
-        return jnp.einsum('btrd,btnr->btnd', basis_read, mix)
-      return jnp.sum(
-          basis_read[:, :, None] * mix[..., None], axis=-2)
+  def expand(basis_read, mix):
+    if basis_read is None:
+      return None
+    if second_implementation == 'dot':
+      return jnp.einsum('btrd,btnr->btnd', basis_read, mix)
+    return jnp.sum(
+        basis_read[:, :, None] * mix[..., None], axis=-2)
 
-    with jax.named_scope("bam/read_head_mix_expand"):
-      y_u = expand(y_u_basis, col_mix)
-      y_v = expand(y_v_basis, row_mix)
-      if y_u is None:
-        y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
-      if y_v is None:
-        y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
-      if side_amplitude is not None:
-        row_amplitude, col_amplitude = jnp.asarray(
-            side_amplitude, y_u.dtype)
-        y_u = y_u * col_amplitude
-        y_v = y_v * row_amplitude
-      read = jnp.concatenate([y_u, y_v], axis=-1)
-      return (read, rank_gate) if return_rank_gate else read
-
-  with jax.named_scope("bam/read_m_contract"):
-    y_u = y_v = None
-    if implementation == 'dot_btn':
-      if read_side in ('both', 'col'):
-        y_u = jnp.einsum('btkv,btv->btk', M, r_col)
-      if read_side in ('both', 'row'):
-        y_v = jnp.einsum('btkv,btk->btv', M, r_row)
-    elif implementation == 'mul_reduce_btn':  # V1 default
-      if read_side in ('both', 'col'):
-        y_u = jnp.sum(M * r_col[..., None, :], axis=-1)
-      if read_side in ('both', 'row'):
-        y_v = jnp.sum(M * r_row[..., :, None], axis=-2)
-    else:
-      raise ValueError(f'Unknown BAM read implementation: {implementation}')
-  y_v = project_v(y_v)
-  with jax.named_scope("bam/read_head_mix_projection"):
-    raw_head_mix = W_head_mix(x)
-  with jax.named_scope("bam/read_head_mix_transform"):
-    if raw_head_mix.ndim != 4 or raw_head_mix.shape[-1] != 2:
-      raise ValueError(
-          f'factorized head mix expects [b,t,n,2], got {raw_head_mix.shape}')
-    output_dtype = y_u.dtype if y_u is not None else y_v.dtype
-    head_mix = normalizations.rms_norm(
-        raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon, axis=-2)
-    row_mix, col_mix = head_mix[..., 0], head_mix[..., 1]
   with jax.named_scope("bam/read_head_mix_expand"):
-    y_u = (jnp.einsum('btk,btn->btnk', y_u, col_mix)
-           if y_u is not None else None)
-    y_v = (jnp.einsum('btv,btn->btnv', y_v, row_mix)
-           if y_v is not None else None)
+    y_u = expand(y_u_basis, col_mix)
+    y_v = expand(y_v_basis, row_mix)
     if y_u is None:
       y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
       y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
     if side_amplitude is not None:
-      row_amplitude, col_amplitude = jnp.asarray(side_amplitude, y_u.dtype)
+      row_amplitude, col_amplitude = jnp.asarray(
+          side_amplitude, y_u.dtype)
       y_u = y_u * col_amplitude
       y_v = y_v * row_amplitude
-    return jnp.concatenate([y_u, y_v], axis=-1)
+    read = jnp.concatenate([y_u, y_v], axis=-1)
+    return (read, rank_gate) if return_rank_gate and rank > 1 else read
+
 
 
 def _packed_factorized_local_qk_init(

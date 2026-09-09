@@ -6727,3 +6727,234 @@ class BamLlama2MediumV2C256StaticClippedAlphaMix(BamLlama2MediumV2C256ScanAotCon
     model_name = 'BamLlama2MediumV2C256StaticClippedAlphaMix'
     bam_shared_fetch_mode = 'static_clipped_mix'
     bam_record_fetch_route_metrics = True
+
+
+# Scheme C timing family: isolated codex/local-read-gram; all local Q/K/V arms.
+class BamMediumIndependentLLFGramBase(BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan):
+    model_name = 'BamMediumIndependentLLFGramBase'
+    scan_layers = True
+    record_training_health_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamMediumIndependentLLFGramBaseSixLayer(BamMediumIndependentLLFGramBase):
+    model_name = 'BamMediumIndependentLLFGramBaseSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamMediumIndependentLLFGramDotOutput(BamMediumIndependentLLFGramBase):
+    model_name = 'BamMediumIndependentLLFGramDotOutput'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'dot'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamMediumIndependentLLFGramDotOutputSixLayer(BamMediumIndependentLLFGramDotOutput):
+    model_name = 'BamMediumIndependentLLFGramDotOutputSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamMediumIndependentLLFGramMulOutput(BamMediumIndependentLLFGramBase):
+    model_name = 'BamMediumIndependentLLFGramMulOutput'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamMediumIndependentLLFGramMulOutputSixLayer(BamMediumIndependentLLFGramMulOutput):
+    model_name = 'BamMediumIndependentLLFGramMulOutputSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamMediumIndependentLLFGramDotMix(BamMediumIndependentLLFGramBase):
+    model_name = 'BamMediumIndependentLLFGramDotMix'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'dot'
+    bam_local_gram_scale_placement = 'mix'
+
+
+class BamMediumIndependentLLFGramDotMixSixLayer(BamMediumIndependentLLFGramDotMix):
+    model_name = 'BamMediumIndependentLLFGramDotMixSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamMediumIndependentLLFGramMulMix(BamMediumIndependentLLFGramBase):
+    model_name = 'BamMediumIndependentLLFGramMulMix'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'mix'
+
+
+class BamMediumIndependentLLFGramMulMixSixLayer(BamMediumIndependentLLFGramMulMix):
+    model_name = 'BamMediumIndependentLLFGramMulMixSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF):
+    model_name = 'BamXLIndependentLLFGramBase'
+    scan_layers = True
+    record_training_health_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamXLIndependentLLFGramBaseSixLayer(BamXLIndependentLLFGramBase):
+    model_name = 'BamXLIndependentLLFGramBaseSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamXLIndependentLLFGramDotOutput(BamXLIndependentLLFGramBase):
+    model_name = 'BamXLIndependentLLFGramDotOutput'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'dot'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamXLIndependentLLFGramDotOutputSixLayer(BamXLIndependentLLFGramDotOutput):
+    model_name = 'BamXLIndependentLLFGramDotOutputSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamXLIndependentLLFGramMulOutput(BamXLIndependentLLFGramBase):
+    model_name = 'BamXLIndependentLLFGramMulOutput'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamXLIndependentLLFGramMulOutputSixLayer(BamXLIndependentLLFGramMulOutput):
+    model_name = 'BamXLIndependentLLFGramMulOutputSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamXLIndependentLLFGramDotMix(BamXLIndependentLLFGramBase):
+    model_name = 'BamXLIndependentLLFGramDotMix'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'dot'
+    bam_local_gram_scale_placement = 'mix'
+
+
+class BamXLIndependentLLFGramDotMixSixLayer(BamXLIndependentLLFGramDotMix):
+    model_name = 'BamXLIndependentLLFGramDotMixSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False
+
+
+class BamXLIndependentLLFGramMulMix(BamXLIndependentLLFGramBase):
+    model_name = 'BamXLIndependentLLFGramMulMix'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'mix'
+
+
+class BamXLIndependentLLFGramMulMixSixLayer(BamXLIndependentLLFGramMulMix):
+    model_name = 'BamXLIndependentLLFGramMulMixSixLayer'
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 2.0
+    ici_data_parallelism = 1
+    ici_fsdp_parallelism = 1
+    ici_tensor_parallelism = 1
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    enable_checkpointing = False

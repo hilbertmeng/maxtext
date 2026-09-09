@@ -1883,6 +1883,16 @@ def _depth_scaled_bam_read_amplitude(
   return amplitude
 
 
+def _add_bam_read_key_bias(projected_key, row_width, row_bias=None, col_bias=None):
+  """Add independently parameterized row/column offsets before key transforms."""
+  raw_row, raw_col = jnp.split(projected_key, [row_width], axis=-1)
+  if row_bias is not None:
+    raw_row = raw_row + jnp.asarray(row_bias, raw_row.dtype)
+  if col_bias is not None:
+    raw_col = raw_col + jnp.asarray(col_bias, raw_col.dtype)
+  return jnp.concatenate((raw_row, raw_col), axis=-1)
+
+
 def _project_bam_read_keys(
     row_width, x, W_R, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
@@ -2321,19 +2331,13 @@ def factorized_head_bam_read(
         ).astype(output_dtype)
         row_mix, col_mix = rank_gate[..., 0, :], rank_gate[..., 1, :]
       else:
-        raw_row_mix = raw_head_mix[..., 0, :]
-        raw_col_mix = raw_head_mix[..., 1, :]
-        mix_axis = (-2, -1) if rank_routing == 'legacy' else -2
-        row_mix = normalizations.rms_norm(
-            raw_row_mix, dtype=output_dtype, epsilon=rms_epsilon,
-            axis=mix_axis)
-        col_mix = normalizations.rms_norm(
-            raw_col_mix, dtype=output_dtype, epsilon=rms_epsilon,
+        mix_axis = (-3, -1) if rank_routing == 'legacy' else -3
+        head_mix = normalizations.rms_norm(
+            raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon,
             axis=mix_axis)
         if rank_routing == 'legacy':
-          rank_scale = jnp.sqrt(jnp.asarray(rank, output_dtype))
-          row_mix = row_mix / rank_scale
-          col_mix = col_mix / rank_scale
+          head_mix = head_mix / jnp.sqrt(jnp.asarray(rank, output_dtype))
+        row_mix, col_mix = head_mix[..., 0, :], head_mix[..., 1, :]
 
         if rank_routing == 'shared_rank_gate':
           shared_gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
@@ -3873,7 +3877,11 @@ class BamAttention(Attention):
             'intermediates', 'fetched_read_pre_gate_effective_rms',
             m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
       def full_read_projection(x):
-        return jnp.squeeze(self.W_R(x), axis=-2)
+        projected_key = _add_bam_read_key_bias(
+            self.W_R(x), self._abs_k_dim or self.bam_k,
+            getattr(self, 'W_R_row_pre_rms_bias', None),
+            getattr(self, 'W_R_col_pre_rms_bias', None))
+        return jnp.squeeze(projected_key, axis=-2)
       full_read = bam_read(
           Mbar, inputs_q, full_read_projection, None,
           **full_read_kwargs,

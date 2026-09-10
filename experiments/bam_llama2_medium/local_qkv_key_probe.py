@@ -143,13 +143,17 @@ def stats(raw, mask):
             cos = np.where(valid_pair, cos, np.nan)
             singular = np.linalg.svd(u, compute_uv=False)**2
             retained = np.cumsum(singular, -1) / np.maximum(singular.sum(-1, keepdims=True), 1e-30)
+            actual_singular = np.linalg.svd(x, compute_uv=False)**2
+            actual_retained = np.cumsum(actual_singular, -1) / np.maximum(actual_singular.sum(-1, keepdims=True), 1e-30)
             records.append((np.nanmean(cos, 0), np.nanmean(abs(cos), 0),
                             np.nanmean(cos**2, 0), np.mean(valid_pair, 0), retained.mean(0),
                             np.nanquantile(cos, [.05,.25,.5,.75,.95], axis=0),
                             np.nanmean(np.where(valid_pair, cos < -.8, np.nan), 0),
-                            np.nanmean(np.where(valid_pair, cos > .8, np.nan), 0)))
+                            np.nanmean(np.where(valid_pair, cos > .8, np.nan), 0),
+                            actual_retained.mean(0), np.mean(np.linalg.norm(x, axis=-1), 0)))
           for index, name in enumerate(('cos', 'abs_cos', 'cos2', 'valid_fraction', 'rank_energy',
-                                        'cos_quantiles', 'cos_lt_neg08', 'cos_gt_pos08')):
+                                        'cos_quantiles', 'cos_lt_neg08', 'cos_gt_pos08',
+                                        'amplitude_weighted_rank_energy', 'basis_norm')):
             out[f'{prefix}_{stage}_{"centered" if centered else "uncentered"}_{name}'] = np.stack([r[index] for r in records])
       # Direction recovery in another arm's per-token span. Pseudoinverse handles
       # repeated/zero bases; orthogonal coefficients need not equal trained mix.

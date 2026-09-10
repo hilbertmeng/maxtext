@@ -110,5 +110,7 @@ No mix bias is added. Direct compare_runs contains only RoutingLegacy.
 Runtime prepared at `982b7bf`, block-scan/AOT, 13,500 steps, checkpoint every200,
 health sow disabled as in its baseline. Formal TPU preference UE5a, requested
 only after v6e AOT verification. Pre-run bet: roughly 1–3% slower, final gap
-plausibly −.004 to +.003; historical Paired40 Rank2 gains are not assumed to
-transfer to this independent-LLF context. Pinned CPU suite: 46/46 passed.
+initially given as −.004 to +.003; user correctly rejected this as an evasive
+cross-zero bet. Revised pre-run point bet: final gap −.002 and throughput −2%.
+Historical Paired40 Rank2 gains are not assumed to transfer directly to this
+independent-LLF context. Pinned CPU suite: 46/46 passed.

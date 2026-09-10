@@ -7091,6 +7091,7 @@ class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentL
 
 class BamMediumIndependentLLFLocalVRank4RoutingA(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
     """Only LocalV rank4 uses head_gate_n; Q/K remain rank1 legacy."""
+    # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6890 steps/s (10–14), -.43% vs LocalVRank4 .6920.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.003; throughput about -.5%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingA'
@@ -7101,6 +7102,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingA(BamMediumIndependentLLFRoutingL
 
 class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRank4RoutingA):
     """Only LocalV rank4 uses head_gate_r; Q/K remain rank1 legacy."""
+    # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6848 steps/s (10–14), -1.04% vs LocalVRank4 .6920.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.005; throughput about -.5%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingB'
@@ -7109,6 +7111,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRa
 
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
     """Only LocalV rank4 uses effective_key, with fp32 Gram/norm2 statistics."""
+    # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6880 steps/s (10–14), -.58% vs LocalVRank4 .6920.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.001; throughput about -1%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32'

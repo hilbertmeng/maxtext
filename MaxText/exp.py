@@ -7112,7 +7112,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRa
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.005; throughput about -.5%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingB'
-    compare_runs = ['BamMediumIndependentLLFRoutingLegacyLocalVRank4']
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    # Ongoing comparison: combined V rank2→4 + head_gate_r effect; throughput -2.00% vs Legacy .6988.
     bam_local_v_rank_routing = 'head_gate_r'
 
 

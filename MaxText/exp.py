@@ -7086,3 +7086,31 @@ class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentL
     model_name = 'BamMediumIndependentLLFRoutingLegacySoftplusReadGate'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_read_gate_activation = 'softplus'
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingA(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
+    """Only LocalV rank4 uses head_gate_n; Q/K remain rank1 legacy."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
+    # Prerun prediction vs LocalVRank4: final gap +.003; throughput about -.5%.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingA'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacyLocalVRank4']
+    bam_local_v_rank_routing = 'head_gate_n'
+    bam_local_v_key_scale = 2.0 / (4.0 ** 0.5)
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRank4RoutingA):
+    """Only LocalV rank4 uses head_gate_r; Q/K remain rank1 legacy."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
+    # Prerun prediction vs LocalVRank4: final gap +.005; throughput about -.5%.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingB'
+    bam_local_v_rank_routing = 'head_gate_r'
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
+    """Only LocalV rank4 uses effective_key, with fp32 Gram/norm2 statistics."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
+    # Prerun prediction vs LocalVRank4: final gap +.001; throughput about -1%.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacyLocalVRank4']
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_statistics_dtype = 'float32'

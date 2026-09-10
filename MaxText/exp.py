@@ -7133,6 +7133,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 
 class BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """LocalV reads LocalO's compressed M: rank4 row, independent 16-head column."""
+    # code_commit: 6681709; UE5a v5p-16 block-scan/AOT, .6962 steps/s @10–14.
+    # Throughput +.46% vs AlignedRow .6930 (+1% predicted), +1.66% vs B .6848.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs AlignedRow: final gap -.0015; throughput +1%. Row change is algebraically equivalent.
     # Removes column rank→head mixing and row post-read projection; Q/K and all F layers unchanged.

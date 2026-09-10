@@ -7171,5 +7171,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRout
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     # Ongoing comparison switched to B after the old Rank4 control stopped; throughput +.47% vs B.
+    # Completed13500, final checkpoint committed; UE5a, zero preemptions.
+    # vs B: early +.0548 rapidly shrank; late oscillation around zero with small average benefit
+    # (12200–13400 mean -.00021; final13400 +.00017), not a steadily widening gain.
     bam_local_v_rank_routing = 'effective_key'
     bam_local_gram_statistics_dtype = 'float32'

@@ -3212,6 +3212,11 @@ class BamAttention(Attention):
     gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
     gate = gate + jnp.asarray(gate_bias, gate.dtype)
     q_projection, k_projection = self._local_qk_post_read_v_projections()
+    v_projection = None
+    if name == 'v' and getattr(self.config, 'bam_local_v_share_output_coordinates', False):
+      assert self._local_o and self._abs_v_dim is not None
+      assert self._abs_v_row_output == 'direct'
+      v_projection = self.abs_v_cache_projection
     read_kwargs = self._read_key_kwargs_from_logits(arm.prefix, gate)
     read_kwargs['key_scale'] = self._local_key_scales[name]
     result = factorized_head_bam_read(
@@ -3219,7 +3224,7 @@ class BamAttention(Attention):
         **read_kwargs,
         implementation=self._read_implementation, read_side=arm.read_side,
         rank=arm.rank, second_implementation=self._local_second_implementation,
-        v_projection={'q': q_projection, 'k': k_projection}.get(name),
+        v_projection={'q': q_projection, 'k': k_projection, 'v': v_projection}.get(name),
         rank_routing=arm.rank_routing,
         gram_implementation=getattr(self.config, 'bam_local_gram_implementation', 'mul_reduce'),
         gram_statistics_dtype=self._local_gram_statistics_dtype,

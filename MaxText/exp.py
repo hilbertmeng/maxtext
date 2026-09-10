@@ -293,6 +293,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
     bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
+    bam_local_v_share_output_coordinates = False
     bam_local_v_rank_routing = 'legacy'
     bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation; Gram/norm2 only
@@ -7074,6 +7075,8 @@ class BamMediumIndependentLLFRoutingLegacyLocalVRank4(BamMediumIndependentLLFRou
     # code_commit: 6f83129; UE5a v5p-16 block-scan/AOT, .6920 steps/s (10–14), -.97% vs Legacy .6988.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
     # Prerun prediction: final gap -.0015 vs RoutingLegacy; throughput -2%.
+    # Stopped at committed2894: vs Legacy, early benefit reversed at400; 1600–2800 gap stays +.0057–.0073
+    # (mean +.00637), with no sustained convergence. Rank4 adds cost (-.97% throughput), not benefit.
     model_name = 'BamMediumIndependentLLFRoutingLegacyLocalVRank4'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_v_rank = 4
@@ -7107,6 +7110,15 @@ class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRa
     # Prerun prediction vs LocalVRank4: final gap +.005; throughput about -.5%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingB'
     bam_local_v_rank_routing = 'head_gate_r'
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentLLFLocalVRank4RoutingB):
+    """Read full M for LocalV; share LocalO's V compression on row output only."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs RoutingB: final gap -.0015; throughput within +/-1%.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
+    bam_local_v_share_output_coordinates = True
 
 
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):

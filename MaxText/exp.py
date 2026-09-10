@@ -7064,3 +7064,12 @@ class BamMediumIndependentLLFRoutingLegacyQKRank2(BamMediumIndependentLLFRouting
     model_name = 'BamMediumIndependentLLFRoutingLegacyQKRank2'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_q_rank = 2  # K follows Q; V already defaults to 2.
+
+
+class BamMediumIndependentLLFRoutingLegacyLocalVRank4(BamMediumIndependentLLFRoutingLegacy):
+    """Only independent LocalV rank2→4; LocalQ/K remain rank1, legacy routing."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
+    # Prerun prediction: final gap -.0015 vs RoutingLegacy; throughput -2%.
+    model_name = 'BamMediumIndependentLLFRoutingLegacyLocalVRank4'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_v_rank = 4

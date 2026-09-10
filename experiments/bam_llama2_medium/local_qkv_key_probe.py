@@ -144,9 +144,28 @@ def stats(raw, mask):
             singular = np.linalg.svd(u, compute_uv=False)**2
             retained = np.cumsum(singular, -1) / np.maximum(singular.sum(-1, keepdims=True), 1e-30)
             records.append((np.nanmean(cos, 0), np.nanmean(abs(cos), 0),
-                            np.nanmean(cos**2, 0), np.mean(valid_pair, 0), retained.mean(0)))
-          for index, name in enumerate(('cos', 'abs_cos', 'cos2', 'valid_fraction', 'rank_energy')):
+                            np.nanmean(cos**2, 0), np.mean(valid_pair, 0), retained.mean(0),
+                            np.nanquantile(cos, [.05,.25,.5,.75,.95], axis=0),
+                            np.nanmean(np.where(valid_pair, cos < -.8, np.nan), 0),
+                            np.nanmean(np.where(valid_pair, cos > .8, np.nan), 0)))
+          for index, name in enumerate(('cos', 'abs_cos', 'cos2', 'valid_fraction', 'rank_energy',
+                                        'cos_quantiles', 'cos_lt_neg08', 'cos_gt_pos08')):
             out[f'{prefix}_{stage}_{"centered" if centered else "uncentered"}_{name}'] = np.stack([r[index] for r in records])
+      # Direction recovery in another arm's per-token span. Pseudoinverse handles
+      # repeated/zero bases; orthogonal coefficients need not equal trained mix.
+      bases = {a: unit(raw[f'L{l:02d}_{a}_{side}_key'].astype(np.float64))[0] for a in arms}
+      for a in arms:
+        for other in arms:
+          if a == other:
+            continue
+          energy = []
+          for b in range(len(mask)):
+            source, target = bases[a][b, mask[b]], bases[other][b, mask[b]]
+            gram = target @ target.swapaxes(-1,-2)
+            cross = source @ target.swapaxes(-1,-2)
+            recovered = np.sum((cross @ np.linalg.pinv(gram, rcond=1e-6)) * cross, -1)
+            energy.append(recovered.mean(0))
+          out[f'{prefix}_{a}_in_{other}_span'] = np.stack(energy)
       effective = {a: np.einsum('btnr,btrd->btnd', raw[f'L{l:02d}_{a}_{side}_mix'],
                                raw[f'L{l:02d}_{a}_{side}_key']) for a in arms}
       for i, a in enumerate(arms):

@@ -6877,6 +6877,21 @@ class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKR
     bam_local_gram_scale_placement = 'output'
 
 
+class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase):
+    """XL: full-M LocalV rank4 effective-key read, row aligned with LocalO C8."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs historical independent LLF: final gap -.002, throughput -1%.
+    # Q/K retain rank2 legacy; LocalO/F unchanged. Combined C+alignment is new.
+    model_name = 'BamXLIndependentLLFLocalVRank4CFp32AlignedRow'
+    compare_runs = ['BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF']
+    bam_local_v_rank = 4
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_statistics_dtype = 'float32'
+    bam_local_gram_scale_placement = 'mix'
+    bam_local_v_share_output_coordinates = True
+    force_final_checkpoint = True
+
+
 class BamXLIndependentLLFGramBaseSixLayer(BamXLIndependentLLFGramBase):
     model_name = 'BamXLIndependentLLFGramBaseSixLayer'
     base_num_decoder_layers = 6

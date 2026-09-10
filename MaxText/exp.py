@@ -7046,6 +7046,8 @@ class BamMediumIndependentLLFRoutingCActivation(BamMediumIndependentLLFRoutingCF
 
 class BamMediumIndependentLLFRoutingLegacyMixBias(BamMediumIndependentLLFRoutingLegacy):
     """Zero-init pre-RMS head-mix bias for LocalQ/K/V; all other routing unchanged."""
+    # code_commit: 1bfc7a9; UE5a v5p-16 block-scan/AOT, ~.6964 steps/s @10-14 (-.34% vs RoutingLegacy).
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
     model_name = 'BamMediumIndependentLLFRoutingLegacyMixBias'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_q_mix_bias = True

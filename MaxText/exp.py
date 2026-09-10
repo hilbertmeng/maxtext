@@ -6879,6 +6879,9 @@ class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKR
 
 class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase):
     """XL: full-M LocalV rank4 effective-key read, row aligned with LocalO C8."""
+    # code_commit: d8ecbe2; UE5a v5p-32 block-scan/AOT, FIRST_STEP/load verified.
+    # Steps10-14 .5532 steps/s, -.58% vs historical independent LLF .5564 (predicted -1%).
+    # Historical XL all-decay (wd_mults=[]), Q/K rank2 legacy, health sow off; checkpoint250.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs historical independent LLF: final gap -.002, throughput -1%.
     # Q/K retain rank2 legacy; LocalO/F unchanged. Combined C+alignment is new.

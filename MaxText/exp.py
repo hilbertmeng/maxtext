@@ -294,6 +294,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
     bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
     bam_local_v_share_output_coordinates = False
+    bam_local_v_direct_compressed_col = False
     bam_local_o_row_tied_decoder = False
     bam_local_v_rank_routing = 'legacy'
     bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
@@ -7097,8 +7098,8 @@ class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentL
 
 class BamMediumIndependentLLFLocalVRank4RoutingA(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
     """Only LocalV rank4 uses head_gate_n; Q/K remain rank1 legacy."""
-    # Stopped at committed5717: vs RoutingB, early +.08948@200 narrowed to ~+.001 over4000–5000;
-    # no negative crossing through5000, despite +.61% throughput; longer-run convergence remains untested.
+    # Stopped at committed5717: vs RoutingB, early +.08948@200 narrowed then plateaued over4000–5000
+    # (mean +.00135, range +.00096..+.00169); persistent small loss cost for only +.61% throughput.
     # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6890 steps/s (10–14), -.43% vs LocalVRank4 .6920.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.003; throughput about -.5%.
@@ -7130,6 +7131,17 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     bam_local_v_share_output_coordinates = True
 
 
+class BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """LocalV reads LocalO's compressed M: rank4 row, independent 16-head column."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs AlignedRow: final gap -.0015; throughput +1%. Row change is algebraically equivalent.
+    # Removes column rank→head mixing and row post-read projection; Q/K and all F layers unchanged.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFLocalVRank4RoutingB']
+    bam_local_v_direct_compressed_col = True
+
+
 class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndependentLLFLocalVRank4RoutingB):
     """Only L-layer LocalO row read maps C→V with its compression transpose."""
     # code_commit: 286da7a; UE5a v5p-16 block-scan/AOT, .6870 steps/s @10–14 (+.32% vs B .6848).
@@ -7137,7 +7149,11 @@ class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndepen
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs B: final gap -.001; throughput -.5%. Full-M LocalV unchanged; no new parameters.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode'
-    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
+    compare_runs = [
+        'BamMediumIndependentLLFLocalVRank4RoutingB',
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+    ]
+    # Decode LocalO C→V versus compress LocalV V→C; throughput -.87% vs AlignedRow.
     bam_local_o_row_tied_decoder = True
 
 

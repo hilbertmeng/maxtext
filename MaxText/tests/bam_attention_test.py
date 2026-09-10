@@ -16,6 +16,7 @@ from layers.attentions import (
     _attention_op,
     _bam_fetch_op,
     _bam_fetch_route_sums,
+    _compressed_local_v_read,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
     _fetched_read_gate_bin_stats,
@@ -46,6 +47,68 @@ def _factorized_read_joined(*args, **kwargs):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+  def test_compressed_local_v_row_equivalence_and_direct_col(self):
+    keys = jax.random.split(jax.random.key(201), 7)
+    b, t, k, v, c, r, n = 1, 2, 5, 7, 3, 4, 6
+    M = jax.random.normal(keys[0], (b, t, k, v))
+    E = jax.random.normal(keys[1], (v, c))
+    row = jax.random.normal(keys[2], (b, t, r, k))
+    col = jax.random.normal(keys[3], (b, t, n, c))
+    mix = jax.random.normal(keys[4], (b, t, n, r))
+    gate = jax.random.normal(keys[5], (b, t, n, 2))
+    key = jnp.concatenate((row.reshape(b, t, -1), col.reshape(b, t, -1)), -1)
+    def actual(matrix, projection):
+      return _compressed_local_v_read(
+          matrix @ projection, key, mix, gate, rank=r, key_scale=1.,
+          rms_epsilon=1e-4)
+    def reference(matrix, projection):
+      norm = lambda z: normalizations.rms_norm(z, dtype=z.dtype, epsilon=1e-4)
+      yn = jnp.einsum('btkv,btnv->btnk', matrix @ projection, norm(col))
+      yr = jnp.einsum('btkv,btrk->btrv', matrix, norm(row)) @ projection
+      yr = jnp.einsum('btrc,btnr->btnc', yr, norm(mix))
+      scale = jax.nn.sigmoid(gate)
+      return yn * scale[..., 1, None], yr * scale[..., 0, None]
+    for got, expected in zip(actual(M, E), reference(M, E)):
+      np.testing.assert_allclose(got, expected, atol=4e-6, rtol=4e-6)
+    loss = lambda fn, m, e: sum(jnp.sum(y ** 2) for y in fn(m, e))
+    for got, expected in zip(
+        jax.grad(lambda m, e: loss(actual, m, e), (0, 1))(M, E),
+        jax.grad(lambda m, e: loss(reference, m, e), (0, 1))(M, E)):
+      np.testing.assert_allclose(got, expected, atol=2e-4, rtol=2e-5)
+
+  def test_compressed_local_v_full_module(self):
+    import max_utils
+    import pyconfig
+    output = tempfile.TemporaryDirectory()
+    self.addCleanup(output.cleanup)
+    (Path(output.name) / 'test-direct-col').mkdir()
+    cfg = pyconfig.initialize(
+        [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+        exp_class='BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol',
+        run_name='test-direct-col', enable_checkpointing=False,
+        base_output_directory=output.name + '/', jax_cache_dir='', log_config=False,
+        dataset_type='synthetic', base_emb_dim=128, base_num_query_heads=2,
+        base_num_kv_heads=2, base_num_decoder_layers=3, base_mlp_dim=256,
+        head_dim=64, max_target_length=8, max_prefill_predict_length=8,
+        query_chunk_size=4, per_device_batch_size=1.0)
+    cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    attention = BamAttention(
+        config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+        max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+        attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+        layer_mode='local_qk+local_o', attention_type=cfg.attention_type)
+    x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
+    matrix = jnp.ones((1, 8, 32, 32), cfg.dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    variables = attention.init(
+        {'params': jax.random.key(2), 'aqt': jax.random.key(3)},
+        *args, M_in=matrix, deterministic=True, layer_index=1)
+    y, m = attention.apply(variables, *args, M_in=matrix, deterministic=True, layer_index=1)
+    self.assertEqual(y.shape, x.shape)
+    self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
+    self.assertEqual(variables['params']['W_lv_bias'].value.shape, (4 * 32 + 2 * 8,))
+
   def test_softplus_read_gate_matched_opening_and_unbounded_output(self):
     r = jnp.array([[1., -2., 3.]], dtype=jnp.float32)
     p = jnp.asarray(.005)

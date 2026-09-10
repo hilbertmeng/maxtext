@@ -44,3 +44,40 @@ C-activation .6952 (-.52%). Activation vs fp32: +.12%, a marginal difference
 at the precision of the logs, not an established substantial speedup.
 The modest routing overhead is consistent with the pre-run expectation.
 Five AOT preparation states reached `ready`, including compiler cleanup.
+
+## User-requested stop of A/B/C (2026-09-10 UTC)
+
+Legacy continues.
+
+All four TPU nodes and queued resources verified absent by 03:15:18 UTC;
+batch closeout took 237.81s, failures=[]; TB completion markers published.
+Summary: tpu-ag:/home/lishengping/xd/projects/logs/closeout-20260910T031518Z.json.
+Each had one UE5a READY lease, zero preemptions and no region switches:
+A 02:01:55--03:11:11 (1h09m16s), B 02:02:03--03:11:13 (1h09m10s),
+C-fp32 02:02:13--03:11:16 (1h09m03s), C-activation 02:02:07--03:11:18 (1h09m11s).
+A/B/C-fp32/C-activation stopped at committed checkpoints 2741/2720/2727/2735.
+Last complete shared report: 2600,
+fixed +/-25 window, step stride 10. Early improvements did not persist:
+A crossed positive at 1000 and grew to about +.003--.005; B oscillated near
+zero before a small positive gap; C-fp32 remained roughly +.004--.006;
+C-activation deteriorated to roughly +.007--.009. The latest 2600 window
+narrowed all four gaps, but does not establish a sustained reversal.
+Activation versus fp32 crossed positive at 1000 and broadly widened to
++.0035--.0038 by 2000--2600, despite only +.12% throughput. These observations
+contradict the optimistic A prediction and effect-equivalence of C precision.
+They do not establish final 13500-step gaps; stopping was user-directed.
+
+All runs use the same Clean WD mask as historical independent Medium LLF:
+decay .1 for projection kernels, zero for scale/bias/*_gate_b0/gw_b0.
+Runtime 0f85b91 and historical f6af33c both use the unified optimizer constructor.
+The early Legacy-versus-historical mismatch is not a WD-policy difference.
+
+```text
+step             200       400       600       800      1000      1200      1400      1600      1800      2000      2200      2400      2600
+Legacy-old   +.056455  +.000910  -.001285  -.001482  -.002596  -.000711  -.001676  -.003313  -.002238  -.003644  -.002229  -.003579  -.001475
+A-Legacy     -.110065  -.014686  -.003419  -.002409  +.000081  +.000608  +.001371  +.001410  +.004086  +.004604  +.003049  +.004214  +.002788
+B-Legacy     -.101091  -.020094  -.006467  -.003701  +.000720  +.000400  -.000258  +.001488  +.002062  +.003396  +.001746  +.002819  +.000730
+Cf32-Legacy  -.118455  -.011900  +.001921  +.004105  +.005608  +.004786  +.004806  +.004746  +.004817  +.005589  +.004301  +.005177  +.003665
+Cact-Legacy  -.073192  -.012482  -.002435  +.002431  +.006322  +.005576  +.006666  +.007442  +.007051  +.009135  +.006953  +.008977  +.007124
+Cact-Cf32    +.045263  -.000582  -.004356  -.001673  +.000714  +.000789  +.001860  +.002695  +.002234  +.003547  +.002653  +.003800  +.003460
+```

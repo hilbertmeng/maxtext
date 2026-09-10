@@ -7005,8 +7005,9 @@ class BamMediumIndependentLLFRoutingLegacy(BamMediumIndependentLLFGramBase):
 class BamMediumIndependentLLFRoutingA(BamMediumIndependentLLFRoutingLegacy):
     """A: normalize mix over N, then per-head gate; nominal rank-adjusted amplitude."""
     model_name = 'BamMediumIndependentLLFRoutingA'
+    # Stopped 2741 by user: early gain crossed positive at 1000; gap grew to +.003~+.005 by 1800-2400 vs RoutingLegacy; no speed benefit.
     # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6950 steps/s; vs fresh RoutingLegacy -0.54%.
-    # In training; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Final checkpoint 2741 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_q_rank_routing = 'head_gate_n'
     bam_local_v_key_scale = 2.0 / (2.0 ** 0.5)
@@ -7015,16 +7016,18 @@ class BamMediumIndependentLLFRoutingA(BamMediumIndependentLLFRoutingLegacy):
 class BamMediumIndependentLLFRoutingB(BamMediumIndependentLLFRoutingA):
     """B: normalize mix over R; Q/K rank1 nearly reduces normalized mix to sign."""
     model_name = 'BamMediumIndependentLLFRoutingB'
+    # Stopped 2720 by user: early gain vanished near 1000; oscillated near zero then +.0015~+.0034 at 1600-2400 vs RoutingLegacy; no speed benefit.
     # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6924 steps/s; vs fresh RoutingLegacy -0.92%.
-    # In training; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Final checkpoint 2720 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     bam_local_q_rank_routing = 'head_gate_r'
 
 
 class BamMediumIndependentLLFRoutingCFp32(BamMediumIndependentLLFRoutingLegacy):
     """C: effective-key RMS using fp32 Gram/norm2, activation-dtype scaling."""
     model_name = 'BamMediumIndependentLLFRoutingCFp32'
+    # Stopped 2727 by user: gap crossed positive at 600; roughly +.004~+.006 through 800-2400 vs RoutingLegacy, without sustained narrowing.
     # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6944 steps/s; vs fresh RoutingLegacy -0.63%.
-    # In training; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Final checkpoint 2727 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_q_rank_routing = 'effective_key'
     bam_local_gram_statistics_dtype = 'float32'
@@ -7033,7 +7036,8 @@ class BamMediumIndependentLLFRoutingCFp32(BamMediumIndependentLLFRoutingLegacy):
 class BamMediumIndependentLLFRoutingCActivation(BamMediumIndependentLLFRoutingCFp32):
     """C: only Gram/norm2 statistics change to activation dtype."""
     model_name = 'BamMediumIndependentLLFRoutingCActivation'
+    # Stopped 2735 by user: gap crossed positive at 800, then broadly worsened to +.007~+.009 vs Legacy; vs CFp32 crossed positive at 1000 and grew to +.0038 by 2400; only +.12% speed.
     # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6952 steps/s; vs fresh RoutingLegacy -0.52%.
-    # In training; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Final checkpoint 2735 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy', 'BamMediumIndependentLLFRoutingCFp32']
     bam_local_gram_statistics_dtype = 'activation'

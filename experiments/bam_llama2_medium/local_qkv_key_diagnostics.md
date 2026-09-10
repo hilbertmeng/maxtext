@@ -1,6 +1,8 @@
 # Independent LLF LocalQ/K/V key sharing probe
 
-Status: preparing inference, no empirical conclusions yet.
+Status: inference running on `xd-v6e-qkv-keys-ewa4a-r1` (europe-west4-a).
+Diagnostic runtime commit `75aa6f2`; first candidate was preempted just after
+installation. Backups are released after the first successful inference batch.
 
 ## Reproduction
 
@@ -18,6 +20,12 @@ Status: preparing inference, no empirical conclusions yet.
 Q/K have rank1; V has rank2 in the 16 Local layers. All three read full local32×32 M. Row and column spaces are analyzed separately. Raw keys include historical pre-RMS bias; transformed keys include RMS and gates. Head mixing is included in effective-key comparisons.
 
 Per-sequence outputs retain signed/absolute/squared cosine, valid-pair fraction, joint local rank energy, and corresponding quantities after temporal centering. Centering distinguishes common mean directions from input-dependent similarity. Joint SVD uses unit basis rows to avoid dominance by gate amplitude. Its rank is token-local, not proof that a fixed projection can compress across tokens.
+
+Amplitude-weighted SVD and basis norms are also retained. Centering removes
+the complete sample mean, not exclusively the explicit bias; it is not a bias
+ablation. Zero-norm layer0 keys are marked unavailable, never interpreted as
+evidence of sharing. A useful geometric reference for unrelated isotropic
+32-dimensional directions is E[cos²]=1/32 and rank2-span recovery=2/32.
 
 Negative cosine is not automatically incompatibility: signed head mixing can absorb a basis sign flip. Conversely, shared subspace is not proof that identical Q/K/V keys or readouts can be tied without loss. This probe measures correlations, not causal necessity or retraining benefit.
 

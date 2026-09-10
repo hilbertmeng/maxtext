@@ -37,7 +37,7 @@ def main():
                 get('key_centered_abs_cos')[0,1]]
       extra = [get('q_in_v_span')[0], get('k_in_v_span')[0], get('key_uncentered_rank_energy')[1],
                get('effective_qv_cos2'), get('effective_kv_cos2')] if l % 3 != 2 else [None]*5
-      cells = ['—' if v is None else f'{float(v):.4f}' for v in common+extra]
+      cells = ['—' if v is None or not np.isfinite(v) or l == 0 else f'{float(v):.4f}' for v in common+extra]
       lines.append(f'| {l} | '+ ' | '.join(cells)+' |')
   (args.directory/'summary.md').write_text('\n'.join(lines)+'\n')
 

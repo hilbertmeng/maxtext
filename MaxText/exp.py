@@ -7051,3 +7051,11 @@ class BamMediumIndependentLLFRoutingLegacyMixBias(BamMediumIndependentLLFRouting
     model_name = 'BamMediumIndependentLLFRoutingLegacyMixBias'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_q_mix_bias = True
+
+
+class BamMediumIndependentLLFRoutingLegacyQKRank2(BamMediumIndependentLLFRoutingLegacy):
+    """Q/K rank1→2; V remains rank2, all three use unchanged legacy routing."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
+    model_name = 'BamMediumIndependentLLFRoutingLegacyQKRank2'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_q_rank = 2  # K follows Q; V already defaults to 2.

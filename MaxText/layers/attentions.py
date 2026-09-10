@@ -2511,10 +2511,11 @@ class BamAttention(Attention):
 
     self._read_key_mode = cfg.bam_read_key_mode
     self._read_key_scale = float(cfg.bam_read_key_scale)
-    self._local_key_scales = {}
+    local_key_scales = {}
     for name in self._local_arms:
       scale = getattr(cfg, f'bam_local_{name}_key_scale', None)
-      self._local_key_scales[name] = self._read_key_scale if scale is None else float(scale)
+      local_key_scales[name] = self._read_key_scale if scale is None else float(scale)
+    self._local_key_scales = local_key_scales
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
     self._read_key_epsilon = float(
         cfg.bam_read_key_epsilon

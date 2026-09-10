@@ -7138,6 +7138,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol(BamMediumIndepe
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs AlignedRow: final gap -.0015; throughput +1%. Row change is algebraically equivalent.
     # Removes column rank→head mixing and row post-read projection; Q/K and all F layers unchanged.
+    # Stopped at committed4197: vs AlignedRow, early +.140 shrank then held ~+.004–.005 at 2200–4000;
+    # vs B still narrowing (+.0049→+.0024 at 3200–4000), but no loss gain over AlignedRow.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
                     'BamMediumIndependentLLFLocalVRank4RoutingB']
@@ -7150,6 +7152,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndepen
     # Observe through late training: coordinate-alignment benefit may emerge late, not an early-stop ablation.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs B: final gap -.001; throughput -.5%. Full-M LocalV unchanged; no new parameters.
+    # Stopped at committed9199: vs B crossed negative at 2800, later held ~-.002–.003 through 9000;
+    # vs AlignedRow repeatedly crossed zero without a persistent gain, while .87% slower.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode'
     compare_runs = [
         'BamMediumIndependentLLFLocalVRank4RoutingB',

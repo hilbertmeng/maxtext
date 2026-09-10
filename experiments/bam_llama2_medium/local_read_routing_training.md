@@ -100,3 +100,15 @@ Cf32-Legacy  -.118455  -.011900  +.001921  +.004105  +.005608  +.004786  +.00480
 Cact-Legacy  -.073192  -.012482  -.002435  +.002431  +.006322  +.005576  +.006666  +.007442  +.007051  +.009135  +.006953  +.008977  +.007124
 Cact-Cf32    +.045263  -.000582  -.004356  -.001673  +.000714  +.000789  +.001860  +.002695  +.002234  +.003547  +.002653  +.003800  +.003460
 ```
+# Additional Q/K rank2 Legacy control
+
+`BamMediumIndependentLLFRoutingLegacyQKRank2` derives directly from
+`BamMediumIndependentLLFRoutingLegacy`; only `bam_local_q_rank=2` changes, with
+K falling back to Q. V stays rank2 and all three routing modes remain legacy.
+No mix bias is added. Direct compare_runs contains only RoutingLegacy.
+
+Runtime prepared at `982b7bf`, block-scan/AOT, 13,500 steps, checkpoint every200,
+health sow disabled as in its baseline. Formal TPU preference UE5a, requested
+only after v6e AOT verification. Pre-run bet: roughly 1–3% slower, final gap
+plausibly −.004 to +.003; historical Paired40 Rank2 gains are not assumed to
+transfer to this independent-LLF context. Pinned CPU suite: 46/46 passed.

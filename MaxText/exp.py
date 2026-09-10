@@ -7130,6 +7130,9 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs RoutingB: final gap -.0015; throughput within +/-1%.
     # code_commit: 77401da; UE5a v5p-16 block-scan/AOT, .6930 steps/s @10–14 (+1.20% vs B .6848).
+    # Completed13500, final checkpoint committed. vs B: positive at600–2600, crossed negative
+    # at2800; benefit grew from ~-.001 to ~-.003, then persisted (12200–13400 mean -.00284).
+    # Better than predicted -.0015; no late convergence to zero, plus +1.20% throughput.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     bam_local_v_share_output_coordinates = True

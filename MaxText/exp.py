@@ -7081,6 +7081,7 @@ class BamMediumIndependentLLFRoutingLegacyLocalVRank4(BamMediumIndependentLLFRou
 
 class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentLLFRoutingLegacy):
     """Softplus for all local/fetched read-key gates; matched initial opening .005."""
+    # code_commit: 64da0b4; UE5a v5p-16 block-scan/AOT, .6994 steps/s (10–14), +.09% vs Legacy .6988.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
     # Prerun prediction: final gap +.002 vs RoutingLegacy; throughput approximately unchanged.
     model_name = 'BamMediumIndependentLLFRoutingLegacySoftplusReadGate'

@@ -486,7 +486,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
         1.0, 'fan_in', 'truncated_normal')
     for mode, gate_width in (
         ('legacy', 2), ('shared_rank_gate', 2 * rank),
-        ('head_rank_gate', 0)):
+        ('head_gate_n', 2 * heads), ('head_gate_r', 2 * heads),
+        ('effective_key', 2 * heads)):
       for names in (('q', 'k'), ('v',), ('q', 'k', 'v')):
         arms = self._local_arms(names, rank=rank, routing=mode, heads=heads)
         layout, packed_width = _packed_local_layout(arms)
@@ -910,34 +911,6 @@ class BamReadKeyTransformTest(absltest.TestCase):
         (b, t, n, 2, rank))
     np.testing.assert_allclose(dot_gate, expected_gate, rtol=1e-6, atol=1e-6)
 
-  def test_factorized_head_rank_gate_is_direct_sigmoid_without_signed_mix(self):
-    b, t, n, rank, k, v, e = 2, 3, 4, 2, 3, 5, 7
-    keys = jax.random.split(jax.random.PRNGKey(140), 4)
-    M = jax.random.normal(keys[0], (b, t, k, v))
-    x = jax.random.normal(keys[1], (b, t, e))
-    key_kernel = jax.random.normal(keys[2], (e, rank, k + v))
-    mix_kernel = jax.random.normal(keys[3], (e, n, 2, rank))
-    projection = lambda z: jnp.einsum('bte,erd->btrd', z, key_kernel)
-    head_projection = lambda z: jnp.einsum(
-        'bte,ensr->btnsr', z, mix_kernel)
-    bias = jnp.asarray((-2.0, -3.0))
-    kwargs = dict(
-        key_mode='rms_gate', key_scale=2.0, rms_epsilon=_RMS_EPSILON,
-        key_gate_logits=None, implementation='mul_reduce_btn', rank=rank,
-        rank_routing='head_rank_gate', head_rank_gate_bias=bias,
-        return_rank_gate=True)
-
-    dot, dot_gate = _factorized_read_joined(
-        M, x, projection, head_projection,
-        second_implementation='dot', **kwargs)
-    mul, mul_gate = _factorized_read_joined(
-        M, x, projection, head_projection,
-        second_implementation='mul_reduce', **kwargs)
-    expected_gate = jax.nn.sigmoid(
-        head_projection(x) + bias[None, None, None, :, None])
-    np.testing.assert_allclose(dot, mul, rtol=2e-5, atol=2e-5)
-    np.testing.assert_allclose(dot_gate, expected_gate, rtol=1e-6, atol=1e-6)
-    np.testing.assert_allclose(mul_gate, expected_gate, rtol=1e-6, atol=1e-6)
 
   def test_factorized_head_read_zero_key_starts_dormant_but_has_key_gradient(self):
     b, t, n, k, v, e = 1, 3, 4, 3, 5, 7

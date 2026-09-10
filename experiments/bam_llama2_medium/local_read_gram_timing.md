@@ -6,12 +6,19 @@ from main `b17a02e`; do not substitute old runtime implementations for this cont
 
 ## Contract
 
+Current implementation adds `bam_local_gram_statistics_dtype` (`float32`, default,
+or `activation`) for Gram/norm2 only; sigmoid, rsqrt and scaling retain the
+activation dtype. Only the statistics boundary casts back to the activation dtype.
+This revision is untested/unmeasured by request. The timing results below belong
+to runtime `3b94075`, which also used fp32 for sigmoid and scale calculation;
+they must not be attributed to the revised precision policy.
+
 For each local Q/K/V arm and each side: raw factors A[R,K], H[N,R];
 G=A A^T, d_n^2=H_n G H_n^T; output
 `key_scale * sigmoid(g_n) * H(AM) / sqrt(d_n^2 / K + epsilon)`.
 The normalized effective key has unit RMS (not unit L2); keep existing key_scale,
 gate prior and read epsilon. This is not a loss-reproduction claim versus legacy.
-Gram statistics are fp32; production activations/contractions remain bf16.
+In the measured runtime, Gram statistics are fp32; production activations/contractions remain bf16.
 Keys and gate projections retain zero initialization, mix retains regular initialization.
 Gate projection/bias changes from side-only to [N,2]. All segments remain packed.
 No new learned normalization or amplitude parameters; no routing health captures.
@@ -22,6 +29,57 @@ Preserve each parent's ranks: Medium Q/K=1, V=2; XL Q/K/V=2.
 Both local reads use full M; LocalO remains compressed; fetch untouched.
 
 ## Matrix and pre-run expectation
+
+### Additional routing variants (unmeasured)
+
+The same packed LocalQ/K/V path now supports A=`head_gate_n` and
+B=`head_gate_r`, alongside C=`effective_key` and `legacy`.
+All routings now share `factorized_head_bam_read`: the normalization/gating stage
+prepares the basis and mixing factors, followed by one common contraction,
+optional V adapter and rank-to-head expansion. A/B/C all use `per_head_gate`;
+the separate production `_effective_key_bam_read` path has been removed.
+`scale_placement` is shared by A/B/C: their per-head scale can multiply H
+before expansion (`mix`) or the expanded readout (`output`). It is not a
+special property of Gram normalization. Legacy/SharedRankGate keep their
+basis-side gates in the basis read; a rank-dependent gate cannot in general
+be moved after rank summation as a single output scale.
+The unsuccessful `head_rank_gate` implementation is retired; its experiment
+classes remain in exp.py and are reproducible from their historical commits.
+A/B normalize each basis key over its source dimension; normalize H over N/R,
+respectively; then apply a per-head, per-side sigmoid gate `[B,T,N,2]`.
+Multiplying the normalized H by that gate before expansion is algebraically
+equivalent to gating the final head output. No extra head-rank selector is used.
+
+For approximately uncorrelated basis directions and non-negligible key/mix RMS,
+use these local key scales, keeping the gate prior fixed:
+
+| Routing | Local key scale | Approximate gated effective-key RMS |
+|---|---|---|
+| legacy | s | s p0 |
+| A, head_gate_n | s/sqrt(R) | s p0, averaged over heads |
+| B, head_gate_r | s/sqrt(R) | s p0 |
+| C, effective_key | s | s p0 |
+
+Set `bam_local_q_key_scale`, `bam_local_k_key_scale`, and
+`bam_local_v_key_scale` separately (None inherits `bam_read_key_scale`).
+This leaves fetched read unchanged and accommodates differing Q/K/V ranks.
+For s=2, R=1/2/4, A/B scales are 2 / 1.41421356 / 1.
+Legacy and C remain 2. Correlated bases, cancellations and anisotropic M mean
+this is not an exact match of output energy on real activations.
+
+At exactly zero basis initialization all four outputs are zero; comparing step-0
+output norms cannot calibrate their response. Near zero, write raw mix RMS as
+sigma_H and assume independent isotropic factors. Legacy's effective-key response
+is approximately s*p0/sqrt(eps); A/B with the above scale match its average order
+when their mix normalization is outside the epsilon-dominated regime. C's response
+is approximately s_C*p0*sqrt(R)*sigma_H/sqrt(eps), since C leaves H raw.
+Matching this response would instead require s_C≈s/(sqrt(R)*sigma_H), which
+generally conflicts with matching the later normalized amplitude. There is no
+universal single scale matching both regimes. The table is a nominal amplitude
+control, not a claim of matched initialization Jacobians or loss trajectories.
+
+These additions have not been tested or timed; measured results below still
+refer to the recorded historical runtime, not these routing/precision revisions.
 
 For each size: Base, DotOutput, MulOutput, DotMix, MulMix.
 Classes `Bam{Medium,XL}IndependentLLFGram{variant}` preserve full-24 training shape,

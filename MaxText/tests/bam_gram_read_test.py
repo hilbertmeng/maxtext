@@ -3,7 +3,15 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from layers.attentions import _effective_key_bam_read
+from layers.attentions import factorized_head_bam_read
+
+
+def _effective_key_bam_read(M, key, mix, gate_logits, **kwargs):
+  """Exercise scheme C through the unified production read entry point."""
+  return factorized_head_bam_read(
+      M, None, lambda _: key, lambda _: mix,
+      key_mode='rms_gate', key_gate_logits=gate_logits,
+      rank=key.shape[-2], rank_routing='effective_key', **kwargs)
 
 
 class GramReadTest(absltest.TestCase):

@@ -21,6 +21,7 @@ import math
 from typing import Any, Optional, Tuple
 
 from flax import linen as nn
+from einops import rearrange
 import jax
 from jax import lax
 from jax.ad_checkpoint import checkpoint_name
@@ -2084,61 +2085,19 @@ def bam_read(M, x, W_R, *, key_mode='none', key_scale=1.0,
   return (y_u, y_v) if return_sides else jnp.concatenate([y_u, y_v], axis=-1)
 
 
-def _gram_read_norm2(A, H, implementation):
-  """Squared effective-key L2 norm without materializing H@A; fp32 statistics."""
-  A, H = A.astype(jnp.float32), H.astype(jnp.float32)
+def _gram_read_norm2(A, H, implementation, statistics_dtype=jnp.float32):
+  """Squared effective-key L2 norm; None keeps the activation dtype."""
+  if statistics_dtype is not None:
+    A, H = A.astype(statistics_dtype), H.astype(statistics_dtype)
   if implementation == 'dot':
-    gram = jnp.matmul(A, jnp.swapaxes(A, -1, -2))
-    hg = jnp.matmul(H, gram)
+    gram = A @ rearrange(A, '... r k -> ... k r')
+    hg = H @ gram
   elif implementation == 'mul_reduce':
     gram = jnp.sum(A[..., :, None, :] * A[..., None, :, :], axis=-1)
     hg = jnp.sum(H[..., :, :, None] * gram[..., None, :, :], axis=-2)
   else:
     raise ValueError(f'Unknown Gram implementation: {implementation}')
   return jnp.maximum(jnp.sum(hg * H, axis=-1), 0.0)
-
-
-def _effective_key_bam_read(
-    M, key, mix, gate_logits, *, rms_epsilon, key_scale,
-    implementation, second_implementation, gram_implementation,
-    scale_placement, read_side, v_projection, return_sides):
-  """Scheme C: gated RMS(H A) @ M, using a rank-sized Gram matrix.
-
-  Raw factors remain unnormalized. Each final key has unit RMS (not unit L2),
-  before the existing key_scale and per-head sigmoid gate. The epsilon is in
-  effective-key mean-square units. No stop_gradient approximation is used.
-  """
-  row, col = jnp.split(key, [M.shape[-2]], axis=-1)
-  row_mix, col_mix = mix[..., 0, :], mix[..., 1, :]
-  gate = jax.nn.sigmoid(gate_logits.astype(jnp.float32))
-  with jax.named_scope('bam/effective_key_gram'):
-    def scale(A, H, g):
-      norm2 = _gram_read_norm2(A, H, gram_implementation)
-      return (key_scale * g * jax.lax.rsqrt(norm2 / A.shape[-1] + rms_epsilon)).astype(M.dtype)
-    row_scale = scale(row, row_mix, gate[..., 0])
-    col_scale = scale(col, col_mix, gate[..., 1])
-  with jax.named_scope('bam/read_m_contract'):
-    u_basis, v_basis = _contract_bam_read_sides(
-        M, M, row, col, implementation=implementation, read_side=read_side)
-  if v_projection is not None:
-    v_basis = jnp.einsum('...v,vc->...c', v_basis, v_projection.astype(v_basis.dtype))
-
-  def expand(basis, H, s):
-    if scale_placement == 'mix':
-      H = H * s[..., None]
-    elif scale_placement != 'output':
-      raise ValueError(f'Unknown effective-key scale placement: {scale_placement}')
-    if second_implementation == 'dot':
-      y = jnp.einsum('btrd,btnr->btnd', basis, H)
-    elif second_implementation == 'mul_reduce':
-      y = jnp.sum(basis[:, :, None] * H[..., None], axis=-2)
-    else:
-      raise ValueError(second_implementation)
-    return y if scale_placement == 'mix' else y * s[..., None]
-
-  with jax.named_scope('bam/read_head_mix_expand'):
-    u, v = expand(u_basis, col_mix, col_scale), expand(v_basis, row_mix, row_scale)
-  return (u, v) if return_sides else jnp.concatenate((u, v), axis=-1)
 
 
 def factorized_head_bam_read(
@@ -2149,9 +2108,10 @@ def factorized_head_bam_read(
     key_col_norm=None, use_learned_key_norm=False,
     implementation='mul_reduce_btn', read_side='both', rank=1,
     second_implementation='mul_reduce', v_projection=None,
-    rank_routing='legacy', head_rank_gate_bias=None,
+    rank_routing='legacy',
     return_rank_gate=False, return_sides=True,
-    gram_implementation='mul_reduce', scale_placement='output'):
+    gram_implementation='mul_reduce', scale_placement='output',
+    gram_statistics_dtype=jnp.float32):
   """Read with rank-r shared runtime keys, then route dynamically across heads.
 
   For each side, the effective per-head key is factorized as
@@ -2164,9 +2124,11 @@ def factorized_head_bam_read(
   rank axis is always present (rank 1 is simply r=1, not a separate layout).
   ``legacy`` shares one gate pair across the basis and normalizes mixing jointly
   over (head, rank) with 1/sqrt(rank); ``shared_rank_gate`` gates each basis
-  independently and normalizes mixing only over heads; ``head_rank_gate`` uses
-  sigmoid(W_head_mix(x)+b0) directly.  An optional head-shared ``v_projection``
+  independently and normalizes mixing only over heads. An optional head-shared ``v_projection``
   compresses the V-side result before expansion.
+  ``head_gate_n`` (A) and ``head_gate_r`` (B) normalize mix over heads or rank,
+  respectively, then apply an independent per-head, per-side sigmoid gate.
+  ``effective_key`` (C) instead normalizes the composed key with a Gram matrix.
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
@@ -2177,16 +2139,9 @@ def factorized_head_bam_read(
   if second_implementation not in ('dot', 'mul_reduce'):
     raise ValueError(
         f'Unknown factorized local BAM second implementation: {second_implementation}')
-  if rank_routing == 'effective_key':
-    if key_mode != 'rms_gate' or use_learned_key_norm or return_rank_gate:
-      raise ValueError('effective_key timing requires rms_gate, no learned norms or routing metrics')
-    return _effective_key_bam_read(
-        M, W_R(x), W_head_mix(x), key_gate_logits,
-        rms_epsilon=rms_epsilon, key_scale=key_scale,
-        implementation=implementation, second_implementation=second_implementation,
-        gram_implementation=gram_implementation, scale_placement=scale_placement,
-        read_side=read_side, v_projection=v_projection, return_sides=return_sides)
-  if rank_routing not in ('legacy', 'shared_rank_gate', 'head_rank_gate'):
+  if rank_routing not in (
+      'legacy', 'shared_rank_gate',
+      'head_gate_n', 'head_gate_r', 'effective_key'):
     raise ValueError(f'Unknown factorized LocalQK rank routing: {rank_routing}')
   v_output_dim = M.shape[-1]
   if v_projection is not None:
@@ -2203,16 +2158,23 @@ def factorized_head_bam_read(
       return jnp.einsum(
           '...v,vc->...c', y_v, jnp.asarray(v_projection, y_v.dtype))
 
-  if rank_routing == 'shared_rank_gate':
+  per_head_gate = rank_routing in ('head_gate_n', 'head_gate_r', 'effective_key')
+  if scale_placement not in ('mix', 'output'):
+    raise ValueError(f'Unknown scale placement: {scale_placement}')
+  if rank_routing == 'effective_key' and use_learned_key_norm:
+    raise ValueError('effective_key normalizes the composed key, not each basis with learned scales')
+  if per_head_gate:
+    if key_mode != 'rms_gate' or key_gate_logits is None:
+      raise ValueError('per-head gating requires rms_gate and per-head gate logits')
+    # A/B normalize each basis; C leaves it raw and normalizes the composed key.
+    gate_logits = None
+    key_mode = 'none' if rank_routing == 'effective_key' else 'rms'
+  elif rank_routing == 'shared_rank_gate':
     if key_gate_logits is None or key_gate_logits.shape[-2:] != (rank, 2):
       raise ValueError(
           f'shared rank gate expects [...,{rank},2], got '
           f'{None if key_gate_logits is None else key_gate_logits.shape}')
     gate_logits = key_gate_logits
-  elif rank_routing == 'head_rank_gate':
-    gate_logits = None
-    if key_mode == 'rms_gate':
-      key_mode = 'rms'
   else:
     # One gate pair shared across the basis: broadcast over the rank axis.
     gate_logits = (
@@ -2231,16 +2193,6 @@ def factorized_head_bam_read(
     raise ValueError(
         f'factorized column bases must end in [{rank},{M.shape[-1]}], got {r_col.shape}')
 
-  with jax.named_scope("bam/read_m_contract"):
-    y_u_basis, y_v_basis = _contract_bam_read_sides(
-        M, M, r_row, r_col, implementation=implementation, read_side=read_side)
-    # Keep omitted sides absent until final output packing.
-    if read_side == 'row':
-      y_u_basis = None
-    elif read_side == 'col':
-      y_v_basis = None
-  y_v_basis = project_v(y_v_basis)
-
   with jax.named_scope("bam/read_head_mix_projection"):
     raw_head_mix = W_head_mix(x)
   with jax.named_scope("bam/read_head_mix_transform"):
@@ -2248,48 +2200,69 @@ def factorized_head_bam_read(
       raise ValueError(
           f'rank-r factorized head mix expects [b,t,n,2,{rank}], '
           f'got {raw_head_mix.shape}')
-    output_dtype = (
-        y_u_basis.dtype if y_u_basis is not None else y_v_basis.dtype)
-    if rank_routing == 'head_rank_gate':
-      if head_rank_gate_bias is None or head_rank_gate_bias.shape != (2,):
-        raise ValueError(
-            f'head-rank gate bias expects [2], got '
-            f'{None if head_rank_gate_bias is None else head_rank_gate_bias.shape}')
-      rank_gate = jax.nn.sigmoid(
-          raw_head_mix.astype(jnp.float32)
-          + jnp.asarray(head_rank_gate_bias, jnp.float32)[None, None, None, :, None]
-      ).astype(output_dtype)
-      row_mix, col_mix = rank_gate[..., 0, :], rank_gate[..., 1, :]
+    if per_head_gate and key_gate_logits.shape != raw_head_mix.shape[:-1]:
+      raise ValueError(f'Expected gate shape {raw_head_mix.shape[:-1]}, got {key_gate_logits.shape}')
+    output_dtype = jnp.result_type(M, r_row, r_col)
+    if rank_routing == 'effective_key':
+      head_mix = raw_head_mix
     else:
-      mix_axis = (-3, -1) if rank_routing == 'legacy' else -3
+      mix_axis = {
+          'legacy': (-3, -1), 'shared_rank_gate': -3,
+          'head_gate_n': -3, 'head_gate_r': -1,
+      }[rank_routing]
       head_mix = normalizations.rms_norm(
           raw_head_mix, dtype=output_dtype, epsilon=rms_epsilon,
           axis=mix_axis)
       if rank_routing == 'legacy':
         head_mix = head_mix / jnp.sqrt(jnp.asarray(rank, output_dtype))
-      row_mix, col_mix = head_mix[..., 0, :], head_mix[..., 1, :]
+    row_mix, col_mix = head_mix[..., 0, :], head_mix[..., 1, :]
+    row_scale = col_scale = None
+    if per_head_gate:
+      gate = jax.nn.sigmoid(key_gate_logits)
+      row_scale, col_scale = key_scale * gate[..., 0], key_scale * gate[..., 1]
+      if rank_routing == 'effective_key':
+        with jax.named_scope('bam/effective_key_gram'):
+          def inverse_rms(A, H):
+            norm2 = _gram_read_norm2(A, H, gram_implementation, gram_statistics_dtype)
+            return jax.lax.rsqrt(norm2.astype(A.dtype) / A.shape[-1] + rms_epsilon)
+          row_scale = row_scale * inverse_rms(r_row, row_mix)
+          col_scale = col_scale * inverse_rms(r_col, col_mix)
 
-      if return_rank_gate:
-        if rank_routing == 'shared_rank_gate':
-          shared_gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
-          rank_gate = jnp.swapaxes(shared_gate, -1, -2)[..., None, :, :]
-          rank_gate = jnp.broadcast_to(rank_gate, raw_head_mix.shape)
-        else:
-          shared_gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
-          rank_gate = shared_gate[..., None, :, None]
-          rank_gate = jnp.broadcast_to(rank_gate, raw_head_mix.shape)
+    if return_rank_gate:
+      if per_head_gate:
+        rank_gate = gate[..., None]
+      elif rank_routing == 'shared_rank_gate':
+        gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
+        rank_gate = rearrange(gate, 'b t r s -> b t 1 s r')
+      else:
+        gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
+        rank_gate = gate[..., None, :, None]
+      rank_gate = jnp.broadcast_to(rank_gate, raw_head_mix.shape)
 
-  def expand(basis_read, mix):
+  # Every routing uses the same basis read, optional V adapter and head expansion.
+  with jax.named_scope("bam/read_m_contract"):
+    y_u_basis, y_v_basis = _contract_bam_read_sides(
+        M, M, r_row, r_col, implementation=implementation, read_side=read_side)
+    if read_side == 'row':
+      y_u_basis = None
+    elif read_side == 'col':
+      y_v_basis = None
+  y_v_basis = project_v(y_v_basis)
+
+  def expand(basis_read, mix, scale):
     if basis_read is None:
       return None
+    if scale is not None and scale_placement == 'mix':
+      mix = mix * scale[..., None]
     if second_implementation == 'dot':
-      return jnp.einsum('btrd,btnr->btnd', basis_read, mix)
-    return jnp.sum(
-        basis_read[:, :, None] * mix[..., None], axis=-2)
+      output = jnp.einsum('btrd,btnr->btnd', basis_read, mix)
+    else:
+      output = jnp.sum(basis_read[:, :, None] * mix[..., None], axis=-2)
+    return output * scale[..., None] if scale is not None and scale_placement == 'output' else output
 
   with jax.named_scope("bam/read_head_mix_expand"):
-    y_u = expand(y_u_basis, col_mix)
-    y_v = expand(y_v_basis, row_mix)
+    y_u = expand(y_u_basis, col_mix, col_scale)
+    y_v = expand(y_v_basis, row_mix, row_scale)
     if y_u is None:
       y_u = jnp.zeros(y_v.shape[:-1] + (M.shape[-2],), dtype=y_v.dtype)
     if y_v is None:
@@ -2310,7 +2283,7 @@ class _LocalReadArm:
   rank: int
   k_dim: int           # K-side basis width
   v_dim: int           # V-side basis width
-  rank_routing: str    # legacy | shared_rank_gate | head_rank_gate
+  rank_routing: str    # legacy | shared_rank_gate | head_gate_n | head_gate_r | effective_key
   num_heads: int
   pre_rms_bias: bool   # add the learned key bias before the RMS transform
   read_side: str
@@ -2329,22 +2302,22 @@ class _LocalReadArm:
 
   @property
   def gate_shape(self):
-    """Trailing shape of the projected gate logits; () means none."""
+    """Trailing shape of the projected gate logits."""
     return {
         'legacy': (2,),
         'shared_rank_gate': (self.rank, 2),
-        'head_rank_gate': (),
         'effective_key': (self.num_heads, 2),
+        'head_gate_n': (self.num_heads, 2),
+        'head_gate_r': (self.num_heads, 2),
     }[self.rank_routing]
 
   @property
   def gate_bias_shape(self):
-    """head_rank_gate has no projected gate but still biases the head-rank gate."""
-    return self.gate_shape or (2,)
+    return self.gate_shape
 
   @property
   def gate_width(self):
-    return math.prod(self.gate_shape) if self.gate_shape else 0
+    return math.prod(self.gate_shape)
 
   @property
   def mix_width(self):
@@ -2519,7 +2492,9 @@ class BamAttention(Attention):
         for name in arm_names}
     for arm in self._local_arms.values():
       assert arm.rank > 0, arm
-      assert arm.rank_routing in ('legacy', 'shared_rank_gate', 'head_rank_gate', 'effective_key'), arm
+      assert arm.rank_routing in (
+          'legacy', 'shared_rank_gate', 'effective_key',
+          'head_gate_n', 'head_gate_r'), arm
     assert not self._local_arms or cfg.bam_create_read_gate_params, (
         'local reads require explicit read gates')
     self._has_write = bool(self._mode)
@@ -2536,6 +2511,10 @@ class BamAttention(Attention):
 
     self._read_key_mode = cfg.bam_read_key_mode
     self._read_key_scale = float(cfg.bam_read_key_scale)
+    self._local_key_scales = {}
+    for name in self._local_arms:
+      scale = getattr(cfg, f'bam_local_{name}_key_scale', None)
+      self._local_key_scales[name] = self._read_key_scale if scale is None else float(scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
     self._read_key_epsilon = float(
         cfg.bam_read_key_epsilon
@@ -2589,6 +2568,9 @@ class BamAttention(Attention):
         cfg, 'bam_record_local_routing_metrics', False))
     self._local_second_implementation = getattr(
         cfg, 'bam_local_second_implementation', 'mul_reduce')
+    self._local_gram_statistics_dtype = {
+        'float32': jnp.float32, 'activation': None,
+    }[getattr(cfg, 'bam_local_gram_statistics_dtype', 'float32')]
     self._replicate_ploc_up = bool(cfg.bam_replicate_ploc_up)
     self._force_activation_dtype = bool(cfg.bam_force_activation_dtype)
     self._fetch_mix_num_heads = (
@@ -3193,8 +3175,7 @@ class BamAttention(Attention):
     return {
         arm.name: (
             packed[..., basis].reshape(lead + (arm.rank, arm.key_width)),
-            (packed[..., gate].reshape(lead + arm.gate_shape)
-             if arm.gate_width else None),
+            packed[..., gate].reshape(lead + arm.gate_shape),
             packed[..., mix].reshape(lead + (arm.num_heads, 2, arm.rank)))
         for arm, (basis, gate, mix) in zip(arms, layout)}
 
@@ -3205,20 +3186,19 @@ class BamAttention(Attention):
     if arm.pre_rms_bias:
       key = key + jnp.asarray(getattr(self, f'{arm.prefix}_bias'), key.dtype)
     gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
-    head_rank_gate_bias = None
-    if arm.rank_routing == 'head_rank_gate':
-      head_rank_gate_bias = gate_bias
-    else:
-      gate = gate + jnp.asarray(gate_bias, gate.dtype)
+    gate = gate + jnp.asarray(gate_bias, gate.dtype)
     q_projection, k_projection = self._local_qk_post_read_v_projections()
+    read_kwargs = self._read_key_kwargs_from_logits(arm.prefix, gate)
+    read_kwargs['key_scale'] = self._local_key_scales[name]
     result = factorized_head_bam_read(
         M, x, lambda _x: key, lambda _x: mix,
-        **self._read_key_kwargs_from_logits(arm.prefix, gate),
+        **read_kwargs,
         implementation=self._read_implementation, read_side=arm.read_side,
         rank=arm.rank, second_implementation=self._local_second_implementation,
         v_projection={'q': q_projection, 'k': k_projection}.get(name),
-        rank_routing=arm.rank_routing, head_rank_gate_bias=head_rank_gate_bias,
+        rank_routing=arm.rank_routing,
         gram_implementation=getattr(self.config, 'bam_local_gram_implementation', 'mul_reduce'),
+        gram_statistics_dtype=self._local_gram_statistics_dtype,
         scale_placement=getattr(self.config, 'bam_local_gram_scale_placement', 'output'),
         return_rank_gate=self._record_local_routing_metrics)
     if self._record_local_routing_metrics:

@@ -293,7 +293,11 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
     bam_local_v_rank_routing = 'legacy'
     bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
-    bam_local_q_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_rank_gate
+    bam_local_gram_statistics_dtype = 'float32'  # float32 | activation; Gram/norm2 only
+    bam_local_q_key_scale = None  # None inherits bam_read_key_scale; local-only override
+    bam_local_k_key_scale = None
+    bam_local_v_key_scale = None
+    bam_local_q_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_rank_gate | head_gate_n (A) | head_gate_r (B) | effective_key (C)
     bam_record_local_routing_metrics = False
     bam_local_qk_amplitude_init = None  # optional Q/K x row/col scale outside the gate
     bam_local_qk_amplitude_depth_scale = False
@@ -6980,3 +6984,55 @@ class BamXLIndependentLLFGramMulMixSixLayer(BamXLIndependentLLFGramMulMix):
     profiler_steps = 5
     profile_periodically_period = 1000
     enable_checkpointing = False
+
+
+# Formal routing comparison; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+class BamMediumIndependentLLFRoutingLegacy(BamMediumIndependentLLFGramBase):
+    """Fresh same-runtime control for local Q/K/V routing; historical LLF comparison."""
+    model_name = 'BamMediumIndependentLLFRoutingLegacy'
+    compare_runs = ['BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan']
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    bam_local_q_rank_routing = 'legacy'
+    bam_local_k_rank_routing = 'legacy'
+    bam_local_v_rank_routing = 'legacy'
+    bam_local_q_key_scale = 2.0
+    bam_local_k_key_scale = 2.0
+    bam_local_v_key_scale = 2.0
+    bam_local_gram_scale_placement = 'mix'
+
+
+class BamMediumIndependentLLFRoutingA(BamMediumIndependentLLFRoutingLegacy):
+    """A: normalize mix over N, then per-head gate; nominal rank-adjusted amplitude."""
+    model_name = 'BamMediumIndependentLLFRoutingA'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_q_rank_routing = 'head_gate_n'
+    bam_local_k_rank_routing = 'head_gate_n'
+    bam_local_v_rank_routing = 'head_gate_n'
+    bam_local_v_key_scale = 2.0 / (2.0 ** 0.5)
+
+
+class BamMediumIndependentLLFRoutingB(BamMediumIndependentLLFRoutingA):
+    """B: normalize mix over R; Q/K rank1 nearly reduces normalized mix to sign."""
+    model_name = 'BamMediumIndependentLLFRoutingB'
+    bam_local_q_rank_routing = 'head_gate_r'
+    bam_local_k_rank_routing = 'head_gate_r'
+    bam_local_v_rank_routing = 'head_gate_r'
+
+
+class BamMediumIndependentLLFRoutingCFp32(BamMediumIndependentLLFRoutingLegacy):
+    """C: effective-key RMS using fp32 Gram/norm2, activation-dtype scaling."""
+    model_name = 'BamMediumIndependentLLFRoutingCFp32'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_statistics_dtype = 'float32'
+
+
+class BamMediumIndependentLLFRoutingCActivation(BamMediumIndependentLLFRoutingCFp32):
+    """C: only Gram/norm2 statistics change to activation dtype."""
+    model_name = 'BamMediumIndependentLLFRoutingCActivation'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy', 'BamMediumIndependentLLFRoutingCFp32']
+    bam_local_gram_statistics_dtype = 'activation'

@@ -7055,6 +7055,7 @@ class BamMediumIndependentLLFRoutingLegacyMixBias(BamMediumIndependentLLFRouting
 
 class BamMediumIndependentLLFRoutingLegacyQKRank2(BamMediumIndependentLLFRoutingLegacy):
     """Q/K rank1→2; V remains rank2, all three use unchanged legacy routing."""
+    # code_commit: 982b7bf; UE5a v5p-16 block-scan/AOT, .6756 steps/s @10-14 (-3.32% vs RoutingLegacy; predicted -2%).
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
     model_name = 'BamMediumIndependentLLFRoutingLegacyQKRank2'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']

@@ -48,6 +48,32 @@ def _factorized_read_joined(*args, **kwargs):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+  def test_unequal_local_side_ranks_values_and_gradients(self):
+    rng = jax.random.split(jax.random.key(190), 6)
+    m, row, col, hr, hc, g = [jax.random.normal(k, shape) for k, shape in zip(
+        rng, [(1,2,5,7), (1,2,2,5), (1,2,4,7), (1,2,3,2), (1,2,3,4), (1,2,3,2)])]
+    def actual(m, row, col, hr, hc, g):
+      return factorized_head_bam_read(
+          m, m[..., 0], lambda _: (row, col), lambda _: (hr, hc),
+          rank=(2,4), rank_routing='head_gate_r', key_mode='rms_gate',
+          key_gate_logits=g, key_scale=1., rms_epsilon=1e-4)
+    def reference(m, row, col, hr, hc, g):
+      norm = lambda z: normalizations.rms_norm(z, dtype=z.dtype, epsilon=1e-4)
+      row_key = jnp.einsum('btnr,btrk->btnk', norm(hr), norm(row))
+      col_key = jnp.einsum('btnr,btrv->btnv', norm(hc), norm(col))
+      return (jnp.einsum('btkv,btnv->btnk', m, col_key) * jax.nn.sigmoid(g[...,1,None]),
+              jnp.einsum('btkv,btnk->btnv', m, row_key) * jax.nn.sigmoid(g[...,0,None]))
+    args = (m,row,col,hr,hc,g)
+    for a,b in zip(actual(*args), reference(*args)):
+      np.testing.assert_allclose(a,b,rtol=2e-5,atol=2e-5)
+    loss = lambda fn: lambda *args: sum(jnp.sum(z**2) for z in fn(*args))
+    for a,b in zip(jax.grad(loss(actual), tuple(range(6)))(*args),
+                   jax.grad(loss(reference), tuple(range(6)))(*args)):
+      np.testing.assert_allclose(a,b,rtol=2e-4,atol=2e-4)
+
+  def test_unequal_local_v_full_module(self):
+    self._check_local_col_module('BamMediumIndependentLLFAlignedRowLocalVRowRank2')
+
   def test_effective_local_o_col_matches_full_c_and_gradients(self):
     keys = jax.random.split(jax.random.key(224), 4)
     M = jax.random.normal(keys[0], (1, 2, 5, 7))
@@ -146,8 +172,10 @@ class BamReadKeyTransformTest(absltest.TestCase):
                                    *args, M_in=matrix, deterministic=True, layer_index=2)
         self.assertNotIn('W_lo_col', full_variables['params'])
         self.assertEqual(full_variables['params']['W_R']['kernel'].value.shape[-1], 40)
-    else:
+    elif cfg.bam_local_v_direct_compressed_col:
       self.assertEqual(variables['params']['W_lv_bias'].value.shape, (4 * 32 + 2 * 8,))
+    else:
+      self.assertEqual(variables['params']['W_lv_bias'].value.shape, (2 * 32 + 4 * 32,))
 
   def test_softplus_read_gate_matched_opening_and_unbounded_output(self):
     r = jnp.array([[1., -2., 3.]], dtype=jnp.float32)

@@ -293,6 +293,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
     bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
+    bam_local_q_row_rank = None  # None keeps the arm's common rank; k/v fall back to q.
+    bam_local_q_col_rank = None
     bam_local_v_share_output_coordinates = False
     bam_local_v_direct_compressed_col = False
     bam_local_o_row_tied_decoder = False
@@ -7154,6 +7156,15 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     bam_local_v_share_output_coordinates = True
+
+
+class BamMediumIndependentLLFAlignedRowLocalVRowRank2(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Only LocalV row rank4->2; column rank4 and routing-B stay unchanged."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs BAlignedRow: final gap +.0005, throughput +.5%; key_scale unchanged.
+    model_name = 'BamMediumIndependentLLFAlignedRowLocalVRowRank2'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_v_row_rank = 2
 
 
 class BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):

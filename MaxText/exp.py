@@ -7118,6 +7118,9 @@ class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRa
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingB'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     # Ongoing comparison: combined V rank2→4 + head_gate_r effect; throughput -2.00% vs Legacy .6988.
+    # Completed13500, final checkpoint committed. vs Legacy: early -.144 shrank strongly,
+    # then held a small benefit (9400–10400 mean -.00146); complete baseline windows end10400.
+    # Rank and routing changed together versus Legacy; this does not isolate the routing effect.
     bam_local_v_rank_routing = 'head_gate_r'
 
 

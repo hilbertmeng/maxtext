@@ -267,7 +267,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
     bam_fetched_read_key_epsilon = None  # None uses bam_read_key_epsilon
     bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
-    bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
+    bam_read_gate_init = None        # opening; None derives sqrt(read_key_epsilon)/scale
+    bam_read_gate_activation = 'sigmoid'
     bam_fetched_read_gate_init = None  # None follows bam_read_gate_init
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
     bam_fetched_read_kernel_gradient_scale = 1.0
@@ -6992,7 +6993,9 @@ class BamMediumIndependentLLFRoutingLegacy(BamMediumIndependentLLFGramBase):
     """Fresh same-runtime control for local Q/K/V routing; historical LLF comparison."""
     model_name = 'BamMediumIndependentLLFRoutingLegacy'
     # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6988 steps/s; matched current-code legacy; historical UE5a LLF ~.696.
-    # In training; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Paused at committed 10607 for LocalVRank4 hot switch; provisional vs historical LLF:
+    # early ~-.002 to -.003 narrowed to near zero (last six through 10k mean -.00038).
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     compare_runs = ['BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan']
     steps = 13500
     checkpoint_period = 200
@@ -7068,8 +7071,18 @@ class BamMediumIndependentLLFRoutingLegacyQKRank2(BamMediumIndependentLLFRouting
 
 class BamMediumIndependentLLFRoutingLegacyLocalVRank4(BamMediumIndependentLLFRoutingLegacy):
     """Only independent LocalV rank2→4; LocalQ/K remain rank1, legacy routing."""
+    # code_commit: 6f83129; UE5a v5p-16 block-scan/AOT, .6920 steps/s (10–14), -.97% vs Legacy .6988.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
     # Prerun prediction: final gap -.0015 vs RoutingLegacy; throughput -2%.
     model_name = 'BamMediumIndependentLLFRoutingLegacyLocalVRank4'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_v_rank = 4
+
+
+class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentLLFRoutingLegacy):
+    """Softplus for all local/fetched read-key gates; matched initial opening .005."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
+    # Prerun prediction: final gap +.002 vs RoutingLegacy; throughput approximately unchanged.
+    model_name = 'BamMediumIndependentLLFRoutingLegacySoftplusReadGate'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_read_gate_activation = 'softplus'

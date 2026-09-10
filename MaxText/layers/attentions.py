@@ -1807,12 +1807,13 @@ def _update_bam_matrix(M_in, dM, lambda_decay):
 def _transform_bam_read_key(
     r, mode='none', scale=1.0, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32, gate_logits=None,
+    gate_activation=jax.nn.sigmoid,
     learned_rms_norm=None, use_learned_rms=False):
   """Apply a side-local health transform to a runtime BAM read key.
 
   `soft_rms_cap` is identity to first order at zero and caps the key RMS at `scale`.
   `rms` returns only the RMS-normalized direction. `rms_gate` additionally applies
-  a bounded, learned amplitude `scale * sigmoid(gate_logits)`. Callers normalize
+  a learned amplitude `scale * gate_activation(gate_logits)`. Callers normalize
   row and column keys separately so one side cannot hide the other side's scale.
   """
   if mode == 'none':
@@ -1832,7 +1833,7 @@ def _transform_bam_read_key(
       return direction
     if gate_logits is None:
       raise ValueError('rms_gate requires gate logits')
-    return scale * jax.nn.sigmoid(gate_logits) * direction
+    return scale * gate_activation(gate_logits) * direction
   raise ValueError(f'Unknown BAM read-key transform: {mode}')
 
 
@@ -1841,6 +1842,7 @@ def _project_bam_read_keys(
     rms_statistics_dtype=jnp.float32, key_mode='none', key_scale=1.0,
     key_row_scale=None, key_col_scale=None,
     key_gate_logits=None, key_row_norm=None, key_col_norm=None,
+    gate_activation=jax.nn.sigmoid,
     use_learned_key_norm=False):
   """Project and independently transform the row/column runtime read keys."""
   with jax.named_scope("bam/read_key_projection"):
@@ -1857,12 +1859,12 @@ def _project_bam_read_keys(
     r_row = _transform_bam_read_key(
         raw_row, key_mode, key_row_scale, rms_epsilon=rms_epsilon,
         rms_statistics_dtype=rms_statistics_dtype,
-        gate_logits=row_gate, learned_rms_norm=key_row_norm,
+        gate_logits=row_gate, gate_activation=gate_activation, learned_rms_norm=key_row_norm,
         use_learned_rms=use_learned_key_norm)
     r_col = _transform_bam_read_key(
         raw_col, key_mode, key_col_scale, rms_epsilon=rms_epsilon,
         rms_statistics_dtype=rms_statistics_dtype,
-        gate_logits=col_gate, learned_rms_norm=key_col_norm,
+        gate_logits=col_gate, gate_activation=gate_activation, learned_rms_norm=key_col_norm,
         use_learned_rms=use_learned_key_norm)
   return raw_row, raw_col, r_row, r_col
 
@@ -2057,6 +2059,7 @@ def bam_read(M, x, W_R, *, key_mode='none', key_scale=1.0,
              rms_epsilon,
              rms_statistics_dtype=jnp.float32,
              key_gate_logits=None,
+             gate_activation=jax.nn.sigmoid,
              key_row_norm=None, key_col_norm=None,
              use_learned_key_norm=False, implementation='mul_reduce_btn',
              read_side='both', return_sides=True):
@@ -2076,7 +2079,7 @@ def bam_read(M, x, W_R, *, key_mode='none', key_scale=1.0,
       Mr.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
       key_row_scale=key_row_scale, key_col_scale=key_col_scale,
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
-      key_gate_logits=key_gate_logits,
+      key_gate_logits=key_gate_logits, gate_activation=gate_activation,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
   with jax.named_scope("bam/read_m_contract"):
@@ -2105,6 +2108,7 @@ def factorized_head_bam_read(
     rms_statistics_dtype=jnp.float32,
     key_mode='none', key_scale=1.0,
     key_gate_logits=None, key_row_norm=None,
+    gate_activation=jax.nn.sigmoid,
     key_col_norm=None, use_learned_key_norm=False,
     implementation='mul_reduce_btn', read_side='both', rank=1,
     second_implementation='mul_reduce', v_projection=None,
@@ -2182,7 +2186,7 @@ def factorized_head_bam_read(
   _, _, r_row, r_col = _project_bam_read_keys(
       M.shape[-2], x, W_R, key_mode=key_mode, key_scale=key_scale,
       rms_epsilon=rms_epsilon, rms_statistics_dtype=rms_statistics_dtype,
-      key_gate_logits=gate_logits,
+      key_gate_logits=gate_logits, gate_activation=gate_activation,
       key_row_norm=key_row_norm, key_col_norm=key_col_norm,
       use_learned_key_norm=use_learned_key_norm)
 
@@ -2218,7 +2222,7 @@ def factorized_head_bam_read(
     row_mix, col_mix = head_mix[..., 0, :], head_mix[..., 1, :]
     row_scale = col_scale = None
     if per_head_gate:
-      gate = jax.nn.sigmoid(key_gate_logits)
+      gate = gate_activation(key_gate_logits)
       row_scale, col_scale = key_scale * gate[..., 0], key_scale * gate[..., 1]
       if rank_routing == 'effective_key':
         with jax.named_scope('bam/effective_key_gram'):
@@ -2232,10 +2236,10 @@ def factorized_head_bam_read(
       if per_head_gate:
         rank_gate = gate[..., None]
       elif rank_routing == 'shared_rank_gate':
-        gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
+        gate = gate_activation(key_gate_logits.astype(jnp.float32))
         rank_gate = rearrange(gate, 'b t r s -> b t 1 s r')
       else:
-        gate = jax.nn.sigmoid(key_gate_logits.astype(jnp.float32))
+        gate = gate_activation(key_gate_logits.astype(jnp.float32))
         rank_gate = gate[..., None, :, None]
       rank_gate = jnp.broadcast_to(rank_gate, raw_head_mix.shape)
 
@@ -2529,6 +2533,13 @@ class BamAttention(Attention):
         else fetched_read_key_epsilon)
     self._read_gate_init = (
         None if cfg.bam_read_gate_init is None else float(cfg.bam_read_gate_init))
+    read_gate_activation = getattr(cfg, 'bam_read_gate_activation', 'sigmoid')
+    if read_gate_activation not in ('sigmoid', 'softplus'):
+      raise ValueError(f'Unknown BAM read gate activation: {read_gate_activation}')
+    self._read_gate_activation = getattr(jax.nn, read_gate_activation)
+    def read_gate_bias(opening):
+      return (math.log(math.expm1(opening)) if read_gate_activation == 'softplus'
+              else math.log(opening / (1.0 - opening)))
     fetched_read_gate_init = getattr(cfg, 'bam_fetched_read_gate_init', None)
     self._fetched_read_gate_init = (
         None if fetched_read_gate_init is None
@@ -2735,7 +2746,7 @@ class BamAttention(Attention):
           features=features, axis=-1, kernel_init=zeros_init, kernel_axes=kernel_axes,
           dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
           quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
-      bias_value = math.log(initial_gate / (1.0 - initial_gate))
+      bias_value = read_gate_bias(initial_gate)
       setattr(self, f'{name}_b0', self.param(
           f'{name}_b0',
           nn.with_logical_partitioning(
@@ -2863,7 +2874,7 @@ class BamAttention(Attention):
           weight_dtype=self.weight_dtype, name='W_local_packed',
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False)
-    gate_bias_value = math.log(zero_key_gate_init / (1.0 - zero_key_gate_init))
+    gate_bias_value = read_gate_bias(zero_key_gate_init)
     local_v_output_dim = self.head_dim - self.bam_k
     for arm in self._local_arms.values():
       setattr(self, f'{arm.prefix}_bias', self.param(
@@ -3065,7 +3076,7 @@ class BamAttention(Attention):
     return jnp.broadcast_to(amplitude, shape)
 
   def _record_fetched_gate_stats(self, gate_logits):
-    gate = jax.nn.sigmoid(gate_logits.astype(jnp.float32))
+    gate = self._read_gate_activation(gate_logits.astype(jnp.float32))
     axes = tuple(range(gate.ndim - 1))
     stats = jnp.stack((
         jnp.mean(gate, axis=axes),
@@ -3154,6 +3165,7 @@ class BamAttention(Attention):
         rms_epsilon=self._read_key_epsilon,
         rms_statistics_dtype=self._read_rms_statistics_dtype,
         key_gate_logits=gate_logits,
+        gate_activation=self._read_gate_activation,
     )
     if self._create_grouped_rw_norm or self._use_native_grouped_read_norm:
       row_norm = getattr(self, f'{projection_name}_row_norm')
@@ -3417,7 +3429,7 @@ class BamAttention(Attention):
   def _gate_local_output(self, read, logits):
     """Gate compact (col/data, row/address) sides before packing the head."""
     col, row = read
-    gates = self._read_key_scale * jax.nn.sigmoid(logits)
+    gates = self._read_key_scale * self._read_gate_activation(logits)
     return self._expand_full_read((col * gates[..., 1:2], row * gates[..., :1]))
 
   def _attention_block(

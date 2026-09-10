@@ -46,6 +46,21 @@ def _factorized_read_joined(*args, **kwargs):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+  def test_softplus_read_gate_matched_opening_and_unbounded_output(self):
+    r = jnp.array([[1., -2., 3.]], dtype=jnp.float32)
+    p = jnp.asarray(.005)
+    sigmoid_bias = jnp.log(p / (1 - p))
+    softplus_bias = jnp.log(jnp.expm1(p))
+    def read(logit, activation):
+      return _transform_bam_read_key(
+          r, 'rms_gate', 2., rms_epsilon=_RMS_EPSILON,
+          gate_logits=logit, gate_activation=activation)
+    np.testing.assert_allclose(
+        read(sigmoid_bias, jax.nn.sigmoid),
+        read(softplus_bias, jax.nn.softplus), rtol=2e-6, atol=1e-8)
+    self.assertGreater(float(jnp.linalg.norm(read(4., jax.nn.softplus))),
+                       4 * float(jnp.linalg.norm(read(4., jax.nn.sigmoid))))
+
 
   def test_clean_gelu_full_module_initializes_and_records_route(self):
     self._check_mix_full_module('BamLlama2MediumV2C256ScanAotCleanGeluAlphaMix')

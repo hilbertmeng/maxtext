@@ -6997,11 +6997,8 @@ class BamMediumIndependentLLFRoutingLegacy(BamMediumIndependentLLFGramBase):
     checkpoint_period = 200
     force_final_checkpoint = True
     bam_local_q_rank_routing = 'legacy'
-    bam_local_k_rank_routing = 'legacy'
-    bam_local_v_rank_routing = 'legacy'
-    bam_local_q_key_scale = 2.0
-    bam_local_k_key_scale = 2.0
-    bam_local_v_key_scale = 2.0
+    bam_local_k_rank_routing = None  # K/V follow Q throughout this family.
+    bam_local_v_rank_routing = None
     bam_local_gram_scale_placement = 'mix'
 
 
@@ -7012,8 +7009,6 @@ class BamMediumIndependentLLFRoutingA(BamMediumIndependentLLFRoutingLegacy):
     # In training; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_q_rank_routing = 'head_gate_n'
-    bam_local_k_rank_routing = 'head_gate_n'
-    bam_local_v_rank_routing = 'head_gate_n'
     bam_local_v_key_scale = 2.0 / (2.0 ** 0.5)
 
 
@@ -7023,8 +7018,6 @@ class BamMediumIndependentLLFRoutingB(BamMediumIndependentLLFRoutingA):
     # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6924 steps/s; vs fresh RoutingLegacy -0.92%.
     # In training; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     bam_local_q_rank_routing = 'head_gate_r'
-    bam_local_k_rank_routing = 'head_gate_r'
-    bam_local_v_rank_routing = 'head_gate_r'
 
 
 class BamMediumIndependentLLFRoutingCFp32(BamMediumIndependentLLFRoutingLegacy):
@@ -7034,8 +7027,6 @@ class BamMediumIndependentLLFRoutingCFp32(BamMediumIndependentLLFRoutingLegacy):
     # In training; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_local_q_rank_routing = 'effective_key'
-    bam_local_k_rank_routing = 'effective_key'
-    bam_local_v_rank_routing = 'effective_key'
     bam_local_gram_statistics_dtype = 'float32'
 
 

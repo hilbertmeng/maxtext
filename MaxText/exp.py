@@ -7097,6 +7097,8 @@ class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentL
 
 class BamMediumIndependentLLFLocalVRank4RoutingA(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
     """Only LocalV rank4 uses head_gate_n; Q/K remain rank1 legacy."""
+    # Stopped at committed5717: vs RoutingB, early +.08948@200 narrowed to ~+.001 over4000–5000;
+    # no negative crossing through5000, despite +.61% throughput; longer-run convergence remains untested.
     # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6890 steps/s (10–14), -.43% vs LocalVRank4 .6920.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.003; throughput about -.5%.
@@ -7130,6 +7132,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 
 class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndependentLLFLocalVRank4RoutingB):
     """Only L-layer LocalO row read maps C→V with its compression transpose."""
+    # code_commit: 286da7a; UE5a v5p-16 block-scan/AOT, .6870 steps/s @10–14 (+.32% vs B .6848).
+    # Observe through late training: coordinate-alignment benefit may emerge late, not an early-stop ablation.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs B: final gap -.001; throughput -.5%. Full-M LocalV unchanged; no new parameters.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode'

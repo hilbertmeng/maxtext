@@ -7169,6 +7169,9 @@ class BamMediumIndependentLLFAlignedRowLocalVRowRank2(BamMediumIndependentLLFLoc
 
 class BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L-layer LocalO column: full-M dynamic rank4 C-fp32; all other reads unchanged."""
+    # Hot-replaced at committed4481: vs BAlignedRow, brief -.00362@800 reversed at1400;
+    # later worsened to +.003..+.005 fluctuations (3000–4400 mean +.00430), no sustained convergence.
+    # No loss gain for -2.05% throughput; predicted final -.001 not supported by observed trajectory.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs BAlignedRow: final gap -.001; throughput -1% to -2%.
     # code_commit: f7ed640; UE5a v5p-16 block-scan/AOT, .6788 steps/s @10–14,

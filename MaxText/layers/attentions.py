@@ -3030,6 +3030,14 @@ class BamAttention(Attention):
               (2,), self.weight_dtype)
 
 
+    # Append optional parameters after existing setup to preserve its RNG stream.
+    for arm in self._local_arms.values():
+      if arm_setting(arm.name, 'mix_bias'):
+        setattr(self, f'{arm.prefix}_mix_bias', self.param(
+            f'{arm.prefix}_mix_bias',
+            nn.with_logical_partitioning(zeros_init, ('q_heads', None, None)),
+            (arm.num_heads, 2, arm.rank), self.weight_dtype))
+
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
     if paired is not None:
@@ -3184,6 +3192,9 @@ class BamAttention(Attention):
     """Read arm ``name`` from M: bias -> gate -> factorized read -> head fit."""
     arm = self._local_arms[name]
     key, gate, mix = local_inputs[name]
+    mix_bias = getattr(self, f'{arm.prefix}_mix_bias', None)
+    if mix_bias is not None:
+      mix = mix + jnp.asarray(mix_bias, mix.dtype)
     if arm.pre_rms_bias:
       key = key + jnp.asarray(getattr(self, f'{arm.prefix}_bias'), key.dtype)
     gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
@@ -3200,7 +3211,7 @@ class BamAttention(Attention):
         rank_routing=arm.rank_routing,
         gram_implementation=getattr(self.config, 'bam_local_gram_implementation', 'mul_reduce'),
         gram_statistics_dtype=self._local_gram_statistics_dtype,
-        scale_placement=getattr(self.config, 'bam_local_gram_scale_placement', 'output'),
+        scale_placement=getattr(self.config, 'bam_local_gram_scale_placement', None) or 'output',
         return_rank_gate=self._record_local_routing_metrics)
     if self._record_local_routing_metrics:
       result, rank_gate = result

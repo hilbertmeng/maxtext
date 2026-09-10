@@ -287,6 +287,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_use_native_grouped_read_norm = False
     bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
     bam_local_q_pre_rms_bias = True
+    bam_local_q_mix_bias = False  # K/V inherit Q unless explicitly overridden.
     bam_local_qk_read_key_activation_side = 'none'  # none | row | col | both
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
@@ -7041,3 +7042,10 @@ class BamMediumIndependentLLFRoutingCActivation(BamMediumIndependentLLFRoutingCF
     # Final checkpoint 2735 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy', 'BamMediumIndependentLLFRoutingCFp32']
     bam_local_gram_statistics_dtype = 'activation'
+
+
+class BamMediumIndependentLLFRoutingLegacyMixBias(BamMediumIndependentLLFRoutingLegacy):
+    """Zero-init pre-RMS head-mix bias for LocalQ/K/V; all other routing unchanged."""
+    model_name = 'BamMediumIndependentLLFRoutingLegacyMixBias'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_q_mix_bias = True

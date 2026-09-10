@@ -37,6 +37,23 @@ C modestly slower. All are uncertain and require full-trajectory evaluation.
 
 ## Launch and throughput
 
+### LegacyMixBias follow-up
+
+RUN `BamMediumIndependentLLFRoutingLegacyMixBias`, compare only
+`BamMediumIndependentLLFRoutingLegacy`; same LLF block-scan/AOT, Q/K rank1,
+V rank2, steps13500 and checkpoint200, health capture off. New local-arm
+mix biases `[N,2,R]` are zero initialized and excluded by the existing `.*bias$`
+WD rule; packed kernels and key/gate paths are unchanged. Q config flag
+`bam_local_q_mix_bias=True` falls back to K/V. Source remains this worktree;
+main exp.py is ledger-only. Pre-run prediction: roughly -.003..+.002 final
+gap, speed change within about 1%, not established evidence of benefit.
+Formal target UE5a v5p-16, after verified v6e AOT readiness.
+The dedicated test verifies all pre-existing parameters and initial outputs
+are unchanged and all three new biases have zero WD. The full 46-test suite
+exposed two old-config failures from unset scale_placement returning None;
+normalize that unset value to output (the routing family explicitly uses mix,
+so this fallback repair does not change its behavior).
+
 All five passed FIRST_STEP on runtime `0f85b91`, with `Loaded compiled function!`
 confirmed in each worker0 log. Same UE5a v5p-16 topology, step10–14 mean:
 legacy .6988; A .6950 (-.54%); B .6924 (-.92%); C-fp32 .6944 (-.63%);
@@ -47,7 +64,9 @@ Five AOT preparation states reached `ready`, including compiler cleanup.
 
 ## User-requested stop of A/B/C (2026-09-10 UTC)
 
-Legacy continues.
+Legacy continues. User changed agent monitoring/report cadence to 1000 steps;
+keep registry loss_interval=200 and window=25 to retain full gap/r200 series,
+batch five windows per report (next round-number milestone 4000, then 5000).
 
 All four TPU nodes and queued resources verified absent by 03:15:18 UTC;
 batch closeout took 237.81s, failures=[]; TB completion markers published.

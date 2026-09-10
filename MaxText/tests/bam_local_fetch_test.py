@@ -35,6 +35,40 @@ class LocalFetchTest(absltest.TestCase):
     cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_o', 'local_qk+full'] * 2
     return cfg
 
+  def test_local_mix_bias_preserves_init_and_skips_decay(self):
+    configs = [self.config('BamMediumIndependentLLFRouting' + suffix)
+               for suffix in ('Legacy', 'LegacyMixBias')]
+    x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=configs[0].dtype)
+    m = jax.random.normal(jax.random.key(2), (1, 8, 32, 32), dtype=configs[0].dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    params, outputs = [], []
+    for cfg in configs:
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_o', attention_type=cfg.attention_type)
+      variables = module.init(
+          {'params': jax.random.key(3), 'aqt': jax.random.key(4)},
+          *args, M_in=m, deterministic=True, layer_index=2)
+      params.append(variables['params'])
+      outputs.append(module.apply(variables, *args, M_in=m,
+                                  deterministic=True, layer_index=2))
+    old, new = [flatten_dict(p) for p in params]
+    for path in old:
+      for before, after in zip(jax.tree.leaves(old[path]), jax.tree.leaves(new[path])):
+        np.testing.assert_array_equal(before, after)
+    wd = train.get_wd_tree(configs[1], params[1])
+    for prefix, rank in (('W_lq', 1), ('W_lk', 1), ('W_lv', 2)):
+      name = prefix + '_mix_bias'
+      self.assertEqual(params[1][name].value.shape, (2, 2, rank))
+      np.testing.assert_array_equal(params[1][name].value, 0)
+      self.assertEqual(wd[name], 0.)
+    self.assertEqual(len(new) - len(old), 3)
+    for before, after in zip(jax.tree.leaves(outputs[0]), jax.tree.leaves(outputs[1])):
+      np.testing.assert_array_equal(before, after)
+
   def test_local_modules_forward_and_gradients(self):
     for suffix in ('C8', 'C8LocalV', 'Full', 'FullLocalV', 'C8SharedRead', 'FullSharedRead', 'C8LocalVSharedRankGate'):
       with self.subTest(suffix=suffix):

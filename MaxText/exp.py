@@ -7160,6 +7160,9 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 
 class BamMediumIndependentLLFAlignedRowLocalVRowRank2(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Only LocalV row rank4->2; column rank4 and routing-B stay unchanged."""
+    # code_commit: 601948f; UE5a retained v5p-16, block-scan/AOT; FIRST_STEP/load verified.
+    # !? .6910 steps/s @10–14, -.29% vs BAlignedRow .6930, opposite predicted +.5%.
+    # Saves .09375 W_Q per L layer in projection weights; speed gain not observed.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs BAlignedRow: final gap +.0005, throughput +.5%; key_scale unchanged.
     model_name = 'BamMediumIndependentLLFAlignedRowLocalVRowRank2'

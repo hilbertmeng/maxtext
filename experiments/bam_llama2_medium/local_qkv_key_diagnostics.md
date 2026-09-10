@@ -126,5 +126,7 @@ acquisition workflow. Replacement EW4a restored successfully and completed all32
 batches. Committed batches were uploaded worker→GCS every30s, then downloaded
 directly to the local workstation; tpu-ag handled no tensor/XPlane payloads.
 A premature aggregation attempt correctly rejected30/32 batches; analysis used
-the verified complete32/32 set. Backup cleanup is complete; primary cleanup was
-requested after complete local artifact verification. Scripts remain in Git.
+the verified complete32/32 set. All four diagnostic candidates (including the
+preempted first EW4a candidate) now have both TPU and queued resource verified
+absent. Primary cleanup followed complete local artifact verification; reusable
+scripts remain in Git.

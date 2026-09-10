@@ -294,6 +294,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
     bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
     bam_local_v_share_output_coordinates = False
+    bam_local_o_row_tied_decoder = False
     bam_local_v_rank_routing = 'legacy'
     bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation; Gram/norm2 only
@@ -7125,6 +7126,15 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     bam_local_v_share_output_coordinates = True
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndependentLLFLocalVRank4RoutingB):
+    """Only L-layer LocalO row read maps C→V with its compression transpose."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs B: final gap -.001; throughput -.5%. Full-M LocalV unchanged; no new parameters.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
+    bam_local_o_row_tied_decoder = True
 
 
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):

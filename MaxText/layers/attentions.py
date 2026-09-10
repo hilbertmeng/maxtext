@@ -2620,6 +2620,11 @@ class BamAttention(Attention):
         if ('full' in self._mode or self._local_o
             and getattr(cfg, 'bam_local_o_compress_v', True)) else None)
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
+    self._local_o_row_tied_decoder = (
+        self._local_o and getattr(cfg, 'bam_local_o_row_tied_decoder', False))
+    if self._local_o_row_tied_decoder:
+      assert self._abs_v_dim is not None and self._abs_v_row_output == 'direct'
+      assert self.bam_k + self.bam_v <= self.head_dim
     self._abs_v_row_decoder_output = getattr(
         cfg, 'bam_abs_v_row_decoder_output', 'full')
     self._abs_v_row_decoder_share_heads = bool(getattr(
@@ -3370,7 +3375,9 @@ class BamAttention(Attention):
             y_k, [(0, 0)] * (y_k.ndim - 1)
             + [(0, self.bam_k - self._abs_k_dim)])
     if self._abs_v_dim is not None:
-      if self._abs_v_row_output == 'project':
+      if self._local_o_row_tied_decoder:
+        y_v = decode(y_v, self.abs_v_cache_projection.T)
+      elif self._abs_v_row_output == 'project':
         y_v = decode(y_v, self.abs_v_row_decoder)
       # Direct mode keeps only the compressed coordinates. Padding the complete
       # [K-side, V-side] result below is equivalent when k+v==head_dim and also

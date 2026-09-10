@@ -17,6 +17,7 @@ from layers.attentions import (
     _bam_fetch_op,
     _bam_fetch_route_sums,
     _compressed_local_v_read,
+    _effective_key_col_read,
     _dynamic_bam_fetch_mix_weights,
     _fit_bam_read_to_head,
     _fetched_read_gate_bin_stats,
@@ -47,6 +48,29 @@ def _factorized_read_joined(*args, **kwargs):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+  def test_effective_local_o_col_matches_full_c_and_gradients(self):
+    keys = jax.random.split(jax.random.key(224), 4)
+    M = jax.random.normal(keys[0], (1, 2, 5, 7))
+    A = jax.random.normal(keys[1], (1, 2, 4, 7))
+    H = jax.random.normal(keys[2], (1, 2, 6, 4))
+    G = jax.random.normal(keys[3], (1, 2, 6))
+    def actual(m, a, h, g):
+      return _effective_key_col_read(m, a, h, g, key_scale=2., rms_epsilon=1e-4)
+    def reference(m, a, h, g):
+      keys = jnp.concatenate((jnp.zeros(a.shape[:-1] + (5,)), a), -1)
+      mix = jnp.stack((jnp.zeros_like(h), h), -2)
+      gates = jnp.stack((jnp.zeros_like(g), g), -1)
+      return factorized_head_bam_read(
+          m, None, lambda _: keys, lambda _: mix, rms_epsilon=1e-4,
+          key_mode='rms_gate', key_gate_logits=gates, key_scale=2.,
+          rank=4, rank_routing='effective_key', read_side='col')[0]
+    for a in (A, jnp.zeros_like(A)):
+      np.testing.assert_allclose(actual(M, a, H, G), reference(M, a, H, G), atol=2e-5, rtol=2e-5)
+      for got, want in zip(
+          jax.grad(lambda *args: actual(*args).sum(), (0, 1, 2, 3))(M, a, H, G),
+          jax.grad(lambda *args: reference(*args).sum(), (0, 1, 2, 3))(M, a, H, G)):
+        np.testing.assert_allclose(got, want, atol=2e-4, rtol=2e-5)
+
   def test_compressed_local_v_row_equivalence_and_direct_col(self):
     keys = jax.random.split(jax.random.key(201), 7)
     b, t, k, v, c, r, n = 1, 2, 5, 7, 3, 4, 6
@@ -77,6 +101,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
       np.testing.assert_allclose(got, expected, atol=2e-4, rtol=2e-5)
 
   def test_compressed_local_v_full_module(self):
+    self._check_local_col_module('BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol')
+
+  def test_effective_local_o_col_full_module(self):
+    self._check_local_col_module('BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32')
+
+  def _check_local_col_module(self, exp_class):
     import max_utils
     import pyconfig
     output = tempfile.TemporaryDirectory()
@@ -84,7 +114,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     (Path(output.name) / 'test-direct-col').mkdir()
     cfg = pyconfig.initialize(
         [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
-        exp_class='BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol',
+        exp_class=exp_class,
         run_name='test-direct-col', enable_checkpointing=False,
         base_output_directory=output.name + '/', jax_cache_dir='', log_config=False,
         dataset_type='synthetic', base_emb_dim=128, base_num_query_heads=2,
@@ -107,7 +137,17 @@ class BamReadKeyTransformTest(absltest.TestCase):
     y, m = attention.apply(variables, *args, M_in=matrix, deterministic=True, layer_index=1)
     self.assertEqual(y.shape, x.shape)
     self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
-    self.assertEqual(variables['params']['W_lv_bias'].value.shape, (4 * 32 + 2 * 8,))
+    if cfg.bam_local_o_col_effective_rank:
+      self.assertEqual(variables['params']['W_lo_col_bias'].value.shape, (4, 32))
+      self.assertEqual(variables['params']['W_R']['kernel'].value.shape[-1], 32)
+      for layer_mode in ('local_qk+full',):
+        full = attention.clone(layer_mode=layer_mode)
+        full_variables = full.init({'params': jax.random.key(2), 'aqt': jax.random.key(3)},
+                                   *args, M_in=matrix, deterministic=True, layer_index=2)
+        self.assertNotIn('W_lo_col', full_variables['params'])
+        self.assertEqual(full_variables['params']['W_R']['kernel'].value.shape[-1], 40)
+    else:
+      self.assertEqual(variables['params']['W_lv_bias'].value.shape, (4 * 32 + 2 * 8,))
 
   def test_softplus_read_gate_matched_opening_and_unbounded_output(self):
     r = jnp.array([[1., -2., 3.]], dtype=jnp.float32)

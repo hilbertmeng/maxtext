@@ -296,6 +296,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_v_share_output_coordinates = False
     bam_local_v_direct_compressed_col = False
     bam_local_o_row_tied_decoder = False
+    bam_local_o_col_effective_rank = 0
     bam_local_v_rank_routing = 'legacy'
     bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation; Gram/norm2 only
@@ -7132,6 +7133,16 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     bam_local_v_share_output_coordinates = True
+
+
+class BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """L-layer LocalO column: full-M dynamic rank4 C-fp32; all other reads unchanged."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs BAlignedRow: final gap -.001; throughput -1% to -2%.
+    # Read-M FLOPs unchanged (4*32 versus 16*8); extra head expansion/Gram may cost time.
+    model_name = 'BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_o_col_effective_rank = 4
 
 
 class BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):

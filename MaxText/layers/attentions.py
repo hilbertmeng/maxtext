@@ -2275,6 +2275,18 @@ def factorized_head_bam_read(
     return (read, rank_gate) if return_rank_gate else read
 
 
+def _effective_key_col_read(M, bases, mix, gate_logits, *, key_scale,
+                            rms_epsilon, implementation='mul_reduce_btn'):
+  """C-fp32 column read: normalize the composed key, then gate each head."""
+  norm2 = _gram_read_norm2(bases, mix, 'mul_reduce', jnp.float32)
+  scale = key_scale * jax.nn.sigmoid(gate_logits) * jax.lax.rsqrt(
+      norm2.astype(bases.dtype) / bases.shape[-1] + rms_epsilon)
+  col, _ = _contract_bam_read_sides(
+      M, M, None, bases, implementation=implementation, read_side='col')
+  result = jnp.sum(col[:, :, None] * mix[..., None], axis=-2)
+  return result * scale[..., None]
+
+
 def _compressed_local_v_read(
     M, key, mix, gate_logits, *, rank, key_scale, rms_epsilon,
     rms_statistics_dtype=jnp.float32, implementation='mul_reduce_btn',
@@ -2518,6 +2530,8 @@ class BamAttention(Attention):
         {'local_qk', 'local_o'}), (
             f'unsupported production BAM layer mode: {self.layer_mode}')
     self._local_o = 'local_o' in self._mode
+    self._local_o_col_rank = (
+        getattr(cfg, 'bam_local_o_col_effective_rank', 0) if self._local_o else 0)
     self._output_read = 'full' in self._mode or self._local_o
     self._local_v_mode = (
         (self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none'))
@@ -2883,7 +2897,8 @@ class BamAttention(Attention):
 
       # Joint target-side read key is generated directly in both cached spaces.
       read_features = (
-          self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
+          self._fetched_read_num_heads, cfg.bam_n_f,
+          read_k_dim if self._local_o_col_rank else read_k_dim + read_v_dim)
       self.W_R = DenseGeneral(
           features=read_features, axis=-1,
           kernel_init=(
@@ -2904,6 +2919,24 @@ class BamAttention(Attention):
           'W_R', (self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim),
           (self._fetched_read_num_heads, cfg.bam_n_f, read_v_dim),
           ('q_heads', 'fetch', 'kv'), ('q_heads', 'fetch', 'kv'))
+      if self._local_o_col_rank:
+        assert self._local_o_col_rank > 0 and self._local_v_mode == 'rank2'
+        assert read_gate_activation == 'sigmoid'
+        assert self._read_key_mode == 'rms_gate' and self._fetched_read_side == 'both'
+        assert not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm)
+        assert self._fetched_read_amplitude_init is None and self._abs_k_dim is None
+        for name, features, axes, init in (
+            ('W_lo_col', (self._local_o_col_rank, self.bam_v),
+             ('embed', None, 'kv'), zeros_init),
+            ('W_lo_col_mix', (self._fetched_read_num_heads, self._local_o_col_rank),
+             ('embed', 'q_heads', None), reg_init)):
+          setattr(self, name, DenseGeneral(
+              features=features, axis=-1, kernel_init=init, kernel_axes=axes,
+              dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
+              quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
+        self.W_lo_col_bias = self.param(
+            'W_lo_col_bias', nn.with_logical_partitioning(zeros_init, (None, 'kv')),
+            (self._local_o_col_rank, self.bam_v), self.weight_dtype)
 
       # Signed RMS mixing needs a regular-initialized direction because RMSNorm
       # at an all-zero vector is singular. W_R remains zero-initialized, so the
@@ -3451,6 +3484,24 @@ class BamAttention(Attention):
         jnp.concatenate((y_k, y_v), axis=-1),
         self.num_query_heads, self.head_dim)
 
+  def _read_local_o_effective_col(self, M, compressed_M, x):
+    """Keep the original compressed row read; use full M for C-fp32 columns."""
+    logits = self._project_read_gate_logits('W_R_gate', x, squeeze_fetch_axis=True)
+    row_key = _transform_bam_read_key(
+        jnp.squeeze(self.W_R(x), axis=-2), 'rms_gate', self._read_key_scale,
+        rms_epsilon=self._fetched_read_key_epsilon,
+        rms_statistics_dtype=self._read_rms_statistics_dtype,
+        gate_logits=logits[..., 0:1], gate_activation=self._read_gate_activation)
+    _, row = _contract_bam_read_sides(
+        compressed_M, compressed_M, row_key, None,
+        implementation=self._read_implementation, read_side='row')
+    bases = self.W_lo_col(x)
+    bases = bases + jnp.asarray(self.W_lo_col_bias, bases.dtype)
+    col = _effective_key_col_read(
+        M, bases, self.W_lo_col_mix(x), logits[..., 1], key_scale=self._read_key_scale,
+        rms_epsilon=self._read_key_epsilon, implementation=self._read_implementation)
+    return self._expand_full_read((col, row)), logits
+
   def _read_fetched_m(self, Mbar, inputs_q, *, ungated=False):
     """Read fetched M; ungated sharing returns compact (col/u, row/v) sides."""
     with jax.named_scope("bam/read_fetched_m"):
@@ -3656,8 +3707,11 @@ class BamAttention(Attention):
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       local_state = self._compress_full_fetch_state(Mh)
-      local_output, output_logits = self._read_fetched_m(
-          local_state, inputs_q, ungated=self._local_v_mode == 'shared')
+      if self._local_o_col_rank:
+        local_output, output_logits = self._read_local_o_effective_col(Mh, local_state, inputs_q)
+      else:
+        local_output, output_logits = self._read_fetched_m(
+            local_state, inputs_q, ungated=self._local_v_mode == 'shared')
       if self._local_v_mode == 'shared':
         value = value + self._gate_local_output(
             local_output, self._project_read_gate_logits('W_lv_gate', inputs_q))

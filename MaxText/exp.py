@@ -7139,6 +7139,8 @@ class BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32(BamMediumIndependentL
     """L-layer LocalO column: full-M dynamic rank4 C-fp32; all other reads unchanged."""
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs BAlignedRow: final gap -.001; throughput -1% to -2%.
+    # code_commit: f7ed640; UE5a v5p-16 block-scan/AOT, .6788 steps/s @10–14,
+    # -2.05% vs AlignedRow .6930; near the slower end of the predicted -1% to -2%.
     # Read-M FLOPs unchanged (4*32 versus 16*8); extra head expansion/Gram may cost time.
     model_name = 'BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']

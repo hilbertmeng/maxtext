@@ -7100,7 +7100,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingA(BamMediumIndependentLLFRoutingL
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.003; throughput about -.5%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingA'
-    compare_runs = ['BamMediumIndependentLLFRoutingLegacyLocalVRank4']
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
+    # Ongoing comparison switched to B after the old Rank4 control stopped; throughput +.61% vs B.
     bam_local_v_rank_routing = 'head_gate_n'
     bam_local_v_key_scale = 2.0 / (4.0 ** 0.5)
 
@@ -7111,6 +7112,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRa
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.005; throughput about -.5%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingB'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacyLocalVRank4']
     bam_local_v_rank_routing = 'head_gate_r'
 
 
@@ -7130,6 +7132,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRout
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
     # Prerun prediction vs LocalVRank4: final gap +.001; throughput about -1%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32'
-    compare_runs = ['BamMediumIndependentLLFRoutingLegacyLocalVRank4']
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
+    # Ongoing comparison switched to B after the old Rank4 control stopped; throughput +.47% vs B.
     bam_local_v_rank_routing = 'effective_key'
     bam_local_gram_statistics_dtype = 'float32'

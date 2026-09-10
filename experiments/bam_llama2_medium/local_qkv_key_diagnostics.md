@@ -11,6 +11,8 @@ This is evidence about representational similarity, not a demonstrated training
 gain or a safe inference replacement.
 
 The important split is Local versus Fetch layers, not merely shallow versus deep.
+"Fetch-layer Q/K" below still means that layer's **LocalQ/LocalK** read keys,
+not the keys used to read fetched M.
 Q/K each use one basis per side in every layer; independent LocalV uses two bases
 in Local layers only. All three read the same full local32×32 M. Layer0 has zero
 keys and is excluded from aggregate similarity.

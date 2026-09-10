@@ -7087,6 +7087,8 @@ class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentL
     # code_commit: 64da0b4; UE5a v5p-16 block-scan/AOT, .6994 steps/s (10–14), +.09% vs Legacy .6988.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
     # Prerun prediction: final gap +.002 vs RoutingLegacy; throughput approximately unchanged.
+    # Hot-replaced at committed2739 (resumable pause): vs Legacy +.0716@200 narrowed to +.0023..+.0044
+    # over 800–2400, then +.00154@2600 (new low); still positive, but convergence was not ruled out.
     model_name = 'BamMediumIndependentLLFRoutingLegacySoftplusReadGate'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     bam_read_gate_activation = 'softplus'
@@ -7116,6 +7118,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     """Read full M for LocalV; share LocalO's V compression on row output only."""
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs RoutingB: final gap -.0015; throughput within +/-1%.
+    # code_commit: 77401da; UE5a v5p-16 block-scan/AOT, .6930 steps/s @10–14 (+1.20% vs B .6848).
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     bam_local_v_share_output_coordinates = True

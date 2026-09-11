@@ -6882,7 +6882,8 @@ class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKR
 
 class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase):
     """XL: full-M LocalV rank4 effective-key read, row aligned with LocalO C8."""
-    # Continue beyond independent LLF's21372; compare historical XL Rank2, report every500.
+    # User stop target30000; compare historical XL Rank2, report every1000.
+    # Keep original50000 LR/AOT schedule; agent closeout at target, not a changed training schedule.
     # code_commit: d8ecbe2; UE5a v5p-32 block-scan/AOT, FIRST_STEP/load verified.
     # Steps10-14 .5532 steps/s, -.58% vs historical independent LLF .5564 (predicted -1%).
     # Historical XL all-decay (wd_mults=[]), Q/K rank2 legacy, health sow off; checkpoint250.
@@ -7162,6 +7163,9 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 
 class BamMediumIndependentLLFAlignedRowLocalVStaticCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L-layer LocalV: static normalized [V,N] column keys and per-head gates."""
+    # Stopped at committed3251; TPU/queue released. vs BAlignedRow +.284@200 -> +.0063..+.0090 over2000–3200;
+    # mean +.00789, latest3200 new low: eventual convergence unproven, not ruled out.
+    # Saves ~.187 W_Q per L layer, but substantial loss cost and only +.12% throughput.
     # code_commit: 7ded074; UE5a v5p-16 block-scan/AOT, FIRST_STEP/load verified.
     # !? Steps10-14 .6938 steps/s, +.12% vs BAlignedRow .6930; predicted +1% not realized.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
@@ -7175,6 +7179,9 @@ class BamMediumIndependentLLFAlignedRowLocalVStaticCol(BamMediumIndependentLLFLo
 
 class BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol(BamMediumIndependentLLFAlignedRowLocalVStaticCol):
     """Add independently gated static columns to the unchanged dynamic rank4 columns."""
+    # Stopped at committed3487; TPU/queue released. vs BAlignedRow +.137@200 -> tiny negative oscillations800–2600;
+    # positive at2800–3400 (+.00003..+.00103), no persistent benefit for -1.44% throughput.
+    # vs StaticCol: advantage shrank -.1466@200 to -.00605@3200; -1.56% throughput.
     # code_commit: 7ded074; UE5a v5p-16 block-scan/AOT, FIRST_STEP/load verified.
     # Steps10-14 .6830 steps/s, -1.44% vs BAlignedRow .6930 (predicted -2%).
     # -1.56% vs StaticCol .6938.

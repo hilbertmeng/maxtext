@@ -6958,6 +6958,15 @@ class BamXLIndependentLLFLocalQKVCFp32AlignedRow(BamXLIndependentLLFLocalVRank4C
     bam_local_k_rank_routing = None  # Follow Q; V already explicitly uses effective_key.
 
 
+class BamXLIndependentLLFLocalQKRank4CFp32AlignedRow(BamXLIndependentLLFLocalQKVCFp32AlignedRow):
+    """Q/K rank2 -> rank4; retain LocalV rank4 and effective-key fp32 routing."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs parent: late gap -.0015; throughput -2%. Review at10k, not an automatic stop.
+    model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRow'
+    compare_runs = ['BamXLIndependentLLFLocalQKVCFp32AlignedRow']
+    bam_local_q_rank = 4  # K follows Q; V is explicitly rank4 in the parent.
+
+
 class BamXLIndependentLLFGramBaseSixLayer(BamXLIndependentLLFGramBase):
     model_name = 'BamXLIndependentLLFGramBaseSixLayer'
     base_num_decoder_layers = 6

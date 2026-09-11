@@ -6900,6 +6900,18 @@ class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase)
     force_final_checkpoint = True
 
 
+class BamXLIndependentLLFLocalQKVCFp32AlignedRow(BamXLIndependentLLFLocalVRank4CFp32AlignedRow):
+    """Unify LocalQ/K/V effective-key routing; retain Q/K rank2 and V rank4."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs LocalVRank4CFp32AlignedRow: late gap -.001 (optimistic), throughput -1%.
+    # Architectural uniformity is also a benefit; keep ranks, scales, RoPE and all-decay unchanged.
+    model_name = 'BamXLIndependentLLFLocalQKVCFp32AlignedRow'
+    compare_runs = ['BamXLIndependentLLFLocalVRank4CFp32AlignedRow',
+                    'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2']
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None  # Follow Q; V already explicitly uses effective_key.
+
+
 class BamXLIndependentLLFGramBaseSixLayer(BamXLIndependentLLFGramBase):
     model_name = 'BamXLIndependentLLFGramBaseSixLayer'
     base_num_decoder_layers = 6

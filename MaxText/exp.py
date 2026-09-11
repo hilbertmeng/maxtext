@@ -2430,6 +2430,21 @@ class BamMediumPaired40Rank2CurrentControlRepro(BamLlama2MediumV2C256Paired40Loc
     checkpoint_period = 200
 
 
+class BamMediumPaired40Rank2CFp32(BamMediumPaired40Rank2CurrentControlRepro):
+    """Only LocalQ/K legacy -> effective-key fp32 routing; paired40 rank2 unchanged."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Formal launch follows successful 100-step historical CurrentControl reproduction.
+    # Prediction: final gap -.001 vs CurrentControl (low confidence), throughput -1%.
+    model_name = 'BamMediumPaired40Rank2CFp32'
+    compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl',
+                    'BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate']
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None
+    bam_local_gram_statistics_dtype = 'float32'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'mix'
+
+
 class BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate(
     BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl
 ):

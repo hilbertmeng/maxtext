@@ -24,11 +24,16 @@ TB `learning/loss`, exact steps, latest event wins; these are not window average
 | 30 | 9.38162518 | 9.384468 | −0.00284282 |
 | 40 | 8.66864491 | 8.664366 | +0.00427891 |
 | 50 | 8.07022381 | 8.061051 | +0.00917281 |
+| 60 | 7.657539 | 7.686422 | −0.028883 |
+| 70 | 7.391550 | 7.391161 | +0.000389 |
+| 80 | 7.115118 | 7.099284 | +0.015834 |
+| 90 | 6.797756 | 6.794589 | +0.003167 |
+| 100 | 6.610661 | 6.617669 | −0.007008 |
 
 The EW4b and UE5a recoveries from checkpoint26 emitted identical step30 loss.
-This checks that one replayed point, not entire resume equivalence. The latest
-verified checkpoint is32; the prior EW4b lease reached50 without preserving all
-those steps in a committed checkpoint.
+This checks that one replayed point, not entire resume equivalence. After completing
+the100-step check, the probe was paused at committed124. The prior EW4b lease
+reached50 without preserving all those steps in a committed checkpoint.
 
 ## Configuration-name audit
 
@@ -74,4 +79,9 @@ Probe TB: `/data0/xd/tensorboard_logs/BamMediumPaired40Rank2CurrentControlRepro`
 Export: `/data0/xd/bam_diagnostics/paired40-repro-0911-loss.txt`.
 Historical raw loss cache: tpu-ag
 `/home/lishengping/xd/projects/run_registry/loss_cache/BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl.json`.
-Checkpoint32: `gs://newproject-1-llm_projects_us-east5/log/BamMediumPaired40Rank2CurrentControlRepro/checkpoints/32/`.
+Final checkpoint124: `gs://newproject-1-llm_projects_us-east5/log/BamMediumPaired40Rank2CurrentControlRepro/checkpoints/124/`.
+
+Next isolated control: `BamMediumPaired40Rank2HistoricalInitRepro`, runtime `ecae35c`.
+Only the packed module name is restored to `W_local_qk_packed`; current normalization
+layout is retained. This intervention tests the renamed RNG path, not a claim that
+all historical parameter initializations have already been restored.

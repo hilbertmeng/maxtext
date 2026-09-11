@@ -2421,7 +2421,8 @@ class BamMediumPaired40Rank2CurrentControlRepro(BamLlama2MediumV2C256Paired40Loc
     """100-step reproduction check; preserve historical 13500-step schedule."""
     # Ledger/implementation: codex/local-read-gram, /data0/xd/local-read-gram.
     # Historical 0038e21 AOT omitted WD masks: explicitly preserve all-decay here.
-    # Compare raw loss every10 steps through100; expected exact historical CurrentControl trajectory.
+    # code_commit: 28aefca; paused124. Reproduction failed: raw gaps through100
+    # diverge after20, range -.02888..+.01583; investigate packed RNG path and RMS layout.
     model_name = 'BamMediumPaired40Rank2CurrentControlRepro'
     compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl']
     steps = 13500

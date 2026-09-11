@@ -7171,7 +7171,8 @@ class BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow(BamMediumIndependentL
     # Retain B's scale rule 2/sqrt(rank); clean WD, block-scan/AOT, checkpoint200, health sow off.
     model_name = 'BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
-                    'BamMediumIndependentLLFRoutingLegacy']
+                    'BamMediumIndependentLLFRoutingLegacy',
+                    'BamMediumIndependentLLFRoutingB']
     bam_local_v_rank = 2
     bam_local_v_key_scale = 2.0 / (2.0 ** 0.5)
 

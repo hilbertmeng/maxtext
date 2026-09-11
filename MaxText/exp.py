@@ -6963,6 +6963,16 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRow(BamXLIndependentLLFLocalQKV
     # code_commit: b264b49; UE5a v5p-32 scan/AOT, loaded executable and FIRST_STEP verified.
     # !? steps10-14 .5268 steps/s: -4.29% vs parent .5504 (EW4b), worse than -2% prediction.
     # Timing also includes restored generic training-health statistics; BAM sow remains off.
+    # All-health-OFF comparison (v5p-32 scan/AOT; historical rows reused, not a same-commit/zone pair):
+    # configuration | steps/s | vs Rank2 | vs preceding row | zone, runtime
+    # BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200 | .5524 | reference | -- | UE5a,1b39c64
+    # BamXLIndependentLLFLocalVRank4CFp32AlignedRow | .5532 | +.14% | +.14% | UE5a,d8ecbe2
+    # BamXLIndependentLLFLocalQKVCFp32AlignedRow | .5504 | -.36% | -.51% | EW4b,6977fa0
+    # BamXLIndependentLLFLocalQKRank4CFp32AlignedRow | .5360 | -2.97% | -2.62% | UE5a,c2134ff
+    # New row uses trace-free steps28-33 (all .536); steps12-14 .535 corroborate it.
+    # Old rows use steps10-14. Step11 of the new trace was disturbed; excluded explicitly.
+    # Health-off is +1.75% vs formal health-on .5268; residual rank cost ~-2.6%, near -2% prediction.
+    # Diagnostic-only branch codex/xl-qkr4-nohealth-speed; generic health stays ON in formal training.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs parent: late gap -.0015; throughput -2%. Review at10k, not an automatic stop.
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRow'

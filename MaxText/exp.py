@@ -6960,6 +6960,9 @@ class BamXLIndependentLLFLocalQKVCFp32AlignedRow(BamXLIndependentLLFLocalVRank4C
 
 class BamXLIndependentLLFLocalQKRank4CFp32AlignedRow(BamXLIndependentLLFLocalQKVCFp32AlignedRow):
     """Q/K rank2 -> rank4; retain LocalV rank4 and effective-key fp32 routing."""
+    # code_commit: b264b49; UE5a v5p-32 scan/AOT, loaded executable and FIRST_STEP verified.
+    # !? steps10-14 .5268 steps/s: -4.29% vs parent .5504 (EW4b), worse than -2% prediction.
+    # Timing also includes restored generic training-health statistics; BAM sow remains off.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs parent: late gap -.0015; throughput -2%. Review at10k, not an automatic stop.
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRow'

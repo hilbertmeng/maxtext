@@ -6910,7 +6910,7 @@ class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKR
 
 class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase):
     """XL: full-M LocalV rank4 effective-key read, row aligned with LocalO C8."""
-    # Stopped at committed30054 (original50000 schedule); UE5a -> EW4b, TPU/queue released.
+    # Stopped at 30054.
     # vs historical XL Rank2: early -.0205@1k shrank rapidly, then persistent small benefit;
     # 25k–30k mean -.00294, no sustained convergence to zero. Fetched M-cache is 1/3 of Rank2.
     # code_commit: d8ecbe2; UE5a v5p-32 block-scan/AOT, FIRST_STEP/load verified.

@@ -7161,6 +7161,18 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     bam_local_v_share_output_coordinates = True
 
 
+class BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """LocalV row/col rank2 + routing B + AlignedRow; Q/K stay rank1 legacy."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs rank4 BAlignedRow: final gap -.0005, throughput +1%; low confidence.
+    # Retain B's scale rule 2/sqrt(rank); clean WD, block-scan/AOT, checkpoint200, health sow off.
+    model_name = 'BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFRoutingLegacy']
+    bam_local_v_rank = 2
+    bam_local_v_key_scale = 2.0 / (2.0 ** 0.5)
+
+
 class BamMediumIndependentLLFAlignedRowLocalVStaticCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L-layer LocalV: static normalized [V,N] column keys and per-head gates."""
     # Stopped at committed3251; TPU/queue released. vs BAlignedRow +.284@200 -> +.0063..+.0090 over2000–3200;

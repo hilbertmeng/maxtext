@@ -2355,6 +2355,39 @@ def _compressed_local_v_read(
     return y_u * scale[..., 1, None], y_v * scale[..., 0, None]
 
 
+def _static_local_v_col_read(M, static_key, gate_logits, *, rms_epsilon,
+                            rms_statistics_dtype, scale=2.0):
+  """Token-shared V keys [v,n], with dynamic per-head scalar gates [b,t,n]."""
+  key = normalizations.rms_norm(
+      jnp.asarray(static_key, M.dtype), dtype=M.dtype, axis=0,
+      epsilon=rms_epsilon, statistics_dtype=rms_statistics_dtype)
+  with jax.named_scope('bam/static_local_v_col_read'):
+    read = jnp.einsum('btkv,vn->btnk', M, key)
+    return read * (scale * jax.nn.sigmoid(gate_logits))[..., None]
+
+
+def _local_v_row_only_read(M, key, mix, gate_logits, projection, *, key_scale,
+                           rms_epsilon, rms_statistics_dtype, implementation,
+                           second_implementation, scale_placement):
+  """Routing-B row half, without allocating dynamic column keys or mixing."""
+  key = _transform_bam_read_key(
+      key, 'rms', rms_epsilon=rms_epsilon,
+      rms_statistics_dtype=rms_statistics_dtype)
+  mix = normalizations.rms_norm(
+      mix, dtype=jnp.result_type(M, key), epsilon=rms_epsilon, axis=-1)
+  _, basis = _contract_bam_read_sides(M, M, key, None, implementation, 'row')
+  if projection is not None:
+    basis = jnp.einsum('btrv,vc->btrc', basis, jnp.asarray(projection, basis.dtype))
+  scale = key_scale * jax.nn.sigmoid(gate_logits)
+  if scale_placement == 'mix':
+    mix = mix * scale[..., None]
+  if second_implementation == 'dot':
+    read = jnp.einsum('btrd,btnr->btnd', basis, mix)
+  else:
+    read = jnp.sum(basis[:, :, None] * mix[..., None], axis=-2)
+  return read * scale[..., None] if scale_placement == 'output' else read
+
+
 @dataclasses.dataclass(frozen=True)
 class _LocalReadArm:
   """Configuration of one factorized local read arm (q, k, or v).
@@ -2374,6 +2407,7 @@ class _LocalReadArm:
   direct_col: bool = False  # Rank-r row keys, independent per-head column keys.
   row_rank: int | None = None
   col_rank: int | None = None
+  col_read_mode: str = 'dynamic'
 
   @property
   def side_ranks(self):
@@ -2394,6 +2428,8 @@ class _LocalReadArm:
 
   @property
   def basis_width(self):
+    if self.col_read_mode == 'static':
+      return self.side_ranks[0] * self.k_dim
     if self.direct_col:
       return self.rank * self.k_dim + self.num_heads * self.v_dim
     if self.split_ranks:
@@ -2403,10 +2439,14 @@ class _LocalReadArm:
 
   @property
   def key_shape(self):
+    if self.col_read_mode == 'static':
+      return (self.side_ranks[0], self.k_dim)
     return (self.basis_width,) if self.direct_col or self.split_ranks else (self.rank, self.key_width)
 
   @property
   def mix_shape(self):
+    if self.col_read_mode == 'static':
+      return (self.num_heads, self.side_ranks[0])
     if self.split_ranks:
       return (self.num_heads, sum(self.side_ranks))
     return (self.num_heads, self.rank) if self.direct_col else (self.num_heads, 2, self.rank)
@@ -2414,6 +2454,8 @@ class _LocalReadArm:
   @property
   def gate_shape(self):
     """Trailing shape of the projected gate logits."""
+    if self.col_read_mode == 'static_plus_dynamic':
+      return (self.num_heads, 3)  # dynamic row, dynamic col, static col
     return {
         'legacy': (2,),
         'shared_rank_gate': (self.rank, 2),
@@ -2600,6 +2642,7 @@ class BamAttention(Attention):
     self._local_arms = {
         name: _LocalReadArm(
             name=name, k_dim=self.bam_k,
+            col_read_mode=(cfg.bam_local_v_col_read_mode if name == 'v' else 'dynamic'),
             v_dim=(cfg.bam_abs_v_compression_dim
                    if name == 'v' and getattr(cfg, 'bam_local_v_direct_compressed_col', False)
                    else self.bam_v),
@@ -2612,6 +2655,13 @@ class BamAttention(Attention):
         name: dataclasses.replace(arm, rank=arm.side_ranks[0]) if not arm.split_ranks else arm
         for name, arm in self._local_arms.items()}
     for arm in self._local_arms.values():
+      assert arm.col_read_mode in ('dynamic', 'static', 'static_plus_dynamic')
+      if arm.col_read_mode != 'dynamic':
+        assert arm.name == 'v' and arm.rank_routing == 'head_gate_r'
+        assert not arm.direct_col and not arm.split_ranks
+        assert arm.read_side == 'both' and not self._seed_paired_local_row_key
+        assert cfg.bam_local_v_share_output_coordinates
+        assert cfg.bam_read_gate_activation == 'sigmoid'
       assert min(arm.side_ranks) > 0, arm
       if arm.split_ranks:
         assert not arm.direct_col and not self._seed_paired_local_row_key
@@ -3036,6 +3086,11 @@ class BamAttention(Attention):
               lambda key, shape, dtype: jnp.full(shape, gate_bias_value, dtype),
               (None,) * len(arm.gate_bias_shape)),
           arm.gate_bias_shape, self.weight_dtype))
+      if arm.col_read_mode != 'dynamic':
+        self.local_v_static_col_key = self.param(
+            'local_v_static_col_key', nn.with_logical_partitioning(
+                nn.initializers.normal(0.006), ('v_factor', 'q_heads')),
+            (arm.v_dim, arm.num_heads), self.weight_dtype)
       add_grouped_read_norms(
           arm.prefix, (arm.side_ranks[0], arm.k_dim), (arm.side_ranks[1], arm.v_dim),
           (None, 'kv'), (None, 'kv'))
@@ -3366,6 +3421,22 @@ class BamAttention(Attention):
       mix = tuple(jnp.split(mix, [row_rank], axis=-1))
     gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
     gate = gate + jnp.asarray(gate_bias, gate.dtype)
+    static_col = None
+    if arm.col_read_mode != 'dynamic':
+      static_col = _static_local_v_col_read(
+          M, self.local_v_static_col_key, gate[..., -1],
+          rms_epsilon=self._read_key_epsilon,
+          rms_statistics_dtype=self._read_rms_statistics_dtype)
+      if arm.col_read_mode == 'static':
+        row = _local_v_row_only_read(
+            M, key, mix, gate[..., 0], self.abs_v_cache_projection,
+            key_scale=self._local_key_scales[name], rms_epsilon=self._read_key_epsilon,
+            rms_statistics_dtype=self._read_rms_statistics_dtype,
+            implementation=self._read_implementation,
+            second_implementation=self._local_second_implementation,
+            scale_placement=getattr(self.config, 'bam_local_gram_scale_placement', None) or 'output')
+        return _fit_bam_read_to_head((static_col, row), self.bam_k, self.head_dim)
+      gate = gate[..., :2]
     if arm.direct_col:
       assert not (self._use_grouped_rw_norm or self._use_native_grouped_read_norm)
       assert not self._record_local_routing_metrics
@@ -3400,6 +3471,8 @@ class BamAttention(Attention):
     if self._record_local_routing_metrics:
       result, rank_gate = result
       self._record_local_rank_gate(f'local_{name}', rank_gate)
+    if static_col is not None:
+      result = (result[0] + static_col, result[1])
     return _fit_bam_read_to_head(
         result, self.bam_k, self.head_dim,
         getattr(self, f'local_{name}_v_adapter', None))

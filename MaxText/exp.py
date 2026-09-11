@@ -297,6 +297,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_q_col_rank = None
     bam_local_v_share_output_coordinates = False
     bam_local_v_direct_compressed_col = False
+    bam_local_v_col_read_mode = 'dynamic'
     bam_local_o_row_tied_decoder = False
     bam_local_o_col_effective_rank = 0
     bam_local_v_rank_routing = 'legacy'
@@ -6881,6 +6882,7 @@ class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKR
 
 class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase):
     """XL: full-M LocalV rank4 effective-key read, row aligned with LocalO C8."""
+    # Continue beyond independent LLF's21372; compare historical XL Rank2, report every500.
     # code_commit: d8ecbe2; UE5a v5p-32 block-scan/AOT, FIRST_STEP/load verified.
     # Steps10-14 .5532 steps/s, -.58% vs historical independent LLF .5564 (predicted -1%).
     # Historical XL all-decay (wd_mults=[]), Q/K rank2 legacy, health sow off; checkpoint250.
@@ -6888,7 +6890,7 @@ class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase)
     # Prediction vs historical independent LLF: final gap -.002, throughput -1%.
     # Q/K retain rank2 legacy; LocalO/F unchanged. Combined C+alignment is new.
     model_name = 'BamXLIndependentLLFLocalVRank4CFp32AlignedRow'
-    compare_runs = ['BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF']
+    compare_runs = ['BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2']
     bam_local_v_rank = 4
     bam_local_v_rank_routing = 'effective_key'
     bam_local_gram_statistics_dtype = 'float32'
@@ -7158,8 +7160,33 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     bam_local_v_share_output_coordinates = True
 
 
+class BamMediumIndependentLLFAlignedRowLocalVStaticCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """L-layer LocalV: static normalized [V,N] column keys and per-head gates."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # Prediction vs BAlignedRow: final gap +.002; throughput +1%.
+    # S normal(.006), column RMS, fixed scale2, gate sigmoid p0=.005.
+    # Q/K and aligned rank4 routing-B row unchanged; scan/AOT, checkpoint200.
+    model_name = 'BamMediumIndependentLLFAlignedRowLocalVStaticCol'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_v_col_read_mode = 'static'
+
+
+class BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol(BamMediumIndependentLLFAlignedRowLocalVStaticCol):
+    """Add independently gated static columns to the unchanged dynamic rank4 columns."""
+    # Prediction vs BAlignedRow: final gap -.001; throughput -2%.
+    # Plain sum; independent dynamic/static column gates, no extra outer gate or sqrt2.
+    model_name = 'BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFAlignedRowLocalVStaticCol']
+    bam_local_v_col_read_mode = 'static_plus_dynamic'
+
+
 class BamMediumIndependentLLFAlignedRowLocalVRowRank2(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Only LocalV row rank4->2; column rank4 and routing-B stay unchanged."""
+    # Completed13500 (final checkpoint committed). vs BAlignedRow: early gain at800-3400
+    # faded to near zero, then mostly positive after6000; last12200-13400 mean +.001055.
+    # Small parameter saving did not preserve loss or improve measured throughput.
+    # User-facing reports every1000 steps; retain the full 200-step gap/r200 series and checkpoint200.
     # code_commit: 601948f; UE5a retained v5p-16, block-scan/AOT; FIRST_STEP/load verified.
     # !? .6910 steps/s @10–14, -.29% vs BAlignedRow .6930, opposite predicted +.5%.
     # Saves .09375 W_Q per L layer in projection weights; speed gain not observed.

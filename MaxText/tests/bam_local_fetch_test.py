@@ -11,13 +11,79 @@ from flax.linen import partitioning as nn_partitioning
 from flax.traverse_util import flatten_dict
 import max_utils
 import pyconfig
-from layers.attentions import BamAttention, _transform_bam_read_key
+from layers.attentions import (BamAttention, _transform_bam_read_key,
+                               _static_local_v_col_read, _local_v_row_only_read,
+                               factorized_head_bam_read)
 from layers.fusion import BamLayerPair
 import train
 import train_compile
 
 
 class LocalFetchTest(absltest.TestCase):
+  def test_static_col_reference_and_row_parity(self):
+    from layers import normalizations
+    keys = jax.random.split(jax.random.key(912), 7)
+    m = jax.random.normal(keys[0], (1, 3, 5, 7))
+    s = jax.random.normal(keys[1], (7, 2)) * .006
+    gate = jax.random.normal(keys[2], (1, 3, 2, 2))
+    key = jax.random.normal(keys[3], (1, 3, 4, 12))
+    mix = jax.random.normal(keys[4], (1, 3, 2, 2, 4))
+    projection = jax.random.normal(keys[5], (7, 3))
+    x = jnp.zeros((1, 3, 9))
+    kwargs = dict(rms_epsilon=1e-4, rms_statistics_dtype=jnp.float32)
+    def actual(static_key):
+      return _static_local_v_col_read(m, static_key, gate[..., 1], **kwargs)
+    def reference(static_key):
+      normalized = static_key / jnp.sqrt(jnp.mean(static_key ** 2, axis=0, keepdims=True) + 1e-4)
+      return jnp.einsum('btkv,vn->btnk', m, normalized) * (2 * jax.nn.sigmoid(gate[..., 1]))[..., None]
+    np.testing.assert_allclose(actual(s), reference(s), rtol=2e-6, atol=1e-6)
+    np.testing.assert_allclose(jax.grad(lambda z: actual(z).sum())(s),
+                               jax.grad(lambda z: reference(z).sum())(s), rtol=2e-5, atol=2e-5)
+    for placement in ('mix', 'output'):
+      for second in ('dot', 'mul_reduce'):
+        expected = factorized_head_bam_read(
+            m, x, lambda _: key, lambda _: mix, **kwargs,
+            key_mode='rms_gate', key_scale=1., key_gate_logits=gate,
+            rank=4, rank_routing='head_gate_r', v_projection=projection,
+            second_implementation=second, scale_placement=placement)[1]
+        actual_row = _local_v_row_only_read(
+            m, key[..., :5], mix[..., 0, :], gate[..., 0], projection,
+            **kwargs, key_scale=1., implementation='mul_reduce_btn',
+            second_implementation=second, scale_placement=placement)
+        np.testing.assert_allclose(actual_row, expected, rtol=2e-6, atol=2e-6)
+
+  def test_static_col_modules_and_decay(self):
+    for suffix in ('StaticCol', 'StaticPlusDynamicCol'):
+      cfg = self.config('BamMediumIndependentLLFAlignedRowLocalV' + suffix)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_o', attention_type=cfg.attention_type)
+      x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(2), (1, 8, 32, 32), dtype=cfg.dtype)
+      args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+      variables = module.init({'params': jax.random.key(3), 'aqt': jax.random.key(4)},
+                              *args, M_in=m, deterministic=True, layer_index=2)
+      params = variables['params']
+      static_only = suffix == 'StaticCol'
+      self.assertEqual(params['local_v_static_col_key'].value.shape, (32, 2))
+      self.assertEqual(params['W_lv_bias'].value.shape, (4, 32 if static_only else 64))
+      self.assertEqual(params['W_lv_gate_b0'].value.shape, (2, 2 if static_only else 3))
+      wd = train.get_wd_tree(cfg, params)
+      self.assertEqual(wd['local_v_static_col_key'], cfg.adam_weight_decay)
+      self.assertEqual(wd['W_lv_gate_b0'], 0.)
+      def loss(p):
+        y, next_m = module.apply({'params': p}, *args, M_in=m,
+                                 deterministic=True, layer_index=2)
+        return jnp.mean(y.astype(jnp.float32) ** 2) + jnp.mean(next_m.astype(jnp.float32) ** 2)
+      value, grads = jax.value_and_grad(loss)(params)
+      self.assertTrue(jnp.isfinite(value))
+      for leaf in jax.tree.leaves(grads):
+        self.assertTrue(jnp.all(jnp.isfinite(leaf)))
+      self.assertGreater(float(jnp.linalg.norm(grads['local_v_static_col_key'].value)), 0.)
+
   def config(self, exp):
     output = tempfile.TemporaryDirectory()
     self.addCleanup(output.cleanup)

@@ -3070,7 +3070,8 @@ class BamAttention(Attention):
           kernel_init=_packed_local_arms_init(
               reg_init, arms, self.bam_k if self._seed_paired_local_row_key else 0),
           kernel_axes=("embed", None), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name='W_local_packed',
+          weight_dtype=self.weight_dtype,
+          name=getattr(cfg, 'bam_local_packed_parameter_name', 'W_local_packed'),
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False)
     gate_bias_value = read_gate_bias(zero_key_gate_init)

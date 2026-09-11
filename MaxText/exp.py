@@ -2430,6 +2430,14 @@ class BamMediumPaired40Rank2CurrentControlRepro(BamLlama2MediumV2C256Paired40Loc
     checkpoint_period = 200
 
 
+class BamMediumPaired40Rank2HistoricalInitRepro(BamMediumPaired40Rank2CurrentControlRepro):
+    """Restore the historical packed-module RNG path; retain current RMS order."""
+    # Diagnostic only: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Compare exact raw loss through100 under the unchanged13500-step schedule.
+    model_name = 'BamMediumPaired40Rank2HistoricalInitRepro'
+    bam_local_packed_parameter_name = 'W_local_qk_packed'
+
+
 class BamMediumPaired40Rank2CFp32(BamMediumPaired40Rank2CurrentControlRepro):
     """Only LocalQ/K legacy -> effective-key fp32 routing; paired40 rank2 unchanged."""
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.

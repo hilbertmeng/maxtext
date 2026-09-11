@@ -9,8 +9,10 @@ runtime `28aefca`, branch `codex/local-read-gram`, worktree
 The probe explicitly sets `wd_mults=[]` to reproduce the historical AOT all-decay
 optimizer. This is a 100-step reproduction check, not a new baseline result.
 
-Reproduction is **not yet established**. Do not launch the proposed
-`BamMediumPaired40Rank2CFp32` against the historical baseline until this is resolved.
+Reproduction is established to printed-loss precision through100 steps after
+restoring the historical packed module name. The proposed
+`BamMediumPaired40Rank2CFp32` now inherits that initialization path; its old AOT
+artifact is superseded and must be recompiled.
 
 ## Evidence collected on 2026-09-11
 
@@ -85,3 +87,19 @@ Next isolated control: `BamMediumPaired40Rank2HistoricalInitRepro`, runtime `eca
 Only the packed module name is restored to `W_local_qk_packed`; current normalization
 layout is retained. This intervention tests the renamed RNG path, not a claim that
 all historical parameter initializations have already been restored.
+
+## Isolated initialization result
+
+`BamMediumPaired40Rank2HistoricalInitRepro` ran on the retained UE5a v5p-16.
+Raw gaps versus historical CurrentControl:
+
+```text
+step  0 10 20 30       40 50 60 70 80 90 100
+gap   0  0  0  0 +.000001  0  0  0  0  0   0
+```
+
+Thus the renamed packed-module RNG path explains essentially all observed
+0–100 divergence in this reproduction. The current merged RMS layout is retained;
+there is no evidence here of a material trajectory penalty from that layout.
+This does not establish full-horizon bitwise equivalence on all inputs/models.
+The pinned CPU BAM suite also passed all53 tests (246.8s).

@@ -7163,6 +7163,11 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 
 class BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """LocalV row/col rank2 + routing B + AlignedRow; Q/K stay rank1 legacy."""
+    # Stopped at committed3580 by user; TPU/queue released. vs rank4 BAlignedRow:
+    # +.0318@200 narrowed, then plateaued (2400–3400 mean +.00982); only +.38% throughput.
+    # vs rank2 Legacy: positive since400, +.01688@800 -> +.00701@3400, still narrowing;
+    # vs all-QKV RoutingB: +.02841@400 -> +.00704@2600; later BASE unavailable.
+    # Contrary to predicted -.0005 vs rank4; eventual convergence vs Legacy remains unproven.
     # code_commit: 1eac2b4; UE5a v5p-16, FIRST_STEP verified; EW4a target-topology AOT.
     # Steps10-14 .6956 steps/s: +.38% vs rank4 BAlignedRow .6930, -.46% vs rank2 Legacy .6988.
     # Speed gain smaller than predicted +1%; same-zone historical timings, not same-commit paired profile.

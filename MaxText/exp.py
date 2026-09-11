@@ -2447,6 +2447,7 @@ class BamMediumPaired40Rank2CFp32(BamMediumPaired40Rank2HistoricalInitRepro):
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Formal launch follows successful 100-step historical CurrentControl reproduction.
     # code_commit: 956231f; resumed checkpoint903 with generic health restored.
+    # Health-on UE5a .6232 steps/s @914-918: -.92% vs CurrentControl, -1.70% vs SharedRankGate.
     # Earlier becec37: UE5a 10-14 mean .6324 steps/s:
     # +0.54% vs historical CurrentControl .629, -.25% vs SharedRankGate .634.
     # Prediction: final gap -.001 vs CurrentControl (low confidence), throughput -1%.

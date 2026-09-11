@@ -2444,6 +2444,10 @@ class BamMediumPaired40Rank2HistoricalInitRepro(BamMediumPaired40Rank2CurrentCon
 
 class BamMediumPaired40Rank2CFp32(BamMediumPaired40Rank2HistoricalInitRepro):
     """Only LocalQ/K legacy -> effective-key fp32 routing; paired40 rank2 unchanged."""
+    # Stopped at 6718. vs historical Rank2, +.06575@200 narrowed to +.00215 mean@5600-6600;
+    # still slowly narrowing, not proven a permanent penalty. vs SharedRankGate, early
+    # +.02459 narrowed to a late +.00392 plateau (range +.00369..+.00415@5600-6600).
+    # No observed loss/speed win at stop.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Formal launch follows successful 100-step historical CurrentControl reproduction.
     # code_commit: 956231f; resumed checkpoint903 with generic health restored.

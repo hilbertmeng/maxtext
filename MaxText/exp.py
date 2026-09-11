@@ -2417,6 +2417,19 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl(
         'jax_caches/xd-bam-v2-c256-paired40-rank2-current-control')
 
 
+class BamMediumPaired40Rank2CurrentControlRepro(BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl):
+    """100-step reproduction check; preserve historical 13500-step schedule."""
+    # Ledger/implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Historical 0038e21 AOT omitted WD masks: explicitly preserve all-decay here.
+    # Compare raw loss every10 steps through100; expected exact historical CurrentControl trajectory.
+    model_name = 'BamMediumPaired40Rank2CurrentControlRepro'
+    compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl']
+    steps = 13500
+    wd_mults = []
+    bam_local_q_rank_routing = 'legacy'
+    checkpoint_period = 200
+
+
 class BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate(
     BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl
 ):

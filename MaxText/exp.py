@@ -7163,6 +7163,9 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 
 class BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """LocalV row/col rank2 + routing B + AlignedRow; Q/K stay rank1 legacy."""
+    # code_commit: 1eac2b4; UE5a v5p-16, FIRST_STEP verified; EW4a target-topology AOT.
+    # Steps10-14 .6956 steps/s: +.38% vs rank4 BAlignedRow .6930, -.46% vs rank2 Legacy .6988.
+    # Speed gain smaller than predicted +1%; same-zone historical timings, not same-commit paired profile.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs rank4 BAlignedRow: final gap -.0005, throughput +1%; low confidence.
     # Retain B's scale rule 2/sqrt(rank); clean WD, block-scan/AOT, checkpoint200, health sow off.

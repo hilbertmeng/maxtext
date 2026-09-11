@@ -2434,7 +2434,7 @@ class BamMediumPaired40Rank2CurrentControlRepro(BamLlama2MediumV2C256Paired40Loc
 class BamMediumPaired40Rank2HistoricalInitRepro(BamMediumPaired40Rank2CurrentControlRepro):
     """Restore the historical packed-module RNG path; retain current RMS order."""
     # Diagnostic only: codex/local-read-gram, /data0/xd/local-read-gram.
-    # code_commit: ecae35c; UE5a, historical packed-module name only.
+    # code_commit: ecae35c; UE5a, paused at124; historical packed-module name only.
     # Raw0..100 every10 matches historical control (max gap1e-6 at40).
     # Restoring the module RNG path removes the prior divergence; RMS order unchanged.
     # Compare exact raw loss through100 under the unchanged13500-step schedule.
@@ -2446,6 +2446,8 @@ class BamMediumPaired40Rank2CFp32(BamMediumPaired40Rank2HistoricalInitRepro):
     """Only LocalQ/K legacy -> effective-key fp32 routing; paired40 rank2 unchanged."""
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Formal launch follows successful 100-step historical CurrentControl reproduction.
+    # code_commit: becec37; UE5a 10-14 mean .6324 steps/s:
+    # +0.54% vs historical CurrentControl .629, -.25% vs SharedRankGate .634.
     # Prediction: final gap -.001 vs CurrentControl (low confidence), throughput -1%.
     model_name = 'BamMediumPaired40Rank2CFp32'
     compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl',

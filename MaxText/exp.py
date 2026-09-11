@@ -2452,7 +2452,8 @@ class BamMediumPaired40Rank2CFp32(BamMediumPaired40Rank2HistoricalInitRepro):
     # +0.54% vs historical CurrentControl .629, -.25% vs SharedRankGate .634.
     # Prediction: final gap -.001 vs CurrentControl (low confidence), throughput -1%.
     model_name = 'BamMediumPaired40Rank2CFp32'
-    compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl',
+    # CurrentControl ends1660; its 200-1600 reporting points exactly match full historical Rank2.
+    compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2',
                     'BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate']
     bam_local_q_rank_routing = 'effective_key'
     bam_local_k_rank_routing = None

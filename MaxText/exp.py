@@ -1327,7 +1327,7 @@ class BamLocalFetchBase(BamLlama2MediumV2C256ScanAotCleanControl):
     checkpoint_period = 200
     force_final_checkpoint = True
     record_internal_nn_metrics = False
-    record_training_health_metrics = False
+    # Historical runtime disabled generic health metrics; current training always records them.
     bam_pair_scan = False
     bam_local_o_compress_v = True
     bam_local_o_v_mode = 'none'
@@ -4006,7 +4006,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
     # Fair health-off timing: LF +.28% vs LLF, +.40% vs matched Rank2 repro; cache 1/2 of Rank2.
     # Standard raw-gradient health near Rank2; sampled clip rate @510-1000 is 2% for both.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLFHealth'
-    record_training_health_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf-health')
@@ -4030,7 +4029,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF'
     bam_local_fetch_block_size = 4
     bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
-    record_training_health_metrics = False
     checkpoint_period = 250
     steps = 50000
     learning_rate_schedule_steps = 50000
@@ -4055,7 +4053,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     # Same 1/3 fetched history-M cache as shared LLF; extra independent local-read parameters.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF'
     bam_local_o_v_mode = 'rank2'
-    record_training_health_metrics = False
     checkpoint_period = 250
     steps = 50000
     learning_rate_schedule_steps = 50000
@@ -4138,7 +4135,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingShar
     bam_local_fetch_block_size = 2
     bam_local_o_v_mode = ['shared', 'none'] * 12
     bam_full_shared_local_v = True
-    record_training_health_metrics = False
     checkpoint_period = 250
     steps = 50000
     learning_rate_schedule_steps = 50000
@@ -6790,7 +6786,6 @@ class BamMediumIndependentLLFGramBase(BamLlama2MediumV2C256LocalFetchC8LocalVLLF
     # EW4b v5p-16 full-24 block-scan/AOT: .6960 steps/s; current independent LLF speed control.
     model_name = 'BamMediumIndependentLLFGramBase'
     scan_layers = True
-    record_training_health_metrics = False
     bam_record_local_routing_metrics = False
     bam_local_gram_implementation = 'mul_reduce'
     bam_local_gram_scale_placement = 'output'
@@ -6916,7 +6911,6 @@ class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKR
     # EW4b v5p-32 full-24 block-scan/AOT: .5588 steps/s; current independent LLF speed control.
     model_name = 'BamXLIndependentLLFGramBase'
     scan_layers = True
-    record_training_health_metrics = False
     bam_record_local_routing_metrics = False
     bam_local_gram_implementation = 'mul_reduce'
     bam_local_gram_scale_placement = 'output'

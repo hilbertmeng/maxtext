@@ -6910,8 +6910,9 @@ class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKR
 
 class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase):
     """XL: full-M LocalV rank4 effective-key read, row aligned with LocalO C8."""
-    # User stop target30000; compare historical XL Rank2, report every1000.
-    # Keep original50000 LR/AOT schedule; agent closeout at target, not a changed training schedule.
+    # Stopped at committed30054 (original50000 schedule); UE5a -> EW4b, TPU/queue released.
+    # vs historical XL Rank2: early -.0205@1k shrank rapidly, then persistent small benefit;
+    # 25k–30k mean -.00294, no sustained convergence to zero. Fetched M-cache is 1/3 of Rank2.
     # code_commit: d8ecbe2; UE5a v5p-32 block-scan/AOT, FIRST_STEP/load verified.
     # Steps10-14 .5532 steps/s, -.58% vs historical independent LLF .5564 (predicted -1%).
     # Historical XL all-decay (wd_mults=[]), Q/K rank2 legacy, health sow off; checkpoint250.
@@ -6930,6 +6931,8 @@ class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase)
 
 class BamXLIndependentLLFLocalQKVCFp32AlignedRow(BamXLIndependentLLFLocalVRank4CFp32AlignedRow):
     """Unify LocalQ/K/V effective-key routing; retain Q/K rank2 and V rank4."""
+    # code_commit: 6977fa0; EW4b v5p-32 AOT, FIRST_STEP verified; steps10-14 .5504 steps/s.
+    # Historical parent UE5a .5532: -.51% (cross-zone reference, not an isolated timing pair).
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs LocalVRank4CFp32AlignedRow: late gap -.001 (optimistic), throughput -1%.
     # Architectural uniformity is also a benefit; keep ranks, scales, RoPE and all-decay unchanged.

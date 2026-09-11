@@ -7162,6 +7162,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 
 class BamMediumIndependentLLFAlignedRowLocalVStaticCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L-layer LocalV: static normalized [V,N] column keys and per-head gates."""
+    # code_commit: 7ded074; UE5a v5p-16 block-scan/AOT, FIRST_STEP/load verified.
+    # !? Steps10-14 .6938 steps/s, +.12% vs BAlignedRow .6930; predicted +1% not realized.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # Prediction vs BAlignedRow: final gap +.002; throughput +1%.
     # S normal(.006), column RMS, fixed scale2, gate sigmoid p0=.005.
@@ -7173,6 +7175,9 @@ class BamMediumIndependentLLFAlignedRowLocalVStaticCol(BamMediumIndependentLLFLo
 
 class BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol(BamMediumIndependentLLFAlignedRowLocalVStaticCol):
     """Add independently gated static columns to the unchanged dynamic rank4 columns."""
+    # code_commit: 7ded074; UE5a v5p-16 block-scan/AOT, FIRST_STEP/load verified.
+    # Steps10-14 .6830 steps/s, -1.44% vs BAlignedRow .6930 (predicted -2%).
+    # -1.56% vs StaticCol .6938.
     # Prediction vs BAlignedRow: final gap -.001; throughput -2%.
     # Plain sum; independent dynamic/static column gates, no extra outer gate or sqrt2.
     model_name = 'BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol'

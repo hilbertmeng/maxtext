@@ -69,6 +69,11 @@ analysis script. Partial summaries must not be labeled complete.
 
 ## Bias decomposition extension
 
+Diagnostic runtime: `c0c1ee3baaca0da2182a8723d1e5ddbeb620d0c6` (serial CPU
+statistics). Analysis `af94588f` validates every repeated raw statistic and loss
+against the original capture, including checkpoint/cohort/sequence metadata;
+`d1d2379a` exposes all four basis norms separately in each layer/side table.
+
 Requested follow-up compares `Wx+b`, `Wx`, and `b` at the same checkpoint/cohort.
 The dynamic term is captured before bias addition, not reconstructed by subtraction
 after bf16 rounding. Run `bash experiments/bam_llama2_medium/run_xl_qkr4_bias_probe.sh`.
@@ -76,3 +81,18 @@ Outputs are isolated under `bias-results/` in the same GCS diagnostic prefix and
 `/tmp/xl-qkr4-bias-16000` on the worker. It adds each component's geometry, per-basis
 norms, dynamic–bias cosine and bias/total norm. Bias norms and ratios are not additive
 energy fractions: the cross term can enhance or cancel the dynamic component.
+
+Aggregate and validate the complete cohort with:
+
+```bash
+python experiments/bam_llama2_medium/analyze_xl_qkr4_basis.py \
+  /data0/xd/bam_diagnostics/xl-qkr4-bias-16000 \
+  --reference-dir /data0/xd/bam_diagnostics/xl-qkr4-basis-16000
+```
+
+Workflow audit: this worker exposes 44 logical CPUs (22 cores), but the serial
+probe used about 106% CPU, approximately one logical CPU. Samples 60–82 took
+about 26 seconds each, primarily in repeated host geometry statistics. Follow-up
+commit `fbd0f4da` adds bounded layer/side parallelism (`QKV_STATS_WORKERS`, default8);
+synthetic serial/parallel outputs match exactly. It was not applied to the running
+capture and its actual worker speedup is not yet measured.

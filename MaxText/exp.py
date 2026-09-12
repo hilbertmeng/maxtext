@@ -7425,3 +7425,9 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependent
     checkpoint_period = 250
     steps = 50000
     force_final_checkpoint = True
+
+
+class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
+    """Speed-only control matching the historical QKRank2 all-health-OFF run."""
+    model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile'
+    record_training_health_metrics = False

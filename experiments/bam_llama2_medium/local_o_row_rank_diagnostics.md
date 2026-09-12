@@ -65,6 +65,12 @@ L/F averages are similar. Deep layers tend to be less compressible; e.g. F20
 output rank4 retains .9431 versus F5 .9743. Layerwise/full-rank curves are in
 `/data0/xd/bam_diagnostics/llf-o-row-rank-13500/summary.md` and aggregate.npz.
 
+After normalizing every head to unit norm, output rank4 still retains~90–95%
+in most layers (L1~99.45%), versus~50–57% for keys. Thus low output rank is
+not solely a consequence of head-amplitude imbalance. Output signed mean cosine
+is near zero while mean absolute cosine is~.43–.48 outside L1; both signs matter.
+The layerwise correlation table is included in summary.md, using all128 samples.
+
 Capture versus ordinary forward is exactly equal on sample0. Worker44 CPUs/172GiB;
 16 threads, BLAS1, two in-flight samples; four-layer serial2.64s versus parallel.92s
 (2.87x). Stable two-sample pipeline latency~6.4s, throughput~one sample/3.2s,
@@ -79,3 +85,11 @@ the original head destinations. Runtime layer/rank selection shares one compile;
 inactive layers skip eigensolves. No-op forward delta is exactly zero on sample0.
 Rank16 keys/rank8 output are explicit no-op controls. Full per-sequence loss deltas
 and scenario ordering are saved in ablation_groups_*.npz/json.
+
+Report incremental paired results at 32/64/96/128 sequences, rather than waiting
+for all128. Use `summarize_local_o_row_ablation.py ARTIFACT_DIR --limit 32`
+(increase the limit at subsequent milestones). It checks exact no-op controls
+and reports descriptive sample-level uncertainty, not corrected significance.
+After the first32, prioritize unresolved ranks/layer groups rather than blindly
+extending the full54-scenario grid. The running grid costs~34s/sequence;
+this is TPU intervention-forward work, unlike the CPU-heavy spectral stage.

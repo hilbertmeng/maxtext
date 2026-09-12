@@ -30,6 +30,17 @@ def main():
                  f'{get("out_amplitude_r95"):.2f} | {selected("key_amplitude_retained_mean",[2,4,8])} | '
                  f'{selected("out_amplitude_retained_mean",[2,4,6])} | '
                  f'{selected("key_svd_read_relative_squared_error",[2,4,8])} |')
+  lines += ['', '## Head correlations and direction-only spectra', '',
+            'Cosines exclude diagonal pairs; signed and absolute values are both reported.',
+            'Direction spectra normalize each head vector before SVD, removing head-amplitude dominance.', '',
+            '| Layer | Type | key mean cos | key mean abs cos | output mean cos | output mean abs cos | key direction E4 | output direction E4 |',
+            '|---|---|---:|---:|---:|---:|---:|---:|']
+  off = ~np.eye(16, dtype=bool)
+  for l in range(1,24):
+    p=f'L{l:02d}_'
+    vals=[np.mean(mean[p+k][off]) for k in ('key_cos','key_abs_cos','out_cos','out_abs_cos')]
+    vals += [mean[p+k+'_direction_retained_mean'][3] for k in ('key','out')]
+    lines.append(f'| {l} | {"F" if l%3==2 else "L"} | '+' | '.join(f'{v:.5f}' for v in vals)+' |')
   lines += ['', '## Full rank curves', '',
             'Output ranks above8 add no native-space capacity. Key ranks span1–16.', '']
   for l in range(1,24):

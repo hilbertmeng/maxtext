@@ -292,6 +292,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_read_key_activation_side = 'none'  # none | row | col | both
     bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
+    bam_local_qk_share_basis = False
     bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
     bam_local_q_row_rank = None  # None keeps the arm's common rank; k/v fall back to q.
     bam_local_q_col_rank = None
@@ -7365,7 +7366,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias(BamMediumIndependentL
     """Only remove LocalV row/column key bias; Q/K rank1 legacy stays unchanged."""
     # code_commit: 0dcd3e1; UE5a ~.6886 steps/s (10-14), +.09% vs RoutingCFp32 .6880; health OFF.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # User requests historical health-OFF parity; ordinary training health remains enabled.
+    # Historical user-requested all-health-OFF ablation.
     # Stopped at 7139. vs RoutingCFp32: early +.0635@200 rapidly vanished; repeatedly
     # crossed zero thereafter, no persistent gain (5600–7000 mean +.00011, range -.00116..+.00134).
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias'
@@ -7378,6 +7379,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias(BamMediumIndependentL
 
 class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Add independently gated LocalO-shared LocalV to the rank4 BAlignedRow branch."""
+    # code_commit: f37e623; UE5a v5p-16 scan/AOT, steps10-14 .6598 steps/s.
+    # !? -4.79% vs BAlignedRow .6930: generic+dual health ON vs historical OFF; not isolated architecture cost.
     # Prediction vs BAlignedRow: final gap -.001; architectural throughput ~-.5% (health adds cost).
     # Runtime family: codex/local-read-gram; two LocalV gates, unchanged LocalO gate.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead'
@@ -7387,4 +7390,19 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead(BamMediumIn
     record_training_health_metrics = True
     steps = 13500
     checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependentLLFLocalQKRank4CFp32AlignedRow):
+    """Share Q/K rank4 bases including bias; retain independent head mixing and gates."""
+    # Prediction vs QKRank4: late gap +.0005; throughput +2%; saves .1875 W_Q per layer.
+    # codex/local-read-gram; full M64x32, shared basis Read-M/Gram, unchanged LocalV and all-decay.
+    model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis'
+    compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRow']
+    bam_local_qk_share_basis = True
+    record_training_health_metrics = True
+    bam_record_local_routing_metrics = False
+    scan_layers = True
+    checkpoint_period = 250
+    steps = 50000
     force_final_checkpoint = True

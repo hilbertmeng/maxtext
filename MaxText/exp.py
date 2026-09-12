@@ -7125,6 +7125,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L/F O row reads use four dynamic C-fp32 bases; column and LocalQKV unchanged."""
     # Implementation: codex/llf-o-row-rank-training, /data0/xd/llf-o-row-rank-training.
+    # code_commit: d437020; UE5a v5p-16 block-scan/AOT, .6782 steps/s @10–14; generic ON/BAM sow OFF.
+    # Speed not paired: historical BAlignedRow .6930 used all-health-OFF; cannot attribute the raw -2.1%.
     # Prediction vs BAlignedRow: final gap +.001; throughput +1% (matched health).
     model_name = 'BamMediumIndependentLLFBAlignedRowORowRank4CFp32'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']

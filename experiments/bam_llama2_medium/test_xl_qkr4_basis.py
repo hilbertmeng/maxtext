@@ -13,6 +13,17 @@ exec(compile(ast.Module(body=[node for node in tree.body
 
 
 class BasisGeometryTest(unittest.TestCase):
+  def test_parallel_matches_serial(self):
+    rng = np.random.default_rng(3)
+    raw = {f'L{layer:02d}_{arm}_{side}_raw': rng.normal(size=(1, 12, 4, 16))
+           for layer in range(3) for arm in ('q', 'k') for side in ('row', 'col')}
+    mask = np.ones((1, 12), bool)
+    serial = namespace['stats'](raw, mask, layers=range(3))
+    parallel = namespace['stats'](raw, mask, workers=3, layers=range(3))
+    self.assertEqual(serial.keys(), parallel.keys())
+    for key in serial:
+      np.testing.assert_array_equal(serial[key], parallel[key], err_msg=key)
+
   def measure(self, q, k):
     raw = {f'L{layer:02d}_{arm}_{side}_raw': q if arm == 'q' else k
            for layer in range(24) for arm in ('q', 'k') for side in ('row', 'col')}

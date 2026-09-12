@@ -115,12 +115,19 @@ def unit(x):
   return np.divide(x, norm, out=np.zeros_like(x), where=norm > 1e-12), norm[..., 0] > 1e-12
 
 
-def stats(raw, mask):
+def stats(raw, mask, workers=1, layers=range(24), sides=('row', 'col')):
   """All valid tokens; dimensions remain native common M coordinates per side."""
+  if workers > 1:
+    from concurrent.futures import ThreadPoolExecutor
+    # Independent layer/side tasks share read-only arrays; no JAX process fork.
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+      tasks = [pool.submit(stats, raw, mask, 1, (l,), (side,))
+               for l in layers for side in sides]
+      return {key: value for task in tasks for key, value in task.result().items()}
   out = {}
-  for l in range(24):
+  for l in layers:
     arms = ['q', 'k']
-    for side in ('row', 'col'):
+    for side in sides:
       prefix = f'L{l:02d}_{side}'
       for arm in arms:
         energy = []
@@ -176,6 +183,9 @@ def stats(raw, mask):
 
 
 def run(config):
+  stats_workers = int(os.environ.get('QKV_STATS_WORKERS', '8'))
+  if stats_workers < 1:
+    raise ValueError('QKV_STATS_WORKERS must be positive')
   cohort_path = Path(os.environ.get('QKV_COHORT', '/tmp/pile_eval_cohort.npz'))
   output = Path(os.environ.get('QKV_OUTPUT', '/tmp/local-qkv-keys'))
   output.mkdir(parents=True, exist_ok=True)
@@ -219,12 +229,12 @@ def run(config):
       np.testing.assert_allclose(losses, reference, rtol=0, atol=1e-5)
       print(f'CAPTURE_VALIDATED max_loss_error={abs(losses-reference).max()}', flush=True)
     print(f'FIRST_STEP batch={start} mean_loss={losses.mean():.7f}', flush=True)
-    results = stats(raw, cohort['targets_segmentation'][start:start+1] != 0)
+    results = stats(raw, cohort['targets_segmentation'][start:start+1] != 0, workers=stats_workers)
     if DECOMPOSE:
       mask = cohort['targets_segmentation'][start:start+1] != 0
       for stage in ('dynamic', 'bias'):
         stage_raw = {k[:-len(stage)]+'raw': v for k, v in raw.items() if k.endswith('_'+stage)}
-        results.update({stage+'__'+k: v for k,v in stats(stage_raw, mask).items()})
+        results.update({stage+'__'+k: v for k,v in stats(stage_raw, mask, workers=stats_workers).items()})
       for layer in range(24):
         for arm in ('q', 'k'):
           for side in ('row', 'col'):

@@ -7136,7 +7136,8 @@ class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLo
     # Implementation: codex/llf-o-row-rank-training, /data0/xd/llf-o-row-rank-training.
     # code_commit: d437020; UE5a v5p-16 block-scan/AOT, .6782 steps/s @10–14; generic ON/BAM sow OFF.
     # Matched generic ON/BAM OFF BAlignedRow reference e8aca6b .6836: -0.79% throughput.
-    # Prediction vs BAlignedRow: final gap +.001; throughput +1% (matched health).
+    # vs BAlignedRow: early +.264@200 shrank, then plateaued at +.00594 mean over4000–6000
+    # (range +.00542..+.00669), with no net convergence; no speed or cache benefit. Stopped at 6179.
     model_name = 'BamMediumIndependentLLFBAlignedRowORowRank4CFp32'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
     bam_o_row_effective_rank = 4

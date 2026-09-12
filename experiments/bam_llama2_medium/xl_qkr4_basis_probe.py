@@ -28,6 +28,7 @@ from layers import attentions, normalizations
 
 BASE = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRow'
 KEYS = ('inputs', 'targets', 'inputs_position', 'inputs_segmentation', 'targets_segmentation')
+DECOMPOSE = os.environ.get('QKV_DECOMPOSE_BIAS', '0') == '1'
 
 
 class LocalQKVKeyProbe(getattr(exp, BASE)):
@@ -51,7 +52,7 @@ def apply_capture(model, params, batch, rng):
     result = original(M, x, W_R, W_head_mix, **kw)
     if not owners:
       return result
-    module, arm = owners[-1]
+    module, arm, dynamic = owners[-1]
     if arm not in ('q', 'k'):
       return result
     rank = kw.get('rank', 1)
@@ -62,13 +63,23 @@ def apply_capture(model, params, batch, rng):
     row, col = jnp.split(key, [M.shape[-2]], axis=-1)
     for side, basis in (('row', row), ('col', col)):
       module.sow('intermediates', f'probe_{arm}_{side}_raw', basis.astype(jnp.float32))
+    if DECOMPOSE:
+      spec = module._local_arms[arm]
+      bias = jnp.asarray(getattr(module, f'{spec.prefix}_bias'), dynamic.dtype)
+      if not spec.pre_rms_bias:
+        bias = jnp.zeros_like(bias)
+      for stage, value in (('dynamic', dynamic), ('bias', jnp.broadcast_to(bias, dynamic.shape))):
+        sides = jnp.split(value, [M.shape[-2]], axis=-1)
+        for side, basis in zip(('row', 'col'), sides):
+          module.sow('intermediates', f'probe_{arm}_{side}_{stage}', basis.astype(jnp.float32))
     return result
 
   def intercept(next_fun, args, kwargs, ctx):
     if ctx.method_name != '_read_local':
       return next_fun(*args, **kwargs)
     arm = args[1] if isinstance(args[0], nn.Module) else args[0]
-    owners.append([ctx.module, arm])
+    local_inputs = kwargs.get('local_inputs', args[-1])
+    owners.append([ctx.module, arm, local_inputs[arm][0]])
     try:
       return next_fun(*args, **kwargs)
     finally:
@@ -93,7 +104,7 @@ def apply_capture(model, params, batch, rng):
     assert value.shape[0] == 8, (path, value.shape)
     for block in range(8):
       raw[f'L{3*block+offset:02d}_{path[-1][6:]}'] = value[block]
-  assert len(raw) == 24*2*2, (len(raw), list(raw))
+  assert len(raw) == 24*2*2*(3 if DECOMPOSE else 1), (len(raw), list(raw))
   mask = batch['targets_segmentation'] != 0
   loss = jnp.sum(output[0] * mask, -1) / jnp.maximum(mask.sum(-1), 1)
   return loss, raw
@@ -185,6 +196,7 @@ def run(config):
     return (output[0] * mask).sum(-1) / jnp.maximum(mask.sum(-1), 1)
   plain = jax.jit(plain)
   metadata = dict(base_class=BASE, checkpoint=config.load_parameters_path, checkpoint_step=16000,
+      decompose_bias=DECOMPOSE,
       training_commit='b264b490c1081875ef439f5e59ae57f64d809c6c',
       diagnostic_commit=subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip(),
       cohort_sha256=hashlib.sha256(cohort_path.read_bytes()).hexdigest(), sequence_hashes=hashes,
@@ -208,6 +220,24 @@ def run(config):
       print(f'CAPTURE_VALIDATED max_loss_error={abs(losses-reference).max()}', flush=True)
     print(f'FIRST_STEP batch={start} mean_loss={losses.mean():.7f}', flush=True)
     results = stats(raw, cohort['targets_segmentation'][start:start+1] != 0)
+    if DECOMPOSE:
+      mask = cohort['targets_segmentation'][start:start+1] != 0
+      for stage in ('dynamic', 'bias'):
+        stage_raw = {k[:-len(stage)]+'raw': v for k, v in raw.items() if k.endswith('_'+stage)}
+        results.update({stage+'__'+k: v for k,v in stats(stage_raw, mask).items()})
+      for layer in range(24):
+        for arm in ('q', 'k'):
+          for side in ('row', 'col'):
+            prefix = f'L{layer:02d}_{arm}_{side}'
+            dynamic = raw[prefix+'_dynamic'].astype(np.float64)
+            bias = raw[prefix+'_bias'].astype(np.float64)
+            total = raw[prefix+'_raw'].astype(np.float64)
+            dn, bn, tn = (np.linalg.norm(v, axis=-1) for v in (dynamic,bias,total))
+            cosine = np.sum(dynamic*bias,-1)/np.maximum(dn*bn,1e-30)
+            cosine = np.where(dn*bn>1e-20,cosine,np.nan)
+            for name,value in (('dynamic_norm',dn),('bias_norm',bn),('total_norm',tn),
+                               ('dynamic_bias_cos',cosine),('bias_over_total',bn/np.maximum(tn,1e-30))):
+              results[prefix+'_'+name] = np.stack([np.nanmean(value[b,mask[b]],axis=0) for b in range(len(mask))])
     pending = output/f'.pending_{start:03d}.npz'
     np.savez_compressed(pending, loss=losses, **results)
     pending.replace(path)

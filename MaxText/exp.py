@@ -7357,3 +7357,16 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRout
     # (12200–13400 mean -.00021; final13400 +.00017), not a steadily widening gain.
     bam_local_v_rank_routing = 'effective_key'
     bam_local_gram_statistics_dtype = 'float32'
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias(BamMediumIndependentLLFLocalVRank4RoutingCFp32):
+    """Only remove LocalV row/column key bias; Q/K rank1 legacy stays unchanged."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
+    # User requests historical health-OFF parity; ordinary training health remains enabled.
+    # Prediction vs RoutingCFp32: final gap +.0005; throughput approximately unchanged.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingCFp32']
+    bam_local_v_pre_rms_bias = False
+    record_training_health_metrics = False
+    steps = 13500
+    checkpoint_period = 200

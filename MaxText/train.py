@@ -921,10 +921,13 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/accuracy": accuracy, # mean
   }
   # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
-  params_scalar_values = compute_params_norm(state.params, config=config)
-  scalar_metrics.update(params_scalar_values)
+  # Explicit historical-reproduction exception; normal training keeps health enabled.
+  record_training_health = getattr(config, 'record_training_health_metrics', True)
+  if record_training_health:
+    params_scalar_values = compute_params_norm(state.params, config=config)
+    scalar_metrics.update(params_scalar_values)
 
-  if not config.optimizer_memory_host_offload:
+  if record_training_health and not config.optimizer_memory_host_offload:
     scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
     scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)

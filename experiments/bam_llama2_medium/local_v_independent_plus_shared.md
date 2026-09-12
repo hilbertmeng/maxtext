@@ -60,3 +60,18 @@ CPU tests: `PYTHONPATH=MaxText:MaxText/tests JAX_PLATFORMS=cpu` with the pinned 
 `-m unittest bam_local_v_dual_test.DualLocalVTest`, plus the standard BAM entrypoint.
 AOT via tpu-ag `prepare_train_aot.py` (EW4a primary); formal v5p-16 UE5a primary,
 EW4b backup after five minutes, retain alternate until FIRST_STEP.
+# All-health-OFF timing, 2026-09-12
+
+Runtime `b32d691068153815ea4bd7b2485f1b54acea627c`, branch `codex/local-read-gram`;
+configuration `BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedReadNoHealthProfile`.
+UE5a `xd-v5p-16-dual-nohealth-0912`, full-layer block-scan, v6e-precompiled AOT,
+13500-step schedule; generic and BAM-specific health both OFF. No-checkpoint standalone
+runner `run_profile_matrix.sh` used `PROFILE_STEPS=13500 PROFILE_DONE_STEP=15`.
+Steps10–14: .682/.604/.683/.683/.683; profiler startup disturbed step11.
+Trace-free28–33: .684/.684/.684/.684/.684/.683, mean .68383 steps/s,
+−1.32% versus historical BAlignedRow .6930 (same zone/health, historical runtime reused).
+Formal dual-health-ON .6598 is 3.51% slower than this timing control, not all architecture overhead.
+
+Manifest: `tpu-ag:/home/lishengping/xd/projects/logs/profile-matrix-b32d691-dual-nohealth-20260912T062118Z-612380.tsv`.
+Artifacts: `/data0/xd/bam_diagnostics/dual-localv-nohealth-0912`;
+GCS prefix `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/b32d691/dual-nohealth/`.

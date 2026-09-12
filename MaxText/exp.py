@@ -7382,7 +7382,9 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias(BamMediumIndependentL
 class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Add independently gated LocalO-shared LocalV to the rank4 BAlignedRow branch."""
     # code_commit: f37e623; UE5a v5p-16 scan/AOT, steps10-14 .6598 steps/s.
-    # !? -4.79% vs BAlignedRow .6930: generic+dual health ON vs historical OFF; not isolated architecture cost.
+    # Health ON timing -4.79% vs historical health-OFF BAlignedRow is not isolated architecture cost.
+    # Matched all-health-OFF speed b32d691, UE5a: .68383 (steps28–33; step11 profiler disturbance).
+    # vs historical BAlignedRow .6930: -1.32%; formal generic+dual health costs ~3.51% vs this timing control.
     # Prediction vs BAlignedRow: final gap -.001; architectural throughput ~-.5% (health adds cost).
     # Runtime family: codex/local-read-gram; two LocalV gates, unchanged LocalO gate.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead'

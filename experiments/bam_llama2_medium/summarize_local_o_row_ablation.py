@@ -12,15 +12,28 @@ def main():
   parser.add_argument('directory', type=Path)
   parser.add_argument('--limit', type=int, default=128)
   parser.add_argument('--output', type=Path)
+  parser.add_argument('--focus', action='store_true', help='Merge original and focused samples for ranks4/6.')
   args = parser.parse_args()
   scenarios = json.loads((args.directory / 'ablation_groups_scenarios.json').read_text())
+  original_scenarios = scenarios
+  if args.focus:
+    scenarios = json.loads((args.directory / 'ablation_groups_focus_scenarios.json').read_text())
+    original_indices = [original_scenarios.index(s) for s in scenarios]
+    old_meta = json.loads((args.directory / 'ablation_groups_metadata.json').read_text())
+    new_meta = json.loads((args.directory / 'ablation_groups_focus_metadata.json').read_text())
+    assert old_meta['sequence_hashes'] == new_meta['sequence_hashes']
+    assert old_meta['checkpoint'] == new_meta['checkpoint']
   rows = []
   for i in range(args.limit):
     path = args.directory / f'ablation_groups_{i:03d}.npz'
+    original = path.exists()
+    if not original and args.focus:
+      path = args.directory / f'ablation_groups_focus_{i:03d}.npz'
     if not path.exists():
       break
     with np.load(path) as data:
-      rows.append(data['gap'].reshape(len(scenarios)))
+      values = data['gap'].reshape(-1)
+      rows.append(values[original_indices] if args.focus and original else values)
   if not rows:
     raise SystemExit('No completed samples')
   gaps = np.stack(rows)

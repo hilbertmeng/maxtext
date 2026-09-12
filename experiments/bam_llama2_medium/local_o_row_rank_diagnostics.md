@@ -93,3 +93,26 @@ and reports descriptive sample-level uncertainty, not corrected significance.
 After the first32, prioritize unresolved ranks/layer groups rather than blindly
 extending the full54-scenario grid. The running grid costs~34s/sequence;
 this is TPU intervention-forward work, unlike the CPU-heavy spectral stage.
+
+### First32 causal results
+
+Positive means higher loss. Each intervention applies at all token positions in
+the selected layer group, then executes the remaining network normally.
+
+| Layers | Key-optimal r4 | Output-optimal r4 | Output-optimal r6 |
+|---|---:|---:|---:|
+| Local | +.010554 | +.000600 | +.000215 |
+| Fetch | +.007260 | +.000508 | +.000105 |
+| All | +.017956 | +.000907 | +.000290 |
+
+All-layer output-r4/r6 descriptive mean ±1.96 SE is ±.000469/±.000317.
+Key-r4 has a positive gap on all32 sequences; output-r4 on23/32.
+The complete first32 rank1–16 table is `causal_first32.md` in the artifact directory.
+This supports useful low-rank *outputs*, not low-rank fitting of the original keys.
+It does not establish a learned rank4/6 reader's retraining loss.
+
+The broad scan was ended after this milestone. Focused continuation runtime
+`595cfff33c15e8a69fc11606a651611b09096d6d` uses the unchanged intervention function,
+`ORANK_TAG=groups_focus ORANK_START=32 ORANK_STOP=128 ORANK_RANKS=4,6`.
+Twelve scenarios replace54. `summarize_local_o_row_ablation.py --focus` merges
+matching scenarios across the two batches and verifies cohort/checkpoint identity.

@@ -7366,7 +7366,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias(BamMediumIndependentL
     # code_commit: 0dcd3e1; UE5a ~.6886 steps/s (10-14), +.09% vs RoutingCFp32 .6880; health OFF.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # User requests historical health-OFF parity; ordinary training health remains enabled.
-    # Prediction vs RoutingCFp32: final gap +.0005; throughput approximately unchanged.
+    # Stopped at 7139. vs RoutingCFp32: early +.0635@200 rapidly vanished; repeatedly
+    # crossed zero thereafter, no persistent gain (5600–7000 mean +.00011, range -.00116..+.00134).
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingCFp32']
     bam_local_v_pre_rms_bias = False

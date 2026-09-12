@@ -55,6 +55,7 @@ from vertex_tensorboard import VertexTensorboardManager
 
 from input_pipeline.input_pipeline_interface import create_data_iterator
 from layers import models
+from layers.bam_local_v_health import record_local_v_dual_metrics
 
 from gcp_workload_monitor import GCPWorkloadMonitor
 
@@ -952,6 +953,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
         metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_local_routing_metrics', False):
     record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_local_v_dual_health', False):
+    record_local_v_dual_metrics(metrics, intermediate_outputs, config)
 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)

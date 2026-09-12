@@ -296,6 +296,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_q_row_rank = None  # None keeps the arm's common rank; k/v fall back to q.
     bam_local_q_col_rank = None
     bam_local_v_share_output_coordinates = False
+    bam_local_v_add_shared_read = False
+    bam_record_local_v_dual_health = False
     bam_local_v_direct_compressed_col = False
     bam_local_v_col_read_mode = 'dynamic'
     bam_local_o_row_tied_decoder = False
@@ -7361,6 +7363,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRout
 
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias(BamMediumIndependentLLFLocalVRank4RoutingCFp32):
     """Only remove LocalV row/column key bias; Q/K rank1 legacy stays unchanged."""
+    # code_commit: 0dcd3e1; UE5a ~.6886 steps/s (10-14), +.09% vs RoutingCFp32 .6880; health OFF.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
     # User requests historical health-OFF parity; ordinary training health remains enabled.
     # Prediction vs RoutingCFp32: final gap +.0005; throughput approximately unchanged.
@@ -7370,3 +7373,17 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias(BamMediumIndependentL
     record_training_health_metrics = False
     steps = 13500
     checkpoint_period = 200
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Add independently gated LocalO-shared LocalV to the rank4 BAlignedRow branch."""
+    # Prediction vs BAlignedRow: final gap -.001; architectural throughput ~-.5% (health adds cost).
+    # Runtime family: codex/local-read-gram; two LocalV gates, unchanged LocalO gate.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_v_add_shared_read = True
+    bam_record_local_v_dual_health = True
+    record_training_health_metrics = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True

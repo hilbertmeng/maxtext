@@ -41,6 +41,7 @@ from layers import dc
 from layers import accelerator
 from layers import normalizations
 from layers import kv_shift
+from layers.bam_local_v_health import local_v_dual_stats
 
 import max_logging
 
@@ -2629,6 +2630,13 @@ class BamAttention(Attention):
         (self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none'))
         if self._local_o else 'none')
     assert self._local_v_mode in ('none', 'rank2', 'shared')
+    self._local_v_add_shared = self._local_o and bool(getattr(cfg, 'bam_local_v_add_shared_read', False))
+    self._record_local_v_dual_health = bool(getattr(cfg, 'bam_record_local_v_dual_health', False))
+    self._share_local_v_read = self._local_v_mode == 'shared' or self._local_v_add_shared
+    if self._local_v_add_shared:
+      assert self._local_v_mode == 'rank2' and not self._local_o_col_rank
+      assert cfg.bam_local_v_share_output_coordinates and cfg.bam_local_o_compress_v
+      assert cfg.bam_local_v_col_read_mode == 'dynamic'
 
     # Local read arms: bam_local_<name>_<key>; k and v fall back to q's value
     # when their own key is unset.
@@ -3254,6 +3262,11 @@ class BamAttention(Attention):
             nn.with_logical_partitioning(zeros_init, ('q_heads',) + (None,) * (len(arm.mix_shape) - 1)),
             arm.mix_shape, self.weight_dtype))
 
+    if self._local_v_add_shared:
+      assert self._local_arms['v'].rank_routing == 'head_gate_r'
+      add_read_gate('W_lv_shared_gate', (self.num_query_heads, 2),
+                    ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
+
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
     if paired is not None:
@@ -3849,16 +3862,30 @@ class BamAttention(Attention):
         local_output, output_logits = self._read_local_o_effective_col(Mh, local_state, inputs_q)
       else:
         local_output, output_logits = self._read_fetched_m(
-            local_state, inputs_q, ungated=self._local_v_mode == 'shared')
-      if self._local_v_mode == 'shared':
-        value = value + self._gate_local_output(
-            local_output, self._project_read_gate_logits('W_lv_gate', inputs_q))
+            local_state, inputs_q, ungated=self._share_local_v_read)
+      shared_v = independent_v = None
+      if self._share_local_v_read:
+        shared_logits = self._project_read_gate_logits(
+            'W_lv_shared_gate' if self._local_v_add_shared else 'W_lv_gate', inputs_q)
+        shared_v = self._gate_local_output(local_output, shared_logits)
         local_output = self._gate_local_output(local_output, output_logits)
-      elif self._local_v_mode == 'rank2':
+      if self._local_v_mode == 'rank2':
         with jax.named_scope("bam/read_local_m_for_v"):
-          value = value + self._read_local(
+          independent_v = self._read_local(
               'v', local_state if self._local_arms['v'].direct_col else Mh,
               inputs_q, local_inputs)
+      if self._local_v_add_shared and self._record_local_v_dual_health:
+        independent_logits = local_inputs['v'][1]
+        independent_logits = independent_logits + jnp.asarray(self.W_lv_gate_b0, independent_logits.dtype)
+        gates = tuple(self._read_gate_activation(z) for z in (
+            independent_logits, shared_logits, output_logits))
+        for name, stats in local_v_dual_stats(
+            independent_v, shared_v, value, gates, self.bam_k, self._abs_v_dim).items():
+          self.sow('intermediates', name, stats)
+      if independent_v is not None:
+        value = value + independent_v
+      if shared_v is not None:
+        value = value + shared_v
 
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:

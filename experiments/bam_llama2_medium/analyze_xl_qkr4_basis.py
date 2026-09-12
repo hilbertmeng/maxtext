@@ -64,6 +64,27 @@ def main():
         cells += [get(stage+key)[3] for stage in ('','dynamic__','bias__')]
         lines.append(f'| {layer} | '+' | '.join(f'{v:.4f}' for v in cells)+' |')
   (args.directory/'summary.md').write_text('\n'.join(lines)+'\n')
+  detail = ['# Per-layer, per-side Q–K basis details', '',
+      f'{len(files)} sequences. Rows Q0–Q3; columns K0–K3. Spectra are cumulative squared-energy fractions.', '']
+  stages = ('', 'dynamic__', 'bias__') if 'dynamic__L01_row_q_rank_energy' in summary else ('',)
+  for stage in stages:
+    detail += ['## '+({'':'Wx+b','dynamic__':'Wx','bias__':'b'}[stage]), '']
+    for side in ('row','col'):
+      detail += [f'### {side}', '']
+      for layer in range(1,24):
+        p = stage+f'L{layer:02d}_{side}_'
+        get = lambda k: np.asarray(summary[p+k]['mean'])
+        detail += [f'#### L{layer}', '', '```text']
+        for metric in ('cos','abs_cos'):
+          matrix = get('raw_uncentered_'+metric)[:4,4:]
+          detail += [metric+'       K0       K1       K2       K3']
+          detail += [f'Q{i}    '+' '.join(f'{v:+.5f}' for v in row) for i,row in enumerate(matrix)]
+        for label,key in (('Q spectrum','q_rank_energy'),('K spectrum','k_rank_energy'),
+                          ('joint spectrum','raw_uncentered_amplitude_weighted_rank_energy'),
+                          ('Q in K span','q_in_k_span'),('K in Q span','k_in_q_span')):
+          detail += [label+': '+' '.join(f'{v:.5f}' for v in get(key))]
+        detail += ['```','']
+  (args.directory/'layer_details.md').write_text('\n'.join(detail)+'\n')
 
 
 if __name__ == '__main__':

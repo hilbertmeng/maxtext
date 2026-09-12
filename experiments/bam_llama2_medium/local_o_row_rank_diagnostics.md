@@ -1,6 +1,7 @@
 # LLF BAlignedRow: choosing dynamic O row rank
 
-Status: acquiring v6e for spectral stage; no rank recommendation yet.
+Status: spectral stage complete on128/128 sequences; group causal rank sweep running.
+No retraining rank recommendation yet.
 
 ## Scope and reproducibility
 
@@ -43,3 +44,38 @@ must reproduce ordinary forward loss. Save per-sequence statistics atomically,
 incrementally upload directly from worker to GCS. No activation vectors are retained.
 Record CPU count, throughput and pipeline latency; adjust concurrency based on
 measurements. L0 zero-energy quantities are undefined, not evidence for rank0.
+
+## Complete spectral results
+
+| Layer group | Output energy r2 | r4 | r6 | Key-SVD read error r4 | r8 |
+|---|---:|---:|---:|---:|---:|
+| Local (exclude zero-M L0) | .83880 | .96306 | .99331 | .24181 | .08049 |
+| Fetch | .83280 | .95981 | .99249 | .22998 | .07836 |
+
+Local aggregation includes all15 nonzero Local layers; Fetch includes8 layers.
+Energy is squared Frobenius singular-value energy, averaged per-token then per-sequence;
+read error first energy-weights tokens within a sequence, then averages sequences/layers.
+The two columns therefore have deliberately different weighting: both are retained
+in raw per-sequence files, not silently presented as the same statistic.
+
+Key rank4 retains only~64–65% energy; key rank11 is needed for~95% on average.
+Output rank4 retains~96%, rank6~99.3%, but this is an M-dependent oracle, not
+proof that cheap A(x)/H(x) projections will learn the useful subspace.
+L/F averages are similar. Deep layers tend to be less compressible; e.g. F20
+output rank4 retains .9431 versus F5 .9743. Layerwise/full-rank curves are in
+`/data0/xd/bam_diagnostics/llf-o-row-rank-13500/summary.md` and aggregate.npz.
+
+Capture versus ordinary forward is exactly equal on sample0. Worker44 CPUs/172GiB;
+16 threads, BLAS1, two in-flight samples; four-layer serial2.64s versus parallel.92s
+(2.87x). Stable two-sample pipeline latency~6.4s, throughput~one sample/3.2s,
+RSS~8.4GiB; observed process CPU~5–6 cores, not full44-core utilization.
+
+## Causal follow-up
+
+Runtime `0633d909d53a718c773b7e08ae1ee39c10178b15`, same worker/checkpoint/cohort.
+`ORANK_STAGE=ablation ORANK_SCOPE=groups ORANK_RANKS=1,2,3,4,5,6,7,8,12,16`
+with the same launcher. Key-optimal and output-optimal oracle truncation preserve
+the original head destinations. Runtime layer/rank selection shares one compile;
+inactive layers skip eigensolves. No-op forward delta is exactly zero on sample0.
+Rank16 keys/rank8 output are explicit no-op controls. Full per-sequence loss deltas
+and scenario ordering are saved in ablation_groups_*.npz/json.

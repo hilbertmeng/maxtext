@@ -2454,7 +2454,6 @@ class BamMediumPaired40Rank2CFp32(BamMediumPaired40Rank2HistoricalInitRepro):
     # Health-on UE5a .6232 steps/s @914-918: -.92% vs CurrentControl, -1.70% vs SharedRankGate.
     # Earlier becec37: UE5a 10-14 mean .6324 steps/s:
     # +0.54% vs historical CurrentControl .629, -.25% vs SharedRankGate .634.
-    # Prediction: final gap -.001 vs CurrentControl (low confidence), throughput -1%.
     model_name = 'BamMediumPaired40Rank2CFp32'
     # CurrentControl ends1660; its 200-1600 reporting points exactly match full historical Rank2.
     compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2',
@@ -6932,7 +6931,6 @@ class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase)
     # Steps10-14 .5532 steps/s, -.58% vs historical independent LLF .5564 (predicted -1%).
     # Historical XL all-decay (wd_mults=[]), Q/K rank2 legacy, health sow off; checkpoint250.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs historical independent LLF: final gap -.002, throughput -1%.
     # Q/K retain rank2 legacy; LocalO/F unchanged. Combined C+alignment is new.
     model_name = 'BamXLIndependentLLFLocalVRank4CFp32AlignedRow'
     compare_runs = ['BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2']
@@ -6952,7 +6950,6 @@ class BamXLIndependentLLFLocalQKVCFp32AlignedRow(BamXLIndependentLLFLocalVRank4C
     # code_commit: 6977fa0; EW4b v5p-32 AOT, FIRST_STEP verified; steps10-14 .5504 steps/s.
     # Historical parent UE5a .5532: -.51% (cross-zone reference, not an isolated timing pair).
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs LocalVRank4CFp32AlignedRow: late gap -.001 (optimistic), throughput -1%.
     # Architectural uniformity is also a benefit; keep ranks, scales, RoPE and all-decay unchanged.
     model_name = 'BamXLIndependentLLFLocalQKVCFp32AlignedRow'
     compare_runs = ['BamXLIndependentLLFLocalVRank4CFp32AlignedRow',
@@ -7183,7 +7180,6 @@ class BamMediumIndependentLLFRoutingLegacyLocalVRank4(BamMediumIndependentLLFRou
     """Only independent LocalV rank2→4; LocalQ/K remain rank1, legacy routing."""
     # code_commit: 6f83129; UE5a v5p-16 block-scan/AOT, .6920 steps/s (10–14), -.97% vs Legacy .6988.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
-    # Prerun prediction: final gap -.0015 vs RoutingLegacy; throughput -2%.
     # Stopped at committed2894: vs Legacy, early benefit reversed at400; 1600–2800 gap stays +.0057–.0073
     # (mean +.00637), with no sustained convergence. Rank4 adds cost (-.97% throughput), not benefit.
     model_name = 'BamMediumIndependentLLFRoutingLegacyLocalVRank4'
@@ -7195,7 +7191,6 @@ class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentL
     """Softplus for all local/fetched read-key gates; matched initial opening .005."""
     # code_commit: 64da0b4; UE5a v5p-16 block-scan/AOT, .6994 steps/s (10–14), +.09% vs Legacy .6988.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main entry is ledger only.
-    # Prerun prediction: final gap +.002 vs RoutingLegacy; throughput approximately unchanged.
     # Hot-replaced at committed2739 (resumable pause): vs Legacy +.0716@200 narrowed to +.0023..+.0044
     # over 800–2400, then +.00154@2600 (new low); still positive, but convergence was not ruled out.
     model_name = 'BamMediumIndependentLLFRoutingLegacySoftplusReadGate'
@@ -7209,7 +7204,6 @@ class BamMediumIndependentLLFLocalVRank4RoutingA(BamMediumIndependentLLFRoutingL
     # (mean +.00135, range +.00096..+.00169); persistent small loss cost for only +.61% throughput.
     # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6890 steps/s (10–14), -.43% vs LocalVRank4 .6920.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
-    # Prerun prediction vs LocalVRank4: final gap +.003; throughput about -.5%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingA'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     # Ongoing comparison switched to B after the old Rank4 control stopped; throughput +.61% vs B.
@@ -7221,7 +7215,6 @@ class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRa
     """Only LocalV rank4 uses head_gate_r; Q/K remain rank1 legacy."""
     # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6848 steps/s (10–14), -1.04% vs LocalVRank4 .6920.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
-    # Prerun prediction vs LocalVRank4: final gap +.005; throughput about -.5%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingB'
     compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
     # Ongoing comparison: combined V rank2→4 + head_gate_r effect; throughput -2.00% vs Legacy .6988.
@@ -7234,7 +7227,6 @@ class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRa
 class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentLLFLocalVRank4RoutingB):
     """Read full M for LocalV; share LocalO's V compression on row output only."""
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs RoutingB: final gap -.0015; throughput within +/-1%.
     # code_commit: 77401da; UE5a v5p-16 block-scan/AOT, .6930 steps/s @10–14 (+1.20% vs B .6848).
     # Completed13500, final checkpoint committed. vs B: positive at600–2600, crossed negative
     # at2800; benefit grew from ~-.001 to ~-.003, then persisted (12200–13400 mean -.00284).
@@ -7255,7 +7247,6 @@ class BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow(BamMediumIndependentL
     # Steps10-14 .6956 steps/s: +.38% vs rank4 BAlignedRow .6930, -.46% vs rank2 Legacy .6988.
     # Speed gain smaller than predicted +1%; same-zone historical timings, not same-commit paired profile.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs rank4 BAlignedRow: final gap -.0005, throughput +1%; low confidence.
     # Retain B's scale rule 2/sqrt(rank); clean WD, block-scan/AOT, checkpoint200, health sow off.
     model_name = 'BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
@@ -7273,7 +7264,6 @@ class BamMediumIndependentLLFAlignedRowLocalVStaticCol(BamMediumIndependentLLFLo
     # code_commit: 7ded074; UE5a v5p-16 block-scan/AOT, FIRST_STEP/load verified.
     # !? Steps10-14 .6938 steps/s, +.12% vs BAlignedRow .6930; predicted +1% not realized.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs BAlignedRow: final gap +.002; throughput +1%.
     # S normal(.006), column RMS, fixed scale2, gate sigmoid p0=.005.
     # Q/K and aligned rank4 routing-B row unchanged; scan/AOT, checkpoint200.
     model_name = 'BamMediumIndependentLLFAlignedRowLocalVStaticCol'
@@ -7289,7 +7279,6 @@ class BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol(BamMediumIndep
     # code_commit: 7ded074; UE5a v5p-16 block-scan/AOT, FIRST_STEP/load verified.
     # Steps10-14 .6830 steps/s, -1.44% vs BAlignedRow .6930 (predicted -2%).
     # -1.56% vs StaticCol .6938.
-    # Prediction vs BAlignedRow: final gap -.001; throughput -2%.
     # Plain sum; independent dynamic/static column gates, no extra outer gate or sqrt2.
     model_name = 'BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
@@ -7307,7 +7296,6 @@ class BamMediumIndependentLLFAlignedRowLocalVRowRank2(BamMediumIndependentLLFLoc
     # !? .6910 steps/s @10–14, -.29% vs BAlignedRow .6930, opposite predicted +.5%.
     # Saves .09375 W_Q per L layer in projection weights; speed gain not observed.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs BAlignedRow: final gap +.0005, throughput +.5%; key_scale unchanged.
     model_name = 'BamMediumIndependentLLFAlignedRowLocalVRowRank2'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
     bam_local_v_row_rank = 2
@@ -7319,7 +7307,6 @@ class BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32(BamMediumIndependentL
     # later worsened to +.003..+.005 fluctuations (3000–4400 mean +.00430), no sustained convergence.
     # No loss gain for -2.05% throughput; predicted final -.001 not supported by observed trajectory.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs BAlignedRow: final gap -.001; throughput -1% to -2%.
     # code_commit: f7ed640; UE5a v5p-16 block-scan/AOT, .6788 steps/s @10–14,
     # -2.05% vs AlignedRow .6930; near the slower end of the predicted -1% to -2%.
     # Read-M FLOPs unchanged (4*32 versus 16*8); extra head expansion/Gram may cost time.
@@ -7333,7 +7320,6 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol(BamMediumIndepe
     # code_commit: 6681709; UE5a v5p-16 block-scan/AOT, .6962 steps/s @10–14.
     # Throughput +.46% vs AlignedRow .6930 (+1% predicted), +1.66% vs B .6848.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs AlignedRow: final gap -.0015; throughput +1%. Row change is algebraically equivalent.
     # Removes column rank→head mixing and row post-read projection; Q/K and all F layers unchanged.
     # Stopped at committed4197: vs AlignedRow, early +.140 shrank then held ~+.004–.005 at 2200–4000;
     # vs B still narrowing (+.0049→+.0024 at 3200–4000), but no loss gain over AlignedRow.
@@ -7348,7 +7334,6 @@ class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndepen
     # code_commit: 286da7a; UE5a v5p-16 block-scan/AOT, .6870 steps/s @10–14 (+.32% vs B .6848).
     # Observe through late training: coordinate-alignment benefit may emerge late, not an early-stop ablation.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs B: final gap -.001; throughput -.5%. Full-M LocalV unchanged; no new parameters.
     # Stopped at committed9199: vs B crossed negative at 2800, later held ~-.002–.003 through 9000;
     # vs AlignedRow repeatedly crossed zero without a persistent gain, while .87% slower.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode'
@@ -7364,7 +7349,6 @@ class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRout
     """Only LocalV rank4 uses effective_key, with fp32 Gram/norm2 statistics."""
     # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6880 steps/s (10–14), -.58% vs LocalVRank4 .6920.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main is ledger only.
-    # Prerun prediction vs LocalVRank4: final gap +.001; throughput about -1%.
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     # Ongoing comparison switched to B after the old Rank4 control stopped; throughput +.47% vs B.

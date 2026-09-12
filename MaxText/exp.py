@@ -7122,6 +7122,13 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     bam_local_v_share_output_coordinates = True
 
 
+class BamMediumIndependentLLFBAlignedRowGenericHealthSpeed(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Speed-only BAlignedRow reference: generic health ON, BAM sow OFF."""
+    # Original BAlignedRow implementation; UE5a v5p-16 block-scan/AOT, full 13500-step schedule.
+    model_name = 'BamMediumIndependentLLFBAlignedRowGenericHealthSpeed'
+    record_training_health_metrics = True
+
+
 class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L/F O row reads use four dynamic C-fp32 bases; column and LocalQKV unchanged."""
     # Implementation: codex/llf-o-row-rank-training, /data0/xd/llf-o-row-rank-training.

@@ -97,6 +97,11 @@ def main():
                           ('joint spectrum','raw_uncentered_amplitude_weighted_rank_energy'),
                           ('Q in K span','q_in_k_span'),('K in Q span','k_in_q_span')):
           detail += [label+': '+' '.join(f'{v:.5f}' for v in get(key))]
+        if not stage and len(stages) > 1:
+          for arm in ('q', 'k'):
+            for metric in ('dynamic_norm', 'bias_norm', 'total_norm', 'dynamic_bias_cos'):
+              vector = np.asarray(summary[f'L{layer:02d}_{arm}_{side}_{metric}']['mean'])
+              detail += [f'{arm.upper()} {metric}: '+' '.join(f'{v:.6f}' for v in vector)]
         detail += ['```','']
   (args.directory/'layer_details.md').write_text('\n'.join(detail)+'\n')
   if args.reference_dir:

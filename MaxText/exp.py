@@ -7409,8 +7409,8 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependent
     """Share Q/K rank4 bases including bias; retain independent head mixing and gates."""
     # code_commit: c664e82; EW4b v5p-32 scan/AOT; generic health ON, BAM health OFF.
     # !? .5444 steps/s (10–14), +3.91% vs same-pod parent .5239 (25713–25724), above +2% prediction.
-    # vs QKVC rank2 .5504: raw -1.09%, NOT a fair architecture delta (generic health ON vs OFF).
-    # QKVC speed comparison requires matched health settings; do not infer its cost from QKRank4's health overhead.
+    # Matched all-health-OFF EW4b v5p-32 scan/AOT: .54883 vs QKVC rank2 .5504 = -.28%, essentially tied.
+    # NoHealthProfile e05b537 steps28–33; historical rank2 6977fa0 reused. Expected +.7%, not observed.
     # Prediction vs QKRank4: late gap +.0005; throughput +2%; saves .1875 W_Q per layer.
     # codex/local-read-gram; full M64x32, shared basis Read-M/Gram, unchanged LocalV and all-decay.
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis'

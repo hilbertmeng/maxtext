@@ -45,6 +45,24 @@ def main():
           get('raw_uncentered_rank_energy')[3]]
       text = ['—' if layer == 0 or not np.isfinite(v) else f'{v:.4f}' for v in cells]
       lines.append(f'| {layer} | {"F" if layer%3==2 else "L"} | '+' | '.join(text)+' |')
+  if 'dynamic__L01_row_q_rank_energy' in summary:
+    lines += ['', '## Bias decomposition', '',
+        'Ratios are ratios of mean per-token norms; they are not additive energy shares.',
+        'Static b is token-independent; its centered geometry is undefined and unused.', '']
+    for side in ('row', 'col'):
+      lines += [f'### {side}', '',
+          '| Layer | Q bias/dynamic norm | K bias/dynamic norm | Q dynamic–bias cosine | K dynamic–bias cosine | joint R4 Wx+b | joint R4 Wx | joint R4 b |',
+          '|---:|---:|---:|---:|---:|---:|---:|---:|']
+      for layer in range(1,24):
+        key = f'L{layer:02d}_{side}_raw_uncentered_amplitude_weighted_rank_energy'
+        get = lambda k: np.asarray(summary[k]['mean'])
+        cells = []
+        for arm in ('q','k'):
+          p = f'L{layer:02d}_{arm}_{side}_'
+          cells.append(get(p+'bias_norm').mean()/max(get(p+'dynamic_norm').mean(),1e-30))
+        cells += [get(f'L{layer:02d}_{arm}_{side}_dynamic_bias_cos').mean() for arm in ('q','k')]
+        cells += [get(stage+key)[3] for stage in ('','dynamic__','bias__')]
+        lines.append(f'| {layer} | '+' | '.join(f'{v:.4f}' for v in cells)+' |')
   (args.directory/'summary.md').write_text('\n'.join(lines)+'\n')
 
 

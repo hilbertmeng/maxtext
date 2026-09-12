@@ -6946,6 +6946,9 @@ class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase)
 
 class BamXLIndependentLLFLocalQKVCFp32AlignedRow(BamXLIndependentLLFLocalVRank4CFp32AlignedRow):
     """Unify LocalQ/K/V effective-key routing; retain Q/K rank2 and V rank4."""
+    # Stopped at 30013.
+    # vs LocalVRank4CFp32AlignedRow: early benefit narrowed, then held ~-.0013 over 20.5k–29.5k;
+    # vs historical XL Rank2: early benefit narrowed to ~-.004, without late convergence to zero.
     # code_commit: 6977fa0; EW4b v5p-32 AOT, FIRST_STEP verified; steps10-14 .5504 steps/s.
     # Historical parent UE5a .5532: -.51% (cross-zone reference, not an isolated timing pair).
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.

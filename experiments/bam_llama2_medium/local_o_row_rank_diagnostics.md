@@ -134,3 +134,35 @@ For a prospective dynamic row reader, projection dimensions are R*(32+16) versus
 16*32=512; contraction MACs are R*32*8+16*R*8 versus16*32*8=4096.
 Both decrease62.5% at R4,43.75% at R6,25% at R8, before Gram/routing overhead.
 These are operator estimates, not whole-model throughput predictions.
+
+## Final result (user-ended scan)
+
+Full spectra:128 sequences. Broad causal grid: first32 reported (35 completed).
+Focused r4/r6 causal grid:109 contiguous sequences after merging. User ended
+further measurement because the conclusion was clear; no claim of128 causal samples.
+
+| Layers | Key-optimal r4 | Key-optimal r6 | Output-optimal r4 | Output-optimal r6 |
+|---|---:|---:|---:|---:|
+| Local | +.009706 | +.005054 | +.000630 | +.000120 |
+| Fetch | +.007344 | +.003459 | +.000576 | +.000027 |
+| All | +.017893 | +.008877 | +.001118 | +.000140 |
+
+All-layer output-r4/r6 ±1.96 SE: ±.000315/±.000174. R4 leaves a small loss;
+R6's mean is small and its descriptive interval includes zero. Rank2/3 have
+larger all-layer output-oracle loss (+.00882/+.00320 on the first32).
+Thus dynamic rank4 is a plausible efficiency experiment, not a diagnosed loss-free
+replacement. C-fp32 does not itself guarantee that x-generated bases recover the
+M-dependent output-optimal subspace. L/F output losses are comparable at r4;
+do not assign layer-specific ranks based solely on spectral energy.
+
+`causal_final.md` retains the complete focused table and uncertainty.
+User approved training L/F O-row rank4 C-fp32 on BAlignedRow in a separate worktree:
+`codex/llf-o-row-rank-training`, `/data0/xd/llf-o-row-rank-training`, based on the
+original BAlignedRow runtime77401da6. No other read arm changes.
+
+Workflow lesson: report32-sequence batches and narrow settled branches promptly.
+The initial54-scenario grid cost34s/sample; narrowing to12 cut this to8.5s/sample.
+Three overlapping samples verified exact losses across the runner change.
+All scripts and per-sequence artifacts retained. On2026-09-12 the exact diagnostic
+TPU `xd-v6e-localo-rowrank-ewa4a-0912` and its queued-resource were deleted and
+verified absent. This does not refer to subsequent training/AOT resources.

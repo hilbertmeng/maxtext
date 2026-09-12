@@ -2103,6 +2103,18 @@ def _gram_read_norm2(A, H, implementation, statistics_dtype=jnp.float32):
   return jnp.maximum(jnp.sum(hg * H, axis=-1), 0.0)
 
 
+def _effective_key_row_read(M, bases, mix, gate_logits, *, key_scale,
+                            rms_epsilon, implementation, gate_activation=jax.nn.sigmoid):
+  """C-fp32 row read: normalize composed keys without materializing n*K keys."""
+  norm2 = _gram_read_norm2(bases, mix, 'mul_reduce', jnp.float32)
+  scale = key_scale * gate_activation(gate_logits) * jax.lax.rsqrt(
+      norm2.astype(bases.dtype) / bases.shape[-1] + rms_epsilon)
+  _, basis_read = _contract_bam_read_sides(
+      M, M, bases, None, implementation=implementation, read_side='row')
+  mix = mix * scale[..., None]
+  return jnp.sum(mix[..., :, :, None] * basis_read[..., None, :, :], axis=-2)
+
+
 def factorized_head_bam_read(
     M, x, W_R, W_head_mix, *, rms_epsilon,
     rms_statistics_dtype=jnp.float32,
@@ -2545,6 +2557,7 @@ class BamAttention(Attention):
         None if fetched_read_gate_init is None
         else float(fetched_read_gate_init))
     self._fetched_read_kernel_init = cfg.bam_fetched_read_kernel_init
+    self._o_row_rank = getattr(cfg, 'bam_o_row_effective_rank', 0)
     self._fetched_read_kernel_gradient_scale = float(
         cfg.bam_fetched_read_kernel_gradient_scale)
     fetched_read_amplitude_init = getattr(
@@ -2824,7 +2837,8 @@ class BamAttention(Attention):
 
       # Joint target-side read key is generated directly in both cached spaces.
       read_features = (
-          self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim + read_v_dim)
+          self._fetched_read_num_heads, cfg.bam_n_f,
+          read_v_dim if self._o_row_rank else read_k_dim + read_v_dim)
       self.W_R = DenseGeneral(
           features=read_features, axis=-1,
           kernel_init=(
@@ -2835,6 +2849,20 @@ class BamAttention(Attention):
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False,
           kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
+      if self._o_row_rank:
+        assert self._o_row_rank > 0 and cfg.bam_n_f == 1
+        assert self._read_key_mode == 'rms_gate' and self._fetched_read_side == 'both'
+        assert not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm)
+        assert self._fetched_read_amplitude_init is None
+        for name, features, axes, init in (
+            ('W_o_row_basis', (self._o_row_rank, read_k_dim),
+             ('embed', None, 'kv'), zeros_init),
+            ('W_o_row_mix', (self._fetched_read_num_heads, self._o_row_rank),
+             ('embed', 'q_heads', None), reg_init)):
+          setattr(self, name, DenseGeneral(
+              features=features, axis=-1, kernel_init=init, kernel_axes=axes,
+              dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
+              quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
       fetched_gate_init = (
           zero_key_gate_init if self._fetched_read_gate_init is None
           else self._fetched_read_gate_init)
@@ -3414,11 +3442,29 @@ class BamAttention(Attention):
             m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
       def full_read_projection(x):
         return jnp.squeeze(self.W_R(x), axis=-2)
-      full_read = bam_read(
-          Mbar, inputs_q, full_read_projection,
-          **full_read_kwargs,
-          implementation=self._read_implementation,
-          read_side=self._fetched_read_side)
+      if self._o_row_rank:
+        assert not ungated
+        col_key = _transform_bam_read_key(
+            full_read_projection(inputs_q), 'rms_gate', self._read_key_scale,
+            rms_epsilon=self._fetched_read_key_epsilon,
+            rms_statistics_dtype=self._read_rms_statistics_dtype,
+            gate_logits=interpolation_gate_logits[..., 1:2],
+            gate_activation=self._read_gate_activation)
+        col, _ = _contract_bam_read_sides(
+            Mbar, Mbar, None, col_key,
+            implementation=self._read_implementation, read_side='col')
+        row = _effective_key_row_read(
+            Mbar, self.W_o_row_basis(inputs_q), self.W_o_row_mix(inputs_q),
+            interpolation_gate_logits[..., 0], key_scale=self._read_key_scale,
+            rms_epsilon=self._fetched_read_key_epsilon,
+            implementation=self._read_implementation, gate_activation=self._read_gate_activation)
+        full_read = col, row
+      else:
+        full_read = bam_read(
+            Mbar, inputs_q, full_read_projection,
+            **full_read_kwargs,
+            implementation=self._read_implementation,
+            read_side=self._fetched_read_side)
       if self._record_fetched_read_health_metrics:
         y_col, y_row = full_read
         self.sow(

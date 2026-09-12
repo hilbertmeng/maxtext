@@ -271,6 +271,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_gate_activation = 'sigmoid'
     bam_fetched_read_gate_init = None  # None follows bam_read_gate_init
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
+    bam_o_row_effective_rank = 0  # L/F O row: 0 keeps independent heads; >0 uses C-fp32 bases.
     bam_fetched_read_kernel_gradient_scale = 1.0
     # Optional fetched-read-only amplitude outside sigmoid: a/sqrt(C).
     bam_fetched_read_amplitude_init = None
@@ -7119,6 +7120,16 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
     bam_local_v_share_output_coordinates = True
+
+
+class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """L/F O row reads use four dynamic C-fp32 bases; column and LocalQKV unchanged."""
+    # Implementation: codex/llf-o-row-rank-training, /data0/xd/llf-o-row-rank-training.
+    # Prediction vs BAlignedRow: final gap +.001; throughput +1% (matched health).
+    model_name = 'BamMediumIndependentLLFBAlignedRowORowRank4CFp32'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_o_row_effective_rank = 4
+    record_training_health_metrics = True
 
 
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):

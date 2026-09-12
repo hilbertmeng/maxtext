@@ -7393,6 +7393,14 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead(BamMediumIn
     force_final_checkpoint = True
 
 
+class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedReadNoHealthProfile(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead):
+    """Speed-only all-health-OFF control; preserve the formal training schedule."""
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedReadNoHealthProfile'
+    record_training_health_metrics = False
+    bam_record_local_v_dual_health = False
+    bam_record_local_routing_metrics = False
+
+
 class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependentLLFLocalQKRank4CFp32AlignedRow):
     """Share Q/K rank4 bases including bias; retain independent head mixing and gates."""
     # Prediction vs QKRank4: late gap +.0005; throughput +2%; saves .1875 W_Q per layer.

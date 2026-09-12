@@ -9,13 +9,27 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('directory', type=Path)
   parser.add_argument('--allow-partial', action='store_true')
+  parser.add_argument('--reference-dir', type=Path,
+                      help='Verify repeated raw-stage statistics and loss against the original capture.')
   args = parser.parse_args()
   files = sorted(args.directory.glob('batch_*.npz'))
   if not files or (not args.allow_partial and len(files) != 128):
     raise ValueError(f'Expected 128 samples, found {len(files)}')
+  if not args.allow_partial:
+    assert [p.name for p in files] == [f'batch_{i:03d}.npz' for i in range(128)]
+  if args.reference_dir:
+    metadata = json.loads((args.directory/'metadata.json').read_text())
+    reference = json.loads((args.reference_dir/'metadata.json').read_text())
+    for key in ('training_commit','checkpoint','cohort_sha256','sequence_hashes'):
+      assert metadata[key] == reference[key], key
   values = {}
   for path in files:
     with np.load(path) as batch:
+      if args.reference_dir:
+        with np.load(args.reference_dir/path.name) as reference:
+          for key in reference.files:
+            np.testing.assert_allclose(batch[key],reference[key],rtol=0,atol=0,equal_nan=True,
+                                       err_msg=f'{path.name}: {key}')
       for name in batch.files:
         values.setdefault(name, []).append(batch[name])
   values = {k: np.concatenate(v, axis=0) for k, v in values.items()}
@@ -85,6 +99,8 @@ def main():
           detail += [label+': '+' '.join(f'{v:.5f}' for v in get(key))]
         detail += ['```','']
   (args.directory/'layer_details.md').write_text('\n'.join(detail)+'\n')
+  if args.reference_dir:
+    print(f'PAIR_VALIDATED: {len(files)} samples; metadata, loss and raw statistics identical')
 
 
 if __name__ == '__main__':

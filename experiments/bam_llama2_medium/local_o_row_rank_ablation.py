@@ -6,6 +6,7 @@ can learn the oracle. Rank truncation is applied to all valid query positions.
 from pathlib import Path
 import json
 import os
+import subprocess
 import time
 import numpy as np
 from absl import app
@@ -40,17 +41,17 @@ def loss_intervention(model, params, batch, rng, layers, rank, mode):
     col, row = original_read(matrix, *args, **kw)
     if not owners:
       return col, row
-    key = saved.pop('key').astype(jnp.float32)
-    m = matrix.astype(jnp.float32)
-    reference = key @ m
+    key = saved.pop('key')
     # Preserve original bf16 contraction's rounding residual. Rank16 is exactly
     # a no-op by construction; nontrivial deltas are accumulated in activation dtype.
-    key_delta = truncate(key, rank) @ m - reference
-    out = row.astype(jnp.float32)
-    output_delta = truncate(out, rank) - out
-    delta = jnp.where(mode == 1, key_delta, output_delta)
     active = layers[owners[-1]] & (mode != 0) & (rank < jnp.where(mode == 1, 16, 8))
-    row = jnp.where(active, row + delta.astype(row.dtype), row)
+    def modified():
+      k, m, out = key.astype(jnp.float32), matrix.astype(jnp.float32), row.astype(jnp.float32)
+      delta = jax.lax.cond(mode == 1,
+          lambda: truncate(k, rank) @ m - k @ m,
+          lambda: truncate(out, rank) - out)
+      return row + delta.astype(row.dtype)
+    row = jax.lax.cond(active, modified, lambda: row)
     return col, row
   def intercept(next_fun, args, kw, ctx):
     if isinstance(ctx.module, attentions.BamAttention) and ctx.method_name == '__call__':
@@ -102,6 +103,11 @@ def run(config):
   fn = jax.jit(lambda p,b,l,r,m: loss_intervention(model,p,b,rng,l,r,m))
   ordinary = jax.jit(lambda p,b: probe.forward(model,p,b,rng,False)[0])
   (output/f'ablation_{scope}_scenarios.json').write_text(json.dumps(scenarios))
+  (output/f'ablation_{scope}_metadata.json').write_text(json.dumps(dict(
+      runtime_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+      checkpoint=config.load_parameters_path, sequence_hashes=metadata['sequence_hashes'],
+      ranks=ranks, scope=scope, modes={'1':'key-optimal', '2':'output-optimal'},
+      caveat='Token-wise oracle; no assertion of learned projection realizability.'), indent=2))
   for index in range(128):
     path = output/f'ablation_{scope}_{index:03d}.npz'
     if path.exists():

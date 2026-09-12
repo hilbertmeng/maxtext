@@ -6977,7 +6977,9 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRow(BamXLIndependentLLFLocalQKV
     # Health-off is +1.75% vs formal health-on .5268; residual rank cost ~-2.6%, near -2% prediction.
     # Diagnostic-only branch codex/xl-qkr4-nohealth-speed; generic health stays ON in formal training.
     # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; main ledger only.
-    # Prediction vs parent: late gap -.0015; throughput -2%. Review at10k, not an automatic stop.
+    # Stopped at 25726. vs LocalQKVC parent: early positive gap crossed repeatedly,
+    # then remained negative at 11500–25000; 20500–25000 mean -.00080, small plateau benefit.
+    # Gain was smaller than predicted -.0015; against historical XL Rank2 the same window averaged -.00462.
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRow'
     compare_runs = ['BamXLIndependentLLFLocalQKVCFp32AlignedRow']
     bam_local_q_rank = 4  # K follows Q; V is explicitly rank4 in the parent.
@@ -7403,6 +7405,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedReadNoHealthProf
 
 class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependentLLFLocalQKRank4CFp32AlignedRow):
     """Share Q/K rank4 bases including bias; retain independent head mixing and gates."""
+    # code_commit: c664e82; EW4b v5p-32 scan/AOT; generic health ON, BAM health OFF.
+    # !? .5444 steps/s (10–14), +3.91% vs same-pod parent .5239 (25713–25724), above +2% prediction.
     # Prediction vs QKRank4: late gap +.0005; throughput +2%; saves .1875 W_Q per layer.
     # codex/local-read-gram; full M64x32, shared basis Read-M/Gram, unchanged LocalV and all-decay.
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis'

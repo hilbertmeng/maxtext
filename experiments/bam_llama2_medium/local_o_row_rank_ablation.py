@@ -93,6 +93,10 @@ def run(config):
   assert [hashlib.sha256(x.tobytes()).hexdigest()[:16] for x in cohort['inputs']] == metadata['sequence_hashes']
   ranks = [int(v) for v in os.environ.get('ORANK_RANKS','1,2,3,4,6,8,12,16').split(',')]
   scope = os.environ.get('ORANK_SCOPE','groups')
+  tag = os.environ.get('ORANK_TAG', scope)
+  start = int(os.environ.get('ORANK_START', '0'))
+  stop = int(os.environ.get('ORANK_STOP', '128'))
+  assert 0 <= start < stop <= 128
   selections = ({'L': [l%3!=2 for l in range(24)], 'F': [l%3==2 for l in range(24)], 'all':[True]*24}
                 if scope == 'groups' else {f'L{l:02d}':[i==l for i in range(24)] for l in range(1,24)})
   scenarios = [(name, mask, rank, mode) for name,mask in selections.items()
@@ -102,21 +106,21 @@ def run(config):
   state, _, _, _ = probe.max_utils.setup_training_state(model,cursor,tx,config,rng,mesh,manager)
   fn = jax.jit(lambda p,b,l,r,m: loss_intervention(model,p,b,rng,l,r,m))
   ordinary = jax.jit(lambda p,b: probe.forward(model,p,b,rng,False)[0])
-  (output/f'ablation_{scope}_scenarios.json').write_text(json.dumps(scenarios))
-  (output/f'ablation_{scope}_metadata.json').write_text(json.dumps(dict(
+  (output/f'ablation_{tag}_scenarios.json').write_text(json.dumps(scenarios))
+  (output/f'ablation_{tag}_metadata.json').write_text(json.dumps(dict(
       runtime_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
       checkpoint=config.load_parameters_path, sequence_hashes=metadata['sequence_hashes'],
-      ranks=ranks, scope=scope, modes={'1':'key-optimal', '2':'output-optimal'},
+      ranks=ranks, scope=scope, start=start, stop=stop, modes={'1':'key-optimal', '2':'output-optimal'},
       caveat='Token-wise oracle; no assertion of learned projection realizability.'), indent=2))
-  for index in range(128):
-    path = output/f'ablation_{scope}_{index:03d}.npz'
+  for index in range(start, stop):
+    path = output/f'ablation_{tag}_{index:03d}.npz'
     if path.exists():
       continue
     started=time.perf_counter()
     batch={k:jnp.asarray(cohort[k][index:index+1]) for k in probe.KEYS}
     with mesh, partitioning.axis_rules(config.logical_axis_rules):
       base=np.asarray(fn(state.params,batch,jnp.zeros(24,bool),jnp.int32(16),jnp.int32(0)))
-      if index==0:
+      if index==start:
         original=np.asarray(ordinary(state.params,batch))
         np.testing.assert_allclose(base,original,rtol=0,atol=1e-6)
         print(f'ABLATION_NOOP_OK delta={base-original}',flush=True)

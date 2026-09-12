@@ -1,6 +1,8 @@
 """Incremental paired summaries; run after each 32-sequence milestone."""
 import argparse
 import json
+import contextlib
+import io
 from pathlib import Path
 import numpy as np
 
@@ -9,6 +11,7 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('directory', type=Path)
   parser.add_argument('--limit', type=int, default=128)
+  parser.add_argument('--output', type=Path)
   args = parser.parse_args()
   scenarios = json.loads((args.directory / 'ablation_groups_scenarios.json').read_text())
   rows = []
@@ -22,7 +25,17 @@ def main():
     raise SystemExit('No completed samples')
   gaps = np.stack(rows)
   assert np.isfinite(gaps).all()
-  print(f'Contiguous paired sequences: {len(rows)}; positive gap = harm.')
+  stream = io.StringIO()
+  with contextlib.redirect_stdout(stream):
+    report(gaps, scenarios)
+  result = stream.getvalue()
+  if args.output:
+    args.output.write_text(result)
+  print(result, end='')
+
+
+def report(gaps, scenarios):
+  print(f'Contiguous paired sequences: {len(gaps)}; positive gap = harm.')
   print('Intervals are descriptive mean ± 1.96 SE, not multiple-test-corrected.')
   print('| Group | Oracle | Rank | Mean gap | ±1.96 SE | Positive fraction |')
   print('|---|---|---:|---:|---:|---:|')

@@ -1,6 +1,7 @@
 # XL LocalQK rank-4 basis sharing diagnostic
 
-Status: raw-basis analysis complete on all 128 sequences; bias decomposition running.
+Status: raw-basis and bias decomposition complete on all 128 sequences. Repeated raw
+statistics and losses match exactly; diagnostic TPU retained per user request.
 
 ## Question and scope
 
@@ -69,6 +70,25 @@ analysis script. Partial summaries must not be labeled complete.
 
 ## Bias decomposition extension
 
+Complete [per-layer/per-side bias tables](xl_qkr4_bias_layer_summary.md) and
+[all four bases separately](/data0/xd/bam_diagnostics/xl-qkr4-bias-16000/layer_details.md)
+retain Q/K distinctions. The 128 paired samples pass exact metadata, loss and raw-stage
+validation. Main findings (layers1–23; layer0 is zero):
+
+| Quantity, range across layers and Q/K | Row (64-dimensional keys) | Column (32-dimensional keys) |
+|---|---:|---:|
+| Mean bias norm / mean dynamic norm | 0.571–1.821% | 1.356–2.809% |
+| Mean cosine of Wx and b | .115–.869 | .616–.937 |
+| Increase in joint rank4 retained energy from bias | .042–.278 percentage points | .025–.248 percentage points |
+
+Bias is not the principal source of observed Q/K low-rank structure: the structure
+remains in Wx. Its small magnitude must not be confused with an absence of training
+utility. Column bias is more consistently aligned with Wx and relatively larger;
+row bias alignment varies much more with depth. Row L5 and column L14 show the
+largest spectral changes, still below .3 percentage points. The existing evidence
+does not justify near-lossless all-layer Q/K sharing or removing bias from training.
+Separate key geometry from M-weighted readout error and eventual loss.
+
 Diagnostic runtime: `c0c1ee3baaca0da2182a8723d1e5ddbeb620d0c6` (serial CPU
 statistics). Analysis `af94588f` validates every repeated raw statistic and loss
 against the original capture, including checkpoint/cohort/sequence metadata;
@@ -95,4 +115,16 @@ probe used about 106% CPU, approximately one logical CPU. Samples 60–82 took
 about 26 seconds each, primarily in repeated host geometry statistics. Follow-up
 commit `fbd0f4da` adds bounded layer/side parallelism (`QKV_STATS_WORKERS`, default8);
 synthetic serial/parallel outputs match exactly. It was not applied to the running
-capture and its actual worker speedup is not yet measured.
+capture. Same-worker benchmark `bce12615` uses shape-matched synthetic normal inputs
+(24 layers, T2048, Q/K rank4, row64/col32), one BLAS thread, and reverse-order repeats:
+
+| CPU workers | Mean statistics time | Speedup |
+|---:|---:|---:|
+| 1 | 8.763 s | 1.00× |
+| 4 | 2.433 s | 3.60× |
+| 8 | 1.322 s | 6.63× |
+
+All returned statistics agree exactly. This measures one geometry stage, not model
+inference, transfer, all three bias stages, or end-to-end diagnosis. Script:
+`experiments/bam_llama2_medium/benchmark_xl_qkr4_cpu_stats.py`; artifact:
+`gs://newproject-1-llm_projects_europe-west4/log/diagnostics/xl-qkr4-basis-16000/cpu-benchmark.json`.

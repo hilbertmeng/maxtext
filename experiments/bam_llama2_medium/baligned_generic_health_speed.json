@@ -1,0 +1,8 @@
+{
+  "arms": [{
+    "label": "baligned_generic_health",
+    "commit": "e8aca6b60833b4fb129d545e29d2af566890b5f8",
+    "aot_log": "/home/lishengping/xd/projects/logs/baligned-health-aot.log",
+    "final_step": 15
+  }]
+}

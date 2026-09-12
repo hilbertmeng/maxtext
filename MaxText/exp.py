@@ -7430,4 +7430,5 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependent
 class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
     """Speed-only control matching the historical QKRank2 all-health-OFF run."""
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile'
+    # EW4b v5p-32 scan/AOT, e05b537: .54883 steps/s, -.28% vs all-health-OFF QKVC Rank2 .5504.
     record_training_health_metrics = False

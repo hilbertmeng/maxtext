@@ -116,3 +116,21 @@ The broad scan was ended after this milestone. Focused continuation runtime
 `ORANK_TAG=groups_focus ORANK_START=32 ORANK_STOP=128 ORANK_RANKS=4,6`.
 Twelve scenarios replace54. `summarize_local_o_row_ablation.py --focus` merges
 matching scenarios across the two batches and verifies cohort/checkpoint identity.
+
+### First64 update
+
+| Layers | Key-optimal r4 | Output-optimal r4 | Output-optimal r6 |
+|---|---:|---:|---:|
+| Local | +.010681 | +.000632 | +.000291 |
+| Fetch | +.007687 | +.000630 | +.000080 |
+| All | +.019126 | +.001204 | +.000283 |
+
+All-layer output-r4/r6 mean ±1.96 SE: ±.000380/±.000233. Rank6 is not established
+as exactly loss-free. Three overlap sequences (32–34) have exactly identical
+baseline and matched scenario gaps between broad/focused executions.
+Focused throughput is~8.5s/sequence versus34s before (~4x faster).
+
+For a prospective dynamic row reader, projection dimensions are R*(32+16) versus
+16*32=512; contraction MACs are R*32*8+16*R*8 versus16*32*8=4096.
+Both decrease62.5% at R4,43.75% at R6,25% at R8, before Gram/routing overhead.
+These are operator estimates, not whole-model throughput predictions.

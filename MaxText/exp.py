@@ -249,14 +249,12 @@ class BamLlama2Medium(Llama2Medium):
     # bam_C = 2
     bam_n_f = 2
 
-    bam_write_form = 'agg_u@loc_v'   # §4.2 safe write: aggregated U (outer) local V
     bam_write_eps = 0.1              # write-gate bias b0 = logit(eps), slightly open
 
     bam_lambda_decay = 1.0           # M <- lambda*M + dM; 1.0 = bare accumulation
     bam_sqrt_n_scale = False         # scale write gate by 1/sqrt(n)
     # Runtime read-key health transform.  Keep the completed v1 experiment unchanged;
     # v2 experiment subclasses below select the new alternatives explicitly.
-    bam_read_key_mode = 'none'       # none | soft_rms_cap | rms_gate
     bam_read_key_scale = 2.0         # RMS ceiling, or maximum gated RMS
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
     bam_fetched_read_key_epsilon = None  # None uses bam_read_key_epsilon
@@ -266,29 +264,17 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_read_gate_init = None  # None follows bam_read_gate_init
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
     bam_fetched_read_kernel_gradient_scale = 1.0
-    # Optional fetched-read-only amplitude outside sigmoid: a/sqrt(C).
-    bam_fetched_read_amplitude_init = None
-    bam_fetched_read_amplitude_learnable = True
-    bam_fetched_read_amplitude_granularity = 'head'  # head | layer_side
-    bam_fetched_read_merge = 'add'  # add | interpolate
-    bam_fetched_read_merge_side = 'both'  # both | row | col
-    bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetched_read_health_metrics = False
-    bam_create_read_gate_params = False
-    bam_create_grouped_rw_norm_params = False
-    bam_use_grouped_rw_norm = False
-    bam_use_native_grouped_read_norm = False
     bam_local_q_pre_rms_bias = True
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
+    bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
+    bam_local_gram_statistics_dtype = 'float32'  # float32 | activation
     bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
     bam_local_v_share_output_coordinates = False
     bam_local_v_rank_routing = 'legacy'
     bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation; Gram/norm2 only
-    bam_local_q_key_scale = None  # None inherits bam_read_key_scale; local-only override
-    bam_local_k_key_scale = None
-    bam_local_v_key_scale = None
     bam_local_q_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_gate_n (A) | head_gate_r (B) | effective_key (C)
     bam_record_local_routing_metrics = False
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
@@ -307,19 +293,13 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
-    bam_abs_k_compression_dim = None  # keep the cached absolute K axis full-width
-    bam_abs_k_col_output = 'direct'  # direct | project; expand the compressed K-side answer
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_abs_v_row_decoder_output = 'full'  # full | compressed
     bam_abs_v_row_decoder_share_heads = False
-    bam_write_u_proj = False
-    bam_create_write_u_proj_params = False
-    bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail | static
     bam_write_data_rms = True       # normalize write data/value factor u1
     bam_write_factor_norm = 'rms'   # rms | grouped_rms (per-head learned scale)
     bam_write_address_norm_bias = False  # learned post-norm shift on the address factor
-    bam_write_u2_norm = 'rms'        # rms | grouped_rms_bias (o_tail only)
     bam_write_rms_statistics_dtype = 'float32'  # float32 | activation
     bam_write_v_bottleneck_dim = None  # optional P_loc: D -> r -> n*v
     bam_write_v_bottleneck_activation = 'none'  # none | gelu
@@ -1214,6 +1194,7 @@ class BamLlama2MediumV2C256ScanAotBamOnlyWDControl(BamLlama2MediumV2C256ScanAotC
 
 class BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude(BamLlama2MediumV2C256ScanAotCleanControl):
     """Fetched gate .05 and fixed .2 pre-gate scale; same initial strength as Clean."""
+    # Ledger only; reproduce with runtime 211ce4d.
     # 211ce4d; UE5a ~0.652 steps/s (+0.1% vs Clean); completed 13,500 updates.
     # vs Clean: early near-zero/sign changes -> persistent ~-.001 to -.002 after 3.2k;
     # final 12400-13400 mean -.00158: larger gate + 10x smaller fixed amplitude gives a small gain.

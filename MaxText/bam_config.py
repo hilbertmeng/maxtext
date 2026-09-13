@@ -5,6 +5,8 @@ from collections.abc import Mapping
 
 def validate_bam_config(config, *, layer_mode=None):
   """Validate resolved options, including descendants overriding archived bases."""
+  if callable(getattr(config, 'get_keys', None)):
+    config = config.get_keys()
   get = config.get if isinstance(config, Mapping) else (
       lambda name, default=None: getattr(config, name, default))
   if not get('bam_enabled', False):
@@ -29,8 +31,8 @@ def validate_bam_config(config, *, layer_mode=None):
     retired.append("bam_local_qk_key_mode='per_head_static'")
   modes = [layer_mode] if layer_mode is not None else get('bam_layer_modes', ())
   has_local_qk = any('local_qk' in mode.replace('+', ' ').split() for mode in modes)
-  if has_local_qk and get('bam_local_qk_key_mode', 'shared') in ('shared', 'per_head'):
-    retired.append(f"bam_local_qk_key_mode={get('bam_local_qk_key_mode', 'shared')!r}")
+  if has_local_qk and get('bam_local_qk_key_mode', 'factorized') in ('shared', 'per_head'):
+    retired.append(f"bam_local_qk_key_mode={get('bam_local_qk_key_mode')!r}")
   if retired:
     raise ValueError(
         'Archived BAM options are no longer implemented: ' + ', '.join(retired)

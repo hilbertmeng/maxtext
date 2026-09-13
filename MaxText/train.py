@@ -360,46 +360,6 @@ def save_checkpoint(
 # Top-level Functions
 # -----------------------------------------------------------------------------
 # lsp
-def record_bam_fetched_read_amplitude_metrics(
-    output_metrics, intermediate_outputs, config):
-  """Adds per-layer fetched-read amplitude summaries to the metrics dict."""
-  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
-  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
-  amplitude = metrics_dict['block']['self_attention']['fetched_read_amplitude'][0]
-  amplitude_init = float(config.bam_fetched_read_amplitude_init)
-  for layer_num in range(config.base_num_decoder_layers):
-    for side_num, side in enumerate(('row', 'col')):
-      values = amplitude[layer_num, ..., side_num].astype(jnp.float32)
-      prefix = f'bam/fetched_read_amplitude/{side}/layer_{layer_num:03d}'
-      output_metrics['scalar'].update({
-          f'{prefix}/mean': jnp.mean(values),
-          f'{prefix}/std': jnp.std(values),
-          f'{prefix}/min': jnp.min(values),
-          f'{prefix}/max': jnp.max(values),
-          f'{prefix}/mean_over_init': jnp.mean(values) / amplitude_init,
-      })
-
-
-def record_bam_local_qk_amplitude_metrics(
-    output_metrics, intermediate_outputs, config):
-  """Adds per-layer Q/K x row/column LocalQK amplitude summaries."""
-  layers_metrics = intermediate_outputs["intermediates"]["decoder"]["layers"]
-  metrics_dict = layers_metrics.get('sub_0', layers_metrics)
-  amplitude = metrics_dict['block']['self_attention']['local_qk_read_amplitude'][0]
-  amplitude_init = float(config.bam_local_qk_amplitude_init)
-  for layer_num in range(config.base_num_decoder_layers):
-    prior_writes = max(layer_num, 1) if config.bam_local_qk_amplitude_depth_scale else 1
-    effective_init = amplitude_init / prior_writes**0.5
-    for use_num, use_point in enumerate(('q', 'k')):
-      for side_num, side in enumerate(('row', 'col')):
-        value = amplitude[layer_num, use_num, side_num].astype(jnp.float32)
-        prefix = (
-            f'bam/local_qk_amplitude/{use_point}/{side}/'
-            f'layer_{layer_num:03d}')
-        output_metrics['scalar'].update({
-            f'{prefix}/value': value,
-            f'{prefix}/over_init': value / effective_init,
-        })
 
 
 def record_bam_fetched_read_health_metrics(
@@ -416,9 +376,6 @@ def record_bam_fetched_read_health_metrics(
   gate_bin_stats = (
       attention['fetched_read_gate_bin_stats'][0]
       if 'fetched_read_gate_bin_stats' in attention else None)
-  merge_rms = (
-      attention['fetched_read_merge_rms'][0]
-      if 'fetched_read_merge_rms' in attention else None)
   gate_stat_names = ('mean', 'std', 'frac_lt_005', 'frac_gt_095')
   diagonal_sums = (sum(attention['fetch_diagonal_sums'])
                    if 'fetch_diagonal_sums' in attention else None)
@@ -486,15 +443,6 @@ def record_bam_fetched_read_health_metrics(
         f'{prefix}/y_std_rms': total_rms[layer_num, 1],
         f'{prefix}/y_bam_over_y_std': total_rms[layer_num, 2],
     })
-    if merge_rms is not None:
-      output_metrics['scalar'].update({
-          f'{prefix}/removed_std_rms': merge_rms[layer_num, 0],
-          f'{prefix}/kept_std_rms': merge_rms[layer_num, 1],
-          f'{prefix}/merged_rms': merge_rms[layer_num, 2],
-          f'{prefix}/removed_std_over_std': (
-              merge_rms[layer_num, 0]
-              / jnp.maximum(total_rms[layer_num, 1], 1e-12)),
-      })
 
 
 def record_bam_local_qk_routing_metrics(
@@ -921,12 +869,10 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "learning/accuracy": accuracy, # mean
   }
   # lsp: recored params before update, because loss realily is computed before param update. so use state.params,  not new_state.params
-  record_training_health = getattr(config, 'record_training_health_metrics', True)
-  if record_training_health:
-    params_scalar_values = compute_params_norm(state.params, config=config)
-    scalar_metrics.update(params_scalar_values)
+  params_scalar_values = compute_params_norm(state.params, config=config)
+  scalar_metrics.update(params_scalar_values)
 
-  if record_training_health and not config.optimizer_memory_host_offload:
+  if not config.optimizer_memory_host_offload:
     scalar_metrics["learning/grad_norm"] = max_utils.l2norm_pytree(grads)
     scalar_metrics["learning/raw_grad_norm"] = max_utils.l2norm_pytree(raw_grads)
     scalar_metrics["learning/param_norm"] = max_utils.l2norm_pytree(new_state.params)
@@ -941,15 +887,10 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
-  if getattr(config, 'bam_record_fetched_read_amplitude_metrics', False):
-    record_bam_fetched_read_amplitude_metrics(
-        metrics, intermediate_outputs, config)
-  if getattr(config, 'bam_record_local_qk_amplitude_metrics', False):
-    record_bam_local_qk_amplitude_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):
     record_bam_fetched_read_health_metrics(
         metrics, intermediate_outputs, config)
-  if getattr(config, 'bam_record_local_qk_routing_metrics', False):
+  if getattr(config, 'bam_record_local_routing_metrics', False):
     record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)
 
   if config.use_dpo:

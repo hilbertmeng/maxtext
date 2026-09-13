@@ -11,7 +11,7 @@ from flax.linen import partitioning as nn_partitioning
 from flax.traverse_util import flatten_dict
 import max_utils
 import pyconfig
-from layers.attentions import BamAttention, _transform_bam_read_key
+from layers.attentions import BamAttention, _BamReadArm, _transform_bam_read_key
 from layers.fusion import BamLayerPair
 import train
 import train_compile
@@ -60,9 +60,10 @@ class LocalFetchTest(absltest.TestCase):
         self.assertTrue(all(bool(jnp.all(jnp.isfinite(a))) for a in jax.tree.leaves(grads)))
         paths = ['/'.join(p) for p in flatten_dict(variables['params'])]
         if suffix == 'C8LocalVSharedRankGate':
-          self.assertEqual(variables['params']['W_lv_gate_b0'].value.shape, (4,))
+          self.assertEqual(variables['params']['W_lv_gate_b0'].value.shape, (2, 2))
         self.assertFalse(any('fetch_head_mix' in p for p in paths))
-        self.assertEqual(any('W_local_v_packed' in p for p in paths), 'LocalV' in suffix)
+        self.assertEqual(any(p.startswith('W_lv_bias') for p in paths), 'LocalV' in suffix)
+        self.assertTrue(any('W_local_packed' in p for p in paths))
         self.assertEqual(any('abs_v_cache_projection' in p for p in paths), suffix.startswith('C8'))
         wr = grads['W_R']['kernel']
         wr = wr.value if hasattr(wr, 'value') else wr
@@ -90,14 +91,14 @@ class LocalFetchTest(absltest.TestCase):
     self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
     params = variables['params']
     self.assertEqual(set(params), {'local_0', 'fetch_1'})
-    self.assertIn('W_local_v_packed', params['local_0']['block']['self_attention'])
-    self.assertNotIn('W_local_v_packed', params['fetch_1']['block']['self_attention'])
+    self.assertIn('W_lv_bias', params['local_0']['block']['self_attention'])
+    self.assertNotIn('W_lv_bias', params['fetch_1']['block']['self_attention'])
     jaxpr = str(jax.make_jaxpr(lambda hh, mm: module.apply(
         variables, (hh, mm), *args[1:]))(h, m))
     self.assertNotIn('cond[', jaxpr)
     self.assertIn('length=2', jaxpr)
 
-  def test_training_signature_has_loss_but_no_health_metrics(self):
+  def test_training_signature_keeps_generic_health_without_bam_sow(self):
     for layout in ('Scan', 'NonScan'):
       with self.subTest(layout=layout):
         cfg = self.config('BamLlama2MediumV2C256LocalFetchC8LocalV' + layout)
@@ -109,7 +110,9 @@ class LocalFetchTest(absltest.TestCase):
               lambda state, data, rng: train.train_step(model, cfg, shardings, state, data, rng),
               *args)
         self.assertIn('learning/loss', metrics['scalar'])
-        self.assertFalse(any('norm' in name or 'bam/' in name for name in metrics['scalar']))
+        for name in ('learning/raw_grad_norm', 'learning/grad_norm', 'learning/param_norm'):
+          self.assertIn(name, metrics['scalar'])
+        self.assertFalse(any('bam/' in name for name in metrics['scalar']))
         self.assertEqual(cfg.steps, 13500)
         self.assertEqual(cfg.checkpoint_period, 200)
 
@@ -142,7 +145,7 @@ class LocalFetchTest(absltest.TestCase):
       if suffix == 'C8SharedIndependentSharedLLLFScan':
         for i in range(3):
           attention = variables['params'][f'local_{i}']['block']['self_attention']
-          self.assertEqual('W_local_v_packed' in attention, i == 1)
+          self.assertEqual('W_lv_bias' in attention, i == 1)
           self.assertEqual('W_lv_gate' in attention, i != 1)
       self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
       self.assertEqual(final_m.shape, m.shape)
@@ -156,16 +159,16 @@ class LocalFetchTest(absltest.TestCase):
     col = jax.random.normal(jax.random.key(12), (1, 3, 2, 8))
     logits = jax.random.normal(jax.random.key(13), (1, 3, 2, 2))
     def read(mode):
-      r = _transform_bam_read_key(row, mode, 2., rms_epsilon=1e-4,
-                                 gate_logits=logits[..., :1])
-      c = _transform_bam_read_key(col, mode, 2., rms_epsilon=1e-4,
-                                 gate_logits=logits[..., 1:])
+      arm = _BamReadArm(name='t', k_dim=32, v_dim=8, num_heads=2, key_mode=mode,
+                        key_scale=2., rms_epsilon=1e-4)
+      r = _transform_bam_read_key(row, arm, logits[..., :1])
+      c = _transform_bam_read_key(col, arm, logits[..., 1:])
       return jnp.pad(jnp.concatenate((jnp.einsum('btkv,btnv->btnk', m, c),
                                      jnp.einsum('btkv,btnk->btnv', m, r)), -1),
                      [(0, 0)] * 3 + [(0, 24)])
     cfg = SimpleNamespace(bam_k=32, bam_v=32, _abs_v_dim=8, _read_key_scale=2.,
-                          _abs_k_dim=None, _abs_v_row_output='direct',
-                          num_query_heads=2, head_dim=64)
+                          _abs_v_row_output='direct',
+                          num_query_heads=2, head_dim=64, _read_gate_activation=jax.nn.sigmoid)
     cfg._expand_full_read = lambda sides: BamAttention._expand_full_read.__wrapped__(cfg, sides)
     # Invoke the pure arithmetic with an attribute-only receiver.
     ungated = read('rms')

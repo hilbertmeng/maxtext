@@ -6,6 +6,26 @@ import exp
 
 
 class BamConfigTest(unittest.TestCase):
+  def test_retired_options_are_not_runtime_defaults(self):
+    for name in (
+        'bam_dedicated_fetch', 'bam_fetch_sliding_window_size',
+        'bam_fetch_temporal_block_size', 'bam_fetch_temporal_block_mode',
+        'bam_fetch_temporal_recent_window_size', 'bam_share_full_local_read',
+        'bam_combine_full_local_read', 'bam_keep_fetch_diagonal',
+        'bam_query_chunk_implementation', 'bam_codebook_source_implementation',
+        'bam_codebook_read_implementation', 'bam_mha_extra_head_mode',
+        'bam_mha_extra_head_value_dim', 'bam_mha_extra_head_qk_dim',
+        'bam_forget_init', 'bam_forget_mode', 'bam_write_source', 'bam_local_qk_key_mode',
+        'bam_fetched_read_amplitude_reference_num_heads',
+        'bam_fetched_read_amplitude_depth_scale',
+        'bam_batch_factorized_local_qk_read', 'bam_local_qk_amplitude_init',
+        'bam_local_qk_amplitude_depth_scale', 'bam_record_local_qk_amplitude_metrics',
+        'bam_local_qk_read_key_activation_side', 'bam_fetch_read_key_activation_side',
+        'bam_local_qk_post_read_v_layout', 'bam_local_qk_injection',
+        'bam_local_qk_rope_pairing', 'bam_abs_v_source_implementation'):
+      with self.subTest(name=name):
+        self.assertNotIn(name, vars(exp.BamLlama2Medium))
+
   def test_retired_options_fail_with_reproduction_hint(self):
     for option, value in dict(
         bam_batch_factorized_local_qk_read=True,
@@ -34,11 +54,19 @@ class BamConfigTest(unittest.TestCase):
     validate_bam_config(Supported)
     validate_bam_config(exp.BamLlama2MediumV2C256ScanAotCleanGate050FixedAmplitude)
 
+  def test_missing_retired_options_in_pyconfig_are_not_overrides(self):
+    class Config:
+      def get_keys(self):
+        return dict(bam_enabled=True, bam_layer_modes=['local_qk+full'])
+      def __getattr__(self, name):
+        return None
+    validate_bam_config(Config())
+
   def test_six_explicitly_retained_options_are_valid(self):
     validate_bam_config(dict(bam_enabled=True,
-        bam_local_qk_rank_routing='head_rank_gate',
-        bam_seed_paired_local_qk_row_key=True,
-        bam_local_qk_pre_rms_bias=False, bam_fetch_diagonal_one=False,
+        bam_local_q_rank_routing='head_gate_n',
+        bam_seed_paired_local_row_key=True,
+        bam_local_q_pre_rms_bias=False, bam_fetch_diagonal_one=False,
         bam_write_data_rms=False, bam_m_read_norm='rms'))
 
   def test_retired_local_qk_tiers_only_reject_active_local_qk(self):

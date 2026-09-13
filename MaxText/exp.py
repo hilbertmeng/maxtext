@@ -235,9 +235,6 @@ class BamLlama2Medium(Llama2Medium):
     model_name = 'BamLlama2Medium'
     bam_enabled = True
     bam_mha_control = False
-    bam_mha_extra_head_mode = 'none'  # none | dynamic_rms_mix | independent_qk
-    bam_mha_extra_head_value_dim = 256
-    bam_mha_extra_head_qk_dim = 64
     # Standalone health probe only. The attention layer exposes raw tensors in a separate
     # Flax collection; all reductions/statistics live outside the production model code.
     bam_diagnostics = False
@@ -246,7 +243,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_layer_modes = ['local_qk+local_o+full'] * 24
     bam_read_sides = 'both'  # both | row (M^T r_row) | col (M r_col); may be per-layer
     bam_fetched_read_side = 'both'  # fetched-M-only ablation; leaves LocalQK bilateral
-    bam_fetch_read_key_activation_side = 'none'  # none | row | col | both
 
     bam_k = 32
     bam_v = 32
@@ -257,8 +253,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_eps = 0.1              # write-gate bias b0 = logit(eps), slightly open
 
     bam_lambda_decay = 1.0           # M <- lambda*M + dM; 1.0 = bare accumulation
-    bam_forget_mode = 'constant'     # constant | dynamic token-wise forget gate
-    bam_forget_init = 0.01           # initial erased fraction; dynamic retention starts at 0.99
     bam_sqrt_n_scale = False         # scale write gate by 1/sqrt(n)
     # Runtime read-key health transform.  Keep the completed v1 experiment unchanged;
     # v2 experiment subclasses below select the new alternatives explicitly.
@@ -267,7 +261,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_read_key_epsilon = None      # None uses normalization_layer_epsilon
     bam_fetched_read_key_epsilon = None  # None uses bam_read_key_epsilon
     bam_read_rms_statistics_dtype = 'float32'  # float32 | activation
-    bam_read_gate_init = None        # sigmoid opening; None derives sqrt(read_key_epsilon)/scale
+    bam_read_gate_init = None        # opening; None derives sqrt(read_key_epsilon)/scale
+    bam_read_gate_activation = 'sigmoid'
     bam_fetched_read_gate_init = None  # None follows bam_read_gate_init
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
     bam_fetched_read_kernel_gradient_scale = 1.0
@@ -275,8 +270,6 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_read_amplitude_init = None
     bam_fetched_read_amplitude_learnable = True
     bam_fetched_read_amplitude_granularity = 'head'  # head | layer_side
-    bam_fetched_read_amplitude_depth_scale = False
-    bam_fetched_read_amplitude_reference_num_heads = None
     bam_fetched_read_merge = 'add'  # add | interpolate
     bam_fetched_read_merge_side = 'both'  # both | row | col
     bam_record_fetched_read_amplitude_metrics = False
@@ -285,60 +278,43 @@ class BamLlama2Medium(Llama2Medium):
     bam_create_grouped_rw_norm_params = False
     bam_use_grouped_rw_norm = False
     bam_use_native_grouped_read_norm = False
-    bam_local_qk_key_mode = 'shared'  # shared | factorized | per_head | per_head_static
-    bam_local_qk_pre_rms_bias = True
-    bam_local_qk_read_key_activation_side = 'none'  # none | row | col | both
-    bam_pack_factorized_local_qk = False  # fuse factorized Q/K key, gate, and head-mix projections
-    bam_batch_factorized_local_qk_read = False  # treat Q/K as two parallel BAM reads
-    bam_local_qk_rank = 1  # number of dynamic basis keys per Q/K and read side
-    bam_local_qk_second_implementation = 'mul_reduce'  # dot | mul_reduce
-    bam_local_qk_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_rank_gate
-    bam_record_local_qk_routing_metrics = False
-    bam_local_qk_amplitude_init = None  # optional Q/K x row/col scale outside the gate
-    bam_local_qk_amplitude_depth_scale = False
-    bam_record_local_qk_amplitude_metrics = False
+    bam_local_q_pre_rms_bias = True
+    bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
+    bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
+    bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
+    bam_local_v_share_output_coordinates = False
+    bam_local_v_rank_routing = 'legacy'
+    bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
+    bam_local_gram_statistics_dtype = 'float32'  # float32 | activation; Gram/norm2 only
+    bam_local_q_key_scale = None  # None inherits bam_read_key_scale; local-only override
+    bam_local_k_key_scale = None
+    bam_local_v_key_scale = None
+    bam_local_q_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_gate_n (A) | head_gate_r (B) | effective_key (C)
+    bam_record_local_routing_metrics = False
     bam_replicate_ploc_up = False  # replicate the small r -> n*v bottleneck-up input axis
-    bam_local_qk_injection = 'post_rope'  # post_rope | pre_qknorm_rope
-    bam_local_qk_rope_pairing = 'split_half'  # split_half | adjacent
-    bam_local_qk_use_compressed_v = False  # read LocalQK from the same k*C view as fetched M
     bam_local_qk_post_read_v_dim = None  # optionally project the full-M V-side answer before head mixing
     bam_local_qk_post_read_v_share_qk = True  # share that projection between Q and K reads
     bam_local_qk_post_read_v_paired_init = False  # separate Q/K params with identical initialization
     bam_local_qk_post_read_v_init = 'orthogonal'  # orthogonal | identity
-    bam_seed_paired_local_qk_row_key = False  # identical nonzero Q/K row-key init without tying params
-    bam_local_qk_post_read_v_layout = 'head_tail'  # head_tail | qk_tail
+    bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
     bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
     bam_force_activation_dtype = False  # keep standalone BAM params and M-stream activations at model compute dtype
-    bam_dedicated_fetch = False
     bam_shared_fetch_mode = 'legacy'  # legacy | compact | recompute | dynamic[_rms]_mix
     bam_fetch_mix_num_heads = None  # None uses all MHA heads; otherwise use the first N
     bam_fetched_read_num_heads = None  # None uses one fetched-M read head per MHA head
     bam_fetch_mix_implementation = 'dot'  # dot | mul_reduce
-    bam_fetch_sliding_window_size = None  # condition reused fetch alpha on recent tokens
-    bam_fetch_temporal_block_size = None  # cache diagnostic/candidate: completed-block compression
-    bam_fetch_temporal_block_mode = 'none'  # none | mean | linear
-    bam_fetch_temporal_recent_window_size = None  # exact recent tokens; compress only older full blocks
-    bam_codebook_source_implementation = 'dot'  # dot | mul_reduce
-    bam_codebook_read_implementation = 'dot_btn'  # dot_btn | mul_reduce_btn
-    bam_share_full_local_read = False  # share full/local_o runtime-key and gate projections
-    bam_combine_full_local_read = False  # add fetched/local Mh, then perform one shared read
-    bam_keep_fetch_diagonal = False  # retain alpha_tt even when a local_o path is present
     bam_fetch_diagonal_one = False  # replace full-fetch alpha_tt with one before contraction
     bam_read_implementation = 'mul_reduce_btn'  # dot_btn | mul_reduce_btn
     bam_m_read_norm = 'rms'  # rms | none; one scalar over the complete (k,v) matrix
-    # legacy | no_remat | deferred_read | diag_select | optimized
-    bam_query_chunk_implementation = 'legacy'
     bam_abs_k_compression_dim = None  # keep the cached absolute K axis full-width
     bam_abs_k_col_output = 'direct'  # direct | project; expand the compressed K-side answer
     bam_abs_v_compression_dim = None  # keep M at k*v; cache/read full M through a k*C view
     bam_abs_v_row_output = 'direct'  # direct | project; expand the C-wide row-read answer
     bam_abs_v_row_decoder_output = 'full'  # full | compressed
     bam_abs_v_row_decoder_share_heads = False
-    bam_abs_v_source_implementation = 'dot'  # dot | mul_reduce
     bam_write_u_proj = False
     bam_create_write_u_proj_params = False
-    bam_write_source = 'std+cross+local_o'
     bam_write_v_mode = 'x'          # x | x_bias | mix | o_tail | static
     bam_write_data_rms = True       # normalize write data/value factor u1
     bam_write_factor_norm = 'rms'   # rms | grouped_rms (per-head learned scale)
@@ -885,7 +861,6 @@ class BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK(
     model_name = 'BamLlama2MediumDirectPLocR256GeluBf16PackedLocalQK'
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'
-    bam_pack_factorized_local_qk = True
     bam_read_key_epsilon = 1e-4
     bam_read_gate_init = 0.005
 
@@ -1315,14 +1290,14 @@ class BamLocalFetchBase(BamLlama2MediumV2C256ScanAotCleanControl):
     checkpoint_period = 200
     force_final_checkpoint = True
     record_internal_nn_metrics = False
-    record_training_health_metrics = False
+    # Historical runtime disabled generic health metrics; current training always records them.
     bam_pair_scan = False
     bam_local_o_compress_v = True
     bam_local_o_v_mode = 'none'
     bam_record_fetched_read_health_metrics = False
     bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetch_route_metrics = False
-    bam_record_local_qk_routing_metrics = False
+    bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
     scan_layers = False
 
@@ -1465,7 +1440,7 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan(
     # vs shared LLF: early -.187 @200 vanished; 600-2800 oscillates near zero,
     # latest five windows mean +.00012 (range -.00027..+.00070), @2800 -.00017.
     # +4.935M params = +.1961 W_Q/layer; historical M-cache unchanged, full M 2x.
-    # No credible gain at 2800 review; 1 preemption, same-zone recovery; resources released.
+    # No credible gain at 2800 review; resources released.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan'
     bam_v = 64
     bam_local_qk_post_read_v_dim = 32
@@ -1554,8 +1529,8 @@ class BamLlama2MediumV2C256ScanAotControlLocalQKRank2(
     # c3cb677; UE5a ~0.618 steps/s; stopped 3,521. dloss vs ScanAotControl
     # shrank +.10967 @200 -> +.00481 @2k -> noisy +.00287 @3.4k, but stayed harmful.
     model_name = 'BamLlama2MediumV2C256ScanAotControlLocalQKRank2'
-    bam_local_qk_rank = 2
-    bam_record_local_qk_routing_metrics = True
+    bam_local_q_rank = 2
+    bam_record_local_routing_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-scan-aot-local-qk-rank2')
@@ -1570,7 +1545,7 @@ class BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate(
     # -.0016 to -.0030 @1.4k-3.4k (latest -.00242); it did not reliably beat control.
     model_name = (
         'BamLlama2MediumV2C256ScanAotControlLocalQKRank2SharedRankGate')
-    bam_local_qk_rank_routing = 'shared_rank_gate'
+    bam_local_q_rank_routing = 'shared_rank_gate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-scan-aot-local-qk-rank2-shared-gate')
@@ -1995,7 +1970,7 @@ class BamLlama2MediumV2C256LocalQKNoPreRMSBias(BamV2C256FetchScheduleBase):
     # cd1ba4d; EW4b ~0.666 steps/s; stopped 2,780. dloss +.00267 vs V2 @2,600; no benefit.
     model_name = 'BamLlama2MediumV2C256LocalQKNoPreRMSBias'
     scan_layers = True
-    bam_local_qk_pre_rms_bias = False
+    bam_local_q_pre_rms_bias = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-local-qk-no-pre-rms-bias')
@@ -2285,7 +2260,7 @@ class BamLlama2MediumV2C256CompressedVLocalQK(BamV2C256FetchScheduleBase):
     # dloss -.07048 vs MHA.
     model_name = 'BamLlama2MediumV2C256CompressedVLocalQK'
     scan_layers = True
-    bam_local_qk_use_compressed_v = True
+    # Retired feature (compressed-V LocalQK read); reproduce at code_commit 3e57ddc.
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-compressed-v-local-qk')
@@ -2384,7 +2359,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2(
     # code_commit: 5b26aec; UC1a ~0.645 steps/s (-2.7% vs Paired40); completed
     # 13,500. dloss -0.00368 vs Paired40 @13,400; Rank4 was slower and worse.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2'
-    bam_local_qk_rank = 2
+    bam_local_q_rank = 2
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank2')
@@ -2399,10 +2374,58 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl(
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl'
     scan_layers = True
     checkpoint_period = 200
-    bam_record_local_qk_routing_metrics = True
+    bam_record_local_routing_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-rank2-current-control')
+
+
+class BamMediumPaired40Rank2CurrentControlRepro(BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl):
+    """100-step reproduction check; preserve historical 13500-step schedule."""
+    # Ledger/implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Historical 0038e21 AOT omitted WD masks: explicitly preserve all-decay here.
+    # code_commit: 28aefca; paused124. Reproduction failed: raw gaps through100
+    # diverge after20, range -.02888..+.01583; investigate packed RNG path and RMS layout.
+    model_name = 'BamMediumPaired40Rank2CurrentControlRepro'
+    compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2CurrentControl']
+    steps = 13500
+    wd_mults = []
+    bam_local_q_rank_routing = 'legacy'
+    checkpoint_period = 200
+
+
+class BamMediumPaired40Rank2HistoricalInitRepro(BamMediumPaired40Rank2CurrentControlRepro):
+    """Restore the historical packed-module RNG path; retain current RMS order."""
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # code_commit: ecae35c; UE5a, paused at124; historical packed-module name only.
+    # Raw0..100 every10 matches historical control (max gap1e-6 at40).
+    # Restoring the module RNG path removes the prior divergence; RMS order unchanged.
+    # Compare exact raw loss through100 under the unchanged13500-step schedule.
+    model_name = 'BamMediumPaired40Rank2HistoricalInitRepro'
+    bam_local_packed_parameter_name = 'W_local_qk_packed'
+
+
+class BamMediumPaired40Rank2CFp32(BamMediumPaired40Rank2HistoricalInitRepro):
+    """Only LocalQ/K legacy -> effective-key fp32 routing; paired40 rank2 unchanged."""
+    # Stopped at 6718. vs historical Rank2, +.06575@200 narrowed to +.00215 mean@5600-6600;
+    # still slowly narrowing, not proven a permanent penalty. vs SharedRankGate, early
+    # +.02459 narrowed to a late +.00392 plateau (range +.00369..+.00415@5600-6600).
+    # No observed loss/speed win at stop.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Formal launch follows successful 100-step historical CurrentControl reproduction.
+    # code_commit: 956231f; resumed checkpoint903 with generic health restored.
+    # Health-on UE5a .6232 steps/s @914-918: -.92% vs CurrentControl, -1.70% vs SharedRankGate.
+    # Earlier becec37: UE5a 10-14 mean .6324 steps/s:
+    # +0.54% vs historical CurrentControl .629, -.25% vs SharedRankGate .634.
+    model_name = 'BamMediumPaired40Rank2CFp32'
+    # CurrentControl ends1660; its 200-1600 reporting points exactly match full historical Rank2.
+    compare_runs = ['BamLlama2MediumV2C256Paired40LocalQKRank2',
+                    'BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate']
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None
+    bam_local_gram_statistics_dtype = 'float32'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'mix'
 
 
 class BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate(
@@ -2413,7 +2436,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate(
     # completed 13,499; final ckpt 13,400. Stable dloss -0.00156 mean
     # vs Rank2 @12,200-13,400 (range -0.00194..-0.00118).
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2SharedRankGate'
-    bam_local_qk_rank_routing = 'shared_rank_gate'
+    bam_local_q_rank_routing = 'shared_rank_gate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-rank2-shared-rank-gate')
@@ -2426,7 +2449,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate(
     # code_commit: 0038e21; UE5a ~0.635 steps/s; stopped at 7,628.
     # Stable +.0021-.0031 loss vs SharedRankGate @5,000-7,000.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank2HeadRankGate'
-    bam_local_qk_rank_routing = 'head_rank_gate'
+    bam_local_q_rank_routing = 'head_rank_gate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-rank2-head-rank-gate')
@@ -2582,7 +2605,7 @@ class BamLlama2MediumV2C256Paired40LocalQKRank4(
     # code_commit: 5b26aec; UC1a ~0.622 steps/s; stopped at 7,542. dloss
     # -0.00300 vs Paired40, but +0.00050 and 3.1% slower vs Rank2 @7,400.
     model_name = 'BamLlama2MediumV2C256Paired40LocalQKRank4'
-    bam_local_qk_rank = 4
+    bam_local_q_rank = 4
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-paired40-local-qk-rank4')
@@ -2609,7 +2632,7 @@ class BamLlama2MediumV2C256SeededPaired40(
     # 5f4e06d; UC1a ~0.663 steps/s; stopped at 3,150. Mean dloss +.0057 vs
     # Paired40 @2,600–3,000: identical nonzero row-key seeding is harmful.
     model_name = 'BamLlama2MediumV2C256SeededPaired40'
-    bam_seed_paired_local_qk_row_key = True
+    bam_seed_paired_local_row_key = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-seeded-paired40')
@@ -2624,7 +2647,7 @@ class BamLlama2MediumV2C256SeededPaired72(
     # Shared72, +.0003 vs Paired40, +.0015 vs V2 @2,600–3,400: activating the
     # V8 tail helps the dead-tail control but gives no independent QK72 gain.
     model_name = 'BamLlama2MediumV2C256SeededPaired72'
-    bam_seed_paired_local_qk_row_key = True
+    bam_seed_paired_local_row_key = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-v2-c256-seeded-paired72')
@@ -3351,21 +3374,21 @@ class BamV2GScanLayerRowRank8MulReduceEightLayerProfile(
 
 
 class BamLocalQKRank2DotProfileMixin:
-    bam_local_qk_rank = 2
-    bam_local_qk_second_implementation = 'dot'
+    bam_local_q_rank = 2
+    bam_local_second_implementation = 'dot'
 
 
 class BamLocalQKRank2MulReduceProfileMixin(BamLocalQKRank2DotProfileMixin):
-    bam_local_qk_second_implementation = 'mul_reduce'
+    bam_local_second_implementation = 'mul_reduce'
 
 
 class BamLocalQKRank4DotProfileMixin:
-    bam_local_qk_rank = 4
-    bam_local_qk_second_implementation = 'dot'
+    bam_local_q_rank = 4
+    bam_local_second_implementation = 'dot'
 
 
 class BamLocalQKRank4MulReduceProfileMixin(BamLocalQKRank4DotProfileMixin):
-    bam_local_qk_second_implementation = 'mul_reduce'
+    bam_local_second_implementation = 'mul_reduce'
 
 
 class BamV2GScanLayerLocalQKRankControlEightLayerProfile(
@@ -3782,7 +3805,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2(
     # (latest committed checkpoint 49,720). dloss vs MHA narrowed from -.06132
     # @21k to -.05023 @49k, but remained stably beneficial late in training.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2'
-    bam_local_qk_rank = 2
+    bam_local_q_rank = 2
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl-head16x128-c256-partial-rope-local-qk-rank2')
@@ -3874,7 +3897,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200(
     bam_record_fetched_read_health_metrics = False
     bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetch_route_metrics = False
-    bam_record_local_qk_routing_metrics = False
+    bam_record_local_routing_metrics = False
     bam_record_local_qk_amplitude_metrics = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -3889,7 +3912,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     # steps 10..14: .5584 vs .5550 steps/s (+.61%); small speed gain, no retraining.
     # UE5a full-24 block-scan JIT: .5512 vs v6e-AOT .5532 steps/s, -.36% (10..14).
     # code_commit: 1b39c64; UE5a v5p-32 ~.549 steps/s; same-window 10..199
-    # throughput +.12% vs control (!? effectively flat, below predicted +3..8%).
+    # throughput +.12% vs control (!? effectively flat).
     # Matched timing control: BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
     # Same UE5a v5p-32, scan+AOT, BAM sow off: ~.549 steps/s; matches historical speed.
     # Explicit all-decay matches historical XL Rank2's actual AOT optimizer.
@@ -3952,7 +3975,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
     # Fair health-off timing: LF +.28% vs LLF, +.40% vs matched Rank2 repro; cache 1/2 of Rank2.
     # Standard raw-gradient health near Rank2; sampled clip rate @510-1000 is 2% for both.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLFHealth'
-    record_training_health_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf-health')
@@ -3976,7 +3998,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF'
     bam_local_fetch_block_size = 4
     bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
-    record_training_health_metrics = False
     checkpoint_period = 250
     steps = 50000
     learning_rate_schedule_steps = 50000
@@ -3992,7 +4013,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     # 18500..21000 mean -.001411, range -.001976..-.000831; keep checkpoint for possible resume.
     # +.72% throughput vs matched Rank2 repro .5524; fetched M-cache 1/3 of Rank2.
     # code_commit: 05fac4c; UE5a v5p-32; FIRST_STEP and steps10-14 verified.
-    # !? ~.5564 steps/s, +.58% vs shared LLF .5532 (same window), not predicted -1..-3%.
+    # !? ~.5564 steps/s, +.58% vs shared LLF .5532 (same window).
     # Ledger: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile.
     # Routine compare: historical XL Rank2; shared LLF removed at user request (suspect control).
     # UE5a full-24 block-scan JIT: .5534 vs v6e-AOT .5564 steps/s, -.54% (10..14).
@@ -4001,7 +4022,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     # Same 1/3 fetched history-M cache as shared LLF; extra independent local-read parameters.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF'
     bam_local_o_v_mode = 'rank2'
-    record_training_health_metrics = False
     checkpoint_period = 250
     steps = 50000
     learning_rate_schedule_steps = 50000
@@ -4011,6 +4031,10 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLLF(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF
 ):
     """LLLF: compressed LocalO and independent full-M rank-2 LocalV on L layers."""
+    # Paused at committed21108 after21000 report; TPU released, TB synced; conclusions provisional.
+    # vs independent LLF: early gain crossed positive at4500, then stayed near +.001 (latest six +.00143).
+    # vs Rank2: early gain vanished by ~9500, then fluctuated around zero (latest six +.00002).
+    # Main benefit: fetch M-cache -25% vs LLF / -75% vs Rank2; speed gains only +.36% / +1.09%.
     # code_commit: 98dedc0; UE5a v5p-32, block4-scan+v6e-AOT; FIRST_STEP verified.
     # 10-14 ~.5584 steps/s: +.36% vs independent LLF .5564, +1.09% vs Rank2 repro .5524.
     # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 98dedc0.
@@ -4052,7 +4076,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingInde
     # vs independent LF: +.01758@500 narrowed, but stayed positive through4000
     # (+.00172); also -1.58% throughput and 2x fetched M-cache vs independent LF.
     # code_commit: 6778f5c; UE5a v5p-32; AOT load and FIRST_STEP verified.
-    # !? 10-14 ~.5468 steps/s: +.59% vs shared .5436 (predicted -1..-3%),
+    # !? 10-14 ~.5468 steps/s: +.59% vs shared .5436,
     # -1.58% vs independent LF .5556; -1.01% vs Rank2 repro .5524.
     # Ledger only: codex/xl-lllf-profile, /data0/xd/xl-lllf-profile; candidate 6778f5c.
     # Compare all-F alternating shared LocalV, independent LF and historical Rank2.
@@ -4080,7 +4104,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingShar
     bam_local_fetch_block_size = 2
     bam_local_o_v_mode = ['shared', 'none'] * 12
     bam_full_shared_local_v = True
-    record_training_health_metrics = False
     checkpoint_period = 250
     steps = 50000
     learning_rate_schedule_steps = 50000
@@ -4098,7 +4121,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2HealthRepro(
     checkpoint_period = 250
     force_final_checkpoint = True
     bam_record_fetched_read_health_metrics = True
-    bam_record_local_qk_routing_metrics = True
+    bam_record_local_routing_metrics = True
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-health-repro')
@@ -4173,7 +4196,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate(
     # 0902e1e; EW4b ~0.528 steps/s; paused 6,851. Stable +.006-.007 dloss vs Rank2.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2SharedRankGate')
-    bam_local_qk_rank_routing = 'shared_rank_gate'
+    bam_local_q_rank_routing = 'shared_rank_gate'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-shared-rank-gate')
@@ -4200,7 +4223,10 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedIdentityV32SharedR
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedOrthV32SharedRankGate
 ):
     """Initialize the independent Q/K V32 maps to identity instead of random orthogonal."""
-    # 34ca0e2; UE5a ~0.527 steps/s; running vs Orth-Paired, SharedRankGate, and historical Rank2.
+    # 34ca0e2; UE5a ~0.527 steps/s; paused at 4799.
+    # vs Orth-Paired: +.02370@500 narrowed to +.00227..+.00328 over 2k–4.5k;
+    # vs historical Rank2: +.00754..+.00844 over 2k–4.5k, no observed benefit.
+    # Identity initialization did not rescue SharedRankGate; final-schedule outcome untested.
     model_name = (
         'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2PairedIdentityV32SharedRankGate')
     bam_local_qk_post_read_v_init = 'identity'
@@ -4340,7 +4366,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2NoPreRMSBias(
     scan_layers = True
     checkpoint_period = 250
     force_final_checkpoint = True
-    bam_local_qk_pre_rms_bias = False
+    bam_local_q_pre_rms_bias = False
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-partial-rank2-local-qk-no-pre-rms-bias')
@@ -4972,7 +4998,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl(
     # code_commit: 0223a7c
     # ~0.523 steps/s (+2.8%); completed 2,800. mean dloss -.0044 vs Fp32RMS, -.0002 vs Direct @1,800–2,600.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedOnlyMappedInitControl'
-    bam_pack_factorized_local_qk = True
     bam_replicate_ploc_up = False
     load_parameters_path = (
         'gs://newproject-1-llm_base_models_us-central1/log/diagnostics/'
@@ -5039,7 +5064,6 @@ class BamLlama2MediumDirectPLocR256GeluPackedLocalQK(
     # ~0.533 steps/s; stopped 2,295. dloss +.0598 vs Direct @2,200; gate .0005 is too closed.
     model_name = 'BamLlama2MediumDirectPLocR256GeluPackedLocalQK'
     bam_replicate_ploc_up = True
-    bam_pack_factorized_local_qk = True
     sharding_tolerance = 0.06  # measured 0.05238 with replicated P_loc_up
     steps = 2800
 
@@ -6205,7 +6229,6 @@ class BamLlama2MediumV1Compat(BamLlama2MediumV1):
     bam_read_rms_statistics_dtype = 'activation'
     bam_write_rms_statistics_dtype = 'activation'
     bam_factorized_head_output_layout = 'bnt'
-    bam_pack_factorized_local_qk = False
     bam_abs_v_compression_dim = None
     bam_write_v_mode = 'x'
     bam_write_v_bottleneck_dim = None
@@ -6222,7 +6245,7 @@ class BamLlama2MediumV1Compat(BamLlama2MediumV1):
 class BamLlama2MediumV1CompatNativeJit(BamLlama2MediumV1Compat):
     """Native-JIT baseline for current-code V1 compatibility controls."""
     # code_commit: 56cec64; EW4b ~0.463 steps/s; stopped 6,848.
-    # Exactly reproduced historical V1 loss through 6,800; 5 preemptions.
+    # Exactly reproduced historical V1 loss through 6,800.
     model_name = 'BamLlama2MediumV1CompatNativeJit'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -6304,7 +6327,6 @@ class BamLlama2MediumV1CompatPackedLocalQK(
     """Modern P_loc bridge with packed factorized LocalQK projections."""
     # Config-only bridge dependency; config_source: 0a9cdb0
     model_name = 'BamLlama2MediumV1CompatPackedLocalQK'
-    bam_pack_factorized_local_qk = True
     bam_factorized_head_output_layout = 'btn'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -6374,7 +6396,6 @@ class BamLlama2MediumV1CompatCoarseExecutionNumerics(BamLlama2MediumV1Compat):
     bam_combine_full_local_read = False
     bam_fetch_diagonal_one = True
     bam_write_outer_implementation = 'mul_reduce'
-    bam_pack_factorized_local_qk = True
     bam_factorized_head_output_layout = 'btn'
     bam_read_rms_statistics_dtype = 'float32'
     bam_write_rms_statistics_dtype = 'float32'
@@ -6514,7 +6535,6 @@ class BamLlama2MediumV1CompatD0N0UnpackedBnt(
     # code_commit: 6200a20; EW4b ~0.496 steps/s (-2.4% vs packed D0N0); stopped 3,800.
     # dloss vs H plateaued near +0.0118 @2,800-3,600: unpacking alone cannot reproduce H.
     model_name = 'BamLlama2MediumV1CompatD0N0UnpackedBnt'
-    bam_pack_factorized_local_qk = False
     bam_factorized_head_output_layout = 'bnt'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -6530,7 +6550,6 @@ class BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt(
     # trend (last +.0040): dense+non-scan+unpacked nearly, not exactly, closes H.
     # It retained ~-.010..-.013 vs D0N0; unpacking contributed ~-.002 vs Dense.
     model_name = 'BamLlama2MediumV1CompatD0N0DenseNonScanUnpackedBnt'
-    bam_pack_factorized_local_qk = False
     bam_factorized_head_output_layout = 'bnt'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
@@ -6731,3 +6750,489 @@ class BamLlama2MediumV2C256StaticClippedAlphaMix(BamLlama2MediumV2C256ScanAotCon
     model_name = 'BamLlama2MediumV2C256StaticClippedAlphaMix'
     bam_shared_fetch_mode = 'static_clipped_mix'
     bam_record_fetch_route_metrics = True
+
+
+# Local-read routing implementation is integrated in the main working tree.
+# Historical runs: codex/local-read-gram, /data0/xd/local-read-gram; use recorded hashes for reproduction.
+# See experiments/bam_llama2_medium/local_read_gram_timing.md for paired evidence.
+class BamMediumIndependentLLFGramBase(BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan):
+    # Historical runtime; code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-16 full-24 block-scan/AOT: .6960 steps/s; current independent LLF speed control.
+    model_name = 'BamMediumIndependentLLFGramBase'
+    scan_layers = True
+    bam_record_local_routing_metrics = False
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamMediumIndependentLLFGramMulOutput(BamMediumIndependentLLFGramBase):
+    # Historical runtime; code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-16 full-24: .6890 steps/s, -1.01% vs GramBase; slower than MulMix.
+    model_name = 'BamMediumIndependentLLFGramMulOutput'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamMediumIndependentLLFGramMulMix(BamMediumIndependentLLFGramBase):
+    # Historical runtime; code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-16 full-24: .6926 steps/s, -.49% vs GramBase; fastest tested scheme C.
+    model_name = 'BamMediumIndependentLLFGramMulMix'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'mix'
+
+
+class BamXLIndependentLLFGramBase(BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF):
+    # Historical runtime; code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-32 full-24 block-scan/AOT: .5588 steps/s; current independent LLF speed control.
+    model_name = 'BamXLIndependentLLFGramBase'
+    scan_layers = True
+    bam_record_local_routing_metrics = False
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamXLIndependentLLFLocalVRank4CFp32AlignedRow(BamXLIndependentLLFGramBase):
+    """XL: full-M LocalV rank4 effective-key read, row aligned with LocalO C8."""
+    # Stopped at 30054.
+    # vs historical XL Rank2: early -.0205@1k shrank rapidly, then persistent small benefit;
+    # 25k–30k mean -.00294, no sustained convergence to zero. Fetched M-cache is 1/3 of Rank2.
+    # code_commit: d8ecbe2; UE5a v5p-32 block-scan/AOT, FIRST_STEP/load verified.
+    # Steps10-14 .5532 steps/s, -.58% vs historical independent LLF .5564.
+    # Historical XL all-decay (wd_mults=[]), Q/K rank2 legacy, health sow off; checkpoint250.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Q/K retain rank2 legacy; LocalO/F unchanged. Combined C+alignment is new.
+    model_name = 'BamXLIndependentLLFLocalVRank4CFp32AlignedRow'
+    compare_runs = ['BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2']
+    bam_local_v_rank = 4
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_statistics_dtype = 'float32'
+    bam_local_gram_scale_placement = 'mix'
+    bam_local_v_share_output_coordinates = True
+    force_final_checkpoint = True
+
+
+class BamXLIndependentLLFLocalQKVCFp32AlignedRow(BamXLIndependentLLFLocalVRank4CFp32AlignedRow):
+    """Unify LocalQ/K/V effective-key routing; retain Q/K rank2 and V rank4."""
+    # Stopped at 30013.
+    # vs LocalVRank4CFp32AlignedRow: early benefit narrowed, then held ~-.0013 over 20.5k–29.5k;
+    # vs historical XL Rank2: early benefit narrowed to ~-.004, without late convergence to zero.
+    # code_commit: 6977fa0; EW4b v5p-32 AOT, FIRST_STEP verified; steps10-14 .5504 steps/s.
+    # Historical parent UE5a .5532: -.51% (cross-zone reference, not an isolated timing pair).
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Architectural uniformity is also a benefit; keep ranks, scales, RoPE and all-decay unchanged.
+    model_name = 'BamXLIndependentLLFLocalQKVCFp32AlignedRow'
+    compare_runs = ['BamXLIndependentLLFLocalVRank4CFp32AlignedRow',
+                    'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2']
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None  # Follow Q; V already explicitly uses effective_key.
+
+
+class BamXLIndependentLLFLocalQKRank4CFp32AlignedRow(BamXLIndependentLLFLocalQKVCFp32AlignedRow):
+    """Q/K rank2 -> rank4; retain LocalV rank4 and effective-key fp32 routing."""
+    # code_commit: b264b49; UE5a v5p-32 scan/AOT, loaded executable and FIRST_STEP verified.
+    # !? steps10-14 .5268 steps/s: -4.29% vs parent .5504 (EW4b).
+    # Timing also includes restored generic training-health statistics; BAM sow remains off.
+    # All-health-OFF comparison (v5p-32 scan/AOT; historical rows reused, not a same-commit/zone pair):
+    # configuration | steps/s | vs Rank2 | vs preceding row | zone, runtime
+    # BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200 | .5524 | reference | -- | UE5a,1b39c64
+    # BamXLIndependentLLFLocalVRank4CFp32AlignedRow | .5532 | +.14% | +.14% | UE5a,d8ecbe2
+    # BamXLIndependentLLFLocalQKVCFp32AlignedRow | .5504 | -.36% | -.51% | EW4b,6977fa0
+    # BamXLIndependentLLFLocalQKRank4CFp32AlignedRow | .5360 | -2.97% | -2.62% | UE5a,c2134ff
+    # New row uses trace-free steps28-33 (all .536); steps12-14 .535 corroborate it.
+    # Old rows use steps10-14. Step11 of the new trace was disturbed; excluded explicitly.
+    # Health-off is +1.75% vs formal health-on .5268; residual rank cost ~-2.6%.
+    # Diagnostic-only branch codex/xl-qkr4-nohealth-speed; generic health stays ON in formal training.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Stopped at 25726. vs LocalQKVC parent: early positive gap crossed repeatedly,
+    # then remained negative at 11500–25000; 20500–25000 mean -.00080, small plateau benefit.
+    # Against historical XL Rank2 the same window averaged -.00462.
+    model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRow'
+    compare_runs = ['BamXLIndependentLLFLocalQKVCFp32AlignedRow']
+    bam_local_q_rank = 4  # K follows Q; V is explicitly rank4 in the parent.
+
+
+class BamXLIndependentLLFGramMulOutput(BamXLIndependentLLFGramBase):
+    # Historical runtime; code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-32 full-24: .5452 steps/s, -2.43% vs GramBase; slower than MulMix.
+    model_name = 'BamXLIndependentLLFGramMulOutput'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'output'
+
+
+class BamXLIndependentLLFGramMulMix(BamXLIndependentLLFGramBase):
+    # Historical runtime; code_commit: 3b94075; speed-only test, no loss conclusion.
+    # EW4b v5p-32 full-24: .5540 steps/s, -.86% vs GramBase; fastest tested scheme C.
+    model_name = 'BamXLIndependentLLFGramMulMix'
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = 'effective_key'
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_implementation = 'mul_reduce'
+    bam_local_gram_scale_placement = 'mix'
+
+
+# Formal routing comparison; historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+class BamMediumIndependentLLFRoutingLegacy(BamMediumIndependentLLFGramBase):
+    """Fresh same-runtime control for local Q/K/V routing; historical LLF comparison."""
+    model_name = 'BamMediumIndependentLLFRoutingLegacy'
+    # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6988 steps/s; matched current-code legacy; historical UE5a LLF ~.696.
+    # Paused at committed 10607 for LocalVRank4 hot switch; provisional vs historical LLF:
+    # early ~-.002 to -.003 narrowed to near zero (last six through 10k mean -.00038).
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    compare_runs = ['BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan']
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    bam_local_q_rank_routing = 'legacy'
+    bam_local_k_rank_routing = None  # K/V follow Q throughout this family.
+    bam_local_v_rank_routing = None
+    bam_local_gram_scale_placement = 'mix'
+
+
+class BamMediumIndependentLLFRoutingA(BamMediumIndependentLLFRoutingLegacy):
+    """A: normalize mix over N, then per-head gate; nominal rank-adjusted amplitude."""
+    model_name = 'BamMediumIndependentLLFRoutingA'
+    # Stopped 2741 by user: early gain crossed positive at 1000; gap grew to +.003~+.005 by 1800-2400 vs RoutingLegacy; no speed benefit.
+    # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6950 steps/s; vs fresh RoutingLegacy -0.54%.
+    # Final checkpoint 2741 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_q_rank_routing = 'head_gate_n'
+    bam_local_v_key_scale = 2.0 / (2.0 ** 0.5)
+
+
+class BamMediumIndependentLLFRoutingB(BamMediumIndependentLLFRoutingA):
+    """B: normalize mix over R; Q/K rank1 nearly reduces normalized mix to sign."""
+    model_name = 'BamMediumIndependentLLFRoutingB'
+    # Stopped 2720 by user: early gain vanished near 1000; oscillated near zero then +.0015~+.0034 at 1600-2400 vs RoutingLegacy; no speed benefit.
+    # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6924 steps/s; vs fresh RoutingLegacy -0.92%.
+    # Final checkpoint 2720 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    bam_local_q_rank_routing = 'head_gate_r'
+
+
+class BamMediumIndependentLLFRoutingCFp32(BamMediumIndependentLLFRoutingLegacy):
+    """C: effective-key RMS using fp32 Gram/norm2, activation-dtype scaling."""
+    model_name = 'BamMediumIndependentLLFRoutingCFp32'
+    # Stopped 2727 by user: gap crossed positive at 600; roughly +.004~+.006 through 800-2400 vs RoutingLegacy, without sustained narrowing.
+    # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6944 steps/s; vs fresh RoutingLegacy -0.63%.
+    # Final checkpoint 2727 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_gram_statistics_dtype = 'float32'
+
+
+class BamMediumIndependentLLFRoutingCActivation(BamMediumIndependentLLFRoutingCFp32):
+    """C: only Gram/norm2 statistics change to activation dtype."""
+    model_name = 'BamMediumIndependentLLFRoutingCActivation'
+    # Stopped 2735 by user: gap crossed positive at 800, then broadly worsened to +.007~+.009 vs Legacy; vs CFp32 crossed positive at 1000 and grew to +.0038 by 2400; only +.12% speed.
+    # code_commit: 0f85b91; UE5a v5p-16 block-scan/AOT, step10-14 mean 0.6952 steps/s; vs fresh RoutingLegacy -0.52%.
+    # Final checkpoint 2735 committed; implementation: codex/local-read-gram, /data0/xd/local-read-gram.
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy', 'BamMediumIndependentLLFRoutingCFp32']
+    bam_local_gram_statistics_dtype = 'activation'
+
+
+# Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+class BamMediumIndependentLLFRoutingLegacyMixBias(BamMediumIndependentLLFRoutingLegacy):
+    """Ledger only: zero-init pre-RMS head-mix bias for LocalQ/K/V."""
+    # Stopped at committed4037: vs RoutingLegacy, early -.0608@200 reversed to +.0226@400;
+    # narrowed, then fluctuated +.00427..+.00670 over 2600–4000 (mean +.00520), no sustained benefit.
+    # code_commit: 1bfc7a9; UE5a v5p-16 block-scan/AOT, ~.6964 steps/s @10-14 (-.34% vs RoutingLegacy).
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    model_name = 'BamMediumIndependentLLFRoutingLegacyMixBias'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_q_mix_bias = True
+
+
+class BamMediumIndependentLLFRoutingLegacyQKRank2(BamMediumIndependentLLFRoutingLegacy):
+    """Q/K rank1→2; V remains rank2, all three use unchanged legacy routing."""
+    # Stopped at committed3497: vs RoutingLegacy, early -.1088@200 faded and crossed positive at1400;
+    # 2000–3400 gap +.00227..+.00402 (mean +.00303), no sustained return to zero.
+    # code_commit: 982b7bf; UE5a v5p-16 block-scan/AOT, .6756 steps/s @10-14 (-3.32% vs RoutingLegacy).
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    model_name = 'BamMediumIndependentLLFRoutingLegacyQKRank2'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_q_rank = 2  # K follows Q; V already defaults to 2.
+
+
+class BamMediumIndependentLLFRoutingLegacyLocalVRank4(BamMediumIndependentLLFRoutingLegacy):
+    """Only independent LocalV rank2→4; LocalQ/K remain rank1, legacy routing."""
+    # code_commit: 6f83129; UE5a v5p-16 block-scan/AOT, .6920 steps/s (10–14), -.97% vs Legacy .6988.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Stopped at committed2894: vs Legacy, early benefit reversed at400; 1600–2800 gap stays +.0057–.0073
+    # (mean +.00637), with no sustained convergence. Rank4 adds cost (-.97% throughput), not benefit.
+    model_name = 'BamMediumIndependentLLFRoutingLegacyLocalVRank4'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_local_v_rank = 4
+
+
+class BamMediumIndependentLLFRoutingLegacySoftplusReadGate(BamMediumIndependentLLFRoutingLegacy):
+    """Softplus for all local/fetched read-key gates; matched initial opening .005."""
+    # code_commit: 64da0b4; UE5a v5p-16 block-scan/AOT, .6994 steps/s (10–14), +.09% vs Legacy .6988.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Hot-replaced at committed2739 (resumable pause): vs Legacy +.0716@200 narrowed to +.0023..+.0044
+    # over 800–2400, then +.00154@2600 (new low); still positive, but convergence was not ruled out.
+    model_name = 'BamMediumIndependentLLFRoutingLegacySoftplusReadGate'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    bam_read_gate_activation = 'softplus'
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingA(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
+    """Only LocalV rank4 uses head_gate_n; Q/K remain rank1 legacy."""
+    # Stopped at committed5717: vs RoutingB, early +.08948@200 narrowed then plateaued over4000–5000
+    # (mean +.00135, range +.00096..+.00169); persistent small loss cost for only +.61% throughput.
+    # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6890 steps/s (10–14), -.43% vs LocalVRank4 .6920.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingA'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
+    # Ongoing comparison switched to B after the old Rank4 control stopped; throughput +.61% vs B.
+    bam_local_v_rank_routing = 'head_gate_n'
+    bam_local_v_key_scale = 2.0 / (4.0 ** 0.5)
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingB(BamMediumIndependentLLFLocalVRank4RoutingA):
+    """Only LocalV rank4 uses head_gate_r; Q/K remain rank1 legacy."""
+    # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6848 steps/s (10–14), -1.04% vs LocalVRank4 .6920.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingB'
+    compare_runs = ['BamMediumIndependentLLFRoutingLegacy']
+    # Ongoing comparison: combined V rank2→4 + head_gate_r effect; throughput -2.00% vs Legacy .6988.
+    # Completed13500, final checkpoint committed. vs Legacy: early -.144 shrank strongly,
+    # then held a small benefit (9400–10400 mean -.00146); complete baseline windows end10400.
+    # Rank and routing changed together versus Legacy; this does not isolate the routing effect.
+    bam_local_v_rank_routing = 'head_gate_r'
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentLLFLocalVRank4RoutingB):
+    """Read full M for LocalV; share LocalO's V compression on row output only."""
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # code_commit: 77401da; UE5a v5p-16 block-scan/AOT, .6930 steps/s @10–14 (+1.20% vs B .6848).
+    # Generic-health ON/BAM OFF speed reference e8aca6b: .6836 steps/s @10–14, same UE5a topology.
+    # Completed13500, final checkpoint committed. vs B: positive at600–2600, crossed negative
+    # at2800; benefit grew from ~-.001 to ~-.003, then persisted (12200–13400 mean -.00284).
+    # No late convergence to zero, plus +1.20% throughput.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
+    bam_local_v_share_output_coordinates = True
+
+
+class BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """LocalV row/col rank2 + routing B + AlignedRow; Q/K stay rank1 legacy."""
+    # Stopped at committed3580 by user; TPU/queue released. vs rank4 BAlignedRow:
+    # +.0318@200 narrowed, then plateaued (2400–3400 mean +.00982); only +.38% throughput.
+    # vs rank2 Legacy: positive since400, +.01688@800 -> +.00701@3400, still narrowing;
+    # vs all-QKV RoutingB: +.02841@400 -> +.00704@2600; later BASE unavailable.
+    # Eventual convergence vs Legacy remains unproven.
+    # code_commit: 1eac2b4; UE5a v5p-16, FIRST_STEP verified; EW4a target-topology AOT.
+    # Steps10-14 .6956 steps/s: +.38% vs rank4 BAlignedRow .6930, -.46% vs rank2 Legacy .6988.
+    # Same-zone historical timings, not same-commit paired profile.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Retain B's scale rule 2/sqrt(rank); clean WD, block-scan/AOT, checkpoint200, health sow off.
+    model_name = 'BamMediumIndependentLLFLocalVRank2RoutingBAlignedRow'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFRoutingLegacy',
+                    'BamMediumIndependentLLFRoutingB']
+    bam_local_v_rank = 2
+    bam_local_v_key_scale = 2.0 / (2.0 ** 0.5)
+
+
+class BamMediumIndependentLLFAlignedRowLocalVStaticCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Ledger only: L-layer LocalV: static normalized [V,N] column keys and per-head gates."""
+    # Stopped at committed3251; TPU/queue released. vs BAlignedRow +.284@200 -> +.0063..+.0090 over2000–3200;
+    # mean +.00789, latest3200 new low: eventual convergence unproven, not ruled out.
+    # Saves ~.187 W_Q per L layer, but substantial loss cost and only +.12% throughput.
+    # code_commit: 7ded074; UE5a v5p-16 block-scan/AOT, FIRST_STEP/load verified.
+    # !? Steps10-14 .6938 steps/s, +.12% vs BAlignedRow .6930.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # S normal(.006), column RMS, fixed scale2, gate sigmoid p0=.005.
+    # Q/K and aligned rank4 routing-B row unchanged; scan/AOT, checkpoint200.
+    model_name = 'BamMediumIndependentLLFAlignedRowLocalVStaticCol'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_v_col_read_mode = 'static'
+
+
+class BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol(BamMediumIndependentLLFAlignedRowLocalVStaticCol):
+    """Ledger only: Add independently gated static columns to the unchanged dynamic rank4 columns."""
+    # Stopped at committed3487; TPU/queue released. vs BAlignedRow +.137@200 -> tiny negative oscillations800–2600;
+    # positive at2800–3400 (+.00003..+.00103), no persistent benefit for -1.44% throughput.
+    # vs StaticCol: advantage shrank -.1466@200 to -.00605@3200; -1.56% throughput.
+    # code_commit: 7ded074; UE5a v5p-16 block-scan/AOT, FIRST_STEP/load verified.
+    # Steps10-14 .6830 steps/s, -1.44% vs BAlignedRow .6930.
+    # -1.56% vs StaticCol .6938.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Plain sum; independent dynamic/static column gates, no extra outer gate or sqrt2.
+    model_name = 'BamMediumIndependentLLFAlignedRowLocalVStaticPlusDynamicCol'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFAlignedRowLocalVStaticCol']
+    bam_local_v_col_read_mode = 'static_plus_dynamic'
+
+
+class BamMediumIndependentLLFAlignedRowLocalVRowRank2(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Ledger only: LocalV row rank4→2; column rank4 and routing-B unchanged."""
+    # Completed13500 (final checkpoint committed). vs BAlignedRow: early gain at800-3400
+    # faded to near zero, then mostly positive after6000; last12200-13400 mean +.001055.
+    # Small parameter saving did not preserve loss or improve measured throughput.
+    # User-facing reports every1000 steps; retain the full 200-step gap/r200 series and checkpoint200.
+    # code_commit: 601948f; UE5a retained v5p-16, block-scan/AOT; FIRST_STEP/load verified.
+    # !? .6910 steps/s @10–14, -.29% vs BAlignedRow .6930.
+    # Saves .09375 W_Q per L layer in projection weights; speed gain not observed.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    model_name = 'BamMediumIndependentLLFAlignedRowLocalVRowRank2'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_v_row_rank = 2
+
+
+class BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Ledger only: L-layer LocalO column: full-M dynamic rank4 C-fp32; all other reads unchanged."""
+    # Hot-replaced at committed4481: vs BAlignedRow, brief -.00362@800 reversed at1400;
+    # later worsened to +.003..+.005 fluctuations (3000–4400 mean +.00430), no sustained convergence.
+    # No loss gain for -2.05% throughput.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # code_commit: f7ed640; UE5a v5p-16 block-scan/AOT, .6788 steps/s @10–14,
+    # -2.05% vs AlignedRow .6930.
+    # Read-M FLOPs unchanged (4*32 versus 16*8); extra head expansion/Gram may cost time.
+    model_name = 'BamMediumIndependentLLFAlignedRowLocalOColRank4CFp32'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_o_col_effective_rank = 4
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Ledger only: LocalV reads LocalO's compressed M: rank4 row, independent 16-head column."""
+    # code_commit: 6681709; UE5a v5p-16 block-scan/AOT, .6962 steps/s @10–14.
+    # Throughput +.46% vs AlignedRow .6930, +1.66% vs B .6848.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Removes column rank→head mixing and row post-read projection; Q/K and all F layers unchanged.
+    # Stopped at committed4197: vs AlignedRow, early +.140 shrank then held ~+.004–.005 at 2200–4000;
+    # vs B still narrowing (+.0049→+.0024 at 3200–4000), but no loss gain over AlignedRow.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedDirectCol'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFLocalVRank4RoutingB']
+    bam_local_v_direct_compressed_col = True
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndependentLLFLocalVRank4RoutingB):
+    """Ledger only: L-layer LocalO row read maps C→V with its compression transpose."""
+    # code_commit: 286da7a; UE5a v5p-16 block-scan/AOT, .6870 steps/s @10–14 (+.32% vs B .6848).
+    # Observe through late training: coordinate-alignment benefit may emerge late, not an early-stop ablation.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Stopped at committed9199: vs B crossed negative at 2800, later held ~-.002–.003 through 9000;
+    # vs AlignedRow repeatedly crossed zero without a persistent gain, while .87% slower.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode'
+    compare_runs = [
+        'BamMediumIndependentLLFLocalVRank4RoutingB',
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+    ]
+    # Decode LocalO C→V versus compress LocalV V→C; throughput -.87% vs AlignedRow.
+    bam_local_o_row_tied_decoder = True
+
+
+class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """L/F O row: four dynamic C-fp32 bases; column and LocalQKV unchanged."""
+    # Ledger only: codex/llf-o-row-rank-training, /data0/xd/llf-o-row-rank-training.
+    # code_commit: d437020; UE5a v5p-16 block-scan/AOT, .6782 steps/s @10–14; generic ON/BAM sow OFF.
+    # Matched generic ON/BAM OFF BAlignedRow reference e8aca6b .6836: -0.79% throughput.
+    # vs BAlignedRow: early +.264@200 shrank, then plateaued at +.00594 mean over4000–6000
+    # (range +.00542..+.00669), with no net convergence; no speed or cache benefit. Stopped at 6179.
+    model_name = 'BamMediumIndependentLLFBAlignedRowORowRank4CFp32'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_o_row_effective_rank = 4
+    record_training_health_metrics = True
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
+    """Only LocalV rank4 uses effective_key, with fp32 Gram/norm2 statistics."""
+    # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6880 steps/s (10–14), -.58% vs LocalVRank4 .6920.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingB']
+    # Ongoing comparison switched to B after the old Rank4 control stopped; throughput +.47% vs B.
+    # Completed13500, final checkpoint committed; UE5a.
+    # vs B: early +.0548 rapidly shrank; late oscillation around zero with small average benefit
+    # (12200–13400 mean -.00021; final13400 +.00017), not a steadily widening gain.
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_statistics_dtype = 'float32'
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias(BamMediumIndependentLLFLocalVRank4RoutingCFp32):
+    """Only remove LocalV row/column key bias; Q/K rank1 legacy stays unchanged."""
+    # code_commit: 0dcd3e1; UE5a ~.6886 steps/s (10-14), +.09% vs RoutingCFp32 .6880; health OFF.
+    # Historical runtime source: codex/local-read-gram, /data0/xd/local-read-gram.
+    # Historical user-requested all-health-OFF ablation.
+    # Stopped at 7139. vs RoutingCFp32: early +.0635@200 rapidly vanished; repeatedly
+    # crossed zero thereafter, no persistent gain (5600–7000 mean +.00011, range -.00116..+.00134).
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingCFp32NoBias'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingCFp32']
+    bam_local_v_pre_rms_bias = False
+    record_training_health_metrics = False
+    steps = 13500
+    checkpoint_period = 200
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Ledger only: independent rank4-B-AlignedRow + independently gated shared LocalV."""
+    # Implementation: codex/local-read-gram, /data0/xd/local-read-gram; code_commit: f37e623.
+    # UE5a v5p-16 scan/AOT, steps10-14 .6598 steps/s.
+    # Health ON timing -4.79% vs historical health-OFF BAlignedRow is not isolated architecture cost.
+    # Matched all-health-OFF speed b32d691, UE5a: .68383 (steps28–33; step11 profiler disturbance).
+    # vs historical BAlignedRow .6930: -1.32%; formal generic+dual health costs ~3.51% vs this timing control.
+    # Result vs BAlignedRow: stopped at 9728
+    # Early RUN-worse transient +.13708@200 collapsed by step800; converged region 800–9600
+    # gap ∈ [-.00226, +.00032] (min -.00226@2600, max +.00032@800), mean ≈ -.0008, RUN micro-better;
+    # no shrink trend from step1000 onward
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_v_add_shared_read = True
+    bam_record_local_v_dual_health = True
+    record_training_health_metrics = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedReadNoHealthProfile(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead):
+    """Ledger only: all-health-OFF dual LocalV speed control."""
+    # Runtime b32d691, codex/local-read-gram; UE5a v5p-16 scan/AOT .68383 steps/s, -1.32% vs BAlignedRow.
+    # Trace-free steps28–33; artifacts /data0/xd/bam_diagnostics/dual-localv-nohealth-0912.
+    model_name = 'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedReadNoHealthProfile'
+    record_training_health_metrics = False
+    bam_record_local_v_dual_health = False
+    bam_record_local_routing_metrics = False
+
+
+class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependentLLFLocalQKRank4CFp32AlignedRow):
+    """Q/K share rank4 bases; head mixing and gates stay independent."""
+    # code_commit: c664e82; EW4b v5p-32 scan/AOT; generic health ON, BAM health OFF.
+    # !? .5444 steps/s (10–14), +3.91% vs same-pod parent .5239 (25713–25724).
+    # Matched all-health-OFF EW4b v5p-32 scan/AOT: .54883 vs QKVC rank2 .5504 = -.28%, essentially tied.
+    # NoHealthProfile e05b537 steps28–33; historical rank2 6977fa0 reused. Expected +.7%, not observed.
+    # Saves .1875 W_Q per layer.
+    # Result: stopped at 30091. Early transient +0.0254 (step 500) collapsed to tie by ~1000.
+    # vs Row (QKRank4CFp32AlignedRow, data to 25724): converged tie, gap ∈ [-0.000128, +0.001738] over 10500–25500, final 25500 = -0.000002 (marginally better); no sustained negative crossing.
+    # vs QKVC (QKVCFp32AlignedRow): sustained overtake, 25500–29500 gap ∈ [-0.001991, -0.000167] all negative, final 29500 = -0.000693.
+    # Conclusion: SharedBasis ties Row (faster + saves .1875 W_Q/layer) and overtakes QKVC.
+    model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis'
+    compare_runs = [
+        'BamXLIndependentLLFLocalQKRank4CFp32AlignedRow',
+        'BamXLIndependentLLFLocalQKVCFp32AlignedRow',
+    ]
+    bam_local_qk_share_basis = True
+    record_training_health_metrics = True
+    bam_record_local_routing_metrics = False
+    scan_layers = True
+    checkpoint_period = 250
+    steps = 50000
+    force_final_checkpoint = True
+
+
+class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
+    """Matched all-health-OFF speed control against QKRank2."""
+    # Runtime e05b537; codex/local-read-gram, /data0/xd/local-read-gram.
+    model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile'
+    # EW4b v5p-32 scan/AOT, e05b537: .54883 steps/s, -.28% vs all-health-OFF QKVC Rank2 .5504.
+    record_training_health_metrics = False

@@ -138,16 +138,17 @@ bash experiments/bam_llama2_medium/run_row_head_contribution.sh
 
 ### 保留机器
 
-按用户“跑完别删”的要求未删除任何本任务机器。当前7台READY的v6e-1，均`europe-west4-a`，诊断Python进程已退出：
+按用户“跑完别删”的要求未删除任何本任务机器。当前8台READY的v6e-1，均`europe-west4-a`，诊断Python进程已退出：
 
 | 机器 | 本轮工作 |
 |---|---|
 | `xd-v6e-headko-m0r-ewa4a-0914` | Medium head shard0 + groups |
 | `xd-v6e-headko-m2-ewa4a-0914` | Medium shard2后串接shard1 |
+| `xd-v6e-headko-m1-ewa4a-0914` | 收尾时分配完成，INSTALL_OK；本轮分片已由m2完成，保持空闲 |
 | `xd-v6e-rowko-2-ewa4a-0914` | XL shard0 + groups |
 | `xd-v6e-headko-x1r-ewa4a-0914` | XL shard1 |
 | `xd-v6e-headko-x2-ewa4a-0914` | XL shard2 |
 | `xd-v6e-headko-x3-ewa4a-0914` | XL shard3 |
 | `xd-v6e-headko-x4-ewa4a-0914` | XL shard4 |
 
-第8个资源`xd-v6e-headko-m1-ewa4a-0914`仍在PROVISIONING，未重复分配任务，待其就绪也保留。早期`xd-v6e-rowko-0-ewa4a-0914`/`xd-v6e-rowko-3-ewa4a-0914`被云服务抢占，确认PREEMPTED、队列SUSPENDED后才请求替代；没有因补位超过8台运行/排队上限。历史终态资源未删除。当前权威归属为比较产物的`resources.json`、`retained_nodes.json`、`retained_queues.json`以及两个模型的`heads/group_resource.json`；此前粗粒度报告的三台保留状态是旧阶段快照。
+第8个资源`xd-v6e-headko-m1-ewa4a-0914`在收尾时由PROVISIONING变为ACTIVE，节点READY且INSTALL_OK；未重复分配任务，一并保留。早期`xd-v6e-rowko-0-ewa4a-0914`/`xd-v6e-rowko-3-ewa4a-0914`被云服务抢占，确认PREEMPTED、队列SUSPENDED后才请求替代；没有因补位超过8台运行/排队上限。历史终态资源未删除。当前权威归属为比较产物的`resources.json`、`retained_nodes.json`、`retained_queues.json`以及两个模型的`heads/group_resource.json`；此前粗粒度报告的三台保留状态是旧阶段快照。

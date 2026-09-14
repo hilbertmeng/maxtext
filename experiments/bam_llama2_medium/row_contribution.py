@@ -149,6 +149,18 @@ def depth_scenarios():
   return result
 
 
+def vdepth_scenarios():
+  result=[]
+  for name,start,stop in [('native',0,0),('V_all_off',0,24),
+      ('V_first_half',0,12),('V_last_half',12,24),
+      ('V_first_third',0,8),('V_middle_third',8,16),('V_last_third',16,24)]:
+    a=np.ones((24,4),np.float32)
+    layers=[l for l in range(start,stop) if l%3!=2]
+    a[layers,2]=0.
+    result.append(dict(name=name,kind='vdepth',start=start,stop=stop,layers=layers,scales=a.tolist()))
+  return result
+
+
 def digest_cohort(cohort):
   return [{k:hashlib.sha256(cohort[k][i].tobytes()).hexdigest() for k in KEYS} for i in range(len(cohort['inputs']))]
 
@@ -160,8 +172,8 @@ def run(config):
   hashes=digest_cohort(cohort)
   all_scenarios=scenarios()
   stage=os.environ.get('ROW_STAGE','all')
-  use=scenarios()+targeted_scenarios()+depth_scenarios() if stage=='suite' else depth_scenarios() if stage=='depth' else targeted_scenarios() if stage=='targeted' else [s for s in all_scenarios if stage=='all' or (stage=='groups' and s['kind'] in ('coalition','dose')) or (stage=='layers' and s['kind'] in ('layer','unit'))]
-  assert use and stage in ('all','groups','layers','targeted','depth','suite')
+  use=vdepth_scenarios() if stage=='vdepth' else scenarios()+targeted_scenarios()+depth_scenarios() if stage=='suite' else depth_scenarios() if stage=='depth' else targeted_scenarios() if stage=='targeted' else [s for s in all_scenarios if stage=='all' or (stage=='groups' and s['kind'] in ('coalition','dose')) or (stage=='layers' and s['kind'] in ('layer','unit'))]
+  assert use and stage in ('all','groups','layers','targeted','vdepth','depth','suite')
   # Default scalar variants preserve native bf16 lowering. Opt-in batching must pass equivalence checks.
   start=int(os.environ.get('ROW_START','0'));stop=int(os.environ.get('ROW_STOP','32'))
   assert 0<=start<stop<=min(64,len(hashes))

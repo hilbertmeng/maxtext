@@ -7158,6 +7158,7 @@ class BamMediumIndependentLLFBAlignedRowStdTailWriteNormal(BamMediumIndependentL
 class BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal(BamMediumIndependentLLFBAlignedRowStdTailWriteNormal):
     """Normal write projection uses o_head after BAM addition instead of pure y_std."""
     # codex/llf-std-tail-write; only address source changes, no new parameters.
+    # code_commit: 49fbb1e; UE5a .6984 steps/s (+.34% vs Normal .6960), matched health; scan/AOT.
     # Prediction vs StdTailWriteNormal: final gap +.002, throughput unchanged.
     model_name = 'BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal'
     compare_runs = ['BamMediumIndependentLLFBAlignedRowStdTailWriteNormal',

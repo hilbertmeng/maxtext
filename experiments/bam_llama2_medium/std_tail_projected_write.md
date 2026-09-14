@@ -113,3 +113,13 @@ New trainer, no hot switch; UE5a primary then EW4b after5min without capacity.
 Focused test checks bitwise paired parameter initialization, equivalence to the pre-source
 writer when passed y_std=o_head, independence from unused y_std, sensitivity to o_head tail,
 and finite L/F forward/backward results.
+
+Post-BAM runtime: `49fbb1ea6735fd25468522a73fcc417818ec4c9e`. Focused test and47-test
+pinned BAM suite passed. AOT state `tpu-ag:aot_runs/49fbb1e-ac0eb0ec.json`;
+artifact `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/49fbb1e/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal.pickle`.
+Trainer `xd-v5p-16-llf-post-bam-tail-normal-maxtext` submitted UE5a after AOT readiness;
+same regional checkpoint/Pile and central TB patterns as above.
+Loaded AOT and passed FIRST_STEP/step14. Parameters440438624 and step0 loss10.843424
+exactly match Normal; steps10–14 throughput .6984 (+.34% vs Normal .6960, same health settings).
+Compiler cleanup completed. Ongoing monitoring remains with the user's monitoring task;
+this startup does not collect or advance its report cursor.

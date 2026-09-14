@@ -83,6 +83,7 @@ def run(config):
  metadata=dict(model=base.BASE,checkpoint=config.load_parameters_path,training_commit=TRAINING[base.BASE],
   runtime_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
   runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),reference_sha256=hashlib.sha256(reference_path.read_bytes()).hexdigest(),
+  scenarios_sha256=hashlib.sha256(json.dumps(use,sort_keys=True).encode()).hexdigest(),
   sequence_hashes=hashes[:64],shape=SHAPE,shard=shard,shards=shards,start=start,stop=stop,stage=stage,chunk=size,
   method='Exact post-gate BAM row-head output deletion, other heads/columns/paths unchanged; ordinary downstream forward',
   skipped='layer0 all paths known zero; F LocalV nonexistent',
@@ -120,7 +121,8 @@ def run(config):
     if len(check)<size:check=jnp.concatenate([check,jnp.ones((size-len(check),)+SHAPE,bool)])
     serial=dispatch(batch,check,'scalar');np.testing.assert_allclose(serial[:5,0],reference['loss'][index],atol=1e-6,rtol=0)
     timings={};gaps={}
-    for candidate in ['scalar','async','loop']:
+    # Device loop lowering changed numerical results in the full model; opt in only for revalidation.
+    for candidate in ['scalar','async'] + (['loop'] if os.environ.get('HEAD_TRY_LOOP','0')=='1' else []):
      values=dispatch(batch,check,candidate);gap=float(np.max(np.abs(values-serial)));gaps[candidate]=gap
      if not np.allclose(values,serial,atol=1e-6,rtol=0):print('DISPATCH_REJECT',candidate,gap,flush=True);continue
      begun_t=time.perf_counter()

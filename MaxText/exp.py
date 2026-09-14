@@ -7155,6 +7155,16 @@ class BamMediumIndependentLLFBAlignedRowStdTailWriteNormal(BamMediumIndependentL
     bam_std_tail_projection_init = 'normal'
 
 
+class BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal(BamMediumIndependentLLFBAlignedRowStdTailWriteNormal):
+    """Normal write projection uses o_head after BAM addition instead of pure y_std."""
+    # codex/llf-std-tail-write; only address source changes, no new parameters.
+    # Prediction vs StdTailWriteNormal: final gap +.002, throughput unchanged.
+    model_name = 'BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal'
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowStdTailWriteNormal',
+                    'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_projected_write_post_bam = True
+
+
 class BamMediumIndependentLLFBAlignedRowGenericHealthSpeed(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Speed-only BAlignedRow reference: generic health ON, BAM sow OFF."""
     # Original BAlignedRow implementation; UE5a v5p-16 block-scan/AOT, full 13500-step schedule.

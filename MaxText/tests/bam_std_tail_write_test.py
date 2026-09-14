@@ -8,6 +8,48 @@ from layers.attentions import BamAttention
 
 
 class StdTailWriteTest(absltest.TestCase):
+  def test_post_bam_source_changes_only_address_input(self):
+    from bam_local_fetch_test import LocalFetchTest
+    import max_utils
+    helper = LocalFetchTest()
+    self.addCleanup(helper.doCleanups)
+    configs = [helper.config('BamMediumIndependentLLFBAlignedRow' + suffix)
+               for suffix in ('StdTailWriteNormal', 'PostBamTailWriteNormal')]
+    for cfg in configs:
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = None
+    x = jax.random.normal(jax.random.key(31), (1, 8, 128), configs[0].dtype)
+    m = jax.random.normal(jax.random.key(32), (1, 8, 32, 32), configs[0].dtype)
+    std = jax.random.normal(jax.random.key(33), (1, 8, 2, 64), configs[0].dtype)
+    o = jax.random.normal(jax.random.key(34), std.shape, configs[0].dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    for mode in ('local_qk+local_o', 'local_qk+full'):
+      pair = []
+      for cfg in configs:
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+            head_dim=64, max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+            attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+            layer_mode=mode, attention_type=cfg.attention_type)
+        variables = module.init({'params':jax.random.key(35), 'aqt':jax.random.key(36)},
+            *args, M_in=m, deterministic=True, layer_index=2)
+        pair.append((module, variables['params']))
+      pre, post = pair
+      for a, b in zip(jax.tree.leaves(pre[1]), jax.tree.leaves(post[1])):
+        np.testing.assert_array_equal(a, b)
+      def write(item, oo, ss):
+        module, params = item
+        return module.apply({'params':params}, oo, x, m, y_std=ss, method=module._write)[0]
+      np.testing.assert_array_equal(write(post, o, std), write(pre, o, o))
+      np.testing.assert_array_equal(write(post, o, std), write(post, o, std + 7))
+      self.assertGreater(float(jnp.linalg.norm((write(post, o.at[..., 32:].add(7), std)
+          - write(post, o, std)).astype(jnp.float32))), 0.)
+      module, params = post
+      def loss(pp):
+        y, mm = module.apply({'params':pp}, *args, M_in=m, deterministic=True, layer_index=2)
+        return jnp.mean(y.astype(jnp.float32)**2) + jnp.mean(mm.astype(jnp.float32)**2)
+      grad = jax.grad(loss)(params)
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(g))) for g in jax.tree.leaves(grad)))
+
   def test_exporter_has_every_local_and_fetch_layer(self):
     from types import SimpleNamespace
     import train

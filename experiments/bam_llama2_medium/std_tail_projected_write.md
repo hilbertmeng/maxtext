@@ -94,3 +94,22 @@ Orth likewise has192 scoped tags and generic health. Its corresponding source/dy
 epsilon fractions are (.026334/.026334, .002255), (.184592/.184578, .00003133),
 (.185543/.185563, .00003092). Global step0 raw_grad is4.6194 Orth versus4.4721 Normal;
 the epsilon observation alone does not establish which initialization trains better.
+
+## Post-BAM tail control
+
+`BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal` inherits StdTailWriteNormal,
+changing only `bam_projected_write_post_bam=True`: `source_v=o_head[...,32:64]`, where
+`o_head=y_std+y_bam`. L layers include direct LocalO and F layers include fetched read.
+E initialization normal(.006), per-head zero bias, parameter names, WD, RMS epsilon/dtype,
+all reads, data-write u, scan/AOT, health capture, checkpoint200 and full13500 schedule
+are unchanged. Generic and scoped health match the direct Normal control.
+The `std_tail_write/source_rms` tag now means the selected post-BAM source, not pure y_std.
+No stop-gradient is applied: this tests forward and backward recirculation together.
+
+compare_runs: `BamMediumIndependentLLFBAlignedRowStdTailWriteNormal` and
+`BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow`.
+Prediction: final +.002 vs Normal; throughput unchanged (~.696 steps/s).
+New trainer, no hot switch; UE5a primary then EW4b after5min without capacity.
+Focused test checks bitwise paired parameter initialization, equivalence to the pre-source
+writer when passed y_std=o_head, independence from unused y_std, sensitivity to o_head tail,
+and finite L/F forward/backward results.

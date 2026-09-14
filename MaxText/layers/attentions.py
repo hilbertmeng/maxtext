@@ -3321,8 +3321,9 @@ class BamAttention(Attention):
     else:  # V1 default
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
     if self._write_v_mode == 'std_tail_projected':
-      assert y_std is not None, 'Projected address must use pre-BAM-add y_std, not o_head'
-      source_v = y_std[..., self.bam_k:self.bam_k + self.bam_v]
+      source = o_head if getattr(cfg, 'bam_projected_write_post_bam', False) else y_std
+      assert source is not None, 'Pre-BAM projected write requires y_std'
+      source_v = source[..., self.bam_k:self.bam_k + self.bam_v]
       dynamic_v = source_v @ self.write_std_tail_projection.astype(source_v.dtype)
       address_bias = self.write_std_tail_bias.astype(source_v.dtype)
       u2 = dynamic_v + address_bias

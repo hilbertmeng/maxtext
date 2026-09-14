@@ -22,4 +22,4 @@ def run(root,stage='targeted'):
  np.savez_compressed(target/'paired_results.npz',gap=gaps,names=np.array([s['name'] for s in scenarios]))
  return result
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('root',type=Path);p.add_argument('--stage',choices=('targeted','depth','vdepth'),default='targeted');a=p.parse_args();print(json.dumps(run(a.root,a.stage),indent=2))
+ p=argparse.ArgumentParser();p.add_argument('root',type=Path);p.add_argument('--stage',choices=('targeted','depth','vdepth','qktype'),default='targeted');a=p.parse_args();print(json.dumps(run(a.root,a.stage),indent=2))

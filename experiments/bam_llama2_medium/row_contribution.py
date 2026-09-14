@@ -161,6 +161,19 @@ def vdepth_scenarios():
   return result
 
 
+def qktype_scenarios():
+  result=[]
+  for name,paths,kind in [('native',[],None),('QK_all_off',[0,1],None),
+      ('Q_L_off',[0],'L'),('Q_F_off',[0],'F'),
+      ('K_L_off',[1],'L'),('K_F_off',[1],'F'),
+      ('QK_L_off',[0,1],'L'),('QK_F_off',[0,1],'F')]:
+    a=np.ones((24,4),np.float32)
+    layers=[l for l in range(24) if kind is None or (l%3==2)==(kind=='F')]
+    for path in paths:a[layers,path]=0.
+    result.append(dict(name=name,kind='qktype',layer_type=kind,layers=layers,paths=paths,scales=a.tolist()))
+  return result
+
+
 def digest_cohort(cohort):
   return [{k:hashlib.sha256(cohort[k][i].tobytes()).hexdigest() for k in KEYS} for i in range(len(cohort['inputs']))]
 
@@ -172,8 +185,8 @@ def run(config):
   hashes=digest_cohort(cohort)
   all_scenarios=scenarios()
   stage=os.environ.get('ROW_STAGE','all')
-  use=vdepth_scenarios() if stage=='vdepth' else scenarios()+targeted_scenarios()+depth_scenarios() if stage=='suite' else depth_scenarios() if stage=='depth' else targeted_scenarios() if stage=='targeted' else [s for s in all_scenarios if stage=='all' or (stage=='groups' and s['kind'] in ('coalition','dose')) or (stage=='layers' and s['kind'] in ('layer','unit'))]
-  assert use and stage in ('all','groups','layers','targeted','vdepth','depth','suite')
+  use=qktype_scenarios() if stage=='qktype' else vdepth_scenarios() if stage=='vdepth' else scenarios()+targeted_scenarios()+depth_scenarios() if stage=='suite' else depth_scenarios() if stage=='depth' else targeted_scenarios() if stage=='targeted' else [s for s in all_scenarios if stage=='all' or (stage=='groups' and s['kind'] in ('coalition','dose')) or (stage=='layers' and s['kind'] in ('layer','unit'))]
+  assert use and stage in ('all','groups','layers','targeted','qktype','vdepth','depth','suite')
   # Default scalar variants preserve native bf16 lowering. Opt-in batching must pass equivalence checks.
   start=int(os.environ.get('ROW_START','0'));stop=int(os.environ.get('ROW_STOP','32'))
   assert 0<=start<stop<=min(64,len(hashes))

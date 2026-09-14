@@ -49,3 +49,16 @@ Validation entrypoints (pinned diagnostics CPU environment):
 - Main diagnostics skill `scripts/run_bam_unit_tests.sh WORKTREE`.
 
 RUN registry is authoritative for the eventual runtime hash, AOT URI and TPU assignment.
+
+## Launch validation
+
+Runtime `b600adf6031626c2e41c85642668a46541d454de`: 47 base tests + 4 branch
+tests passed; full train-step audit checked the WD mask and health flags.
+Norm hot-switched from 21Layer after committed6181 on its UE5a v5p-16,
+`xd-v5p-16-llf-21layer-mlp2896-maxtext`. AOT loaded and steps10–14 averaged .6776/s.
+TB step0: all 16 a/a0=1, dynamic energy=0, static energy share≈1, finite metrics;
+only the 236 intended `bam/local_o_row_branches/` scalar tags were present.
+TB events live at
+`gs://newproject-1-llm_base_models_us-central1/log/summaries/train/RUN/`
+(distinct from the zone-local checkpoint bucket).
+Training monitoring belongs to the user's other session; this task only completes launch checks.

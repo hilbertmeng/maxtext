@@ -7152,6 +7152,8 @@ class BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow(BamMediumIndepend
     """L-only LocalO row: static 32x16 plus dynamic rank4 C-fp32, one output gate."""
     # Implementation: codex/llf-o-row-static-dynamic, /data0/xd/llf-o-row-static-dynamic.
     # Prediction vs BAlignedRow: late gap +.002; core throughput roughly flat (+/-1%), health overhead unmeasured.
+    # code_commit: b600adf; UE5a .6776 steps/s; generic ON + branch-energy/a health.
+    # Parent .6836 has BAM health OFF; timing is not strictly matched.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
     bam_o_row_effective_rank = 4

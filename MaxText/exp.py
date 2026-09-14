@@ -7126,6 +7126,8 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 class BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L LocalV/LocalO share rank4 row bases/read; independent C-fp32 routing and gates."""
     # Implementation: codex/llf-shared-row-bases, /data0/xd/llf-shared-row-bases.
+    # code_commit: 36d6763; UE5a .6832 steps/s (-.06% vs matched BAlignedRow .6836), generic ON/BAM OFF.
+    # Parameters -7.34M (-1.63%) vs BAlignedRow; no measured throughput gain at launch.
     # Prediction vs BAlignedRow: final gap -.001 (low confidence), throughput +1%.
     # LocalV B->C too; V key_scale stays1, O stays2. Q/K rank1 legacy, F and O column unchanged.
     model_name = 'BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32'

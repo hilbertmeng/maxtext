@@ -59,4 +59,14 @@ Artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps
 The corresponding `.manifest.json` records environment/topology/commit. Compiler cleanup completed.
 Formal pod `xd-v5p-16-llf-shared-row-cfp32-maxtext` submitted in UE5a at08:31:52 UTC.
 
+## Launch result
+
+Worker confirmed `Loaded compiled function!`, finite FIRST_STEP, and progress past21.
+Measured steps10–14: .683/.683/.683/.684/.683, mean .6832 steps/s versus matched BAlignedRow .6836
+(-.06%, effectively flat rather than the predicted+1%). Actual parameters442511200, exactly
+7340032 (-1.63%) below449851232. Generic health ON, BAM health OFF in both timing configurations.
+Registry comparison is only BAlignedRow. Dataset is UE5a-local; checkpoint output is
+`gs://newproject-1-llm_projects_us-east5/log/`, while TB uses the existing central summary prefix.
+No other RUN was stopped or migrated for this launch. Subsequent loss monitoring belongs to the user's other task.
+
 The task owns launch/first-step/speed verification only; ongoing monitoring is delegated by the user to another task.

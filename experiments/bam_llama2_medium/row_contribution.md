@@ -145,4 +145,3 @@ Medium中段均值较大，后三分之一均值最小；不同删除上下文�
 三个三分段实际包含6/5/5个Local层；第0层M为零，是无操作，故每段均含5个非第0层Local读。半段各8个Local层。Fetch层无Local V。
 
 复现：Medium runtime `b5f27a78`、XL runtime `901bb070`；各自worktree的`row_contribution.py`，`ROW_STAGE=vdepth ROW_START=0 ROW_STOP=64 ROW_VARIANT_BATCH=1`。分别使用保留的`xd-v6e-rowko-0-ewa4a-0914`、`xd-v6e-rowko-2-ewa4a-0914`，输出`/tmp/medium-row-vdepth`、`/tmp/xl-row-vdepth`；没有新增或删除TPU。每套新增7×64=448个loss，原始checkpoint/生产源码不变。产物在各模型artifact根目录的`vdepth/`，包括metadata、逐序列loss、summary、verification及resource_manifest。GCS对应同模型诊断前缀下`vdepth/`，64个文件数量/大小已核对。聚合命令`summarize_row_targeted.py ROOT --stage vdepth`，比较脚本同时输出vdepth逐序列配对差。两台运行进程已退出，继续保留机器。
-

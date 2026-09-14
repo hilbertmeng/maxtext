@@ -21,7 +21,7 @@ def run(medium,xl,out):
  text=['# Medium / XL paired row contribution comparison','',f'Medium: `{MEDIUM}` @13500; XL: `{XL}` @30091.', 'Same 64 Pile sequences. Values are mean ± 1.96 paired SE; positive means loss increase. Different architecture/routing/training history: not an isolated scale experiment.','', '| Path | Medium knockout | XL knockout | XL−Medium paired difference | Medium Shapley | XL Shapley |','|---|---:|---:|---:|---:|---:|']
  for i,p in enumerate('QKVO'):
   text.append('| '+p+' | '+' | '.join(value(s) for s in [m['knockout'][p],x['knockout'][p],result['scenario_delta_xl_minus_medium'][f'coalition_{1<<i:02d}'],m['shapley'][p],x['shapley'][p]])+' |')
- for stage in ['targeted','depth']:
+ for stage in ['targeted','depth','vdepth']:
   mp=np.load(medium/stage/'paired_results.npz');xp=np.load(xl/stage/'paired_results.npz');assert list(mp['names'])==list(xp['names'])
   result[stage]={str(name):{'medium':stats(mp['gap'][:,i]),'xl':stats(xp['gap'][:,i]),'difference':stats(xp['gap'][:,i]-mp['gap'][:,i])} for i,name in enumerate(mp['names'])}
   text+=['',f'## {stage}','','| Intervention | Medium | XL | XL−Medium paired difference |','|---|---:|---:|---:|']

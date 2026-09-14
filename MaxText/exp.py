@@ -7135,6 +7135,8 @@ class BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu(BamMediumIndependentLL
     """F-only O row-key D→256→nK GELU; column keys and gates unchanged."""
     # Implementation: codex/llf-o-row-lora, /data0/xd/llf-o-row-lora.
     # Prediction vs BAlignedRow: final gap +.001, throughput +.2%; parameters -1,048,576.
+    # code_commit: 6bdfe0d; UE5a .6768 steps/s (-.99% vs matched BAlignedRow .6836); !? predicted +.2%.
+    # Generic health ON/BAM OFF; block-scan/AOT. Projection savings did not improve measured throughput.
     model_name = 'BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
     bam_o_row_bottleneck_dim = 256
@@ -7147,6 +7149,8 @@ class BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu(BamMediumIndependentLL
 class BamMediumIndependentLLFBAlignedRowLocalORowR256Gelu(BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu):
     """L-only O row-key bottleneck; all other BAlignedRow paths unchanged."""
     # Prediction vs BAlignedRow: final gap +.001, throughput +.3%; parameters -2,097,152.
+    # code_commit: 6bdfe0d; UE5a .6766 steps/s (-1.02% vs matched BAlignedRow .6836); !? predicted +.3%.
+    # Generic health ON/BAM OFF; block-scan/AOT.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalORowR256Gelu'
     bam_o_row_bottleneck_layers = 'local'
 
@@ -7154,6 +7158,8 @@ class BamMediumIndependentLLFBAlignedRowLocalORowR256Gelu(BamMediumIndependentLL
 class BamMediumIndependentLLFBAlignedRowAllORowR256Gelu(BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu):
     """Both L/F O row-key bottlenecks; tests their combined effect."""
     # Prediction vs BAlignedRow: final gap +.002, throughput +.5%; parameters -3,145,728.
+    # code_commit: 6bdfe0d; UE5a .6698 steps/s (-2.02% vs matched BAlignedRow .6836); !? predicted +.5%.
+    # Generic health ON/BAM OFF; block-scan/AOT.
     model_name = 'BamMediumIndependentLLFBAlignedRowAllORowR256Gelu'
     bam_o_row_bottleneck_layers = 'all'
 

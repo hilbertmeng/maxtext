@@ -53,6 +53,23 @@ class ORowLoraTest(absltest.TestCase):
           if active:
             self.assertGreater(float(jnp.linalg.norm(grads['W_R_row_up']['kernel'].value)), 0.)
             np.testing.assert_array_equal(grads['W_R_row_down']['kernel'].value, 0)
+          if scope == 'All' and local:
+            # New named projections must not perturb unrelated random initializers.
+            cfg.get_keys()['bam_o_row_bottleneck_dim'] = 0
+            baseline = module.init({'params': jax.random.key(3), 'aqt': jax.random.key(4)},
+                                   *args, M_in=m, deterministic=True, layer_index=2)
+            expected = module.apply(baseline, *args, M_in=m,
+                                    deterministic=True, layer_index=2)
+            cfg.get_keys()['bam_o_row_bottleneck_dim'] = 16
+            for name in baseline['params']:
+              if name != 'W_R':
+                for before, after in zip(jax.tree.leaves(baseline['params'][name]),
+                                         jax.tree.leaves(params[name])):
+                  np.testing.assert_array_equal(before, after)
+            actual = module.apply(variables, *args, M_in=m,
+                                  deterministic=True, layer_index=2)
+            for before, after in zip(jax.tree.leaves(expected), jax.tree.leaves(actual)):
+              np.testing.assert_array_equal(before, after)
 
 
 if __name__ == '__main__':

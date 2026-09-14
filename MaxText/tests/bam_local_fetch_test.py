@@ -35,6 +35,23 @@ class LocalFetchTest(absltest.TestCase):
     cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_o', 'local_qk+full'] * 2
     return cfg
 
+  def test_local_v_scale_preserves_historical_balignedrow(self):
+    for exp, v_scale in (
+        ('BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow', 1.0),
+        ('BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan', 2.0)):
+      cfg = self.config(exp)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_o', attention_type=cfg.attention_type)
+      scales, _ = module.init_with_output(
+          {'params': jax.random.key(3)},
+          method=lambda mod: tuple(mod._local_arms[n].key_scale for n in ('q', 'k', 'v'))
+              + (mod._fetched_arm.key_scale,))
+      self.assertEqual(scales, (2.0, 2.0, v_scale, 2.0))
+
   def test_local_modules_forward_and_gradients(self):
     for suffix in ('C8', 'C8LocalV', 'Full', 'FullLocalV', 'C8SharedRead', 'FullSharedRead', 'C8LocalVSharedRankGate'):
       with self.subTest(suffix=suffix):

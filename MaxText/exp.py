@@ -273,6 +273,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
     bam_local_v_share_output_coordinates = False
     bam_local_v_rank_routing = 'legacy'
+    bam_local_v_key_scale = None  # None uses bam_read_key_scale; to allow reproducing result of BAlignedRow which inherits 1 from RoutingA.
     bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation; Gram/norm2 only
     bam_local_q_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_gate_n (A) | head_gate_r (B) | effective_key (C)
@@ -7217,3 +7218,41 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile(B
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile'
     # EW4b v5p-32 scan/AOT, e05b537: .54883 steps/s, -.28% vs all-health-OFF QKVC Rank2 .5504.
     record_training_health_metrics = False
+
+class BamMediumIndependentLLFBAlignedRowMLPUniform(
+    BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow
+):
+    """Near-MHA parameter budget: reduce every SwiGLU width to 2304."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs BAlignedRow: final gap +.008, throughput +8%; test, not a result.
+    model_name = 'BamMediumIndependentLLFBAlignedRowMLPUniform'
+    compare_runs = [
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+        'BamMHALlama2MediumC256ScanAotCleanControl',
+    ]
+    base_mlp_dim = 2304
+    mlp_dim_by_block = None
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetch_route_metrics = False
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-param-uniform'
+
+
+class BamMediumIndependentLLFBAlignedRowMLPPerLayer(
+    BamMediumIndependentLLFBAlignedRowMLPUniform
+):
+    """Same total as Uniform; L/L/F SwiGLU widths 2256/2256/2400."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs Uniform: final gap -.001 (low confidence), comparable speed.
+    model_name = 'BamMediumIndependentLLFBAlignedRowMLPPerLayer'
+    mlp_dim_by_block = [2256, 2256, 2400]
+    compare_runs = BamMediumIndependentLLFBAlignedRowMLPUniform.compare_runs + [
+        'BamMediumIndependentLLFBAlignedRowMLPUniform',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-param-per-layer'

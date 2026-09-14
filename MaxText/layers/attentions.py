@@ -2529,7 +2529,10 @@ class BamAttention(Attention):
             gram_implementation=cfg.bam_local_gram_implementation,
             gram_statistics_dtype={'float32': jnp.float32, 'activation': None}[
                 cfg.bam_local_gram_statistics_dtype],
-            **read_settings,
+            **{**read_settings, 'key_scale': (
+                float(cfg.bam_local_v_key_scale)
+                if name == 'v' and cfg.bam_local_v_key_scale is not None
+                else self._read_key_scale)},
             **{key: arm_setting(name, key)
                for key in ('rank', 'rank_routing', 'pre_rms_bias')})
         for name in arm_names}

@@ -1,6 +1,6 @@
 # Medium / XL 行读贡献：相同64条Pile的配对比较
 
-2026-09-14，全部完成。每个模型164场景×64序列=10496个loss（含重复对照），共20992个loss；其中最新V分段为每模型7个场景。低秩压缩、跨层共享、静态key和幅度校准按用户要求暂停，未运行。
+2026-09-14，全部完成。每个模型172场景×64序列=11008个loss（含重复对照），共22016个loss；最近追加V分段7场景及Q/K层类型8场景。低秩压缩、跨层共享、静态key和幅度校准按用户要求暂停，未运行。
 
 ## 核心结论
 
@@ -79,6 +79,39 @@ Medium后三分之一的删除损失均值最小，中三分之一最大；XL前
 三个三分段实际包含6/5/5个Local层；第0层M为零，是无操作，故每段均含5个非第0层Local读。半段各8个Local层。Fetch层无Local V。
 
 复现：Medium runtime `b5f27a78`、XL runtime `901bb070`；各自worktree的`row_contribution.py`，`ROW_STAGE=vdepth ROW_START=0 ROW_STOP=64 ROW_VARIANT_BATCH=1`。分别使用保留的`xd-v6e-rowko-0-ewa4a-0914`、`xd-v6e-rowko-2-ewa4a-0914`，输出`/tmp/medium-row-vdepth`、`/tmp/xl-row-vdepth`；没有新增或删除TPU。每套新增7×64=448个loss，原始checkpoint/生产源码不变。产物在各模型artifact根目录的`vdepth/`，包括metadata、逐序列loss、summary、verification及resource_manifest。GCS对应同模型诊断前缀下`vdepth/`，64个文件数量/大小已核对。聚合命令`summarize_row_targeted.py ROOT --stage vdepth`，比较脚本同时输出vdepth逐序列配对差。两台运行进程已退出，继续保留机器。
+
+## Q/K在Local与Fetch层的作用（追加验证）
+
+同64条，Q、K各自和同时分别关闭全部Local或全部Fetch层；V/O和全部列读保留。两模型native与全层Q/K同删对照均与原始结果逐样本完全一致。
+
+| 关闭行读 | Medium Δloss | XL Δloss | XL−Medium配对差 |
+|---|---:|---:|---:|
+| 仅Q / 全部L层 | +0.000624 ± 0.000284 | +0.005066 ± 0.001109 | +0.004442 ± 0.001115 |
+| 仅Q / 全部F层 | +0.001419 ± 0.000442 | +0.002836 ± 0.000618 | +0.001417 ± 0.000643 |
+| 仅K / 全部L层 | +0.000443 ± 0.000279 | +0.005817 ± 0.000941 | +0.005373 ± 0.000947 |
+| 仅K / 全部F层 | +0.001227 ± 0.000377 | +0.001878 ± 0.000592 | +0.000652 ± 0.000640 |
+| Q/K同时 / 全部L层 | +0.000992 ± 0.000360 | +0.010379 ± 0.001684 | +0.009387 ± 0.001669 |
+| Q/K同时 / 全部F层 | +0.001805 ± 0.000508 | +0.004577 ± 0.001174 | +0.002772 ± 0.001076 |
+| Q/K同时 / 全部层 | +0.002594 ± 0.000681 | +0.017588 ± 0.002767 | +0.014994 ± 0.002475 |
+
+**看整组删除损伤，Medium是F更重要，XL是L更重要。** Q/K同删的L−F配对差：Medium **-0.000813 ± 0.000570**；XL **+0.005802 ± 0.001284**。Q和K分别删除也支持相同方向，合并Q/K没有掩盖相反的单路趋势。
+
+但L有16层，F只有8层。下面对两个组做精确两玩家Shapley分配：`φL=(ΔL+Δ全部−ΔF)/2`，`φF=(ΔF+Δ全部−ΔL)/2`，每个样本的两项严格加和等于全部Q/K关闭损失。这里V/O固定为原生，玩家为“L层Q/K”和“F层Q/K”，与前面的四路径Shapley上下文不同，不混用。
+
+| 量 | Medium | XL |
+|---|---:|---:|
+| 全部−L单关−F单关 | -0.000202 ± 0.000314 | +0.002633 ± 0.000526 |
+| L组Shapley | +0.000890 ± 0.000346 | +0.011695 ± 0.001742 |
+| F组Shapley | +0.001704 ± 0.000523 | +0.005893 ± 0.001271 |
+| L组Shapley / 行key kernel W_Q | +0.000890 ± 0.000346 | +0.005847 ± 0.000871 |
+| F组Shapley / 行key kernel W_Q | +0.003408 ± 0.001047 | +0.005893 ± 0.001271 |
+| 每W_Q归一化后的L−F配对差 | -0.002517 ± 0.001038 | -0.000046 ± 0.000935 |
+
+Medium L/F的QK行key kernel成本为1/0.5 W_Q；XL共享QK对应2/1 W_Q。**按这一成本归一化，Medium F组的Shapley均值约为L组3.8倍，XL两类几乎持平，差值误差范围跨零。** 因此Medium若精简Q/K，L组更值得优先考虑；XL不能仅凭F组总损伤更小，就断言F组单位参数更不重要。这里是冻结网络功能分配除以理论kernel预算，不是测得的速度收益，也不证明逐层/逐参数贡献均匀。第0层虽然无操作，仍按实际存储kernel计入成本。
+
+复现：Medium runtime `6be80e7f`、XL runtime `b0905334`；各自worktree的`row_contribution.py`，`ROW_STAGE=qktype ROW_START=0 ROW_STOP=64 ROW_VARIANT_BATCH=1`。继续使用保留的node0/2（完整名`xd-v6e-rowko-0-ewa4a-0914`、`xd-v6e-rowko-2-ewa4a-0914`，EW4a），输出`/tmp/medium-row-qktype`、`/tmp/xl-row-qktype`，每模型新增8×64=512个loss。产物在各模型本地/GCS诊断根目录的`qktype/`；原始checkpoint及模型源码不变。64个文件GCS数量/大小、完整cohort字段hash、scalar模式及配对对照检查通过。分组mask检查确认Q/K各自范围、L/F互补与V/O未修改。两台进程已退出，机器继续保留。
+
+聚合：`summarize_row_targeted.py ROOT --stage qktype`；两组交互/分配：XL诊断worktree的`summarize_qk_layer_types.py ROOT`，保存`layer_type_allocation.json/npz`；比较脚本增加qktype表及逐序列配对差。
 
 ## 按Local/Fetch及关键层联合删除
 

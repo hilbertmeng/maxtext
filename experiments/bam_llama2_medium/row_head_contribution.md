@@ -152,3 +152,25 @@ bash experiments/bam_llama2_medium/run_row_head_contribution.sh
 | `xd-v6e-headko-x4-ewa4a-0914` | XL shard4 |
 
 第8个资源`xd-v6e-headko-m1-ewa4a-0914`在收尾时由PROVISIONING变为ACTIVE，节点READY且INSTALL_OK；未重复分配任务，一并保留。早期`xd-v6e-rowko-0-ewa4a-0914`/`xd-v6e-rowko-3-ewa4a-0914`被云服务抢占，确认PREEMPTED、队列SUSPENDED后才请求替代；没有因补位超过8台运行/排队上限。历史终态资源未删除。当前权威归属为比较产物的`resources.json`、`retained_nodes.json`、`retained_queues.json`以及两个模型的`heads/group_resource.json`；此前粗粒度报告的三台保留状态是旧阶段快照。
+
+## V与O强头是否重合（追加相关性分析）
+
+直接复用上述64条单头删除结果，没有新跑TPU。只比较V/O都存在的15个非第0层Local层，每层按同号16个head配对，共240对。统计对象为冻结模型单头行读删除的平均Δloss，不是激活相关性。
+
+**Medium有弱负相关迹象，XL接近不相关；没有V强头也普遍是O强头的证据。** 分层后结论与直接混合所有层不同。
+
+| 指标 | Medium | XL |
+|---|---:|---:|
+| 混合240对的Pearson | +0.266 [+0.152, +0.336] | +0.165 [+0.123, +0.207] |
+| 各层去均值后Pearson | -0.110 [-0.182, -0.018] | -0.031 [-0.068, +0.012] |
+| 每层Spearman后等权平均 | -0.233 [-0.246, -0.006] | -0.079 [-0.136, +0.069] |
+
+方括号为配对序列bootstrap 2000次的95%百分位区间：每次共同重采样64条序列，重新估计V/O的head分数及相关系数；层集合固定，不将240对当作240个独立样本。每层Spearman对16头排序，之后15层等权平均；去层均值Pearson仍会更重视分数变动大的层。排名估计受样本噪声影响，Medium负向证据也不应称为强负相关。
+
+混层Pearson是正的（0.266/0.165），但去掉L1后变成−0.073/−0.098，去各层均值后为−0.110/−0.031。说明不能把两路共同偏重早层解释成同一head的正相关。前32估计V、后32估计O，再交换两半的检查中，层内平均Spearman为Medium −0.107/−0.172，XL −0.082/+0.001；方向与主结论相符。
+
+每层V/O Top4平均重合Medium 0.67个、XL 0.80个；从16头各独立随机取4头，期望重合1个。两者bootstrap区间均包括1，因此这个重合数只是辅助描述，不能单独证明强头排斥。
+
+例如L1：Medium V Top4为h3/h9/h5/h13，O为h0/h4/h12/h5，重合h5；XL V为h5/h8/h13/h12，O为h10/h8/h13/h11，重合h8/h13。个别层存在重合，整体没有正向一致性。负相关也不能证明两路互相替代，还需对同头V/O联合干预才可辨别这种机制。
+
+计算产物与复现脚本：`/data0/xd/bam_diagnostics/row-contribution-heads-0914/vo_correlation/{analyze.py,results.json}`。只用已有`paired_head_gaps.npz`，随机种子9876。JSON含逐层Pearson/Spearman、Top4集合、跨半样本与去L1敏感性检查。

@@ -7264,6 +7264,7 @@ class BamMHALlama2MediumC256ScanAotCleanMLP2304(BamMHALlama2MediumC256ScanAotCle
     """MHA control for the same 37.749M MLP-parameter reduction as BAM Uniform."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs clean MHA: final gap +.015, throughput +4%.
+    # code_commit: 061b51d; UE5a .9640 steps/s, +6.40% vs clean MHA .906; generic ON/BAM OFF.
     model_name = 'BamMHALlama2MediumC256ScanAotCleanMLP2304'
     compare_runs = ['BamMHALlama2MediumC256ScanAotCleanControl']
     base_mlp_dim = 2304
@@ -7283,6 +7284,7 @@ class BamMediumIndependentLLFBAlignedRow21LayerMLP2896(BamMediumIndependentLLFBA
     """Near-MHA budget by reducing depth: seven LLF blocks with full-width MLPs."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs BAlignedRow: final gap +.008, throughput +8%; vs reduced-MLP 24-layer ~-.004..-.005.
+    # code_commit: 061b51d; UE5a .7716 steps/s, +12.87% vs BAlignedRow .6836, +9.08% vs Uniform .7074; generic ON/BAM OFF.
     model_name = 'BamMediumIndependentLLFBAlignedRow21LayerMLP2896'
     base_num_decoder_layers = 21
     base_mlp_dim = 2896

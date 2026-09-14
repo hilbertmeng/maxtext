@@ -56,6 +56,15 @@ seven complete LLF blocks and LocalV scale1. Prediction vs BAlignedRow: +.008 lo
 Actual abstract parameter trees verify totals above; audit artifact:
 `/data0/xd/llf-parameter-matched-depth-audit.json`. Both use identical clean WD rules.
 
+Both follow-ups run commit `061b51d` on UE5a v5p-16 and verified `Loaded compiled function!`.
+MHA2304 steps10–14 .964/.964/.963/.964/.965: mean .9640 (+6.40% vs clean MHA .906).
+21-layer BAM .771/.771/.772/.771/.773: mean .7716 (+12.87% vs BAlignedRow .6836;
++9.08% vs Uniform .7074, +9.04% vs PerLayer .7076). All timings use generic health ON/BAM OFF.
+The observed depth reduction gain is larger than the +8% bet, close to the 24/21 ideal
+layer-count throughput ratio (+14.29%) with modest MLP widening and unchanged fixed work.
+Both v6e AOT jobs completed artifact verification and compiler cleanup:
+`tpu-ag:aot_runs/061b51d-4d4e2dc3.json` (MHA), `061b51d-5a5cadd7.json` (BAM).
+
 ### Original Uniform/PerLayer launch
 
 Runtime commit: `94e13f9`. Both RUNs launched in UE5a on 2026-09-14 UTC,

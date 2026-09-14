@@ -2558,6 +2558,14 @@ class BamAttention(Attention):
         else float(fetched_read_gate_init))
     self._fetched_read_kernel_init = cfg.bam_fetched_read_kernel_init
     self._o_row_rank = getattr(cfg, 'bam_o_row_effective_rank', 0)
+    o_row_layers = getattr(cfg, 'bam_o_row_bottleneck_layers', None) or 'all'
+    assert o_row_layers in ('local', 'fetch', 'all')
+    self._o_row_bottleneck_dim = (
+        (getattr(cfg, 'bam_o_row_bottleneck_dim', None) or 0)
+        if o_row_layers == 'all' or
+        (o_row_layers == 'local' and 'local_o' in self._mode) or
+        (o_row_layers == 'fetch' and 'full' in self._mode) else 0)
+    assert not (self._o_row_rank and self._o_row_bottleneck_dim)
     self._fetched_read_kernel_gradient_scale = float(
         cfg.bam_fetched_read_kernel_gradient_scale)
     fetched_read_amplitude_init = getattr(
@@ -2838,7 +2846,8 @@ class BamAttention(Attention):
       # Joint target-side read key is generated directly in both cached spaces.
       read_features = (
           self._fetched_read_num_heads, cfg.bam_n_f,
-          read_v_dim if self._o_row_rank else read_k_dim + read_v_dim)
+          read_v_dim if self._o_row_rank or self._o_row_bottleneck_dim
+          else read_k_dim + read_v_dim)
       self.W_R = DenseGeneral(
           features=read_features, axis=-1,
           kernel_init=(
@@ -2849,6 +2858,19 @@ class BamAttention(Attention):
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False,
           kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
+      if self._o_row_bottleneck_dim:
+        assert self._o_row_bottleneck_dim > 0
+        for name, features, axes, init in (
+            ('W_R_row_down', self._o_row_bottleneck_dim,
+             ('embed', None), reg_init),
+            ('W_R_row_up', (self._fetched_read_num_heads, cfg.bam_n_f, read_k_dim),
+             ('embed', 'q_heads', 'fetch', 'kv'), zeros_init)):
+          setattr(self, name, DenseGeneral(
+              features=features, axis=-1, kernel_init=init, kernel_axes=axes,
+              dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
+              quant=self.quant, matmul_precision=cfg.matmul_precision,
+              use_bias=False,
+              kernel_gradient_scale=self._fetched_read_kernel_gradient_scale))
       if self._o_row_rank:
         assert self._o_row_rank > 0 and cfg.bam_n_f == 1
         assert self._read_key_mode == 'rms_gate' and self._fetched_read_side == 'both'
@@ -3441,7 +3463,11 @@ class BamAttention(Attention):
             'intermediates', 'fetched_read_pre_gate_effective_rms',
             m_rms * jnp.stack((jnp.mean(row_scale), jnp.mean(col_scale))))
       def full_read_projection(x):
-        return jnp.squeeze(self.W_R(x), axis=-2)
+        keys = self.W_R(x)
+        if self._o_row_bottleneck_dim:
+          row_keys = self.W_R_row_up(nn.gelu(self.W_R_row_down(x)))
+          keys = jnp.concatenate((row_keys, keys), axis=-1)
+        return jnp.squeeze(keys, axis=-2)
       if self._o_row_rank:
         assert not ungated
         col_key = _transform_bam_read_key(

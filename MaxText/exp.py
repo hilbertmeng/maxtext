@@ -7131,6 +7131,33 @@ class BamMediumIndependentLLFBAlignedRowGenericHealthSpeed(BamMediumIndependentL
     record_training_health_metrics = True
 
 
+class BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """F-only O row-key D→256→nK GELU; column keys and gates unchanged."""
+    # Implementation: codex/llf-o-row-lora, /data0/xd/llf-o-row-lora.
+    # Prediction vs BAlignedRow: final gap +.001, throughput +.2%; parameters -1,048,576.
+    model_name = 'BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_o_row_bottleneck_dim = 256
+    bam_o_row_bottleneck_layers = 'fetch'
+    record_training_health_metrics = True
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalORowR256Gelu(BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu):
+    """L-only O row-key bottleneck; all other BAlignedRow paths unchanged."""
+    # Prediction vs BAlignedRow: final gap +.001, throughput +.3%; parameters -2,097,152.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalORowR256Gelu'
+    bam_o_row_bottleneck_layers = 'local'
+
+
+class BamMediumIndependentLLFBAlignedRowAllORowR256Gelu(BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu):
+    """Both L/F O row-key bottlenecks; tests their combined effect."""
+    # Prediction vs BAlignedRow: final gap +.002, throughput +.5%; parameters -3,145,728.
+    model_name = 'BamMediumIndependentLLFBAlignedRowAllORowR256Gelu'
+    bam_o_row_bottleneck_layers = 'all'
+
+
 class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L/F O row reads use four dynamic C-fp32 bases; column and LocalQKV unchanged."""
     # Implementation: codex/llf-o-row-rank-training, /data0/xd/llf-o-row-rank-training.

@@ -62,3 +62,9 @@ TB events live at
 `gs://newproject-1-llm_base_models_us-central1/log/summaries/train/RUN/`
 (distinct from the zone-local checkpoint bucket).
 Training monitoring belongs to the user's other session; this task only completes launch checks.
+
+NoNorm also loaded AOT and passed step14 in UE5a on
+`xd-v5p-16-llf-o-row-static-nonorm-maxtext`; steps10–14 mean .6776/s.
+The expected 204 branch-health scalars and generic raw_grad_norm are present;
+all checked scalars finite, and no amplitude tags (NoNorm has no a parameter).
+Both AOT jobs completed compiler/candidate cleanup.

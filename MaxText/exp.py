@@ -7174,6 +7174,7 @@ class BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRowNoNorm(BamMediumIn
     """Raw normal(.006) static keys without normalization or amplitude parameter."""
     # Implementation: codex/llf-o-row-static-dynamic, /data0/xd/llf-o-row-static-dynamic.
     # Prediction vs normalized static arm: late gap +.001 (low confidence), similar speed.
+    # code_commit: b600adf; UE5a .6776 steps/s; generic ON + branch-energy health, same speed as Norm.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRowNoNorm'
     compare_runs = [
         'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',

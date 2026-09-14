@@ -194,6 +194,6 @@ XL运行`experiments/bam_llama2_medium/run_row_contribution.sh`，设置`ROW_STA
 
 ### 保留资源
 
-本节为粗粒度阶段快照；后续head分析中node0/3被云服务抢占，当前7台READY＋1个PROVISIONING资源的归属见[头间分布报告](/home/xd/projects/maxtext/experiments/bam_llama2_medium/row_head_contribution.md)。
+本节为粗粒度阶段快照；后续head分析中node0/3被云服务抢占，当前8台READY资源的归属见[头间分布报告](/home/xd/projects/maxtext/experiments/bam_llama2_medium/row_head_contribution.md)。
 
 粗粒度阶段按用户要求保留三台`v6e-1`，均在`europe-west4-a`：`xd-v6e-rowko-0-ewa4a-0914`、`xd-v6e-rowko-2-ewa4a-0914`、`xd-v6e-rowko-3-ewa4a-0914`。Medium完成后转用于XL，现全部诊断Python进程已退出；未新开训练、未删除这三台、未借用其他任务资源。资源及分片归属在两个产物根目录的`resource_manifest.json`。

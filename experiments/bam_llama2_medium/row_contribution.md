@@ -1,5 +1,7 @@
 # BAlignedRow：Q/K/V/O 行读贡献与联合删除结论
 
+追加逐层×逐头及弱头联合验证：见[Q/K/V/O头间分布报告](/home/xd/projects/maxtext/experiments/bam_llama2_medium/row_head_contribution.md)，包含Medium/XL相同64条配对结果与当前保留资源。
+
 2026-09-14；已完成。模型 `BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow`，checkpoint **13500**；同一批 **64 条 Pile、130974 个有效 target token**。原始 loss 为 **2.472505 nats/token**。层号从 **0** 开始，L=Local、F=Fetch，结构为8个LLF单元。
 
 ## 结论与精简优先级

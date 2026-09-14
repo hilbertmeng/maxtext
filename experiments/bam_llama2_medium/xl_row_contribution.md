@@ -1,5 +1,7 @@
 # XL SharedBasis 行读贡献明细
 
+追加逐层×逐头及弱头联合验证：见[Q/K/V/O头间分布报告](/home/xd/projects/maxtext/experiments/bam_llama2_medium/row_head_contribution.md)，包含Medium/XL相同64条配对结果与当前保留资源。
+
 模型 `BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis`，checkpoint30091，同64条Pile。
 
 [两尺度比较、结论及完整复现口径](/home/xd/projects/maxtext/experiments/bam_llama2_medium/row_contribution_scale_comparison.md)。

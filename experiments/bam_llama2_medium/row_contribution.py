@@ -139,6 +139,16 @@ def targeted_scenarios():
   return result
 
 
+def depth_scenarios():
+  result=[]
+  for name,start,stop in [('native',0,0),('QK_all_off',0,24),
+      ('QK_first_half',0,12),('QK_last_half',12,24),
+      ('QK_first_third',0,8),('QK_middle_third',8,16),('QK_last_third',16,24)]:
+    a=np.ones((24,4),np.float32);a[start:stop,:2]=0.
+    result.append(dict(name=name,kind='depth',start=start,stop=stop,scales=a.tolist()))
+  return result
+
+
 def digest_cohort(cohort):
   return [{k:hashlib.sha256(cohort[k][i].tobytes()).hexdigest() for k in KEYS} for i in range(len(cohort['inputs']))]
 
@@ -150,8 +160,8 @@ def run(config):
   hashes=digest_cohort(cohort)
   all_scenarios=scenarios()
   stage=os.environ.get('ROW_STAGE','all')
-  use=targeted_scenarios() if stage=='targeted' else [s for s in all_scenarios if stage=='all' or (stage=='groups' and s['kind'] in ('coalition','dose')) or (stage=='layers' and s['kind'] in ('layer','unit'))]
-  assert use and stage in ('all','groups','layers','targeted')
+  use=depth_scenarios() if stage=='depth' else targeted_scenarios() if stage=='targeted' else [s for s in all_scenarios if stage=='all' or (stage=='groups' and s['kind'] in ('coalition','dose')) or (stage=='layers' and s['kind'] in ('layer','unit'))]
+  assert use and stage in ('all','groups','layers','targeted','depth')
   # Default scalar variants preserve native bf16 lowering. Opt-in batching must pass equivalence checks.
   start=int(os.environ.get('ROW_START','0'));stop=int(os.environ.get('ROW_STOP','32'))
   assert 0<=start<stop<=min(64,len(hashes))

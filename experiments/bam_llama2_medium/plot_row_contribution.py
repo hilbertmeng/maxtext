@@ -14,7 +14,7 @@ for ax,path in zip(axs.ravel(),paths):
  layers=np.array([l for l,x in data]);means=np.array([x['mean'] for l,x in data]);ci=np.array([1.96*x['se'] if x['se'] is not None else 0 for l,x in data])
  ax.errorbar(layers,means,yerr=ci,color='#2166ac',fmt='.-',capsize=2,lw=1,label='Mean ± 1.96 paired SE')
  fetch=layers%3==2
- ax.scatter(layers[fetch],means[fetch],color='#d6604d',zorder=4,label='Fetch layer')
+ if np.any(fetch):ax.scatter(layers[fetch],means[fetch],color='#d6604d',zorder=4,label='Fetch layer')
  ax.axhline(0,color='gray',lw=.8);ax.set(title=f'{path} row: single-layer knockout',xlabel='Layer (zero-based)',ylabel='Loss increase (nats/token)');ax.set_xticks(range(0,24,3));ax.grid(alpha=.16);ax.legend(fontsize=8)
 fig.suptitle(f'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow · step 13500 · n={len(s["sample_ids"])}\nIndividual effects are not additive; V has no Fetch-layer branch. Panel y-scales differ.')
 fig.savefig(a.directory/'layer_contributions.png',dpi=180);fig.savefig(a.directory/'layer_contributions.pdf')

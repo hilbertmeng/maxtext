@@ -8,6 +8,10 @@ REFERENCE_GCS=${HEAD_REFERENCE_GCS:?}
 mkdir -p "$OUTPUT/maxtext-output/row-head-contribution"
 gsutil cp gs://newproject-1-llm_base_models_us-central1/log/diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz /tmp/pile_eval_cohort.npz
 gsutil cp "$REFERENCE_GCS" "$OUTPUT/reference.npz"
+if [[ -n ${HEAD_SCENARIOS_GCS:-} ]]; then
+ gsutil cp "$HEAD_SCENARIOS_GCS" "$OUTPUT/input_scenarios.json"
+ export HEAD_SCENARIOS="$OUTPUT/input_scenarios.json"
+fi
 cd "$REPO"
 env HARDWARE=tpu HEAD_REFERENCE="$OUTPUT/reference.npz" OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 \
  "$PYTHON" experiments/bam_llama2_medium/row_head_contribution.py MaxText/configs/base.yml \

@@ -23,7 +23,7 @@ TRAINING={
 def mask_row_head(read,keep,bam_k):
  assert read.shape[-2]==16 and read.shape[-1]>bam_k
  assert keep.shape==(16,)
- return jnp.concatenate((read[...,:bam_k],jnp.where(keep[...,None],read[...,bam_k:],jnp.zeros((),read.dtype))),axis=-1)
+ return jnp.concatenate((read[...,:bam_k],read[...,bam_k:]*keep[...,None].astype(read.dtype)),axis=-1)
 
 @contextlib.contextmanager
 def head_interventions(keep):
@@ -107,6 +107,10 @@ def run(config):
     continue
    begun=time.perf_counter();batch={k:jnp.asarray(v[index:index+1]) for k,v in cohort.items()}
    native=np.asarray(one(state.params,batch,jnp.ones(SHAPE,bool)))
+   if mode is None:
+    ordinary_value=np.asarray(ordinary(state.params,batch))
+    print('BASELINE_CHECK',index,'head',native,'ordinary',ordinary_value,'reference',reference['loss'][index,0],flush=True)
+    np.testing.assert_allclose(ordinary_value,reference['loss'][index,0],atol=1e-6,rtol=0)
    np.testing.assert_allclose(native,reference['loss'][index,0],atol=1e-6,rtol=0)
    if mode is None:
     np.testing.assert_allclose(native,np.asarray(ordinary(state.params,batch)),atol=1e-6,rtol=0)

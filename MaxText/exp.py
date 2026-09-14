@@ -7126,6 +7126,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
 class BamMediumIndependentLLFBAlignedRowStdTailWriteOrth(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Write address from pure MHA y_std tail through shared orthogonal projection + head bias."""
     # Implementation: codex/llf-std-tail-write, /data0/xd/llf-std-tail-write.
+    # code_commit: 6758378; UE5a .6950 steps/s (+1.67% vs BAlignedRow .6836), scoped write health ON.
     # Prediction vs BAlignedRow: final gap +.005; throughput +1.5% (scoped health adds a timing caveat).
     model_name = 'BamMediumIndependentLLFBAlignedRowStdTailWriteOrth'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
@@ -7147,6 +7148,7 @@ class BamMediumIndependentLLFBAlignedRowStdTailWriteOrth(BamMediumIndependentLLF
 class BamMediumIndependentLLFBAlignedRowStdTailWriteNormal(BamMediumIndependentLLFBAlignedRowStdTailWriteOrth):
     """Same architecture; shared projection uses normal(.006) initialization."""
     # Prediction vs BAlignedRow: final gap +.006; throughput same as Orth.
+    # code_commit: 6758378; UE5a .6960 steps/s (+1.81% vs BAlignedRow .6836), matched health with Orth.
     model_name = 'BamMediumIndependentLLFBAlignedRowStdTailWriteNormal'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
                     'BamMediumIndependentLLFBAlignedRowStdTailWriteOrth']

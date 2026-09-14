@@ -5,6 +5,7 @@
 Both derive from `BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow` in its historical
 implementation family (`bff38c30`), not the cleaned main implementation.
 Worktree `/data0/xd/llf-std-tail-write`, branch `codex/llf-std-tail-write`.
+Runtime commit `6758378d203a017894627ab83eb2feb8441044a0`.
 
 | RUN | E initializer | compare_runs | Preregistered final gap / throughput vs BAlignedRow |
 |---|---|---|---|
@@ -60,3 +61,36 @@ no P_loc parameters, projection/bias shapes and initialization, WD exclusions, a
 identical between arms, and per-layer TB export coverage. Pinned general BAM suite is also run.
 Startup verification requires loaded AOT plus FIRST_STEP and steps10–14 speed.
 After startup, ongoing training monitoring belongs to the user's other task; this task does not collect report cursors.
+
+## Launch reproduction
+
+Both AOTs compiled successfully on EW4a v6e-1 with `prepare_train_aot.py EXP
+6758378d203a017894627ab83eb2feb8441044a0 v5p-16 13500 --primary-zone europe-west4-a
+--backup-zones us-central1-a us-east5-a`.
+Artifact prefix: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/6758378/jax081-i0ae3f58-c17f538a/v5p-16/s13500/`;
+each artifact is `EXP.pickle`, with a verified `EXP.pickle.manifest.json`.
+Preparer states on tpu-ag: `aot_runs/6758378-60928671.json` (Orth), `aot_runs/6758378-5e8bcf0d.json` (Normal).
+
+Formal trainers submitted after AOT readiness: `xd-v5p-16-llf-std-tail-orth-maxtext` and
+`xd-v5p-16-llf-std-tail-normal-maxtext`, both UE5a. `run_exp_xd.sh` receives the full runtime
+commit, branch, exact compiled artifact, schedule and compare_runs listed above.
+Checkpoints: `gs://newproject-1-llm_projects_us-east5/log/EXP/checkpoints/`.
+TB: `gs://newproject-1-llm_base_models_us-central1/log/summaries/train/EXP/`.
+Training Pile replica: `gs://newproject-1-common_datasets_us-east5/pythia_pile_idxmaps_tfrecord`.
+
+Validation: pinned BAM suite 47/47 passed; the new L/F semantic/gradient/init/WD test passed;
+the per-layer exporter test passed through unittest. No extra diagnostic run was needed.
+
+Both loaded the compiled function and passed FIRST_STEP. Parameters 440438624 match the prediction.
+Steps10–14 throughput: Orth .6950 (+1.67% vs generic-health BAlignedRow .6836), Normal .6960
+(+1.81%); scoped write-health additionally ON in these two arms. Initial loss is identical
+10.843424, then diverges as expected. Both compiler cleanup states reached `ready`/AOT_CLEANUP_DONE.
+Normal TB contains all192 scoped tags plus generic raw_grad and per-parameter statistics.
+At step0 Normal source/dynamic RMS and mean epsilon fractions for L0/L11/L23 are respectively
+(.026334/.000907, .618912), (.184592/.006148, .029058), (.185543/.006184, .028654).
+Thus write epsilon1e-6 materially affects the initial low-layer normal(.006) address norm;
+it is not negligible merely because its configured value is small.
+Orth likewise has192 scoped tags and generic health. Its corresponding source/dynamic RMS and
+epsilon fractions are (.026334/.026334, .002255), (.184592/.184578, .00003133),
+(.185543/.185563, .00003092). Global step0 raw_grad is4.6194 Orth versus4.4721 Normal;
+the epsilon observation alone does not establish which initialization trains better.

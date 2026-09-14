@@ -52,4 +52,11 @@ F parameter tree unaffected, no O basis projection allocated.
 Pinned CPU runner from current main diagnostics skill, plus this focused test.
 Full block-scan compilation and actual FIRST_STEP remain launch gates.
 
+Runtime `36d6763737d512abdbc0597e2980ba958aa7ff53`: 47 general BAM tests and both focused
+tests passed in the pinned JAX0.8.1 CPU environment. Target v5p-16 AOT compiled on EW4a
+2026-09-14 08:29:19–08:31:03 UTC (including artifact validation), size423228486 bytes.
+Artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/36d6763/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32.pickle`.
+The corresponding `.manifest.json` records environment/topology/commit. Compiler cleanup completed.
+Formal pod `xd-v5p-16-llf-shared-row-cfp32-maxtext` submitted in UE5a at08:31:52 UTC.
+
 The task owns launch/first-step/speed verification only; ongoing monitoring is delegated by the user to another task.

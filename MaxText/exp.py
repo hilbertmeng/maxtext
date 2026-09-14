@@ -7225,6 +7225,7 @@ class BamMediumIndependentLLFBAlignedRowMLPUniform(
     """Near-MHA parameter budget: reduce every SwiGLU width to 2304."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs BAlignedRow: final gap +.008, throughput +8%; test, not a result.
+    # UE5a .7074 steps/s (+3.48% vs matched-health BAlignedRow .6836).
     model_name = 'BamMediumIndependentLLFBAlignedRowMLPUniform'
     compare_runs = [
         'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
@@ -7250,9 +7251,44 @@ class BamMediumIndependentLLFBAlignedRowMLPPerLayer(
     """Same total as Uniform; L/L/F SwiGLU widths 2256/2256/2400."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs Uniform: final gap -.001 (low confidence), comparable speed.
+    # UE5a .7076 steps/s (+3.51% vs matched-health BAlignedRow .6836).
     model_name = 'BamMediumIndependentLLFBAlignedRowMLPPerLayer'
     mlp_dim_by_block = [2256, 2256, 2400]
     compare_runs = BamMediumIndependentLLFBAlignedRowMLPUniform.compare_runs + [
         'BamMediumIndependentLLFBAlignedRowMLPUniform',
     ]
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-param-per-layer'
+
+
+class BamMHALlama2MediumC256ScanAotCleanMLP2304(BamMHALlama2MediumC256ScanAotCleanControl):
+    """MHA control for the same 37.749M MLP-parameter reduction as BAM Uniform."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs clean MHA: final gap +.015, throughput +4%.
+    model_name = 'BamMHALlama2MediumC256ScanAotCleanMLP2304'
+    compare_runs = ['BamMHALlama2MediumC256ScanAotCleanControl']
+    base_mlp_dim = 2304
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetch_route_metrics = False
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mha-mlp2304'
+
+
+class BamMediumIndependentLLFBAlignedRow21LayerMLP2896(BamMediumIndependentLLFBAlignedRowMLPUniform):
+    """Near-MHA budget by reducing depth: seven LLF blocks with full-width MLPs."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs BAlignedRow: final gap +.008, throughput +8%; vs reduced-MLP 24-layer ~-.004..-.005.
+    model_name = 'BamMediumIndependentLLFBAlignedRow21LayerMLP2896'
+    base_num_decoder_layers = 21
+    base_mlp_dim = 2896
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 7
+    compare_runs = BamMediumIndependentLLFBAlignedRowMLPUniform.compare_runs + [
+        'BamMediumIndependentLLFBAlignedRowMLPUniform',
+        'BamMediumIndependentLLFBAlignedRowMLPPerLayer',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-21layer-mlp2896'

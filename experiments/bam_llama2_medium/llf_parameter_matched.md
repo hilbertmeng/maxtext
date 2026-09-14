@@ -15,6 +15,8 @@ LocalQ/K and fetched scale 2; independent LocalV scale 1. No other BAM changes.
 | BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow | 2816/2816/2816 | 449,851,232 | +38,234,976 |
 | BamMediumIndependentLLFBAlignedRowMLPUniform | 2304/2304/2304 | 412,102,496 | +486,240 |
 | BamMediumIndependentLLFBAlignedRowMLPPerLayer | 2256/2256/2400 | 412,102,496 | +486,240 |
+| BamMHALlama2MediumC256ScanAotCleanMLP2304 | 2304 (24 layers) | 373,867,520 | -37,748,736 |
+| BamMediumIndependentLLFBAlignedRow21LayerMLP2896 | 2896 (21 layers, 7 LLF blocks) | 411,691,508 | +75,252 |
 
 Both candidates have identical total budgets: +0.158% vs MHA excluding the
 unchanged embedding/output vocabulary projections. Per-layer candidate excess:
@@ -34,6 +36,38 @@ Compiler primary EW4a; backups UC1a/UE5a after 300s. Prepare AOT before trainer
 requests; release compiler candidates after AOT verification.
 
 ## Reproduction
+
+### Follow-up: MHA width control and BAM depth allocation
+
+The original two RUNs are now monitored by another session. This task owns only
+`BamMHALlama2MediumC256ScanAotCleanMLP2304` and
+`BamMediumIndependentLLFBAlignedRow21LayerMLP2896` from this follow-up onward.
+Both retain generic health ON, BAM sow OFF, scan+AOT, checkpoint200 and the
+original 13,500-step schedule. No additional runtime implementation is needed.
+
+MHA2304 compares the clean MHA control: subtract its MLP-reduction gap from
+Uniform-minus-BAlignedRow to measure the interaction with BAM. Negative interaction
+means BAM tolerates the same MLP reduction better. Prediction: +.015 loss and +4%
+throughput vs clean MHA (historical speed may require health-matched verification).
+
+21-layer BAM compares BAlignedRow, clean MHA, Uniform and PerLayer. It preserves
+seven complete LLF blocks and LocalV scale1. Prediction vs BAlignedRow: +.008 loss,
++8% throughput; vs the reduced-MLP 24-layer variants, roughly -.004..-.005 loss.
+Actual abstract parameter trees verify totals above; audit artifact:
+`/data0/xd/llf-parameter-matched-depth-audit.json`. Both use identical clean WD rules.
+
+### Original Uniform/PerLayer launch
+
+Runtime commit: `94e13f9`. Both RUNs launched in UE5a on 2026-09-14 UTC,
+using verified v6e-built v5p-16 executables; both loaded the executable and passed step14.
+Uniform steps10–14: .707/.708/.707/.708/.707, mean .7074 steps/s.
+PerLayer: .707/.708/.705/.709/.709, mean .7076 steps/s.
+Matched-health BAlignedRow timing reference: .6836 steps/s (UE5a, `e8aca6b`).
+Gains +3.48%/+3.51% fall below the simplistic +8% prediction, not evidence of a runtime anomaly:
+MLP dense projections and BAM reads/writes have different time costs per parameter.
+Equal parameter budgets therefore do not imply equal throughput.
+Compiler state manifests on tpu-ag: `aot_runs/94e13f9-96e9b197.json` and
+`aot_runs/94e13f9-143a3459.json`; both completed cleanup successfully.
 
 Parameter audit uses actual abstract parameter trees without weight allocation.
 Sequence length is reduced to 8 and batch to 1 only for shape counting; model

@@ -360,6 +360,40 @@ def save_checkpoint(
 # Top-level Functions
 # -----------------------------------------------------------------------------
 # lsp
+def record_o_row_branch_metrics(output_metrics, intermediate_outputs, config):
+  """Export compact branch statistics from the two static L slots of an LLF scan."""
+  all_rows = []
+  names = ('static_ms', 'dynamic_ms', 'cross', 'total_ms', 'gate_mean',
+           'static_pre_gate_ms', 'dynamic_pre_gate_ms')
+  def record(values, prefix):
+    metrics = dict(zip(names, values))
+    denom = jnp.maximum(values[0] + values[1], 1e-30)
+    metrics.update(static_energy_share=values[0] / denom,
+                   dynamic_energy_share=values[1] / denom,
+                   interference_over_branch_energy=values[2] / denom,
+                   static_rms=jnp.sqrt(values[0]), dynamic_rms=jnp.sqrt(values[1]))
+    output_metrics['scalar'].update({f'{prefix}/{k}': v for k, v in metrics.items()})
+  for path, leaf in flatten_dict(intermediate_outputs['intermediates']).items():
+    if path[-1] == 'o_row_static_amplitude':
+      slot = next(int(p.split('_')[-1]) for p in path if p.startswith('local_'))
+      for block, a in enumerate(leaf[0]):
+        layer = block * config.bam_local_fetch_block_size + slot
+        prefix = f'bam/local_o_row_branches/layer_{layer:03d}'
+        output_metrics['scalar'][f'{prefix}/a'] = a
+        output_metrics['scalar'][f'{prefix}/a_over_a0'] = a / config.bam_local_o_static_amplitude_init
+    if path[-1] != 'o_row_branch_energy':
+      continue
+    slot = next(int(p.split('_')[-1]) for p in path if p.startswith('local_'))
+    values = leaf[0]
+    for block, row in enumerate(values):
+      layer = block * config.bam_local_fetch_block_size + slot
+      record(row, f'bam/local_o_row_branches/layer_{layer:03d}')
+      all_rows.append(row)
+  if not all_rows:
+    raise ValueError('LocalO branch health enabled but no captures were found')
+  record(jnp.mean(jnp.stack(all_rows), axis=0), 'bam/local_o_row_branches/all_local')
+
+
 def record_bam_fetched_read_amplitude_metrics(
     output_metrics, intermediate_outputs, config):
   """Adds per-layer fetched-read amplitude summaries to the metrics dict."""
@@ -941,6 +975,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_o_row_branch_metrics', False):
+    record_o_row_branch_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_amplitude_metrics', False):
     record_bam_fetched_read_amplitude_metrics(
         metrics, intermediate_outputs, config)

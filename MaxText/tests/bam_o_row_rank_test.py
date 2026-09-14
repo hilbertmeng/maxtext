@@ -3,10 +3,54 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from layers.attentions import _effective_key_row_read, BamAttention
+from layers.attentions import (_effective_key_row_read, _static_dynamic_o_row_read,
+                               _o_row_branch_energy, BamAttention)
 
 
 class ORowRankTest(absltest.TestCase):
+  def test_static_dynamic_single_gate(self):
+    keys = jax.random.split(jax.random.key(9), 5)
+    args = [jax.random.normal(k, shape) for k, shape in zip(keys, (
+        (1, 3, 7, 5), (7, 6), (1, 3, 4, 7), (1, 3, 6, 4), (1, 3, 6)))]
+    def actual(*args):
+      return _static_dynamic_o_row_read(*args, key_scale=2., rms_epsilon=1e-4,
+                                        implementation='mul_reduce_btn')[0]
+    def explicit(m, s, a, h, g):
+      s = s * jax.lax.rsqrt(jnp.mean(s*s, axis=0, keepdims=True) + 1e-6)
+      key = h @ a
+      key = key * jax.lax.rsqrt(jnp.mean(key*key, axis=-1, keepdims=True) + 1e-4)
+      return 2 * jax.nn.sigmoid(g)[..., None] * (jnp.einsum('btkc,kn->btnc',m,s) + key @ m)
+    np.testing.assert_allclose(actual(*args), explicit(*args), rtol=1e-4, atol=1e-5)
+    for x, y in zip(jax.grad(lambda *a: actual(*a).sum(), argnums=(0,1,2,3,4))(*args),
+                    jax.grad(lambda *a: explicit(*a).sum(), argnums=(0,1,2,3,4))(*args)):
+      np.testing.assert_allclose(x, y, rtol=2e-4, atol=2e-5)
+    _, s, d, g = _static_dynamic_o_row_read(*args, key_scale=2., rms_epsilon=1e-4,
+                                          implementation='mul_reduce_btn')
+    e = _o_row_branch_energy(s,d,g)
+    np.testing.assert_allclose(e[0]+e[1]+e[2],e[3],rtol=1e-6)
+
+  def test_static_dynamic_only_local_modules(self):
+    from bam_local_fetch_test import LocalFetchTest
+    import max_utils
+    helper = LocalFetchTest()
+    self.addCleanup(helper.doCleanups)
+    cfg = helper.config('BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow')
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    for mode, expected in (('local_qk+local_o', True), ('local_qk+full', False)):
+      module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+          head_dim=64, max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode=mode, attention_type=cfg.attention_type)
+      x = jnp.ones((1,8,128),cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      p = module.init({'params':jax.random.key(1),'aqt':jax.random.key(2)},
+          *args,M_in=jnp.ones((1,8,32,32),cfg.dtype),deterministic=True,layer_index=1)
+      self.assertEqual('W_o_row_static' in p['params'], expected)
+      self.assertEqual('W_o_row_basis' in p['params'], expected)
+      _, capture = module.apply(p, *args, M_in=jnp.ones((1,8,32,32),cfg.dtype),
+                                deterministic=True,layer_index=1,mutable=['intermediates'])
+      self.assertEqual('o_row_branch_energy' in capture.get('intermediates', {}), expected)
+
   def test_forward_and_vjp(self):
     keys = jax.random.split(jax.random.key(18), 5)
     args = [jax.random.normal(k, shape) for k, shape in zip(keys, (

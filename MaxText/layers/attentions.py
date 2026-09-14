@@ -2107,12 +2107,42 @@ def _effective_key_row_read(M, bases, mix, gate_logits, *, key_scale,
                             rms_epsilon, implementation, gate_activation=jax.nn.sigmoid):
   """C-fp32 row read: normalize composed keys without materializing n*K keys."""
   norm2 = _gram_read_norm2(bases, mix, 'mul_reduce', jnp.float32)
-  scale = key_scale * gate_activation(gate_logits) * jax.lax.rsqrt(
+  gate = 1 if gate_logits is None else gate_activation(gate_logits)
+  scale = key_scale * gate * jax.lax.rsqrt(
       norm2.astype(bases.dtype) / bases.shape[-1] + rms_epsilon)
   _, basis_read = _contract_bam_read_sides(
       M, M, bases, None, implementation=implementation, read_side='row')
   mix = mix * scale[..., None]
   return jnp.sum(mix[..., :, :, None] * basis_read[..., None, :, :], axis=-2)
+
+
+def _static_dynamic_o_row_read(M, static_key, bases, mix, gate_logits, *,
+                               key_scale, rms_epsilon, implementation,
+                               gate_activation=jax.nn.sigmoid, normalize_static=True,
+                               static_amplitude=1.):
+  """Separately normalized static/dynamic row reads, with one output gate."""
+  key = static_key.astype(M.dtype)
+  if normalize_static:
+    key = normalizations.rms_norm(
+        key, dtype=M.dtype, epsilon=1e-6, axis=0,
+        statistics_dtype=jnp.float32)
+    key = key * jnp.asarray(static_amplitude, M.dtype)
+  static = key_scale * jnp.einsum('btkc,kn->btnc', M, key)
+  dynamic = _effective_key_row_read(
+      M, bases, mix, None, key_scale=key_scale, rms_epsilon=rms_epsilon,
+      implementation=implementation)
+  gate = gate_activation(gate_logits)[..., None]
+  return (static + dynamic) * gate, static, dynamic, gate
+
+
+def _o_row_branch_energy(static, dynamic, gate):
+  """Gate-weighted squared norms and signed interference, not causal attribution."""
+  s, d = static.astype(jnp.float32), dynamic.astype(jnp.float32)
+  sg, dg = s * gate.astype(jnp.float32), d * gate.astype(jnp.float32)
+  return jnp.stack((jnp.mean(sg * sg), jnp.mean(dg * dg),
+                    2 * jnp.mean(sg * dg), jnp.mean((sg + dg) ** 2),
+                    jnp.mean(gate.astype(jnp.float32)),
+                    jnp.mean(s * s), jnp.mean(d * d)))
 
 
 def factorized_head_bam_read(
@@ -2558,6 +2588,9 @@ class BamAttention(Attention):
         else float(fetched_read_gate_init))
     self._fetched_read_kernel_init = cfg.bam_fetched_read_kernel_init
     self._o_row_rank = getattr(cfg, 'bam_o_row_effective_rank', 0)
+    self._o_row_static_dynamic = getattr(cfg, 'bam_local_o_row_static_dynamic', False)
+    if self._o_row_static_dynamic and not (self._local_o and 'full' not in self._mode):
+      self._o_row_rank = 0  # This experiment changes L only; F retains its original W_R.
     self._fetched_read_kernel_gradient_scale = float(
         cfg.bam_fetched_read_kernel_gradient_scale)
     fetched_read_amplitude_init = getattr(
@@ -2850,6 +2883,15 @@ class BamAttention(Attention):
           use_bias=False,
           kernel_gradient_scale=self._fetched_read_kernel_gradient_scale)
       if self._o_row_rank:
+        if self._o_row_static_dynamic:
+          self.W_o_row_static = self.param(
+              'W_o_row_static', nn.with_logical_partitioning(reg_init, ('kv', 'q_heads')),
+              (read_k_dim, self._fetched_read_num_heads), self.weight_dtype)
+          if cfg.bam_local_o_static_key_norm:
+            self.o_row_static_scale = self.param(
+                'o_row_static_scale', nn.with_logical_partitioning(
+                    nn.initializers.constant(cfg.bam_local_o_static_amplitude_init), (None,)),
+                (1,), self.weight_dtype)
         assert self._o_row_rank > 0 and cfg.bam_n_f == 1
         assert self._read_key_mode == 'rms_gate' and self._fetched_read_side == 'both'
         assert not (self._create_grouped_rw_norm or self._use_native_grouped_read_norm)
@@ -3453,11 +3495,25 @@ class BamAttention(Attention):
         col, _ = _contract_bam_read_sides(
             Mbar, Mbar, None, col_key,
             implementation=self._read_implementation, read_side='col')
-        row = _effective_key_row_read(
-            Mbar, self.W_o_row_basis(inputs_q), self.W_o_row_mix(inputs_q),
-            interpolation_gate_logits[..., 0], key_scale=self._read_key_scale,
-            rms_epsilon=self._fetched_read_key_epsilon,
-            implementation=self._read_implementation, gate_activation=self._read_gate_activation)
+        args = (Mbar, self.W_o_row_basis(inputs_q), self.W_o_row_mix(inputs_q),
+                interpolation_gate_logits[..., 0])
+        options = dict(key_scale=self._read_key_scale,
+                       rms_epsilon=self._fetched_read_key_epsilon,
+                       implementation=self._read_implementation,
+                       gate_activation=self._read_gate_activation)
+        if self._o_row_static_dynamic:
+          row, static, dynamic, gate = _static_dynamic_o_row_read(
+              args[0], self.W_o_row_static, *args[1:], **options,
+              normalize_static=self.config.bam_local_o_static_key_norm,
+              static_amplitude=(self.o_row_static_scale
+                  if self.config.bam_local_o_static_key_norm else 1.))
+          if getattr(self.config, 'bam_record_o_row_branch_metrics', False):
+            self.sow('intermediates', 'o_row_branch_energy',
+                     _o_row_branch_energy(static, dynamic, gate))
+            if self.config.bam_local_o_static_key_norm:
+              self.sow('intermediates', 'o_row_static_amplitude', self.o_row_static_scale[0])
+        else:
+          row = _effective_key_row_read(*args, **options)
         full_read = col, row
       else:
         full_read = bam_read(

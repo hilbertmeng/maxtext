@@ -272,6 +272,10 @@ class BamLlama2Medium(Llama2Medium):
     bam_fetched_read_gate_init = None  # None follows bam_read_gate_init
     bam_fetched_read_kernel_init = 'zero'  # zero | normal (the model's regular kernel initializer)
     bam_o_row_effective_rank = 0  # L/F O row: 0 keeps independent heads; >0 uses C-fp32 bases.
+    bam_local_o_row_static_dynamic = False
+    bam_local_o_static_key_norm = True
+    bam_local_o_static_amplitude_init = (0.006**2 + 1e-6)**0.5
+    bam_record_o_row_branch_metrics = False
     bam_fetched_read_kernel_gradient_scale = 1.0
     # Optional fetched-read-only amplitude outside sigmoid: a/sqrt(C).
     bam_fetched_read_amplitude_init = None
@@ -7142,6 +7146,39 @@ class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLo
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
     bam_o_row_effective_rank = 4
     record_training_health_metrics = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """L-only LocalO row: static 32x16 plus dynamic rank4 C-fp32, one output gate."""
+    # Implementation: codex/llf-o-row-static-dynamic, /data0/xd/llf-o-row-static-dynamic.
+    # Prediction vs BAlignedRow: late gap +.002; core throughput roughly flat (+/-1%), health overhead unmeasured.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_o_row_effective_rank = 4
+    bam_local_o_row_static_dynamic = True
+    bam_record_o_row_branch_metrics = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-o-row-static-dynamic'
+
+
+class BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRowNoNorm(BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow):
+    """Raw normal(.006) static keys without normalization or amplitude parameter."""
+    # Implementation: codex/llf-o-row-static-dynamic, /data0/xd/llf-o-row-static-dynamic.
+    # Prediction vs normalized static arm: late gap +.001 (low confidence), similar speed.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRowNoNorm'
+    compare_runs = [
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+        'BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow',
+    ]
+    bam_local_o_static_key_norm = False
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-o-row-static-dynamic-nonorm'
 
 
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):

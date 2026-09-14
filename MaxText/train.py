@@ -360,6 +360,26 @@ def save_checkpoint(
 # Top-level Functions
 # -----------------------------------------------------------------------------
 # lsp
+def record_std_tail_write_metrics(output_metrics, intermediate_outputs, config):
+  """Export seven small write-address captures per physical layer of an LLF block scan."""
+  per_layer = {}
+  for path, leaf in flatten_dict(intermediate_outputs['intermediates']).items():
+    if not path[-1].startswith('std_tail_write_'):
+      continue
+    slot = next(int(p.rsplit('_', 1)[-1]) for p in path
+                if p.startswith(('local_', 'fetch_')))
+    name = path[-1].removeprefix('std_tail_write_')
+    for block, value in enumerate(leaf[0]):
+      layer = block * config.bam_local_fetch_block_size + slot
+      per_layer.setdefault(layer, {})[name] = value
+  if len(per_layer) != config.base_num_decoder_layers:
+    raise ValueError(f'Missing std-tail write health: {len(per_layer)} layers')
+  for layer, values in per_layer.items():
+    values['bias_over_dynamic_rms'] = values['bias_rms'] / jnp.maximum(values['dynamic_rms'], 1e-12)
+    output_metrics['scalar'].update({
+        f'bam/std_tail_write/layer_{layer:03d}/{name}': value for name, value in values.items()})
+
+
 def record_bam_fetched_read_amplitude_metrics(
     output_metrics, intermediate_outputs, config):
   """Adds per-layer fetched-read amplitude summaries to the metrics dict."""
@@ -941,6 +961,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_std_tail_write_metrics', False):
+    record_std_tail_write_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_amplitude_metrics', False):
     record_bam_fetched_read_amplitude_metrics(
         metrics, intermediate_outputs, config)

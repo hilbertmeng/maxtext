@@ -7123,6 +7123,36 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     bam_local_v_share_output_coordinates = True
 
 
+class BamMediumIndependentLLFBAlignedRowStdTailWriteOrth(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Write address from pure MHA y_std tail through shared orthogonal projection + head bias."""
+    # Implementation: codex/llf-std-tail-write, /data0/xd/llf-std-tail-write.
+    # Prediction vs BAlignedRow: final gap +.005; throughput +1.5% (scoped health adds a timing caveat).
+    model_name = 'BamMediumIndependentLLFBAlignedRowStdTailWriteOrth'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_write_v_mode = 'std_tail_projected'
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+    bam_std_tail_projection_init = 'orthogonal'
+    bam_record_std_tail_write_metrics = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFBAlignedRowStdTailWriteNormal(BamMediumIndependentLLFBAlignedRowStdTailWriteOrth):
+    """Same architecture; shared projection uses normal(.006) initialization."""
+    # Prediction vs BAlignedRow: final gap +.006; throughput same as Orth.
+    model_name = 'BamMediumIndependentLLFBAlignedRowStdTailWriteNormal'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFBAlignedRowStdTailWriteOrth']
+    bam_std_tail_projection_init = 'normal'
+
+
 class BamMediumIndependentLLFBAlignedRowGenericHealthSpeed(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Speed-only BAlignedRow reference: generic health ON, BAM sow OFF."""
     # Original BAlignedRow implementation; UE5a v5p-16 block-scan/AOT, full 13500-step schedule.

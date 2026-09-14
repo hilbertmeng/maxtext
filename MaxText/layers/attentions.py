@@ -2660,7 +2660,7 @@ class BamAttention(Attention):
     self._write_outer_implementation = cfg.bam_write_outer_implementation
     assert self._read_key_mode in ('none', 'soft_rms_cap', 'rms_gate')
     assert 'local_qk' not in self._mode or self._local_qk_key_mode == 'factorized'
-    assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static')
+    assert self._write_v_mode in ('x', 'x_bias', 'mix', 'o_tail', 'static', 'std_tail_projected')
     assert self._write_factor_norm in ('rms', 'grouped_rms')
     assert self._write_u2_norm in ('rms', 'grouped_rms_bias')
     assert self._write_u2_norm == 'rms' or self._write_v_mode == 'o_tail'
@@ -2937,7 +2937,21 @@ class BamAttention(Attention):
       # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
       loc_v = self.bam_v if cfg.bam_write_form == 'agg_u@loc_v' else self.bam_k
       assert self._write_v_mode != 'mix' or loc_v == self.bam_v
-      if self._write_v_mode == 'o_tail':
+      if self._write_v_mode == 'std_tail_projected':
+        assert cfg.bam_write_form == 'agg_u@loc_v'
+        assert self.bam_k + loc_v <= self.head_dim
+        projection_init = getattr(cfg, 'bam_std_tail_projection_init', 'orthogonal')
+        assert projection_init in ('orthogonal', 'normal')
+        self.write_std_tail_projection = self.param(
+            'write_std_tail_projection', nn.with_logical_partitioning(
+                nn.initializers.orthogonal() if projection_init == 'orthogonal'
+                else nn.initializers.normal(stddev=.006), ('kv', 'v_factor')),
+            (loc_v, loc_v), self.weight_dtype)
+        self.write_std_tail_bias = self.param(
+            'write_std_tail_bias', nn.with_logical_partitioning(
+                nn.initializers.zeros, ('q_heads', 'v_factor')),
+            (self.num_query_heads, loc_v), self.weight_dtype)
+      elif self._write_v_mode == 'o_tail':
         assert self.head_dim - self.bam_k == loc_v, (
             'o_tail write requires the o_head tail width to equal the V-factor width')
       elif self._write_v_mode == 'static':
@@ -3288,7 +3302,7 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
-  def _write(self, o_head, x, M_in):
+  def _write(self, o_head, x, M_in, *, y_std=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): the address
@@ -3306,7 +3320,13 @@ class BamAttention(Attention):
       u1 = jnp.einsum('btnd,ndk->btnk', o_head, write_u_proj)
     else:  # V1 default
       u1 = o_head[..., :self.bam_k]                        # U factor [b,t,n,k]
-    if self._write_v_mode == 'o_tail':
+    if self._write_v_mode == 'std_tail_projected':
+      assert y_std is not None, 'Projected address must use pre-BAM-add y_std, not o_head'
+      source_v = y_std[..., self.bam_k:self.bam_k + self.bam_v]
+      dynamic_v = source_v @ self.write_std_tail_projection.astype(source_v.dtype)
+      address_bias = self.write_std_tail_bias.astype(source_v.dtype)
+      u2 = dynamic_v + address_bias
+    elif self._write_v_mode == 'o_tail':
       u2 = o_head[..., self.bam_k:]
     elif self._write_v_mode == 'static':
       u2 = self.S_v
@@ -3341,6 +3361,18 @@ class BamAttention(Attention):
       g = g * (1.0 / jnp.sqrt(self.num_query_heads))
     u1_norm = self.write_data_norm(u1) if self._write_data_rms else u1
     u2_norm = self.write_address_norm(u2)
+    if (self._write_v_mode == 'std_tail_projected'
+        and getattr(cfg, 'bam_record_std_tail_write_metrics', False)):
+      def rms(z):
+        return jnp.sqrt(jnp.mean(jnp.square(z.astype(jnp.float32))))
+      mean_square = jnp.mean(jnp.square(u2.astype(jnp.float32)), axis=-1)
+      for name, value in (
+          ('source_rms', rms(source_v)), ('dynamic_rms', rms(dynamic_v)),
+          ('bias_rms', rms(address_bias)), ('pre_norm_rms', rms(u2)),
+          ('post_norm_rms', rms(u2_norm)),
+          ('epsilon_fraction', jnp.mean(self._rms_epsilon / (mean_square + self._rms_epsilon))),
+          ('projection_rms', rms(self.write_std_tail_projection))):
+        self.sow('intermediates', 'std_tail_write_' + name, value)
     gated_u1 = g[..., None] * u1_norm
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
@@ -3724,7 +3756,7 @@ class BamAttention(Attention):
     elif self._has_write:
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
-        M_out, _ = self._write(o_head, inputs_q, M_in)
+        M_out, _ = self._write(o_head, inputs_q, M_in, y_std=y_std)
     else:
       M_out = M_in
 

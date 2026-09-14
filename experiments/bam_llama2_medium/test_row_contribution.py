@@ -19,6 +19,16 @@ def run():
   np.testing.assert_array_equal(r.scale_row(x,jnp.float32(1)),x)
   y=r.scale_row(x,jnp.float32(0))
   np.testing.assert_array_equal(y[...,:32],x[...,:32]);np.testing.assert_array_equal(y[...,32:],0)
+  # XL packs column64 followed by row64; exercise the actual wider boundary.
+  wide=jnp.arange(256,dtype=jnp.float32).reshape(1,1,2,128)
+  wide_off=r.scale_row(wide,jnp.float32(0),64)
+  np.testing.assert_array_equal(wide_off[...,:64],wide[...,:64])
+  np.testing.assert_array_equal(wide_off[...,64:],0)
+  np.testing.assert_array_equal(r.scale_row(wide,jnp.float32(1),64),wide)
+  depth=np.array([s['scales'] for s in r.depth_scenarios()])
+  assert depth.shape==(7,24,4) and np.all(depth[:,:,2:]==1)
+  assert np.all(depth[2,:,:2]+depth[3,:,:2]==1)
+  assert np.all(depth[4,:,:2]+depth[5,:,:2]+depth[6,:,:2]==2)
   names=[s['name'] for s in r.scenarios()];assert len(names)==len(set(names))==141
   assert len([s for s in r.scenarios() if s['kind']=='layer'])==88
   assert not any(s.get('layer',0)%3==2 and s.get('path')=='V' for s in r.scenarios() if s['kind']=='layer')

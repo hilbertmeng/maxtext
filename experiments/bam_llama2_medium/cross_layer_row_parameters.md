@@ -121,6 +121,7 @@ speed must be measured separately. No training was launched by this diagnosis.
   created at the exact training commit; model code unchanged.
 - Checkpoint: `gs://newproject-1-llm_projects_us-east5/log/BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow/checkpoints/13500/items`.
   Both step and items `commit_success.txt` verified (150/156 bytes).
+- Diagnostic runner commit: `72f55275` (training/model code remains `77401da6`).
 - Runner: `experiments/bam_llama2_medium/cross_layer_row_parameters.py`;
   figure: `plot_cross_layer_row_parameters.py`. JSON records runner SHA256.
 - CPU-only Orbax partial restore of eight leaves, explicitly overriding saved TPU

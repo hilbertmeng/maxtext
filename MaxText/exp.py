@@ -7123,6 +7123,26 @@ class BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow(BamMediumIndependentL
     bam_local_v_share_output_coordinates = True
 
 
+class BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """L LocalV/LocalO share rank4 row bases/read; independent C-fp32 routing and gates."""
+    # Implementation: codex/llf-shared-row-bases, /data0/xd/llf-shared-row-bases.
+    # Prediction vs BAlignedRow: final gap -.001 (low confidence), throughput +1%.
+    # LocalV B->C too; V key_scale stays1, O stays2. Q/K rank1 legacy, F and O column unchanged.
+    model_name = 'BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_o_share_v_row_basis = True
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_statistics_dtype = 'float32'
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
 class BamMediumIndependentLLFBAlignedRowGenericHealthSpeed(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Speed-only BAlignedRow reference: generic health ON, BAM sow OFF."""
     # Original BAlignedRow implementation; UE5a v5p-16 block-scan/AOT, full 13500-step schedule.

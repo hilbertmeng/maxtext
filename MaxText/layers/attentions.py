@@ -2106,11 +2106,19 @@ def _gram_read_norm2(A, H, implementation, statistics_dtype=jnp.float32):
 def _effective_key_row_read(M, bases, mix, gate_logits, *, key_scale,
                             rms_epsilon, implementation, gate_activation=jax.nn.sigmoid):
   """C-fp32 row read: normalize composed keys without materializing n*K keys."""
+  _, basis_read = _contract_bam_read_sides(
+      M, M, bases, None, implementation=implementation, read_side='row')
+  return _effective_key_row_expand(
+      bases, basis_read, mix, gate_logits, key_scale=key_scale,
+      rms_epsilon=rms_epsilon, gate_activation=gate_activation)
+
+
+def _effective_key_row_expand(bases, basis_read, mix, gate_logits, *,
+                              key_scale, rms_epsilon, gate_activation=jax.nn.sigmoid):
+  """Independent C routing of an already computed (possibly V-compressed) row read."""
   norm2 = _gram_read_norm2(bases, mix, 'mul_reduce', jnp.float32)
   scale = key_scale * gate_activation(gate_logits) * jax.lax.rsqrt(
       norm2.astype(bases.dtype) / bases.shape[-1] + rms_epsilon)
-  _, basis_read = _contract_bam_read_sides(
-      M, M, bases, None, implementation=implementation, read_side='row')
   mix = mix * scale[..., None]
   return jnp.sum(mix[..., :, :, None] * basis_read[..., None, :, :], axis=-2)
 
@@ -2125,7 +2133,7 @@ def factorized_head_bam_read(
     implementation='mul_reduce_btn', read_side='both', rank=1,
     second_implementation='mul_reduce', v_projection=None,
     rank_routing='legacy',
-    return_rank_gate=False, return_sides=True,
+    return_rank_gate=False, return_sides=True, return_row_basis=False,
     gram_implementation='mul_reduce', scale_placement='output',
     gram_statistics_dtype=jnp.float32):
   """Read with rank-r shared runtime keys, then route dynamically across heads.
@@ -2284,7 +2292,9 @@ def factorized_head_bam_read(
     if y_v is None:
       y_v = jnp.zeros(y_u.shape[:-1] + (v_output_dim,), dtype=y_u.dtype)
     read = (y_u, y_v) if return_sides else jnp.concatenate([y_u, y_v], axis=-1)
-    return (read, rank_gate) if return_rank_gate else read
+    result = (read, rank_gate) if return_rank_gate else read
+    # Before destination-specific routing/gating; reuse without another M contraction.
+    return (result, (r_row, y_v_basis)) if return_row_basis else result
 
 
 @dataclasses.dataclass(frozen=True)
@@ -2558,6 +2568,13 @@ class BamAttention(Attention):
         else float(fetched_read_gate_init))
     self._fetched_read_kernel_init = cfg.bam_fetched_read_kernel_init
     self._o_row_rank = getattr(cfg, 'bam_o_row_effective_rank', 0)
+    self._share_local_vo_row_basis = (
+        getattr(cfg, 'bam_local_o_share_v_row_basis', False) and self._local_o)
+    if self._share_local_vo_row_basis:
+      assert self._local_v_mode == 'rank2'
+      assert cfg.bam_local_v_share_output_coordinates
+      assert self._local_arms['v'].rank_routing == 'effective_key'
+      self._o_row_rank = cfg.bam_local_v_rank
     self._fetched_read_kernel_gradient_scale = float(
         cfg.bam_fetched_read_kernel_gradient_scale)
     fetched_read_amplitude_init = getattr(
@@ -2859,6 +2876,8 @@ class BamAttention(Attention):
              ('embed', None, 'kv'), zeros_init),
             ('W_o_row_mix', (self._fetched_read_num_heads, self._o_row_rank),
              ('embed', 'q_heads', None), reg_init)):
+          if self._share_local_vo_row_basis and name == 'W_o_row_basis':
+            continue
           setattr(self, name, DenseGeneral(
               features=features, axis=-1, kernel_init=init, kernel_axes=axes,
               dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
@@ -3228,7 +3247,7 @@ class BamAttention(Attention):
             packed[..., mix].reshape(lead + (arm.num_heads, 2, arm.rank)))
         for arm, (basis, gate, mix) in zip(arms, layout)}
 
-  def _read_local(self, name, M, x, local_inputs):
+  def _read_local(self, name, M, x, local_inputs, *, return_row_basis=False):
     """Read arm ``name`` from M: bias -> gate -> factorized read -> head fit."""
     arm = self._local_arms[name]
     key, gate, mix = local_inputs[name]
@@ -3257,13 +3276,17 @@ class BamAttention(Attention):
         gram_implementation=getattr(self.config, 'bam_local_gram_implementation', 'mul_reduce'),
         gram_statistics_dtype=self._local_gram_statistics_dtype,
         scale_placement=getattr(self.config, 'bam_local_gram_scale_placement', None) or 'output',
-        return_rank_gate=self._record_local_routing_metrics)
+        return_rank_gate=self._record_local_routing_metrics,
+        return_row_basis=return_row_basis)
+    if return_row_basis:
+      result, row_basis = result
     if self._record_local_routing_metrics:
       result, rank_gate = result
       self._record_local_rank_gate(f'local_{name}', rank_gate)
-    return _fit_bam_read_to_head(
+    output = _fit_bam_read_to_head(
         result, self.bam_k, self.head_dim,
         getattr(self, f'local_{name}_v_adapter', None))
+    return (output, row_basis) if return_row_basis else output
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3407,7 +3430,7 @@ class BamAttention(Attention):
         jnp.concatenate((y_k, y_v), axis=-1),
         self.num_query_heads, self.head_dim)
 
-  def _read_fetched_m(self, Mbar, inputs_q, *, ungated=False):
+  def _read_fetched_m(self, Mbar, inputs_q, *, ungated=False, shared_row_basis=None):
     """Read fetched M; ungated sharing returns compact (col/u, row/v) sides."""
     with jax.named_scope("bam/read_fetched_m"):
       m_rms = None
@@ -3453,11 +3476,19 @@ class BamAttention(Attention):
         col, _ = _contract_bam_read_sides(
             Mbar, Mbar, None, col_key,
             implementation=self._read_implementation, read_side='col')
-        row = _effective_key_row_read(
-            Mbar, self.W_o_row_basis(inputs_q), self.W_o_row_mix(inputs_q),
-            interpolation_gate_logits[..., 0], key_scale=self._read_key_scale,
-            rms_epsilon=self._fetched_read_key_epsilon,
-            implementation=self._read_implementation, gate_activation=self._read_gate_activation)
+        if self._share_local_vo_row_basis:
+          assert shared_row_basis is not None
+          row = _effective_key_row_expand(
+              *shared_row_basis, self.W_o_row_mix(inputs_q),
+              interpolation_gate_logits[..., 0], key_scale=self._read_key_scale,
+              rms_epsilon=self._fetched_read_key_epsilon,
+              gate_activation=self._read_gate_activation)
+        else:
+          row = _effective_key_row_read(
+              Mbar, self.W_o_row_basis(inputs_q), self.W_o_row_mix(inputs_q),
+              interpolation_gate_logits[..., 0], key_scale=self._read_key_scale,
+              rms_epsilon=self._fetched_read_key_epsilon,
+              implementation=self._read_implementation, gate_activation=self._read_gate_activation)
         full_read = col, row
       else:
         full_read = bam_read(
@@ -3630,13 +3661,20 @@ class BamAttention(Attention):
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       local_state = self._compress_full_fetch_state(Mh)
+      shared_row_basis = None
+      if self._share_local_vo_row_basis:
+        with jax.named_scope("bam/read_local_m_for_v"):
+          local_v, shared_row_basis = self._read_local(
+              'v', Mh, inputs_q, local_inputs, return_row_basis=True)
+          value = value + local_v
       local_output, output_logits = self._read_fetched_m(
-          local_state, inputs_q, ungated=self._local_v_mode == 'shared')
+          local_state, inputs_q, ungated=self._local_v_mode == 'shared',
+          shared_row_basis=shared_row_basis)
       if self._local_v_mode == 'shared':
         value = value + self._gate_local_output(
             local_output, self._project_read_gate_logits('W_lv_gate', inputs_q))
         local_output = self._gate_local_output(local_output, output_logits)
-      elif self._local_v_mode == 'rank2':
+      elif self._local_v_mode == 'rank2' and not self._share_local_vo_row_basis:
         with jax.named_scope("bam/read_local_m_for_v"):
           value = value + self._read_local('v', Mh, inputs_q, local_inputs)
 

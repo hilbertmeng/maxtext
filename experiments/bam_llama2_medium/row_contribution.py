@@ -117,6 +117,28 @@ def scenarios():
   return result
 
 
+
+def targeted_scenarios():
+  """Exploratory joint deletions selected after the original64-sequence screen."""
+  result=[]
+  def add(name,selected):
+    a=np.ones((24,4),np.float32)
+    for layer,path in selected:a[layer,path]=0.
+    result.append(dict(name=name,kind='targeted',scale=0.,scales=a.tolist()))
+  add('native',[])
+  add('O_local_off',[(l,3) for l in range(24) if l%3!=2])
+  add('O_fetch_off',[(l,3) for l in range(24) if l%3==2])
+  add('O_keep_F5_F11',[(l,3) for l in range(24) if l not in (5,11)])
+  add('O_keep_L1_F2_F5_F11',[(l,3) for l in range(24) if l not in (1,2,5,11)])
+  add('V_keep_L1',[(l,2) for l in range(24) if l!=1 and l%3!=2])
+  add('QK_off',[(l,p) for l in range(24) for p in (0,1)])
+  add('O_F5_F11_off',[(l,3) for l in (5,11)])
+  add('combined_sparse_rows',[(l,p) for l in range(24) for p in (0,1)]
+      +[(l,2) for l in range(24) if l!=1 and l%3!=2]
+      +[(l,3) for l in range(24) if l not in (1,2,5,11)])
+  return result
+
+
 def digest_cohort(cohort):
   return [{k:hashlib.sha256(cohort[k][i].tobytes()).hexdigest() for k in KEYS} for i in range(len(cohort['inputs']))]
 
@@ -128,12 +150,12 @@ def run(config):
   hashes=digest_cohort(cohort)
   all_scenarios=scenarios()
   stage=os.environ.get('ROW_STAGE','all')
-  use=[s for s in all_scenarios if stage=='all' or (stage=='groups' and s['kind'] in ('coalition','dose')) or (stage=='layers' and s['kind'] in ('layer','unit'))]
-  assert use and stage in ('all','groups','layers')
-  # Groups are cheap enough to expand independently after the first full32.
+  use=targeted_scenarios() if stage=='targeted' else [s for s in all_scenarios if stage=='all' or (stage=='groups' and s['kind'] in ('coalition','dose')) or (stage=='layers' and s['kind'] in ('layer','unit'))]
+  assert use and stage in ('all','groups','layers','targeted')
+  # Default scalar variants preserve native bf16 lowering. Opt-in batching must pass equivalence checks.
   start=int(os.environ.get('ROW_START','0'));stop=int(os.environ.get('ROW_STOP','32'))
   assert 0<=start<stop<=min(64,len(hashes))
-  batch_size=int(os.environ.get('ROW_VARIANT_BATCH','8'))
+  batch_size=int(os.environ.get('ROW_VARIANT_BATCH','1'))
   scales=np.asarray([s['scales'] for s in use],np.float32)
   metadata=dict(model=BASE,checkpoint=config.load_parameters_path,
       training_commit='77401da6f83a5aa6ddd61994e028c3c694221518',

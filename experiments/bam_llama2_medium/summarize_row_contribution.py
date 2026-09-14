@@ -25,7 +25,7 @@ def summarize(root,limit=64):
     if names is None:names=scenarios
     assert scenarios==names,'Scenario mismatch'
     with np.load(file) as f:
-      digest=str(f['sequence_hash']);gap=np.asarray(f['gap']).ravel();b=float(np.asarray(f['baseline']).ravel()[0])
+      digest=str(f['sequence_hash']);gap=np.asarray(f['gap'],dtype=np.float64).ravel();b=float(np.asarray(f['baseline']).ravel()[0])
     if index in rows:
       assert digest==hashes[index];np.testing.assert_allclose(gap,rows[index],atol=1e-6,rtol=0)
       continue

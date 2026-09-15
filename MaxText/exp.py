@@ -7262,6 +7262,7 @@ class BamMediumIndependentLLFBAlignedRowMLPPerLayer(
 
 class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedRowMLPPerLayer):
     """Remove all Q/K/V/O row parameters and reinvest their budget in each layer's MLP."""
+    # code_commit: 2ca927c; UE5a .7354 steps/s, +3.93% vs PerLayer .7076; generic ON/BAM OFF.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs PerLayer: final gap +.010, throughput +4%; loss penalty tests row-read parameter value.
     # Return 18,874,368 / 18,895,024 removed parameters to MLP; integer-width residue -20,656 vs PerLayer.

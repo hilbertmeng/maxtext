@@ -7137,6 +7137,23 @@ class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndepen
     bam_local_o_row_tied_decoder = True
 
 
+class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor(BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode):
+    """Full-address LocalV row interpolation with the global L1 output."""
+    # Implementation: codex/llf-l1-row-anchor, /data0/xd/llf-l1-row-anchor.
+    # Prediction vs LocalORowDecode: final gap -.002, throughput -1.5% (unmatched health).
+    # vs BAlignedRow: final gap -.002, throughput -2.4%; extra parameters 262400.
+    model_name = 'BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode',
+                    'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_v_l1_row_anchor = True
+    bam_local_v_row_anchor_gate_init = 0.1
+    bam_record_row_anchor_metrics = True
+    record_training_health_metrics = True
+    scan_layers = True
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
     """Only LocalV rank4 uses effective_key, with fp32 Gram/norm2 statistics."""
     # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6880 steps/s (10–14), -.58% vs LocalVRank4 .6920.

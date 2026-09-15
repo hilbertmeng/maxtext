@@ -440,6 +440,10 @@ class Decoder(nn.Module):
         (b, t, self.config.bam_k, self.config.bam_v),
         dtype=self.config.dtype)
 
+  def initial_bam_row_anchor(self, inputs):
+    cfg = self.config
+    return jnp.zeros((*inputs.shape[:2], cfg.num_query_heads, cfg.bam_v), cfg.dtype)
+
   def set_remat_policy(self, block_layers, policy):
     RemattedBlockLayers = []
     for block_layer in block_layers:
@@ -813,6 +817,8 @@ class Decoder(nn.Module):
         if full_bam:
           M = self.initial_bam_matrix(y)
           scan_carry = (y, M)
+          if getattr(cfg, 'bam_local_v_l1_row_anchor', False):
+            scan_carry += (self.initial_bam_row_anchor(y),)
         else:
           scan_carry = y
         local_sws = min(swss)
@@ -979,6 +985,8 @@ class Decoder(nn.Module):
           M = self.initial_bam_matrix(y)
         else:
           M = None
+        anchor_enabled = bool(getattr(cfg, 'bam_local_v_l1_row_anchor', False))
+        row_anchor = self.initial_bam_row_anchor(y) if anchor_enabled else None
         for lyr in range(cfg.num_decoder_layers):
           max_logging.log(f'\n=================decoder layer: {lyr}=====================\n', debug=cfg.debug)
           RemattedBlockLayer = RemattedBlockLayers[0]
@@ -998,9 +1006,13 @@ class Decoder(nn.Module):
               hids=hids,
               eos_sum=eos_sum,
               M_in=M,
+              **({'row_anchor': row_anchor} if anchor_enabled else {}),
           )
           if cfg.bam_enabled:
-            y, hids, M = out
+            if anchor_enabled:
+              y, hids, M, row_anchor = out
+            else:
+              y, hids, M = out
           else:
             y, hids = out
 

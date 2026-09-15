@@ -360,6 +360,26 @@ def save_checkpoint(
 # Top-level Functions
 # -----------------------------------------------------------------------------
 # lsp
+def record_bam_row_anchor_metrics(output_metrics, intermediate_outputs, config):
+  """Export 12 scalar metrics per Local layer without enabling other BAM health."""
+  decoder = intermediate_outputs['intermediates']['decoder']
+  names = ('active', 'gate_mean', 'gate_0_02', 'gate_02_04', 'gate_04_06',
+           'gate_06_08', 'gate_08_1', 'native_rms', 'anchor_rms',
+           'weighted_native_rms', 'weighted_anchor_rms', 'cosine')
+  block_size = config.bam_local_fetch_block_size
+  for layer in range(config.num_decoder_layers):
+    offset = layer % block_size
+    if offset == block_size - 1:
+      continue
+    if config.scan_layers:
+      attention = decoder['layers'][f'local_{offset}']['block']['self_attention']
+      values = attention['row_anchor_stats'][0][layer // block_size]
+    else:
+      values = decoder[f'layers_{layer}']['block']['self_attention']['row_anchor_stats'][0]
+    for name, value in zip(names, values):
+      output_metrics['scalar'][f'bam/row_anchor/layer_{layer:03d}/{name}'] = value
+
+
 def record_bam_fetched_read_amplitude_metrics(
     output_metrics, intermediate_outputs, config):
   """Adds per-layer fetched-read amplitude summaries to the metrics dict."""
@@ -951,6 +971,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
         metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_local_routing_metrics', False):
     record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_row_anchor_metrics', False):
+    record_bam_row_anchor_metrics(metrics, intermediate_outputs, config)
 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)

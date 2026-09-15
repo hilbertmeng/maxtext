@@ -2406,6 +2406,27 @@ def _identity_matrix_init(key, shape, dtype):
   return jnp.eye(shape[0], dtype=dtype)
 
 
+def _mix_local_v_row_anchor(row, anchor, gate, layer_index):
+  """Global L1 writes once; L0/L1 stay native, later Local layers interpolate."""
+  assert anchor is not None and anchor.shape == row.shape
+  anchor = jnp.where(layer_index == 1, row, anchor)
+  mixed = (1 - gate) * row + gate * anchor
+  return jnp.where(layer_index > 1, mixed, row), anchor
+
+
+def _local_v_row_anchor_stats(row, anchor, gate, layer_index):
+  """Scalar capture with first-block gates explicitly marked inactive."""
+  row, anchor, gate = (x.astype(jnp.float32) for x in (row, anchor, gate))
+  rms = lambda x: jnp.sqrt(jnp.mean(x * x))
+  cosine = jnp.mean(jnp.sum(row * anchor, axis=-1) / jnp.maximum(
+      jnp.linalg.norm(row, axis=-1) * jnp.linalg.norm(anchor, axis=-1), 1e-12))
+  return jnp.stack((
+      jnp.asarray(layer_index > 1, jnp.float32), jnp.mean(gate),
+      *(jnp.mean(((gate >= lo) & (gate < hi)).astype(jnp.float32))
+        for lo, hi in ((0, .2), (.2, .4), (.4, .6), (.6, .8), (.8, 1.00001))),
+      rms(row), rms(anchor), rms((1 - gate) * row), rms(gate * anchor), cosine))
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -2450,6 +2471,7 @@ class BamAttention(Attention):
     assert not cfg.bam_diagnostics, (
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
+      self._row_anchor_enabled = False
       self._local_o = False
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       if self._query_chunk_size is not None:
@@ -2472,6 +2494,7 @@ class BamAttention(Attention):
         {'local_qk', 'local_o'}), (
             f'unsupported production BAM layer mode: {self.layer_mode}')
     self._local_o = 'local_o' in self._mode
+    self._row_anchor_enabled = bool(getattr(cfg, 'bam_local_v_l1_row_anchor', False))
     self._output_read = 'full' in self._mode or self._local_o
     self._local_v_mode = (
         (self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none'))
@@ -2512,6 +2535,22 @@ class BamAttention(Attention):
     zeros_init = initializers.contant_dense_init(0.0)
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
+    if self._row_anchor_enabled and self._local_o:
+      assert 'v' in self._local_arms
+      assert cfg.bam_local_o_row_tied_decoder
+      assert not cfg.bam_local_v_share_output_coordinates
+      assert self.bam_k + self.bam_v == self.head_dim
+      self.W_row_anchor_gate = DenseGeneral(
+          features=self.num_query_heads, axis=-1, kernel_init=zeros_init,
+          kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
+          weight_dtype=self.weight_dtype, name='W_row_anchor_gate',
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      p = float(cfg.bam_local_v_row_anchor_gate_init)
+      assert 0 < p < 1
+      self.row_anchor_gate_bias = self.param(
+          'row_anchor_gate_bias', nn.with_logical_partitioning(
+              nn.initializers.constant(math.log(p / (1 - p))), ('q_heads',)),
+          (self.num_query_heads,), self.weight_dtype)
 
     self._read_key_mode = cfg.bam_read_key_mode
     self._read_key_scale = float(cfg.bam_read_key_scale)
@@ -3537,6 +3576,7 @@ class BamAttention(Attention):
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
+      row_anchor: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3599,7 +3639,18 @@ class BamAttention(Attention):
         local_output = self._gate_local_output(local_output, output_logits)
       elif self._local_v_mode == 'rank2':
         with jax.named_scope("bam/read_local_m_for_v"):
-          value = value + self._read_local('v', Mh, inputs_q, local_inputs)
+          v_read = self._read_local('v', Mh, inputs_q, local_inputs)
+          if self._row_anchor_enabled:
+            row = v_read[..., self.bam_k:]
+            gate = jax.nn.sigmoid(
+                self.W_row_anchor_gate(inputs_q)
+                + self.row_anchor_gate_bias.astype(inputs_q.dtype))[..., None]
+            mixed, row_anchor = _mix_local_v_row_anchor(row, row_anchor, gate, layer_index)
+            if getattr(cfg, 'bam_record_row_anchor_metrics', False):
+              self.sow('intermediates', 'row_anchor_stats',
+                       _local_v_row_anchor_stats(row, row_anchor, gate, layer_index))
+            v_read = jnp.concatenate((v_read[..., :self.bam_k], mixed), axis=-1)
+          value = value + v_read
 
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:
@@ -3690,4 +3741,8 @@ class BamAttention(Attention):
       M_out = M_in
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_out
+    result = self.out_projection(inputs_q.shape[-1], out)
+    if self._row_anchor_enabled:
+      assert row_anchor is not None
+      return result, M_out, row_anchor
+    return result, M_out

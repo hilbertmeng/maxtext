@@ -90,6 +90,7 @@ class SubDecoderLayer(nn.Module):
       M_in=None,
       is_global=None,
       layer_index=None,
+      row_anchor=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -180,9 +181,16 @@ class SubDecoderLayer(nn.Module):
         deep_embedding=deep_embedding,
     )
     if cfg.bam_enabled:
-        attention_lnx, M_out = attention_layer(
+        anchor_enabled = bool(getattr(cfg, 'bam_local_v_l1_row_anchor', False))
+        if anchor_enabled:
+          call_kwargs['row_anchor'] = row_anchor
+        attention_result = attention_layer(
             **call_kwargs, M_in=M_in, is_global=is_global,
             layer_index=layer_index)
+        if anchor_enabled:
+          attention_lnx, M_out, row_anchor = attention_result
+        else:
+          attention_lnx, M_out = attention_result
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
@@ -288,6 +296,8 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
+    if getattr(cfg, 'bam_local_v_l1_row_anchor', False):
+      return layer_output, M_out, row_anchor
     return layer_output, M_out
 
 
@@ -382,6 +392,7 @@ class FusionDecoderLayer(nn.Module):
       hids=None,
       M_in=None,
       layer_index=None,
+      row_anchor=None,
   ):
     cfg = self.config
     scan_full_bam = (
@@ -390,7 +401,10 @@ class FusionDecoderLayer(nn.Module):
     if cfg.scan_layers:
       assert not cfg.dense_conn, 'flat layer scan currently requires dense_conn=False'
       if scan_full_bam:
-        inputs, M_in = inputs
+        if getattr(cfg, 'bam_local_v_l1_row_anchor', False):
+          inputs, M_in, row_anchor = inputs
+        else:
+          inputs, M_in = inputs
       else:
         M_in = None
       if self.all_global_attention:
@@ -432,7 +446,9 @@ class FusionDecoderLayer(nn.Module):
             lidx=self.layer_inx,
           )
     # return's inputs length is 1
-    inputs, M_out = self.layer(
+    anchor_kwargs = ({'row_anchor': row_anchor}
+                     if getattr(cfg, 'bam_local_v_l1_row_anchor', False) else {})
+    layer_result = self.layer(
         inputs,
         decoder_segment_ids,
         decoder_positions,
@@ -444,7 +460,12 @@ class FusionDecoderLayer(nn.Module):
         M_in=M_in,
         is_global=is_global,
         layer_index=layer_index,
+        **anchor_kwargs,
     )
+    if anchor_kwargs:
+      inputs, M_out, row_anchor = layer_result
+    else:
+      inputs, M_out = layer_result
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
       C = self.get_C(cfg)
@@ -461,8 +482,12 @@ class FusionDecoderLayer(nn.Module):
 
     if cfg.scan_layers:
       carry = (inputs, M_out) if scan_full_bam else inputs
+      if getattr(cfg, 'bam_local_v_l1_row_anchor', False):
+        carry = (inputs, M_out, row_anchor)
       return carry, ()
     if cfg.bam_enabled:
+      if getattr(cfg, 'bam_local_v_l1_row_anchor', False):
+        return inputs, hids, M_out, row_anchor
       return inputs, hids, M_out
     return inputs, hids
 

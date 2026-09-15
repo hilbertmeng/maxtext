@@ -72,7 +72,7 @@ class SubDecoderLayer(nn.Module):
       assert not cfg.dynamic_mlp_dim
       assert cfg.bam_pair_scan
       assert len(mlp_pattern) == cfg.bam_local_fetch_block_size
-      assert all(width > 0 and width % 16 == 0 for width in mlp_pattern)
+      assert all(isinstance(width, int) and width > 0 for width in mlp_pattern)
       self.updated_mlp_dim = mlp_pattern[self.layer_inx % len(mlp_pattern)]
     elif cfg.dynamic_mlp_dim:
       # consider mtp layer, mtp layer's mlp_dim is the same as the last layer

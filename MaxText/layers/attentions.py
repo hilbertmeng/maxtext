@@ -1811,6 +1811,7 @@ class _BamReadArm:
   rank: int = 1
   rank_routing: str = 'legacy'    # legacy | shared_rank_gate | head_gate_n | head_gate_r | effective_key
   pre_rms_bias: bool = True       # add the learned key bias before the RMS transform
+  prune_row: bool = False         # parameter-budget ablation: store only column slots
   # Key transform.
   key_mode: str = 'rms_gate'      # none | rms | rms_gate
   key_scale: float = 1.0
@@ -1839,6 +1840,8 @@ class _BamReadArm:
             f'{self.name} read arm: {field}={getattr(self, field)!r} not in {options}')
     if self.rank < 1:
       raise ValueError(f'{self.name} read arm: rank must be positive, got {self.rank}')
+    if self.prune_row and self.read_side != 'col':
+      raise ValueError('Pruned row parameters require column-only reads')
     if self.per_head_gate and self.key_mode != 'rms_gate':
       raise ValueError(f'{self.name} read arm: per-head gating requires rms_gate')
 
@@ -1848,7 +1851,7 @@ class _BamReadArm:
 
   @property
   def key_width(self):
-    return self.k_dim + self.v_dim
+    return self.v_dim if self.prune_row else self.k_dim + self.v_dim
 
   @property
   def basis_width(self):
@@ -1860,17 +1863,18 @@ class _BamReadArm:
 
   @property
   def mix_shape(self):
-    return (self.num_heads, 2, self.rank)
+    return (self.num_heads, 1 if self.prune_row else 2, self.rank)
 
   @property
   def gate_shape(self):
     """Trailing shape of the projected gate logits."""
+    sides = 1 if self.prune_row else 2
     return {
-        'legacy': (2,),
-        'shared_rank_gate': (self.rank, 2),
-        'effective_key': (self.num_heads, 2),
-        'head_gate_n': (self.num_heads, 2),
-        'head_gate_r': (self.num_heads, 2),
+        'legacy': (sides,),
+        'shared_rank_gate': (self.rank, sides),
+        'effective_key': (self.num_heads, sides),
+        'head_gate_n': (self.num_heads, sides),
+        'head_gate_r': (self.num_heads, sides),
     }[self.rank_routing]
 
   @property
@@ -1938,6 +1942,9 @@ def _transform_bam_read_key(r, arm, gate_logits=None):
 def _split_read_keys(key, arm, gate_logits=None):
   """Split a projected key [..., k+v] into transformed (r_row [..,k], r_col [..,v])."""
   with jax.named_scope("bam/read_key_transform"):
+    if arm.prune_row:
+      assert arm.read_side == 'col'
+      return None, _transform_bam_read_key(key, arm, gate_logits)
     raw_row, raw_col = jnp.split(key, [arm.k_dim], axis=-1)
     row_gate = col_gate = None
     if gate_logits is not None:
@@ -2027,6 +2034,15 @@ def factorized_head_bam_read(
   """
   if M.ndim != 4:
     raise ValueError(f'factorized local BAM read expects [b,t,k,v], got {M.shape}')
+  if arm.prune_row:
+    # Keep the tested bilateral routing algebra, with constant zero row slots.
+    # No row parameters exist and read_side='col' skips its M contraction.
+    assert arm.read_side == 'col' and v_projection is None and basis_cache is None
+    key = jnp.concatenate((jnp.zeros(key.shape[:-1] + (arm.k_dim,), key.dtype), key), -1)
+    mix = jnp.concatenate((jnp.zeros_like(mix), mix), -2)
+    if gate_logits is not None:
+      gate_logits = jnp.concatenate((jnp.zeros_like(gate_logits), gate_logits), -1)
+    arm = dataclasses.replace(arm, prune_row=False)
   v_output_dim = M.shape[-1]
   if v_projection is not None:
     if v_projection.ndim != 2 or v_projection.shape[0] != M.shape[-1]:
@@ -2316,10 +2332,14 @@ def _packed_local_arms_init(kernel_init, arms, paired_row_width=0, share_qk_basi
         basis = jnp.concatenate(slots, axis=-1)
       else:
         basis = zeros(arm.basis_width)
+      init_mix_shape = (arm.num_heads, 2, arm.rank) if arm.prune_row else arm.mix_shape
       mix = kernel_init(
-          arm_key, (embed,) + arm.mix_shape, dtype, 0,
+          arm_key, (embed,) + init_mix_shape, dtype, 0,
           tuple(range(1, 1 + len(arm.mix_shape)))
-      ).reshape(embed, arm.mix_width)
+      )
+      if arm.prune_row:
+        mix = mix[..., 1:2, :]
+      mix = mix.reshape(embed, arm.mix_width)
       if not (share_qk_basis and arm.name == 'k'):
         pieces.append(basis)
       pieces.extend((zeros(arm.gate_width), mix))
@@ -2513,6 +2533,7 @@ class BamAttention(Attention):
       return getattr(cfg, f'bam_local_q_{key}') if value is None else value
 
     read_settings = dict(
+        prune_row=bool(getattr(cfg, 'bam_prune_all_row_reads', False)),
         key_mode='rms_gate', key_scale=self._read_key_scale,
         rms_epsilon=self._read_key_epsilon,
         rms_statistics_dtype=self._read_rms_statistics_dtype,
@@ -2542,6 +2563,10 @@ class BamAttention(Attention):
         **{**read_settings, 'rms_epsilon': self._fetched_read_key_epsilon})
     # Ungated sharing (LocalV 'shared') contracts the normalized key without a gate.
     self._fetched_arm_ungated = dataclasses.replace(self._fetched_arm, key_mode='rms')
+    if self._fetched_arm.prune_row:
+      assert self.read_side == self._fetched_read_side == 'col'
+      assert self._local_qk_post_read_v_dim is None
+      assert self._local_v_mode in ('none', 'rank2')
     self._share_qk_basis = bool(getattr(cfg, 'bam_local_qk_share_basis', False)) and 'q' in self._local_arms
     if self._share_qk_basis:
       q, k = (self._local_arms[n] for n in ('q', 'k'))
@@ -2656,15 +2681,16 @@ class BamAttention(Attention):
           decoder_axes = ('q_heads',) + decoder_axes
         # Identity initialization makes every decoder arm start from the Direct
         # readout.  Direct keeps the historical unused per-head [C,V] parameter.
-        self.abs_v_row_decoder = self.param(
-            'abs_v_row_decoder',
-            nn.with_logical_partitioning(decoder_init, decoder_axes),
-            decoder_shape, self.weight_dtype)
+        if not self._fetched_arm.prune_row:
+          self.abs_v_row_decoder = self.param(
+              'abs_v_row_decoder',
+              nn.with_logical_partitioning(decoder_init, decoder_axes),
+              decoder_shape, self.weight_dtype)
 
       # Joint target-side read key is generated directly in both cached spaces.
       read_features = (
           self._fetched_read_num_heads, cfg.bam_n_f,
-          read_k_dim + read_v_dim)
+          self._fetched_arm.key_width)
       self.W_R = DenseGeneral(
           features=read_features, axis=-1,
           kernel_init=(
@@ -2678,7 +2704,7 @@ class BamAttention(Attention):
       fetched_gate_init = (
           zero_key_gate_init if self._fetched_read_gate_init is None
           else self._fetched_read_gate_init)
-      add_read_gate('W_R_gate', (self._fetched_read_num_heads, cfg.bam_n_f, 2),
+      add_read_gate('W_R_gate', (self._fetched_read_num_heads, cfg.bam_n_f, 1 if self._fetched_arm.prune_row else 2),
                     ('embed', 'q_heads', 'fetch', None),
                     ('q_heads', 'fetch', None), fetched_gate_init)
       # Signed RMS mixing needs a regular-initialized direction because RMSNorm
@@ -2725,7 +2751,7 @@ class BamAttention(Attention):
               lambda key, shape, dtype: jnp.full(shape, gate_bias_value, dtype),
               (None,) * len(arm.gate_bias_shape)),
           arm.gate_bias_shape, self.weight_dtype))
-      if arm.v_dim > local_v_output_dim:
+      if arm.v_dim > local_v_output_dim and not arm.prune_row:
         setattr(self, f'local_{arm.name}_v_adapter', self.param(
             f'local_{arm.name}_v_adapter',
             nn.with_logical_partitioning(

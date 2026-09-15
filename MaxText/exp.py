@@ -7260,6 +7260,22 @@ class BamMediumIndependentLLFBAlignedRowMLPPerLayer(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-param-per-layer'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedRowMLPPerLayer):
+    """Remove all Q/K/V/O row parameters and reinvest their budget in each layer's MLP."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs PerLayer: final gap +.010, throughput +4%; loss penalty tests row-read parameter value.
+    # Return 18,874,368 / 18,895,024 removed parameters to MLP; integer-width residue -20,656 vs PerLayer.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnly'
+    bam_prune_all_row_reads = True
+    mlp_dim_by_block = [2535, 2535, 2610]
+    bam_read_sides = 'col'
+    bam_fetched_read_side = 'col'
+    bam_local_v_share_output_coordinates = False
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowMLPPerLayer',
+                    'BamMHALlama2MediumC256ScanAotCleanControl']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only'
+
+
 class BamMHALlama2MediumC256ScanAotCleanMLP2304(BamMHALlama2MediumC256ScanAotCleanControl):
     """MHA control for the same 37.749M MLP-parameter reduction as BAM Uniform."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.

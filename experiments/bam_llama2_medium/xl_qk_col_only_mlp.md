@@ -67,3 +67,18 @@ formal trainers. Compiler primary EW4a, backups UC1a/UE5a after300s; formal prim
 UE5a, backup EW4b after300s, informed by current shared region history. Keep the
 alternate until FIRST_STEP. This task verifies launch/initial speed; routine training
 monitoring remains with the user's monitoring task unless reassigned.
+
+## Launch verification (2026-09-15)
+
+Both AOTs verified and both UE5a v5p-32 trainers loaded the compiled function and
+passed FIRST_STEP. Both compiler workflows confirmed `AOT_CLEANUP_DONE`.
+
+| RUN | 10–14 step/s | vs SharedBasis .5444 (EW4b reference) |
+|---|---:|---:|
+| `BamXLSharedBasisQKColOnlyMLP` | .5524 | +1.47% |
+| `BamXLSharedBasisQKDirectC8MLP` | .5512 | +1.25% |
+
+The two new arms are same-zone and matched-health, effectively tied (Direct -.22%).
+The parent comparison matches health but crosses zones; it is not an isolated same-zone pair.
+Checkpoint interval250, loss reporting500, no early training-loss conclusion.
+AOT manifests and executable paths are registered in each RUN on tpu-ag; both use runtime ae75720.

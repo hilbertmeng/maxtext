@@ -7409,6 +7409,7 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependent
 
 
 class BamXLSharedBasisQKColOnlyMLP(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
+    # code_commit: ae75720; UE5a .5524 steps/s, +1.47% vs SharedBasis EW4b .5444 (cross-zone); generic ON/BAM OFF.
     """Trade LocalQK row parameters for MLP width; preserve NoPE96/RoPE32."""
     # Implementation: codex/xl-shared-basis-col-only, /data0/xd/xl-shared-basis-col-only.
     # Prediction vs SharedBasis: final gap +.006; positive gap measures row-read parameter value.
@@ -7420,6 +7421,7 @@ class BamXLSharedBasisQKColOnlyMLP(BamXLIndependentLLFLocalQKRank4CFp32AlignedRo
 
 
 class BamXLSharedBasisQKDirectC8MLP(BamXLSharedBasisQKColOnlyMLP):
+    # code_commit: ae75720; UE5a .5512 steps/s, -.22% vs ColOnly .5524; +1.25% vs SharedBasis EW4b .5444 (cross-zone); generic ON/BAM OFF.
     """Independent per-head Q/K column keys read the same compressed M as O."""
     # Prediction vs QKColOnlyMLP: final gap +.004; compare two near-equal column parameter budgets.
     model_name = 'BamXLSharedBasisQKDirectC8MLP'

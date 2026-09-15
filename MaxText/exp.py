@@ -7240,14 +7240,15 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """LocalV shares O's 16-head C8 row answer; its full-M column remains rank4-B."""
     # Implementation: codex/llf-row-only-shared, /data0/xd/llf-row-only-shared.
+    # code_commit: 502b479; EW4b v5p-16 AOT loaded/FIRST_STEP13, 0.686 steps/s @13-46.
+    # Speed vs generic-ON BAlignedRow UE5a .6836 is cross-zone, not a matched timing comparison.
     # Pre-run bet vs BAlignedRow: 3k-4k dloss +.002..+.007;
     # steady throughput +0..+1%; read-key projections -0.1875 W_Q per L layer.
     # History-M cache unchanged; O/Q/K/F paths unchanged.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B'
     compare_runs = [
         'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
-        'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan',
-        'BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32',
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead',
     ]
     bam_local_v_row_shared = True
     record_training_health_metrics = True

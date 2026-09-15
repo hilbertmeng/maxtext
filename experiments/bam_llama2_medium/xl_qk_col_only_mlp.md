@@ -82,3 +82,23 @@ The two new arms are same-zone and matched-health, effectively tied (Direct -.22
 The parent comparison matches health but crosses zones; it is not an isolated same-zone pair.
 Checkpoint interval250, loss reporting500, no early training-loss conclusion.
 AOT manifests and executable paths are registered in each RUN on tpu-ag; both use runtime ae75720.
+
+## Regional lease A/B (2026-09-15)
+
+After the three UE5a RUNs were reclaimed within 12:05:39–12:05:43 UTC, migrate
+`BamXLSharedBasisQKColOnlyMLP` to EW4b while keeping
+`BamXLSharedBasisQKDirectC8MLP` in UE5a. This is a correlated regional event,
+not three independent preemption samples. Keep each XL controller in its assigned
+zone for this comparison; Medium remains in UE5a.
+
+ColOnly resumed committed checkpoint121 with the same ae75720 AOT and 50,000-step
+schedule on `xd-v5p-32-xl-qk-col-only-ew4b-maxtext`. Both checkpoint storage and Pile
+input use EW4 buckets. Restored step122/LR4.880e-5 and `Loaded compiled function!`
+were verified; checkpoint250 committed at 12:32:46 UTC, completing migration validation.
+Steady recovery throughput is about .551 steps/s, consistent with the initial UE5a timing.
+
+Compare overlapping UTC periods, completed lease lengths, rollback and useful
+training progress. Active leases are censored; manually released candidates are
+not preemptions. Assignments and chronological leases are recorded in the main
+`experiments/tpu_region_preemption_history.md`. Loss-report ownership stays with
+the monitoring task; this task does not acknowledge its report cursor.

@@ -7410,6 +7410,7 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependent
 
 class BamXLSharedBasisQKColOnlyMLP(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
     # code_commit: ae75720; UE5a .5524 steps/s, +1.47% vs SharedBasis EW4b .5444 (cross-zone); generic ON/BAM OFF.
+    # Training region: UE5a -> EW4b at checkpoint121; DirectC8 stays UE5a for lease-stability A/B.
     """Trade LocalQK row parameters for MLP width; preserve NoPE96/RoPE32."""
     # Implementation: codex/xl-shared-basis-col-only, /data0/xd/xl-shared-basis-col-only.
     # Prediction vs SharedBasis: final gap +.006; positive gap measures row-read parameter value.

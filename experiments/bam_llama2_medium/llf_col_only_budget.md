@@ -65,3 +65,14 @@ JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= PYTHONPATH=MaxText \
 with mapped bilateral parameters and disabled row reads, for both L/F paths,
 using nonzero read keys; checks parameter shapes and finite nonzero gradients.
 The full-model shape audit exercises the 8-block scan with non-aligned MLP widths.
+
+Runtime prepared at `2ca927c1a76011a247303efccbb3afd5b868ffd2`.
+Validation: 15 local-module/scan tests and 43 base BAM regressions passed.
+Logs: `/data0/xd/llf-col-only-tests.log`, `/data0/xd/llf-col-only-regression.log`.
+AOT orchestration state:
+`tpu-ag:/home/lishengping/xd/projects/aot_runs/2ca927c-79f7102d.json`.
+Region evidence was rechecked on 2026-09-15: UE5a had substantial Medium churn
+on September14 and correlated Anchor recoveries on September15. Recent EW4b
+long leases concern older v5p-32 runs, not a simultaneous v5p-16 comparison.
+UE5a remains primary with EW4b staged backup; do not interpret that choice as
+proof of context-independent regional superiority.

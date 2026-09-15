@@ -7406,3 +7406,24 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis(BamXLIndependent
     checkpoint_period = 250
     steps = 50000
     force_final_checkpoint = True
+
+
+class BamXLSharedBasisQKColOnlyMLP(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
+    """Trade LocalQK row parameters for MLP width; preserve NoPE96/RoPE32."""
+    # Implementation: codex/xl-shared-basis-col-only, /data0/xd/xl-shared-basis-col-only.
+    # Prediction vs SharedBasis: final gap +.006; positive gap measures row-read parameter value.
+    model_name = 'BamXLSharedBasisQKColOnlyMLP'
+    bam_local_qk_col_only = True
+    bam_partial_rope_nope_dim = 96
+    base_mlp_dim = 5642
+    compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis']
+
+
+class BamXLSharedBasisQKDirectC8MLP(BamXLSharedBasisQKColOnlyMLP):
+    """Independent per-head Q/K column keys read the same compressed M as O."""
+    # Prediction vs QKColOnlyMLP: final gap +.004; compare two near-equal column parameter budgets.
+    model_name = 'BamXLSharedBasisQKDirectC8MLP'
+    bam_local_qk_col_direct_compressed = True
+    bam_local_qk_share_basis = False
+    compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis',
+                    'BamXLSharedBasisQKColOnlyMLP']

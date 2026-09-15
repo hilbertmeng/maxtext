@@ -2424,6 +2424,8 @@ class _LocalReadArm:
   row_rank: int | None = None
   col_rank: int | None = None
   col_read_mode: str = 'dynamic'
+  col_only: bool = False
+  compact_direct: bool = False
 
   @property
   def side_ranks(self):
@@ -2440,10 +2442,14 @@ class _LocalReadArm:
 
   @property
   def key_width(self):
+    if self.col_only:
+      return self.v_dim
     return self.k_dim + self.v_dim
 
   @property
   def basis_width(self):
+    if self.compact_direct:
+      return self.num_heads * self.v_dim
     if self.col_read_mode == 'static':
       return self.side_ranks[0] * self.k_dim
     if self.direct_col:
@@ -2455,12 +2461,16 @@ class _LocalReadArm:
 
   @property
   def key_shape(self):
+    if self.compact_direct:
+      return (self.num_heads, self.v_dim)
     if self.col_read_mode == 'static':
       return (self.side_ranks[0], self.k_dim)
     return (self.basis_width,) if self.direct_col or self.split_ranks else (self.rank, self.key_width)
 
   @property
   def mix_shape(self):
+    if self.col_only:
+      return (self.num_heads, 0 if self.compact_direct else self.rank)
     if self.col_read_mode == 'static':
       return (self.num_heads, self.side_ranks[0])
     if self.split_ranks:
@@ -2470,6 +2480,8 @@ class _LocalReadArm:
   @property
   def gate_shape(self):
     """Trailing shape of the projected gate logits."""
+    if self.col_only:
+      return (self.num_heads,)
     if self.col_read_mode == 'static_plus_dynamic':
       return (self.num_heads, 3)  # dynamic row, dynamic col, static col
     return {
@@ -2547,10 +2559,15 @@ def _packed_local_arms_init(kernel_init, arms, paired_row_width=0, share_qk_basi
         basis = jnp.concatenate(slots, axis=-1)
       else:
         basis = zeros(arm.basis_width)
+      mix_shape = (arm.num_heads, 2, arm.rank) if arm.col_only else arm.mix_shape
       mix = kernel_init(
-          arm_key, (embed,) + arm.mix_shape, dtype, 0,
-          tuple(range(1, 1 + len(arm.mix_shape)))
-      ).reshape(embed, arm.mix_width)
+          arm_key, (embed,) + mix_shape, dtype, 0,
+          tuple(range(1, 1 + len(mix_shape))))
+      if arm.col_only:
+        mix = mix[..., 1, :]
+        if arm.compact_direct:
+          mix = mix[..., :0]
+      mix = mix.reshape(embed, arm.mix_width)
       if not (share_qk_basis and arm.name == 'k'):
         pieces.append(basis)
       pieces.extend((zeros(arm.gate_width), mix))
@@ -2682,6 +2699,18 @@ class BamAttention(Attention):
     self._local_arms = {
         name: dataclasses.replace(arm, rank=arm.side_ranks[0]) if not arm.split_ranks else arm
         for name, arm in self._local_arms.items()}
+    if getattr(cfg, 'bam_local_qk_col_only', False):
+      direct = bool(getattr(cfg, 'bam_local_qk_col_direct_compressed', False))
+      self._local_arms = {
+          name: dataclasses.replace(
+              arm, col_only=True, compact_direct=direct, read_side='col',
+              v_dim=cfg.bam_abs_v_compression_dim if direct else arm.v_dim)
+          if name in ('q', 'k') else arm
+          for name, arm in self._local_arms.items()}
+      assert all(self._local_arms[n].rank_routing == 'effective_key' for n in ('q', 'k'))
+      assert not self._seed_paired_local_row_key
+      assert not getattr(cfg, 'bam_record_local_routing_metrics', False)
+      assert not direct or not cfg.bam_local_qk_share_basis
     for arm in self._local_arms.values():
       assert arm.col_read_mode in ('dynamic', 'static', 'static_plus_dynamic')
       if arm.col_read_mode != 'dynamic':
@@ -2709,7 +2738,7 @@ class BamAttention(Attention):
       q, k = (self._local_arms[n] for n in ('q', 'k'))
       assert list(self._local_arms)[:2] == ['q', 'k']
       assert q.key_shape == k.key_shape and q.pre_rms_bias == k.pre_rms_bias
-      assert all(a.rank_routing == 'effective_key' and a.read_side == 'both'
+      assert all(a.rank_routing == 'effective_key' and a.read_side in ('both', 'col')
                  and not a.split_ranks and not a.direct_col for a in (q, k))
     self._has_write = bool(self._mode)
     assert self.read_side in ('both', 'row', 'col')
@@ -3453,6 +3482,11 @@ class BamAttention(Attention):
     key = local_inputs['q'][0]
     if arm.pre_rms_bias:
       key = key + jnp.asarray(self.W_lq_bias, key.dtype)
+    if arm.col_only:
+      col, _ = _contract_bam_read_sides(M, M, None, key, self._read_implementation, 'col')
+      gram = _basis_gram(key, self.config.bam_local_gram_implementation,
+                         self._local_gram_statistics_dtype)
+      return col, gram
     row, col = jnp.split(key, [M.shape[-2]], axis=-1)
     with jax.named_scope('bam/shared_qk_basis'):
       reads = _contract_bam_read_sides(M, M, row, col, self._read_implementation, 'both')
@@ -3478,6 +3512,24 @@ class BamAttention(Attention):
       mix = tuple(jnp.split(mix, [row_rank], axis=-1))
     gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
     gate = gate + jnp.asarray(gate_bias, gate.dtype)
+    if arm.col_only:
+      if arm.compact_direct:
+        key = _transform_bam_read_key(
+            key, 'rms_gate', self._local_key_scales[name],
+            rms_epsilon=self._read_key_epsilon,
+            rms_statistics_dtype=self._read_rms_statistics_dtype,
+            gate_logits=gate[..., None], gate_activation=self._read_gate_activation)
+        col, _ = _contract_bam_read_sides(M, M, None, key, self._read_implementation, 'col')
+      else:
+        basis, gram = basis_cache
+        norm2 = _gram_read_norm2(key, mix, self.config.bam_local_gram_implementation,
+                                self._local_gram_statistics_dtype, gram)
+        scale = self._local_key_scales[name] * self._read_gate_activation(gate)
+        scale = scale * jax.lax.rsqrt(norm2.astype(key.dtype) / key.shape[-1] + self._read_key_epsilon)
+        # Preserve the parent's mix-side scaling and rank expansion order.
+        mix = mix * scale[..., None]
+        col = jnp.sum(basis[:, :, None] * mix[..., None], axis=-2)
+      return jnp.pad(col, [(0, 0)] * (col.ndim - 1) + [(0, self.head_dim - self.bam_k)])
     static_col = None
     if arm.col_read_mode != 'dynamic':
       static_col = _static_local_v_col_read(
@@ -3889,10 +3941,12 @@ class BamAttention(Attention):
           Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
-        basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
+        qk_m = (self._compress_full_fetch_state(Mh)
+                if getattr(cfg, 'bam_local_qk_col_direct_compressed', False) else Mh)
+        basis_cache = self._shared_qk_basis(qk_m, local_inputs) if self._share_qk_basis else None
         query, key = self._add_local_qk(
-            query, key, self._read_local('q', Mh, inputs_q, local_inputs, basis_cache),
-            self._read_local('k', Mh, inputs_q, local_inputs, basis_cache))
+            query, key, self._read_local('q', qk_m, inputs_q, local_inputs, basis_cache),
+            self._read_local('k', qk_m, inputs_q, local_inputs, basis_cache))
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)

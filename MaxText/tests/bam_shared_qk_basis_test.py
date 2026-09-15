@@ -22,13 +22,13 @@ class SharedBasisTest(unittest.TestCase):
     configs=[self.config(exp),self.config(exp+'SharedBasis')]
     for c in configs:
       c.get_keys().update(dtype=jnp.float32, head_dim=128, base_emb_dim=256, emb_dim=256,
-          bam_layer_modes=['local_qk+local_o','local_qk+local_o','local_qk+full']*2,
+          bam_layer_modes=['local_qk+local_v+local_o','local_qk+local_v+local_o','local_qk+full']*2,
           base_num_decoder_layers=6,num_decoder_layers=6,vocab_size=128)
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(configs[0]),configs[0].mesh_axes)
     modules=[BamAttention(config=c,num_query_heads=2,num_kv_heads=2,head_dim=128,bam_k=64,bam_v=32,
         max_target_length=8,max_prefill_predict_length=8,mesh=mesh,
         attention_kernel='dot_product_chunk',dtype=jnp.float32,
-        layer_mode='local_qk+local_o',attention_type=c.attention_type) for c in configs]
+        layer_mode='local_qk+local_v+local_o',attention_type=c.attention_type) for c in configs]
     x=jax.random.normal(jax.random.key(12),(1,8,256))
     m=jax.random.normal(jax.random.key(13),(1,8,64,32))
     args=(x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))

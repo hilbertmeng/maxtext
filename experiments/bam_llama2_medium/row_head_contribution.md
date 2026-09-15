@@ -136,6 +136,10 @@ bash experiments/bam_llama2_medium/run_row_head_contribution.sh
 
 完整逐层/逐头结果：各模型`heads/head_summary.json`，原始64序列数组`heads/paired_head_gaps.npz`，排序配方`heads/group_scenarios.json`，联合组结果`heads/group_summary.json`和`heads/paired_group_gaps.npz`。原始head文件Medium 192个、XL 320个；原始group文件各64个。两模型共172032个有效单头干预测量，含分片重复对照和group组共保留177536个loss。
 
+### 资源收尾
+
+用户随后要求释放TPU：2026-09-14 11:36 UTC，下面8台以及历史rowko-0/3共10组节点/队列均已确认不存在。释放清单保存在`/data0/xd/bam_diagnostics/row-contribution-heads-0914/release/summary.json`，并已上传GCS。下面保留记录是释放前的历史快照。
+
 ### 保留机器
 
 按用户“跑完别删”的要求未删除任何本任务机器。当前8台READY的v6e-1，均`europe-west4-a`，诊断Python进程已退出：

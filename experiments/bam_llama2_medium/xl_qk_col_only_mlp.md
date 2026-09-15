@@ -3,6 +3,7 @@
 Implementation worktree: `/data0/xd/xl-shared-basis-col-only`, branch
 `codex/xl-shared-basis-col-only`, based on the actual SharedBasis runtime `c664e82`.
 The main `MaxText/exp.py` is the ledger, not the implementation location.
+Sealed runtime: `ae7572001c4cc68f26bd1dad2a77210ecedc091b`.
 
 ## Experimental scope
 
@@ -45,6 +46,9 @@ OFF; checkpoint250, original 50,000-step schedule. Freeze NoPE width explicitly 
 rather than inferring it from the reduced injection footprint.
 
 ## Reproduction and validation
+
+Both new tests passed (including nonzero-key forward/gradient matching); all53
+baseline BAM tests passed. Full-24 abstract scan train-steps passed for all three configurations.
 
 Use the pinned CPU Python `/data0/xd/conda/envs/maxtext-cpu/bin/python` with
 `JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= PYTHONPATH=MaxText` from this worktree.

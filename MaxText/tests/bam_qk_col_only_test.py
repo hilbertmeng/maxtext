@@ -1,5 +1,4 @@
 """Column-only QK keeps the parent's column operator and removes actual row parameters."""
-import dataclasses
 import unittest
 import jax
 import jax.numpy as jnp
@@ -7,7 +6,7 @@ import numpy as np
 from flax import core
 import max_utils
 import bam_local_fetch_test
-from layers.attentions import BamAttention, _packed_local_layout
+from layers.attentions import BamAttention, _packed_local_layout, _transform_bam_read_key
 
 
 class QKColOnlyTest(unittest.TestCase):
@@ -94,10 +93,24 @@ class QKColOnlyTest(unittest.TestCase):
     p=core.unfreeze(mod.init({'params':jax.random.key(8)},*args,**call)['params'])
     self.assertEqual(p['W_lq_bias'].value.shape,(2,8))
     self.assertEqual(p['W_lk_bias'].value.shape,(2,8))
+    leaf=p['W_lq_bias']
+    p['W_lq_bias']=leaf.replace(value=.03*jax.random.normal(jax.random.key(9),leaf.value.shape))
     def read(mod):
       inputs=mod._local_inputs(x)
       mc=mod._compress_full_fetch_state(m)
       return mod._read_local('q',mc,x,inputs)
+    def reference(mod):
+      keys,gates,_=mod._local_inputs(x)['q']
+      keys=keys+mod.W_lq_bias
+      gates=gates+mod.W_lq_gate_b0
+      keys=_transform_bam_read_key(keys,'rms_gate',mod._local_key_scales['q'],
+          rms_epsilon=mod._read_key_epsilon,rms_statistics_dtype=mod._read_rms_statistics_dtype,
+          gate_logits=gates[...,None])
+      return jnp.einsum('btkc,btnc->btnk',mod._compress_full_fetch_state(m),keys)
+    actual=mod.apply({'params':p},method=read)
+    expected=mod.apply({'params':p},method=reference)
+    np.testing.assert_allclose(actual[...,:64],expected,rtol=2e-5,atol=2e-5)
+    np.testing.assert_array_equal(actual[...,64:],0.)
     grad=jax.grad(lambda params:jnp.sum(mod.apply({'params':params},method=read)))(p)
     name=cfg.bam_local_packed_parameter_name or 'W_local_packed'
     self.assertGreater(float(jnp.linalg.norm(grad[name]['kernel'].value)),0.)

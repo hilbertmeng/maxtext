@@ -7156,6 +7156,7 @@ class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor(BamMediumIndepe
 
 
 class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor(BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor):
+    # code_commit: f3fe2ec; UE5a .6674 steps/s, tied with L1Anchor (same generic + scoped anchor health ON).
     """Only L1 LocalV row uses 16 full-M direct heads; the other seven LLF blocks scan."""
     # Runtime source: codex/llf-l1-row-anchor; paired common-parameter init; extra storage 524800.
     # Prediction vs L1Anchor: final gap -.001, throughput -1%.

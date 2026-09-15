@@ -23,13 +23,20 @@ def inspect(logdir, layers=24, block_size=3, recent=3):
         assert anchor == get(1, 'native_rms', step)
         for l in local:
             assert get(l, 'active', step) == (l > 1), (step, l)
-            assert get(l, 'anchor_rms', step) == (anchor if l >= 1 else 0), (step, l)
+            # Explicit prefix and scanned tail can lower the same fp32 reduction
+            # differently; compare scalar statistics, not tensor bit patterns.
+            assert math.isclose(get(l, 'anchor_rms', step),
+                                anchor if l >= 1 else 0,
+                                rel_tol=1e-6, abs_tol=1e-8), (step, l)
             gate = get(l, 'gate_mean', step)
             assert 0 <= gate <= 1 and math.isfinite(gate), (step, l, gate)
             bins = sum(get(l, n, step) for n in ('gate_0_02','gate_02_04','gate_04_06','gate_06_08','gate_08_1'))
             assert abs(bins - 1) < 1e-5, (step, l, bins)
         result['steps'][step] = {
             'anchor_rms': anchor,
+            'max_anchor_rms_relative_difference': max(
+                abs(get(l, 'anchor_rms', step) - anchor) / anchor
+                for l in local if l >= 1),
             'raw_grad_norm': scalars['learning/raw_grad_norm'][step],
             'gate_mean_by_local_layer': {l: get(l, 'gate_mean', step) for l in local},
         }

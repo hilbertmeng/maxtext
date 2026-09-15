@@ -89,6 +89,10 @@ whole-model parameter mapping, initial outputs, and training/health shapes.
 Rank4 anchor runtime `39ac7bbb372f8133d13bfa15dffa019835dc0ca1`:
 UE5a `xd-v5p-16-llf-l1-row-anchor-maxtext`, v6e-produced v5p-16 AOT loaded successfully.
 Steps10–14 average .6674 steps/s with generic and scoped anchor health ON.
+Approximate health correction: BAlignedRow .6930 (OFF) versus .6836 (generic ON)
+implies +19.84 ms/step. Applied to LocalORowDecode .6870, this gives .6778;
+the new RUN is then -1.53%, including its extra scoped statistics, versus the -1.5% bet.
+This cross-runtime estimate is not a strict matched throughput measurement.
 At steps30/40/50, L1 anchor RMS was .05908925/.11473595/.19057503, exactly equal at every
 downstream Local layer; only L0/L1 were marked inactive. All gate bins sum to one.
 This validates runtime carry/index behavior, not loss benefit.
@@ -98,3 +102,19 @@ Raw verification summary: `/data0/xd/llf-l1-row-anchor-health.json`;
 source events: `/data0/xd/tensorboard_logs/BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor`.
 Compiler state: `tpu-ag:/home/lishengping/xd/projects/aot_runs/39ac7bb-4fb3d11f.json`;
 compiler cleanup confirmed. Direct-head runtime is `f3fe2ec187a93c50fa2c8afb52be454e6850d0ee`.
+
+Direct-head arm: UE5a `xd-v5p-16-llf-l1-direct-anchor-maxtext` loaded its v6e-produced
+AOT and passed FIRST_STEP. Steps10–14 average .6674 steps/s, tied with the rank4-anchor
+arm under identical health settings (prediction: -1%). The explicit first LLF block
+and seven-block scanned tail export the expected layer indices and active flags.
+At steps150/160/170 the L1 anchor RMS is .99267542/1.07254684/1.15326905;
+tail statistics differ by at most 3.7e-7 relatively. These fp32 RMS reductions need
+tolerance comparison across explicit/scanned regions; the carry itself is only updated
+at L1. Gate distributions pass range/bin-sum checks. This is startup validation, not
+evidence of a training benefit.
+
+Direct-arm raw summary: `/data0/xd/llf-l1-direct-anchor-health.json`;
+events: `/data0/xd/tensorboard_logs/BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor`.
+Compiler state: `tpu-ag:/home/lishengping/xd/projects/aot_runs/f3fe2ec-ad128302.json`;
+compiler cleanup confirmed. Both formal trainers remain allocated; this task does not
+take over ongoing loss monitoring from the user's other task.

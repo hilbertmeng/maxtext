@@ -4,6 +4,9 @@
 
 追加完成：两模型各1344个逐层/逐头干预×同64条，及前32选头/后32验证的弱头联合删除，见[Q/K/V/O头间分布报告](/home/xd/projects/maxtext/experiments/bam_llama2_medium/row_head_contribution.md)。本页保留粗粒度结果口径。
 
+
+列读与行列联合干预已完成（同64条，不到头粒度）：[列读报告](/home/xd/projects/maxtext/experiments/bam_llama2_medium/column_contribution.md)。
+
 ## 核心结论
 
 - **Medium的Q/K行读是低损伤精简候选；这个结论不能直接搬到XL。** Q/K同时全删：Medium **+0.002594 ± 0.000681**，XL **+0.017588 ± 0.002767**，XL约6.8倍；两者配对差 **+0.014994 ± 0.002475**。XL的64条序列全部变差。
@@ -194,6 +197,6 @@ XL运行`experiments/bam_llama2_medium/run_row_contribution.sh`，设置`ROW_STA
 
 ### 保留资源
 
-本节为粗粒度阶段快照；后续head分析中node0/3被云服务抢占，当前8台READY资源的归属见[头间分布报告](/home/xd/projects/maxtext/experiments/bam_llama2_medium/row_head_contribution.md)。
+本节为粗粒度阶段快照；后续head分析中node0/3被云服务抢占，head阶段8台资源的归属及随后全部释放记录见[头间分布报告](/home/xd/projects/maxtext/experiments/bam_llama2_medium/row_head_contribution.md)。
 
 粗粒度阶段按用户要求保留三台`v6e-1`，均在`europe-west4-a`：`xd-v6e-rowko-0-ewa4a-0914`、`xd-v6e-rowko-2-ewa4a-0914`、`xd-v6e-rowko-3-ewa4a-0914`。Medium完成后转用于XL，现全部诊断Python进程已退出；未新开训练、未删除这三台、未借用其他任务资源。资源及分片归属在两个产物根目录的`resource_manifest.json`。

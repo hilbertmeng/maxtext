@@ -9,8 +9,13 @@ import max_utils
 import bam_local_fetch_test
 from layers.attentions import _mix_local_v_row_anchor
 from layers.fusion import BamLayerPair
+from layers.bam_row_anchor_init import map_row_anchor_params
 import train
 import train_compile
+from flax.traverse_util import flatten_dict
+from types import SimpleNamespace
+from layers.models import Transformer
+import pyconfig
 
 EXP = 'BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor'
 
@@ -18,10 +23,37 @@ EXP = 'BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor'
 class RowAnchorTest(absltest.TestCase):
   config = bam_local_fetch_test.LocalFetchTest.config
 
+  def test_real_model_mapped_initialization_and_initial_logits(self):
+    cfg = self.config(EXP.replace('L1Anchor', 'L1DirectAnchor'))
+    cfg.get_keys().update({
+        'num_decoder_layers': 6, 'base_num_decoder_layers': 6, 'vocab_size': 128,
+        'bam_layer_modes': ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2,
+        'bam_local_o_v_mode': ['rank2', 'rank2', 'none'] * 2,
+        'dtype': jnp.float32,
+    })
+    parent_cfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(
+        cfg.get_keys(), bam_l1_direct_local_v_row=False)))
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    model, parent = Transformer(cfg, mesh, quant=None), Transformer(parent_cfg, mesh, quant=None)
+    key = jax.random.key(17)
+    with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
+      state = jax.jit(lambda: max_utils.init_initial_state(model, None, cfg, False, key))()
+      old = jax.jit(lambda: max_utils.init_initial_state(parent, None, parent_cfg, False, key))()
+      expected = map_row_anchor_params(state.params['params'], old.params['params'], cfg.param_scan_axis)
+      for got, want in zip(jax.tree.leaves(state.params['params']), jax.tree.leaves(expected)):
+        np.testing.assert_array_equal(got, want)
+      tokens = jnp.arange(8)[None]
+      inputs = (tokens, tokens, jnp.ones_like(tokens), tokens)
+      y = jax.jit(lambda: model.apply(state.params, *inputs))()
+      y0 = jax.jit(lambda: parent.apply(old.params, *inputs))()
+      for got, want in zip(jax.tree.leaves(y), jax.tree.leaves(y0)):
+        np.testing.assert_allclose(got, want, atol=2e-5, rtol=2e-5)
+
   def test_complete_training_signature_scan_and_non_scan(self):
-    for scanned in (True, False):
-      with self.subTest(scan=scanned):
-        cfg = self.config(EXP)
+    for exp, scanned in ((EXP, True), (EXP, False),
+                         (EXP.replace('L1Anchor', 'L1DirectAnchor'), True)):
+      with self.subTest(exp=exp, scan=scanned):
+        cfg = self.config(exp)
         cfg.get_keys().update({
             'scan_layers': scanned, 'vocab_size': 128,
             'num_decoder_layers': 6, 'base_num_decoder_layers': 6,
@@ -37,6 +69,46 @@ class RowAnchorTest(absltest.TestCase):
         self.assertEqual(sum(k.startswith('bam/row_anchor/') for k in metrics['scalar']), 48)
         self.assertEqual(cfg.checkpoint_period, 200)
         self.assertEqual(cfg.steps, 13500)
+
+  def test_first_block_direct_row_and_mapped_common_parameters(self):
+    cfg = self.config(EXP.replace('L1Anchor', 'L1DirectAnchor'))
+    cfg.get_keys().update({
+        'num_decoder_layers': 6, 'base_num_decoder_layers': 6,
+        'bam_layer_modes': ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2,
+        'bam_local_o_v_mode': ['rank2', 'rank2', 'none'] * 2,
+        'dtype': jnp.float32,
+    })
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    block = BamLayerPair(cfg, mesh, 8, first_block=True)
+    native = BamLayerPair(cfg, mesh, 8)
+    h = jax.random.normal(jax.random.key(1), (1, 8, 128))
+    carry = (h, jnp.zeros((1, 8, 32, 32)), jnp.zeros((1, 8, 2, 32)))
+    args = (jnp.ones((1, 8), jnp.int32), jnp.arange(8)[None],
+            jnp.ones((1, 8), jnp.int32), None, True, 'train', None, None, None, None, jnp.array(0))
+    keys = {'params': jax.random.key(2), 'aqt': jax.random.key(3)}
+    variables = block.init(keys, carry, *args)
+    old = native.init(keys, carry, *args)
+    params = nn.unbox(variables['params'])
+    p = params['local_1']['block']['self_attention']
+    self.assertEqual(p['W_lv_direct_row']['kernel'].shape, (128, 2, 32))
+    self.assertNotIn('W_lv_direct_row', params['local_0']['block']['self_attention'])
+    self.assertNotIn('W_lv_direct_row', params['fetch_2']['block']['self_attention'])
+    p['lv_direct_row_bias'] = jax.random.normal(jax.random.key(4), (2, 32)) * .02
+    (result, _), metrics = block.apply({'params': params}, carry, *args, mutable='intermediates')
+    self.assertGreater(float(jnp.linalg.norm(result[2])), 0.)
+    later = BamLayerPair(cfg, mesh, 8)
+    (after, _), _ = later.apply(old, result, *args[:-1], jnp.array(1), mutable='intermediates')
+    np.testing.assert_array_equal(after[2], result[2])
+    grad = jax.jit(jax.grad(lambda pp: block.apply({'params': pp}, carry, *args)[0][0].sum()))(params)
+    self.assertGreater(float(jnp.linalg.norm(grad['local_1']['block']['self_attention']['W_lv_direct_row']['kernel'])), 0.)
+
+    # Structural mapping uses identical per-layer arrays even though scan axes change.
+    source = {'decoder': {'layers': jax.tree.map(lambda x: jnp.stack([x, x + 1], axis=1), nn.unbox(old['params']))}}
+    target = {'decoder': {'first_block': params,
+                          'layers': jax.tree.map(lambda x: x[:, 1:], source['decoder']['layers'])}}
+    mapped = map_row_anchor_params(target, source, 1)
+    for path, value in flatten_dict(nn.unbox(old['params'])).items():
+      np.testing.assert_array_equal(flatten_dict(mapped['decoder']['first_block'])[path], value)
 
   def test_global_l1_write_and_consumer_gradient(self):
     rows = jnp.arange(6., dtype=jnp.float32).reshape(6, 1, 1, 1, 1)

@@ -7154,6 +7154,15 @@ class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor(BamMediumIndepe
     force_final_checkpoint = True
 
 
+class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor(BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor):
+    """Only L1 LocalV row uses 16 full-M direct heads; the other seven LLF blocks scan."""
+    model_name = 'BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor',
+                    'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode',
+                    'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_l1_direct_local_v_row = True
+
+
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
     """Only LocalV rank4 uses effective_key, with fp32 Gram/norm2 statistics."""
     # code_commit: c6648c2; UE5a v5p-16 block-scan/AOT, .6880 steps/s (10–14), -.58% vs LocalVRank4 .6920.

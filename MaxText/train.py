@@ -372,8 +372,12 @@ def record_bam_row_anchor_metrics(output_metrics, intermediate_outputs, config):
     if offset == block_size - 1:
       continue
     if config.scan_layers:
-      attention = decoder['layers'][f'local_{offset}']['block']['self_attention']
-      values = attention['row_anchor_stats'][0][layer // block_size]
+      separate_first = bool(getattr(config, 'bam_l1_direct_local_v_row', False))
+      if separate_first and layer < block_size:
+        values = decoder['first_block'][f'local_{offset}']['block']['self_attention']['row_anchor_stats'][0]
+      else:
+        attention = decoder['layers'][f'local_{offset}']['block']['self_attention']
+        values = attention['row_anchor_stats'][0][layer // block_size - int(separate_first)]
     else:
       values = decoder[f'layers_{layer}']['block']['self_attention']['row_anchor_stats'][0]
     for name, value in zip(names, values):

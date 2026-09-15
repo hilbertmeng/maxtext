@@ -2433,6 +2433,7 @@ class BamAttention(Attention):
   layer_mode: str = 'none'      # per-layer read mode (each layer is a separate instance under non-scan)
   read_side: str = 'both'       # both | row (M^T r_row) | col (M r_col)
   local_v_mode: str | None = None
+  direct_local_v_row: bool = False
   bam_k: int = 32
   bam_v: int = 32
 
@@ -2919,6 +2920,16 @@ class BamAttention(Attention):
           quant=self.quant, matmul_precision=cfg.matmul_precision,
           use_bias=False)
     gate_bias_value = read_gate_bias(zero_key_gate_init)
+    if self.direct_local_v_row:
+      assert self._row_anchor_enabled and self._local_o and 'v' in self._local_arms
+      self.W_lv_direct_row = DenseGeneral(
+          features=(self.num_query_heads, self.bam_k), axis=-1,
+          kernel_init=zeros_init, kernel_axes=('embed', 'q_heads', 'kv'),
+          dtype=self.dtype, weight_dtype=self.weight_dtype, name='W_lv_direct_row',
+          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.lv_direct_row_bias = self.param(
+          'lv_direct_row_bias', nn.with_logical_partitioning(zeros_init, ('q_heads', 'kv')),
+          (self.num_query_heads, self.bam_k), self.weight_dtype)
     local_v_output_dim = self.head_dim - self.bam_k
     for arm in self._local_arms.values():
       setattr(self, f'{arm.prefix}_bias', self.param(
@@ -3266,7 +3277,8 @@ class BamAttention(Attention):
     result = factorized_head_bam_read(
         M, x, lambda _x: key, lambda _x: mix,
         **read_kwargs,
-        implementation=self._read_implementation, read_side=arm.read_side,
+        implementation=self._read_implementation,
+        read_side='col' if name == 'v' and self.direct_local_v_row else arm.read_side,
         rank=arm.rank, second_implementation=self._local_second_implementation,
         v_projection={'q': q_projection, 'k': k_projection, 'v': v_projection}.get(name),
         rank_routing=arm.rank_routing,
@@ -3277,6 +3289,16 @@ class BamAttention(Attention):
     if self._record_local_routing_metrics:
       result, rank_gate = result
       self._record_local_rank_gate(f'local_{name}', rank_gate)
+    if name == 'v' and self.direct_local_v_row:
+      # Keep the existing per-head row gate; replace only rank->head row routing.
+      key = self.W_lv_direct_row(x) + self.lv_direct_row_bias.astype(x.dtype)
+      row_key = _transform_bam_read_key(
+          key, mode='rms_gate', scale=self._local_key_scales[name] * math.sqrt(arm.rank),
+          rms_epsilon=self._read_key_epsilon,
+          rms_statistics_dtype=self._read_rms_statistics_dtype,
+          gate_logits=gate[..., 0, None], gate_activation=self._read_gate_activation)
+      _, row = _contract_bam_read_sides(M, M, row_key, None, self._read_implementation, 'row')
+      result = (result[0], row)
     return _fit_bam_read_to_head(
         result, self.bam_k, self.head_dim,
         getattr(self, f'local_{name}_v_adapter', None))

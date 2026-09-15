@@ -56,3 +56,30 @@ Pre-run bet: final gap -.002 versus LocalORowDecode, -.002 versus BAlignedRow;
 architectural throughput change about -1.5%/-2.4%, respectively, before unmatched health overhead.
 Full coordinates solve the private compression-coordinate mismatch, not the possible semantic/head specialization mismatch across layers.
 No claim of benefit is made before training.
+
+## L1 direct-head arm
+
+`BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor` changes only L1 LocalV row reading:
+`D→[16,32]` zero-initialized keys plus per-head pre-RMS bias, RMSNorm, the existing 16 row gates,
+and a direct contraction with full M32×32. No row head-mix remains in the active forward path.
+Columns retain rank4-B; LocalO and every other layer retain their parent's operations.
+Direct key scale is 2, versus rank4-B scale1: this matches the approximate RMS of four
+uncorrelated, unit-RMS basis contributions, not an exact distribution/Jacobian identity.
+
+The first LLF block is explicit; the remaining seven blocks scan with global block indices 1…7.
+The same L1 anchor traverses both regions. The initial-state helper
+`MaxText/layers/bam_row_anchor_init.py` maps the parent's eight-block parameter draws into
+the explicit first block and the seven-block tail, preserving target sharding metadata.
+Only the new direct keys/bias are new; they start at zero. Mapping happens only at initialization,
+not at training steps or checkpoint restores. This removes common-parameter reinitialization
+as a confound of splitting the first block; compiler/layout numerical differences remain possible.
+
+For this ablation, the unused original L1 row-key/head-mix packed slots remain stored to preserve
+the exact common packed parameter tree; no rank4 row contraction is executed there.
+Gross extra storage versus the anchor arm is 524800 parameters (0.50049 W_Q).
+The experiment is not a claim about a fully pruned direct-head parameter budget.
+
+Direct comparisons: the rank4-anchor arm, LocalORowDecode, and BAlignedRow.
+Pre-run bet versus rank4 anchor: final gap -.001; throughput about -1%, subject to the explicit-prefix lowering.
+Tests cover direct keys only in L1, nonzero anchor/cross-block persistence, direct-key gradients,
+whole-model parameter mapping, initial outputs, and training/health shapes.

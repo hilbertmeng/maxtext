@@ -733,6 +733,9 @@ def init_initial_state(model, tx, config, is_training, key):
       np.ones(input_shape, dtype=jnp.int32),
       np.ones(input_shape, dtype=jnp.int32),
   )
+  if getattr(config, 'bam_l1_direct_local_v_row', False) and config.scan_layers:
+    from layers.bam_row_anchor_init import initialize_from_row_anchor_parent
+    model_vars = initialize_from_row_anchor_parent(model, model_vars, config, key, input_shape)
   if is_training:
     return init_training_state(model.apply, model_vars, tx)
   return init_decode_state(model.apply, model_vars)

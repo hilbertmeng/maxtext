@@ -7249,6 +7249,7 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     compare_runs = [
         'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
         'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead',
+        'BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32',
     ]
     bam_local_v_row_shared = True
     record_training_health_metrics = True

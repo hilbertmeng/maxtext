@@ -7248,7 +7248,7 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B'
     compare_runs = [
         'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
-        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRowSharedRead',
+        'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan',
         'BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32',
     ]
     bam_local_v_row_shared = True

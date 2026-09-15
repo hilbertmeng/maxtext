@@ -7140,6 +7140,7 @@ class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndepen
 class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor(BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode):
     """Full-address LocalV row interpolation with the global L1 output."""
     # Implementation: codex/llf-l1-row-anchor, /data0/xd/llf-l1-row-anchor.
+    # code_commit: 39ac7bb; UE5a .6674 steps/s; generic + scoped anchor health ON (historical timing unmatched).
     # Prediction vs LocalORowDecode: final gap -.002, throughput -1.5% (unmatched health).
     # vs BAlignedRow: final gap -.002, throughput -2.4%; extra parameters 262400.
     model_name = 'BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor'
@@ -7156,6 +7157,8 @@ class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor(BamMediumIndepe
 
 class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor(BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor):
     """Only L1 LocalV row uses 16 full-M direct heads; the other seven LLF blocks scan."""
+    # Runtime source: codex/llf-l1-row-anchor; paired common-parameter init; extra storage 524800.
+    # Prediction vs L1Anchor: final gap -.001, throughput -1%.
     model_name = 'BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor'
     compare_runs = ['BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor',
                     'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode',

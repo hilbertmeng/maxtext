@@ -83,3 +83,18 @@ Direct comparisons: the rank4-anchor arm, LocalORowDecode, and BAlignedRow.
 Pre-run bet versus rank4 anchor: final gap -.001; throughput about -1%, subject to the explicit-prefix lowering.
 Tests cover direct keys only in L1, nonzero anchor/cross-block persistence, direct-key gradients,
 whole-model parameter mapping, initial outputs, and training/health shapes.
+
+## Launch evidence
+
+Rank4 anchor runtime `39ac7bbb372f8133d13bfa15dffa019835dc0ca1`:
+UE5a `xd-v5p-16-llf-l1-row-anchor-maxtext`, v6e-produced v5p-16 AOT loaded successfully.
+Steps10–14 average .6674 steps/s with generic and scoped anchor health ON.
+At steps30/40/50, L1 anchor RMS was .05908925/.11473595/.19057503, exactly equal at every
+downstream Local layer; only L0/L1 were marked inactive. All gate bins sum to one.
+This validates runtime carry/index behavior, not loss benefit.
+
+Verification runner: `experiments/bam_llama2_medium/check_l1_row_anchor_tb.py`.
+Raw verification summary: `/data0/xd/llf-l1-row-anchor-health.json`;
+source events: `/data0/xd/tensorboard_logs/BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor`.
+Compiler state: `tpu-ag:/home/lishengping/xd/projects/aot_runs/39ac7bb-4fb3d11f.json`;
+compiler cleanup confirmed. Direct-head runtime is `f3fe2ec187a93c50fa2c8afb52be454e6850d0ee`.

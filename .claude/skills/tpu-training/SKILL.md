@@ -10,10 +10,11 @@ SSH socket `/tmp/ssh-tpu-ag-xd.sock`. Use `$tpu-diagnostics` for checkpoint prob
 
 Defaults: repo `/home/xd/projects/maxtext` (`refactor-bam`); tpu-ag scripts
 `/home/lishengping/xd/projects`; TPU VM repo `/home/lishengping/xd/projects/maxtext`;
-project `newproject-1-451205`; TPU `v5p-16`; formal v5p region policy
-`PRIMARY_ZONE=europe-west4-b`, `BACKUP_ZONES=`. `run_exp_xd.sh` selects the zone-local output
-and Pile-data buckets and records `base_output_directory` plus `dataset_path` in the RUN. Set
-`DATASET_PATH` explicitly only for another dataset variant.
+project `newproject-1-451205`; TPU `v5p-16`. Before each formal launch, choose
+`PRIMARY_ZONE` from the user's current direction and the latest comparable leases in
+`experiments/tpu_region_preemption_history.md`; record the chosen zone in the RUN. `run_exp_xd.sh`
+selects its zone-local output and Pile-data buckets. Set `DATASET_PATH` explicitly only for another
+dataset variant.
 Authoritative orchestration sources are `/home/xd/projects/xd_tpu_scripts`; deploy only those
 exact files to tpu-ag and verify matching hashes.
 Compiler and training workers obtain source from Git over HTTPS at the registered commit;
@@ -38,11 +39,17 @@ not cover; it is not a routine prerequisite for training.
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
    For formal spot `v5p`, set `PRIMARY_ZONE` and the user-directed `BACKUP_ZONES`; `ZONE` defaults
    to `PRIMARY_ZONE` for the active assignment.
+   Queue in `PRIMARY_ZONE` first; after 5 minutes without capacity, add candidates in
+   `BACKUP_ZONES` while retaining the primary queue. Prefer `PRIMARY_ZONE` when both are
+   available; retain alternates until the selected trainer produces `FIRST_STEP`, then release them.
    Use `install+train` for a new/reprovisioned VM and `train` for an installed READY VM.
    Use `attach` to replace only the auto-train controller while leaving a healthy worker RUN alive.
    Formal training defaults to `scan_layers=True`; verify the resolved class value before launch.
    Use another setting only when the user explicitly requests it.
    Use `checkpoint_period=200` for Medium and `250` for XL.
+   Normal training uses `record_training_health_metrics=True` and BAM-specific `sow`
+   statistics OFF unless the user requests otherwise. Verify inherited values before AOT
+   compilation; keep explicitly requested health capture enabled for its experiment.
 2. Before a parameter-tree change, use a new run name/GCS prefix. Commit the prepared runtime
    code, push its worktree branch, and use its full hash. Commit/push first-step fixes and
    update the RUN hash before relaunch.
@@ -61,9 +68,23 @@ and worker processes while retaining the READY TPU/queued resource, then launch 
 immediately with `MODE=train`. Mark the old RUN paused and handle its TensorBoard bookkeeping while
 waiting; ownership transfers only after the new RUN reaches `FIRST_STEP`.
 
+Use the parameterized tpu-ag entrypoint for this handoff:
+
+```bash
+python3 /home/lishengping/xd/projects/hot_switch_run.py OLD_RUN NEW_RUN \
+  --aot-state /absolute/path/to/aot_runs/STATE.json \
+  --branch IMPLEMENTATION_BRANCH --id NEW_ID --steps TOTAL_STEPS
+```
+
+`--dry-run` validates the retained TPU and AOT manifest without stopping training. The new
+controller runs in its own detached tmux session; the handoff then records the old RUN as paused
+and publishes its TB marker. Retry the identical command to resume journaled phases. Confirm the
+new RUN's `FIRST_STEP` through the usual registry waiter. Script source and tests live in
+`/home/xd/projects/xd_tpu_scripts/hot_switch_run.py` and `test_hot_switch_run.py`.
+
 ```bash
 EXP=BamLlama2Medium ID=0 MODE=install+train
-PRIMARY_ZONE=europe-west4-b BACKUP_ZONES=
+PRIMARY_ZONE=$SELECTED_ZONE BACKUP_ZONES=
 CODE_COMMIT=$(git rev-parse HEAD)
 BASES=Llama2Medium
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
@@ -79,6 +100,8 @@ ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   '/home/lishengping/xd/projects/run_registry.py status'
 # Registry and auto_pid environment must agree on CODE_COMMIT and COMPARE_RUNS.
+# register also stores BRANCH and BACKUP_ZONES so migrate_zone.py can relaunch
+# without reconstructing launch env vars by hand.
 ```
 
 5. Gate launch with the registry's one-shot waiter. It polls the worker log internally and exits
@@ -100,11 +123,15 @@ its target TPU. Run on tpu-ag:
 
 ```bash
 /home/lishengping/xd/projects/prepare_train_aot.py \
-  EXP FULL_COMMIT TARGET_TOPOLOGY TOTAL_STEPS
+  EXP FULL_COMMIT TARGET_TOPOLOGY TOTAL_STEPS \
+  --primary-zone "$PRIMARY_ZONE" --backup-zones "${BACKUP_ZONES[@]}"
 ```
 
-The idempotent command races v6e compilers, keeps backups until the first artifact and manifest
-verify, retries on the next candidate after preemption/failure, and releases every compiler TPU.
+Choose compiler `PRIMARY_ZONE` and `BACKUP_ZONES` from the diagnostic-region policy.
+The idempotent command submits the primary compiler first and adds backup zones after
+`--primary-wait-seconds` (default 300) without an installed compiler. It prefers the primary
+when multiple candidates are ready, keeps submitted backups until the artifact and manifest
+verify, retries after preemption/failure, and releases every compiler TPU.
 Use its `AOT_READY artifact=...` value as `COMPILED_TRAINSTEP_GCS`; `run_exp_xd.sh` stages it on
 every recovery. The manifest keys commit, pinned environment/compiler, topology, experiment
 shapes, and total schedule. Recompile when any key changes. For checkpoint resume, pass the
@@ -115,6 +142,9 @@ After target launch, require `Loaded compiled function!` plus an actual first st
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`
    class. Immediately report and investigate a material unexplained speed deviation; mark the
    class comment `!?` or `!!` until resolved.
+   Match generic and BAM-specific health settings to the timing baseline, and record both
+   alongside speed evidence. Historical all-health-OFF baselines require a separate matched
+   speed-only run; retain normal training health and label unmatched timings incomparable.
 
 Once training is steady, ignore isolated/short-lived `steps/s` changes; preemptible TPU throughput
 is otherwise stable and these are normally checkpoint or I/O scheduling effects.
@@ -130,12 +160,17 @@ completes.
 
 ## Monitor Training
 
+The registry is shared across sessions. Keep an explicit list of RUNs launched by or handed
+to this task; "all running experiments" means this list. Use repeated `--run RUN` arguments
+for `status` and `report-all`. Each RUN/TPU has one controlling task; transfer ownership
+explicitly, including its report cursor and pending decisions. Baseline caches may be shared.
+
 Use `run_registry.py status` for liveness. Auto-train materializes each mature cumulative loss
 report; Codex pulls the unacknowledged event and reserves full TensorBoard sync for run closeout.
 
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
-  '/home/lishengping/xd/projects/run_registry.py status'
+  '/home/lishengping/xd/projects/run_registry.py status --run RUN1 --run RUN2'
 ```
 
 `status` persists and displays queue age, no-progress age, preemption count, recent READY lease
@@ -157,6 +192,9 @@ logs and merge repeated steps
 (latest launch wins) into persistent `run_registry/loss_cache/`, then prints every
 `gap = RUN loss - BASE loss` (negative favors RUN) at exact common steps:
 
+Use `update-monitoring RUN --compare-runs ...` for live comparison/cadence changes; `register`
+is the launch/relaunch operation.
+
 ```bash
 ssh -S /tmp/ssh-tpu-ag-xd.sock tpu-ag \
   '/home/lishengping/xd/projects/run_registry.py pending-report RUN'
@@ -166,7 +204,10 @@ It samples `step % 10 == 0` inside each ±25-step window, preserving the histori
 series across worker logs and 10-step TensorBoard records. Do not pass the milestone interval as
 `--sample-period`; the default is the window's raw-point stride. For each RUN−BASE,
 print one cumulative horizontal table with only `step`, `gap`, and `r200`; omit absolute losses
-and split after about 20 steps into another horizontal block. Report every direct `compare_runs`
+and split after about 20 steps into another horizontal block. Label each RUN−BASE title with its
+verified steady-throughput change (`RUN steps/s / BASE steps/s - 1`); identify any matched timing
+control used instead of the loss BASE, or mark timing unavailable when conditions are incomparable.
+Report every direct `compare_runs`
 entry, including completed BASEs with no new common steps; omit one only after the user explicitly
 removes it or the registry is updated. Here
 `r200 = (abs(gap[s]) - abs(gap[s-200])) / abs(gap[s-200])`: negative means the gap
@@ -174,6 +215,8 @@ magnitude shrank from the preceding window, positive means it grew. Summarize th
 level with the mean and range of the latest 5–8 reported points, but judge stability from the full
 cumulative series and long-window signed-gap trends; two or three local points never establish it.
 Use `r200` only for magnitude change, especially near zero.
+For cross-scale comparisons, also align relative progress (`step / planned_total_steps`);
+distinguish observed trends from uncertain extrapolations.
 
 Investigate every anomalous monitoring metric immediately and restore 200-step reporting until
 its root cause is resolved.
@@ -182,10 +225,10 @@ the transition explicitly and monitor it closely until its direction is clear.
 
 At every due milestone:
 
-1. Run one shared `status`, verify each due RUN's latest checkpoint under its registered
-   `base_output_directory` has `commit_success.txt`, then pull `pending-report` (use
-   `loss-report` only if event generation failed); summarize healthy checkpoints tersely and
-   investigate pending or rollback immediately.
+1. Run one shared `run_registry.py report-all --run RUN1 --run RUN2` for this task's RUN list;
+   it pulls their pending cumulative
+   report and verifies the latest committed checkpoint. Use `status` for liveness and
+   `loss-report` only if event generation failed; investigate pending or rollback immediately.
 2. Report the cumulative horizontal rows; judge stability from signed-gap trends plus `r200`.
    When a RUN enables BAM read-health `sow` metrics, also run
    `scripts/sync_tensorboard_incremental.py RUN...`, then
@@ -207,13 +250,14 @@ Auto-train caches logs before clean/crash deletion. Before manually deleting a T
 synced TensorBoard once with `scripts/export_tensorboard_loss.py`, copy the small `STEP LOSS`
 file to tpu-ag, and run `run_registry.py import-loss BASE --file FILE`.
 
-Require explicit user permission for any stop before step 2,800. At/after 2,800, use
+Review points default to 2,800 steps for Medium and 10,000 for XL (about 1/5 of the plan);
+earlier stops require user permission. For Medium, at/after 2,800, use
 `MHA advantage = MHA loss - RUN loss`: an advantage below 0.08 and still shrinking rapidly
 likely finishes below 0.05 and may stop; an advantage above 0.05 with curves becoming parallel
-may merit continuing. Train a configuration with a credible loss, speed, or parameter-efficiency
-gain longer—possibly to completion—to verify that the gain persists; material parameter reduction
+may merit continuing. Train a configuration with a credible loss, speed, parameter-efficiency,
+or inference-cache gain longer—possibly to completion—to verify that the gain persists; material parameter reduction
 with near-baseline loss counts even when wall-clock speed is unchanged. A configuration still
-unlikely to beat its direct baseline and offering no other gain may stop at 2,800. Also stop a run
+unlikely to beat its direct baseline and offering no other gain may stop at its review point. Also stop a run
 clearly dominated by a prior failed configuration.
 Treat a planned step as a review point, not a hard stop: if the long-term gap is still shrinking,
 extend the RUN, up to full training when needed to determine whether the gap persists or vanishes.
@@ -224,7 +268,9 @@ For multiple runs, use one shared wake-up and batch-check all runs; use per-run 
 for anomalies or imminent completion/decisions. Stable runs may accumulate about five 200-step
 windows per loss report. Independently, when preemptions are frequent, wake for a shared health
 check within ~10–12 minutes; an unchanged health check need not trigger a loss report. Estimate
-from steps/s and stay silent between wakes; modest overshoot is fine.
+from steps/s and stay silent between wakes; modest overshoot is fine. If repeated preemption or
+queueing prevents loss progress, periodically report the resource state and new lease history
+instead of going silent.
 
 ## Stop Training
 
@@ -268,14 +314,18 @@ For every stopped/completed run:
    per active-zone stint grouped by RUN, plus one event row per READY lease globally sorted by UTC
    end time. Record passive candidates separately; they are not region switches. This ordering
    exposes correlated preemptions and supplies evidence for region/time-of-day choices.
-5. Replace the experiment class's running comment with one terse line containing speed, final
-   step, and the main conclusion against its registered direct `compare_runs`; retain every
+5. Update the class in the main repository's `MaxText/exp.py`, including worktree experiments:
+   record speed/zone, final step/status, and the overall gap trend against its registered direct
+   `compare_runs`, not just its stopping-point value; retain every
    decision-relevant direct baseline. Express loss, speed, parameters, cache, and compute as
    deltas or ratios versus that baseline; use absolute values only as supplemental context, e.g.:
 
 ```python
-# ~0.280 steps/s; completed 13,500. dloss -0.0678 (-2.77%) vs MHA @13,400
+# EW4b ~0.280 steps/s; completed 13,500. vs MHA: early gain shrank, then held ~-.068 over 10k–13.4k.
 ```
+
+For a pause, label the state and conclusions provisional. Check ledger coverage with
+`experiments/bam_llama2_medium/audit_exp_ledger.py`.
 
 ## Hot Retrain
 
@@ -330,7 +380,8 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
   topology/zone with a passive FLEX_START queued-resource. After creation succeeds, freeze the RUN
   and activate exactly one flex trainer with a duration longer than its ETA.
 - For formal spot `v5p`, queue and recover in `PRIMARY_ZONE`; passive candidates come only from the
-  user-directed `BACKUP_ZONES`. Revisit both from the shared region/preemption history.
+  user-directed `BACKUP_ZONES`, following the same 5-minute staged queue policy under Start Training.
+  Revisit both from the shared region/preemption history.
 - In xd's v5p experience, maintenance warning + refused SSH is almost always preemption. Start
   reclaim immediately.
 - A queued-resource `SUSPENDED; stateInitiator=SERVICE` is terminal even if the TPU node has
@@ -338,11 +389,25 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
   Auto-train must release both resources through `delete_tpu_xd.sh`, recreate, reinstall, apply
   `CODE_COMMIT`, and resume the same RUN from its latest GCS checkpoint.
 - Storage is explicit RUN state; never let a replacement zone select an empty prefix. Prefer
-  same-zone recovery. If the source TPU is terminal and recovery must change zones, stop its reclaim
-  launcher, then run `run_registry.py migrate-storage RUN --to-base B_BUCKET`. This copies the latest
-  committed checkpoint, verifies it, and atomically updates `base_output_directory`; launch reads that
-  registry value. Accept recovery only after `FIRST_STEP` exceeds the migrated step **and** the next
-  periodic checkpoint commits. A step directory without `commit_success.txt` is incomplete.
+  same-zone recovery. If the source TPU is terminal and recovery must change zones, use the
+  one-command `migrate_zone.py` (authoritative source `/home/xd/projects/xd_tpu_scripts/migrate_zone.py`):
+  it reads the RUN registry, stops the auto-train launcher, deletes the old-zone TPU/queued-resource,
+  copies the latest committed checkpoint to the target zone's zone-local bucket (via
+  `run_registry.py migrate-storage`), and relaunches `run_exp_xd.sh` in the target zone with all
+  launch parameters sourced from the registry. Run on tpu-ag:
+
+```bash
+python3 /home/lishengping/xd/projects/migrate_zone.py RUN1 [RUN2 ...] --to-zone us-east5-a
+```
+
+  Use `--dry-run` to preview, `--branch`/`--backup-zones` to override the registry values. The
+  zone-local bucket is derived from the target zone (matching `run_exp_xd.sh`):
+  `us-east5-a` -> `gs://newproject-1-llm_projects_us-east5/log/`, `us-central1-*` ->
+  `gs://newproject-1-llm_base_models_us-central1/log/`. Accept recovery only after `FIRST_STEP`
+  exceeds the migrated step **and** the next periodic checkpoint commits. A step directory without
+  `commit_success.txt` is incomplete. For a manual subset of the flow, `run_registry.py
+  migrate-storage RUN --to-base B_BUCKET` copies and verifies the checkpoint and atomically updates
+  `base_output_directory`.
 - Treat a post-maintenance SSH timeout as `alive=unknown`.
 
 ## TensorBoard Service

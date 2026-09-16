@@ -7266,15 +7266,34 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     force_final_checkpoint = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
+    """Ledger only: keep LocalV rank4-B column and remove only its shared O-row answer."""
+    # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # code_commit: a36eb07; UE5a .689 steps/s, +0.79% vs matched-health BAlignedRow .6836.
+    # Result: stopped at 7,000. vs BAlignedRow: warmstart collapsed to ~+.003 by 1k,
+    # held +.001~+.0035 plateau over 1k-6.8k, final 6800=+.0027 (r200 noise around 0).
+    # vs RowSharedColRank4B: stable +.003~+.005 over 2k-6.8k, final 6800=+.0029.
+    # Conclusion: removing LocalV's shared O-row answer costs ~+.003 vs BAlignedRow
+    # at Medium scale (small but real); the shared O-row answer retains modest value here.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B'
+    compare_runs = [
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+    ]
+    bam_local_v_row_shared = False
+    bam_local_v_col_only = True
+
+
 class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
     """Ledger only: shared LocalV/O rows only in LLF block 0; later L layers are column-only."""
     # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
-    # code_commit: 46daaf3; UE5a AOT loaded/FIRST_STEP4; .698 steps/s near step183
-    # (+2.11% vs matched-health BAlignedRow .6836); generic health ON/BAM sow OFF.
-    # Pre-run bet vs parent: late dloss center +.0015, likely [0,+.004]; throughput +2..3%.
-    # Removes 15,655,360 params (3.733 W_Q) from 14 later-block L layers.
-    # Q/K rows and every F-layer fetchO row stay unchanged; history-M cache is unchanged.
+    # code_commit: 46daaf3; UE5a .698 steps/s, +2.11% vs matched-health BAlignedRow .6836.
+    # Result: stopped at 9,750. vs RowSharedColRank4B: warmstart collapsed to ~+.005
+    # by 5k, held +.003~+.005 over 5k-9.6k, final 9600=+.0030. Plateau, no downtrend.
+    # Conclusion: sharing LocalV/O rows only in block 0 costs ~+.003 vs RowSharedColRank4B;
+    # later-block row reads contribute ~.003 of the full ~.008 row-read value.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly'
     compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B']
     bam_local_vo_row_first_block_only = True
@@ -7284,24 +7303,57 @@ class BamMediumIndependentLLFBAlignedRowLocalVOColOnly(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
     """Ledger only: remove LocalV/O rows from all L layers; keep linear F fetchO rows."""
     # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
-    # code_commit: 01a601e; UE5a AOT loaded/FIRST_STEP3; .703 steps/s near step43
-    # (+2.84% vs matched-health BAlignedRow .6836); generic health ON/BAM sow OFF.
-    # Pre-run bet vs RowShared parent: late dloss center +.003, likely [+.001,+.006];
-    # throughput +2.5..3.5%; removes 17,891,840 params (4.266 W_Q).
+    # code_commit: 01a601e; UE5a .703 steps/s, +2.84% vs matched-health BAlignedRow .6836.
+    # Result: stopped at 9,900. vs RowSharedColRank4B: warmstart collapsed to ~+.008
+    # plateau by 6k, held +.003~+.005 over 6k-9.6k, final 9600=+.0038. vs FirstBlockOnly:
+    # converged from +.013@2k to +.003@9.4k, final 9400=+.0033 (still narrowing).
+    # Conclusion: removing LocalV/O row reads costs ~+.003~+.004 vs RowSharedColRank4B
+    # (small but real); LocalVOColOnly and FirstBlockOnly converge to ~+.003 gap,
+    # suggesting O row read value ~.003 at this scale.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVOColOnly'
     compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
                     'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly']
     bam_local_vo_row_all_local_pruned = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl(
+    BamMediumIndependentLLFBAlignedRowLocalVOColOnly):
+    """Ledger only: FLL-layout control for the fetched-O row relay experiment."""
+    # Implementation: codex/llf-fetched-row-relay, /data0/xd/llf-fetched-row-relay.
+    model_name = (
+        'BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl')
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVOColOnly']
+    bam_fetched_row_relay_fll = True
+    bam_fetched_row_relay_enabled = False
+
+
+class BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL(
+    BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl):
+    """Ledger only: relay each F fetched-O row to the next two L layers' O/V."""
+    # Implementation: codex/llf-fetched-row-relay, /data0/xd/llf-fetched-row-relay.
+    # Pre-run bet vs LocalVOColOnly: late dloss center -.0015,
+    # likely [-.004,+.0015]; speed center -.8%, likely -.5..-1.5% vs FLL control.
+    # Adds 917,952 target-gate params (0.219 W_Q), while retaining 4.047 W_Q
+    # savings vs RowShared. Generic health ON; BAM sow OFF.
+    model_name = (
+        'BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL')
+    compare_runs = [
+        'BamMediumIndependentLLFBAlignedRowLocalVOColOnly',
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+    ]
+    bam_fetched_row_relay_enabled = True
+
+
 class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu(
     BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly):
     """Ledger only: D→256→nK GELU for every retained LocalO/fetchO row key."""
     # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
-    # code_commit: 46daaf3; UE5a AOT loaded/FIRST_STEP1; .699 steps/s near step89
-    # (+2.25% vs BAlignedRow, +.14% vs FirstBlockOnly); generic health ON/BAM sow OFF.
-    # Pre-run bet vs FirstBlockOnly: late dloss center +.0005, likely [-.001,+.002];
-    # throughput -1.5..-2%; another 3,932,160 params removed (total 4.670 W_Q vs parent).
+    # code_commit: 46daaf3; UE5a .699 steps/s, +2.25% vs BAlignedRow .6836,
+    # +.14% vs FirstBlockOnly; generic health ON/BAM sow OFF.
+    # Result: stopped at 9,200. vs FirstBlockOnly: gap oscillated in [-.0014,+.0013]
+    # over 400-8600, 10+ zero-crossings, final 8600=-.0004. No sign commitment.
+    # Conclusion: O row read R256Gelu bottleneck marginal value = 0 vs FirstBlockOnly;
+    # the 256-dim GELU row key adds nothing beyond FirstBlockOnly's structure.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu'
     compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly',
                     'BamMediumIndependentLLFBAlignedRowAllORowR256Gelu']

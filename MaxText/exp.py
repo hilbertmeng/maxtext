@@ -7270,6 +7270,8 @@ class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
     """Keep shared LocalV/O rows in LLF block 0; later L layers are V/O-column-only."""
     # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # code_commit: 46daaf3; UE5a AOT loaded/FIRST_STEP4; .698 steps/s near step183
+    # (+2.11% vs matched-health BAlignedRow .6836); generic health ON/BAM sow OFF.
     # Pre-run bet vs parent: late dloss center +.0015, likely [0,+.004]; throughput +2..3%.
     # Removes 15,655,360 params (3.733 W_Q) from 14 later-block L layers.
     # Q/K rows and every F-layer fetchO row stay unchanged; history-M cache is unchanged.
@@ -7282,6 +7284,8 @@ class BamMediumIndependentLLFBAlignedRowLocalVOColOnly(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
     """Remove LocalV/O rows from every L layer; keep each F-layer linear fetchO row."""
     # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # code_commit: 01a601e; UE5a AOT loaded/FIRST_STEP3; .703 steps/s near step43
+    # (+2.84% vs matched-health BAlignedRow .6836); generic health ON/BAM sow OFF.
     # Pre-run bet vs RowShared parent: late dloss center +.003, likely [+.001,+.006];
     # throughput +2.5..3.5%; removes 17,891,840 params (4.266 W_Q).
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVOColOnly'
@@ -7294,6 +7298,8 @@ class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu(
     BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly):
     """Use D→256→nK GELU projections for every retained LocalO/fetchO row key."""
     # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # code_commit: 46daaf3; UE5a AOT loaded/FIRST_STEP1; .699 steps/s near step89
+    # (+2.25% vs BAlignedRow, +.14% vs FirstBlockOnly); generic health ON/BAM sow OFF.
     # Pre-run bet vs FirstBlockOnly: late dloss center +.0005, likely [-.001,+.002];
     # throughput -1.5..-2%; another 3,932,160 params removed (total 4.670 W_Q vs parent).
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu'

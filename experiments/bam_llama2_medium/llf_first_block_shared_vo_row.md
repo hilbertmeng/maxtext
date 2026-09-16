@@ -19,10 +19,10 @@ later LocalO/LocalV rows.
 
 ## Runtime
 
-- code commit:
-- AOT artifact:
-- TPU / FIRST_STEP:
-- speed:
+- code commit: `46daaf3`
+- AOT artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/46daaf3/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly.pickle`
+- TPU / FIRST_STEP: `xd-v5p-16-llf-first-block-vo-row-maxtext`, UE5a, step 4
+- speed: `.698 step/s` near step 183 (`+2.11%` vs matched-health BAlignedRow `.6836`)
 
 ## O-row GELU-LoRA variant
 
@@ -38,6 +38,11 @@ F-only arm loss-neutral and its L-only arm around `+0.006`; retaining only the t
 rows should remove most of that L sensitivity, while the extra nonlinear projections retain
 the previously observed throughput cost.
 
+Runtime: `46daaf3`, UE5a `xd-v5p-16-llf-first-block-vo-row-gelu-maxtext`, AOT loaded and
+FIRST_STEP 1. It measured `.699 step/s` near step 89 (`+2.25%` vs BAlignedRow, `+.14%` vs
+FirstBlockOnly), so the speed bet was wrong: at ten retained row readers the projection FLOP
+saving outweighed the GELU overhead.
+
 ## All-L LocalV/O column-only variant
 
 `BamMediumIndependentLLFBAlignedRowLocalVOColOnly` keeps the whole eight-block scan. All 16 L
@@ -48,3 +53,7 @@ unchanged. It removes 17,891,840 parameters (`4.266 W_Q`) versus the RowShared p
 Pre-run bet versus RowShared: late dloss center `+0.003`, likely `[+0.001,+0.006]`, and
 throughput `+2.5..3.5%`. Relative to FirstBlockOnly, the bet is roughly `+0.0015` from removing
 the two earliest L row reads, with a smaller additional speed gain.
+
+Runtime: `01a601e`, UE5a `xd-v5p-16-llf-local-vo-col-only-maxtext`, AOT loaded and
+FIRST_STEP 3; `.703 step/s` near step 43 (`+2.84%` vs BAlignedRow, `+.72%` vs
+FirstBlockOnly). This matches the throughput bet.

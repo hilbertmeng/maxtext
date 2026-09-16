@@ -2360,6 +2360,8 @@ class BamAttention(Attention):
   read_side: str = 'both'       # both | row (M^T r_row) | col (M r_col)
   layer_inx: int = 0  # Static layer index for per-layer read settings.
   prune_local_vo_row: bool = False  # later-block L layers keep only V/O columns
+  export_fetched_row_relay: bool = False
+  consume_fetched_row_relay: bool = False
   bam_k: int = 32
   bam_v: int = 32
 
@@ -2379,6 +2381,9 @@ class BamAttention(Attention):
     cfg = self.config
     validate_bam_config(cfg, layer_mode=self.layer_mode)
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
+    self._export_fetched_row_relay = bool(self.export_fetched_row_relay)
+    self._consume_fetched_row_relay = bool(self.consume_fetched_row_relay)
+    assert not (self._export_fetched_row_relay and self._consume_fetched_row_relay)
     self._local_qk_post_read_v_dim = getattr(
         cfg, 'bam_local_qk_post_read_v_dim', None)
     self._local_qk_post_read_v_share_qk = bool(getattr(
@@ -2410,6 +2415,7 @@ class BamAttention(Attention):
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
+      assert not self._export_fetched_row_relay and not self._consume_fetched_row_relay
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
         assert cfg.max_target_length % self._query_chunk_size == 0, (
@@ -2446,6 +2452,11 @@ class BamAttention(Attention):
     if self._prune_local_vo_row:
       assert self._row_shared_v and not self._local_v_col_only
       assert 'full' not in self._mode
+    if self._export_fetched_row_relay:
+      assert 'full' in self._mode and cfg.bam_fetched_read_side == 'both'
+    if self._consume_fetched_row_relay:
+      assert {'local_v', 'local_o'} <= self._mode
+      assert self._prune_local_vo_row
     self._output_read = bool(self._mode & {'full', 'local_o'}) or shared_v
 
     self._has_write = bool(self._mode)
@@ -2896,6 +2907,12 @@ class BamAttention(Attention):
         add_read_gate('W_lv_row_gate', (self.num_query_heads, 1),
                       ('embed', 'q_heads', None), ('q_heads', None),
                       zero_key_gate_init)
+    if self._consume_fetched_row_relay:
+      # Packed projection, independent O/V columns and biases.  The target L
+      # layer computes both gates from its own normalized input.
+      add_read_gate(
+          'W_fetched_row_relay_target_gate', (self.num_query_heads, 2),
+          ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
 
     # Create the experimental adapter after all existing parameters so adding it
     # does not perturb the initialization stream of the V2 control parameters.
@@ -3335,6 +3352,7 @@ class BamAttention(Attention):
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
+      fetched_row_relay: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3354,6 +3372,28 @@ class BamAttention(Attention):
       query = self.query_projection(inputs_q)
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
+
+    relay_o = None
+    if self._consume_fetched_row_relay:
+      if fetched_row_relay is None:
+        raise ValueError('FLL target layer requires a fetched-row relay')
+      if fetched_row_relay.shape[-2:] != (
+          self.num_query_heads, self._abs_v_dim or self.bam_v):
+        raise ValueError(
+            'Unexpected fetched-row relay shape: '
+            f'{fetched_row_relay.shape[-2:]}')
+      relay_logits = self._project_read_gate_logits(
+          'W_fetched_row_relay_target_gate', inputs_q)
+      relay_gates = self._read_key_scale * self._read_gate_activation(relay_logits)
+      zero_col = jnp.zeros(
+          fetched_row_relay.shape[:-1] + (self.bam_k,),
+          dtype=fetched_row_relay.dtype)
+      value = value + self._expand_full_read((
+          zero_col, fetched_row_relay * relay_gates[..., 1:2]))
+      relay_o = self._expand_full_read((
+          zero_col, fetched_row_relay * relay_gates[..., :1]))
+    elif fetched_row_relay is not None:
+      raise ValueError('Fetched-row relay supplied to a non-target layer')
 
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
@@ -3454,9 +3494,19 @@ class BamAttention(Attention):
           fetch_state=fetch_state, mix_weights=mix_weights)
 
     o_head = y_std if local_output is None else y_std + local_output
+    if relay_o is not None:
+      o_head = o_head + relay_o
+    fetched_row_relay_out = None
     if Mbar is not None:
-      y_bam, fetched_gate_logits = self._read_fetched_m(
-          Mbar, inputs_q)
+      if self._export_fetched_row_relay:
+        raw_fetched_read, fetched_gate_logits = self._read_fetched_m(
+            Mbar, inputs_q, ungated=True)
+        y_bam = self._gate_local_output(
+            raw_fetched_read, fetched_gate_logits)
+        fetched_row_relay_out = raw_fetched_read[1]
+      else:
+        y_bam, fetched_gate_logits = self._read_fetched_m(
+            Mbar, inputs_q)
       if self._record_fetched_read_health_metrics:
         y_std_rms = jnp.sqrt(jnp.mean(jnp.square(y_std.astype(jnp.float32))))
         y_bam_rms = jnp.sqrt(jnp.mean(jnp.square(y_bam.astype(jnp.float32))))
@@ -3483,4 +3533,9 @@ class BamAttention(Attention):
       M_out = M_in
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
-    return self.out_projection(inputs_q.shape[-1], out), M_out
+    result = (self.out_projection(inputs_q.shape[-1], out), M_out)
+    if self._export_fetched_row_relay:
+      if fetched_row_relay_out is None:
+        raise ValueError('FLL source layer failed to produce a fetched-row relay')
+      return result + (fetched_row_relay_out,)
+    return result

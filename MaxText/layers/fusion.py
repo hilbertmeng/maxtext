@@ -63,6 +63,8 @@ class SubDecoderLayer(nn.Module):
   sliding_window_size: int|None = None
   layer_inx: int|None = None
   prune_local_vo_row: bool = False
+  export_fetched_row_relay: bool = False
+  consume_fetched_row_relay: bool = False
 
   def setup(self):
     cfg = self.config
@@ -91,6 +93,7 @@ class SubDecoderLayer(nn.Module):
       M_in=None,
       is_global=None,
       layer_index=None,
+      fetched_row_relay=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -162,7 +165,9 @@ class SubDecoderLayer(nn.Module):
         read_side = read_sides[self.layer_inx] if isinstance(read_sides, list) else read_sides
         attn_kwargs.update(
             layer_mode=layer_mode, read_side=read_side, bam_k=cfg.bam_k, bam_v=cfg.bam_v,
-            layer_inx=self.layer_inx, prune_local_vo_row=self.prune_local_vo_row)
+            layer_inx=self.layer_inx, prune_local_vo_row=self.prune_local_vo_row,
+            export_fetched_row_relay=self.export_fetched_row_relay,
+            consume_fetched_row_relay=self.consume_fetched_row_relay)
     else:
         AttnCls = Attention
     attention_layer = AttnCls(**attn_kwargs)
@@ -179,9 +184,14 @@ class SubDecoderLayer(nn.Module):
         deep_embedding=deep_embedding,
     )
     if cfg.bam_enabled:
-        attention_lnx, M_out = attention_layer(
+        attention_result = attention_layer(
             **call_kwargs, M_in=M_in, is_global=is_global,
-            layer_index=layer_index)
+            layer_index=layer_index, fetched_row_relay=fetched_row_relay)
+        if self.export_fetched_row_relay:
+          attention_lnx, M_out, fetched_row_relay_out = attention_result
+        else:
+          attention_lnx, M_out = attention_result
+          fetched_row_relay_out = None
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
@@ -287,7 +297,9 @@ class SubDecoderLayer(nn.Module):
         layer_output,
         ("activation_batch", "activation_norm_length", "activation_embed"),
     )
-    return layer_output, M_out
+    result = (layer_output, M_out)
+    return (result + (fetched_row_relay_out,)
+            if self.export_fetched_row_relay else result)
 
 
 class BamLayerPair(nn.Module):
@@ -331,6 +343,63 @@ class BamLayerPair(nn.Module):
     return carry, ()
 
 
+class BamFLLRelayBlock(nn.Module):
+  """One fetched layer followed by two local relay destinations."""
+
+  config: Any
+  mesh: Mesh
+  sliding_window_size: int
+  quant: Optional[Quant] = None
+  scan_length: int = 1
+  all_global_attention: bool = True
+
+  @nn.compact
+  def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
+               deterministic, model_mode, eos_sum, is_global, hids, M_in,
+               block_index):
+    cfg = self.config
+    assert cfg.scan_layers and cfg.bam_enabled and not cfg.bam_mha_control
+    assert deep_embedding is None and not cfg.dense_conn and cfg.mtp_num_layers == 0
+    assert self.all_global_attention
+    enabled = bool(getattr(cfg, 'bam_fetched_row_relay_enabled', False))
+    Layer = nn.remat(
+        FusionDecoderLayer, prevent_cse=True,
+        policy=models.get_remat_policy(cfg), static_argnums=(6, 7),
+        rngs={'params': True, 'aqt': True, 'dropout': True})
+    base_index = 3 * block_index + 2
+
+    if enabled:
+      carry, _ = Layer(
+          cfg, self.mesh, self.sliding_window_size, self.quant,
+          all_global_attention=True, static_layer_index=2,
+          export_fetched_row_relay=True, name='fetch_2')(
+              carry, segment_ids, positions, tokens, None,
+              deterministic, model_mode, eos_sum, None, None, None,
+              base_index)
+      for position, static_index in enumerate((0, 1), start=1):
+        carry, _ = Layer(
+            cfg, self.mesh, self.sliding_window_size, self.quant,
+            all_global_attention=True, static_layer_index=static_index,
+            prune_local_vo_row=True, consume_fetched_row_relay=True,
+            name=f'local_{static_index}')(
+                carry, segment_ids, positions, tokens, None,
+                deterministic, model_mode, eos_sum, None, None, None,
+                base_index + position)
+      hidden, matrix, _ = carry
+      return (hidden, matrix), ()
+
+    for position, static_index in enumerate((2, 0, 1)):
+      name = 'fetch_2' if static_index == 2 else f'local_{static_index}'
+      carry, _ = Layer(
+          cfg, self.mesh, self.sliding_window_size, self.quant,
+          all_global_attention=True, static_layer_index=static_index,
+          prune_local_vo_row=static_index < 2, name=name)(
+              carry, segment_ids, positions, tokens, None,
+              deterministic, model_mode, eos_sum, None, None, None,
+              base_index + position)
+    return carry, ()
+
+
 class FusionDecoderLayer(nn.Module):
   """Transformer decoder layer that attends to the encoder."""
 
@@ -342,6 +411,8 @@ class FusionDecoderLayer(nn.Module):
   all_global_attention: bool = False
   static_layer_index: int | None = None
   prune_local_vo_row: bool = False
+  export_fetched_row_relay: bool = False
+  consume_fetched_row_relay: bool = False
 
   def setup(self):
     cfg = self.config
@@ -364,7 +435,10 @@ class FusionDecoderLayer(nn.Module):
 
     self.layer = RematSubDecoderLayer(
         cfg, self.mesh, self.quant, sws, self.layer_inx,
-        prune_local_vo_row=self.prune_local_vo_row, name='block')
+        prune_local_vo_row=self.prune_local_vo_row,
+        export_fetched_row_relay=self.export_fetched_row_relay,
+        consume_fetched_row_relay=self.consume_fetched_row_relay,
+        name='block')
     self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
 
   def get_C(self, cfg):
@@ -396,10 +470,15 @@ class FusionDecoderLayer(nn.Module):
     scan_full_bam = (
         cfg.scan_layers and cfg.bam_enabled
         and not getattr(cfg, 'bam_mha_control', False))
+    fetched_row_relay = None
     if cfg.scan_layers:
       assert not cfg.dense_conn, 'flat layer scan currently requires dense_conn=False'
       if scan_full_bam:
-        inputs, M_in = inputs
+        if self.consume_fetched_row_relay:
+          inputs, M_in, fetched_row_relay = inputs
+        else:
+          inputs, M_in = inputs
+          fetched_row_relay = None
       else:
         M_in = None
       if self.all_global_attention:
@@ -441,7 +520,7 @@ class FusionDecoderLayer(nn.Module):
             lidx=self.layer_inx,
           )
     # return's inputs length is 1
-    inputs, M_out = self.layer(
+    layer_result = self.layer(
         inputs,
         decoder_segment_ids,
         decoder_positions,
@@ -453,7 +532,13 @@ class FusionDecoderLayer(nn.Module):
         M_in=M_in,
         is_global=is_global,
         layer_index=layer_index,
+        fetched_row_relay=fetched_row_relay,
     )
+    if self.export_fetched_row_relay:
+      inputs, M_out, fetched_row_relay_out = layer_result
+    else:
+      inputs, M_out = layer_result
+      fetched_row_relay_out = fetched_row_relay
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
       C = self.get_C(cfg)
@@ -469,7 +554,10 @@ class FusionDecoderLayer(nn.Module):
         )
 
     if cfg.scan_layers:
-      carry = (inputs, M_out) if scan_full_bam else inputs
+      if self.export_fetched_row_relay or self.consume_fetched_row_relay:
+        carry = (inputs, M_out, fetched_row_relay_out)
+      else:
+        carry = (inputs, M_out) if scan_full_bam else inputs
       return carry, ()
     if cfg.bam_enabled:
       return inputs, hids, M_out

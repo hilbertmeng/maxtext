@@ -789,6 +789,7 @@ class Decoder(nn.Module):
       if cfg.scan_layers:
         RemattedBlockLayer = RemattedBlockLayers[1]
         pair_scan = getattr(cfg, 'bam_pair_scan', False)
+        relay_fll = bool(getattr(cfg, 'bam_fetched_row_relay_fll', False))
         scan_length = cfg.num_decoder_layers
         if pair_scan:
           from layers import fusion
@@ -808,14 +809,21 @@ class Decoder(nn.Module):
               if isinstance(setting, list):
                 assert len(setting) == scan_length
                 assert setting == setting[:block_size] * (scan_length // block_size)
-          RemattedBlockLayer = fusion.BamLayerPair
-          scan_length //= block_size
+          if relay_fll:
+            assert block_size == 3 and scan_length // block_size >= 2
+            RemattedBlockLayer = fusion.BamFLLRelayBlock
+            scan_length = scan_length // block_size - 1
+          else:
+            RemattedBlockLayer = fusion.BamLayerPair
+            scan_length //= block_size
         swss = format_swss(sws_list)[:cfg.num_decoder_layers]
         is_global = jnp.asarray(
             [s >= cfg.max_target_length for s in swss], dtype=jnp.bool_)
         if pair_scan:
           assert all(s >= cfg.max_target_length for s in swss)
-          is_global = is_global[::block_size]
+          is_global = (
+              is_global[2:-1:block_size] if relay_fll
+              else is_global[::block_size])
         full_bam = cfg.bam_enabled and not getattr(cfg, 'bam_mha_control', False)
         if full_bam:
           M = self.initial_bam_matrix(y)
@@ -826,6 +834,7 @@ class Decoder(nn.Module):
         all_global_attention = all(s >= cfg.max_target_length for s in swss)
         separate_first_block = bool(getattr(
             cfg, 'bam_local_vo_row_first_block_only', False))
+        assert not (relay_fll and separate_first_block)
         if separate_first_block:
           assert pair_scan and full_bam and scan_length > 1
           scan_carry, _ = fusion.BamLayerPair(
@@ -837,6 +846,21 @@ class Decoder(nn.Module):
                   jnp.asarray(0, jnp.int32))
           scan_length -= 1
           is_global = is_global[1:]
+        if relay_fll:
+          BoundaryLayer = nn.remat(
+              fusion.FusionDecoderLayer, prevent_cse=True,
+              policy=get_remat_policy(cfg), static_argnums=(6, 7),
+              rngs={'params': True, 'aqt': True, 'dropout': True})
+          for layer_index in (0, 1):
+            scan_carry, _ = BoundaryLayer(
+                cfg, mesh, local_sws, self.quant,
+                all_global_attention=True, static_layer_index=layer_index,
+                prune_local_vo_row=True,
+                name=f'relay_prefix_local_{layer_index}')(
+                    scan_carry, decoder_segment_ids, decoder_positions,
+                    decoder_input_tokens, deep_embeddings, deterministic,
+                    model_mode, eos_sum, None, None, None,
+                    jnp.asarray(layer_index, jnp.int32))
         scan_module = self.scan_decoder_layers(
             cfg, RemattedBlockLayer, scan_length, "layers", mesh,
             sliding_window_size=local_sws,
@@ -864,6 +888,15 @@ class Decoder(nn.Module):
               + int(separate_first_block),
           )
         scan_carry, _ = scan_module(*scan_inputs)
+        if relay_fll:
+          scan_carry, _ = BoundaryLayer(
+              cfg, mesh, local_sws, self.quant,
+              all_global_attention=True, static_layer_index=2,
+              name='relay_suffix_fetch_2')(
+                  scan_carry, decoder_segment_ids, decoder_positions,
+                  decoder_input_tokens, deep_embeddings, deterministic,
+                  model_mode, eos_sum, None, None, None,
+                  jnp.asarray(cfg.num_decoder_layers - 1, jnp.int32))
         y = scan_carry[0] if full_bam else scan_carry
 
       elif cfg.partial_scan_layers:

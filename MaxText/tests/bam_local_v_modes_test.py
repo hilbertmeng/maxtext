@@ -6,20 +6,23 @@ import max_utils
 import bam_local_fetch_test
 from flax import linen as nn
 from layers.attentions import BamAttention
-from layers.fusion import BamLayerPair
+from layers.fusion import BamFLLRelayBlock, BamLayerPair
 
 
 class LocalVModeTest(absltest.TestCase):
   def config(self, exp):
     return bam_local_fetch_test.LocalFetchTest.config(self, exp)
 
-  def module(self, cfg, mode, layer_inx=0, prune_local_vo_row=False):
+  def module(self, cfg, mode, layer_inx=0, prune_local_vo_row=False,
+             export_fetched_row_relay=False, consume_fetched_row_relay=False):
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     return BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
         head_dim=64, max_target_length=8, max_prefill_predict_length=8,
         mesh=mesh, attention_kernel='dot_product_chunk', dtype=cfg.dtype,
         layer_mode=mode, layer_inx=layer_inx,
         prune_local_vo_row=prune_local_vo_row,
+        export_fetched_row_relay=export_fetched_row_relay,
+        consume_fetched_row_relay=consume_fetched_row_relay,
         attention_type=cfg.attention_type)
 
   def metadata(self, cfg, mode, layer_inx=0):
@@ -349,6 +352,77 @@ class LocalVModeTest(absltest.TestCase):
     self.assertEqual(fetch['W_R_gate']['kernel'].value.shape[-1], 2)
     self.assertIn('abs_v_row_decoder', fetch)
     self.assertNotIn('W_R_row_down', fetch)
+    jax.clear_caches()
+
+  def test_fll_relay_is_exported_ungated_and_gated_by_target_layer(self):
+    cfg = self.config(
+        'BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL')
+    x = jax.random.normal(jax.random.key(81), (1, 8, 128), cfg.dtype)
+    m = jax.random.normal(jax.random.key(82), (1, 8, 32, 32), cfg.dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+
+    source = self.module(
+        cfg, cfg.bam_layer_modes[2], 2, export_fetched_row_relay=True)
+    source_params = source.init(
+        {'params': jax.random.key(83)}, *args, M_in=m)['params']
+    source_params = jax.tree.map(
+        lambda a: a + .01 * jax.random.normal(jax.random.key(84), a.shape, a.dtype),
+        source_params)
+    source_y, source_m, relay = source.apply(
+        {'params': source_params}, *args, M_in=m)
+    self.assertEqual(relay.shape, (1, 8, 2, 8))
+    self.assertNotIn('W_fetched_row_relay_target_gate', source_params)
+
+    target = self.module(
+        cfg, cfg.bam_layer_modes[0], 0, prune_local_vo_row=True,
+        consume_fetched_row_relay=True)
+    target_params = target.init(
+        {'params': jax.random.key(85)}, *args, M_in=source_m,
+        fetched_row_relay=relay)['params']
+    self.assertIn('W_fetched_row_relay_target_gate', target_params)
+    self.assertEqual(
+        target_params['W_fetched_row_relay_target_gate']['kernel'].value.shape,
+        (128, 2, 2))
+    target_params = jax.tree.map(
+        lambda a: a + .01 * jax.random.normal(jax.random.key(86), a.shape, a.dtype),
+        target_params)
+    with_relay, _ = target.apply(
+        {'params': target_params}, *args, M_in=source_m,
+        fetched_row_relay=relay)
+    without_relay, _ = target.apply(
+        {'params': target_params}, *args, M_in=source_m,
+        fetched_row_relay=jnp.zeros_like(relay))
+    self.assertGreater(float(jnp.linalg.norm(
+        (with_relay - without_relay).astype(jnp.float32))), 0.)
+    self.assertTrue(all(bool(jnp.all(jnp.isfinite(a))) for a in
+                        (source_y, source_m, relay, with_relay)))
+    jax.clear_caches()
+
+  def test_fll_block_has_four_target_gates_and_no_local_row_read(self):
+    cfg = self.config(
+        'BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL')
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    module = BamFLLRelayBlock(cfg, mesh, 8, all_global_attention=True)
+    h = jnp.ones((1, 8, 128), cfg.dtype)
+    m = jnp.zeros((1, 8, 32, 32), cfg.dtype)
+    args = ((h, m), jnp.ones((1, 8), jnp.int32), jnp.arange(8)[None],
+            jnp.ones((1, 8), jnp.int32), None, True, 'train', None,
+            None, None, None, jnp.asarray(0, jnp.int32))
+    variables = module.init({'params': jax.random.key(91)}, *args)
+    carry, _ = module.apply(variables, *args)
+    params = variables['params']
+    for layer in ('local_0', 'local_1'):
+      attention = params[layer]['block']['self_attention']
+      self.assertIn('W_fetched_row_relay_target_gate', attention)
+      self.assertEqual(attention['W_R']['kernel'].value.shape[-1], 8)
+      self.assertEqual(attention['W_R_gate']['kernel'].value.shape[-1], 1)
+      self.assertNotIn('abs_v_row_decoder', attention)
+      self.assertNotIn('W_lv_row_gate', attention)
+    fetch = params['fetch_2']['block']['self_attention']
+    self.assertNotIn('W_fetched_row_relay_target_gate', fetch)
+    self.assertEqual(fetch['W_R']['kernel'].value.shape[-1], 40)
+    self.assertTrue(all(bool(jnp.all(jnp.isfinite(a)))
+                        for a in jax.tree.leaves(carry)))
     jax.clear_caches()
 
 

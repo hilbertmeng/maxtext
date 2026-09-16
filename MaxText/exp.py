@@ -7312,6 +7312,34 @@ class BamMediumIndependentLLFBAlignedRowLocalVOColOnly(
     bam_local_vo_row_all_local_pruned = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl(
+    BamMediumIndependentLLFBAlignedRowLocalVOColOnly):
+    """FLL-layout control for the fetched-O row relay experiment."""
+    # Implementation: codex/llf-fetched-row-relay, /data0/xd/llf-fetched-row-relay.
+    model_name = (
+        'BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl')
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVOColOnly']
+    bam_fetched_row_relay_fll = True
+    bam_fetched_row_relay_enabled = False
+
+
+class BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL(
+    BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl):
+    """Reuse each F fetched-O row at its own O and the next two L layers' O/V."""
+    # Implementation: codex/llf-fetched-row-relay, /data0/xd/llf-fetched-row-relay.
+    # Pre-run bet vs LocalVOColOnly: late dloss center -.0015,
+    # likely [-.004,+.0015]; speed center -.8%, likely -.5..-1.5% vs FLL control.
+    # Adds 917,952 target-gate params (0.219 W_Q), while retaining 4.047 W_Q
+    # savings vs RowShared. Generic health ON; BAM sow OFF.
+    model_name = (
+        'BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL')
+    compare_runs = [
+        'BamMediumIndependentLLFBAlignedRowLocalVOColOnly',
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+    ]
+    bam_fetched_row_relay_enabled = True
+
+
 class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu(
     BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly):
     """Use D→256→nK GELU projections for every retained LocalO/fetchO row key."""

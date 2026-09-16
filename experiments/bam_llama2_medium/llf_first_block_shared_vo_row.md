@@ -12,6 +12,18 @@ LocalV/LocalO row parameters or contractions. Every F layer keeps the parent's f
 The M carry, write path, optimizer, schedule, and history-M cache are unchanged.
 This removes 15,655,360 parameters (`3.733 W_Q`) across the 14 affected L layers.
 
+## LocalV-only column experiment
+
+`BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B` is the exact Medium analogue of
+`BamXLSharedBasisLocalVColOnlyRank4CFp32`: every L layer retains LocalV's independent rank-4-B
+full-M column, while LocalV no longer consumes the shared LocalO row answer. LocalO, LocalQ/K,
+all F reads, M carry and M-cache are unchanged. It removes only the LocalV row destination gates:
+524,544 parameters (`0.125 W_Q`) across 16 L layers.
+
+Pre-run bet versus RowShared: late dloss center `-0.0003`, likely `[-0.0015,+0.001]`; throughput
+tied within `0..+0.3%`. XL ColOnly is slightly better than RowShared, while Medium QKVColOnly
+and RowShared evidence both place the isolated LocalV-row value near zero.
+
 Pre-run bet versus the parent: late dloss center `+0.0015`, likely `[0,+0.004]`, with throughput
 `+2..3%`. The bet reflects the full row-removal result (~`+0.007`) and the strong first-block
 concentration seen in frozen selective-retention diagnostics, while allowing residual value in

@@ -192,6 +192,26 @@ class LocalVModeTest(absltest.TestCase):
         grads['W_local_v_col_packed']['kernel'].value.astype(jnp.float32))), 0.)
     jax.clear_caches()
 
+  def test_medium_col_only_removes_only_local_v_row_destination(self):
+    cfg = self.config('BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B')
+    module = self.module(cfg, cfg.bam_layer_modes[0])
+    x = jax.random.normal(jax.random.key(35), (1, 8, 128), cfg.dtype)
+    m = jax.random.normal(jax.random.key(36), (1, 8, 32, 32), cfg.dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    params = module.init({'params': jax.random.key(37)}, *args, M_in=m)['params']
+    self.assertIn('W_local_v_col_packed', params)
+    self.assertNotIn('W_lv_row_gate', params)
+    self.assertNotIn('W_lv_row_gate_b0', params)
+    self.assertEqual(params['W_R']['kernel'].value.shape[-1], 40)
+    self.assertEqual(params['W_R_gate']['kernel'].value.shape[-1], 2)
+    self.assertIn('abs_v_row_decoder', params)
+    metadata, _ = module.init_with_output(
+        {'params': jax.random.key(38)}, method=lambda mod: (
+            mod._local_v_col_only, mod._row_shared_v,
+            mod._fetched_arm.read_side, mod._fetched_arm.prune_row))
+    self.assertEqual(metadata, (True, False, 'both', False))
+    jax.clear_caches()
+
   def test_later_block_prunes_only_shared_v_o_rows(self):
     cfg = self.config('BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly')
     module = self.module(

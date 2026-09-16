@@ -7266,6 +7266,21 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     force_final_checkpoint = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
+    """Keep LocalV's full-M rank4-B column and remove only its shared O-row answer."""
+    # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # Pre-run bet vs RowShared: late dloss center -.0003, likely [-.0015,+.001];
+    # throughput tied within 0..+.3%; removes 524,544 params (0.125 W_Q).
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B'
+    compare_runs = [
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+    ]
+    bam_local_v_row_shared = False
+    bam_local_v_col_only = True
+
+
 class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
     """Keep shared LocalV/O rows in LLF block 0; later L layers are V/O-column-only."""

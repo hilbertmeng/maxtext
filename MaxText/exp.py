@@ -7464,10 +7464,12 @@ class BamXLSharedBasisLocalVRowSharedColRank4CFp32(
     BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
     """L LocalV shares O's C8 row answer; its full-M rank4-C column stays independent."""
     # Implementation: codex/xl-shared-basis-row-only, /data0/xd/xl-shared-basis-row-only.
-    # code_commit: 97be64f; EW4b v5p-32 AOT loaded/FIRST_STEP27, .544 steps/s @10-14.
+    # code_commit: 97be64f; EW4b v5p-32 AOT loaded/FIRST_STEP27, .5438 steps/s @10-14.
+    # !? vs SharedBasis c664e82 .5444 is health/env/zone matched but cross-runtime; speed delta
+    # -0.11% is indistinguishable from zero and does not isolate the architectural saving.
     # Initial lease hit maintenance before startup; repaired incomplete step1 and resumed from step0.
     # Pre-run bet vs SharedBasis: late dloss center 0, likely [-.002,+.002] at 25k-30k;
-    # matched EW4b throughput +0..+1.5%; L projection weights -0.15625 W_Q/layer.
+    # same-runtime EW4b throughput +0..+1.5%; L projection weights -0.15625 W_Q/layer.
     # Full 64x32 history-M cache, Q/K shared basis, LocalO/F/write paths unchanged.
     model_name = 'BamXLSharedBasisLocalVRowSharedColRank4CFp32'
     compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis']

@@ -22,7 +22,7 @@ projection plus row gate has 208 outputs. The saving is 320 x 2048 = 655,360 wei
 
 - Loss: centered on zero relative to SharedBasis; likely dloss in `[-0.002, +0.002]` at
   25k-30k steps.
-- Throughput: `0%` to `+1.5%` on a matched EW4b v5p-32 run.
+- Throughput: `0%` to `+1.5%` on a same-runtime EW4b v5p-32 run.
 - Expected result: positive if loss ties, because the row projection and full-M row contraction
   are removed while the history-M cache is unchanged.
 
@@ -43,8 +43,16 @@ effective-key C routing and a 64x32 matrix, so the prediction allows a wider los
 - TPU: `xd-v5p-32-xl-localv-row-shared-maxtext`, `europe-west4-b`
 - AOT artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/97be64f/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLSharedBasisLocalVRowSharedColRank4CFp32.pickle`
 - FIRST_STEP gate: reached step 27 after loading the compiled function.
-- Steps 10-14 throughput: about `0.544 steps/s`, tied with SharedBasis's historical
-  `0.5444 steps/s` measurement.
+- Steps 10-14 throughput: `0.5438 steps/s`, versus SharedBasis's historical
+  `0.5444 steps/s` measurement (`-0.11%`, indistinguishable from zero).
+
+The two written runtime configs match on generic training health (`True`), internal NN metrics
+(`False`), and fetched-read health/amplitude, fetch-route, local-routing, and LocalQK-amplitude
+metrics (all `False`). They also use the same EW4b v5p-32 topology, scan/AOT setup, and pinned
+`jax081-i0ae3f58-c17f538a` environment. The timing is still cross-runtime (`c664e82` baseline
+versus `97be64f` experiment), with a substantial attention-code cleanup between them. It supports
+"no measurable regression," but a current-runtime SharedBasis control is required to measure the
+architectural speed delta.
 
 The initial lease entered maintenance during startup and left an incomplete step-1 checkpoint.
 Auto-train removed that incomplete checkpoint, restored the committed step-0 state, and passed

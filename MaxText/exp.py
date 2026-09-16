@@ -270,9 +270,14 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
     bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation
-    bam_local_v_rank = 2  # k falls back to q for every bam_local_*_ key; v only differs here and in routing
+    bam_local_v_rank = 2  # With local_v enabled: positive rank is independent; None shares the O reader.
     bam_local_v_share_output_coordinates = False
     bam_local_v_rank_routing = 'legacy'
+    # Historical compatibility only: preserve the RoutingA/B experiment family's
+    # V scale, notably LocalVRank4RoutingBAlignedRow and its descendants, which
+    # inherit 2/sqrt(4)=1 from LocalVRank4RoutingA instead of bam_read_key_scale=2.
+    # This V-only exception is legacy baggage, not a new Q/K/V configuration pattern.
+    bam_local_v_key_scale = None  # None uses the common bam_read_key_scale.
     bam_local_second_implementation = 'mul_reduce'  # dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation; Gram/norm2 only
     bam_local_q_rank_routing = 'legacy'  # legacy | shared_rank_gate | head_gate_n (A) | head_gate_r (B) | effective_key (C)
@@ -1274,7 +1279,6 @@ class BamLocalFetchBase(BamLlama2MediumV2C256ScanAotCleanControl):
     # Historical runtime disabled generic health metrics; current training always records them.
     bam_pair_scan = False
     bam_local_o_compress_v = True
-    bam_local_o_v_mode = 'none'
     bam_record_fetched_read_health_metrics = False
     bam_record_fetched_read_amplitude_metrics = False
     bam_record_fetch_route_metrics = False
@@ -1300,7 +1304,6 @@ class BamLlama2MediumV2C256LocalFetchC8NonScan(BamLocalFetchBase):
     model_name = 'BamLlama2MediumV2C256LocalFetchC8NonScan'
     bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
     bam_local_o_compress_v = True
-    bam_local_o_v_mode = 'none'
 
 
 class BamLlama2MediumV2C256LocalFetchC8Scan(BamLlama2MediumV2C256LocalFetchC8NonScan):
@@ -1314,9 +1317,8 @@ class BamLlama2MediumV2C256LocalFetchC8Scan(BamLlama2MediumV2C256LocalFetchC8Non
 class BamLlama2MediumV2C256LocalFetchC8LocalVNonScan(BamLocalFetchBase):
     # code_commit: a77952e; UE5a v5p-16 ~0.699 steps/s; XPlane 1418.2 ms; profile only.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVNonScan'
-    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+full'] * 12
     bam_local_o_compress_v = True
-    bam_local_o_v_mode = 'rank2'
 
 
 class BamLlama2MediumV2C256LocalFetchC8LocalVScan(BamLlama2MediumV2C256LocalFetchC8LocalVNonScan):
@@ -1332,7 +1334,6 @@ class BamLlama2MediumV2C256LocalFetchFullNonScan(BamLocalFetchBase):
     model_name = 'BamLlama2MediumV2C256LocalFetchFullNonScan'
     bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
     bam_local_o_compress_v = False
-    bam_local_o_v_mode = 'none'
 
 
 class BamLlama2MediumV2C256LocalFetchFullScan(BamLlama2MediumV2C256LocalFetchFullNonScan):
@@ -1347,9 +1348,8 @@ class BamLlama2MediumV2C256LocalFetchFullScan(BamLlama2MediumV2C256LocalFetchFul
 class BamLlama2MediumV2C256LocalFetchFullLocalVNonScan(BamLocalFetchBase):
     # code_commit: a77952e; UE5a v5p-16 ~0.685 steps/s; XPlane 1448.3 ms; profile only.
     model_name = 'BamLlama2MediumV2C256LocalFetchFullLocalVNonScan'
-    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+full'] * 12
     bam_local_o_compress_v = False
-    bam_local_o_v_mode = 'rank2'
 
 
 class BamLlama2MediumV2C256LocalFetchFullLocalVScan(BamLlama2MediumV2C256LocalFetchFullLocalVNonScan):
@@ -1361,10 +1361,10 @@ class BamLlama2MediumV2C256LocalFetchFullLocalVScan(BamLlama2MediumV2C256LocalFe
 
 class BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan(BamLocalFetchBase):
     # code_commit: a77952e; UE5a v5p-16 ~0.707 steps/s; XPlane 1403.9 ms; profile only.
+    bam_local_v_rank = None
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan'
-    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+full'] * 12
     bam_local_o_compress_v = True
-    bam_local_o_v_mode = 'shared'
 
 
 class BamLlama2MediumV2C256LocalFetchC8SharedReadScan(BamLlama2MediumV2C256LocalFetchC8SharedReadNonScan):
@@ -1392,7 +1392,7 @@ class BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan(BamLlama2MediumV2C256LocalF
     # vs Clean: benefit kept shrinking through ~10k, then held ~-.0080 to completion.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan'
     bam_local_fetch_block_size = 3
-    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 8
 
 
 class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan(BamLlama2MediumV2C256LocalFetchC8SharedReadScan):
@@ -1406,7 +1406,7 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan(BamLlama2MediumV2C256Lo
     # Signed cross-head structure exists; this does not establish shared-GELU retraining benefit.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan'
     bam_local_fetch_block_size = 3
-    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 8
 
 
 class BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan(
@@ -1456,11 +1456,12 @@ class BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan(BamLlama2MediumV2C256L
     # Final window @4400: +.001770 vs LLF, -.005575 vs Clean; LLF gap ~+.00175 @3400-4400.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan'
     bam_local_fetch_block_size = 4
-    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 6
 
 
 class BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan(BamLlama2MediumV2C256LocalFetchC8SharedReadLLLFScan):
     """LLLF: shared, independent rank-2, shared LocalV; fetch unchanged."""
+    bam_local_v_rank = [None, 2, None, None] * 6
     # code_commit: b7eb1d2; UE5a v5p-16 scan+AOT ~0.707 steps/s @10-14;
     # -0.7% vs all-shared LLLF (.7122), +0.2% vs shared LLF (.706); both are compare_runs.
     # Stopped 3,327 (checkpoint committed): vs all-shared LLLF, -.04440 @200 shrank to mean -.00136
@@ -1469,7 +1470,6 @@ class BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan(BamLlama2
     # not beaten shared LLF; speed is effectively tied with LLF (history-M cache -25%).
     # Final @3200: -.000479 vs all-shared, +.001303 vs LLF; @2200-3200 means -.00109 / +.00106.
     model_name = 'BamLlama2MediumV2C256LocalFetchC8SharedIndependentSharedLLLFScan'
-    bam_local_o_v_mode = ['shared', 'rank2', 'shared', 'none'] * 6
 
 
 class BamLlama2MediumV2C256LocalFetchC8LocalVSharedRankGateScan(BamLlama2MediumV2C256LocalFetchC8LocalVScan):
@@ -3889,6 +3889,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2AllDecayRepro200
 ):
     """XL Rank2: shared compressed LocalO/LocalV in L, fetched read in F; LLF block scan."""
+    bam_local_v_rank = None
     # Tuple-read refactor 9c44858 vs 1b39c64: same UE5a v5p-32 full-24 block-scan+AOT,
     # steps 10..14: .5584 vs .5550 steps/s (+.61%); small speed gain, no retraining.
     # UE5a full-24 block-scan JIT: .5512 vs v6e-AOT .5532 steps/s, -.36% (10..14).
@@ -3913,9 +3914,8 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     steps = 50000
     bam_pair_scan = True
     bam_local_fetch_block_size = 3
-    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 8
     bam_local_o_compress_v = True
-    bam_local_o_v_mode = 'shared'
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-llf')
@@ -3933,7 +3933,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF
     # Historical fetched M-cache is 1/2 of Rank2 (1.5x LLF); all-decay, no BAM sow.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLF'
     bam_local_fetch_block_size = 2
-    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+full'] * 12
     jax_cache_dir = (
         'gs://newproject-1-llm_base_models_us-central1/'
         'jax_caches/xd-bam-xl16-rank2-all-decay-shared-lf')
@@ -3978,7 +3978,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLL
     # Extra cache reduction (1/4 vs Rank2, 3/4 vs LLF), but no loss gain observed.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLLF'
     bam_local_fetch_block_size = 4
-    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 6
     checkpoint_period = 250
     steps = 50000
     learning_rate_schedule_steps = 50000
@@ -3988,6 +3988,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8SharedReadLLF
 ):
     """LLF with independent rank-2 LocalV instead of shared LocalO/LocalV read."""
+    bam_local_v_rank = 2
     # Paused at committed checkpoint21372 (2026-09-08); resumable, TPU released. Provisional vs XL Rank2:
     # early gap -.03854@500 shrank to ~-.001 by6000; thereafter small negative fluctuations,
     # not sustained convergence to zero (17000 briefly +.000014, then negative again).
@@ -4002,7 +4003,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF(
     # Pre-run vs shared LLF: speed -1..-3%; late gap -.003..+.002, center slightly negative.
     # Same 1/3 fetched history-M cache as shared LLF; extra independent local-read parameters.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLF'
-    bam_local_o_v_mode = 'rank2'
     checkpoint_period = 250
     steps = 50000
     learning_rate_schedule_steps = 50000
@@ -4025,7 +4025,7 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLLF(
     # User allows stopping before 10000 if clearly dominated by independent LLF.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLLLF'
     bam_local_fetch_block_size = 4
-    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 6
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF(
@@ -4044,13 +4044,14 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF(
     # Fetch M-cache is 1/2 of Rank2 (1.5x LLF); preserve historical all-decay.
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF'
     bam_local_fetch_block_size = 2
-    bam_layer_modes = ['local_qk+local_o', 'local_qk+full'] * 12
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+full'] * 12
 
 
 class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingIndependentLocalV(
     BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2LocalFetchC8LocalVLF
 ):
     """All F; even layers add independent full-M rank-2 LocalV, without LocalO."""
+    bam_local_v_rank = [2, None] * 12
     # User stop (2026-09-08), committed checkpoint 4379. vs Rank2: +.01089@500 shrank to ~+.0026..+.0035
     # over1000..3500, then rebounded +.00440@4000; no positive loss/speed/cache result.
     # vs all-F shared LocalV: benefit -.02091@500 decayed to -.00233@4000.
@@ -4064,7 +4065,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingInde
     # Pre-run vs shared: speed -1..-3%, late gap -.010..-.003 (uncertain).
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingIndependentLocalV'
     bam_layer_modes = ['local_qk+full'] * 24
-    bam_local_o_v_mode = ['rank2', 'none'] * 12
     bam_full_independent_local_v = True
 
 
@@ -4083,7 +4083,6 @@ class BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingShar
     model_name = 'BamLlama2XLHead16x128V2C256PartialRoPELocalQKRank2FullFetchAlternatingSharedLocalV'
     bam_layer_modes = ['local_qk+full'] * 24
     bam_local_fetch_block_size = 2
-    bam_local_o_v_mode = ['shared', 'none'] * 12
     bam_full_shared_local_v = True
     checkpoint_period = 250
     steps = 50000
@@ -7113,6 +7112,93 @@ class BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode(BamMediumIndepen
     bam_local_o_row_tied_decoder = True
 
 
+class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor(BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode):
+    """Ledger only: full-address LocalV row interpolation with global L1."""
+    # Implementation: codex/llf-l1-row-anchor, /data0/xd/llf-l1-row-anchor (parent runtime 286da7a).
+    # code_commit: 39ac7bb; UE5a .6674 steps/s; generic + scoped anchor health ON.
+    # vs LocalORowDecode .6870 (health OFF): raw -2.85%; approx health-adjusted -1.53% (baseline ~.6778).
+    # Correction uses BAlignedRow .6930 OFF / .6836 generic ON (+19.84 ms/step); scoped health remains included, not a matched profile.
+    # Extra parameters 262400; generic health ON, only scoped row-anchor BAM statistics ON.
+    # Result: stopped at 9164. vs LocalORowDecode: early -0.039@400 (warmstart transient) collapsed to 0 by 3200,
+    # then reversed to plateau +0.003 over 5000-8400 (range +0.002..+.0039), final 8400=+0.0030. vs BAlignedRow: ~+0.002.
+    # Conclusion: LocalV L1 row anchor no gain; slight degradation +0.003 vs LocalORowDecode, +262k extra params.
+    # Early negative gap was warmstart transient, not persistent. Negative.
+    model_name = 'BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode',
+                    'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_v_l1_row_anchor = True
+    bam_local_v_row_anchor_gate_init = 0.1
+    bam_record_row_anchor_metrics = True
+    record_training_health_metrics = True
+    scan_layers = True
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor(BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor):
+    # code_commit: f3fe2ec; UE5a .6674 steps/s, tied with L1Anchor (same generic + scoped anchor health ON).
+    # vs LocalORowDecode: raw -2.85%, approx health-adjusted -1.53%; same correction/caveat as L1Anchor above.
+    """Ledger only: L1 LocalV row direct heads; explicit first block + seven scanned LLF blocks."""
+    # Implementation: codex/llf-l1-row-anchor, /data0/xd/llf-l1-row-anchor.
+    # Paired common-parameter initialization; direct keys zero-init, key scale2, existing row gates.
+    # Extra stored parameters 524800.
+    # Result: stopped at 7315. vs L1Anchor: early +0.125@200 collapsed to ~0 by 4800 (crossed zero), plateau
+    # ~+0.0005 over 5800-6600 (essentially tied, range -0.0002..+.0025), final 6600=+0.0007. vs BAlignedRow: ~0.
+    # Throughput tied with L1Anchor.
+    # Conclusion: direct L1 heads +524800 stored params no gain vs L1Anchor (tied); inherits L1Anchor +0.003
+    # degradation vs baselines. Extra params wasted. Negative.
+    model_name = 'BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1DirectAnchor'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4BLocalORowDecodeL1Anchor',
+                    'BamMediumIndependentLLFLocalVRank4RoutingBLocalORowDecode',
+                    'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_l1_direct_local_v_row = True
+
+
+class BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """F-only O row-key D→256→nK GELU; column keys and gates unchanged."""
+    # Ledger only; implementation: codex/llf-o-row-lora, /data0/xd/llf-o-row-lora.
+    # code_commit: 6bdfe0d; UE5a .6768 steps/s (-.99% vs matched BAlignedRow .6836).
+    # Generic health ON/BAM OFF; block-scan/AOT. Projection savings did not improve measured throughput.
+    # Result: stopped at 11000. vs B: early +0.145@200 collapsed to ~0 by 800, plateau gap
+    # ∈ [-0.0008, +0.0005] over 800-11000 (oscillating around zero, SIGN_CROSS x3), final 11000=+0.0005.
+    # Throughput -.99% vs B.
+    # Conclusion: F-only rank-256 O-row-key bottleneck is FREE (gap ~0, marginally beneficial);
+    # -1.05M params net save. Production-viable. F path has ample redundancy.
+    model_name = 'BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_o_row_bottleneck_dim = 256
+    bam_o_row_bottleneck_layers = 'fetch'
+    record_training_health_metrics = True
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalORowR256Gelu(BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu):
+    """L-only O row-key bottleneck; all other BAlignedRow paths unchanged."""
+    # code_commit: 6bdfe0d; UE5a .6766 steps/s (-1.02% vs matched BAlignedRow .6836).
+    # Generic health ON/BAM OFF; block-scan/AOT.
+    # Result: stopped at 13116. vs B: early +0.217@200 collapsed to plateau ~+0.006 over
+    # 4000-13100 (range +0.0049..+.0077, slow drift down not reaching 0), final 12200=+0.0056.
+    # Throughput -1.02% vs B.
+    # Conclusion: L-only rank-256 O-row-key bottleneck costs ~+0.006; L path is the sensitive path. Negative.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalORowR256Gelu'
+    bam_o_row_bottleneck_layers = 'local'
+
+
+class BamMediumIndependentLLFBAlignedRowAllORowR256Gelu(BamMediumIndependentLLFBAlignedRowFetchORowR256Gelu):
+    """Both L/F O row-key bottlenecks; tests their combined effect."""
+    # code_commit: 6bdfe0d; UE5a .6698 steps/s (-2.02% vs matched BAlignedRow .6836).
+    # Generic health ON/BAM OFF; block-scan/AOT.
+    # Result: completed 13500. vs B: early +0.065@200 collapsed to plateau ~+0.0017 over 10800-13400
+    # (range +0.0004..+.0023, oscillating; @11400 dipped to +0.0004), final 13400=+0.0017.
+    # Throughput -2.02% vs B.
+    # Conclusion: L+F symmetric rank-256 bottleneck plateau ~+0.002 (low but not zero); sub-additive
+    # (All +0.002 << Fetch~0 + Local +0.006) and symmetric >> asymmetric (All +0.002 << Local +0.006,
+    # adding F bottleneck to L eats ~67% of L-only cost). Negative on throughput; structurally informative.
+    model_name = 'BamMediumIndependentLLFBAlignedRowAllORowR256Gelu'
+    bam_o_row_bottleneck_layers = 'all'
+
+
 class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """L/F O row: four dynamic C-fp32 bases; column and LocalQKV unchanged."""
     # Ledger only: codex/llf-o-row-rank-training, /data0/xd/llf-o-row-rank-training.
@@ -7124,6 +7210,161 @@ class BamMediumIndependentLLFBAlignedRowORowRank4CFp32(BamMediumIndependentLLFLo
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
     bam_o_row_effective_rank = 4
     record_training_health_metrics = True
+
+
+class BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """L LocalV/LocalO share rank4 row bases/read; independent C-fp32 routing and gates."""
+    # Ledger only: codex/llf-shared-row-bases, /data0/xd/llf-shared-row-bases; code_commit: 36d6763.
+    # UE5a .6832 steps/s (-.06% vs matched BAlignedRow .6836); generic ON/BAM OFF, block-scan/AOT.
+    # Parameters -7.34M (-1.63%) vs BAlignedRow; no measured throughput gain at launch.
+    # Result: stopped at 4172. vs B: early +0.270@200 collapsed, plateau gap ∈ [+0.0087, +0.0107]
+    # over 3000-3800, final 3800 = +0.0091. Throughput -.06% (no gain).
+    # Conclusion: param-share -1.63% plateaus at +0.0096 vs B. Negative.
+    # LocalV B->C too; V key_scale stays1, O stays2. Q/K rank1 legacy, F and O column unchanged.
+    model_name = 'BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_local_o_share_v_row_basis = True
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_gram_statistics_dtype = 'float32'
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
+    BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """LocalV shares O's 16-head C8 row answer; its full-M column remains rank4-B."""
+    # Implementation: codex/llf-row-only-shared, /data0/xd/llf-row-only-shared.
+    # code_commit: 502b479; EW4b v5p-16 AOT loaded/FIRST_STEP13, 0.686 steps/s @13-46.
+    # Speed vs generic-ON BAlignedRow UE5a .6836 is cross-zone, not a matched timing comparison.
+    # read-key projections -0.1875 W_Q per L layer; History-M cache unchanged; O/Q/K/F paths unchanged.
+    # Result: completed 13,500. vs BAlignedRow: oscillated around 0 over 2k-13.4k,
+    # final 13400=+.0007 (+/- .0013, no sign commitment). vs SharedRead(V2C256):
+    # stable -.005 over 8.8k-13.4k, final 13400=-.0045. vs SharedRowRank4: -.009 @4k
+    # (base ended 4197). Throughput .686 steps/s (cross-zone vs BAlignedRow, not matched).
+    # Conclusion: LocalV sharing O's row answer is FREE vs BAlignedRow (gap~0);
+    # strictly better than V2C256 SharedRead by ~.005.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B'
+    compare_runs = [
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+        'BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan',
+        'BamMediumIndependentLLFBAlignedRowSharedRowRank4CFp32',
+    ]
+    bam_local_v_row_shared = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFBAlignedRowStdTailWriteOrth(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """Ledger only: pure y_std tail -> shared 32x32 projection + per-head write-address bias."""
+    # codex/llf-std-tail-write, /data0/xd/llf-std-tail-write; code_commit: 6758378.
+    # UE5a .6950 steps/s (+1.67% vs generic-ON BAlignedRow .6836); scoped write health additionally ON.
+    # Replaces P_loc in all L/F layers; parameters -9.41M (~2.09%), M-cache unchanged.
+    # Result: stopped at 1675. vs B: @400 spike +0.150 (orth init), collapsed to +0.044@1400, still falling.
+    # vs Normal: consistently worse (Normal-Orth @1400=-0.030). Throughput +1.67%.
+    # Conclusion: orth init degrades vs normal init (Normal @1400=+0.014 vs Orth @1400=+0.044). Negative.
+    model_name = 'BamMediumIndependentLLFBAlignedRowStdTailWriteOrth'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_write_v_mode = 'std_tail_projected'
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+    bam_std_tail_projection_init = 'orthogonal'
+    bam_record_std_tail_write_metrics = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFBAlignedRowStdTailWriteNormal(BamMediumIndependentLLFBAlignedRowStdTailWriteOrth):
+    """Ledger only: same write-address architecture, normal(.006) instead of orthogonal init."""
+    # Runtime/implementation inherited from Orth (code_commit: 6758378).
+    # Result: stopped at 9032. vs B: early -0.039@200 -> +0.027@400, collapsed to plateau
+    # gap ∈ [+0.0049, +0.0064] over 5400-8600, final 8600 = +0.0061. Throughput +1.81%.
+    # vs Orth: consistently better (Normal-Orth @1600=-0.026).
+    # Conclusion: best of std-tail trio; normal init beats orth; +0.006 degraded vs B. Negative.
+    # UE5a .6960 steps/s (+1.81% vs BAlignedRow .6836), matched health settings with Orth.
+    model_name = 'BamMediumIndependentLLFBAlignedRowStdTailWriteNormal'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFBAlignedRowStdTailWriteOrth']
+    bam_std_tail_projection_init = 'normal'
+
+
+class BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal(BamMediumIndependentLLFBAlignedRowStdTailWriteNormal):
+    """Ledger only: Normal write-address projection uses BAM-injected o_head tail."""
+    # codex/llf-std-tail-write, /data0/xd/llf-std-tail-write; same parameters/health as Normal.
+    # code_commit: 49fbb1e; UE5a .6984 steps/s (+.34% vs Normal .6960), matched health; scan/AOT.
+    # Result: stopped at 6333. vs B: plateau gap ∈ [+0.0083, +0.0105] over 4800-6000,
+    # final 6000 = +0.0088. vs Normal: ~+0.004. Throughput +2.16% vs B.
+    # Conclusion: post-bam o_head tail injection no gain; worse than Normal by ~0.004. Negative.
+    model_name = 'BamMediumIndependentLLFBAlignedRowPostBamTailWriteNormal'
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowStdTailWriteNormal',
+                    'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow']
+    bam_projected_write_post_bam = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
+    """L-only LocalO: static plus rank4 dynamic row read, one output gate."""
+    # Ledger only: codex/llf-o-row-static-dynamic, /data0/xd/llf-o-row-static-dynamic; code_commit: b600adf.
+    # UE5a .6776 steps/s; generic ON + branch-energy/a health (parent .6836 BAM OFF, not strictly matched).
+    # Static normal(.006), RMS epsilon1e-6; per-L trainable a0=.00608276253, no WD.
+    # Result: stopped at 2800. vs ORowRank4CFp32: early -0.209@200 crossed zero ~1000,
+    # converged gap ∈ [+0.0011, +0.0041] over 1400-2800, final 2800 = +0.0017 (r200 flat).
+    # vs BAM base (RoutingBAlignedRow): +0.055@200 collapsed to gap ∈ [+0.0086, +0.0112] over 1800-2800, final +0.0096.
+    # Conclusion: static+dynamic row read ≈ dynamic-only O row (ORowRank4CFp32); static key adds no gain.
+    # TB diagnosis (200-2000): static Es/(Es+Ed) only .00157% -> .01168%; no substantial cancellation.
+    # a/a0 is layer-selective: middle layers suppress it, some end layers reach ~4; raw_grad has no sustained excess vs ORowRank4.
+    # Matched Norm/NoNorm initial scales did not balance static/dynamic branches; weak static energy is not proof of the loss cause.
+    # Evidence: codex/llf-o-row-static-dynamic, experiments/bam_llama2_medium/local_o_static_dynamic_health.md.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFBAlignedRowORowRank4CFp32']
+    bam_o_row_effective_rank = 4
+    bam_local_o_row_static_dynamic = True
+    bam_local_o_static_key_norm = True
+    bam_local_o_static_amplitude_init = (0.006**2 + 1e-6)**0.5
+    bam_record_o_row_branch_metrics = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRowNoNorm(BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow):
+    """Raw normal(.006) static keys; no static normalization or amplitude parameter."""
+    # Ledger only: codex/llf-o-row-static-dynamic, /data0/xd/llf-o-row-static-dynamic; code_commit: b600adf.
+    # UE5a .6776 steps/s; generic ON + branch-energy health, approximately same speed as Norm.
+    # Result: stopped at 1800. vs ORowRank4CFp32: early -0.068@200, gap ∈ [+0.0022, +0.0052] over 400-1800, final +0.0022 (r200 flat).
+    # vs Norm (LocalOStaticDynamicRow): oscillated ±0.001 around zero, tied. vs BAM base: +0.196@200 collapsed to +0.0124@1800, still shrinking.
+    # Conclusion: removing static normalization no effect vs Norm; both ≈ ORowRank4CFp32. Negative.
+    # TB diagnosis (200-1000): static Es/(Es+Ed) .00132% -> .00387%; static/dynamic RMS only .622% at1000.
+    # Like Norm, output is dynamically dominated, without substantial cancellation or sustained raw_grad excess vs ORowRank4.
+    # This tests a very weak static branch, not a balanced static+dynamic read; energy share is not loss attribution.
+    # Evidence: same local_o_static_dynamic_health.md as Norm; diagnostic windows precede final stop.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRowNoNorm'
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFBAlignedRowORowRank4CFp32',
+                    'BamMediumIndependentLLFBAlignedRowLocalOStaticDynamicRow']
+    bam_local_o_static_key_norm = False
 
 
 class BamMediumIndependentLLFLocalVRank4RoutingCFp32(BamMediumIndependentLLFRoutingLegacyLocalVRank4):
@@ -7217,3 +7458,229 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile(B
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile'
     # EW4b v5p-32 scan/AOT, e05b537: .54883 steps/s, -.28% vs all-health-OFF QKVC Rank2 .5504.
     record_training_health_metrics = False
+
+
+class BamXLSharedBasisLocalVRowSharedColRank4CFp32(
+    BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
+    """L LocalV shares O's C8 row answer; its full-M rank4-C column stays independent."""
+    # Implementation: codex/xl-shared-basis-row-only, /data0/xd/xl-shared-basis-row-only.
+    # code_commit: 97be64f; EW4b v5p-32 scan/AOT.
+    # Same-TPU/runtime speed @10-19: .5453 vs SharedBasis .5454 (-.02%), tied.
+    # Logs: /data0/xd/bam_diagnostics/sharedbasis-rowshared-97be-compare.
+    # Interim @4000: loss tied with SharedBasis.
+    # Pre-run bet vs SharedBasis: late dloss center 0, likely [-.002,+.002] at 25k-30k;
+    # same-runtime EW4b throughput +0..+1.5%; L projection weights -0.15625 W_Q/layer.
+    # Full 64x32 history-M cache, Q/K shared basis, LocalO/F/write paths unchanged.
+    model_name = 'BamXLSharedBasisLocalVRowSharedColRank4CFp32'
+    compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis']
+    bam_local_v_row_shared = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    scan_layers = True
+    checkpoint_period = 250
+    steps = 50000
+    force_final_checkpoint = True
+
+
+class BamXLSharedBasisLocalVColOnlyRank4CFp32(
+    BamXLSharedBasisLocalVRowSharedColRank4CFp32):
+    """Keep LocalV's full-M rank4-C column read and remove its row branch."""
+    # Implementation: codex/xl-shared-basis-row-only, /data0/xd/xl-shared-basis-row-only.
+    # code_commit: c742660; EW4b v5p-32 scan/AOT, FIRST_STEP2; .5527 steps/s @10-19.
+    # Pre-run bet vs RowShared: dloss center +.0003, likely [-.001,+.002] by 10k; speed tied.
+    # Saves the remaining LocalV row gate: 0.00782 W_Q per L layer; M-cache unchanged.
+    model_name = 'BamXLSharedBasisLocalVColOnlyRank4CFp32'
+    compare_runs = [
+        'BamXLSharedBasisLocalVRowSharedColRank4CFp32',
+        'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis',
+    ]
+    bam_local_v_row_shared = False
+    bam_local_v_col_only = True
+
+class BamMediumIndependentLLFBAlignedRowMLPUniform(
+    BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow
+):
+    """Near-MHA parameter budget: reduce every SwiGLU width to 2304."""
+    # 412,102,496 parameters; -37,748,736 vs BAlignedRow, +486,240 vs clean MHA (+.158% excluding embeddings).
+    # Ledger only; runtime 94e13f9, codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Result: stopped at 5882. Early transient +0.122 (step 200) collapsed to +0.014 by ~2200.
+    # vs BAM base (RoutingBAlignedRow): degraded, plateau gap ∈ [+0.0129, +0.0154] over 2200-5000, no convergence.
+    # vs MH control: -0.096 @5000 (still much better than MHA).
+    # Conclusion: MLP-uniform is a degraded variant (~+0.014 worse than BAM base); PerLayer slightly better.
+    # UE5a .7074 steps/s (+3.48% vs matched-health BAlignedRow .6836).
+    model_name = 'BamMediumIndependentLLFBAlignedRowMLPUniform'
+    compare_runs = [
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+        'BamMHALlama2MediumC256ScanAotCleanControl',
+    ]
+    base_mlp_dim = 2304
+    mlp_dim_by_block = None
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetch_route_metrics = False
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-param-uniform'
+
+
+class BamMediumIndependentLLFBAlignedRowMLPPerLayer(
+    BamMediumIndependentLLFBAlignedRowMLPUniform
+):
+    """Same total as Uniform; L/L/F SwiGLU widths 2256/2256/2400."""
+    # Same total budget as Uniform; per-layer excess vs MHA: L +.073%, F +.326%.
+    # Ledger only; runtime 94e13f9, codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Result: completed 13500 (exit 0). Early transient +0.012 (step 2000) collapsed by ~1000.
+    # vs BAM base (RoutingBAlignedRow): degraded, slow widening +0.0116@2000 -> +0.0159@12800 then leveled; converged gap in [+0.0155, +0.0160] over 11000-13400, final 13400 = +0.0159.
+    # vs MH control: -0.072 @12000 (much better than MHA).
+    # Conclusion: PerLayer degraded ~+0.016 vs BAM base; at matched step ~= Uniform (both +0.013 @5800), both widen over time.
+    # UE5a .7076 steps/s (+3.51% vs matched-health BAlignedRow .6836).
+    model_name = 'BamMediumIndependentLLFBAlignedRowMLPPerLayer'
+    mlp_dim_by_block = [2256, 2256, 2400]
+    compare_runs = BamMediumIndependentLLFBAlignedRowMLPUniform.compare_runs + [
+        'BamMediumIndependentLLFBAlignedRowMLPUniform',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-param-per-layer'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedRowMLPPerLayer):
+    """Ledger only: remove every BAM Q/K/V/O row read; return its parameters to each layer's MLP."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # code_commit: 2ca927c; UE5a .7354 steps/s, +3.93% vs PerLayer .7076; generic ON/BAM OFF.
+    # 412,081,840 parameters, -20,656 vs PerLayer (integer-channel residue); no hardware-alignment rounding.
+    # Result: completed 13,500. vs PerLayer: +.082@400 warmstart collapsed to ~0 by 10k,
+    # held [-.0006,+.0013] over 10.4k-13.4k, final 13400=+.00004 (r200 noise around 0).
+    # vs MHA: -.074@10k -> -.070@13400 (parallel, stable). Throughput .7354 steps/s,
+    # +3.93% vs PerLayer .7076.
+    # Conclusion: removing all row-read and returning params to MLP is FREE vs PerLayer
+    # (gap->0); BAM still beats MHA by ~.070. Row-read parameter value over MLP ~= 0.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnly'
+    mlp_dim_by_block = [2535, 2535, 2610]
+    bam_prune_all_row_reads = True
+    bam_read_sides = 'col'
+    bam_fetched_read_side = 'col'
+    bam_local_v_share_output_coordinates = False
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowMLPPerLayer',
+                    'BamMHALlama2MediumC256ScanAotCleanControl']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only'
+
+
+class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """Ledger only: remove all BAM Q/K/V/O row reads, keeping every MLP at 2816."""
+    # code_commit: 4c67f28; UE5a .7264 steps/s, +6.26% vs matched-health BAlignedRow .6836, -1.22% vs PerLayerColOnly .7354.
+    # Runtime: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched; generic ON/BAM OFF.
+    # 430,956,208 parameters: -18,895,024 vs BAlignedRow; no MLP reinvestment.
+    # Result: completed 13,500 (1 preemption, 5h17m lease then 11m47m recovery to finish).
+    # vs BAlignedRow: +.059@200 warmstart collapsed to ~.0075 plateau (2.2k-8k), then slowly
+    # drifted to ~.0067-0.0076 (10k-13.4k), final 13400=+.0076 — below predicted +.008, still
+    # gently narrowing. vs PerLayerColOnly: stable ~-.009 (ColOnly keeps 18.9M more params).
+    # Conclusion: removing all Q/K/V/O row reads costs ~.007 (slightly less than predicted .008,
+    # with slow residual downtrend); row-read aggregate value ~.007 at this scale.
+    model_name = 'BamMediumIndependentLLFBAlignedRowColOnly'
+    base_mlp_dim = 2816
+    mlp_dim_by_block = None
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-col-only'
+
+
+class BamMediumIndependentLLFBAlignedRowOColOnly(BamMediumIndependentLLFBAlignedRowMLPUniform):
+    """Ledger only: remove all L/F O row reads; preserve Q/K/V and MLP2816."""
+    # code_commit: 3dc60d3; UE5a .703 steps/s, +2.84% vs matched-health BAlignedRow .6836.
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 436,776,416 parameters: -13,074,816 vs BAlignedRow; no MLP reinvestment.
+    # Prediction vs BAlignedRow: final gap +.006, throughput +3%; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFBAlignedRowOColOnly'
+    base_mlp_dim = 2816
+    bam_prune_o_row_reads = True
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFBAlignedRowColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-o-col-only'
+
+
+class BamMediumIndependentLLFBAlignedRowQKVColOnly(BamMediumIndependentLLFBAlignedRowMLPUniform):
+    """Ledger only: remove LocalQ/K/V row reads; preserve both O sides and MLP2816."""
+    # code_commit: 572a02c; UE5a .700 steps/s, +2.40% vs matched-health BAlignedRow .6836.
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs BAlignedRow: final gap +.002, throughput +3%; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFBAlignedRowQKVColOnly'
+    base_mlp_dim = 2816
+    bam_prune_local_row_reads = True
+    bam_read_sides = 'col'
+    bam_local_v_share_output_coordinates = False
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFBAlignedRowColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-qkv-col-only'
+
+
+class BamMHALlama2MediumC256ScanAotCleanMLP2304(BamMHALlama2MediumC256ScanAotCleanControl):
+    """MHA control for the same 37.749M MLP-parameter reduction as BAM Uniform."""
+    # Ledger only; runtime 061b51d, codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Result: stopped at 10583. Early transient -0.036 (step 200) crossed zero ~700, peaked +0.0187 @1200, then plateau.
+    # vs clean MHA: converged gap in [+0.0186, +0.0195] over 8200-10400, final 10400 = +0.0194 (r200 flat).
+    # Conclusion: MHA degrades +0.0194 under 37.749M MLP-width reduction, more than BAM (PerLayer +0.0159) -> BAM more robust to MLP-width reduction by ~0.0035.
+    # code_commit: 061b51d; UE5a .9640 steps/s, +6.40% vs clean MHA .906; generic ON/BAM OFF.
+    model_name = 'BamMHALlama2MediumC256ScanAotCleanMLP2304'
+    compare_runs = ['BamMHALlama2MediumC256ScanAotCleanControl']
+    base_mlp_dim = 2304
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetch_route_metrics = False
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mha-mlp2304'
+
+
+class BamMediumIndependentLLFBAlignedRow21LayerMLP2896(BamMediumIndependentLLFBAlignedRowMLPUniform):
+    """Near-MHA budget by reducing depth: seven LLF blocks with full-width MLPs."""
+    # Ledger only; runtime 061b51d, codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Paused at 6181 for hot replacement. vs BAlignedRow: +.0738@200 shrank to +.0181@800,
+    # then plateaued near +.021–.023 through5800; vs PerLayer near +.009–.010, no convergence.
+    # code_commit: 061b51d; UE5a .7716 steps/s, +12.87% vs BAlignedRow .6836, +9.08% vs Uniform .7074; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFBAlignedRow21LayerMLP2896'
+    base_num_decoder_layers = 21
+    base_mlp_dim = 2896
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 7
+    compare_runs = [
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+        'BamMediumIndependentLLFBAlignedRowMLPPerLayer',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-21layer-mlp2896'
+
+
+class BamXLSharedBasisQKColOnlyMLP(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
+    # code_commit: ae75720; UE5a .5524 steps/s, +1.47% vs SharedBasis EW4b .5444 (cross-zone); generic ON/BAM OFF.
+    # Training region: UE5a -> EW4b at checkpoint121; DirectC8 stays UE5a for lease-stability A/B.
+    """Replace LocalQK row parameters with MLP capacity, keeping NoPE96/RoPE32."""
+    # Ledger only; runtime ae75720, codex/xl-shared-basis-col-only, /data0/xd/xl-shared-basis-col-only.
+    # Result: stopped at 20,933 (ckpt 20,750). vs SharedBasis: +.031@500 collapsed to
+    # plateau +.001..+.003 over 5k-20.5k, final 20500=+.0014 (r200 near 0).
+    # Throughput .5524 steps/s, +1.47% vs SharedBasis .5444.
+    # Conclusion: LocalQK row-read value is small (~+.001..+.003 over MLP capacity);
+    # QKDirectC8 strictly better (-.001~-0.002 vs this run).
+    model_name = 'BamXLSharedBasisQKColOnlyMLP'
+    bam_local_qk_col_only = True
+    bam_partial_rope_nope_dim = 96
+    base_mlp_dim = 5642
+    compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis']
+
+
+class BamXLSharedBasisQKDirectC8MLP(BamXLSharedBasisQKColOnlyMLP):
+    # code_commit: ae75720; UE5a .5512 steps/s, -.22% vs ColOnly .5524; +1.25% vs SharedBasis EW4b .5444 (cross-zone); generic ON/BAM OFF.
+    """Independent Q/K 16x8 direct column keys; same MLP width as the first arm."""
+    # Ledger only; runtime ae75720, codex/xl-shared-basis-col-only, /data0/xd/xl-shared-basis-col-only.
+    # Prediction vs QKColOnlyMLP: final gap +.004.
+    model_name = 'BamXLSharedBasisQKDirectC8MLP'
+    bam_local_qk_col_direct_compressed = True
+    bam_local_qk_share_basis = False
+    compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis',
+                    'BamXLSharedBasisQKColOnlyMLP']

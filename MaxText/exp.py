@@ -7293,6 +7293,7 @@ class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLay
 
 class BamMediumIndependentLLFBAlignedRowOColOnly(BamMediumIndependentLLFBAlignedRowMLPUniform):
     """Remove LocalO and fetched-O row reads; retain full MLP and all Q/K/V reads."""
+    # code_commit: 3dc60d3; UE5a .703 steps/s, +2.84% vs matched-health BAlignedRow .6836.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs BAlignedRow: final gap +.006, throughput +3%; generic ON/BAM OFF.
     model_name = 'BamMediumIndependentLLFBAlignedRowOColOnly'

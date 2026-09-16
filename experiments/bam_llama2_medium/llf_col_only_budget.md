@@ -135,3 +135,9 @@ All-row RUN launch verified at runtime4c67f28 on UE5a with `Loaded compiled
 function!` and FIRST_STEP. Steps10–14 mean .7264 steps/s: +6.26% vs matched-health
 BAlignedRow .6836, -1.22% vs PerLayerColOnly .7354. Generic health ON/BAM OFF,
 checkpoint200; the AOT compiler was released by prepare_train_aot.py.
+
+O-only RUN launch verified at runtime3dc60d3 on UE5a: AOT loaded, step0 and
+step14 completed. Steps10–14 mean .703 steps/s, +2.84% vs matched-health
+BAlignedRow .6836 (prediction +3%). Generic health ON/BAM OFF, checkpoint200.
+Its compiler cleanup finished before FIRST_STEP. Both parameter-removal runs
+retain the 13,500-step schedule; no early stopping decision follows from speed.

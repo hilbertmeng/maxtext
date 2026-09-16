@@ -7266,6 +7266,49 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     force_final_checkpoint = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
+    """Ledger only: shared LocalV/O rows only in LLF block 0; later L layers are column-only."""
+    # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # code_commit: 46daaf3; UE5a AOT loaded/FIRST_STEP4; .698 steps/s near step183
+    # (+2.11% vs matched-health BAlignedRow .6836); generic health ON/BAM sow OFF.
+    # Pre-run bet vs parent: late dloss center +.0015, likely [0,+.004]; throughput +2..3%.
+    # Removes 15,655,360 params (3.733 W_Q) from 14 later-block L layers.
+    # Q/K rows and every F-layer fetchO row stay unchanged; history-M cache is unchanged.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly'
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B']
+    bam_local_vo_row_first_block_only = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalVOColOnly(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
+    """Ledger only: remove LocalV/O rows from all L layers; keep linear F fetchO rows."""
+    # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # code_commit: 01a601e; UE5a AOT loaded/FIRST_STEP3; .703 steps/s near step43
+    # (+2.84% vs matched-health BAlignedRow .6836); generic health ON/BAM sow OFF.
+    # Pre-run bet vs RowShared parent: late dloss center +.003, likely [+.001,+.006];
+    # throughput +2.5..3.5%; removes 17,891,840 params (4.266 W_Q).
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVOColOnly'
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+                    'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly']
+    bam_local_vo_row_all_local_pruned = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu(
+    BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly):
+    """Ledger only: D→256→nK GELU for every retained LocalO/fetchO row key."""
+    # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # code_commit: 46daaf3; UE5a AOT loaded/FIRST_STEP1; .699 steps/s near step89
+    # (+2.25% vs BAlignedRow, +.14% vs FirstBlockOnly); generic health ON/BAM sow OFF.
+    # Pre-run bet vs FirstBlockOnly: late dloss center +.0005, likely [-.001,+.002];
+    # throughput -1.5..-2%; another 3,932,160 params removed (total 4.670 W_Q vs parent).
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu'
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly',
+                    'BamMediumIndependentLLFBAlignedRowAllORowR256Gelu']
+    bam_o_row_bottleneck_dim = 256
+    bam_o_row_bottleneck_layers = 'all'
+
+
 class BamMediumIndependentLLFBAlignedRowStdTailWriteOrth(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Ledger only: pure y_std tail -> shared 32x32 projection + per-head write-address bias."""
     # codex/llf-std-tail-write, /data0/xd/llf-std-tail-write; code_commit: 6758378.
@@ -7594,7 +7637,13 @@ class BamMediumIndependentLLFBAlignedRowOColOnly(BamMediumIndependentLLFBAligned
     # code_commit: 3dc60d3; UE5a .703 steps/s, +2.84% vs matched-health BAlignedRow .6836.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 436,776,416 parameters: -13,074,816 vs BAlignedRow; no MLP reinvestment.
-    # Prediction vs BAlignedRow: final gap +.006, throughput +3%; generic ON/BAM OFF.
+    # Result: completed 13,500. vs BAlignedRow: +.134@400 warmstart collapsed to ~+.010
+    # plateau (4k-10k), then +.008..+.009 over 10k-13.4k, final 13400=+.0091 (r200 noise
+    # around 0, slight uptick at end). vs ColOnly: +.085@400 warmstart collapsed to ~+.005
+    # (3k), then +.002..+.0015 over 6k-13.4k, final 13400=+.0015 — QKV row reads marginal
+    # value (O absent) trending to ~0. Throughput .703 steps/s, +2.84% vs BAlignedRow .6836.
+    # Conclusion: O row read marginal value (QKV present) ~.008-.009; QKV row reads
+    # marginal value (O absent) ~.0015 -> 0. O row read is the load-bearing row read.
     model_name = 'BamMediumIndependentLLFBAlignedRowOColOnly'
     base_mlp_dim = 2816
     bam_prune_o_row_reads = True

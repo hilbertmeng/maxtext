@@ -222,7 +222,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLSharedBasisQKDirectC8MLP` | v5p-32 | `us-east5-a` | 2026-09-15 11:48:20 | active | UE5a arm of scoped region A/B | none during A/B |
 
 | `BamMediumIndependentLLFBAlignedRowColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 01:57:42 | 2026-09-16 07:34:38 | completed 13,500 (clean-exit); 1 service preemption (same-zone recovery); checkpoint 13,500 committed; TPU/queue verified absent | EW4b staged fallback (never active) |
-| `BamMediumIndependentLLFBAlignedRowOColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 02:18:22 | active | L/F O-row deletion only; READY 02:21:53, AOT-loaded first step and step14 verified | EW4b staged fallback |
+| `BamMediumIndependentLLFBAlignedRowOColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 02:18:22 | 2026-09-16 09:28:45 | completed 13,500; 5 service preemptions (all same-zone recovery); checkpoint 13,500 committed; TPU/queue verified absent | EW4b staged fallback (never active) |
 | `BamMediumIndependentLLFBAlignedRowQKVColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 03:37:58 | active | QKV-row deletion only; AOT loaded, FIRST_STEP and step14 verified | EW4b staged fallback |
 
 ## READY leases
@@ -682,3 +682,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKColOnlyMLP | 7 | `europe-west4-b` | 2026-09-15 13:57:38 | 2026-09-16 00:40:31 | 10h42m53s | user stop20,933; checkpoint 20,750 committed; TPU/queue verified absent; scripted closeout
 | BamMediumIndependentLLFBAlignedRowColOnly | 1 | `us-east5-a` | 2026-09-16 02:00:50 | 2026-09-16 07:17:43 | 5h16m53s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowColOnly | 2 | `us-east5-a` | 2026-09-16 07:22:52 | 2026-09-16 07:34:38 | 11m46s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowOColOnly | 1 | `us-east5-a` | 2026-09-16 02:21:54 | 2026-09-16 07:17:56 | 4h56m02s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 2 | `us-east5-a` | 2026-09-16 07:24:42 | 2026-09-16 07:46:53 | 22m11s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 3 | `us-east5-a` | 2026-09-16 07:52:46 | 2026-09-16 08:12:51 | 20m05s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 4 | `us-east5-a` | 2026-09-16 08:18:05 | 2026-09-16 08:29:03 | 10m58s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 5 | `us-east5-a` | 2026-09-16 08:35:55 | 2026-09-16 09:07:07 | 31m12s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 6 | `us-east5-a` | 2026-09-16 09:13:05 | 2026-09-16 09:28:45 | 15m40s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent

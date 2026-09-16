@@ -10,7 +10,7 @@
 - Runner: `experiments/bam_llama2_medium/localv_row_causal.py`; launcher `run_localv_row_causal.sh`; aggregate `summarize_localv_row_causal.py`.
 - Runtime/runner hashes, checkpoint, all sequence hashes, and scenario ordering are recorded in stage metadata.
 - TPU: `xd-v6e-localv-row-causal-ew4a-0916`, EW4a v6e-1, owned only by this diagnosis.
-- Fixed 128-sequence Pile T2048 cohort: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz`. First32 then128; all valid tokens, no selected source position.
+- Fixed 128-sequence Pile T2048 cohort: `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz`. Use first64 after the user's runtime-budget instruction; all valid tokens, no selected source position.
 - Result prefix: `gs://newproject-1-llm_projects_europe-west4/log/diagnostics/xl-localv-row-causal-20260916/results`.
 - Local artifacts: `/data0/xd/bam_diagnostics/xl-localv-row-causal-5250`.
 
@@ -22,7 +22,7 @@ VROW_STAGE=route VROW_STOP=32 bash experiments/bam_llama2_medium/run_localv_row_
 VROW_STAGE=qk VROW_STOP=32 bash experiments/bam_llama2_medium/run_localv_row_causal.sh
 ```
 
-Resume with the same output and STOP=128; verified sample files are skipped.
+Resume with the same output and STOP=64; verified sample files are skipped.
 
 ## Questions and intervention definitions
 
@@ -36,4 +36,6 @@ Paired per-sequence loss is retained; report mean, descriptive ±1.96 SE and fra
 
 ## Results
 
-Pending; checkpoint preserved, probe implementation under validation.
+Initial runtime: `72c264c94ac7119f3b247f0c088a4be04e06b478`. CPU transport/module tests passed; TPU native and inactive-layer no-op passed exactly. Checkpoint restore3.94s; first sample including compile37s, later dose samples~1.42s each for52 scenarios. One TPU suffices; aggregation is small CPU work, contractions/forwards run on TPU.
+
+First32 LocalV paired sequences: all-L deletion +.0388465 (±.0049532 descriptive95% interval half-width), L1-only deletion +.0311338 (±.0045209), both positive in32/32 samples. Global half/amplified1.5 doses +.0058070/+.0035626. This contradicts negligible current-checkpoint necessity, but does not predict the retraining gap. The L1/global ratio is not an additive attribution share. Follow-up tests retain only L1 and jointly remove Q/K to assess compensation.

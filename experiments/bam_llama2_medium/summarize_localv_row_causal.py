@@ -8,7 +8,7 @@ p = argparse.ArgumentParser()
 p.add_argument('directory', type=Path)
 p.add_argument('--limit', type=int, default=128)
 args = p.parse_args()
-for stage in ('dose', 'route', 'qk'):
+for stage in ('dose', 'route', 'qk', 'focus'):
   path = args.directory / f'{stage}_scenarios.json'
   if not path.exists():
     continue

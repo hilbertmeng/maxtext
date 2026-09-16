@@ -179,6 +179,18 @@ def scenarios(stage):
           a = np.ones((24,5),np.float32)
           a[np.ix_(selected,columns)] = dose
           result.append(dict(name=f'{group}_{path}_dose{dose:g}',layers=selected,scales=a.tolist()))
+  elif stage == 'focus':
+    for name, v_layers, q_layers, k_layers in (
+        ('V_keep_only_L1', [l for l in layers if l != 1], [], []),
+        ('V_L1_off', [1], [], []),
+        ('V_all_off', layers, [], []),
+        ('QK_all_off', [], list(range(24)), list(range(24))),
+        ('QKV_all_off', layers, list(range(24)), list(range(24))),
+        ('QK_off_V_keep_L1', [l for l in layers if l != 1], list(range(24)), list(range(24))),
+    ):
+      a = np.ones((24,5),np.float32)
+      a[v_layers,0] = 0; a[q_layers,3] = 0; a[k_layers,4] = 0
+      result.append(dict(name=name,scales=a.tolist()))
   else:
     raise ValueError(stage)
   return result

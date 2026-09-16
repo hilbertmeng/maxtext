@@ -38,11 +38,14 @@ effective-key C routing and a 64x32 matrix, so the prediction allows a wider los
 
 ## Runtime
 
-Fill after the sealed runtime commit and first-step gate:
+- Code commit: `97be64f241ea5ed5596098348e501ab67fcdf4ff`
+- RUN registry: `BamXLSharedBasisLocalVRowSharedColRank4CFp32`
+- TPU: `xd-v5p-32-xl-localv-row-shared-maxtext`, `europe-west4-b`
+- AOT artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/97be64f/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLSharedBasisLocalVRowSharedColRank4CFp32.pickle`
+- FIRST_STEP gate: reached step 27 after loading the compiled function.
+- Steps 10-14 throughput: about `0.544 steps/s`, tied with SharedBasis's historical
+  `0.5444 steps/s` measurement.
 
-- code commit:
-- RUN registry:
-- TPU:
-- AOT artifact:
-- FIRST_STEP:
-- steps 10-14 throughput:
+The initial lease entered maintenance during startup and left an incomplete step-1 checkpoint.
+Auto-train removed that incomplete checkpoint, restored the committed step-0 state, and passed
+the first-step gate on the replacement lease.

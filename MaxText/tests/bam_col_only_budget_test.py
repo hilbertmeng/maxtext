@@ -10,6 +10,51 @@ import bam_local_fetch_test
 
 class ColOnlyBudgetTest(absltest.TestCase):
   config = bam_local_fetch_test.LocalFetchTest.config
+  def test_o_only_preserves_qkv(self):
+    import max_utils
+    for mode in ('local_qk+local_o', 'local_qk+full'):
+      cfg = self.config('BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow')
+      cfg.get_keys()['bam_fetched_read_side'] = 'col'
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      kwargs = dict(config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+                    max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+                    attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+                    layer_mode=mode, read_side='both', attention_type=cfg.attention_type)
+      full = BamAttention(**kwargs)
+      x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(2), (1, 8, 32, 32), dtype=cfg.dtype)
+      args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+      call = dict(M_in=m, deterministic=True, layer_index=3)
+      params = full.init({'params': jax.random.key(3)}, *args, **call)['params']
+      flat = flatten_dict(params)
+      for i, (path, leaf) in enumerate(flat.items()):
+        if path[0] in ('W_R', 'W_lq_bias', 'W_lk_bias', 'W_lv_bias'):
+          flat[path] = leaf.replace(value=.1 * jax.random.normal(
+              jax.random.key(i+20), leaf.value.shape, leaf.value.dtype))
+      params = unflatten_dict(flat)
+      expected = full.apply({'params': params}, *args, **call)
+      cfg.get_keys()['bam_fetched_read_side'] = 'both'
+      cfg.get_keys()['bam_prune_o_row_reads'] = True
+      small = BamAttention(**kwargs)
+      compact = {}
+      for path, leaf in flat.items():
+        if path[0] == 'abs_v_row_decoder': continue
+        if path[0] == 'W_R': leaf = leaf.replace(value=leaf.value[..., 32:])
+        elif path[0] in ('W_R_gate', 'W_R_gate_b0'):
+          leaf = leaf.replace(value=leaf.value[..., 1:2])
+        compact[path] = leaf
+      compact = unflatten_dict(compact)
+      init = small.init({'params': jax.random.key(3)}, *args, **call)['params']
+      self.assertEqual(jax.tree.structure(init), jax.tree.structure(compact))
+      self.assertEqual([a.shape for a in jax.tree.leaves(init)],
+                       [a.shape for a in jax.tree.leaves(compact)])
+      actual = small.apply({'params': compact}, *args, **call)
+      for a, b in zip(expected, actual):
+        np.testing.assert_allclose(np.asarray(a, dtype=np.float32), np.asarray(b, dtype=np.float32), atol=.002, rtol=.002)
+      grad = jax.grad(lambda p: sum(jnp.mean(z.astype(jnp.float32)**2)
+                       for z in small.apply({'params': p}, *args, **call)))(compact)
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(a))) for a in jax.tree.leaves(grad)))
+
   def test_compact_modules_match_masked_bilateral(self):
     for mode in ('local_qk+local_o', 'local_qk+full'):
       cfg = self.config('BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow')

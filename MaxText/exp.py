@@ -7279,6 +7279,7 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
 
 class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Pure removal of all BAM Q/K/V/O row reads; keep BAlignedRow's MLP width."""
+    # code_commit: 4c67f28; UE5a .7264 steps/s, +6.26% vs matched-health BAlignedRow .6836, -1.22% vs PerLayerColOnly .7354.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs BAlignedRow: final gap +.008; throughput +5% (generic ON/BAM OFF).
     # Keep 2816 MLP channels in all 24 layers; no row-parameter reinvestment.
@@ -7288,6 +7289,18 @@ class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLay
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
                     'BamMediumIndependentLLFMLPPerLayerColOnly']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-col-only'
+
+
+class BamMediumIndependentLLFBAlignedRowOColOnly(BamMediumIndependentLLFBAlignedRowMLPUniform):
+    """Remove LocalO and fetched-O row reads; retain full MLP and all Q/K/V reads."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs BAlignedRow: final gap +.006, throughput +3%; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFBAlignedRowOColOnly'
+    base_mlp_dim = 2816
+    bam_prune_o_row_reads = True
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFBAlignedRowColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-o-col-only'
 
 
 class BamMHALlama2MediumC256ScanAotCleanMLP2304(BamMHALlama2MediumC256ScanAotCleanControl):

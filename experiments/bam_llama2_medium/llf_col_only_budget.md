@@ -115,3 +115,23 @@ Across24 layers O rows are13,074,816 (41.28% of BAM additions), Q/K rows2,410,03
 its implementation masks the row contraction rather than necessarily removing
 every row parameter. Stored C8-to32 decoders are unused by Direct injection;
 they remain counted here solely for consistency with the actual parameter trees.
+
+## O-only row removal
+
+`BamMediumIndependentLLFBAlignedRowOColOnly` removes O-row parameters and reads in
+both L (LocalO) and F (fetchO) layers. All Q/K/V row and column reads, O column
+reads, writes, M compression and MLP2816 remain unchanged. It inherits the same
+clean training settings; only O read-arm compaction is new. Comparisons are
+BAlignedRow and the all-row-removal RUN, with no MHA comparator.
+Prediction: final gap +.006 vs BAlignedRow, speed +3%; these are hypotheses, not
+an additive attribution of pathway value.
+
+Parameter audit: 436,776,416, down13,074,816 (34.20% of BAlignedRow BAM additions).
+JSON `/data0/xd/llf-o-col-only-audit.json`; mapped nonzero forward and gradient
+checks for both L/F in `MaxText/tests/bam_col_only_budget_test.py`, log
+`/data0/xd/llf-o-col-only-tests.log`. Q/K/V parameter trees stay intact.
+
+All-row RUN launch verified at runtime4c67f28 on UE5a with `Loaded compiled
+function!` and FIRST_STEP. Steps10–14 mean .7264 steps/s: +6.26% vs matched-health
+BAlignedRow .6836, -1.22% vs PerLayerColOnly .7354. Generic health ON/BAM OFF,
+checkpoint200; the AOT compiler was released by prepare_train_aot.py.

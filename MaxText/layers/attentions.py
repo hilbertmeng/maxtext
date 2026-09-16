@@ -2561,9 +2561,13 @@ class BamAttention(Attention):
         name='f', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v,
         num_heads=self._fetched_read_num_heads, read_side=self._fetched_read_side,
         **{**read_settings, 'rms_epsilon': self._fetched_read_key_epsilon})
+    if getattr(cfg, 'bam_prune_o_row_reads', False):
+      assert self._local_v_mode in ('none', 'rank2')
+      assert self._abs_v_row_output == 'direct'
+      self._fetched_arm = dataclasses.replace(self._fetched_arm, prune_row=True, read_side='col')
     # Ungated sharing (LocalV 'shared') contracts the normalized key without a gate.
     self._fetched_arm_ungated = dataclasses.replace(self._fetched_arm, key_mode='rms')
-    if self._fetched_arm.prune_row:
+    if read_settings['prune_row']:
       assert self.read_side == self._fetched_read_side == 'col'
       assert self._local_qk_post_read_v_dim is None
       assert self._local_v_mode in ('none', 'rank2')

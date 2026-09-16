@@ -37,3 +37,14 @@ and throughput `-1.5..-2%`. The prior all-layer O-row GELU run ended near `+0.00
 F-only arm loss-neutral and its L-only arm around `+0.006`; retaining only the two earliest L
 rows should remove most of that L sensitivity, while the extra nonlinear projections retain
 the previously observed throughput cost.
+
+## All-L LocalV/O column-only variant
+
+`BamMediumIndependentLLFBAlignedRowLocalVOColOnly` keeps the whole eight-block scan. All 16 L
+layers drop the shared LocalV/O row projection, gate, decoder and contraction; every F layer
+keeps the parent's linear fetchO row. LocalQ/K and independent rank-4-B LocalV columns are
+unchanged. It removes 17,891,840 parameters (`4.266 W_Q`) versus the RowShared parent.
+
+Pre-run bet versus RowShared: late dloss center `+0.003`, likely `[+0.001,+0.006]`, and
+throughput `+2.5..3.5%`. Relative to FirstBlockOnly, the bet is roughly `+0.0015` from removing
+the two earliest L row reads, with a smaller additional speed gain.

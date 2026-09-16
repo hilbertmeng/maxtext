@@ -7278,6 +7278,18 @@ class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly(
     bam_local_vo_row_first_block_only = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVOColOnly(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
+    """Remove LocalV/O rows from every L layer; keep each F-layer linear fetchO row."""
+    # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # Pre-run bet vs RowShared parent: late dloss center +.003, likely [+.001,+.006];
+    # throughput +2.5..3.5%; removes 17,891,840 params (4.266 W_Q).
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVOColOnly'
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+                    'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly']
+    bam_local_vo_row_all_local_pruned = True
+
+
 class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu(
     BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly):
     """Use D→256→nK GELU projections for every retained LocalO/fetchO row key."""

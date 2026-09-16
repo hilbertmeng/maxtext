@@ -307,6 +307,30 @@ class LocalVModeTest(absltest.TestCase):
               grads['W_R_row_down']['kernel'].value.astype(jnp.float32))), 0.)
         jax.clear_caches()
 
+  def test_all_local_vo_col_only_prunes_every_l_but_not_f(self):
+    cfg = self.config('BamMediumIndependentLLFBAlignedRowLocalVOColOnly')
+    self.assertFalse(getattr(cfg, 'bam_local_vo_row_first_block_only', False))
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    module = BamLayerPair(cfg, mesh, 8, all_global_attention=True)
+    h = jnp.ones((1, 8, 128), cfg.dtype)
+    m = jnp.zeros((1, 8, 32, 32), cfg.dtype)
+    args = ((h, m), jnp.ones((1, 8), jnp.int32), jnp.arange(8)[None],
+            jnp.ones((1, 8), jnp.int32), None, True, 'train', None,
+            None, None, None, jnp.asarray(0, jnp.int32))
+    params = module.init({'params': jax.random.key(71)}, *args)['params']
+    for layer in ('local_0', 'local_1'):
+      attention = params[layer]['block']['self_attention']
+      self.assertEqual(attention['W_R']['kernel'].value.shape[-1], 8)
+      self.assertEqual(attention['W_R_gate']['kernel'].value.shape[-1], 1)
+      self.assertNotIn('W_lv_row_gate', attention)
+      self.assertNotIn('abs_v_row_decoder', attention)
+    fetch = params['fetch_2']['block']['self_attention']
+    self.assertEqual(fetch['W_R']['kernel'].value.shape[-1], 40)
+    self.assertEqual(fetch['W_R_gate']['kernel'].value.shape[-1], 2)
+    self.assertIn('abs_v_row_decoder', fetch)
+    self.assertNotIn('W_R_row_down', fetch)
+    jax.clear_caches()
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -317,8 +317,10 @@ class BamLayerPair(nn.Module):
     for offset in range(block_size):
       name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       prune_local_vo_row = (
-          bool(getattr(cfg, 'bam_local_vo_row_first_block_only', False))
-          and not self.first_block and offset < block_size - 1)
+          offset < block_size - 1
+          and (bool(getattr(cfg, 'bam_local_vo_row_all_local_pruned', False))
+               or (bool(getattr(cfg, 'bam_local_vo_row_first_block_only', False))
+                   and not self.first_block)))
       carry, _ = Layer(
           cfg, self.mesh, self.sliding_window_size, self.quant,
           all_global_attention=True, static_layer_index=offset,

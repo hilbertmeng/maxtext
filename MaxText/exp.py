@@ -7507,13 +7507,15 @@ class BamXLSharedBasisLocalVRowSharedColRank4CFp32(
     BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
     """L LocalV shares O's C8 row answer; its full-M rank4-C column stays independent."""
     # Implementation: codex/xl-shared-basis-row-only, /data0/xd/xl-shared-basis-row-only.
-    # code_commit: 97be64f; EW4b v5p-32 scan/AOT.
+    # code_commit: 97be64f; UE5a v5p-32 scan/AOT (migrated from EW4b after 9 preemptions).
     # Same-TPU/runtime speed @10-19: .5453 vs SharedBasis .5454 (-.02%), tied.
-    # Logs: /data0/xd/bam_diagnostics/sharedbasis-rowshared-97be-compare.
-    # Interim @4000: loss tied with SharedBasis.
-    # Pre-run bet vs SharedBasis: late dloss center 0, likely [-.002,+.002] at 25k-30k;
-    # same-runtime EW4b throughput +0..+1.5%; L projection weights -0.15625 W_Q/layer.
-    # Full 64x32 history-M cache, Q/K shared basis, LocalO/F/write paths unchanged.
+    # Result: stopped at 10,500 (manual; dominated by ColOnly). vs SharedBasis: warmstart
+    # collapsed to ~0 by 4.5k, then gap oscillated in +.0002~+.0019 over 4.5k-10.5k,
+    # peak +.0018 @9k, final 10500=+.0019. Small positive gap = slight cost.
+    # Conclusion: LocalV sharing O row answer costs ~+.001~+.002 vs SharedBasis
+    # (slightly worse), while XL ColOnly (remove all row reads) is -.0015 vs SharedBasis
+    # (slightly better) and structurally simpler. RowShared is dominated by ColOnly
+    # on both loss and simplicity; abandon RowShared approach.
     model_name = 'BamXLSharedBasisLocalVRowSharedColRank4CFp32'
     compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis']
     bam_local_v_row_shared = True

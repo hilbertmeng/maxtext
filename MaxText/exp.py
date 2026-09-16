@@ -7590,9 +7590,15 @@ class BamXLSharedBasisLocalVColOnlyRank4CFp32(
     BamXLSharedBasisLocalVRowSharedColRank4CFp32):
     """Keep LocalV's full-M rank4-C column read and remove its row branch."""
     # Implementation: codex/xl-shared-basis-row-only, /data0/xd/xl-shared-basis-row-only.
-    # code_commit: c742660; EW4b v5p-32 scan/AOT, FIRST_STEP2; .5527 steps/s @10-19.
-    # Pre-run bet vs RowShared: dloss center +.0003, likely [-.001,+.002] by 10k; speed tied.
-    # Saves the remaining LocalV row gate: 0.00782 W_Q per L layer; M-cache unchanged.
+    # code_commit: c742660; UE5a .549 steps/s, tied with SharedBasis.
+    # Result: stopped at 26,000. vs SharedBasis: warmstart collapsed to ~0 by 8k,
+    # then gap oscillated in [-.0013,+.0008] over 8k-26k with 10+ SIGN_CROSSes and
+    # no directionality (final 26000=+.0001). vs RowShared: stable -.001~-.002
+    # over 5k-10.5k.
+    # Conclusion: removing LocalV's shared O-row answer is FREE vs SharedBasis at XL;
+    # strictly better than RowShared by ~.001. Cross-scale: Medium twin
+    # (LocalVColOnlyRank4B) shows +.003 cost vs BAlignedRow, so this intervention's
+    # cost diminishes to 0 at XL scale.
     model_name = 'BamXLSharedBasisLocalVColOnlyRank4CFp32'
     compare_runs = [
         'BamXLSharedBasisLocalVRowSharedColRank4CFp32',

@@ -168,3 +168,10 @@ nonzero reads, mapped parameters and finite gradients; audit via
 `experiments/bam_llama2_medium/audit_matched_mlp.py`.
 Artifacts: `/data0/xd/llf-qkv-col-only-tests.log`,
 `/data0/xd/llf-qkv-col-only-audit.json`.
+The shape audit counts444,031,024 parameters (-5,820,208 vs BAlignedRow), with
+O-row parameters retained. All three row-ablation tests passed (96.3s).
+Pinned BAM regression:43 tests passed (177.7s). Runtime572a02c launched in UE5a,
+`Loaded compiled function!`, step0 and step14 verified. Steps10–14 mean .700
+steps/s: +2.40% vs matched-health BAlignedRow .6836 (prediction +3%).
+RUN TPU `xd-v5p-16-llf-baligned-qkv-col-only-maxtext`; registry retains the full
+commit and AOT URI. Compiler cleanup completed before FIRST_STEP.

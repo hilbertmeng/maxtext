@@ -7306,6 +7306,7 @@ class BamMediumIndependentLLFBAlignedRowOColOnly(BamMediumIndependentLLFBAligned
 
 class BamMediumIndependentLLFBAlignedRowQKVColOnly(BamMediumIndependentLLFBAlignedRowMLPUniform):
     """Remove LocalQ/K/V row reads only; retain both O sides and MLP2816."""
+    # code_commit: 572a02c; UE5a .700 steps/s, +2.40% vs matched-health BAlignedRow .6836.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs BAlignedRow: final gap +.002, throughput +3%; generic ON/BAM OFF.
     model_name = 'BamMediumIndependentLLFBAlignedRowQKVColOnly'

@@ -7575,12 +7575,12 @@ class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLay
     # code_commit: 4c67f28; UE5a .7264 steps/s, +6.26% vs matched-health BAlignedRow .6836, -1.22% vs PerLayerColOnly .7354.
     # Runtime: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched; generic ON/BAM OFF.
     # 430,956,208 parameters: -18,895,024 vs BAlignedRow; no MLP reinvestment.
-    # Result: completed 13,500 (1 preemption, 5h17m lease then 11m47m recovery to finish).
-    # vs BAlignedRow: +.059@200 warmstart collapsed to ~.0075 plateau (2.2k-8k), then slowly
-    # drifted to ~.0067-0.0076 (10k-13.4k), final 13400=+.0076 — below predicted +.008, still
-    # gently narrowing. vs PerLayerColOnly: stable ~-.009 (ColOnly keeps 18.9M more params).
-    # Conclusion: removing all Q/K/V/O row reads costs ~.007 (slightly less than predicted .008,
-    # with slow residual downtrend); row-read aggregate value ~.007 at this scale.
+    # Result: completed 13,500. vs BAlignedRow: +.059@200 warmstart collapsed to ~.0075
+    # plateau (2.2k-8k), then slowly drifted to ~.0067-0.0076 (10k-13.4k), final 13400=+.0076
+    # — below predicted +.008, still gently narrowing. vs PerLayerColOnly: stable ~-.009
+    # (ColOnly keeps 18.9M more params). Throughput .7264 steps/s, +6.26% vs BAlignedRow .6836.
+    # Conclusion: removing all Q/K/V/O row reads costs ~.007 (slightly less than predicted
+    # .008, with slow residual downtrend); row-read aggregate value ~.007 at this scale.
     model_name = 'BamMediumIndependentLLFBAlignedRowColOnly'
     base_mlp_dim = 2816
     mlp_dim_by_block = None

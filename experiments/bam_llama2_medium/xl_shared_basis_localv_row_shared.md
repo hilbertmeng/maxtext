@@ -49,10 +49,15 @@ effective-key C routing and a 64x32 matrix, so the prediction allows a wider los
 The two written runtime configs match on generic training health (`True`), internal NN metrics
 (`False`), and fetched-read health/amplitude, fetch-route, local-routing, and LocalQK-amplitude
 metrics (all `False`). They also use the same EW4b v5p-32 topology, scan/AOT setup, and pinned
-`jax081-i0ae3f58-c17f538a` environment. The timing is still cross-runtime (`c664e82` baseline
-versus `97be64f` experiment), with a substantial attention-code cleanup between them. It supports
-"no measurable regression," but a current-runtime SharedBasis control is required to measure the
-architectural speed delta.
+`jax081-i0ae3f58-c17f538a` environment. The initial formal-run comparison was cross-runtime
+(`c664e82` baseline versus `97be64f` experiment), with a substantial attention-code cleanup
+between them, so it established only that there was no measurable regression.
+
+A subsequent paired control used `97be64f` for both arms sequentially on the same EW4b v5p-32.
+Over steps 10-19, SharedBasis averaged `0.5454 steps/s` and `162.8694 TFLOP/s/device`; the row-shared
+experiment averaged `0.5453 steps/s` and `162.8574 TFLOP/s/device`. The deltas are `-0.02%` and
+`-0.007%`, respectively: exact throughput tie at this measurement precision. Raw logs and hashes
+are stored under `/data0/xd/bam_diagnostics/sharedbasis-rowshared-97be-compare`.
 
 The initial lease entered maintenance during startup and left an incomplete step-1 checkpoint.
 Auto-train removed that incomplete checkpoint, restored the committed step-0 state, and passed

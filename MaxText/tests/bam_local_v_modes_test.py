@@ -116,6 +116,48 @@ class LocalVModeTest(absltest.TestCase):
     self.assertNotIn('W_local_v_col_packed', fetch_params)
     self.assertNotIn('W_lv_row_gate', fetch_params)
 
+  def test_xl_row_only_shared_keeps_c_column_and_qk_shared_basis(self):
+    cfg = self.config('BamXLSharedBasisLocalVRowSharedColRank4CFp32')
+    mode = cfg.bam_layer_modes[0]
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    module = BamAttention(
+        config=cfg, num_query_heads=2, num_kv_heads=2,
+        head_dim=128, max_target_length=8, max_prefill_predict_length=8,
+        mesh=mesh, attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+        bam_k=cfg.bam_k, bam_v=cfg.bam_v,
+        layer_mode=mode, layer_inx=0, attention_type=cfg.attention_type)
+    x = jax.random.normal(jax.random.key(21), (1, 8, 256), cfg.dtype)
+    m = jax.random.normal(jax.random.key(22), (1, 8, 64, 32), cfg.dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    params = module.init({'params': jax.random.key(23)}, *args, M_in=m)['params']
+    self.assertIn('W_R', params)
+    self.assertIn('W_local_v_col_packed', params)
+    self.assertIn('W_lv_row_gate', params)
+    self.assertNotIn('W_local_packed_v', params)
+    self.assertEqual(params['W_local_v_col_packed']['kernel'].value.shape[-1], 138)
+    self.assertEqual(params['W_local_v_col_bias'].value.shape, (4, 32))
+    metadata, _ = module.init_with_output(
+        {'params': jax.random.key(24)}, method=lambda mod: (
+            mod._local_v_col_arm.rank_routing,
+            mod._local_v_col_arm.key_scale,
+            mod._local_v_col_arm.gram_statistics_dtype,
+            mod._share_qk_basis))
+    self.assertEqual(metadata[0], 'effective_key')
+    self.assertEqual(metadata[1], float(cfg.bam_read_key_scale))
+    self.assertEqual(metadata[2], jnp.float32)
+    self.assertTrue(metadata[3])
+    params = jax.tree.map(lambda a: a + .01 * jax.random.normal(
+        jax.random.key(25), a.shape, a.dtype), params)
+    def loss(p):
+      y, state = module.apply({'params': p}, *args, M_in=m)
+      return jnp.mean(y.astype(jnp.float32)**2) + jnp.mean(state.astype(jnp.float32)**2)
+    value, grads = jax.value_and_grad(loss)(params)
+    self.assertTrue(bool(jnp.isfinite(value)))
+    for name in ('W_local_v_col_packed', 'W_lv_row_gate'):
+      self.assertGreater(float(jnp.linalg.norm(
+          grads[name]['kernel'].value.astype(jnp.float32))), 0.)
+    jax.clear_caches()
+
 
 if __name__ == '__main__':
   absltest.main()

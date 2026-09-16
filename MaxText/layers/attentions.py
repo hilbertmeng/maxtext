@@ -2428,8 +2428,8 @@ class BamAttention(Attention):
     if self._row_shared_v:
       assert {'local_v', 'local_o'} <= self._mode
       assert local_v_rank == 4 and self.read_side == 'both'
-      assert self._local_read_setting('v', 'rank_routing') == 'head_gate_r'
-      assert cfg.bam_local_v_key_scale is not None
+      assert self._local_read_setting('v', 'rank_routing') in (
+          'head_gate_r', 'effective_key')
     self._output_read = bool(self._mode & {'full', 'local_o'}) or shared_v
 
     self._has_write = bool(self._mode)
@@ -2555,11 +2555,18 @@ class BamAttention(Attention):
         **{**read_settings, 'rms_epsilon': self._fetched_read_key_epsilon})
     if self._row_shared_v:
       assert self._abs_v_dim == 8 and self._abs_v_row_output == 'direct'
-      self._local_v_col_arm = dataclasses.replace(
-          self._fetched_arm, name='v_col', k_dim=self.bam_k,
-          v_dim=self.bam_v, rank=4, rank_routing='head_gate_r',
-          read_side='col', key_scale=float(cfg.bam_local_v_key_scale),
-          rms_epsilon=self._read_key_epsilon)
+      self._local_v_col_arm = _BamReadArm(
+          name='v_col', k_dim=self.bam_k, v_dim=self.bam_v,
+          num_heads=self.num_query_heads, read_side='col',
+          second_implementation=cfg.bam_local_second_implementation,
+          gram_implementation=cfg.bam_local_gram_implementation,
+          gram_statistics_dtype={'float32': jnp.float32, 'activation': None}[
+              cfg.bam_local_gram_statistics_dtype],
+          **{**read_settings, 'key_scale': (
+              float(cfg.bam_local_v_key_scale)
+              if cfg.bam_local_v_key_scale is not None else self._read_key_scale)},
+          **{key: self._local_read_setting('v', key)
+             for key in ('rank', 'rank_routing', 'pre_rms_bias')})
     # Shared LocalV/O contracts once, then each destination applies its gate.
     self._fetched_arm_ungated = dataclasses.replace(self._fetched_arm, key_mode='rms')
     self._share_qk_basis = bool(getattr(cfg, 'bam_local_qk_share_basis', False)) and 'q' in self._local_arms
@@ -3142,7 +3149,7 @@ class BamAttention(Attention):
     return self._expand_full_read((col * gates[..., 1:2], row * gates[..., :1]))
 
   def _read_local_v_col(self, M, x):
-    """Independent full-M rank4-B V column, with no V row read."""
+    """Independent full-M rank4 V column, with no V row read."""
     arm = self._local_v_col_arm
     rank, heads = arm.rank, self.num_query_heads
     basis_width = rank * self.bam_v
@@ -3157,15 +3164,27 @@ class BamAttention(Attention):
     mix = packed[..., basis_width + heads:].reshape(
         packed.shape[:-1] + (heads, rank))
     basis = _transform_bam_read_key(basis, arm)
-    mix = normalizations.rms_norm(
-        mix, dtype=jnp.result_type(M, basis), epsilon=arm.rms_epsilon,
-        axis=-1)
+    if arm.rank_routing == 'effective_key':
+      inverse_rms = jax.lax.rsqrt(
+          _gram_read_norm2(basis, mix, arm).astype(basis.dtype)
+          / basis.shape[-1] + arm.rms_epsilon)
+      scale = (arm.key_scale * arm.gate_activation(gate_logits[..., 0])
+               * inverse_rms)
+    else:
+      mix = normalizations.rms_norm(
+          mix, dtype=jnp.result_type(M, basis), epsilon=arm.rms_epsilon,
+          axis=-1)
+      scale = arm.key_scale * arm.gate_activation(gate_logits)
     col, _ = _contract_bam_read_sides(
         M, M, None, basis, arm.implementation, read_side='col')
     with jax.named_scope('bam/read_head_mix_expand'):
+      if arm.rank_routing == 'effective_key':
+        scaled_mix = mix * scale[..., None]
+        if arm.second_implementation == 'dot':
+          return jnp.einsum('btrd,btnr->btnd', col, scaled_mix)
+        return jnp.sum(col[:, :, None] * scaled_mix[..., None], axis=-2)
       answer = jnp.sum(col[:, :, None] * mix[..., None], axis=-2)
-    gate = arm.key_scale * arm.gate_activation(gate_logits)
-    return answer * gate
+    return answer * scale
 
   def _attention_block(
       self, query, key, value, decoder_segment_ids, *, q0, s0, window_size,

@@ -7277,6 +7277,20 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only'
 
 
+class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """Pure removal of all BAM Q/K/V/O row reads; keep BAlignedRow's MLP width."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs BAlignedRow: final gap +.008; throughput +5% (generic ON/BAM OFF).
+    # Keep 2816 MLP channels in all 24 layers; no row-parameter reinvestment.
+    model_name = 'BamMediumIndependentLLFBAlignedRowColOnly'
+    base_mlp_dim = 2816
+    mlp_dim_by_block = None
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFMLPPerLayerColOnly',
+                    'BamMHALlama2MediumC256ScanAotCleanControl']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-col-only'
+
+
 class BamMHALlama2MediumC256ScanAotCleanMLP2304(BamMHALlama2MediumC256ScanAotCleanControl):
     """MHA control for the same 37.749M MLP-parameter reduction as BAM Uniform."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.

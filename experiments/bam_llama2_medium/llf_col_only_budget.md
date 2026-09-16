@@ -76,3 +76,23 @@ on September14 and correlated Anchor recoveries on September15. Recent EW4b
 long leases concern older v5p-32 runs, not a simultaneous v5p-16 comparison.
 UE5a remains primary with EW4b staged backup; do not interpret that choice as
 proof of context-independent regional superiority.
+
+## Pure row removal with the original MLP
+
+`BamMediumIndependentLLFBAlignedRowColOnly` keeps BAlignedRow's 2816 MLP channels
+in every layer, while reusing the exact compact column-only implementation above.
+It removes all Q/K/V/O row reads, not just fetched O. Write, column reads, C8,
+LLF schedule, key scales and clean WD rules remain unchanged. No parameters are
+reinvested. Shape audit counts 430,956,208 parameters, down 18,895,024 from
+BAlignedRow's 449,851,232; LocalV key scale remains 1.0.
+
+Comparisons: BAlignedRow (pure deletion penalty), PerLayerColOnly (MLP capacity
+with rows absent), clean MHA (remaining BAM benefit). Prediction: final gap +.008
+vs BAlignedRow, throughput +5% vs matched generic-health-ON .6836 steps/s.
+The prediction is uncertain: the old V2 fetched-O-only ablation cost +.0108,
+and linearly transferring the MLP-budget result is not established.
+Use 13,500 steps, scan+AOT, checkpoint200; generic health ON/BAM health OFF.
+Do not early-stop merely because the ablation has a positive gap at2800.
+
+Audit artifact: `/data0/xd/llf-baligned-col-only-audit.json`;
+test log: `/data0/xd/llf-baligned-col-only-tests.log`.

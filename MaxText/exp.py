@@ -7656,7 +7656,13 @@ class BamMediumIndependentLLFBAlignedRowQKVColOnly(BamMediumIndependentLLFBAlign
     """Ledger only: remove LocalQ/K/V row reads; preserve both O sides and MLP2816."""
     # code_commit: 572a02c; UE5a .700 steps/s, +2.40% vs matched-health BAlignedRow .6836.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs BAlignedRow: final gap +.002, throughput +3%; generic ON/BAM OFF.
+    # Result: completed 13,500. vs BAlignedRow: +.025@400 warmstart collapsed to ~0 by
+    # 1.4k, then +.001..+.003 over 4k-13.4k, final 13400=+.0018 (r200 noise around 0).
+    # vs ColOnly: stable ~-.005 over 3k-13.4k, final 13400=-.0058. Throughput .700
+    # steps/s, +2.40% vs BAlignedRow .6836.
+    # Conclusion: QKV row reads marginal value (O present) ~.001-.002 -> 0; O row read
+    # marginal value (QKV absent) ~.005, stable. QKV row reads near-worthless; O is the
+    # load-bearing row read. Consistent with OColOnly (O ~.008 with QKV present).
     model_name = 'BamMediumIndependentLLFBAlignedRowQKVColOnly'
     base_mlp_dim = 2816
     bam_prune_local_row_reads = True

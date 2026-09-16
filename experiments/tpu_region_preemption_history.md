@@ -223,7 +223,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumIndependentLLFBAlignedRowColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 01:57:42 | 2026-09-16 07:34:38 | completed 13,500 (clean-exit); 1 service preemption (same-zone recovery); checkpoint 13,500 committed; TPU/queue verified absent | EW4b staged fallback (never active) |
 | `BamMediumIndependentLLFBAlignedRowOColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 02:18:22 | 2026-09-16 09:28:45 | completed 13,500; 5 service preemptions (all same-zone recovery); checkpoint 13,500 committed; TPU/queue verified absent | EW4b staged fallback (never active) |
-| `BamMediumIndependentLLFBAlignedRowQKVColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 03:37:58 | active | QKV-row deletion only; AOT loaded, FIRST_STEP and step14 verified | EW4b staged fallback |
+| `BamMediumIndependentLLFBAlignedRowQKVColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 03:37:58 | 2026-09-16 10:37:27 | completed 13,500; 7 service preemptions (all same-zone recovery); checkpoint 13,500 committed; TPU/queue verified absent | EW4b staged fallback (never active) |
 
 ## READY leases
 
@@ -688,3 +688,11 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFBAlignedRowOColOnly | 4 | `us-east5-a` | 2026-09-16 08:18:05 | 2026-09-16 08:29:03 | 10m58s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowOColOnly | 5 | `us-east5-a` | 2026-09-16 08:35:55 | 2026-09-16 09:07:07 | 31m12s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowOColOnly | 6 | `us-east5-a` | 2026-09-16 09:13:05 | 2026-09-16 09:28:45 | 15m40s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 1 | `us-east5-a` | 2026-09-16 03:42:42 | 2026-09-16 07:17:46 | 3h35m04s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 2 | `us-east5-a` | 2026-09-16 07:25:13 | 2026-09-16 07:42:08 | 16m55s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 3 | `us-east5-a` | 2026-09-16 07:46:43 | 2026-09-16 08:12:41 | 25m58s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 4 | `us-east5-a` | 2026-09-16 08:19:30 | 2026-09-16 08:29:21 | 9m51s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 5 | `us-east5-a` | 2026-09-16 08:35:19 | 2026-09-16 08:48:26 | 13m07s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 6 | `us-east5-a` | 2026-09-16 08:55:48 | 2026-09-16 09:07:15 | 11m27s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 7 | `us-east5-a` | 2026-09-16 09:13:26 | 2026-09-16 09:59:52 | 46m26s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 8 | `us-east5-a` | 2026-09-16 10:09:50 | 2026-09-16 10:37:27 | 27m37s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent

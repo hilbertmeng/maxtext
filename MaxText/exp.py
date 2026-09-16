@@ -7286,8 +7286,7 @@ class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLay
     base_mlp_dim = 2816
     mlp_dim_by_block = None
     compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
-                    'BamMediumIndependentLLFMLPPerLayerColOnly',
-                    'BamMHALlama2MediumC256ScanAotCleanControl']
+                    'BamMediumIndependentLLFMLPPerLayerColOnly']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-col-only'
 
 

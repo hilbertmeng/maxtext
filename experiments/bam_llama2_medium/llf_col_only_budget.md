@@ -87,7 +87,7 @@ reinvested. Shape audit counts 430,956,208 parameters, down 18,895,024 from
 BAlignedRow's 449,851,232; LocalV key scale remains 1.0.
 
 Comparisons: BAlignedRow (pure deletion penalty), PerLayerColOnly (MLP capacity
-with rows absent), clean MHA (remaining BAM benefit). Prediction: final gap +.008
+with rows absent). Prediction: final gap +.008
 vs BAlignedRow, throughput +5% vs matched generic-health-ON .6836 steps/s.
 The prediction is uncertain: the old V2 fetched-O-only ablation cost +.0108,
 and linearly transferring the MLP-budget result is not established.

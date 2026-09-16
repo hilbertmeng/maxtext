@@ -158,6 +158,35 @@ class LocalVModeTest(absltest.TestCase):
           grads[name]['kernel'].value.astype(jnp.float32))), 0.)
     jax.clear_caches()
 
+  def test_xl_col_only_removes_local_v_row_gate(self):
+    cfg = self.config('BamXLSharedBasisLocalVColOnlyRank4CFp32')
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    module = BamAttention(
+        config=cfg, num_query_heads=2, num_kv_heads=2,
+        head_dim=128, max_target_length=8, max_prefill_predict_length=8,
+        mesh=mesh, attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+        bam_k=cfg.bam_k, bam_v=cfg.bam_v,
+        layer_mode=cfg.bam_layer_modes[0], layer_inx=0,
+        attention_type=cfg.attention_type)
+    x = jax.random.normal(jax.random.key(31), (1, 8, 256), cfg.dtype)
+    m = jax.random.normal(jax.random.key(32), (1, 8, 64, 32), cfg.dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    params = module.init({'params': jax.random.key(33)}, *args, M_in=m)['params']
+    self.assertIn('W_R', params)
+    self.assertIn('W_local_v_col_packed', params)
+    self.assertNotIn('W_lv_row_gate', params)
+    self.assertNotIn('W_lv_row_gate_b0', params)
+    params = jax.tree.map(lambda a: a + .01 * jax.random.normal(
+        jax.random.key(34), a.shape, a.dtype), params)
+    def loss(p):
+      y, state = module.apply({'params': p}, *args, M_in=m)
+      return jnp.mean(y.astype(jnp.float32)**2) + jnp.mean(state.astype(jnp.float32)**2)
+    value, grads = jax.value_and_grad(loss)(params)
+    self.assertTrue(bool(jnp.isfinite(value)))
+    self.assertGreater(float(jnp.linalg.norm(
+        grads['W_local_v_col_packed']['kernel'].value.astype(jnp.float32))), 0.)
+    jax.clear_caches()
+
 
 if __name__ == '__main__':
   absltest.main()

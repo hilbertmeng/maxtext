@@ -2425,7 +2425,11 @@ class BamAttention(Attention):
     shared_v = 'local_v' in self._mode and local_v_rank is None
     self._row_shared_v = (bool(getattr(cfg, 'bam_local_v_row_shared', False))
                           and 'local_v' in self._mode)
-    if self._row_shared_v:
+    self._local_v_col_only = (bool(getattr(cfg, 'bam_local_v_col_only', False))
+                              and 'local_v' in self._mode)
+    assert not (self._row_shared_v and self._local_v_col_only)
+    self._separate_v_col = self._row_shared_v or self._local_v_col_only
+    if self._separate_v_col:
       assert {'local_v', 'local_o'} <= self._mode
       assert local_v_rank == 4 and self.read_side == 'both'
       assert self._local_read_setting('v', 'rank_routing') in (
@@ -2531,7 +2535,7 @@ class BamAttention(Attention):
     arm_names = (
         (('q', 'k') if 'local_qk' in self._mode else ())
         + (('v',) if 'local_v' in self._mode and local_v_rank is not None
-           and not self._row_shared_v else ()))
+           and not self._separate_v_col else ()))
     self._local_arms = {
         name: _BamReadArm(
             name=name, k_dim=self.bam_k, v_dim=self.bam_v,
@@ -2553,7 +2557,7 @@ class BamAttention(Attention):
         name='f', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v,
         num_heads=self._fetched_read_num_heads, read_side=self._fetched_read_side,
         **{**read_settings, 'rms_epsilon': self._fetched_read_key_epsilon})
-    if self._row_shared_v:
+    if self._separate_v_col:
       assert self._abs_v_dim == 8 and self._abs_v_row_output == 'direct'
       self._local_v_col_arm = _BamReadArm(
           name='v_col', k_dim=self.bam_k, v_dim=self.bam_v,
@@ -2814,7 +2818,7 @@ class BamAttention(Attention):
     if shared_v:
       add_read_gate('W_lv_gate', (self.num_query_heads, 2),
                     ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
-    if self._row_shared_v:
+    if self._separate_v_col:
       rank = self._local_v_col_arm.rank
       basis_width = rank * self.bam_v
       gate_width = self.num_query_heads
@@ -2843,9 +2847,10 @@ class BamAttention(Attention):
                   shape, read_gate_bias(zero_key_gate_init), dtype),
               ('q_heads', None)),
           (self.num_query_heads, 1), self.weight_dtype)
-      add_read_gate('W_lv_row_gate', (self.num_query_heads, 1),
-                    ('embed', 'q_heads', None), ('q_heads', None),
-                    zero_key_gate_init)
+      if self._row_shared_v:
+        add_read_gate('W_lv_row_gate', (self.num_query_heads, 1),
+                      ('embed', 'q_heads', None), ('q_heads', None),
+                      zero_key_gate_init)
 
     # Create the experimental adapter after all existing parameters so adding it
     # does not perturb the initialization stream of the V2 control parameters.
@@ -3327,26 +3332,29 @@ class BamAttention(Attention):
 
     local_output = None
     shared_v = ('local_v' in self._mode and 'v' not in self._local_arms
-                and not self._row_shared_v)
+                and not self._separate_v_col)
     if 'local_o' in self._mode or shared_v:
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       local_state = self._compress_m(Mh)
       local_read, output_logits = self._read_fetched_m(
-          local_state, inputs_q, ungated=shared_v or self._row_shared_v)
+          local_state, inputs_q, ungated=shared_v or self._separate_v_col)
       if shared_v:
         value = value + self._gate_local_output(
             local_read, self._project_read_gate_logits('W_lv_gate', inputs_q))
-      elif self._row_shared_v:
+      elif self._separate_v_col:
         col_v = self._read_local_v_col(Mh, inputs_q)
-        row_logits = self._project_read_gate_logits('W_lv_row_gate', inputs_q)
-        row_gate = self._read_key_scale * self._read_gate_activation(row_logits)
+        row_v = jnp.zeros_like(local_read[1])
+        if self._row_shared_v:
+          row_logits = self._project_read_gate_logits('W_lv_row_gate', inputs_q)
+          row_gate = self._read_key_scale * self._read_gate_activation(row_logits)
+          row_v = local_read[1] * row_gate
         value = value + self._expand_full_read(
-            (col_v, local_read[1] * row_gate))
+            (col_v, row_v))
       if 'local_o' in self._mode:
         local_output = (self._gate_local_output(local_read, output_logits)
-                        if shared_v or self._row_shared_v else local_read)
-    if 'local_v' in self._mode and not (shared_v or self._row_shared_v):
+                        if shared_v or self._separate_v_col else local_read)
+    if 'local_v' in self._mode and not (shared_v or self._separate_v_col):
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_v"):

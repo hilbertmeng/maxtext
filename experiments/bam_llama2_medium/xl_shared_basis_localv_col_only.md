@@ -24,7 +24,7 @@ LocalO row signal.
 
 ## Runtime
 
-- code commit:
-- AOT artifact:
-- TPU / FIRST_STEP:
-- speed:
+- code commit: `c742660d68c48e8e93fe7fe3b839006567450664`
+- AOT artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/c742660/jax081-i0ae3f58-c17f538a/v5p-32/s50000/BamXLSharedBasisLocalVColOnlyRank4CFp32.pickle`
+- TPU / FIRST_STEP: `xd-v5p-32-xl-localv-col-only-maxtext` in EW4b / step 2
+- speed: `0.5527 steps/s` over steps 10-19

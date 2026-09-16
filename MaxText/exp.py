@@ -7466,6 +7466,7 @@ class BamXLSharedBasisLocalVRowSharedColRank4CFp32(
     # Implementation: codex/xl-shared-basis-row-only, /data0/xd/xl-shared-basis-row-only.
     # code_commit: 97be64f; EW4b v5p-32 scan/AOT.
     # Same-TPU/runtime speed @10-19: .5453 vs SharedBasis .5454 (-.02%), tied.
+    # Logs: /data0/xd/bam_diagnostics/sharedbasis-rowshared-97be-compare.
     # Pre-run bet vs SharedBasis: late dloss center 0, likely [-.002,+.002] at 25k-30k;
     # same-runtime EW4b throughput +0..+1.5%; L projection weights -0.15625 W_Q/layer.
     # Full 64x32 history-M cache, Q/K shared basis, LocalO/F/write paths unchanged.

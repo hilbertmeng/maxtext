@@ -7316,6 +7316,8 @@ class BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl(
     BamMediumIndependentLLFBAlignedRowLocalVOColOnly):
     """FLL-layout control for the fetched-O row relay experiment."""
     # Implementation: codex/llf-fetched-row-relay, /data0/xd/llf-fetched-row-relay.
+    # code_commit: 6de0e04; UE5a paired profile .7103 steps/s @24-29.
+    # Generic health ON/BAM sow OFF; identical FLL layout and runtime as relay.
     model_name = (
         'BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl')
     compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVOColOnly']
@@ -7327,9 +7329,10 @@ class BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL(
     BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl):
     """Reuse each F fetched-O row at its own O and the next two L layers' O/V."""
     # Implementation: codex/llf-fetched-row-relay, /data0/xd/llf-fetched-row-relay.
-    # code_commit: 6de0e04; UE5a AOT loaded/FIRST_STEP5; .701 steps/s @12-29.
-    # Same-zone/generic-health LocalVOColOnly .703: -.28%; matched-health BAlignedRow
-    # .6836: +2.55%. Exact same-runtime FLL control timing is pending.
+    # code_commit: 6de0e04; UE5a AOT loaded/FIRST_STEP5; formal .701 steps/s @12-29.
+    # Same-runtime UE5a paired profile: relay .704 vs FLL control .7103 = -.89%.
+    # Formal vs same-zone/generic-health LocalVOColOnly .703: -.28%; vs matched-health
+    # BAlignedRow .6836: +2.55%.
     # Pre-run bet vs LocalVOColOnly: late dloss center -.0015,
     # likely [-.004,+.0015]; speed center -.8%, likely -.5..-1.5% vs FLL control.
     # Adds 917,952 target-gate params (0.219 W_Q), while retaining 4.047 W_Q

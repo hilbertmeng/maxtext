@@ -24,6 +24,10 @@ Pre-run bet versus RowShared: late dloss center `-0.0003`, likely `[-0.0015,+0.0
 tied within `0..+0.3%`. XL ColOnly is slightly better than RowShared, while Medium QKVColOnly
 and RowShared evidence both place the isolated LocalV-row value near zero.
 
+Runtime: `a36eb07`, UE5a `xd-v5p-16-llf-localv-col-only-rank4b-maxtext`, AOT loaded and
+FIRST_STEP 13; `.689 step/s` at steps 14-41. Generic health is on and BAM sow metrics are off.
+The `.686 step/s` RowShared run is cross-zone, so it is not a matched timing comparison.
+
 Pre-run bet versus the parent: late dloss center `+0.0015`, likely `[0,+0.004]`, with throughput
 `+2..3%`. The bet reflects the full row-removal result (~`+0.007`) and the strong first-block
 concentration seen in frozen selective-retention diagnostics, while allowing residual value in

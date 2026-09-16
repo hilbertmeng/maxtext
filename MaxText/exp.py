@@ -7304,6 +7304,20 @@ class BamMediumIndependentLLFBAlignedRowOColOnly(BamMediumIndependentLLFBAligned
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-o-col-only'
 
 
+class BamMediumIndependentLLFBAlignedRowQKVColOnly(BamMediumIndependentLLFBAlignedRowMLPUniform):
+    """Remove LocalQ/K/V row reads only; retain both O sides and MLP2816."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs BAlignedRow: final gap +.002, throughput +3%; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFBAlignedRowQKVColOnly'
+    base_mlp_dim = 2816
+    bam_prune_local_row_reads = True
+    bam_read_sides = 'col'
+    bam_local_v_share_output_coordinates = False
+    compare_runs = ['BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
+                    'BamMediumIndependentLLFBAlignedRowColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-baligned-qkv-col-only'
+
+
 class BamMHALlama2MediumC256ScanAotCleanMLP2304(BamMHALlama2MediumC256ScanAotCleanControl):
     """MHA control for the same 37.749M MLP-parameter reduction as BAM Uniform."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.

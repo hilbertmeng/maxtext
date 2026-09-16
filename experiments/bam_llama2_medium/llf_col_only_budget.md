@@ -141,3 +141,30 @@ step14 completed. Steps10–14 mean .703 steps/s, +2.84% vs matched-health
 BAlignedRow .6836 (prediction +3%). Generic health ON/BAM OFF, checkpoint200.
 Its compiler cleanup finished before FIRST_STEP. Both parameter-removal runs
 retain the 13,500-step schedule; no early stopping decision follows from speed.
+
+## Complete the QKV-row × O-row factorial
+
+`BamMediumIndependentLLFBAlignedRowQKVColOnly` removes only LocalQ/K/V row
+parameters and contractions. L LocalO and F fetchO remain bilateral, MLP2816
+and writes remain unchanged. Disable the unused LocalV aligned-row projection.
+Same worktree/branch as above, scan+AOT, 13,500 steps, checkpoint200,
+generic health ON/BAM health OFF. Direct comparisons: BAlignedRow and ColOnly.
+Prediction vs BAlignedRow: final gap +.002 and speed +3%.
+
+| QKV rows | O rows retained | O rows removed |
+|---|---|---|
+| retained | BAlignedRow | OColOnly |
+| removed | QKVColOnly | ColOnly |
+
+Compare BAlignedRow−QKVColOnly with OColOnly−ColOnly at common steps to test
+whether QKV-row value depends on O rows. A positive second difference alone
+does not establish that QKV rows are harmful in the intact model. Keep the full
+schedule rather than stopping at2800 merely because an ablation worsens loss.
+The compact local layout preserves the original column head-mix initializer
+slice; parameter shape changes can still alter compiled numerics, so this is
+not a claim of bitwise identical whole-training initialization/trajectory.
+Validation: `MaxText/tests/bam_col_only_budget_test.py` tests both L/F with
+nonzero reads, mapped parameters and finite gradients; audit via
+`experiments/bam_llama2_medium/audit_matched_mlp.py`.
+Artifacts: `/data0/xd/llf-qkv-col-only-tests.log`,
+`/data0/xd/llf-qkv-col-only-audit.json`.

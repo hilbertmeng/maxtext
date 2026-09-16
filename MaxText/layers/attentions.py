@@ -2557,6 +2557,12 @@ class BamAttention(Attention):
             **{key: arm_setting(name, key)
                for key in ('rank', 'rank_routing', 'pre_rms_bias')})
         for name in arm_names}
+    if getattr(cfg, 'bam_prune_local_row_reads', False):
+      assert self._local_v_mode in ('none', 'rank2')
+      assert self._local_qk_post_read_v_dim is None
+      self._local_arms = {
+          name: dataclasses.replace(arm, prune_row=True, read_side='col')
+          for name, arm in self._local_arms.items()}
     self._fetched_arm = _BamReadArm(
         name='f', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v,
         num_heads=self._fetched_read_num_heads, read_side=self._fetched_read_side,

@@ -56,9 +56,15 @@ class ColOnlyBudgetTest(absltest.TestCase):
       self.assertTrue(all(bool(jnp.all(jnp.isfinite(a))) for a in jax.tree.leaves(grad)))
 
   def test_compact_modules_match_masked_bilateral(self):
+    self._check_compact_local(keep_o=False)
+
+  def test_qkv_only_preserves_o(self):
+    self._check_compact_local(keep_o=True)
+
+  def _check_compact_local(self, keep_o):
     for mode in ('local_qk+local_o', 'local_qk+full'):
       cfg = self.config('BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow')
-      cfg.get_keys()['bam_fetched_read_side'] = 'col'
+      cfg.get_keys()['bam_fetched_read_side'] = 'both' if keep_o else 'col'
       cfg.get_keys()['bam_prune_all_row_reads'] = False
       cfg.get_keys()['bam_local_v_share_output_coordinates'] = False
       import max_utils
@@ -90,10 +96,10 @@ class ColOnlyBudgetTest(absltest.TestCase):
         for path, leaf in flatten_dict(p).items():
           name = path[0]
           value = leaf.value
-          if name == 'abs_v_row_decoder':
+          if name == 'abs_v_row_decoder' and not keep_o:
             continue
-          if name == 'W_R': value = value[..., 32:]
-          elif name in ('W_R_gate', 'W_R_gate_b0'): value = value[..., 1:2]
+          if name == 'W_R' and not keep_o: value = value[..., 32:]
+          elif name in ('W_R_gate', 'W_R_gate_b0') and not keep_o: value = value[..., 1:2]
           elif name in ('W_lq_bias','W_lk_bias','W_lv_bias'): value = value[..., 32:]
           elif name in ('W_lq_gate_b0','W_lk_gate_b0','W_lv_gate_b0'): value = value[..., 1:2]
           elif name == 'W_local_packed':
@@ -107,7 +113,7 @@ class ColOnlyBudgetTest(absltest.TestCase):
           new[path] = leaf.replace(value=value)
         return unflatten_dict(new)
 
-      cfg.get_keys()['bam_prune_all_row_reads'] = True
+      cfg.get_keys()['bam_prune_local_row_reads' if keep_o else 'bam_prune_all_row_reads'] = True
       small = BamAttention(**kwargs)
       small_params = compact(params)
       init = small.init({'params': jax.random.key(3)}, *args, **call)['params']

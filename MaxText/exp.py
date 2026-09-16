@@ -7507,7 +7507,7 @@ class BamXLSharedBasisLocalVRowSharedColRank4CFp32(
     BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
     """L LocalV shares O's C8 row answer; its full-M rank4-C column stays independent."""
     # Implementation: codex/xl-shared-basis-row-only, /data0/xd/xl-shared-basis-row-only.
-    # code_commit: 97be64f; UE5a v5p-32 scan/AOT (migrated from EW4b after 9 preemptions).
+    # code_commit: 97be64f; UE5a v5p-32 scan/AOT.
     # Same-TPU/runtime speed @10-19: .5453 vs SharedBasis .5454 (-.02%), tied.
     # Result: stopped at 10,500 (manual; dominated by ColOnly). vs SharedBasis: warmstart
     # collapsed to ~0 by 4.5k, then gap oscillated in +.0002~+.0019 over 4.5k-10.5k,

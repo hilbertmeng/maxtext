@@ -62,6 +62,7 @@ class SubDecoderLayer(nn.Module):
   quant: Optional[Quant] = None
   sliding_window_size: int|None = None
   layer_inx: int|None = None
+  prune_local_vo_row: bool = False
 
   def setup(self):
     cfg = self.config
@@ -159,11 +160,9 @@ class SubDecoderLayer(nn.Module):
         layer_mode = modes[self.layer_inx] if isinstance(modes, list) else modes
         read_sides = cfg.bam_read_sides
         read_side = read_sides[self.layer_inx] if isinstance(read_sides, list) else read_sides
-        local_v_modes = getattr(cfg, 'bam_local_o_v_mode', 'none')
-        local_v_mode = local_v_modes[self.layer_inx] if isinstance(local_v_modes, list) else local_v_modes
         attn_kwargs.update(
             layer_mode=layer_mode, read_side=read_side, bam_k=cfg.bam_k, bam_v=cfg.bam_v,
-            local_v_mode=local_v_mode)
+            layer_inx=self.layer_inx, prune_local_vo_row=self.prune_local_vo_row)
     else:
         AttnCls = Attention
     attention_layer = AttnCls(**attn_kwargs)
@@ -300,6 +299,7 @@ class BamLayerPair(nn.Module):
   quant: Optional[Quant] = None
   scan_length: int = 1
   all_global_attention: bool = True
+  first_block: bool = False
 
   @nn.compact
   def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
@@ -316,9 +316,13 @@ class BamLayerPair(nn.Module):
     block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
     for offset in range(block_size):
       name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
+      prune_local_vo_row = (
+          bool(getattr(cfg, 'bam_local_vo_row_first_block_only', False))
+          and not self.first_block and offset < block_size - 1)
       carry, _ = Layer(
           cfg, self.mesh, self.sliding_window_size, self.quant,
-          all_global_attention=True, static_layer_index=offset, name=name)(
+          all_global_attention=True, static_layer_index=offset,
+          prune_local_vo_row=prune_local_vo_row, name=name)(
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
               block_size * block_index + offset)
@@ -335,6 +339,7 @@ class FusionDecoderLayer(nn.Module):
   scan_length: int = 1
   all_global_attention: bool = False
   static_layer_index: int | None = None
+  prune_local_vo_row: bool = False
 
   def setup(self):
     cfg = self.config
@@ -355,7 +360,9 @@ class FusionDecoderLayer(nn.Module):
         static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
         )
 
-    self.layer = RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, self.layer_inx, name=f'block')
+    self.layer = RematSubDecoderLayer(
+        cfg, self.mesh, self.quant, sws, self.layer_inx,
+        prune_local_vo_row=self.prune_local_vo_row, name='block')
     self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
 
   def get_C(self, cfg):

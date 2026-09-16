@@ -49,7 +49,7 @@ class GramReadTest(absltest.TestCase):
         config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
         max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
         attention_kernel='dot_product_chunk', dtype=cfg.dtype,
-        layer_mode='local_qk+local_o', attention_type=cfg.attention_type)
+        layer_mode=cfg.bam_layer_modes[0], attention_type=cfg.attention_type)
     x = jnp.ones((1, 8, 128), cfg.dtype)
     M = jnp.ones((1, 8, 32, 32), cfg.dtype)
     args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))

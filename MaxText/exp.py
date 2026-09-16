@@ -7266,6 +7266,31 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     force_final_checkpoint = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
+    """Keep shared LocalV/O rows in LLF block 0; later L layers are V/O-column-only."""
+    # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # Pre-run bet vs parent: late dloss center +.0015, likely [0,+.004]; throughput +2..3%.
+    # Removes 15,655,360 params (3.733 W_Q) from 14 later-block L layers.
+    # Q/K rows and every F-layer fetchO row stay unchanged; history-M cache is unchanged.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly'
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B']
+    bam_local_vo_row_first_block_only = True
+
+
+class BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu(
+    BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly):
+    """Use D→256→nK GELU projections for every retained LocalO/fetchO row key."""
+    # Implementation: codex/llf-first-block-shared-row, /data0/xd/llf-first-block-shared-row.
+    # Pre-run bet vs FirstBlockOnly: late dloss center +.0005, likely [-.001,+.002];
+    # throughput -1.5..-2%; another 3,932,160 params removed (total 4.670 W_Q vs parent).
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu'
+    compare_runs = ['BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly',
+                    'BamMediumIndependentLLFBAlignedRowAllORowR256Gelu']
+    bam_o_row_bottleneck_dim = 256
+    bam_o_row_bottleneck_layers = 'all'
+
+
 class BamMediumIndependentLLFBAlignedRowStdTailWriteOrth(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Ledger only: pure y_std tail -> shared 32x32 projection + per-head write-address bias."""
     # codex/llf-std-tail-write, /data0/xd/llf-std-tail-write; code_commit: 6758378.

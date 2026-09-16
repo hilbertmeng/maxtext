@@ -96,3 +96,22 @@ Do not early-stop merely because the ablation has a positive gap at2800.
 
 Audit artifact: `/data0/xd/llf-baligned-col-only-audit.json`;
 test log: `/data0/xd/llf-baligned-col-only-tests.log`.
+
+### Row parameter fractions
+
+Count all BAM additions over the same D1024 MHA (411,616,256 total), including
+stored decoder parameters, consistently with the deletion audit above.
+V2 shape audit: `/data0/xd/v2-row-param-audit.json`.
+
+| Model | BAM additions | All row-specific parameters | Fraction |
+|---|---:|---:|---:|
+| `BamLlama2MediumV2` | 31,677,024 | 15,484,848 | 48.88% |
+| `BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow` | 38,234,976 | 18,895,024 | 49.42% |
+
+V2 row parameters per layer: O=1024*16*32 +1024*16 +16 +16*8*32
+=544,784; Q/K combined=2*(1024*(32+1+16)+32+1)=100,418.
+Across24 layers O rows are13,074,816 (41.28% of BAM additions), Q/K rows2,410,032
+(7.61%). The historical FetchedColOnly ablates only O outputs, leaving Q/K rows;
+its implementation masks the row contraction rather than necessarily removing
+every row parameter. Stored C8-to32 decoders are unused by Direct injection;
+they remain counted here solely for consistency with the actual parameter trees.

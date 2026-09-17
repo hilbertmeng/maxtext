@@ -7334,6 +7334,25 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
 
 
+class BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
+):
+    """Ledger only: K64/QK48 truncate with three local layers per fetched layer."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # Bet vs the LLF parent: late dloss -.003..+.003, center 0; speed +.5..+1.5%.
+    # Six rather than eight F layers reduce fetched M-cache by 25%; per-role MLP
+    # widths remain L=2535 and F=2610 so this isolates the LLF -> LLLF schedule.
+    model_name = 'BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE'
+    bam_local_fetch_block_size = 4
+    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+    mlp_dim_by_block = [2535, 2535, 2535, 2610]
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/lllf-perlayer-col-only-k64-qk48-truncate-prope'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
 ):

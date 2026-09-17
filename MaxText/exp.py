@@ -7745,9 +7745,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, steps10-14 .701:
     # +.17% vs same-health K48 .700; +.46% vs K64Truncate .698.
-    # Bet vs full-RoPE K48: late dloss -.007..-.002, center -.0045.
-    # Result: stopped 9000 (dominated). vs K48: +.015; vs Truncate: +.022 (drift
-    # -.0006/1k, too slow to recover). Bet center -.0045 wrong (sign reversed).
+    # Result: stopped 9000 (dominated). vs K48: +.015; vs Truncate: +.022
+    # (drift -.0006/1k, too slow to recover).
     # Conclusion: partial RoPE (NoPE48/RoPE16) on plain K48 is harmful; it only
     # helps paired with K64->48 truncation (Truncate).
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE'
@@ -7771,10 +7770,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48V48(
     # Added BAM params vs K48V32: 3,418,880 = 3.2605 W_Q. MLP repayment
     # leaves only 2,816 extra total params vs K48 (412,084,656 vs 412,081,840),
     # the closest integer-width match under the eight shared LLF block scans.
-    # Bet vs K48: late dloss -.012..+.003, center -.005; speed .686-.695
-    # vs K48 .698 (-1.7%..-.4%). Q/K RoPE is inherited unchanged from K48.
     # Result: completed 13400. vs K48: -.0068 (eroding +.0005/1k); vs Truncate:
-    # -.0008 (marginally better); vs ColOnly: -.0226. Bet center -.005 beaten.
+    # -.0008 (marginally better); vs ColOnly: -.0226.
     # Conclusion: V48 matches Truncate's K-truncation benefit (~-.007 vs K48)
     # and marginally beats it; both edges erode slowly toward K48.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48V48'
@@ -7813,12 +7810,9 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: e474296; UE5a AOT loaded/FIRST_STEP3, .698 steps/s:
     # +0.14% vs live same-health K48 .697; -5.09% vs ColOnly .7354.
-    # K48 is -.02267 vs ColOnly @3400 (recent plateau). Bet vs K48: late dloss
-    # -.012..+.002, center -.005; partial-RoPE effect is intentionally mixed in.
-    # Result: completed 13400. vs K48: -.0061 (eroding +.00066/1k from -.008
-    # plateau). Bet center -.005 beaten.
+    # Result: completed 13400. vs K48: -.0061 (eroding +.00066/1k from -.008 plateau).
     # Conclusion: truncating LocalQK 64->48 with partial RoPE beats K48 by ~.006,
-    # better than predicted, but the edge decays slowly through training.
+    # but the edge decays slowly through training.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE'
     bam_k = 64
     bam_local_qk_col_output_dim = 48
@@ -7836,11 +7830,10 @@ class BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: c2321da; UE5a AOT loaded/FIRST_STEP6, .702 steps/s:
     # +.57% vs same-health K64Truncate LLF .698 (+.72% vs K48 .697).
-    # Bet vs the LLF parent: late dloss -.003..+.003, center 0; speed +.5..+1.5%.
     # Six rather than eight F layers reduce fetched M-cache by 25%; per-role MLP
     # widths remain L=2535 and F=2610 so this isolates the LLF -> LLLF schedule.
     # Result: completed 13400. vs LLF parent: +.0143 (drift -.0006/1k, not
-    # closing); vs K48: +.0082. Bet center 0 lost.
+    # closing); vs K48: +.0082.
     # Conclusion: LLLF (1/4 fetch) costs ~.014 vs LLF (1/3 fetch); the 25% fetch
     # reduction is not free.
     model_name = 'BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE'
@@ -7861,13 +7854,10 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: e474296; UE5a AOT loaded/FIRST_STEP1, .686 steps/s:
     # -1.72% vs truncate .698; -1.58% vs live K48 .697; -6.72% vs ColOnly .7354.
-    # Result: stopped 5225. vs Truncate: warmstart +.099@200 collapsed to +.0076@2000 then
-    # held +.0058..+.0070 over 2k-4.6k with no further narrowing;
-    # final 4600=+.0064. vs K48: +.084@200 collapsed to ~0 by 2000, then oscillated
-    # -0.0007..-0.0028 over 2k-4.6k, final 4600=-.0019 (marginally better, no clear trend).
-    # Conclusion: projecting partial RoPE to 48 dims is strictly worse than truncating it
-    # — gap vs Truncate stuck at +.006, never approached predicted ~0. Project dominated
-    # by Truncate; vs K48 only marginally better and not worth the added projection path.
+    # Result: stopped 5225. vs Truncate: +.0064 (stuck, no narrowing over 2k-4.6k);
+    # vs K48: -.0019 (marginally better, oscillating around 0).
+    # Conclusion: projecting partial RoPE to 48 dims is strictly worse than
+    # truncating it (gap vs Truncate stuck at +.006); dominated by Truncate.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE'
     bam_local_qk_col_output = 'project'
     compare_runs = [

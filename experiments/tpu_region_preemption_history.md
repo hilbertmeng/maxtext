@@ -776,3 +776,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 1 | `us-east5-a` | 2026-09-17 06:09:37 | 2026-09-17 06:23:13 | 13m36s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 2 | `us-east5-a` | 2026-09-17 06:31:40 | 2026-09-17 07:55:17 | 1h23m37s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 3 | `us-east5-a` | 2026-09-17 08:03:01 | 2026-09-17 08:45:37 | 42m36s | run stop; stopped 5,225; checkpoint 5,200 committed; TPU/queue verified absent
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE | 1 | `us-east5-a` | 2026-09-17 11:17:18 | 2026-09-17 14:59:58 | 3h42m40s | run stop; stopped 9,000; checkpoint 9,000 committed; TPU/queue verified absent

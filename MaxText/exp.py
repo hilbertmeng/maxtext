@@ -7748,6 +7748,14 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
     # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, steps10-14 .701:
     # +.17% vs same-health K48 .700; +.46% vs K64Truncate .698.
     # Bet vs full-RoPE K48: late dloss -.007..-.002, center -.0045.
+    # Result: stopped 9000 (dominated). vs K48: warmstart +.058@200 spiked to
+    # +.093@400 then collapsed to +.018 plateau by 2k, held +.015..+.018 over
+    # 2k-8.8k with only slow narrowing (drift -.0006/1k), final 8800=+.0149
+    # (last5_mean=+.0149). vs Truncate: +.0222 (last5_mean). Bet center -.0045
+    # badly wrong (sign reversed). Conclusion: applying partial RoPE (NoPE48/
+    # RoPE16) to plain K48 is harmful (+.015 vs K48); partial RoPE only helps
+    # when paired with K64->48 truncation (Truncate). Dominated by both K48 and
+    # Truncate; stopped well before review since drift could not recover in plan.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 48

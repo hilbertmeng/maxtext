@@ -767,3 +767,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816 | 2 | `us-east5-a` | 2026-09-17 04:26:04 | 2026-09-17 05:33:38 | 1h07m34s | run stop; stopped 3,000; checkpoint 3,000 committed; TPU/queue verified absent
 | BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124 | 1 | `us-east5-a` | 2026-09-17 04:09:22 | 2026-09-17 04:19:06 | 9m44s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124 | 2 | `us-east5-a` | 2026-09-17 04:26:13 | 2026-09-17 05:33:36 | 1h07m23s | run stop; stopped 2,600; checkpoint 2,600 committed; TPU/queue verified absent
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 1 | `us-east5-a` | 2026-09-17 06:09:37 | 2026-09-17 06:23:13 | 13m36s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 2 | `us-east5-a` | 2026-09-17 06:31:40 | 2026-09-17 07:55:17 | 1h23m37s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 3 | `us-east5-a` | 2026-09-17 08:03:01 | 2026-09-17 08:45:37 | 42m36s | run stop; stopped 5,225; checkpoint 5,200 committed; TPU/queue verified absent

@@ -7805,6 +7805,13 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
     # code_commit: e474296; UE5a AOT loaded/FIRST_STEP1, .686 steps/s:
     # -1.72% vs truncate .698; -1.58% vs live K48 .697; -6.72% vs ColOnly .7354.
     # Bet vs truncate: late dloss -.004..+.002, center -.001; adds 147,456 parameters.
+    # Result: stopped 5225. vs Truncate: warmstart +.099@200 collapsed to +.0076@2000 then
+    # held +.0058..+.0070 over 2k-4.6k with no further narrowing (r200 noise around 0);
+    # final 4600=+.0064. vs K48: +.084@200 collapsed to ~0 by 2000, then oscillated
+    # -0.0007..-0.0028 over 2k-4.6k, final 4600=-.0019 (marginally better, no clear trend).
+    # Conclusion: projecting partial RoPE to 48 dims is strictly worse than truncating it
+    # — gap vs Truncate stuck at +.006, never approached predicted ~0. Project dominated
+    # by Truncate; vs K48 only marginally better and not worth the added projection path.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE'
     bam_local_qk_col_output = 'project'
     compare_runs = [

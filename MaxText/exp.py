@@ -7741,6 +7741,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
 ):
     """Ledger only: raw M[64,32], truncate LocalQK to 48, RoPE the last 16 dims."""
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: e474296; UE5a AOT loaded/FIRST_STEP3, .698 steps/s:
+    # +0.14% vs live same-health K48 .697; -5.09% vs ColOnly .7354.
     # K48 is -.02267 vs ColOnly @3400 (recent plateau). Bet vs K48: late dloss
     # -.012..+.002, center -.005; partial-RoPE effect is intentionally mixed in.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE'
@@ -7759,6 +7761,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
 ):
     """Ledger only: separate selector-initialized P_Q/P_K maps from K64 to 48 dims."""
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: e474296; UE5a AOT loaded/FIRST_STEP1, .686 steps/s:
+    # -1.72% vs truncate .698; -1.58% vs live K48 .697; -6.72% vs ColOnly .7354.
     # Bet vs truncate: late dloss -.004..+.002, center -.001; adds 147,456 parameters.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE'
     bam_local_qk_col_output = 'project'

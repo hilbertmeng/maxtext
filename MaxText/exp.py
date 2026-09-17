@@ -7761,17 +7761,12 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
 ):
     """Ledger only: K48V32 with footprint-aligned NoPE48/RoPE16."""
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
-    # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, steps10-14 .701:
-    # +.17% vs same-health K48 .700; +.46% vs K64Truncate .698.
-    # At the accidental stop: vs K48 +0.0124@9000 (last point, lowest); segment
-    # means narrow monotonically from 5k (.0179 -> .0143, drift -.0016/1k,
-    # accelerating). vs Truncate: +.0206@9000. Stop was premature (gap still
-    # shrinking); extrapolates to ~+.005 at 13500 — still worse than K48.
-    # Conclusion: partial RoPE (NoPE48/RoPE16) on plain K48 stays worse than K48
-    # (would not cross 0 within plan), but it narrows steadily, not stuck;
-    # partial RoPE only helps paired with K64->48 truncation (Truncate).
-    # Accidental stop at8998; repaired incomplete checkpoint9019 to9000 and
-    # resumed successfully through9029, .703 steps/s, with the original AOT/schedule.
+    # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, .701 steps/s.
+    # Result: completed 13500. vs K48: +.0141 stuck (drift 0, flat 9k-13.5k;
+    # the 8k-9k step-down was the last transient, not ongoing narrowing).
+    # vs Truncate: +.0202.
+    # Conclusion: partial RoPE (NoPE48/RoPE16) on plain K48 hurts (+.014 vs
+    # K48, flat to 13500); it only helps paired with K64->48 truncation.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 48

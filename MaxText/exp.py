@@ -7319,6 +7319,8 @@ class BamMediumIndependentLLLFMLPPerLayerColOnlyK48V48(
 ):
     """Ledger only: parameter-matched raw M K48V48 with an LLLF schedule."""
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: 20e1588; UE5a AOT loaded/FIRST_STEP8, .673 steps/s:
+    # +.60% vs same-health K48V48 LLF .669; -4.13% vs K64V32 LLLF .702.
     # Bet vs K48V48 LLF: late dloss -.003..+.003, center 0; speed 0..+1.5%.
     # Per-role V48 repayment is unchanged. The closest static four-position scan
     # template leaves 7,296 fewer total params than its K48V32 LLLF counterpart.

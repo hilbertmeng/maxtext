@@ -44,16 +44,28 @@ Source uses Git/HTTPS at the exact pushed commit; environment packages and AOT u
 - At closeout, audit every delay/failure as repeated or new. Root-fix recurring causes in a
   script or concise general skill rule; do not preserve incident-specific narrative here.
 
+## Design a probe
+
+Define the question and intervention scope first: layer, row/column side, token positions,
+and downstream paths. Distinguish correlation, direct residual attribution, whole-network causal
+necessity, and retraining benefit; report conclusions within the tested scope.
+
 ## Runtime health probe
 
 Use `MaxText/bam_diagnostics.py` with `exp_class=BamLlama2MediumDiagnostics` and
 `load_parameters_path=.../checkpoints/STEP/items`.
 
-- Prefer one fixed-seed, pre-batch-shuffled cohort of 32 sequences; retain all 32 and report
-  per-sequence distributions plus hashes.
+- Reuse the cohort registered in the relevant report for follow-up/model comparisons (including
+  the existing 128-sequence Pile cohort). For a new probe, start with 32 fixed-seed,
+  pre-batch-shuffled sequences; retain per-sequence measurements and hashes so aggregation can change.
 - Slice diagnostic collections inside the jitted forward before device-to-host transfer.
 - Run host statistics on the TPU VM. Use `BAM_DIAG_RAW_LAYERS` to retain selected layers or
   `BAM_DIAG_SAVE_RAW=0` when JSON is sufficient.
+- For CPU-heavy host statistics, inspect worker CPU/memory availability and measure utilization
+  and sample throughput early. Parallelize independent layer/side/sample tasks with bounded
+  concurrency, coordinating numerical-library threads and memory to avoid oversubscription.
+  Verify serial/parallel numerical agreement and measured speedup on a small workload before
+  scaling to the full cohort; keep TPU inference and CPU statistics pipelined where practical.
 - Check finiteness, adjacent-layer `M` continuity, write gates, `dM/M`, rank concentration,
   read-key scale, row/column read balance, BAM/MHA readout norm ratio, and route-logit
   delta/base RMS.
@@ -75,9 +87,18 @@ use partial restore for only the required leaves.
 
 ## Paired train-step profile
 
+For compiler acquisition through `prepare_train_aot.py`, pass `--primary-zone "$PRIMARY_ZONE"`
+and `--backup-zones "${BACKUP_ZONES[@]}"`. The script submits primary first and adds backups
+after its 300-second default timeout, retaining primary preference.
+
 Use `TrainStepProfile` (`xplane`, skip 10, trace steps 10–14, no checkpoints). Keep TPU type,
 VM, commit, model/batch/data, and trace steps identical; prefer 6 layers for operator/scope
 comparisons, then verify the winning combination with full layers.
+
+Match both generic training-health and BAM-specific `sow` settings across throughput
+comparisons, including historical controls. Record their resolved values with timings;
+use an explicit speed-only class for all-health-OFF measurements while preserving the
+formal RUN's health settings and schedule.
 
 - Launch direct TPU smoke/profile runs with `scripts/run_train_smoke.sh EXP RUN [STEPS]` from the
   checked-out commit; do not reconstruct its dataset/output/checkpoint CLI by hand.
@@ -133,7 +154,9 @@ Upload artifacts from the TPU worker to a unique GCS prefix with `gsutil`, verif
 sizes, then `gsutil rsync` that prefix to `/data0/xd/bam_diagnostics/` and verify complete local
 files before deleting the TPU. Do not route bytes through `tpu-ag` or rely on recursive SCP.
 
-Record checkpoint URI, step, code state, cohort seed/hashes, overrides, timings, results, and
-artifact paths in a new file under `experiments/`. Keep large raw arrays outside the repo.
+Record configuration full names, training and diagnostic commits (plus implementation branch/worktree),
+checkpoint URI/actual step, cohort seed/hashes, runner path and invocation, overrides, timings,
+results, and artifact paths under `experiments/`. Commit reusable diagnostic runners;
+keep large per-sequence data outside the repo.
 Name every configuration class in important result tables; update the canonical table in place
 instead of appending overlapping snapshots.

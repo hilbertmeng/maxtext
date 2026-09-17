@@ -1,0 +1,12 @@
+{
+  "config": "BamLlama2MediumV2C256LocalFetchC8SharedReadLLFScan",
+  "basis": "current working-tree implementation; not a historical runtime reconstruction",
+  "head": "1b39c6418fa2cedb123b9e531ef5004ab06fdea1",
+  "source_sha256": {
+    "MaxText/exp.py": "1bc04209d01bb151f26f5decffceb2902c618203e8910b4840e7b5a5b8359374",
+    "MaxText/layers/attentions.py": "f052a3fee08b5206e511be08a5033d6f4aa85ea726dff48eeeb3b0c3e7d27c05",
+    "MaxText/layers/fusion.py": "ed48d37d45598b2fab1041101fc19ec494f56d9f9089cbd476fe646924f7eaa3",
+    "MaxText/layers/models.py": "40dfe023c96e53e05d6c4559b251f17851f32fdd3530fa06fd1b78bc07240f7b",
+    "MaxText/configs/base.yml": "d6a019a6a5b3cecf04b05448047aebb41639519c639f2aba3a9b1d3039a7b9a1"
+  }
+}

@@ -796,11 +796,18 @@ class Decoder(nn.Module):
           block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
           assert block_size >= 2 and scan_length % block_size == 0
           assert cfg.decoder_block == 'fusion' and cfg.bam_enabled
-          assert cfg.bam_layer_modes == (
+          modes = cfg.bam_layer_modes
+          assert modes == modes[:block_size] * (scan_length // block_size)
+          without_v = [mode.replace('+local_v', '').replace('local_v+', '') for mode in modes]
+          assert without_v == (
               ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
-          local_v_modes = getattr(cfg, 'bam_local_o_v_mode', 'none')
-          if isinstance(local_v_modes, list):
-            assert local_v_modes == local_v_modes[:block_size] * (scan_length // block_size)
+          # The block is compiled once; every per-layer read setting must repeat.
+          for arm in ('q', 'k', 'v'):
+            for key in ('rank', 'rank_routing', 'pre_rms_bias'):
+              setting = getattr(cfg, f'bam_local_{arm}_{key}', None)
+              if isinstance(setting, list):
+                assert len(setting) == scan_length
+                assert setting == setting[:block_size] * (scan_length // block_size)
           RemattedBlockLayer = fusion.BamLayerPair
           scan_length //= block_size
         swss = format_swss(sws_list)[:cfg.num_decoder_layers]

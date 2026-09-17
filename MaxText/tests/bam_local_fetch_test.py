@@ -32,8 +32,29 @@ class LocalFetchTest(absltest.TestCase):
         max_target_length=8, max_prefill_predict_length=8,
         query_chunk_size=4, per_device_batch_size=1.)
     cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
-    cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_o', 'local_qk+full'] * 2
+    block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
+    cfg.get_keys()['num_decoder_layers'] = 2 * block_size
+    cfg.get_keys()['bam_layer_modes'] = cfg.bam_layer_modes[:block_size] * 2
+    if isinstance(cfg.bam_local_v_rank, list):
+      cfg.get_keys()['bam_local_v_rank'] = cfg.bam_local_v_rank[:block_size] * 2
     return cfg
+
+  def test_local_v_scale_preserves_historical_balignedrow(self):
+    for exp, v_scale in (
+        ('BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow', 1.0),
+        ('BamLlama2MediumV2C256LocalFetchC8LocalVLLFScan', 2.0)):
+      cfg = self.config(exp)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode=cfg.bam_layer_modes[0], attention_type=cfg.attention_type)
+      scales, _ = module.init_with_output(
+          {'params': jax.random.key(3)},
+          method=lambda mod: tuple(mod._local_arms[n].key_scale for n in ('q', 'k', 'v'))
+              + (mod._fetched_arm.key_scale,))
+      self.assertEqual(scales, (2.0, 2.0, v_scale, 2.0))
 
   def test_local_modules_forward_and_gradients(self):
     for suffix in ('C8', 'C8LocalV', 'Full', 'FullLocalV', 'C8SharedRead', 'FullSharedRead', 'C8LocalVSharedRankGate'):
@@ -45,7 +66,7 @@ class LocalFetchTest(absltest.TestCase):
             config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
             max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
             attention_kernel='dot_product_chunk', dtype=cfg.dtype,
-            layer_mode='local_qk+local_o', attention_type=cfg.attention_type)
+            layer_mode=cfg.bam_layer_modes[0], attention_type=cfg.attention_type)
         x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
         m = jax.random.normal(jax.random.key(2), (1, 8, 32, 32), dtype=cfg.dtype)
         args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
@@ -122,10 +143,9 @@ class LocalFetchTest(absltest.TestCase):
                                ('C8SharedIndependentSharedLLLFScan', 4)):
       cfg = self.config('BamLlama2MediumV2C256LocalFetch' + suffix)
       cfg.get_keys()['num_decoder_layers'] = block_size * 2
-      cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']
-      cfg.get_keys()['bam_layer_modes'] *= 2
-      if isinstance(cfg.bam_local_o_v_mode, list):
-        cfg.get_keys()['bam_local_o_v_mode'] = cfg.bam_local_o_v_mode[:block_size] * 2
+      cfg.get_keys()['bam_layer_modes'] = cfg.bam_layer_modes[:block_size] * 2
+      if isinstance(cfg.bam_local_v_rank, list):
+        cfg.get_keys()['bam_local_v_rank'] = cfg.bam_local_v_rank[:block_size] * 2
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
       module = nn.scan(
           BamLayerPair, variable_axes={'params': cfg.param_scan_axis},

@@ -321,11 +321,11 @@ def _collect(scalars: Scalars, steps: list[int], bands, num_layers: int):
         wr_norms.append(scalars.at(tag, step))
     result["global"].append({
         "step": step,
-        "raw_grad": _rounded(scalars.at(raw_grad_tag, step)),
-        "wr_grad_l2": _rounded(math.sqrt(sum(value * value for value in wr_norms))),
+        "raw_grad": _rounded(scalars.at(raw_grad_tag, step)) if raw_grad_events else None,
+        "wr_grad_l2": _rounded(math.sqrt(sum(value * value for value in wr_norms))) if wr_norms else None,
         "clip_fraction_to_step": _rounded(np.mean([
             event.value > 1.0 for event in raw_grad_events if event.step <= step
-        ]), 4),
+        ]), 4) if any(event.step <= step for event in raw_grad_events) else None,
     })
 
   for band_name, layers in bands:

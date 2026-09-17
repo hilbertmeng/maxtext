@@ -7745,10 +7745,13 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, steps10-14 .701:
     # +.17% vs same-health K48 .700; +.46% vs K64Truncate .698.
-    # Result: stopped 9000 (dominated). vs K48: +.015; vs Truncate: +.022
-    # (drift -.0006/1k, too slow to recover).
-    # Conclusion: partial RoPE (NoPE48/RoPE16) on plain K48 is harmful; it only
-    # helps paired with K64->48 truncation (Truncate).
+    # Result: stopped 9000. vs K48: +0.0124@9000 (last point, lowest); segment
+    # means narrow monotonically from 5k (.0179 -> .0143, drift -.0016/1k,
+    # accelerating). vs Truncate: +.0206@9000. Stop was premature (gap still
+    # shrinking); extrapolates to ~+.005 at 13500 — still worse than K48.
+    # Conclusion: partial RoPE (NoPE48/RoPE16) on plain K48 stays worse than K48
+    # (would not cross 0 within plan), but it narrows steadily, not stuck;
+    # partial RoPE only helps paired with K64->48 truncation (Truncate).
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 48
@@ -7789,9 +7792,12 @@ class BamMediumIndependentLLLFMLPPerLayerColOnlyK48V48(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: 20e1588; UE5a AOT loaded/FIRST_STEP8, .673 steps/s:
     # +.60% vs same-health K48V48 LLF .669; -4.13% vs K64V32 LLLF .702.
-    # Bet vs K48V48 LLF: late dloss -.003..+.003, center 0; speed 0..+1.5%.
     # Per-role V48 repayment is unchanged. The closest static four-position scan
     # template leaves 7,296 fewer total params than its K48V32 LLLF counterpart.
+    # Result: completed 13500. vs K48V48 LLF: +.0082 (drift -.0003/1k, slowly
+    # closing); vs LLLF-Truncate: -.0069.
+    # Conclusion: LLLF (1/4 fetch) costs ~.008 vs K48V48 LLF — less than the
+    # ~.014 it costs Truncate; the LLLF penalty is config-dependent.
     model_name = 'BamMediumIndependentLLLFMLPPerLayerColOnlyK48V48'
     bam_local_fetch_block_size = 4
     bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6

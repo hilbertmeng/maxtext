@@ -8,13 +8,68 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import argparse
+import shlex
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 
 GSUTIL = "/home/xd/google-cloud-sdk/bin/gsutil"
 ROOT = "gs://newproject-1-llm_base_models_us-central1/log"
-LOCAL_ROOT = Path("/home/xd/tensorboard_logs")
+LOCAL_ROOT = Path("/data0/xd/tensorboard_logs")
 STATE_DIR = Path("/home/xd/.local/state/maxtext-tensorboard-sync")
 MARKER_RE = re.compile(r"^\s*\d+\s+(\S+)\s+(gs://\S+)$")
+
+
+def sources(run_name):
+  """Discover actual event locations, not checkpoint-region assumptions."""
+  if not re.fullmatch(r"[A-Za-z0-9_.-]+", run_name):
+    raise ValueError(f"invalid RUN: {run_name}")
+  command = "cat " + shlex.quote(
+      f"/home/lishengping/xd/projects/run_registry/{run_name}.json")
+  meta = json.loads(run("ssh", "-S", "/tmp/ssh-tpu-ag-xd.sock", "tpu-ag", command).stdout)
+  candidates = []
+  if meta.get("tensorboard_dir"):
+    candidates.append(meta["tensorboard_dir"].rstrip("/"))
+  roots = [ROOT, "gs://newproject-1-llm_projects_europe-west4/log",
+           "gs://newproject-1-llm_projects_us-east5/log"]
+  for key in ("base_output_directory", "previous_base_output_directory"):
+    if meta.get(key):
+      roots.append(meta[key].rstrip("/"))
+  for root in dict.fromkeys(roots):
+    candidates.extend([f"{root}/summaries/train/{run_name}",
+                       f"{root}/{run_name}/tensorboard"])
+  found = []
+  for source in dict.fromkeys(candidates):
+    result = run(GSUTIL, "ls", f"{source}/events.out.tfevents.*", check=False)
+    if result.returncode == 0 and result.stdout.strip():
+      found.append(source)
+    elif result.returncode and not any(s in result.stderr for s in (
+        "matched no objects", "matched no URLs")):
+      raise RuntimeError(result.stderr)
+  if not found:
+    raise RuntimeError(f"no TB events found for {run_name}")
+  return found
+
+
+def sync_run(run_name):
+  destination = LOCAL_ROOT / run_name
+  destination.mkdir(parents=True, exist_ok=True)
+  with (destination / ".sync.lock").open("a+") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    for attempt in range(3):
+      try:
+        for source in sources(run_name):
+          print(f"sync {run_name}: {source} -> {destination}", flush=True)
+          run(GSUTIL, "-m", "rsync", "-c", "-r", source + "/", str(destination) + "/")
+        print(f"SYNC_OK {run_name}", flush=True)
+        return True
+      except (subprocess.SubprocessError, RuntimeError, ValueError) as exc:
+        print(f"SYNC_RETRY {run_name} attempt={attempt + 1}/3: {exc}", file=sys.stderr, flush=True)
+        if attempt < 2:
+          time.sleep(5 * (attempt + 1))
+    print(f"SYNC_FAILED {run_name}", file=sys.stderr, flush=True)
+    return False
 
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -22,6 +77,12 @@ def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 
 
 def main() -> int:
+  parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument("runs", nargs="*")
+  args = parser.parse_args()
+  if args.runs:
+    with ThreadPoolExecutor(max_workers=min(4, len(args.runs))) as pool:
+      return 0 if all(list(pool.map(sync_run, args.runs))) else 1
   STATE_DIR.mkdir(parents=True, exist_ok=True)
   with (STATE_DIR / "lock").open("w") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX)
@@ -41,14 +102,7 @@ def main() -> int:
       run_name = marker_uri.rsplit("/", 1)[-1]
       if state.get(run_name) == marker_time:
         continue
-      source = f"{ROOT}/summaries/train/{run_name}/"
-      destination = LOCAL_ROOT / run_name
-      destination.mkdir(parents=True, exist_ok=True)
-      print(f"sync {run_name}", flush=True)
-      synced = subprocess.run(
-          [GSUTIL, "-m", "rsync", "-c", "-r", source, f"{destination}/"],
-          check=False)
-      if synced.returncode:
+      if not sync_run(run_name):
         print(f"sync failed: {run_name}", file=sys.stderr)
         continue
       state[run_name] = marker_time

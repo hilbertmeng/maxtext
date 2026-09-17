@@ -52,12 +52,10 @@ def main():
       (medium+'SeededPaired40', 'local_qk+full', {}),
       (medium+'Paired40LocalQKRank2HeadRankGate', 'local_qk+full', {}),
       (xl, 'local_qk+full', {}),
-      (xl, 'local_qk+full', dict(bam_local_qk_pre_rms_bias=False,
+      (xl, 'local_qk+full', dict(bam_local_q_pre_rms_bias=False,
           bam_fetch_diagonal_one=False, bam_write_data_rms=False, bam_m_read_norm='rms')),
       (xl+'Gate050InterpolatedReadRowOnly', 'local_qk+full', {}),
       (medium+'ScanAotCleanGate050FixedAmplitude', 'local_qk+full', {}),
-      (medium+'ScanAotCleanControl', 'local_qk+full',
-       dict(bam_pack_factorized_local_qk=False)),
   ]
   for name, mode, overrides in cases[args.start_case:]:
     head = 128 if name.startswith('BamLlama2XL') else 64

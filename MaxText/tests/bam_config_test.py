@@ -82,6 +82,13 @@ class BamConfigTest(unittest.TestCase):
       config['bam_local_qk_key_mode'] = 'factorized'
       validate_bam_config(config)
 
+  def test_removed_v_modes_require_layer_marker_and_rank(self):
+    for field in ('bam_local_o_v_mode', 'bam_local_v_mode'):
+      for value in ('none', 'shared', 'rank2', ['shared', 'rank2']):
+        with self.subTest(field=field, value=value):
+          with self.assertRaisesRegex(ValueError, 'enable local_v in bam_layer_modes'):
+            validate_bam_config(dict(bam_enabled=True, **{field: value}))
+
   def test_disabled_bam_does_not_reject_unrelated_settings(self):
     validate_bam_config(dict(bam_enabled=False, bam_forget_mode='dynamic'))
 

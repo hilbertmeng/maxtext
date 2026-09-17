@@ -1837,7 +1837,7 @@ class _BamReadArm:
       if getattr(self, field) not in options:
         raise ValueError(
             f'{self.name} read arm: {field}={getattr(self, field)!r} not in {options}')
-    if self.rank < 1:
+    if not isinstance(self.rank, int) or isinstance(self.rank, bool) or self.rank < 1:
       raise ValueError(f'{self.name} read arm: rank must be positive, got {self.rank}')
     if self.per_head_gate and self.key_mode != 'rms_gate':
       raise ValueError(f'{self.name} read arm: per-head gating requires rms_gate')
@@ -2351,9 +2351,20 @@ class BamAttention(Attention):
 
   layer_mode: str = 'none'      # per-layer read mode (each layer is a separate instance under non-scan)
   read_side: str = 'both'       # both | row (M^T r_row) | col (M r_col)
-  local_v_mode: str | None = None
+  layer_inx: int = 0  # Static layer index for per-layer read settings.
   bam_k: int = 32
   bam_v: int = 32
+
+  def _local_read_setting(self, name, key):
+    """Resolve a read setting for this layer; V rank=None means shared O read."""
+    def select(arm):
+      value = getattr(self.config, f'bam_local_{arm}_{key}', None)
+      return value[self.layer_inx] if isinstance(value, list) else value
+
+    value = select(name)
+    if value is None and name != 'q' and (name, key) != ('v', 'rank'):
+      value = select('q')
+    return value
 
   def setup(self):
     super().setup()             # reuse attention_op / projections / rope / out_projection
@@ -2390,7 +2401,6 @@ class BamAttention(Attention):
     assert not cfg.bam_diagnostics, (
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
-      self._local_o = False
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
       if self._query_chunk_size is not None:
         assert self._query_chunk_size > 0
@@ -2406,16 +2416,14 @@ class BamAttention(Attention):
     self._mode = (
         set() if self.layer_mode == 'none'
         else set(self.layer_mode.replace('+', ' ').split()))
-    assert self._mode in (
-        set(), {'write'}, {'local_qk'}, {'local_qk', 'full'},
-        {'local_qk', 'local_o'}), (
-            f'unsupported production BAM layer mode: {self.layer_mode}')
-    self._local_o = 'local_o' in self._mode
-    self._output_read = 'full' in self._mode or self._local_o
-    self._local_v_mode = (
-        (self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none'))
-        if self._local_o else 'none')
-    assert self._local_v_mode in ('none', 'rank2', 'shared')
+    assert self._mode <= {'write', 'local_qk', 'local_v', 'local_o', 'full'}, (
+        f'unsupported production BAM layer mode: {self.layer_mode}')
+    assert 'write' not in self._mode or self._mode == {'write'}
+    assert not {'local_o', 'full'} <= self._mode, (
+        'local_o and full remain alternative O read destinations')
+    local_v_rank = self._local_read_setting('v', 'rank')
+    shared_v = 'local_v' in self._mode and local_v_rank is None
+    self._output_read = bool(self._mode & {'full', 'local_o'}) or shared_v
 
     self._has_write = bool(self._mode)
     assert self.read_side in ('both', 'row', 'col')
@@ -2497,7 +2505,7 @@ class BamAttention(Attention):
     self._fetch_diagonal_one = bool(cfg.bam_fetch_diagonal_one)
     self._abs_v_dim = (
         getattr(cfg, 'bam_abs_v_compression_dim', None)
-        if ('full' in self._mode or self._local_o
+        if ('full' in self._mode or ('local_o' in self._mode or shared_v)
             and getattr(cfg, 'bam_local_o_compress_v', True)) else None)
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
     self._abs_v_row_decoder_output = getattr(
@@ -2505,13 +2513,8 @@ class BamAttention(Attention):
     self._abs_v_row_decoder_share_heads = bool(getattr(
         cfg, 'bam_abs_v_row_decoder_share_heads', False))
 
-    # Read arms.  Local arms are configured by bam_local_<name>_<key> (k and v
-    # fall back to q's value when their own key is unset); the fetched read is
-    # the same spec with one independent key per head.
-    def arm_setting(name, key):
-      value = getattr(cfg, f'bam_local_{name}_{key}', None)
-      return getattr(cfg, f'bam_local_q_{key}') if value is None else value
-
+    # Q/K and independent V use the same read arm. V rank=None selects the
+    # O reader instead; absence of local_v in the layer mode disables V reads.
     read_settings = dict(
         key_mode='rms_gate', key_scale=self._read_key_scale,
         rms_epsilon=self._read_key_epsilon,
@@ -2520,7 +2523,7 @@ class BamAttention(Attention):
         implementation=self._read_implementation)
     arm_names = (
         (('q', 'k') if 'local_qk' in self._mode else ())
-        + (('v',) if self._local_v_mode == 'rank2' else ()))
+        + (('v',) if 'local_v' in self._mode and local_v_rank is not None else ()))
     self._local_arms = {
         name: _BamReadArm(
             name=name, k_dim=self.bam_k, v_dim=self.bam_v,
@@ -2529,15 +2532,20 @@ class BamAttention(Attention):
             gram_implementation=cfg.bam_local_gram_implementation,
             gram_statistics_dtype={'float32': jnp.float32, 'activation': None}[
                 cfg.bam_local_gram_statistics_dtype],
-            **read_settings,
-            **{key: arm_setting(name, key)
+            # Legacy RoutingA/B compatibility (especially BAlignedRow); see exp.py.
+            # Keep the historical V scale override out of the common read settings.
+            **{**read_settings, 'key_scale': (
+                float(cfg.bam_local_v_key_scale)
+                if name == 'v' and cfg.bam_local_v_key_scale is not None
+                else self._read_key_scale)},
+            **{key: self._local_read_setting(name, key)
                for key in ('rank', 'rank_routing', 'pre_rms_bias')})
         for name in arm_names}
     self._fetched_arm = _BamReadArm(
         name='f', k_dim=self.bam_k, v_dim=self._abs_v_dim or self.bam_v,
         num_heads=self._fetched_read_num_heads, read_side=self._fetched_read_side,
         **{**read_settings, 'rms_epsilon': self._fetched_read_key_epsilon})
-    # Ungated sharing (LocalV 'shared') contracts the normalized key without a gate.
+    # Shared LocalV/O contracts once, then each destination applies its gate.
     self._fetched_arm_ungated = dataclasses.replace(self._fetched_arm, key_mode='rms')
     self._share_qk_basis = bool(getattr(cfg, 'bam_local_qk_share_basis', False)) and 'q' in self._local_arms
     if self._share_qk_basis:
@@ -2603,8 +2611,6 @@ class BamAttention(Attention):
       assert self._query_chunk_size > 0
       assert cfg.max_target_length % self._query_chunk_size == 0, (
           'BAM query chunk size must divide max_target_length')
-      assert self._mode in ({'local_qk'}, {'local_qk', 'full'}, {'local_qk', 'local_o'}), (
-          'QChunk BAM supports LocalQK with optional full or local output read')
       assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
       """Create a zero-kernel semantic gate with an explicitly calibrated bias."""
@@ -2783,7 +2789,7 @@ class BamAttention(Attention):
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
 
-    if self._local_v_mode == 'shared':
+    if shared_v:
       add_read_gate('W_lv_gate', (self.num_query_heads, 2),
                     ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
 
@@ -2937,7 +2943,7 @@ class BamAttention(Attention):
     q_projection, k_projection = self._local_qk_post_read_v_projections()
     v_projection = None
     if name == 'v' and getattr(self.config, 'bam_local_v_share_output_coordinates', False):
-      assert self._local_o and self._abs_v_dim is not None
+      assert 'local_o' in self._mode and self._abs_v_dim is not None
       assert self._abs_v_row_output == 'direct'
       v_projection = self.abs_v_cache_projection
     result = factorized_head_bam_read(
@@ -3228,21 +3234,24 @@ class BamAttention(Attention):
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
     local_output = None
-    if self._local_o:
+    shared_v = 'local_v' in self._mode and 'v' not in self._local_arms
+    if 'local_o' in self._mode or shared_v:
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       local_state = self._compress_m(Mh)
-      local_output, output_logits = self._read_fetched_m(
-          local_state, inputs_q, ungated=self._local_v_mode == 'shared')
-      if self._local_v_mode == 'shared':
+      local_read, output_logits = self._read_fetched_m(
+          local_state, inputs_q, ungated=shared_v)
+      if shared_v:
         value = value + self._gate_local_output(
-            local_output, self._project_read_gate_logits('W_lv_gate', inputs_q))
-        local_output = self._gate_local_output(local_output, output_logits)
-      elif self._local_v_mode == 'rank2':
-        with jax.named_scope("bam/read_local_m_for_v"):
-          value = value + self._read_local(
-              'v', Mh,
-              inputs_q, local_inputs)
+            local_read, self._project_read_gate_logits('W_lv_gate', inputs_q))
+      if 'local_o' in self._mode:
+        local_output = (self._gate_local_output(local_read, output_logits)
+                        if shared_v else local_read)
+    if 'local_v' in self._mode and not shared_v:
+      if Mh is None:
+        Mh = self._matrix_for_read(M_in)
+      with jax.named_scope("bam/read_local_m_for_v"):
+        value = value + self._read_local('v', Mh, inputs_q, local_inputs)
 
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:

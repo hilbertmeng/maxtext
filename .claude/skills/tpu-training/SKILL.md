@@ -274,6 +274,12 @@ instead of going silent.
 
 ## Stop Training
 
+From the local machine, use `python3 scripts/closeout_runs_local.py RUN1 RUN2 --reason ...`.
+It starts a detached local TB sync concurrently with remote closeout, using discovered event
+locations and bounded retries for files changing during transfer. It logs the sync PID and log
+path; check `SYNC_OK`/`SYNC_FAILED` there. The last training tail may be omitted; no final-tail
+barrier is required. `--dry-run` only previews remote closeout and starts no sync.
+
 Use `/home/lishengping/xd/projects/closeout_runs.py` for one or many RUNs. Its authoritative
 source is `/home/xd/projects/xd_tpu_scripts/closeout_runs.py`; deploy that exact file and verify
 its hash after a source change. The script resolves targets only from their registries, then uses
@@ -413,7 +419,11 @@ python3 /home/lishengping/xd/projects/migrate_zone.py RUN1 [RUN2 ...] --to-zone 
 ## TensorBoard Service
 
 Auto-train publishes `log/tensorboard_complete/RUN`; local `maxtext-tensorboard-sync.timer`
-retries the full sync independently of Codex. Use manual sync only to repair a reported failure:
+provides fallback sync independently of Codex. The local closeout entrypoint starts immediate
+sync; `python3 scripts/sync_completed_tensorboards.py RUN...` retries selected RUNs manually.
+TB storage is independent of checkpoint storage: the sync discovers existing event paths across
+registered and supported regional roots rather than assuming the training zone determines it.
+Use manual sync only to repair a reported failure:
 
 ```bash
 RUN=Llama2Medium

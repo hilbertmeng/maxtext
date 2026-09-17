@@ -6,6 +6,10 @@ numerical diagnostics are in [`bam_checkpoint_diagnostics.md`](bam_checkpoint_di
 Configuration-class comments in `MaxText/exp.py` remain the source of truth for individual run
 speed, stop step, loss comparison and runtime commit.
 
+Local Q/K/V rank, routing and AlignedRow experiments are consolidated in
+[`local_qkv_routing_review.md`](local_qkv_routing_review.md), with the complete
+configuration inventory, matched-window evidence, confidence and open questions.
+
 ## Reading conventions
 
 - `dloss = RUN loss - BASE loss`; negative is better.

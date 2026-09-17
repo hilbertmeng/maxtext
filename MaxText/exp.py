@@ -7736,6 +7736,24 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK48
+):
+    """Ledger only: K48V32 with footprint-aligned NoPE48/RoPE16."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, steps10-14 .701:
+    # +.17% vs same-health K48 .700; +.46% vs K64Truncate .698.
+    # Bet vs full-RoPE K48: late dloss -.007..-.002, center -.0045.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 48
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-prope'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK48V48(
     BamMediumIndependentLLFMLPPerLayerColOnlyK48
 ):

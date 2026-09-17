@@ -7730,6 +7730,10 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
     # UE5a AOT loaded/FIRST_STEP12, .700 steps/s, -4.81% vs same-health ColOnly .7354
     # (historical same-zone baseline).
     # @3400 dloss -.02267 vs ColOnly (2600..3400: -.02371 -> -.02267, plateauing).
+    # Result: completed 13400. vs ColOnly: warmstart -.147@200 collapsed to ~-.020 by
+    # 4k, then slow drift to -.018 plateau (6k-7k), then a ~.0015 downshift to ~-.0163
+    # around step 7600 (regime change, stable thereafter), final 13400=-.0158
+    # (last5_mean=-.0158, drift~0). K48 beats ColOnly by ~.016, stable.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48'
     bam_k = 48
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
@@ -7767,6 +7771,14 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48V48(
     # the closest integer-width match under the eight shared LLF block scans.
     # Bet vs K48: late dloss -.012..+.003, center -.005; speed .686-.695
     # vs K48 .698 (-1.7%..-.4%). Q/K RoPE is inherited unchanged from K48.
+    # Result: completed 13400. vs K48: warmstart +.115@200 collapsed to 0 by ~1200,
+    # crossed to -.005 by 1600, deepened to ~-.0088 plateau (1.6k-4k), then slowly
+    # eroded back toward 0 (drift +.00052/1k), final 13400=-.0068 (last5_mean=-.0068).
+    # vs Truncate: tied throughout, final -.0008 (K48V48 marginally better, drift
+    # slightly deepening). vs ColOnly: -.0226 (last5_mean). Bet center -.005 beaten
+    # (actual -.0068) but the edge over K48 eroded through training.
+    # Conclusion: V48 (constraining V to the 48-dim local subspace) matches Truncate's
+    # K-truncation benefit and marginally beats it; both ~-.006 to -.007 vs K48.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48V48'
     bam_v = 48
     mlp_dim_by_block = [2482, 2481, 2578]
@@ -7805,6 +7817,13 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     # +0.14% vs live same-health K48 .697; -5.09% vs ColOnly .7354.
     # K48 is -.02267 vs ColOnly @3400 (recent plateau). Bet vs K48: late dloss
     # -.012..+.002, center -.005; partial-RoPE effect is intentionally mixed in.
+    # Result: completed 13400. vs K48: warmstart -.0148@200 collapsed to ~-.008
+    # by 1200, held -.0073..-.0089 plateau (1.2k-5k), then slowly eroded toward 0
+    # (drift +.00066/1k, the slow trend r200 missed), final 13400=-.0061
+    # (last5_mean=-.0061). Bet center -.005 beaten (actual -.0061) but advantage
+    # eroded from -.008 to -.006 over training.
+    # Conclusion: truncating LocalQK from 64 to 48 with partial RoPE beats K48 by
+    # ~.006, better than predicted -.005, but the edge decays slowly through training.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE'
     bam_k = 64
     bam_local_qk_col_output_dim = 48
@@ -7825,6 +7844,12 @@ class BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     # Bet vs the LLF parent: late dloss -.003..+.003, center 0; speed +.5..+1.5%.
     # Six rather than eight F layers reduce fetched M-cache by 25%; per-role MLP
     # widths remain L=2535 and F=2610 so this isolates the LLF -> LLLF schedule.
+    # Result: completed 13400. vs LLF parent (Truncate): warmstart +.087@200
+    # collapsed to +.033@1200 then kept narrowing slowly to +.0143@13400
+    # (last5_mean=+.0143, drift -.00059/1k toward 0). vs K48: +.0082 (last5_mean).
+    # Bet center 0 LOST: LLLF stays +.014 worse than LLF, never approached 0.
+    # Conclusion: reducing fetched-M-cache frequency from 1/3 (LLF) to 1/4 (LLLF)
+    # costs ~.014 vs the LLF parent; the 25% fetch reduction is not free.
     model_name = 'BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE'
     bam_local_fetch_block_size = 4
     bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6

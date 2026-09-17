@@ -737,6 +737,12 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 5 | `us-east5-a` | 2026-09-16 11:59:23 | 2026-09-16 12:11:24 | 12m01s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 6 | `us-east5-a` | 2026-09-16 12:19:49 | 2026-09-16 12:44:14 | 24m25s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 7 | `us-east5-a` | 2026-09-16 12:50:49 | 2026-09-16 14:06:55 | 1h16m19s | run stop; stopped 9,750; checkpoint 9,750 committed; TPU/queue verified absent
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48 | 1 | `us-east5-a` | 2026-09-17 04:19:09 | 2026-09-17 07:52:55 | 3h33m46s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48 | 2 | `us-east5-a` | 2026-09-17 08:03:43 | 2026-09-17 10:35:55 | 2h32m12s | run stop; completed 13,400; checkpoint 13,400 committed
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48V48 | 1 | `us-east5-a` | 2026-09-17 07:13:11 | 2026-09-17 13:14:31 | 6h01m20s | run stop; completed 13,400; checkpoint 13,400 committed
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 1 | `us-east5-a` | 2026-09-17 06:09:32 | 2026-09-17 07:52:57 | 1h43m25s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 2 | `us-east5-a` | 2026-09-17 08:02:28 | 2026-09-17 12:12:02 | 4h09m34s | run stop; completed 13,400; checkpoint 13,400 committed
+| BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 1 | `us-east5-a` | 2026-09-17 08:41:52 | 2026-09-17 14:43:37 | 6h01m45s | run stop; completed 13,400; checkpoint 13,400 committed
 | BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B | 1 | `us-east5-a` | 2026-09-16 13:07:48 | 2026-09-16 16:05:49 | 2h58m01s | run stop; stopped 7,000; checkpoint 7,000 committed; TPU/queue verified absent
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 1 | `europe-west4-b` | 2026-09-16 06:54:08 | 2026-09-16 07:00:17 | 6m09s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 2 | `europe-west4-b` | 2026-09-16 07:07:38 | 2026-09-16 07:21:40 | 14m02s | service preemption; same-zone recovery |

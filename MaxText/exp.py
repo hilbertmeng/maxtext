@@ -7270,8 +7270,14 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
     """Ledger only: native C4/C8/C16 compressed views over 3/3/2 LLF block scans."""
     # Implementation: codex/llf-variable-absv, /data0/xd/llf-variable-absv.
-    # code_commit: 92747fe; UE5a AOT loaded/FIRST_STEP119, .674 steps/s.
-    # Bet vs uniform-C8 parent: +.002..+.009 late dloss, center +.005.
+    # code_commit: 92747fe; UE5a .674 steps/s.
+    # Result: stopped at 3,000. vs RowSharedColRank4B: warmstart -0.008@200
+    # rose to +0.011@1000, then slowly declined to +0.005@3000 (r200 near 0,
+    # still gently narrowing). vs AbsVDiag8124: stable -0.001~-0.002 over
+    # 1k-2.6k, final 2600=-0.0011 (Inc4816 slightly better).
+    # Conclusion: variable C4/C8/C16 absv costs ~+.005 vs uniform-C8 parent
+    # (matches predicted center +.005); slightly better than Diag8124 by ~.001.
+    # Gap still narrowing at stop; not yet at final plateau.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816'
     compare_runs = [
         'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
@@ -7284,8 +7290,15 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816(
 class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816):
     """Ledger only: equal-budget C8/C12/C4 diagnostic schedule over 3/3/2 scans."""
-    # code_commit: 92747fe; UE5a AOT loaded/FIRST_STEP0, .682 steps/s.
-    # Bet vs uniform-C8 parent: -.002..+.005 late dloss, center +.001.
+    # Implementation: codex/llf-variable-absv, /data0/xd/llf-variable-absv.
+    # code_commit: 92747fe; UE5a .682 steps/s.
+    # Result: stopped at 2,600. vs RowSharedColRank4B: warmstart +0.053@200
+    # collapsed to +0.010@1000, held +0.005~+0.010 over 1k-2.6k, final
+    # 2600=+0.0064 (r200 near 0, plateau). vs AbsVInc4816: stable +0.001~+0.002
+    # over 1k-2.6k, final 2600=+0.0011 (Diag8124 slightly worse).
+    # Conclusion: C8/C12/C4 diagnostic schedule costs ~+.006 vs uniform-C8
+    # parent (higher than predicted center +.001); slightly worse than Inc4816
+    # by ~.001. Gap plateaued; unlikely to improve.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124'
     compare_runs = [
         'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',

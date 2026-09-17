@@ -233,6 +233,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFBAlignedRowLocalVOColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 09:01:49 | 2026-09-16 14:06:55 | user stop9,900; 5 service preemptions (all same-zone recovery); checkpoint 9,900 committed; TPU/queue verified absent | none |
 | `BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly` | v5p-16 | `us-east5-a` | 2026-09-16 08:51:54 | 2026-09-16 14:06:55 | user stop9,750; 6 service preemptions (all same-zone recovery); checkpoint 9,750 committed; TPU/queue verified absent | none |
 | `BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL` | v5p-16 | `us-east5-a` | 2026-09-16 16:28:06 | 2026-09-16 23:37:55 | completed 13,500; 8 service preemptions (all same-zone recovery); checkpoint 13,500 committed | none |
+| `BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816` | v5p-16 | `us-east5-a` | 2026-09-17 03:53:37 | 2026-09-17 05:33:38 | user stop3,000; 1 service preemption (same-zone recovery); checkpoint 3,000 committed; TPU/queue verified absent; scripted closeout | none |
+| `BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124` | v5p-16 | `us-east5-a` | 2026-09-17 04:03:30 | 2026-09-17 05:33:36 | user stop2,600; 1 service preemption (same-zone recovery); checkpoint 2,600 committed; TPU/queue verified absent; scripted closeout | none |
 
 ## READY leases
 
@@ -761,3 +763,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 7 | `us-east5-a` | 2026-09-16 21:14:01 | 2026-09-16 21:18:19 | 4m18s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 8 | `us-east5-a` | 2026-09-16 21:28:17 | 2026-09-16 22:22:29 | 54m12s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 9 | `us-east5-a` | 2026-09-16 22:31:04 | 2026-09-16 23:37:55 | 1h06m51s | run stop; completed 13,500; checkpoint 13,500 committed
+| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816 | 1 | `us-east5-a` | 2026-09-17 03:58:40 | 2026-09-17 04:20:13 | 21m33s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816 | 2 | `us-east5-a` | 2026-09-17 04:26:04 | 2026-09-17 05:33:38 | 1h07m34s | run stop; stopped 3,000; checkpoint 3,000 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124 | 1 | `us-east5-a` | 2026-09-17 04:09:22 | 2026-09-17 04:19:06 | 9m44s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124 | 2 | `us-east5-a` | 2026-09-17 04:26:13 | 2026-09-17 05:33:36 | 1h07m23s | run stop; stopped 2,600; checkpoint 2,600 committed; TPU/queue verified absent

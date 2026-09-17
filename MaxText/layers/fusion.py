@@ -62,6 +62,7 @@ class SubDecoderLayer(nn.Module):
   quant: Optional[Quant] = None
   sliding_window_size: int|None = None
   layer_inx: int|None = None
+  abs_v_compression_dim: int | None = None
 
   def setup(self):
     cfg = self.config
@@ -161,7 +162,8 @@ class SubDecoderLayer(nn.Module):
         read_side = read_sides[self.layer_inx] if isinstance(read_sides, list) else read_sides
         attn_kwargs.update(
             layer_mode=layer_mode, read_side=read_side, bam_k=cfg.bam_k, bam_v=cfg.bam_v,
-            layer_inx=self.layer_inx)
+            layer_inx=self.layer_inx,
+            abs_v_compression_dim=self.abs_v_compression_dim)
     else:
         AttnCls = Attention
     attention_layer = AttnCls(**attn_kwargs)
@@ -298,6 +300,8 @@ class BamLayerPair(nn.Module):
   quant: Optional[Quant] = None
   scan_length: int = 1
   all_global_attention: bool = True
+  abs_v_compression_dim: int | None = None
+  block_index_offset: int = 0
 
   @nn.compact
   def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
@@ -316,10 +320,11 @@ class BamLayerPair(nn.Module):
       name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       carry, _ = Layer(
           cfg, self.mesh, self.sliding_window_size, self.quant,
-          all_global_attention=True, static_layer_index=offset, name=name)(
+          all_global_attention=True, static_layer_index=offset,
+          abs_v_compression_dim=self.abs_v_compression_dim, name=name)(
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
-              block_size * block_index + offset)
+              block_size * (block_index + self.block_index_offset) + offset)
     return carry, ()
 
 
@@ -333,6 +338,7 @@ class FusionDecoderLayer(nn.Module):
   scan_length: int = 1
   all_global_attention: bool = False
   static_layer_index: int | None = None
+  abs_v_compression_dim: int | None = None
 
   def setup(self):
     cfg = self.config
@@ -353,7 +359,9 @@ class FusionDecoderLayer(nn.Module):
         static_argnums=(6, 7),  # Deterministic and model mode are static arguments.
         )
 
-    self.layer = RematSubDecoderLayer(cfg, self.mesh, self.quant, sws, self.layer_inx, name=f'block')
+    self.layer = RematSubDecoderLayer(
+        cfg, self.mesh, self.quant, sws, self.layer_inx,
+        abs_v_compression_dim=self.abs_v_compression_dim, name='block')
     self.break_layers = list(range(cfg.num_decoder_layers - 1, cfg.num_decoder_layers + cfg.mtp_num_layers))
 
   def get_C(self, cfg):

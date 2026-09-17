@@ -508,7 +508,7 @@ class Decoder(nn.Module):
   def scan_decoder_layers(self, cfg, decoder_layer, length, metdata_axis_name, mesh,
    sliding_window_size=None, scan_length=1, scan_deep_embedding=False,
    runtime_schedule=False, scan_hids=False, all_global_attention=False,
-   scan_layer_index=False):
+   scan_layer_index=False, abs_v_compression_dim=None, block_index_offset=0):
     initializing = self.is_mutable_collection("params")
     params_spec = cfg.param_scan_axis if initializing else ScanIn(cfg.param_scan_axis)
     cache_spec = 0
@@ -554,6 +554,10 @@ class Decoder(nn.Module):
       module_kwargs.update(
           sliding_window_size=sliding_window_size, scan_length=scan_length,
           all_global_attention=all_global_attention)
+      if abs_v_compression_dim is not None or block_index_offset:
+        module_kwargs.update(
+            abs_v_compression_dim=abs_v_compression_dim,
+            block_index_offset=block_index_offset)
     return scan_fn(**module_kwargs)
 
   def get_pipeline_stage_module(self, base_stage):
@@ -824,32 +828,52 @@ class Decoder(nn.Module):
           scan_carry = y
         local_sws = min(swss)
         all_global_attention = all(s >= cfg.max_target_length for s in swss)
-        scan_module = self.scan_decoder_layers(
-            cfg, RemattedBlockLayer, scan_length, "layers", mesh,
-            sliding_window_size=local_sws,
-            scan_deep_embedding=deep_embeddings is not None,
-            runtime_schedule=True,
-            all_global_attention=all_global_attention,
-            scan_layer_index=full_bam,
-        )
-        scan_inputs = (
-            scan_carry,
-            decoder_segment_ids,
-            decoder_positions,
-            decoder_input_tokens,
-            deep_embeddings,
-            deterministic,
-            model_mode,
-            eos_sum,
-            is_global,
-        )
-        if full_bam:
-          scan_inputs += (
-              None,
-              None,
-              jnp.arange(scan_length, dtype=jnp.int32),
+        abs_v_group_sizes = getattr(cfg, 'bam_abs_v_block_group_sizes', None)
+        abs_v_group_dims = getattr(cfg, 'bam_abs_v_block_group_dims', None)
+        if abs_v_group_sizes is None and abs_v_group_dims is None:
+          scan_groups = ((scan_length, None),)
+        else:
+          assert pair_scan and full_bam
+          assert len(abs_v_group_sizes) == len(abs_v_group_dims)
+          assert sum(abs_v_group_sizes) == scan_length
+          assert all(size > 0 for size in abs_v_group_sizes)
+          assert all(0 < dim <= cfg.bam_v for dim in abs_v_group_dims)
+          scan_groups = tuple(zip(abs_v_group_sizes, abs_v_group_dims))
+
+        block_offset = 0
+        for group_index, (group_length, abs_v_dim) in enumerate(scan_groups):
+          scan_name = ('layers' if len(scan_groups) == 1
+                       else f'layers_group_{group_index}')
+          scan_module = self.scan_decoder_layers(
+              cfg, RemattedBlockLayer, group_length, scan_name, mesh,
+              sliding_window_size=local_sws,
+              scan_deep_embedding=deep_embeddings is not None,
+              runtime_schedule=True,
+              all_global_attention=all_global_attention,
+              scan_layer_index=full_bam,
+              abs_v_compression_dim=abs_v_dim,
+              block_index_offset=block_offset,
           )
-        scan_carry, _ = scan_module(*scan_inputs)
+          group_is_global = is_global[block_offset:block_offset + group_length]
+          scan_inputs = (
+              scan_carry,
+              decoder_segment_ids,
+              decoder_positions,
+              decoder_input_tokens,
+              deep_embeddings,
+              deterministic,
+              model_mode,
+              eos_sum,
+              group_is_global,
+          )
+          if full_bam:
+            scan_inputs += (
+                None,
+                None,
+                jnp.arange(group_length, dtype=jnp.int32),
+            )
+          scan_carry, _ = scan_module(*scan_inputs)
+          block_offset += group_length
         y = scan_carry[0] if full_bam else scan_carry
 
       elif cfg.partial_scan_layers:

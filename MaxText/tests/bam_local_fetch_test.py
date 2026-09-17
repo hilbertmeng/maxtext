@@ -173,6 +173,34 @@ class LocalFetchTest(absltest.TestCase):
           variables, (hh, mm), *args[1:]))(h, m))
       self.assertNotIn('cond[', jaxpr)
 
+  def test_variable_abs_v_uses_serial_block_scans_with_distinct_widths(self):
+    cfg = self.config(
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816')
+    block_size = cfg.bam_local_fetch_block_size
+    cfg.get_keys().update(
+        num_decoder_layers=2 * block_size,
+        bam_layer_modes=cfg.bam_layer_modes[:block_size] * 2,
+        bam_abs_v_block_group_sizes=[1, 1],
+        bam_abs_v_block_group_dims=[4, 12],
+        vocab_size=128)
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    model = train.Transformer(cfg, mesh, quant=None)
+    tokens = jnp.ones((1, 8), jnp.int32)
+    positions = jnp.arange(8, dtype=jnp.int32)[None]
+    segments = jnp.ones((1, 8), jnp.int32)
+    variables = model.init(
+        {'params': jax.random.key(20), 'aqt': jax.random.key(21)},
+        tokens, positions, tokens, segments,
+        decoder_segment_ids=segments, enable_dropout=False)
+    paths = flatten_dict(variables['params'])
+    widths = {}
+    for path, value in paths.items():
+      if path[-1] != 'abs_v_cache_projection':
+        continue
+      group = next(part for part in path if part.startswith('layers_group_'))
+      widths.setdefault(group, set()).add(value.value.shape[-1])
+    self.assertEqual(widths, {'layers_group_0': {4}, 'layers_group_1': {12}})
+
   def test_shared_output_gate_preserves_key_gate_scale(self):
     m = jax.random.normal(jax.random.key(10), (1, 3, 32, 8))
     row = jax.random.normal(jax.random.key(11), (1, 3, 2, 32))

@@ -7262,6 +7262,32 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     force_final_checkpoint = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
+    """Eight LLF blocks scanned 3/3/2 with native compressed widths C4/C8/C16."""
+    # Implementation: codex/llf-variable-absv, /data0/xd/llf-variable-absv.
+    # Bet vs uniform-C8 parent: +.002 to +.009 late dloss, center +.005.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816'
+    compare_runs = [
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124',
+    ]
+    bam_abs_v_block_group_sizes = [3, 3, 2]
+    bam_abs_v_block_group_dims = [4, 8, 16]
+
+
+class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816):
+    """Equal-width-budget diagnostic-shaped control: C8/C12/C4 over 3/3/2 blocks."""
+    # Bet vs uniform-C8 parent: -.002 to +.005 late dloss, center +.001.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124'
+    compare_runs = [
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816',
+    ]
+    bam_abs_v_block_group_dims = [8, 12, 4]
+
+
 class BamMediumIndependentLLFBAlignedRowStdTailWriteOrth(BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow):
     """Ledger only: pure y_std tail -> shared 32x32 projection + per-head write-address bias."""
     # codex/llf-std-tail-write, /data0/xd/llf-std-tail-write; code_commit: 6758378.

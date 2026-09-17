@@ -2354,6 +2354,7 @@ class BamAttention(Attention):
   layer_inx: int = 0  # Static layer index for per-layer read settings.
   bam_k: int = 32
   bam_v: int = 32
+  abs_v_compression_dim: int | None = None
 
   def _local_read_setting(self, name, key):
     """Resolve a read setting for this layer; V rank=None means shared O read."""
@@ -2510,8 +2511,12 @@ class BamAttention(Attention):
     assert self._fetched_read_side in ('both', 'row', 'col')
     self._m_read_norm = cfg.bam_m_read_norm
     self._fetch_diagonal_one = bool(cfg.bam_fetch_diagonal_one)
+    configured_abs_v_dim = (
+        self.abs_v_compression_dim
+        if self.abs_v_compression_dim is not None
+        else getattr(cfg, 'bam_abs_v_compression_dim', None))
     self._abs_v_dim = (
-        getattr(cfg, 'bam_abs_v_compression_dim', None)
+        configured_abs_v_dim
         if ('full' in self._mode or ('local_o' in self._mode or shared_v)
             and getattr(cfg, 'bam_local_o_compress_v', True)) else None)
     self._abs_v_row_output = getattr(cfg, 'bam_abs_v_row_output', 'direct')
@@ -2554,7 +2559,8 @@ class BamAttention(Attention):
         num_heads=self._fetched_read_num_heads, read_side=self._fetched_read_side,
         **{**read_settings, 'rms_epsilon': self._fetched_read_key_epsilon})
     if self._row_shared_v:
-      assert self._abs_v_dim == 8 and self._abs_v_row_output == 'direct'
+      assert self._abs_v_dim is not None and 0 < self._abs_v_dim <= self.bam_v
+      assert self._abs_v_row_output == 'direct'
       self._local_v_col_arm = dataclasses.replace(
           self._fetched_arm, name='v_col', k_dim=self.bam_k,
           v_dim=self.bam_v, rank=4, rank_routing='head_gate_r',

@@ -7339,6 +7339,8 @@ class BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
 ):
     """Ledger only: K64/QK48 truncate with three local layers per fetched layer."""
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: c2321da; UE5a AOT loaded/FIRST_STEP6, .702 steps/s:
+    # +.57% vs same-health K64Truncate LLF .698 (+.72% vs K48 .697).
     # Bet vs the LLF parent: late dloss -.003..+.003, center 0; speed +.5..+1.5%.
     # Six rather than eight F layers reduce fetched M-cache by 25%; per-role MLP
     # widths remain L=2535 and F=2610 so this isolates the LLF -> LLLF schedule.

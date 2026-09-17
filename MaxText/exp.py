@@ -7333,14 +7333,15 @@ class BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL(
     BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLLControl):
     """Ledger only: relay each F fetched-O row to the next two L layers' O/V."""
     # Implementation: codex/llf-fetched-row-relay, /data0/xd/llf-fetched-row-relay.
-    # code_commit: 6de0e04; UE5a AOT loaded/FIRST_STEP5; formal .701 steps/s @12-29.
-    # Same-runtime UE5a paired profile: relay .704 vs FLL control .7103 = -.89%.
-    # Formal vs same-zone/generic-health LocalVOColOnly .703: -.28%; vs matched-health
-    # BAlignedRow .6836: +2.55%.
-    # Pre-run bet vs LocalVOColOnly: late dloss center -.0015,
-    # likely [-.004,+.0015]; speed center -.8%, likely -.5..-1.5% vs FLL control.
-    # Adds 917,952 target-gate params (0.219 W_Q), while retaining 4.047 W_Q
-    # savings vs RowShared. Generic health ON; BAM sow OFF.
+    # code_commit: 6de0e04; UE5a .701 steps/s, -.89% vs FLL control .7103,
+    # -.28% vs LocalVOColOnly .703, +2.55% vs matched-health BAlignedRow .6836.
+    # Result: completed 13,500. vs LocalVOColOnly: warmstart -0.019@200 collapsed
+    # to 0 by 1k, then rose to +.005~+.007 plateau over 2k-9.8k, final 9800=+.006.
+    # vs RowSharedColRank4B: warmstart +.144@200 declined to +.011~+.013 plateau
+    # over 10k-13.4k, final 13400=+.0113.
+    # Conclusion: fetched-O row relay is harmful — costs ~+.006 vs LocalVOColOnly
+    # and ~+.011 vs RowSharedColRank4B, far worse than predicted -.0015. Relay
+    # mechanism adds loss instead of recovering row-read value; abandon.
     model_name = (
         'BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL')
     compare_runs = [

@@ -232,6 +232,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B` | v5p-16 | `us-east5-a` | 2026-09-16 13:03:01 | 2026-09-16 16:05:49 | user stop7,000; 0 service preemptions; checkpoint 7,000 committed; TPU/queue verified absent; scripted closeout | none |
 | `BamMediumIndependentLLFBAlignedRowLocalVOColOnly` | v5p-16 | `us-east5-a` | 2026-09-16 09:01:49 | 2026-09-16 14:06:55 | user stop9,900; 5 service preemptions (all same-zone recovery); checkpoint 9,900 committed; TPU/queue verified absent | none |
 | `BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly` | v5p-16 | `us-east5-a` | 2026-09-16 08:51:54 | 2026-09-16 14:06:55 | user stop9,750; 6 service preemptions (all same-zone recovery); checkpoint 9,750 committed; TPU/queue verified absent | none |
+| `BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL` | v5p-16 | `us-east5-a` | 2026-09-16 16:28:06 | 2026-09-16 23:37:55 | completed 13,500; 8 service preemptions (all same-zone recovery); checkpoint 13,500 committed | none |
 
 ## READY leases
 
@@ -751,3 +752,12 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 14 | `us-east5-a` | 2026-09-16 20:14:58 | 2026-09-16 21:02:49 | 47m51s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 15 | `us-east5-a` | 2026-09-16 21:24:38 | 2026-09-16 22:50:30 | 1h25m52s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 16 | `us-east5-a` | 2026-09-16 22:58:30 | 2026-09-16 23:51:57 | 53m27s | run stop; stopped 26,000; checkpoint 26,000 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 1 | `us-east5-a` | 2026-09-16 16:28:06 | 2026-09-16 17:10:26 | 42m20s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 2 | `us-east5-a` | 2026-09-16 17:17:41 | 2026-09-16 18:10:01 | 52m20s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 3 | `us-east5-a` | 2026-09-16 18:17:45 | 2026-09-16 20:08:09 | 1h50m24s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 4 | `us-east5-a` | 2026-09-16 20:14:46 | 2026-09-16 20:21:40 | 6m54s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 5 | `us-east5-a` | 2026-09-16 20:27:58 | 2026-09-16 20:40:47 | 12m49s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 6 | `us-east5-a` | 2026-09-16 20:49:44 | 2026-09-16 21:02:52 | 13m08s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 7 | `us-east5-a` | 2026-09-16 21:14:01 | 2026-09-16 21:18:19 | 4m18s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 8 | `us-east5-a` | 2026-09-16 21:28:17 | 2026-09-16 22:22:29 | 54m12s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 9 | `us-east5-a` | 2026-09-16 22:31:04 | 2026-09-16 23:37:55 | 1h06m51s | run stop; completed 13,500; checkpoint 13,500 committed

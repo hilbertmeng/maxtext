@@ -2624,6 +2624,8 @@ class BamAttention(Attention):
               or (self._abs_v_row_output == 'project'
                   and self._abs_v_row_decoder_output == 'full'))
           else self._abs_v_dim)
+      if self._fetched_arm.prune_row:
+        full_v_output_dim = 0
       self._fetched_output_v_dim = full_v_output_dim
       fetched_output_width = self._fetched_heads_per_query * (
           self.bam_k + full_v_output_dim)
@@ -2987,6 +2989,9 @@ class BamAttention(Attention):
     if self._record_local_routing_metrics:
       result, rank_gate = result
       self._record_local_rank_gate(f'local_{name}', rank_gate)
+    if arm.prune_row:
+      return _pack_fetched_bam_heads(
+          result[0], self.num_query_heads, self.head_dim)
     return _fit_bam_read_to_head(
         result, self.bam_k, self.head_dim,
         getattr(self, f'local_{name}_v_adapter', None))
@@ -3072,6 +3077,10 @@ class BamAttention(Attention):
   def _expand_full_read(self, full_read):
     """Restore compressed read sides and place them in one attention head."""
     y_k, y_v = full_read
+
+    if self._fetched_arm.prune_row:
+      return _pack_fetched_bam_heads(
+          y_k, self.num_query_heads, self.head_dim)
 
     def decode(y, decoder):
       decoder = decoder.astype(y.dtype)

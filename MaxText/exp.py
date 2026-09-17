@@ -7277,6 +7277,18 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
+    BamMediumIndependentLLFMLPPerLayerColOnly
+):
+    """Expand the raw M data axis K32->K48 with every BAM read kept column-only."""
+    # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # Bet vs ColOnly: late dloss -.005..+.002, center -.002; parameter count unchanged.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48'
+    bam_k = 48
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48'
+
+
 class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Pure removal of all BAM Q/K/V/O row reads; keep BAlignedRow's MLP width."""
     # code_commit: 4c67f28; UE5a .7264 steps/s, +6.26% vs matched-health BAlignedRow .6836, -1.22% vs PerLayerColOnly .7354.
@@ -7342,14 +7354,15 @@ class BamMHALlama2MediumC256ScanAotCleanMLP2304(BamMHALlama2MediumC256ScanAotCle
 class BamMediumIndependentLLFBAlignedRow21LayerMLP2896(BamMediumIndependentLLFBAlignedRowMLPUniform):
     """Near-MHA budget by reducing depth: seven LLF blocks with full-width MLPs."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs BAlignedRow: final gap +.008, throughput +8%; vs reduced-MLP 24-layer ~-.004..-.005.
+    # Paused at 6181 for hot replacement. vs BAlignedRow: +.0738@200 shrank to +.0181@800,
+    # then plateaued near +.021–.023 through5800; vs PerLayer near +.009–.010, no convergence.
     # code_commit: 061b51d; UE5a .7716 steps/s, +12.87% vs BAlignedRow .6836, +9.08% vs Uniform .7074; generic ON/BAM OFF.
     model_name = 'BamMediumIndependentLLFBAlignedRow21LayerMLP2896'
     base_num_decoder_layers = 21
     base_mlp_dim = 2896
     bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 7
-    compare_runs = BamMediumIndependentLLFBAlignedRowMLPUniform.compare_runs + [
-        'BamMediumIndependentLLFBAlignedRowMLPUniform',
+    compare_runs = [
+        'BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow',
         'BamMediumIndependentLLFBAlignedRowMLPPerLayer',
     ]
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-21layer-mlp2896'

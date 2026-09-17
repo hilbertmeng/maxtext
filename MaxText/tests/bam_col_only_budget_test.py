@@ -10,6 +10,38 @@ import bam_local_fetch_test
 
 class ColOnlyBudgetTest(absltest.TestCase):
   config = bam_local_fetch_test.LocalFetchTest.config
+
+  def test_k48_column_only_uses_no_extra_parameters(self):
+    import max_utils
+    trees = []
+    for exp_name, k_dim in (
+        ('BamMediumIndependentLLFMLPPerLayerColOnly', 32),
+        ('BamMediumIndependentLLFMLPPerLayerColOnlyK48', 48)):
+      cfg = self.config(exp_name)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          bam_k=cfg.bam_k, bam_v=cfg.bam_v,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+full', read_side='col',
+          attention_type=cfg.attention_type)
+      x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
+      m = jax.random.normal(
+          jax.random.key(2), (1, 8, k_dim, 32), dtype=cfg.dtype)
+      args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+      variables = module.init(
+          {'params': jax.random.key(3)}, *args, M_in=m,
+          deterministic=True, layer_index=2)
+      out, m_out = module.apply(
+          variables, *args, M_in=m, deterministic=True, layer_index=2)
+      self.assertEqual(out.shape, x.shape)
+      self.assertEqual(m_out.shape, m.shape)
+      trees.append(variables['params'])
+    self.assertEqual(
+        sum(x.size for x in jax.tree.leaves(trees[0])),
+        sum(x.size for x in jax.tree.leaves(trees[1])))
+
   def test_o_only_preserves_qkv(self):
     import max_utils
     for mode in ('local_qk+local_o', 'local_qk+full'):

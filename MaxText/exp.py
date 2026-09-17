@@ -7298,6 +7298,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
 ):
     """K48V32 control: keep injected LocalQK NoPE and RoPE only the last 16 dims."""
     # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, steps10-14 .701:
+    # +.17% vs same-health K48 .700; +.46% vs K64Truncate .698.
     # Bet vs full-RoPE K48: late dloss -.007..-.002, center -.0045;
     # speed within +/-.5%. Footprint-aligned historical partial-RoPE controls
     # were beneficial. Together with K64Truncate this isolates raw K width.

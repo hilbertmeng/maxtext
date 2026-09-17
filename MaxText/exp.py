@@ -7284,6 +7284,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE(
 ):
     """K32 control with the same fixed NoPE48/RoPE16 layout as K48/K64 partial."""
     # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: 7319f57; UE5a AOT loaded/FIRST_STEP14, steps10-14 .742:
+    # +.84% vs same-health full-RoPE K32 .7354.
     # Bet vs full-RoPE K32: late dloss +.013..+.021, center +.017;
     # speed within +/-.5%. This completes the fixed-RoPE K32/K48/K64 ladder.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE'
@@ -7317,6 +7319,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
     # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, steps10-14 .701:
     # +.17% vs same-health K48 .700; +.46% vs K64Truncate .698.
+    # Accidental stop at8998; repaired incomplete checkpoint9019 to9000 and
+    # resumed successfully through9029, .703 steps/s, with the original AOT/schedule.
     # Bet vs full-RoPE K48: late dloss -.007..-.002, center -.0045;
     # speed within +/-.5%. Footprint-aligned historical partial-RoPE controls
     # were beneficial. Together with K64Truncate this isolates raw K width.
@@ -7397,6 +7401,9 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE(
 ):
     """K64/QK48 truncate with ordinary full-width RoPE on the standard Q/K arm."""
     # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: 7319f57; UE5a AOT loaded/FIRST_STEP7, steps10-14 .692:
+    # -.80% throughput vs K64 partial .698; -1.09% vs full-RoPE K48 .700.
+    # Initial lease hit maintenance at37; auto-train recovered and reached81.
     # Bet vs K64 partial: late dloss -.021..-.012, center -.017;
     # vs full-RoPE K48: -.028..-.019, center -.024; speed within +/-.5%.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE'

@@ -283,6 +283,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_post_read_v_share_qk = True  # share that projection between Q and K reads
     bam_local_qk_post_read_v_paired_init = False  # separate Q/K params with identical initialization
     bam_local_qk_post_read_v_init = 'orthogonal'  # orthogonal | identity
+    bam_local_qk_col_output_dim = None  # Optional column-only LocalQK width after reading M.
+    bam_local_qk_col_output = 'truncate'  # truncate | project (separate Q/K selector-initialized maps)
     bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
     bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
@@ -7289,6 +7291,40 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
     bam_k = 48
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
+    BamMediumIndependentLLFMLPPerLayerColOnly
+):
+    """Use raw M[64,32], inject the first 48 LocalQK columns, and RoPE the last 16."""
+    # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # K48 is -.02267 vs ColOnly @3400 (recent plateau). Bet vs K48: late dloss
+    # -.012..+.002, center -.005; partial-RoPE effect is intentionally mixed in.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE'
+    bam_k = 64
+    bam_local_qk_col_output_dim = 48
+    bam_local_qk_col_output = 'truncate'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 48
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48',
+                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
+):
+    """Learn separate selector-initialized P_Q/P_K maps from K64 LocalQK reads to 48 dims."""
+    # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # Bet vs truncate: late dloss -.004..+.002, center -.001; adds 147,456 parameters.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE'
+    bam_local_qk_col_output = 'project'
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48',
+        'BamMediumIndependentLLFMLPPerLayerColOnly',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-project-prope'
 
 
 class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLayerColOnly):

@@ -42,6 +42,54 @@ class ColOnlyBudgetTest(absltest.TestCase):
         sum(x.size for x in jax.tree.leaves(trees[0])),
         sum(x.size for x in jax.tree.leaves(trees[1])))
 
+  def test_k64_qk48_project_starts_as_truncate(self):
+    import max_utils
+    names = (
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE')
+    modules, variables, outputs = [], [], []
+    x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=jnp.bfloat16)
+    m = jax.random.normal(jax.random.key(2), (1, 8, 64, 32), dtype=jnp.bfloat16)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    for name in names:
+      cfg = self.config(name)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          bam_k=cfg.bam_k, bam_v=cfg.bam_v,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+full', read_side='col',
+          attention_type=cfg.attention_type)
+      value = module.init(
+          {'params': jax.random.key(3)}, *args, M_in=m,
+          deterministic=True, layer_index=2)
+      modules.append(module)
+      variables.append(value)
+      outputs.append(module.apply(
+          value, *args, M_in=m, deterministic=True, layer_index=2))
+
+    truncate = flatten_dict(variables[0]['params'])
+    project = flatten_dict(variables[1]['params'])
+    projection_names = ('local_q_col_projection', 'local_k_col_projection')
+    project_control = {p: v for p, v in project.items()
+                       if p[0] not in projection_names}
+    self.assertEqual(truncate.keys(), project_control.keys())
+    for path in truncate:
+      np.testing.assert_array_equal(
+          np.asarray(truncate[path].value), np.asarray(project_control[path].value))
+    selector = np.eye(64, 48, dtype=np.float32)
+    for name in projection_names:
+      np.testing.assert_array_equal(
+          np.asarray(project[(name,)].value, dtype=np.float32), selector)
+    self.assertEqual(
+        sum(x.size for x in jax.tree.leaves(variables[1]['params']))
+        - sum(x.size for x in jax.tree.leaves(variables[0]['params'])),
+        2 * 64 * 48)
+    for truncate_value, project_value in zip(outputs[0], outputs[1]):
+      np.testing.assert_array_equal(
+          np.asarray(truncate_value), np.asarray(project_value))
+
   def test_o_only_preserves_qkv(self):
     import max_utils
     for mode in ('local_qk+local_o', 'local_qk+full'):

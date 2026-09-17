@@ -2366,6 +2366,14 @@ def _identity_matrix_init(key, shape, dtype):
   return jnp.eye(shape[0], dtype=dtype)
 
 
+def _selector_matrix_init(key, shape, dtype):
+  """Initialize a rectangular projection to select its leading coordinates."""
+  del key
+  if len(shape) != 2 or shape[0] < shape[1]:
+    raise ValueError(f'selector projection expects input >= output, got {shape}')
+  return jnp.eye(shape[0], shape[1], dtype=dtype)
+
+
 class BamAttention(Attention):
   """MHA plus a matrix stream written every BAM layer and optionally read by LocalQK/full."""
 
@@ -2390,10 +2398,24 @@ class BamAttention(Attention):
         cfg, 'bam_local_qk_post_read_v_init', 'orthogonal')
     self._seed_paired_local_row_key = bool(getattr(
         cfg, 'bam_seed_paired_local_row_key', False))
-    self._local_qk_output_width = self.bam_k + (
-        int(self._local_qk_post_read_v_dim)
-        if self._local_qk_post_read_v_dim is not None
-        else self.bam_v)
+    self._prune_all_row_reads = bool(getattr(
+        cfg, 'bam_prune_all_row_reads', False))
+    self._local_qk_col_output_dim = getattr(
+        cfg, 'bam_local_qk_col_output_dim', None)
+    if self._local_qk_col_output_dim is not None:
+      self._local_qk_col_output_dim = int(self._local_qk_col_output_dim)
+    self._local_qk_col_output = getattr(
+        cfg, 'bam_local_qk_col_output', 'truncate')
+    if self._local_qk_col_output not in ('truncate', 'project'):
+      raise ValueError(
+          f'Unknown BAM LocalQK column output: {self._local_qk_col_output}')
+    self._local_qk_output_width = (
+        self._local_qk_col_output_dim
+        if self._prune_all_row_reads and self._local_qk_col_output_dim is not None
+        else self.bam_k + (
+            int(self._local_qk_post_read_v_dim)
+            if self._local_qk_post_read_v_dim is not None
+            else self.bam_v))
     self._partial_rope = bool(cfg.bam_partial_rope)
     self._partial_rope_nope_dim = None
     if self._partial_rope:
@@ -2421,8 +2443,16 @@ class BamAttention(Attention):
       self._has_write = False
       return
 
-    assert 0 < self.bam_k < self.head_dim, (
+    assert 0 < self.bam_k <= self.head_dim, (
         f'bam_k({self.bam_k}) must fit inside head_dim({self.head_dim})')
+    if self.bam_k == self.head_dim:
+      assert self._prune_all_row_reads, (
+          'bam_k == head_dim is supported only when every row read is pruned')
+    if self._local_qk_col_output_dim is not None:
+      assert self._prune_all_row_reads, (
+          'LocalQK column output reduction requires column-only BAM reads')
+      assert 0 < self._local_qk_col_output_dim <= min(
+          self.bam_k, self.head_dim)
     self._mode = (
         set() if self.layer_mode == 'none'
         else set(self.layer_mode.replace('+', ' ').split()))
@@ -2533,7 +2563,7 @@ class BamAttention(Attention):
       return getattr(cfg, f'bam_local_q_{key}') if value is None else value
 
     read_settings = dict(
-        prune_row=bool(getattr(cfg, 'bam_prune_all_row_reads', False)),
+        prune_row=self._prune_all_row_reads,
         key_mode='rms_gate', key_scale=self._read_key_scale,
         rms_epsilon=self._read_key_epsilon,
         rms_statistics_dtype=self._read_rms_statistics_dtype,
@@ -2856,6 +2886,20 @@ class BamAttention(Attention):
             'local_k_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
 
+    # Keep these experimental projections last so the selector initialization
+    # leaves every pre-existing parameter bit-identical to the truncate arm.
+    if (self._local_qk_col_output_dim is not None
+        and self._local_qk_col_output == 'project'):
+      projection_init = nn.with_logical_partitioning(
+          _selector_matrix_init, ('v_factor', 'kv'))
+      projection_shape = (self.bam_k, self._local_qk_col_output_dim)
+      self.local_q_col_projection = self.param(
+          'local_q_col_projection', projection_init,
+          projection_shape, self.weight_dtype)
+      self.local_k_col_projection = self.param(
+          'local_k_col_projection', projection_init,
+          projection_shape, self.weight_dtype)
+
 
 
 
@@ -2990,8 +3034,16 @@ class BamAttention(Attention):
       result, rank_gate = result
       self._record_local_rank_gate(f'local_{name}', rank_gate)
     if arm.prune_row:
+      col = result[0]
+      if name in ('q', 'k') and self._local_qk_col_output_dim is not None:
+        if self._local_qk_col_output == 'truncate':
+          col = col[..., :self._local_qk_col_output_dim]
+        else:
+          projection = getattr(self, f'local_{name}_col_projection')
+          col = jnp.einsum(
+              '...nk,kd->...nd', col, projection.astype(col.dtype))
       return _pack_fetched_bam_heads(
-          result[0], self.num_query_heads, self.head_dim)
+          col, self.num_query_heads, self.head_dim)
     return _fit_bam_read_to_head(
         result, self.bam_k, self.head_dim,
         getattr(self, f'local_{name}_v_adapter', None))

@@ -7722,6 +7722,24 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE(
+    BamMediumIndependentLLFMLPPerLayerColOnly
+):
+    """Ledger only: K32 with the fixed NoPE48/RoPE16 comparison layout."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: 7319f57; UE5a AOT loaded/FIRST_STEP14, steps10-14 .742:
+    # +.84% vs same-health full-RoPE K32 .7354.
+    # Bet vs full-RoPE K32: late dloss +.013..+.021, center +.017.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 48
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnly',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k32-nope48'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
     BamMediumIndependentLLFMLPPerLayerColOnly
 ):
@@ -7752,6 +7770,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
     # Conclusion: partial RoPE (NoPE48/RoPE16) on plain K48 stays worse than K48
     # (would not cross 0 within plan), but it narrows steadily, not stuck;
     # partial RoPE only helps paired with K64->48 truncation (Truncate).
+    # Accidental stop at8998; repaired incomplete checkpoint9019 to9000 and
+    # resumed successfully through9029, .703 steps/s, with the original AOT/schedule.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 48
@@ -7827,6 +7847,26 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     bam_partial_rope_nope_dim = 48
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
+):
+    """Ledger only: K64/QK48 truncate with full-width RoPE on standard Q/K."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: 7319f57; UE5a AOT loaded/FIRST_STEP7, steps10-14 .692:
+    # -.80% throughput vs K64 partial .698; -1.09% vs full-RoPE K48 .700.
+    # Initial lease hit maintenance at37; auto-train recovered and reached81.
+    # Bet vs K64 partial: late dloss -.021..-.012, center -.017;
+    # vs full-RoPE K48: -.028..-.019, center -.024.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE'
+    bam_partial_rope = False
+    bam_partial_rope_nope_dim = None
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-full-rope'
 
 
 class BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(

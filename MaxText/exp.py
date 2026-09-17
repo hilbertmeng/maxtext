@@ -7751,8 +7751,7 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     bam_local_qk_col_output = 'truncate'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 48
-    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48',
-                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
 
 
@@ -7769,7 +7768,6 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
     compare_runs = [
         'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
         'BamMediumIndependentLLFMLPPerLayerColOnlyK48',
-        'BamMediumIndependentLLFMLPPerLayerColOnly',
     ]
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-project-prope'
 

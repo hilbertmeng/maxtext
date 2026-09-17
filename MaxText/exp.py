@@ -7282,6 +7282,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
 ):
     """Expand the raw M data axis K32->K48 with every BAM read kept column-only."""
     # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: e7b180e; UE5a AOT loaded/FIRST_STEP12, .700 steps/s,
+    # -4.81% vs same-health ColOnly .7354 (historical same-zone baseline).
     # Bet vs ColOnly: late dloss -.005..+.002, center -.002; parameter count unchanged.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48'
     bam_k = 48

@@ -7266,6 +7266,34 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B(
     force_final_checkpoint = True
 
 
+class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
+    """Ledger only: native C4/C8/C16 compressed views over 3/3/2 LLF block scans."""
+    # Implementation: codex/llf-variable-absv, /data0/xd/llf-variable-absv.
+    # code_commit: 92747fe; UE5a AOT loaded/FIRST_STEP119, .674 steps/s.
+    # Bet vs uniform-C8 parent: +.002..+.009 late dloss, center +.005.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816'
+    compare_runs = [
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124',
+    ]
+    bam_abs_v_block_group_sizes = [3, 3, 2]
+    bam_abs_v_block_group_dims = [4, 8, 16]
+
+
+class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124(
+    BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816):
+    """Ledger only: equal-budget C8/C12/C4 diagnostic schedule over 3/3/2 scans."""
+    # code_commit: 92747fe; UE5a AOT loaded/FIRST_STEP0, .682 steps/s.
+    # Bet vs uniform-C8 parent: -.002..+.005 late dloss, center +.001.
+    model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124'
+    compare_runs = [
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B',
+        'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816',
+    ]
+    bam_abs_v_block_group_dims = [8, 12, 4]
+
+
 class BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
     """Ledger only: keep LocalV rank4-B column and remove only its shared O-row answer."""
@@ -7677,6 +7705,20 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
     compare_runs = ['BamMediumIndependentLLFBAlignedRowMLPPerLayer',
                     'BamMHALlama2MediumC256ScanAotCleanControl']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
+    BamMediumIndependentLLFMLPPerLayerColOnly
+):
+    """Ledger only: expand raw M data axis K32->K48 with every BAM read column-only."""
+    # code_commit: e7b180e; codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # UE5a AOT loaded/FIRST_STEP12, .700 steps/s, -4.81% vs same-health ColOnly .7354
+    # (historical same-zone baseline).
+    # Bet vs ColOnly: late dloss -.005..+.002, center -.002; parameter count unchanged.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48'
+    bam_k = 48
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48'
 
 
 class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLayerColOnly):

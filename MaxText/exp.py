@@ -7266,6 +7266,7 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B):
     """Eight LLF blocks scanned 3/3/2 with native compressed widths C4/C8/C16."""
     # Implementation: codex/llf-variable-absv, /data0/xd/llf-variable-absv.
+    # code_commit: 92747fe; UE5a AOT loaded/FIRST_STEP119, .674 steps/s.
     # Bet vs uniform-C8 parent: +.002 to +.009 late dloss, center +.005.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816'
     compare_runs = [
@@ -7279,6 +7280,7 @@ class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816(
 class BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124(
     BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816):
     """Equal-width-budget diagnostic-shaped control: C8/C12/C4 over 3/3/2 blocks."""
+    # code_commit: 92747fe; UE5a AOT loaded/FIRST_STEP0, .682 steps/s.
     # Bet vs uniform-C8 parent: -.002 to +.005 late dloss, center +.001.
     model_name = 'BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124'
     compare_runs = [

@@ -7736,6 +7736,24 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnlyK48V48(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK48
+):
+    """Ledger only: raw M K48V48, fetched C8 fixed, with per-layer MLP repayment."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # Added BAM params vs K48V32: 3,418,880 = 3.2605 W_Q. MLP repayment
+    # leaves only 2,816 extra total params vs K48 (412,084,656 vs 412,081,840),
+    # the closest integer-width match under the eight shared LLF block scans.
+    # Bet vs K48: late dloss -.012..+.003, center -.005; speed .686-.695
+    # vs K48 .698 (-1.7%..-.4%). Q/K RoPE is inherited unchanged from K48.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48V48'
+    bam_v = 48
+    mlp_dim_by_block = [2482, 2481, 2578]
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48',
+                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-v48'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     BamMediumIndependentLLFMLPPerLayerColOnly
 ):

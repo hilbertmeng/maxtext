@@ -7741,6 +7741,9 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48V48(
 ):
     """Ledger only: raw M K48V48, fetched C8 fixed, with per-layer MLP repayment."""
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: 90b87cb; UE5a AOT loaded/FIRST_STEP confirmed.
+    # !? .669 steps/s: -4.02% vs live K48 .697, -3.60% vs K64V32 .694,
+    # -9.03% vs ColOnly .7354; materially below the .686-.695 speed bet.
     # Added BAM params vs K48V32: 3,418,880 = 3.2605 W_Q. MLP repayment
     # leaves only 2,816 extra total params vs K48 (412,084,656 vs 412,081,840),
     # the closest integer-width match under the eight shared LLF block scans.

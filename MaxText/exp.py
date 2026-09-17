@@ -7763,7 +7763,7 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: cda4dd2; UE5a AOT loaded/FIRST_STEP10, steps10-14 .701:
     # +.17% vs same-health K48 .700; +.46% vs K64Truncate .698.
-    # Result: stopped 9000. vs K48: +0.0124@9000 (last point, lowest); segment
+    # At the accidental stop: vs K48 +0.0124@9000 (last point, lowest); segment
     # means narrow monotonically from 5k (.0179 -> .0143, drift -.0016/1k,
     # accelerating). vs Truncate: +.0206@9000. Stop was premature (gap still
     # shrinking); extrapolates to ~+.005 at 13500 — still worse than K48.

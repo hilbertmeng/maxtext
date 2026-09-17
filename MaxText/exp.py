@@ -7314,6 +7314,25 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48V48(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-v48'
 
 
+class BamMediumIndependentLLLFMLPPerLayerColOnlyK48V48(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK48V48
+):
+    """Ledger only: parameter-matched raw M K48V48 with an LLLF schedule."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # Bet vs K48V48 LLF: late dloss -.003..+.003, center 0; speed 0..+1.5%.
+    # Per-role V48 repayment is unchanged. The closest static four-position scan
+    # template leaves 7,296 fewer total params than its K48V32 LLLF counterpart.
+    model_name = 'BamMediumIndependentLLLFMLPPerLayerColOnlyK48V48'
+    bam_local_fetch_block_size = 4
+    bam_layer_modes = (['local_qk+local_o'] * 3 + ['local_qk+full']) * 6
+    mlp_dim_by_block = [2482, 2481, 2481, 2578]
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48V48',
+        'BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/lllf-perlayer-col-only-k48-v48'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     BamMediumIndependentLLFMLPPerLayerColOnly
 ):

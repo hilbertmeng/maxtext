@@ -8108,7 +8108,11 @@ class BamXLSharedBasisQKDirectC8MLP(BamXLSharedBasisQKColOnlyMLP):
     # code_commit: ae75720; UE5a .5512 steps/s, -.22% vs ColOnly .5524; +1.25% vs SharedBasis EW4b .5444 (cross-zone); generic ON/BAM OFF.
     """Independent Q/K 16x8 direct column keys; same MLP width as the first arm."""
     # Ledger only; runtime ae75720, codex/xl-shared-basis-col-only, /data0/xd/xl-shared-basis-col-only.
-    # Prediction vs QKColOnlyMLP: final gap +.004.
+    # Result: stopped at 27,728. vs SharedBasis: +.0274@500 collapsed to
+    # near-zero; 23.5k-27.5k mean +.00045 (range -.00012..+.00135).
+    # vs QKColOnlyMLP: 18.5k-20.5k mean -.00122 (range -.00194..-.00086).
+    # Conclusion: independent direct-C8 column keys recover a small, stable
+    # ~.0012 over the plain row-free arm and effectively match SharedBasis.
     model_name = 'BamXLSharedBasisQKDirectC8MLP'
     bam_local_qk_col_direct_compressed = True
     bam_local_qk_share_basis = False

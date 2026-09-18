@@ -8126,6 +8126,8 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnly(
     """Ledger only: remove every BAM row read and match the XL MHA parameter budget."""
     # Implementation: codex/xl-directc8-all-col-k128,
     # /data0/xd/xl-directc8-all-col-k128; code_commit: 4fb2021.
+    # UE5a v5p-32, steps10-14 .5970 steps/s, +8.31% vs DirectC8MLP .5512;
+    # generic health ON/BAM sow OFF. PartialRoPE MHA loss baseline pending (no run cache).
     # 1,420,900,224 params, -20,608 vs matched PartialRoPE MHA; closest
     # integer-channel point. Bet vs DirectC8MLP: late +.010..+.025, center
     # +.016; speed +5..10%. Bet vs MHA: late -.015..-.045, center -.030.
@@ -8148,6 +8150,9 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     BamXLSharedBasisQKDirectC8MLPPerLayerColOnly
 ):
     """Ledger only: raw M128x32, DirectC8 LocalQK 128->96 truncate, NoPE96/RoPE32."""
+    # code_commit: 4fb2021; UE5a v5p-32, generic health ON/BAM sow OFF.
+    # !? steps10-14 .5030 steps/s, -15.75% vs same-runtime K64 .5970;
+    # slower than the -4..-9% bet; cause unresolved.
     # Same parameter tree and MLP widths as K64. Bet vs K64: late
     # -.004..-.014, center -.008; speed -4..-9%.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'

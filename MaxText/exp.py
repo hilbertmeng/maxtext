@@ -7269,6 +7269,10 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     # Same parameter tree and MLP widths as K64. Bet vs K64: late dloss
     # -.004..-.014, center -.008; throughput -4..-9%.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
+    # Full v5p-32 operator matrix: +13.81% throughput vs original mul_reduce.
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
+    bam_local_second_implementation = 'dot'
     bam_k = 128
     bam_local_qk_col_output_dim = 96
     bam_local_qk_col_output = 'truncate'

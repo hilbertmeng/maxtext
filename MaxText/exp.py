@@ -7238,6 +7238,22 @@ class BamXLSharedBasisQKDirectC8MLP(
     ]
 
 
+class BamXLSharedBasisQKDirectC8MLPPerLayer(
+    BamXLSharedBasisQKDirectC8MLP
+):
+    """Keep DirectC8 BAM reads; repay all BAM parameters from each L/L/F MLP."""
+    # Exact integer-channel budget: 1,420,904,960 params, -15,872 vs XL MHA.
+    # Bet vs PerLayerColOnly: late gap -.006..+.001, center -.003; speed -3..-6%.
+    model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayer'
+    base_mlp_dim = 5504
+    mlp_dim_by_block = [4719, 4719, 4895]
+    compare_runs = [
+        'BamXLSharedBasisQKDirectC8MLPPerLayerColOnly',
+        'BamXLSharedBasisQKDirectC8MLP',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-perlayer'
+
+
 class BamXLSharedBasisQKDirectC8MLPPerLayerColOnly(
     BamXLSharedBasisQKDirectC8MLP
 ):

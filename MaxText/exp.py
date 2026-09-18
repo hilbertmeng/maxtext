@@ -8118,3 +8118,43 @@ class BamXLSharedBasisQKDirectC8MLP(BamXLSharedBasisQKColOnlyMLP):
     bam_local_qk_share_basis = False
     compare_runs = ['BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis',
                     'BamXLSharedBasisQKColOnlyMLP']
+
+
+class BamXLSharedBasisQKDirectC8MLPPerLayerColOnly(
+    BamXLSharedBasisQKDirectC8MLP
+):
+    """Ledger only: remove every BAM row read and match the XL MHA parameter budget."""
+    # Implementation: codex/xl-directc8-all-col-k128,
+    # /data0/xd/xl-directc8-all-col-k128; code_commit: 4fb2021.
+    # 1,420,900,224 params, -20,608 vs matched PartialRoPE MHA; closest
+    # integer-channel point. Bet vs DirectC8MLP: late +.010..+.025, center
+    # +.016; speed +5..10%. Bet vs MHA: late -.015..-.045, center -.030.
+    model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnly'
+    bam_prune_all_row_reads = True
+    bam_prune_local_row_reads = False
+    bam_read_sides = 'col'
+    bam_fetched_read_side = 'col'
+    bam_local_v_share_output_coordinates = False
+    base_mlp_dim = 5504
+    mlp_dim_by_block = [5178, 5178, 5243]
+    compare_runs = [
+        'BamXLSharedBasisQKDirectC8MLP',
+        'BamMHALlama2XLHead16x128C256PartialRoPE',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-perlayer'
+
+
+class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
+    BamXLSharedBasisQKDirectC8MLPPerLayerColOnly
+):
+    """Ledger only: raw M128x32, DirectC8 LocalQK 128->96 truncate, NoPE96/RoPE32."""
+    # Same parameter tree and MLP widths as K64. Bet vs K64: late
+    # -.004..-.014, center -.008; speed -4..-9%.
+    model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
+    bam_k = 128
+    bam_local_qk_col_output_dim = 96
+    bam_local_qk_col_output = 'truncate'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 96
+    compare_runs = ['BamXLSharedBasisQKDirectC8MLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-k128-qk96'

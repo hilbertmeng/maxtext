@@ -33,8 +33,15 @@ Validation artifacts:
 - `/data0/xd/xl-directc8-row-budget.json`: parameter-matched shaped tree.
 - `/data0/xd/xl-directc8-row-tests.log`: pinned CPU BAM regression suite.
 
-Handoff uses the authoritative `/home/xd/projects/xd_tpu_scripts/hot_switch_run.py`,
-deployed with matching SHA256 on tpu-ag. Prepare and verify the exact 50,000-step
-v5p-32 AOT before stopping the old controller; retain the TPU, wait for the final
-checkpoint and old processes to exit, then launch the new RUN and require AOT
-load plus FIRST_STEP before recording ownership transfer.
+The standard READY-node handoff is `/home/xd/projects/xd_tpu_scripts/hot_switch_run.py`,
+deployed with matching SHA256 on tpu-ag. At the actual handoff the old node had
+already been preempted and its replacement queue was WAITING_FOR_RESOURCES.
+The task-specific `/data0/xd/xl-directc8-queue-handoff.py` verified the AOT and
+checkpoint 28,927, stopped the old controller, retained the accepted queue, and
+submitted the new RUN with `MODE=install+train`. Its journal is
+`tpu-ag:/home/lishengping/xd/projects/logs/xl-directc8-queue-handoff.json`.
+AOT loaded and FIRST_STEP verified; the log starts at step zero. Steps 10–14
+average 0.5796 step/s: -2.91% vs ColOnly 0.5970 and +5.15% vs DirectC8MLP
+0.5512 (same UE5a topology and health settings, different runtimes). All 43 CPU
+BAM tests pass. Compiler and backup resources were verified released by
+`AOT_CLEANUP_DONE`. The old RUN's TensorBoard sync completed successfully.

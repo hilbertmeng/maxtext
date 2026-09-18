@@ -3,6 +3,7 @@ from absl.testing import absltest
 import jax
 import jax.numpy as jnp
 import numpy as np
+from flax import core
 from flax.traverse_util import flatten_dict, unflatten_dict
 from layers.attentions import BamAttention, _packed_local_layout
 import bam_local_fetch_test
@@ -10,6 +11,61 @@ import bam_local_fetch_test
 
 class ColOnlyBudgetTest(absltest.TestCase):
   config = bam_local_fetch_test.LocalFetchTest.config
+
+  def test_xl_direct_c8_k64_and_k128_share_parameters(self):
+    import max_utils
+    names = (
+        'BamXLSharedBasisQKDirectC8MLPPerLayerColOnly',
+        'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE')
+    counts = []
+    for index, name in enumerate(names):
+      cfg = self.config(name)
+      cfg.get_keys().update(dtype=jnp.float32, emb_dim=256)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=128,
+          bam_k=cfg.bam_k, bam_v=32, max_target_length=8,
+          max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=jnp.float32,
+          layer_mode='local_qk+full', read_side='col',
+          attention_type=cfg.attention_type)
+      x = jax.random.normal(jax.random.key(1), (1, 8, 256))
+      m = jax.random.normal(jax.random.key(2), (1, 8, cfg.bam_k, 32))
+      args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+      call = dict(M_in=m, deterministic=True, layer_index=2)
+      params = core.unfreeze(
+          module.init({'params': jax.random.key(3)}, *args, **call)['params'])
+      bias = params['W_lq_bias']
+      params['W_lq_bias'] = bias.replace(value=.03 * jax.random.normal(
+          jax.random.fold_in(jax.random.key(4), index), bias.value.shape))
+
+      def direct_read(mod):
+        local = mod._local_inputs(x)
+        compressed = mod._compress_m(m)
+        return mod._read_local('q', compressed, x, local)
+
+      def reference(mod):
+        key, gate, _ = mod._local_inputs(x)['q']
+        key = key + mod.W_lq_bias
+        gate = gate + mod.W_lq_gate_b0
+        arm = mod._local_arms['q']
+        key = (jax.nn.sigmoid(gate)[..., None] * arm.key_scale * key
+               * jax.lax.rsqrt(jnp.mean(key ** 2, axis=-1, keepdims=True)
+                               + arm.rms_epsilon))
+        col = jnp.einsum('btkc,btnc->btnk', mod._compress_m(m), key)
+        width = cfg.bam_local_qk_col_output_dim or cfg.bam_k
+        col = col[..., :width]
+        return jnp.pad(col, ((0, 0), (0, 0), (0, 0), (0, 128 - width)))
+
+      actual = module.apply({'params': params}, method=direct_read)
+      expected = module.apply({'params': params}, method=reference)
+      np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
+      counts.append(sum(x.size for x in jax.tree.leaves(params)))
+      grad = jax.grad(lambda p: jnp.sum(
+          module.apply({'params': p}, method=direct_read)))(params)
+      self.assertGreater(float(jnp.linalg.norm(
+          grad['W_local_packed']['kernel'].value)), 0.)
+    self.assertEqual(counts[0], counts[1])
 
   def test_no_local_qk_modes_keep_output_reads_and_write(self):
     import max_utils

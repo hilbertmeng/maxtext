@@ -285,6 +285,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_post_read_v_init = 'orthogonal'  # orthogonal | identity
     bam_local_qk_col_output_dim = None  # Optional column-only LocalQK width after reading M.
     bam_local_qk_col_output = 'truncate'  # truncate | project (separate Q/K selector-initialized maps)
+    bam_local_qk_col_direct_compressed = False
     bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
     bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
@@ -7220,6 +7221,61 @@ class BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile(B
     model_name = 'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasisNoHealthProfile'
     # EW4b v5p-32 scan/AOT, e05b537: .54883 steps/s, -.28% vs all-health-OFF QKVC Rank2 .5504.
     record_training_health_metrics = False
+
+
+class BamXLSharedBasisQKDirectC8MLP(
+    BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis
+):
+    """Independent per-head Q/K C8 column keys."""
+    model_name = 'BamXLSharedBasisQKDirectC8MLP'
+    bam_partial_rope_nope_dim = 96
+    base_mlp_dim = 5642
+    bam_local_qk_col_direct_compressed = True
+    bam_local_qk_share_basis = False
+    compare_runs = [
+        'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis',
+        'BamXLSharedBasisQKColOnlyMLP',
+    ]
+
+
+class BamXLSharedBasisQKDirectC8MLPPerLayerColOnly(
+    BamXLSharedBasisQKDirectC8MLP
+):
+    """Remove every BAM row read and repay BAM parameters from each L/L/F MLP."""
+    # Implementation: codex/xl-directc8-all-col-k128, /data0/xd/xl-directc8-all-col-k128.
+    # Bet vs DirectC8MLP: late dloss +.010..+.025, center +.016; throughput +5..10%.
+    # Bet vs parameter-matched PartialRoPE MHA: late dloss -.015..-.045, center -.030.
+    model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnly'
+    bam_prune_all_row_reads = True
+    bam_prune_local_row_reads = False
+    bam_read_sides = 'col'
+    bam_fetched_read_side = 'col'
+    bam_local_v_share_output_coordinates = False
+    base_mlp_dim = 5504
+    # 1,420,900,224 params: -20,608 vs matched XL MHA, the closest integer-channel
+    # point. K64 and K128 have identical parameter trees and share these widths.
+    mlp_dim_by_block = [5178, 5178, 5243]
+    compare_runs = [
+        'BamXLSharedBasisQKDirectC8MLP',
+        'BamMHALlama2XLHead16x128C256PartialRoPE',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-perlayer'
+
+
+class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
+    BamXLSharedBasisQKDirectC8MLPPerLayerColOnly
+):
+    """Expand raw M to 128x32; truncate LocalQK to NoPE96 and RoPE the tail32."""
+    # Same parameter tree and MLP widths as K64. Bet vs K64: late dloss
+    # -.004..-.014, center -.008; throughput -4..-9%.
+    model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
+    bam_k = 128
+    bam_local_qk_col_output_dim = 96
+    bam_local_qk_col_output = 'truncate'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 96
+    compare_runs = ['BamXLSharedBasisQKDirectC8MLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-k128-qk96'
 
 class BamMediumIndependentLLFBAlignedRowMLPUniform(
     BamMediumIndependentLLFLocalVRank4RoutingBAlignedRow

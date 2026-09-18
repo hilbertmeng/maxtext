@@ -1812,6 +1812,7 @@ class _BamReadArm:
   rank_routing: str = 'legacy'    # legacy | shared_rank_gate | head_gate_n | head_gate_r | effective_key
   pre_rms_bias: bool = True       # add the learned key bias before the RMS transform
   prune_row: bool = False         # parameter-budget ablation: store only column slots
+  compact_direct: bool = False    # one independent per-head column key; no rank mix
   # Key transform.
   key_mode: str = 'rms_gate'      # none | rms | rms_gate
   key_scale: float = 1.0
@@ -1842,6 +1843,8 @@ class _BamReadArm:
       raise ValueError(f'{self.name} read arm: rank must be positive, got {self.rank}')
     if self.prune_row and self.read_side != 'col':
       raise ValueError('Pruned row parameters require column-only reads')
+    if self.compact_direct and not self.prune_row:
+      raise ValueError('Compact direct reads require pruned row parameters')
     if self.per_head_gate and self.key_mode != 'rms_gate':
       raise ValueError(f'{self.name} read arm: per-head gating requires rms_gate')
 
@@ -1855,19 +1858,27 @@ class _BamReadArm:
 
   @property
   def basis_width(self):
+    if self.compact_direct:
+      return self.num_heads * self.v_dim
     return self.rank * self.key_width
 
   @property
   def key_shape(self):
+    if self.compact_direct:
+      return (self.num_heads, self.v_dim)
     return (self.rank, self.key_width)
 
   @property
   def mix_shape(self):
+    if self.compact_direct:
+      return (self.num_heads, 0)
     return (self.num_heads, 1 if self.prune_row else 2, self.rank)
 
   @property
   def gate_shape(self):
     """Trailing shape of the projected gate logits."""
+    if self.compact_direct:
+      return (self.num_heads,)
     sides = 1 if self.prune_row else 2
     return {
         'legacy': (sides,),
@@ -2332,14 +2343,17 @@ def _packed_local_arms_init(kernel_init, arms, paired_row_width=0, share_qk_basi
         basis = jnp.concatenate(slots, axis=-1)
       else:
         basis = zeros(arm.basis_width)
-      init_mix_shape = (arm.num_heads, 2, arm.rank) if arm.prune_row else arm.mix_shape
-      mix = kernel_init(
-          arm_key, (embed,) + init_mix_shape, dtype, 0,
-          tuple(range(1, 1 + len(arm.mix_shape)))
-      )
-      if arm.prune_row:
-        mix = mix[..., 1:2, :]
-      mix = mix.reshape(embed, arm.mix_width)
+      if arm.compact_direct:
+        mix = zeros(0)
+      else:
+        init_mix_shape = (arm.num_heads, 2, arm.rank) if arm.prune_row else arm.mix_shape
+        mix = kernel_init(
+            arm_key, (embed,) + init_mix_shape, dtype, 0,
+            tuple(range(1, 1 + len(arm.mix_shape)))
+        )
+        if arm.prune_row:
+          mix = mix[..., 1:2, :]
+        mix = mix.reshape(embed, arm.mix_width)
       if not (share_qk_basis and arm.name == 'k'):
         pieces.append(basis)
       pieces.extend((zeros(arm.gate_width), mix))
@@ -2400,6 +2414,8 @@ class BamAttention(Attention):
         cfg, 'bam_seed_paired_local_row_key', False))
     self._prune_all_row_reads = bool(getattr(
         cfg, 'bam_prune_all_row_reads', False))
+    self._local_qk_col_direct_compressed = bool(getattr(
+        cfg, 'bam_local_qk_col_direct_compressed', False))
     self._local_qk_col_output_dim = getattr(
         cfg, 'bam_local_qk_col_output_dim', None)
     if self._local_qk_col_output_dim is not None:
@@ -2587,6 +2603,15 @@ class BamAttention(Attention):
             **{key: arm_setting(name, key)
                for key in ('rank', 'rank_routing', 'pre_rms_bias')})
         for name in arm_names}
+    if self._local_qk_col_direct_compressed:
+      assert self._abs_v_dim is not None
+      assert not getattr(cfg, 'bam_local_qk_share_basis', False)
+      self._local_arms = {
+          name: dataclasses.replace(
+              arm, v_dim=self._abs_v_dim, compact_direct=True,
+              prune_row=True, read_side='col')
+          if name in ('q', 'k') else arm
+          for name, arm in self._local_arms.items()}
     if getattr(cfg, 'bam_prune_local_row_reads', False):
       assert self._local_v_mode in ('none', 'rank2')
       assert self._local_qk_post_read_v_dim is None
@@ -3021,6 +3046,23 @@ class BamAttention(Attention):
       key = key + jnp.asarray(getattr(self, f'{prefix}_bias'), key.dtype)
     gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
     gate = gate + jnp.asarray(gate_bias, gate.dtype)
+    if arm.compact_direct:
+      key = normalizations.rms_norm(
+          key, dtype=key.dtype, epsilon=arm.rms_epsilon,
+          statistics_dtype=arm.rms_statistics_dtype)
+      key = (jnp.asarray(arm.key_scale, key.dtype)
+             * arm.gate_activation(gate)[..., None] * key)
+      col, _ = _contract_bam_read_sides(
+          M, M, None, key, arm.implementation, 'col')
+      if self._local_qk_col_output_dim is not None:
+        if self._local_qk_col_output == 'truncate':
+          col = col[..., :self._local_qk_col_output_dim]
+        else:
+          projection = getattr(self, f'local_{name}_col_projection')
+          col = jnp.einsum(
+              '...nk,kd->...nd', col, projection.astype(col.dtype))
+      return _pack_fetched_bam_heads(
+          col, self.num_query_heads, self.head_dim)
     q_projection, k_projection = self._local_qk_post_read_v_projections()
     v_projection = None
     if name == 'v' and getattr(self.config, 'bam_local_v_share_output_coordinates', False):
@@ -3320,10 +3362,12 @@ class BamAttention(Attention):
           Mh = self._matrix_for_read(M_in)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
-        basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
+        qk_state = (self._compress_m(Mh)
+                    if self._local_qk_col_direct_compressed else Mh)
+        basis_cache = self._shared_qk_basis(qk_state, local_inputs) if self._share_qk_basis else None
         query, key = self._add_local_qk(
-            query, key, self._read_local('q', Mh, inputs_q, local_inputs, basis_cache),
-            self._read_local('k', Mh, inputs_q, local_inputs, basis_cache))
+            query, key, self._read_local('q', qk_state, inputs_q, local_inputs, basis_cache),
+            self._read_local('k', qk_state, inputs_q, local_inputs, basis_cache))
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)

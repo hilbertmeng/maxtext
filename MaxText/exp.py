@@ -7746,6 +7746,22 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k32-nope48'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE
+):
+    """Ledger only: remove LocalQK; retain LLF writes and local/fetched O column reads."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: e17e4da; UE5a AOT loaded/FIRST_STEP, steps10-14 .754:
+    # +1.62% vs K32 Partial .742; generic health ON/BAM sow OFF.
+    # Bet vs LocalQK parent: late dloss +.010..+.018, center +.014.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK'
+    bam_layer_modes = ['local_o', 'local_o', 'full'] * 8
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k32-nope48-no-local-qk'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
     BamMediumIndependentLLFMLPPerLayerColOnly
 ):
@@ -7781,6 +7797,36 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
         'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
     ]
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-prope'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK48FullRoPECdaRepro200(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK48
+):
+    """Ledger only: K48 full-RoPE prefix reproduced on the K48-partial runtime family."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: a1b8efb; UE5a AOT loaded/FIRST_STEP12, .699 steps/s:
+    # -.14% vs original K48 .700. Stopped after the 200-step check (235 logged
+    # points, steps 0..234); all 235 losses exactly match e7b180e K48.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48FullRoPECdaRepro200'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-full-cda-repro200'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE
+):
+    """Ledger only: remove LocalQK; retain LLF writes and local/fetched O column reads."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: e17e4da; UE5a AOT loaded/FIRST_STEP9, steps10-14 .724:
+    # +3.28% vs K48 Partial .701; generic health ON/BAM sow OFF.
+    # Bet vs LocalQK parent: late dloss -.008..+.003, center -.003.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK'
+    bam_layer_modes = ['local_o', 'local_o', 'full'] * 8
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-prope-no-local-qk'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyK48V48(
@@ -7848,6 +7894,24 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     bam_partial_rope_nope_dim = 48
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
+):
+    """Ledger only: remove LocalQK from M[64,32]; retain partial RoPE and O reads."""
+    # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # code_commit: e17e4da; UE5a AOT loaded/FIRST_STEP, steps10-14 .714:
+    # +2.29% vs K64 Partial .698; generic health ON/BAM sow OFF.
+    # Bet vs LocalQK parent: late dloss +.010..+.018, center +.014.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK'
+    bam_local_qk_col_output_dim = None
+    bam_layer_modes = ['local_o', 'local_o', 'full'] * 8
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-nope48-no-local-qk'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE(

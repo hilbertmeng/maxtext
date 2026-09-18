@@ -7654,8 +7654,15 @@ class BamMediumIndependentLLFBAlignedRow21LayerMLP2896(BamMediumIndependentLLFBA
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-21layer-mlp2896'
 
 
-class BamXLK128OperatorProfileBase(TrainStepProfile, BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE):
+class BamXLK128OperatorProfileBase(BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE):
     """Six-layer K128 operator matrix; W/R/S = write/read/head-mix, M/D = mul/dot."""
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    profile_cleanly = True
+    upload_all_profiler_results = True
+    enable_checkpointing = False
+    async_checkpointing = False
     base_num_decoder_layers = 6
     bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
     per_device_batch_size = 1.0

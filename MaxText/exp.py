@@ -8127,10 +8127,10 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnly(
     # Implementation: codex/xl-directc8-all-col-k128,
     # /data0/xd/xl-directc8-all-col-k128; code_commit: 4fb2021.
     # UE5a v5p-32, steps10-14 .5970 steps/s, +8.31% vs DirectC8MLP .5512;
-    # generic health ON/BAM sow OFF. PartialRoPE MHA loss baseline pending (no run cache).
+    # generic health ON/BAM sow OFF.
     # 1,420,900,224 params, -20,608 vs matched PartialRoPE MHA; closest
     # integer-channel point. Bet vs DirectC8MLP: late +.010..+.025, center
-    # +.016; speed +5..10%. Bet vs MHA: late -.015..-.045, center -.030.
+    # +.016; speed +5..10%.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnly'
     bam_prune_all_row_reads = True
     bam_prune_local_row_reads = False
@@ -8141,7 +8141,6 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnly(
     mlp_dim_by_block = [5178, 5178, 5243]
     compare_runs = [
         'BamXLSharedBasisQKDirectC8MLP',
-        'BamMHALlama2XLHead16x128C256PartialRoPE',
     ]
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-perlayer'
 

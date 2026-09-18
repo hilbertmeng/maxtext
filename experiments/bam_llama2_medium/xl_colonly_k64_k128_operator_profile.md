@@ -152,3 +152,62 @@ LM head and elementwise work enlarge the denominator). This refines the earlier
 <1% dense-pair estimate; it cannot explain the observed 18.69% training step-time
 penalty. Forward counts are distinct from XPlane model_flops (compiled lowering,
 backward, rematerialization and padding). Do not infer runtime from FLOPs alone.
+
+
+## Full-layer follow-up
+
+UC1a `xd-v5p-32-xl-k-ops-us-central1-a` won acquisition; K64 control loaded AOT
+and produced a verified trace. UE5a backup node/queue verified deleted. Initial
+six-arm manifest: tpu-ag
+`logs/profile-matrix-3d59d64-xl-k-ops-full-20260918T103412Z-4150568.tsv`.
+Raw full-model artifacts: `/data0/xd/bam_diagnostics/xl-colonly-k-operators/full/`.
+
+Full-model preliminary timing reverses the marginal v6e K64 ranking: WDRDSM
+trace-free steps20–24 .5748 versus .6030 control (-4.68%). Thus extend final
+same-VM confirmation to all 16 configurations, rather than treating the
+small-batch screening order as transferable. Additional compiler only:
+`xd-v6e-1-xl-k-ops-extra-ew4a` (EW4a, same runtime). Runners on tpu-ag:
+`logs/xl-ops-compile-extra.sh` and `logs/xl-ops-launch-full-extra.sh`;
+local copies `/data0/xd/`. Additional arms wait for their precompiled objects
+and the original matrix to finish, then run sequentially on the same UC1a VM.
+
+
+## Full-layer original-operator main profile
+
+`BamXLK64OperatorWMRMSMFull` / `BamXLK128OperatorWMRMSMFull`, runtime `3d59d64`,
+same UC1a v5p-32, 24 layers, per-device B16/T2048, C256, generic health ON,
+BAM sow OFF. AOT loaded for each. Trace-free log steps20–24: .6030 / .5070
+steps/s (K128 -15.92%). The profile requests steps10–14, but its device event
+buffer retains one fully covered step and part of the next: only the complete
+step on each of worker0's eight traced TPU cores enters this table; incomplete
+step markers are rejected. Thus the profile is scope evidence; the matched
+five-step, trace-free log window is the throughput check. Other workers'
+cores are not individually profiled. `while` wrapper totals are excluded.
+
+Theory counts forward arithmetic per token averaged over layers, with
+`W_Q = 2 D²` FLOPs. It omits elementwise operations, LM-head and optimizer work;
+the residual's theoretical entry covers only standard Transformer blocks.
+XPlane TF/GB cover the actual compiled training executable, including backward
+and rematerialization. A source label may absorb fused neighboring operations.
+The outer-product row is a subset of write M, not an additional total.
+
+| Part | Forward theory W_Q (K64 / K128) | K64 ms | K128 ms | Delta ms | K64 / K128 TF | K64 / K128 GB |
+|---|---:|---:|---:|---:|---:|---:|
+| Transformer / optimizer / unscoped | 12.7417 / 12.7417 | 1387.70 | 1405.68 | +17.98 | 170.3582 / 170.3579 | 1211.40 / 1214.75 |
+| local QKV packed projection | .208333 / .208333 | 21.19 | 21.18 | -0.01 | 2.7533 / 2.7533 | 38.58 / 38.58 |
+| write M | .171875 / .179688 | 78.53 | 209.83 | +131.30 | 2.2695 / 2.3527 | 108.70 / 143.27 |
+| ↳ outer (subset) | .007813 / .015625 | 24.99 | 133.48 | +108.49 | 0.0759 / 0.1520 | 8.46 / 19.73 |
+| C8 compression | .003906 / .007813 | 14.07 | 27.98 | +13.91 | 0.0799 / 0.1597 | 16.78 / 33.55 |
+| LocalQK read | .003906 / .007813 | 52.82 | 119.17 | +66.34 | 0.0585 / 0.1104 | 28.64 / 39.51 |
+| LocalV read + expansion | .001953 / .003906 | 19.59 | 60.45 | +40.86 | 0.0272 / 0.0517 | 16.95 / 25.55 |
+| O key/gate + read | .072266 / .074219 | 42.77 | 82.20 | +39.43 | 0.9580 / 0.9828 | 67.06 / 77.20 |
+| route key + head mixing | .004069 / .004069 | 17.35 | 17.44 | +0.09 | 0.0637 / 0.0637 | 25.30 / 25.30 |
+| temporal fetch | .046875 / .093750 | 5.06 | 8.43 | +3.36 | 0.6195 / 1.2385 | 4.67 / 8.09 |
+| complete step | ≈13.2549 / ≈13.3213 | 1639.64 | 1952.92 | +313.28 | 177.1879 / 178.0707 | 1518.08 / 1605.81 |
+
+Compiled FLOPs increase only .498%, versus +19.106% device step time. Named
+BAM scopes contribute +295.30 ms of the +313.28 ms difference. In K64 WDRDSM,
+copy-kernel time rises 47.54→128.92 ms (+81.38), against +83.26 ms complete
+step time, while compiled FLOPs are unchanged to .004%. This identifies layout
+traffic as a concrete candidate for the ranking reversal; isolated operator
+switches are being measured before attributing it to a specific knob.

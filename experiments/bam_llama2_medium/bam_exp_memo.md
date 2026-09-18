@@ -541,3 +541,42 @@ Design documents:
 
 - [`bam_scan_design.md`](bam_scan_design.md)
 - [`shared_qchunk_swa_design.md`](shared_qchunk_swa_design.md)
+
+
+### XL all-column K64/K128 main profile
+
+`BamXLSharedBasisQKDirectC8MLPPerLayerColOnly` and
+`BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE`:
+training runtime `4fb2021`; profile classes `BamXLK64OperatorWMRMSMFull` and
+`BamXLK128OperatorWMRMSMFull` at `3d59d64`. Same UC1a v5p-32, 24 layers,
+B16/device,T2048,C256; generic health ON/BAM sow OFF. Trace-free steps20–24
+.6030/.5070 steps/s: K128 -15.92% throughput, consistent with formal UE5a
+-15.75%. XPlane device time +19.11%, compiled FLOPs only +.498%.
+
+Forward theory uses W_Q=2D² FLOPs per token averaged over layers; omits
+LM-head/optimizer and elementwise arithmetic. XPlane includes backward/remat.
+Device event buffers retain one complete step on worker0's eight TPU cores;
+partial next-step markers and nested `while` wrappers are excluded. Full step
+speed is independently checked using the five trace-free steps above. Fused
+source scopes describe compiler attribution, not separable causal components.
+
+| Part | Forward theory W_Q (K64 / K128) | K64 ms | K128 ms | Delta ms | K64 / K128 TF | K64 / K128 GB |
+|---|---:|---:|---:|---:|---:|---:|
+| Transformer / optimizer / unscoped | 12.7417 / 12.7417 | 1387.70 | 1405.68 | +17.98 | 170.3582 / 170.3579 | 1211.40 / 1214.75 |
+| local QKV packed projection | .208333 / .208333 | 21.19 | 21.18 | -0.01 | 2.7533 / 2.7533 | 38.58 / 38.58 |
+| write M | .171875 / .179688 | 78.53 | 209.83 | +131.30 | 2.2695 / 2.3527 | 108.70 / 143.27 |
+| ↳ outer (subset) | .007813 / .015625 | 24.99 | 133.48 | +108.49 | 0.0759 / 0.1520 | 8.46 / 19.73 |
+| C8 compression | .003906 / .007813 | 14.07 | 27.98 | +13.91 | 0.0799 / 0.1597 | 16.78 / 33.55 |
+| LocalQK read | .003906 / .007813 | 52.82 | 119.17 | +66.34 | 0.0585 / 0.1104 | 28.64 / 39.51 |
+| LocalV read + expansion | .001953 / .003906 | 19.59 | 60.45 | +40.86 | 0.0272 / 0.0517 | 16.95 / 25.55 |
+| O key/gate + read | .072266 / .074219 | 42.77 | 82.20 | +39.43 | 0.9580 / 0.9828 | 67.06 / 77.20 |
+| route key + head mixing | .004069 / .004069 | 17.35 | 17.44 | +0.09 | 0.0637 / 0.0637 | 25.30 / 25.30 |
+| temporal fetch | .046875 / .093750 | 5.06 | 8.43 | +3.36 | 0.6195 / 1.2385 | 4.67 / 8.09 |
+| complete step | ≈13.2549 / ≈13.3213 | 1639.64 | 1952.92 | +313.28 | 177.1879 / 178.0707 | 1518.08 / 1605.81 |
+
+Raw data: `/data0/xd/bam_diagnostics/xl-colonly-k-operators/`.
+[Operator matrix, provenance and full profile details](xl_colonly_k64_k128_operator_profile.md).
+The complete v6e screen identifies a large K128 all-dot gain, but K64 ranking
+changes on full v5p: write/read dot with mul-reduce head expansion adds ~81 ms
+of copy kernels and ~83 ms whole-step time. Full same-VM operator matrix is
+being completed before selecting either model's setting.

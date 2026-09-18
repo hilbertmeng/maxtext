@@ -7727,9 +7727,15 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE(
 ):
     """Ledger only: K32 with the fixed NoPE48/RoPE16 comparison layout."""
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
-    # code_commit: 7319f57; UE5a AOT loaded/FIRST_STEP14, steps10-14 .742:
+    # code_commit: 7319f57; UE5a AOT loaded/FIRST_STEP14, .742 steps/s:
     # +.84% vs same-health full-RoPE K32 .7354.
-    # Bet vs full-RoPE K32: late dloss +.013..+.021, center +.017.
+    # Result: completed 13500 (9 preemptions). vs K32: -.0061 (drift
+    # -.0003/1k deepening to completion, partial-RoPE helps K32 ~.006, not
+    # plateaued). vs K48PartialRoPE: -.0045 (drift -.0005/1k deepening).
+    # Conclusion: partial-RoPE on K32 helps by ~.006 — opposite of K48 where
+    # it hurts +.014; the partial-RoPE effect is base-dependent. K32+partial
+    # beats K48+partial, i.e. K48 expansion and partial-RoPE negatively
+    # interact.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 48

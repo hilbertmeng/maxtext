@@ -779,3 +779,13 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE | 1 | `us-east5-a` | 2026-09-17 11:17:18 | 2026-09-17 14:59:58 | 3h42m40s | run stop; stopped 9,000; checkpoint 9,000 committed; TPU/queue verified absent
 | BamMediumIndependentLLLFMLPPerLayerColOnlyK48V48 | 1 | `us-east5-a` | 2026-09-17 09:07:35 | 2026-09-17 15:27:01 | 6h19m26s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 16:08:33 | 2026-09-17 17:55 | 1h47m | run stop; resumed from 9,000 after checkpoint repair; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 1 | `us-east5-a` | 2026-09-17 16:37:06 | 2026-09-17 17:04:01 | 26m55s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 17:10:56 | 2026-09-17 17:18:11 | 7m15s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 3 | `us-east5-a` | 2026-09-17 17:26:01 | 2026-09-17 19:07:47 | 1h41m46s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 4 | `us-east5-a` | 2026-09-17 19:13:24 | 2026-09-17 19:19:15 | 5m51s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 5 | `us-east5-a` | 2026-09-17 19:42:34 | 2026-09-17 21:15:18 | 1h32m44s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 6 | `us-east5-a` | 2026-09-17 21:31:44 | 2026-09-17 22:07:57 | 36m13s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 7 | `us-east5-a` | 2026-09-17 22:36:27 | 2026-09-17 22:44:46 | 8m19s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 8 | `us-east5-a` | 2026-09-17 22:52:33 | 2026-09-17 22:55:02 | 2m29s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 9 | `us-east5-a` | 2026-09-17 23:03:51 | 2026-09-17 23:26:22 | 22m31s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 10 | `us-east5-a` | 2026-09-17 23:59:30 | 2026-09-18 00:49:55 | 50m25s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |

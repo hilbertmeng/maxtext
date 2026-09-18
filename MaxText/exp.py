@@ -7242,6 +7242,8 @@ class BamXLSharedBasisQKDirectC8MLPPerLayer(
     BamXLSharedBasisQKDirectC8MLP
 ):
     """Keep DirectC8 BAM reads; repay all BAM parameters from each L/L/F MLP."""
+    # code_commit: 57291c7; UE5a v5p-32 .5796 steps/s (10-14), generic ON/BAM OFF.
+    # -2.91% vs PerLayerColOnly .5970; +5.15% vs DirectC8MLP .5512 (different runtimes).
     # Exact integer-channel budget: 1,420,904,960 params, -15,872 vs XL MHA.
     # Bet vs PerLayerColOnly: late gap -.006..+.001, center -.003; speed -3..-6%.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayer'
@@ -7259,8 +7261,10 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnly(
 ):
     """Remove every BAM row read and repay BAM parameters from each L/L/F MLP."""
     # Implementation: codex/xl-directc8-all-col-k128, /data0/xd/xl-directc8-all-col-k128.
-    # Bet vs DirectC8MLP: late dloss +.010..+.025, center +.016; throughput +5..10%.
-    # Bet vs parameter-matched PartialRoPE MHA: late dloss -.015..-.045, center -.030.
+    # code_commit: 4fb2021; UE5a .5970 steps/s, +8.31% vs DirectC8MLP; generic ON/BAM OFF.
+    # Stopped at checkpoint 28,927. vs DirectC8MLP: early +.0951 collapsed to ~+.007;
+    # final five windows through 27.5k mean +.00711 (.00651.. .00800).
+    # DirectC8MLP stopped at 27,728; no later same-step gap is available.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnly'
     bam_prune_all_row_reads = True
     bam_prune_local_row_reads = False
@@ -7273,7 +7277,6 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnly(
     mlp_dim_by_block = [5178, 5178, 5243]
     compare_runs = [
         'BamXLSharedBasisQKDirectC8MLP',
-        'BamMHALlama2XLHead16x128C256PartialRoPE',
     ]
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-perlayer'
 

@@ -16,6 +16,7 @@ OUTER = {
     "compress_abs_v": "bam/compress_abs_v_cache",
     "fetch_m": "bam/fetch_m",
     "local_qk": "bam/read_local_m_for_qk",
+    "local_v": "bam/read_local_m_for_v",
     "fetched": "bam/read_fetched_m",
     "local_v_gate_projection": "read_gate_projection/W_lv_gate",
     "local_output_gating": "self_attention._gate_local_output/",
@@ -49,7 +50,7 @@ def classify_local(op):
     return "head_mix_expand"
   if "read_head_mix_transform" in op:
     return "head_mix_transform"
-  if ("read_m_contract" in op or "btkv,btv->btk" in op
+  if ("read_m_contract" in op or "contract_1a" in op or "contract_1b" in op or "btkv,btv->btk" in op
       or "btkv,btk->btv" in op):
     return "read_m"
   if ("read_key_projection" in op or "/W_lq/" in op or "/W_lk/" in op):
@@ -216,6 +217,8 @@ def summarize(path):
           add(buckets[f"fetch.{classify_fetch(op)}"], value)
         elif name == "local_qk":
           add(buckets[f"local.{classify_local(op)}"], value)
+        elif name == "local_v":
+          add(buckets[f"local_v.{classify_local(op)}"], value)
         elif name == "fetched":
           add(buckets[f"fetched.{classify_fetched(op)}"], value)
         break

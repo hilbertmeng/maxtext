@@ -33,10 +33,10 @@ and each model's winner in one same-zone final matrix.
 ## Resources and runners
 
 - A: `xd-v6e-1-xl-k128-ops-europe-west4-a`; initial allocation entered
-  maintenance before FIRST_STEP; release started, replacement pending.
-- B: `xd-v6e-1-xl-k-ops-b-ew4a`; provisioning.
+  maintenance before FIRST_STEP; verified released, replaced, now matrix A running.
+- B: `xd-v6e-1-xl-k-ops-b-ew4a`; matrix B running, K64 control trace verified.
 - Backup queues: `xd-v6e-1-xl-k128-ops-us-central1-a`,
-  `xd-v6e-1-xl-k128-ops-us-east5-a`; release exact resources after FIRST_STEP.
+  `xd-v6e-1-xl-k128-ops-us-east5-a`; both verified deleted after first trace.
 - Launcher: `/data0/xd/xl-ops-launch.sh`, copied to
   `tpu-ag:/home/lishengping/xd/projects/logs/xl-ops-launch.sh`.
 - Authoritative matrix runner: `/home/xd/projects/xd_tpu_scripts/run_profile_matrix.sh`.
@@ -57,3 +57,21 @@ XPlane FLOPs and bytes, forward vs backward/recompute where distinguishable.
 Exclude scan while-parent double counting; report overlapping scopes explicitly.
 Reuse `experiments/bam_llama2_medium/analyze_bam_xplane.py`, extending classification
 for DirectC8 QK and independent LocalV if necessary. Parse profiles locally only.
+
+## Initial paired controls (provisional, v6e B=1 / 6 layers)
+
+Same B VM, mean of complete kernel-covered device steps in the step10–14 trace; figures are
+not full-v5p training timings. Generic health ON, BAM sow OFF, all three
+operators mul_reduce. Existing scope classification needs DirectC8/LocalV
+fusion review before treating the table as exhaustive additive attribution.
+
+| Configuration | Device step ms | Compiled XLA TF | Compiled XLA GB |
+|---|---:|---:|---:|
+| BamXLK64OperatorWMRMSM | 61.580 | 6.31662 | 73.973 |
+| BamXLK128OperatorWMRMSM | 71.041 | 6.43658 | 82.286 |
+
+K128 step time +15.36%. Initial named-scope deltas: LocalQK +4.50 ms,
+write M +2.61 ms, O reads +1.03 ms, temporal fetch approximately unchanged.
+These are scope observations, not yet causal attribution of the difference.
+Raw artifacts and summary JSON/TXT:
+`/data0/xd/bam_diagnostics/xl-colonly-k-operators/b-k{64,128}-mmm*`.

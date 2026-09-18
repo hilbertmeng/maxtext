@@ -8150,8 +8150,10 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
 ):
     """Ledger only: raw M128x32, DirectC8 LocalQK 128->96 truncate, NoPE96/RoPE32."""
     # code_commit: 4fb2021; UE5a v5p-32, generic health ON/BAM sow OFF.
-    # !? steps10-14 .5030 steps/s, -15.75% vs same-runtime K64 .5970;
-    # slower than the -4..-9% bet; cause unresolved.
+    # steps10-14 .5030 steps/s, -15.75% vs same-runtime K64 .5970.
+    # Profile 3d59d64: lowering/layout cost, FLOPs only +.5%; full-v5p K128
+    # all-dot +13.81%, then -4.31% vs K64; formal runtime unchanged.
+    # Artifacts: /data0/xd/bam_diagnostics/xl-colonly-k-operators/.
     # Same parameter tree and MLP widths as K64. Bet vs K64: late
     # -.004..-.014, center -.008; speed -4..-9%.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'

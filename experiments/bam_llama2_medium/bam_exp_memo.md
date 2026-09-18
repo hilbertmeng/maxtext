@@ -555,7 +555,7 @@ B16/device,T2048,C256; generic health ON/BAM sow OFF. Trace-free steps20–24
 
 Forward theory uses W_Q=2D² FLOPs per token averaged over layers; omits
 LM-head/optimizer and elementwise arithmetic. XPlane includes backward/remat.
-Device event buffers retain one complete step on worker0's eight TPU cores;
+Device event buffers retain one complete step on the primary profiler host's eight TPU cores (JAX process0, gcloud worker1);
 partial next-step markers and nested `while` wrappers are excluded. Full step
 speed is independently checked using the five trace-free steps above. Fused
 source scopes describe compiler attribution, not separable causal components.
@@ -576,7 +576,17 @@ source scopes describe compiler attribution, not separable causal components.
 
 Raw data: `/data0/xd/bam_diagnostics/xl-colonly-k-operators/`.
 [Operator matrix, provenance and full profile details](xl_colonly_k64_k128_operator_profile.md).
-The complete v6e screen identifies a large K128 all-dot gain, but K64 ranking
-changes on full v5p: write/read dot with mul-reduce head expansion adds ~81 ms
-of copy kernels and ~83 ms whole-step time. Full same-VM operator matrix is
-being completed before selecting either model's setting.
+All 16 full-layer combinations were tested on the same VM. K64 retains all
+mul_reduce (.6030 steps/s); K128 all-dot reaches .5770 (+13.81% vs its .5070
+control). Each model using its best setting leaves K128 4.31% slower than K64,
+versus the original 15.92% gap. K128 write/read dot with mul-reduce expansion
+already achieves +13.10%; the expansion switch adds .63%.
+
+K128 write-only dot reduces its outer-product kernel 133.48→25.29 ms and raises
+throughput 6.31%. K64 saves only 2.36 ms there but adds 34.58 ms of copy kernels;
+its throughput falls 1.63%. K64 write/read dot adds 81.38 ms of copies and
+83.26 ms whole-step time. Thus the marginal v6e K64 ranking did not transfer
+to the full v5p shape. Compiled K128 FLOPs/bytes remain essentially unchanged
+under all-dot (178.084 TF / 1609.49 GB); better lowering drives the speedup.
+Formal training runtime/settings remain unchanged. Full result matrix,
+BF16 value checks, scope limits and retained raw paths are in the linked report.

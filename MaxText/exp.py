@@ -7298,6 +7298,19 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k32-nope48'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE
+):
+    """Remove LocalQK while retaining LLF writes and local/fetched O column reads."""
+    # Bet vs LocalQK parent: late dloss +.010..+.018, center +.014.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK'
+    bam_layer_modes = ['local_o', 'local_o', 'full'] * 8
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k32-nope48-no-local-qk'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK48(
     BamMediumIndependentLLFMLPPerLayerColOnly
 ):
@@ -7332,6 +7345,30 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE(
         'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
     ]
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-prope'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK48FullRoPECdaRepro200(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK48
+):
+    """Clean K48 full-RoPE prefix on the K48-partial implementation runtime."""
+    # Bet: steps 0..200 exactly reproduce the e7b180e K48 losses; ~.700 steps/s.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48FullRoPECdaRepro200'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-full-cda-repro200'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE
+):
+    """Remove LocalQK while retaining LLF writes and local/fetched O column reads."""
+    # Bet vs LocalQK parent: late dloss -.008..+.003, center -.003.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK'
+    bam_layer_modes = ['local_o', 'local_o', 'full'] * 8
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k48-prope-no-local-qk'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyK48V48(
@@ -7394,6 +7431,21 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48',
                     'BamMediumIndependentLLFMLPPerLayerColOnly']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
+
+
+class BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
+):
+    """Remove LocalQK from raw M[64,32] while retaining partial RoPE and O reads."""
+    # Bet vs LocalQK parent: late dloss +.010..+.018, center +.014.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK'
+    bam_local_qk_col_output_dim = None
+    bam_layer_modes = ['local_o', 'local_o', 'full'] * 8
+    compare_runs = [
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+        'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK',
+    ]
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-nope48-no-local-qk'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE(

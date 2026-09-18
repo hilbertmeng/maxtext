@@ -2457,8 +2457,8 @@ class BamAttention(Attention):
         set() if self.layer_mode == 'none'
         else set(self.layer_mode.replace('+', ' ').split()))
     assert self._mode in (
-        set(), {'write'}, {'local_qk'}, {'local_qk', 'full'},
-        {'local_qk', 'local_o'}), (
+        set(), {'write'}, {'full'}, {'local_o'}, {'local_o', 'full'},
+        {'local_qk'}, {'local_qk', 'full'}, {'local_qk', 'local_o'}), (
             f'unsupported production BAM layer mode: {self.layer_mode}')
     self._local_o = 'local_o' in self._mode
     self._output_read = 'full' in self._mode or self._local_o
@@ -2673,8 +2673,10 @@ class BamAttention(Attention):
       assert self._query_chunk_size > 0
       assert cfg.max_target_length % self._query_chunk_size == 0, (
           'BAM query chunk size must divide max_target_length')
-      assert self._mode in ({'local_qk'}, {'local_qk', 'full'}, {'local_qk', 'local_o'}), (
-          'QChunk BAM supports LocalQK with optional full or local output read')
+      assert self._mode in (
+          {'full'}, {'local_o'}, {'local_o', 'full'},
+          {'local_qk'}, {'local_qk', 'full'}, {'local_qk', 'local_o'}), (
+              'QChunk BAM supports output reads with optional LocalQK')
       assert self._read_implementation in ('dot_btn', 'mul_reduce_btn')
     def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
       """Create a zero-kernel semantic gate with an explicitly calibrated bias."""

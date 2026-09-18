@@ -11,6 +11,32 @@ import bam_local_fetch_test
 class ColOnlyBudgetTest(absltest.TestCase):
   config = bam_local_fetch_test.LocalFetchTest.config
 
+  def test_no_local_qk_modes_keep_output_reads_and_write(self):
+    import max_utils
+    cfg = self.config('BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE')
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    x = jax.random.normal(jax.random.key(1), (1, 8, 128), dtype=cfg.dtype)
+    m = jax.random.normal(jax.random.key(2), (1, 8, 48, 32), dtype=cfg.dtype)
+    args = (x, x, jnp.arange(8)[None], jnp.ones((1, 8), jnp.int32))
+    for mode in ('local_o', 'full'):
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          bam_k=48, bam_v=32, max_target_length=8,
+          max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode=mode, read_side='col', attention_type=cfg.attention_type)
+      variables = module.init(
+          {'params': jax.random.key(3)}, *args, M_in=m,
+          deterministic=True, layer_index=2)
+      arm_names = module.apply(
+          variables, method=lambda mod: tuple(mod._local_arms))
+      self.assertEqual(arm_names, ('v',) if mode == 'local_o' else ())
+      out, m_out = module.apply(
+          variables, *args, M_in=m, deterministic=True, layer_index=2)
+      self.assertEqual(out.shape, x.shape)
+      self.assertEqual(m_out.shape, m.shape)
+      self.assertFalse(bool(jnp.array_equal(m_out, m)))
+
   def test_k48_column_only_uses_no_extra_parameters(self):
     import max_utils
     trees = []

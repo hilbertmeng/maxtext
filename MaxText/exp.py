@@ -7753,7 +7753,9 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: e17e4da; UE5a AOT loaded/FIRST_STEP, steps10-14 .754:
     # +1.62% vs K32 Partial .742; generic health ON/BAM sow OFF.
-    # Bet vs LocalQK parent: late dloss +.010..+.018, center +.014.
+    # Result: user-stopped 11331. NoLocalQK-parent dloss
+    # +.0591@1k -> +.0206@11k; 10.2k-11k mean +.0210. LocalQK remains
+    # materially useful.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK'
     bam_layer_modes = ['local_o', 'local_o', 'full'] * 8
     compare_runs = [
@@ -7819,7 +7821,9 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: e17e4da; UE5a AOT loaded/FIRST_STEP9, steps10-14 .724:
     # +3.28% vs K48 Partial .701; generic health ON/BAM sow OFF.
-    # Bet vs LocalQK parent: late dloss -.008..+.003, center -.003.
+    # Result: user-stopped 11491. NoLocalQK-parent dloss +.0418@1k ->
+    # +.0131@11k; 10.2k-11k mean +.01345. LocalQK helps, but its marginal
+    # value is stably much lower than K32/K64.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK'
     bam_layer_modes = ['local_o', 'local_o', 'full'] * 8
     compare_runs = [
@@ -7903,7 +7907,10 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK(
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # code_commit: e17e4da; UE5a AOT loaded/FIRST_STEP, steps10-14 .714:
     # +2.29% vs K64 Partial .698; generic health ON/BAM sow OFF.
-    # Bet vs LocalQK parent: late dloss +.010..+.018, center +.014.
+    # Result: user-stopped 11143. NoLocalQK-parent dloss +.0689@1k ->
+    # +.0284@11k; 10.2k-11k mean +.0291.
+    # Across matched partial-RoPE runs, LocalQK marginal value is stably
+    # K64 > K32 > K48; latest-window K48 is 36% below K32 and 54% below K64.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK'
     bam_local_qk_col_output_dim = None
     bam_layer_modes = ['local_o', 'local_o', 'full'] * 8

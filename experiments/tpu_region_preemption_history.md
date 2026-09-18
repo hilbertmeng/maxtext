@@ -235,6 +235,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL` | v5p-16 | `us-east5-a` | 2026-09-16 16:28:06 | 2026-09-16 23:37:55 | completed 13,500; 8 service preemptions (all same-zone recovery); checkpoint 13,500 committed | none |
 | `BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816` | v5p-16 | `us-east5-a` | 2026-09-17 03:53:37 | 2026-09-17 05:33:38 | user stop3,000; 1 service preemption (same-zone recovery); checkpoint 3,000 committed; TPU/queue verified absent; scripted closeout | none |
 | `BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124` | v5p-16 | `us-east5-a` | 2026-09-17 04:03:30 | 2026-09-17 05:33:36 | user stop2,600; 1 service preemption (same-zone recovery); checkpoint 2,600 committed; TPU/queue verified absent; scripted closeout | none |
+| `BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK` | v5p-16 | `us-east5-a` | 2026-09-18 01:33:38 | 2026-09-18 06:15:15 | user stop11,331 after stable conclusion; 2 service preemptions (same-zone recovery); checkpoint11,331 committed; TPU/queue verified absent; scripted closeout; TB sync OK | none |
+| `BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK` | v5p-16 | `us-east5-a` | 2026-09-18 01:40:46 | 2026-09-18 06:15:17 | user stop11,491 after stable conclusion; zero preemptions; checkpoint11,491 committed; TPU/queue verified absent; scripted closeout; TB sync OK | none |
+| `BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK` | v5p-16 | `us-east5-a` | 2026-09-18 01:34:01 | 2026-09-18 06:15:20 | user stop11,143 after stable conclusion; zero preemptions; one same-TPU incomplete-10800 checkpoint repair/resume from10600; checkpoint11,143 committed; TPU/queue verified absent; scripted closeout; TB sync OK | none |
 
 ## READY leases
 
@@ -801,3 +804,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 10 | `us-east5-a` | 2026-09-17 22:52:33 | 2026-09-17 22:55:00 | 2m27s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 11 | `us-east5-a` | 2026-09-17 23:03:54 | 2026-09-17 23:14:33 | 10m39s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 12 | `us-east5-a` | 2026-09-18 00:00:02 | 2026-09-18 02:23:15 | 2h23m13s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK | 1 | `us-east5-a` | 2026-09-18 01:33:38 | 2026-09-18 02:46:28 | 1h12m50s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK | 2 | `us-east5-a` | 2026-09-18 02:55:16 | 2026-09-18 04:23:40 | 1h28m24s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK | 3 | `us-east5-a` | 2026-09-18 04:32:35 | 2026-09-18 06:15:15 | 1h42m40s | user stop; checkpoint11,331 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK | 1 | `us-east5-a` | 2026-09-18 01:40:46 | 2026-09-18 06:15:17 | 4h34m31s | user stop; checkpoint11,491 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK | 1 | `us-east5-a` | 2026-09-18 01:34:01 | 2026-09-18 06:15:20 | 4h41m19s | user stop; checkpoint11,143 committed; TPU/queue verified absent; one same-TPU checkpoint repair |

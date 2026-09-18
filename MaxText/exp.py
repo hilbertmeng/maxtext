@@ -8158,6 +8158,7 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     # Artifacts: /data0/xd/bam_diagnostics/xl-colonly-k-operators/.
     # Same parameter tree and MLP widths as K64. Bet vs K64: late
     # -.004..-.014, center -.008; speed -4..-9%.
+    # At12k bet vs DirectC8MLP: final gap 0..+.004, center +.002.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
     bam_write_outer_implementation = 'dot'
     bam_read_implementation = 'dot_btn'
@@ -8167,5 +8168,6 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     bam_local_qk_col_output = 'truncate'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 96
-    compare_runs = ['BamXLSharedBasisQKDirectC8MLPPerLayerColOnly']
+    compare_runs = ['BamXLSharedBasisQKDirectC8MLPPerLayerColOnly',
+                    'BamXLSharedBasisQKDirectC8MLP']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-k128-qk96'

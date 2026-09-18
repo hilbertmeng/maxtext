@@ -588,5 +588,7 @@ its throughput falls 1.63%. K64 write/read dot adds 81.38 ms of copies and
 83.26 ms whole-step time. Thus the marginal v6e K64 ranking did not transfer
 to the full v5p shape. Compiled K128 FLOPs/bytes remain essentially unchanged
 under all-dot (178.084 TF / 1609.49 GB); better lowering drives the speedup.
-Formal training runtime/settings remain unchanged. Full result matrix,
+K128 formal training adopted all-dot runtime `9a58407` after checkpoint9024;
+UE5a resumed steps9035–39 .5690 steps/s, +13.89% vs pre-switch .4996 and
+-4.08% vs K64 .5932 at the same steps, with matched health. Full result matrix,
 BF16 value checks, scope limits and retained raw paths are in the linked report.

@@ -8149,14 +8149,19 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     BamXLSharedBasisQKDirectC8MLPPerLayerColOnly
 ):
     """Ledger only: raw M128x32, DirectC8 LocalQK 128->96 truncate, NoPE96/RoPE32."""
-    # code_commit: 4fb2021; UE5a v5p-32, generic health ON/BAM sow OFF.
-    # steps10-14 .5030 steps/s, -15.75% vs same-runtime K64 .5970.
+    # code_commit: 9a58407; resumed after step9024 from 4fb2021, same RUN/TPU.
+    # UE5a v5p-32, generic health ON/BAM sow OFF; W/R/S all dot.
+    # steps9035-39 .5690 steps/s: +13.89% vs pre-switch .4996 (8990-94),
+    # -4.08% vs K64 .5932 at steps9035-39; original steps10-14 .5030.
     # Profile 3d59d64: lowering/layout cost, FLOPs only +.5%; full-v5p K128
-    # all-dot +13.81%, then -4.31% vs K64; formal runtime unchanged.
+    # all-dot +13.81%, then -4.31% vs K64.
     # Artifacts: /data0/xd/bam_diagnostics/xl-colonly-k-operators/.
     # Same parameter tree and MLP widths as K64. Bet vs K64: late
     # -.004..-.014, center -.008; speed -4..-9%.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
+    bam_local_second_implementation = 'dot'
     bam_k = 128
     bam_local_qk_col_output_dim = 96
     bam_local_qk_col_output = 'truncate'

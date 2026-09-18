@@ -13,14 +13,20 @@ best setting, K128 is 4.31% slower than K64 (original difference 15.92%).
 K64's head-expansion-only change is -0.80%, a small difference; its other dot
 combinations are -1.63% to -5.24%. K128 write/read dot with mul-reduce expansion
 reaches .5734 (+13.10%); all-dot adds only .63% beyond that. The large K128
-benefit is from write and column contractions. Formal training remains at its
-original runtime and settings.
+benefit is from write and column contractions. K128 formal training switched to
+all-dot runtime `9a58407` after checkpoint9024, retaining its RUN and UE5a TPU.
+Resumed steps9035–39 average .5690 steps/s: +13.89% vs pre-switch steps8990–94
+(.4996), and -4.08% vs K64 at steps9035–39 (.5932). Health settings are matched.
+The exact 50000-step AOT loaded; optimizer/state and data cursor restored at9024,
+with the first resumed update at9025; checkpoint9250 subsequently committed.
+Handoff artifacts are in
+`/data0/xd/bam_diagnostics/xl-colonly-k-operators/hot-retrain-9a58407/`.
 
 Training configurations:
 - `BamXLSharedBasisQKDirectC8MLPPerLayerColOnly`
 - `BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE`
 
-Training runtime `4fb2021`; profile runtime
+Original training runtime `4fb2021` (K64 retained; K128 switched as above); profile runtime
 `3d59d64aa54de26ba3fe3b61cbc4321552fceaa0`. Implementation branch
 `codex/xl-directc8-all-col-k128`, worktree `/data0/xd/xl-directc8-all-col-k128`.
 

@@ -7793,3 +7793,94 @@ class BamXLK64OperatorWMRMSMFull(BamXLK64OperatorWMRMSM):
     base_num_decoder_layers = 24
     bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
     per_device_batch_size = 16.0
+
+
+class BamXLK64OperatorWMRMSD(BamXLK128OperatorWMRMSD):
+    model_name = 'BamXLK64OperatorWMRMSD'
+    bam_k = 64
+    bam_local_qk_col_output_dim = None
+
+
+class BamXLK64OperatorWMRMSDFull(BamXLK64OperatorWMRMSD):
+    model_name = 'BamXLK64OperatorWMRMSDFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK64OperatorWMRDSM(BamXLK128OperatorWMRDSM):
+    model_name = 'BamXLK64OperatorWMRDSM'
+    bam_k = 64
+    bam_local_qk_col_output_dim = None
+
+
+class BamXLK64OperatorWMRDSMFull(BamXLK64OperatorWMRDSM):
+    model_name = 'BamXLK64OperatorWMRDSMFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK64OperatorWMRDSD(BamXLK128OperatorWMRDSD):
+    model_name = 'BamXLK64OperatorWMRDSD'
+    bam_k = 64
+    bam_local_qk_col_output_dim = None
+
+
+class BamXLK64OperatorWMRDSDFull(BamXLK64OperatorWMRDSD):
+    model_name = 'BamXLK64OperatorWMRDSDFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK64OperatorWDRMSM(BamXLK128OperatorWDRMSM):
+    model_name = 'BamXLK64OperatorWDRMSM'
+    bam_k = 64
+    bam_local_qk_col_output_dim = None
+
+
+class BamXLK64OperatorWDRMSMFull(BamXLK64OperatorWDRMSM):
+    model_name = 'BamXLK64OperatorWDRMSMFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK64OperatorWDRMSD(BamXLK128OperatorWDRMSD):
+    model_name = 'BamXLK64OperatorWDRMSD'
+    bam_k = 64
+    bam_local_qk_col_output_dim = None
+
+
+class BamXLK64OperatorWDRMSDFull(BamXLK64OperatorWDRMSD):
+    model_name = 'BamXLK64OperatorWDRMSDFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK64OperatorWDRDSM(BamXLK128OperatorWDRDSM):
+    model_name = 'BamXLK64OperatorWDRDSM'
+    bam_k = 64
+    bam_local_qk_col_output_dim = None
+
+
+class BamXLK64OperatorWDRDSMFull(BamXLK64OperatorWDRDSM):
+    model_name = 'BamXLK64OperatorWDRDSMFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK64OperatorWDRDSD(BamXLK128OperatorWDRDSD):
+    model_name = 'BamXLK64OperatorWDRDSD'
+    bam_k = 64
+    bam_local_qk_col_output_dim = None
+
+
+class BamXLK64OperatorWDRDSDFull(BamXLK64OperatorWDRDSD):
+    model_name = 'BamXLK64OperatorWDRDSDFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0

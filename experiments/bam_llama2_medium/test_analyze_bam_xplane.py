@@ -8,6 +8,22 @@ from analyze_bam_xplane import summarize, classify_local
 
 
 class CoverageTest(unittest.TestCase):
+  def test_packed_projection_outside_read_scope_is_bam(self):
+    events = [
+        dict(ph='M', name='process_name', pid=1, args={'name': '/device:TPU:0'}),
+        dict(ph='X', pid=1, name='jit_train_step(test)', ts=0, dur=1000),
+        dict(ph='X', pid=1, name='dot.1', ts=0, dur=1000,
+             args={'tf_op': 'bam/local_packed_projection/W_local_packed/dot_general'}),
+    ]
+    with tempfile.TemporaryDirectory() as directory:
+      path = Path(directory) / 'trace.json.gz'
+      with gzip.open(path, 'wt') as stream:
+        json.dump({'traceEvents': events}, stream)
+      _, buckets = summarize(path)[1]
+    self.assertEqual(buckets['local_packed_projection'][0], 1.)
+    self.assertEqual(buckets['bam_total'][0], 1.)
+    self.assertEqual(buckets['non_bam_xla_ops'][0], 0.)
+
   def test_direct_column_contraction_is_not_other(self):
     self.assertEqual(classify_local(
         'bam/read_local_m_for_qk/bam/contract_1a_col/dot_general'), 'read_m')

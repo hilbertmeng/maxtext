@@ -15,6 +15,7 @@ OUTER = {
     "mix_fetch": "bam/mix_fetch_m",
     "compress_abs_v": "bam/compress_abs_v_cache",
     "fetch_m": "bam/fetch_m",
+    "local_packed_projection": "bam/local_packed_projection",
     "local_qk": "bam/read_local_m_for_qk",
     "local_v": "bam/read_local_m_for_v",
     "fetched": "bam/read_fetched_m",

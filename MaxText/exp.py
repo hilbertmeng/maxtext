@@ -7652,3 +7652,137 @@ class BamMediumIndependentLLFBAlignedRow21LayerMLP2896(BamMediumIndependentLLFBA
         'BamMediumIndependentLLFBAlignedRowMLPPerLayer',
     ]
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-21layer-mlp2896'
+
+
+class BamXLK128OperatorProfileBase(TrainStepProfile, BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE):
+    """Six-layer K128 operator matrix; W/R/S = write/read/head-mix, M/D = mul/dot."""
+    base_num_decoder_layers = 6
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 2
+    per_device_batch_size = 1.0
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    steps = 100
+
+class BamXLK128OperatorWMRMSM(BamXLK128OperatorProfileBase):
+    model_name = 'BamXLK128OperatorWMRMSM'
+    bam_write_outer_implementation = 'mul_reduce'
+    bam_read_implementation = 'mul_reduce_btn'
+    bam_local_second_implementation = 'mul_reduce'
+
+
+class BamXLK128OperatorWMRMSMFull(BamXLK128OperatorWMRMSM):
+    model_name = 'BamXLK128OperatorWMRMSMFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK128OperatorWMRMSD(BamXLK128OperatorProfileBase):
+    model_name = 'BamXLK128OperatorWMRMSD'
+    bam_write_outer_implementation = 'mul_reduce'
+    bam_read_implementation = 'mul_reduce_btn'
+    bam_local_second_implementation = 'dot'
+
+
+class BamXLK128OperatorWMRMSDFull(BamXLK128OperatorWMRMSD):
+    model_name = 'BamXLK128OperatorWMRMSDFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK128OperatorWMRDSM(BamXLK128OperatorProfileBase):
+    model_name = 'BamXLK128OperatorWMRDSM'
+    bam_write_outer_implementation = 'mul_reduce'
+    bam_read_implementation = 'dot_btn'
+    bam_local_second_implementation = 'mul_reduce'
+
+
+class BamXLK128OperatorWMRDSMFull(BamXLK128OperatorWMRDSM):
+    model_name = 'BamXLK128OperatorWMRDSMFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK128OperatorWMRDSD(BamXLK128OperatorProfileBase):
+    model_name = 'BamXLK128OperatorWMRDSD'
+    bam_write_outer_implementation = 'mul_reduce'
+    bam_read_implementation = 'dot_btn'
+    bam_local_second_implementation = 'dot'
+
+
+class BamXLK128OperatorWMRDSDFull(BamXLK128OperatorWMRDSD):
+    model_name = 'BamXLK128OperatorWMRDSDFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK128OperatorWDRMSM(BamXLK128OperatorProfileBase):
+    model_name = 'BamXLK128OperatorWDRMSM'
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'mul_reduce_btn'
+    bam_local_second_implementation = 'mul_reduce'
+
+
+class BamXLK128OperatorWDRMSMFull(BamXLK128OperatorWDRMSM):
+    model_name = 'BamXLK128OperatorWDRMSMFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK128OperatorWDRMSD(BamXLK128OperatorProfileBase):
+    model_name = 'BamXLK128OperatorWDRMSD'
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'mul_reduce_btn'
+    bam_local_second_implementation = 'dot'
+
+
+class BamXLK128OperatorWDRMSDFull(BamXLK128OperatorWDRMSD):
+    model_name = 'BamXLK128OperatorWDRMSDFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK128OperatorWDRDSM(BamXLK128OperatorProfileBase):
+    model_name = 'BamXLK128OperatorWDRDSM'
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
+    bam_local_second_implementation = 'mul_reduce'
+
+
+class BamXLK128OperatorWDRDSMFull(BamXLK128OperatorWDRDSM):
+    model_name = 'BamXLK128OperatorWDRDSMFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK128OperatorWDRDSD(BamXLK128OperatorProfileBase):
+    model_name = 'BamXLK128OperatorWDRDSD'
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
+    bam_local_second_implementation = 'dot'
+
+
+class BamXLK128OperatorWDRDSDFull(BamXLK128OperatorWDRDSD):
+    model_name = 'BamXLK128OperatorWDRDSDFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0
+
+
+class BamXLK64OperatorWMRMSM(BamXLK128OperatorWMRMSM):
+    model_name = 'BamXLK64OperatorWMRMSM'
+    bam_k = 64
+    bam_local_qk_col_output_dim = None
+
+
+class BamXLK64OperatorWMRMSMFull(BamXLK64OperatorWMRMSM):
+    model_name = 'BamXLK64OperatorWMRMSMFull'
+    base_num_decoder_layers = 24
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8
+    per_device_batch_size = 16.0

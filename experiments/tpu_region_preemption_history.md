@@ -789,3 +789,15 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 8 | `us-east5-a` | 2026-09-17 22:52:33 | 2026-09-17 22:55:02 | 2m29s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 9 | `us-east5-a` | 2026-09-17 23:03:51 | 2026-09-17 23:26:22 | 22m31s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 10 | `us-east5-a` | 2026-09-17 23:59:30 | 2026-09-18 00:49:55 | 50m25s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 1 | `us-east5-a` | 2026-09-17 16:32:02 | 2026-09-17 16:38:41 | 6m39s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 2 | `us-east5-a` | 2026-09-17 16:45:17 | 2026-09-17 17:04:07 | 18m50s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 3 | `us-east5-a` | 2026-09-17 17:11:35 | 2026-09-17 18:17:20 | 1h05m45s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 4 | `us-east5-a` | 2026-09-17 18:24:44 | 2026-09-17 19:07:39 | 42m55s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 5 | `us-east5-a` | 2026-09-17 19:16:52 | 2026-09-17 19:21:14 | 4m22s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 6 | `us-east5-a` | 2026-09-17 19:41:14 | 2026-09-17 20:27:06 | 45m52s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 7 | `us-east5-a` | 2026-09-17 21:31:17 | 2026-09-17 21:33:55 | 2m38s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 8 | `us-east5-a` | 2026-09-17 21:40:30 | 2026-09-17 22:07:34 | 27m04s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 9 | `us-east5-a` | 2026-09-17 22:32:56 | 2026-09-17 22:44:59 | 12m03s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 10 | `us-east5-a` | 2026-09-17 22:52:33 | 2026-09-17 22:55:00 | 2m27s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 11 | `us-east5-a` | 2026-09-17 23:03:54 | 2026-09-17 23:14:33 | 10m39s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 12 | `us-east5-a` | 2026-09-18 00:00:02 | 2026-09-18 02:23:15 | 2h23m13s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |

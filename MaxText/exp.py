@@ -7919,11 +7919,14 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE(
 ):
     """Ledger only: K64/QK48 truncate with full-width RoPE on standard Q/K."""
     # Runtime: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
-    # code_commit: 7319f57; UE5a AOT loaded/FIRST_STEP7, steps10-14 .692:
-    # -.80% throughput vs K64 partial .698; -1.09% vs full-RoPE K48 .700.
-    # Initial lease hit maintenance at37; auto-train recovered and reached81.
-    # Bet vs K64 partial: late dloss -.021..-.012, center -.017;
-    # vs full-RoPE K48: -.028..-.019, center -.024.
+    # code_commit: 7319f57; UE5a AOT loaded/FIRST_STEP7, .692 steps/s:
+    # -.80% vs K64 partial .698; -1.09% vs full-RoPE K48 .700.
+    # Result: completed 13500 (11 preemptions). vs Truncate(partial): +.0026
+    # (stable, drift ~0). vs K48: -.0035 (drift +.0005/1k toward 0).
+    # Conclusion: FullRoPE+Truncation gives -.0035 vs K48, clearly less than
+    # Truncate(partial)'s -.006; partial-RoPE adds ~.0026 over full-RoPE for
+    # truncation. Truncation is the main ingredient; partial-RoPE is a ~.0026
+    # mild enhancer, not necessary. Bet (FullRoPE > Truncate) lost.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE'
     bam_partial_rope = False
     bam_partial_rope_nope_dim = None

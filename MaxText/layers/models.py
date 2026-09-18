@@ -796,8 +796,12 @@ class Decoder(nn.Module):
           block_size = getattr(cfg, 'bam_local_fetch_block_size', None) or 2
           assert block_size >= 2 and scan_length % block_size == 0
           assert cfg.decoder_block == 'fusion' and cfg.bam_enabled
-          assert cfg.bam_layer_modes == (
-              ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
+          block_modes = cfg.bam_layer_modes[:block_size]
+          assert block_modes in (
+              ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full'],
+              ['local_o'] * (block_size - 1) + ['full'],
+          )
+          assert cfg.bam_layer_modes == block_modes * (scan_length // block_size)
           local_v_modes = getattr(cfg, 'bam_local_o_v_mode', 'none')
           if isinstance(local_v_modes, list):
             assert local_v_modes == local_v_modes[:block_size] * (scan_length // block_size)

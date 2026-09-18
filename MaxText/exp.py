@@ -7270,6 +7270,9 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     # -.004..-.014, center -.008; throughput -4..-9%.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
     # Full v5p-32 operator matrix: +13.81% throughput vs original mul_reduce.
+    # code_commit: 9a58407; same RUN/UE5a TPU resumed after checkpoint9024.
+    # steps9035-39 .5690 steps/s, +13.89% vs pre-switch .4996 (8990-94),
+    # -4.08% vs K64 .5932 at the same steps; generic health ON/BAM sow OFF.
     bam_write_outer_implementation = 'dot'
     bam_read_implementation = 'dot_btn'
     bam_local_second_implementation = 'dot'

@@ -7285,8 +7285,16 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     BamXLSharedBasisQKDirectC8MLPPerLayerColOnly
 ):
     """Expand raw M to 128x32; truncate LocalQK to NoPE96 and RoPE the tail32."""
-    # Same parameter tree and MLP widths as K64. Bet vs K64: late dloss
-    # -.004..-.014, center -.008; throughput -4..-9%.
+    # Same parameter tree and MLP widths as K64. Stopped at 34,348.
+    # vs K64: early -.1132 narrowed to last-five mean -.00416
+    # (range -.00461..-.00309, through28.5k); advantage still shrinking.
+    # vs DirectC8MLP: crossed from negative to positive around14k;
+    # last-five mean +.00296 (.00226.. .00343, through27.5k), widening.
+    # vs SharedBasis: last-five mean +.00385 (.00350.. .00413,
+    # through30k), widening; +4.33% speed vs UE5a matched-health .5454.
+    # +3.23% speed and -8.23% params vs DirectC8MLP (.5512; different runtime).
+    # Conclusion: expanding K recovers ~.004 at equal parameters, but
+    # does not close the loss deficit versus the original BAM budget.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
     # Full v5p-32 operator matrix: +13.81% throughput vs original mul_reduce.
     # code_commit: 9a58407; same RUN/UE5a TPU resumed after checkpoint9024.
@@ -7300,7 +7308,9 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     bam_local_qk_col_output = 'truncate'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 96
-    compare_runs = ['BamXLSharedBasisQKDirectC8MLPPerLayerColOnly']
+    compare_runs = ['BamXLSharedBasisQKDirectC8MLPPerLayerColOnly',
+                    'BamXLSharedBasisQKDirectC8MLP',
+                    'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-k128-qk96'
 
 class BamMediumIndependentLLFBAlignedRowMLPUniform(

@@ -7928,6 +7928,52 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
 
 
+class BamMediumColOnlyK32MRelayM1(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """Ledger only: first-layer M anchor, read-only relay after the first LLF block."""
+    # Implementation: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    # Parent-initialized first block + seven scanned blocks; tanh scalar per token/layer.
+    # Prediction vs parent: late -.001; throughput about -1%, relay telemetry adds overhead.
+    model_name = 'BamMediumColOnlyK32MRelayM1'
+    bam_m_relay_anchor = 1
+    bam_record_m_relay_metrics = True
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
+    # Ledger only: codex/llf-m-anchor-relay; prediction vs parent late -.002.
+    model_name = 'BamMediumColOnlyK32MRelayM3'
+    bam_m_relay_anchor = 3
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM1']
+
+
+class BamMediumColOnlyK64TruncateMRelayM1(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
+    # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    # Prediction vs parent: late 0; throughput -.5%..-2% before telemetry overhead.
+    model_name = 'BamMediumColOnlyK64TruncateMRelayM1'
+    bam_m_relay_anchor = 1
+    bam_record_m_relay_metrics = True
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumColOnlyK64TruncateMRelayM3(BamMediumColOnlyK64TruncateMRelayM1):
+    # Ledger only: codex/llf-m-anchor-relay; prediction vs parent late -.001.
+    model_name = 'BamMediumColOnlyK64TruncateMRelayM3'
+    bam_m_relay_anchor = 3
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+                    'BamMediumColOnlyK64TruncateMRelayM1']
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
 ):

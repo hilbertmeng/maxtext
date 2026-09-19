@@ -41,5 +41,13 @@ AOT preparation and auto-launch were submitted for all four RUNs on 2026-09-19.
 
 K32 startup verified: both loaded the compiled function on UE5a and step0 loss matched
 exactly (10.845657). Steps10–14 mean throughput: M1 .7306, M3 .7320 steps/s,
--.65% / -.46% vs parent .7354. K64-M1 AOT is ready and formal allocation submitted;
-K64-M3 is still awaiting a compiler after repeated EW4a preemptions, with UC1a queued.
+-.65% / -.46% vs parent .7354. K64-M1 loaded AOT and passed step14 on UE5a:
+.6828 steps/s (-2.18% vs parent .698), with generic+relay health ON.
+After repeated EW4a preemptions, K64-M3 used a user-authorized simultaneous
+UE5a/UC1a/EW4a compiler race; EW4a produced the verified AOT. Formal launch was
+submitted immediately while compiler-candidate cleanup continued separately.
+K64-M3 loaded AOT and passed step17 on UE5a; steps10–14 mean .6832 steps/s
+(-2.12% vs parent .698). K64 M1/M3 step0 loss matched exactly (10.845642).
+All compiler candidates were released after artifact verification. During startup follow-up,
+K32-M1 had one maintenance-triggered recovery and resumed successfully; the other RUNs
+had no recorded training preemption at the final startup check.

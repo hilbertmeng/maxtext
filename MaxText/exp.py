@@ -7955,6 +7955,7 @@ class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
 
 class BamMediumColOnlyK64TruncateMRelayM1(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
+    # code_commit: 72469e1; UE5a .6828 steps/s, -2.18% vs parent .698; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     # Prediction vs parent: late 0; throughput -.5%..-2% before telemetry overhead.
     model_name = 'BamMediumColOnlyK64TruncateMRelayM1'
@@ -7969,6 +7970,7 @@ class BamMediumColOnlyK64TruncateMRelayM1(
 
 
 class BamMediumColOnlyK64TruncateMRelayM3(BamMediumColOnlyK64TruncateMRelayM1):
+    # code_commit: 72469e1; UE5a .6832 steps/s, -2.12% vs parent .698; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay; prediction vs parent late -.001.
     model_name = 'BamMediumColOnlyK64TruncateMRelayM3'
     bam_m_relay_anchor = 3

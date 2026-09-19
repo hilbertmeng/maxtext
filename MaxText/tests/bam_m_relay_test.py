@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
+from flax.traverse_util import flatten_dict
 import max_utils
 import pyconfig
 from layers.fusion import BamLayerPair, FusionDecoderLayer
@@ -31,6 +32,12 @@ class MRelayTest(unittest.TestCase):
       key = jax.random.key(19)
       with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
         state = jax.jit(lambda: max_utils.init_initial_state(model, None, cfg, False, key))()
+        if cfg.bam_m_relay_mixing == 'sigmoid_interpolate':
+          gates = [v for p, v in flatten_dict(state.params['params']).items() if p[-1] == 'm_relay_gate_b0']
+          self.assertTrue(gates)
+          for gate in gates:
+            gate = gate.value if hasattr(gate, 'unbox') else gate
+            np.testing.assert_allclose(jax.nn.sigmoid(gate), .01, rtol=1e-5)
         old = jax.jit(lambda: max_utils.init_initial_state(parent, None, parent_cfg, False, key))()
         expected = map_m_relay_params(state.params['params'], old.params['params'], cfg.param_scan_axis)
         for actual, wanted in zip(jax.tree.leaves(state.params['params']), jax.tree.leaves(expected)):

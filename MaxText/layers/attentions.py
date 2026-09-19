@@ -2477,11 +2477,18 @@ class BamAttention(Attention):
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
     if getattr(cfg, 'bam_m_relay_anchor', 0):
+      interpolate = cfg.bam_m_relay_mixing == 'sigmoid_interpolate'
       self.m_relay_scale = DenseGeneral(
           features=1, axis=-1, kernel_init=zeros_init,
           kernel_axes=('embed', None), dtype=self.dtype,
           name='m_relay_scale', quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=True)
+          matmul_precision=cfg.matmul_precision, use_bias=not interpolate)
+      if interpolate:
+        p = cfg.bam_m_relay_gate_init
+        assert 0 < p < 1
+        self.m_relay_gate_b0 = self.param(
+            'm_relay_gate_b0', nn.with_logical_partitioning(
+                nn.initializers.constant(math.log(p / (1 - p))), (None,)), (1,))
 
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
@@ -3319,7 +3326,7 @@ class BamAttention(Attention):
         scale = logits
         read_m = M_in + scale * anchor_m
       elif mixing == 'sigmoid_interpolate':
-        scale = jax.nn.sigmoid(logits)
+        scale = jax.nn.sigmoid(logits + self.m_relay_gate_b0.astype(logits.dtype))
         read_m = (1 - scale) * M_in + scale * anchor_m
       else:
         raise ValueError(f'Unknown M relay mixing: {mixing}')

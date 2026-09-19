@@ -287,6 +287,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_col_output = 'truncate'  # truncate | project (separate Q/K selector-initialized maps)
     bam_m_relay_anchor = 0  # 0 disabled; 1/3 capture write after layer 1 / first LLF block
     bam_m_relay_mixing = 'tanh_add'
+    bam_m_relay_gate_init = .01
     bam_record_m_relay_metrics = False
     bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.

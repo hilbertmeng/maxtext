@@ -8088,6 +8088,7 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
+    # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Static S[V32,H16] per L; no RMSNorm/gate/scale. FetchedO unchanged.
     # +512/L = .00048828125 W_Q; +8192 total; MLP [2535,2535,2610], cache unchanged.

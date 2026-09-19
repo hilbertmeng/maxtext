@@ -245,7 +245,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-18 22:33:19 | 2026-09-19 04:54:35 | migrated to UC1a after 3 preemptions; checkpoint10,758 copied and verified; old TPU/queue verified absent | none |
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-central1-a` | 2026-09-19 04:54:35 | 2026-09-19 05:15:35 | queue-only assignment; no training or READY lease; EW4b won the three-zone capacity race | UE5a and EW4b submitted concurrently at ~05:11:35 |
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `europe-west4-b` | 2026-09-19 05:15:35 | 2026-09-19 07:52:28 | resumed checkpoint10,758; two preemptions; final committed checkpoint15,320 migrated to UE5a; same runtime57291c7 | initial UC1a/UE5a candidates released after FIRST_STEP; requeued both after 07:38 preemption |
-| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-19 07:52:28 | active | checkpoint15,320 copied and verified; candidate node already PREEMPTED at launcher startup despite ACTIVE queue, recreated; FIRST_STEP15,328 verified | UC1a/EW4b passive candidates released and verified absent after FIRST_STEP; neither trained |
+| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-19 07:52:28 | 2026-09-19 14:31:41 | resumed checkpoint15,320; user paused at committed28,005 during recovery; all TPU/queues verified absent by14:41:40; TB SYNC_OK | UC1a/EW4b candidates released after each FIRST_STEP and at pause; neither trained; checkpoint28,005 copied to both regions |
 
 ## READY leases
 
@@ -831,3 +831,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKDirectC8MLPPerLayer | 5 | `europe-west4-b` | 2026-09-19 07:44:19 | 2026-09-19 07:48:31 | 4m12s | service preemption during startup; migrated latest committed checkpoint15,320 to UE5a |
 | BamXLSharedBasisQKDirectC8MLPPerLayer | 6 | `us-east5-a` | unknown (passive candidate) | 2026-09-19 07:52:31 | unknown | node already PREEMPTED at launcher startup despite ACTIVE queue; no training; recreated |
 | BamXLSharedBasisQKDirectC8MLPPerLayer | 7 | `us-east5-a` | 2026-09-19 07:58:49 | 2026-09-19 08:41:59 | 43m10s | service preemption; same-zone recovery with UC1a/EW4b passive candidates |
+| BamXLSharedBasisQKDirectC8MLPPerLayer | 8 | `us-east5-a` | 2026-09-19 08:47:09 | 2026-09-19 14:25:31 | 5h38m22s | maintenance/preemption; checkpoint28,005 committed; copied and verified in UC1a/EW4b |
+| BamXLSharedBasisQKDirectC8MLPPerLayer | 9 | `us-east5-a` | 2026-09-19 14:30:20 | 2026-09-19 14:31:41 | 1m21s | registry interval during recovery; no resumed training, node CREATING at closeout; user pause28,005; TPU/queue verified absent14:41:40 |

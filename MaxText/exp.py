@@ -8224,3 +8224,55 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
                     'BamXLSharedBasisQKDirectC8MLP',
                     'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-k128-qk96'
+
+
+class BamLlama2MediumProp(Llama2MediumProp, BamLlama2MediumV2C256ScanAotCleanControl):
+    """Proportional column-only BAM base: M38x32/C8, NoPE57/RoPE18."""
+    # Config base, not a launched RUN. Column pruning/DirectC/truncation runtime:
+    # codex/xl-directc8-all-col-k128, /data0/xd/xl-directc8-all-col-k128 (9a58407).
+    # Derived experiments choose the L/F schedule and any per-layer MLP budget.
+    # Large M: override bam_k=75 AND bam_local_qk_col_output_dim=57;
+    # keep v/C and the RoPE split unchanged. Small M injects its native 38 dims.
+    model_name = 'BamLlama2MediumProp'
+    bam_k = 38
+    bam_v = 32
+    bam_abs_v_compression_dim = 8
+    bam_prune_all_row_reads = True
+    bam_prune_local_row_reads = False
+    bam_read_sides = 'col'
+    bam_fetched_read_side = 'col'
+    bam_local_qk_col_only = True
+    bam_local_qk_col_direct_compressed = True
+    bam_local_qk_share_basis = False
+    bam_local_qk_col_output = 'truncate'
+    bam_local_qk_col_output_dim = None
+    bam_local_v_rank = 4
+    bam_local_v_rank_routing = 'effective_key'
+    bam_local_v_key_scale = 1.0
+    bam_local_v_share_output_coordinates = False
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 57
+    # Scalar mode is depth-independent; an LLF/LLLF subclass supplies its schedule.
+    bam_layer_modes = 'local_qk+full'
+    bam_pair_scan = False
+    mlp_dim_by_block = None
+    steps = -1  # Resolve from the scale's inherited training schedule.
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_local_routing_metrics = False
+    bam_record_fetched_read_health_metrics = False
+    bam_record_fetch_route_metrics = False
+    compare_runs = []
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-medium-prop'
+
+
+class BamLlama2XLProp(Llama2XLProp, BamLlama2MediumProp):
+    """Same BAM recipe at XL scale: M48x40/C10, NoPE72/RoPE24."""
+    # Large M: override bam_k=96 AND bam_local_qk_col_output_dim=72.
+    # Llama2XLProp takes precedence for backbone dimensions and optimizer schedule.
+    model_name = 'BamLlama2XLProp'
+    bam_k = 48
+    bam_v = 40
+    bam_abs_v_compression_dim = 10
+    bam_partial_rope_nope_dim = 72
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-xl-prop'

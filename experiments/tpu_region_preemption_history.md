@@ -830,3 +830,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKDirectC8MLPPerLayer | 4 | `europe-west4-b` | 2026-09-19 05:15:38 | 2026-09-19 07:38:27 | 2h22m49s | service preemption; checkpoint15,250 committed; same-zone recovery with UC1a/UE5a passive candidates |
 | BamXLSharedBasisQKDirectC8MLPPerLayer | 5 | `europe-west4-b` | 2026-09-19 07:44:19 | 2026-09-19 07:48:31 | 4m12s | service preemption during startup; migrated latest committed checkpoint15,320 to UE5a |
 | BamXLSharedBasisQKDirectC8MLPPerLayer | 6 | `us-east5-a` | unknown (passive candidate) | 2026-09-19 07:52:31 | unknown | node already PREEMPTED at launcher startup despite ACTIVE queue; no training; recreated |
+| BamXLSharedBasisQKDirectC8MLPPerLayer | 7 | `us-east5-a` | 2026-09-19 07:58:49 | 2026-09-19 08:41:59 | 43m10s | service preemption; same-zone recovery with UC1a/EW4b passive candidates |

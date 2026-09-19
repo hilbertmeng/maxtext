@@ -7933,7 +7933,9 @@ class BamMediumColOnlyK32MRelayM1(BamMediumIndependentLLFMLPPerLayerColOnly):
     # code_commit: 72469e1; UE5a .7306 steps/s, -.65% vs parent .7354; generic+relay health ON.
     # Implementation: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     # Parent-initialized first block + seven scanned blocks; tanh scalar per token/layer.
-    # Prediction vs parent: late -.001; throughput about -1%, relay telemetry adds overhead.
+    # Stopped at3487.
+    # vs parent: early benefit crossed positive at1200; 2600–3400 mean +.00315,
+    # vs +.00173 at1400–2200; eased late but remained harmful. Inferior to M3, no efficiency gain.
     model_name = 'BamMediumColOnlyK32MRelayM1'
     bam_m_relay_anchor = 1
     bam_record_m_relay_metrics = True
@@ -7957,7 +7959,10 @@ class BamMediumColOnlyK64TruncateMRelayM1(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
     # code_commit: 72469e1; UE5a .6828 steps/s, -2.18% vs parent .698; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
-    # Prediction vs parent: late 0; throughput -.5%..-2% before telemetry overhead.
+    # Stopped at3927.
+    # vs parent: +.0303 at600 slowly narrowed to +.0209 at3800; 3000–3800 mean +.02148.
+    # User stop: narrowing judged too slow to reverse; likely dominated by M3 (still early),
+    # with no efficiency benefit. Remaining narrowing is real, not a flat plateau.
     model_name = 'BamMediumColOnlyK64TruncateMRelayM1'
     bam_m_relay_anchor = 1
     bam_record_m_relay_metrics = True

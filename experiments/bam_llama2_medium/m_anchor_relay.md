@@ -51,3 +51,9 @@ K64-M3 loaded AOT and passed step17 on UE5a; steps10–14 mean .6832 steps/s
 All compiler candidates were released after artifact verification. During startup follow-up,
 K32-M1 had one maintenance-triggered recovery and resumed successfully; the other RUNs
 had no recorded training preemption at the final startup check.
+
+User closeout: K32-M1 stopped at3487, K64-M1 at3927; final checkpoints committed,
+TB synced and both TPU/queues released. K32-M1 crossed positive at1200 and remained
+harmful (2600–3400 mean +.00315); K64-M1 retained a large positive gap despite slow
+narrowing (3000–3800 mean +.02148), judged insufficient and likely dominated by M3.
+Both M3 RUNs continue. Scripted parallel closeout took171s.

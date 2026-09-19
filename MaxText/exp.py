@@ -8173,9 +8173,16 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     # Profile 3d59d64: lowering/layout cost, FLOPs only +.5%; full-v5p K128
     # all-dot +13.81%, then -4.31% vs K64.
     # Artifacts: /data0/xd/bam_diagnostics/xl-colonly-k-operators/.
-    # Same parameter tree and MLP widths as K64. Bet vs K64: late
-    # -.004..-.014, center -.008; speed -4..-9%.
-    # At12k bet vs DirectC8MLP: final gap 0..+.004, center +.002.
+    # Same parameter tree and MLP widths as K64. Stopped at 34,348.
+    # vs K64: early -.1132 narrowed to last-five mean -.00416
+    # (range -.00461..-.00309, through28.5k); advantage still shrinking.
+    # vs DirectC8MLP: crossed from negative to positive around14k;
+    # last-five mean +.00296 (.00226.. .00343, through27.5k), widening.
+    # vs SharedBasis: last-five mean +.00385 (.00350.. .00413,
+    # through30k), widening; +4.33% speed vs UE5a matched-health .5454.
+    # +3.23% speed and -8.23% params vs DirectC8MLP (.5512; different runtime).
+    # Conclusion: expanding K recovers ~.004 at equal parameters, but
+    # does not close the loss deficit versus the original BAM budget.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE'
     bam_write_outer_implementation = 'dot'
     bam_read_implementation = 'dot_btn'

@@ -240,6 +240,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK` | v5p-16 | `us-east5-a` | 2026-09-18 01:34:01 | 2026-09-18 06:15:20 | user stop11,143 after stable conclusion; zero preemptions; one same-TPU incomplete-10800 checkpoint repair/resume from10600; checkpoint11,143 committed; TPU/queue verified absent; scripted closeout; TB sync OK | none |
 | `BamXLSharedBasisQKDirectC8MLPPerLayerColOnly` | v5p-32 | `us-east5-a` | 2026-09-18 07:38:48 | 2026-09-18 22:33:16 | user replacement; checkpoint 28,927; after third preemption, accepted replacement queue transferred to DirectC8MLPPerLayer | none |
 
+| `BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE` | v5p-32 | `us-east5-a` | 2026-09-18 07:38:48 | 2026-09-19 02:16:27 | user stop34,348; 3 service preemptions, no zone switches; checkpoint34,348 committed; TPU/queue verified absent; TB sync OK | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -811,5 +813,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPENoLocalQK | 1 | `us-east5-a` | 2026-09-18 01:40:46 | 2026-09-18 06:15:17 | 4h34m31s | user stop; checkpoint11,491 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK | 1 | `us-east5-a` | 2026-09-18 01:34:01 | 2026-09-18 06:15:20 | 4h41m19s | user stop; checkpoint11,143 committed; TPU/queue verified absent; one same-TPU checkpoint repair |
 | BamXLSharedBasisQKDirectC8MLPPerLayerColOnly | 1 | `us-east5-a` | 2026-09-18 07:43:09 | 2026-09-18 21:54:47 | 14h11m38s | service preemption; same-zone recovery |
+| BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE | 1 | `us-east5-a` | 2026-09-18 07:43:10 | 2026-09-18 21:55:18 | 14h12m08s | service preemption; same-zone recovery |
 | BamXLSharedBasisQKDirectC8MLPPerLayerColOnly | 2 | `us-east5-a` | 2026-09-18 22:04:26 | 2026-09-18 22:11:52 | 7m26s | service preemption; same-zone recovery |
+| BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE | 2 | `us-east5-a` | 2026-09-18 22:07:08 | 2026-09-18 22:11:56 | 4m48s | service preemption; same-zone recovery |
 | BamXLSharedBasisQKDirectC8MLPPerLayerColOnly | 3 | `us-east5-a` | 2026-09-18 22:18:24 | 2026-09-18 22:29:07 | 10m43s | service preemption; same-zone recovery; replacement queue transferred to new RUN at 22:33:16, no fourth READY lease |
+| BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE | 3 | `us-east5-a` | 2026-09-18 22:21:40 | 2026-09-18 22:29:08 | 7m28s | service preemption; same-zone recovery |
+| BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE | 4 | `us-east5-a` | 2026-09-18 22:38:01 | 2026-09-19 02:16:27 | 3h38m26s | user stop; checkpoint34,348 committed; TPU/queue verified absent |

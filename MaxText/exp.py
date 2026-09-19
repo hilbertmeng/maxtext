@@ -8186,5 +8186,6 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 96
     compare_runs = ['BamXLSharedBasisQKDirectC8MLPPerLayerColOnly',
-                    'BamXLSharedBasisQKDirectC8MLP']
+                    'BamXLSharedBasisQKDirectC8MLP',
+                    'BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-direct-c8-all-col-k128-qk96'

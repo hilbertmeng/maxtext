@@ -242,6 +242,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE` | v5p-32 | `us-east5-a` | 2026-09-18 07:38:48 | 2026-09-19 02:16:27 | user stop34,348; 3 service preemptions, no zone switches; checkpoint34,348 committed; TPU/queue verified absent; TB sync OK | none |
 
+| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-18 22:33:19 | 2026-09-19 04:54:35 | migrated to UC1a after 3 preemptions; checkpoint10,758 copied and verified; old TPU/queue verified absent | none |
+| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-central1-a` | 2026-09-19 04:54:35 | active | resume from checkpoint10,758; same runtime57291c7 and 50k schedule | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -819,3 +822,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKDirectC8MLPPerLayerColOnly | 3 | `us-east5-a` | 2026-09-18 22:18:24 | 2026-09-18 22:29:07 | 10m43s | service preemption; same-zone recovery; replacement queue transferred to new RUN at 22:33:16, no fourth READY lease |
 | BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE | 3 | `us-east5-a` | 2026-09-18 22:21:40 | 2026-09-18 22:29:08 | 7m28s | service preemption; same-zone recovery |
 | BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE | 4 | `us-east5-a` | 2026-09-18 22:38:01 | 2026-09-19 02:16:27 | 3h38m26s | user stop; checkpoint34,348 committed; TPU/queue verified absent |
+| BamXLSharedBasisQKDirectC8MLPPerLayer | 1 | `us-east5-a` | 2026-09-18 22:38:20 | 2026-09-19 03:40:39 | 5h02m19s | service preemption; same-zone recovery |
+| BamXLSharedBasisQKDirectC8MLPPerLayer | 2 | `us-east5-a` | 2026-09-19 03:59:54 | 2026-09-19 04:05:56 | 06m02s | service preemption; same-zone recovery |
+| BamXLSharedBasisQKDirectC8MLPPerLayer | 3 | `us-east5-a` | 2026-09-19 04:26:08 | 2026-09-19 04:43:08 | 17m00s | service preemption; migrated to UC1a at checkpoint10,758 |

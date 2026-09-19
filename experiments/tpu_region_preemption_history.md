@@ -243,7 +243,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE` | v5p-32 | `us-east5-a` | 2026-09-18 07:38:48 | 2026-09-19 02:16:27 | user stop34,348; 3 service preemptions, no zone switches; checkpoint34,348 committed; TPU/queue verified absent; TB sync OK | none |
 
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-18 22:33:19 | 2026-09-19 04:54:35 | migrated to UC1a after 3 preemptions; checkpoint10,758 copied and verified; old TPU/queue verified absent | none |
-| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-central1-a` | 2026-09-19 04:54:35 | active | resume from checkpoint10,758; same runtime57291c7 and 50k schedule | none |
+| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-central1-a` | 2026-09-19 04:54:35 | 2026-09-19 05:15:35 | queue-only assignment; no training or READY lease; EW4b won the three-zone capacity race | UE5a and EW4b submitted concurrently at ~05:11:35 |
+| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `europe-west4-b` | 2026-09-19 05:15:35 | active | resumed checkpoint10,758; FIRST_STEP10,759 and checkpoint11,000 verified; same runtime57291c7 | UC1a released after FIRST_STEP; UE5a cleanup pending while PROVISIONING |
 
 ## READY leases
 

@@ -8200,13 +8200,14 @@ class BamXLSharedBasisQKDirectC8MLPPerLayer(BamXLSharedBasisQKDirectC8MLP):
     """Ledger only: retain DirectC8 BAM reads and repay all BAM parameters per layer."""
     # Implementation: codex/xl-directc8-all-col-k128, /data0/xd/xl-directc8-all-col-k128.
     # code_commit: 57291c7; UE5a v5p-32 .5796 steps/s (10-14), generic ON/BAM OFF.
-    # Resumed in UE5a from checkpoint15,320; same runtime/50k schedule.
     # -2.91% vs PerLayerColOnly .5970; +5.15% vs DirectC8MLP .5512 (different runtimes).
     # 1,420,904,960 params, -15,872 vs XL MHA; unrestricted integer L/L/F widths.
-    # Bet vs PerLayerColOnly: late gap -.006..+.001, center -.003; speed -3..-6%.
-    # Added after observing 4k: bet vs DirectC8MLP late +.002..+.006, center +.004.
-    # Revised at25.5k: vs DirectC8MLP at50k +.010..+.013, center +.011 (10k+ trend fits).
-    # Revised at27k: vs ColOnly at50k +.001..+.0045, center +.003 (late gap crossed zero).
+    # Paused at28,005 (checkpoint retained); direct baseline coverage exhausted. Provisional:
+    # vs ColOnly: early advantage faded and crossed zero; 25.5k–27.5k mean +.000582
+    # (range -.000315..+.001437), rising; 27.5k +.001437. Rows no longer improve loss.
+    # vs DirectC8MLP: gap widened to +.007688 mean over25.5k–27.5k
+    # (range +.007090..+.007950); -8.23% parameters, +5.15% throughput.
+    # Last complete comparison window27.5k; 28k lacks post-stop samples.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayer'
     base_mlp_dim = 5504
     mlp_dim_by_block = [4719, 4719, 4895]

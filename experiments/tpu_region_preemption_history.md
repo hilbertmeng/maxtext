@@ -244,7 +244,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-18 22:33:19 | 2026-09-19 04:54:35 | migrated to UC1a after 3 preemptions; checkpoint10,758 copied and verified; old TPU/queue verified absent | none |
 | `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `us-central1-a` | 2026-09-19 04:54:35 | 2026-09-19 05:15:35 | queue-only assignment; no training or READY lease; EW4b won the three-zone capacity race | UE5a and EW4b submitted concurrently at ~05:11:35 |
-| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `europe-west4-b` | 2026-09-19 05:15:35 | active | resumed checkpoint10,758; FIRST_STEP10,759 and checkpoint11,000 verified; same runtime57291c7 | UC1a released after FIRST_STEP; UE5a cleanup pending while PROVISIONING |
+| `BamXLSharedBasisQKDirectC8MLPPerLayer` | v5p-32 | `europe-west4-b` | 2026-09-19 05:15:35 | active | resumed checkpoint10,758; FIRST_STEP10,759 and checkpoint11,000 verified; same runtime57291c7 | UC1a/UE5a candidates released after FIRST_STEP; UE5a deletion waited for PROVISIONING to end; neither candidate trained |
 
 ## READY leases
 

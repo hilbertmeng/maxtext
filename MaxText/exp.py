@@ -8071,6 +8071,21 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-project-prope'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """Ledger only: LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Static S[V32,H16] per L; no RMSNorm/gate/scale. FetchedO unchanged.
+    # +512/L = .00048828125 W_Q; +8192 total; MLP [2535,2535,2610], cache unchanged.
+    # Prediction vs ColOnly at2800: -.002 (range -.005..+.002), throughput 0..-2%.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol'
+    bam_local_o_static_col = True
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    record_training_health_metrics = True
+    steps = 13500
+    checkpoint_period = 200
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-colonly-localo-static'
+
+
 class BamMediumIndependentLLFBAlignedRowColOnly(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: remove all BAM Q/K/V/O row reads, keeping every MLP at 2816."""
     # code_commit: 4c67f28; UE5a .7264 steps/s, +6.26% vs matched-health BAlignedRow .6836, -1.22% vs PerLayerColOnly .7354.

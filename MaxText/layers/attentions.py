@@ -3310,8 +3310,19 @@ class BamAttention(Attention):
 
     read_m = M_in
     if anchor_m is not None:
-      scale = jnp.tanh(self.m_relay_scale(inputs_q))[..., None]
-      read_m = M_in + scale * anchor_m
+      logits = self.m_relay_scale(inputs_q)[..., None]
+      mixing = cfg.bam_m_relay_mixing
+      if mixing == 'tanh_add':
+        scale = jnp.tanh(logits)
+        read_m = M_in + scale * anchor_m
+      elif mixing == 'linear_add':
+        scale = logits
+        read_m = M_in + scale * anchor_m
+      elif mixing == 'sigmoid_interpolate':
+        scale = jax.nn.sigmoid(logits)
+        read_m = (1 - scale) * M_in + scale * anchor_m
+      else:
+        raise ValueError(f'Unknown M relay mixing: {mixing}')
       if cfg.bam_record_m_relay_metrics and not self.is_initializing():
         # Diagnostic reductions only; stop gradients through the reporting path.
         m, a, delta, mixed = jax.tree.map(

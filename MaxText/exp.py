@@ -286,6 +286,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_col_output_dim = None  # Optional column-only LocalQK width after reading M.
     bam_local_qk_col_output = 'truncate'  # truncate | project (separate Q/K selector-initialized maps)
     bam_m_relay_anchor = 0  # 0 disabled; 1/3 capture write after layer 1 / first LLF block
+    bam_m_relay_mixing = 'tanh_add'
     bam_record_m_relay_metrics = False
     bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
@@ -7330,6 +7331,17 @@ class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
     model_name = 'BamMediumColOnlyK32MRelayM3'
     bam_m_relay_anchor = 3
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM1']
+
+
+class BamMediumColOnlyK32MRelayM3Linear(BamMediumColOnlyK32MRelayM3):
+    model_name = 'BamMediumColOnlyK32MRelayM3Linear'
+    bam_m_relay_mixing = 'linear_add'
+    compare_runs = ['BamMediumColOnlyK32MRelayM3', 'BamMediumIndependentLLFMLPPerLayerColOnly']
+
+
+class BamMediumColOnlyK32MRelayM3Interpolate(BamMediumColOnlyK32MRelayM3Linear):
+    model_name = 'BamMediumColOnlyK32MRelayM3Interpolate'
+    bam_m_relay_mixing = 'sigmoid_interpolate'
 
 
 class BamMediumColOnlyK64TruncateMRelayM1(

@@ -20,7 +20,8 @@ import train
 
 class MRelayTest(unittest.TestCase):
   def test_model_mapping_and_train_signature(self):
-    for name in ('BamMediumColOnlyK32MRelayM1', 'BamMediumColOnlyK64TruncateMRelayM3'):
+    for name in ('BamMediumColOnlyK32MRelayM1', 'BamMediumColOnlyK64TruncateMRelayM3',
+                 'BamMediumColOnlyK32MRelayM3Linear', 'BamMediumColOnlyK32MRelayM3Interpolate'):
       cfg = self.config(name)
       cfg.get_keys().update(vocab_size=128, dtype=jnp.float32,
           bam_local_o_v_mode=['rank2', 'rank2', 'none'] * 2)
@@ -39,7 +40,9 @@ class MRelayTest(unittest.TestCase):
         actual = jax.jit(lambda: model.apply(state.params, *args))()
         expected = jax.jit(lambda: parent.apply(old.params, *args))()
         for actual_leaf, expected_leaf in zip(jax.tree.leaves(actual), jax.tree.leaves(expected)):
-          np.testing.assert_allclose(actual_leaf, expected_leaf, atol=2e-5, rtol=2e-5)
+          if cfg.bam_m_relay_mixing != 'sigmoid_interpolate':
+            np.testing.assert_allclose(actual_leaf, expected_leaf, atol=2e-5, rtol=2e-5)
+          self.assertTrue(bool(jnp.all(jnp.isfinite(actual_leaf))))
       shaped, _, shardings, model = train_compile.get_shaped_inputs(mesh, cfg)
       with mesh, nn_partitioning.axis_rules(cfg.logical_axis_rules):
         _, metrics = jax.eval_shape(lambda st, data, rng: train.train_step(

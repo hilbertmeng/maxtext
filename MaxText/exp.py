@@ -8152,7 +8152,7 @@ class BamXLSharedBasisQKDirectC8MLPPerLayer(BamXLSharedBasisQKDirectC8MLP):
     """Ledger only: retain DirectC8 BAM reads and repay all BAM parameters per layer."""
     # Implementation: codex/xl-directc8-all-col-k128, /data0/xd/xl-directc8-all-col-k128.
     # code_commit: 57291c7; UE5a v5p-32 .5796 steps/s (10-14), generic ON/BAM OFF.
-    # Resumed in EW4b from checkpoint10,758 (UC1a queued only); same runtime/50k schedule.
+    # Resumed in UE5a from checkpoint15,320; same runtime/50k schedule.
     # -2.91% vs PerLayerColOnly .5970; +5.15% vs DirectC8MLP .5512 (different runtimes).
     # 1,420,904,960 params, -15,872 vs XL MHA; unrestricted integer L/L/F widths.
     # Bet vs PerLayerColOnly: late gap -.006..+.001, center -.003; speed -3..-6%.

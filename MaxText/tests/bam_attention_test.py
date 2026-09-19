@@ -196,6 +196,57 @@ class BamReadKeyTransformTest(absltest.TestCase):
     self.assertIn('fetch_route_sums', updates['intermediates'])
     self.assertIn('fetch_mix_scale', updates['intermediates'])
 
+  def test_local_o_static_col_zero_equivalence_gradient_and_ungated_output(self):
+    import copy
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'static-col').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class='BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol',
+          run_name='static-col', enable_checkpointing=False,
+          base_output_directory=out+'/', jax_cache_dir='', log_config=False,
+          dataset_type='synthetic', base_emb_dim=128, base_num_query_heads=2,
+          base_num_kv_heads=2, head_dim=64, max_target_length=8,
+          max_prefill_predict_length=8, query_chunk_size=4, per_device_batch_size=1.)
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(
+          config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_o', read_side='col', attention_type=cfg.attention_type)
+      x = jax.random.normal(jax.random.key(1), (1,8,128), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(4), (1,8,32,32), dtype=cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=m, deterministic=True, layer_index=1)
+      variables = module.init({'params':jax.random.key(2)}, *args, **kw)
+      params = unfreeze(variables['params'])
+      static = params['local_o_static_col_key']
+      np.testing.assert_array_equal(static.value, jnp.zeros((32,2)))
+      def output(p):
+        return module.apply({'params':p}, *args, **kw)[0].astype(jnp.float32)
+      y = output(params)
+      # Disable just the new branch, retaining identical historical parameters.
+      cfg.get_keys()['bam_local_o_static_col'] = False
+      np.testing.assert_array_equal(y, output(params))
+      cfg.get_keys()['bam_local_o_static_col'] = True
+      grad = jax.grad(lambda p:jnp.sum(output(p)))(params)
+      self.assertGreater(float(jnp.linalg.norm(grad['local_o_static_col_key'].value)), 0.)
+      # With the dynamic O gate shut, a nonzero static key still changes output.
+      off = copy.deepcopy(params)
+      gate = off['W_R_gate_b0']
+      off['W_R_gate_b0'] = gate.replace(value=jnp.full_like(gate.value,-100.))
+      zero = output(off)
+      off['local_o_static_col_key'] = static.replace(value=jnp.full_like(static.value,.01))
+      self.assertGreater(float(jnp.linalg.norm(output(off)-zero)), 0.)
+      fetched = module.clone(layer_mode='local_qk+full')
+      fvars = fetched.init({'params':jax.random.key(2)}, *args, **kw)
+      self.assertNotIn('local_o_static_col_key', fvars['params'])
+
   def test_scale_only_matches_legacy_initial_weights_and_has_scale_gradient(self):
     logits = jax.random.normal(jax.random.key(23), (2, 8, 16))
     for dtype in (jnp.float32, jnp.bfloat16):

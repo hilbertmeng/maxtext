@@ -2732,6 +2732,15 @@ class BamAttention(Attention):
                 nn.initializers.constant(self._fetch_mix_num_heads ** -0.5), (None,)),
             (1,), self.weight_dtype)
 
+    self._local_o_static_col = self._local_o and bool(
+        getattr(cfg, 'bam_local_o_static_col', False))
+    if self._local_o_static_col:
+      assert self._fetched_arm.prune_row and self._fetched_read_num_heads == self.num_query_heads
+      self.local_o_static_col_key = self.param(
+          'local_o_static_col_key',
+          nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
+          (self.bam_v, self.num_query_heads), self.weight_dtype)
+
     # ---- Local read parameters: one packed projection over every arm, then
     # the same per-arm bias / gate bias / norms / adapter. ----
     if self._local_arms:
@@ -3282,6 +3291,15 @@ class BamAttention(Attention):
           value = value + self._read_local(
               'v', Mh,
               inputs_q, local_inputs)
+
+    if self._local_o_static_col:
+      # Full-M static column read, added AFTER dynamic gating, only to LocalO.
+      # No key normalization, gate, or read-key scale on this branch.
+      with jax.named_scope('bam/read_local_o_static_col'):
+        static_col = jnp.einsum(
+            'btkv,vn->btnk', Mh, self.local_o_static_col_key.astype(Mh.dtype))
+        local_output = local_output + _pack_fetched_bam_heads(
+            static_col, self.num_query_heads, self.head_dim)
 
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
     if cfg.float32_qk_product:

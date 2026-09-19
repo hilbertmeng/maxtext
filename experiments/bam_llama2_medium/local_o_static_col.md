@@ -22,3 +22,13 @@ are covered by the added full-module test. Logs: `/data0/xd/localo-static-unit-f
 FIRST_STEP verified with AOT loaded; UE5a steps10–14 .7296/s, -.79% versus
 matched-health parent .7354/s. Report every600 steps through2800; if continuing,
 every2000 thereafter, retaining 200-step windows/r200.
+
+Stopped at2909 after the2800 review; final checkpoint committed, TPU and queue
+verified absent, TensorBoard SYNC_OK. Early benefit faded; last5 windows
+2000–2800 mean -.00071332, last3 windows mean +.00002133; no sustained gain.
+Final gap data: `/data0/xd/localo-static-final-gap.json`.
+Closeout: tpu-ag `logs/closeout-20260919T171517Z.json`, failures [].
+Training used only UE5a v5p-16, no preemptions: READY 2026-09-19 16:02:16 UTC
+through manual stop17:12:41 UTC, duration1h10m25s. Assignment started15:57:04.
+AOT status ready with all compiler candidates cleaned; formal backup zones
+were configured but never needed.

@@ -8127,6 +8127,7 @@ class BamXLSharedBasisQKDirectC8MLPPerLayer(BamXLSharedBasisQKDirectC8MLP):
     # -2.91% vs PerLayerColOnly .5970; +5.15% vs DirectC8MLP .5512 (different runtimes).
     # 1,420,904,960 params, -15,872 vs XL MHA; unrestricted integer L/L/F widths.
     # Bet vs PerLayerColOnly: late gap -.006..+.001, center -.003; speed -3..-6%.
+    # Added after observing 4k: bet vs DirectC8MLP late +.002..+.006, center +.004.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayer'
     base_mlp_dim = 5504
     mlp_dim_by_block = [4719, 4719, 4895]

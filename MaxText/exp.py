@@ -7964,10 +7964,11 @@ class BamMediumColOnlyK32MRelayM3Linear(BamMediumColOnlyK32MRelayM3):
 
 
 class BamMediumColOnlyK32MRelayM3Interpolate(BamMediumColOnlyK32MRelayM3Linear):
-    # Ledger only: same relay worktree. Prediction vs M3: late +.005, speed within 1%.
-    # Zero logits give initial s=.5; convex mixture changes initial forward (unlike Linear).
+    # Ledger only: same relay worktree. Prediction vs M3: late +.002, speed within 1%.
+    # Zero kernel + logit(.01) bias: initial .99M+.01A, close to the no-relay parent.
     model_name = 'BamMediumColOnlyK32MRelayM3Interpolate'
     bam_m_relay_mixing = 'sigmoid_interpolate'
+    bam_m_relay_gate_init = .01
 
 
 class BamMediumColOnlyK64TruncateMRelayM1(

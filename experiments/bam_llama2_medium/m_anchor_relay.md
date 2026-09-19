@@ -62,12 +62,13 @@ Both M3 RUNs continue. Scripted parallel closeout took171s.
 
 Same implementation worktree; new runs train from scratch, preserving parent parameter mapping.
 `BamMediumColOnlyK32MRelayM3Linear` uses zero-init `s=Wx+b`, `M_read=M+s*A`.
-`BamMediumColOnlyK32MRelayM3Interpolate` uses zero-init logits, `s=sigmoid(Wx+b)`,
-`M_read=(1-s)*M+s*A`; initial s=.5 deliberately changes the initial forward.
+`BamMediumColOnlyK32MRelayM3Interpolate` uses zero kernel and bias=logit(.01),
+`s=sigmoid(Wx+b)`, `M_read=(1-s)*M+s*A`; initial .99M+.01A stays close to the parent.
 Both compare K32-M3 and the no-relay K32 parent, with the same 13,500-step schedule,
 200-step checkpoints and generic+relay health. Prediction vs M3: Linear -.001,
-Interpolate +.005; throughput within 1%. Around2,800 review long-term trends and stop
+Interpolate +.002 (revised after reducing initial s from .5 to .01); throughput within 1%. Around2,800 review long-term trends and stop
 if there is no credible positive effect. This task monitors only these two new RUNs.
+Report every600 steps, explicitly review around2800; if continued, report every2000 steps.
 Existing telemetry `delta_over_m` means `||s*A||/||M||`, not the net change for
 interpolation; `mixed_over_m` captures attenuation. `saturated_fraction` is the legacy
 name for fraction `abs(s)>.95`: for Linear this is a magnitude threshold, not saturation.

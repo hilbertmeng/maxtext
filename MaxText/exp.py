@@ -7955,6 +7955,21 @@ class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM1']
 
 
+class BamMediumColOnlyK32MRelayM3Linear(BamMediumColOnlyK32MRelayM3):
+    # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    # Prediction vs M3: late -.001, speed within 1%; unbounded zero-init additive coefficient.
+    model_name = 'BamMediumColOnlyK32MRelayM3Linear'
+    bam_m_relay_mixing = 'linear_add'
+    compare_runs = ['BamMediumColOnlyK32MRelayM3', 'BamMediumIndependentLLFMLPPerLayerColOnly']
+
+
+class BamMediumColOnlyK32MRelayM3Interpolate(BamMediumColOnlyK32MRelayM3Linear):
+    # Ledger only: same relay worktree. Prediction vs M3: late +.005, speed within 1%.
+    # Zero logits give initial s=.5; convex mixture changes initial forward (unlike Linear).
+    model_name = 'BamMediumColOnlyK32MRelayM3Interpolate'
+    bam_m_relay_mixing = 'sigmoid_interpolate'
+
+
 class BamMediumColOnlyK64TruncateMRelayM1(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
     # code_commit: 72469e1; UE5a .6828 steps/s, -2.18% vs parent .698; generic+relay health ON.

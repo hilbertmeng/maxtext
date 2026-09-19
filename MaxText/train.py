@@ -893,6 +893,18 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
   if getattr(config, 'bam_record_local_routing_metrics', False):
     record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)
 
+  if getattr(config, 'bam_record_m_relay_metrics', False):
+    layers = intermediate_outputs['intermediates']['decoder']['layers']
+    names = ('scale_mean', 'positive_fraction', 'negative_fraction', 'saturated_fraction',
+             'delta_over_m', 'anchor_m_cosine', 'mixed_over_m')
+    block_size = config.bam_local_fetch_block_size
+    for layer in range(block_size, config.num_decoder_layers):
+      offset = layer % block_size
+      role = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
+      values = layers[role]['block']['self_attention']['m_relay_stats'][0][layer // block_size - 1]
+      for name, value in zip(names, values):
+        metrics['scalar'][f'bam/m_relay/layer_{layer:03d}/{name}'] = value
+
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)
 

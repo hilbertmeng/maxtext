@@ -733,6 +733,9 @@ def init_initial_state(model, tx, config, is_training, key):
       np.ones(input_shape, dtype=jnp.int32),
       np.ones(input_shape, dtype=jnp.int32),
   )
+  if getattr(config, 'bam_m_relay_anchor', 0):
+    from layers.bam_m_relay_init import initialize_from_m_relay_parent
+    model_vars = initialize_from_m_relay_parent(model, model_vars, config, key, input_shape)
   if is_training:
     return init_training_state(model.apply, model_vars, tx)
   return init_decode_state(model.apply, model_vars)

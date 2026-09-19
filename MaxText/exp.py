@@ -285,6 +285,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_post_read_v_init = 'orthogonal'  # orthogonal | identity
     bam_local_qk_col_output_dim = None  # Optional column-only LocalQK width after reading M.
     bam_local_qk_col_output = 'truncate'  # truncate | project (separate Q/K selector-initialized maps)
+    bam_m_relay_anchor = 0  # 0 disabled; 1/3 capture write after layer 1 / first LLF block
+    bam_record_m_relay_metrics = False
     bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
     bam_partial_rope = False  # Keep the LocalQK footprint NoPE; rotate the unused head tail.
     bam_partial_rope_nope_dim = None  # Optional explicit width for historical controls.
@@ -7309,6 +7311,45 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK48',
                     'BamMediumIndependentLLFMLPPerLayerColOnly']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
+
+
+class BamMediumColOnlyK32MRelayM1(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """First LLF block unrolled; later blocks read M + tanh(Wx+b) * M1."""
+    model_name = 'BamMediumColOnlyK32MRelayM1'
+    bam_m_relay_anchor = 1
+    bam_record_m_relay_metrics = True
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
+    model_name = 'BamMediumColOnlyK32MRelayM3'
+    bam_m_relay_anchor = 3
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM1']
+
+
+class BamMediumColOnlyK64TruncateMRelayM1(
+    BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
+    model_name = 'BamMediumColOnlyK64TruncateMRelayM1'
+    bam_m_relay_anchor = 1
+    bam_record_m_relay_metrics = True
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE']
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+
+
+class BamMediumColOnlyK64TruncateMRelayM3(BamMediumColOnlyK64TruncateMRelayM1):
+    model_name = 'BamMediumColOnlyK64TruncateMRelayM3'
+    bam_m_relay_anchor = 3
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+                    'BamMediumColOnlyK64TruncateMRelayM1']
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(

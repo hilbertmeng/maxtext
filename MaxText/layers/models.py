@@ -817,6 +817,18 @@ class Decoder(nn.Module):
           scan_carry = y
         local_sws = min(swss)
         all_global_attention = all(s >= cfg.max_target_length for s in swss)
+        first_block = 0
+        if getattr(cfg, 'bam_m_relay_anchor', 0):
+          assert pair_scan and cfg.bam_m_relay_anchor in (1, block_size)
+          scan_carry, _ = fusion.BamLayerPair(
+              cfg, mesh, local_sws, self.quant, name='first_block',
+              all_global_attention=all_global_attention, capture_anchor=True)(
+                  scan_carry, decoder_segment_ids, decoder_positions,
+                  decoder_input_tokens, deep_embeddings, deterministic,
+                  model_mode, eos_sum, None, None, None, 0)
+          first_block = 1
+          scan_length -= 1
+          is_global = is_global[1:]
         scan_module = self.scan_decoder_layers(
             cfg, RemattedBlockLayer, scan_length, "layers", mesh,
             sliding_window_size=local_sws,
@@ -840,7 +852,7 @@ class Decoder(nn.Module):
           scan_inputs += (
               None,
               None,
-              jnp.arange(scan_length, dtype=jnp.int32),
+              jnp.arange(first_block, first_block + scan_length, dtype=jnp.int32),
           )
         scan_carry, _ = scan_module(*scan_inputs)
         y = scan_carry[0] if full_bam else scan_carry

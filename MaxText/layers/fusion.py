@@ -97,6 +97,7 @@ class SubDecoderLayer(nn.Module):
       M_in=None,
       is_global=None,
       layer_index=None,
+      anchor_m=None,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -189,7 +190,7 @@ class SubDecoderLayer(nn.Module):
     if cfg.bam_enabled:
         attention_lnx, M_out = attention_layer(
             **call_kwargs, M_in=M_in, is_global=is_global,
-            layer_index=layer_index)
+            layer_index=layer_index, anchor_m=anchor_m)
     else:
         attention_lnx = attention_layer(**call_kwargs)
         M_out = M_in
@@ -307,6 +308,7 @@ class BamLayerPair(nn.Module):
   quant: Optional[Quant] = None
   scan_length: int = 1
   all_global_attention: bool = True
+  capture_anchor: bool = False
 
   @nn.compact
   def __call__(self, carry, segment_ids, positions, tokens, deep_embedding,
@@ -329,6 +331,10 @@ class BamLayerPair(nn.Module):
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
               block_size * block_index + offset)
+      if self.capture_anchor and offset + 1 == cfg.bam_m_relay_anchor:
+        anchor_m = carry[1]
+    if self.capture_anchor:
+      carry = (*carry, anchor_m)
     return carry, ()
 
 
@@ -394,10 +400,14 @@ class FusionDecoderLayer(nn.Module):
     scan_full_bam = (
         cfg.scan_layers and cfg.bam_enabled
         and not getattr(cfg, 'bam_mha_control', False))
+    anchor_m = None
     if cfg.scan_layers:
       assert not cfg.dense_conn, 'flat layer scan currently requires dense_conn=False'
       if scan_full_bam:
-        inputs, M_in = inputs
+        if len(inputs) == 3:
+          inputs, M_in, anchor_m = inputs
+        else:
+          inputs, M_in = inputs
       else:
         M_in = None
       if self.all_global_attention:
@@ -451,6 +461,7 @@ class FusionDecoderLayer(nn.Module):
         M_in=M_in,
         is_global=is_global,
         layer_index=layer_index,
+        anchor_m=anchor_m,
     )
     max_logging.log(f'layer_inx: {self.layer_inx} break_layers: {self.break_layers}', debug=cfg.debug)
     if cfg.dense_conn and self.layer_inx in self.break_layers:
@@ -468,6 +479,8 @@ class FusionDecoderLayer(nn.Module):
 
     if cfg.scan_layers:
       carry = (inputs, M_out) if scan_full_bam else inputs
+      if anchor_m is not None:
+        carry = (*carry, anchor_m)
       return carry, ()
     if cfg.bam_enabled:
       return inputs, hids, M_out

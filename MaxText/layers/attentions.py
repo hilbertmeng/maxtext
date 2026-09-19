@@ -2476,6 +2476,12 @@ class BamAttention(Attention):
     zeros_init = initializers.contant_dense_init(0.0)
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
+    if getattr(cfg, 'bam_m_relay_anchor', 0):
+      self.m_relay_scale = DenseGeneral(
+          features=1, axis=-1, kernel_init=zeros_init,
+          kernel_axes=('embed', None), dtype=self.dtype,
+          name='m_relay_scale', quant=self.quant,
+          matmul_precision=cfg.matmul_precision, use_bias=True)
 
     self._read_key_scale = float(cfg.bam_read_key_scale)
     self._rms_epsilon = float(cfg.normalization_layer_epsilon)
@@ -3281,6 +3287,7 @@ class BamAttention(Attention):
       M_in: Array | None = None,
       is_global: Array | bool | None = None,
       layer_index: Array | int | None = None,
+      anchor_m: Array | None = None,
   ):
     """BAM forward. Returns (out, M_out): out [b,t,emb_dim], M_out [b,t,k,v].
 
@@ -3301,6 +3308,22 @@ class BamAttention(Attention):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
+    read_m = M_in
+    if anchor_m is not None:
+      scale = jnp.tanh(self.m_relay_scale(inputs_q))[..., None]
+      read_m = M_in + scale * anchor_m
+      if cfg.bam_record_m_relay_metrics and not self.is_initializing():
+        # Diagnostic reductions only; stop gradients through the reporting path.
+        m, a, delta, mixed = jax.tree.map(
+            lambda v: jax.lax.stop_gradient(v).astype(jnp.float32),
+            (M_in, anchor_m, scale * anchor_m, read_m))
+        rms = lambda v: jnp.sqrt(jnp.mean(v * v, axis=(-2, -1)) + 1e-20)
+        cosine = jnp.mean(m * a, axis=(-2, -1)) / (rms(m) * rms(a))
+        stats = jnp.stack((jnp.mean(scale), jnp.mean(scale > 0),
+            jnp.mean(scale < 0), jnp.mean(jnp.abs(scale) > .95),
+            jnp.mean(rms(delta) / rms(m)), jnp.mean(cosine),
+            jnp.mean(rms(mixed) / rms(m))))
+        self.sow('intermediates', 'm_relay_stats', stats)
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
@@ -3315,7 +3338,7 @@ class BamAttention(Attention):
     if 'local_qk' in self._mode:  # V1 default
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
-          Mh = self._matrix_for_read(M_in)
+          Mh = self._matrix_for_read(read_m)
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
@@ -3330,7 +3353,7 @@ class BamAttention(Attention):
     local_output = None
     if self._local_o:
       if Mh is None:
-        Mh = self._matrix_for_read(M_in)
+        Mh = self._matrix_for_read(read_m)
       local_state = self._compress_m(Mh)
       local_output, output_logits = self._read_fetched_m(
           local_state, inputs_q, ungated=self._local_v_mode == 'shared')
@@ -3353,7 +3376,7 @@ class BamAttention(Attention):
     if 'full' in self._mode:
       if Mh is None:
         with jax.named_scope("bam/normalize_m"):
-          Mh = self._matrix_for_read(M_in)
+          Mh = self._matrix_for_read(read_m)
       with jax.named_scope("bam/mix_alpha_projection"):
         mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype,

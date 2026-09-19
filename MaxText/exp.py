@@ -8100,7 +8100,9 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndepend
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Static S[V32,H16] per L; no RMSNorm/gate/scale. FetchedO unchanged.
     # +512/L = .00048828125 W_Q; +8192 total; MLP [2535,2535,2610], cache unchanged.
-    # Prediction vs ColOnly at2800: -.002 (range -.005..+.002), throughput 0..-2%.
+    # Stopped at2,909. vs ColOnly: early benefit -.0080@400 faded toward zero;
+    # 2000–2800 mean -.000713 (range -.002157..+.000911); 2400–2800 mean +.000021.
+    # No sustained loss gain at2800 review; +8192 parameters and -.79% throughput, cache unchanged.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol'
     bam_local_o_static_col = True
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']

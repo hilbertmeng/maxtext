@@ -249,6 +249,7 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumColOnlyK32MRelayM1` | v5p-16 | `us-east5-a` | 2026-09-19 13:42:43 | 2026-09-19 15:37:52 | user stop3487; 2 maintenance/preemptions, same-zone recovery; checkpoint3487 committed; TPU/queue absent; TB sync OK | none observed |
 | `BamMediumColOnlyK64TruncateMRelayM1` | v5p-16 | `us-east5-a` | 2026-09-19 13:52:57 | 2026-09-19 15:37:55 | user stop3927; zero preemptions, no zone switches; checkpoint3927 committed; TPU/queue absent; TB sync OK | none observed |
+| `BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol` | v5p-16 | `us-east5-a` | 2026-09-19 15:57:04 | 2026-09-19 17:12:41 | no sustained benefit at2800 review; stopped2909 | UC1a/EW4b configured, not activated |
 
 ## READY leases
 
@@ -842,3 +843,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumColOnlyK64TruncateMRelayM1 | 1 | `us-east5-a` | 2026-09-19 13:57:00 | 2026-09-19 15:37:55 | 1h40m55s | user stop3927; final checkpoint committed |
 | BamMediumColOnlyK64TruncateMRelayM3 | 1 | `us-east5-a` | 2026-09-19 15:01:10 | 2026-09-19 15:12:04 | 10m54s | service preemption; same-zone recovery |
 | BamMediumColOnlyK64TruncateMRelayM3 | 2 | `us-east5-a` | 2026-09-19 15:20:24 | 2026-09-19 16:13:23 | 52m59s | run stop; crossed zero vs Truncate @~1500; stopped 2,199; checkpoint 2,232 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol | 1 | `us-east5-a` | 2026-09-19 16:02:16 | 2026-09-19 17:12:41 | 1h10m25s | manual stop; checkpoint2909 committed; TPU/queue verified absent17:15:17; no preemption |

@@ -80,3 +80,56 @@ BAM read keys start at zero; equal step0 loss does not imply identical internal 
 All compiler candidates, including the cancelled old interpolation candidate, were released.
 Registry retains200-step fixed-window series; agent batches reports every600 steps before
 the2800 review, then every2000 if continued. Only these two RUNs are monitored by this task.
+
+### Coefficient ablation outcome (2800-step review)
+
+Both variants failed to improve tanh-M3 and offer no efficiency advantage. Linear nearly
+matched at600 but settled into a harmful +.0035..+.0055 plateau from800 through2800;
+1000–1800 vs2000–2800 means +.00461/+.00487, contradicting the -.001 prediction.
+Interpolate remained much worse than M3 (+.01479 at2800, despite slow narrowing), and
+its no-relay-parent gap was persistently harmful: corresponding window means +.00352/+.00374.
+This rejects these two tested parameterizations, not all possible interpolation initializations.
+Interpolate stopped at2903; final checkpoint committed, TB synced, TPU/queue released.
+Linear stopped at2909; final commit became visible during maintenance cleanup, then verified.
+Both resources are absent and local TensorBoard sync succeeded.
+
+Fixed ±25-step windows, stride10; negative gap favors variant. K32 means
+`BamMediumIndependentLLFMLPPerLayerColOnly`; M3 means `BamMediumColOnlyK32MRelayM3`.
+
+| Step | Linear−M3 | Linear−K32 | Interpolate−M3 | Interpolate−K32 |
+|---:|---:|---:|---:|---:|
+| 200 | +.025510 | +.113144 | -.048961 | +.038673 |
+| 400 | +.001086 | -.041935 | +.044914 | +.001893 |
+| 600 | +.000387 | -.029721 | +.029898 | -.000210 |
+| 800 | +.004282 | -.020892 | +.028745 | +.003570 |
+| 1000 | +.005541 | -.018591 | +.026781 | +.002649 |
+| 1200 | +.005118 | -.013533 | +.022886 | +.004234 |
+| 1400 | +.003517 | -.012975 | +.020668 | +.004176 |
+| 1600 | +.004673 | -.011466 | +.018607 | +.002468 |
+| 1800 | +.004192 | -.009762 | +.018029 | +.004075 |
+| 2000 | +.004766 | -.009692 | +.017556 | +.003097 |
+| 2200 | +.004606 | -.008329 | +.015884 | +.002949 |
+| 2400 | +.005333 | -.006601 | +.016426 | +.004492 |
+| 2600 | +.004220 | -.006091 | +.014920 | +.004609 |
+| 2800 | +.005429 | -.005821 | +.014787 | +.003537 |
+
+Health reproduction: `experiments/bam_llama2_medium/report_m_relay_health.py RUN... --steps 600,1400,2800`,
+using the pinned CPU Python and synced events at `/data0/xd/tensorboard_logs`.
+The reporter uses the shared incremental scalar cache, fixed windows and layer bands.
+At2800 Interpolate's gate mean .023 (up from .0099 at600) gives anchor/M norm ratio .0081
+and mixed/M .982; thus the gate learned but relay remained weak. Linear uses a much larger
+anchor contribution than M3 without a loss gain. Neither shows persistent raw-gradient instability.
+
+| Health,600→1400→2800 | M3 | Linear | Interpolate |
+|---|---|---|---|
+| coefficient mean | .706→.571→.469 | 1.741→1.712→1.780 | .0099→.0160→.0230 |
+| anchor contribution / M norm | .261→.243→.226 | .513→.478→.463 | .0044→.0063→.0081 |
+| mixed / M norm | 1.187→1.161→1.136 | 1.377→1.338→1.319 | .993→.988→.982 |
+| raw_grad_norm | .654→.414→.330 | .700→.405→.341 | .785→.422→.354 |
+
+Linear closeout overlapped a confirmed maintenance event at17:40:26 UTC on2026-09-19:
+worker SSH timed out although the TPU still showed READY/ACTIVE. Checkpoint2800 was initially
+the latest verified save; a subsequent check verified committed2909. TB remained intact.
+Orchestration source `xd_tpu_scripts` commit cfc45a8 adds a safe fallback
+for failed SSH with independently confirmed unavailable workers, preserving committed checkpoints
+and cached loss; unknown SSH failures and missing checkpoints still fail closed. Five tests passed.

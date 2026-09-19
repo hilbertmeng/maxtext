@@ -7958,7 +7958,10 @@ class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
 class BamMediumColOnlyK32MRelayM3Linear(BamMediumColOnlyK32MRelayM3):
     # code_commit: 579f0ca; UE5a .7244 steps/s, -1.04% vs M3 .7320; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
-    # Prediction vs M3: late -.001, speed within 1%; unbounded zero-init additive coefficient.
+    # Stopped at2909.
+    # vs M3: nearly matched at600, then harmful plateau800–2800 +.0035..+.0055;
+    # 1000–1800/2000–2800 means +.00461/+.00487, contrary to predicted -.001.
+    # vs no-relay parent: early benefit faded to -.00582 at2800; dominated by tanh-M3.
     model_name = 'BamMediumColOnlyK32MRelayM3Linear'
     bam_m_relay_mixing = 'linear_add'
     compare_runs = ['BamMediumColOnlyK32MRelayM3', 'BamMediumIndependentLLFMLPPerLayerColOnly']
@@ -7966,8 +7969,12 @@ class BamMediumColOnlyK32MRelayM3Linear(BamMediumColOnlyK32MRelayM3):
 
 class BamMediumColOnlyK32MRelayM3Interpolate(BamMediumColOnlyK32MRelayM3Linear):
     # code_commit: 01223d9; UE5a .7260 steps/s, -.82% vs M3 .7320; generic+relay health ON.
-    # Ledger only: same relay worktree. Prediction vs M3: late +.002, speed within 1%.
+    # Ledger only: same relay worktree.
+    # Stopped at2903.
     # Zero kernel + logit(.01) bias: initial .99M+.01A, close to the no-relay parent.
+    # vs M3: negative at200, positive from400; slow narrowing to +.01479 at2800,
+    # worse than predicted +.002. vs no-relay parent: 1000–1800/2000–2800 means
+    # +.00352/+.00374, no improving trend; stopped at review, no efficiency benefit.
     model_name = 'BamMediumColOnlyK32MRelayM3Interpolate'
     bam_m_relay_mixing = 'sigmoid_interpolate'
     bam_m_relay_gate_init = .01

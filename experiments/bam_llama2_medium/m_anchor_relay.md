@@ -39,3 +39,7 @@ parent parameter mapping, initial model outputs and full training signatures pas
 Existing BAM attention regression: 43 tests passed. Prepared runtime: 72469e1.
 AOT preparation and auto-launch were submitted for all four RUNs on 2026-09-19.
 
+K32 startup verified: both loaded the compiled function on UE5a and step0 loss matched
+exactly (10.845657). Steps10–14 mean throughput: M1 .7306, M3 .7320 steps/s,
+-.65% / -.46% vs parent .7354. K64-M1 AOT is ready and formal allocation submitted;
+K64-M3 is still awaiting a compiler after repeated EW4a preemptions, with UC1a queued.

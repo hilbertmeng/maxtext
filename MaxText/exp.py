@@ -7930,6 +7930,7 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
 
 class BamMediumColOnlyK32MRelayM1(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: first-layer M anchor, read-only relay after the first LLF block."""
+    # code_commit: 72469e1; UE5a .7306 steps/s, -.65% vs parent .7354; generic+relay health ON.
     # Implementation: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     # Parent-initialized first block + seven scanned blocks; tanh scalar per token/layer.
     # Prediction vs parent: late -.001; throughput about -1%, relay telemetry adds overhead.
@@ -7945,6 +7946,7 @@ class BamMediumColOnlyK32MRelayM1(BamMediumIndependentLLFMLPPerLayerColOnly):
 
 
 class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
+    # code_commit: 72469e1; UE5a .7320 steps/s, -.46% vs parent .7354; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay; prediction vs parent late -.002.
     model_name = 'BamMediumColOnlyK32MRelayM3'
     bam_m_relay_anchor = 3

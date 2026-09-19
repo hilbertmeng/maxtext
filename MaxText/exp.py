@@ -8206,6 +8206,7 @@ class BamXLSharedBasisQKDirectC8MLPPerLayer(BamXLSharedBasisQKDirectC8MLP):
     # Bet vs PerLayerColOnly: late gap -.006..+.001, center -.003; speed -3..-6%.
     # Added after observing 4k: bet vs DirectC8MLP late +.002..+.006, center +.004.
     # Revised at25.5k: vs DirectC8MLP at50k +.010..+.013, center +.011 (10k+ trend fits).
+    # Revised at27k: vs ColOnly at50k +.001..+.0045, center +.003 (late gap crossed zero).
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayer'
     base_mlp_dim = 5504
     mlp_dim_by_block = [4719, 4719, 4895]

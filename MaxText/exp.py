@@ -7956,6 +7956,7 @@ class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
 
 
 class BamMediumColOnlyK32MRelayM3Linear(BamMediumColOnlyK32MRelayM3):
+    # code_commit: 579f0ca; UE5a .7244 steps/s, -1.04% vs M3 .7320; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     # Prediction vs M3: late -.001, speed within 1%; unbounded zero-init additive coefficient.
     model_name = 'BamMediumColOnlyK32MRelayM3Linear'
@@ -7964,6 +7965,7 @@ class BamMediumColOnlyK32MRelayM3Linear(BamMediumColOnlyK32MRelayM3):
 
 
 class BamMediumColOnlyK32MRelayM3Interpolate(BamMediumColOnlyK32MRelayM3Linear):
+    # code_commit: 01223d9; UE5a .7260 steps/s, -.82% vs M3 .7320; generic+relay health ON.
     # Ledger only: same relay worktree. Prediction vs M3: late +.002, speed within 1%.
     # Zero kernel + logit(.01) bias: initial .99M+.01A, close to the no-relay parent.
     model_name = 'BamMediumColOnlyK32MRelayM3Interpolate'

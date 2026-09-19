@@ -72,3 +72,11 @@ Report every600 steps, explicitly review around2800; if continued, report every2
 Existing telemetry `delta_over_m` means `||s*A||/||M||`, not the net change for
 interpolation; `mixed_over_m` captures attenuation. `saturated_fraction` is the legacy
 name for fraction `abs(s)>.95`: for Linear this is a magnitude threshold, not saturation.
+
+Both new RUNs passed AOT loading and step14 on UE5a. Runtime commits: Linear579f0ca,
+Interpolate01223d9. Steps10–14 throughput .7244/.7260 steps/s (-1.04%/-.82% vs M3 .7320),
+generic+relay health matched. Interpolate step0 loss10.845657 still matches parent because
+BAM read keys start at zero; equal step0 loss does not imply identical internal M.
+All compiler candidates, including the cancelled old interpolation candidate, were released.
+Registry retains200-step fixed-window series; agent batches reports every600 steps before
+the2800 review, then every2000 if continued. Only these two RUNs are monitored by this task.

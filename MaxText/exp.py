@@ -7991,8 +7991,13 @@ class BamMediumColOnlyK64TruncateMRelayM1(
 
 
 class BamMediumColOnlyK64TruncateMRelayM3(BamMediumColOnlyK64TruncateMRelayM1):
-    # code_commit: 72469e1; UE5a .6832 steps/s, -2.12% vs parent .698; generic+relay health ON.
-    # Ledger only: codex/llf-m-anchor-relay; prediction vs parent late -.001.
+    # code_commit: 72469e1; UE5a .6832 steps/s, -2.12% vs parent .698.
+    # Result: stopped 2199 (1 preemption). vs Truncate: crossed zero
+    # @~1500 (-.0005@1400 -> +.0007@1600), settled +.0015 @2000 (neutral).
+    # vs M1 (anchor=1): -.0245 @2000 (M3 better than M1 by ~.025).
+    # Conclusion: MRelay anchor=3 on Truncate is neutral (~0 vs Truncate),
+    # far better than anchor=1 (+.021). anchor position is decisive: anchor=3
+    # recovers Truncate parity, anchor=1 costs ~.02.
     model_name = 'BamMediumColOnlyK64TruncateMRelayM3'
     bam_m_relay_anchor = 3
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
@@ -8243,8 +8248,10 @@ class BamXLSharedBasisQKDirectC8MLPPerLayer(BamXLSharedBasisQKDirectC8MLP):
     # 1,420,904,960 params, -15,872 vs XL MHA; unrestricted integer L/L/F widths.
     # Paused at28,005 (checkpoint retained); direct baseline coverage exhausted. Provisional:
     # vs ColOnly: early advantage faded and crossed zero; 25.5k–27.5k mean +.000582
-    # (range -.000315..+.001437), rising; 27.5k +.001437. Rows no longer improve loss.
+    # (range -.000315..+.001437), rising; 27.5k +.001437. 
+    # estimate to reach ~+0.003 at final step 50000. Row read's param efficiency is worse than MLP
     # vs DirectC8MLP: gap widened to +.007688 mean over25.5k–27.5k
+    # still slowly widening, estimate to reach ~+0.011 at final step 50000
     # (range +.007090..+.007950); -8.23% parameters, +5.15% throughput.
     # Last complete comparison window27.5k; 28k lacks post-stop samples.
     model_name = 'BamXLSharedBasisQKDirectC8MLPPerLayer'

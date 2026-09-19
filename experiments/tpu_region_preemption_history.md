@@ -840,3 +840,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumColOnlyK32MRelayM1 | 2 | `us-east5-a` | 2026-09-19 14:34:00 | 2026-09-19 15:09:07 | 35m07s | maintenance/preemption; same-zone recovery |
 | BamMediumColOnlyK32MRelayM1 | 3 | `us-east5-a` | 2026-09-19 15:20:27 | 2026-09-19 15:37:52 | 17m25s | user stop3487; final checkpoint committed |
 | BamMediumColOnlyK64TruncateMRelayM1 | 1 | `us-east5-a` | 2026-09-19 13:57:00 | 2026-09-19 15:37:55 | 1h40m55s | user stop3927; final checkpoint committed |
+| BamMediumColOnlyK64TruncateMRelayM3 | 1 | `us-east5-a` | 2026-09-19 15:01:10 | 2026-09-19 15:12:04 | 10m54s | service preemption; same-zone recovery |
+| BamMediumColOnlyK64TruncateMRelayM3 | 2 | `us-east5-a` | 2026-09-19 15:20:24 | 2026-09-19 16:13:23 | 52m59s | run stop; crossed zero vs Truncate @~1500; stopped 2,199; checkpoint 2,232 committed; TPU/queue verified absent |

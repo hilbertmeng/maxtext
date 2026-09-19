@@ -209,6 +209,21 @@ class Llama2Medium(GWindow, PileDataset, Optimizer, Common):
     keep_period = 0
 
 
+class Llama2MediumProp(Llama2Medium):
+    """Proportional Medium backbone: 18 layers, 16x75 heads, T4096."""
+    # Architecture base: head_dim=75 requires an even rotary subspace in
+    # derived attention configs; inherited full-head RoPE cannot rotate 75 dims.
+    model_name = 'Llama2MediumProp'
+    base_num_decoder_layers = 18
+    base_emb_dim = 1200
+    base_num_query_heads = 16
+    base_num_kv_heads = 16
+    head_dim = 75
+    base_mlp_dim = 3200  # Exact SwiGLU expansion 8/3, shared with XLProp.
+    max_target_length = 4096
+    scan_layers = True
+
+
 class Llama2MediumQKNorm(Llama2Medium):
     """Standard MHA control with learned Q/K RMSNorm before RoPE."""
     # code_commit: 4408ccb
@@ -5579,6 +5594,19 @@ class Llama2XL(Llama2Medium):
     learning_rate = 2e-4
     learning_rate_schedule_steps = 50000
     eval_interval = 5000
+
+class Llama2XLProp(Llama2XL):
+    """Proportional XL backbone: 28 layers, 20x96 heads, T4096."""
+    model_name = 'Llama2XLProp'
+    base_num_decoder_layers = 28
+    base_emb_dim = 1920
+    base_num_query_heads = 20
+    base_num_kv_heads = 20
+    head_dim = 96
+    base_mlp_dim = 5120  # Exact SwiGLU expansion 8/3, shared with MediumProp.
+    max_target_length = 4096
+    scan_layers = True
+
 
 class Llama2XLHead16x128(Llama2XL):
     base_num_query_heads = 16

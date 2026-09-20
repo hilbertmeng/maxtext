@@ -8222,6 +8222,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
 
 class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: L-layer standard V32 concatenated with gated BAM V32; QK remain additive."""
+    # code_commit: 4a4fdbe; UE5a .7384 steps/s (10-14); generic + concat health ON.
+    # ColOnly .7354 has BAM health OFF: timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411607312 params: -8944 (-.00217%) vs MHA. L0 full V, no LocalV/LocalO.
     # L0 MLP2650; subsequent L/F MLP2703/2596. M-cache unchanged.
@@ -8242,6 +8244,8 @@ class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFML
 
 class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: Shared rank4 BAM QK32 + standard RoPE32; V remains additive."""
+    # code_commit: 4a4fdbe; UE5a .7208 steps/s (10-14); generic + concat health ON.
+    # ColOnly .7354 has BAM health OFF: timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411592576 params: -23680 (-.00575%) vs MHA. M-cache unchanged.
     # Shared nonzero-init QK column bases, independent head mixing/gates; NoPE32/RoPE32.
@@ -8263,6 +8267,33 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumInde
     mlp_dim_by_block = [2810, 2810, 2874]  # nearest per-layer MHA budget
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-r4'
+
+
+class BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer(BamMediumIndependentLLFColOnlyVConcatMLPPerLayer):
+    """Ledger only: Aligned VO tail, shared ungated static columns, and dynamic write mixing."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411584512 params (-31744 vs MHA); L0=2650, later L/F=2697/2596.
+    # Prediction vs VConcat: gap -.010, speed -1%; generic + concat health ON.
+    model_name = 'BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer'
+    bam_concat_static_vo = True
+    bam_concat_write_mix = True
+    mlp_dim_by_block = [2697, 2697, 2596]
+    compare_runs = ['BamMediumIndependentLLFColOnlyVConcatMLPPerLayer',
+                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-vconcat-static-mix'
+
+
+class BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer(BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer):
+    """Ledger only: Independent zero-init, ungated full-M static Q/K columns added to dynamic reads."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411617152 params (+896 vs MHA); nearest per-layer widths unchanged.
+    # Prediction vs QKConcat: gap -.004, speed -.5%; generic + concat health ON.
+    model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer'
+    bam_concat_static_qk = True
+    mlp_dim_by_block = [2810, 2810, 2874]
+    compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer',
+                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-static'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

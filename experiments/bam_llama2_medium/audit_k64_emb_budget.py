@@ -12,7 +12,7 @@ out.append(mod.audit('BamMHALlama2MediumC256ScanAotCleanControl'))
 step=out[2]['total']-out[1]['total'];target=out[3]['total'];intercept=out[1]['total']-1000*step
 print('FORMULA',step,intercept,'target',target,'root',(target-intercept)/step,flush=True)
 d=(target-intercept)//step
-for v in [d,d+1]:
+for v in [d-1,d,d+1]:
  name=f'BudgetD{v}';setattr(exp,name,type(name,(parent,),dict(model_name=name,base_emb_dim=v,base_mlp_dim=2816,mlp_dim_by_block=None)));out.append(mod.audit(name))
 json.dump(out,open('/tmp/k64-emb-budget-audit.json','w'),indent=2)
 for x in out:print('RESULT',x['exp'],x['total'],x['groups'],flush=True)

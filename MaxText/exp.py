@@ -8358,7 +8358,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPer
     # Generic+concat health ON; +48 paired-gate scalars vs parent; gate/telemetry costs not separated.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411860864 params (+262400 vs SharedC8; +244608/.0594% vs MHA); MLP unchanged.
-    # Prediction vs SharedC8: gap -.002 (range -.001..-.003), speed -.3%; generic+concat health ON.
+    # Completed 13500. vs SharedC8: early deficit crossed below zero~2200, then held near-.002.
+    # Last5(12600-13400) mean-.002267, range-.002604..-.001923.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer'
     bam_local_vo_independent_gates = True
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer']

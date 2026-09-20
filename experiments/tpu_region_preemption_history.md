@@ -271,6 +271,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-k64-maxtext` | `us-east5-a` | 2026-09-20 14:04:10 | 2026-09-20 15:02:25 | user hot switch; committed1911; TPU retained for independent gates | no alternate trainer |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-maxtext` | `us-east5-a` | 2026-09-20 14:15:15 | 2026-09-20 15:01:55 | user hot switch; committed1462; TPU retained for independent gates | no alternate trainer |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-25-maxtext` | `us-east5-a` | 2026-09-20 14:30:40 | 2026-09-20 15:01:28 | user hot switch; committed877; TPU retained for independent gates | no alternate trainer |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer` | `xd-v5p-16-qkstatic-vo-shared-c8-maxtext` | `us-east5-a` | 2026-09-20 10:03:40 | 2026-09-20 15:54:37 | completed13500; 0 preemptions; resources verified absent | none acquired |
 
 ## READY leases
 
@@ -899,3 +900,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer | 1 | `us-east5-a` | 2026-09-20 14:34:39 | 2026-09-20 15:01:28 | 0h26m49s | user hot switch; committed877; zero preemptions; TPU retained by independent-gate replacement |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 14:19:57 | 2026-09-20 15:01:55 | 0h41m58s | user hot switch; committed1462; zero preemptions; TPU retained by independent-gate replacement |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 14:08:51 | 2026-09-20 15:02:25 | 0h53m34s | user hot switch; committed1911; zero preemptions; TPU retained by independent-gate replacement |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 10:06:54 | 2026-09-20 15:54:37 | 5h47m43s | completed13500; zero preemptions; TPU/queue verified absent15:54:43 |

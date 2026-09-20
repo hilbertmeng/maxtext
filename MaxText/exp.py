@@ -8396,6 +8396,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerL
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer):
     """Ledger only: Eight LLF blocks plus a final L; spend QK savings on depth."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # code_commit: 4546725; UE5a .6234 steps/s (10-14), -1.98% vs24-layer QK48 .6360.
+    # Generic+concat health ON; 961 vs920 read-health scalars (+41 from final L).
     # MLP2879/2879/2874 in original24; final L2970; audited411616832 params (MHA+576).
     # Prediction vs24-layer K64QK48: final gap -.003, speed -2%; generic+concat health ON.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer'

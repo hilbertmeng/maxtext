@@ -49,3 +49,13 @@ with mock.patch.object(c.attentions,'BamAttention',Tiny):
   with c.interventions(scales,native_gradient=True):return m.apply(p,x,layer_index=jnp.int32(3))[2].sum()
  np.testing.assert_array_equal(jax.grad(local_grad)(s),expected)
 print('NATIVE_IDENTITY_JVP_TEST_PASS')
+# Zeroing both the V basis projection and its learned bias makes the actual
+# column read zero even with nonzero M, routing coefficients and gates.
+for routing in ['legacy','shared_rank_gate','head_gate_n','head_gate_r','effective_key']:
+ arm=c.attentions._BamReadArm(name='v',k_dim=32,v_dim=64,num_heads=16,rank=4,read_side='col',prune_row=True,rank_routing=routing)
+ M=jax.random.normal(jax.random.key(10),(1,2,32,64));key=jnp.zeros((1,2)+arm.key_shape)
+ mix=jax.random.normal(jax.random.key(11),(1,2)+arm.mix_shape)
+ gate=jax.random.normal(jax.random.key(12),(1,2)+arm.gate_shape)
+ result=c.attentions.factorized_head_bam_read(M,key,mix,arm,gate_logits=gate)
+ for value in result:np.testing.assert_array_equal(value,jnp.zeros_like(value))
+print('EXTERNAL_BAM_V_KEY_ZERO_PASS all five routing modes')

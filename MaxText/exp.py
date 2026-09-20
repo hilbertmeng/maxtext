@@ -7739,6 +7739,7 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
     # +3.93% vs PerLayer .7076.
     # Conclusion: removing all row-read and returning params to MLP is FREE vs PerLayer
     # (gap->0); BAM still beats MHA by ~.070. Row-read parameter value over MLP ~= 0.
+    # Raw standard-V half sensitivity: experiments/bam_llama2_medium/std_v_half_native_gradient.md
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnly'
     mlp_dim_by_block = [2535, 2535, 2610]
     bam_prune_all_row_reads = True

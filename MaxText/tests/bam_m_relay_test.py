@@ -25,7 +25,8 @@ class MRelayTest(unittest.TestCase):
                  'BamMediumColOnlyK32MRelayM3Linear', 'BamMediumColOnlyK32MRelayM3Interpolate',
                  'BamMediumColOnlyK32PartialMRelayM3', 'BamMediumColOnlyK64MRelayM3QKOnly',
                  'BamMediumColOnlyK64MRelayM3VOnly', 'BamMediumColOnlyK64MRelayM3OOnly',
-                 'BamMediumColOnlyK64MRelayM3Decoupled'):
+                 'BamMediumColOnlyK64MRelayM3Decoupled',
+                 'BamMediumColOnlyK32MRelayM3VOnly', 'BamMediumColOnlyK32PartialMRelayM3VOnly'):
       cfg = self.config(name)
       cfg.get_keys().update(vocab_size=128, dtype=jnp.float32,
           bam_local_o_v_mode=['rank2', 'rank2', 'none'] * 2)

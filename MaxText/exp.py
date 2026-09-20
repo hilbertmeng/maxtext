@@ -7376,6 +7376,22 @@ class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
                     'BamMediumColOnlyK32MRelayM3']
 
 
+class BamMediumColOnlyK32MRelayM3VOnly(BamMediumColOnlyK32MRelayM3):
+    # Prediction: final -.003 vs no-relay, +.004 vs all-reader M3; speed approximately unchanged.
+    model_name = 'BamMediumColOnlyK32MRelayM3VOnly'
+    bam_m_relay_reads = 'v'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM3']
+
+
+class BamMediumColOnlyK32PartialMRelayM3VOnly(BamMediumColOnlyK32PartialMRelayM3):
+    # Prediction: final -.004 vs partial no-relay; reverses all-reader relay's harmful direction.
+    # Speed approximately unchanged versus partial all-reader M3.
+    model_name = 'BamMediumColOnlyK32PartialMRelayM3VOnly'
+    bam_m_relay_reads = 'v'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE',
+                    'BamMediumColOnlyK32PartialMRelayM3']
+
+
 class BamMediumColOnlyK64MRelayM3QKOnly(BamMediumColOnlyK64TruncateMRelayM3):
     # Prediction vs no-relay parent: +.003; selective routing is not a speed target.
     model_name = 'BamMediumColOnlyK64MRelayM3QKOnly'

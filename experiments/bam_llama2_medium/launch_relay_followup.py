@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path('/home/lishengping/xd/projects')
-RUNS = [
+HISTORICAL_RUNS = [
     ('BamMediumColOnlyK32PartialMRelayM3', 'relay-k32-partial-m3',
      'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE,BamMediumColOnlyK32MRelayM3'),
     ('BamMediumColOnlyK64MRelayM3QKOnly', 'relay-k64-m3-qk',
@@ -16,6 +16,12 @@ RUNS = [
      'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE,BamMediumColOnlyK64TruncateMRelayM3'),
     ('BamMediumColOnlyK64MRelayM3OOnly', 'relay-k64-m3-o',
      'BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE,BamMediumColOnlyK64TruncateMRelayM3'),
+]
+RUNS = [
+    ('BamMediumColOnlyK32MRelayM3VOnly', 'relay-k32-m3-v',
+     'BamMediumIndependentLLFMLPPerLayerColOnly,BamMediumColOnlyK32MRelayM3'),
+    ('BamMediumColOnlyK32PartialMRelayM3VOnly', 'relay-k32-partial-m3-v',
+     'BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE,BamMediumColOnlyK32PartialMRelayM3'),
 ]
 
 

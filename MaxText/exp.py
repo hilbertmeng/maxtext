@@ -7450,6 +7450,9 @@ class BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED978(BamMediumInde
     # Prediction vs K64 PerLayer: late gap -.003 (range -.008..+.004); speed -3%..+1%.
     model_name = 'BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED978'
     base_emb_dim = 978
+    # Preserve exact D978: shard embed across2, replicate data across4 on v5p-16.
+    ici_fsdp_parallelism = 2
+    ici_data_parallelism = -1
     base_mlp_dim = 2816
     mlp_dim_by_block = None
     record_training_health_metrics = True

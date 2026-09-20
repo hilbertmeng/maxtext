@@ -8083,6 +8083,8 @@ class BamMediumColOnlyK64MRelayM3Decoupled(BamMediumColOnlyK64TruncateMRelayM3):
     # Implementation: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     # code_commit: 05538dc; scan+AOT, 13500 total steps, checkpoint200, per-arm relay health.
     # UE5a hot switch from QK-only; fresh training, parent-mapped initialization.
+    # Post-launch prediction (before reading step200 gaps): final -.004 vs no-relay,
+    # -.001 vs V-only; independent coefficients may reduce cross-path compromise.
     # UE5a .6762 steps/s, -1.02% vs all-reader M3 .6832; extra per-arm health confounds pure op overhead.
     model_name = 'BamMediumColOnlyK64MRelayM3Decoupled'
     bam_m_relay_reads = 'decoupled'

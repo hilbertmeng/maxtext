@@ -7288,6 +7288,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
 
 class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
     """L-layer standard V32 concatenated with gated BAM V32; QK remain additive."""
+    # code_commit: 4a4fdbe; UE5a .7384 steps/s (10-14); generic + concat health ON.
+    # ColOnly .7354 has BAM health OFF: timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411607312 params: -8944 (-.00217%) vs MHA. L0 full V, no LocalV/LocalO.
     # L0 MLP2650; subsequent L/F MLP2703/2596. M-cache unchanged.
@@ -7308,6 +7310,8 @@ class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFML
 
 class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Shared rank4 BAM QK32 + standard RoPE32; V remains additive."""
+    # code_commit: 4a4fdbe; UE5a .7208 steps/s (10-14); generic + concat health ON.
+    # ColOnly .7354 has BAM health OFF: timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411592576 params: -23680 (-.00575%) vs MHA. M-cache unchanged.
     # Shared nonzero-init QK column bases, independent head mixing/gates; NoPE32/RoPE32.

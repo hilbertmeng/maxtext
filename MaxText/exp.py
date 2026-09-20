@@ -7293,7 +7293,9 @@ class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFML
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411607312 params: -8944 (-.00217%) vs MHA. L0 full V, no LocalV/LocalO.
     # L0 MLP2650; subsequent L/F MLP2703/2596. M-cache unchanged.
-    # Prediction vs ColOnly: final gap +.006, speed -1%; generic + targeted BAM read health ON.
+    # Paused2455 (checkpoint committed), replaced by StaticVOWriteMix.
+    # vs ColOnly: early gain vanished; gap rose +.000485@1800 to +.002262@2400.
+    # Last5 windows1600-2400 mean+.001031; provisional, no sustained loss gain.
     model_name = 'BamMediumIndependentLLFColOnlyVConcatMLPPerLayer'
     bam_record_concat_health = True
     bam_read_gate_init = 0.05
@@ -7337,6 +7339,8 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumInde
 
 class BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer(BamMediumIndependentLLFColOnlyVConcatMLPPerLayer):
     """Aligned VO tail, shared ungated static columns, and dynamic write mixing."""
+    # code_commit: 3351a0b; UE5a .7170 steps/s (10-14), -2.90% vs VConcat .7384.
+    # Generic + concat health ON; +165 scalars vs parent, architecture-only timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411584512 params (-31744 vs MHA); L0=2650, later L/F=2697/2596.
     # Prediction vs VConcat: gap -.010, speed -1%; generic + concat health ON.

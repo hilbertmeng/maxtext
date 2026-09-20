@@ -7390,6 +7390,8 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer(BamMedi
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer(BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer):
     """One full-M rank4 read including gate reused by additive LocalV and LocalO."""
+    # code_commit: 5d535d3
+    # UE5a ~.6886 steps/s (10-14), +1.89% vs QKStatic .6758; matched generic+concat health ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411612800 params (-3456 vs MHA); saves147728/L, MLP2858/2858/2874.
     # Prediction vs QKStatic: gap -.001, speed +1%; generic+concat health ON.
@@ -7402,6 +7404,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer(BamMedi
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer(BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer):
     """One C8 LocalO read including gate reused by additive LocalV and LocalO."""
+    # code_commit: 5d535d3
+    # UE5a ~.6890 steps/s (10-14), +1.95% vs QKStatic .6758; matched generic+concat health ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411598464 params (-17792 vs MHA); saves213136/L, MLP2879/2879/2874.
     # Prediction vs QKStatic: gap +.002, speed +3%; generic+concat health ON.

@@ -33,3 +33,7 @@ pinned BAM suite `/data0/xd/vo-shared-tests.log`.
 New numerical test checks unused parameters absent, exactly one shared read call,
 correct donor call counts, V/O gate identity, active first32/nonzero reads,
 finite nonzero donor gradients, and unchanged F V/fetched parameters.
+
+Runtime `5d535d3`; both started on UE5a, AOT loaded and FIRST_STEP verified.
+Steps10–14: rank4 .6886 step/s (+1.89% vs QKStatic .6758), C8 .6890 (+1.95%).
+All three use matching generic+concat health; both compiler states ready with no cleanup failures.

@@ -140,30 +140,82 @@ def run(config):
   (out/'scenarios.json').write_text(json.dumps(ss));save=lambda:(out/'metadata.json').write_text(json.dumps(meta,indent=2));save()
   rng,writer,manager,mesh,model,_,tx=train.setup_mesh_and_model(config)
   state,_,_,_=max_utils.setup_training_state(model,SimpleNamespace(meta_dict={'checkpoint_step':None}),tx,config,rng,mesh,manager)
-  one=jax.jit(lambda p,b,s:forward(model,p,b,rng,s));ordinary=jax.jit(lambda p,b:forward(model,p,b,rng));scales=jnp.asarray(np.stack(unique));mode=None
-  def dispatch(batch,part,mode):
-    if mode=='async':return np.stack(jax.device_get([one(state.params,batch,s) for s in part]))
-    return np.stack([np.asarray(one(state.params,batch,s)) for s in part])
+  import re
+  from flax.traverse_util import flatten_dict,unflatten_dict
+  assert not config.fused_qkv and not config.qkv_bias
+  layout_info={}
+  def capture(next_fun,args,kw,ctx):
+    m=ctx.module
+    if isinstance(m,attentions.BamAttention) and ctx.method_name=='_local_inputs' and 'v' in m._local_arms:
+      arms=list(m._local_arms.values());layout,width=attentions._packed_local_layout(arms,m._share_qk_basis)
+      arm=m._local_arms['v'];basis=layout[[x.name for x in arms].index('v')][0]
+      info=dict(start=basis.start,stop=basis.stop,width=width,bias=arm.prefix+'_bias',packed=getattr(config,'bam_local_packed_parameter_name','W_local_packed'))
+      assert not layout_info or layout_info==info
+      layout_info.update(info)
+    return next_fun(*args,**kw)
+  # Capture static arm layout only. No tensor operation is intercepted or changed.
+  def f(p,b):
+    with nn.intercept_methods(capture):return forward(model,p,b,rng)
+  ordinary=jax.jit(f);flat=flatten_dict(state.params);mode=None
   with mesh,partitioning.axis_rules(config.logical_axis_rules):
+    initial_batch={k:jnp.asarray(v[start:start+1]) for k,v in cohort.items()}
+    np.asarray(ordinary(state.params,initial_batch));assert layout_info
+    raw=[];packed=[];bias=[]
+    for key,v in flat.items():
+      m=re.search(r'(?:sub|local|fetch)_([012])','/'.join(key))
+      if m is None or int(m[1])==2:continue
+      block=int(m[1])
+      if key[-2:]==('value','kernel'):
+        assert v.shape==(1024,8,16,64);raw.append((key,block))
+      elif key[-2:]==(layout_info['packed'],'kernel'):
+        assert v.shape==(1024,8,layout_info['width']);packed.append((key,block))
+      elif key[-1]==layout_info['bias']:
+        assert v.shape[1]==8;bias.append((key,block))
+    assert len(raw)==len(packed)==len(bias)==2,(raw,packed,bias)
+    selected=raw+packed+bias
+    base=tuple(flat[k] for k,_ in selected)
+    def modify(values,scales):
+      result=[]
+      for n,((key,block),v) in enumerate(zip(selected,values)):
+        ls=jnp.arange(8)*3+block
+        if n<2:
+          factors=jnp.repeat(scales[ls,:2],32,axis=-1)[None,:,None,:]
+        elif n<4:
+          columns=jnp.arange(v.shape[-1]);hit=(columns>=layout_info['start'])&(columns<layout_info['stop'])
+          factors=jnp.where(hit[None,None,:],scales[ls,2][None,:,None],1.)
+        else:
+          shape=[1]*v.ndim;shape[1]=8;factors=scales[ls,2].reshape(shape)
+        result.append(v*factors.astype(v.dtype))
+      return tuple(result)
+    mutate=jax.jit(modify)
+    def params_for(scale):
+      changed=dict(flat);changed.update({k:v for (k,_),v in zip(selected,mutate(base,scale))})
+      return unflatten_dict(changed)
+    # Multiplication by one must preserve every modified parameter exactly.
+    for old,new in zip(base,mutate(base,jnp.ones(SHAPE))):np.testing.assert_array_equal(np.asarray(old),np.asarray(new))
+    meta.update(method='external W_V half scaling and BAM V key projection/bias zeroing; one unmodified ordinary compiled forward; full downstream recompute',bam_v_layout=layout_info,parameter_paths=['/'.join(k) for k,_ in selected])
+    scales=jnp.asarray(np.stack(unique))
+    def dispatch(batch,part,mode):
+      if mode=='async':return np.stack(jax.device_get([ordinary(params_for(s),batch) for s in part]))
+      return np.stack([np.asarray(ordinary(params_for(s),batch)) for s in part])
     for i in range(start,stop):
       dest=out/f'dose_{i:03d}.npz'
       if dest.exists():continue
       begun=time.perf_counter();batch={k:jnp.asarray(v[i:i+1]) for k,v in cohort.items()}
-      native=np.asarray(one(state.params,batch,jnp.ones(SHAPE,np.float32)))
-      orig=np.asarray(ordinary(state.params,batch));np.testing.assert_allclose(native,orig,atol=1e-6,rtol=0)
+      orig=np.asarray(ordinary(state.params,batch));native=np.asarray(ordinary(params_for(jnp.ones(SHAPE)),batch))
+      np.testing.assert_array_equal(native,orig)
       if mode is None:
         noop=np.ones(SHAPE,np.float32);noop[2::3]=0.;noop[0,2]=0.
-        np.testing.assert_array_equal(np.asarray(one(state.params,batch,jnp.asarray(noop))),native)
-        check=scales[:16];serial=dispatch(batch,check,'scalar');timings={}
+        np.testing.assert_array_equal(np.asarray(ordinary(params_for(jnp.asarray(noop)),batch)),native)
+        check=scales[:8];serial=dispatch(batch,check,'scalar');timings={}
         for m in ['scalar','async']:
           vals=dispatch(batch,check,m);np.testing.assert_array_equal(vals,serial)
           t=time.perf_counter();dispatch(batch,check,m);timings[m]=len(check)/(time.perf_counter()-t)
         mode=max(timings,key=timings.get);meta.update(dispatch=mode,benchmarks=timings,native_max_error=float(np.max(np.abs(native-orig))));save()
         print('FIRST_STEP STD_V_NATIVE_OK',native,len(unique),mode,timings,flush=True)
       vals=[]
-      for j in range(0,len(scales),16):vals.extend(dispatch(batch,scales[j:j+16],mode))
+      for j in range(0,len(scales),8):vals.extend(dispatch(batch,scales[j:j+8],mode))
       loss=np.stack(vals)[mapping];assert np.isfinite(loss).all()
-      np.testing.assert_array_equal(loss[0],np.asarray(one(state.params,batch,jnp.asarray(ss[0]['scales'],np.float32))))
       temp=out/f'.pending_dose_{i:03d}.npz';np.savez_compressed(temp,loss=loss,baseline=native,ordinary=orig,sequence_hash=hashes[i]['inputs'],tokens=int(np.sum(cohort['targets_segmentation'][i]!=0)));temp.replace(dest)
       print(f'STD_V_DONE sample={i} seconds={time.perf_counter()-begun:.2f}',flush=True)
   if writer:writer.flush()

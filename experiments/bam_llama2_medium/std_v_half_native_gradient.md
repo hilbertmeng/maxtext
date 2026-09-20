@@ -1,6 +1,6 @@
 # 原始V前后半：原生点梯度初筛
 
-2026-09-20，模型`BamMediumIndependentLLFMLPPerLayerColOnly`，最终step13500，32条固定Pile。按用户要求先观察简单梯度；完整比例网格诊断已接续启动，结果另行登记。L0/L1只保留在完整表中，主要分析排除两者。
+2026-09-20，模型`BamMediumIndependentLLFMLPPerLayerColOnly`，最终step13500，32条固定Pile。按用户要求先观察简单梯度；后续64条比例网格诊断已完成，见 [std_v_half_dose.md](std_v_half_dose.md)。L0/L1只保留在完整表中，主要分析排除两者。
 
 ## 判断
 

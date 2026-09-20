@@ -8281,7 +8281,9 @@ class BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer(BamMedium
     # Generic + concat health ON; +165 scalars vs parent, architecture-only timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411584512 params (-31744 vs MHA); L0=2650, later L/F=2697/2596.
-    # Prediction vs VConcat: gap -.010, speed -1%; generic + concat health ON.
+    # Stopped2979 after review. vs VConcat: 800-2400 oscillated near0; last5 mean+.000221.
+    # vs ColOnly: early benefit faded; 2000-2800 mean+.001678, final2800+.001246.
+    # No sustained loss gain; M-cache unchanged, slightly fewer params, slower training.
     model_name = 'BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer'
     bam_concat_static_vo = True
     bam_concat_write_mix = True

@@ -37,3 +37,12 @@ Artifacts `/data0/xd/concat-static-{audit.json,tests.log,trace.log}`.
 
 Pre-run bets vs their concat parents: V final loss gap-.010, throughput-1%;
 QK final loss gap-.004, throughput-.5%. M-cache unchanged.
+
+Both RUNs launched successfully at runtime3351a0b; AOT loaded and first step verified.
+V reused UE5a TPU after old V paused at committed2455 (2026-09-20T08:48:33Z).
+New V launch08:49:12Z, QK static launch08:48:18Z; QK acquired UE5a.
+10-14 throughput: V .7170 vs old V .7384 (-2.90%); QK .6758 vs old QK .7208 (-6.24%).
+Both exceed predicted costs; added health scalars (V165/QK144) prevent architecture-only attribution.
+Compiler states3351a0b-f3084a33 /3351a0b-9c6108ad ready, all resources cleaned.
+All46 BAM tests validated: initial suite had control/fixture failures, corrected targeted reruns pass;
+logs concat-static-focused-fixed.log, concat-static-write-test.log, concat-static-control-test.log.

@@ -99,6 +99,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-maxtext` | `us-east5-a` | 2026-09-20 14:15:15 | 2026-09-20 15:01:55 | user hot switch; committed1462; TPU retained for independent gates | no alternate trainer |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-25-maxtext` | `us-east5-a` | 2026-09-20 14:30:40 | 2026-09-20 15:01:28 | user hot switch; committed877; TPU retained for independent gates | no alternate trainer |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer` | `xd-v5p-16-qkstatic-vo-shared-c8-maxtext` | `us-east5-a` | 2026-09-20 10:03:40 | 2026-09-20 15:54:37 | completed13500; 0 preemptions; resources verified absent | none acquired |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer` | `xd-v5p-16-qkstatic-vo-shared-r4-maxtext` (v5p-16) | `us-east5-a` | 2026-09-20 11:32:49 | 2026-09-20 17:49:51 | completed13500; three same-zone preemptions | UC1a/EW4b configured as passive backups; never active |
 
 ## READY leases
 
@@ -403,10 +404,14 @@ inventing a duration. A passive queue is not an active-zone switch.
 | LocalFetchC8SharedReadLLFV64PostReadV32Scan | 1 | `us-east5-a` | 2026-09-08 03:48:31 | 2026-09-08 04:49:48 | 1h01m17s | preempted; checkpoint 2,235; same-zone recovery |
 | LocalFetchC8SharedReadLLFV64PostReadV32Scan | 2 | `us-east5-a` | 2026-09-08 04:57:10 | 2026-09-08 05:16:18 | 19m08s | manual review stop; checkpoint 2,876; TPU and queue deletion verified 05:18:54 |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 10:06:53 | 2026-09-20 11:32:10 | 1h25m17s | user hot switch; committed3338; no preemption; TPU retained by C8IndependentGates |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 11:32:51 | 2026-09-20 12:59:53 | 1h27m02s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 07:54:32 | 2026-09-20 13:27:22 | 5h32m50s | completed13500; no preemption; TPU/queue verified absent13:27:27 |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer | 2 | `us-east5-a` | 2026-09-20 13:07:46 | 2026-09-20 13:36:50 | 0h29m04s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 08:51:53 | 2026-09-20 14:47:40 | 5h55m47s | completed13500; no preemption; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE | 1 | `us-east5-a` | 2026-09-20 09:26:46 | 2026-09-20 14:55:34 | 5h28m48s | completed13500; no preemption; TPU/queue verified absent14:55:40 |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer | 1 | `us-east5-a` | 2026-09-20 14:34:39 | 2026-09-20 15:01:28 | 0h26m49s | user hot switch; committed877; zero preemptions; TPU retained by independent-gate replacement |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 14:19:57 | 2026-09-20 15:01:55 | 0h41m58s | user hot switch; committed1462; zero preemptions; TPU retained by independent-gate replacement |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 14:08:51 | 2026-09-20 15:02:25 | 0h53m34s | user hot switch; committed1911; zero preemptions; TPU retained by independent-gate replacement |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer | 3 | `us-east5-a` | 2026-09-20 13:45:35 | 2026-09-20 15:27:19 | 1h41m44s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 10:06:54 | 2026-09-20 15:54:37 | 5h47m43s | completed13500; zero preemptions; TPU/queue verified absent15:54:43 |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer | 4 | `us-east5-a` | 2026-09-20 15:35:48 | 2026-09-20 17:49:51 | 2h14m03s | completed13500; checkpoint13500 committed; TPU/queue verified absent |

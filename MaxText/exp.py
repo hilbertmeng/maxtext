@@ -7935,7 +7935,7 @@ class BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976(BamMediumInde
     # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # 410,903,680 params: -712,576 (-.17312%) vs MHA; BAM 18,581,936.
     # D976, MLP2816; H16/head64, M64x32/C8, NoPE48/RoPE16 unchanged.
-    # Prediction vs K64 PerLayer: late gap -.003 (range -.008..+.004); speed -3%..+1%.
+    # Initial bet -.003; revised at4800: final +.005; 2800–4800 linear/log/inverse fits -.00218/+.00529/+.00850.
     model_name = 'BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976'
     base_emb_dim = 976
     base_mlp_dim = 2816

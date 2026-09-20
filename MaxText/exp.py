@@ -7930,6 +7930,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
 
 class BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976(BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
     """Ledger only: Match MHA parameters by narrowing the residual stream, retaining full MLP width."""
+    # code_commit: c655b0b; UE5a .6558 steps/s, -6.05% vs K64 .698; generic ON/BAM OFF, FSDP8.
+    # !? Slower than predicted -3%..+1%; non-aligned D976 runtime cost not yet profiled.
     # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
     # 410,903,680 params: -712,576 (-.17312%) vs MHA; BAM 18,581,936.
     # D976, MLP2816; H16/head64, M64x32/C8, NoPE48/RoPE16 unchanged.

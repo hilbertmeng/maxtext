@@ -8019,6 +8019,35 @@ class BamMediumColOnlyK64TruncateMRelayM3(BamMediumColOnlyK64TruncateMRelayM1):
                     'BamMediumColOnlyK64TruncateMRelayM1']
 
 
+class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
+    """M3 relay on the matched K32 NoPE48/RoPE16 parent."""
+    # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    model_name = 'BamMediumColOnlyK32PartialMRelayM3'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 48
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE',
+                    'BamMediumColOnlyK32MRelayM3']
+
+
+class BamMediumColOnlyK64MRelayM3QKOnly(BamMediumColOnlyK64TruncateMRelayM3):
+    # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    model_name = 'BamMediumColOnlyK64MRelayM3QKOnly'
+    bam_m_relay_reads = 'qk'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+                    'BamMediumColOnlyK64TruncateMRelayM3']
+
+
+class BamMediumColOnlyK64MRelayM3VOnly(BamMediumColOnlyK64MRelayM3QKOnly):
+    # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    model_name = 'BamMediumColOnlyK64MRelayM3VOnly'
+    bam_m_relay_reads = 'v'
+
+
+class BamMediumColOnlyK64MRelayM3OOnly(BamMediumColOnlyK64MRelayM3QKOnly):
+    # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    model_name = 'BamMediumColOnlyK64MRelayM3OOnly'
+    bam_m_relay_reads = 'o'
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
 ):

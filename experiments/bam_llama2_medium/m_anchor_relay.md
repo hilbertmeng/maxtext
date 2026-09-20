@@ -1,5 +1,21 @@
 # Read-only M anchor relay: Medium K32 / K64Truncate × M1 / M3
 
+## Follow-up: RoPE interaction and isolated read consumers
+
+Four new runs share the original relay worktree and 13,500-step schedule, scan+AOT,
+checkpoint200 and generic+relay-only health. K32PartialMRelayM3 adds NoPE48/RoPE16;
+K64MRelayM3QKOnly/VOnly/OOnly route the M3 addition only to the named readers.
+O includes localO and fetchO. Other readers use original M; persistent writes remain unchanged.
+All retain tanh zero initialization and the parent-mapped first-block/scan initialization.
+Formal UE5a primary, EW4b backup; compiler EW4a primary, UE5a/UC1a staged backups.
+Only these four runs are monitored by this task: every600 steps, review near2800,
+then every2000 if continued. Registry retains200-step windows for cumulative reports.
+Predicted gaps vs respective no-relay parents: Partial-M3 -.002; QK-only +.003;
+V-only -.001; O-only -.002. Partial compares its partial-RoPE parent and full-RoPE M3;
+each K64 arm compares the K64 no-relay parent and original all-reader M3.
+Launcher: `experiments/bam_llama2_medium/launch_relay_followup.py` in the implementation worktree;
+delegates AOT lifecycle to prepare_train_aot.py and starts each ready run independently.
+
 Implementation: `/data0/xd/llf-m-anchor-relay`, branch `codex/llf-m-anchor-relay`.
 Parent source: e474296 (same K64Truncate runtime; preserves K32 parent implementation).
 Owner: current M-anchor-relay task; other sessions' RUNs remain untouched.

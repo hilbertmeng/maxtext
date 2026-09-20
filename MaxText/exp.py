@@ -7288,6 +7288,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE(BamMediumIndependentLLFMLPPerLayerColOnly):
     """RoPE32 control: unchanged rank1 additive QK64 projections and per-layer MLP."""
+    # code_commit: e328e4e; UE5a .7268 steps/s (10-14), -1.17% raw vs ColOnly .7354.
+    # Generic + concat health ON; ColOnly BAM health OFF, timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 412081840 params, identical to ColOnly; original .005 read gates and scales retained.
     # Prediction vs ColOnly: final gap -.004 (+/- .003), speed within -1%; targeted health ON.
@@ -7346,7 +7348,8 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumInde
     bam_partial_rope_nope_dim = 32
     base_mlp_dim = 2816
     mlp_dim_by_block = [2810, 2810, 2874]  # nearest per-layer MHA budget
-    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly',
+                    'BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-r4'
 
 
@@ -7377,7 +7380,8 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer(BamMedi
     bam_concat_static_qk = True
     mlp_dim_by_block = [2810, 2810, 2874]
     compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer',
-                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+                    'BamMediumIndependentLLFMLPPerLayerColOnly',
+                    'BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-static'
 
 

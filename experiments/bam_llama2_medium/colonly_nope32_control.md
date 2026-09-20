@@ -19,3 +19,8 @@ projection/MLP allocation; it is not a pure concatenation effect.
 
 Prediction vs ColOnly: final gap-.004 (+/- .003), throughput within -1%.
 Artifacts `/data0/xd/colonly-nope32-audit.json`, `/data0/xd/colonly-nope32-trace.log`.
+
+Runtime e328e4ebea7c78410ed61123d1f6d50ca7f03651; UE5a launch2026-09-20T09:20:31Z.
+AOT loaded, FIRST_STEP8, steps10-14 mean .7268 (-1.17% raw vs ColOnly .7354;
+extra BAM health makes timing unmatched). Compiler resources cleaned.
+Both QK concat registries include this direct comparison after FIRST_STEP.

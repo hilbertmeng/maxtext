@@ -183,9 +183,9 @@ def run_grad(config):
   flat=flatten_dict(state.params);selected=[]
   for key,v in flat.items():
     if key[-2:]==('value','kernel'):
-      name='/'.join(key);m=re.search(r'sub_([012])',name)
+      name='/'.join(key);m=re.search(r'(?:sub|local|fetch)_([012])',name)
       print('RAW_V_PARAMETER',name,v.shape,flush=True)
-      assert m is not None and v.shape==(8,1024,16,64),(name,v.shape)
+      assert m is not None and v.shape==(1024,8,16,64),(name,v.shape)
       if int(m[1])!=2:selected.append((key,int(m[1])))
   assert len(selected)==2,selected
   meta=dict(model=BASE,checkpoint=config.load_parameters_path,training_commit=TRAINING,runtime_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),cohort_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),sequence_hashes=hashes[:stop],start=start,stop=stop,shape_config={k:getattr(config,k) for k in ['emb_dim','num_query_heads','head_dim','bam_k','bam_local_v_rank','fused_qkv','scan_layers']},method='unmodified model parameter gradient; sum W_V*dL/dW_V per original V half; no activation scaling or identity JVP in gradient forward',channels=['raw_front','raw_tail','unused_zero'],parameter_paths=['/'.join(k) for k,_ in selected],unit='nats/token per unit scale')
@@ -195,15 +195,15 @@ def run_grad(config):
     value,dp=jax.value_and_grad(f)(p,b);fp=flatten_dict(p);fg=flatten_dict(dp);g=jnp.zeros(SHAPE,jnp.float32)
     for key,block in selected:
       prod=fp[key].astype(jnp.float32)*fg[key].astype(jnp.float32)
-      for half in [0,1]:g=g.at[jnp.arange(8)*3+block,half].set(prod[...,half*32:(half+1)*32].sum(axis=(1,2,3)))
+      for half in [0,1]:g=g.at[jnp.arange(8)*3+block,half].set(prod[...,half*32:(half+1)*32].sum(axis=(0,2,3)))
     return value,g
   grad=jax.jit(pull);ordinary=jax.jit(f)
   def perturbed(half,factor):
     copy=dict(flat)
     for key,block in selected:
-      mask=np.ones((8,1,1,64),np.float32)
+      mask=np.ones((1,8,1,64),np.float32)
       for u in range(8):
-        if 3*u+block>1:mask[u,:,:,half*32:(half+1)*32]=factor
+        if 3*u+block>1:mask[:,u,:,half*32:(half+1)*32]=factor
       copy[key]=flat[key]*jnp.asarray(mask,dtype=flat[key].dtype)
     return unflatten_dict(copy)
   with mesh,partitioning.axis_rules(config.logical_axis_rules):
@@ -216,7 +216,7 @@ def run_grad(config):
       for c in [0,1]:
         plus=float(ordinary(variants[2*c],batch));minus=float(ordinary(variants[2*c+1],batch));ad=float(g[[l for l in range(3,24) if l%3!=2],c].sum());checks.append([c,ad,(plus-minus)/.125,plus,minus])
       np.savez_compressed(out/f'grad_{i:03d}.npz',loss=value,ordinary=native,gradient=g,sequence_hash=hashes[i]['inputs'],finite_difference=np.asarray(checks),tokens=int(np.sum(cohort['targets_segmentation'][i]!=0)))
-      if i==start:print('FIRST_STEP STD_V_GRAD_NATIVE_OK',value,'gradient_norm',np.linalg.norm(g),flush=True)
+      if i==start:print('FIRST_STEP STD_V_GRAD_COMPUTED',value,'gradient_norm',np.linalg.norm(g),flush=True)
       print('STD_V_GRAD_DONE',i,'seconds',time.perf_counter()-begun,flush=True)
   if writer:writer.flush()
   print('STD_V_GRAD_STAGE_DONE',start,stop,flush=True)

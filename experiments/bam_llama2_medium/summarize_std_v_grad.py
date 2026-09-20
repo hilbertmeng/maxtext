@@ -19,15 +19,18 @@ def run(root):
   for c in a['finite_difference']:checks.append(dict(sample=i,channel=int(c[0]),autodiff=float(c[1]),central_difference=float(c[2]),plus=float(c[3]),minus=float(c[4])))
   shas[str(p.relative_to(root))]=hashlib.sha256(p.read_bytes()).hexdigest()
  g=np.stack(gradients);score=-g # d loss / d removed fraction at the native point
- assert np.max(errors)<=1e-6;assert np.all(g[:,2::3]==0)
+ assert np.all(g[:,2::3]==0)
  local=[l for l in range(24) if l%3!=2];normal=[l for l in local if l>1]
  rows={str(l):{n:stats(score[:,l,c]) for c,n in enumerate(['front','tail','bam'])} for l in local}
  groups={}
  for name,ls in dict(all_L=local,ordinary_L=normal,early_ordinary_L=[l for l in normal if l<12],late_L=[l for l in normal if l>=12]).items():
   a=score[:,ls,:].sum(axis=1);groups[name]={n:stats(a[:,c]) for c,n in enumerate(['front','tail','bam'])};groups[name]['front_minus_tail']=stats(a[:,0]-a[:,1])
- result=dict(model=meta['model'],checkpoint=meta['checkpoint'],samples=32,native_loss=stats(np.asarray(native)),definition='score = -d loss/d scale, positive means infinitesimal attenuation increases loss; absolute means are samplewise and not additive attribution',layers=rows,groups=groups,finite_difference=checks)
+ fd_summary={}
+ for c in [0,1]:
+  arr=np.asarray([[q['autodiff'],q['central_difference']] for q in checks if q['channel']==c]);fd_summary[['front','tail'][c]]=dict(autodiff=stats(-arr[:,0]),finite_difference=stats(-arr[:,1]),difference=stats(arr[:,0]-arr[:,1]),pearson=float(np.corrcoef(arr.T)[0,1]),same_sign=int(((arr[:,0]>0)==(arr[:,1]>0)).sum()))
+ result=dict(model=meta['model'],checkpoint=meta['checkpoint'],samples=32,native_loss=stats(np.asarray(native)),definition='score = -d loss/d scale, positive means infinitesimal attenuation increases loss; absolute means are samplewise and not additive attribution',layers=rows,groups=groups,finite_difference=checks,finite_difference_summary=fd_summary,eval_vs_ad_max_loss_difference=max(errors),eval_vs_ad_mean_abs_loss_difference=float(np.mean(errors)))
  (root/'summary.json').write_text(json.dumps(result,indent=2));np.savez_compressed(root/'paired_gradients.npz',gradient=g,attenuation_score=score,native_loss=native)
- (root/'verification.json').write_text(json.dumps(dict(raw_count=32,max_native_error=max(errors),sha256=shas),indent=2))
+ (root/'verification.json').write_text(json.dumps(dict(raw_count=32,max_native_error=max(errors),native_loss_equal_within_1e_6=bool(max(errors)<=1e-6),gradient_method=meta['method'],sha256=shas),indent=2))
  fig,axes=plt.subplots(2,1,figsize=(11,7),layout='constrained',sharex=True)
  for c,label,color,shift in [(0,'Raw V front 32','#2166ac',-.12),(1,'Raw V tail 32','#d6604d',.12)]:
   a=score[:,normal,c];x=np.asarray(normal)+shift

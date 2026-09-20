@@ -7334,7 +7334,8 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumInde
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411592576 params: -23680 (-.00575%) vs MHA. M-cache unchanged.
     # Shared nonzero-init QK column bases, independent head mixing/gates; NoPE32/RoPE32.
-    # Prediction vs ColOnly: final gap -.003 (low confidence), speed -2%; generic + targeted BAM read health ON.
+    # Completed 13500: vs ColOnly, early gain deepened to -.01641 (last5@12600-13400).
+    # vs NoPE32: ~-.0117 over9000-9800 (baseline ongoing); M-cache unchanged.
     model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer'
     bam_record_concat_health = True
     bam_read_gate_init = 0.05

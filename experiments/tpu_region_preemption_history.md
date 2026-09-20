@@ -849,3 +849,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol | 1 | `us-east5-a` | 2026-09-19 16:02:16 | 2026-09-19 17:12:41 | 1h10m25s | manual stop; checkpoint2909 committed; TPU/queue verified absent17:15:17; no preemption |
 | BamMediumColOnlyK32MRelayM3Interpolate | 1 | `us-east5-a` | 2026-09-19 16:22:18 | 2026-09-19 17:33:29 | 1h11m11s | authorized review stop2903; checkpoint committed; TPU/queue verified absent17:36:03 |
 | BamMediumColOnlyK32MRelayM3Linear | 2 | `us-east5-a` | 2026-09-19 16:48:08 | 2026-09-19 17:41:23 | 53m15s | closeout overlaps maintenance17:40:26; final committed2909 verified; node deletion completed17:47:56, queue absent by17:49:10; end is stop-intent timestamp |
+| BamMediumColOnlyK32MRelayM3 | 1 | `us-east5-a` | 2026-09-19 13:48:04 | 2026-09-19 15:09:49 | 1h21m45s | service preemption; same-zone recovery |
+| BamMediumColOnlyK32MRelayM3 | 2 | `us-east5-a` | 2026-09-19 15:17:39 | 2026-09-19 17:37:43 | 2h20m04s | service preemption; same-zone recovery |
+| BamMediumColOnlyK32MRelayM3 | 3 | `us-east5-a` | 2026-09-19 17:46:01 | 2026-09-19 18:13:01 | 27m00s | service preemption; same-zone recovery |
+| BamMediumColOnlyK32MRelayM3 | 4 | `us-east5-a` | 2026-09-19 18:22:03 | 2026-09-19 18:24:31 | 2m28s | service preemption; short-lease churn; same-zone recovery |
+| BamMediumColOnlyK32MRelayM3 | 5 | `us-east5-a` | 2026-09-19 18:36:00 | 2026-09-19 19:20:41 | 44m41s | service preemption; same-zone recovery |
+| BamMediumColOnlyK32MRelayM3 | 6 | `us-east5-a` | 2026-09-19 19:26:38 | 2026-09-19 20:11:47 | 45m09s | run stop; completed 13500; plateaued ~-.0067 vs ColOnly; checkpoint committed; TPU/queue verified absent |

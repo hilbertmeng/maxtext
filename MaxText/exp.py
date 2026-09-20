@@ -7948,8 +7948,14 @@ class BamMediumColOnlyK32MRelayM1(BamMediumIndependentLLFMLPPerLayerColOnly):
 
 
 class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
-    # code_commit: 72469e1; UE5a .7320 steps/s, -.46% vs parent .7354; generic+relay health ON.
-    # Ledger only: codex/llf-m-anchor-relay; prediction vs parent late -.002.
+    # code_commit: 72469e1; UE5a .7320 steps/s, -.46% vs parent .7354.
+    # Result: completed 13500 (5 preemptions). vs ColOnly: crossed zero
+    # @400 after warmstart spike, settled to ~-.007 @3000, plateaued -.0067
+    # for 10000 steps (3000..13400); drift +.0002/1k (toward 0, ~35k steps to
+    # cross). vs M1 (anchor=1): -.0165 @2000 (M3 better than M1 by ~.017).
+    # Conclusion: MRelay anchor=3 on K32 gives a stable ~.007 improvement over
+    # ColOnly, plateaued (not converging to zero). anchor=3 >> anchor=1 on K32
+    # (~.017 better). Contrast Truncate+M3: neutral (~0); base-dependent.
     model_name = 'BamMediumColOnlyK32MRelayM3'
     bam_m_relay_anchor = 3
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM1']

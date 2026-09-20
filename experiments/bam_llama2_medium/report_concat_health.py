@@ -16,13 +16,14 @@ steps=[int(x) for x in args.steps.split(',')]
 scalars=reader.Scalars(Path(args.tb_root)/args.run, steps)
 metrics={}
 for arm in ('local_q','local_k','local_v','local_o','fetched_o'):
-  for stat in ('mean','frac_gt_095'):
+  for stat in ('mean','std','frac_lt_005','frac_gt_050','frac_gt_095'):
     metrics[arm+'/gate_'+stat]=f'bam/concat/{arm}_gate/layer_{{layer:03d}}/{stat}'
   metrics[arm+'/bam_over_standard']=f'bam/concat/{arm}_amplitude/layer_{{layer:03d}}/bam_over_standard'
 metrics['qk_scores/bam_over_standard']='bam/concat/qk_scores/layer_{layer:03d}/bam_over_standard'
 for arm in ('static_q', 'static_k', 'static_v', 'static_o'):
   metrics[arm+'/over_dynamic']=f'bam/concat/{arm}_amplitude/layer_{{layer:03d}}/bam_over_standard'
-metrics['write_mix/gate_mean']='bam/concat/write_mix_gate/layer_{layer:03d}/mean'
+for stat in ('mean','std','frac_lt_005','frac_gt_050','frac_gt_095'):
+  metrics['write_mix/gate_'+stat]=f'bam/concat/write_mix_gate/layer_{{layer:03d}}/{stat}'
 bands={'L0':range(1),'L1-7':range(1,8),'L8-15':range(8,16),'L16-23':range(16,24)}
 result={}
 for name,template in metrics.items():

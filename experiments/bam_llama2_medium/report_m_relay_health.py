@@ -10,6 +10,8 @@ def main():
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument('runs', nargs='+')
     parser.add_argument('--steps', required=True)
+    parser.add_argument('--read-arm', choices=('all', 'qk', 'v', 'o'), default='all',
+                        help='Select active layers; V relay excludes F layers of LLF.')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     spec = importlib.util.spec_from_file_location('health', root /
@@ -32,7 +34,9 @@ def main():
                                   ('L9-15', range(9, 16)), ('L16-23', range(16, 24))]:
                 row[label] = {}
                 for name in names:
-                    values = [x for layer in layers for x in window(
+                    values = [x for layer in layers
+                              if args.read_arm != 'v' or layer % 3 != 2
+                              for x in window(
                         f'bam/m_relay/layer_{layer:03d}/{name}', step)]
                     row[label][name] = float(np.mean(values)) if values else None
             grad = window('learning/raw_grad_norm', step)

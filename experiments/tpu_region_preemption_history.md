@@ -257,6 +257,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumColOnlyK64MRelayM3Decoupled` | v5p-16 | `us-east5-a` | 2026-09-20 03:38:49 | 2026-09-20 05:50:17 | user stop5133; no preemption or zone switch; final checkpoint committed, TB sync OK; TPU/queue released | EW4b configured, not activated |
 | `BamMediumColOnlyK32MRelayM3VOnly` | v5p-16 | `us-east5-a` | 2026-09-20 04:49:19 | 2026-09-20 06:57:58 | user stop5125; no preemption or zone switch; checkpoint committed, TB sync OK; TPU/queue released | EW4b configured, not activated |
 | `BamMediumColOnlyK32PartialMRelayM3VOnly` | v5p-16 | `us-east5-a` | 2026-09-20 04:48:40 | 2026-09-20 06:58:00 | user stop5260; no preemption or zone switch; checkpoint committed, TB sync OK; TPU/queue released | EW4b configured, not activated |
+| `BamMediumColOnlyK64MRelayM3VOnly` | v5p-16 | `us-east5-a` | 2026-09-20 02:02:21 | 2026-09-20 08:13:09 | completed13500; one preemption, no zone switch; final checkpoint committed, TB sync OK; TPU/queue verified absent08:13:14 | EW4b configured, not activated |
 | `BamMediumColOnlyK32PartialMRelayM3` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:48 | 2026-09-20 03:53:52 | user stop3319; two preemptions; no zone switch; committed checkpoint and TB sync verified; TPU/queue released | EW4b configured, not activated |
 | `BamMediumColOnlyK64MRelayM3OOnly` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:36 | 2026-09-20 03:53:55 | user stop3135; two preemptions; no zone switch; committed checkpoint and TB sync verified; TPU/queue released | EW4b configured, not activated |
 | `BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976` | v5p-16 | `us-east5-a` | 2026-09-20 03:11:55 | 2026-09-20 05:48:12 | user stop5271; same-zone recovery once | UC1a/EW4b configured, not activated |
@@ -869,6 +870,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumColOnlyK32PartialMRelayM3 | 2 | `us-east5-a` | 2026-09-20 02:59:14 | 2026-09-20 03:19:12 | 19m58s | preempted; same-zone recovery |
 | BamMediumColOnlyK64MRelayM3QKOnly | 2 | `us-east5-a` | 2026-09-20 03:08:55 | 2026-09-20 03:19:12 | 10m17s | preempted; same-zone recovery |
 | BamMediumColOnlyK64MRelayM3OOnly | 2 | `us-east5-a` | 2026-09-20 02:59:28 | 2026-09-20 03:19:35 | 20m07s | preempted; same-zone recovery |
+| BamMediumColOnlyK64MRelayM3VOnly | 1 | `us-east5-a` | 2026-09-20 02:05:31 | 2026-09-20 03:21:41 | 1h16m10s | preempted; same-zone recovery |
 | BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976 | 1 | `us-east5-a` | 2026-09-20 03:17:46 | 2026-09-20 03:21:33 | 3m47s | registry preemption interval; actual GCP maintenance03:18:41, no first step; same-zone recovery |
 | BamMediumColOnlyK64MRelayM3QKOnly | 3 | `us-east5-a` | 2026-09-20 03:28:47 | 2026-09-20 03:37:54 | 9m07s | user hot-switch boundary, not preemption; committed2054; retained by Decoupled |
 | BamMediumColOnlyK32PartialMRelayM3 | 3 | `us-east5-a` | 2026-09-20 03:28:28 | 2026-09-20 03:53:52 | 25m24s | user stop; committed3319; TPU/queue released |
@@ -877,3 +879,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976 | 2 | `us-east5-a` | 2026-09-20 03:28:28 | 2026-09-20 05:48:12 | 2h19m44s | user stop5271; checkpoint committed, TPU/queue verified absent05:50:44 |
 | BamMediumColOnlyK32MRelayM3VOnly | 1 | `us-east5-a` | 2026-09-20 04:55:32 | 2026-09-20 06:57:58 | 2h02m26s | user stop; committed5125; no preemption; TPU/queue released |
 | BamMediumColOnlyK32PartialMRelayM3VOnly | 1 | `us-east5-a` | 2026-09-20 04:52:35 | 2026-09-20 06:58:00 | 2h05m25s | user stop; committed5260; no preemption; TPU/queue released |
+| BamMediumColOnlyK64MRelayM3VOnly | 2 | `us-east5-a` | 2026-09-20 03:28:13 | 2026-09-20 08:13:09 | 4h44m56s | completed13500; final checkpoint committed; end is registry closeout timestamp; TPU/queue verified absent08:13:14 |

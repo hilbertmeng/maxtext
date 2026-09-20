@@ -8094,6 +8094,11 @@ class BamMediumColOnlyK64MRelayM3QKOnly(BamMediumColOnlyK64TruncateMRelayM3):
 
 class BamMediumColOnlyK64MRelayM3VOnly(BamMediumColOnlyK64MRelayM3QKOnly):
     # code_commit: 7521ad5; UE5a .6846 steps/s, +.20% vs M3; generic+relay health ON.
+    # Completed13500. vs no-relay: positive only at600/800; from1000 persistent benefit,
+    # mostly -.003 to -.004, 12600-13400 mean -.00342 (range -.00403..-.00240).
+    # vs all-reader M3: +.04149@200 -> negative from1200, -.00473@2200 (last common).
+    # Predicted -.001 vs no-relay: underestimated benefit. Late V-relay coefficients remain
+    # negative in early/middle layers and positive in deep layers; depth-dependent anchor reweighting.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     model_name = 'BamMediumColOnlyK64MRelayM3VOnly'
     bam_m_relay_reads = 'v'

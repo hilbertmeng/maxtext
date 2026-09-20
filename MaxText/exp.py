@@ -8328,7 +8328,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer(BamMedi
     # UE5a ~.6886 steps/s (10-14), +1.89% vs QKStatic .6758; matched generic+concat health ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411612800 params (-3456 vs MHA); saves147728/L, MLP2858/2858/2874.
-    # Prediction vs QKStatic: gap -.001, speed +1%; generic+concat health ON.
+    # Paused3338 for hot replacement. vs QKStatic: +.1032@200 -> +.0162@2800-3200; last5 +.01668.
+    # Dominated by SharedC8: +.0159 loss@2800 at essentially equal speed; cache unchanged.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer'
     bam_local_vo_shared_read = 'local_v'
     mlp_dim_by_block = [2858, 2858, 2874]
@@ -8352,6 +8353,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer(BamMediumI
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer):
     """Ledger only: One C8 column read, independently gated into LocalV and LocalO."""
+    # code_commit: 95ec0d6; UE5a .6778 steps/s (10-14), -1.63% vs SharedC8 .6890 (!?).
+    # Generic+concat health ON; +48 paired-gate scalars vs parent; gate/telemetry costs not separated.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411860864 params (+262400 vs SharedC8; +244608/.0594% vs MHA); MLP unchanged.
     # Prediction vs SharedC8: gap -.002 (range -.001..-.003), speed -.3%; generic+concat health ON.

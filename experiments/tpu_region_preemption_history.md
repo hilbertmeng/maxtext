@@ -266,6 +266,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 08:49:12 | 2026-09-20 10:01:52 | 2800-step review stop; committed2979; no sustained gain | UC1a/EW4b configured, never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 10:03:41 | 2026-09-20 11:32:10 | user hot replacement; committed3338; TPU retained by C8IndependentGates | UC1a/EW4b configured, never active |
 | `BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 07:47:58 | 2026-09-20 13:27:22 | completed13500; no preemption; TPU/queue verified absent13:27:27 | UC1a/EW4b configured, never active |
+| `BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer` | `xd-v5p-16-colonly-qkconcat-static-maxtext` | `us-east5-a` | 2026-09-20 08:48:18 | 2026-09-20 14:47:40 | completed13500; 0 preemptions; resources verified absent | none acquired |
+| `BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE` | `xd-v5p-16-colonly-nope32-maxtext` | `us-east5-a` | 2026-09-20 09:20:31 | 2026-09-20 14:55:34 | completed13500; 0 preemptions; resources verified absent | none acquired |
 
 ## READY leases
 
@@ -889,3 +891,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 08:49:15 | 2026-09-20 10:01:52 | 1h12m37s | review stop; committed2979; no preemption; TPU/queue verified absent10:04:20 |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 10:06:53 | 2026-09-20 11:32:10 | 1h25m17s | user hot switch; committed3338; no preemption; TPU retained by C8IndependentGates |
 | BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 07:54:32 | 2026-09-20 13:27:22 | 5h32m50s | completed13500; no preemption; TPU/queue verified absent13:27:27 |
+| BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 08:51:53 | 2026-09-20 14:47:40 | 5h55m47s | completed13500; no preemption; TPU/queue verified absent |
+| BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE | 1 | `us-east5-a` | 2026-09-20 09:26:46 | 2026-09-20 14:55:34 | 5h28m48s | completed13500; no preemption; TPU/queue verified absent14:55:40 |

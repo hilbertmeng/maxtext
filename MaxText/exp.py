@@ -8377,6 +8377,20 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-k64-truncate'
 
 
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer):
+    """Ledger only: BAM QK48 + standard RoPE16; reinvest smaller standard QK in MLP."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # MLP3050/3050/3045: nearest per-layer MHA budget; no hardware rounding.
+    # 411623040 params (+6784/.001648% vs MHA); +24576 vs K64QK32 from rounding.
+    # Prediction vs K64QK32: final gap -.004, speed -1%; matched generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer'
+    bam_local_qk_col_output_dim = 48
+    bam_partial_rope_nope_dim = 48
+    mlp_dim_by_block = [3050, 3050, 3045]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-k64-qk48-truncate'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

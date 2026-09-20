@@ -8290,6 +8290,8 @@ class BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer(BamMedium
 
 class BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer(BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer):
     """Ledger only: Independent zero-init, ungated full-M static Q/K columns added to dynamic reads."""
+    # code_commit: 3351a0b; UE5a .6758 steps/s (10-14), -6.24% vs QKConcat .7208 (!?).
+    # Generic + concat health ON; +144 scalars vs parent; static-read/health costs not separated.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411617152 params (+896 vs MHA); nearest per-layer widths unchanged.
     # Prediction vs QKConcat: gap -.004, speed -.5%; generic + concat health ON.

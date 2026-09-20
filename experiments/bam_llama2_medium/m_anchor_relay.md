@@ -1,5 +1,16 @@
 # Read-only M anchor relay: Medium K32 / K64Truncate × M1 / M3
 
+## Prepared decoupled M3 (not launched)
+
+`BamMediumColOnlyK64MRelayM3Decoupled`, runtime05538dc, same relay worktree.
+One zero-initialized projection generates independent tanh coefficients: QK/V/O in L,
+QK/O in F. M3 anchor and persistent writes unchanged; original parent mapping retained.
+Per-arm TB stats are `bam/m_relay/{qk,v,o}/layer_NNN/*`; V has no F-layer entries.
+Mapping/zero-output/train-signature and per-arm health tests passed. Exact v5p-16 AOT
+uses 13500-step schedule, checkpoint200. User authorized preparation only; existing
+four runs continue and no formal TPU or hot switch is requested for this candidate.
+Compare no-relay K64 parent, original all-reader M3, and V-only.
+
 ## Follow-up: RoPE interaction and isolated read consumers
 
 Four new runs share the original relay worktree and 13,500-step schedule, scan+AOT,

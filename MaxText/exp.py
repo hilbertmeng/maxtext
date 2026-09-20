@@ -8073,6 +8073,17 @@ class BamMediumColOnlyK64MRelayM3OOnly(BamMediumColOnlyK64MRelayM3QKOnly):
     model_name = 'BamMediumColOnlyK64MRelayM3OOnly'
     bam_m_relay_reads = 'o'
 
+class BamMediumColOnlyK64MRelayM3Decoupled(BamMediumColOnlyK64TruncateMRelayM3):
+    """Ledger only: independent zero-init tanh coefficients for QK/V/O M3 relay."""
+    # Implementation: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    # Preparation only; training/hot-switch target not yet selected.
+    # Prepared runtime: 05538dc; scan+AOT, 13500 total steps, checkpoint200, per-arm relay health.
+    model_name = 'BamMediumColOnlyK64MRelayM3Decoupled'
+    bam_m_relay_reads = 'decoupled'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+                    'BamMediumColOnlyK64TruncateMRelayM3', 'BamMediumColOnlyK64MRelayM3VOnly']
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64NoPE48PartialRoPENoLocalQK(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE
 ):

@@ -271,6 +271,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_concat_qk = False
     bam_concat_v = False
     bam_local_vo_shared_read = 'none'
+    bam_local_vo_independent_gates = False
     bam_concat_static_vo = False
     bam_concat_static_qk = False
     bam_concat_write_mix = False
@@ -7414,6 +7415,17 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer(BamMediumI
     mlp_dim_by_block = [2879, 2879, 2874]
     compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-shared-c8'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer):
+    """One C8 column read, independently gated into LocalV and LocalO."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411860864 params (+262400 vs SharedC8; +244608/.0594% vs MHA); MLP unchanged.
+    # Prediction vs SharedC8: gap -.002 (range -.001..-.003), speed -.3%; generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer'
+    bam_local_vo_independent_gates = True
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-independent-gates'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

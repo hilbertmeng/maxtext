@@ -2418,6 +2418,7 @@ class BamAttention(Attention):
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
       self._vo_shared_read = 'none'
+      self._vo_independent_gates = False
       self._concat_write_mix = False
       self._concat_static_vo = False
       self._concat_static_qk = False
@@ -2450,6 +2451,9 @@ class BamAttention(Attention):
     assert self._local_v_mode in ('none', 'rank2', 'shared')
     self._vo_shared_read = getattr(cfg, 'bam_local_vo_shared_read', 'none') if self._local_o else 'none'
     assert self._vo_shared_read in ('none', 'local_v', 'local_o')
+    self._vo_independent_gates = self._local_o and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
+    if self._vo_independent_gates:
+      assert self._vo_shared_read == 'local_o'
     if self._vo_shared_read != 'none':
       assert cfg.bam_prune_all_row_reads and not cfg.bam_concat_v
       assert self._local_v_mode == 'rank2'
@@ -2874,6 +2878,10 @@ class BamAttention(Attention):
           scale_init=nn.initializers.zeros if learned_write_scale else None,
           use_bias=address_bias, name='write_address_norm')
 
+    if self._vo_independent_gates:
+      add_read_gate('W_lv_gate', (self.num_query_heads, 1),
+                    ('embed', 'q_heads', None), ('q_heads', None), fetched_gate_init)
+
     if self._local_v_mode == 'shared':
       add_read_gate('W_lv_gate', (self.num_query_heads, 2),
                     ('embed', 'q_heads', None), ('q_heads', None), zero_key_gate_init)
@@ -3110,6 +3118,19 @@ class BamAttention(Attention):
     assert self._vo_shared_read == 'local_o'
     return self._read_fetched_m(self._compress_m(M), x)[0]
 
+  def _independent_local_vo(self, M, x):
+    """Contract one ungated C8 read, then apply destination-specific gates."""
+    read, o_logits = self._read_fetched_m(self._compress_m(M), x, ungated=True)
+    v_logits = self._project_read_gate_logits('W_lv_gate', x)
+    self._record_concat_gate('local_v', v_logits)
+    if self._concat_health:
+      v, o = (self._read_gate_activation(z.astype(jnp.float32)) for z in (v_logits, o_logits))
+      vc, oc = v - jnp.mean(v), o - jnp.mean(o)
+      correlation = jnp.mean(vc * oc) / jnp.maximum(jnp.sqrt(jnp.mean(vc * vc) * jnp.mean(oc * oc)), 1e-12)
+      self.sow('intermediates', 'concat_vo_gate_pair', jnp.stack((
+          jnp.mean(jnp.abs(v-o)), jnp.sqrt(jnp.mean((v-o)**2)), correlation)))
+    return self._gate_local_output(read, v_logits), self._gate_local_output(read, o_logits)
+
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
     if M_in is None or self._m_read_norm == 'none':
@@ -3224,7 +3245,7 @@ class BamAttention(Attention):
       gate_logits = self._project_read_gate_logits(
           'W_R_gate', inputs_q, squeeze_fetch_axis=True)
       self._record_concat_gate('local_o' if self._local_o else 'fetched_o', gate_logits)
-      if self._vo_shared_read == 'local_o':
+      if self._vo_shared_read == 'local_o' and not self._vo_independent_gates:
         self._record_concat_gate('local_v', gate_logits)
       if self._record_fetched_read_health_metrics:
         scale = jnp.asarray(self._read_key_scale, jnp.float32)
@@ -3253,6 +3274,8 @@ class BamAttention(Attention):
     """Gate compact (col/data, row/address) sides before packing the head."""
     col, row = read
     gates = self._read_key_scale * self._read_gate_activation(logits)
+    if self._fetched_arm.prune_row:
+      return self._expand_full_read((col * gates, row))
     return self._expand_full_read((col * gates[..., 1:2], row * gates[..., :1]))
 
   def _attention_block(
@@ -3414,9 +3437,13 @@ class BamAttention(Attention):
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
-      local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
-      self._record_concat_amplitude('local_v', local_output[..., :self.bam_k], value)
-      value = value + local_output
+      if self._vo_independent_gates:
+        v_local, local_output = self._independent_local_vo(Mh, inputs_q)
+      else:
+        local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
+        v_local = local_output
+      self._record_concat_amplitude('local_v', v_local[..., :self.bam_k], value)
+      value = value + v_local
     elif self._local_o:
       if Mh is None:
         Mh = self._matrix_for_read(M_in)

@@ -372,7 +372,9 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
       if not key.startswith('concat_'):
         continue
       value = values[0] if index is None else values[0][index]
-      if key.endswith('_gate'):
+      if key == 'concat_vo_gate_pair':
+        names = ('mean_abs_diff', 'rms_diff', 'correlation')
+      elif key.endswith('_gate'):
         names = ('mean', 'std', 'frac_lt_005', 'frac_gt_050', 'frac_gt_095')
       else:
         names = ('bam_rms', 'standard_rms', 'bam_over_standard')

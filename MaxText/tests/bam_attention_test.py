@@ -275,6 +275,80 @@ class BamReadKeyTransformTest(absltest.TestCase):
         self.assertIn('W_R', fp)
         self.assertEqual(fp['value']['kernel'].value.shape, (128,2,64))
 
+  def test_shared_c8_independent_gates_initialization_and_separate_gradients(self):
+    import copy
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'gates').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class='BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer',
+          run_name='gates', enable_checkpointing=False, base_output_directory=out+'/',
+          jax_cache_dir='', log_config=False, dataset_type='synthetic', base_emb_dim=128,
+          base_num_query_heads=2, base_num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, query_chunk_size=4,
+          per_device_batch_size=1.)
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      from types import SimpleNamespace
+      independent = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys())))
+      independent.get_keys()['bam_local_vo_independent_gates'] = True
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      parent = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_o', read_side='col', attention_type=cfg.attention_type)
+      child = parent.clone(config=independent)
+      x = jax.random.normal(jax.random.key(171), (1,8,128), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(172), (1,8,32,32), dtype=cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=m, deterministic=True, layer_index=1)
+      init = lambda mod: unfreeze(mod.init({'params':jax.random.key(173)}, *args, **kw)['params'])
+      old, new = init(parent), init(child)
+      self.assertEqual(set(new)-set(old), {'W_lv_gate', 'W_lv_gate_b0'})
+      for key in old:
+        for a,b in zip(jax.tree.leaves(old[key]),jax.tree.leaves(new[key])):
+          np.testing.assert_array_equal(a,b)
+      self.assertEqual(sum(z.size for z in jax.tree.leaves(new))-sum(z.size for z in jax.tree.leaves(old)),258)
+      for a,b in zip(parent.apply({'params':old},*args,**kw),child.apply({'params':new},*args,**kw)):
+        np.testing.assert_array_equal(a,b)
+      leaf = new['W_R']['kernel']
+      direction = .1*jax.random.normal(jax.random.key(174),leaf.value.shape,leaf.value.dtype)
+      old['W_R']['kernel'] = leaf.replace(value=direction)
+      new['W_R']['kernel'] = leaf.replace(value=direction)
+      def capture(params):
+        result, collections = child.apply({'params':params}, *args, **kw,
+            capture_intermediates=lambda mod,method: method in ('_independent_local_vo','_read_fetched_m'),
+            mutable=['intermediates'])
+        c = collections['intermediates']
+        self.assertLen(c['_read_fetched_m'],1)
+        return result,c['_independent_local_vo'][0],c
+      result, (v,o), metrics = capture(new)
+      np.testing.assert_array_equal(v,o)
+      self.assertGreater(float(jnp.linalg.norm(v.astype(jnp.float32))),0.)
+      baseline = parent.apply({'params':old},*args,**kw)
+      for a,b in zip(baseline,result):
+        relative = jnp.linalg.norm((a.astype(jnp.float32)-b.astype(jnp.float32)))/jnp.linalg.norm(a.astype(jnp.float32))
+        self.assertLess(float(relative),.02)
+      for name,index in [('W_lv_gate_b0',0),('W_R_gate_b0',1)]:
+        changed = copy.deepcopy(new)
+        b = changed[name];changed[name] = b.replace(value=b.value+1.)
+        _,pair,c = capture(changed)
+        np.testing.assert_array_equal(pair[1-index],(v,o)[1-index])
+        self.assertGreater(float(jnp.linalg.norm((pair[index]-(v,o)[index]).astype(jnp.float32))),0.)
+        self.assertGreater(float(c['concat_vo_gate_pair'][0][0]),0.)
+      grad = jax.grad(lambda p: sum(jnp.mean(z.astype(jnp.float32)**2)
+          for z in child.apply({'params':p},*args,**kw)))(new)
+      for name in ('W_lv_gate','W_R_gate'):
+        g = grad[name]['kernel'].value
+        self.assertTrue(bool(jnp.all(jnp.isfinite(g))))
+        self.assertGreater(float(jnp.linalg.norm(g.astype(jnp.float32))),0.)
+      self.assertFalse(bool(jnp.allclose(grad['W_lv_gate']['kernel'].value.reshape(-1),
+                                        grad['W_R_gate']['kernel'].value.reshape(-1))))
+      fp = init(child.clone(layer_mode='local_qk+full'))
+      self.assertNotIn('W_lv_gate',fp)
+
   def test_concat_shapes_write_seed_and_qk_learning(self):
     import max_utils
     import pyconfig

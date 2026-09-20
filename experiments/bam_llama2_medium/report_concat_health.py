@@ -24,6 +24,8 @@ for arm in ('static_q', 'static_k', 'static_v', 'static_o'):
   metrics[arm+'/over_dynamic']=f'bam/concat/{arm}_amplitude/layer_{{layer:03d}}/bam_over_standard'
 for stat in ('mean','std','frac_lt_005','frac_gt_050','frac_gt_095'):
   metrics['write_mix/gate_'+stat]=f'bam/concat/write_mix_gate/layer_{{layer:03d}}/{stat}'
+for stat in ('mean_abs_diff', 'rms_diff', 'correlation'):
+  metrics['vo_gate_pair/'+stat]=f'bam/concat/vo_gate_pair/layer_{{layer:03d}}/{stat}'
 bands={'L0':range(1),'L1-7':range(1,8),'L8-15':range(8,16),'L16-23':range(16,24)}
 result={}
 for name,template in metrics.items():

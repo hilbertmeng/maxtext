@@ -254,6 +254,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumColOnlyK32MRelayM3Interpolate` | v5p-16 | `us-east5-a` | 2026-09-19 16:17:54 | 2026-09-19 17:33:29 | authorized review stop2903; zero preemptions, no zone switch; final checkpoint committed, TB synced, TPU/queue absent | none observed |
 
 | `BamMediumColOnlyK64MRelayM3QKOnly` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:53 | 2026-09-20 03:37:54 | user hot-switch at2054 to decoupled M3; two preemptions, no zone switch; checkpoint committed, TB sync OK; TPU retained for successor | EW4b configured, not activated |
+| `BamMediumColOnlyK64MRelayM3Decoupled` | v5p-16 | `us-east5-a` | 2026-09-20 03:38:49 | 2026-09-20 05:50:17 | user stop5133; no preemption or zone switch; final checkpoint committed, TB sync OK; TPU/queue released | EW4b configured, not activated |
 | `BamMediumColOnlyK32PartialMRelayM3` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:48 | 2026-09-20 03:53:52 | user stop3319; two preemptions; no zone switch; committed checkpoint and TB sync verified; TPU/queue released | EW4b configured, not activated |
 | `BamMediumColOnlyK64MRelayM3OOnly` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:36 | 2026-09-20 03:53:55 | user stop3135; two preemptions; no zone switch; committed checkpoint and TB sync verified; TPU/queue released | EW4b configured, not activated |
 | `BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976` | v5p-16 | `us-east5-a` | 2026-09-20 03:11:55 | 2026-09-20 05:48:12 | user stop5271; same-zone recovery once | UC1a/EW4b configured, not activated |
@@ -870,4 +871,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumColOnlyK64MRelayM3QKOnly | 3 | `us-east5-a` | 2026-09-20 03:28:47 | 2026-09-20 03:37:54 | 9m07s | user hot-switch boundary, not preemption; committed2054; retained by Decoupled |
 | BamMediumColOnlyK32PartialMRelayM3 | 3 | `us-east5-a` | 2026-09-20 03:28:28 | 2026-09-20 03:53:52 | 25m24s | user stop; committed3319; TPU/queue released |
 | BamMediumColOnlyK64MRelayM3OOnly | 3 | `us-east5-a` | 2026-09-20 03:27:44 | 2026-09-20 03:53:55 | 26m11s | user stop; committed3135; TPU/queue released |
+| BamMediumColOnlyK64MRelayM3Decoupled | 1 | `us-east5-a` | 2026-09-20 03:38:52 | 2026-09-20 05:50:17 | 2h11m25s | user stop; committed5133; no preemption; TPU/queue released |
 | BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976 | 2 | `us-east5-a` | 2026-09-20 03:28:28 | 2026-09-20 05:48:12 | 2h19m44s | user stop5271; checkpoint committed, TPU/queue verified absent05:50:44 |

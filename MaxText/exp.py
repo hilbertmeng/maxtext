@@ -8046,6 +8046,9 @@ class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
     """M3 relay on the matched K32 NoPE48/RoPE16 parent."""
     # code_commit: 7521ad5; UE5a .7286 steps/s, -.46% vs M3 .7320; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    # Stopped at3319. vs Partial parent: +.04613@600 -> +.02343@3200;
+    # 2400-3200 mean +.02339, narrowing slowed substantially. vs full-RoPE M3
+    # +.09788@400 -> +.02927@3200 (late mean +.02988). Predicted -.002: wrong direction.
     model_name = 'BamMediumColOnlyK32PartialMRelayM3'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 48
@@ -8075,6 +8078,10 @@ class BamMediumColOnlyK64MRelayM3VOnly(BamMediumColOnlyK64MRelayM3QKOnly):
 class BamMediumColOnlyK64MRelayM3OOnly(BamMediumColOnlyK64MRelayM3QKOnly):
     # code_commit: 7521ad5; UE5a .6878 steps/s, +.67% vs M3; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
+    # Stopped at3135. vs no-relay: early benefit crossed positive@400;
+    # +.00760@600 fell to ~+.003 by1200, then plateaued through3000 (last5 +.00260).
+    # vs all-reader M3 +.01984@200 -> -.00014@2200; not a gain over no-relay.
+    # Predicted -.002 vs no-relay: wrong direction.
     model_name = 'BamMediumColOnlyK64MRelayM3OOnly'
     bam_m_relay_reads = 'o'
 

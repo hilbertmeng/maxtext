@@ -8299,9 +8299,8 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer(BamMedi
     # code_commit: 3351a0b; UE5a .6758 steps/s (10-14), -6.24% vs QKConcat .7208 (!?).
     # Generic + concat health ON; +144 scalars vs parent; static-read/health costs not separated.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # 411617152 params (+896 vs MHA); nearest per-layer widths unchanged.
-    # Completed13500. vs QKConcat: ~-.005..-.006 at3k-8k shrank to~-.0032 late.
-    # Last5(12600-13400) mean-.003231, range-.003530..-.002707; M-cache unchanged.
+    # Completed 13500. vs QKConcat: ~-.005..-.006 at3k-8k shrank to~-.0032 late.
+    # Last5(12600-13400) mean-.003231, range-.003530..-.002707.
     model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer'
     bam_concat_static_qk = True
     mlp_dim_by_block = [2810, 2810, 2874]
@@ -8314,9 +8313,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE(BamMediumIndepe
     # code_commit: e328e4e; UE5a .7268 steps/s (10-14), -1.17% raw vs ColOnly .7354.
     # Generic + concat health ON; ColOnly BAM health OFF, timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # 412081840 params, identical to ColOnly; original .005 read gates and scales retained.
-    # Completed13500. vs ColOnly: near0 at1k-3k, gain grew to~-.004..-.005 late.
-    # Last5(12600-13400) mean-.004613, range-.004961..-.003679; M-cache unchanged.
+    # Completed 13500. vs ColOnly: near0 at1k-3k, gain grew to~-.004..-.005 late.
+    # Last5(12600-13400) mean-.004613, range-.004961..-.003679.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 32

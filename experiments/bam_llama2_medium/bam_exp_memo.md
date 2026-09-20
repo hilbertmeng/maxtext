@@ -23,6 +23,25 @@ configuration inventory, matched-window evidence, confidence and open questions.
 
 ## Capability milestones
 
+### QK concat changes the capacity-allocation prior (2026-09-20)
+
+`BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer` (4a4fdbe)
+completed 13,500: vs `BamMediumIndependentLLFMLPPerLayerColOnly`, last five
+windows 12,600–13,400 average -0.016407 (range -0.016751 to -0.015690).
+Against the still-running `BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE`,
+9,000–9,800 average -0.011695: RoPE alone does not explain the gain.
+The initial -0.003 forecast substantially underestimated this package.
+
+Update the prior: full standard Q/K projections are less indispensable than assumed;
+standard RoPE32 plus BAM NoPE32 can be a better parameter allocation in Medium.
+This is evidence for the combined QK concat + shared rank4 + MLP reinvestment package,
+not a causal estimate for concat alone. The unsuccessful V-concat arms caution against
+transferring the result to the content path: prioritize Q/K replacement and retain
+full standard V while testing additive BAM content capacity. Do not automatically add
+this gain to historical K64 gains; fixed QK32 truncation tests a different expansion.
+QK concat speed .7208 vs ColOnly .7354 is health-unmatched and cannot establish a
+clean throughput penalty. Runtime and complete configuration remain in `exp.py`.
+
 Loss comparisons below use each run's registered parent/reference and are not additive across rows.
 
 | Milestone | Speed | Training result | Main change |

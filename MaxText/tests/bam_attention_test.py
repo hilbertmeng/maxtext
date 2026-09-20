@@ -214,6 +214,67 @@ class BamReadKeyTransformTest(absltest.TestCase):
             gate_logits=logits)[0]
       np.testing.assert_allclose(read(.005,1.), read(.05,.1), rtol=2e-6, atol=1e-8)
 
+  def test_local_vo_shared_read_prunes_unused_parameters_and_reuses_one_read(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    for donor, suffix in (('local_v', 'Rank4'), ('local_o', 'C8')):
+      name = 'BamMediumIndependentLLFQKConcatStaticLocalVOShared' + suffix + 'MLPPerLayer'
+      with self.subTest(donor=donor), tempfile.TemporaryDirectory() as out:
+        Path(out, 'shared').mkdir()
+        cfg = pyconfig.initialize(
+            [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+            exp_class=name, run_name='shared', enable_checkpointing=False,
+            base_output_directory=out+'/', jax_cache_dir='', log_config=False,
+            dataset_type='synthetic', base_emb_dim=128, base_num_query_heads=2,
+            base_num_kv_heads=2, head_dim=64, max_target_length=8,
+            max_prefill_predict_length=8, query_chunk_size=4, per_device_batch_size=1.)
+        cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+            max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+            attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+            layer_mode='local_qk+local_o', read_side='col', attention_type=cfg.attention_type)
+        x = jax.random.normal(jax.random.key(141), (1,8,128), dtype=cfg.dtype)
+        m = jax.random.normal(jax.random.key(142), (1,8,32,32), dtype=cfg.dtype)
+        args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+        kw = dict(M_in=m, deterministic=True, layer_index=1)
+        params = unfreeze(module.init({'params':jax.random.key(143)}, *args, **kw)['params'])
+        if donor == 'local_v':
+          self.assertNotIn('W_R', params)
+          self.assertNotIn('W_R_gate', params)
+          self.assertNotIn('abs_v_cache_projection', params)
+          self.assertIn('W_lv_bias', params)
+          key_name = 'W_local_packed'
+        else:
+          self.assertNotIn('W_lv_bias', params)
+          self.assertNotIn('W_lv_gate_b0', params)
+          self.assertIn('W_R', params)
+          self.assertIn('abs_v_cache_projection', params)
+          key_name = 'W_R'
+        leaf = params[key_name]['kernel']
+        params[key_name]['kernel'] = leaf.replace(value=.1*jax.random.normal(
+            jax.random.key(144), leaf.value.shape, leaf.value.dtype))
+        (y, m_out), collections = module.apply({'params':params}, *args, **kw,
+            capture_intermediates=lambda mod, method: method in ('_shared_local_vo', '_read_local', '_read_fetched_m'),
+            mutable=['intermediates'])
+        c = collections['intermediates']
+        self.assertLen(c['_shared_local_vo'], 1)
+        self.assertLen(c['_read_local'], 3 if donor == 'local_v' else 2)
+        self.assertEqual(len(c.get('_read_fetched_m', ())), 0 if donor == 'local_v' else 1)
+        np.testing.assert_array_equal(c['concat_local_v_gate'][0], c['concat_local_o_gate'][0])
+        shared = c['_shared_local_vo'][0]
+        self.assertGreater(float(jnp.linalg.norm(shared.astype(jnp.float32))), 0.)
+        np.testing.assert_array_equal(shared[..., 32:], jnp.zeros_like(shared[..., 32:]))
+        grad = jax.grad(lambda p: sum(jnp.mean(z.astype(jnp.float32)**2)
+             for z in module.apply({'params':p}, *args, **kw)))(params)
+        self.assertTrue(all(bool(jnp.all(jnp.isfinite(z))) for z in jax.tree.leaves(grad)))
+        self.assertGreater(float(jnp.linalg.norm(grad[key_name]['kernel'].value.astype(jnp.float32))), 0.)
+        # Sharing only affects L: F retains the original full V and fetched read.
+        fp = module.clone(layer_mode='local_qk+full').init({'params':jax.random.key(143)}, *args, **kw)['params']
+        self.assertIn('W_R', fp)
+        self.assertEqual(fp['value']['kernel'].value.shape, (128,2,64))
+
   def test_concat_shapes_write_seed_and_qk_learning(self):
     import max_utils
     import pyconfig

@@ -2417,6 +2417,7 @@ class BamAttention(Attention):
     assert not cfg.bam_diagnostics, (
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
+      self._vo_shared_read = 'none'
       self._concat_write_mix = False
       self._concat_static_vo = False
       self._concat_static_qk = False
@@ -2447,6 +2448,15 @@ class BamAttention(Attention):
         (self.local_v_mode or getattr(cfg, 'bam_local_o_v_mode', 'none'))
         if self._local_o else 'none')
     assert self._local_v_mode in ('none', 'rank2', 'shared')
+    self._vo_shared_read = getattr(cfg, 'bam_local_vo_shared_read', 'none') if self._local_o else 'none'
+    assert self._vo_shared_read in ('none', 'local_v', 'local_o')
+    if self._vo_shared_read != 'none':
+      assert cfg.bam_prune_all_row_reads and not cfg.bam_concat_v
+      assert self._local_v_mode == 'rank2'
+      assert not getattr(cfg, 'bam_local_o_static_col', False)
+      if self._vo_shared_read == 'local_o':
+        self._local_v_mode = 'none'  # Remove LocalV keys/mixing/gates from the packed projection.
+
 
     self._has_write = bool(self._mode)
     assert self.read_side in ('both', 'row', 'col')
@@ -2676,7 +2686,7 @@ class BamAttention(Attention):
         else math.sqrt(self._read_key_epsilon) / self._read_key_scale)
     assert zero_key_gate_init < 1.0
 
-    if self._output_read:
+    if self._output_read and self._vo_shared_read != 'local_v':
       read_k_dim = self.bam_k
       read_v_dim = self._abs_v_dim or self.bam_v
 
@@ -3055,6 +3065,8 @@ class BamAttention(Attention):
     gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
     gate = gate + jnp.asarray(gate_bias, gate.dtype)
     self._record_concat_gate('local_' + name, gate)
+    if name == 'v' and self._vo_shared_read == 'local_v':
+      self._record_concat_gate('local_o', gate)
     q_projection, k_projection = self._local_qk_post_read_v_projections()
     v_projection = None
     if name == 'v' and getattr(self.config, 'bam_local_v_share_output_coordinates', False):
@@ -3090,6 +3102,13 @@ class BamAttention(Attention):
     self._record_concat_gate('write_mix', logits)
     gate = jax.nn.sigmoid(logits)[..., None]
     return (1 - gate) * front + gate * o_head[..., self.bam_k:]
+
+  def _shared_local_vo(self, M, x, local_inputs):
+    """Evaluate exactly one donor read, including its gate, for both destinations."""
+    if self._vo_shared_read == 'local_v':
+      return self._read_local('v', M, x, local_inputs)
+    assert self._vo_shared_read == 'local_o'
+    return self._read_fetched_m(self._compress_m(M), x)[0]
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3205,6 +3224,8 @@ class BamAttention(Attention):
       gate_logits = self._project_read_gate_logits(
           'W_R_gate', inputs_q, squeeze_fetch_axis=True)
       self._record_concat_gate('local_o' if self._local_o else 'fetched_o', gate_logits)
+      if self._vo_shared_read == 'local_o':
+        self._record_concat_gate('local_v', gate_logits)
       if self._record_fetched_read_health_metrics:
         scale = jnp.asarray(self._read_key_scale, jnp.float32)
         self.sow(
@@ -3390,7 +3411,13 @@ class BamAttention(Attention):
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
     local_output = None
-    if self._local_o:
+    if self._local_o and self._vo_shared_read != 'none':
+      if Mh is None:
+        Mh = self._matrix_for_read(M_in)
+      local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
+      self._record_concat_amplitude('local_v', local_output[..., :self.bam_k], value)
+      value = value + local_output
+    elif self._local_o:
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       local_state = self._compress_m(Mh)

@@ -10,6 +10,10 @@ Mapping/zero-output/train-signature and per-arm health tests passed. Exact v5p-1
 uses 13500-step schedule, checkpoint200. User authorized preparation only; existing
 four runs continue and no formal TPU or hot switch is requested for this candidate.
 Compare no-relay K64 parent, original all-reader M3, and V-only.
+AOT_READY verified on EW4a. State:
+`tpu-ag:/home/lishengping/xd/projects/aot_runs/05538dc-c5e49fd5.json`.
+Artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/05538dc/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumColOnlyK64MRelayM3Decoupled.pickle`.
+QK-only is the recommended handoff candidate, pending explicit execution confirmation.
 
 ## Follow-up: RoPE interaction and isolated read consumers
 

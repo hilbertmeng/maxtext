@@ -1,19 +1,25 @@
 # Read-only M anchor relay: Medium K32 / K64Truncate × M1 / M3
 
-## Prepared decoupled M3 (not launched)
+## Decoupled M3
 
 `BamMediumColOnlyK64MRelayM3Decoupled`, runtime05538dc, same relay worktree.
 One zero-initialized projection generates independent tanh coefficients: QK/V/O in L,
 QK/O in F. M3 anchor and persistent writes unchanged; original parent mapping retained.
 Per-arm TB stats are `bam/m_relay/{qk,v,o}/layer_NNN/*`; V has no F-layer entries.
 Mapping/zero-output/train-signature and per-arm health tests passed. Exact v5p-16 AOT
-uses 13500-step schedule, checkpoint200. User authorized preparation only; existing
-four runs continue and no formal TPU or hot switch is requested for this candidate.
+uses 13500-step schedule, checkpoint200. Initially preparation-only; subsequent user
+authorization selected QK-only for retained-TPU handoff.
 Compare no-relay K64 parent, original all-reader M3, and V-only.
 AOT_READY verified on EW4a. State:
 `tpu-ag:/home/lishengping/xd/projects/aot_runs/05538dc-c5e49fd5.json`.
 Artifact: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/05538dc/jax081-i0ae3f58-c17f538a/v5p-16/s13500/BamMediumColOnlyK64MRelayM3Decoupled.pickle`.
-QK-only is the recommended handoff candidate, pending explicit execution confirmation.
+QK-only hot-switched at committed2054 on UE5a, TB synced. Its gap vs no-relay narrowed
+from +.03166@600 to +.01231@2000 (not a proven final failure); vs all-reader M3
+from +.07333@200 to +.01081@2000. Decoupled loaded AOT and passed step14:
+.6762 steps/s (-1.02% vs all-reader .6832), with extra per-arm health capture.
+Hot-switch workflow commit0096f79 preserves the predecessor's backup-zone policy;
+eleven tests pass, deployed source SHA256 verified. New registry has all three intended
+baselines and EW4b backup. Monitor Decoupled instead of stopped QK-only.
 
 ## Follow-up: RoPE interaction and isolated read consumers
 

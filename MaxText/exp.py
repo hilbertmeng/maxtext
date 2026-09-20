@@ -8055,6 +8055,9 @@ class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
 
 class BamMediumColOnlyK64MRelayM3QKOnly(BamMediumColOnlyK64TruncateMRelayM3):
     # code_commit: 7521ad5; UE5a .6832 steps/s, same as M3; generic+relay health ON.
+    # Stopped at2054 for decoupled-M3 hot switch. vs no-relay: +.03166@600 ->
+    # +.01610@1400 -> +.01231@2000; vs all-reader M3 +.07333@200 -> +.01081@2000.
+    # Still narrowing, not a proven final negative effect; prioritizes testing cross-path coordination.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     model_name = 'BamMediumColOnlyK64MRelayM3QKOnly'
     bam_m_relay_reads = 'qk'
@@ -8078,8 +8081,9 @@ class BamMediumColOnlyK64MRelayM3OOnly(BamMediumColOnlyK64MRelayM3QKOnly):
 class BamMediumColOnlyK64MRelayM3Decoupled(BamMediumColOnlyK64TruncateMRelayM3):
     """Ledger only: independent zero-init tanh coefficients for QK/V/O M3 relay."""
     # Implementation: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
-    # Preparation only; training/hot-switch target not yet selected.
-    # Prepared runtime: 05538dc; scan+AOT, 13500 total steps, checkpoint200, per-arm relay health.
+    # code_commit: 05538dc; scan+AOT, 13500 total steps, checkpoint200, per-arm relay health.
+    # UE5a hot switch from QK-only; fresh training, parent-mapped initialization.
+    # UE5a .6762 steps/s, -1.02% vs all-reader M3 .6832; extra per-arm health confounds pure op overhead.
     model_name = 'BamMediumColOnlyK64MRelayM3Decoupled'
     bam_m_relay_reads = 'decoupled'
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',

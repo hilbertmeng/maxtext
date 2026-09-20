@@ -253,6 +253,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumColOnlyK32MRelayM3Linear` | v5p-16 | `us-east5-a` | 2026-09-19 16:13:41 | 2026-09-19 17:41:23 | authorized review stop2909; one recovery plus maintenance17:40:26 during closeout; no zone switch; final checkpoint2909 committed, TB synced, TPU/queue absent | none activated |
 | `BamMediumColOnlyK32MRelayM3Interpolate` | v5p-16 | `us-east5-a` | 2026-09-19 16:17:54 | 2026-09-19 17:33:29 | authorized review stop2903; zero preemptions, no zone switch; final checkpoint committed, TB synced, TPU/queue absent | none observed |
 
+| `BamMediumColOnlyK64MRelayM3QKOnly` | v5p-16 | `us-east5-a` | 2026-09-20 02:04:53 | 2026-09-20 03:37:54 | user hot-switch at2054 to decoupled M3; two preemptions, no zone switch; checkpoint committed, TB sync OK; TPU retained for successor | EW4b configured, not activated |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -855,3 +857,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumColOnlyK32MRelayM3 | 4 | `us-east5-a` | 2026-09-19 18:22:03 | 2026-09-19 18:24:31 | 2m28s | service preemption; short-lease churn; same-zone recovery |
 | BamMediumColOnlyK32MRelayM3 | 5 | `us-east5-a` | 2026-09-19 18:36:00 | 2026-09-19 19:20:41 | 44m41s | service preemption; same-zone recovery |
 | BamMediumColOnlyK32MRelayM3 | 6 | `us-east5-a` | 2026-09-19 19:26:38 | 2026-09-19 20:11:47 | 45m09s | run stop; completed 13500; plateaued ~-.0067 vs ColOnly; checkpoint committed; TPU/queue verified absent |
+| BamMediumColOnlyK64MRelayM3QKOnly | 1 | `us-east5-a` | 2026-09-20 02:09:11 | 2026-09-20 02:49:30 | 40m19s | preempted; same-zone recovery |
+| BamMediumColOnlyK64MRelayM3QKOnly | 2 | `us-east5-a` | 2026-09-20 03:08:55 | 2026-09-20 03:19:12 | 10m17s | preempted; same-zone recovery |
+| BamMediumColOnlyK64MRelayM3QKOnly | 3 | `us-east5-a` | 2026-09-20 03:28:47 | 2026-09-20 03:37:54 | 9m07s | user hot-switch boundary, not preemption; committed2054; retained by Decoupled |

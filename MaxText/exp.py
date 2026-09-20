@@ -8381,6 +8381,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer):
     """Ledger only: BAM QK48 + standard RoPE16; reinvest smaller standard QK in MLP."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # code_commit: ce103b1; UE5a .6360 steps/s (10-14), -.44% vs K64QK32 .6388; matched920 health scalars.
     # MLP3050/3050/3045: nearest per-layer MHA budget; no hardware rounding.
     # 411623040 params (+6784/.001648% vs MHA); +24576 vs K64QK32 from rounding.
     # Prediction vs K64QK32: final gap -.004, speed -1%; matched generic+concat health ON.

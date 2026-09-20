@@ -7297,7 +7297,8 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE(BamMediumIndepe
     # Generic + concat health ON; ColOnly BAM health OFF, timing unmatched.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 412081840 params, identical to ColOnly; original .005 read gates and scales retained.
-    # Prediction vs ColOnly: final gap -.004 (+/- .003), speed within -1%; targeted health ON.
+    # Completed13500. vs ColOnly: near0 at1k-3k, gain grew to~-.004..-.005 late.
+    # Last5(12600-13400) mean-.004613, range-.004961..-.003679; M-cache unchanged.
     model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE'
     bam_partial_rope = True
     bam_partial_rope_nope_dim = 32
@@ -7338,7 +7339,7 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumInde
     # 411592576 params: -23680 (-.00575%) vs MHA. M-cache unchanged.
     # Shared nonzero-init QK column bases, independent head mixing/gates; NoPE32/RoPE32.
     # Completed 13500: vs ColOnly, early gain deepened to -.01641 (last5@12600-13400).
-    # vs NoPE32: ~-.0117 over9000-9800 (baseline ongoing); M-cache unchanged.
+    # vs NoPE32: last5(12600-13400) mean-.011794, range-.012011..-.011457; M-cache unchanged.
     model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer'
     bam_record_concat_health = True
     bam_read_gate_init = 0.05
@@ -7383,7 +7384,8 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer(BamMedi
     # Generic + concat health ON; +144 scalars vs parent; static-read/health costs not separated.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411617152 params (+896 vs MHA); nearest per-layer widths unchanged.
-    # Prediction vs QKConcat: gap -.004, speed -.5%; generic + concat health ON.
+    # Completed13500. vs QKConcat: ~-.005..-.006 at3k-8k shrank to~-.0032 late.
+    # Last5(12600-13400) mean-.003231, range-.003530..-.002707; M-cache unchanged.
     model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer'
     bam_concat_static_qk = True
     mlp_dim_by_block = [2810, 2810, 2874]

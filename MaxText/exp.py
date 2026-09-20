@@ -8443,7 +8443,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     # Prediction vs direct baseline: final gap -.003, speed -2%; generic+concat health ON.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer'
     bam_local_vo_independent_gates = True
-    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer']
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer',
+                    'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-ig-k64-qk48-25'
 
 

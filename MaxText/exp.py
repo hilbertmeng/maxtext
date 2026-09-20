@@ -7423,9 +7423,10 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer(BamMediumI
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer):
     """M64x32/C8, full V/O columns; dynamic and static QK truncated to32."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # code_commit: 04c06d8; UE5a .6388 steps/s (10-14), -7.29% vs SharedC8 .6890.
+    # code_commit: 04c06d8; UE5a .6388 steps/s (10-14), -7.29% vs SharedC8 .6890; matched920 health scalars.
     # Same411598464 parameters and MLP2879/2879/2874 as SharedC8; M-cache x2.
-    # Prediction vs SharedC8: final gap -.004, speed -5%; matched generic+concat health ON.
+    # Paused at 1911 for independent-gate replacement. vs SharedC8: early gain narrowed
+    # to-.012334@1800; last5 mean-.014696 (range-.017611..-.012334), still shrinking.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer'
     bam_k = 64
     bam_local_qk_col_output_dim = 32
@@ -7439,7 +7440,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerL
     # code_commit: ce103b1; UE5a .6360 steps/s (10-14), -.44% vs K64QK32 .6388; matched920 health scalars.
     # MLP3050/3050/3045: nearest per-layer MHA budget; no hardware rounding.
     # 411623040 params (+6784/.001648% vs MHA); +24576 vs K64QK32 from rounding.
-    # Prediction vs K64QK32: final gap -.004, speed -1%; matched generic+concat health ON.
+    # Paused at 1462 for independent-gate replacement. vs K64QK32: +.1005@200
+    # narrowed to+.005894@1400; last5 mean+.009603 (range+.005894..+.014322).
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer'
     bam_local_qk_col_output_dim = 48
     bam_partial_rope_nope_dim = 48
@@ -7454,7 +7456,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer
     # code_commit: 4546725; UE5a .6234 steps/s (10-14), -1.98% vs24-layer QK48 .6360.
     # Generic+concat health ON; 961 vs920 read-health scalars (+41 from final L).
     # MLP2879/2879/2874 in original24; final L2970; audited411616832 params (MHA+576).
-    # Prediction vs24-layer K64QK48: final gap -.003, speed -2%; generic+concat health ON.
+    # Paused at 877 for independent-gate replacement. vs24-layer QK48: -.0871@200
+    # crossed positive at400; 400/600/800 mean+.001867 (range+.000508..+.003276).
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer'
     base_num_decoder_layers = 25
     bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8 + ['local_qk+local_o']
@@ -7480,8 +7483,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPer
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer):
     """Independent V/O gates on the K64 shared-C8 column read."""
+    # code_commit: 8c188b0; UE5a .6376 steps/s (10-14), -5.93% vs K32IndependentGates .6778; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # 411860864 params; MLP2879/2879/2874 unchanged by the independent-gate correction.
     # Prediction vs direct baseline: final gap -.004, speed -7%; generic+concat health ON.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer'
     bam_local_vo_independent_gates = True
@@ -7491,8 +7494,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64Tru
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer):
     """Independent V/O gates on the K64 shared-C8 column read."""
+    # code_commit: 8c188b0; UE5a .6320 steps/s (10-14), -.88% vs IndependentGatesK64QK32 .6376; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # 411885440 params; MLP3050/3050/3045 unchanged by the independent-gate correction.
     # Prediction vs direct baseline: final gap -.004, speed -.5%; generic+concat health ON.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer'
     bam_local_vo_independent_gates = True
@@ -7502,8 +7505,9 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer):
     """Independent V/O gates on the K64 shared-C8 column read."""
+    # code_commit: 8c188b0; UE5a .6182 steps/s (10-14), -2.18% vs24-layer IndependentGatesQK48 .6320.
+    # Generic+concat health ON; 1012 vs968 read-health scalars (+44 from final L).
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # 411895632 params; MLP2879/2879/2874 + tail2970 unchanged by the independent-gate correction.
     # Prediction vs direct baseline: final gap -.003, speed -2%; generic+concat health ON.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer'
     bam_local_vo_independent_gates = True

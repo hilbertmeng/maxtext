@@ -95,6 +95,9 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 07:47:58 | 2026-09-20 13:27:22 | completed13500; no preemption; TPU/queue verified absent13:27:27 | UC1a/EW4b configured, never active |
 | `BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer` | `xd-v5p-16-colonly-qkconcat-static-maxtext` | `us-east5-a` | 2026-09-20 08:48:18 | 2026-09-20 14:47:40 | completed13500; 0 preemptions; resources verified absent | none acquired |
 | `BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE` | `xd-v5p-16-colonly-nope32-maxtext` | `us-east5-a` | 2026-09-20 09:20:31 | 2026-09-20 14:55:34 | completed13500; 0 preemptions; resources verified absent | none acquired |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-k64-maxtext` | `us-east5-a` | 2026-09-20 14:04:10 | 2026-09-20 15:02:25 | user hot switch; committed1911; TPU retained for independent gates | no alternate trainer |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-maxtext` | `us-east5-a` | 2026-09-20 14:15:15 | 2026-09-20 15:01:55 | user hot switch; committed1462; TPU retained for independent gates | no alternate trainer |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-25-maxtext` | `us-east5-a` | 2026-09-20 14:30:40 | 2026-09-20 15:01:28 | user hot switch; committed877; TPU retained for independent gates | no alternate trainer |
 
 ## READY leases
 
@@ -402,3 +405,6 @@ inventing a duration. A passive queue is not an active-zone switch.
 | BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 07:54:32 | 2026-09-20 13:27:22 | 5h32m50s | completed13500; no preemption; TPU/queue verified absent13:27:27 |
 | BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 08:51:53 | 2026-09-20 14:47:40 | 5h55m47s | completed13500; no preemption; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE | 1 | `us-east5-a` | 2026-09-20 09:26:46 | 2026-09-20 14:55:34 | 5h28m48s | completed13500; no preemption; TPU/queue verified absent14:55:40 |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer | 1 | `us-east5-a` | 2026-09-20 14:34:39 | 2026-09-20 15:01:28 | 0h26m49s | user hot switch; committed877; zero preemptions; TPU retained by independent-gate replacement |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 14:19:57 | 2026-09-20 15:01:55 | 0h41m58s | user hot switch; committed1462; zero preemptions; TPU retained by independent-gate replacement |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 14:08:51 | 2026-09-20 15:02:25 | 0h53m34s | user hot switch; committed1911; zero preemptions; TPU retained by independent-gate replacement |

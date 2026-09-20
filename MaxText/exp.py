@@ -7286,6 +7286,19 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only'
 
 
+class BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """RoPE32 control: unchanged rank1 additive QK64 projections and per-layer MLP."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 412081840 params, identical to ColOnly; original .005 read gates and scales retained.
+    # Prediction vs ColOnly: final gap -.004 (+/- .003), speed within -1%; targeted health ON.
+    model_name = 'BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 32
+    bam_record_concat_health = True
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-nope32'
+
+
 class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
     """L-layer standard V32 concatenated with gated BAM V32; QK remain additive."""
     # code_commit: 4a4fdbe; UE5a .7384 steps/s (10-14); generic + concat health ON.

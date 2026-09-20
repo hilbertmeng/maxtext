@@ -1,5 +1,6 @@
 """Trace the actual train step and check health export for both concat layouts."""
 import functools
+import sys
 import tempfile
 from pathlib import Path
 import jax
@@ -8,11 +9,12 @@ import pyconfig
 import train
 import train_compile
 
-RUNS = ('BamMediumIndependentLLFColOnlyVConcatMLPPerLayer',
+RUNS = ('BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE',
+        'BamMediumIndependentLLFColOnlyVConcatMLPPerLayer',
         'BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer',
         'BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer',
         'BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer')
-for exp in RUNS:
+for exp in (sys.argv[1:] or RUNS):
   with tempfile.TemporaryDirectory() as out:
     Path(out, 'audit').mkdir()
     cfg = pyconfig.initialize(

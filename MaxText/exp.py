@@ -7928,6 +7928,28 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
 
 
+class BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED978(BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
+    """Ledger only: Match MHA parameters by narrowing the residual stream, retaining full MLP width."""
+    # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
+    # 411,739,202 params: +122,946 (+.02987%) vs MHA; BAM 18,613,520.
+    # D978, MLP2816; H16/head64, M64x32/C8, NoPE48/RoPE16 unchanged.
+    # Prediction vs K64 PerLayer: late gap -.003 (range -.008..+.004); speed -3%..+1%.
+    model_name = 'BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED978'
+    base_emb_dim = 978
+    base_mlp_dim = 2816
+    mlp_dim_by_block = None
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    scan_layers = True
+    steps = 13500
+    checkpoint_period = 200
+    force_final_checkpoint = True
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+                    'BamMHALlama2MediumC256ScanAotCleanControl']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k64-d978-fullmlp'
+
+
+
 class BamMediumColOnlyK32MRelayM1(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: first-layer M anchor, read-only relay after the first LLF block."""
     # code_commit: 72469e1; UE5a .7306 steps/s, -.65% vs parent .7354; generic+relay health ON.

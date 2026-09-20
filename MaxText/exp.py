@@ -8059,7 +8059,9 @@ class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
 class BamMediumColOnlyK32MRelayM3VOnly(BamMediumColOnlyK32MRelayM3):
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     # code_commit: 899ac4b; UE5a .7360 steps/s, +.55% vs all-reader M3 .7320; generic+relay health ON.
-    # Prediction: final -.003 vs no-relay, +.004 vs all-reader M3; speed approximately unchanged.
+    # Stopped at5125. vs no-relay: -.02765@400 -> -.00748@2000 -> -.00410@5000;
+    # 4200-5000 mean -.00418. vs all-reader M3: +.01537@400 -> +.00438@5000,
+    # late mean +.00466: useful V-only relay, but weaker than all-reader M3; predicted ordering held.
     model_name = 'BamMediumColOnlyK32MRelayM3VOnly'
     bam_m_relay_reads = 'v'
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM3']
@@ -8068,8 +8070,10 @@ class BamMediumColOnlyK32MRelayM3VOnly(BamMediumColOnlyK32MRelayM3):
 class BamMediumColOnlyK32PartialMRelayM3VOnly(BamMediumColOnlyK32PartialMRelayM3):
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     # code_commit: 899ac4b; UE5a .7312 steps/s, +.36% vs partial all-reader M3 .7286; generic+relay health ON.
-    # Prediction: final -.004 vs partial no-relay; reverses all-reader relay's harmful direction.
-    # Speed approximately unchanged versus partial all-reader M3.
+    # Stopped at5260. vs partial no-relay: +.00842@600 -> +.00188@5200;
+    # 4400-5200 mean +.00218, still narrowing. vs all-reader partial M3:
+    # -.04059@400 -> -.02029@3200 (last common); removes most harm, not a demonstrated benefit.
+    # Predicted -.004 vs no-relay: wrong observed direction; final crossing remains untested.
     model_name = 'BamMediumColOnlyK32PartialMRelayM3VOnly'
     bam_m_relay_reads = 'v'
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE',

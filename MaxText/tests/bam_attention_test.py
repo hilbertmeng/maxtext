@@ -275,6 +275,92 @@ class BamReadKeyTransformTest(absltest.TestCase):
         self.assertIn('W_R', fp)
         self.assertEqual(fp['value']['kernel'].value.shape, (128,2,64))
 
+  def test_shared_c8_k64_keeps_qk32_and_expands_vo_write(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    results = []
+    for width, suffix in ((32, ''), (64, 'K64Truncate')):
+      with tempfile.TemporaryDirectory() as out:
+        Path(out, 'k64').mkdir()
+        cfg = pyconfig.initialize(
+            [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+            exp_class='BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8' + suffix + 'MLPPerLayer',
+            run_name='k64', enable_checkpointing=False, base_output_directory=out+'/',
+            jax_cache_dir='', log_config=False, dataset_type='synthetic',
+            base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
+            head_dim=64, max_target_length=8, max_prefill_predict_length=8,
+            query_chunk_size=4, per_device_batch_size=1.)
+        cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+            head_dim=64, bam_k=width, bam_v=32, max_target_length=8,
+            max_prefill_predict_length=8, mesh=mesh, attention_kernel='dot_product_chunk',
+            dtype=cfg.dtype, layer_mode='local_qk+local_o', read_side='col',
+            attention_type=cfg.attention_type)
+        x = jax.random.normal(jax.random.key(201), (1,8,128), dtype=cfg.dtype)
+        full_m = jax.random.normal(jax.random.key(202), (1,8,64,32), dtype=cfg.dtype)
+        m = full_m[..., :width, :]
+        args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+        kw = dict(M_in=m, deterministic=True, layer_index=1)
+        params = unfreeze(module.init({'params':jax.random.key(203)}, *args, **kw)['params'])
+        self.assertEqual(params['query']['kernel'].value.shape, (128,2,32))
+        self.assertEqual(params['key']['kernel'].value.shape, (128,2,32))
+        self.assertEqual(params['value']['kernel'].value.shape, (128,2,64))
+        # Exercise nonzero dynamic AND static reads, not their zero-init special case.
+        leaf = params['W_R']['kernel']
+        params['W_R']['kernel'] = leaf.replace(value=.1*jax.random.normal(
+            jax.random.key(204), leaf.value.shape, leaf.value.dtype))
+        for arm in ('q','k'):
+          leaf = params['static_'+arm+'_key']
+          params['static_'+arm+'_key'] = leaf.replace(value=.1*jax.random.normal(
+              jax.random.key(205 if arm == 'q' else 206), leaf.value.shape, leaf.value.dtype))
+        (y, mout), c = module.apply({'params':params}, *args, **kw,
+            capture_intermediates=lambda mod, method: method in ('_add_local_qk', '_shared_local_vo'),
+            mutable=['intermediates'])
+        c = c['intermediates']
+        self.assertEqual(mout.shape, m.shape)
+        self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
+        vo = c['_shared_local_vo'][0]
+        self.assertGreater(float(jnp.linalg.norm(vo[..., :width].astype('float32'))), 0.)
+        if width == 64:
+          self.assertGreater(float(jnp.linalg.norm(vo[..., 32:].astype('float32'))), 0.)
+        else:
+          np.testing.assert_array_equal(vo[..., 32:], jnp.zeros_like(vo[..., 32:]))
+        o = jax.random.normal(jax.random.key(207), (1,8,2,64), dtype=cfg.dtype)
+        written = module.apply({'params':params}, o, x, method=module._write_data)
+        np.testing.assert_array_equal(written, o[..., :width])
+        results.append((params,c['_add_local_qk'][0],vo))
+        if width == 64:
+          # QK cannot consume the extra K coordinates; both V and O can.
+          changed = m.at[...,32:,:].multiply(3)
+          _, c2 = module.apply({'params':params}, *args, **dict(kw,M_in=changed),
+              capture_intermediates=lambda mod, method: method in ('_add_local_qk', '_shared_local_vo'),
+              mutable=['intermediates'])
+          for a,b in zip(c['_add_local_qk'][0],c2['intermediates']['_add_local_qk'][0]):
+            np.testing.assert_array_equal(a,b)
+          grad = jax.grad(lambda p: jnp.mean(module.apply({'params':p},*args,**kw)[0].astype('float32')**2))(params)
+          self.assertTrue(all(bool(jnp.all(jnp.isfinite(z))) for z in jax.tree.leaves(grad)))
+          for arm in ('q','k'):
+            self.assertGreater(float(jnp.linalg.norm(grad['static_'+arm+'_key'].value.astype('float32'))),0.)
+          self.assertGreater(float(jnp.linalg.norm(grad['W_R']['kernel'].value.astype('float32'))),0.)
+          # FetchedO must also fit a full64 column without a phantom row tail.
+          fetched = module.clone(layer_mode='local_qk+full')
+          fp = unfreeze(fetched.init({'params':jax.random.key(203)},*args,**kw)['params'])
+          fp['W_R'] = params['W_R']
+          (fy,fm), fc = fetched.apply({'params':fp},*args,**kw,
+              capture_intermediates=lambda mod, method: method == '_read_fetched_m', mutable=['intermediates'])
+          self.assertEqual(fm.shape,m.shape)
+          self.assertTrue(bool(jnp.all(jnp.isfinite(fy))))
+          self.assertGreater(float(jnp.linalg.norm(fc['intermediates']['_read_fetched_m'][0][0][...,32:].astype('float32'))),0.)
+    # Identical parameter tree/initialization and exactly the same QK, including RoPE.
+    self.assertEqual(jax.tree.structure(results[0][0]),jax.tree.structure(results[1][0]))
+    for a,b in zip(jax.tree.leaves(results[0][0]),jax.tree.leaves(results[1][0])):
+      np.testing.assert_array_equal(a,b)
+    for a,b in zip(results[0][1],results[1][1]):
+      np.testing.assert_array_equal(a,b)
+    np.testing.assert_array_equal(results[0][2][...,:32],results[1][2][...,:32])
+
   def test_shared_c8_independent_gates_initialization_and_separate_gradients(self):
     import copy
     import max_utils

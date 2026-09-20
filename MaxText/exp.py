@@ -269,6 +269,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
     bam_record_concat_health = False
     bam_concat_qk = False
+    bam_local_qk_col_output_dim = None  # optional parameter-free column truncation
     bam_concat_v = False
     bam_local_vo_shared_read = 'none'
     bam_local_vo_independent_gates = False
@@ -7415,6 +7416,18 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer(BamMediumI
     mlp_dim_by_block = [2879, 2879, 2874]
     compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-shared-c8'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer):
+    """M64x32/C8, full V/O columns; dynamic and static QK truncated to32."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Same411598464 parameters and MLP2879/2879/2874 as SharedC8; M-cache x2.
+    # Prediction vs SharedC8: final gap -.004, speed -5%; matched generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer'
+    bam_k = 64
+    bam_local_qk_col_output_dim = 32
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-k64-truncate'
 
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer):

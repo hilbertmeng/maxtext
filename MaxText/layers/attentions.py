@@ -2397,10 +2397,19 @@ class BamAttention(Attention):
         cfg, 'bam_local_qk_post_read_v_init', 'orthogonal')
     self._seed_paired_local_row_key = bool(getattr(
         cfg, 'bam_seed_paired_local_row_key', False))
-    self._local_qk_output_width = self.bam_k + (
-        int(self._local_qk_post_read_v_dim)
-        if self._local_qk_post_read_v_dim is not None
-        else self.bam_v)
+    self._qk_col_width = getattr(cfg, 'bam_local_qk_col_output_dim', None)
+    if self._qk_col_width is not None:
+      assert cfg.bam_prune_all_row_reads
+      assert 0 < self._qk_col_width <= self.bam_k
+    else:
+      self._qk_col_width = self.bam_k
+    self._local_qk_output_width = (
+        self._qk_col_width
+        if getattr(cfg, 'bam_local_qk_col_output_dim', None) is not None
+        else self.bam_k + (
+            int(self._local_qk_post_read_v_dim)
+            if self._local_qk_post_read_v_dim is not None
+            else self.bam_v))
     self._partial_rope = bool(cfg.bam_partial_rope)
     self._partial_rope_nope_dim = None
     if self._partial_rope:
@@ -2434,8 +2443,9 @@ class BamAttention(Attention):
       self._has_write = False
       return
 
-    assert 0 < self.bam_k < self.head_dim, (
+    assert 0 < self.bam_k <= self.head_dim, (
         f'bam_k({self.bam_k}) must fit inside head_dim({self.head_dim})')
+    assert self.bam_k < self.head_dim or cfg.bam_prune_all_row_reads
     self._mode = (
         set() if self.layer_mode == 'none'
         else set(self.layer_mode.replace('+', ' ').split()))
@@ -2650,6 +2660,8 @@ class BamAttention(Attention):
               or (self._abs_v_row_output == 'project'
                   and self._abs_v_row_decoder_output == 'full'))
           else self._abs_v_dim)
+      if self._fetched_arm.prune_row:
+        full_v_output_dim = 0
       self._fetched_output_v_dim = full_v_output_dim
       fetched_output_width = self._fetched_heads_per_query * (
           self.bam_k + full_v_output_dim)
@@ -3089,13 +3101,19 @@ class BamAttention(Attention):
     if self._record_local_routing_metrics:
       result, rank_gate = result
       self._record_local_rank_gate(f'local_{name}', rank_gate)
-    result = _fit_bam_read_to_head(
-        result, self.bam_k, self.head_dim,
-        getattr(self, f'local_{name}_v_adapter', None))
+    if arm.prune_row:
+      col = result[0]
+      if name in ('q', 'k'):
+        col = col[..., :self._qk_col_width]
+      result = _pack_fetched_bam_heads(col, self.num_query_heads, self.head_dim)
+    else:
+      result = _fit_bam_read_to_head(
+          result, self.bam_k, self.head_dim,
+          getattr(self, f'local_{name}_v_adapter', None))
     if self._concat_static_qk and name in ('q', 'k'):
-      static = self._static_column(M, name)
-      self._record_concat_amplitude('static_' + name, static, result[..., :self.bam_k])
-      result = result + jnp.pad(static, ((0, 0), (0, 0), (0, 0), (0, self.head_dim-self.bam_k)))
+      static = self._static_column(M[..., :self._qk_col_width, :], name)
+      self._record_concat_amplitude('static_' + name, static, result[..., :self._qk_col_width])
+      result = result + _pack_fetched_bam_heads(static, self.num_query_heads, self.head_dim)
     return result
 
   def _static_column(self, M, arm):
@@ -3140,14 +3158,14 @@ class BamAttention(Attention):
 
   def _add_local_qk(self, query, key, q_local, k_local, segment_ids=None):
     """Inject LocalQK into the standard Q/K arm."""
-    self._record_concat_amplitude('local_q', q_local[..., :self.bam_k], query)
-    self._record_concat_amplitude('local_k', k_local[..., :self.bam_k], key)
-    self._record_concat_qk_scores(query, key, q_local[..., :self.bam_k], k_local[..., :self.bam_k], segment_ids)
+    self._record_concat_amplitude('local_q', q_local[..., :self._qk_col_width], query)
+    self._record_concat_amplitude('local_k', k_local[..., :self._qk_col_width], key)
+    self._record_concat_qk_scores(query, key, q_local[..., :self._qk_col_width], k_local[..., :self._qk_col_width], segment_ids)
     if self._record_local_routing_metrics:
       self._record_local_qk_read_health(query, key, q_local, k_local)
     if getattr(self.config, 'bam_concat_qk', False):
-      return (jnp.concatenate((q_local[..., :self.bam_k], query), axis=-1),
-              jnp.concatenate((k_local[..., :self.bam_k], key), axis=-1))
+      return (jnp.concatenate((q_local[..., :self._qk_col_width], query), axis=-1),
+              jnp.concatenate((k_local[..., :self._qk_col_width], key), axis=-1))
     return query + q_local, key + k_local
 
 
@@ -3218,6 +3236,8 @@ class BamAttention(Attention):
   def _expand_full_read(self, full_read):
     """Restore compressed read sides and place them in one attention head."""
     y_k, y_v = full_read
+    if self._fetched_arm.prune_row:
+      return _pack_fetched_bam_heads(y_k, self.num_query_heads, self.head_dim)
 
     def decode(y, decoder):
       decoder = decoder.astype(y.dtype)
@@ -3387,17 +3407,19 @@ class BamAttention(Attention):
     concat_v = bool(getattr(cfg, 'bam_concat_v', False)) and self._local_v_mode == 'rank2'
     if concat_qk or concat_v:
       assert not cfg.fused_qkv and cfg.bam_prune_all_row_reads
+    if concat_v:
       assert self.bam_k * 2 == self.head_dim
     if concat_qk:
-      assert self._partial_rope and self._partial_rope_nope_dim == self.bam_k
+      assert self._qk_col_width * 2 == self.head_dim
+      assert self._partial_rope and self._partial_rope_nope_dim == self._qk_col_width
       assert self._share_qk_basis
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
-      query = self.query_projection(inputs_q, self.head_dim - self.bam_k if concat_qk else None)
+      query = self.query_projection(inputs_q, self.head_dim - self._qk_col_width if concat_qk else None)
       key = self.kv_projection(inputs_kv, proj_name="key",
-                               projection_dim=self.head_dim - self.bam_k if concat_qk else None)
+                               projection_dim=self.head_dim - self._qk_col_width if concat_qk else None)
       value = self.kv_projection(inputs_kv, proj_name="value",
                                  projection_dim=self.head_dim - self.bam_k if concat_v else None)
 
@@ -3405,11 +3427,11 @@ class BamAttention(Attention):
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     if concat_qk:
-      # Only the standard half rotates; the full BAM column is concatenated afterwards.
+      # Only the standard half rotates; the retained BAM column is concatenated afterwards.
       query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
-                                          embedding_dims=self.head_dim - self.bam_k)
+                                          embedding_dims=self.head_dim - self._qk_col_width)
       key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
-                                        embedding_dims=self.head_dim - self.bam_k)
+                                        embedding_dims=self.head_dim - self._qk_col_width)
     elif self._partial_rope:
       query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
       key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')

@@ -8215,6 +8215,49 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-project-prope'
 
 
+class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """Ledger only: L-layer standard V32 concatenated with gated BAM V32; QK remain additive."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411607312 params: -8944 (-.00217%) vs MHA. L0 full V, no LocalV/LocalO.
+    # L0 MLP2650; subsequent L/F MLP2703/2596. M-cache unchanged.
+    # Prediction vs ColOnly: final gap +.006, speed -1%; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFColOnlyVConcatMLPPerLayer'
+    bam_read_gate_init = 0.05
+    bam_read_key_scale = 0.2
+    bam_local_v_key_scale = 0.1
+    bam_concat_v = True
+    bam_concat_v_full_first_layer = True
+    bam_first_layer_mlp_dim = 2650  # full V; LocalV/LocalO removed at L0
+    base_mlp_dim = 2816
+    mlp_dim_by_block = [2703, 2703, 2596]  # audited per-layer MHA budget
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-vconcat'
+
+
+class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """Ledger only: Shared rank4 BAM QK32 + standard RoPE32; V remains additive."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411592576 params: -23680 (-.00575%) vs MHA. M-cache unchanged.
+    # Shared nonzero-init QK column bases, independent head mixing/gates; NoPE32/RoPE32.
+    # Prediction vs ColOnly: final gap -.003 (low confidence), speed -2%; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer'
+    bam_read_gate_init = 0.05
+    bam_read_key_scale = 0.2
+    bam_local_v_key_scale = 0.1
+    bam_concat_qk = True
+    bam_local_q_rank = 4
+    bam_local_k_rank = None
+    bam_local_qk_share_basis = True
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 32
+    base_mlp_dim = 2816
+    mlp_dim_by_block = [2810, 2810, 2874]  # nearest per-layer MHA budget
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-r4'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

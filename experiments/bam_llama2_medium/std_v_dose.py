@@ -149,7 +149,7 @@ def run(config):
     if isinstance(m,attentions.BamAttention) and ctx.method_name=='_local_inputs' and 'v' in m._local_arms:
       arms=list(m._local_arms.values());layout,width=attentions._packed_local_layout(arms,m._share_qk_basis)
       arm=m._local_arms['v'];basis=layout[[x.name for x in arms].index('v')][0]
-      info=dict(start=basis.start,stop=basis.stop,width=width,bias=arm.prefix+'_bias',packed=getattr(config,'bam_local_packed_parameter_name','W_local_packed'))
+      info=dict(start=basis.start,stop=basis.stop,width=width,bias=arm.prefix+'_bias',packed=m.W_local_packed.name)
       assert not layout_info or layout_info==info
       layout_info.update(info)
     return next_fun(*args,**kw)
@@ -171,7 +171,7 @@ def run(config):
         assert v.shape==(1024,8,layout_info['width']);packed.append((key,block))
       elif key[-1]==layout_info['bias']:
         assert v.shape[1]==8;bias.append((key,block))
-    assert len(raw)==len(packed)==len(bias)==2,(raw,packed,bias)
+    assert len(raw)==len(packed)==len(bias)==2,(layout_info,raw,packed,bias,['/'.join(k) for k in flat if 'local_0' in k])
     selected=raw+packed+bias
     base=tuple(flat[k] for k,_ in selected)
     def modify(values,scales):

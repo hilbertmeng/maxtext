@@ -287,7 +287,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_col_output = 'truncate'  # truncate | project (separate Q/K selector-initialized maps)
     bam_m_relay_anchor = 0  # 0 disabled; 1/3 capture write after layer 1 / first LLF block
     bam_m_relay_mixing = 'tanh_add'
-    bam_m_relay_reads = 'all'  # all / qk / v / o; writes always use original M
+    bam_m_relay_reads = 'all'  # all / qk / v / o / decoupled; writes use original M
     bam_m_relay_gate_init = .01
     bam_record_m_relay_metrics = False
     bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
@@ -7394,6 +7394,14 @@ class BamMediumColOnlyK64MRelayM3OOnly(BamMediumColOnlyK64MRelayM3QKOnly):
     # Prediction vs no-relay parent: -.002.
     model_name = 'BamMediumColOnlyK64MRelayM3OOnly'
     bam_m_relay_reads = 'o'
+
+class BamMediumColOnlyK64MRelayM3Decoupled(BamMediumColOnlyK64TruncateMRelayM3):
+    """Independent zero-initialized tanh relay coefficients for QK, V and O."""
+    model_name = 'BamMediumColOnlyK64MRelayM3Decoupled'
+    bam_m_relay_reads = 'decoupled'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+                    'BamMediumColOnlyK64TruncateMRelayM3', 'BamMediumColOnlyK64MRelayM3VOnly']
+
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE

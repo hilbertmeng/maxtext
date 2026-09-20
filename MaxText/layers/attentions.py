@@ -2476,10 +2476,13 @@ class BamAttention(Attention):
     zeros_init = initializers.contant_dense_init(0.0)
     orth_init = nn.initializers.orthogonal()
     reg_init = self.kernel_init
+    self._relay_arms = (
+        ('qk', 'v', 'o') if self._local_v_mode == 'rank2' else ('qk', 'o')
+    ) if cfg.bam_m_relay_reads == 'decoupled' else ('all',)
     if getattr(cfg, 'bam_m_relay_anchor', 0):
       interpolate = cfg.bam_m_relay_mixing == 'sigmoid_interpolate'
       self.m_relay_scale = DenseGeneral(
-          features=1, axis=-1, kernel_init=zeros_init,
+          features=len(self._relay_arms), axis=-1, kernel_init=zeros_init,
           kernel_axes=('embed', None), dtype=self.dtype,
           name='m_relay_scale', quant=self.quant,
           matmul_precision=cfg.matmul_precision, use_bias=not interpolate)
@@ -3315,42 +3318,47 @@ class BamAttention(Attention):
       key = self.kv_projection(inputs_kv, proj_name="key")
       value = self.kv_projection(inputs_kv, proj_name="value")
 
-    read_m = M_in
+    relay_m = {}
     if anchor_m is not None:
-      logits = self.m_relay_scale(inputs_q)[..., None]
+      logits = self.m_relay_scale(inputs_q)
       mixing = cfg.bam_m_relay_mixing
-      if mixing == 'tanh_add':
-        scale = jnp.tanh(logits)
-        read_m = M_in + scale * anchor_m
-      elif mixing == 'linear_add':
-        scale = logits
-        read_m = M_in + scale * anchor_m
-      elif mixing == 'sigmoid_interpolate':
-        scale = jax.nn.sigmoid(logits + self.m_relay_gate_b0.astype(logits.dtype))
-        read_m = (1 - scale) * M_in + scale * anchor_m
-      else:
-        raise ValueError(f'Unknown M relay mixing: {mixing}')
-      if cfg.bam_record_m_relay_metrics and not self.is_initializing():
-        # Diagnostic reductions only; stop gradients through the reporting path.
-        m, a, delta, mixed = jax.tree.map(
-            lambda v: jax.lax.stop_gradient(v).astype(jnp.float32),
-            (M_in, anchor_m, scale * anchor_m, read_m))
-        rms = lambda v: jnp.sqrt(jnp.mean(v * v, axis=(-2, -1)) + 1e-20)
-        cosine = jnp.mean(m * a, axis=(-2, -1)) / (rms(m) * rms(a))
-        stats = jnp.stack((jnp.mean(scale), jnp.mean(scale > 0),
-            jnp.mean(scale < 0), jnp.mean(jnp.abs(scale) > .95),
-            jnp.mean(rms(delta) / rms(m)), jnp.mean(cosine),
-            jnp.mean(rms(mixed) / rms(m))))
-        self.sow('intermediates', 'm_relay_stats', stats)
+      for index, arm in enumerate(self._relay_arms):
+        arm_logits = logits[..., index, None, None]
+        if mixing == 'tanh_add':
+          scale = jnp.tanh(arm_logits)
+          read_m = M_in + scale * anchor_m
+        elif mixing == 'linear_add':
+          scale = arm_logits
+          read_m = M_in + scale * anchor_m
+        elif mixing == 'sigmoid_interpolate':
+          scale = jax.nn.sigmoid(arm_logits + self.m_relay_gate_b0.astype(logits.dtype))
+          read_m = (1 - scale) * M_in + scale * anchor_m
+        else:
+          raise ValueError(f'Unknown M relay mixing: {mixing}')
+        relay_m[arm] = read_m
+        if cfg.bam_record_m_relay_metrics and not self.is_initializing():
+          # Diagnostic reductions only; stop gradients through the reporting path.
+          m, a, delta, mixed = jax.tree.map(
+              lambda v: jax.lax.stop_gradient(v).astype(jnp.float32),
+              (M_in, anchor_m, scale * anchor_m, read_m))
+          rms = lambda v: jnp.sqrt(jnp.mean(v * v, axis=(-2, -1)) + 1e-20)
+          cosine = jnp.mean(m * a, axis=(-2, -1)) / (rms(m) * rms(a))
+          stats = jnp.stack((jnp.mean(scale), jnp.mean(scale > 0),
+              jnp.mean(scale < 0), jnp.mean(jnp.abs(scale) > .95),
+              jnp.mean(rms(delta) / rms(m)), jnp.mean(cosine),
+              jnp.mean(rms(mixed) / rms(m))))
+          suffix = '' if arm == 'all' else f'_{arm}'
+          self.sow('intermediates', f'm_relay_stats{suffix}', stats)
     relay_reads = cfg.bam_m_relay_reads
-    assert relay_reads in ('all', 'qk', 'v', 'o'), relay_reads
+    assert relay_reads in ('all', 'qk', 'v', 'o', 'decoupled'), relay_reads
     read_states = {}
 
     def matrix_for(arm):
-      use_relay = relay_reads == 'all' or relay_reads == arm
-      if use_relay not in read_states:
-        read_states[use_relay] = self._matrix_for_read(read_m if use_relay else M_in)
-      return read_states[use_relay]
+      route = arm if relay_reads == 'decoupled' else (
+          'all' if relay_reads == 'all' or relay_reads == arm else None)
+      if route not in read_states:
+        read_states[route] = self._matrix_for_read(relay_m.get(route, M_in))
+      return read_states[route]
 
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)

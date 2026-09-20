@@ -24,7 +24,8 @@ class MRelayTest(unittest.TestCase):
     for name in ('BamMediumColOnlyK32MRelayM1', 'BamMediumColOnlyK64TruncateMRelayM3',
                  'BamMediumColOnlyK32MRelayM3Linear', 'BamMediumColOnlyK32MRelayM3Interpolate',
                  'BamMediumColOnlyK32PartialMRelayM3', 'BamMediumColOnlyK64MRelayM3QKOnly',
-                 'BamMediumColOnlyK64MRelayM3VOnly', 'BamMediumColOnlyK64MRelayM3OOnly'):
+                 'BamMediumColOnlyK64MRelayM3VOnly', 'BamMediumColOnlyK64MRelayM3OOnly',
+                 'BamMediumColOnlyK64MRelayM3Decoupled'):
       cfg = self.config(name)
       cfg.get_keys().update(vocab_size=128, dtype=jnp.float32,
           bam_local_o_v_mode=['rank2', 'rank2', 'none'] * 2)
@@ -57,6 +58,11 @@ class MRelayTest(unittest.TestCase):
         _, metrics = jax.eval_shape(lambda st, data, rng: train.train_step(
             model, cfg, shardings, st, data, rng), *shaped)
         self.assertIn('learning/raw_grad_norm', metrics['scalar'])
+        if cfg.bam_m_relay_reads == 'decoupled':
+          for arm in ('qk', 'v', 'o'):
+            self.assertIn(f'bam/m_relay/{arm}/layer_003/scale_mean', metrics['scalar'])
+          self.assertNotIn('bam/m_relay/v/layer_005/scale_mean', metrics['scalar'])
+          self.assertIn('bam/m_relay/o/layer_005/scale_mean', metrics['scalar'])
 
   def config(self, name):
     output = tempfile.TemporaryDirectory()

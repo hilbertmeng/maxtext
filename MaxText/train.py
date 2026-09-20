@@ -901,9 +901,16 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     for layer in range(block_size, config.num_decoder_layers):
       offset = layer % block_size
       role = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
-      values = layers[role]['block']['self_attention']['m_relay_stats'][0][layer // block_size - 1]
-      for name, value in zip(names, values):
-        metrics['scalar'][f'bam/m_relay/layer_{layer:03d}/{name}'] = value
+      outputs = layers[role]['block']['self_attention']
+      arms = ('qk', 'v', 'o') if config.bam_m_relay_reads == 'decoupled' else ('all',)
+      for arm in arms:
+        suffix = '' if arm == 'all' else f'_{arm}'
+        if f'm_relay_stats{suffix}' not in outputs:
+          continue  # F layers have no LocalV consumer.
+        values = outputs[f'm_relay_stats{suffix}'][0][layer // block_size - 1]
+        prefix = 'bam/m_relay' if arm == 'all' else f'bam/m_relay/{arm}'
+        for name, value in zip(names, values):
+          metrics['scalar'][f'{prefix}/layer_{layer:03d}/{name}'] = value
 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)

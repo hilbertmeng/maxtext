@@ -7974,13 +7974,11 @@ class BamMediumColOnlyK32MRelayM1(BamMediumIndependentLLFMLPPerLayerColOnly):
 
 class BamMediumColOnlyK32MRelayM3(BamMediumColOnlyK32MRelayM1):
     # code_commit: 72469e1; UE5a .7320 steps/s, -.46% vs parent .7354.
-    # Result: completed 13500 (5 preemptions). vs ColOnly: crossed zero
-    # @400 after warmstart spike, settled to ~-.007 @3000, plateaued -.0067
-    # for 10000 steps (3000..13400); drift +.0002/1k (toward 0, ~35k steps to
-    # cross). vs M1 (anchor=1): -.0165 @2000 (M3 better than M1 by ~.017).
-    # Conclusion: MRelay anchor=3 on K32 gives a stable ~.007 improvement over
-    # ColOnly, plateaued (not converging to zero). anchor=3 >> anchor=1 on K32
-    # (~.017 better). Contrast Truncate+M3: neutral (~0); base-dependent.
+    # Completed13500. vs ColOnly: crossed negative@400; -.01100@3200,
+    # gradually weakened to ~-.0067 late, not a plateau from3000 onward.
+    # 12600-13400 mean -.006730 vs preceding five -.006789; late benefit stable,
+    # 38.8% smaller than at3200. vs M1 -.01649@2000, -.01339@3200.
+    # M3 improves K32, unlike M1; do not extrapolate a local slope to a zero-crossing step.
     model_name = 'BamMediumColOnlyK32MRelayM3'
     bam_m_relay_anchor = 3
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM1']
@@ -8418,7 +8416,7 @@ class BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE(
     # code_commit: 9a58407; resumed after step9024 from 4fb2021, same RUN/TPU.
     # UE5a v5p-32, generic health ON/BAM sow OFF; W/R/S all dot.
     # steps9035-39 .5690 steps/s: +13.89% vs pre-switch .4996 (8990-94),
-    # -4.08% vs K64 .5932 at steps9035-39; original steps10-14 .5030.
+    # -4.08% vs K64 .5932.
     # Profile 3d59d64: lowering/layout cost, FLOPs only +.5%; full-v5p K128
     # all-dot +13.81%, then -4.31% vs K64.
     # Artifacts: /data0/xd/bam_diagnostics/xl-colonly-k-operators/.

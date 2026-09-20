@@ -8056,6 +8056,24 @@ class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
                     'BamMediumColOnlyK32MRelayM3']
 
 
+class BamMediumColOnlyK32MRelayM3VOnly(BamMediumColOnlyK32MRelayM3):
+    # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay; prepared 899ac4b.
+    # Prediction: final -.003 vs no-relay, +.004 vs all-reader M3; speed approximately unchanged.
+    model_name = 'BamMediumColOnlyK32MRelayM3VOnly'
+    bam_m_relay_reads = 'v'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly', 'BamMediumColOnlyK32MRelayM3']
+
+
+class BamMediumColOnlyK32PartialMRelayM3VOnly(BamMediumColOnlyK32PartialMRelayM3):
+    # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay; prepared 899ac4b.
+    # Prediction: final -.004 vs partial no-relay; reverses all-reader relay's harmful direction.
+    # Speed approximately unchanged versus partial all-reader M3.
+    model_name = 'BamMediumColOnlyK32PartialMRelayM3VOnly'
+    bam_m_relay_reads = 'v'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE',
+                    'BamMediumColOnlyK32PartialMRelayM3']
+
+
 class BamMediumColOnlyK64MRelayM3QKOnly(BamMediumColOnlyK64TruncateMRelayM3):
     # code_commit: 7521ad5; UE5a .6832 steps/s, same as M3; generic+relay health ON.
     # Stopped at2054 for decoupled-M3 hot switch. vs no-relay: +.03166@600 ->

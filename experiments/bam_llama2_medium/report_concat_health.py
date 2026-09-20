@@ -26,7 +26,7 @@ for stat in ('mean','std','frac_lt_005','frac_gt_050','frac_gt_095'):
   metrics['write_mix/gate_'+stat]=f'bam/concat/write_mix_gate/layer_{{layer:03d}}/{stat}'
 for stat in ('mean_abs_diff', 'rms_diff', 'correlation'):
   metrics['vo_gate_pair/'+stat]=f'bam/concat/vo_gate_pair/layer_{{layer:03d}}/{stat}'
-bands={'L0':range(1),'L1-7':range(1,8),'L8-15':range(8,16),'L16-23':range(16,24)}
+bands={'L0':range(1),'L1-7':range(1,8),'L8-15':range(8,16),'L16-23':range(16,24),'L24':range(24,25)}
 result={}
 for name,template in metrics.items():
   values={band:[scalars.band_mean(template,step,layers) for step in steps]

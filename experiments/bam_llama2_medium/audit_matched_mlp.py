@@ -26,7 +26,7 @@ def audit(exp):
               for k, v in flatten_dict(args[0].params).items()}
     groups = {}
     for path, count in leaves.items():
-      group = next((x for x in ('local_0','local_1','fetch_2') if x in path.split('/')), 'other')
+      group = next((x for x in ('local_0','local_1','fetch_2','final_local_layer') if x in path.split('/')), 'other')
       groups[group] = groups.get(group, 0) + count
     return dict(exp=exp, total=sum(leaves.values()), groups=groups, leaves=leaves,
                 wd_mults=cfg.wd_mults, mlp_dim=cfg.mlp_dim,

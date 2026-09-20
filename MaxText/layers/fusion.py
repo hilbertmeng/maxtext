@@ -83,6 +83,10 @@ class SubDecoderLayer(nn.Module):
     if getattr(cfg, 'bam_concat_v_full_first_layer', False) and self.layer_inx == 0:
       assert cfg.bam_concat_v and cfg.bam_first_layer_mlp_dim is not None
       self.updated_mlp_dim = cfg.bam_first_layer_mlp_dim
+    if (getattr(cfg, 'bam_extra_final_local_layer', False)
+        and self.layer_inx == cfg.num_decoder_layers - 1):
+      assert isinstance(cfg.bam_final_local_mlp_dim, int) and cfg.bam_final_local_mlp_dim > 0
+      self.updated_mlp_dim = cfg.bam_final_local_mlp_dim
     max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
 
 

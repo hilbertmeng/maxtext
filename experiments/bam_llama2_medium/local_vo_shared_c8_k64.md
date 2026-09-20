@@ -47,3 +47,32 @@ and +24576 vs K64QK32 due to integer rounding. No hardware-friendly rounding.
 L layers are64 below their target, F layers976 above. Cache unchanged vs K64QK32.
 Bet vs K64QK32: finalgap-.004, speed-1%; same920 generic+concat health scalars.
 Artifact prefix `/data0/xd/vo-c8-k64-qk48-`; same acquisition and training schedule.
+
+
+## QK48: spend the saved standard QK weights on a 25th layer
+
+`BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer`
+inherits the 24-layer QK48 arm. Implementation remains in
+`/data0/xd/llf-parameter-matched`, branch `codex/llf-parameter-matched`.
+RUN uses that full class name; TPU ID `qkstatic-vo-c8-k64-qk48-25`.
+Formal primary UE5a; passive backups UC1a and EW4b. Exact `xd-` assignment
+and runtime hash are authoritative in the RUN registry.
+
+- `(LLF)*8 + L`: eight existing blocks stay in one scan, final L runs separately.
+- Every layer: raw M64x32/C8, BAM QK48 plus standard QK16, NoPE48/RoPE16.
+- Original24 MLP widths2879/2879/2874; final L2970. Actual full model count
+  **411616832**, MHA budget+576, and **6208 fewer** than the 24-layer wide-MLP arm.
+- Direct baseline is only `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer`.
+- Prediction: final loss gap-.003, speed-2% versus that baseline.
+- Generic and concat health stay ON; final L adds41 read-health scalars (961vs920).
+
+This compares depth against MLP width at essentially fixed total parameters.
+All layers use global MHA; there is no extra FetchedO layer. The final L also makes
+the preceding final F's M write useful, so the result does not isolate depth alone.
+The existing scan parameter paths and RNG splitting are retained.
+
+Validation artifacts: `/data0/xd/vo-c8-k64-qk48-25-{audit.json,audit.log,trace.log,numeric.log,tests.log}`.
+`audit_final_local_layer.py` numerically checks eight scan blocks, exact equality of
+last F's M and final L's input M, changed output after zeroing that boundary M,
+and finite nonzero gradients for the new layer. Full 25-layer actual train-step
+tracing verifies health export through layer24 (961 scalars).

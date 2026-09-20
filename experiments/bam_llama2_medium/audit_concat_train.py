@@ -29,7 +29,7 @@ for exp in (sys.argv[1:] or RUNS):
     metrics = result[1]['scalar']
     keys = [k for k in metrics if k.startswith('bam/concat/')]
     assert all(metrics[k].shape == () for k in keys)
-    for layer in range(24):
+    for layer in range(cfg.num_decoder_layers):
       assert f'bam/concat/local_q_gate/layer_{layer:03d}/mean' in keys
       if cfg.bam_concat_qk:
         assert f'bam/concat/qk_scores/layer_{layer:03d}/bam_over_standard' in keys
@@ -38,4 +38,8 @@ for exp in (sys.argv[1:] or RUNS):
       assert not any('/local_o_' in k and '/layer_000/' in k for k in keys)
       assert 'bam/concat/local_v_amplitude/layer_001/bam_over_standard' in keys
     assert 'bam/concat/fetched_o_amplitude/layer_023/bam_over_standard' in keys
+    if getattr(cfg, 'bam_extra_final_local_layer', False):
+      assert 'bam/concat/local_v_amplitude/layer_024/bam_over_standard' in keys
+      assert 'bam/concat/local_o_amplitude/layer_024/bam_over_standard' in keys
+      assert not any('/fetched_o_' in k and '/layer_024/' in k for k in keys)
     print('CONCAT_TRAIN_TRACE_OK', exp, len(keys), 'scalar read-health metrics', flush=True)

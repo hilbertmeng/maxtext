@@ -389,6 +389,8 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
     attention = decoder['layers'][name]['block']['self_attention']
     for block in range(blocks):
       emit(attention, (block + first)*size + offset, block)
+  if getattr(config, 'bam_extra_final_local_layer', False):
+    emit(decoder['final_local_layer']['block']['self_attention'], config.num_decoder_layers - 1)
 
 
 def record_bam_fetched_read_health_metrics(

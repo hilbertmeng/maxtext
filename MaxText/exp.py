@@ -7430,6 +7430,20 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-k64-truncate'
 
 
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer):
+    """BAM QK48 + standard RoPE16; reinvest smaller standard QK in MLP."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # MLP3050/3050/3045: nearest per-layer MHA budget; no hardware rounding.
+    # 411623040 params (+6784/.001648% vs MHA); +24576 vs K64QK32 from rounding.
+    # Prediction vs K64QK32: final gap -.004, speed -1%; matched generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer'
+    bam_local_qk_col_output_dim = 48
+    bam_partial_rope_nope_dim = 48
+    mlp_dim_by_block = [3050, 3050, 3045]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-k64-qk48-truncate'
+
+
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer):
     """One C8 column read, independently gated into LocalV and LocalO."""
     # code_commit: 95ec0d6; UE5a .6778 steps/s (10-14), -1.63% vs SharedC8 .6890 (!?).

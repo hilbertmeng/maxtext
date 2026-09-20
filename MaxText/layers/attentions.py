@@ -3410,7 +3410,7 @@ class BamAttention(Attention):
     if concat_v:
       assert self.bam_k * 2 == self.head_dim
     if concat_qk:
-      assert self._qk_col_width * 2 == self.head_dim
+      assert 0 < self._qk_col_width < self.head_dim
       assert self._partial_rope and self._partial_rope_nope_dim == self._qk_col_width
       assert self._share_qk_basis
     # ---- QKV projection + QKNorm + RoPE ----
@@ -3427,7 +3427,7 @@ class BamAttention(Attention):
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     if concat_qk:
-      # Only the standard half rotates; the retained BAM column is concatenated afterwards.
+      # Only the standard arm rotates; the retained BAM column is concatenated afterwards.
       query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
                                           embedding_dims=self.head_dim - self._qk_col_width)
       key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',

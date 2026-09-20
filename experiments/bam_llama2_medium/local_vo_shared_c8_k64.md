@@ -30,3 +30,20 @@ Artifacts `/data0/xd/vo-c8-k64-{audit.json,audit.log,trace.log,tests.log}`.
 Bet vs direct SharedC8: final loss gap -.004, speed -5%. Health settings/count unchanged.
 Train from scratch,13500 steps,checkpoint200. Formal primaryUE5a,backupsUC1a/EW4b;
 AOT primaryEW4a,backupsUC1a/UE5a. No hot replacement of another active experiment.
+
+## K64 QK48 follow-up
+
+RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer`,
+TPU ID `qkstatic-vo-c8-k64-qk48`. Direct baseline is the K64 QK32 RUN above.
+Keep M64x32/C8 and full64 V/O reads/write. Expand dynamic/static BAM QK from32 to48;
+shrink standard Q/K from32 to16, with NoPE48/RoPE16 (regenerated16-dimensional RoPE).
+This is a combined QK-allocation, RoPE and MLP-allocation experiment.
+
+Each layer saves2*1024*16*16=524288 standard Q/K weights (0.5 W_Q); all24 save12 W_Q.
+Return the budget to each layer's MLP, rounded to the nearest integer width against
+the original MHA per-layer target12847104. L widths2879→3050, F2874→3045 (+171 each).
+Each width costs3072 parameters; resulting total411623040, +6784 (+.001648%) vs MHA,
+and +24576 vs K64QK32 due to integer rounding. No hardware-friendly rounding.
+L layers are64 below their target, F layers976 above. Cache unchanged vs K64QK32.
+Bet vs K64QK32: finalgap-.004, speed-1%; same920 generic+concat health scalars.
+Artifact prefix `/data0/xd/vo-c8-k64-qk48-`; same acquisition and training schedule.

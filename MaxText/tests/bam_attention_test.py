@@ -280,7 +280,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
     import pyconfig
     from flax.core import unfreeze
     results = []
-    for width, suffix in ((32, ''), (64, 'K64Truncate')):
+    for width, qk_width, suffix in ((32, 32, ''), (64, 32, 'K64Truncate'),
+                                    (64, 48, 'K64QK48Truncate')):
       with tempfile.TemporaryDirectory() as out:
         Path(out, 'k64').mkdir()
         cfg = pyconfig.initialize(
@@ -304,8 +305,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
         args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
         kw = dict(M_in=m, deterministic=True, layer_index=1)
         params = unfreeze(module.init({'params':jax.random.key(203)}, *args, **kw)['params'])
-        self.assertEqual(params['query']['kernel'].value.shape, (128,2,32))
-        self.assertEqual(params['key']['kernel'].value.shape, (128,2,32))
+        self.assertEqual(params['query']['kernel'].value.shape, (128,2,64-qk_width))
+        self.assertEqual(params['key']['kernel'].value.shape, (128,2,64-qk_width))
         self.assertEqual(params['value']['kernel'].value.shape, (128,2,64))
         # Exercise nonzero dynamic AND static reads, not their zero-init special case.
         leaf = params['W_R']['kernel']
@@ -333,7 +334,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         results.append((params,c['_add_local_qk'][0],vo))
         if width == 64:
           # QK cannot consume the extra K coordinates; both V and O can.
-          changed = m.at[...,32:,:].multiply(3)
+          changed = m.at[...,qk_width:,:].multiply(3)
           _, c2 = module.apply({'params':params}, *args, **dict(kw,M_in=changed),
               capture_intermediates=lambda mod, method: method in ('_add_local_qk', '_shared_local_vo'),
               mutable=['intermediates'])

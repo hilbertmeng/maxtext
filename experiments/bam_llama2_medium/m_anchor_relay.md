@@ -15,6 +15,12 @@ V-only -.001; O-only -.002. Partial compares its partial-RoPE parent and full-Ro
 each K64 arm compares the K64 no-relay parent and original all-reader M3.
 Launcher: `experiments/bam_llama2_medium/launch_relay_followup.py` in the implementation worktree;
 delegates AOT lifecycle to prepare_train_aot.py and starts each ready run independently.
+Runtime7521ad5: all four loaded AOT and passed step14 on UE5a. Steps10–14 means:
+Partial .7286 (-.46% vs full-RoPE M3 .7320), QK .6832 (same as K64 M3),
+V .6846 (+.20%), O .6878 (+.67%); generic+relay health matched.
+All four compiler preparations reached ready after candidate cleanup.
+Launcher-only follow-up3aaa28d detaches formal controllers into independent tmux sessions;
+the already-running batch retains its original parent session and the training runtime is unchanged.
 
 Implementation: `/data0/xd/llf-m-anchor-relay`, branch `codex/llf-m-anchor-relay`.
 Parent source: e474296 (same K64Truncate runtime; preserves K32 parent implementation).

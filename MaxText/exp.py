@@ -8021,6 +8021,7 @@ class BamMediumColOnlyK64TruncateMRelayM3(BamMediumColOnlyK64TruncateMRelayM1):
 
 class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
     """M3 relay on the matched K32 NoPE48/RoPE16 parent."""
+    # code_commit: 7521ad5; UE5a .7286 steps/s, -.46% vs M3 .7320; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     model_name = 'BamMediumColOnlyK32PartialMRelayM3'
     bam_partial_rope = True
@@ -8030,6 +8031,7 @@ class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
 
 
 class BamMediumColOnlyK64MRelayM3QKOnly(BamMediumColOnlyK64TruncateMRelayM3):
+    # code_commit: 7521ad5; UE5a .6832 steps/s, same as M3; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     model_name = 'BamMediumColOnlyK64MRelayM3QKOnly'
     bam_m_relay_reads = 'qk'
@@ -8038,12 +8040,14 @@ class BamMediumColOnlyK64MRelayM3QKOnly(BamMediumColOnlyK64TruncateMRelayM3):
 
 
 class BamMediumColOnlyK64MRelayM3VOnly(BamMediumColOnlyK64MRelayM3QKOnly):
+    # code_commit: 7521ad5; UE5a .6846 steps/s, +.20% vs M3; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     model_name = 'BamMediumColOnlyK64MRelayM3VOnly'
     bam_m_relay_reads = 'v'
 
 
 class BamMediumColOnlyK64MRelayM3OOnly(BamMediumColOnlyK64MRelayM3QKOnly):
+    # code_commit: 7521ad5; UE5a .6878 steps/s, +.67% vs M3; generic+relay health ON.
     # Ledger only: codex/llf-m-anchor-relay, /data0/xd/llf-m-anchor-relay.
     model_name = 'BamMediumColOnlyK64MRelayM3OOnly'
     bam_m_relay_reads = 'o'

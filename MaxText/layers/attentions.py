@@ -3342,7 +3342,16 @@ class BamAttention(Attention):
             jnp.mean(rms(delta) / rms(m)), jnp.mean(cosine),
             jnp.mean(rms(mixed) / rms(m))))
         self.sow('intermediates', 'm_relay_stats', stats)
-    Mh = None
+    relay_reads = cfg.bam_m_relay_reads
+    assert relay_reads in ('all', 'qk', 'v', 'o'), relay_reads
+    read_states = {}
+
+    def matrix_for(arm):
+      use_relay = relay_reads == 'all' or relay_reads == arm
+      if use_relay not in read_states:
+        read_states[use_relay] = self._matrix_for_read(read_m if use_relay else M_in)
+      return read_states[use_relay]
+
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
     if self._partial_rope:
@@ -3354,9 +3363,8 @@ class BamAttention(Attention):
 
     # Inject LocalQK after RoPE.
     if 'local_qk' in self._mode:  # V1 default
-      if Mh is None:
-        with jax.named_scope("bam/normalize_m"):
-          Mh = self._matrix_for_read(read_m)
+      with jax.named_scope("bam/normalize_m"):
+        Mh = matrix_for('qk')
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
@@ -3370,19 +3378,19 @@ class BamAttention(Attention):
 
     local_output = None
     if self._local_o:
-      if Mh is None:
-        Mh = self._matrix_for_read(read_m)
+      Mh = matrix_for('o')
       local_state = self._compress_m(Mh)
       local_output, output_logits = self._read_fetched_m(
           local_state, inputs_q, ungated=self._local_v_mode == 'shared')
       if self._local_v_mode == 'shared':
+        assert relay_reads == 'all', 'Selective relay requires independent LocalV'
         value = value + self._gate_local_output(
             local_output, self._project_read_gate_logits('W_lv_gate', inputs_q))
         local_output = self._gate_local_output(local_output, output_logits)
       elif self._local_v_mode == 'rank2':
         with jax.named_scope("bam/read_local_m_for_v"):
           value = value + self._read_local(
-              'v', Mh,
+              'v', matrix_for('v'),
               inputs_q, local_inputs)
 
     query = query / jnp.sqrt(self.head_dim).astype(self.dtype)
@@ -3392,9 +3400,8 @@ class BamAttention(Attention):
 
     fetch_state = mix_weights = None
     if 'full' in self._mode:
-      if Mh is None:
-        with jax.named_scope("bam/normalize_m"):
-          Mh = self._matrix_for_read(read_m)
+      with jax.named_scope("bam/normalize_m"):
+        Mh = matrix_for('o')
       with jax.named_scope("bam/mix_alpha_projection"):
         mix_weights = _dynamic_bam_fetch_mix_weights(
             self.fetch_head_mix(inputs_q), query.dtype,

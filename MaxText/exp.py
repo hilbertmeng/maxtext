@@ -287,6 +287,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_col_output = 'truncate'  # truncate | project (separate Q/K selector-initialized maps)
     bam_m_relay_anchor = 0  # 0 disabled; 1/3 capture write after layer 1 / first LLF block
     bam_m_relay_mixing = 'tanh_add'
+    bam_m_relay_reads = 'all'  # all / qk / v / o; writes always use original M
     bam_m_relay_gate_init = .01
     bam_record_m_relay_metrics = False
     bam_seed_paired_local_row_key = False  # identical nonzero Q/K row-key init without tying params
@@ -7364,6 +7365,35 @@ class BamMediumColOnlyK64TruncateMRelayM3(BamMediumColOnlyK64TruncateMRelayM1):
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
                     'BamMediumColOnlyK64TruncateMRelayM1']
 
+
+class BamMediumColOnlyK32PartialMRelayM3(BamMediumColOnlyK32MRelayM3):
+    """M3 relay on the matched K32 NoPE48/RoPE16 parent."""
+    # Prediction vs partial parent: -.002; throughput within 2% of full-RoPE M3.
+    model_name = 'BamMediumColOnlyK32PartialMRelayM3'
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 48
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE',
+                    'BamMediumColOnlyK32MRelayM3']
+
+
+class BamMediumColOnlyK64MRelayM3QKOnly(BamMediumColOnlyK64TruncateMRelayM3):
+    # Prediction vs no-relay parent: +.003; selective routing is not a speed target.
+    model_name = 'BamMediumColOnlyK64MRelayM3QKOnly'
+    bam_m_relay_reads = 'qk'
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
+                    'BamMediumColOnlyK64TruncateMRelayM3']
+
+
+class BamMediumColOnlyK64MRelayM3VOnly(BamMediumColOnlyK64MRelayM3QKOnly):
+    # Prediction vs no-relay parent: -.001.
+    model_name = 'BamMediumColOnlyK64MRelayM3VOnly'
+    bam_m_relay_reads = 'v'
+
+
+class BamMediumColOnlyK64MRelayM3OOnly(BamMediumColOnlyK64MRelayM3QKOnly):
+    # Prediction vs no-relay parent: -.002.
+    model_name = 'BamMediumColOnlyK64MRelayM3OOnly'
+    bam_m_relay_reads = 'o'
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE(
     BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE

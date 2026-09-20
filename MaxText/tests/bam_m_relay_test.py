@@ -22,7 +22,9 @@ import train
 class MRelayTest(unittest.TestCase):
   def test_model_mapping_and_train_signature(self):
     for name in ('BamMediumColOnlyK32MRelayM1', 'BamMediumColOnlyK64TruncateMRelayM3',
-                 'BamMediumColOnlyK32MRelayM3Linear', 'BamMediumColOnlyK32MRelayM3Interpolate'):
+                 'BamMediumColOnlyK32MRelayM3Linear', 'BamMediumColOnlyK32MRelayM3Interpolate',
+                 'BamMediumColOnlyK32PartialMRelayM3', 'BamMediumColOnlyK64MRelayM3QKOnly',
+                 'BamMediumColOnlyK64MRelayM3VOnly', 'BamMediumColOnlyK64MRelayM3OOnly'):
       cfg = self.config(name)
       cfg.get_keys().update(vocab_size=128, dtype=jnp.float32,
           bam_local_o_v_mode=['rank2', 'rank2', 'none'] * 2)

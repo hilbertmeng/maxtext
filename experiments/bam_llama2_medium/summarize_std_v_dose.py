@@ -16,6 +16,8 @@ for i,p in enumerate(files):
   loss.append(f['loss'].ravel());base.append(f['baseline'].item())
 loss=np.stack(loss);base=np.asarray(base);assert np.isfinite(loss).all()
 index={(s['scope'],s['bam'],s['alpha'],s['beta']):i for i,s in enumerate(ss)}
+for scope in {s['scope'] for s in ss}:np.testing.assert_array_equal(loss[:,index[scope,1.,1.,1.]],base)
+np.testing.assert_array_equal(loss[:,index['L00',0.,1.,1.]],base)
 def stat(x):return dict(mean=float(x.mean()),ci95=float(1.96*x.std(ddof=1)/np.sqrt(len(x))))
 def delta(scope,bam,a,b):return loss[:,index[scope,bam,a,b]]-loss[:,index[scope,bam,1.,1.]]
 def interaction(scope,bam,a,b):return delta(scope,bam,a,b)-delta(scope,bam,a,1.)-delta(scope,bam,1.,b)

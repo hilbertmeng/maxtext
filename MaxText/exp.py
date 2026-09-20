@@ -7411,8 +7411,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer(BamMediumI
     # code_commit: 5d535d3
     # UE5a ~.6890 steps/s (10-14), +1.95% vs QKStatic .6758; matched generic+concat health ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # 411598464 params (-17792 vs MHA); saves213136/L, MLP2879/2879/2874.
-    # Prediction vs QKStatic: gap +.002, speed +3%; generic+concat health ON.
+    # Completed 13500. vs QKStatic: early gain vanished by~3k; later hovered near+.001.
+    # Last5(12600-13400) mean+.000981, range+.000539..+.001394.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer'
     bam_local_vo_shared_read = 'local_o'
     mlp_dim_by_block = [2879, 2879, 2874]

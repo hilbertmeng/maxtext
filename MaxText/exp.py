@@ -8368,6 +8368,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPer
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer):
     """Ledger only: M64x32/C8, full V/O columns; dynamic and static QK truncated to32."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # code_commit: 04c06d8; UE5a .6388 steps/s (10-14), -7.29% vs SharedC8 .6890.
     # Same411598464 parameters and MLP2879/2879/2874 as SharedC8; M-cache x2.
     # Prediction vs SharedC8: final gap -.004, speed -5%; matched generic+concat health ON.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer'
@@ -8389,6 +8390,21 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerL
     mlp_dim_by_block = [3050, 3050, 3045]
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-k64-qk48-truncate'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer):
+    """Ledger only: Eight LLF blocks plus a final L; spend QK savings on depth."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # MLP2879/2879/2874 in original24; final L2970; audited411616832 params (MHA+576).
+    # Prediction vs24-layer K64QK48: final gap -.003, speed -2%; generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer'
+    base_num_decoder_layers = 25
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8 + ['local_qk+local_o']
+    mlp_dim_by_block = [2879, 2879, 2874]
+    bam_extra_final_local_layer = True
+    bam_final_local_mlp_dim = 2970
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-k64-qk48-25layer'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

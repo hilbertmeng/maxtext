@@ -44,8 +44,8 @@ class StdVProbe(getattr(exp,BASE)):
 exp.StdVProbe=StdVProbe
 
 
-def forward(model,params,batch,rng,scales=None):
-  cm=interventions(scales) if scales is not None else contextlib.nullcontext()
+def forward(model,params,batch,rng,scales=None,native_gradient=False):
+  cm=interventions(scales,native_gradient=native_gradient) if scales is not None else contextlib.nullcontext()
   with cm:
     output,_=model.apply(
         params,batch['inputs'],batch['inputs_position'],
@@ -64,8 +64,26 @@ def scale_raw(v,s):
   assert v.shape[-1]==64
   return jnp.concatenate((v[...,:32]*s[0].astype(v.dtype),v[...,32:]*s[1].astype(v.dtype)),axis=-1)
 
+@jax.custom_jvp
+def native_raw_scale(v,s):
+  # Native-point identity; tangent is that of actual raw-V scaling at scale=1.
+  return v
+
+@native_raw_scale.defjvp
+def native_raw_scale_jvp(primals,tangents):
+  v,s=primals;dv,ds=tangents
+  return v,dv+scale_raw(v,ds)
+
+@jax.custom_jvp
+def native_bam_scale(v,s):return v
+
+@native_bam_scale.defjvp
+def native_bam_scale_jvp(primals,tangents):
+  v,s=primals;dv,ds=tangents
+  return v,dv+v*ds.astype(v.dtype)
+
 @contextlib.contextmanager
-def interventions(scales):
+def interventions(scales,native_gradient=False):
   layers=[]
   def intercept(next_fun,args,kw,ctx):
     module=ctx.module
@@ -79,12 +97,12 @@ def interventions(scales):
       if ctx.method_name=='kv_projection':
         name=kw.get('proj_name',args[1] if len(args)>1 else None)
         v=next_fun(*args,**kw)
-        return scale_raw(v,scales[l]) if name=='value' else v
+        return (native_raw_scale(v,scales[l]) if native_gradient else scale_raw(v,scales[l])) if name=='value' else v
       if ctx.method_name=='qkv_projection':
-        q,k,v=next_fun(*args,**kw);return q,k,scale_raw(v,scales[l])
+        q,k,v=next_fun(*args,**kw);return q,k,(native_raw_scale(v,scales[l]) if native_gradient else scale_raw(v,scales[l]))
       if ctx.method_name=='_read_local':
         name=args[0] if args else kw['name'];v=next_fun(*args,**kw)
-        return v*scales[l,2].astype(v.dtype) if name=='v' else v
+        return (native_bam_scale(v,scales[l,2]) if native_gradient else v*scales[l,2].astype(v.dtype)) if name=='v' else v
     return next_fun(*args,**kw)
   with nn.intercept_methods(intercept):yield
 
@@ -163,11 +181,12 @@ def run_grad(config):
   rng,writer,manager,mesh,model,_,tx=train.setup_mesh_and_model(config)
   state,_,_,_=max_utils.setup_training_state(model,SimpleNamespace(meta_dict={'checkpoint_step':None}),tx,config,rng,mesh,manager)
   f=lambda p,b,s:forward(model,p,b,rng,s).mean()
-  grad=jax.jit(jax.value_and_grad(f,argnums=2));one=jax.jit(f);ordinary=jax.jit(lambda p,b:forward(model,p,b,rng).mean());ones=jnp.ones(SHAPE,jnp.float32)
+  grad=jax.jit(jax.value_and_grad(lambda p,b,s:forward(model,p,b,rng,s,native_gradient=True).mean(),argnums=2));one=jax.jit(f);ordinary=jax.jit(lambda p,b:forward(model,p,b,rng).mean());ones=jnp.ones(SHAPE,jnp.float32)
   with mesh,partitioning.axis_rules(config.logical_axis_rules):
     for i in range(start,stop):
       begun=time.perf_counter();batch={k:jnp.asarray(v[i:i+1]) for k,v in cohort.items()}
       value,g=grad(state.params,batch,ones);value,g=jax.device_get((value,g));native=float(ordinary(state.params,batch))
+      scaled=float(one(state.params,batch,ones));print('NATIVE_FIDELITY',i,'ordinary',native,'scaled',scaled,'identity_jvp_ad',value,flush=True)
       np.testing.assert_allclose(value,native,atol=1e-6,rtol=0);assert np.isfinite(g).all();np.testing.assert_array_equal(g[2::3],0.)
       assert np.any(g[:,0]!=0) and np.any(g[:,1]!=0), 'raw V hook must be reached'
       # Small finite-difference probes are sanity checks, not an integrated-gradient analysis.

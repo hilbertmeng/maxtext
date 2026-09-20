@@ -43,3 +43,9 @@ with mock.patch.object(c.attentions,'BamAttention',Tiny):
  g=jax.jit(jax.grad(objective))(jnp.ones(c.SHAPE));expected=np.zeros(c.SHAPE,np.float32);expected[3]=[2048,2048,5120]
  np.testing.assert_array_equal(g,expected)
 print('STD_V_GRAD_TEST_PASS exact native scaling derivatives through pre-injection halves')
+s=jnp.ones(c.SHAPE)
+with mock.patch.object(c.attentions,'BamAttention',Tiny):
+ def local_grad(scales):
+  with c.interventions(scales,native_gradient=True):return m.apply(p,x,layer_index=jnp.int32(3))[2].sum()
+ np.testing.assert_array_equal(jax.grad(local_grad)(s),expected)
+print('NATIVE_IDENTITY_JVP_TEST_PASS')

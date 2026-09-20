@@ -177,7 +177,7 @@ def run_grad(config):
   with np.load(path) as f:cohort={k:np.asarray(f[k]) for k in KEYS}
   hashes=digest_cohort(cohort);start=int(os.environ.get('STD_V_START','0'));stop=int(os.environ.get('STD_V_STOP','32'))
   assert config.bam_k==32 and config.head_dim==64 and config.num_decoder_layers==24
-  assert config.only_eval and config.bam_prune_all_row_reads and not config.fused_qkv
+  assert config.only_eval and config.bam_prune_all_row_reads and not config.fused_qkv and not config.qkv_bias
   rng,writer,manager,mesh,model,_,tx=train.setup_mesh_and_model(config)
   state,_,_,_=max_utils.setup_training_state(model,SimpleNamespace(meta_dict={'checkpoint_step':None}),tx,config,rng,mesh,manager)
   flat=flatten_dict(state.params);selected=[]

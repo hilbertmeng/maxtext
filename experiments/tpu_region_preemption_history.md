@@ -265,6 +265,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFColOnlyVConcatMLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 07:44:53 | 2026-09-20 08:48:33 | user hot switch at2455; TPU retained by StaticVOWriteMix | UC1a/EW4b configured, never active |
 | `BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 08:49:12 | 2026-09-20 10:01:52 | 2800-step review stop; committed2979; no sustained gain | UC1a/EW4b configured, never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 10:03:41 | 2026-09-20 11:32:10 | user hot replacement; committed3338; TPU retained by C8IndependentGates | UC1a/EW4b configured, never active |
+| `BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 07:47:58 | 2026-09-20 13:27:22 | completed13500; no preemption; TPU/queue verified absent13:27:27 | UC1a/EW4b configured, never active |
 
 ## READY leases
 
@@ -887,3 +888,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFColOnlyVConcatMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 07:48:47 | 2026-09-20 08:48:33 | 59m46s | user hot switch; committed2455; no preemption; TPU retained by StaticVOWriteMix |
 | BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer | 1 | `us-east5-a` | 2026-09-20 08:49:15 | 2026-09-20 10:01:52 | 1h12m37s | review stop; committed2979; no preemption; TPU/queue verified absent10:04:20 |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 10:06:53 | 2026-09-20 11:32:10 | 1h25m17s | user hot switch; committed3338; no preemption; TPU retained by C8IndependentGates |
+| BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 07:54:32 | 2026-09-20 13:27:22 | 5h32m50s | completed13500; no preemption; TPU/queue verified absent13:27:27 |

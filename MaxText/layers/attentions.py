@@ -2417,6 +2417,9 @@ class BamAttention(Attention):
     assert not cfg.bam_diagnostics, (
         'BAM diagnostics and historical read modes must use their recorded commit')
     if self._mha_control:
+      self._concat_write_mix = False
+      self._concat_static_vo = False
+      self._concat_static_qk = False
       self._local_o = False
       self._local_o_static_col = False
       assert self.layer_mode == 'none', 'BAM MHA control must disable every BAM layer mode'
@@ -2750,6 +2753,26 @@ class BamAttention(Attention):
           nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
           (self.bam_v, self.num_query_heads), self.weight_dtype)
 
+    self._concat_static_vo = bool(getattr(cfg, 'bam_concat_static_vo', False)) and self._local_o
+    self._concat_static_qk = bool(getattr(cfg, 'bam_concat_static_qk', False))
+    self._concat_write_mix = bool(getattr(cfg, 'bam_concat_write_mix', False)) and self._local_o
+    if self._concat_static_vo or self._concat_write_mix:
+      assert cfg.bam_concat_v and self._local_v_mode == 'rank2' and cfg.bam_prune_all_row_reads
+    if self._concat_static_qk:
+      assert cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
+    for arm in (('vo',) if self._concat_static_vo else ()) + (('q', 'k') if self._concat_static_qk else ()):
+      setattr(self, 'static_' + arm + '_key', self.param(
+          'static_' + arm + '_key', nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
+          (self.bam_v, self.num_query_heads), self.weight_dtype))
+    if self._concat_write_mix:
+      self.write_mix = DenseGeneral(
+          features=self.num_query_heads, axis=-1, kernel_init=zeros_init,
+          kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name='write_mix', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.write_mix_gate_b0 = self.param('write_mix_gate_b0', nn.with_logical_partitioning(
+          nn.initializers.constant(read_gate_bias(cfg.bam_concat_write_mix_init)), ('q_heads',)),
+          (self.num_query_heads,), self.weight_dtype)
+
     # ---- Local read parameters: one packed projection over every arm, then
     # the same per-arm bias / gate bias / norms / adapter. ----
     if self._local_arms:
@@ -3046,9 +3069,27 @@ class BamAttention(Attention):
     if self._record_local_routing_metrics:
       result, rank_gate = result
       self._record_local_rank_gate(f'local_{name}', rank_gate)
-    return _fit_bam_read_to_head(
+    result = _fit_bam_read_to_head(
         result, self.bam_k, self.head_dim,
         getattr(self, f'local_{name}_v_adapter', None))
+    if self._concat_static_qk and name in ('q', 'k'):
+      static = self._static_column(M, name)
+      self._record_concat_amplitude('static_' + name, static, result[..., :self.bam_k])
+      result = result + jnp.pad(static, ((0, 0), (0, 0), (0, 0), (0, self.head_dim-self.bam_k)))
+    return result
+
+  def _static_column(self, M, arm):
+    # Full-M linear read: zero-init key, no key RMS, no scale, no gate.
+    return jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
+
+  def _write_data(self, o_head, x):
+    front = o_head[..., :self.bam_k]
+    if not self._concat_write_mix:
+      return front
+    logits = self.write_mix(x) + jnp.asarray(self.write_mix_gate_b0, self.dtype)
+    self._record_concat_gate('write_mix', logits)
+    gate = jax.nn.sigmoid(logits)[..., None]
+    return (1 - gate) * front + gate * o_head[..., self.bam_k:]
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3091,7 +3132,7 @@ class BamAttention(Attention):
       assert M_in.dtype == self.dtype, (M_in.dtype, self.dtype)
       assert o_head.dtype == self.dtype, (o_head.dtype, self.dtype)
     # V1 default
-    u1 = o_head[..., :self.bam_k]  # U factor [b,t,n,k]
+    u1 = self._write_data(o_head, x)  # Mix before the existing write-data normalization.
     if self._write_v_bottleneck_dim is None:
       u2 = self.P_loc(x)
     else:  # V1 default
@@ -3362,10 +3403,21 @@ class BamAttention(Attention):
       elif self._local_v_mode == 'rank2':
         with jax.named_scope("bam/read_local_m_for_v"):
           v_local = self._read_local('v', Mh, inputs_q, local_inputs)
+          if self._concat_static_vo:
+            static_vo = self._static_column(Mh, 'vo')
+            self._record_concat_amplitude('static_v', static_vo, v_local[..., :self.bam_k])
+            self._record_concat_amplitude('static_o', static_vo, local_output[..., :self.bam_k])
+            v_local = v_local + jnp.pad(static_vo, ((0, 0), (0, 0), (0, 0), (0, self.head_dim-self.bam_k)))
+            local_output = local_output + jnp.pad(static_vo, ((0, 0), (0, 0), (0, 0), (0, self.head_dim-self.bam_k)))
           self._record_concat_amplitude('local_v', v_local[..., :self.bam_k], value)
           # Standard V stays in the write-source coordinates; BAM fills the other half.
           value = (jnp.concatenate((value, v_local[..., :self.bam_k]), axis=-1)
                    if concat_v else value + v_local)
+
+    if self._concat_write_mix:
+      # Align LocalO with the BAM V half, including its shared static read.
+      local_output = jnp.concatenate((jnp.zeros_like(local_output[..., :self.bam_k]),
+                                      local_output[..., :self.bam_k]), axis=-1)
 
     if self._local_o_static_col:
       # Full-M static column read, added AFTER dynamic gating, only to LocalO.
@@ -3419,7 +3471,8 @@ class BamAttention(Attention):
           fetch_state=fetch_state, mix_weights=mix_weights)
 
     if local_output is not None:
-      self._record_concat_amplitude('local_o', local_output[..., :self.bam_k], y_std[..., :self.bam_k])
+      sl = slice(self.bam_k, None) if self._concat_write_mix else slice(None, self.bam_k)
+      self._record_concat_amplitude('local_o', local_output[..., sl], y_std[..., sl])
     o_head = y_std if local_output is None else y_std + local_output
     if Mbar is not None:
       y_bam, fetched_gate_logits = self._read_fetched_m(

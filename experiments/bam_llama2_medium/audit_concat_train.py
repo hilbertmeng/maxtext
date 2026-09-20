@@ -9,7 +9,9 @@ import train
 import train_compile
 
 RUNS = ('BamMediumIndependentLLFColOnlyVConcatMLPPerLayer',
-        'BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer')
+        'BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer',
+        'BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer',
+        'BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer')
 for exp in RUNS:
   with tempfile.TemporaryDirectory() as out:
     Path(out, 'audit').mkdir()

@@ -123,6 +123,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     receiver = SimpleNamespace(
         config=SimpleNamespace(bam_sqrt_n_scale=False, bam_lambda_decay=1.),
         _force_activation_dtype=False, bam_k=2, _write_v_bottleneck_dim=None,
+        _write_data=lambda o, x: o[..., :2],
         P_loc=projection, gw_b0=jnp.zeros((2,)), W_gw=lambda x: jnp.zeros((1, 2, 2)),
         _write_data_rms=True, write_data_norm=norm, write_address_norm=norm)
     expected = state + .5 * jnp.einsum('btnk,btnv->btkv', norm(output[..., :2]), norm(projection(x)))
@@ -218,9 +219,11 @@ class BamReadKeyTransformTest(absltest.TestCase):
     import pyconfig
     from flax.core import unfreeze
 
-    for qk in (False, True):
-      name = ('BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer' if qk
-              else 'BamMediumIndependentLLFColOnlyVConcatMLPPerLayer')
+    for qk, static in ((False, False), (True, False), (False, True), (True, True)):
+      name = (('BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer' if qk
+               else 'BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer') if static else
+              ('BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer' if qk
+               else 'BamMediumIndependentLLFColOnlyVConcatMLPPerLayer'))
       with self.subTest(exp=name), tempfile.TemporaryDirectory() as out:
         Path(out, 'concat').mkdir()
         cfg = pyconfig.initialize(
@@ -259,6 +262,20 @@ class BamReadKeyTransformTest(absltest.TestCase):
         grad = jax.grad(lambda p: jnp.sum(module.apply(
             {'params':p}, *args, **kw)[0].astype(jnp.float32)**2))(params)
         self.assertTrue(all(bool(jnp.all(jnp.isfinite(z))) for z in jax.tree.leaves(grad)))
+        if static:
+          for arm in (('q', 'k') if qk else ('vo',)):
+            leaf = params['static_' + arm + '_key'].value
+            np.testing.assert_array_equal(leaf, jnp.zeros_like(leaf))
+            self.assertGreater(float(jnp.linalg.norm(grad['static_' + arm + '_key'].value.astype(jnp.float32))), 0.)
+          if not qk:
+            # Mixing is applied before normalization and must receive gradients.
+            o = jnp.concatenate((jnp.ones((1,8,2,32)), jnp.full((1,8,2,32), 3.)), -1).astype(cfg.dtype)
+            data = module.apply(variables, o, x, method=module._write_data)
+            np.testing.assert_allclose(data.astype('float32'), 1.1, atol=.015)
+            mix_grad = jax.grad(lambda p: jnp.sum(module.apply(
+                {'params': p}, o, x, method=module._write_data).astype(jnp.float32)))(params)
+            self.assertGreater(float(jnp.linalg.norm(mix_grad['write_mix']['kernel'].value.astype(jnp.float32))), 0.)
+            self.assertAlmostEqual(float(health['concat_write_mix_gate'][0][0]), .05, delta=.001)
         if qk:
           # The shared basis is initialized nonzero and receives a genuine attention-loss gradient.
           basis_grad = grad['W_local_packed']['kernel'].value[:, :128]

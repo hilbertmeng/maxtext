@@ -270,6 +270,10 @@ class BamLlama2Medium(Llama2Medium):
     bam_record_concat_health = False
     bam_concat_qk = False
     bam_concat_v = False
+    bam_concat_static_vo = False
+    bam_concat_static_qk = False
+    bam_concat_write_mix = False
+    bam_concat_write_mix_init = 0.05
     bam_concat_v_full_first_layer = False
     bam_first_layer_mlp_dim = None
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
@@ -7325,6 +7329,33 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumInde
     mlp_dim_by_block = [2810, 2810, 2874]  # nearest per-layer MHA budget
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-r4'
+
+
+class BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer(BamMediumIndependentLLFColOnlyVConcatMLPPerLayer):
+    """Aligned VO tail, shared ungated static columns, and dynamic write mixing."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411584512 params (-31744 vs MHA); L0=2650, later L/F=2697/2596.
+    # Prediction vs VConcat: gap -.010, speed -1%; generic + concat health ON.
+    model_name = 'BamMediumIndependentLLFColOnlyVConcatStaticVOWriteMixMLPPerLayer'
+    bam_concat_static_vo = True
+    bam_concat_write_mix = True
+    mlp_dim_by_block = [2697, 2697, 2596]
+    compare_runs = ['BamMediumIndependentLLFColOnlyVConcatMLPPerLayer',
+                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-vconcat-static-mix'
+
+
+class BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer(BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer):
+    """Independent zero-init, ungated full-M static Q/K columns added to dynamic reads."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411617152 params (+896 vs MHA); nearest per-layer widths unchanged.
+    # Prediction vs QKConcat: gap -.004, speed -.5%; generic + concat health ON.
+    model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer'
+    bam_concat_static_qk = True
+    mlp_dim_by_block = [2810, 2810, 2874]
+    compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer',
+                    'BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-static'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

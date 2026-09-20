@@ -2385,6 +2385,7 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     validate_bam_config(cfg, layer_mode=self.layer_mode)
+    self._concat_health = bool(getattr(cfg, 'bam_record_concat_health', False))
     self._mha_control = bool(getattr(cfg, 'bam_mha_control', False))
     self._local_qk_post_read_v_dim = getattr(
         cfg, 'bam_local_qk_post_read_v_dim', None)
@@ -2886,6 +2887,42 @@ class BamAttention(Attention):
     )
 
 
+  def _record_concat_gate(self, name, logits):
+    if not self._concat_health:
+      return
+    gate = self._read_gate_activation(logits.astype(jnp.float32))
+    self.sow('intermediates', 'concat_' + name + '_gate', jnp.stack((
+        jnp.mean(gate), jnp.std(gate), jnp.mean(gate < .05),
+        jnp.mean(gate > .5), jnp.mean(gate > .95))))
+
+  def _record_concat_amplitude(self, name, bam, standard):
+    if not self._concat_health:
+      return
+    rms = lambda x: jnp.sqrt(jnp.mean(jnp.square(x.astype(jnp.float32))))
+    b, s = rms(bam), rms(standard)
+    self.sow('intermediates', 'concat_' + name + '_amplitude',
+             jnp.stack((b, s, b / jnp.maximum(s, 1e-12))))
+
+  def _record_concat_qk_scores(self, query, key, q_bam, k_bam, segment_ids=None):
+    if not self._concat_health or not getattr(self.config, 'bam_concat_qk', False):
+      return
+    # One sequence, 16 evenly-spaced tokens, all heads; no full quadratic probe.
+    ix = jnp.linspace(0, query.shape[1] - 1, min(16, query.shape[1])).astype(jnp.int32)
+    mask = (ix[:, None] >= ix[None, :])[None]
+    if segment_ids is not None:
+      segments = segment_ids[0, ix]
+      mask &= (segments[:, None] == segments[None, :])[None]
+    counts = jnp.sum(mask, axis=-1, keepdims=True)
+    def score_rms(q, k):
+      q, k = q[0, ix].astype(jnp.float32), k[0, ix].astype(jnp.float32)
+      score = jnp.einsum('thd,shd->hts', q, k) / math.sqrt(self.head_dim)
+      mean = jnp.sum(jnp.where(mask, score, 0.), axis=-1, keepdims=True) / counts
+      return jnp.sqrt(jnp.sum(jnp.where(mask, (score-mean)**2, 0.)) /
+                      (jnp.sum(mask) * score.shape[0]))
+    std, bam = score_rms(query, key), score_rms(q_bam, k_bam)
+    self.sow('intermediates', 'concat_qk_scores',
+             jnp.stack((bam, std, bam / jnp.maximum(std, 1e-12))))
+
   def _record_fetched_gate_stats(self, gate_logits):
     gate = self._read_gate_activation(gate_logits.astype(jnp.float32))
     axes = tuple(range(gate.ndim - 1))
@@ -2994,6 +3031,7 @@ class BamAttention(Attention):
       key = key + jnp.asarray(getattr(self, f'{prefix}_bias'), key.dtype)
     gate_bias = getattr(self, f'{arm.prefix}_gate_b0')
     gate = gate + jnp.asarray(gate_bias, gate.dtype)
+    self._record_concat_gate('local_' + name, gate)
     q_projection, k_projection = self._local_qk_post_read_v_projections()
     v_projection = None
     if name == 'v' and getattr(self.config, 'bam_local_v_share_output_coordinates', False):
@@ -3019,8 +3057,11 @@ class BamAttention(Attention):
     return M_in * jax.lax.rsqrt(
         jnp.mean(M_in ** 2, axis=(-2, -1), keepdims=True) + self._rms_epsilon)
 
-  def _add_local_qk(self, query, key, q_local, k_local):
+  def _add_local_qk(self, query, key, q_local, k_local, segment_ids=None):
     """Inject LocalQK into the standard Q/K arm."""
+    self._record_concat_amplitude('local_q', q_local[..., :self.bam_k], query)
+    self._record_concat_amplitude('local_k', k_local[..., :self.bam_k], key)
+    self._record_concat_qk_scores(query, key, q_local[..., :self.bam_k], k_local[..., :self.bam_k], segment_ids)
     if self._record_local_routing_metrics:
       self._record_local_qk_read_health(query, key, q_local, k_local)
     if getattr(self.config, 'bam_concat_qk', False):
@@ -3122,6 +3163,7 @@ class BamAttention(Attention):
         self.sow('intermediates', 'fetched_read_m_rms', m_rms)
       gate_logits = self._project_read_gate_logits(
           'W_R_gate', inputs_q, squeeze_fetch_axis=True)
+      self._record_concat_gate('local_o' if self._local_o else 'fetched_o', gate_logits)
       if self._record_fetched_read_health_metrics:
         scale = jnp.asarray(self._read_key_scale, jnp.float32)
         self.sow(
@@ -3300,7 +3342,7 @@ class BamAttention(Attention):
         basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
         query, key = self._add_local_qk(
             query, key, self._read_local('q', Mh, inputs_q, local_inputs, basis_cache),
-            self._read_local('k', Mh, inputs_q, local_inputs, basis_cache))
+            self._read_local('k', Mh, inputs_q, local_inputs, basis_cache), decoder_segment_ids)
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)
@@ -3320,6 +3362,7 @@ class BamAttention(Attention):
       elif self._local_v_mode == 'rank2':
         with jax.named_scope("bam/read_local_m_for_v"):
           v_local = self._read_local('v', Mh, inputs_q, local_inputs)
+          self._record_concat_amplitude('local_v', v_local[..., :self.bam_k], value)
           # Standard V stays in the write-source coordinates; BAM fills the other half.
           value = (jnp.concatenate((value, v_local[..., :self.bam_k]), axis=-1)
                    if concat_v else value + v_local)
@@ -3375,10 +3418,13 @@ class BamAttention(Attention):
           q0=0, s0=0, window_size=local_window,
           fetch_state=fetch_state, mix_weights=mix_weights)
 
+    if local_output is not None:
+      self._record_concat_amplitude('local_o', local_output[..., :self.bam_k], y_std[..., :self.bam_k])
     o_head = y_std if local_output is None else y_std + local_output
     if Mbar is not None:
       y_bam, fetched_gate_logits = self._read_fetched_m(
           Mbar, inputs_q)
+      self._record_concat_amplitude('fetched_o', y_bam[..., :self.bam_k], y_std[..., :self.bam_k])
       if self._record_fetched_read_health_metrics:
         y_std_rms = jnp.sqrt(jnp.mean(jnp.square(y_std.astype(jnp.float32))))
         y_bam_rms = jnp.sqrt(jnp.mean(jnp.square(y_bam.astype(jnp.float32))))

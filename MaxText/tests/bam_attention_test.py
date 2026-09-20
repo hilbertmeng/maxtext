@@ -243,6 +243,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
         kw = dict(M_in=m, deterministic=True, layer_index=1)
         variables = module.init({'params':jax.random.key(102)}, *args, **kw)
         params = unfreeze(variables['params'])
+        _, updates = module.apply(variables, *args, **kw, mutable=['intermediates'])
+        health = updates['intermediates']
+        for arm in ('local_q', 'local_k', 'local_v', 'local_o'):
+          self.assertAlmostEqual(float(health[f'concat_{arm}_gate'][0][0]), .05, delta=.001)
+        if qk:
+          self.assertGreater(float(health['concat_qk_scores'][0][0]), 0.)
         self.assertEqual(params['query']['kernel'].value.shape, (128,2,32 if qk else 64))
         self.assertEqual(params['key']['kernel'].value.shape, (128,2,32 if qk else 64))
         self.assertEqual(params['value']['kernel'].value.shape, (128,2,64 if qk else 32))

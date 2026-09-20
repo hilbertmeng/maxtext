@@ -53,3 +53,10 @@ Pre-run predictions vs parent: V gap+.006 and speed-1%; QK gap-.003 and speed-2%
 Training primary UE5a; passive UC1a/EW4b after the standard queue timeout.
 AOT compilers EW4a, then UC1a/UE5a. TPU names are
 `xd-v5p-16-colonly-vconcat-maxtext` and `xd-v5p-16-colonly-qkconcat-r4-maxtext`.
+
+Targeted health ON in both runs: each read gate mean/std/low/high fractions,
+BAM/standard per-coordinate RMS, and QK-concat score RMS/ratio from16 evenly
+spaced tokens of one sequence (causal, row-centered). Per-layer export supports
+both peeled first-block and ordinary block scan. Existing broad BAM health
+flags stay OFF. Trace validation: `/data0/xd/concat-train-trace.log`.
+Historical ColOnly speed has BAM health OFF and is not a matched-health timing.

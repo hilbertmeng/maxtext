@@ -362,6 +362,33 @@ def save_checkpoint(
 # lsp
 
 
+def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
+  """Decode compact read metrics from LLF block scan and the optional peeled block."""
+  decoder = intermediate_outputs['intermediates']['decoder']
+  size = config.bam_local_fetch_block_size
+  first = 1 if config.bam_concat_v_full_first_layer else 0
+  def emit(attention, layer, index=None):
+    for key, values in attention.items():
+      if not key.startswith('concat_'):
+        continue
+      value = values[0] if index is None else values[0][index]
+      if key.endswith('_gate'):
+        names = ('mean', 'std', 'frac_lt_005', 'frac_gt_050', 'frac_gt_095')
+      else:
+        names = ('bam_rms', 'standard_rms', 'bam_over_standard')
+      for i, name in enumerate(names):
+        output_metrics['scalar'][f'bam/concat/{key[7:]}/layer_{layer:03d}/{name}'] = value[i]
+  if first:
+    for offset in range(size):
+      emit(decoder[f'first_block_layer_{offset}']['block']['self_attention'], offset)
+  blocks = config.num_decoder_layers // size - first
+  for offset in range(size):
+    name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
+    attention = decoder['layers'][name]['block']['self_attention']
+    for block in range(blocks):
+      emit(attention, (block + first)*size + offset, block)
+
+
 def record_bam_fetched_read_health_metrics(
     output_metrics, intermediate_outputs, config):
   """Adds compact per-layer fetched-read health summaries."""
@@ -887,6 +914,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_concat_health', False):
+    record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):
     record_bam_fetched_read_health_metrics(
         metrics, intermediate_outputs, config)

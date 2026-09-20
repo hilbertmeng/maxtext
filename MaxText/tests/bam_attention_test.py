@@ -363,6 +363,14 @@ class BamReadKeyTransformTest(absltest.TestCase):
     np.testing.assert_array_equal(results[0][2][...,:32],results[1][2][...,:32])
 
   def test_shared_c8_independent_gates_initialization_and_separate_gradients(self):
+    self._check_shared_c8_independent_gates(32, 32)
+
+  def test_shared_c8_independent_gates_k64(self):
+    for qk_width in (32, 48):
+      with self.subTest(qk_width=qk_width):
+        self._check_shared_c8_independent_gates(64, qk_width)
+
+  def _check_shared_c8_independent_gates(self, k_dim, qk_width):
     import copy
     import max_utils
     import pyconfig
@@ -378,17 +386,20 @@ class BamReadKeyTransformTest(absltest.TestCase):
           max_target_length=8, max_prefill_predict_length=8, query_chunk_size=4,
           per_device_batch_size=1.)
       cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      cfg.get_keys()['bam_k'] = k_dim
+      cfg.get_keys()['bam_local_qk_col_output_dim'] = qk_width
+      cfg.get_keys()['bam_partial_rope_nope_dim'] = qk_width
       from types import SimpleNamespace
       independent = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys())))
       independent.get_keys()['bam_local_vo_independent_gates'] = True
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
-      parent = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+      parent = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64, bam_k=k_dim,
           max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
           attention_kernel='dot_product_chunk', dtype=cfg.dtype,
           layer_mode='local_qk+local_o', read_side='col', attention_type=cfg.attention_type)
       child = parent.clone(config=independent)
       x = jax.random.normal(jax.random.key(171), (1,8,128), dtype=cfg.dtype)
-      m = jax.random.normal(jax.random.key(172), (1,8,32,32), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(172), (1,8,k_dim,32), dtype=cfg.dtype)
       args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
       kw = dict(M_in=m, deterministic=True, layer_index=1)
       init = lambda mod: unfreeze(mod.init({'params':jax.random.key(173)}, *args, **kw)['params'])

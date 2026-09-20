@@ -76,3 +76,31 @@ Validation artifacts: `/data0/xd/vo-c8-k64-qk48-25-{audit.json,audit.log,trace.l
 last F's M and final L's input M, changed output after zeroing that boundary M,
 and finite nonzero gradients for the new layer. Full 25-layer actual train-step
 tracing verifies health export through layer24 (961 scalars).
+
+
+## Independent-gate correction
+
+The first three K64 RUNs above mistakenly used the shared-gate parent. The user
+requested replacing all three with independently gated LocalV/LocalO while retaining
+all MLP widths. New RUNs start from step0 on their respective retained training TPUs;
+no checkpoint conversion or mixed shared/independent-gate training is used.
+
+| Old RUN | Replacement RUN | Direct baseline |
+|---|---|---|
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64TruncateMLPPerLayer` | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer` | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer` |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48TruncateMLPPerLayer` | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer` | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer` |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer` | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer` | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer` |
+
+All three retain M64x32/C8 and exactly one shared ungated column read, with separate
+V/O gate projections (both initially.05, read scale.2). The first two add262400
+parameters each (16 L layers); the25-layer model adds278800 (17 L layers).
+Actual counts:411860864 /411885440 /411895632. MLP widths stay2879/2879/2874,
+3050/3050/3045, and2879/2879/2874+tail2970 respectively. Training health exports
+968/968/1012 scalars; the final-layer comparison has44 extra scalars.
+
+Prediction versus each direct baseline: loss-.004/-.004/-.003; speed-7%/-.5%/-2%.
+Implementation worktree and branch unchanged. Retained TPUs are
+`xd-v5p-16-qkstatic-vo-c8-k64-maxtext`,
+`xd-v5p-16-qkstatic-vo-c8-k64-qk48-maxtext`, and
+`xd-v5p-16-qkstatic-vo-c8-k64-qk48-25-maxtext`; RUN registry is authoritative after handoff.
+Validation artifacts: `/data0/xd/k64-independent-{audit.json,audit.log,trace.log,targeted-tests.log,25-numeric.log}`.

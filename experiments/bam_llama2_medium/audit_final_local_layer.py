@@ -1,6 +1,7 @@
 """Numerically verify the eight-block scan -> final L boundary on a small model."""
 from pathlib import Path
 import tempfile
+import sys
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -11,7 +12,7 @@ import pyconfig
 from layers import models
 from layers.fusion import BamLayerPair
 
-EXP = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer'
+EXP = sys.argv[1] if len(sys.argv) > 1 else 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8K64QK48Truncate25Layer'
 with tempfile.TemporaryDirectory() as out:
   Path(out, 'audit').mkdir()
   cfg = pyconfig.initialize(

@@ -35,8 +35,7 @@ zero-M write seed, QK shared-basis gradients and cache equivalence.
 Full24-layer train traces verify peeled block scan and metric export (V853/QK920 scalars).
 Artifacts `/data0/xd/concat-static-{audit.json,tests.log,trace.log}`.
 
-Pre-run bets vs their concat parents: V final loss gap-.010, throughput-1%;
-QK final loss gap-.004, throughput-.5%. M-cache unchanged.
+Pre-run bet for ongoing QK: final loss gap-.004, throughput-.5% vs QK concat. M-cache unchanged.
 
 Both RUNs launched successfully at runtime3351a0b; AOT loaded and first step verified.
 V reused UE5a TPU after old V paused at committed2455 (2026-09-20T08:48:33Z).
@@ -46,3 +45,7 @@ Both exceed predicted costs; added health scalars (V165/QK144) prevent architect
 Compiler states3351a0b-f3084a33 /3351a0b-9c6108ad ready, all resources cleaned.
 All46 BAM tests validated: initial suite had control/fixture failures, corrected targeted reruns pass;
 logs concat-static-focused-fixed.log, concat-static-write-test.log, concat-static-control-test.log.
+
+V closed at committed2979 after2800 review; TB synced and TPU/queue absent.
+vs old V: common windows end2400, last5mean+.000221; vs ColOnly2000-2800mean+.001678.
+No sustained gain from the combined VO alignment/static/mixed-write change.

@@ -7944,8 +7944,7 @@ class BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED978(BamMediumInde
     steps = 13500
     checkpoint_period = 200
     force_final_checkpoint = True
-    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE',
-                    'BamMHALlama2MediumC256ScanAotCleanControl']
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k64-d978-fullmlp'
 
 

@@ -8303,9 +8303,7 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer(BamMedi
     model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer'
     bam_concat_static_qk = True
     mlp_dim_by_block = [2810, 2810, 2874]
-    compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer',
-                    'BamMediumIndependentLLFMLPPerLayerColOnly',
-                    'BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE']
+    compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-static'
 
 

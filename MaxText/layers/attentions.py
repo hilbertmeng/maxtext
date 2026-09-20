@@ -1166,15 +1166,16 @@ class Attention(nn.Module):
       self.kv_shift = kv_shift.KVshift(config=self.config,mesh=self.mesh, quant=self.quant, kernel_init=self.kernel_init, num_kv_heads=self.num_kv_heads)
 
 
-  def query_projection(self, inputs_q: Array) -> Array:
+  def query_projection(self, inputs_q: Array, projection_dim=None) -> Array:
     """Query projection."""
 
+    projection_dim = self.head_dim if projection_dim is None else projection_dim
     if self.config.opt_type == 'muon':
       kernel_axes=("embed", "mlp")
-      features = (self.num_query_heads * self.head_dim, )
+      features = (self.num_query_heads * projection_dim, )
     else:
       kernel_axes=("embed", "q_heads", "kv")
-      features = (self.num_query_heads, self.head_dim)
+      features = (self.num_query_heads, projection_dim)
 
     b, t, h = inputs_q.shape
 
@@ -1193,10 +1194,10 @@ class Attention(nn.Module):
     output = query_proj(inputs_q)
     max_logging.log(f'output: {output.shape}', debug=self.config.debug)
     if self.config.opt_type == 'muon':
-      output = output.reshape(b, t, self.num_query_heads, self.head_dim)
+      output = output.reshape(b, t, self.num_query_heads, projection_dim)
     return output
 
-  def kv_projection(self, inputs_kv: Array, proj_name: str) -> Array:
+  def kv_projection(self, inputs_kv: Array, proj_name: str, projection_dim=None) -> Array:
     """Projection for Key and Value.
 
     Args:
@@ -1207,6 +1208,7 @@ class Attention(nn.Module):
     Returns:
       Projection of key or value, in shape of `[batch, kv_length, head_dim]`.
     """
+    projection_dim = self.head_dim if projection_dim is None else projection_dim
     b, t, h = inputs_kv.shape
 
     if self.num_kv_heads == -1:
@@ -1218,10 +1220,10 @@ class Attention(nn.Module):
     num_kv_heads = self.num_kv_heads
     if self.config.opt_type == 'muon':
       kernel_axes = ("embed", "mlp")
-      features=(num_kv_heads * self.head_dim, )
+      features=(num_kv_heads * projection_dim, )
     else:
       kernel_axes = ("embed", "kv_heads", "kv_head_dim")
-      features=(num_kv_heads, self.head_dim)
+      features=(num_kv_heads, projection_dim)
     kv_proj = DenseGeneral(
         features=features,
         axis=-1,
@@ -1235,7 +1237,7 @@ class Attention(nn.Module):
         use_bias=self.config.qkv_bias,
     )(inputs_kv)
     if self.config.opt_type == 'muon':
-      kv_proj = kv_proj.reshape(b, t, num_kv_heads, self.head_dim)
+      kv_proj = kv_proj.reshape(b, t, num_kv_heads, projection_dim)
     return kv_proj
 
   def qkv_projection(self, inputs: Array, proj_name: str):
@@ -2037,7 +2039,7 @@ def factorized_head_bam_read(
   if arm.prune_row:
     # Keep the tested bilateral routing algebra, with constant zero row slots.
     # No row parameters exist and read_side='col' skips its M contraction.
-    assert arm.read_side == 'col' and v_projection is None and basis_cache is None
+    assert arm.read_side == 'col' and v_projection is None
     key = jnp.concatenate((jnp.zeros(key.shape[:-1] + (arm.k_dim,), key.dtype), key), -1)
     mix = jnp.concatenate((jnp.zeros_like(mix), mix), -2)
     if gate_logits is not None:
@@ -2101,7 +2103,7 @@ def factorized_head_bam_read(
       y_u_basis, y_v_basis = _contract_bam_read_sides(
           M, M, r_row, r_col, implementation=arm.implementation, read_side=arm.read_side)
     else:
-      assert arm.rank_routing == 'effective_key' and arm.read_side == 'both'
+      assert arm.rank_routing == 'effective_key' and arm.read_side in ('both', 'col')
       y_u_basis, y_v_basis = basis_cache[0]
     if arm.read_side == 'row':
       y_u_basis = None
@@ -2297,14 +2299,16 @@ def _packed_local_layout(arms, share_qk_basis=False):
   return layout, offset
 
 
-def _packed_local_arms_init(kernel_init, arms, paired_row_width=0, share_qk_basis=False):
+def _packed_local_arms_init(kernel_init, arms, paired_row_width=0, share_qk_basis=False,
+                            seed_qk_basis=False):
   """Initializer for a packed local-read projection.
 
   Key and gate segments start at zero (the read is dormant, gates sit on their
   calibrated bias); each arm's head-mix segment takes a regular draw from its
   own split of the group key.  ``paired_row_width`` seeds the same nonzero
   K-side row key into every arm and rank slot (identical, independently
-  trainable), leaving the V-side of the basis at zero.
+  trainable), leaving the V-side of the basis at zero. ``seed_qk_basis`` instead gives
+  Q/K regular nonzero bases: concatenated QK has no cross term to wake zero keys.
   """
   layout, packed_width = _packed_local_layout(arms, share_qk_basis)
   if paired_row_width and not all(
@@ -2322,7 +2326,9 @@ def _packed_local_arms_init(kernel_init, arms, paired_row_width=0, share_qk_basi
     arm_keys = jax.random.split(key, len(arms))
     pieces = []
     for arm, arm_key in zip(arms, arm_keys):
-      if paired_row_width:
+      if seed_qk_basis and arm.name in ('q', 'k'):
+        basis = kernel_init(arm_key, (embed, arm.basis_width), dtype, 0, 1)
+      elif paired_row_width:
         slots = []
         for r in range(arm.rank):
           row_key = kernel_init(
@@ -2583,7 +2589,8 @@ class BamAttention(Attention):
       q, k = (self._local_arms[n] for n in ('q', 'k'))
       assert list(self._local_arms)[:2] == ['q', 'k']
       assert q.key_shape == k.key_shape and q.pre_rms_bias == k.pre_rms_bias
-      assert all(a.rank_routing == 'effective_key' and a.read_side == 'both' for a in (q, k))
+      assert all(a.rank_routing == 'effective_key' and a.read_side in ('both', 'col') for a in (q, k))
+      assert q.prune_row == k.prune_row and q.read_side == k.read_side
     if 'full' in self._mode:
       assert cfg.bam_shared_fetch_mode in (
           'dynamic_rms_mix', 'dynamic_rms_scale_mix', 'dynamic_rms_gelu_mix')
@@ -2751,7 +2758,8 @@ class BamAttention(Attention):
           features=packed_width, axis=-1,
           kernel_init=_packed_local_arms_init(
               reg_init, arms, self.bam_k if self._seed_paired_local_row_key else 0,
-              self._share_qk_basis),
+              self._share_qk_basis,
+              seed_qk_basis=bool(getattr(cfg, 'bam_concat_qk', False))),
           kernel_axes=("embed", None), dtype=self.dtype,
           weight_dtype=self.weight_dtype,
           name=getattr(cfg, 'bam_local_packed_parameter_name', 'W_local_packed'),
@@ -2963,14 +2971,17 @@ class BamAttention(Attention):
         for arm, (basis, gate, mix) in zip(arms, layout)}
 
   def _shared_qk_basis(self, M, local_inputs):
-    """One bilateral basis read and Gram pair, reused by independent Q/K routing."""
+    """One shared basis read/Gram cache, reused by independent Q/K routing."""
     arm = self._local_arms['q']
     key = local_inputs['q'][0]
     if arm.pre_rms_bias:
       key = key + jnp.asarray(self.W_lq_bias, key.dtype)
-    row, col = jnp.split(key, [M.shape[-2]], axis=-1)
+    if arm.prune_row:
+      row, col = jnp.zeros(key.shape[:-1] + (M.shape[-2],), key.dtype), key
+    else:
+      row, col = jnp.split(key, [M.shape[-2]], axis=-1)
     with jax.named_scope('bam/shared_qk_basis'):
-      reads = _contract_bam_read_sides(M, M, row, col, arm.implementation, 'both')
+      reads = _contract_bam_read_sides(M, M, row, col, arm.implementation, arm.read_side)
       grams = tuple(_basis_gram(a, arm) for a in (row, col))
     return reads, grams
 
@@ -3012,6 +3023,9 @@ class BamAttention(Attention):
     """Inject LocalQK into the standard Q/K arm."""
     if self._record_local_routing_metrics:
       self._record_local_qk_read_health(query, key, q_local, k_local)
+    if getattr(self.config, 'bam_concat_qk', False):
+      return (jnp.concatenate((q_local[..., :self.bam_k], query), axis=-1),
+              jnp.concatenate((k_local[..., :self.bam_k], key), axis=-1))
     return query + q_local, key + k_local
 
 
@@ -3242,18 +3256,34 @@ class BamAttention(Attention):
     inputs_q = nn.with_logical_constraint(inputs_q, self.input_axis_names)
     inputs_kv = nn.with_logical_constraint(inputs_kv, self.input_axis_names)
 
+    concat_qk = bool(getattr(cfg, 'bam_concat_qk', False))
+    concat_v = bool(getattr(cfg, 'bam_concat_v', False)) and self._local_v_mode == 'rank2'
+    if concat_qk or concat_v:
+      assert not cfg.fused_qkv and cfg.bam_prune_all_row_reads
+      assert self.bam_k * 2 == self.head_dim
+    if concat_qk:
+      assert self._partial_rope and self._partial_rope_nope_dim == self.bam_k
+      assert self._share_qk_basis
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
-      query = self.query_projection(inputs_q)
-      key = self.kv_projection(inputs_kv, proj_name="key")
-      value = self.kv_projection(inputs_kv, proj_name="value")
+      query = self.query_projection(inputs_q, self.head_dim - self.bam_k if concat_qk else None)
+      key = self.kv_projection(inputs_kv, proj_name="key",
+                               projection_dim=self.head_dim - self.bam_k if concat_qk else None)
+      value = self.kv_projection(inputs_kv, proj_name="value",
+                                 projection_dim=self.head_dim - self.bam_k if concat_v else None)
 
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-    if self._partial_rope:
+    if concat_qk:
+      # Only the standard half rotates; the full BAM column is concatenated afterwards.
+      query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
+                                          embedding_dims=self.head_dim - self.bam_k)
+      key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
+                                        embedding_dims=self.head_dim - self.bam_k)
+    elif self._partial_rope:
       query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
       key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
     else:
@@ -3289,9 +3319,10 @@ class BamAttention(Attention):
         local_output = self._gate_local_output(local_output, output_logits)
       elif self._local_v_mode == 'rank2':
         with jax.named_scope("bam/read_local_m_for_v"):
-          value = value + self._read_local(
-              'v', Mh,
-              inputs_q, local_inputs)
+          v_local = self._read_local('v', Mh, inputs_q, local_inputs)
+          # Standard V stays in the write-source coordinates; BAM fills the other half.
+          value = (jnp.concatenate((value, v_local[..., :self.bam_k]), axis=-1)
+                   if concat_v else value + v_local)
 
     if self._local_o_static_col:
       # Full-M static column read, added AFTER dynamic gating, only to LocalO.

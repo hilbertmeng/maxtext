@@ -196,6 +196,88 @@ class BamReadKeyTransformTest(absltest.TestCase):
     self.assertIn('fetch_route_sums', updates['intermediates'])
     self.assertIn('fetch_mix_scale', updates['intermediates'])
 
+  def test_concat_gate_recalibration_preserves_read_amplitude(self):
+    import dataclasses
+    import math
+    matrix = jax.random.normal(jax.random.key(71), (1,4,8,8))
+    key = jax.random.normal(jax.random.key(72), (1,4,4,8))
+    mix = jax.random.normal(jax.random.key(73), (1,4,2,1,4))
+    for routing, scale in [('legacy',2.), ('effective_key',2.), ('head_gate_r',1.)]:
+      arm = _BamReadArm(name='q', k_dim=8, v_dim=8, num_heads=2, rank=4,
+                       read_side='col', prune_row=True, rank_routing=routing,
+                       key_scale=scale)
+      def read(opening, factor):
+        logits = jnp.full((1,4)+arm.gate_shape, math.log(opening/(1-opening)))
+        return factorized_head_bam_read(
+            matrix, key, mix, dataclasses.replace(arm,key_scale=scale*factor),
+            gate_logits=logits)[0]
+      np.testing.assert_allclose(read(.005,1.), read(.05,.1), rtol=2e-6, atol=1e-8)
+
+  def test_concat_shapes_write_seed_and_qk_learning(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+
+    for qk in (False, True):
+      name = ('BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer' if qk
+              else 'BamMediumIndependentLLFColOnlyVConcatMLPPerLayer')
+      with self.subTest(exp=name), tempfile.TemporaryDirectory() as out:
+        Path(out, 'concat').mkdir()
+        cfg = pyconfig.initialize(
+            [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+            exp_class=name, run_name='concat', enable_checkpointing=False,
+            base_output_directory=out+'/', jax_cache_dir='', log_config=False,
+            dataset_type='synthetic', base_emb_dim=128, base_num_query_heads=2,
+            base_num_kv_heads=2, head_dim=64, max_target_length=8,
+            max_prefill_predict_length=8, query_chunk_size=4, per_device_batch_size=1.)
+        cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        module = BamAttention(
+            config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+            max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+            attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+            layer_mode='local_qk+local_o', read_side='col', attention_type=cfg.attention_type)
+        x = jax.random.normal(jax.random.key(101), (1,8,128), dtype=cfg.dtype)
+        m = jax.random.normal(jax.random.key(104), (1,8,32,32), dtype=cfg.dtype)
+        args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+        kw = dict(M_in=m, deterministic=True, layer_index=1)
+        variables = module.init({'params':jax.random.key(102)}, *args, **kw)
+        params = unfreeze(variables['params'])
+        self.assertEqual(params['query']['kernel'].value.shape, (128,2,32 if qk else 64))
+        self.assertEqual(params['key']['kernel'].value.shape, (128,2,32 if qk else 64))
+        self.assertEqual(params['value']['kernel'].value.shape, (128,2,64 if qk else 32))
+        # Fresh M must be seeded even when every BAM read is initially zero.
+        y, m0 = module.apply(variables, *args, M_in=jnp.zeros_like(m), deterministic=True, layer_index=0)
+        self.assertEqual(y.shape, x.shape)
+        self.assertGreater(float(jnp.linalg.norm(m0.astype(jnp.float32))), 0.)
+        grad = jax.grad(lambda p: jnp.sum(module.apply(
+            {'params':p}, *args, **kw)[0].astype(jnp.float32)**2))(params)
+        self.assertTrue(all(bool(jnp.all(jnp.isfinite(z))) for z in jax.tree.leaves(grad)))
+        if qk:
+          # The shared basis is initialized nonzero and receives a genuine attention-loss gradient.
+          basis_grad = grad['W_local_packed']['kernel'].value[:, :128]
+          self.assertGreater(float(jnp.linalg.norm(basis_grad.astype(jnp.float32))), 0.)
+          self.assertNotIn('W_lk_bias', params)
+          def probe(bound):
+            inputs = bound._local_inputs(x)
+            cache = bound._shared_qk_basis(m, inputs)
+            qc = bound._read_local('q', m, x, inputs, cache)
+            kc = bound._read_local('k', m, x, inputs, cache)
+            qref = bound._read_local('q', m, x, inputs)
+            kref = bound._read_local('k', m, x, inputs)
+            rot = jnp.ones((1,8,2,32), cfg.dtype)
+            joined, _ = bound._add_local_qk(rot, rot, qc, kc)
+            return qc, kc, qref, kref, joined, rot
+          qc,kc,qr,kr,joined,rot = module.apply(variables, method=probe)
+          np.testing.assert_allclose(qc.astype('float32'), qr.astype('float32'), rtol=.02, atol=2e-4)
+          np.testing.assert_allclose(kc.astype('float32'), kr.astype('float32'), rtol=.02, atol=2e-4)
+          np.testing.assert_array_equal(joined[..., :32], qc[..., :32])
+          np.testing.assert_array_equal(joined[..., 32:], rot)
+        # F layers retain full V in both experiments.
+        fetched = module.clone(layer_mode='local_qk+full')
+        fp = fetched.init({'params':jax.random.key(102)}, *args, **kw)['params']
+        self.assertEqual(fp['value']['kernel'].value.shape, (128,2,64))
+
   def test_local_o_static_col_zero_equivalence_gradient_and_ungated_output(self):
     import copy
     import max_utils

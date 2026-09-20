@@ -267,6 +267,10 @@ class BamLlama2Medium(Llama2Medium):
     bam_record_fetched_read_health_metrics = False
     bam_local_q_pre_rms_bias = True
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
+    bam_concat_qk = False
+    bam_concat_v = False
+    bam_concat_v_full_first_layer = False
+    bam_first_layer_mlp_dim = None
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
     bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation
@@ -7275,6 +7279,49 @@ class BamMediumIndependentLLFMLPPerLayerColOnly(BamMediumIndependentLLFBAlignedR
     compare_runs = ['BamMediumIndependentLLFBAlignedRowMLPPerLayer',
                     'BamMHALlama2MediumC256ScanAotCleanControl']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only'
+
+
+class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """L-layer standard V32 concatenated with gated BAM V32; QK remain additive."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411607312 params: -8944 (-.00217%) vs MHA. L0 full V, no LocalV/LocalO.
+    # L0 MLP2650; subsequent L/F MLP2703/2596. M-cache unchanged.
+    # Prediction vs ColOnly: final gap +.006, speed -1%; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFColOnlyVConcatMLPPerLayer'
+    bam_read_gate_init = 0.05
+    bam_read_key_scale = 0.2
+    bam_local_v_key_scale = 0.1
+    bam_concat_v = True
+    bam_concat_v_full_first_layer = True
+    bam_first_layer_mlp_dim = 2650  # full V; LocalV/LocalO removed at L0
+    base_mlp_dim = 2816
+    mlp_dim_by_block = [2703, 2703, 2596]  # audited per-layer MHA budget
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-vconcat'
+
+
+class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumIndependentLLFMLPPerLayerColOnly):
+    """Shared rank4 BAM QK32 + standard RoPE32; V remains additive."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411592576 params: -23680 (-.00575%) vs MHA. M-cache unchanged.
+    # Shared nonzero-init QK column bases, independent head mixing/gates; NoPE32/RoPE32.
+    # Prediction vs ColOnly: final gap -.003 (low confidence), speed -2%; generic ON/BAM OFF.
+    model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer'
+    bam_read_gate_init = 0.05
+    bam_read_key_scale = 0.2
+    bam_local_v_key_scale = 0.1
+    bam_concat_qk = True
+    bam_local_q_rank = 4
+    bam_local_k_rank = None
+    bam_local_qk_share_basis = True
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 32
+    base_mlp_dim = 2816
+    mlp_dim_by_block = [2810, 2810, 2874]  # nearest per-layer MHA budget
+    compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnly']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-qkconcat-r4'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

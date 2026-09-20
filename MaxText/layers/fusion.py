@@ -80,6 +80,9 @@ class SubDecoderLayer(nn.Module):
       self.updated_mlp_dim = round(cfg.mlp_dim * (layer_inx / (cfg.num_decoder_layers - 1) + 0.5) / 128) * 128 
     else:
       self.updated_mlp_dim = cfg.mlp_dim
+    if getattr(cfg, 'bam_concat_v_full_first_layer', False) and self.layer_inx == 0:
+      assert cfg.bam_concat_v and cfg.bam_first_layer_mlp_dim is not None
+      self.updated_mlp_dim = cfg.bam_first_layer_mlp_dim
     max_logging.log(f'sliding_window_size: {self.sliding_window_size} updated_mlp_dim: {self.updated_mlp_dim}', debug=cfg.debug)
 
 
@@ -164,6 +167,8 @@ class SubDecoderLayer(nn.Module):
         AttnCls = attentions.BamAttention
         modes = cfg.bam_layer_modes
         layer_mode = modes[self.layer_inx] if isinstance(modes, list) else modes
+        if getattr(cfg, 'bam_concat_v_full_first_layer', False) and self.layer_inx == 0:
+          layer_mode = 'local_qk'  # Full standard V, no LocalV or LocalO.
         read_sides = cfg.bam_read_sides
         read_side = read_sides[self.layer_inx] if isinstance(read_sides, list) else read_sides
         local_v_modes = getattr(cfg, 'bam_local_o_v_mode', 'none')
@@ -325,7 +330,9 @@ class BamLayerPair(nn.Module):
       name = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       carry, _ = Layer(
           cfg, self.mesh, self.sliding_window_size, self.quant,
-          all_global_attention=True, static_layer_index=offset, name=name)(
+          all_global_attention=True,
+          static_layer_index=offset + (block_size if getattr(cfg, 'bam_concat_v_full_first_layer', False) else 0),
+          name=name)(
               carry, segment_ids, positions, tokens, None,
               deterministic, model_mode, eos_sum, None, None, None,
               block_size * block_index + offset)

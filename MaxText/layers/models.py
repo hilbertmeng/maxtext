@@ -817,6 +817,25 @@ class Decoder(nn.Module):
           scan_carry = y
         local_sws = min(swss)
         all_global_attention = all(s >= cfg.max_target_length for s in swss)
+        first_block = 0
+        if getattr(cfg, 'bam_concat_v_full_first_layer', False):
+          # Only L0 differs structurally. Peel one LLF block, then scan the remaining seven.
+          assert pair_scan and full_bam and deep_embeddings is None
+          Layer = nn.remat(
+              fusion.FusionDecoderLayer, prevent_cse=True,
+              policy=get_remat_policy(cfg), static_argnums=(6, 7),
+              rngs={'params': True, 'aqt': True, 'dropout': True})
+          for offset in range(block_size):
+            scan_carry, _ = Layer(
+                cfg, mesh, local_sws, self.quant,
+                all_global_attention=True, static_layer_index=offset,
+                name=f'first_block_layer_{offset}')(
+                    scan_carry, decoder_segment_ids, decoder_positions,
+                    decoder_input_tokens, None, deterministic, model_mode,
+                    eos_sum, None, None, None, jnp.asarray(offset, jnp.int32))
+          first_block = 1
+          scan_length -= 1
+          is_global = is_global[1:]
         scan_module = self.scan_decoder_layers(
             cfg, RemattedBlockLayer, scan_length, "layers", mesh,
             sliding_window_size=local_sws,
@@ -840,7 +859,7 @@ class Decoder(nn.Module):
           scan_inputs += (
               None,
               None,
-              jnp.arange(scan_length, dtype=jnp.int32),
+              jnp.arange(first_block, first_block + scan_length, dtype=jnp.int32),
           )
         scan_carry, _ = scan_module(*scan_inputs)
         y = scan_carry[0] if full_bam else scan_carry

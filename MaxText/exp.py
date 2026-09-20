@@ -8322,6 +8322,30 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyNoPE32PartialRoPE(BamMediumIndepe
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/colonly-nope32'
 
 
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer(BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer):
+    """Ledger only: One full-M rank4 read including gate reused by additive LocalV and LocalO."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411612800 params (-3456 vs MHA); saves147728/L, MLP2858/2858/2874.
+    # Prediction vs QKStatic: gap -.001, speed +1%; generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer'
+    bam_local_vo_shared_read = 'local_v'
+    mlp_dim_by_block = [2858, 2858, 2874]
+    compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-shared-r4'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer(BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer):
+    """Ledger only: One C8 LocalO read including gate reused by additive LocalV and LocalO."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # 411598464 params (-17792 vs MHA); saves213136/L, MLP2879/2879/2874.
+    # Prediction vs QKStatic: gap +.002, speed +3%; generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer'
+    bam_local_vo_shared_read = 'local_o'
+    mlp_dim_by_block = [2879, 2879, 2874]
+    compare_runs = ['BamMediumIndependentLLFColOnlyQKConcatSharedRank4StaticMLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-shared-c8'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

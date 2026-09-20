@@ -170,32 +170,51 @@ def run(config):
   print('STD_V_STAGE_DONE',start,stop,flush=True)
 
 def run_grad(config):
+  import re
+  from flax.traverse_util import flatten_dict,unflatten_dict
   out=Path(os.environ['STD_V_OUTPUT']);out.mkdir(parents=True,exist_ok=True)
   path=Path(os.environ.get('ROW_COHORT','/tmp/pile_eval_cohort.npz'))
   with np.load(path) as f:cohort={k:np.asarray(f[k]) for k in KEYS}
   hashes=digest_cohort(cohort);start=int(os.environ.get('STD_V_START','0'));stop=int(os.environ.get('STD_V_STOP','32'))
   assert config.bam_k==32 and config.head_dim==64 and config.num_decoder_layers==24
-  assert config.only_eval and config.bam_prune_all_row_reads and not config.bam_local_v_share_output_coordinates
-  meta=dict(model=BASE,checkpoint=config.load_parameters_path,training_commit=TRAINING,runtime_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),cohort_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),sequence_hashes=hashes[:stop],start=start,stop=stop,shape_config={k:getattr(config,k) for k in ['emb_dim','num_query_heads','head_dim','bam_k','bam_local_v_rank','fused_qkv','scan_layers']},method='native alpha=beta=bam=1; per-sequence loss gradient w.r.t. per-layer scaling of raw standard V halves; BAM derivative auxiliary',channels=['raw_front','raw_tail','bam_v'],unit='nats/token per unit scale')
-  (out/'metadata.json').write_text(json.dumps(meta,indent=2))
+  assert config.only_eval and config.bam_prune_all_row_reads and not config.fused_qkv
   rng,writer,manager,mesh,model,_,tx=train.setup_mesh_and_model(config)
   state,_,_,_=max_utils.setup_training_state(model,SimpleNamespace(meta_dict={'checkpoint_step':None}),tx,config,rng,mesh,manager)
-  f=lambda p,b,s:forward(model,p,b,rng,s).mean()
-  grad=jax.jit(jax.value_and_grad(lambda p,b,s:forward(model,p,b,rng,s,native_gradient=True).mean(),argnums=2));one=jax.jit(f);ordinary=jax.jit(lambda p,b:forward(model,p,b,rng).mean());ones=jnp.ones(SHAPE,jnp.float32)
+  flat=flatten_dict(state.params);selected=[]
+  for key,v in flat.items():
+    if key[-2:]==('value','kernel'):
+      name='/'.join(key);m=re.search(r'sub_([012])',name)
+      print('RAW_V_PARAMETER',name,v.shape,flush=True)
+      assert m is not None and v.shape==(8,1024,16,64),(name,v.shape)
+      if int(m[1])!=2:selected.append((key,int(m[1])))
+  assert len(selected)==2,selected
+  meta=dict(model=BASE,checkpoint=config.load_parameters_path,training_commit=TRAINING,runtime_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),cohort_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),sequence_hashes=hashes[:stop],start=start,stop=stop,shape_config={k:getattr(config,k) for k in ['emb_dim','num_query_heads','head_dim','bam_k','bam_local_v_rank','fused_qkv','scan_layers']},method='unmodified model parameter gradient; sum W_V*dL/dW_V per original V half; no activation scaling or identity JVP in gradient forward',channels=['raw_front','raw_tail','unused_zero'],parameter_paths=['/'.join(k) for k,_ in selected],unit='nats/token per unit scale')
+  (out/'metadata.json').write_text(json.dumps(meta,indent=2))
+  f=lambda p,b:forward(model,p,b,rng).mean()
+  def pull(p,b):
+    value,dp=jax.value_and_grad(f)(p,b);fp=flatten_dict(p);fg=flatten_dict(dp);g=jnp.zeros(SHAPE,jnp.float32)
+    for key,block in selected:
+      prod=fp[key].astype(jnp.float32)*fg[key].astype(jnp.float32)
+      for half in [0,1]:g=g.at[jnp.arange(8)*3+block,half].set(prod[...,half*32:(half+1)*32].sum(axis=(1,2,3)))
+    return value,g
+  grad=jax.jit(pull);ordinary=jax.jit(f)
+  def perturbed(half,factor):
+    copy=dict(flat)
+    for key,block in selected:
+      mask=np.ones((8,1,1,64),np.float32)
+      for u in range(8):
+        if 3*u+block>1:mask[u,:,:,half*32:(half+1)*32]=factor
+      copy[key]=flat[key]*jnp.asarray(mask,dtype=flat[key].dtype)
+    return unflatten_dict(copy)
   with mesh,partitioning.axis_rules(config.logical_axis_rules):
+    variants=[perturbed(c,1+sign*.0625) for c in [0,1] for sign in [1,-1]]
     for i in range(start,stop):
       begun=time.perf_counter();batch={k:jnp.asarray(v[i:i+1]) for k,v in cohort.items()}
-      value,g=grad(state.params,batch,ones);value,g=jax.device_get((value,g));native=float(ordinary(state.params,batch))
-      scaled=float(one(state.params,batch,ones));print('NATIVE_FIDELITY',i,'ordinary',native,'scaled',scaled,'identity_jvp_ad',value,flush=True)
-      np.testing.assert_allclose(value,native,atol=1e-6,rtol=0);assert np.isfinite(g).all();np.testing.assert_array_equal(g[2::3],0.)
-      assert np.any(g[:,0]!=0) and np.any(g[:,1]!=0), 'raw V hook must be reached'
-      # Small finite-difference probes are sanity checks, not an integrated-gradient analysis.
+      value,g=jax.device_get(grad(state.params,batch));native=float(ordinary(state.params,batch));assert np.isfinite(g).all();np.testing.assert_array_equal(g[2::3],0.)
+      print('PARAM_GRAD_FIDELITY',i,'ordinary',native,'ad',value,'difference',float(value)-native,flush=True)
       checks=[]
-      if i<start+4:
-        for channel in [0,1]:
-          mask=np.zeros(SHAPE,np.float32);mask[[l for l in range(3,24) if l%3!=2],channel]=1.
-          plus=float(one(state.params,batch,ones+jnp.asarray(mask)*.05));minus=float(one(state.params,batch,ones-jnp.asarray(mask)*.05))
-          checks.append([channel,float((g*mask).sum()),(plus-minus)/.1,plus,minus])
+      for c in [0,1]:
+        plus=float(ordinary(variants[2*c],batch));minus=float(ordinary(variants[2*c+1],batch));ad=float(g[[l for l in range(3,24) if l%3!=2],c].sum());checks.append([c,ad,(plus-minus)/.125,plus,minus])
       np.savez_compressed(out/f'grad_{i:03d}.npz',loss=value,ordinary=native,gradient=g,sequence_hash=hashes[i]['inputs'],finite_difference=np.asarray(checks),tokens=int(np.sum(cohort['targets_segmentation'][i]!=0)))
       if i==start:print('FIRST_STEP STD_V_GRAD_NATIVE_OK',value,'gradient_norm',np.linalg.norm(g),flush=True)
       print('STD_V_GRAD_DONE',i,'seconds',time.perf_counter()-begun,flush=True)

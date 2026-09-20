@@ -7928,17 +7928,14 @@ class BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/llf-perlayer-col-only-k64-qk48-truncate-prope'
 
 
-class BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED978(BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
+class BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976(BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE):
     """Ledger only: Match MHA parameters by narrowing the residual stream, retaining full MLP width."""
     # Implementation: codex/llf-colonly-k48, /data0/xd/llf-colonly-k48.
-    # 411,739,202 params: +122,946 (+.02987%) vs MHA; BAM 18,613,520.
-    # D978, MLP2816; H16/head64, M64x32/C8, NoPE48/RoPE16 unchanged.
+    # 410,903,680 params: -712,576 (-.17312%) vs MHA; BAM 18,581,936.
+    # D976, MLP2816; H16/head64, M64x32/C8, NoPE48/RoPE16 unchanged.
     # Prediction vs K64 PerLayer: late gap -.003 (range -.008..+.004); speed -3%..+1%.
-    model_name = 'BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED978'
-    base_emb_dim = 978
-    # Preserve exact D978: shard embed across2, replicate data across4 on v5p-16.
-    ici_fsdp_parallelism = 2
-    ici_data_parallelism = -1
+    model_name = 'BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976'
+    base_emb_dim = 976
     base_mlp_dim = 2816
     mlp_dim_by_block = None
     record_training_health_metrics = True
@@ -7948,7 +7945,7 @@ class BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED978(BamMediumInde
     checkpoint_period = 200
     force_final_checkpoint = True
     compare_runs = ['BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE']
-    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k64-d978-fullmlp'
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k64-d976-fullmlp'
 
 
 

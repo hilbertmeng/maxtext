@@ -1,5 +1,6 @@
 """Prepare each exact AOT, then launch its formal run without waiting for its peers."""
 import os
+import shlex
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -29,14 +30,16 @@ def launch(item):
             log.write(line)
             if line.startswith('AOT_READY ') and artifact is None:
                 artifact = next(x.split('=', 1)[1] for x in line.split() if x.startswith('artifact='))
-                env = dict(os.environ, EXP=run, ID=ident, MODE='install+train',
+                env = dict(EXP=run, ID=ident, MODE='install+train',
                            PRIMARY_ZONE='us-east5-a', BACKUP_ZONES='europe-west4-b',
                            BRANCH='codex/llf-m-anchor-relay', CODE_COMMIT=sys.argv[1],
                            COMPARE_RUNS=bases, COMPILED_TRAINSTEP_GCS=artifact,
                            LOSS_REPORT_INTERVAL='200', PLANNED_STEPS='13500')
-                with (ROOT / 'logs' / f'{ident}-launch.log').open('a') as out:
-                    subprocess.run(['bash', str(ROOT / 'run_exp_xd.sh')], env=env,
-                                   stdout=out, stderr=subprocess.STDOUT, check=True)
+                command = shlex.join(['env', *[f'{k}={v}' for k, v in env.items()],
+                                      'bash', str(ROOT / 'run_exp_xd.sh')])
+                command += ' >> ' + shlex.quote(str(ROOT / 'logs' / f'{ident}-launch.log')) + ' 2>&1'
+                subprocess.run(['tmux', 'new-session', '-d', '-s', f'{run}-TPU{ident}-xd', command],
+                               check=True)
                 print(f'TRAIN_SUBMITTED {run} {artifact}', flush=True)
         code = proc.wait()
         if code or artifact is None:

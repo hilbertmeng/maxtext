@@ -7486,7 +7486,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64Tru
     """Independent V/O gates on the K64 shared-C8 column read."""
     # code_commit: 8c188b0; UE5a .6376 steps/s (10-14), -5.93% vs K32IndependentGates .6778; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs direct baseline: final gap -.004, speed -7%; generic+concat health ON.
+    # Completed 13500. vs K32IndependentGates: large early gain narrowed to~-.005 late.
+    # Last5(12600-13400) mean-.005276, range-.005620..-.005032.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer'
     bam_local_vo_independent_gates = True
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer']
@@ -7497,7 +7498,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     """Independent V/O gates on the K64 shared-C8 column read."""
     # code_commit: 8c188b0; UE5a .6320 steps/s (10-14), -.88% vs IndependentGatesK64QK32 .6376; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs direct baseline: final gap -.004, speed -.5%; generic+concat health ON.
+    # Completed 13500. vs IndependentGatesK64QK32: early gain shrank, then held~-.0027 late.
+    # Last5(12600-13400) mean-.002674, range-.002889..-.002421.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer'
     bam_local_vo_independent_gates = True
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer']
@@ -7509,7 +7511,9 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     # code_commit: 8c188b0; UE5a .6182 steps/s (10-14), -2.18% vs24-layer IndependentGatesQK48 .6320.
     # Generic+concat health ON; 1012 vs968 read-health scalars (+44 from final L).
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs direct baseline: final gap -.003, speed -2%; generic+concat health ON.
+    # Completed 13500. vs24-layer IndependentGatesQK48: deficit narrowed but stayed positive;
+    # last5(12600-13400) mean+.001890, range+.001464..+.002226.
+    # vs IndependentGatesK64QK32: small persistent gain, last5-.000784 (range-.000957..-.000401).
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer'
     bam_local_vo_independent_gates = True
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer',

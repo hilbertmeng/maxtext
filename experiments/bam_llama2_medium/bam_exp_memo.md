@@ -611,3 +611,25 @@ K128 formal training adopted all-dot runtime `9a58407` after checkpoint9024;
 UE5a resumed steps9035–39 .5690 steps/s, +13.89% vs pre-switch .4996 and
 -4.08% vs K64 .5932 at the same steps, with matched health. Full result matrix,
 BF16 value checks, scope limits and retained raw paths are in the linked report.
+
+
+### Shared-C8 K64: spend QK savings on width before depth (2026-09-20)
+
+The independent-VO-gate K64 family (`8c188b0`, implementation worktree
+`/data0/xd/llf-parameter-matched`) completed 13,500 steps. Final five common
+windows (12,600–13,400): QK48 with MLP3050/3050/3045 beats QK32 with
+MLP2879/2879/2874 by .002674; spending the QK savings on a 25th L instead
+(original MLP2879/2879/2874, tail2970) beats QK32 by only .000784 and loses
+to the wider 24-layer model by .001890. The 25-layer model is 2.18% slower
+than 24-layer QK48, with 44 extra health scalars. Its early deficit shrank but
+did not reverse: an added terminal L is not a better use of this budget than
+widening existing MLPs. This conclusion is specific to this placement and family.
+
+Untying LocalV/O gates also reversed the early QK48-vs-QK32 ranking relative
+to the old shared-gate series. Do not transfer early rankings between gate
+schemes or attribute the whole difference to gate freedom: the current
+independent implementation also moves gate multiplication from the read key
+to the read output, mathematically equivalent but not bitwise equivalent in
+BF16. A tied-gate control on that same post-contraction path remains unrun.
+Raw cumulative comparisons: `/data0/xd/k64-independent-final-report.txt`;
+formatted report: `/data0/xd/k64-independent-final-report.md`.

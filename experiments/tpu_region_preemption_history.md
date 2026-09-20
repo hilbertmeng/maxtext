@@ -91,6 +91,7 @@ inventing a duration. A passive queue is not an active-zone switch.
 | `BamLlama2MediumV2C256ScanAotOldMixScaleOnly` | v5p-16 | `us-east5-a` | 2026-09-07 01:19:07 | 2026-09-07 07:32:40 | completed 13,500; final checkpoint committed; zero preemptions/switches; TPU and queue deletion verified | none |
 | `BamLlama2MediumV2C256ScanAotCleanMixScaleOnly` | v5p-16 | `us-east5-a` | 2026-09-07 01:21:07 | 2026-09-07 07:35:57 | completed 13,500; final checkpoint committed; zero preemptions/switches; TPU and queue deletion verified | none |
 | `BamLlama2MediumV2C256LocalFetchC8SharedReadLLFV64PostReadV32Scan` | v5p-16 | `us-east5-a` | 2026-09-08 03:44:16 | 2026-09-08 05:16:18 | review stop; checkpoint 2,876; one preemption, same-zone recovery; TPU and queue deletion verified 05:18:54 | none |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-20 10:03:41 | 2026-09-20 11:32:10 | user hot replacement; committed3338; TPU retained by C8IndependentGates | UC1a/EW4b configured, never active |
 
 ## READY leases
 
@@ -394,3 +395,4 @@ inventing a duration. A passive queue is not an active-zone switch.
 | CleanMixScaleOnly | 1 | `us-east5-a` | 2026-09-07 01:25:41 | 2026-09-07 07:35:57 | 6h10m16s | completed; zero preemptions; end is post-deletion registry closeout (training exit 07:34:07), not a preemption |
 | LocalFetchC8SharedReadLLFV64PostReadV32Scan | 1 | `us-east5-a` | 2026-09-08 03:48:31 | 2026-09-08 04:49:48 | 1h01m17s | preempted; checkpoint 2,235; same-zone recovery |
 | LocalFetchC8SharedReadLLFV64PostReadV32Scan | 2 | `us-east5-a` | 2026-09-08 04:57:10 | 2026-09-08 05:16:18 | 19m08s | manual review stop; checkpoint 2,876; TPU and queue deletion verified 05:18:54 |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedRank4MLPPerLayer | 1 | `us-east5-a` | 2026-09-20 10:06:53 | 2026-09-20 11:32:10 | 1h25m17s | user hot switch; committed3338; no preemption; TPU retained by C8IndependentGates |

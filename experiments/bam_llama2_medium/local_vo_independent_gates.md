@@ -2,7 +2,8 @@
 
 Implementation worktree `/data0/xd/llf-parameter-matched`, branch `codex/llf-parameter-matched`.
 RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer`.
-TPU `xd-v5p-16-qkstatic-vo-c8-independent-gates-maxtext`.
+TPU `xd-v5p-16-qkstatic-vo-shared-r4-maxtext` retained by hot replacement;
+launcher ID `qkstatic-vo-c8-independent-gates`.
 Direct baseline `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer`
 (runtime5d535d3, UE5a .6890 step/s, generic+concat health ON).
 
@@ -32,4 +33,9 @@ Report any timing comparison with this small telemetry difference visible.
 Bet vs parent: finalgap-.002 (plausible-.001..-.003,~60% improvement), speed-.3%.
 
 Training primaryUE5a, backupsUC1a/EW4b after5min; checkpoint200.
-AOT primaryEW4a, backupsUC1a/UE5a. New prefix, train from scratch; existing five runs continue.
+AOT primaryEW4a, backupsUC1a/UE5a. New prefix, train from scratch.
+User-authorized hot replacement of sharedRank4 after2800; committed3338 at2026-09-20T11:32:10Z.
+Other four runs continue. Runtime95ec0d6; AOT compiled, new launch submitted on retained UE5a node.
+
+AOT loaded/FIRST_STEP verified; steps10–14 mean .6778 step/s, -1.63% vs SharedC8 .6890.
+This exceeds the -.3% timing bet; extra gate arithmetic versus 48 extra health scalars is unresolved (!?).

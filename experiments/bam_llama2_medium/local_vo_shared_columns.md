@@ -25,7 +25,7 @@ No additional health scalars beyond the920 of direct QK-static baseline.
 
 Training primary UE5a; backups UC1a/EW4b after5min. AOT EW4a, then UC1a/UE5a.
 No old runs stopped as part of launching these arms.
-Pre-run bets vs QK static: full rank4 gap-.001, speed+1%; C8 gap+.002, speed+3%.
+C8 pre-run bet vs QK static: gap+.002, speed+3%.
 
 Validation: actual parameter trees `/data0/xd/vo-shared-audit.json`;
 full24-layer train-step trace `/data0/xd/vo-shared-trace.log`;
@@ -37,3 +37,7 @@ finite nonzero donor gradients, and unchanged F V/fetched parameters.
 Runtime `5d535d3`; both started on UE5a, AOT loaded and FIRST_STEP verified.
 Steps10–14: rank4 .6886 step/s (+1.89% vs QKStatic .6758), C8 .6890 (+1.95%).
 All three use matching generic+concat health; both compiler states ready with no cleanup failures.
+
+Rank4 paused at committed3338 for user hot replacement by independent-gate C8.
+Gap vs QKStatic: +.103227@200 shrank to +.0162@2800–3200; last5 mean+.016680.
+At2800 it remained+.015909 worse than SharedC8 with essentially equal speed and unchanged cache.

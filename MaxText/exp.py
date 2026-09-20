@@ -8220,8 +8220,9 @@ class BamMediumIndependentLLFColOnlyVConcatMLPPerLayer(BamMediumIndependentLLFML
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411607312 params: -8944 (-.00217%) vs MHA. L0 full V, no LocalV/LocalO.
     # L0 MLP2650; subsequent L/F MLP2703/2596. M-cache unchanged.
-    # Prediction vs ColOnly: final gap +.006, speed -1%; generic ON/BAM OFF.
+    # Prediction vs ColOnly: final gap +.006, speed -1%; generic + targeted BAM read health ON.
     model_name = 'BamMediumIndependentLLFColOnlyVConcatMLPPerLayer'
+    bam_record_concat_health = True
     bam_read_gate_init = 0.05
     bam_read_key_scale = 0.2
     bam_local_v_key_scale = 0.1
@@ -8239,8 +8240,9 @@ class BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer(BamMediumInde
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # 411592576 params: -23680 (-.00575%) vs MHA. M-cache unchanged.
     # Shared nonzero-init QK column bases, independent head mixing/gates; NoPE32/RoPE32.
-    # Prediction vs ColOnly: final gap -.003 (low confidence), speed -2%; generic ON/BAM OFF.
+    # Prediction vs ColOnly: final gap -.003 (low confidence), speed -2%; generic + targeted BAM read health ON.
     model_name = 'BamMediumIndependentLLFColOnlyQKConcatSharedRank4MLPPerLayer'
+    bam_record_concat_health = True
     bam_read_gate_init = 0.05
     bam_read_key_scale = 0.2
     bam_local_v_key_scale = 0.1

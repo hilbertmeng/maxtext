@@ -62,7 +62,6 @@ P_loc131840 params/layer vs393728; saves261888 (.249755859375 W_Q/layer).
 Ideal MLP increment85.25; nearest per-layer integer +85 yields3135/3135/3130.
 Total411867008:18432 fewer than parent (-.004475%). No hardware-friendly rounding.
 Direct baselines: original K48 shared-rank4 and PLocR128Gelu.
-Prediction final gap vsoriginal +.001 [-.004,+.008], speed approximately flat.
 Plan13500, checkpoint200, review2800 with late MLP benefit considered; report1000-step batches.
 
 Fifth-arm validation:56 pinned CPU tests pass (both layer roles, full-input gradients, shared-basis and full-bias gradients); actual parameter/sharding audit411867008, overhead.1773%; full train trace968 health scalars.
@@ -74,7 +73,6 @@ RUN: `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 Same parameter count411867008 and MLP3135/3135/3130 as fifth arm.
 Owned TPU `xd-v5p-16-k48-ploc-head-c8-gelu-maxtext`; same worktree, regions and schedule.
 Direct baselines: original K48, linear PLocHeadC8, PLocR128Gelu.
-Prediction final gap -.002 vs linear HeadC8; -.001 [-.005,+.007] vs original K48; speed flat.
 Unlike GELU on cropped raw x, this GELU acts on learned full-input projections.
 
 Sixth-arm validation:56 pinned CPU tests pass; actual411867008 parameters and sharding pass; full train trace968 health scalars. Weight-rank diagnostic: [k48_ploc_up_rank_diagnostic.md](k48_ploc_up_rank_diagnostic.md).
@@ -104,3 +102,20 @@ then plateaued near +.042; last5 (2200–3000) mean+.041635, range+.040611..+.04
 Returning all address-projection savings to MLP did not recover the loss; equal total parameters and M-cache.
 UE5a .6530 step/s, +2.38% with matched health. Checkpoint3037 committed, TPU/queue absent, TB SYNC_OK.
 Artifacts: `/data0/xd/ploc-static-final-report.txt`, `/data0/xd/ploc-static-closeout.log`.
+
+## HeadC8 GELU closeout
+
+Stopped 2104. Original-K48 gap narrowed from+.103 at400 to+.033 at1400, then stalled through2000.
+Last5 (1200–2000): vsK48+.034136 [.032470,.038937], vslinearHeadC8+.014498 [.012556,.018003],
+vsR128+.032771 [.030331,.037279]. Still narrowing vslinearHeadC8, but both trail original K48.
+Same parameters/MLP/cache aslinearHeadC8; matched-health speed+.13% vsHeadC8, +.09% vsK48, +.41% vsR128.
+Checkpoint2104 committed, TPU/queue absent, TB SYNC_OK.
+Artifacts: `/data0/xd/headc8-gelu-review2000.md`, `/data0/xd/headc8-gelu-closeout.log`.
+
+## Linear HeadC8 closeout
+
+Stopped 2903. Original-K48 gap narrowed to+.0167 at1000, then stalled/widened to+.0224 at2800.
+Last5 (2000–2800): vsK48+.021045 [.019817,.022356], vsR128+.017578 [.017247,.017866].
+Matched-health speed-.03% vsK48, +.28% vsR128; unchanged M-cache, negligible total parameter difference.
+Checkpoint2903 committed, TPU/queue absent, TB SYNC_OK.
+Artifacts: `/data0/xd/headc8-review2800.md`, `/data0/xd/headc8-closeout.log`.

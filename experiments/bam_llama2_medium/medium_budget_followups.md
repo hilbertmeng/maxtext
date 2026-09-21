@@ -30,3 +30,5 @@ Full run names:
 - `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear`
 - `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear`
 - `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128`
+
+Runtime e3791a14 (full hash in `/data0/xd/medium-budget-followups-runtime.txt`). Pinned BAM suite57PASS384.454s; actual initialized totals all411885440; shardingoverhead.1668503%<2%; fulltraintrace968metrics allPASS. Artifacts `/data0/xd/medium-budget-followups-{tests.log,audit.json,health-trace.log}`. Three exact AOT preparations submitted independently; readiness launchers gated on ready+cleanup success.

@@ -47,3 +47,22 @@ Runtime `42a0f72`: all four loaded sealed AOT, started atstep0, and passed FIRST
 - PLocSlice384Linear: steps10–14 0.6358/s (-0.31% vs baseline); steps20–24 0.6364/s.
 - PLocSlice384Gelu: steps10–14 0.6350/s (-0.44% vs baseline); steps20–24 0.6354/s.
 Evidence: `/data0/xd/ploc-four-start-verified.json`; all compiler states ready with cleanup_failures=[].
+
+## Fifth arm: per-head C8 write coefficients with shared address basis
+
+RUN: `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8`.
+Same worktree/branch and training policy. Owned TPU `xd-v5p-16-k48-ploc-head-c8-maxtext`.
+Use complete x[D1024] ->16x8 dynamic coefficients (no bias/GELU), shared learned8x32 basis,
+then independent16x32 zero-initialized bias before the original address RMSNorm.
+The basis is independent of all read-side C8 projections. L and F both use this write-address form.
+The dynamic component lies in an8-dimensional subspace; the full32-dimensional per-head bias
+is intentionally unrestricted. Write-data, write gates, M-cache and read paths inherit baseline.
+
+P_loc131840 params/layer vs393728; saves261888 (.249755859375 W_Q/layer).
+Ideal MLP increment85.25; nearest per-layer integer +85 yields3135/3135/3130.
+Total411867008:18432 fewer than parent (-.004475%). No hardware-friendly rounding.
+Direct baselines: original K48 shared-rank4 and PLocR128Gelu.
+Prediction final gap vsoriginal +.001 [-.004,+.008], speed approximately flat.
+Plan13500, checkpoint200, review2800 with late MLP benefit considered; report1000-step batches.
+
+Fifth-arm validation:56 pinned CPU tests pass (both layer roles, full-input gradients, shared-basis and full-bias gradients); actual parameter/sharding audit411867008, overhead.1773%; full train trace968 health scalars.

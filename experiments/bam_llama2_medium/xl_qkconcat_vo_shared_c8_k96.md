@@ -21,7 +21,9 @@ ID xl-qkstatic-vo-c8-ig-k96-directc8. Review10000, checkpoint250,total50000.
 Also compare directly with `BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE`: historical best equal-budget arm,
 26500–28500 gap−.00416vsK64; sameparameters,2xM-cache. NewK96has25%lesscachethanK128.
 
-## Depth allocation arm
+## Depth allocation arm (cancelled before training)
+
+Superseded by27layers; user requests only24and27.
 
 RUN `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC825Layer`; direct baseline only the24-layernewK96arm.
 Analogous to Medium QK48deptharm: spend the additional standardQK64→32 savings

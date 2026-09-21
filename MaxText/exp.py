@@ -7633,8 +7633,8 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
 class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC825Layer(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
     """Eight LLF blocks plus a final L; spend the QK64->96 savings on depth."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Cancelled before training; replaced by the 27-layer equal-width arm.
     # Original24 MLP5925; final L6224. Nearest MHA budget; no hardware rounding.
-    # Prediction vs24-layer K96: final gap -.0015 (-.004..+.002), speed -3%; fetch cache unchanged.
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC825Layer'
     base_num_decoder_layers = 25
     bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8 + ['local_qk+local_o']

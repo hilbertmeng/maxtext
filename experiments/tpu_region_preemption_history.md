@@ -106,6 +106,8 @@ inventing a duration. A passive queue is not an active-zone switch.
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu` | v5p-16 | `us-east5-a` | 2026-09-21 09:59:45 | 2026-09-21 11:05:41 | user-authorized review stop; checkpoint2116 committed | UC1a/EW4b configured; no active switch |
 
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic` | v5p-16 | `us-east5-a` | 2026-09-21 09:59:46 | 2026-09-21 11:28:03 | user-authorized review stop; checkpoint3037 committed | UC1a/EW4b configured; no active switch |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -430,3 +432,4 @@ inventing a duration. A passive queue is not an active-zone switch.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer | 4 | `us-east5-a` | 2026-09-20 19:43:00 | 2026-09-20 21:41:38 | 1h58m38s | completed13500; checkpoint13500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer | 4 | `us-east5-a` | 2026-09-20 19:42:45 | 2026-09-20 21:44:29 | 2h01m44s | completed13500; checkpoint13500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu | 1 | `us-east5-a` | 2026-09-21 10:06:14 | 2026-09-21 11:05:41 | 59m27s | user-authorized review stop; checkpoint2116 committed; TPU/queue absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic | 1 | `us-east5-a` | 2026-09-21 10:05:57 | 2026-09-21 11:28:03 | 1h22m06s | user-authorized review stop; checkpoint3037 committed; TPU/queue absent |

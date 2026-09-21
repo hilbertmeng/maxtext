@@ -31,7 +31,7 @@ Formal primary UE5a, backup UC1a/EW4b after5min; recent owned UE5a Medium leases
 lasted2h16m and1h33m, with one prior27min preemption. Compiler primary EW4a,
 backup UC1a/UE5a per diagnostics policy. Compile exact v5p-16 topology before requesting trainers.
 
-Predicted terminal RUN-baseline gaps: R128 +.002 [-.003,+.006]; static +.008 [0,+.020];
+Predicted terminal RUN-baseline gaps: R128 +.002 [-.003,+.006];
 slice-linear +.004 [-.002,+.012]. Speed approximately flat:
 linear projection FLOPs saved from P_loc return in MLP. Baseline .6378 with matched health.
 
@@ -96,3 +96,11 @@ Artifacts: `/data0/xd/ploc-report-2000.md`, `/data0/xd/ploc-slice-gelu-closeout.
 Sixth arm launched UE5a fromstep0, runtime9dfd1d3; AOT loaded/FIRST_STEP passed.
 Steps10–14 .6384/s (+.09% vsoriginal, +.13% vsHeadC8, +.41% vsR128), steps20–24 .6380/s.
 Evidence `/data0/xd/ploc-headc8-gelu-start-verified.json`; compilerready/cleanup[].
+
+## Static-address closeout
+
+Stopped 3037. Against original K48, gap narrowed from +.203 at200 to +.043 at1800,
+then plateaued near +.042; last5 (2200–3000) mean+.041635, range+.040611..+.042129.
+Returning all address-projection savings to MLP did not recover the loss; equal total parameters and M-cache.
+UE5a .6530 step/s, +2.38% with matched health. Checkpoint3037 committed, TPU/queue absent, TB SYNC_OK.
+Artifacts: `/data0/xd/ploc-static-final-report.txt`, `/data0/xd/ploc-static-closeout.log`.

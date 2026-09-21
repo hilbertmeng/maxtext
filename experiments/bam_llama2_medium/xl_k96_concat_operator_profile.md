@@ -46,3 +46,12 @@ outer-product scope43.005→21.530ms, but this does not produce a material end-t
 benefit on its own; other scopes/layout effects offset it. Scope totals overlap and are not additive.
 All4XPlanes plus4JSON traces verified locally; parsed summaries `profile-*.json/.txt`.
 All selected and backup diagnostic resources verified absent after artifact collection.
+
+## Formal continuation verified
+
+Both formal runs switched to `821f870d9fc64e7ee94c8ba78796397874e5a961`, preserving
+checkpoint parameters, optimizer and verified data cursor. XL24 resumed3662 from3661;
+steps3671–3675 average .5378 (+4.55% vs .5144). XL27 resumed2549 from2548;
+steps2558–2562 average .5134 (+6.16% vs .4836). Both loaded exact AOT; LR remained on the
+50000-step schedule, registry/controller commits and baselines agree. Generic/BAM health unchanged.
+XL27 is now4.54% slower than XL24. Handoff JSON and traces remain in the raw artifact directory.

@@ -29,3 +29,5 @@ Pinned CPU BAM tests:57PASS (381.249s). No attention-code changes from validated
 User selected hot replacement of Slice384Linear once exact AOT is ready; retain its final checkpoint.
 
 Launch verified: runtime25b7eb2, AOT loaded, step0 start, FIRST_STEP51. Steps10–14 .6282/s (-1.51% vs K48 .6378, matched968 health),20–24 .6272/s. Evidence `/data0/xd/medium-qk-joint-start-verified.json`. Slice checkpoint10924 retained.
+
+User cadence: report every1000steps, with an explicit2800-step decision before3000; retain200-step loss windows.

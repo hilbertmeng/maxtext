@@ -41,3 +41,5 @@ full train-step tracing exports968 scalar read-health metrics.
 User-directed handoff: separate-C8 RUN paused at committed11193; new RUN starts from0 on retained `xd-v5p-32-xl-qkstatic-vo-c8-ig-k96-directc8-27-maxtext` (UE5a). Unstarted extra queue removed. AOT runtime348fd5a ready, compiler cleanup verified.
 
 Launch verified: runtime348fd5a, AOT loaded, step0 start, FIRST_STEP confirmed. Steps10–14 .5388/s (-1.17% vs rank4 .5452, matched968 health); steps20–24 .5400/s. Evidence `/data0/xd/xl-qk-joint-start-verified.json`.
+
+Monitoring baselines: shared rank4 isolates joint-GELU change; original shared-P DirectC8 measures gain against the strongest current XL variant. Both are direct comparisons. Shared-rank4 briefly paused11777, then user requested resume through at least20000 after noting recent narrowing; original runtime/schedule retained.

@@ -25,9 +25,6 @@ checking exact preservation of initial parameters/output, projection isolation, 
 once the zero-initialized O read key has begun learning. Both full-size parameter/sharding audits pass;
 actual train-step traces produce968health scalars. Audit artifacts `/data0/xd/separate-qk-{audit,trace,focused}.log`.
 
-Predictions: K48 minus shared-projection parent final -.006 (-.012..+.002);
-K64 -.001 (-.004..+.002); speed -1% each. Differential rescue, not extra parameter capacity, is the main test.
-
 ## Launch verification
 
 Both use sealed runtime `27acf149c5223b29666680777eec8070cf77fa76`, exact v5p-16/s13500 AOT.
@@ -47,3 +44,15 @@ Speed .6324 vs .6378 (−.85%), matched health. This is a monitoring-only update
 K64 monitoring also includes the original shared-rank4 baseline
 `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer`,
 completed13500, runtime8c188b0. Speed .6162 vs .6320 (-2.50%), matched968 health.
+
+## Closeout
+
+K48 stopped4961; last5 through4800: -.006718 vs shared-P DirectC8,
++.002357 vs original K48 rank4. Sharing the QK/O compression explains much of the
+DirectC8 regression, but separating it still did not beat rank4; speed -.85% vs rank4.
+K64 stopped4172; last5 through4000: +.005187 vs shared-P DirectC8,
++.007086 vs K64 rank4. Its extra deficit versus DirectC8 flattened around+.005;
+no net gain versus rank4, speed -2.50%. Both retain the same cache and MLP widths.
+Both final checkpoints committed; TPU/queues absent; TensorBoard SYNC_OK.
+Raw reports `/data0/xd/k48-split-final.md`, `/data0/xd/k64-split-final.md`;
+closeout `/data0/xd/medium-split-closeout-summary.json`.

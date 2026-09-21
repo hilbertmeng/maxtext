@@ -8506,6 +8506,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer):
     """Ledger only: M48x32/C8 with independent dynamic Q/K C8 keys and full-M static Q/K."""
+    # code_commit: bf165a7; UE5a .6350 steps/s (10-14), -.44% vs K48 rank4, +1.76% vs K64 DirectC8; matched968 health.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs K48 rank4: final gap -.0005 (-.002..+.002); near parity vs K64 DirectC8.
     # Expected slightly faster than K64 DirectC8, M-cache -25%; initial Q/K scale remains .2.
@@ -8518,6 +8519,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
     """Ledger only: Column-only XL: standard QK32 + static/dynamic BAM96; shared VO C8, separate gates."""
+    # code_commit: c8e1a74; UE5a .5144 steps/s (10-14); vs ColOnly .5932 -13.28%, K128 .5690 -9.60%.
+    # !? Timing unmatched: generic ON throughout, BAM968 here vs OFF in historical bases.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Direct baseline is the historical all-column, per-layer MHA-budget XL run.
     # 1420867456 params (-32768 vs ColOnly); M-cache +50% for K64->96.
@@ -8569,6 +8572,19 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
     bam_final_local_mlp_dim = 6224
     compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-qkstatic-vo-c8-ig-k96-directc8-25layer'
+
+
+class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC827Layer(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
+    """Ledger only: Nine complete LLF blocks, with equal total parameters per layer."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # MLP5351 throughout; -53904 params vs MHA; fetch M-cache +12.5% vs24 layers.
+    # Prediction vs24-layer K96: final gap -.002 (-.006..+.003), speed -8% with matched health.
+    model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC827Layer'
+    base_num_decoder_layers = 27
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 9
+    mlp_dim_by_block = [5351, 5351, 5351]
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-qkstatic-vo-c8-ig-k96-directc8-27layer'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

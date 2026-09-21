@@ -507,6 +507,62 @@ class BamReadKeyTransformTest(absltest.TestCase):
       self.assertGreater(float(jnp.linalg.norm((read(params,'q',m)-after[0]).astype('float32'))),0.)
       np.testing.assert_array_equal(read(params,'k',m),after[1])
 
+  def test_l_only_value_bottleneck_forward_gradients_and_fetch_unchanged(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    parent_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer'
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'v256').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class=parent_name, run_name='v256', enable_checkpointing=False,
+          base_output_directory=out+'/', jax_cache_dir='', log_config=False,
+          dataset_type='synthetic', base_emb_dim=128, base_num_query_heads=2,
+          base_num_kv_heads=2, head_dim=64, max_target_length=8,
+          max_prefill_predict_length=8, query_chunk_size=4, per_device_batch_size=1.)
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+          head_dim=64, bam_k=64, bam_v=32, max_target_length=8,
+          max_prefill_predict_length=8, mesh=mesh, attention_kernel='dot_product_chunk',
+          kernel_init=initializers.get_init_method(cfg.init_method),
+          dtype=cfg.dtype, layer_mode='local_qk+full', read_side='col', attention_type=cfg.attention_type)
+      x = jax.random.normal(jax.random.key(401), (1,8,128), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(402), (1,8,64,32), dtype=cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=m, deterministic=True, layer_index=2)
+      reference = module.init({'params':jax.random.key(403)}, *args, **kw)['params']
+      cfg.get_keys()['bam_local_v_projection_rank'] = 32
+      for activation in ('none', 'gelu'):
+        cfg.get_keys()['bam_local_v_projection_activation'] = activation
+        fetched = module.init({'params':jax.random.key(403)}, *args, **kw)['params']
+        self.assertEqual(jax.tree.structure(reference), jax.tree.structure(fetched))
+        for a,b in zip(jax.tree.leaves(reference),jax.tree.leaves(fetched)):
+          np.testing.assert_array_equal(a,b)
+        local = module.clone(layer_mode='local_qk+local_o')
+        params = unfreeze(local.init({'params':jax.random.key(403)},*args,**kw)['params'])
+        self.assertNotIn('value',params)
+        self.assertEqual(params['value_down']['kernel'].value.shape,(128,32))
+        self.assertEqual(params['value_up']['kernel'].value.shape,(32,2,64))
+        self.assertNotIn('bias',params['value_down'])
+        self.assertNotIn('bias',params['value_up'])
+        (_,mout), capture = local.apply({'params':params},*args,**kw,
+            capture_intermediates=lambda mod,method: method=='_standard_value_projection',mutable=['intermediates'])
+        hidden = jnp.einsum('btd,dr->btr',x,params['value_down']['kernel'].value.astype(x.dtype))
+        if activation == 'gelu': hidden = nn.gelu(hidden)
+        expected = jnp.einsum('btr,rnh->btnh',hidden,params['value_up']['kernel'].value.astype(x.dtype))
+        np.testing.assert_allclose(capture['intermediates']['_standard_value_projection'][0].astype('float32'),expected.astype('float32'),rtol=.01,atol=.002)
+        self.assertEqual(mout.shape,m.shape)
+        grad = jax.grad(lambda p: jnp.mean(local.apply({'params':p},*args,**kw)[0].astype('float32')**2))(params)
+        for name in ('value_down','value_up'):
+          g = grad[name]['kernel'].value.astype('float32')
+          self.assertTrue(bool(jnp.all(jnp.isfinite(g))))
+          self.assertGreater(float(jnp.linalg.norm(g)),0.)
+        y,m0 = local.apply({'params':params},*args,**dict(kw,M_in=jnp.zeros_like(m),layer_index=0))
+        self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
+        self.assertGreater(float(jnp.linalg.norm(m0.astype('float32'))),0.)
+
   def test_concat_shapes_write_seed_and_qk_learning(self):
     import max_utils
     import pyconfig

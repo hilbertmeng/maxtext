@@ -131,3 +131,34 @@ Implementation remains this worktree/branch. Both retain NoPE48/RoPE16,
 Formal13500 steps, checkpoint200, primaryUE5a with UC1a/EW4b backups;
 AOT primaryEW4a with UC1a/UE5a backups. New RUNs from scratch.
 Validation artifacts `/data0/xd/k48qk48-directc8-{audit.json,trace.log,tests.log}`.
+
+## L-only W_V rank256 pair (2026-09-20)
+
+Direct parent remains IndependentGatesK64QK48TruncateMLPPerLayer (8c188b0),
+not the new K48 or DirectC8 variants. RUNs:
+- `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer`,
+  TPU `xd-v5p-16-qkstatic-vo-c8-ig-v256-linear-maxtext`.
+- `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer`,
+  TPU `xd-v5p-16-qkstatic-vo-c8-ig-v256-gelu-maxtext`.
+
+Only16 L layers replace standard W_V1024x1024 with down1024x256 and up256x1024,
+without bias. LocalV is added after the up projection; BAM otherwise unchanged.
+Eight F layers keep full W_V: they have no LocalV replacement route. W_O stays full
+because it carries both standard and BAM outputs back into the residual stream.
+QK already allocates48/64 coordinates to BAM, with standard16/RoPE16.
+
+Both branches train from scratch; both factors nonzero. Down is fan-in normal
+(unit hidden variance for normalized input); up uses the original .006 initializer
+with gain sqrt(1024/256)=2. GELU up gain additionally divides by sqrt(.425193711),
+the second moment of tanh-approximate GELU of a unit Gaussian. This matches initial
+output second moment in expectation without adding normalization or runtime scales.
+The activation is the only forward-function difference between the two bottlenecks.
+
+Each L saves524288=0.5W_Q,16 L save8W_Q. Return171 MLP units to each L:
+MLP[3221,3221,3045], estimated411901824 total (parent+16384 integer-rounding residual).
+No hardware rounding. Parameter-matched dense projection/MLP MACs are nearly unchanged;
+extra projection/GELU may affect realized throughput. Bet linear gap+.001, GELU-.002
+vs parent; speed unchanged. GELU also compares directly to linear.
+
+Same worktree/branch, health968, formal13500/checkpoint200, primaryUE5a backupsUC1a/EW4b;
+AOT primaryEW4a backupsUC1a/UE5a. Artifacts `/data0/xd/wv-r256-{audit.json,trace.log,target-test.log}`.

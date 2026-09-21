@@ -3141,6 +3141,34 @@ class BamAttention(Attention):
     # Full-M linear read: zero-init key, no key RMS, no scale, no gate.
     return jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
 
+  def _standard_value_projection(self, x, projection_dim=None):
+    rank = getattr(self.config, 'bam_local_v_projection_rank', None)
+    if rank is None or not self._local_o:
+      return self.kv_projection(x, proj_name='value', projection_dim=projection_dim)
+    assert projection_dim is None and not self.config.qkv_bias
+    assert 0 < rank < min(x.shape[-1], self.num_kv_heads * self.head_dim)
+    activation = self.config.bam_local_v_projection_activation
+    assert activation in ('none', 'gelu')
+    # Unit-variance hidden input; up retains the original V output variance.
+    # E[gelu(Z)^2] ~= .425193711 for unit Gaussian Z and tanh-approximate GELU.
+    gain = (x.shape[-1] / rank) ** .5
+    if activation == 'gelu':
+      gain /= .425193711 ** .5
+    def up_init(key, shape, dtype, in_axis=0, out_axis=1):
+      return self.kernel_init(key, shape, dtype, in_axis, out_axis) * gain
+    hidden = DenseGeneral(
+        features=rank, axis=-1, kernel_init=nd_dense_init(1., 'fan_in', 'normal'),
+        kernel_axes=('embed', 'mlp'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+        name='value_down', quant=self.quant, matmul_precision=self.config.matmul_precision,
+        use_bias=False)(x)
+    if activation == 'gelu':
+      hidden = nn.gelu(hidden)
+    return DenseGeneral(
+        features=(self.num_kv_heads, self.head_dim), axis=-1, kernel_init=up_init,
+        kernel_axes=('mlp', 'kv_heads', 'kv_head_dim'), dtype=self.dtype,
+        weight_dtype=self.weight_dtype, name='value_up', quant=self.quant,
+        matmul_precision=self.config.matmul_precision, use_bias=False)(hidden)
+
   def _read_direct_qk_c8(self, name, M, compressed_M, x):
     """Independent per-head dynamic C8 read plus the original full-M static read."""
     key = getattr(self, f'W_l{name}_c8')(x)
@@ -3456,8 +3484,8 @@ class BamAttention(Attention):
       query = self.query_projection(inputs_q, self.head_dim - self._qk_col_width if concat_qk else None)
       key = self.kv_projection(inputs_kv, proj_name="key",
                                projection_dim=self.head_dim - self._qk_col_width if concat_qk else None)
-      value = self.kv_projection(inputs_kv, proj_name="value",
-                                 projection_dim=self.head_dim - self.bam_k if concat_v else None)
+      value = self._standard_value_projection(
+          inputs_kv, projection_dim=self.head_dim - self.bam_k if concat_v else None)
 
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None

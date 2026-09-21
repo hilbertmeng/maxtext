@@ -7772,7 +7772,7 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     """Dynamic shared rank4 LocalQK on full M; retain full-M static Q/K reads."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP6266 unchanged; only LocalQK dynamic reading changes.
-    # Prediction vs XL24 shared-P DirectC8: final gap +.001 (-.004..+.006), speed +1%.
+    # Prediction vs XL24 shared-P DirectC8: final gap -.003 (-.008..+.003), speed +1%.
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer'
     bam_local_qk_direct_c8 = False
     bam_local_qk_separate_c8_projection = False

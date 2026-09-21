@@ -8768,7 +8768,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # code_commit: 42a0f72; UE5a 0.6530 steps/s, +2.38% vs K48 rank4 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Exact parent total parameter count; unchanged M-cache and read configuration.
-    # Prediction vs K48 shared rank4: final gap +.008 (0..+.020); speed approximately flat.
+    # Stopped 3037. vs K48: early +.203 shrank, then plateaued near +.042 from 1800; last5 (2200–3000) +.04164.
+    # Returning static-address savings to MLP did not recover dynamic-address loss; same parameters/cache.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic'
     bam_write_address_mode = 'static'
     bam_write_v_bottleneck_dim = None

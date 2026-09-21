@@ -31,8 +31,7 @@ Formal primary UE5a, backup UC1a/EW4b after5min; recent owned UE5a Medium leases
 lasted2h16m and1h33m, with one prior27min preemption. Compiler primary EW4a,
 backup UC1a/UE5a per diagnostics policy. Compile exact v5p-16 topology before requesting trainers.
 
-Predicted terminal RUN-baseline gaps: R128 +.002 [-.003,+.006];
-slice-linear +.004 [-.002,+.012]. Speed approximately flat:
+Predicted terminal RUN-baseline gap: slice-linear +.004 [-.002,+.012]. Speed approximately flat:
 linear projection FLOPs saved from P_loc return in MLP. Baseline .6378 with matched health.
 
 Validation: actual full-model parameter/sharding audit `/data0/xd/ploc-four-audit.json`;
@@ -119,3 +118,12 @@ Last5 (2000–2800): vsK48+.021045 [.019817,.022356], vsR128+.017578 [.017247,.0
 Matched-health speed-.03% vsK48, +.28% vsR128; unchanged M-cache, negligible total parameter difference.
 Checkpoint2903 committed, TPU/queue absent, TB SYNC_OK.
 Artifacts: `/data0/xd/headc8-review2800.md`, `/data0/xd/headc8-closeout.log`.
+
+## R128 GELU closeout
+
+Stopped 5918. Versus original K48, early near-zero gaps widened to~+.005;
+last5 (5000–5800) mean+.005127 [.004251,.006654]. Slice384Linear has equal P_loc and MLP budgets;
+R128 trailed from2000 onward, its last5 disadvantage+.003310 [.001982,.004005] versus previous+.003271.
+No sustained catch-up, speed-.31% vsK48 and flat vsSlice; unchanged parameters/M-cache.
+Checkpoint5918 committed, TPU/queue absent, TB SYNC_OK.
+Artifacts: `/data0/xd/ploc-report-5800.md`, `/data0/xd/ploc-r128-closeout.log`.

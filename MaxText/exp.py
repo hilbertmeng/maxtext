@@ -8707,7 +8707,9 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     # code_commit: 33244e0; UE5a .5452 steps/s (10-14), +1.38% vs XL24 .5378; matched968 health.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP6266 unchanged; only LocalQK dynamic reading changes.
-    # Prediction vs XL24 shared-P DirectC8: final gap -.003 (-.008..+.003), speed +1%.
+    # Resuming from11777; observe through at least20000. vs shared-P DirectC8 last5 through11500 +.003282;
+    # recent gap narrowed +.004043@10000 to+.002489@11500, after an extended +.003~.004 plateau.
+    # Prediction vs shared-P DirectC8: final gap -.003 (-.008..+.003), speed +1%.
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer'
     bam_local_qk_direct_c8 = False
     bam_local_qk_separate_c8_projection = False
@@ -8819,8 +8821,20 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256'
     bam_local_qk_joint_hidden_dim = 256
     mlp_dim_by_block = [6255, 6255, 6256]
-    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer']
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer', 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-k96-qk-rank4-joint-gelu256'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
+    """Ledger only: Joint GELU dynamic QK basis/mixes, exactly matched to the K48 parent budget."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # +65536 BAM params/layer (.0625 W_Q); MLP3029/3029/3023 preserves total411885440.
+    # Prediction vs K48 rank4: final gap -.001 (-.004..+.003); speed approximately flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256'
+    bam_local_qk_joint_hidden_dim = 256
+    mlp_dim_by_block = [3029, 3029, 3023]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-k48-qk-rank4-joint-gelu256'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

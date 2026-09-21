@@ -7905,7 +7905,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Joint GELU dynamic QK basis/mixes, exactly matched to the K48 parent budget."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # +65536 BAM params/layer (.0625 W_Q); MLP3029/3029/3023 preserves total411885440.
-    # Paused7245 for GELU128. vs K48: early gain faded, small deficit at3k–6k, then approached zero;
+    # Paused at 7245 for GELU128. vs K48: early gain faded, small deficit at3k–6k, then approached zero;
     # last5 through7200 +.000323 (-.000202..+.001070). Provisional; same params/M-cache, speed -1.51%.
     # code_commit: 25b7eb2; UE5a .6282 steps/s, -1.51% vs K48 .6378; matched968 health.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256'
@@ -7932,6 +7932,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Exact parent total411885440; original pre-RMS address bias and RMS retained.
     # Bet vs K48: terminal gap -.001 (range -.003..+.0015); matched speed approximately flat.
+    # code_commit: e3791a1; UE5a .6376 steps/s, -.03% vs K48 .6378, +.28% vs Slice384 .6358; matched968 health.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear'
     bam_write_address_input_dim = 768
     mlp_dim_by_block = [3050, 3050, 3045]

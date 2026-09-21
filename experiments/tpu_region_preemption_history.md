@@ -277,6 +277,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-maxtext` (v5p-16) | `us-east5-a` | 2026-09-20 15:02:52 | 2026-09-20 21:44:29 | completed13500; 3 preemptions | UC1a/EW4b configured as passive backups; never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer` | `xd-v5p-16-qkstatic-vo-c8-k64-qk48-25-maxtext` (v5p-16) | `us-east5-a` | 2026-09-20 15:02:08 | 2026-09-20 21:27:53 | completed13500; 0 preemptions | UC1a/EW4b configured as passive backups; never active |
 
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-v256-linear-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:38:55 | 2026-09-21 02:31:23 | user stop; committed3257; zero preemptions; resources absent | none acquired |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-v256-gelu-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:36:55 | 2026-09-21 02:15:25 | service preemption; committed2002 migrated to EW4b | UC1a queued02:08, EW4b queued02:08; EW4b selected |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-v256-gelu-maxtext` (v5p-16) | `europe-west4-b` | 2026-09-21 02:15:25 | 2026-09-21 02:31:26 | two preemptions before resumed training; user stop at committed2002; resources absent02:39:30 | UC1a remained queued, UE5a requeued02:21; both released on stop, never trained |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -918,3 +922,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer | 1 | `us-east5-a` | 2026-09-20 15:02:11 | 2026-09-20 21:27:53 | 6h25m42s | completed13500; checkpoint13500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer | 4 | `us-east5-a` | 2026-09-20 19:43:00 | 2026-09-20 21:41:38 | 1h58m38s | completed13500; checkpoint13500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer | 4 | `us-east5-a` | 2026-09-20 19:42:45 | 2026-09-20 21:44:29 | 2h01m44s | completed13500; checkpoint13500 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer | 1 | `us-east5-a` | 2026-09-21 00:41:11 | 2026-09-21 01:57:07 | 1h15m56s | service preemption; committed2002 |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer | 2 | `europe-west4-b` | 2026-09-21 02:15:28 | 2026-09-21 02:19:29 | 4m01s | service preemption before resumed training; READY already observed02:13, registry start is adoption time |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer | 3 | `europe-west4-b` | 2026-09-21 02:24:34 | 2026-09-21 02:28:01 | 3m27s | service preemption before resumed training |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer | 1 | `us-east5-a` | 2026-09-21 00:43:11 | 2026-09-21 02:31:23 | 1h48m12s | user stop; checkpoint3257 committed |

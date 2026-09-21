@@ -61,7 +61,6 @@ tpu-ag 主仓库不是运行时源码分发源：worker从Git取RUN指定commit�
 
 ## 项目约定与历史陷阱
 
-- 后续 BAM 实验默认采用仅列读版：去掉 Q/K/V/O 的所有行读（包括 Local 与 Fetched），除非用户特别指定保留；不要把仅去掉 LocalV 或 LocalQK 行读的历史配置当作全列读基线。
 - 实验文档登记该任务的worktree、分支、RUN和 `xd-` TPU归属；主 `exp.py`、memo及tpu-ag编排脚本由多个session共享。
 - 已启用仓库级、跨worktree的同名分支 [防误推hook](.githooks/README.md)；实验分支不能直接推到 `refactor-bam`。
 - auto-train负责机械健康检查、抢占恢复、生成报告和TB收尾；agent负责解释、决策及交付。

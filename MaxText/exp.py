@@ -7866,6 +7866,16 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-head-c8"
 
 
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8):
+    """Apply GELU to learned per-head C8 coefficients before the shared address basis."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction: final gap -.002 vs linear HeadC8; -.001 (-.005..+.007) vs original K48; speed flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu'
+    bam_write_v_bottleneck_activation = 'gelu'
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu']
+    jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-head-c8-gelu"
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

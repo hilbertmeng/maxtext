@@ -2644,7 +2644,6 @@ class BamAttention(Attention):
     if self._write_address_mode == 'factorized':
       assert 0 < self._write_address_rank <= self.bam_v
       assert self._write_v_bottleneck_dim is None
-      assert self._write_v_bottleneck_activation == 'none'
     else:
       assert self._write_address_rank is None
     if self._write_address_mode == 'x_slice':
@@ -2658,7 +2657,7 @@ class BamAttention(Attention):
     assert self._write_factor_norm in ('rms', 'grouped_rms')
     assert self._write_v_bottleneck_activation in ('none', 'gelu')
     if self._write_v_bottleneck_dim is None:
-      assert self._write_v_bottleneck_activation == 'none' or self._write_address_mode == 'x_slice'
+      assert self._write_v_bottleneck_activation == 'none' or self._write_address_mode in ('x_slice', 'factorized')
     else:
       assert 0 < self._write_v_bottleneck_dim < cfg.emb_dim
     assert not self._replicate_ploc_up or self._write_v_bottleneck_dim is not None or self._write_address_mode == 'x_slice', (
@@ -3292,7 +3291,10 @@ class BamAttention(Attention):
   def _write_address(self, x):
     """Address before the unchanged per-head write RMS normalization."""
     if self._write_address_mode == 'factorized':
-      address = self.P_loc_address_up(self.P_loc_coeff(x))
+      coefficients = self.P_loc_coeff(x)
+      if self._write_v_bottleneck_activation == 'gelu':
+        coefficients = nn.gelu(coefficients)
+      address = self.P_loc_address_up(coefficients)
       return address + jnp.asarray(self.P_loc_address_bias, address.dtype)
     if self._write_address_mode == 'static':
       return jnp.asarray(self.P_loc_static_bias, self.dtype)

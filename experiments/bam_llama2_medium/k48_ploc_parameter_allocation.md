@@ -66,3 +66,15 @@ Prediction final gap vsoriginal +.001 [-.004,+.008], speed approximately flat.
 Plan13500, checkpoint200, review2800 with late MLP benefit considered; report1000-step batches.
 
 Fifth-arm validation:56 pinned CPU tests pass (both layer roles, full-input gradients, shared-basis and full-bias gradients); actual parameter/sharding audit411867008, overhead.1773%; full train trace968 health scalars.
+
+## Sixth arm: GELU on learned C8 coefficients
+
+RUN: `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu`; inherits fifth arm, changing only
+`z -> GELU(z)` before shared8x32 A. Full16x32 pre-RMS bias remains zero-initialized.
+Same parameter count411867008 and MLP3135/3135/3130 as fifth arm.
+Owned TPU `xd-v5p-16-k48-ploc-head-c8-gelu-maxtext`; same worktree, regions and schedule.
+Direct baselines: original K48, linear PLocHeadC8, PLocR128Gelu.
+Prediction final gap -.002 vs linear HeadC8; -.001 [-.005,+.007] vs original K48; speed flat.
+Unlike GELU on cropped raw x, this GELU acts on learned full-input projections.
+
+Sixth-arm validation:56 pinned CPU tests pass; actual411867008 parameters and sharding pass; full train trace968 health scalars. Weight-rank diagnostic: [k48_ploc_up_rank_diagnostic.md](k48_ploc_up_rank_diagnostic.md).

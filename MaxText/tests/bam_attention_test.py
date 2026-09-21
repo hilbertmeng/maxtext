@@ -454,7 +454,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     import pyconfig
     from flax.core import unfreeze
     base = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
-    for suffix in ('PLocR128Gelu', 'PLocStatic', 'PLocSlice384Linear', 'PLocSlice384Gelu', 'PLocHeadC8'):
+    for suffix in ('PLocR128Gelu', 'PLocStatic', 'PLocSlice384Linear', 'PLocSlice384Gelu', 'PLocHeadC8', 'PLocHeadC8Gelu'):
       for mode in ('local_qk+local_o', 'local_qk+full'):
         with self.subTest(suffix=suffix, mode=mode), tempfile.TemporaryDirectory() as out:
           Path(out, 'address').mkdir()
@@ -488,7 +488,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
             np.testing.assert_array_equal(a,address(params,-x))
             self.assertGreater(float(jnp.linalg.norm(grad['P_loc_static_bias'].value)),0.)
             np.testing.assert_allclose(jnp.mean(a.astype('float32')**2,-1),1.,rtol=.02)
-          elif suffix == 'PLocHeadC8':
+          elif suffix.startswith('PLocHeadC8'):
             self.assertEqual(params['P_loc_address_up']['kernel'].value.shape,(8,32))
             self.assertEqual(params['P_loc_address_bias'].value.shape,(2,32))
             np.testing.assert_array_equal(params['P_loc_address_bias'].value,0.)

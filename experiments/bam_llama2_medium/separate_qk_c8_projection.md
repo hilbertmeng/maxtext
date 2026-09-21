@@ -1,0 +1,29 @@
+# Separate QK C8 compression: Medium K48 and K64
+
+Implementation worktree `/data0/xd/llf-parameter-matched`, branch `codex/llf-parameter-matched`.
+The two runs isolate whether sharing the address compression between QK and VO/FetchedO causes the K48 DirectC8 regression.
+
+Each layer adds a 32×8 `local_qk_c8_projection`, shared by Q and K only.
+LocalVO and FetchedO retain `abs_v_cache_projection`. The new projection copies the latter at initialization;
+existing parameters and initial outputs are exactly preserved. Static Q/K continue reading full M.
+MLP widths stay 3050/3050/3045, per explicit user instruction. Added parameters: 6144 total
+(0.00149% of parent, 0.005859 W_Q total; 0.000244 W_Q per layer).
+Total parameters 411888512; M cache unchanged. Gates, scales, WD, data, schedule and health unchanged.
+
+- RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8SeparateQKProjectionMLPPerLayer`
+  Direct baseline `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer`; ID `qkstatic-k48-directc8-separate-qk-proj`.
+- RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer`
+  Direct baseline `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer`; ID `qkstatic-k64-directc8-separate-qk-proj`.
+
+K48 replaces the existing Medium K48 DirectC8 combination on its allocated TPU, restarting at step0 under a new RUN.
+K64 receives a separate trainer. UE5a primary, UC1a/EW4b backup after5minutes without capacity.
+Plan13500, checkpoint200, review2800, report1000; generic healthON plus968BAM metrics.
+Compiler UC1a primary; EW4a/UE5a backups.
+
+Validation: pinned BAM suite54 existing tests pass; new test passes K48/K64 × L/F,
+checking exact preservation of initial parameters/output, projection isolation, and finite/nonzero gradients
+once the zero-initialized O read key has begun learning. Both full-size parameter/sharding audits pass;
+actual train-step traces produce968health scalars. Audit artifacts `/data0/xd/separate-qk-{audit,trace,focused}.log`.
+
+Predictions: K48 minus shared-projection parent final -.006 (-.012..+.002);
+K64 -.001 (-.004..+.002); speed -1% each. Differential rescue, not extra parameter capacity, is the main test.

@@ -2947,8 +2947,15 @@ class BamAttention(Attention):
             'local_k_post_read_v_projection', projection_init,
             projection_shape, self.weight_dtype)
 
-
-
+    # Append after existing parameters so their initialization stream is preserved.
+    self._separate_qk_c8 = bool(getattr(cfg, 'bam_local_qk_separate_c8_projection', False))
+    if self._separate_qk_c8:
+      assert self._direct_qk_c8 and self._abs_v_dim == 8
+      self.local_qk_c8_projection = self.param(
+          'local_qk_c8_projection', nn.with_logical_partitioning(
+              lambda key, shape, dtype: jnp.asarray(self.abs_v_cache_projection, dtype),
+              ('v_factor', 'kv')),
+          (self.bam_v, self._abs_v_dim), self.weight_dtype)
 
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
@@ -3297,6 +3304,13 @@ class BamAttention(Attention):
         state = jnp.einsum('bskv,vc->bskc', state, projection)
     return state
 
+  def _compress_qk_m(self, state):
+    """Q/K-only dynamic read view; VO and the fetched cache keep their original view."""
+    assert self._separate_qk_c8
+    with jax.named_scope('bam/compress_qk_c8'):
+      return jnp.einsum('bskv,vc->bskc', state,
+                        self.local_qk_c8_projection.astype(state.dtype))
+
   def _expand_full_read(self, full_read):
     """Restore compressed read sides and place them in one attention head."""
     y_k, y_v = full_read
@@ -3512,9 +3526,13 @@ class BamAttention(Attention):
       with jax.named_scope("bam/read_local_m_for_qk"):
         assert Mh is not None, "local_qk read requires M_in"
         if self._direct_qk_c8:
-          local_compressed_M = self._compress_m(Mh)
-          q_local = self._read_direct_qk_c8('q', Mh, local_compressed_M, inputs_q)
-          k_local = self._read_direct_qk_c8('k', Mh, local_compressed_M, inputs_q)
+          if self._separate_qk_c8:
+            qk_compressed_M = self._compress_qk_m(Mh)
+          else:
+            local_compressed_M = self._compress_m(Mh)
+            qk_compressed_M = local_compressed_M
+          q_local = self._read_direct_qk_c8('q', Mh, qk_compressed_M, inputs_q)
+          k_local = self._read_direct_qk_c8('k', Mh, qk_compressed_M, inputs_q)
         else:
           basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)

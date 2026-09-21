@@ -457,6 +457,64 @@ class BamReadKeyTransformTest(absltest.TestCase):
   def test_xl_k96_direct_c8_qk_independent_keys_static_and_gradients(self):
     self._check_direct_c8_qk(96, 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer', head_dim=128)
 
+  def test_separate_qk_c8_preserves_init_and_isolates_both_layer_roles(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    for k_dim in (48, 64):
+      for mode in ('local_qk+local_o', 'local_qk+full'):
+        with self.subTest(k_dim=k_dim, mode=mode), tempfile.TemporaryDirectory() as out:
+          Path(out, 'split').mkdir()
+          cfg = pyconfig.initialize(
+              [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+              exp_class=f'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK{k_dim}QK48DirectC8MLPPerLayer',
+              run_name='split', enable_checkpointing=False, base_output_directory=out+'/',
+              jax_cache_dir='', log_config=False, dataset_type='synthetic',
+              base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
+              head_dim=64, max_target_length=8, max_prefill_predict_length=8,
+              query_chunk_size=4, per_device_batch_size=1.)
+          cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+          mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+          module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+              head_dim=64, bam_k=k_dim, bam_v=32, max_target_length=8,
+              max_prefill_predict_length=8, mesh=mesh, attention_kernel='dot_product_chunk',
+              dtype=cfg.dtype, layer_mode=mode, read_side='col', attention_type=cfg.attention_type)
+          x = jax.random.normal(jax.random.key(501), (1,8,128), dtype=cfg.dtype)
+          m = jax.random.normal(jax.random.key(502), (1,8,k_dim,32), dtype=cfg.dtype)
+          args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+          kw = dict(M_in=m, deterministic=True, layer_index=1 if 'local_o' in mode else 2)
+          reference = unfreeze(module.init({'params':jax.random.key(503)}, *args, **kw)['params'])
+          output = module.apply({'params':reference}, *args, **kw)
+          cfg.get_keys()['bam_local_qk_separate_c8_projection'] = True
+          params = unfreeze(module.init({'params':jax.random.key(503)}, *args, **kw)['params'])
+          self.assertEqual(set(params), set(reference) | {'local_qk_c8_projection'})
+          for name in reference:
+            for a,b in zip(jax.tree.leaves(reference[name]), jax.tree.leaves(params[name])):
+              np.testing.assert_array_equal(a,b)
+          np.testing.assert_array_equal(params['local_qk_c8_projection'].value,
+                                        params['abs_v_cache_projection'].value)
+          actual = module.apply({'params':params}, *args, **kw)
+          for a,b in zip(jax.tree.leaves(output), jax.tree.leaves(actual)):
+            np.testing.assert_array_equal(a,b)
+          def view(p, qk):
+            return module.apply({'params':p}, m,
+                                method=module._compress_qk_m if qk else module._compress_m)
+          old_view = view(params, False)
+          leaf = params['local_qk_c8_projection']
+          params['local_qk_c8_projection'] = leaf.replace(value=leaf.value.at[20,0].add(1.))
+          np.testing.assert_array_equal(view(params, False), old_view)
+          self.assertGreater(float(jnp.linalg.norm((view(params, True)-old_view).astype('float32'))), 0.)
+          # The O read key starts at zero, so its compression projection has
+          # zero gradient initially. Exercise the post-initialization path.
+          read_key = params['W_R']['kernel']
+          params['W_R']['kernel'] = read_key.replace(value=jax.random.normal(
+              jax.random.key(504), read_key.value.shape, dtype=read_key.value.dtype) * .01)
+          gradients = jax.grad(lambda p: jnp.mean(module.apply({'params':p}, *args, **kw)[0].astype('float32')**2))(params)
+          for name in ('local_qk_c8_projection', 'abs_v_cache_projection'):
+            g = gradients[name].value.astype('float32')
+            self.assertTrue(bool(jnp.all(jnp.isfinite(g))))
+            self.assertGreater(float(jnp.linalg.norm(g)), 0., name)
+
   def _check_direct_c8_qk(self, k_dim, exp_name=None, head_dim=64):
     import max_utils
     import pyconfig

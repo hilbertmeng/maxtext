@@ -297,6 +297,10 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic` | v5p-16 | `us-east5-a` | 2026-09-21 09:59:46 | 2026-09-21 11:28:03 | user-authorized review stop; checkpoint3037 committed | UC1a/EW4b configured; no active switch |
 
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu` | v5p-16 | `us-east5-a` | 2026-09-21 11:01:57 | 2026-09-21 12:06:12 | user-authorized review stop; checkpoint2104 committed | UC1a/EW4b configured; no active switch |
+
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8` | v5p-16 | `us-east5-a` | 2026-09-21 10:43:48 | 2026-09-21 12:09:54 | planned review stop; checkpoint2903 committed | UC1a/EW4b configured; no active switch |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -954,3 +958,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer | 2 | `us-east5-a` | 2026-09-21 07:28:29 | 2026-09-21 09:01:48 | 1h33m19s | review stop; checkpoint4172 committed |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu | 1 | `us-east5-a` | 2026-09-21 10:06:14 | 2026-09-21 11:05:41 | 59m27s | user-authorized review stop; checkpoint2116 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic | 1 | `us-east5-a` | 2026-09-21 10:05:57 | 2026-09-21 11:28:03 | 1h22m06s | user-authorized review stop; checkpoint3037 committed; TPU/queue absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu | 1 | `us-east5-a` | 2026-09-21 11:07:22 | 2026-09-21 12:06:12 | 58m50s | user-authorized review stop; checkpoint2104 committed; TPU/queue absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8 | 1 | `us-east5-a` | 2026-09-21 10:49:34 | 2026-09-21 12:09:54 | 1h20m20s | planned review stop; checkpoint2903 committed; TPU/queue absent |

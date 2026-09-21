@@ -8784,7 +8784,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # code_commit: c34a355; UE5a .6376 steps/s, -.03% vs K48 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Nearest per-layer MLP widths: -18432 params (-.0045%) vs K48 shared rank4.
-    # Prediction vs K48 shared rank4: final gap +.001 (-.004..+.008); speed approximately flat.
+    # Stopped 2903. vs K48: early gap narrowed to +.017 at1000, then stalled/widened; last5 (2000–2800) +.02105.
+    # vs R128: early gap narrowed then held near +.018; last5 +.01758. No material speed/cache gain.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8'
     bam_write_address_mode = 'factorized'
     bam_write_address_rank = 8
@@ -8799,7 +8800,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Ledger only: Apply GELU to learned per-head C8 coefficients before the shared address basis."""
     # code_commit: 9dfd1d3; UE5a .6384 steps/s, +.09% vs K48 .6378, +.13% vs HeadC8 .6376; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction: final gap -.002 vs linear HeadC8; -.001 (-.005..+.007) vs original K48; speed flat.
+    # Stopped 2104. vs K48: early +.103 narrowed then stalled near +.033 at 1400–2000; last5 +.03414.
+    # Last5 vs linear HeadC8 +.01450 (narrowing), vs R128 +.03277; no parameter/cache gain over HeadC8.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu'
     bam_write_v_bottleneck_activation = 'gelu'
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu']

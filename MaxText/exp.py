@@ -7591,7 +7591,9 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
     """Column-only XL: standard QK32 + static/dynamic BAM96; shared VO C8, separate gates."""
-    # code_commit: c8e1a74; UE5a .5144 steps/s (10-14); vs ColOnly .5932 -13.28%, K128 .5690 -9.60%.
+    # code_commit: 821f870 after3661 (previous c8e1a74); write/read dot; same-checkpoint resume.
+    # UE5a .5378 steps/s, +4.55% vs pre-switch .5144; matched968 health.
+    # Raw vs ColOnly .5932 -9.34%, K128 .5690 -5.48%; health mismatch below.
     # !? Timing unmatched: generic ON throughout, BAM968 here vs OFF in historical bases.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Direct baseline is the historical all-column, per-layer MHA-budget XL run.
@@ -7650,7 +7652,9 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
 
 class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC827Layer(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
     """Nine complete LLF blocks, with equal total parameters per layer."""
-    # code_commit: 095f97a; UE5a .4836 steps/s (10-14), -5.99% vs24-layer .5144; health ON,1089 vs968 scalars.
+    # code_commit: 821f870 after2548 (previous 095f97a); write/read dot; same-checkpoint resume.
+    # UE5a .5134 steps/s, +6.16% vs pre-switch .4836; matched1089 health.
+    # -4.54% vs optimized24-layer .5378; health ON,1089 vs968 scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP5351 throughout; -53904 params vs MHA; fetch M-cache +12.5% vs24 layers.
     # Prediction vs24-layer K96: final gap -.002 (-.006..+.003), speed -8% with matched health.

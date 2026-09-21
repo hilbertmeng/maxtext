@@ -7915,6 +7915,43 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-k48-qk-rank4-joint-gelu256'
 
 
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear):
+    """Direct linear write addresses from the first 512 residual coordinates."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Exact parent total411885440; original pre-RMS address bias and RMS retained.
+    # Bet vs K48: terminal gap +.0003 (range -.0015..+.002); matched speed approximately flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear'
+    bam_write_address_input_dim = 512
+    mlp_dim_by_block = [3093, 3093, 3087]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-ploc-slice512-linear'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear):
+    """Direct linear write addresses from the first 768 residual coordinates."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Exact parent total411885440; original pre-RMS address bias and RMS retained.
+    # Bet vs K48: terminal gap -.001 (range -.003..+.0015); matched speed approximately flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear'
+    bam_write_address_input_dim = 768
+    mlp_dim_by_block = [3050, 3050, 3045]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-ploc-slice768-linear'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256):
+    """Joint GELU128 dynamic QK basis/mixes; return savings to each layer's MLP."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # -98304 QK params/layer vs rank4 (-.09375 W_Q), +32 MLP width; exact total411885440.
+    # Bet vs K48: terminal gap -.001 (range -.003..+.002); speed flat to +1%.
+    # Bet vs jointGELU256: -.002 at mature common steps (range -.004..+.001).
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128'
+    bam_local_qk_joint_hidden_dim = 128
+    mlp_dim_by_block = [3082, 3082, 3077]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-k48-qk-joint-gelu128'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

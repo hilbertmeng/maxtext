@@ -301,6 +301,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8` | v5p-16 | `us-east5-a` | 2026-09-21 10:43:48 | 2026-09-21 12:09:54 | planned review stop; checkpoint2903 committed | UC1a/EW4b configured; no active switch |
 
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu` | v5p-16 | `us-east5-a` | 2026-09-21 10:00:15 | 2026-09-21 12:49:06 | review stop; checkpoint5918 committed | UC1a/EW4b configured; no active switch |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -960,3 +962,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic | 1 | `us-east5-a` | 2026-09-21 10:05:57 | 2026-09-21 11:28:03 | 1h22m06s | user-authorized review stop; checkpoint3037 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu | 1 | `us-east5-a` | 2026-09-21 11:07:22 | 2026-09-21 12:06:12 | 58m50s | user-authorized review stop; checkpoint2104 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8 | 1 | `us-east5-a` | 2026-09-21 10:49:34 | 2026-09-21 12:09:54 | 1h20m20s | planned review stop; checkpoint2903 committed; TPU/queue absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu | 1 | `us-east5-a` | 2026-09-21 10:06:24 | 2026-09-21 12:49:06 | 2h42m42s | review stop; checkpoint5918 committed; TPU/queue absent |

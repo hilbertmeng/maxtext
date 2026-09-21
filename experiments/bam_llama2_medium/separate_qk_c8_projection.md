@@ -38,3 +38,8 @@ first0, stable20–24 .6162 (−1.25% vsparent.6240). Steps12/13 had a timing-ou
 their arithmetic speed mean is not used. Both controller/registry commits and comparisons verified;
 AOT loaded and968BAM health metrics retained. All compiler candidates released.
 Raw launch verification `/data0/xd/separate-qk-k{48,64}-launch.json`.
+
+K48 monitoring also compares the original non-DirectC8 shared-rank4 baseline
+`BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer`,
+per user request: distinguish repairing the DirectC8 regression from a net gain beyond rank4.
+Speed .6324 vs .6378 (−.85%), matched health. This is a monitoring-only update; runtime unchanged.

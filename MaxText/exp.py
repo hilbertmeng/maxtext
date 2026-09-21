@@ -8652,6 +8652,28 @@ class BamXLK96ConcatOperatorWDRDFull(BamXLSharedBasisQKConcatStaticLocalVOShared
     bam_read_implementation = 'dot_btn'
 
 
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8SeparateQKProjectionMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer):
+    """Ledger only: Separate QK compression from VO/FetchedO; clone the shared projection at init."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # MLP3050/3050/3045 unchanged; +6144 params vs parent, cache unchanged.
+    # Prediction vs shared-P parent: final gap -.006 (-.012..+.002), speed -1%.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8SeparateQKProjectionMLPPerLayer'
+    bam_local_qk_separate_c8_projection = True
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-k48-directc8-separate-qk-projection'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer):
+    """Ledger only: Separate QK compression from VO/FetchedO; clone the shared projection at init."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # MLP3050/3050/3045 unchanged; +6144 params vs parent, cache unchanged.
+    # Prediction vs shared-P parent: final gap -.001 (-.004..+.002), speed -1%.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer'
+    bam_local_qk_separate_c8_projection = True
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-k64-directc8-separate-qk-projection'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

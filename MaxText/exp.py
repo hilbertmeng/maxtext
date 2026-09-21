@@ -7627,6 +7627,21 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-qkstatic-vo-c8-ig-k96-directc8'
 
 
+class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC825Layer(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
+    """Eight LLF blocks plus a final L; spend the QK64->96 savings on depth."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Original24 MLP5925; final L6224. Nearest MHA budget; no hardware rounding.
+    # Prediction vs24-layer K96: final gap -.0015 (-.004..+.002), speed -3%; fetch cache unchanged.
+    model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC825Layer'
+    base_num_decoder_layers = 25
+    bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 8 + ['local_qk+local_o']
+    mlp_dim_by_block = [5925, 5925, 5925]
+    bam_extra_final_local_layer = True
+    bam_final_local_mlp_dim = 6224
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-qkstatic-vo-c8-ig-k96-directc8-25layer'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

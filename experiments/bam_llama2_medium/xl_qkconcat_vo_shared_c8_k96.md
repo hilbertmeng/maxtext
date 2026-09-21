@@ -20,3 +20,15 @@ ID xl-qkstatic-vo-c8-ig-k96-directc8. Review10000, checkpoint250,total50000.
 
 Also compare directly with `BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE`: historical best equal-budget arm,
 26500–28500 gap−.00416vsK64; sameparameters,2xM-cache. NewK96has25%lesscachethanK128.
+
+## Depth allocation arm
+
+RUN `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC825Layer`; direct baseline only the24-layernewK96arm.
+Analogous to Medium QK48deptharm: spend the additional standardQK64→32 savings
+(.5W_Q/layer,12W_Qtotal) on a final L rather than widening all24MLPs.
+Original24MLP5925each (the nearest QK64-split budget), finalL6224;
+expected1420922576params (MHA+1744), vs24newarm+55120. EightLLFscanblocks
+plusunscannedfinalL;8fetchesandpersistentfetchedM-cacheunchanged.
+Betvs24: finalgap−.0015(range−.004..+.002), speed−3%;XLwideratthesame24layers
+providesareasondepthmighthelpdespiteMedium25-layerfailure.
+TPUIDxl-qkstatic-vo-c8-ig-k96-directc8-25;same50000steps/checkpoint250/regions.

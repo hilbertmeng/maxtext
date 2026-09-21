@@ -78,3 +78,7 @@ Prediction final gap -.002 vs linear HeadC8; -.001 [-.005,+.007] vs original K48
 Unlike GELU on cropped raw x, this GELU acts on learned full-input projections.
 
 Sixth-arm validation:56 pinned CPU tests pass; actual411867008 parameters and sharding pass; full train trace968 health scalars. Weight-rank diagnostic: [k48_ploc_up_rank_diagnostic.md](k48_ploc_up_rank_diagnostic.md).
+
+Fifth arm launched on UE5a fromstep0, runtimec34a355; AOT loaded/FIRST_STEP passed.
+Steps10–14 .6376/s (-.03% vsoriginal .6378; +.28% vsR128 .6358), steps20–24 .6402/s.
+Evidence `/data0/xd/ploc-headc8-start-verified.json`; compilerready/cleanup[].

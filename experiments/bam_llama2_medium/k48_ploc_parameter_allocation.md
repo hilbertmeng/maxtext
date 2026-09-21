@@ -40,3 +40,10 @@ all four equal baseline count, sharding overhead .16685% (<2%).
 
 Pinned CPU BAM suite: 56 tests passed, including static/slice input dependence, gradients,
 and dot/mul_reduce agreement for L/F layers. Full train-step tracing exports968 health scalars for every arm.
+
+Runtime `42a0f72`: all four loaded sealed AOT, started atstep0, and passed FIRST_STEP on UE5a.
+- PLocR128Gelu: steps10–14 0.6358/s (-0.31% vs baseline); steps20–24 0.6360/s.
+- PLocStatic: steps10–14 0.6530/s (+2.38% vs baseline); steps20–24 0.6532/s.
+- PLocSlice384Linear: steps10–14 0.6358/s (-0.31% vs baseline); steps20–24 0.6364/s.
+- PLocSlice384Gelu: steps10–14 0.6350/s (-0.44% vs baseline); steps20–24 0.6354/s.
+Evidence: `/data0/xd/ploc-four-start-verified.json`; all compiler states ready with cleanup_failures=[].

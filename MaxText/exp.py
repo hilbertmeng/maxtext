@@ -7587,6 +7587,46 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-ig-k48-qk48-directc8'
 
 
+class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer(BamXLIndependentLLFLocalQKRank4CFp32AlignedRowSharedBasis):
+    """Column-only XL: standard QK32 + static/dynamic BAM96; shared VO C8, separate gates."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Direct baseline is the historical all-column, per-layer MHA-budget XL run.
+    # 1420867456 params (-32768 vs ColOnly); M-cache +50% for K64->96.
+    # Prediction vs ColOnly: final gap -.008 (-.003..-.014), speed -5% with matched health.
+    model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer'
+    bam_extra_final_local_layer = False
+    bam_k = 96
+    bam_v = 32
+    bam_abs_v_compression_dim = 8
+    bam_prune_all_row_reads = True
+    bam_prune_local_row_reads = False
+    bam_read_sides = 'col'
+    bam_fetched_read_side = 'col'
+    bam_local_v_share_output_coordinates = False
+    bam_concat_qk = True
+    bam_concat_static_qk = True
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_share_basis = False
+    bam_local_qk_col_output_dim = 96
+    bam_local_vo_shared_read = 'local_o'
+    bam_local_vo_independent_gates = True
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 96
+    bam_read_gate_init = .05
+    bam_read_key_scale = .2
+    bam_local_v_key_scale = .1
+    bam_record_concat_health = True
+    base_mlp_dim = 5504
+    mlp_dim_by_block = [6266, 6266, 6266]
+    compare_runs = ['BamXLSharedBasisQKDirectC8MLPPerLayerColOnly',
+                    'BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE']
+    steps = 50000
+    learning_rate_schedule_steps = 50000
+    checkpoint_period = 250
+    force_final_checkpoint = True
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-qkstatic-vo-c8-ig-k96-directc8'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

@@ -454,7 +454,10 @@ class BamReadKeyTransformTest(absltest.TestCase):
   def test_k48_direct_c8_qk_independent_keys_static_and_gradients(self):
     self._check_direct_c8_qk(48)
 
-  def _check_direct_c8_qk(self, k_dim):
+  def test_xl_k96_direct_c8_qk_independent_keys_static_and_gradients(self):
+    self._check_direct_c8_qk(96, 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer', head_dim=128)
+
+  def _check_direct_c8_qk(self, k_dim, exp_name=None, head_dim=64):
     import max_utils
     import pyconfig
     from flax.core import unfreeze
@@ -462,20 +465,20 @@ class BamReadKeyTransformTest(absltest.TestCase):
       Path(out, 'c8').mkdir()
       cfg = pyconfig.initialize(
           [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
-          exp_class=f'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK{k_dim}QK48DirectC8MLPPerLayer',
+          exp_class=exp_name or f'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK{k_dim}QK48DirectC8MLPPerLayer',
           run_name='c8', enable_checkpointing=False, base_output_directory=out+'/',
           jax_cache_dir='', log_config=False, dataset_type='synthetic',
-          base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
-          head_dim=64, max_target_length=8, max_prefill_predict_length=8,
+          base_emb_dim=head_dim*2, base_num_query_heads=2, base_num_kv_heads=2,
+          head_dim=head_dim, max_target_length=8, max_prefill_predict_length=8,
           query_chunk_size=4, per_device_batch_size=1.)
       cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
       module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
-          head_dim=64, bam_k=k_dim, bam_v=32, max_target_length=8,
+          head_dim=head_dim, bam_k=k_dim, bam_v=32, max_target_length=8,
           max_prefill_predict_length=8, mesh=mesh, attention_kernel='dot_product_chunk',
           dtype=cfg.dtype, layer_mode='local_qk+local_o', read_side='col',
           attention_type=cfg.attention_type)
-      x = jax.random.normal(jax.random.key(301), (1,8,128), dtype=cfg.dtype)
+      x = jax.random.normal(jax.random.key(301), (1,8,head_dim*2), dtype=cfg.dtype)
       m = jax.random.normal(jax.random.key(302), (1,8,k_dim,32), dtype=cfg.dtype)
       args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
       kw = dict(M_in=m, deterministic=True, layer_index=1)
@@ -483,9 +486,9 @@ class BamReadKeyTransformTest(absltest.TestCase):
       self.assertNotIn('W_local_packed', params)
       self.assertNotIn('W_lq_bias', params)
       for arm in ('q','k'):
-        self.assertEqual(params['W_l'+arm+'_c8']['kernel'].value.shape, (128,2,8))
+        self.assertEqual(params['W_l'+arm+'_c8']['kernel'].value.shape, (head_dim*2,2,8))
         self.assertNotIn('bias', params['W_l'+arm+'_c8'])
-        self.assertEqual(params['query' if arm=='q' else 'key']['kernel'].value.shape, (128,2,16))
+        self.assertEqual(params['query' if arm=='q' else 'key']['kernel'].value.shape, (head_dim*2,2,head_dim-cfg.bam_local_qk_col_output_dim))
       (_, mout), updates = module.apply({'params':params}, *args, **kw,
           capture_intermediates=lambda mod,method: method == '_compress_m', mutable=['intermediates'])
       health = updates['intermediates']

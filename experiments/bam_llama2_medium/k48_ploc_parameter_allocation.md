@@ -32,7 +32,7 @@ lasted2h16m and1h33m, with one prior27min preemption. Compiler primary EW4a,
 backup UC1a/UE5a per diagnostics policy. Compile exact v5p-16 topology before requesting trainers.
 
 Predicted terminal RUN-baseline gaps: R128 +.002 [-.003,+.006]; static +.008 [0,+.020];
-slice-linear +.004 [-.002,+.012]; slice-GELU +.003 [-.003,+.011]. Speed approximately flat:
+slice-linear +.004 [-.002,+.012]. Speed approximately flat:
 linear projection FLOPs saved from P_loc return in MLP. Baseline .6378 with matched health.
 
 Validation: actual full-model parameter/sharding audit `/data0/xd/ploc-four-audit.json`;
@@ -82,3 +82,13 @@ Sixth-arm validation:56 pinned CPU tests pass; actual411867008 parameters and sh
 Fifth arm launched on UE5a fromstep0, runtimec34a355; AOT loaded/FIRST_STEP passed.
 Steps10–14 .6376/s (-.03% vsoriginal .6378; +.28% vsR128 .6358), steps20–24 .6402/s.
 Evidence `/data0/xd/ploc-headc8-start-verified.json`; compilerready/cleanup[].
+
+## Slice384Gelu closeout
+
+Stopped2116 after the user-authorized2000-step review. Same-parameter Slice384Linear dominates:
+400–1000 gap+.0051..+.0076, then1200–2000 mean+.009093 (range+.006340..+.010708).
+Against R128, last5mean+.009729; against original K48, early+.0267 narrowed to~+.011 then stalled,
+last5mean+.011095. Speed-.13% vsSlice384Linear/R128 and-.44% vsK48; no parameter/cache gain.
+The fixed-coordinate GELU ablation is negative. Other arms continue.
+Checkpoint2116 committed; TPU and queued resource absent; final TensorBoard SYNC_OK.
+Artifacts: `/data0/xd/ploc-report-2000.md`, `/data0/xd/ploc-slice-gelu-closeout.log`.

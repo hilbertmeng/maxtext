@@ -7812,7 +7812,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Project the first 384 input coordinates to write addresses; match R128 P_loc and MLP budgets."""
     # code_commit: 42a0f72; UE5a 0.6350 steps/s, -0.44% vs K48 rank4 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs K48 shared rank4: final gap +.003 (-.003..+.011); speed approximately flat.
+    # Stopped2116. Last5 (1200–2000): vs K48 +.01110, vs R128 +.00973, vs Slice384Linear +.00909.
+    # vs Slice384Linear: +.005..+.008 at400–1000 then ~+.009; same params/cache, -.13% speed.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu'
     bam_write_address_mode = 'x_slice'
     bam_write_address_input_dim = 384

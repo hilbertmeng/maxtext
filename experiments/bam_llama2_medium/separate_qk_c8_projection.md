@@ -27,3 +27,14 @@ actual train-step traces produce968health scalars. Audit artifacts `/data0/xd/se
 
 Predictions: K48 minus shared-projection parent final -.006 (-.012..+.002);
 K64 -.001 (-.004..+.002); speed -1% each. Differential rescue, not extra parameter capacity, is the main test.
+
+## Launch verification
+
+Both use sealed runtime `27acf149c5223b29666680777eec8070cf77fa76`, exact v5p-16/s13500 AOT.
+K48 took over `xd-v5p-16-qkstatic-vo-c8-ig-k48-qk48-directc8-maxtext` in UE5a after the parent
+paused with committed4891; first0, steps10–14 .6324 (−.41% vsparent.6350).
+K64 runs on `xd-v5p-16-qkstatic-k64-directc8-separate-qk-proj-maxtext`, UE5a;
+first0, stable20–24 .6162 (−1.25% vsparent.6240). Steps12/13 had a timing-outlier pair;
+their arithmetic speed mean is not used. Both controller/registry commits and comparisons verified;
+AOT loaded and968BAM health metrics retained. All compiler candidates released.
+Raw launch verification `/data0/xd/separate-qk-k{48,64}-launch.json`.

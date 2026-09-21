@@ -123,6 +123,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     receiver = SimpleNamespace(
         config=SimpleNamespace(bam_sqrt_n_scale=False, bam_lambda_decay=1.),
         _force_activation_dtype=False, bam_k=2, _write_v_bottleneck_dim=None,
+        _write_address_mode='dynamic', _write_address=projection,
         _write_data=lambda o, x: o[..., :2],
         P_loc=projection, gw_b0=jnp.zeros((2,)), W_gw=lambda x: jnp.zeros((1, 2, 2)),
         _write_data_rms=True, write_data_norm=norm, write_address_norm=norm)
@@ -447,6 +448,62 @@ class BamReadKeyTransformTest(absltest.TestCase):
                                         grad['W_R_gate']['kernel'].value.reshape(-1))))
       fp = init(child.clone(layer_mode='local_qk+full'))
       self.assertNotIn('W_lv_gate',fp)
+
+  def test_write_address_variants_gradients_and_input_dependence(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    base = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
+    for suffix in ('PLocR128Gelu', 'PLocStatic', 'PLocSlice384Linear', 'PLocSlice384Gelu'):
+      for mode in ('local_qk+local_o', 'local_qk+full'):
+        with self.subTest(suffix=suffix, mode=mode), tempfile.TemporaryDirectory() as out:
+          Path(out, 'address').mkdir()
+          cfg = pyconfig.initialize(
+              [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+              exp_class=base+suffix, run_name='address', enable_checkpointing=False,
+              base_output_directory=out+'/', jax_cache_dir='', log_config=False,
+              dataset_type='synthetic', base_emb_dim=128, base_num_query_heads=2,
+              base_num_kv_heads=2, head_dim=64, max_target_length=8,
+              max_prefill_predict_length=8, query_chunk_size=4, per_device_batch_size=1.)
+          if suffix == 'PLocR128Gelu':
+            cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+          if 'Slice' in suffix:
+            cfg.get_keys()['bam_write_address_input_dim'] = 64
+          mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+          module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+              head_dim=64, bam_k=48, bam_v=32, max_target_length=8,
+              max_prefill_predict_length=8, mesh=mesh, attention_kernel='dot_product_chunk',
+              dtype=cfg.dtype, layer_mode=mode, read_side='col', attention_type=cfg.attention_type)
+          x = jax.random.normal(jax.random.key(601), (1,8,128), dtype=cfg.dtype)
+          m = jax.random.normal(jax.random.key(602), (1,8,48,32), dtype=cfg.dtype)
+          args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+          kw = dict(M_in=m, deterministic=True, layer_index=1 if 'local_o' in mode else 2)
+          params = unfreeze(module.init({'params':jax.random.key(603)}, *args, **kw)['params'])
+          address = lambda p,z: module.apply({'params':p}, z, method=module._write_address)
+          a = address(params,x)
+          target = jax.random.normal(jax.random.key(604), a.shape)
+          grad = jax.grad(lambda p: jnp.sum(address(p,x).astype('float32')*target))(params)
+          if suffix == 'PLocStatic':
+            self.assertNotIn('P_loc_up', params)
+            np.testing.assert_array_equal(a,address(params,-x))
+            self.assertGreater(float(jnp.linalg.norm(grad['P_loc_static_bias'].value)),0.)
+            np.testing.assert_allclose(jnp.mean(a.astype('float32')**2,-1),1.,rtol=.02)
+          else:
+            self.assertGreater(float(jnp.linalg.norm(grad['P_loc_up']['kernel'].value)),0.)
+            if 'Slice' in suffix:
+              self.assertNotIn('P_loc_down',params)
+              np.testing.assert_array_equal(a,address(params,x.at[...,64:].add(2.)))
+              dx=jax.grad(lambda z:jnp.sum(address(params,z).astype('float32')*target))(x)
+              np.testing.assert_array_equal(dx[...,64:],0.)
+              self.assertGreater(float(jnp.linalg.norm(dx[...,:64].astype('float32'))),0.)
+          # Both write contractions must support static and dynamic addresses.
+          o=jax.random.normal(jax.random.key(605),(1,8,2,64),dtype=cfg.dtype)
+          cfg.get_keys()['bam_write_outer_implementation']='mul_reduce'
+          mr=module.apply({'params':params},o,x,m,method=module._write)
+          cfg.get_keys()['bam_write_outer_implementation']='dot'
+          dot=module.apply({'params':params},o,x,m,method=module._write)
+          for u,v in zip(jax.tree.leaves(mr),jax.tree.leaves(dot)):
+            np.testing.assert_allclose(u.astype('float32'),v.astype('float32'),rtol=.03,atol=.03)
 
   def test_direct_c8_qk_independent_keys_static_and_gradients(self):
     self._check_direct_c8_qk(64)

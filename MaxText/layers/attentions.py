@@ -2637,14 +2637,24 @@ class BamAttention(Attention):
     self._write_address_norm_bias = bool(cfg.bam_write_address_norm_bias)
     self._write_v_bottleneck_dim = cfg.bam_write_v_bottleneck_dim
     self._write_v_bottleneck_activation = cfg.bam_write_v_bottleneck_activation
+    self._write_address_mode = getattr(cfg, 'bam_write_address_mode', 'dynamic')
+    self._write_address_input_dim = getattr(cfg, 'bam_write_address_input_dim', None)
+    assert self._write_address_mode in ('dynamic', 'static', 'x_slice')
+    if self._write_address_mode == 'x_slice':
+      assert 0 < self._write_address_input_dim <= cfg.emb_dim
+      assert self._write_v_bottleneck_dim is None
+    else:
+      assert self._write_address_input_dim is None
+    if self._write_address_mode == 'static':
+      assert self._write_v_bottleneck_dim is None
     self._write_outer_implementation = cfg.bam_write_outer_implementation
     assert self._write_factor_norm in ('rms', 'grouped_rms')
     assert self._write_v_bottleneck_activation in ('none', 'gelu')
     if self._write_v_bottleneck_dim is None:
-      assert self._write_v_bottleneck_activation == 'none'
+      assert self._write_v_bottleneck_activation == 'none' or self._write_address_mode == 'x_slice'
     else:
       assert 0 < self._write_v_bottleneck_dim < cfg.emb_dim
-    assert not self._replicate_ploc_up or self._write_v_bottleneck_dim is not None, (
+    assert not self._replicate_ploc_up or self._write_v_bottleneck_dim is not None or self._write_address_mode == 'x_slice', (
         'replicated P_loc_up requires a write-V bottleneck')
     assert self._write_outer_implementation in ('dot', 'mul_reduce')
     assert self._m_read_norm in ('rms', 'none')
@@ -2849,13 +2859,21 @@ class BamAttention(Attention):
     if self._has_write:
       # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
       loc_v = self.bam_v
-      if self._write_v_bottleneck_dim is not None:
-        self.P_loc_down = DenseGeneral(
-            features=self._write_v_bottleneck_dim, axis=-1,
-            kernel_init=reg_init, kernel_axes=("embed", None),
-            dtype=self.dtype, weight_dtype=self.weight_dtype,
-            name="P_loc_down", quant=self.quant,
-            matmul_precision=cfg.matmul_precision, use_bias=False)
+      if self._write_address_mode == 'static':
+        # Independent learned address per head/layer, initially unit-RMS orthogonal.
+        # The bias suffix retains the original P_loc_up/bias weight-decay treatment.
+        self.P_loc_static_bias = self.param(
+            'P_loc_static_bias', nn.with_logical_partitioning(
+                nn.initializers.orthogonal(math.sqrt(loc_v)), ('q_heads', 'v_factor')),
+            (self.num_query_heads, loc_v), self.weight_dtype)
+      elif self._write_v_bottleneck_dim is not None or self._write_address_mode == 'x_slice':
+        if self._write_address_mode == 'dynamic':
+          self.P_loc_down = DenseGeneral(
+              features=self._write_v_bottleneck_dim, axis=-1,
+              kernel_init=reg_init, kernel_axes=("embed", None),
+              dtype=self.dtype, weight_dtype=self.weight_dtype,
+              name="P_loc_down", quant=self.quant,
+              matmul_precision=cfg.matmul_precision, use_bias=False)
         self.P_loc_up = DenseGeneral(
             features=(self.num_query_heads, loc_v), axis=-1,
             kernel_init=reg_init,
@@ -3249,6 +3267,22 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
+  def _write_address(self, x):
+    """Address before the unchanged per-head write RMS normalization."""
+    if self._write_address_mode == 'static':
+      return jnp.asarray(self.P_loc_static_bias, self.dtype)
+    if self._write_address_mode == 'x_slice':
+      address = x[..., :self._write_address_input_dim]
+      if self._write_v_bottleneck_activation == 'gelu':
+        address = nn.gelu(address)
+      return self.P_loc_up(address)
+    if self._write_v_bottleneck_dim is None:
+      return self.P_loc(x)
+    address = self.P_loc_down(x)
+    if self._write_v_bottleneck_activation == 'gelu':
+      address = nn.gelu(address)
+    return self.P_loc_up(address)
+
   def _write(self, o_head, x, M_in):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
@@ -3262,13 +3296,7 @@ class BamAttention(Attention):
       assert o_head.dtype == self.dtype, (o_head.dtype, self.dtype)
     # V1 default
     u1 = self._write_data(o_head, x)  # Mix before the existing write-data normalization.
-    if self._write_v_bottleneck_dim is None:
-      u2 = self.P_loc(x)
-    else:  # V1 default
-      u2 = self.P_loc_down(x)
-      if self._write_v_bottleneck_activation == 'gelu':
-        u2 = nn.gelu(u2)
-      u2 = self.P_loc_up(u2)
+    u2 = self._write_address(x)
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
       write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
@@ -3284,7 +3312,8 @@ class BamAttention(Attention):
     gated_u1 = g[..., None] * u1_norm
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
-        dM = jnp.einsum('btnk,btnv->btkv', gated_u1, u2_norm)
+        address_axes = 'nv' if self._write_address_mode == 'static' else 'btnv'
+        dM = jnp.einsum('btnk,' + address_axes + '->btkv', gated_u1, u2_norm)
       else:
         assert self._write_outer_implementation == 'mul_reduce'  # XD
         dM = jnp.sum(

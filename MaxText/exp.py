@@ -273,6 +273,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_direct_c8 = False  # independent per-head Q/K keys on the existing compressed M
     bam_local_v_projection_rank = None  # standard W_V bottleneck in L layers only
     bam_local_v_projection_activation = 'none'
+    bam_write_address_mode = 'dynamic'  # dynamic | static | x_slice
+    bam_write_address_input_dim = None  # leading x coordinates for x_slice
     bam_extra_final_local_layer = False
     bam_final_local_mlp_dim = None
     bam_concat_v = False
@@ -7788,6 +7790,60 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     bam_local_k_rank_routing = None
     compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
     jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/xl-k96-qk-shared-rank4"
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
+    """Project the first 384 input coordinates to write addresses; match R128 P_loc and MLP budgets."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs K48 shared rank4: final gap +.004 (-.002..+.012); speed approximately flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear'
+    bam_write_address_mode = 'x_slice'
+    bam_write_address_input_dim = 384
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+    mlp_dim_by_block = [3114, 3114, 3109]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu']
+    jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-slice384-none"
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
+    """Project the first 384 input coordinates to write addresses; match R128 P_loc and MLP budgets."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs K48 shared rank4: final gap +.003 (-.003..+.011); speed approximately flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu'
+    bam_write_address_mode = 'x_slice'
+    bam_write_address_input_dim = 384
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'gelu'
+    mlp_dim_by_block = [3114, 3114, 3109]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear']
+    jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-slice384-gelu"
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
+    """Halve the GELU write-address bottleneck and return all saved parameters to MLP."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Exact parent total parameter count; unchanged M-cache and read configuration.
+    # Prediction vs K48 shared rank4: final gap +.002 (-.003..+.006); speed approximately flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu'
+    bam_write_v_bottleneck_dim = 128
+    mlp_dim_by_block = [3114, 3114, 3109]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
+    jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-r128"
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
+    """Replace dynamic write addresses with learned per-layer, per-head static addresses."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Exact parent total parameter count; unchanged M-cache and read configuration.
+    # Prediction vs K48 shared rank4: final gap +.008 (0..+.020); speed approximately flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic'
+    bam_write_address_mode = 'static'
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+    mlp_dim_by_block = [3178, 3178, 3173]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
+    jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-static"
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

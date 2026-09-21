@@ -8681,8 +8681,37 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     # Prediction vs shared-P parent: final gap -.001 (-.004..+.002), speed -1%.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer'
     bam_local_qk_separate_c8_projection = True
-    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer']
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer',
+                    'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-k64-directc8-separate-qk-projection'
+
+
+class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8SeparateQKProjectionMLPPerLayer(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
+    """Ledger only: Separate the QK C8 compression from VO/FetchedO; copy the shared P at initialization."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # MLP6266 unchanged; only LocalQK dynamic reading changes.
+    # Prediction vs XL24 shared-P DirectC8: final gap -.002 (-.006..+.003), speed -1%.
+    model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8SeparateQKProjectionMLPPerLayer'
+    bam_local_qk_separate_c8_projection = True
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
+    jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/xl-k96-qk-separate-c8"
+
+
+class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
+    """Ledger only: Dynamic shared rank4 LocalQK on full M; retain full-M static Q/K reads."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # MLP6266 unchanged; only LocalQK dynamic reading changes.
+    # Prediction vs XL24 shared-P DirectC8: final gap +.001 (-.004..+.006), speed +1%.
+    model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer'
+    bam_local_qk_direct_c8 = False
+    bam_local_qk_separate_c8_projection = False
+    bam_local_qk_share_basis = True
+    bam_local_q_rank = 4
+    bam_local_k_rank = None
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
+    jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/xl-k96-qk-shared-rank4"
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

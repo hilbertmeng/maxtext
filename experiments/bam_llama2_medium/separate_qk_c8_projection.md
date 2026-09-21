@@ -43,3 +43,7 @@ K48 monitoring also compares the original non-DirectC8 shared-rank4 baseline
 `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer`,
 per user request: distinguish repairing the DirectC8 regression from a net gain beyond rank4.
 Speed .6324 vs .6378 (−.85%), matched health. This is a monitoring-only update; runtime unchanged.
+
+K64 monitoring also includes the original shared-rank4 baseline
+`BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer`,
+completed13500, runtime8c188b0. Speed .6162 vs .6320 (-2.50%), matched968 health.

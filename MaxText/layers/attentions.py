@@ -3158,14 +3158,14 @@ class BamAttention(Attention):
       return self.kernel_init(key, shape, dtype, in_axis, out_axis) * gain
     hidden = DenseGeneral(
         features=rank, axis=-1, kernel_init=nd_dense_init(1., 'fan_in', 'normal'),
-        kernel_axes=('embed', 'mlp'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+        kernel_axes=('embed', None), dtype=self.dtype, weight_dtype=self.weight_dtype,
         name='value_down', quant=self.quant, matmul_precision=self.config.matmul_precision,
         use_bias=False)(x)
     if activation == 'gelu':
       hidden = nn.gelu(hidden)
     return DenseGeneral(
         features=(self.num_kv_heads, self.head_dim), axis=-1, kernel_init=up_init,
-        kernel_axes=('mlp', 'kv_heads', 'kv_head_dim'), dtype=self.dtype,
+        kernel_axes=('embed', 'kv_heads', 'kv_head_dim'), dtype=self.dtype,
         weight_dtype=self.weight_dtype, name='value_up', quant=self.quant,
         matmul_precision=self.config.matmul_precision, use_bias=False)(hidden)
 

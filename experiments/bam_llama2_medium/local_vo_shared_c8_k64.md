@@ -162,3 +162,10 @@ vs parent; speed unchanged. GELU also compares directly to linear.
 
 Same worktree/branch, health968, formal13500/checkpoint200, primaryUE5a backupsUC1a/EW4b;
 AOT primaryEW4a backupsUC1a/UE5a. Artifacts `/data0/xd/wv-r256-{audit.json,trace.log,target-test.log}`.
+
+Both value factors use the existing BAM bottleneck's FSDP layout: down input `embed`,
+up bottleneck input `embed`; the intermediate hidden activation is unannotated.
+Eight-device CPU sharding audit verifies total per-chip overhead .16684% (<2%).
+Run `audit_matched_mlp.py --check-sharding` with
+`XLA_FLAGS=--xla_force_host_platform_device_count=8` for new projection shapes;
+single-device shape/gradient tests do not catch accidental replication.

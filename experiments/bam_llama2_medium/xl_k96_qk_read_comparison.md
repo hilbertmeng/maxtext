@@ -22,7 +22,7 @@ input-dependent rank4 addressing. The latter retains each method's existing norm
 it is not an amplitude-matched isolated rank intervention.
 
 Predictions relative to parent: separate C8 final gap -.002 (-.006..+.003), speed -1%;
-shared rank4 final +.001 (-.004..+.006), speed +1%. Review10000, full plan50000,
+shared rank4 final -.003 (-.008..+.003), speed +1%. Review10000, full plan50000,
 checkpoint250; agent reports approximately2000-step batches after startup (registry500).
 Training UE5a primary, UC1a/EW4b backups after5min; AOT UC1a primary, EW4a/UE5a backups.
 XL27 pauses for resource priority, not rejection; preserve its checkpoint and report provisional results.

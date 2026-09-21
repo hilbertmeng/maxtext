@@ -45,3 +45,7 @@ Launch verified: runtime348fd5a, AOT loaded, step0 start, FIRST_STEP confirmed. 
 Monitoring baselines: shared rank4 isolates joint-GELU change; original shared-P DirectC8 measures gain against the strongest current XL variant. Both are direct comparisons. Shared-rank4 briefly paused11777, then user requested resume through at least20000 after noting recent narrowing; original runtime/schedule retained.
 
 User cadence: all owned XL runs report every2000steps, retaining500-step loss windows. Sharedrank4 must be observed through at least20000.
+
+Reviews: JointGELU at10000 last5+.000899 vsrank4,+.004585 vsoriginalC8; continue because catch-up remains.
+Sharedrank4 at20000 last5+.001996 vsoriginalC8, lower than+.002798 at15500; continue beyond minimum observation.
+Neither has established a net loss gain over originalC8. Keep2000-step reporting.

@@ -7553,7 +7553,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     """L-only standard V1024->256->1024; return the saved budget to each L MLP."""
     # code_commit: ad1afc7; UE5a .6266 steps/s (10-14), -.85% vs K64QK48 .6320; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs K64QK48: final gap +.001, speed unchanged; matched968 read-health scalars.
+    # User-stopped at3257. vs K64QK48: early sign crossing, then +.032@400
+    # narrowed to +.01170@3200; 2400-3200 mean +.01244. No loss/speed gain by stop.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer'
     bam_local_v_projection_rank = 256
     mlp_dim_by_block = [3221, 3221, 3045]
@@ -7565,7 +7566,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     """L-only standard V bottleneck with GELU; matched initial output second moment."""
     # code_commit: ad1afc7; UE5a .6262 steps/s (10-14), -.92% vs K64QK48 .6320; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs K64QK48: final gap -.002, speed unchanged; matched968 read-health scalars.
+    # User-stopped at2002. vs K64QK48: +.08880@400 narrowed to +.05034@1800;
+    # 1000-1800 mean +.05675. vs Linear: late mean +.03871; no loss/speed gain by stop.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer'
     bam_local_v_projection_activation = 'gelu'
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer',

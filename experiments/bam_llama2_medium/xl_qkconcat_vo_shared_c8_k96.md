@@ -32,3 +32,13 @@ plusunscannedfinalL;8fetchesandpersistentfetchedM-cacheunchanged.
 Betvs24: finalgap−.0015(range−.004..+.002), speed−3%;XLwideratthesame24layers
 providesareasondepthmighthelpdespiteMedium25-layerfailure.
 TPUIDxl-qkstatic-vo-c8-ig-k96-directc8-25;same50000steps/checkpoint250/regions.
+
+## Nine-block depth allocation arm
+
+RUN `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC827Layer`; direct baseline the24-layernewK96arm.
+Nine LLF blocks,27layers,MLP5351 throughout. Target1,420,866,928params,
+MHA−53,904 (−.00379%). Every layer fixednonMLP12,097,360, so equalMLP
+alsoequalstotal44,973,904params/layer. Ninefetches,M-cache+12.5%vs24.
+Betvs24:finalgap−.002(range−.006..+.003),speed−8%matchedhealth.
+Keep50000schedule/checkpoint250/review10000;trainUE5aprimaryUC1a/EW4bbackup.
+TPUIDxl-qkstatic-vo-c8-ig-k96-directc8-27.

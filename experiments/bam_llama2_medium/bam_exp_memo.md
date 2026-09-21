@@ -641,3 +641,12 @@ to the read output, mathematically equivalent but not bitwise equivalent in
 BF16. A tied-gate control on that same post-contraction path remains unrun.
 Raw cumulative comparisons: `/data0/xd/k64-independent-final-report.txt`;
 formatted report: `/data0/xd/k64-independent-final-report.md`.
+
+
+### XL K96 QK-concat full-shape operator result (2026-09-21)
+
+Same EW4b v5p-32, genericON+968BAM metrics, steps20–24: write/read mul/mul .5150,
+mul/dot .5424 (+5.32%), dot/mul .5148 (-.04%), dot/dot .5436 (+5.55%).
+K96 needs read-dot; write-dot adds only .22% over read-dot, below a persuasive standalone effect.
+This differs from old K64 all-mul and K128 all-dot: rerun the operator comparison for an expanded-M XL shape.
+[Full report](xl_k96_concat_operator_profile.md); raw `/data0/xd/bam_diagnostics/xl-k96-concat-operators/`.

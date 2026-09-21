@@ -11,9 +11,7 @@ compensation. Other reads/writes, staticQK, sharedVO independent gates, M48x32/C
 
 Additional65536/layer=.0625 W_Q,1572864 total=1.5 W_Q. ParentMLP3050/3050/3045 ->3029/3029/3023:
 reductions21/21/22 cancel exactly within LLF block; total411885440 unchanged. No hardware rounding.
-Prediction vs K48 parent terminal gap-.001 [-.004,+.003], speed approximately flat vs .6378.
-Weak positive bet: shared nonlinear features may help Q/K coordination; no rank increase,
-and MLP deduction can offset gains. XL currently trails at1000; no claimed positive evidence yet.
+
 
 Plan13500,checkpoint200,review2800 with late MLP effects considered; cumulative200-stepwindows,
 report roughly1000-step batches. Generichealth ON/BAM968 ON. Trainer UE5a primary,
@@ -31,3 +29,7 @@ User selected hot replacement of Slice384Linear once exact AOT is ready; retain 
 Launch verified: runtime25b7eb2, AOT loaded, step0 start, FIRST_STEP51. Steps10–14 .6282/s (-1.51% vs K48 .6378, matched968 health),20–24 .6272/s. Evidence `/data0/xd/medium-qk-joint-start-verified.json`. Slice checkpoint10924 retained.
 
 User cadence: report every1000steps, with an explicit2800-step decision before3000; retain200-step loss windows.
+
+Stopped2900 after2800 review. vsK48 early-.008818@1000 shrank to+.000492@2800;
+last5 mean-.001038 [-.002371,+.000492]. Speed-1.51%, same parameters/M-cache: no sustained net gain.
+Checkpoint2900 committed; TPU/queuedresource absent; TB sync complete.

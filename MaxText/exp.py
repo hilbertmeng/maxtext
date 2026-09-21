@@ -276,6 +276,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_address_mode = 'dynamic'  # dynamic | static | x_slice | factorized
     bam_write_address_input_dim = None  # leading x coordinates for x_slice
     bam_write_address_rank = None  # shared address basis for factorized writes
+    bam_local_qk_joint_hidden_dim = None  # GELU features for shared basis and Q/K head mixes
     bam_extra_final_local_layer = False
     bam_final_local_mlp_dim = None
     bam_concat_v = False
@@ -7881,6 +7882,18 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     bam_write_v_bottleneck_activation = 'gelu'
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu']
     jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-head-c8-gelu"
+
+
+class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer):
+    """Joint GELU features for rank4 shared basis and independent Q/K head mixes."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # +65536 BAM params/layer; LLF MLP6255/6255/6256 exactly preserves parent total.
+    # Prediction vs shared rank4: final gap -.001 (-.004..+.003); speed approximately flat.
+    model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256'
+    bam_local_qk_joint_hidden_dim = 256
+    mlp_dim_by_block = [6255, 6255, 6256]
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-k96-qk-rank4-joint-gelu256'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

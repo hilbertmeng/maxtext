@@ -696,6 +696,62 @@ class BamReadKeyTransformTest(absltest.TestCase):
         self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
         self.assertGreater(float(jnp.linalg.norm(m0.astype('float32'))),0.)
 
+  def test_joint_qk_gelu_basis_mix_gates_and_gradients(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256'
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'joint').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class=name, run_name='joint', enable_checkpointing=False,
+          base_output_directory=out+'/', jax_cache_dir='', log_config=False,
+          dataset_type='synthetic', base_emb_dim=128, base_num_query_heads=2,
+          base_num_kv_heads=2, head_dim=64, max_target_length=8,
+          max_prefill_predict_length=8, query_chunk_size=4, per_device_batch_size=1.)
+      cfg.get_keys().update(bam_write_v_bottleneck_dim=32, bam_local_qk_joint_hidden_dim=32,
+                            bam_k=32, bam_local_qk_col_output_dim=32, bam_partial_rope_nope_dim=32)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      x = jax.random.normal(jax.random.key(701), (1,8,128), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(702), (1,8,32,32), dtype=cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=m, deterministic=True, layer_index=1)
+      for mode in ('local_qk+local_o', 'local_qk+full'):
+        module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64,
+            max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+            attention_kernel='dot_product_chunk', dtype=cfg.dtype, layer_mode=mode,
+            read_side='col', attention_type=cfg.attention_type)
+        params = unfreeze(module.init({'params':jax.random.key(703)}, *args, **kw)['params'])
+        self.assertNotIn('W_local_packed', params)
+        self.assertNotIn('W_lk_bias', params)
+        self.assertEqual(params['W_lq_bias'].value.shape, (4,32))
+        for key, shape in [('W_qk_joint_down',(128,32)), ('W_qk_joint_up',(32,144)),
+                           ('W_qk_gates',(128,4))]:
+          self.assertEqual(params[key]['kernel'].value.shape, shape)
+          self.assertNotIn('bias', params[key])
+        reads = module.apply({'params':params}, x, method=module._local_inputs)
+        np.testing.assert_array_equal(reads['q'][0], reads['k'][0])
+        for arm in ('q','k'):
+          self.assertGreater(float(jnp.linalg.norm(reads[arm][0].astype('float32'))),0.)
+          self.assertGreater(float(jnp.linalg.norm(reads[arm][2].astype('float32'))),0.)
+          np.testing.assert_array_equal(reads[arm][1],jnp.zeros_like(reads[arm][1]))
+        # Gate logits must still depend directly on x, never on the nonlinear hidden features.
+        params['W_qk_gates']['kernel'] = params['W_qk_gates']['kernel'].replace(
+            value=jnp.ones((128,4),cfg.weight_dtype)*.01)
+        gate_reads = module.apply({'params':params}, x, method=module._local_inputs)
+        expected = jnp.einsum('btd,dh->bth',x,params['W_qk_gates']['kernel'].value.astype(x.dtype))
+        np.testing.assert_allclose(gate_reads['q'][1][...,0].astype('float32'),expected[...,:2].astype('float32'),rtol=.02,atol=.002)
+        (_, _), updates = module.apply({'params':params}, *args, **kw, mutable=['intermediates'])
+        self.assertGreater(float(updates['intermediates']['concat_qk_scores'][0][0]),0.)
+        grads = jax.grad(lambda p:jnp.mean(module.apply({'params':p},*args,**kw)[0].astype('float32')**2))(params)
+        for key in ('W_qk_joint_down','W_qk_joint_up','W_qk_gates'):
+          g=grads[key]['kernel'].value.astype('float32')
+          self.assertTrue(bool(jnp.all(jnp.isfinite(g))))
+          self.assertGreater(float(jnp.linalg.norm(g)),0.)
+        for lo,hi in ((0,128),(128,136),(136,144)):
+          self.assertGreater(float(jnp.linalg.norm(grads['W_qk_joint_up']['kernel'].value[:,lo:hi].astype('float32'))),0.)
+
   def test_concat_shapes_write_seed_and_qk_learning(self):
     import max_utils
     import pyconfig

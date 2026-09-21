@@ -2826,7 +2826,36 @@ class BamAttention(Attention):
 
     # ---- Local read parameters: one packed projection over every arm, then
     # the same per-arm bias / gate bias / norms / adapter. ----
-    if self._local_arms:
+    self._qk_joint_hidden = getattr(cfg, 'bam_local_qk_joint_hidden_dim', None)
+    if self._qk_joint_hidden is not None:
+      arms = list(self._local_arms.values())
+      assert self._share_qk_basis and [a.name for a in arms] == ['q', 'k']
+      assert all(a.prune_row and a.rank_routing == 'effective_key' for a in arms)
+      assert 0 < self._qk_joint_hidden <= cfg.emb_dim
+      layout, packed_width = _packed_local_layout(arms, True)
+      self._qk_joint_widths = (arms[0].basis_width, arms[0].mix_width, arms[1].mix_width)
+      old_init = _packed_local_arms_init(reg_init, arms, share_qk_basis=True,
+                                        seed_qk_basis=bool(cfg.bam_concat_qk))
+      def joint_up_init(key, shape, dtype, in_axis=0, out_axis=1):
+        # Match the old raw basis/mix second moments after unit-variance down + GELU.
+        old = old_init(key, (cfg.emb_dim, packed_width), dtype)
+        selected = jnp.concatenate((old[:, layout[0][0]], old[:, layout[0][2]],
+                                    old[:, layout[1][2]]), axis=-1)
+        gain = (cfg.emb_dim / self._qk_joint_hidden / .425193711) ** .5
+        return selected[:self._qk_joint_hidden] * gain
+      common = dict(axis=-1, kernel_axes=('embed', None), dtype=self.dtype,
+                    weight_dtype=self.weight_dtype, quant=self.quant,
+                    matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.W_qk_joint_down = DenseGeneral(
+          features=self._qk_joint_hidden, kernel_init=nd_dense_init(1., 'fan_in', 'normal'),
+          name='W_qk_joint_down', **common)
+      self.W_qk_joint_up = DenseGeneral(
+          features=sum(self._qk_joint_widths), kernel_init=joint_up_init,
+          name='W_qk_joint_up', **common)
+      self.W_qk_gates = DenseGeneral(
+          features=sum(a.gate_width for a in arms), kernel_init=zeros_init,
+          name='W_qk_gates', **common)
+    elif self._local_arms:
       arms = list(self._local_arms.values())
       _, packed_width = _packed_local_layout(arms, self._share_qk_basis)
       self.W_local_packed = DenseGeneral(
@@ -3115,6 +3144,16 @@ class BamAttention(Attention):
 
   def _local_inputs(self, x):
     """Project x once and slice per arm into (key [..,r,k+v], gate, mix [..,n,2,r])."""
+    if self._qk_joint_hidden is not None:
+      projected = self.W_qk_joint_up(nn.gelu(self.W_qk_joint_down(x)))
+      bw, qw, _ = self._qk_joint_widths
+      basis, qmix, kmix = jnp.split(projected, (bw, bw + qw), axis=-1)
+      q, k = (self._local_arms[n] for n in ('q', 'k'))
+      qgate, kgate = jnp.split(self.W_qk_gates(x), (q.gate_width,), axis=-1)
+      lead = x.shape[:-1]
+      shared = basis.reshape(lead + q.key_shape)
+      return {'q': (shared, qgate.reshape(lead + q.gate_shape), qmix.reshape(lead + q.mix_shape)),
+              'k': (shared, kgate.reshape(lead + k.gate_shape), kmix.reshape(lead + k.mix_shape))}
     arms = list(self._local_arms.values())
     with jax.named_scope("bam/local_packed_projection"):
       packed = self.W_local_packed(x)

@@ -564,6 +564,14 @@ Design documents:
 
 ### XL all-column K64/K128 main profile
 
+**XL M-size experiment preflight:** inspect the resolved write/read contraction switches
+and the historical same-shape operator matrix before launch or speed attribution.
+K64 favors mul_reduce while K128 favors dot; neither transfers automatically to a
+new K or read architecture. Pair write × read implementations on the full target
+shape with matched health settings; include rank-to-head expansion only when present.
+Do not compare an unoptimized new size with optimized K128 and call the difference
+an architectural cost. K96 concat follow-up: `xl_k96_concat_operator_profile.md`.
+
 `BamXLSharedBasisQKDirectC8MLPPerLayerColOnly` and
 `BamXLSharedBasisQKDirectC8MLPPerLayerColOnlyK128QK96TruncatePartialRoPE`:
 training runtime `4fb2021`; profile classes `BamXLK64OperatorWMRMSMFull` and

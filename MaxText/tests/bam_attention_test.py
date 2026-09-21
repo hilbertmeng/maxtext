@@ -281,7 +281,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
     from flax.core import unfreeze
     results = []
     for width, qk_width, suffix in ((32, 32, ''), (64, 32, 'K64Truncate'),
-                                    (64, 48, 'K64QK48Truncate')):
+                                    (64, 48, 'K64QK48Truncate'),
+                                    (48, 48, 'IndependentGatesK48QK48')):
       with tempfile.TemporaryDirectory() as out:
         Path(out, 'k64').mkdir()
         cfg = pyconfig.initialize(
@@ -317,17 +318,17 @@ class BamReadKeyTransformTest(absltest.TestCase):
           params['static_'+arm+'_key'] = leaf.replace(value=.1*jax.random.normal(
               jax.random.key(205 if arm == 'q' else 206), leaf.value.shape, leaf.value.dtype))
         (y, mout), c = module.apply({'params':params}, *args, **kw,
-            capture_intermediates=lambda mod, method: method in ('_add_local_qk', '_shared_local_vo'),
+            capture_intermediates=lambda mod, method: method in ('_add_local_qk', '_shared_local_vo', '_independent_local_vo'),
             mutable=['intermediates'])
         c = c['intermediates']
         self.assertEqual(mout.shape, m.shape)
         self.assertTrue(bool(jnp.all(jnp.isfinite(y))))
-        vo = c['_shared_local_vo'][0]
+        vo = c['_independent_local_vo'][0][0] if width == 48 else c['_shared_local_vo'][0]
         self.assertGreater(float(jnp.linalg.norm(vo[..., :width].astype('float32'))), 0.)
         if width == 64:
           self.assertGreater(float(jnp.linalg.norm(vo[..., 32:].astype('float32'))), 0.)
         else:
-          np.testing.assert_array_equal(vo[..., 32:], jnp.zeros_like(vo[..., 32:]))
+          np.testing.assert_array_equal(vo[..., width:], jnp.zeros_like(vo[..., width:]))
         o = jax.random.normal(jax.random.key(207), (1,8,2,64), dtype=cfg.dtype)
         written = module.apply({'params':params}, o, x, method=module._write_data)
         np.testing.assert_array_equal(written, o[..., :width])
@@ -446,6 +447,65 @@ class BamReadKeyTransformTest(absltest.TestCase):
                                         grad['W_R_gate']['kernel'].value.reshape(-1))))
       fp = init(child.clone(layer_mode='local_qk+full'))
       self.assertNotIn('W_lv_gate',fp)
+
+  def test_direct_c8_qk_independent_keys_static_and_gradients(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'c8').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class='BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer',
+          run_name='c8', enable_checkpointing=False, base_output_directory=out+'/',
+          jax_cache_dir='', log_config=False, dataset_type='synthetic',
+          base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
+          head_dim=64, max_target_length=8, max_prefill_predict_length=8,
+          query_chunk_size=4, per_device_batch_size=1.)
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+          head_dim=64, bam_k=64, bam_v=32, max_target_length=8,
+          max_prefill_predict_length=8, mesh=mesh, attention_kernel='dot_product_chunk',
+          dtype=cfg.dtype, layer_mode='local_qk+local_o', read_side='col',
+          attention_type=cfg.attention_type)
+      x = jax.random.normal(jax.random.key(301), (1,8,128), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(302), (1,8,64,32), dtype=cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=m, deterministic=True, layer_index=1)
+      params = unfreeze(module.init({'params':jax.random.key(303)}, *args, **kw)['params'])
+      self.assertNotIn('W_local_packed', params)
+      self.assertNotIn('W_lq_bias', params)
+      for arm in ('q','k'):
+        self.assertEqual(params['W_l'+arm+'_c8']['kernel'].value.shape, (128,2,8))
+        self.assertNotIn('bias', params['W_l'+arm+'_c8'])
+        self.assertEqual(params['query' if arm=='q' else 'key']['kernel'].value.shape, (128,2,16))
+      (_, mout), updates = module.apply({'params':params}, *args, **kw,
+          capture_intermediates=lambda mod,method: method == '_compress_m', mutable=['intermediates'])
+      health = updates['intermediates']
+      self.assertEqual(len(health['_compress_m']), 1)
+      self.assertEqual(mout.shape, m.shape)
+      for arm in ('local_q','local_k','local_v','local_o'):
+        self.assertAlmostEqual(float(health['concat_'+arm+'_gate'][0][0]), .05, delta=.001)
+      grad = jax.grad(lambda p: jnp.mean(module.apply({'params':p},*args,**kw)[0].astype('float32')**2))(params)
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(z))) for z in jax.tree.leaves(grad)))
+      for arm in ('q','k'):
+        for leaf in (grad['W_l'+arm+'_c8']['kernel'], grad['W_l'+arm+'_gate']['kernel'], grad['static_'+arm+'_key']):
+          self.assertGreater(float(jnp.linalg.norm(leaf.value.astype('float32'))), 0.)
+      # Static Q sees full-M coordinates outside C8; K remains independent.
+      def read(p, arm, full):
+        return module.apply({'params':p}, arm, full, m[...,:8], x, method=module._read_direct_qk_c8)
+      before = [read(params,a,m) for a in ('q','k')]
+      leaf = params['static_q_key']
+      params['static_q_key'] = leaf.replace(value=leaf.value.at[20,:].set(1.))
+      after = [read(params,a,m) for a in ('q','k')]
+      self.assertGreater(float(jnp.linalg.norm((after[0]-before[0]).astype('float32'))), 0.)
+      np.testing.assert_array_equal(after[1],before[1])
+      # Changing only Q's gate must leave K exactly unchanged.
+      leaf = params['W_lq_gate_b0']
+      params['W_lq_gate_b0'] = leaf.replace(value=leaf.value+2.)
+      self.assertGreater(float(jnp.linalg.norm((read(params,'q',m)-after[0]).astype('float32'))),0.)
+      np.testing.assert_array_equal(read(params,'k',m),after[1])
 
   def test_concat_shapes_write_seed_and_qk_learning(self):
     import max_utils

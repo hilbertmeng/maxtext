@@ -104,3 +104,30 @@ Implementation worktree and branch unchanged. Retained TPUs are
 `xd-v5p-16-qkstatic-vo-c8-k64-qk48-maxtext`, and
 `xd-v5p-16-qkstatic-vo-c8-k64-qk48-25-maxtext`; RUN registry is authoritative after handoff.
 Validation artifacts: `/data0/xd/k64-independent-{audit.json,audit.log,trace.log,targeted-tests.log,25-numeric.log}`.
+
+## K48QK48 and independent C8 LocalQK (2026-09-20)
+
+Both start from IndependentGatesK64QK48TruncateMLPPerLayer (8c188b0),
+UE5a .6320 steps/s, 411885440 parameters, MLP[3050,3050,3045].
+Implementation remains this worktree/branch. Both retain NoPE48/RoPE16,
+24 layers, separate V/O gates and 968 concat health metrics plus generic health.
+
+- RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer`;
+  TPU `xd-v5p-16-qkstatic-vo-c8-ig-k48-qk48-maxtext`. Only M K64→48;
+  QK48 unchanged, so no QK truncation remains. V/O and write use48 coordinates.
+  Same411885440 parameters; raw/compressed cache -25%. Bet gap +.003, speed +1%.
+- RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer`;
+  TPU `xd-v5p-16-qkstatic-vo-c8-ig-k64-qk48-directc8-maxtext`.
+  Replace only dynamic Q/K reads: independent per-head 8-dimensional read keys,
+  reuse existing compressed M64x8; L-layer QKV/O share one compression operation.
+  Full-M static Q/K keys stay separate, zero-init, ungated, without RMS.
+  Q/K read-key projections have no bias; separate gates start .05 with unchanged scale.
+  Dynamic keys use ordinary nonzero initialization to keep concatenated QK learning alive.
+  Projection weights remain .28125 W_Q/layer including gates; removal of128 old
+  shared-basis biases/layer saves3072 overall, yielding411882368. MLP unchanged.
+  Principal dynamic read MAC count unchanged (16384/layer/token), Gram work removed.
+  Bet gap -.0015, speed +1%; plausible gap -.004..+.002.
+
+Formal13500 steps, checkpoint200, primaryUE5a with UC1a/EW4b backups;
+AOT primaryEW4a with UC1a/UE5a backups. New RUNs from scratch.
+Validation artifacts `/data0/xd/k48qk48-directc8-{audit.json,trace.log,tests.log}`.

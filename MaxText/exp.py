@@ -270,6 +270,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_record_concat_health = False
     bam_concat_qk = False
     bam_local_qk_col_output_dim = None  # optional parameter-free column truncation
+    bam_local_qk_direct_c8 = False  # independent per-head Q/K keys on the existing compressed M
     bam_extra_final_local_layer = False
     bam_final_local_mlp_dim = None
     bam_concat_v = False
@@ -7519,6 +7520,27 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer',
                     'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-ig-k64-qk48-25'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer):
+    """M48x32/C8; keep BAM QK48, standard QK16 and RoPE16."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs K64QK48: final gap +.003, speed +1%; matched generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
+    bam_k = 48
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-ig-k48-qk48'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer):
+    """Independent Q/K C8 dynamic keys; full-M static Q/K and VO reads unchanged."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Prediction vs K64QK48: final gap -.0015, speed +1%; matched generic+concat health ON.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer'
+    bam_local_qk_direct_c8 = True
+    bam_local_qk_share_basis = False
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-ig-k64-qk48-directc8'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

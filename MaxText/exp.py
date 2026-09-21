@@ -8587,7 +8587,8 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
     # -4.54% vs optimized24-layer .5378; health ON,1089 vs968 scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP5351 throughout; -53904 params vs MHA; fetch M-cache +12.5% vs24 layers.
-    # Prediction vs24-layer K96: final gap -.002 (-.006..+.003), speed -8% with matched health.
+    # Paused4826 for QK-read comparisons; checkpoint retained, not a failure verdict.
+    # vs XL24: early +.0413 narrowed to +.00409@4500; last5 +.00482, still narrowing.
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC827Layer'
     base_num_decoder_layers = 27
     bam_layer_modes = ['local_qk+local_o', 'local_qk+local_o', 'local_qk+full'] * 9

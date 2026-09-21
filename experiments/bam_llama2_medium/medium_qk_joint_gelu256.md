@@ -30,10 +30,12 @@ Launch verified: runtime25b7eb2, AOT loaded, step0 start, FIRST_STEP51. Steps10â
 
 User cadence: report every1000steps, with an explicit2800-step decision before3000; retain200-step loss windows.
 
-Stopped2900 after2800 review. vsK48 early-.008818@1000 shrank to+.000492@2800;
-last5 mean-.001038 [-.002371,+.000492]. Speed-1.51%, same parameters/M-cache: no sustained net gain.
+Initially stopped2900 after2800 review. vsK48 early-.008818@1000 shrank to+.000492@2800;
+last5 mean-.001038 [-.002371,+.000492]. Speed-1.51%, same parameters/M-cache; initial review did not establish a sustained gain.
 Checkpoint2900 committed; TPU/queuedresource absent; TB sync complete.
 
 User requested resume from2900 on2026-09-21. Keep runtime25b7eb2, original13500-step LR schedule, same AOT/storage and UE5a primary with UC1a/EW4b backups. Report every1000steps; next full batch4000. Earlier2800 review remains provisional.
 
 Resume verified: restore/data cursor2900, FIRST2901, AOT loaded; LR27.246e-5 matches original schedule. Checkpoint3000 committed21:36:42UTC. Evidence `/data0/xd/medium-joint-resume2900-verified.txt`.
+
+Paused7245 for user-directed GELU128 hot replacement. Resumed trajectory approached zero at6400â€“7200;6800-.000202,7000+.000116,7200+.001070. Last5+.000323[-.000202,+.001070]. This remains provisional, not a demonstrated terminal failure. Checkpoint7245 retained; finalTB SYNC_OK.

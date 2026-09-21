@@ -8845,6 +8845,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Exact parent total411885440; original pre-RMS address bias and RMS retained.
     # Bet vs K48: terminal gap +.0003 (range -.0015..+.002); matched speed approximately flat.
+    # code_commit: e3791a1; UE5a .6356 steps/s, -.34% vs K48 .6378, -.03% vs Slice384 .6358; matched968 health.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear'
     bam_write_address_input_dim = 512
     mlp_dim_by_block = [3093, 3093, 3087]

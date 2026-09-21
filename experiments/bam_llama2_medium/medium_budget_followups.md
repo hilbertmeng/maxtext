@@ -36,3 +36,7 @@ Runtime e3791a14 (full hash in `/data0/xd/medium-budget-followups-runtime.txt`).
 JointGelu128 launch verified: from0, FIRST70, AOTloaded, exacte3791a1. Steps10–14 .6286/s (-1.44%vsK48.6378,+.06%vsJoint256.6282),20–24 .6306. Matchedgeneric/BAM968. OldJoint256paused7245 at23:31:02UTC; checkpointretained,TB SYNC_OK. Evidence `/data0/xd/joint128-start-verified.json`.
 
 Slice768 launch verified from0, FIRST64,AOTloaded,e3791a1. Steps10–14 .6376/s(-.03%vsK48,+.28%vsSlice384),20–24 .6386; matched968health. Evidence `/data0/xd/slice768-start-verified.json`.
+
+Allthree AOT states ready with cleanup_failures=[]: e3791a1-0b3d626d/457d6d22/8c56630e. Slice512 prolonged EW4a provisioning handled by retaining primary and adding UC1a/UE5a candidates; primary eventually compiled, allthree compiler candidates released. FormalSlice512 submitted23:48:56UTC.
+
+Slice512 launch verified from0,FIRST56,AOTloaded,e3791a1. Steps10–14 and20–24 .6356/s(-.34%vsK48,-.03%vsSlice384),matched968health. Evidence `/data0/xd/slice512-start-verified.json`. Allthree nowtrainingUE5a,report1000,review2800.

@@ -35,3 +35,5 @@ last5 mean-.001038 [-.002371,+.000492]. Speed-1.51%, same parameters/M-cache: no
 Checkpoint2900 committed; TPU/queuedresource absent; TB sync complete.
 
 User requested resume from2900 on2026-09-21. Keep runtime25b7eb2, original13500-step LR schedule, same AOT/storage and UE5a primary with UC1a/EW4b backups. Report every1000steps; next full batch4000. Earlier2800 review remains provisional.
+
+Resume verified: restore/data cursor2900, FIRST2901, AOT loaded; LR27.246e-5 matches original schedule. Checkpoint3000 committed21:36:42UTC. Evidence `/data0/xd/medium-joint-resume2900-verified.txt`.

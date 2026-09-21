@@ -7737,7 +7737,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # code_commit: 27acf14; UE5a .6324 steps/s (10-14), -.41% vs parent .6350; matched968 health.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP3050/3050/3045 unchanged; +6144 params vs parent, cache unchanged.
-    # Prediction vs shared-P parent: final gap -.006 (-.012..+.002), speed -1%.
+    # Stopped4961. vs shared-P DirectC8: early gain shrank, then held ~-.007; last5@4800 -.00672.
+    # vs K48 rank4: +.00236 last5, -.85% speed, same cache; no net advantage.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8SeparateQKProjectionMLPPerLayer'
     bam_local_qk_separate_c8_projection = True
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer',
@@ -7750,7 +7751,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     # code_commit: 27acf14; UE5a .6162 steps/s (20-24), -1.25% vs parent .6240; matched968 health.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP3050/3050/3045 unchanged; +6144 params vs parent, cache unchanged.
-    # Prediction vs shared-P parent: final gap -.001 (-.004..+.002), speed -1%.
+    # Stopped4172. vs shared-P DirectC8: after initial transient, deficit narrowed to ~+.005 and stalled.
+    # Last5@4000 +.00519 vs DirectC8, +.00709 vs K64 rank4; -2.50% speed vs rank4, same cache.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer'
     bam_local_qk_separate_c8_projection = True
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer',

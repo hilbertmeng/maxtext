@@ -7579,8 +7579,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """M48x32/C8 with independent dynamic Q/K C8 keys and full-M static Q/K."""
     # code_commit: bf165a7; UE5a .6350 steps/s (10-14), -.44% vs K48 rank4, +1.76% vs K64 DirectC8; matched968 health.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs K48 rank4: final gap -.0005 (-.002..+.002); near parity vs K64 DirectC8.
-    # Expected slightly faster than K64 DirectC8, M-cache -25%; initial Q/K scale remains .2.
+    # Paused4891 for SeparateQKProjection. vs K48 rank4: early +.035 narrowed to +.00827@4800; last5 +.00908.
+    # vs K64 DirectC8: early +.070 narrowed to +.00920@4800; last5 +.00952; M-cache -25%.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer'
     bam_k = 48
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer',
@@ -7727,6 +7727,7 @@ class BamXLK96ConcatOperatorWDRDFull(BamXLSharedBasisQKConcatStaticLocalVOShared
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8SeparateQKProjectionMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer):
     """Separate QK compression from VO/FetchedO; clone the shared projection at init."""
+    # code_commit: 27acf14; UE5a .6324 steps/s (10-14), -.41% vs parent .6350; matched968 health.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP3050/3050/3045 unchanged; +6144 params vs parent, cache unchanged.
     # Prediction vs shared-P parent: final gap -.006 (-.012..+.002), speed -1%.

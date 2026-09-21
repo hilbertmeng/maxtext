@@ -7744,6 +7744,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer):
     """Separate QK compression from VO/FetchedO; clone the shared projection at init."""
+    # code_commit: 27acf14; UE5a .6162 steps/s (20-24), -1.25% vs parent .6240; matched968 health.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP3050/3050/3045 unchanged; +6144 params vs parent, cache unchanged.
     # Prediction vs shared-P parent: final gap -.001 (-.004..+.002), speed -1%.

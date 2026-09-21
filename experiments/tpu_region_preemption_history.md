@@ -285,6 +285,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-k48-qk48-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:28:09 | 2026-09-21 06:49:43 | completed13500; zero preemptions; resources verified absent | UC1a/EW4b configured, never active |
 
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-k64-qk48-directc8-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:25:39 | 2026-09-21 07:13:18 | completed13500; two same-zone preemptions; resources verified absent | UC1a/EW4b configured, never active |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -410,26 +412,26 @@ active leases are censored, and manual migration releases are not preemptions.
 | XL Rank2 PLocR512 | 12 | `europe-west4-b` | 2026-08-28 05:44:54 | 2026-08-28 06:11:10 | 26m16s | preempted |
 | XL Rank2 NoPreRMSBias | 12 | `europe-west4-b` | 2026-08-28 05:20:54 | 2026-08-28 06:56:42 | 1h35m48s | preempted |
 | XL Rank2 NoPreRMSBias | 13 | `europe-west4-b` | 2026-08-28 07:01:53 | 2026-08-28 07:33:08 | 31m15s | preempted |
+| XL Rank2 PLocLinear | 1 | `europe-west4-b` | - | 2026-08-28 07:34:15 | - | preempted |
 | XL Rank2 PLocR512 | 13 | `europe-west4-b` | 2026-08-28 06:16:52 | 2026-08-28 07:36:02 | 1h19m10s | hot switch |
+| XL Rank2 FetchHeads32 | 1 | `europe-west4-b` | 2026-08-28 07:36:06 | 2026-08-28 07:58:35 | 22m29s | preempted |
+| XL Rank2 PLocLinear | 2 | `europe-west4-b` | 2026-08-28 07:38:04 | 2026-08-28 07:58:42 | 20m38s | preempted |
+| XL Rank2 FetchHeads32 | 2 | `europe-west4-b` | 2026-08-28 08:03:57 | 2026-08-28 08:06:16 | 2m19s | preempted |
+| XL Rank2 PLocLinear | 3 | `europe-west4-b` | 2026-08-28 08:04:28 | 2026-08-28 08:06:29 | 2m01s | preempted |
+| XL Rank2 FetchHeads32 | 3 | `europe-west4-b` | 2026-08-28 08:17:39 | 2026-08-28 08:21:51 | 4m12s | preempted |
 | XL Rank2 CurrentRepro | 1 | `europe-west4-b` | 2026-08-28 08:28:25 | 2026-08-28 08:29:12 | 47s | preempted |
+| XL Rank2 PLocLinear | 4 | `europe-west4-b` | 2026-08-28 08:27:41 | 2026-08-28 08:29:34 | 1m53s | preempted |
+| XL Rank2 FetchHeads32 | 4 | `europe-west4-b` | 2026-08-28 08:29:56 | 2026-08-28 08:42:41 | 12m45s | preempted |
+| XL Rank2 PLocLinear | 5 | `europe-west4-b` | 2026-08-28 08:43:03 | 2026-08-28 08:43:55 | 52s | preempted |
 | XL Rank2 CurrentRepro | 2 | `europe-west4-b` | 2026-08-28 08:43:08 | 2026-08-28 08:45:03 | 1m55s | preempted |
+| XL Rank2 FetchHeads32 | 5 | `europe-west4-b` | 2026-08-28 08:47:56 | 2026-08-28 08:48:38 | 42s | preempted |
 | XL Rank2 CurrentRepro | 3 | `europe-west4-b` | 2026-08-28 08:56:42 | 2026-08-28 09:00:42 | 4m00s | preempted |
+| XL Rank2 PLocLinear | 6 | `europe-west4-b` | 2026-08-28 08:56:24 | 2026-08-28 09:00:54 | 4m30s | preempted |
+| XL Rank2 FetchHeads32 | 6 | `europe-west4-b` | 2026-08-28 09:00:43 | 2026-08-28 09:02:35 | 1m52s | preempted |
+| XL Rank2 PLocLinear | 7 | `europe-west4-b` | 2026-08-28 09:08:22 | 2026-08-28 09:10:35 | 2m13s | preempted |
 | XL Rank2 CurrentRepro | 4 | `europe-west4-b` | 2026-08-28 09:08:01 | 2026-08-28 09:10:37 | 2m36s | preempted |
 | XL Rank2 CurrentRepro | 5 | `europe-west4-b` | 2026-08-28 09:19:21 | 2026-08-28 09:23:04 | 3m43s | preempted |
-| XL Rank2 FetchHeads32 | 1 | `europe-west4-b` | 2026-08-28 07:36:06 | 2026-08-28 07:58:35 | 22m29s | preempted |
-| XL Rank2 FetchHeads32 | 2 | `europe-west4-b` | 2026-08-28 08:03:57 | 2026-08-28 08:06:16 | 2m19s | preempted |
-| XL Rank2 FetchHeads32 | 3 | `europe-west4-b` | 2026-08-28 08:17:39 | 2026-08-28 08:21:51 | 4m12s | preempted |
-| XL Rank2 FetchHeads32 | 4 | `europe-west4-b` | 2026-08-28 08:29:56 | 2026-08-28 08:42:41 | 12m45s | preempted |
-| XL Rank2 FetchHeads32 | 5 | `europe-west4-b` | 2026-08-28 08:47:56 | 2026-08-28 08:48:38 | 42s | preempted |
-| XL Rank2 FetchHeads32 | 6 | `europe-west4-b` | 2026-08-28 09:00:43 | 2026-08-28 09:02:35 | 1m52s | preempted |
 | XL Rank2 FetchHeads32 | 7 | `europe-west4-b` | 2026-08-28 09:11:10 | 2026-08-28 10:25:01 | 1h13m51s | manual stop |
-| XL Rank2 PLocLinear | 1 | `europe-west4-b` | - | 2026-08-28 07:34:15 | - | preempted |
-| XL Rank2 PLocLinear | 2 | `europe-west4-b` | 2026-08-28 07:38:04 | 2026-08-28 07:58:42 | 20m38s | preempted |
-| XL Rank2 PLocLinear | 3 | `europe-west4-b` | 2026-08-28 08:04:28 | 2026-08-28 08:06:29 | 2m01s | preempted |
-| XL Rank2 PLocLinear | 4 | `europe-west4-b` | 2026-08-28 08:27:41 | 2026-08-28 08:29:34 | 1m53s | preempted |
-| XL Rank2 PLocLinear | 5 | `europe-west4-b` | 2026-08-28 08:43:03 | 2026-08-28 08:43:55 | 52s | preempted |
-| XL Rank2 PLocLinear | 6 | `europe-west4-b` | 2026-08-28 08:56:24 | 2026-08-28 09:00:54 | 4m30s | preempted |
-| XL Rank2 PLocLinear | 7 | `europe-west4-b` | 2026-08-28 09:08:22 | 2026-08-28 09:10:35 | 2m13s | preempted |
 | XL Rank2 PLocLinear | 8 | `europe-west4-b` | 2026-08-28 09:18:27 | 2026-08-28 10:40:17 | 1h21m50s | manual stop |
 | FetchAmp C8 A=.05657 | 1 | `europe-west4-b` | 2026-08-29 07:38:32 | 2026-08-29 08:49:37 | 1h11m05s | preempted |
 | FetchAmp C32 A=.025 | 1 | `europe-west4-b` | 2026-08-29 07:39:10 | 2026-08-29 08:50:59 | 1h11m49s | preempted |
@@ -466,13 +468,13 @@ active leases are censored, and manual migration releases are not preemptions.
 | V1Compat ABC FixedAmp | 3 | `europe-west4-b` | 2026-08-30 12:41:50 | 2026-08-30 12:45:43 | 3m53s | preempted |
 | V1Compat ABC FixedAmp | 4 | `europe-west4-b` | 2026-08-30 12:53:08 | 2026-08-30 13:04:50 | 11m42s | preempted |
 | V1Compat native JIT | 2 | `europe-west4-b` | 2026-08-30 13:33:11 | 2026-08-30 13:35:36 | 2m25s | preempted |
-| V1Compat native JIT | 3 | `europe-west4-b` | 2026-08-30 13:46:32 | 2026-08-30 15:19:55 | 1h33m23s | preempted |
 | C32 native JIT | 4 | `europe-west4-b` | 2026-08-30 13:48:35 | 2026-08-30 14:31:11 | 42m36s | preempted |
 | C32 native JIT | 5 | `europe-west4-b` | 2026-08-30 14:36:49 | 2026-08-30 14:41:50 | 5m01s | preempted |
 | C32 native JIT | 6 | `europe-west4-b` | 2026-08-30 14:53:49 | 2026-08-30 15:01:53 | 8m04s | preempted |
-| C32 native JIT | 7 | `europe-west4-b` | 2026-08-30 15:06:20 | 2026-08-30 16:15:52 | 1h09m32s | manual stop |
+| V1Compat native JIT | 3 | `europe-west4-b` | 2026-08-30 13:46:32 | 2026-08-30 15:19:55 | 1h33m23s | preempted |
 | V1Compat native JIT | 4 | `europe-west4-b` | 2026-08-30 15:26:41 | 2026-08-30 15:31:43 | 5m02s | preempted |
 | V1Compat native JIT | 5 | `europe-west4-b` | 2026-08-30 15:38:37 | 2026-08-30 15:42:06 | 3m29s | preempted |
+| C32 native JIT | 7 | `europe-west4-b` | 2026-08-30 15:06:20 | 2026-08-30 16:15:52 | 1h09m32s | manual stop |
 | V1Compat native JIT | 6 | `europe-west4-b` | 2026-08-30 15:49:26 | 2026-08-30 16:22:54 | 33m28s | manual stop |
 | D0N0 Dense | 1 | `europe-west4-b` | 2026-08-31 00:45:53 | 2026-08-31 01:03:45 | 17m52s | preempted |
 | D0N0 Dense | 2 | `europe-west4-b` | 2026-08-31 01:08:40 | 2026-08-31 01:31:56 | 23m16s | preempted |
@@ -561,15 +563,15 @@ active leases are censored, and manual migration releases are not preemptions.
 | Depth amplitude p=.05 | 1 | `us-east5-a` | 2026-09-01 09:59:55 | 2026-09-01 16:00:09 | 6h00m14s | run stop |
 | Gate050 Interpolated | 1 | `us-east5-a` | 2026-09-02 03:53:42 | 2026-09-02 04:09:47 | 16m05s | preempted |
 | Gate050 Interpolated | 2 | `us-east5-a` | 2026-09-02 04:16:59 | 2026-09-02 10:05:36 | 5h48m37s | run stop |
+| Interpolated PerHead amplitude | 1 | `us-east5-a` | 2026-09-02 11:26:34 | 2026-09-02 13:52:29 | 2h25m55s | hot switch |
 | SharedRankGate | 1 | `us-east5-a` | 2026-09-02 08:36:40 | 2026-09-02 15:12:48 | 6h36m08s | completed |
 | Gate005 ScanLayerFix | 1 | `us-east5-a` | 2026-09-02 16:20:46 | 2026-09-02 17:45:16 | 1h24m30s | run stop |
 | Gate050 Interpolated ScanLayerFix | 1 | `us-east5-a` | 2026-09-02 14:14:57 | 2026-09-02 17:49:43 | 3h34m46s | run stop |
 | Gate050 ScanLayerFix | 1 | `us-east5-a` | 2026-09-02 13:52:32 | 2026-09-02 17:49:46 | 3h57m14s | run stop |
 | LocalQK DepthAmplitude050 | 1 | `us-east5-a` | 2026-09-02 13:19:19 | 2026-09-02 17:49:49 | 4h30m30s | run stop |
-| Interpolated PerHead amplitude | 1 | `us-east5-a` | 2026-09-02 11:26:34 | 2026-09-02 13:52:29 | 2h25m55s | hot switch |
 | Interpolated PerHead amplitude | 2 | `us-east5-a` | 2026-09-02 16:01:12 | 2026-09-02 19:43:03 | 3h41m51s | completed |
-| XL M48x48/C12 | 1 | `us-east5-a` | 2026-09-03 09:30:10 | 2026-09-03 14:10:50 | 4h40m40s | run stop |
 | XL AbsV4 | 1 | `us-east5-a` | 2026-09-03 10:12:11 | 2026-09-03 14:10:47 | 3h58m36s | run stop |
+| XL M48x48/C12 | 1 | `us-east5-a` | 2026-09-03 09:30:10 | 2026-09-03 14:10:50 | 4h40m40s | run stop |
 | RowRelayRowSlot | 1 | `us-east5-a` | 2026-09-05 07:25:01 | 2026-09-05 10:14:03 | 2h49m02s | run stop; deletion verified 10:16:03 |
 | FetchNoRMSNormalInit | 1 | `us-east5-a` | 2026-09-05 11:16:15 | 2026-09-05 12:50:21 | 1h34m06s | run stop; deletion verified 12:52:59 |
 | RmsGeluAlphaMix | 1 | `us-east5-a` | 2026-09-06 05:50:23 | 2026-09-06 10:43:36 | 4h53m13s | run stop; TPU and queue deletion verified 10:46:06 |
@@ -661,10 +663,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | XL IndependentLLF LocalQKRank4CFp32AlignedRowSharedBasis | 2 | `europe-west4-b` | 2026-09-12 18:50:10 | 2026-09-12 19:57:55 | 1h07m45s | service preemption; checkpoint23500 committed; same-zone recovery |
 | XL IndependentLLF LocalQKRank4CFp32AlignedRowSharedBasis | 3 | `europe-west4-b` | 2026-09-12 20:03:09 | 2026-09-12 20:06:16 | 3m07s | service preemption during recovery; checkpoint23500 retained; same-zone rebuild |
 | XL IndependentLLF LocalQKRank4CFp32AlignedRowSharedBasis | 4 | `europe-west4-b` | 2026-09-12 20:13:57 | 2026-09-12 23:40:37 | 3h26m40s | user stop30091; checkpoint30091 committed; TPU/queue verified absent; scripted closeout177s |
+| Medium IndependentLLF BAlignedRowMLPPerLayer | 1 | `us-east5-a` | 2026-09-14 00:22:18 | 2026-09-14 00:41:37 | 19m19s | service preemption; checkpoint200 committed; same-zone recovery |
 | Medium IndependentLLF BAlignedRowMLPUniform | 1 | `us-east5-a` | 2026-09-14 00:23:03 | 2026-09-14 00:44:22 | 21m19s | service preemption; checkpoint200 committed; same-zone recovery |
 | Medium IndependentLLF BAlignedRowMLPUniform | 2 | `us-east5-a` | 2026-09-14 00:50:13 | 2026-09-14 01:02:45 | 12m32s | service preemption; checkpoint400 committed; same-zone recovery |
 | Medium IndependentLLF BAlignedRowMLPUniform | 3 | `us-east5-a` | 2026-09-14 01:11:11 | 2026-09-14 03:08:45 | 1h57m34s | user stop5882; checkpoint5882 committed; TPU/queue verified absent; scripted closeout146s |
-| Medium IndependentLLF BAlignedRowMLPPerLayer | 1 | `us-east5-a` | 2026-09-14 00:22:18 | 2026-09-14 00:41:37 | 19m19s | service preemption; checkpoint200 committed; same-zone recovery |
 | Medium IndependentLLF BAlignedRowMLPPerLayer | 2 | `us-east5-a` | 2026-09-14 00:50:03 | 2026-09-14 06:17:57 | 5h28m28s | completed 13500 (exit 0); worker crash @11200 recovered mid-lease (non-TPU, checkpoint 11000 restart); checkpoint13500 committed; TPU/queue verified absent |
 | Medium IndependentLLF BAlignedRow21LayerMLP2896 | 1 | `us-east5-a` | 2026-09-14 04:01:31 | 2026-09-14 06:47:50 | 2h46m19s | zero TPU preemptions; incomplete checkpoint5800 caused worker restart from5600; paused6181, hot-switch to LocalOStaticDynamicRow on same TPU |
 | Medium IndependentLLF BAlignedRowLocalOStaticDynamicRowNoNorm | 1 | `us-east5-a` | 2026-09-14 07:01:33 | 2026-09-14 07:26:21 | 24m48s | service preemption; same-zone recovery |
@@ -675,51 +677,51 @@ active leases are censored, and manual migration releases are not preemptions.
 | Medium IndependentLLF BAlignedRowStdTailWriteOrth | 1 | `us-east5-a` | 2026-09-14 09:40:08 | 2026-09-14 10:38:00 | 57m52s | user stop1675; worker crash @10:03 (Orbax FileExistsError ckpt600, recovered, non-TPU); checkpoint1687 committed; TPU/queue verified absent; scripted closeout |
 | Medium IndependentLLF BAlignedRowStdTailWriteNormal | 1 | `us-east5-a` | 2026-09-14 09:38:25 | 2026-09-14 13:51:54 | 4h13m29s | user stop9032; two worker crashes @10:21/@10:54 (Orbax DEADLINE_EXCEEDED ckpt1400/2200, recovered, non-TPU); checkpoint9058 committed; TPU/queue verified absent; scripted closeout |
 | Medium IndependentLLF BAlignedRowPostBamTailWriteNormal | 1 | `us-east5-a` | 2026-09-14 11:12:18 | 2026-09-14 13:51:57 | 2h39m39s | user stop6333; zero worker crashes; checkpoint6377 committed; TPU/queue verified absent; scripted closeout |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 1 | `us-east5-a` | 2026-09-14 13:37:44 | 2026-09-14 14:44:53 | 1h07m09s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 2 | `us-east5-a` | 2026-09-14 14:51:34 | 2026-09-14 15:31:32 | 39m58s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 3 | `us-east5-a` | 2026-09-14 15:40:32 | 2026-09-14 16:04:30 | 23m58s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 4 | `us-east5-a` | 2026-09-14 16:12:47 | 2026-09-14 17:11:51 | 59m04s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 5 | `us-east5-a` | 2026-09-14 17:19:47 | 2026-09-14 18:08:43 | 48m56s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 6 | `us-east5-a` | 2026-09-14 18:24:34 | 2026-09-14 18:54:46 | 30m12s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 7 | `us-east5-a` | 2026-09-14 19:00:44 | 2026-09-14 19:36:47 | 36m03s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 8 | `us-east5-a` | 2026-09-14 19:42:09 | 2026-09-14 19:44:59 | 2m50s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 9 | `us-east5-a` | 2026-09-14 19:58:16 | 2026-09-14 20:01:03 | 2m47s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 10 | `us-east5-a` | 2026-09-14 20:25:47 | 2026-09-14 20:39:02 | 13m15s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 11 | `us-east5-a` | 2026-09-14 20:44:57 | 2026-09-14 21:00:04 | 15m07s | user stop11000; checkpoint11600 committed; TPU/queue verified absent; scripted closeout164s |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 1 | `us-east5-a` | 2026-09-14 13:39:12 | 2026-09-14 15:31:14 | 1h52m02s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 2 | `us-east5-a` | 2026-09-14 15:39:58 | 2026-09-14 16:04:21 | 24m23s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 3 | `us-east5-a` | 2026-09-14 16:14:27 | 2026-09-14 17:12:03 | 57m36s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 4 | `us-east5-a` | 2026-09-14 17:21:24 | 2026-09-14 18:08:49 | 47m25s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 5 | `us-east5-a` | 2026-09-14 18:25:20 | 2026-09-14 18:54:50 | 29m30s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 6 | `us-east5-a` | 2026-09-14 19:00:49 | 2026-09-14 19:36:55 | 36m06s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 7 | `us-east5-a` | 2026-09-14 19:42:09 | 2026-09-14 19:44:24 | 2m15s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 8 | `us-east5-a` | 2026-09-14 19:58:06 | 2026-09-14 20:01:07 | 3m01s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 9 | `us-east5-a` | 2026-09-14 20:15:12 | 2026-09-14 20:21:31 | 6m19s | service preemption; same-zone recovery |
-| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 10 | `us-east5-a` | 2026-09-14 20:28:49 | 2026-09-14 21:00:07 | 31m18s | user stop13116; checkpoint13000 committed; TPU/queue verified absent; scripted closeout159s |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 1 | `us-east5-a` | 2026-09-14 13:39:06 | 2026-09-14 14:23:09 | 44m03s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 1 | `us-east5-a` | 2026-09-14 13:37:44 | 2026-09-14 14:44:53 | 1h07m09s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 1 | `us-east5-a` | 2026-09-14 13:39:12 | 2026-09-14 15:31:14 | 1h52m02s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 2 | `us-east5-a` | 2026-09-14 14:29:47 | 2026-09-14 15:31:15 | 1h01m28s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 2 | `us-east5-a` | 2026-09-14 14:51:34 | 2026-09-14 15:31:32 | 39m58s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 2 | `us-east5-a` | 2026-09-14 15:39:58 | 2026-09-14 16:04:21 | 24m23s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 3 | `us-east5-a` | 2026-09-14 15:40:32 | 2026-09-14 16:04:30 | 23m58s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 3 | `us-east5-a` | 2026-09-14 15:40:15 | 2026-09-14 16:04:41 | 24m26s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 4 | `us-east5-a` | 2026-09-14 16:13:30 | 2026-09-14 17:11:36 | 58m06s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 4 | `us-east5-a` | 2026-09-14 16:12:47 | 2026-09-14 17:11:51 | 59m04s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 3 | `us-east5-a` | 2026-09-14 16:14:27 | 2026-09-14 17:12:03 | 57m36s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 5 | `us-east5-a` | 2026-09-14 17:19:47 | 2026-09-14 18:08:43 | 48m56s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 5 | `us-east5-a` | 2026-09-14 17:20:17 | 2026-09-14 18:08:43 | 48m26s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 4 | `us-east5-a` | 2026-09-14 17:21:24 | 2026-09-14 18:08:49 | 47m25s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 6 | `us-east5-a` | 2026-09-14 18:26:03 | 2026-09-14 18:48:11 | 22m08s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 6 | `us-east5-a` | 2026-09-14 18:24:34 | 2026-09-14 18:54:46 | 30m12s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 5 | `us-east5-a` | 2026-09-14 18:25:20 | 2026-09-14 18:54:50 | 29m30s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 7 | `us-east5-a` | 2026-09-14 18:54:28 | 2026-09-14 18:57:21 | 2m53s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 8 | `us-east5-a` | 2026-09-14 19:11:33 | 2026-09-14 19:34:54 | 23m21s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 7 | `us-east5-a` | 2026-09-14 19:00:44 | 2026-09-14 19:36:47 | 36m03s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 6 | `us-east5-a` | 2026-09-14 19:00:49 | 2026-09-14 19:36:55 | 36m06s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 7 | `us-east5-a` | 2026-09-14 19:42:09 | 2026-09-14 19:44:24 | 2m15s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 9 | `us-east5-a` | 2026-09-14 19:42:04 | 2026-09-14 19:44:57 | 2m53s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 8 | `us-east5-a` | 2026-09-14 19:42:09 | 2026-09-14 19:44:59 | 2m50s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 10 | `us-east5-a` | 2026-09-14 19:58:13 | 2026-09-14 20:00:58 | 2m45s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 9 | `us-east5-a` | 2026-09-14 19:58:16 | 2026-09-14 20:01:03 | 2m47s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 8 | `us-east5-a` | 2026-09-14 19:58:06 | 2026-09-14 20:01:07 | 3m01s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 9 | `us-east5-a` | 2026-09-14 20:15:12 | 2026-09-14 20:21:31 | 6m19s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 11 | `us-east5-a` | 2026-09-14 20:14:10 | 2026-09-14 20:21:39 | 7m29s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 12 | `us-east5-a` | 2026-09-14 20:28:58 | 2026-09-14 20:36:17 | 7m19s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 10 | `us-east5-a` | 2026-09-14 20:25:47 | 2026-09-14 20:39:02 | 13m15s | service preemption; same-zone recovery |
+| Medium IndependentLLF BAlignedRowFetchORowR256Gelu | 11 | `us-east5-a` | 2026-09-14 20:44:57 | 2026-09-14 21:00:04 | 15m07s | user stop11000; checkpoint11600 committed; TPU/queue verified absent; scripted closeout164s |
+| Medium IndependentLLF BAlignedRowLocalORowR256Gelu | 10 | `us-east5-a` | 2026-09-14 20:28:49 | 2026-09-14 21:00:07 | 31m18s | user stop13116; checkpoint13000 committed; TPU/queue verified absent; scripted closeout159s |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 13 | `us-east5-a` | 2026-09-14 20:45:05 | 2026-09-14 22:02:36 | 1h17m31s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 14 | `us-east5-a` | 2026-09-14 22:08:33 | 2026-09-14 22:12:04 | 3m31s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 15 | `us-east5-a` | 2026-09-14 22:20:01 | 2026-09-14 22:23:08 | 3m07s | service preemption; same-zone recovery |
 | Medium IndependentLLF BAlignedRowAllORowR256Gelu | 16 | `us-east5-a` | 2026-09-14 22:34:41 | 2026-09-14 22:48:13 | 13m32s | completed 13500 (clean-exit); checkpoint committed; TPU/queue verified absent |
 | Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1Anchor | 1 | `us-east5-a` | 2026-09-15 05:48:14 | 2026-09-15 07:06:29 | 1h18m15s | service preemption; same-zone recovery |
-| Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1Anchor | 2 | `us-east5-a` | 2026-09-15 07:12:46 | 2026-09-15 07:31:16 | 18m30s | service preemption; same-zone recovery |
-| Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1Anchor | 3 | `us-east5-a` | 2026-09-15 07:40:45 | 2026-09-15 09:19:53 | 1h39m08s | service preemption; same-zone recovery |
-| Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1Anchor | 4 | `us-east5-a` | 2026-09-15 09:25:31 | 2026-09-15 10:15:27 | 49m56s | user stop9164 (TPU reclaimed mid-recovery); checkpoint9164 committed; TPU/queue verified absent; scripted closeout |
 | Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1DirectAnchor | 1 | `us-east5-a` | 2026-09-15 06:07:35 | 2026-09-15 07:06:38 | 59m03s | service preemption; same-zone recovery |
+| Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1Anchor | 2 | `us-east5-a` | 2026-09-15 07:12:46 | 2026-09-15 07:31:16 | 18m30s | service preemption; same-zone recovery |
 | Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1DirectAnchor | 2 | `us-east5-a` | 2026-09-15 07:15:02 | 2026-09-15 07:31:43 | 16m41s | service preemption; same-zone recovery |
 | Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1DirectAnchor | 3 | `us-east5-a` | 2026-09-15 07:40:56 | 2026-09-15 09:19:43 | 1h38m47s | service preemption; same-zone recovery |
+| Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1Anchor | 3 | `us-east5-a` | 2026-09-15 07:40:45 | 2026-09-15 09:19:53 | 1h39m08s | service preemption; same-zone recovery |
 | Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1DirectAnchor | 4 | `us-east5-a` | 2026-09-15 09:25:22 | 2026-09-15 10:15:15 | 49m53s | user stop7315 (TPU reclaimed mid-recovery); checkpoint7315 committed; TPU/queue verified absent; scripted closeout |
+| Medium IndependentLLF LocalVRank4 BLocalORowDecodeL1Anchor | 4 | `us-east5-a` | 2026-09-15 09:25:31 | 2026-09-15 10:15:27 | 49m56s | user stop9164 (TPU reclaimed mid-recovery); checkpoint9164 committed; TPU/queue verified absent; scripted closeout |
 | BamXLSharedBasisQKColOnlyMLP | 1 | `us-east5-a` | 2026-09-15 12:00:31 | 2026-09-15 12:05:39 | 5m08s | service preemption |
 | BamMediumIndependentLLFMLPPerLayerColOnly | 1 | `us-east5-a` | 2026-09-15 11:36:50 | 2026-09-15 12:05:43 | 28m53s | service preemption |
 | BamXLSharedBasisQKDirectC8MLP | 1 | `us-east5-a` | 2026-09-15 11:55:54 | 2026-09-15 12:05:43 | 9m49s | service preemption |
@@ -737,118 +739,118 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFMLPPerLayerColOnly | 3 | `us-east5-a` | 2026-09-15 13:07:15 | 2026-09-15 13:53:51 | 46m36s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnly | 4 | `us-east5-a` | 2026-09-15 14:03:30 | 2026-09-15 15:30:31 | 1h27m01s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnly | 5 | `us-east5-a` | 2026-09-15 15:36:41 | 2026-09-15 15:56:46 | 20m05s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B | 6 | `europe-west4-b` | 2026-09-15 13:58:08 | 2026-09-15 19:40:21 | 5h42m13s | run stop; completed 13,500; checkpoint 13,400 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnly | 6 | `us-east5-a` | 2026-09-15 16:03:21 | 2026-09-15 18:29:09 | 2h25m48s | run stop; completed 13,500; checkpoint 13,400 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4B | 6 | `europe-west4-b` | 2026-09-15 13:58:08 | 2026-09-15 19:40:21 | 5h42m13s | run stop; completed 13,500; checkpoint 13,400 committed; TPU/queue verified absent |
 | BamXLSharedBasisQKColOnlyMLP | 7 | `europe-west4-b` | 2026-09-15 13:57:38 | 2026-09-16 00:40:31 | 10h42m53s | user stop20,933; checkpoint 20,750 committed; TPU/queue verified absent; scripted closeout
-| BamMediumIndependentLLFBAlignedRowColOnly | 1 | `us-east5-a` | 2026-09-16 02:00:50 | 2026-09-16 07:17:43 | 5h16m53s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowColOnly | 2 | `us-east5-a` | 2026-09-16 07:22:52 | 2026-09-16 07:34:38 | 11m46s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent
-| BamMediumIndependentLLFBAlignedRowOColOnly | 1 | `us-east5-a` | 2026-09-16 02:21:54 | 2026-09-16 07:17:56 | 4h56m02s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowOColOnly | 2 | `us-east5-a` | 2026-09-16 07:24:42 | 2026-09-16 07:46:53 | 22m11s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowOColOnly | 3 | `us-east5-a` | 2026-09-16 07:52:46 | 2026-09-16 08:12:51 | 20m05s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowOColOnly | 4 | `us-east5-a` | 2026-09-16 08:18:05 | 2026-09-16 08:29:03 | 10m58s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowOColOnly | 5 | `us-east5-a` | 2026-09-16 08:35:55 | 2026-09-16 09:07:07 | 31m12s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowOColOnly | 6 | `us-east5-a` | 2026-09-16 09:13:05 | 2026-09-16 09:28:45 | 15m40s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent
-| BamMediumIndependentLLFBAlignedRowQKVColOnly | 1 | `us-east5-a` | 2026-09-16 03:42:42 | 2026-09-16 07:17:46 | 3h35m04s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowQKVColOnly | 2 | `us-east5-a` | 2026-09-16 07:25:13 | 2026-09-16 07:42:08 | 16m55s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowQKVColOnly | 3 | `us-east5-a` | 2026-09-16 07:46:43 | 2026-09-16 08:12:41 | 25m58s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowQKVColOnly | 4 | `us-east5-a` | 2026-09-16 08:19:30 | 2026-09-16 08:29:21 | 9m51s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowQKVColOnly | 5 | `us-east5-a` | 2026-09-16 08:35:19 | 2026-09-16 08:48:26 | 13m07s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowQKVColOnly | 6 | `us-east5-a` | 2026-09-16 08:55:48 | 2026-09-16 09:07:15 | 11m27s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowQKVColOnly | 7 | `us-east5-a` | 2026-09-16 09:13:26 | 2026-09-16 09:59:52 | 46m26s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowQKVColOnly | 8 | `us-east5-a` | 2026-09-16 10:09:50 | 2026-09-16 10:37:27 | 27m37s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent
 | BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 1 | `europe-west4-b` | 2026-09-16 03:28:09 | 2026-09-16 03:30:51 | 2m42s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 2 | `europe-west4-b` | 2026-09-16 03:38:58 | 2026-09-16 05:43:42 | 2h04m44s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 1 | `europe-west4-b` | 2026-09-16 06:54:08 | 2026-09-16 07:00:17 | 6m09s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 3 | `europe-west4-b` | 2026-09-16 05:51:53 | 2026-09-16 07:02:49 | 1h10m56s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowColOnly | 1 | `us-east5-a` | 2026-09-16 02:00:50 | 2026-09-16 07:17:43 | 5h16m53s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 1 | `us-east5-a` | 2026-09-16 03:42:42 | 2026-09-16 07:17:46 | 3h35m04s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 1 | `us-east5-a` | 2026-09-16 02:21:54 | 2026-09-16 07:17:56 | 4h56m02s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 2 | `europe-west4-b` | 2026-09-16 07:07:38 | 2026-09-16 07:21:40 | 14m02s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 4 | `europe-west4-b` | 2026-09-16 07:08:41 | 2026-09-16 07:22:01 | 13m20s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowColOnly | 2 | `us-east5-a` | 2026-09-16 07:22:52 | 2026-09-16 07:34:38 | 11m46s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 2 | `us-east5-a` | 2026-09-16 07:25:13 | 2026-09-16 07:42:08 | 16m55s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 5 | `europe-west4-b` | 2026-09-16 07:27:57 | 2026-09-16 07:44:49 | 16m52s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 3 | `europe-west4-b` | 2026-09-16 07:27:40 | 2026-09-16 07:44:56 | 17m16s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 2 | `us-east5-a` | 2026-09-16 07:24:42 | 2026-09-16 07:46:53 | 22m11s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 3 | `us-east5-a` | 2026-09-16 07:46:43 | 2026-09-16 08:12:41 | 25m58s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 3 | `us-east5-a` | 2026-09-16 07:52:46 | 2026-09-16 08:12:51 | 20m05s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 6 | `europe-west4-b` | 2026-09-16 07:52:28 | 2026-09-16 08:12:55 | 20m27s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 7 | `europe-west4-b` | 2026-09-16 08:18:39 | 2026-09-16 08:28:57 | 10m18s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 4 | `us-east5-a` | 2026-09-16 08:18:05 | 2026-09-16 08:29:03 | 10m58s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 4 | `us-east5-a` | 2026-09-16 08:19:30 | 2026-09-16 08:29:21 | 9m51s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 8 | `europe-west4-b` | 2026-09-16 08:34:18 | 2026-09-16 08:38:16 | 3m58s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 9 | `europe-west4-b` | 2026-09-16 08:46:30 | 2026-09-16 08:53:12 | 6m42s | service preemption; migrated to UE5a |
-| BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 10 | `us-east5-a` | 2026-09-16 09:13:10 | 2026-09-16 09:59:57 | 46m47s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 11 | `us-east5-a` | 2026-09-16 10:07:16 | 2026-09-16 10:56:08 | 48m52s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 12 | `us-east5-a` | 2026-09-16 11:04:42 | 2026-09-16 11:25:30 | 20m48s | run stop; stopped 10,500; checkpoint 10,500 committed; TPU/queue verified absent
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 1 | `us-east5-a` | 2026-09-16 08:58:00 | 2026-09-16 09:07:26 | 9m26s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 2 | `us-east5-a` | 2026-09-16 09:12:39 | 2026-09-16 10:00:00 | 47m21s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 3 | `us-east5-a` | 2026-09-16 10:05:57 | 2026-09-16 10:56:15 | 50m18s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 4 | `us-east5-a` | 2026-09-16 11:05:04 | 2026-09-16 11:51:07 | 46m03s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 5 | `us-east5-a` | 2026-09-16 11:56:48 | 2026-09-16 13:27:13 | 1h30m25s | run stop; stopped 9,200; checkpoint 9,200 committed; TPU/queue verified absent
-| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 1 | `us-east5-a` | 2026-09-16 09:06:56 | 2026-09-16 10:00:00 | 53m04s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 2 | `us-east5-a` | 2026-09-16 10:06:24 | 2026-09-16 10:55:59 | 49m35s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 3 | `us-east5-a` | 2026-09-16 11:01:31 | 2026-09-16 12:08:53 | 1h07m22s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 4 | `us-east5-a` | 2026-09-16 12:15:46 | 2026-09-16 12:44:06 | 28m20s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 5 | `us-east5-a` | 2026-09-16 12:51:23 | 2026-09-16 12:54:05 | 2m42s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 6 | `us-east5-a` | 2026-09-16 13:00:04 | 2026-09-16 14:06:55 | 1h07m04s | run stop; stopped 9,900; checkpoint 9,900 committed; TPU/queue verified absent |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 1 | `us-east5-a` | 2026-09-16 08:55:50 | 2026-09-16 09:07:22 | 11m32s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 2 | `us-east5-a` | 2026-09-16 09:13:33 | 2026-09-16 09:59:56 | 46m23s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 3 | `us-east5-a` | 2026-09-16 10:05:53 | 2026-09-16 10:56:06 | 50m13s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 4 | `us-east5-a` | 2026-09-16 11:01:41 | 2026-09-16 11:50:57 | 49m16s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 5 | `us-east5-a` | 2026-09-16 11:59:23 | 2026-09-16 12:11:24 | 12m01s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 6 | `us-east5-a` | 2026-09-16 12:19:49 | 2026-09-16 12:44:14 | 24m25s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 7 | `us-east5-a` | 2026-09-16 12:50:49 | 2026-09-16 14:06:55 | 1h16m19s | run stop; stopped 9,750; checkpoint 9,750 committed; TPU/queue verified absent
-| BamMediumIndependentLLFMLPPerLayerColOnlyK48 | 1 | `us-east5-a` | 2026-09-17 04:19:09 | 2026-09-17 07:52:55 | 3h33m46s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK48 | 2 | `us-east5-a` | 2026-09-17 08:03:43 | 2026-09-17 10:35:55 | 2h32m12s | run stop; completed 13,400; checkpoint 13,400 committed
-| BamMediumIndependentLLFMLPPerLayerColOnlyK48V48 | 1 | `us-east5-a` | 2026-09-17 07:13:11 | 2026-09-17 13:14:31 | 6h01m20s | run stop; completed 13,400; checkpoint 13,400 committed
-| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 1 | `us-east5-a` | 2026-09-17 06:09:32 | 2026-09-17 07:52:57 | 1h43m25s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 2 | `us-east5-a` | 2026-09-17 08:02:28 | 2026-09-17 12:12:02 | 4h09m34s | run stop; completed 13,400; checkpoint 13,400 committed
-| BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 1 | `us-east5-a` | 2026-09-17 08:41:52 | 2026-09-17 14:43:37 | 6h01m45s | run stop; completed 13,400; checkpoint 13,400 committed
-| BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B | 1 | `us-east5-a` | 2026-09-16 13:07:48 | 2026-09-16 16:05:49 | 2h58m01s | run stop; stopped 7,000; checkpoint 7,000 committed; TPU/queue verified absent
-| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 1 | `europe-west4-b` | 2026-09-16 06:54:08 | 2026-09-16 07:00:17 | 6m09s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 2 | `europe-west4-b` | 2026-09-16 07:07:38 | 2026-09-16 07:21:40 | 14m02s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 3 | `europe-west4-b` | 2026-09-16 07:27:40 | 2026-09-16 07:44:56 | 17m16s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 4 | `europe-west4-b` | 2026-09-16 07:52:08 | 2026-09-16 08:39:25 | 47m17s | service preemption; migrated to UE5a |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 5 | `us-east5-a` | 2026-09-16 08:35:19 | 2026-09-16 08:48:26 | 13m07s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 9 | `europe-west4-b` | 2026-09-16 08:46:30 | 2026-09-16 08:53:12 | 6m42s | service preemption; migrated to UE5a |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 5 | `us-east5-a` | 2026-09-16 08:35:55 | 2026-09-16 09:07:07 | 31m12s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 6 | `us-east5-a` | 2026-09-16 08:55:48 | 2026-09-16 09:07:15 | 11m27s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 1 | `us-east5-a` | 2026-09-16 08:55:50 | 2026-09-16 09:07:22 | 11m32s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 1 | `us-east5-a` | 2026-09-16 08:58:00 | 2026-09-16 09:07:26 | 9m26s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowOColOnly | 6 | `us-east5-a` | 2026-09-16 09:13:05 | 2026-09-16 09:28:45 | 15m40s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 7 | `us-east5-a` | 2026-09-16 09:13:26 | 2026-09-16 09:59:52 | 46m26s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 2 | `us-east5-a` | 2026-09-16 09:13:33 | 2026-09-16 09:59:56 | 46m23s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 10 | `us-east5-a` | 2026-09-16 09:13:10 | 2026-09-16 09:59:57 | 46m47s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 2 | `us-east5-a` | 2026-09-16 09:12:39 | 2026-09-16 10:00:00 | 47m21s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 1 | `us-east5-a` | 2026-09-16 09:06:56 | 2026-09-16 10:00:00 | 53m04s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 5 | `us-east5-a` | 2026-09-16 09:13:22 | 2026-09-16 10:00:08 | 46m46s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowQKVColOnly | 8 | `us-east5-a` | 2026-09-16 10:09:50 | 2026-09-16 10:37:27 | 27m37s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 2 | `us-east5-a` | 2026-09-16 10:06:24 | 2026-09-16 10:55:59 | 49m35s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 6 | `us-east5-a` | 2026-09-16 10:09:05 | 2026-09-16 10:56:05 | 47m00s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 3 | `us-east5-a` | 2026-09-16 10:05:53 | 2026-09-16 10:56:06 | 50m13s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 11 | `us-east5-a` | 2026-09-16 10:07:16 | 2026-09-16 10:56:08 | 48m52s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 3 | `us-east5-a` | 2026-09-16 10:05:57 | 2026-09-16 10:56:15 | 50m18s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVRowSharedColRank4CFp32 | 12 | `us-east5-a` | 2026-09-16 11:04:42 | 2026-09-16 11:25:30 | 20m48s | run stop; stopped 10,500; checkpoint 10,500 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 4 | `us-east5-a` | 2026-09-16 11:01:41 | 2026-09-16 11:50:57 | 49m16s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 4 | `us-east5-a` | 2026-09-16 11:05:04 | 2026-09-16 11:51:07 | 46m03s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 7 | `us-east5-a` | 2026-09-16 11:05:08 | 2026-09-16 11:51:11 | 46m03s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 3 | `us-east5-a` | 2026-09-16 11:01:31 | 2026-09-16 12:08:53 | 1h07m22s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 5 | `us-east5-a` | 2026-09-16 11:59:23 | 2026-09-16 12:11:24 | 12m01s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 4 | `us-east5-a` | 2026-09-16 12:15:46 | 2026-09-16 12:44:06 | 28m20s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 6 | `us-east5-a` | 2026-09-16 12:19:49 | 2026-09-16 12:44:14 | 24m25s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 8 | `us-east5-a` | 2026-09-16 11:59:30 | 2026-09-16 12:44:15 | 44m45s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 5 | `us-east5-a` | 2026-09-16 12:51:23 | 2026-09-16 12:54:05 | 2m42s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnlyORowR256Gelu | 5 | `us-east5-a` | 2026-09-16 11:56:48 | 2026-09-16 13:27:13 | 1h30m25s | run stop; stopped 9,200; checkpoint 9,200 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowLocalVOColOnly | 6 | `us-east5-a` | 2026-09-16 13:00:04 | 2026-09-16 14:06:55 | 1h07m04s | run stop; stopped 9,900; checkpoint 9,900 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFBAlignedRowLocalVORowFirstBlockOnly | 7 | `us-east5-a` | 2026-09-16 12:50:49 | 2026-09-16 14:06:55 | 1h16m19s | run stop; stopped 9,750; checkpoint 9,750 committed; TPU/queue verified absent
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 9 | `us-east5-a` | 2026-09-16 12:51:20 | 2026-09-16 14:31:13 | 1h39m53s | service preemption; same-zone recovery |
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 10 | `us-east5-a` | 2026-09-16 14:36:44 | 2026-09-16 16:04:41 | 1h27m57s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVColOnlyRank4B | 1 | `us-east5-a` | 2026-09-16 13:07:48 | 2026-09-16 16:05:49 | 2h58m01s | run stop; stopped 7,000; checkpoint 7,000 committed; TPU/queue verified absent
 | BamXLSharedBasisLocalVColOnlyRank4CFp32 | 11 | `us-east5-a` | 2026-09-16 16:14:38 | 2026-09-16 17:10:20 | 55m42s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 12 | `us-east5-a` | 2026-09-16 17:17:26 | 2026-09-16 18:56:22 | 1h38m56s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 13 | `us-east5-a` | 2026-09-16 19:07:26 | 2026-09-16 20:08:27 | 1h01m01s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 14 | `us-east5-a` | 2026-09-16 20:14:58 | 2026-09-16 21:02:49 | 47m51s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 15 | `us-east5-a` | 2026-09-16 21:24:38 | 2026-09-16 22:50:30 | 1h25m52s | service preemption; same-zone recovery |
-| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 16 | `us-east5-a` | 2026-09-16 22:58:30 | 2026-09-16 23:51:57 | 53m27s | run stop; stopped 26,000; checkpoint 26,000 committed; TPU/queue verified absent
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 1 | `us-east5-a` | 2026-09-16 16:28:06 | 2026-09-16 17:10:26 | 42m20s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 2 | `us-east5-a` | 2026-09-16 17:17:41 | 2026-09-16 18:10:01 | 52m20s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 12 | `us-east5-a` | 2026-09-16 17:17:26 | 2026-09-16 18:56:22 | 1h38m56s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 3 | `us-east5-a` | 2026-09-16 18:17:45 | 2026-09-16 20:08:09 | 1h50m24s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 13 | `us-east5-a` | 2026-09-16 19:07:26 | 2026-09-16 20:08:27 | 1h01m01s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 4 | `us-east5-a` | 2026-09-16 20:14:46 | 2026-09-16 20:21:40 | 6m54s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 5 | `us-east5-a` | 2026-09-16 20:27:58 | 2026-09-16 20:40:47 | 12m49s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 14 | `us-east5-a` | 2026-09-16 20:14:58 | 2026-09-16 21:02:49 | 47m51s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 6 | `us-east5-a` | 2026-09-16 20:49:44 | 2026-09-16 21:02:52 | 13m08s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 7 | `us-east5-a` | 2026-09-16 21:14:01 | 2026-09-16 21:18:19 | 4m18s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 8 | `us-east5-a` | 2026-09-16 21:28:17 | 2026-09-16 22:22:29 | 54m12s | service preemption; same-zone recovery |
+| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 15 | `us-east5-a` | 2026-09-16 21:24:38 | 2026-09-16 22:50:30 | 1h25m52s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVOColOnlyFetchORowRelayFLL | 9 | `us-east5-a` | 2026-09-16 22:31:04 | 2026-09-16 23:37:55 | 1h06m51s | run stop; completed 13,500; checkpoint 13,500 committed
-| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816 | 1 | `us-east5-a` | 2026-09-17 03:58:40 | 2026-09-17 04:20:13 | 21m33s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816 | 2 | `us-east5-a` | 2026-09-17 04:26:04 | 2026-09-17 05:33:38 | 1h07m34s | run stop; stopped 3,000; checkpoint 3,000 committed; TPU/queue verified absent
+| BamXLSharedBasisLocalVColOnlyRank4CFp32 | 16 | `us-east5-a` | 2026-09-16 22:58:30 | 2026-09-16 23:51:57 | 53m27s | run stop; stopped 26,000; checkpoint 26,000 committed; TPU/queue verified absent
 | BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124 | 1 | `us-east5-a` | 2026-09-17 04:09:22 | 2026-09-17 04:19:06 | 9m44s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816 | 1 | `us-east5-a` | 2026-09-17 03:58:40 | 2026-09-17 04:20:13 | 21m33s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVDiag8124 | 2 | `us-east5-a` | 2026-09-17 04:26:13 | 2026-09-17 05:33:36 | 1h07m23s | run stop; stopped 2,600; checkpoint 2,600 committed; TPU/queue verified absent
+| BamMediumIndependentLLFBAlignedRowLocalVRowSharedColRank4BAbsVInc4816 | 2 | `us-east5-a` | 2026-09-17 04:26:04 | 2026-09-17 05:33:38 | 1h07m34s | run stop; stopped 3,000; checkpoint 3,000 committed; TPU/queue verified absent
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 1 | `us-east5-a` | 2026-09-17 06:09:37 | 2026-09-17 06:23:13 | 13m36s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48 | 1 | `us-east5-a` | 2026-09-17 04:19:09 | 2026-09-17 07:52:55 | 3h33m46s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 1 | `us-east5-a` | 2026-09-17 06:09:32 | 2026-09-17 07:52:57 | 1h43m25s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 2 | `us-east5-a` | 2026-09-17 06:31:40 | 2026-09-17 07:55:17 | 1h23m37s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48ProjectPartialRoPE | 3 | `us-east5-a` | 2026-09-17 08:03:01 | 2026-09-17 08:45:37 | 42m36s | run stop; stopped 5,225; checkpoint 5,200 committed; TPU/queue verified absent
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48 | 2 | `us-east5-a` | 2026-09-17 08:03:43 | 2026-09-17 10:35:55 | 2h32m12s | run stop; completed 13,400; checkpoint 13,400 committed
+| BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 2 | `us-east5-a` | 2026-09-17 08:02:28 | 2026-09-17 12:12:02 | 4h09m34s | run stop; completed 13,400; checkpoint 13,400 committed
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48V48 | 1 | `us-east5-a` | 2026-09-17 07:13:11 | 2026-09-17 13:14:31 | 6h01m20s | run stop; completed 13,400; checkpoint 13,400 committed
+| BamMediumIndependentLLLFMLPPerLayerColOnlyK64QK48TruncatePartialRoPE | 1 | `us-east5-a` | 2026-09-17 08:41:52 | 2026-09-17 14:43:37 | 6h01m45s | run stop; completed 13,400; checkpoint 13,400 committed
 | BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE | 1 | `us-east5-a` | 2026-09-17 11:17:18 | 2026-09-17 14:59:58 | 3h42m40s | run stop; stopped 9,000; checkpoint 9,000 committed; TPU/queue verified absent
 | BamMediumIndependentLLLFMLPPerLayerColOnlyK48V48 | 1 | `us-east5-a` | 2026-09-17 09:07:35 | 2026-09-17 15:27:01 | 6h19m26s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 16:08:33 | 2026-09-17 17:55 | 1h47m | run stop; resumed from 9,000 after checkpoint repair; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 1 | `us-east5-a` | 2026-09-17 16:37:06 | 2026-09-17 17:04:01 | 26m55s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 17:10:56 | 2026-09-17 17:18:11 | 7m15s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 3 | `us-east5-a` | 2026-09-17 17:26:01 | 2026-09-17 19:07:47 | 1h41m46s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 4 | `us-east5-a` | 2026-09-17 19:13:24 | 2026-09-17 19:19:15 | 5m51s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 5 | `us-east5-a` | 2026-09-17 19:42:34 | 2026-09-17 21:15:18 | 1h32m44s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 6 | `us-east5-a` | 2026-09-17 21:31:44 | 2026-09-17 22:07:57 | 36m13s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 7 | `us-east5-a` | 2026-09-17 22:36:27 | 2026-09-17 22:44:46 | 8m19s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 8 | `us-east5-a` | 2026-09-17 22:52:33 | 2026-09-17 22:55:02 | 2m29s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 9 | `us-east5-a` | 2026-09-17 23:03:51 | 2026-09-17 23:26:22 | 22m31s | service preemption; same-zone recovery |
-| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 10 | `us-east5-a` | 2026-09-17 23:59:30 | 2026-09-18 00:49:55 | 50m25s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 1 | `us-east5-a` | 2026-09-17 16:32:02 | 2026-09-17 16:38:41 | 6m39s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 1 | `us-east5-a` | 2026-09-17 16:37:06 | 2026-09-17 17:04:01 | 26m55s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 2 | `us-east5-a` | 2026-09-17 16:45:17 | 2026-09-17 17:04:07 | 18m50s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 17:10:56 | 2026-09-17 17:18:11 | 7m15s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK48PartialRoPE | 2 | `us-east5-a` | 2026-09-17 16:08:33 | 2026-09-17 17:55 | 1h47m | run stop; resumed from 9,000 after checkpoint repair; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 3 | `us-east5-a` | 2026-09-17 17:11:35 | 2026-09-17 18:17:20 | 1h05m45s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 4 | `us-east5-a` | 2026-09-17 18:24:44 | 2026-09-17 19:07:39 | 42m55s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 3 | `us-east5-a` | 2026-09-17 17:26:01 | 2026-09-17 19:07:47 | 1h41m46s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 4 | `us-east5-a` | 2026-09-17 19:13:24 | 2026-09-17 19:19:15 | 5m51s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 5 | `us-east5-a` | 2026-09-17 19:16:52 | 2026-09-17 19:21:14 | 4m22s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 6 | `us-east5-a` | 2026-09-17 19:41:14 | 2026-09-17 20:27:06 | 45m52s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 5 | `us-east5-a` | 2026-09-17 19:42:34 | 2026-09-17 21:15:18 | 1h32m44s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 7 | `us-east5-a` | 2026-09-17 21:31:17 | 2026-09-17 21:33:55 | 2m38s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 8 | `us-east5-a` | 2026-09-17 21:40:30 | 2026-09-17 22:07:34 | 27m04s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 6 | `us-east5-a` | 2026-09-17 21:31:44 | 2026-09-17 22:07:57 | 36m13s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 7 | `us-east5-a` | 2026-09-17 22:36:27 | 2026-09-17 22:44:46 | 8m19s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 9 | `us-east5-a` | 2026-09-17 22:32:56 | 2026-09-17 22:44:59 | 12m03s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 10 | `us-east5-a` | 2026-09-17 22:52:33 | 2026-09-17 22:55:00 | 2m27s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 8 | `us-east5-a` | 2026-09-17 22:52:33 | 2026-09-17 22:55:02 | 2m29s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 11 | `us-east5-a` | 2026-09-17 23:03:54 | 2026-09-17 23:14:33 | 10m39s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 9 | `us-east5-a` | 2026-09-17 23:03:51 | 2026-09-17 23:26:22 | 22m31s | service preemption; same-zone recovery |
+| BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPE | 10 | `us-east5-a` | 2026-09-17 23:59:30 | 2026-09-18 00:49:55 | 50m25s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK64QK48TruncateFullRoPE | 12 | `us-east5-a` | 2026-09-18 00:00:02 | 2026-09-18 02:23:15 | 2h23m13s | run stop; completed 13,500; checkpoint 13,500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK | 1 | `us-east5-a` | 2026-09-18 01:33:38 | 2026-09-18 02:46:28 | 1h12m50s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFMLPPerLayerColOnlyK32NoPE48PartialRoPENoLocalQK | 2 | `us-east5-a` | 2026-09-18 02:55:16 | 2026-09-18 04:23:40 | 1h28m24s | service preemption; same-zone recovery |
@@ -873,16 +875,16 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKDirectC8MLPPerLayer | 8 | `us-east5-a` | 2026-09-19 08:47:09 | 2026-09-19 14:25:31 | 5h38m22s | maintenance/preemption; checkpoint28,005 committed; copied and verified in UC1a/EW4b |
 | BamXLSharedBasisQKDirectC8MLPPerLayer | 9 | `us-east5-a` | 2026-09-19 14:30:20 | 2026-09-19 14:31:41 | 1m21s | registry interval during recovery; no resumed training, node CREATING at closeout; user pause28,005; TPU/queue verified absent14:41:40 |
 | BamMediumColOnlyK32MRelayM1 | 2 | `us-east5-a` | 2026-09-19 14:34:00 | 2026-09-19 15:09:07 | 35m07s | maintenance/preemption; same-zone recovery |
+| BamMediumColOnlyK32MRelayM3 | 1 | `us-east5-a` | 2026-09-19 13:48:04 | 2026-09-19 15:09:49 | 1h21m45s | service preemption; same-zone recovery |
+| BamMediumColOnlyK64TruncateMRelayM3 | 1 | `us-east5-a` | 2026-09-19 15:01:10 | 2026-09-19 15:12:04 | 10m54s | service preemption; same-zone recovery |
 | BamMediumColOnlyK32MRelayM1 | 3 | `us-east5-a` | 2026-09-19 15:20:27 | 2026-09-19 15:37:52 | 17m25s | user stop3487; final checkpoint committed |
 | BamMediumColOnlyK64TruncateMRelayM1 | 1 | `us-east5-a` | 2026-09-19 13:57:00 | 2026-09-19 15:37:55 | 1h40m55s | user stop3927; final checkpoint committed |
-| BamMediumColOnlyK64TruncateMRelayM3 | 1 | `us-east5-a` | 2026-09-19 15:01:10 | 2026-09-19 15:12:04 | 10m54s | service preemption; same-zone recovery |
 | BamMediumColOnlyK64TruncateMRelayM3 | 2 | `us-east5-a` | 2026-09-19 15:20:24 | 2026-09-19 16:13:23 | 52m59s | run stop; crossed zero vs Truncate @~1500; stopped 2,199; checkpoint 2,232 committed; TPU/queue verified absent |
 | BamMediumColOnlyK32MRelayM3Linear | 1 | `us-east5-a` | 2026-09-19 16:17:44 | 2026-09-19 16:38:19 | 20m35s | service preemption; recovered from committed764 in same zone |
 | BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol | 1 | `us-east5-a` | 2026-09-19 16:02:16 | 2026-09-19 17:12:41 | 1h10m25s | manual stop; checkpoint2909 committed; TPU/queue verified absent17:15:17; no preemption |
 | BamMediumColOnlyK32MRelayM3Interpolate | 1 | `us-east5-a` | 2026-09-19 16:22:18 | 2026-09-19 17:33:29 | 1h11m11s | authorized review stop2903; checkpoint committed; TPU/queue verified absent17:36:03 |
-| BamMediumColOnlyK32MRelayM3Linear | 2 | `us-east5-a` | 2026-09-19 16:48:08 | 2026-09-19 17:41:23 | 53m15s | closeout overlaps maintenance17:40:26; final committed2909 verified; node deletion completed17:47:56, queue absent by17:49:10; end is stop-intent timestamp |
-| BamMediumColOnlyK32MRelayM3 | 1 | `us-east5-a` | 2026-09-19 13:48:04 | 2026-09-19 15:09:49 | 1h21m45s | service preemption; same-zone recovery |
 | BamMediumColOnlyK32MRelayM3 | 2 | `us-east5-a` | 2026-09-19 15:17:39 | 2026-09-19 17:37:43 | 2h20m04s | service preemption; same-zone recovery |
+| BamMediumColOnlyK32MRelayM3Linear | 2 | `us-east5-a` | 2026-09-19 16:48:08 | 2026-09-19 17:41:23 | 53m15s | closeout overlaps maintenance17:40:26; final committed2909 verified; node deletion completed17:47:56, queue absent by17:49:10; end is stop-intent timestamp |
 | BamMediumColOnlyK32MRelayM3 | 3 | `us-east5-a` | 2026-09-19 17:46:01 | 2026-09-19 18:13:01 | 27m00s | service preemption; same-zone recovery |
 | BamMediumColOnlyK32MRelayM3 | 4 | `us-east5-a` | 2026-09-19 18:22:03 | 2026-09-19 18:24:31 | 2m28s | service preemption; short-lease churn; same-zone recovery |
 | BamMediumColOnlyK32MRelayM3 | 5 | `us-east5-a` | 2026-09-19 18:36:00 | 2026-09-19 19:20:41 | 44m41s | service preemption; same-zone recovery |
@@ -893,13 +895,13 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumColOnlyK32PartialMRelayM3 | 2 | `us-east5-a` | 2026-09-20 02:59:14 | 2026-09-20 03:19:12 | 19m58s | preempted; same-zone recovery |
 | BamMediumColOnlyK64MRelayM3QKOnly | 2 | `us-east5-a` | 2026-09-20 03:08:55 | 2026-09-20 03:19:12 | 10m17s | preempted; same-zone recovery |
 | BamMediumColOnlyK64MRelayM3OOnly | 2 | `us-east5-a` | 2026-09-20 02:59:28 | 2026-09-20 03:19:35 | 20m07s | preempted; same-zone recovery |
-| BamMediumColOnlyK64MRelayM3VOnly | 1 | `us-east5-a` | 2026-09-20 02:05:31 | 2026-09-20 03:21:41 | 1h16m10s | preempted; same-zone recovery |
 | BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976 | 1 | `us-east5-a` | 2026-09-20 03:17:46 | 2026-09-20 03:21:33 | 3m47s | registry preemption interval; actual GCP maintenance03:18:41, no first step; same-zone recovery |
+| BamMediumColOnlyK64MRelayM3VOnly | 1 | `us-east5-a` | 2026-09-20 02:05:31 | 2026-09-20 03:21:41 | 1h16m10s | preempted; same-zone recovery |
 | BamMediumColOnlyK64MRelayM3QKOnly | 3 | `us-east5-a` | 2026-09-20 03:28:47 | 2026-09-20 03:37:54 | 9m07s | user hot-switch boundary, not preemption; committed2054; retained by Decoupled |
 | BamMediumColOnlyK32PartialMRelayM3 | 3 | `us-east5-a` | 2026-09-20 03:28:28 | 2026-09-20 03:53:52 | 25m24s | user stop; committed3319; TPU/queue released |
 | BamMediumColOnlyK64MRelayM3OOnly | 3 | `us-east5-a` | 2026-09-20 03:27:44 | 2026-09-20 03:53:55 | 26m11s | user stop; committed3135; TPU/queue released |
-| BamMediumColOnlyK64MRelayM3Decoupled | 1 | `us-east5-a` | 2026-09-20 03:38:52 | 2026-09-20 05:50:17 | 2h11m25s | user stop; committed5133; no preemption; TPU/queue released |
 | BamMediumIndependentLLFColOnlyK64QK48TruncatePartialRoPED976 | 2 | `us-east5-a` | 2026-09-20 03:28:28 | 2026-09-20 05:48:12 | 2h19m44s | user stop5271; checkpoint committed, TPU/queue verified absent05:50:44 |
+| BamMediumColOnlyK64MRelayM3Decoupled | 1 | `us-east5-a` | 2026-09-20 03:38:52 | 2026-09-20 05:50:17 | 2h11m25s | user stop; committed5133; no preemption; TPU/queue released |
 | BamMediumColOnlyK32MRelayM3VOnly | 1 | `us-east5-a` | 2026-09-20 04:55:32 | 2026-09-20 06:57:58 | 2h02m26s | user stop; committed5125; no preemption; TPU/queue released |
 | BamMediumColOnlyK32PartialMRelayM3VOnly | 1 | `us-east5-a` | 2026-09-20 04:52:35 | 2026-09-20 06:58:00 | 2h05m25s | user stop; committed5260; no preemption; TPU/queue released |
 | BamMediumColOnlyK64MRelayM3VOnly | 2 | `us-east5-a` | 2026-09-20 03:28:13 | 2026-09-20 08:13:09 | 4h44m56s | completed13500; final checkpoint committed; end is registry closeout timestamp; TPU/queue verified absent08:13:14 |
@@ -926,9 +928,12 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48Truncate25Layer | 1 | `us-east5-a` | 2026-09-20 15:02:11 | 2026-09-20 21:27:53 | 6h25m42s | completed13500; checkpoint13500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64TruncateMLPPerLayer | 4 | `us-east5-a` | 2026-09-20 19:43:00 | 2026-09-20 21:41:38 | 1h58m38s | completed13500; checkpoint13500 committed; TPU/queue verified absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer | 4 | `us-east5-a` | 2026-09-20 19:42:45 | 2026-09-20 21:44:29 | 2h01m44s | completed13500; checkpoint13500 committed; TPU/queue verified absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer | 1 | `us-east5-a` | 2026-09-21 00:30:40 | 2026-09-21 01:29:40 | 0h59m00s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer | 1 | `us-east5-a` | 2026-09-21 00:41:11 | 2026-09-21 01:57:07 | 1h15m56s | service preemption; committed2002 |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer | 2 | `europe-west4-b` | 2026-09-21 02:15:28 | 2026-09-21 02:19:29 | 4m01s | service preemption before resumed training; READY already observed02:13, registry start is adoption time |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer | 3 | `europe-west4-b` | 2026-09-21 02:24:34 | 2026-09-21 02:28:01 | 3m27s | service preemption before resumed training |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer | 1 | `us-east5-a` | 2026-09-21 00:43:11 | 2026-09-21 02:31:23 | 1h48m12s | user stop; checkpoint3257 committed |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer | 2 | `us-east5-a` | 2026-09-21 01:38:34 | 2026-09-21 03:21:41 | 1h43m07s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer | 1 | `us-east5-a` | 2026-09-21 04:29:58 | 2026-09-21 06:44:40 | 2h14m42s | user hot-switch boundary; committed4891; retained by SeparateQKProjection |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer | 1 | `us-east5-a` | 2026-09-21 00:33:34 | 2026-09-21 06:49:43 | 6h16m09s | completed13500; final checkpoint committed; TPU/queue verified absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer | 3 | `us-east5-a` | 2026-09-21 03:32:08 | 2026-09-21 07:13:18 | 3h41m10s | completed13500; checkpoint committed; TPU/queue verified absent |

@@ -7647,6 +7647,7 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
 
 class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC827Layer(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
     """Nine complete LLF blocks, with equal total parameters per layer."""
+    # code_commit: 095f97a; UE5a .4836 steps/s (10-14), -5.99% vs24-layer .5144; health ON,1089 vs968 scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP5351 throughout; -53904 params vs MHA; fetch M-cache +12.5% vs24 layers.
     # Prediction vs24-layer K96: final gap -.002 (-.006..+.003), speed -8% with matched health.
@@ -7656,6 +7657,70 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
     mlp_dim_by_block = [5351, 5351, 5351]
     compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-qkstatic-vo-c8-ig-k96-directc8-27layer'
+
+
+class BamXLK96ConcatOperatorWMRMFull(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
+    """Full v5p-32 operator comparison; production generic and BAM health enabled."""
+    model_name = 'BamXLK96ConcatOperatorWMRMFull'
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    profile_cleanly = True
+    upload_all_profiler_results = True
+    enable_checkpointing = False
+    async_checkpointing = False
+    steps = 100
+    learning_rate_schedule_steps = 50000
+    bam_write_outer_implementation = 'mul_reduce'
+    bam_read_implementation = 'mul_reduce_btn'
+
+
+class BamXLK96ConcatOperatorWMRDFull(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
+    """Full v5p-32 operator comparison; production generic and BAM health enabled."""
+    model_name = 'BamXLK96ConcatOperatorWMRDFull'
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    profile_cleanly = True
+    upload_all_profiler_results = True
+    enable_checkpointing = False
+    async_checkpointing = False
+    steps = 100
+    learning_rate_schedule_steps = 50000
+    bam_write_outer_implementation = 'mul_reduce'
+    bam_read_implementation = 'dot_btn'
+
+
+class BamXLK96ConcatOperatorWDRMFull(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
+    """Full v5p-32 operator comparison; production generic and BAM health enabled."""
+    model_name = 'BamXLK96ConcatOperatorWDRMFull'
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    profile_cleanly = True
+    upload_all_profiler_results = True
+    enable_checkpointing = False
+    async_checkpointing = False
+    steps = 100
+    learning_rate_schedule_steps = 50000
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'mul_reduce_btn'
+
+
+class BamXLK96ConcatOperatorWDRDFull(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
+    """Full v5p-32 operator comparison; production generic and BAM health enabled."""
+    model_name = 'BamXLK96ConcatOperatorWDRDFull'
+    profiler = 'xplane'
+    skip_first_n_steps_for_profiler = 10
+    profiler_steps = 5
+    profile_cleanly = True
+    upload_all_profiler_results = True
+    enable_checkpointing = False
+    async_checkpointing = False
+    steps = 100
+    learning_rate_schedule_steps = 50000
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

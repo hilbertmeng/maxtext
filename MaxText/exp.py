@@ -7812,7 +7812,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Project the first 384 input coordinates to write addresses; match R128 P_loc and MLP budgets."""
     # code_commit: 42a0f72; UE5a 0.6350 steps/s, -0.44% vs K48 rank4 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Stopped2116. Last5 (1200–2000): vs K48 +.01110, vs R128 +.00973, vs Slice384Linear +.00909.
+    # Stopped 2116. Last5 (1200–2000): vs K48 +.01110, vs R128 +.00973, vs Slice384Linear +.00909.
     # vs Slice384Linear: +.005..+.008 at400–1000 then ~+.009; same params/cache, -.13% speed.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu'
     bam_write_address_mode = 'x_slice'
@@ -7870,6 +7870,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8):
     """Apply GELU to learned per-head C8 coefficients before the shared address basis."""
+    # code_commit: 9dfd1d3; UE5a .6384 steps/s, +.09% vs K48 .6378, +.13% vs HeadC8 .6376; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction: final gap -.002 vs linear HeadC8; -.001 (-.005..+.007) vs original K48; speed flat.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8Gelu'

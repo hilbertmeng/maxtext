@@ -92,3 +92,7 @@ last5mean+.011095. Speed-.13% vsSlice384Linear/R128 and-.44% vsK48; no parameter
 The fixed-coordinate GELU ablation is negative. Other arms continue.
 Checkpoint2116 committed; TPU and queued resource absent; final TensorBoard SYNC_OK.
 Artifacts: `/data0/xd/ploc-report-2000.md`, `/data0/xd/ploc-slice-gelu-closeout.log`.
+
+Sixth arm launched UE5a fromstep0, runtime9dfd1d3; AOT loaded/FIRST_STEP passed.
+Steps10–14 .6384/s (+.09% vsoriginal, +.13% vsHeadC8, +.41% vsR128), steps20–24 .6380/s.
+Evidence `/data0/xd/ploc-headc8-gelu-start-verified.json`; compilerready/cleanup[].

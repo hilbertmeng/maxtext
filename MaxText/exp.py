@@ -273,8 +273,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_direct_c8 = False  # independent per-head Q/K keys on the existing compressed M
     bam_local_v_projection_rank = None  # standard W_V bottleneck in L layers only
     bam_local_v_projection_activation = 'none'
-    bam_write_address_mode = 'dynamic'  # dynamic | static | x_slice
+    bam_write_address_mode = 'dynamic'  # dynamic | static | x_slice | factorized
     bam_write_address_input_dim = None  # leading x coordinates for x_slice
+    bam_write_address_rank = None  # shared address basis for factorized writes
     bam_extra_final_local_layer = False
     bam_final_local_mlp_dim = None
     bam_concat_v = False
@@ -7848,6 +7849,21 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     mlp_dim_by_block = [3178, 3178, 3173]
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
     jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-static"
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
+    """Full-input per-head C8 coefficients, shared 8->32 basis, and per-head pre-RMS bias."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Nearest per-layer MLP widths: -18432 params (-.0045%) vs K48 shared rank4.
+    # Prediction vs K48 shared rank4: final gap +.001 (-.004..+.008); speed approximately flat.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8'
+    bam_write_address_mode = 'factorized'
+    bam_write_address_rank = 8
+    bam_write_v_bottleneck_dim = None
+    bam_write_v_bottleneck_activation = 'none'
+    mlp_dim_by_block = [3135, 3135, 3130]
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu']
+    jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-head-c8"
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

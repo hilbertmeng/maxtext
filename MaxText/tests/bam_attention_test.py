@@ -454,7 +454,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
     import pyconfig
     from flax.core import unfreeze
     base = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
-    for suffix in ('PLocR128Gelu', 'PLocStatic', 'PLocSlice384Linear', 'PLocSlice384Gelu'):
+    for suffix in ('PLocR128Gelu', 'PLocStatic', 'PLocSlice384Linear', 'PLocSlice384Gelu', 'PLocHeadC8'):
       for mode in ('local_qk+local_o', 'local_qk+full'):
         with self.subTest(suffix=suffix, mode=mode), tempfile.TemporaryDirectory() as out:
           Path(out, 'address').mkdir()
@@ -488,6 +488,15 @@ class BamReadKeyTransformTest(absltest.TestCase):
             np.testing.assert_array_equal(a,address(params,-x))
             self.assertGreater(float(jnp.linalg.norm(grad['P_loc_static_bias'].value)),0.)
             np.testing.assert_allclose(jnp.mean(a.astype('float32')**2,-1),1.,rtol=.02)
+          elif suffix == 'PLocHeadC8':
+            self.assertEqual(params['P_loc_address_up']['kernel'].value.shape,(8,32))
+            self.assertEqual(params['P_loc_address_bias'].value.shape,(2,32))
+            np.testing.assert_array_equal(params['P_loc_address_bias'].value,0.)
+            for name in ('P_loc_coeff','P_loc_address_up'):
+              self.assertGreater(float(jnp.linalg.norm(grad[name]['kernel'].value)),0.)
+            self.assertGreater(float(jnp.linalg.norm(grad['P_loc_address_bias'].value)),0.)
+            dx=jax.grad(lambda z:jnp.sum(address(params,z).astype('float32')*target))(x)
+            self.assertGreater(float(jnp.linalg.norm(dx[...,64:].astype('float32'))),0.)
           else:
             self.assertGreater(float(jnp.linalg.norm(grad['P_loc_up']['kernel'].value)),0.)
             if 'Slice' in suffix:

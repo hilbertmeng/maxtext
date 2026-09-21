@@ -2639,7 +2639,14 @@ class BamAttention(Attention):
     self._write_v_bottleneck_activation = cfg.bam_write_v_bottleneck_activation
     self._write_address_mode = getattr(cfg, 'bam_write_address_mode', 'dynamic')
     self._write_address_input_dim = getattr(cfg, 'bam_write_address_input_dim', None)
-    assert self._write_address_mode in ('dynamic', 'static', 'x_slice')
+    self._write_address_rank = getattr(cfg, 'bam_write_address_rank', None)
+    assert self._write_address_mode in ('dynamic', 'static', 'x_slice', 'factorized')
+    if self._write_address_mode == 'factorized':
+      assert 0 < self._write_address_rank <= self.bam_v
+      assert self._write_v_bottleneck_dim is None
+      assert self._write_v_bottleneck_activation == 'none'
+    else:
+      assert self._write_address_rank is None
     if self._write_address_mode == 'x_slice':
       assert 0 < self._write_address_input_dim <= cfg.emb_dim
       assert self._write_v_bottleneck_dim is None
@@ -2859,7 +2866,22 @@ class BamAttention(Attention):
     if self._has_write:
       # Write anchor P_loc: V factor (default agg_u@loc_v), regular init
       loc_v = self.bam_v
-      if self._write_address_mode == 'static':
+      if self._write_address_mode == 'factorized':
+        self.P_loc_coeff = DenseGeneral(
+            features=(self.num_query_heads, self._write_address_rank), axis=-1,
+            kernel_init=reg_init, kernel_axes=('embed', 'q_heads', None),
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name='P_loc_coeff',
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+        self.P_loc_address_up = DenseGeneral(
+            features=loc_v, axis=-1, kernel_init=reg_init,
+            kernel_axes=(None, 'v_factor'), dtype=self.dtype,
+            weight_dtype=self.weight_dtype, name='P_loc_address_up',
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+        self.P_loc_address_bias = self.param(
+            'P_loc_address_bias', nn.with_logical_partitioning(
+                nn.initializers.zeros_init(), ('q_heads', 'v_factor')),
+            (self.num_query_heads, loc_v), self.weight_dtype)
+      elif self._write_address_mode == 'static':
         # Independent learned address per head/layer, initially unit-RMS orthogonal.
         # The bias suffix retains the original P_loc_up/bias weight-decay treatment.
         self.P_loc_static_bias = self.param(
@@ -3269,6 +3291,9 @@ class BamAttention(Attention):
 
   def _write_address(self, x):
     """Address before the unchanged per-head write RMS normalization."""
+    if self._write_address_mode == 'factorized':
+      address = self.P_loc_address_up(self.P_loc_coeff(x))
+      return address + jnp.asarray(self.P_loc_address_bias, address.dtype)
     if self._write_address_mode == 'static':
       return jnp.asarray(self.P_loc_static_bias, self.dtype)
     if self._write_address_mode == 'x_slice':

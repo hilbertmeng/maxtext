@@ -8779,6 +8779,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocHeadC8(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
     """Ledger only: Full-input per-head C8 coefficients, shared 8->32 basis, and per-head pre-RMS bias."""
+    # code_commit: c34a355; UE5a .6376 steps/s, -.03% vs K48 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Nearest per-layer MLP widths: -18432 params (-.0045%) vs K48 shared rank4.
     # Prediction vs K48 shared rank4: final gap +.001 (-.004..+.008); speed approximately flat.

@@ -7597,6 +7597,8 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
     # 1420867456 params (-32768 vs ColOnly); M-cache +50% for K64->96.
     # Prediction vs ColOnly: final gap -.008 (-.003..-.014), speed -5% with matched health.
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer'
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
     bam_extra_final_local_layer = False
     bam_k = 96
     bam_v = 32

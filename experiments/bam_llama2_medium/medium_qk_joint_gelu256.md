@@ -2,7 +2,7 @@
 
 RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256`; direct baseline `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer` (73f2e77).
 Implementation `/data0/xd/llf-parameter-matched`, branch `codex/llf-parameter-matched`.
-Owned TPU `xd-v5p-16-medium-k48-qk-rank4-joint-gelu256-maxtext`.
+Owned TPU after user-directed handoff: `xd-v5p-16-k48-ploc-slice384-linear-maxtext`.
 
 Reuse XL joint-QK path: x1024 ->256 ->GELU ->256, split shared basis128 and Q/K mixes64+64.
 Gate logits remain direct x projections; existing shared pre-RMS bias[4,32] unchanged.
@@ -25,3 +25,7 @@ MLP relative width deduction .70% vs.17%. This is not a matched relative-budget 
 Full initialized-shape audit411885440 for both, shardingoverhead.16685%<2%; fulltraintrace968health PASS.
 
 Pinned CPU BAM tests:57PASS (381.249s). No attention-code changes from validated XL implementation.
+
+User selected hot replacement of Slice384Linear once exact AOT is ready; retain its final checkpoint.
+
+Launch verified: runtime25b7eb2, AOT loaded, step0 start, FIRST_STEP51. Steps10–14 .6282/s (-1.51% vs K48 .6378, matched968 health),20–24 .6272/s. Evidence `/data0/xd/medium-qk-joint-start-verified.json`. Slice checkpoint10924 retained.

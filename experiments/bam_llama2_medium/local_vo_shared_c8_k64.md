@@ -182,3 +182,15 @@ Artifacts `/data0/xd/qk-c8-initial-scale.json`, probe `/data0/xd/probe_qk_c8_ini
 At200/600/1000, shallowL1–7 Q gates .157/.246/.259 vsparent .115/.146/.145;
 K .162/.226/.241 vs .107/.120/.118. This is consistent with amplitude compensation,
 not proof that initialization accounts for the entire loss gap.
+
+## K48 + DirectC8 combination
+
+RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer`; same worktree/branch. Direct baselines: K48 rank4 and K64 DirectC8.
+Only bam_k64→48 relative to DirectC8; QK48/NoPE48/RoPE16, MLP3050/3050/3045,
+independent VO gates and full-M static Q/K unchanged. Q/K .2 scales retained to
+match the existing C8 arm; initial read amplitude remains unmatched against rank4.
+Expected411882368 parameters, identical to K64 DirectC8;3072 fewer than K48rank4.
+Raw/compressed M-cache -25% vs K64. Bet: finalgap -.0005vsK48rank4 (-.002..+.002),
+nearparityvsK64C8; speedslightlybetterthanK64C8. Newfresh13500step run, checkpoint200,
+all968health metrics unchanged. TPU ID qkstatic-vo-c8-ig-k48-qk48-directc8,
+UE5a primary, UC1a/EW4b after5min; compilerEW4a primary,UC1a/UE5a backups.

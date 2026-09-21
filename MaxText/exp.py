@@ -8730,7 +8730,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     bam_write_v_bottleneck_dim = None
     bam_write_v_bottleneck_activation = 'none'
     mlp_dim_by_block = [3114, 3114, 3109]
-    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu']
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
     jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-ploc-slice384-none"
 
 

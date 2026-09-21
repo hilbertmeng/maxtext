@@ -8478,6 +8478,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer):
     """Ledger only: L-only standard V1024->256->1024; return the saved budget to each L MLP."""
+    # code_commit: ad1afc7; UE5a .6266 steps/s (10-14), -.85% vs K64QK48 .6320; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs K64QK48: final gap +.001, speed unchanged; matched968 read-health scalars.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer'
@@ -8489,6 +8490,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer):
     """Ledger only: L-only standard V bottleneck with GELU; matched initial output second moment."""
+    # code_commit: ad1afc7; UE5a .6262 steps/s (10-14), -.92% vs K64QK48 .6320; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs K64QK48: final gap -.002, speed unchanged; matched968 read-health scalars.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer'

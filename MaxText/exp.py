@@ -7539,6 +7539,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
     """Independent Q/K C8 dynamic keys; full-M static Q/K and VO reads unchanged."""
     # code_commit: 73f2e77; UE5a .6240 steps/s (10-14), -1.27% vs K64QK48 .6320; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Initial dynamic Q/K key norms ~.51x parent: C8 RMS with unchanged .2 scale; amplitude unmatched.
     # Prediction vs K64QK48: final gap -.0015, speed +1%; matched generic+concat health ON.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer'
     bam_local_qk_direct_c8 = True

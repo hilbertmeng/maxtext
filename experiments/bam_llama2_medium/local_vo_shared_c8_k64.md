@@ -169,3 +169,16 @@ Eight-device CPU sharding audit verifies total per-chip overhead .16684% (<2%).
 Run `audit_matched_mlp.py --check-sharding` with
 `XLA_FLAGS=--xla_force_host_platform_device_count=8` for new projection shapes;
 single-device shape/gradient tests do not catch accidental replication.
+
+DirectC8 initialization audit (2026-09-21): actualD1024/H16, same1024 synthetic
+normalized-distribution inputs, identity32 embedded in M64x32; static keys stillzero.
+Effective dynamic key norms: sharedrank4 Q=.0559052/K=.0559210, DirectC8
+Q=.0284304/K=.0284314, ratios.50855/.50842. Both use.2 scale and.05 gates, but
+RMS width32→8 reduces norm; orthogonal compression preserves the C8 vector norm.
+Initial amplitudes are not matched. A future matched-amplitude control should use
+C8 QK scale~.4 (VO/fetched scaleunchanged). Current run remains the unmodified
+LocalO-style C8 recipe; its loss cannot isolate architecture from initialization.
+Artifacts `/data0/xd/qk-c8-initial-scale.json`, probe `/data0/xd/probe_qk_c8_initial_scale.py`.
+At200/600/1000, shallowL1–7 Q gates .157/.246/.259 vsparent .115/.146/.145;
+K .162/.226/.241 vs .107/.120/.118. This is consistent with amplitude compensation,
+not proof that initialization accounts for the entire loss gap.

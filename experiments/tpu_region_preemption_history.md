@@ -293,6 +293,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer` | `xd-v5p-16-qkstatic-k64-directc8-separate-qk-proj-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 06:54:11 (first READY) | 2026-09-21 09:01:48 | review stop; checkpoint4172 committed; 1 preemptions; resources verified absent | UC1a/EW4b configured, never active |
 
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu` | v5p-16 | `us-east5-a` | 2026-09-21 09:59:45 | 2026-09-21 11:05:41 | user-authorized review stop; checkpoint2116 committed | UC1a/EW4b configured; no active switch |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -948,3 +950,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC827Layer | 2 | `us-east5-a` | 2026-09-21 06:12:42 | 2026-09-21 08:10:45 | 1h58m03s | resource-priority pause; committed4826; TPU retained by SeparateQKProjection |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8SeparateQKProjectionMLPPerLayer | 1 | `us-east5-a` | 2026-09-21 06:45:46 | 2026-09-21 09:01:45 | 2h15m59s | review stop; checkpoint4961 committed |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8SeparateQKProjectionMLPPerLayer | 2 | `us-east5-a` | 2026-09-21 07:28:29 | 2026-09-21 09:01:48 | 1h33m19s | review stop; checkpoint4172 committed |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu | 1 | `us-east5-a` | 2026-09-21 10:06:14 | 2026-09-21 11:05:41 | 59m27s | user-authorized review stop; checkpoint2116 committed; TPU/queue absent |

@@ -34,3 +34,8 @@ Separate C8 launched on the retained XL27 node in UE5a after committed4826.
 Runtime33244e00deeabd837dcbccb02027458f740a2c09; AOT loaded, first0, registry/controller commit and baseline agree.
 Steps10-14 .5408 steps/s (+.56% vs matched-health XL24 .5378);20-24also.5408.
 Raw `/data0/xd/xl-k96-separate-worker0.log`; XL27 TensorBoard sync verified.
+
+Shared rank4 launched on `xd-v5p-32-xl-k96-qk-shared-rank4-maxtext`, UE5a.
+Runtime33244e0; AOT loaded, initial0 and FIRST_STEP verified, registry/controller identity matched.
+Steps10-14 .5452 steps/s (+1.38% vs XL24 .5378; +.81% vs separate C8 .5408).
+Raw `/data0/xd/xl-k96-rank4-worker0.log`; both AOT jobs ready with no cleanup failures.

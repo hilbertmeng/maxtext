@@ -32,3 +32,5 @@ Full run names:
 - `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128`
 
 Runtime e3791a14 (full hash in `/data0/xd/medium-budget-followups-runtime.txt`). Pinned BAM suite57PASS384.454s; actual initialized totals all411885440; shardingoverhead.1668503%<2%; fulltraintrace968metrics allPASS. Artifacts `/data0/xd/medium-budget-followups-{tests.log,audit.json,health-trace.log}`. Three exact AOT preparations submitted independently; readiness launchers gated on ready+cleanup success.
+
+JointGelu128 launch verified: from0, FIRST70, AOTloaded, exacte3791a1. Steps10–14 .6286/s (-1.44%vsK48.6378,+.06%vsJoint256.6282),20–24 .6306. Matchedgeneric/BAM968. OldJoint256paused7245 at23:31:02UTC; checkpointretained,TB SYNC_OK. Evidence `/data0/xd/joint128-start-verified.json`.

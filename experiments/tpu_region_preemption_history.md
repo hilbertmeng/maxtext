@@ -310,6 +310,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear` | v5p-16 | `us-east5-a` | 2026-09-21 09:59:45 | 2026-09-21 15:18:35 | user hot switch; checkpoint10924 committed; 1 preemption | UC1a/EW4b configured; same-zone recovery |
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256` | v5p-16 | `us-east5-a` | 2026-09-21 15:19:26 | 2026-09-21 16:52:09 | 2800-step review stop; checkpoint2900 committed; 2 preemptions | UC1a/EW4b passive candidates; same-zone recovery |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256` | v5p-16 | `us-east5-a` | 2026-09-21 21:24:34 | 2026-09-21 23:31:02 | user hot switch to GELU128; checkpoint7245 retained | UC1a/EW4b passive candidates, never active |
 
 ## READY leases
 
@@ -978,3 +979,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear | 2 | `us-east5-a` | 2026-09-21 13:10:37 | 2026-09-21 15:18:35 | 2h07m58s | user hot switch; checkpoint10924 committed; TPU retained by MediumJointGelu256 |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256 | 1 | `us-east5-a` | 2026-09-21 15:19:29 | 2026-09-21 15:41:17 | 21m48s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256 | 2 | `us-east5-a` | 2026-09-21 15:48:39 | 2026-09-21 16:50:48 | 1h02m09s | service preemption just before review stop; checkpoint2900 committed; TPU/queue absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256 | 3 | `us-east5-a` | 2026-09-21 21:30:23 | 2026-09-21 23:31:02 | 2h00m39s | user hot switch; checkpoint7245 committed; TPU retained by GELU128 |

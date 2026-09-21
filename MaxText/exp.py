@@ -8830,8 +8830,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Ledger only: Joint GELU dynamic QK basis/mixes, exactly matched to the K48 parent budget."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # +65536 BAM params/layer (.0625 W_Q); MLP3029/3029/3023 preserves total411885440.
-    # Resumed from 2900; early gain -.008818@1000 faded and crossed +.000492@2800;
-    # last5 through2800 -.001038 (-.002371..+.000492), speed -1.51%, same params/M-cache.
+    # Paused7245 for GELU128. vs K48: early gain faded, small deficit at3k–6k, then approached zero;
+    # last5 through7200 +.000323 (-.000202..+.001070). Provisional; same params/M-cache, speed -1.51%.
     # code_commit: 25b7eb2; UE5a .6282 steps/s, -1.51% vs K48 .6378; matched968 health.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256'
     bam_local_qk_joint_hidden_dim = 256
@@ -8870,6 +8870,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # -98304 QK params/layer vs rank4 (-.09375 W_Q), +32 MLP width; exact total411885440.
     # Bet vs K48: terminal gap -.001 (range -.003..+.002); speed flat to +1%.
     # Bet vs jointGELU256: -.002 at mature common steps (range -.004..+.001).
+    # code_commit: e3791a1; UE5a .6286 steps/s, -1.44% vs K48 .6378, +.06% vs GELU256 .6282; matched968 health.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128'
     bam_local_qk_joint_hidden_dim = 128
     mlp_dim_by_block = [3082, 3082, 3077]

@@ -33,3 +33,5 @@ User cadence: report every1000steps, with an explicit2800-step decision before30
 Stopped2900 after2800 review. vsK48 early-.008818@1000 shrank to+.000492@2800;
 last5 mean-.001038 [-.002371,+.000492]. Speed-1.51%, same parameters/M-cache: no sustained net gain.
 Checkpoint2900 committed; TPU/queuedresource absent; TB sync complete.
+
+User requested resume from2900 on2026-09-21. Keep runtime25b7eb2, original13500-step LR schedule, same AOT/storage and UE5a primary with UC1a/EW4b backups. Report every1000steps; next full batch4000. Earlier2800 review remains provisional.

@@ -127,3 +127,5 @@ R128 trailed from2000 onward, its last5 disadvantage+.003310 [.001982,.004005] v
 No sustained catch-up, speed-.31% vsK48 and flat vsSlice; unchanged parameters/M-cache.
 Checkpoint5918 committed, TPU/queue absent, TB SYNC_OK.
 Artifacts: `/data0/xd/ploc-report-5800.md`, `/data0/xd/ploc-r128-closeout.log`.
+
+Monitoring update: Slice384Linear now compares only against original K48; user removed R128 from ongoing reports. Historical R128 comparisons above remain closeout evidence.

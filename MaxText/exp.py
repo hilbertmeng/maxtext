@@ -8721,6 +8721,7 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
     """Ledger only: Project the first 384 input coordinates to write addresses; match R128 P_loc and MLP budgets."""
+    # code_commit: 42a0f72; UE5a 0.6358 steps/s, -0.31% vs K48 rank4 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs K48 shared rank4: final gap +.004 (-.002..+.012); speed approximately flat.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear'
@@ -8735,6 +8736,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
     """Ledger only: Project the first 384 input coordinates to write addresses; match R128 P_loc and MLP budgets."""
+    # code_commit: 42a0f72; UE5a 0.6350 steps/s, -0.44% vs K48 rank4 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Prediction vs K48 shared rank4: final gap +.003 (-.003..+.011); speed approximately flat.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Gelu'
@@ -8749,6 +8751,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocR128Gelu(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
     """Ledger only: Halve the GELU write-address bottleneck and return all saved parameters to MLP."""
+    # code_commit: 42a0f72; UE5a 0.6358 steps/s, -0.31% vs K48 rank4 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Exact parent total parameter count; unchanged M-cache and read configuration.
     # Prediction vs K48 shared rank4: final gap +.002 (-.003..+.006); speed approximately flat.
@@ -8761,6 +8764,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocStatic(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
     """Ledger only: Replace dynamic write addresses with learned per-layer, per-head static addresses."""
+    # code_commit: 42a0f72; UE5a 0.6530 steps/s, +2.38% vs K48 rank4 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Exact parent total parameter count; unchanged M-cache and read configuration.
     # Prediction vs K48 shared rank4: final gap +.008 (0..+.020); speed approximately flat.

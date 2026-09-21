@@ -8457,7 +8457,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Ledger only: M48x32/C8; keep BAM QK48, standard QK16 and RoPE16."""
     # code_commit: 73f2e77; UE5a .6378 steps/s (10-14), +.92% vs K64QK48 .6320; matched968 health scalars.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs K64QK48: final gap +.003, speed +1%; matched generic+concat health ON.
+    # Completed13500. vs K64QK48: late plateau ~-.003; last5 -.002993, M-cache -25%.
+    # vs K32 independent-gate C8: late ~-.011; last5 -.010943, speed -5.90%.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
     bam_k = 48
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer',

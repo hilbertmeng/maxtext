@@ -283,6 +283,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-k48-qk48-directc8-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 04:24:56 | 2026-09-21 06:44:40 | user hot switch at4891; no preemptions; retained for separate QK projection | UC1a/EW4b configured, never active |
 
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer` | `xd-v5p-16-qkstatic-vo-c8-ig-k48-qk48-maxtext` (v5p-16) | `us-east5-a` | 2026-09-21 00:28:09 | 2026-09-21 06:49:43 | completed13500; zero preemptions; resources verified absent | UC1a/EW4b configured, never active |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -929,3 +931,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256GeluMLPPerLayer | 3 | `europe-west4-b` | 2026-09-21 02:24:34 | 2026-09-21 02:28:01 | 3m27s | service preemption before resumed training |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48VRank256LinearMLPPerLayer | 1 | `us-east5-a` | 2026-09-21 00:43:11 | 2026-09-21 02:31:23 | 1h48m12s | user stop; checkpoint3257 committed |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48DirectC8MLPPerLayer | 1 | `us-east5-a` | 2026-09-21 04:29:58 | 2026-09-21 06:44:40 | 2h14m42s | user hot-switch boundary; committed4891; retained by SeparateQKProjection |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer | 1 | `us-east5-a` | 2026-09-21 00:33:34 | 2026-09-21 06:49:43 | 6h16m09s | completed13500; final checkpoint committed; TPU/queue verified absent |

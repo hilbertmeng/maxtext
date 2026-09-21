@@ -7801,7 +7801,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Project the first 384 input coordinates to write addresses; match R128 P_loc and MLP budgets."""
     # code_commit: 42a0f72; UE5a 0.6358 steps/s, -0.31% vs K48 rank4 .6378; generic/BAM968 ON.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
-    # Prediction vs K48 shared rank4: final gap +.004 (-.002..+.012); speed approximately flat.
+    # Paused at 10924: vs K48, early gap narrowed but remained positive; last5 through10800 +.001167
+    # (+.000553..+.001684). No net loss/speed/cache gain from reallocating P_loc parameters to MLP.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear'
     bam_write_address_mode = 'x_slice'
     bam_write_address_input_dim = 384
@@ -7905,6 +7906,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # +65536 BAM params/layer (.0625 W_Q); MLP3029/3029/3023 preserves total411885440.
     # Prediction vs K48 rank4: final gap -.001 (-.004..+.003); speed approximately flat.
+    # code_commit: 25b7eb2; UE5a .6282 steps/s, -1.51% vs K48 .6378; matched968 health.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256'
     bam_local_qk_joint_hidden_dim = 256
     mlp_dim_by_block = [3029, 3029, 3023]

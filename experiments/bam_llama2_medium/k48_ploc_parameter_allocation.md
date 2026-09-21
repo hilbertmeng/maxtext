@@ -31,8 +31,7 @@ Formal primary UE5a, backup UC1a/EW4b after5min; recent owned UE5a Medium leases
 lasted2h16m and1h33m, with one prior27min preemption. Compiler primary EW4a,
 backup UC1a/UE5a per diagnostics policy. Compile exact v5p-16 topology before requesting trainers.
 
-Predicted terminal RUN-baseline gap: slice-linear +.004 [-.002,+.012]. Speed approximately flat:
-linear projection FLOPs saved from P_loc return in MLP. Baseline .6378 with matched health.
+Baseline speed .6378 with matched health.
 
 Validation: actual full-model parameter/sharding audit `/data0/xd/ploc-four-audit.json`;
 all four equal baseline count, sharding overhead .16685% (<2%).
@@ -129,3 +128,16 @@ Checkpoint5918 committed, TPU/queue absent, TB SYNC_OK.
 Artifacts: `/data0/xd/ploc-report-5800.md`, `/data0/xd/ploc-r128-closeout.log`.
 
 Monitoring update: Slice384Linear now compares only against original K48; user removed R128 from ongoing reports. Historical R128 comparisons above remain closeout evidence.
+
+## Allocation conclusion
+
+All six tested P_loc reductions failed to improve the K48 parent at equal or nearly equal total
+parameters: R128 GELU, static addresses, slice384 linear/GELU, shared head-C8 linear/GELU.
+Slice384 linear was closest (last5 through10200 +.001130), with no speed/cache gain;
+user selected it for replacement once the next experiment is AOT-ready.
+The tested reallocation from P_loc into MLP is unfavorable in this configuration.
+At exactly matched P_loc and MLP budgets, slice384 linear beats R128 GELU: the form of the
+restriction matters, not merely the number of parameters. This does not rule out every possible
+P_loc compression or establish the same conclusion at other scales.
+
+Slice384Linear paused10924, final checkpoint committed, last5 through10800 vsK48 +.001167 [.000553,.001684]. Original gap narrowed but remained positive; same total parameters/cache and speed-.31%. TPU retained by MediumJointGelu256.

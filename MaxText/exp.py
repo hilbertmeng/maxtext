@@ -7531,7 +7531,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # Prediction vs K64QK48: final gap +.003, speed +1%; matched generic+concat health ON.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
     bam_k = 48
-    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer']
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer',
+                    'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesMLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/qkstatic-vo-c8-ig-k48-qk48'
 
 

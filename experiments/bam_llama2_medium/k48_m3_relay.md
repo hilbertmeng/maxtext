@@ -30,3 +30,5 @@ FreshUE5av5p16trainers`xd-v5p-16-k48-mrelay-m3-maxtext`and
 AOTv6eEW4aprimary,UC1a/UE5abackups. ExistingXLjointandAllLocalremainmonitored.
 
 Validation:57 BAMregression testsPASS377.692s; anchorcapture, parentparameter/zero-outputmapping, nonzerogateQK/VO/fetchroutingandunmodifiedwrite-source checksPASS. Actual fullsizeparams/shardingPASS; fulltraintrace968readhealth+147/294relayhealthPASS. Artifacts `/data0/xd/k48-mrelay-{audit.json,audit.log,regression.log,mapping-test.log,routing-test.log,trace.log}`.
+
+Single launch verified 2026-09-22 UTC: runtime35d4878, UE5a v5p16, AOTloaded, step0 LR0 and FIRST_STEP19. Steps10–14 .6310/s versus parent .6378/s (-1.07%); health1115 versus968. Dual AOT compiled; target launch pending.

@@ -26,6 +26,7 @@ def analyze(root, out, draws=20000):
     n = len(records)
     delta = np.empty((n, len(heads), len(shifts)))
     gradient = np.empty((n, len(heads)))
+    primal_drift = np.empty_like(gradient)
     selected = np.empty_like(gradient)
     rounded = np.empty_like(delta)
     gate_change = np.empty_like(delta)
@@ -36,6 +37,7 @@ def analyze(root, out, draws=20000):
             assert abs(rows[control]['delta']) <= 1e-7, (record['sequence'], control, rows[control])
         for j, head in enumerate(heads):
             gradient[i, j] = grads[head['id']]['derivative']
+            primal_drift[i, j] = grads[head['id']].get('primal_delta', np.nan)
             selected[i, j] = grads[head['id']]['selected']
             for k, shift in enumerate(shifts):
                 row = rows[head['id'] + f'_shift{shift}']
@@ -77,7 +79,7 @@ def analyze(root, out, draws=20000):
                               primary_holm_p=float(adjusted[j]),
                               primary_equivalent=bool(np.max(np.abs(ci[:, j, lower])) < 1e-4),
                               shape_pointwise_ci=shape,
-                              selected_tokens=int(selected[:, j].sum()),
+                              evaluation_selected_tokens=int(selected[:, j].sum()),
                               rounded_fraction=(rounded[:, j].sum(0) / max(1, selected[:, j].sum())).tolist(),
                               actual_gate_change_per_selected=(gate_change[:, j].sum(0) / max(1, selected[:, j].sum())).tolist()))
     groups = {}
@@ -92,6 +94,9 @@ def analyze(root, out, draws=20000):
                              holm_decrease_count=sum(adjusted[j] < .05 and mean[j, lower] < 0 for j in members),
                              equivalent_count=sum(responses[j]['primary_equivalent'] for j in members))
     result = dict(n_sequences=n, sequences=ids, complete=(ids == list(range(32, 128))),
+                  dtype=meta.get('dtype'), runtime=meta['runtime'],
+                  ad_primal_drift_mean=float(np.mean(primal_drift)),
+                  ad_primal_drift_max_abs=float(np.max(np.abs(primal_drift))),
                   shifts=shifts, bootstrap_draws=draws, heads=responses, groups=groups,
                   gradient_secant_head_sign_agreement=float(np.mean(np.sign(gradient.mean(0)) == np.sign(secant.mean(0)))),
                   gradient_secant_head_mean_absolute_error=float(np.mean(np.abs(gradient.mean(0) - secant.mean(0)))),

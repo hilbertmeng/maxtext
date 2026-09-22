@@ -8858,7 +8858,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Ledger only: Direct linear write addresses from the first 768 residual coordinates."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Exact parent total411885440; original pre-RMS address bias and RMS retained.
-    # Bet vs K48: terminal gap -.001 (range -.003..+.0015); matched speed approximately flat.
+    # Stopped at 2913: vs K48 persistent deficit, last5 through2800 +.007642; vs Slice384 +.005049.
+    # vs Slice512 last5 through2200 +.003204; no sustained catch-up. Same total params/M-cache.
     # code_commit: e3791a1; UE5a .6376 steps/s, -.03% vs K48 .6378, +.28% vs Slice384 .6358; matched968 health.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear'
     bam_write_address_input_dim = 768

@@ -16,9 +16,15 @@ def run(task):
  root,layer=task;root=Path(root);start=time.perf_counter();meta=json.loads((root/'metadata.json').read_text());n=meta['n'];ix={s:i for i,s in enumerate(meta['fields'])};valid=np.load(root/'valid.npy');pos=np.load(root/'positions.npy')
  raw=np.stack([np.load(root/f'sample_{i:03d}.npy',mmap_mode='r')[layer] for i in range(n)]);f,norms=transform(raw,meta['fields']);go=raw[...,ix['read_o_gate']];gv=raw[...,ix['read_v_gate']];gw=raw[...,ix['write_gate']]
  thresholds=[.05,.1,.2];q=np.full((3,16,len(EX),len(QN)),np.nan);hist=np.zeros((3,16,len(EX),128),np.int64);counts=np.zeros((3,n,16,7),np.int64);largest=np.zeros((3,16,4),np.int64);joint=np.zeros((3,16,64,64),np.int64)
+ geom_edges=np.stack([np.linspace(-10,3,513) if name.startswith('lognorm') else np.linspace(-1,1,513) if name.startswith('cos') else np.linspace(0,1,513) for name in FN]);geom_hist=np.zeros((3,len(FN),512),np.int64);pooled_q=np.full((3,len(FN)+len(EX),len(QN)),np.nan)
  edges=np.stack([np.linspace(-1,1,129) if 'cos' in s else np.linspace(0,1,129) if 'gate' in s else np.linspace(-5,5,129) if s=='relative_parallel' else np.linspace(-6,6,129) for s in EX]);eb=np.linspace(-1,1,65);rb=np.linspace(-6,6,65)
  for ti,t in enumerate(thresholds):
   mask=valid[...,None]&(go>=t)&(gw>=t)&(norms[...,3]>1e-10)
+  for j,name in enumerate(FN+EX):
+   z=(f[...,j] if j<len(FN) else raw[...,ix[name]])[mask];z=z[np.isfinite(z)]
+   if len(z):
+    pooled_q[ti,j]=np.quantile(z,QN)
+    if j<len(FN):geom_hist[ti,j]=np.histogram(z,geom_edges[j])[0]
   for h in range(16):
    m=mask[:,:,h]
    if not m.any():continue
@@ -75,7 +81,7 @@ def run(task):
      if den>0:partial[si,h,j]=xr@yr/den
  else:mse_seq=np.zeros((n-32,0,2));groups={}
  dest=root/'exploration';dest.mkdir(exist_ok=True)
- np.savez_compressed(dest/f'layer_{layer:02d}.npz',quantiles=q,quantile_levels=QN,hist=hist,edges=edges,names=EX,counts=counts,largest=largest,joint=joint,joint_cos_edges=eb,joint_logratio_edges=rb,partial_correlations=partial,mse_sequence=mse_seq,model_names=list(groups))
+ np.savez_compressed(dest/f'layer_{layer:02d}.npz',quantiles=q,quantile_levels=QN,geometry_hist=geom_hist,geometry_edges=geom_edges,pooled_quantiles=pooled_q,pooled_names=FN+EX,hist=hist,edges=edges,names=EX,counts=counts,largest=largest,joint=joint,joint_cos_edges=eb,joint_logratio_edges=rb,partial_correlations=partial,mse_sequence=mse_seq,model_names=list(groups))
  result=dict(layer=layer,seconds=time.perf_counter()-start,mse=scores)
  (dest/f'layer_{layer:02d}.json').write_text(json.dumps(result,indent=2));return result
 if __name__=='__main__':

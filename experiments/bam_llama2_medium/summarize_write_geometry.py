@@ -43,7 +43,7 @@ fig.colorbar(im,ax=axs.tolist(),label='Within-head Spearman rho',fraction=.025);
 # Candidate curves: train-defined bins, sequence bootstrap CI on holdout.
 selected=[];used=set()
 for r in strong:
- if r['feature'] not in used:selected.append(r);used.add(r['feature'])
+ if r['layer']>1 and r['feature'] not in used:selected.append(r);used.add(r['feature'])
  if len(selected)==6:break
 if selected:
  fig,axs=plt.subplots(2,3,figsize=(14,8));rng=np.random.default_rng(9122)

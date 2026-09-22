@@ -24,3 +24,6 @@ Generic healthON and inherited BAM healthON; expected1056 vsbaseline968 metrics,
 so raw launch timing is not strictly health-matched.
 
 Validation artifacts `/data0/xd/xl-all-local-{tests.log,audit.json,audit.log,health-trace.log}`.
+
+Runtime f7bcc0dda1c898ee59d9f1de9e6afee9d45eb51b. Actual tree1420870528 equalsparent, all slot totals identical, only F head-mix leaves replaced by LocalV gate. Sharding overhead.0731% PASS;57 pinned tests PASS383.538s; full train trace1056scalarhealth PASS.
+Exactv5p32/s50000 AOT ready, all compiler candidates released. UE5a trainer startedfrom0 withAOTloaded; step24verified. Steps10-14 .5502/s (+.92%vsrank4.5452),20-24 .5516. Evidence `/data0/xd/xl-all-local-start.log`; registry/runtime/AOT hash aligned.

@@ -84,6 +84,14 @@ for j,c in [(fn.index('cos_sv__local_o'),'#6c52a5'),(fn.index('cos_bam_other__lo
  q=np.stack([e[l]['pooled_quantiles'][1,j] for l in xx]);axs[1].plot(xx,q[:,6],color=c,label=fn[j]);axs[1].fill_between(xx,q[:,4],q[:,8],color=c,alpha=.15)
 for ax in axs:ax.set_xlabel('Layer');ax.grid(alpha=.2);ax.legend(fontsize=8);ax.axvline(1,color='gray',ls=':');ax.axvline(23,color='gray',ls=':')
 axs[0].set_ylabel('Norm share: median and 10-90%');axs[1].set_ylabel('Cosine: median and 10-90%');fig.tight_layout();fig.savefig(dest/'geometry_by_layer.png',dpi=180);plt.close(fig)
+# Read/write address angle: full population plus depth/head distributions.
+fig,axs=plt.subplots(1,3,figsize=(15,5));j=en.index('key_cos');axs[0].plot(np.degrees(np.arccos(np.clip(ev[j,::-1],-1,1))),1-eq[::-1]);axs[0].axvline(90,color='gray',ls=':');axs[0].set_xlabel('Read-key / write-address angle (degrees)');axs[0].set_ylabel('Cumulative probability');axs[0].grid(alpha=.2)
+q=np.stack([e[l]['pooled_quantiles'][1,16] for l in range(1,24)]);med=np.degrees(np.arccos(q[:,6]));lo=np.degrees(np.arccos(q[:,8]));hi=np.degrees(np.arccos(q[:,4]));axs[1].plot(range(1,24),med,'o-',ms=3);axs[1].fill_between(range(1,24),lo,hi,alpha=.2,label='10-90% of positions');axs[1].axhline(90,color='gray',ls=':');axs[1].set_xlabel('Layer');axs[1].set_ylabel('Angle (degrees)');axs[1].legend(fontsize=8);axs[1].grid(alpha=.2)
+headmed=np.stack([np.degrees(np.arccos(e[l]['quantiles'][1,:,0,6])) for l in range(1,24)]);headmed[~ok[1:]]=np.nan;im=axs[2].imshow(headmed,aspect='auto',cmap='RdBu_r',vmin=45,vmax=135);fig.colorbar(im,ax=axs[2],label='Median angle (degrees)');axs[2].set_yticks(range(0,23,2),range(1,24,2));axs[2].set_xlabel('Head');axs[2].set_ylabel('Layer; sparse heads blank');fig.suptitle('Local-O read key lifted to full M address space: r=Pq vs actual p / dual gates >=0.1');fig.tight_layout();fig.savefig(dest/'read_write_address_angles.png',dpi=180);plt.close(fig)
+out['key_angle_quantiles_05_25_50_75_95']=np.degrees(np.arccos(ev[j,np.searchsorted(eq,[.95,.75,.5,.25,.05])])).tolist()
+fig,axs=plt.subplots(1,2,figsize=(12,6));seqcov=np.array([r['eligible_sequences_per_head'] for r in rows]);im=axs[0].imshow(cov/(128*2048),aspect='auto',vmin=0,vmax=1,cmap='viridis');fig.colorbar(im,ax=axs[0],label='Fraction of all tokens passing both gates');im=axs[1].imshow(seqcov,aspect='auto',vmin=0,vmax=128,cmap='viridis');fig.colorbar(im,ax=axs[1],label='Independent sequences with eligible positions')
+for ax in axs:ax.set_xlabel('Head');ax.set_ylabel('Layer');ax.set_yticks(range(24));ax.set_xticks(range(16))
+fig.suptitle('Coverage / dual gates >=0.1 / 128 sequences');fig.tight_layout();fig.savefig(dest/'coverage.png',dpi=170);plt.close(fig)
 (root/'research_summary.json').write_text(json.dumps(out,indent=2))
 with (root/'per_layer_head_quantiles.csv').open('w') as f:
  w=csv.writer(f);w.writerow(['layer','head','feature']+[f'q{x}' for x in ql])

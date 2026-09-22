@@ -7964,6 +7964,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # F head-mix1024x16+bias16 becomes LocalV gate1024x16+bias16: equal params.
     # Ablation: quantify fetchedO contribution; positive gap is expected, not an early-stop criterion.
     # Bet vs K48: terminal gap +.060 (broad range +.030..+.120); speed +3%..+8%.
+    # code_commit: ba29940; UE5a .6460 steps/s, +1.29% vs K48 .6378; generic ON, BAM1056 vs968.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal'
     bam_layer_modes = ['local_qk+local_o'] * 24
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']

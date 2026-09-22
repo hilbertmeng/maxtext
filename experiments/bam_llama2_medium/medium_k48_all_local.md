@@ -34,3 +34,5 @@ Compiler EW4a primary with UC1a/UE5a backups, exact v5p16 AOT, start from0.
 Actual-shape audit/shardingPASS (.16685% overhead <2%), train-step trace1056healthPASS,
 no fetchedO metrics in any layer and LocalV/LocalO metrics present in all24.
 Artifacts `/data0/xd/medium-all-local-{audit.json,audit.log,health-trace.log,tests.log}`.
+
+Runtime ba299404f17b366a4e41bce5fef9306f5dfe8a17. Pinned BAM tests57PASS382.986s. Exactv5p16 AOT ba29940-48960149 ready, cleanup_failures=[]; all compiler candidates released. Training startedUE5a from0, AOTloaded, passedstep24. Steps10–14 .6460/s (+1.29%vsK48.6378),20–24 .6492; health1056vs968, raw timing not strictly matched. Evidence `/data0/xd/medium-all-local-start-verified.json`.

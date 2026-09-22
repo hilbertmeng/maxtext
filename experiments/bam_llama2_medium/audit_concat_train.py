@@ -54,7 +54,8 @@ for exp in (sys.argv[1:] or RUNS):
     if getattr(cfg, 'bam_m_relay_anchor', 0):
       relay = [k for k in metrics if k.startswith('bam/m_relay/')]
       arms = ('qk', 'vo') if cfg.bam_m_relay_reads == 'qk_vo' else ('all',)
-      assert len(relay) == (cfg.num_decoder_layers-3)*7*len(arms)
+      stat_count = 10 if getattr(cfg, 'bam_m_relay_learned_scale', False) else 7
+      assert len(relay) == (cfg.num_decoder_layers-3)*stat_count*len(arms)
       assert all(metrics[k].shape == () for k in relay)
       for layer in range(3, cfg.num_decoder_layers):
         for arm in arms:

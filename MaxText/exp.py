@@ -280,6 +280,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_m_relay_anchor = 0  # first LLF block output, read-only relay
     bam_m_relay_reads = 'all'  # all | qk_vo
     bam_record_m_relay_metrics = False
+    bam_m_relay_learned_scale = False
     bam_extra_final_local_layer = False
     bam_final_local_mlp_dim = None
     bam_concat_v = False
@@ -7998,6 +7999,16 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     bam_m_relay_reads = 'qk_vo'
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-mrelay-m3-qkvo'
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3):
+    """Per-layer learned amplitude after the dynamic anchor gate, initialized to one."""
+    # +21 scalars vs single relay; retain MLP3050/3050/3045.
+    # Bet vs single relay: terminal -.001 (range -.004..+.002); speed approximately unchanged.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale'
+    bam_m_relay_learned_scale = True
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-mrelay-m3-learned-scale'
+
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""

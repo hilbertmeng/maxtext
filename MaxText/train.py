@@ -935,6 +935,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
     layers = intermediate_outputs['intermediates']['decoder']['layers']
     names = ('scale_mean', 'positive_fraction', 'negative_fraction', 'saturated_fraction',
              'delta_over_m', 'anchor_m_cosine', 'mixed_over_m')
+    if getattr(config, 'bam_m_relay_learned_scale', False):
+      names += ('amplitude_scale', 'effective_scale_mean', 'effective_scale_abs_mean')
     block_size = config.bam_local_fetch_block_size
     for layer in range(block_size, config.num_decoder_layers):
       offset = layer % block_size

@@ -3609,20 +3609,31 @@ class BamAttention(Attention):
     relay_m = {}
     if anchor_m is not None:
       logits = self.m_relay_scale(inputs_q)
+      amplitude = None
+      if getattr(cfg, 'bam_m_relay_learned_scale', False):
+        assert self._relay_arms == ('all',)
+        amplitude = self.param(
+            'm_relay_amplitude_scale',
+            nn.with_logical_partitioning(nn.initializers.ones, (None,)), (1,), self.weight_dtype)[0]
       for index, arm in enumerate(self._relay_arms):
         scale = jnp.tanh(logits[..., index, None, None])
-        mixed = M_in + scale * anchor_m
+        effective_scale = scale if amplitude is None else scale * amplitude.astype(scale.dtype)
+        mixed = M_in + effective_scale * anchor_m
         relay_m[arm] = mixed
         if cfg.bam_record_m_relay_metrics and not self.is_initializing():
           m, anchor, delta, mixed_stat = jax.tree.map(
               lambda v: jax.lax.stop_gradient(v).astype(jnp.float32),
-              (M_in, anchor_m, scale * anchor_m, mixed))
+              (M_in, anchor_m, effective_scale * anchor_m, mixed))
           rms = lambda v: jnp.sqrt(jnp.mean(v*v, axis=(-2, -1)) + 1e-20)
           cosine = jnp.mean(m*anchor, axis=(-2, -1)) / (rms(m)*rms(anchor))
           stats = jnp.stack((jnp.mean(scale), jnp.mean(scale > 0),
               jnp.mean(scale < 0), jnp.mean(jnp.abs(scale) > .95),
               jnp.mean(rms(delta)/rms(m)), jnp.mean(cosine),
               jnp.mean(rms(mixed_stat)/rms(m))))
+          if amplitude is not None:
+            stats = jnp.concatenate((stats, jnp.stack((amplitude.astype(jnp.float32),
+                jnp.mean(effective_scale.astype(jnp.float32)),
+                jnp.mean(jnp.abs(effective_scale.astype(jnp.float32)))))))
           suffix = '' if arm == 'all' else f'_{arm}'
           self.sow('intermediates', f'm_relay_stats{suffix}', stats)
     read_states = {}

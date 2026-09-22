@@ -16,7 +16,7 @@ def map_m_relay_params(target, source, scan_axis):
     elif path[:2] == ('decoder', 'layers'):
       selection = slice(1, None)
     if source_path not in flat_source:
-      assert 'm_relay_scale' in path or 'm_relay_gate_b0' in path, path
+      assert any(name in path for name in ('m_relay_scale', 'm_relay_gate_b0', 'm_relay_amplitude_scale')), path
       result[path] = target_value
       continue
     value = flat_source[source_path]

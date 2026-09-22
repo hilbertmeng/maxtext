@@ -21,7 +21,7 @@ import train
 
 class MRelayTest(unittest.TestCase):
   def test_model_mapping_and_train_signature(self):
-    for name in ('BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO'):
+    for name in ('BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale'):
       cfg = self.config(name)
       cfg.get_keys().update(vocab_size=128, dtype=jnp.float32,
           bam_local_o_v_mode=['rank2', 'rank2', 'none'] * 2)
@@ -58,6 +58,12 @@ class MRelayTest(unittest.TestCase):
         gate_count = sum((v.value if hasattr(v, 'unbox') else v).size for path,v in flat.items() if 'm_relay_scale' in path)
         self.assertEqual(gate_count, 3*(128+1)*len(arms))
         self.assertFalse(any('first_block' in path and 'm_relay_scale' in path for path in flat))
+        if getattr(cfg, 'bam_m_relay_learned_scale', False):
+          amplitudes = [v.value if hasattr(v, 'unbox') else v for path,v in flat.items() if 'm_relay_amplitude_scale' in path]
+          self.assertEqual(sum(v.size for v in amplitudes), 3)
+          for v in amplitudes: np.testing.assert_array_equal(v, jnp.ones_like(v))
+          self.assertIn('bam/m_relay/layer_003/amplitude_scale', metrics['scalar'])
+          self.assertIn('bam/m_relay/layer_005/effective_scale_abs_mean', metrics['scalar'])
 
   def config(self, name):
     output = tempfile.TemporaryDirectory()
@@ -91,7 +97,7 @@ class MRelayTest(unittest.TestCase):
         self.sow('probe', 'write_source', M)
         return super()._write(o, x, M)
     base = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
-    for suffix in ('MRelayM3', 'MRelayM3QKVO'):
+    for suffix in ('MRelayM3', 'MRelayM3QKVO', 'MRelayM3LearnedScale'):
       cfg = self.config(base+suffix)
       cfg.get_keys().update(bam_m_read_norm='none', dtype=jnp.float32)
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -111,11 +117,18 @@ class MRelayTest(unittest.TestCase):
         bias = params['m_relay_scale']['bias']
         vals = jnp.arctanh(scales)
         params['m_relay_scale']['bias'] = bias.replace(value=vals) if hasattr(bias,'unbox') else vals
+        amplitude = 1.
+        if suffix.endswith('LearnedScale'):
+          scalar = params['m_relay_amplitude_scale']
+          np.testing.assert_array_equal(scalar.value if hasattr(scalar, 'unbox') else scalar, jnp.ones((1,)))
+          amplitude = 2.
+          val = jnp.array([amplitude], jnp.float32)
+          params['m_relay_amplitude_scale'] = scalar.replace(value=val) if hasattr(scalar,'unbox') else val
         (_,m_out), out = module.apply({'params':params}, *args, **kw, mutable=['probe'])
         probe = out['probe']
-        np.testing.assert_allclose(probe['q'][0], m+.25*a, rtol=1e-5, atol=1e-5)
-        np.testing.assert_allclose(probe['k'][0], m+.25*a, rtol=1e-5, atol=1e-5)
-        vo_scale = -.5 if suffix.endswith('QKVO') else .25
+        np.testing.assert_allclose(probe['q'][0], m+amplitude*.25*a, rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(probe['k'][0], m+amplitude*.25*a, rtol=1e-5, atol=1e-5)
+        vo_scale = -.5 if suffix.endswith('QKVO') else amplitude*.25
         for v in probe['compression']:
           np.testing.assert_allclose(v, m+vo_scale*a, rtol=1e-5, atol=1e-5)
         if 'local_o' in mode:

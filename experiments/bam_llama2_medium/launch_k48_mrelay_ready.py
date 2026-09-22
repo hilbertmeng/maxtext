@@ -1,9 +1,9 @@
 import json,pathlib,shlex,subprocess,sys,time
 root=pathlib.Path('/home/lishengping/xd/projects');commit,suffix=sys.argv[1:]
 base='BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
-assert suffix in ('MRelayM3','MRelayM3QKVO')
-run=base+suffix;ident='k48-mrelay-m3'+('-qkvo' if suffix.endswith('QKVO') else '')
-bases=[base]+([base+'MRelayM3'] if suffix.endswith('QKVO') else [])
+assert suffix in ('MRelayM3','MRelayM3QKVO','MRelayM3LearnedScale')
+run=base+suffix;ident='k48-mrelay-m3'+('-qkvo' if suffix.endswith('QKVO') else '-scale' if suffix.endswith('LearnedScale') else '')
+bases=([base+'MRelayM3',base] if suffix.endswith('LearnedScale') else [base]+([base+'MRelayM3'] if suffix.endswith('QKVO') else []))
 for attempt in range(480):
  reg=root/'run_registry'/(run+'.json')
  if reg.exists():

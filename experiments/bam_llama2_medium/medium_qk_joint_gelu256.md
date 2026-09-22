@@ -40,4 +40,4 @@ Resume verified: restore/data cursor2900, FIRST2901, AOT loaded; LR27.246e-5 mat
 
 Paused7245 for user-directed GELU128 hot replacement. Resumed trajectory approached zero at6400–7200;6800-.000202,7000+.000116,7200+.001070. Last5+.000323[-.000202,+.001070]. This remains provisional, not a demonstrated terminal failure. Checkpoint7245 retained; finalTB SYNC_OK.
 
-User requested continuation on2026-09-22. Restored committed7245 and matching data cursor on new UE5a v5p-16; original runtime25b7eb2, AOT and13500-step schedule retained. FIRST7251 verified; AOT loaded, step7250 LR15.130e-5. GELU128 continues independently. Evidence `/data0/xd/medium-joint256-resume7245-verified.txt`.
+User requested continuation on2026-09-22. Restored committed7245 and matching data cursor on new UE5a v5p-16; original runtime25b7eb2, AOT and13500-step schedule retained. FIRST7251 verified; AOT loaded, step7250 LR15.130e-5. Checkpoint7400 committed after resume; GELU128 continues independently. Evidence `/data0/xd/medium-joint256-resume7245-verified.txt`.

@@ -8948,6 +8948,18 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-mrelay-m3-vo-only'
 
 
+class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer):
+    """Ledger only: Replace all F layers with LocalVO; matched XL shared-rank4 ablation."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # F head mix and LocalV gate have identical shapes; retain MLP6266 in all24 layers.
+    # Ablation: quantify F->L cost; positive loss gap alone is not an early-stop criterion.
+    # Bet vs shared rank4: gap +.010 (range +.004..+.025), speed +1%..+3%.
+    model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal'
+    bam_layer_modes = ['local_qk+local_o'] * 24
+    compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-k96-rank4-all-local'
+
+
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """Ledger only: LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""
     # code_commit: e5d1874; UE5a .7296 steps/s, -.79% vs ColOnly .7354; generic ON/BAM OFF.

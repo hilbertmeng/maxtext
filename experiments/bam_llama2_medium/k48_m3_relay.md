@@ -48,7 +48,7 @@ Scale launch: runtimee46038cd851182e3fc7fe47a17cc8c1efa5a06f9, UE5a05:56:13 UTC,
 
 RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3VOOnly`, same worktree/branch. FreshUE5av5p16 `xd-v5p-16-k48-mrelay-m3-vo-only-maxtext`,UC1a/EW4bbackups.
 Single zero-init tanh gate per affected layer; only LocalVO and FetchedO read `M+gA`; static/dynamic LocalQK read originalM. No learned amplitude; unchangedMLP,params411906965(equal single),health968+147=1115. Source-token gate beforeFetchedOcompression unchanged.
-Comparators single relay, dual relay, originalK48. Bet terminal-.002 versus single [-.005,+.002], speedapproximatelyunchanged; tests whether allowing QK to add/subtract anchor is counterproductive. Plan13500/ckpt200/report1000/review2800.
+Comparators single relay, dual relay, originalK48. Stopped at3068. Latest5mean versus single+.000532(2200-3000),dual-.003027(2000-2800),originalK48-.002689(2200-3000). Removing QK relay did not improve on single relay; early gain kept shrinking. Plan13500/ckpt200/report1000/review2800.
 
 VO-only validation:57regressionsPASS385.333s;3relaytestsPASS164.887s covering all4variants, nonzeroQKoriginalM/VOmixedM and unchangedwrite-source. Fullshapeparams411906965 and shardingPASS;fulltraintrace968+147healthPASS. Artifacts `/data0/xd/relay-voonly-{tests.log,regression.log,audit.json,trace.log}`.
 

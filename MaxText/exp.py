@@ -8016,7 +8016,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Relay first-block M to LocalVO/FetchedO only; LocalQK reads unmodified M."""
     # Same parameter count/MLP as single relay; no learned amplitude.
     # code_commit: 862bdb3; UE5a .6288 steps/s, -.35% vs single/.6310; matched1115 health.
-    # Bet vs single relay: terminal -.002 (range -.005..+.002); speed approximately unchanged.
+    # Stopped at 3068. vs single: 2200-3000 mean +.000532; vs dual: 2000-2800 -.003027.
+    # vs K48: early advantage shrank to -.002689 over2200-3000; no gain over single relay.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3VOOnly'
     bam_m_relay_reads = 'vo_only'
     bam_m_relay_learned_scale = False

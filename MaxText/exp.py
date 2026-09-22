@@ -8953,6 +8953,7 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # F head mix and LocalV gate have identical shapes; retain MLP6266 in all24 layers.
     # Ablation: quantify F->L cost; positive loss gap alone is not an early-stop criterion.
+    # code_commit: f7bcc0d; UE5a .5502 steps/s, +.92% vs rank4 .5452; health1056 vs968.
     # Bet vs shared rank4: gap +.010 (range +.004..+.025), speed +1%..+3%.
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal'
     bam_layer_modes = ['local_qk+local_o'] * 24

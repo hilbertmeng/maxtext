@@ -13,8 +13,7 @@ independent gates; additive V/O first96; full standardWV/WO. FetchedO column onl
 Gateinit.05, readscale.2; no amplitude matching against historical rank4 is claimed.
 Exact nearest integer MLP6266/6266/6266,1420867456params; vs directColOnly
 1420900224, delta−32768; vsMHA1420920832delta−53376. M-cache+50%vsK64.
-BetvsColOnly: finalgap−.008 (−.003..−.014), speed−5%matchedhealth; historicalbaseline
-BAMhealthOFF versus new968scalars means rawspeed cannot isolate architecture.
+Historicalbaseline BAMhealthOFF versus new968scalars means rawspeed cannot isolate architecture.
 Formalv5p32UE5aprimary,UC1a/EW4bbackupafter5min; compilerEW4aprimaryUC1a/UE5abackups.
 ID xl-qkstatic-vo-c8-ig-k96-directc8. Review10000, checkpoint250,total50000.
 
@@ -44,3 +43,7 @@ alsoequalstotal44,973,904params/layer. Ninefetches,M-cache+12.5%vs24.
 Betvs24:finalgap−.002(range−.006..+.003),speed−8%matchedhealth.
 Keep50000schedule/checkpoint250/review10000;trainUE5aprimaryUC1a/EW4bbackup.
 TPUIDxl-qkstatic-vo-c8-ig-k96-directc8-27.
+
+## XL24 closeout
+
+Stopped34359 after reaching user-selected historical K128 endpoint34348; stop/checkpoint latency added11steps. Original50000-step LR unchanged. vsK64 lastcommon28500: last5-.010743[-.011737,-.010153], advantage narrowed over training. vsK128 lastcommon34000: last5-.006733[-.007397,-.005937], late advantage held near-.007 with25%lessM-cache. Actualparams32768fewer than either historicalbase. Raw .5378/s vsK64.5932(-9.34%),K128.5690(-5.48%) are health-unmatched(BAM968vsOFF). Finalcheckpoint34359 committed,TPU/queueabsent,TB SYNC_OK. Evidence `/data0/xd/xl-c8-final-report.txt`, `/data0/xd/xl-c8-final-leases.txt`.

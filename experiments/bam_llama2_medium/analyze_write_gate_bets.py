@@ -14,7 +14,7 @@ def holm(p):
     return result
 
 
-def analyze(root, out, draws=20000):
+def analyze(root, out, draws=20000, plot_outputs=True):
     meta = json.loads((root / 'metadata.json').read_text())
     protocol = meta['protocol']
     heads = protocol['heads']
@@ -104,8 +104,9 @@ def analyze(root, out, draws=20000):
     out.mkdir(parents=True, exist_ok=True)
     # Convert NumPy scalar booleans/integers in summaries without losing floats.
     (out / 'summary.json').write_text(json.dumps(result, indent=2, default=lambda x: x.item()))
-    np.savez_compressed(out / 'paired.npz', delta=delta, gradient=gradient, selected=selected)
-    plot(result, out)
+    np.savez_compressed(out / 'paired.npz', delta=delta, gradient=gradient, selected=selected,
+                        gate_change=gate_change,valid_tokens=np.array([r['valid_tokens'] for r in records]))
+    if plot_outputs: plot(result, out)
     print(json.dumps(dict(n=n, complete=result['complete'], groups=groups), indent=2, default=lambda x: x.item()))
 
 
@@ -137,5 +138,6 @@ if __name__ == '__main__':
     parser.add_argument('root', type=Path)
     parser.add_argument('out', type=Path)
     parser.add_argument('--draws', type=int, default=20000)
+    parser.add_argument('--no-plots', action='store_true')
     args = parser.parse_args()
-    analyze(args.root, args.out, args.draws)
+    analyze(args.root, args.out, args.draws, not args.no_plots)

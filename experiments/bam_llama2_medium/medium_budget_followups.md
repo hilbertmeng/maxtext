@@ -9,7 +9,7 @@ All three initialized model totals must equal411885440. No hardware rounding.
 | RUN suffix | Change | MLP LLF widths | Direct baselines | Bet vs original K48 |
 |---|---|---|---|---|
 | PLocSlice512Linear | x[:512] ->512 linear |3093/3093/3087|K48,Slice384Linear|+.0003 [-.0015,+.002]|
-| PLocSlice768Linear | x[:768] ->512 linear |3050/3050/3045|K48,Slice384Linear|—|
+| PLocSlice768Linear | x[:768] ->512 linear |3050/3050/3045|K48,Slice384Linear,Slice512Linear|—|
 | QKJointGelu128 | x1024 ->128 GELU ->256; gates unchanged |3082/3082/3077|K48,JointGelu256|-.001 [-.003,+.002]|
 
 Slice512 saves131072 P_loc weights/layer vs R256; compensate128 MLP width units perLLFblock.

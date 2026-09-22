@@ -8889,7 +8889,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # F head-mix1024x16+bias16 becomes LocalV gate1024x16+bias16: equal params.
     # Ablation: quantify fetchedO contribution; positive gap is expected, not an early-stop criterion.
-    # Bet vs K48: terminal gap +.060 (broad range +.030..+.120); speed +3%..+8%.
+    # Completed 13500. vs K48: gap shrank from ~+.020 at2800 to +.014629 (12600-13400).
     # code_commit: ba29940; UE5a .6460 steps/s, +1.29% vs K48 .6378; generic ON, BAM1056 vs968.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal'
     bam_layer_modes = ['local_qk+local_o'] * 24

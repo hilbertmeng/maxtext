@@ -18,8 +18,7 @@ All-local removes the need for historical M-cache for fetched attention; ordinar
 Question: quantify the retrained loss contribution of fetchedO in the current strongest K48 model.
 This is an ablation, not a proposed final all-local architecture; final architecture retains F.
 Do not stop at2800 merely because loss is worse: assess whether the contribution estimate is stable,
-continuing to13500 as needed. The earlier+.015 forecast was under-supported by a different historical architecture.
-Revised low-confidence bet: terminal+.060, broad range+.030..+.120; speed+3%..+8%.
+continuing to13500 as needed.
 FetchedO reads historical matrices with a target-dependent read key; LocalV before attention and
 LocalO on the current token cannot reproduce that operation directly.
 
@@ -36,3 +35,5 @@ no fetchedO metrics in any layer and LocalV/LocalO metrics present in all24.
 Artifacts `/data0/xd/medium-all-local-{audit.json,audit.log,health-trace.log,tests.log}`.
 
 Runtime ba299404f17b366a4e41bce5fef9306f5dfe8a17. Pinned BAM tests57PASS382.986s. Exactv5p16 AOT ba29940-48960149 ready, cleanup_failures=[]; all compiler candidates released. Training startedUE5a from0, AOTloaded, passedstep24. Steps10–14 .6460/s (+1.29%vsK48.6378),20–24 .6492; health1056vs968, raw timing not strictly matched. Evidence `/data0/xd/medium-all-local-start-verified.json`.
+
+Completed13500. F->L gap vsparent shrank from~+.020 at2800 to+.014629 over12600-13400 (range+.014214..+.015054). Replacement includes LocalVO compensation, not a pure deletion without replacement.

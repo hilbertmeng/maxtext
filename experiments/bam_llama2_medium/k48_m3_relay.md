@@ -53,3 +53,5 @@ Comparators single relay, dual relay, originalK48. Bet terminal-.002 versus sing
 VO-only validation:57regressionsPASS385.333s;3relaytestsPASS164.887s covering all4variants, nonzeroQKoriginalM/VOmixedM and unchangedwrite-source. Fullshapeparams411906965 and shardingPASS;fulltraintrace968+147healthPASS. Artifacts `/data0/xd/relay-voonly-{tests.log,regression.log,audit.json,trace.log}`.
 
 Dual relay stopped2937, finalcheckpointcommitted, TPU/queueabsent, TBsyncOK. Through2800 vsK48 last5-.000130[-.001974,+.001437], earlygainlost and latest+.001437; vssingle last5+.003452[+.002746,+.004266], consistentlyworseafter400. No efficiencygain. User-authorized2800reviewcriterionmet. Source-token negativeQKgates(especiallyL9/L12)were realandstrengthening, notaninitializationfailure.
+
+VOOnlylaunch: runtime862bdb315b247583a0e5ad62b10b7f91c40b6eb9,UE5a06:32:12UTC,AOTloaded/from0LR0/FIRST0 verified. Steps10–14 .6288/s (-.35% versus single .6310 matched1115health; +.64% versus dual .6248 health1262; -1.41% versus originalK48 .6378 health968). Allthreecomparatorsregistered.

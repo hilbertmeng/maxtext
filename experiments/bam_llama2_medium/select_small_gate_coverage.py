@@ -13,7 +13,8 @@ def count(task):
     return (mask & valid[None, :, None]).sum(axis=1)
 
 
-def select(raw, original, treatments, out, workers=8):
+def select(raw, original, treatments, out, workers=8, rho_max=-.2, minimum_tokens=256, minimum_sequences=8):
+    assert rho_max < 0, 'This experiment concerns negatively correlated heads only.'
     base = json.loads(original.read_text())
     protocol = json.loads(treatments.read_text())
     stats = base['all_head_stats']
@@ -29,16 +30,20 @@ def select(raw, original, treatments, out, workers=8):
     heads = []
     for h in stats:
         l, n = h['layer'], h['head']
-        if 2 <= l <= 22 and totals[l, n] >= 512 and sequences[l, n] >= 16:
-            heads.append(dict(h, id=f'L{l}H{n}', groups=['small_gate_covered'],
+        if (2 <= l <= 22 and h['read_write_rho'] <= rho_max
+                and totals[l, n] >= minimum_tokens and sequences[l, n] >= minimum_sequences):
+            heads.append(dict(h, id=f'L{l}H{n}', groups=['negative_all', 'strong_negative' if h['read_write_rho'] <= -.3 else 'moderate_negative'],
                               small_discovery_tokens=int(totals[l, n]),
                               small_discovery_sequences=int(sequences[l, n])))
     protocol['heads'] = heads
-    protocol['predictions'] = {'small_gate_covered':
-        'Majority of adequately covered heads have absolute mean delta loss <0.0001 nats/token; no broad harmful zeroing effect expected.'}
+    protocol['predictions'] = {
+        'negative_all': 'Negative heads only; retain original small-effect expectation.',
+        'strong_negative': 'Read/write Spearman <=-0.3; report separately.',
+        'moderate_negative': '-0.3 < read/write Spearman <= chosen negative cutoff; report separately.'}
     protocol['rule'] = 'read_gate >= max(0.1, discovery head P75) AND original write_gate <=0.02'
-    protocol['coverage_selection'] = dict(discovery=[0, 32], minimum_tokens=512,
-                                        minimum_sequences=16, layers=[2, 22], loss_used=False)
+    protocol['coverage_selection'] = dict(discovery=[0, 32], minimum_tokens=minimum_tokens,
+                                        minimum_sequences=minimum_sequences, read_write_spearman_max=rho_max,
+                                        layers=[2, 22], loss_used=False)
     out.write_text(json.dumps(protocol, indent=2))
     print('selected', len(heads), [h['id'] for h in heads])
 
@@ -48,5 +53,8 @@ if __name__ == '__main__':
     for name in ['raw', 'original', 'treatments', 'out']:
         p.add_argument(name, type=Path)
     p.add_argument('--workers', type=int, default=8)
+    p.add_argument('--rho-max', type=float, default=-.2)
+    p.add_argument('--minimum-tokens', type=int, default=256)
+    p.add_argument('--minimum-sequences', type=int, default=8)
     a = p.parse_args()
-    select(a.raw, a.original, a.treatments, a.out, a.workers)
+    select(a.raw, a.original, a.treatments, a.out, a.workers, a.rho_max, a.minimum_tokens, a.minimum_sequences)

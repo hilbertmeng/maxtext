@@ -41,3 +41,5 @@ Health adds per-layer amplitude_scale, effective_scale_mean, effective_scale_abs
 Direct baselines single relay and originalK48. Bet terminal -.001 versus single (range-.004..+.002), speed approximately unchanged before additional63health metrics. Plan13500/ckpt200/report1000/review2800.
 
 Scale validation:57 BAMregressionsPASS380.393s;3relaytestsPASS143.834s (parentmapping,init1/zeroidentity,nonunitamplitude/readrouting/write-source). Actualparams411906986,shardingoverhead.16691%;fulltraintrace968+210healthPASS. Scalar storedshape(1,) for param_scan_axis1 compatibility. Artifacts `/data0/xd/relay-amplitude-{tests.log,regression.log,audit.json,trace.log}`.
+
+Scale launch: runtimee46038cd851182e3fc7fe47a17cc8c1efa5a06f9, UE5a05:56:13 UTC, AOTloaded/from0LR0/FIRST1 verified. Steps10–14 .6318/s (+.13% versus single .6310; -.94% versus originalK48 .6378), health1178 versus1115/968; approximate speedparity, not matchedtelemetry.

@@ -7981,7 +7981,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # +21525 params (.02053 W_Q total, .00523%); retain MLP3050/3050/3045.
     # code_commit: 35d4878; UE5a .6310 steps/s, -1.07% vs K48 .6378; health1115 vs968.
-    # Bet vs K48: terminal +.002 (range -.003..+.007); speed ~-1% before relay-health overhead.
+    # Stopped at 5679. vs K48: early gain vanished; 4800-5600 mean -.000173, last +.001371.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3'
     bam_m_relay_anchor = 3
     bam_m_relay_reads = 'all'
@@ -8005,7 +8005,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Per-layer learned amplitude after the dynamic anchor gate, initialized to one."""
     # +21 scalars vs single relay; retain MLP3050/3050/3045.
     # code_commit: e46038c; UE5a .6318 steps/s, +.13% vs single/.6310, -0.94% vs K48/.6378; health1178.
-    # Bet vs single relay: terminal -.001 (range -.004..+.002); speed approximately unchanged.
+    # Stopped at 3044. vs single: 2200-3000 mean +.000837; vs K48: early gain shrank to -.002384.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale'
     bam_m_relay_learned_scale = True
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']

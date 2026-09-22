@@ -23,12 +23,12 @@ def one(task):
             x=v[mask];counts[j,k]=[(x>0).sum(),(x<0).sum(),(x==0).sum(),len(x)];sums[j,k]=x.sum(dtype=np.float64)
         step=np.minimum(.01,np.minimum(.1*g,.1*(1-g)))
         reconstructed=float(np.sum(v.astype(np.float64)*step*(r>=h['threshold'])))
-        errors.append(reconstructed-old[h['id']])
+        errors.append(reconstructed-old[h['id']] if h['id'] in old else np.nan)
     return sequence,counts,sums,np.array(errors)
 
 
-def analyze(root,adaptive_root,out,workers):
-    meta=json.loads((root/'metadata.json').read_text());heads=meta['protocol']['heads']
+def analyze(root,adaptive_root,out,workers,protocol_path=None):
+    meta=json.loads((root/'metadata.json').read_text());protocol=json.loads(protocol_path.read_text()) if protocol_path else meta['protocol'];heads=protocol['heads']
     paths=sorted(root.glob('gradient_*.npz'));assert len(paths)>=2
     tasks=[(p,heads,adaptive_root) for p in paths]
     # Check numerical equivalence and measured parallel throughput on a small subset.
@@ -60,7 +60,8 @@ def analyze(root,adaptive_root,out,workers):
                               active_sequences=int(np.count_nonzero(counts[:,j,k,3])))
         result.append(dict(id=h['id'],groups=h['groups'],scopes=scopes))
     summary=dict(n_sequences=n,sequences=ids,complete=ids==list(range(32,128)),heads=result,
-                 directional_reconstruction_mean_abs_error=float(np.mean(abs(errors))),directional_reconstruction_max_abs_error=float(np.max(abs(errors))),
+                 directional_reconstruction_mean_abs_error=float(np.nanmean(abs(errors))),directional_reconstruction_max_abs_error=float(np.nanmax(abs(errors))),
+                 directional_reconstruction_comparable_heads=int(np.isfinite(errors).any(0).sum()),
                  cpu_check=dict(workers=workers,serial_seconds=serial_time,parallel_seconds=parallel_time,speedup=serial_time/parallel_time,numerically_equal=True))
     out.mkdir(parents=True,exist_ok=True);(out/'summary.json').write_text(json.dumps(summary,indent=2))
     np.savez_compressed(out/'counts.npz',counts=counts,sums=sums,reconstruction_errors=errors)
@@ -68,5 +69,5 @@ def analyze(root,adaptive_root,out,workers):
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('root',type=Path);p.add_argument('adaptive_root',type=Path);p.add_argument('out',type=Path);p.add_argument('--workers',type=int,default=8)
-    a=p.parse_args();analyze(a.root,a.adaptive_root,a.out,a.workers)
+    p=argparse.ArgumentParser();p.add_argument('root',type=Path);p.add_argument('adaptive_root',type=Path);p.add_argument('out',type=Path);p.add_argument('--workers',type=int,default=8);p.add_argument('--protocol',type=Path)
+    a=p.parse_args();analyze(a.root,a.adaptive_root,a.out,a.workers,a.protocol)

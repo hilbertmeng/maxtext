@@ -22,7 +22,16 @@ def analyze(root, adaptive_root, out):
     read_high_count=np.zeros(shape);read_high_mass=np.zeros(shape)
     for i,r in enumerate(records):
         rows={x['id']:x for x in r['rows']};grad={x['id']:x for x in r['gradients']}
-        ref=json.loads((adaptive_root/f"seq_{r['sequence']:03d}.json").read_text());refrows={x['id']:x for x in ref['rows']}
+        context=adaptive_root/f"gradient_{r['sequence']:03d}.npz"
+        if context.exists():
+            with np.load(context) as f:
+                refrows={}
+                for h in heads:
+                    g=f['write_gate'][h['layer'],:,h['head']]
+                    mask=f['valid']&(f['read_gate'][h['layer'],:,h['head']]>=h['threshold'])
+                    refrows[h['id']+'_shift-1.0']=dict(selected=int(mask.sum()),gate_before=float(g[mask].sum(dtype=np.float64)))
+        else:
+            ref=json.loads((adaptive_root/f"seq_{r['sequence']:03d}.json").read_text());refrows={x['id']:x for x in ref['rows']}
         for control in ['baseline','zero_shift_control','terminal_control']:assert abs(rows[control]['delta'])<1e-7
         for j,h in enumerate(heads):
             a=rows[h['id']+'_shift-1.0'];b=refrows[h['id']+'_shift-1.0']
@@ -51,7 +60,7 @@ def analyze(root, adaptive_root, out):
                            fraction_of_read_high_tokens=float(selected[:,j].sum()/max(1,read_high_count[:,j].sum())),
                            fraction_of_read_high_gate_mass=float(removed[:,j].sum()/max(1e-20,read_high_mass[:,j].sum())),
                            no_eligible_positions=active==0,
-                           treatments={name:dict(mean_delta=float(all_delta[:,j,k].mean()),ci95=all_ci[:,j,k].tolist(),holm_all_116_p=float(all_adjusted[j,k])) for k,(name,_) in enumerate(specs)}))
+                           treatments={name:dict(mean_delta=float(all_delta[:,j,k].mean()),ci95=all_ci[:,j,k].tolist(),holm_all_arms_p=float(all_adjusted[j,k])) for k,(name,_) in enumerate(specs)}))
     groups={}
     for g in meta['protocol']['predictions']:
         members=[j for j,h in enumerate(heads) if g in h['groups']]
@@ -62,7 +71,7 @@ def analyze(root, adaptive_root, out):
                        holm_negative=sum(adjusted[j]<.05 and delta[:,j].mean()<0 for j in members),
                        treatments={name:dict(mean_delta=float(all_delta[:,members,k].mean()),ci95=np.quantile(all_boot[:,members,k].mean(1),[.025,.975]).tolist()) for k,(name,_) in enumerate(specs)})
     summary=dict(n_sequences=n,sequences=[r['sequence'] for r in records],complete=[r['sequence'] for r in records]==list(range(32,128)),
-                 dtype=meta['dtype'],cutoff=.02,arms=[name for name,_ in specs],heads=result,groups=groups)
+                 dtype=meta['dtype'],cutoff=.02,arms=[name for name,_ in specs],holm_all_arms_family_size=len(heads)*len(specs),heads=result,groups=groups)
     out.mkdir(parents=True,exist_ok=True)
     (out/'summary.json').write_text(json.dumps(summary,indent=2,default=lambda x:x.item()))
     np.savez_compressed(out/'paired.npz',delta=delta,all_delta=all_delta,prediction=prediction,selected=selected,removed=removed)

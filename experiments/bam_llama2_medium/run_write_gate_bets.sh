@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/lishengping/xd/projects/maxtext
+cd "$(dirname "$0")/../.."
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 export BET_OUTPUT=${BET_OUTPUT:-/tmp/alllocal-write-gate-bets-0922}
 export BET_PROTOCOL=$BET_OUTPUT/protocol.json

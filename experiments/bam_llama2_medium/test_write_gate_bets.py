@@ -23,3 +23,13 @@ fd=float((scalar(jnp.asarray(1.))-scalar(jnp.asarray(-1.)))/2.)
 assert np.isfinite(derivative) and abs(float(derivative))>1e-7
 np.testing.assert_allclose(float(derivative),fd,rtol=.25,atol=.0002)
 print('BET_MODULE_PASS baseline/residual exact; derivative',float(derivative),'FD',fd)
+with intervene(jnp.asarray(1),jnp.asarray(0),jnp.asarray(-1.),jnp.asarray(-1.),zero_cutoff=1.):
+ dropped,capture=m.apply({'params':p},*args,**kw,mutable=['intermediates'])
+s=np.asarray(capture['intermediates']['bet_stats'][0])
+assert s[0]>0 and s[1]>0
+np.testing.assert_allclose(s[2],s[1],rtol=0,atol=0)
+np.testing.assert_array_equal(dropped[0],baseline[0])
+with intervene(jnp.asarray(1),jnp.asarray(0),jnp.asarray(-1.),jnp.asarray(-1.),zero_cutoff=0.):
+ none=m.apply({'params':p},*args,**kw)
+for a,b in zip(baseline,none):np.testing.assert_array_equal(a,b)
+print('SMALL_ZERO_PASS removed gate mass equals original selected mass; residual unchanged')

@@ -7,7 +7,7 @@ import write_geometry as w
 from write_geometry import jax,jnp,nn,partitioning,train,max_utils,attentions
 
 @contextlib.contextmanager
-def intervene(target_layer,target_head,threshold,shift):
+def intervene(target_layer,target_head,threshold,shift,zero_cutoff=None):
  stack=[]
  def hook(next_fun,args,kw,ctx):
   m=ctx.module
@@ -25,7 +25,11 @@ def intervene(target_layer,target_head,threshold,shift):
   rg=m._read_gate_activation(m._project_read_gate_logits('W_R_gate',x,squeeze_fetch_axis=True))[...,0]
   selected=(stack[-1]==target_layer)&(jnp.arange(gate.shape[-1])==target_head)&(rg>=threshold)
   gf=gate.astype(jnp.float32)
-  step=jax.lax.stop_gradient(jnp.minimum(.01,jnp.minimum(.1*gf,.1*(1-gf))))
+  if zero_cutoff is None:
+   step=jax.lax.stop_gradient(jnp.minimum(.01,jnp.minimum(.1*gf,.1*(1-gf))))
+  else:
+   selected=selected&(gf<=zero_cutoff)
+   step=jax.lax.stop_gradient(gf)
   shifted=gf+shift*step
   # No shift!=0 branch: that would incorrectly erase the derivative at baseline.
   changed=jnp.where(selected,shifted.astype(gate.dtype),gate)
@@ -43,11 +47,14 @@ def intervene(target_layer,target_head,threshold,shift):
 def run(cfg):
  out=Path(os.environ['BET_OUTPUT']);out.mkdir(parents=True,exist_ok=True);protocol=json.loads(Path(os.environ['BET_PROTOCOL']).read_text());cohortpath=Path('/tmp/pile_eval_cohort.npz')
  with np.load(cohortpath) as f:cohort={k:f[k] for k in w.KEYS}
+ zero_cutoff=float(os.environ['BET_ZERO_CUTOFF']) if 'BET_ZERO_CUTOFF' in os.environ else None
+ if zero_cutoff is not None:assert protocol['shifts']==[-1.] and 0.<zero_cutoff<1.
  meta=dict(model=w.BASE,checkpoint=cfg.load_parameters_path,dtype=str(cfg.dtype),matmul_precision=str(cfg.matmul_precision),protocol=protocol,runtime=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),cohort_sha256=hashlib.sha256(cohortpath.read_bytes()).hexdigest())
+ meta.update(small_gate_cutoff=zero_cutoff,intervention_mode='small_gate_zero' if zero_cutoff is not None else 'adaptive_bidirectional')
  (out/'metadata.json').write_text(json.dumps(meta,indent=2))
  rng,writer,manager,mesh,model,_,tx=train.setup_mesh_and_model(cfg);state,_,_,_=max_utils.setup_training_state(model,SimpleNamespace(meta_dict={'checkpoint_step':None}),tx,cfg,rng,mesh,manager)
  def forward(p,b,l,h,t,f,enabled=True):
-  with intervene(l,h,t,f) if enabled else contextlib.nullcontext():
+  with intervene(l,h,t,f,zero_cutoff=zero_cutoff) if enabled else contextlib.nullcontext():
    result,inter=model.apply(p,b['inputs'],b['inputs_position'],decoder_segment_ids=b['inputs_segmentation'],decoder_target_mask=b['targets_segmentation'],decoder_target_tokens=b['targets'],enable_dropout=False,rngs={'params':rng,'dropout':rng},mutable=['intermediates'])
   mask=b['targets_segmentation']!=0;token_loss=jnp.where(mask,result[0],0.);loss=token_loss.sum()/jnp.maximum(mask.sum(),1)
   if not enabled:return loss,token_loss

@@ -31,4 +31,4 @@ AOTv6eEW4aprimary,UC1a/UE5abackups. ExistingXLjointandAllLocalremainmonitored.
 
 Validation:57 BAMregression testsPASS377.692s; anchorcapture, parentparameter/zero-outputmapping, nonzerogateQK/VO/fetchroutingandunmodifiedwrite-source checksPASS. Actual fullsizeparams/shardingPASS; fulltraintrace968readhealth+147/294relayhealthPASS. Artifacts `/data0/xd/k48-mrelay-{audit.json,audit.log,regression.log,mapping-test.log,routing-test.log,trace.log}`.
 
-Single launch verified 2026-09-22 UTC: runtime35d4878, UE5a v5p16, AOTloaded, step0 LR0 and FIRST_STEP19. Steps10–14 .6310/s versus parent .6378/s (-1.07%); health1115 versus968. Dual AOT compiled; target launch pending.
+Single launch verified 2026-09-22 UTC: runtime35d4878, UE5a v5p16, AOTloaded, step0 LR0 and FIRST_STEP19. Steps10–14 .6310/s versus parent .6378/s (-1.07%); health1115 versus968. Dual launched UE5a04:53:58 UTC; AOTloaded, step0 LR0 and FIRST_STEP4 verified. Steps10–14 .6248/s (-2.04% vs parent; -.98% vs single), health1262. Both registered exactruntime35d4878 and intendedcomparators. Singlecheckpoint400committed.

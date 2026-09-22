@@ -103,8 +103,9 @@ def main(path):
                 state['shards'][key]=dict(name=name,zone=zone,launched=time.time(),result=result)
                 path.write_text(json.dumps(state,indent=2));print('DISPATCH',i,name,result,flush=True)
             ew=inv['europe-west4-a']
-            pending=any(v.get('state') in ['WAITING_FOR_RESOURCES','PROVISIONING','ACCEPTED','CREATING'] for v in ew['queues'].values())
-            if not pending and not ready:
+            pending=sum(v.get('state') in ['WAITING_FOR_RESOURCES','PROVISIONING','ACCEPTED','CREATING'] for v in ew['queues'].values())
+            target_pending=min(2,sum(not value for value in completed.values()))
+            if pending < target_pending and not ready:
                 state['generation']=state.get('generation',0)+1
                 name=f'{PREFIX}auto-ew4-0922-{state["generation"]}'
                 path.write_text(json.dumps(state,indent=2))

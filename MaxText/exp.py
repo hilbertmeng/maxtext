@@ -8924,6 +8924,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3):
     """Ledger only: Per-layer learned amplitude after the dynamic anchor gate, initialized to one."""
     # +21 scalars vs single relay; retain MLP3050/3050/3045.
+    # code_commit: e46038c; UE5a .6318 steps/s, +.13% vs single/.6310, -0.94% vs K48/.6378; health1178.
     # Bet vs single relay: terminal -.001 (range -.004..+.002); speed approximately unchanged.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale'
     bam_m_relay_learned_scale = True

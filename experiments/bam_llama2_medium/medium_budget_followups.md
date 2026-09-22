@@ -10,11 +10,11 @@ All three initialized model totals must equal411885440. No hardware rounding.
 |---|---|---|---|---|
 | PLocSlice512Linear | x[:512] ->512 linear |3093/3093/3087|K48,Slice384Linear|—|
 | PLocSlice768Linear | x[:768] ->512 linear |3050/3050/3045|K48,Slice384Linear,Slice512Linear|—|
-| QKJointGelu128 | x1024 ->128 GELU ->256; gates unchanged |3082/3082/3077|K48,JointGelu256|-.001 [-.003,+.002]|
+| QKJointGelu128 | x1024 ->128 GELU ->256; gates unchanged |3082/3082/3077|K48,JointGelu256|—|
 
 Slice512 saves131072 P_loc weights/layer vs R256; compensate128 MLP width units perLLFblock.
 Slice768 equals originalP_loc393216weights. Joint128 saves98304QKweights/layer vsrank4;
-add32MLPwidth/layer. Joint128 betvsJoint256-.002[-.004,+.001] at maturecommonsteps.
+add32MLPwidth/layer. 
 Slice speed expectedflat; Joint128flat to+1% vsK48 .6378/s matchedhealth.
 
 Trainer UE5a primary,UC1a/EW4b backups; exact-runtimev5p16 AOT onEW4a compilerprimary,
@@ -42,6 +42,6 @@ Allthree AOT states ready with cleanup_failures=[]: e3791a1-0b3d626d/457d6d22/8c
 Slice512 launch verified from0,FIRST56,AOTloaded,e3791a1. Steps10–14 and20–24 .6356/s(-.34%vsK48,-.03%vsSlice384),matched968health. Evidence `/data0/xd/slice512-start-verified.json`. Allthree nowtrainingUE5a,report1000,review2800.
 
 Slice768 stopped2913 after2800 review: vsK48 last5+.007642, vsSlice384+.005049; vsSlice512 through2800+.003947, no sustained catch-up. Same total params/M-cache, speed-.03%/+.28%/+.31% respectively, matched968health. Checkpoint2913 committed; TPU/queue absent, finalTB SYNC_OK. No preemptions.
-Joint128 continues after2800 review: vsK48 last5+.007187, vsJoint256+.008224; both deficits narrowing, preserve later-MLP-budget test.
+Joint128 stopped8194: deficit narrowed vsK48, last5 at8000 +.002819; renewed catch-up vsJoint256, last5 +.001848. Equal total params/M-cache; speed-1.44%vsK48,+.06%vsJoint256, matchedhealth. Optimistic terminal parity offers no meaningful efficiency gain. Finalcheckpoint8194 committed, TPU/queue absent, TB SYNC_OK.
 
 Slice512 stopped2945 after2800 review: persistent deficit vsK48 last5+.003695, vsSlice384+.001101. Same params/M-cache; speed-.34%/-.03% respectively, matched968health. Checkpoint2945 committed; TPU/queue absent, TB SYNC_OK.

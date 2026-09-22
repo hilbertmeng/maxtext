@@ -315,6 +315,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer` | v5p-32 | `us-east5-a` | 2026-09-21 04:31:11 | 2026-09-22 00:12:36 | user stop at historical K128 endpoint; checkpoint34359 committed; 2 preemptions | UC1a/EW4b passive candidates; never active |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear` | v5p-16 | `us-east5-a` | 2026-09-21 23:30:28 | 2026-09-22 00:56:36 | 2800 review stop; checkpoint2913 committed | UC1a/EW4b backups (never active) |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear` | v5p-16 | `us-east5-a` | 2026-09-21 23:48:56 | 2026-09-22 01:15:00 | 2800 review stop; checkpoint2945 committed | UC1a/EW4b backups (never active) |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128` | v5p-16 | `us-east5-a` | 2026-09-21 23:31:56 | 2026-09-22 03:17:08 | review stop; checkpoint8194 committed | UC1a/EW4b backups (never active) |
 
 ## READY leases
 
@@ -989,3 +990,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer | 3 | `us-east5-a` | 2026-09-21 20:44:36 | 2026-09-22 00:12:36 | 3h28m00s | user stop at baseline endpoint; checkpoint34359 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear | 1 | `us-east5-a` | 2026-09-21 23:35:57 | 2026-09-22 00:56:36 | 1h20m39s | review stop; checkpoint2913 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear | 1 | `us-east5-a` | 2026-09-21 23:53:16 | 2026-09-22 01:15:00 | 1h21m44s | review stop; checkpoint2945 committed; TPU/queue absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128 | 1 | `us-east5-a` | 2026-09-21 23:31:59 | 2026-09-22 03:17:08 | 3h45m09s | review stop; checkpoint8194 committed; TPU/queue absent |

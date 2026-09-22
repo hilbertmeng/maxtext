@@ -7992,6 +7992,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3):
     """Two anchor coefficients: LocalQK versus shared LocalVO/FetchedO."""
     # +43050 params (.04106 W_Q total, .01045%); unchanged MLP and shared VO read.
+    # code_commit: 35d4878; UE5a .6248 steps/s, -2.04% vs K48 .6378; health1262 vs968.
     # Bet vs K48: terminal -.001 (range -.006..+.004); speed -1%..-2% before relay-health overhead.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO'
     bam_m_relay_reads = 'qk_vo'

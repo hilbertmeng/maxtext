@@ -278,7 +278,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_address_rank = None  # shared address basis for factorized writes
     bam_local_qk_joint_hidden_dim = None  # GELU features for shared basis and Q/K head mixes
     bam_m_relay_anchor = 0  # first LLF block output, read-only relay
-    bam_m_relay_reads = 'all'  # all | qk_vo
+    bam_m_relay_reads = 'all'  # all | qk_vo | vo_only
     bam_record_m_relay_metrics = False
     bam_m_relay_learned_scale = False
     bam_extra_final_local_layer = False
@@ -8009,6 +8009,17 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     bam_m_relay_learned_scale = True
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-mrelay-m3-learned-scale'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3VOOnly(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3):
+    """Relay first-block M to LocalVO/FetchedO only; LocalQK reads unmodified M."""
+    # Same parameter count/MLP as single relay; no learned amplitude.
+    # Bet vs single relay: terminal -.002 (range -.005..+.002); speed approximately unchanged.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3VOOnly'
+    bam_m_relay_reads = 'vo_only'
+    bam_m_relay_learned_scale = False
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-mrelay-m3-vo-only'
 
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):

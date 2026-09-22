@@ -21,7 +21,7 @@ import train
 
 class MRelayTest(unittest.TestCase):
   def test_model_mapping_and_train_signature(self):
-    for name in ('BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale'):
+    for name in ('BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3VOOnly'):
       cfg = self.config(name)
       cfg.get_keys().update(vocab_size=128, dtype=jnp.float32,
           bam_local_o_v_mode=['rank2', 'rank2', 'none'] * 2)
@@ -47,7 +47,7 @@ class MRelayTest(unittest.TestCase):
         _, metrics = jax.eval_shape(lambda st, data, rng: train.train_step(
             model, cfg, shardings, st, data, rng), *shaped)
         self.assertIn('learning/raw_grad_norm', metrics['scalar'])
-        arms = ('qk', 'vo') if cfg.bam_m_relay_reads == 'qk_vo' else ('all',)
+        arms = {'all': ('all',), 'qk_vo': ('qk', 'vo'), 'vo_only': ('vo',)}[cfg.bam_m_relay_reads]
         for arm in arms:
           prefix = 'bam/m_relay' if arm == 'all' else f'bam/m_relay/{arm}'
           self.assertIn(f'{prefix}/layer_003/scale_mean', metrics['scalar'])
@@ -97,7 +97,7 @@ class MRelayTest(unittest.TestCase):
         self.sow('probe', 'write_source', M)
         return super()._write(o, x, M)
     base = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
-    for suffix in ('MRelayM3', 'MRelayM3QKVO', 'MRelayM3LearnedScale'):
+    for suffix in ('MRelayM3', 'MRelayM3QKVO', 'MRelayM3LearnedScale', 'MRelayM3VOOnly'):
       cfg = self.config(base+suffix)
       cfg.get_keys().update(bam_m_read_norm='none', dtype=jnp.float32)
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -126,8 +126,9 @@ class MRelayTest(unittest.TestCase):
           params['m_relay_amplitude_scale'] = scalar.replace(value=val) if hasattr(scalar,'unbox') else val
         (_,m_out), out = module.apply({'params':params}, *args, **kw, mutable=['probe'])
         probe = out['probe']
-        np.testing.assert_allclose(probe['q'][0], m+amplitude*.25*a, rtol=1e-5, atol=1e-5)
-        np.testing.assert_allclose(probe['k'][0], m+amplitude*.25*a, rtol=1e-5, atol=1e-5)
+        qk_scale = 0. if suffix.endswith('VOOnly') else amplitude*.25
+        np.testing.assert_allclose(probe['q'][0], m+qk_scale*a, rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(probe['k'][0], m+qk_scale*a, rtol=1e-5, atol=1e-5)
         vo_scale = -.5 if suffix.endswith('QKVO') else amplitude*.25
         for v in probe['compression']:
           np.testing.assert_allclose(v, m+vo_scale*a, rtol=1e-5, atol=1e-5)

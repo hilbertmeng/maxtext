@@ -2483,8 +2483,8 @@ class BamAttention(Attention):
     reg_init = self.kernel_init
 
     if getattr(cfg, 'bam_m_relay_anchor', 0):
-      assert cfg.bam_m_relay_reads in ('all', 'qk_vo')
-      self._relay_arms = ('all',) if cfg.bam_m_relay_reads == 'all' else ('qk', 'vo')
+      assert cfg.bam_m_relay_reads in ('all', 'qk_vo', 'vo_only')
+      self._relay_arms = {'all': ('all',), 'qk_vo': ('qk', 'vo'), 'vo_only': ('vo',)}[cfg.bam_m_relay_reads]
       self.m_relay_scale = DenseGeneral(
           features=len(self._relay_arms), axis=-1, kernel_init=zeros_init,
           kernel_axes=('embed', None), dtype=self.dtype,
@@ -3638,7 +3638,7 @@ class BamAttention(Attention):
           self.sow('intermediates', f'm_relay_stats{suffix}', stats)
     read_states = {}
     def matrix_for(arm):
-      route = arm if getattr(cfg, 'bam_m_relay_reads', 'all') == 'qk_vo' else 'all'
+      route = arm if getattr(cfg, 'bam_m_relay_reads', 'all') != 'all' else 'all'
       if route not in read_states:
         read_states[route] = self._matrix_for_read(relay_m.get(route, M_in))
       return read_states[route]
@@ -3686,7 +3686,7 @@ class BamAttention(Attention):
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
     # QK and VO may read distinct mixtures; never reuse a QK compression for VO.
-    if getattr(cfg, 'bam_m_relay_reads', 'all') == 'qk_vo':
+    if getattr(cfg, 'bam_m_relay_reads', 'all') != 'all':
       Mh = None
       local_compressed_M = None
     local_output = None

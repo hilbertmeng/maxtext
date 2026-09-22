@@ -942,7 +942,7 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       offset = layer % block_size
       role = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
       outputs = layers[role]['block']['self_attention']
-      arms = ('qk', 'vo') if config.bam_m_relay_reads == 'qk_vo' else ('all',)
+      arms = {'all': ('all',), 'qk_vo': ('qk', 'vo'), 'vo_only': ('vo',)}[config.bam_m_relay_reads]
       for arm in arms:
         suffix = '' if arm == 'all' else f'_{arm}'
         if f'm_relay_stats{suffix}' not in outputs:

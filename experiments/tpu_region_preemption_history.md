@@ -328,6 +328,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal` | v5p-16 | `us-east5-a` | 2026-09-22 01:56:04 | 2026-09-22 08:20:51 | completed13500; 1 preemption | UC1a/EW4b backups, never active |
 
+| `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256` | v5p-32 | `us-east5-a` | 2026-09-21 14:15:32 | 2026-09-22 09:20:29 | review stop; checkpoint34170 committed; 1 preemption | UC1a/EW4b backups, never active |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -999,6 +1001,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer | 3 | `us-east5-a` | 2026-09-21 15:13:15 | 2026-09-21 16:52:29 | 1h39m14s | service preemption; same-zone recovery |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer | 2 | `us-east5-a` | 2026-09-21 06:12:55 | 2026-09-21 20:32:27 | 14h19m32s | service preemption; same-zone recovery |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer | 4 | `us-east5-a` | 2026-09-21 17:01:31 | 2026-09-21 20:34:22 | 3h32m51s | service preemption; same-zone recovery |
+| BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256 | 1 | `us-east5-a` | 2026-09-21 14:15:34 | 2026-09-21 20:34:55 | 6h19m21s | service preemption; same-zone recovery |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer | 5 | `us-east5-a` | 2026-09-21 20:44:02 | 2026-09-21 21:30:15 | 46m13s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256 | 3 | `us-east5-a` | 2026-09-21 21:30:23 | 2026-09-21 23:31:02 | 2h00m39s | user hot switch; checkpoint7245 committed; TPU retained by GELU128 |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer | 3 | `us-east5-a` | 2026-09-21 20:44:36 | 2026-09-22 00:12:36 | 3h28m00s | user stop at baseline endpoint; checkpoint34359 committed; TPU/queue absent |
@@ -1014,3 +1017,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal | 1 | `us-east5-a` | 2026-09-22 02:00:02 | 2026-09-22 07:44:04 | 5h44m02s | service preemption; resumed12692 in same zone |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3VOOnly | 1 | `us-east5-a` | 2026-09-22 06:36:55 | 2026-09-22 08:02:50 | 1h25m55s | review stop; checkpoint3068 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal | 2 | `us-east5-a` | 2026-09-22 07:53:59 | 2026-09-22 08:20:51 | 26m52s | completed13500; TPU/queue absent |
+| BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256 | 2 | `us-east5-a` | 2026-09-21 20:44:42 | 2026-09-22 09:20:29 | 12h35m47s | review stop; checkpoint34170 committed; TPU/queue absent |

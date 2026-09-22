@@ -23,7 +23,6 @@ MLP hidden widths6266/6266/6266 ->6255/6255/6256. Across8LLFblocks exact total i
 L layers each2048 fewer total parameters, F each4096 more: integer-width rounding cancels
 inside each block. No hardware alignment or extra scan partition.
 
-Prediction before training: terminal gap-.001 vsrank4, subjective range[-.004,+.003]; speedflat.
 The existing basis-times-head-mix is already nonlinear in x. This tests shared nonlinear feature
 formation, not an increase beyond rank4. M-cache unchanged; matrix FLOPs approximately balanced
 by MLP deduction, plus a small GELU cost. No claim of guaranteed gain over shared-P DirectC8.
@@ -49,3 +48,5 @@ User cadence: all owned XL runs report every2000steps, retaining500-step loss wi
 Reviews: JointGELU at10000 last5+.000899 vsrank4,+.004585 vsoriginalC8; continue because catch-up remains.
 Sharedrank4 at20000 last5+.001996 vsoriginalC8, lower than+.002798 at15500; continue beyond minimum observation.
 Neither has established a net loss gain over originalC8. Keep2000-step reporting.
+
+Stopped at34170. At32000-34000, mean gap+.000259 vs sharedrank4 (range-.000175..+.000630),+.000898 vsC8 (range+.000333..+.001201). Early deficits narrowed, but no durable win over rank4; speed-1.17% vsrank4,+.19% vsC8 withmatched968health. Bothdirectbaselines end around34k; no further pairedloss comparison. Final checkpoint committed, resourcesreleased, TBsynced.

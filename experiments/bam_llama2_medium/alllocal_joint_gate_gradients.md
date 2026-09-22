@@ -1,5 +1,7 @@
 # 两门联合状态与loss梯度
 
+后续已改用LocalO专属回写干预，隔离其余三项及当前层残差输出，见[LocalO专属回写结果](alllocal_localo_writeback.md)。本文件保留整体写门干预的历史结果。
+
 模型 `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal`，checkpoint13500。沿用发现集32条选择的L3–L16、读写Spearman≤−0.3的87头，评估32–127的96条。复用FP32逐位置概率梯度，不新增TPU前向。
 
 目的：将门状态分布与调整写门的局部loss影响对应，检验“读门高时压低写门是否有益”。状态定义两门以0.1为界；另保留0.05、0.2敏感性。高/低不等于严格开/关。

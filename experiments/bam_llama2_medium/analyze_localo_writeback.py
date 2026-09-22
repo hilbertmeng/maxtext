@@ -64,6 +64,9 @@ def main():
     if finite:
         pred=np.array([v[1] for v in finite]);actual=np.array([v[2] for v in finite]);pm=pred.mean(0);am=actual.mean(0);active=(abs(pm)+abs(am))>1e-10
         result['calibration']=dict(n_sequences=len(finite),cells=int(active.sum()),mean_sign_agreement=float((np.sign(pm[active])==np.sign(am[active])).mean()),magnitude_weighted_relative_error=float(abs(pm-am).sum()/abs(pm).sum()),mean_absolute_error=float(abs(pm-am).mean()),predicted_mean=pm.tolist(),finite_mean=am.tolist(),sequences=[v[0] for v in finite])
+        fd=np.array([v[3] for v in finite])
+        for label,actual_mean,predicted_mean in [('down',fd[:,::2].mean(0),-.1*pm),('up',fd[:,1::2].mean(0),.1*pm)]:
+            result['calibration'][label]=dict(mean_sign_agreement=float((np.sign(actual_mean[active])==np.sign(predicted_mean[active])).mean()),magnitude_weighted_relative_error=float(abs(actual_mean-predicted_mean).sum()/abs(predicted_mean).sum()),actual_mean=actual_mean.tolist(),predicted_mean=predicted_mean.tolist())
         np.savez_compressed(out/'calibration.npz',predicted=pred,finite=actual,deltas=np.array([v[3] for v in finite]))
     (out/'summary.json').write_text(json.dumps(result,indent=2));print(json.dumps({k:v for k,v in result.items() if k not in ['heads','head_primary','sequences']},indent=2))
 

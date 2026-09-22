@@ -20,7 +20,7 @@ dual411928490(+43050,.04106W_Q,.01045%). KeepMLPwidths; differencesnegligible.
 Readhealth968retained; relay147/294additionalmetrics (21layers*7stats*1/2arms).
 Matchedrelay-onlyspeedcontrolnotplanned; reportmeasuredspeedwithhealthcounts.
 
-Bets vsparent:single+.002[-.003,+.007],dual-.001[-.006,+.004];dual-single-.003.
+Active bet vsparent:single+.002[-.003,+.007].
 Speedbeforetelemetrysingle~-1%,dual-1..-2%. HistoryK32fullM3-.00673,partialM3+.02339@3200,
 K64Vonly-.00342terminal,threegates+.00394@5000; independentgatesarenotaguarantee.
 
@@ -51,3 +51,5 @@ Single zero-init tanh gate per affected layer; only LocalVO and FetchedO read `M
 Comparators single relay, dual relay, originalK48. Bet terminal-.002 versus single [-.005,+.002], speedapproximatelyunchanged; tests whether allowing QK to add/subtract anchor is counterproductive. Plan13500/ckpt200/report1000/review2800.
 
 VO-only validation:57regressionsPASS385.333s;3relaytestsPASS164.887s covering all4variants, nonzeroQKoriginalM/VOmixedM and unchangedwrite-source. Fullshapeparams411906965 and shardingPASS;fulltraintrace968+147healthPASS. Artifacts `/data0/xd/relay-voonly-{tests.log,regression.log,audit.json,trace.log}`.
+
+Dual relay stopped2937, finalcheckpointcommitted, TPU/queueabsent, TBsyncOK. Through2800 vsK48 last5-.000130[-.001974,+.001437], earlygainlost and latest+.001437; vssingle last5+.003452[+.002746,+.004266], consistentlyworseafter400. No efficiencygain. User-authorized2800reviewcriterionmet. Source-token negativeQKgates(especiallyL9/L12)were realandstrengthening, notaninitializationfailure.

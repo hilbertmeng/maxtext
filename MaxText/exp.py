@@ -8891,6 +8891,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # Ablation: quantify fetchedO contribution; positive gap is expected, not an early-stop criterion.
     # Completed 13500. vs K48: gap shrank from ~+.020 at2800 to +.014629 (12600-13400).
     # code_commit: ba29940; UE5a .6460 steps/s, +1.29% vs K48 .6378; generic ON, BAM1056 vs968.
+    # Checkpoint13500 geometry diagnostic: alllocal_write_geometry.md (128 Pile sequences; dual gates>=.1).
+    # L2-L22: O largest71.37%; read/write-key angle median88.63deg; actual O/old median.179.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal'
     bam_layer_modes = ['local_qk+local_o'] * 24
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']

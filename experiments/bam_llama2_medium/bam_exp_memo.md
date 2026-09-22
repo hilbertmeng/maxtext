@@ -650,3 +650,18 @@ mul/dot .5424 (+5.32%), dot/mul .5148 (-.04%), dot/dot .5436 (+5.55%).
 K96 needs read-dot; write-dot adds only .22% over read-dot, below a persuasive standalone effect.
 This differs from old K64 all-mul and K128 all-dot: rerun the operator comparison for an expanded-M XL shape.
 [Full report](xl_k96_concat_operator_profile.md); raw `/data0/xd/bam_diagnostics/xl-k96-concat-operators/`.
+
+
+### AllLocal local-O writeback geometry (2026-09-22)
+
+`BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal`,
+checkpoint13500 / training runtime `ba29940`: 128 fixed Pile sequences, dual read-O/write
+gates>=.1. L2-L22 actual O update / old-content norm median .179; 35.86% oppose
+the old direction, only18/19,287,431 reverse its projection. Lifted read/write
+address angle median88.63deg; address/content cosine signs disagree30.23%.
+Gate association is dominated by component amplitudes, with head-specific opposite
+angular/compositional trends; total amplitude alone loses substantial information.
+These are observational same-head diagnostics, not full-M or causal ablations.
+[Complete distributions, held-out checks and reproduction](alllocal_write_geometry.md).
+Diagnostic implementation: `codex/alllocal-write-geometry`, `/data0/xd/alllocal-write-geometry`.
+The user requested retaining `xd-v6e-alllocal-geom-3-0922` in EW4a after completion.

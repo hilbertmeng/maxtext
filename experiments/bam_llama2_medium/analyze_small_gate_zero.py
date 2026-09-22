@@ -25,11 +25,14 @@ def analyze(root, adaptive_root, out):
         context=adaptive_root/f"gradient_{r['sequence']:03d}.npz"
         if context.exists():
             with np.load(context) as f:
-                gates, reads, valid = f['write_gate'], f['read_gate'], f['valid']
+                gates, reads = f['write_gate'], f['read_gate']
                 refrows={}
                 for h in heads:
                     g=gates[h['layer'],:,h['head']]
-                    mask=valid&(reads[h['layer'],:,h['head']]>=h['threshold'])
+                    # Match the intervention's gate budget, including positions
+                    # whose target loss is masked. Gradient-sign coverage uses
+                    # valid target positions separately.
+                    mask=reads[h['layer'],:,h['head']]>=h['threshold']
                     refrows[h['id']+'_shift-1.0']=dict(selected=int(mask.sum()),gate_before=float(g[mask].sum(dtype=np.float64)))
         else:
             ref=json.loads((adaptive_root/f"seq_{r['sequence']:03d}.json").read_text());refrows={x['id']:x for x in ref['rows']}

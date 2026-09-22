@@ -8,7 +8,7 @@ All three initialized model totals must equal411885440. No hardware rounding.
 
 | RUN suffix | Change | MLP LLF widths | Direct baselines | Bet vs original K48 |
 |---|---|---|---|---|
-| PLocSlice512Linear | x[:512] ->512 linear |3093/3093/3087|K48,Slice384Linear|+.0003 [-.0015,+.002]|
+| PLocSlice512Linear | x[:512] ->512 linear |3093/3093/3087|K48,Slice384Linear|—|
 | PLocSlice768Linear | x[:768] ->512 linear |3050/3050/3045|K48,Slice384Linear,Slice512Linear|—|
 | QKJointGelu128 | x1024 ->128 GELU ->256; gates unchanged |3082/3082/3077|K48,JointGelu256|-.001 [-.003,+.002]|
 
@@ -43,3 +43,5 @@ Slice512 launch verified from0,FIRST56,AOTloaded,e3791a1. Steps10–14 and20–2
 
 Slice768 stopped2913 after2800 review: vsK48 last5+.007642, vsSlice384+.005049; vsSlice512 through2200+.003204, no sustained catch-up. Same total params/M-cache, speed-.03%/+.28%/+.31% respectively, matched968health. Checkpoint2913 committed; TPU/queue absent, finalTB SYNC_OK. No preemptions.
 Joint128 continues after2800 review: vsK48 last5+.007187, vsJoint256+.008224; both deficits narrowing, preserve later-MLP-budget test.
+
+Slice512 stopped2945 after2800 review: persistent deficit vsK48 last5+.003695, vsSlice384+.001101. Same params/M-cache; speed-.34%/-.03% respectively, matched968health. Checkpoint2945 committed; TPU/queue absent, TB SYNC_OK.

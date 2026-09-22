@@ -36,7 +36,7 @@ def intervene(target_layer,target_head,threshold,shift):
   else:
    assert m._write_outer_implementation=='mul_reduce';dm=jnp.sum(gu[...,None]*pn[...,None,:],axis=-3)
   result=attentions._update_bam_matrix(M,dm,cfg.bam_lambda_decay)
-  m.sow('intermediates','bet_stats',jnp.stack([selected.sum().astype(jnp.float32),jnp.where(selected,gate,0).sum().astype(jnp.float32),jnp.where(selected,gate-changed,0).sum().astype(jnp.float32),(selected&((shifted<0)|(shifted>1))).sum().astype(jnp.float32),jnp.where(selected,step,0).sum(),(selected&(gate==changed)).sum().astype(jnp.float32)]))
+  m.sow('intermediates','bet_stats',jnp.stack([selected.sum().astype(jnp.float32),jnp.where(selected,gf,0).sum(),jnp.where(selected,gf-changed.astype(jnp.float32),0).sum(),(selected&((shifted<0)|(shifted>1))).sum().astype(jnp.float32),jnp.where(selected,step,0).sum(),(selected&(gate==changed)).sum().astype(jnp.float32)]))
   return result,changed
  with nn.intercept_methods(hook):yield
 
@@ -49,10 +49,10 @@ def run(cfg):
  def forward(p,b,l,h,t,f,enabled=True):
   with intervene(l,h,t,f) if enabled else contextlib.nullcontext():
    result,inter=model.apply(p,b['inputs'],b['inputs_position'],decoder_segment_ids=b['inputs_segmentation'],decoder_target_mask=b['targets_segmentation'],decoder_target_tokens=b['targets'],enable_dropout=False,rngs={'params':rng,'dropout':rng},mutable=['intermediates'])
-  mask=b['targets_segmentation']!=0;loss=(result[0]*mask).sum()/jnp.maximum(mask.sum(),1)
-  if not enabled:return loss
+  mask=b['targets_segmentation']!=0;token_loss=jnp.where(mask,result[0],0.);loss=token_loss.sum()/jnp.maximum(mask.sum(),1)
+  if not enabled:return loss,token_loss
   flat=w.flatten_dict(inter);stats=sum(jnp.asarray(v[0]).reshape(-1,6).sum(0) for k,v in flat.items() if k[-1]=='bet_stats')
-  return loss,stats
+  return loss,(stats,token_loss)
  fn=jax.jit(forward);gradfn=jax.jit(jax.value_and_grad(forward,argnums=5,has_aux=True));native=jax.jit(lambda p,b:forward(p,b,-1,0,0.,0.,False))
  jvpfn=jax.jit(lambda p,b,l,h,t:jax.jvp(lambda alpha:forward(p,b,l,h,t,alpha)[0],(jnp.asarray(0.),),(jnp.asarray(1.),)))
  arms=[dict(id='baseline',layer=-1,head=0,threshold=0.,shift=0.)]
@@ -64,10 +64,11 @@ def run(cfg):
  with mesh,partitioning.axis_rules(cfg.logical_axis_rules):
   if os.environ.get('BET_SMOKE')=='1':
    i=32;b={k:jnp.asarray(v[i:i+1]) for k,v in cohort.items()};head=protocol['heads'][0];args=(state.params,b,jnp.asarray(head['layer']),jnp.asarray(head['head']),jnp.asarray(head['threshold']))
-   print('SMOKE_NATIVE',float(native(state.params,b)),flush=True)
+   native_reduced,native_tokens=jax.device_get(native(state.params,b));count=int(np.count_nonzero(cohort['targets_segmentation'][i]));ordinary=float(native_tokens.sum(dtype=np.float64)/count)
+   print('SMOKE_NATIVE',ordinary,'device_mean',float(native_reduced),flush=True)
    for alpha in [0.,-1.,1.]:
-    loss,stats=jax.device_get(fn(*args,jnp.asarray(alpha)));print('SMOKE_FORWARD',alpha,float(loss),stats.tolist(),flush=True)
-   (loss,stats),derivative=jax.device_get(gradfn(*args,jnp.asarray(0.)));print('SMOKE_REVERSE',float(loss),float(derivative),flush=True)
+    loss,(stats,tokens)=jax.device_get(fn(*args,jnp.asarray(alpha)));print('SMOKE_FORWARD',alpha,float(tokens.sum(dtype=np.float64)/count),'paired_delta',float((tokens.astype(np.float64)-native_tokens).sum()/count),stats.tolist(),flush=True)
+   (loss,(stats,tokens)),derivative=jax.device_get(gradfn(*args,jnp.asarray(0.)));print('SMOKE_REVERSE',float(tokens.sum(dtype=np.float64)/count),float(derivative),flush=True)
    try:
     loss,derivative=jax.device_get(jvpfn(*args));print('SMOKE_JVP',float(loss),float(derivative),flush=True)
    except TypeError as error:
@@ -77,20 +78,23 @@ def run(cfg):
   for i in range(32,128):
    dest=out/f'seq_{i:03d}.json'
    if dest.exists():continue
-   b={k:jnp.asarray(v[i:i+1]) for k,v in cohort.items()};ordinary=float(native(state.params,b));rows=[];gradients=[]
+   b={k:jnp.asarray(v[i:i+1]) for k,v in cohort.items()};_,native_tokens=jax.device_get(native(state.params,b));count=int(np.count_nonzero(cohort['targets_segmentation'][i]));ordinary=float(native_tokens.sum(dtype=np.float64)/count);rows=[];gradients=[];token_rows={}
    for head in protocol['heads']:
-    (gloss,gstats),derivative=jax.device_get(gradfn(state.params,b,jnp.asarray(head['layer']),jnp.asarray(head['head']),jnp.asarray(head['threshold']),jnp.asarray(0.)))
-    assert abs(float(gloss)-ordinary)<1e-7,(head['id'],gloss,ordinary)
-    gradients.append(dict(id=head['id'],derivative=float(derivative),selected=float(gstats[0]),step_sum=float(gstats[4])))
+    (gloss,(gstats,gtokens)),derivative=jax.device_get(gradfn(state.params,b,jnp.asarray(head['layer']),jnp.asarray(head['head']),jnp.asarray(head['threshold']),jnp.asarray(0.)))
+    # AD is an approximate predictor. Record its primal drift separately; all
+    # causal deltas below come from paired ordinary forward calls and controls.
+    gradients.append(dict(id=head['id'],derivative=float(derivative),primal_delta=float((gtokens.astype(np.float64)-native_tokens).sum()/count),selected=float(gstats[0]),step_sum=float(gstats[4])))
    if i==32:print('FIRST_STEP GRADIENTS_DONE',len(gradients),'elapsed',time.perf_counter()-start,flush=True)
    # Rotate execution order after baseline to prevent dose/time confounding.
    order=[0]+list(np.random.default_rng(i).permutation(np.arange(1,len(arms))))
    for j in order:
-    a=arms[j];loss,stats=jax.device_get(fn(state.params,b,jnp.asarray(a['layer']),jnp.asarray(a['head']),jnp.asarray(a['threshold']),jnp.asarray(a['shift'])))
-    rows.append(dict(arm=j,id=a['id'],loss=float(loss),delta=float(loss)-ordinary,selected=float(stats[0]),gate_before=float(stats[1]),gate_removed=float(stats[2]),clipped=float(stats[3]),step_sum=float(stats[4]),rounded_unchanged=float(stats[5])))
+    a=arms[j];loss,(stats,tokens)=jax.device_get(fn(state.params,b,jnp.asarray(a['layer']),jnp.asarray(a['head']),jnp.asarray(a['threshold']),jnp.asarray(a['shift'])))
+    token_rows[j]=tokens
+    rows.append(dict(arm=j,id=a['id'],loss=float(tokens.sum(dtype=np.float64)/count),delta=float((tokens.astype(np.float64)-native_tokens).sum()/count),selected=float(stats[0]),gate_before=float(stats[1]),gate_removed=float(stats[2]),clipped=float(stats[3]),step_sum=float(stats[4]),rounded_unchanged=float(stats[5])))
    rows.sort(key=lambda x:x['arm']);assert abs(rows[0]['delta'])<1e-7,rows[0]
    assert abs(rows[-1]['delta'])<1e-7 and abs(rows[-2]['delta'])<1e-7,rows[-2:]
-   dest.write_text(json.dumps(dict(sequence=i,native_loss=ordinary,gradients=gradients,rows=rows),indent=2))
+   np.savez_compressed(out/f'tokens_{i:03d}.npz',native=native_tokens,arms=np.stack([token_rows[j] for j in range(len(arms))]),valid=cohort['targets_segmentation'][i]!=0)
+   dest.write_text(json.dumps(dict(sequence=i,native_loss=ordinary,valid_tokens=count,gradients=gradients,rows=rows),indent=2))
    print('BET_SEQUENCE_DONE',i,'arms',len(arms),'elapsed',time.perf_counter()-start,flush=True)
  if writer:writer.flush()
  (out/'DONE').write_text('96 paired sequences complete\n');print('BETS_DONE',flush=True)

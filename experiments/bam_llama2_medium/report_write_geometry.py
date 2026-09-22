@@ -32,10 +32,11 @@ for names,hist,edges in [(fn,gh,ge),(ex,rh,re)]:
   c=np.cumsum(hist[j])/max(hist[j].sum(),1);idx=np.searchsorted(c,[.05,.25,.5,.75,.95]).clip(0,len(c)-1);v=edges[j,1:][idx]
   if name in ['old_at_unit_p_norm','o_write_at_unit_p_norm','write_ratio']:v=10**v
   out['binned_population_quantiles'][name]=v.tolist()
+exact=np.load(root/'pooled_exact.npz');en=exact['names'].tolist();eq=exact['quantile_levels'];ev=exact['quantiles'];out['exact_population_quantiles']={name:ev[j,np.searchsorted(eq,[.05,.25,.5,.75,.95])].tolist() for j,name in enumerate(en)}
 fig,axs=plt.subplots(1,3,figsize=(15,4.5))
 for ax,ids,label in [(axs[0],range(4),'log10 norm'),(axs[1],range(4,8),'Norm / sum of four norms'),(axs[2],range(8,14),'Cosine')]:
  for j in ids:
-  ax.step(ge[j,1:],np.cumsum(gh[j])/gh[j].sum(),where='post',label=fn[j].replace('lognorm_','').replace('share_','').replace('cos_',''))
+  ax.plot(ev[j],eq,label=fn[j].replace('lognorm_','').replace('share_','').replace('cos_',''))
  ax.set_xlabel(label);ax.set_ylabel('Cumulative probability');ax.grid(alpha=.2);ax.legend(fontsize=7)
 axs[0].set_xlim(-10,2);fig.suptitle('Full population distributions | L2-L22 | dual gates >=0.1 | 128 sequences');fig.tight_layout();fig.savefig(dest/'population_geometry.png',dpi=180);plt.close(fig)
 # Every candidate is selected from discovery only; report independent new64.
@@ -59,18 +60,20 @@ ax.set_xlabel('Layer');ax.set_ylabel('Held-out residual MSE reduction');ax.legen
 # Paired opposite-signed laws; selection fixed before looking at new64.
 examples=[(18,15,0),(15,12,2),(4,12,7),(18,4,7),(15,12,13),(16,12,13)]
 fig,axs=plt.subplots(2,3,figsize=(14,8));out['examples']=[]
+bin_values=json.loads((root/'example_bin_values.json').read_text())
 for ax,(l,h,j) in zip(axs.flat,examples):
- v=d[l]['sequence_curves'][:,h,j];q=d[l]['curves'][h,j];ax.fill_between(range(1,9),q[:,1],q[:,5],alpha=.18,color='#4488aa',label='All128: 10-90% of gates');ax.plot(range(1,9),q[:,3],'-',color='#155b7a',label='All128: median')
+ bv=next(b for b in bin_values if b['layer']==l and b['head']==h and b['feature']==fn[j]);xs=bv['centers']
+ v=d[l]['sequence_curves'][:,h,j];q=d[l]['curves'][h,j];ax.fill_between(xs,q[:,1],q[:,5],alpha=.18,color='#4488aa',label='All128: 10-90% of gates');ax.plot(xs,q[:,3],'-',color='#155b7a',label='All128: median')
  vv=v[64:];cc=vv[...,0];ss=vv[...,1];mu=ss.sum(0)/np.maximum(cc.sum(0),1);bs=rng.integers(0,len(cc),(2000,len(cc)));bt=ss[bs].sum(1)/np.maximum(cc[bs].sum(1),1);ci=np.quantile(bt,[.025,.975],axis=0)
- ax.errorbar(range(1,9),mu,yerr=np.maximum(np.stack([mu-ci[0],ci[1]-mu]),0),fmt='o',ms=3,color='#b34e21',label='New64: mean + sequence95% CI');ax.set_title(f'L{l} H{h}: {fn[j]}',fontsize=10);ax.set_xlabel('Geometry octile (fixed on first32)');ax.set_ylabel('Write gate');ax.grid(alpha=.2)
+ ax.errorbar(xs,mu,yerr=np.maximum(np.stack([mu-ci[0],ci[1]-mu]),0),fmt='o',ms=3,color='#b34e21',label='New64: mean + sequence95% CI');ax.set_title(f'L{l} H{h}: {fn[j]}',fontsize=10);ax.set_xlabel('log10 norm' if j<4 else 'Norm share' if j<8 else 'Cosine');ax.set_ylabel('Write gate');ax.grid(alpha=.2)
  cornew=next((c['new64'] for c in candidates if c['layer']==l and c['head']==h and c['feature']==fn[j]),None)
- out['examples'].append(dict(layer=l,head=h,feature=fn[j],discovery=float(cor[l,0,h,j]),new64=cornew,gate_octile_new64=mu.tolist(),gate_octile_ci_new64=ci.tolist(),position_controlled=e[l]['partial_correlations'][:,h,j].tolist(),threshold_correlations={t:np.load(root/f'analysis_gate{t}/layer_{l:02d}.npz')['correlations'][:,h,j].tolist() for t in ['000','005','010','020']}))
+ out['examples'].append(dict(layer=l,head=h,feature=fn[j],bin_edges=bv['edges'],bin_centers=xs,discovery=float(cor[l,0,h,j]),new64=cornew,gate_octile_new64=mu.tolist(),gate_octile_ci_new64=ci.tolist(),position_controlled=e[l]['partial_correlations'][:,h,j].tolist(),threshold_correlations={t:np.load(root/f'analysis_gate{t}/layer_{l:02d}.npz')['correlations'][:,h,j].tolist() for t in ['000','005','010','020']}))
 axs.flat[0].legend(fontsize=7);fig.suptitle('Geometry / write-gate laws differ across heads | dual gates >=0.1');fig.tight_layout();fig.savefig(dest/'gate_laws.png',dpi=180);plt.close(fig)
 # Same-head key geometry, update magnitude, and erasure boundary.
 fig,axs=plt.subplots(1,3,figsize=(15,4.5))
-for j in [0,1]:axs[0].step(re[j,1:],np.cumsum(rh[j])/rh[j].sum(),where='post',label=ex[j])
+for j in [0,1]:axs[0].plot(ev[en.index(ex[j])],eq,label=ex[j])
 axs[0].set_xlabel('Cosine');axs[0].set_ylabel('Cumulative probability');axs[0].legend();axs[0].grid(alpha=.2)
-j=4;axs[1].step(10**re[j,1:],np.cumsum(rh[j])/rh[j].sum(),where='post');axs[1].set_xscale('log');axs[1].set_xlim(.01,3);axs[1].set_xlabel('Actual O update norm / old-content norm');axs[1].grid(alpha=.2)
+j=4;axs[1].plot(ev[en.index('write_ratio')],eq);axs[1].set_xscale('log');axs[1].set_xlim(.01,3);axs[1].set_xlabel('Actual O update norm / old-content norm');axs[1].grid(alpha=.2)
 joint=sum(e[l]['joint'][1].sum(0) for l in main);xx=e[0]['joint_cos_edges'];yy=e[0]['joint_logratio_edges'];im=axs[2].pcolormesh(xx,yy,np.log10(1+joint.T),cmap='magma');fig.colorbar(im,ax=axs[2],label='log10(1 + count)');cx=np.linspace(-1,-.01,200);axs[2].plot(cx,np.log10(-1/cx),'c--',lw=1.5,label='Reverse old projection');axs[2].set_ylim(-2,1);axs[2].set_xlabel('cos(O update, old content)');axs[2].set_ylabel('log10 update / old');axs[2].legend(fontsize=7)
 fig.suptitle('Same-head O loop | L2-L22 | actual read/write gates and RMS included');fig.tight_layout();fig.savefig(dest/'read_write_loop.png',dpi=180);plt.close(fig)
 # Per-layer distributions retain depth variation rather than hiding it in a pooled CDF.

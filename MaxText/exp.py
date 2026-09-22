@@ -277,6 +277,9 @@ class BamLlama2Medium(Llama2Medium):
     bam_write_address_input_dim = None  # leading x coordinates for x_slice
     bam_write_address_rank = None  # shared address basis for factorized writes
     bam_local_qk_joint_hidden_dim = None  # GELU features for shared basis and Q/K head mixes
+    bam_m_relay_anchor = 0  # first LLF block output, read-only relay
+    bam_m_relay_reads = 'all'  # all | qk_vo
+    bam_record_m_relay_metrics = False
     bam_extra_final_local_layer = False
     bam_final_local_mlp_dim = None
     bam_concat_v = False
@@ -7797,6 +7800,7 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     jax_cache_dir = "gs://newproject-1-llm_projects_us-east5/jax_caches/xl-k96-qk-shared-rank4"
 
 
+
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice384Linear(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
     """Project the first 384 input coordinates to write addresses; match R128 P_loc and MLP budgets."""
     # code_commit: 42a0f72; UE5a 0.6358 steps/s, -0.31% vs K48 rank4 .6378; generic/BAM968 ON.
@@ -7970,6 +7974,28 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-qk48-all-local'
 
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):
+    """Read-only first-block M anchor; one dynamic coefficient per destination layer."""
+    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # +21525 params (.02053 W_Q total, .00523%); retain MLP3050/3050/3045.
+    # Bet vs K48: terminal +.002 (range -.003..+.007); speed ~-1% before relay-health overhead.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3'
+    bam_m_relay_anchor = 3
+    bam_m_relay_reads = 'all'
+    bam_record_m_relay_metrics = True
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-mrelay-m3'
+
+
+class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3):
+    """Two anchor coefficients: LocalQK versus shared LocalVO/FetchedO."""
+    # +43050 params (.04106 W_Q total, .01045%); unchanged MLP and shared VO read.
+    # Bet vs K48: terminal -.001 (range -.006..+.004); speed -1%..-2% before relay-health overhead.
+    model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO'
+    bam_m_relay_reads = 'qk_vo'
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer', 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-rank4-mrelay-m3-qkvo'
 
 class BamMediumIndependentLLFMLPPerLayerColOnlyLocalOStaticCol(BamMediumIndependentLLFMLPPerLayerColOnly):
     """LocalO: ungated zero-init full-M static columns plus unchanged C8 dynamic columns."""

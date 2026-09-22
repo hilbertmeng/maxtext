@@ -51,4 +51,14 @@ for exp in (sys.argv[1:] or RUNS):
       assert 'bam/concat/local_v_amplitude/layer_024/bam_over_standard' in keys
       assert 'bam/concat/local_o_amplitude/layer_024/bam_over_standard' in keys
       assert not any('/fetched_o_' in k and '/layer_024/' in k for k in keys)
+    if getattr(cfg, 'bam_m_relay_anchor', 0):
+      relay = [k for k in metrics if k.startswith('bam/m_relay/')]
+      arms = ('qk', 'vo') if cfg.bam_m_relay_reads == 'qk_vo' else ('all',)
+      assert len(relay) == (cfg.num_decoder_layers-3)*7*len(arms)
+      assert all(metrics[k].shape == () for k in relay)
+      for layer in range(3, cfg.num_decoder_layers):
+        for arm in arms:
+          prefix = 'bam/m_relay' if arm == 'all' else f'bam/m_relay/{arm}'
+          assert f'{prefix}/layer_{layer:03d}/scale_mean' in relay
+      print('RELAY_TRAIN_TRACE_OK', exp, len(relay), flush=True)
     print('CONCAT_TRAIN_TRACE_OK', exp, len(keys), 'scalar read-health metrics', flush=True)

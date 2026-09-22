@@ -826,7 +826,19 @@ class Decoder(nn.Module):
         local_sws = min(swss)
         all_global_attention = all(s >= cfg.max_target_length for s in swss)
         first_block = 0
-        if getattr(cfg, 'bam_concat_v_full_first_layer', False):
+        if getattr(cfg, 'bam_m_relay_anchor', 0):
+          assert pair_scan and full_bam and cfg.bam_m_relay_anchor == block_size
+          assert not cfg.bam_concat_v_full_first_layer and not final_local
+          scan_carry, _ = fusion.BamLayerPair(
+              cfg, mesh, local_sws, self.quant, name='first_block',
+              all_global_attention=all_global_attention, capture_anchor=True)(
+                  scan_carry, decoder_segment_ids, decoder_positions,
+                  decoder_input_tokens, deep_embeddings, deterministic,
+                  model_mode, eos_sum, None, None, None, 0)
+          first_block = 1
+          scan_length -= 1
+          is_global = is_global[1:]
+        elif getattr(cfg, 'bam_concat_v_full_first_layer', False):
           # Only L0 differs structurally. Peel one LLF block, then scan the remaining seven.
           assert pair_scan and full_bam and deep_embeddings is None
           Layer = nn.remat(

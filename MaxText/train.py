@@ -366,7 +366,8 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
   """Decode compact read metrics from LLF block scan and the optional peeled block."""
   decoder = intermediate_outputs['intermediates']['decoder']
   size = config.bam_local_fetch_block_size
-  first = 1 if config.bam_concat_v_full_first_layer else 0
+  relay = bool(getattr(config, 'bam_m_relay_anchor', 0))
+  first = 1 if config.bam_concat_v_full_first_layer or relay else 0
   def emit(attention, layer, index=None):
     for key, values in attention.items():
       if not key.startswith('concat_'):
@@ -382,7 +383,11 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
         output_metrics['scalar'][f'bam/concat/{key[7:]}/layer_{layer:03d}/{name}'] = value[i]
   if first:
     for offset in range(size):
-      emit(decoder[f'first_block_layer_{offset}']['block']['self_attention'], offset)
+      if relay:
+        role = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
+        emit(decoder['first_block'][role]['block']['self_attention'], offset)
+      else:
+        emit(decoder[f'first_block_layer_{offset}']['block']['self_attention'], offset)
   blocks = config.num_decoder_layers // size - first
   for offset in range(size):
     name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
@@ -925,6 +930,25 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
         metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_local_routing_metrics', False):
     record_bam_local_qk_routing_metrics(metrics, intermediate_outputs, config)
+
+  if getattr(config, 'bam_record_m_relay_metrics', False):
+    layers = intermediate_outputs['intermediates']['decoder']['layers']
+    names = ('scale_mean', 'positive_fraction', 'negative_fraction', 'saturated_fraction',
+             'delta_over_m', 'anchor_m_cosine', 'mixed_over_m')
+    block_size = config.bam_local_fetch_block_size
+    for layer in range(block_size, config.num_decoder_layers):
+      offset = layer % block_size
+      role = f'local_{offset}' if offset < block_size - 1 else f'fetch_{offset}'
+      outputs = layers[role]['block']['self_attention']
+      arms = ('qk', 'vo') if config.bam_m_relay_reads == 'qk_vo' else ('all',)
+      for arm in arms:
+        suffix = '' if arm == 'all' else f'_{arm}'
+        if f'm_relay_stats{suffix}' not in outputs:
+          continue  # F layers have no LocalV consumer.
+        values = outputs[f'm_relay_stats{suffix}'][0][layer // block_size - 1]
+        prefix = 'bam/m_relay' if arm == 'all' else f'bam/m_relay/{arm}'
+        for name, value in zip(names, values):
+          metrics['scalar'][f'{prefix}/layer_{layer:03d}/{name}'] = value
 
   if config.use_dpo:
     new_state = _merge_dpo_state(new_state, reference_params)

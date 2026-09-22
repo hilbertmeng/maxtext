@@ -58,6 +58,7 @@ def analyze(root, out, draws=20000):
     rawp = np.where(np.isnan(rawp) & (np.max(np.abs(primary), axis=0) == 0), 1., rawp)
     adjusted = holm(rawp)
     secant = (delta[:, :, upper] - delta[:, :, lower]) / 2
+    error_ci = np.quantile(weights @ (gradient - secant), [.025, .975], axis=0)
     responses = []
     for j, head in enumerate(heads):
         labels = []
@@ -71,6 +72,8 @@ def analyze(root, out, draws=20000):
         responses.append(dict(**head, mean_delta=mean[j].tolist(), ci95=ci[:, j].T.tolist(),
                               gradient_mean=float(gradient[:, j].mean()), gradient_ci95=gci[:, j].tolist(),
                               secant_mean=float(secant[:, j].mean()),
+                              gradient_minus_secant_ci95=error_ci[:, j].tolist(),
+                              gradient_secant_sequence_correlation=float(np.corrcoef(gradient[:, j], secant[:, j])[0, 1]) if np.std(secant[:, j]) > 0 and np.std(gradient[:, j]) > 0 else None,
                               primary_holm_p=float(adjusted[j]),
                               primary_equivalent=bool(np.max(np.abs(ci[:, j, lower])) < 1e-4),
                               shape_pointwise_ci=shape,
@@ -90,6 +93,8 @@ def analyze(root, out, draws=20000):
                              equivalent_count=sum(responses[j]['primary_equivalent'] for j in members))
     result = dict(n_sequences=n, sequences=ids, complete=(ids == list(range(32, 128))),
                   shifts=shifts, bootstrap_draws=draws, heads=responses, groups=groups,
+                  gradient_secant_head_sign_agreement=float(np.mean(np.sign(gradient.mean(0)) == np.sign(secant.mean(0)))),
+                  gradient_secant_head_mean_absolute_error=float(np.mean(np.abs(gradient.mean(0) - secant.mean(0)))),
                   uncertainty='95% sequence bootstrap; primary head tests: paired one-sample t with Holm over 29 heads; curve labels exploratory pointwise CIs')
     out.mkdir(parents=True, exist_ok=True)
     # Convert NumPy scalar booleans/integers in summaries without losing floats.

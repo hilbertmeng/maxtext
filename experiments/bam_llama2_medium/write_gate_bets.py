@@ -43,7 +43,7 @@ def intervene(target_layer,target_head,threshold,shift):
 def run(cfg):
  out=Path(os.environ['BET_OUTPUT']);out.mkdir(parents=True,exist_ok=True);protocol=json.loads(Path(os.environ['BET_PROTOCOL']).read_text());cohortpath=Path('/tmp/pile_eval_cohort.npz')
  with np.load(cohortpath) as f:cohort={k:f[k] for k in w.KEYS}
- meta=dict(model=w.BASE,checkpoint=cfg.load_parameters_path,protocol=protocol,runtime=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),cohort_sha256=hashlib.sha256(cohortpath.read_bytes()).hexdigest())
+ meta=dict(model=w.BASE,checkpoint=cfg.load_parameters_path,dtype=str(cfg.dtype),matmul_precision=str(cfg.matmul_precision),protocol=protocol,runtime=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),cohort_sha256=hashlib.sha256(cohortpath.read_bytes()).hexdigest())
  (out/'metadata.json').write_text(json.dumps(meta,indent=2))
  rng,writer,manager,mesh,model,_,tx=train.setup_mesh_and_model(cfg);state,_,_,_=max_utils.setup_training_state(model,SimpleNamespace(meta_dict={'checkpoint_step':None}),tx,cfg,rng,mesh,manager)
  def forward(p,b,l,h,t,f,enabled=True):
@@ -68,7 +68,11 @@ def run(cfg):
    for alpha in [0.,-1.,1.]:
     loss,stats=jax.device_get(fn(*args,jnp.asarray(alpha)));print('SMOKE_FORWARD',alpha,float(loss),stats.tolist(),flush=True)
    (loss,stats),derivative=jax.device_get(gradfn(*args,jnp.asarray(0.)));print('SMOKE_REVERSE',float(loss),float(derivative),flush=True)
-   loss,derivative=jax.device_get(jvpfn(*args));print('SMOKE_JVP',float(loss),float(derivative),flush=True)
+   try:
+    loss,derivative=jax.device_get(jvpfn(*args));print('SMOKE_JVP',float(loss),float(derivative),flush=True)
+   except TypeError as error:
+    if 'custom_vjp' not in str(error):raise
+    print('SMOKE_JVP_UNSUPPORTED',str(error),flush=True)
    return
   for i in range(32,128):
    dest=out/f'seq_{i:03d}.json'

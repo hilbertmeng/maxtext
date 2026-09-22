@@ -15,10 +15,18 @@ remove F fetch_head_mix/kernel1024x16+bias16; add LocalV independentgate/kernel1
 Thus no MLP adjustment. LocalQK and every existing L slot retain their parameter shapes/names.
 All-local removes the need for historical M-cache for fetched attention; ordinary MHA KV unchanged.
 
-Question: can current strong LocalQK/VO replace cross-token fetchedO when retrained at matched budget?
-Historical RmsGateOnlyNoFullLocalO deficit+.0305@6000 is directional evidence, not a matchedbaseline.
-Bet vs originalK48: terminal+.015, range+.005..+.030; speed+3%..+8%.
-Potential gain is cache/compute simplicity even if modestly worse loss; review2800 considers that tradeoff.
+Question: quantify the retrained loss contribution of fetchedO in the current strongest K48 model.
+This is an ablation, not a proposed final all-local architecture; final architecture retains F.
+Do not stop at2800 merely because loss is worse: assess whether the contribution estimate is stable,
+continuing to13500 as needed. The earlier+.015 forecast was under-supported by a different historical architecture.
+Revised low-confidence bet: terminal+.060, broad range+.030..+.120; speed+3%..+8%.
+FetchedO reads historical matrices with a target-dependent read key; LocalV before attention and
+LocalO on the current token cannot reproduce that operation directly.
+
+MLP history: old shared-gate L/F non-MLP counts3477440/3493840, MHA target12847104;
+nearest widths round((target-nonMLP)/3072)=3050/3045. Later independent L gate+16400
+was explicitly not deducted from MLP, making L/F nonMLP equal3493840 while retaining widths.
+Keep inherited3050/3050/3045 here to isolate F->L against the trained parent, not reallocate MLP.
 
 Plan13500, checkpoint200, report1000 with200stepwindows. Generic healthON and concathealthON;
 1056scalars vs baseline968 (extra LocalV metrics), explicitly qualify speed comparison.

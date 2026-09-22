@@ -37,7 +37,16 @@ for exp in (sys.argv[1:] or RUNS):
       assert not any('/local_v_' in k and '/layer_000/' in k for k in keys)
       assert not any('/local_o_' in k and '/layer_000/' in k for k in keys)
       assert 'bam/concat/local_v_amplitude/layer_001/bam_over_standard' in keys
-    assert 'bam/concat/fetched_o_amplitude/layer_023/bam_over_standard' in keys
+    modes = cfg.bam_layer_modes
+    for layer in range(cfg.num_decoder_layers):
+      mode = modes[layer] if isinstance(modes, list) else modes
+      fetch_key = f'bam/concat/fetched_o_amplitude/layer_{layer:03d}/bam_over_standard'
+      local_key = f'bam/concat/local_o_amplitude/layer_{layer:03d}/bam_over_standard'
+      if 'full' in mode:
+        assert fetch_key in keys and local_key not in keys
+      elif 'local_o' in mode and not (cfg.bam_concat_v_full_first_layer and layer == 0):
+        assert local_key in keys and fetch_key not in keys
+        assert f'bam/concat/local_v_amplitude/layer_{layer:03d}/bam_over_standard' in keys
     if getattr(cfg, 'bam_extra_final_local_layer', False):
       assert 'bam/concat/local_v_amplitude/layer_024/bam_over_standard' in keys
       assert 'bam/concat/local_o_amplitude/layer_024/bam_over_standard' in keys

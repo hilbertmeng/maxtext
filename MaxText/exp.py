@@ -7783,8 +7783,8 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     # code_commit: 33244e0; UE5a .5452 steps/s (10-14), +1.38% vs XL24 .5378; matched968 health.
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # MLP6266 unchanged; only LocalQK dynamic reading changes.
-    # Resumed from11777; 20k review: vs shared-P DirectC8 last5 +.001996, slowly narrowing; continue.
-    # Prediction vs shared-P DirectC8: final gap -.003 (-.008..+.003), speed +1%.
+    # Stopped at 34206. vs C8: persistent deficit narrowed from ~+.004 to last5 +.000639 at34000 (+.000436..+.000934).
+    # Near-parity loss with +1.38% speed; same M-cache, +3072 params.
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer'
     bam_local_qk_direct_c8 = False
     bam_local_qk_separate_c8_projection = False

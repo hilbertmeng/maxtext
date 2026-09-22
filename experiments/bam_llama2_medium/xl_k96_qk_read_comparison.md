@@ -21,8 +21,7 @@ The first isolates sharing QK compression with O. Together they test fixed C8 ad
 input-dependent rank4 addressing. The latter retains each method's existing normalization/initialization;
 it is not an amplitude-matched isolated rank intervention.
 
-Predictions relative to parent: separate C8 final gap -.002 (-.006..+.003), speed -1%;
-shared rank4 final -.003 (-.008..+.003), speed +1%. Review10000, full plan50000,
+Review10000, full plan50000,
 checkpoint250; agent reports approximately2000-step batches after startup (registry500).
 Training UE5a primary, UC1a/EW4b backups after5min; AOT UC1a primary, EW4a/UE5a backups.
 XL27 pauses for resource priority, not rejection; preserve its checkpoint and report provisional results.
@@ -39,3 +38,5 @@ Shared rank4 launched on `xd-v5p-32-xl-k96-qk-shared-rank4-maxtext`, UE5a.
 Runtime33244e0; AOT loaded, initial0 and FIRST_STEP verified, registry/controller identity matched.
 Steps10-14 .5452 steps/s (+1.38% vs XL24 .5378; +.81% vs separate C8 .5408).
 Raw `/data0/xd/xl-k96-rank4-worker0.log`; both AOT jobs ready with no cleanup failures.
+
+Sharedrank4 stopped34206. Deficit vsC8 narrowed from~+.004 to last5+.000639[+.000436,+.000934] through34000; near-parity loss, speed+1.38%matched968health, sameM-cache,+3072params. Checkpoint34206 committed, TPU/queue absent, TB SYNC_OK.

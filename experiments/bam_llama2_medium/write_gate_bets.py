@@ -54,6 +54,7 @@ def run(cfg):
   flat=w.flatten_dict(inter);stats=sum(jnp.asarray(v[0]).reshape(-1,6).sum(0) for k,v in flat.items() if k[-1]=='bet_stats')
   return loss,stats
  fn=jax.jit(forward);gradfn=jax.jit(jax.value_and_grad(forward,argnums=5,has_aux=True));native=jax.jit(lambda p,b:forward(p,b,-1,0,0.,0.,False))
+ jvpfn=jax.jit(lambda p,b,l,h,t:jax.jvp(lambda alpha:forward(p,b,l,h,t,alpha)[0],(jnp.asarray(0.),),(jnp.asarray(1.),)))
  arms=[dict(id='baseline',layer=-1,head=0,threshold=0.,shift=0.)]
  for h in protocol['heads']:
   for shift in protocol['shifts']:arms.append({**h,'shift':shift,'id':h['id']+f'_shift{shift}'})
@@ -61,6 +62,14 @@ def run(cfg):
  arms += [dict(id='terminal_control',layer=23,head=0,threshold=0.,shift=-1.),dict(id='zero_shift_control',layer=12,head=0,threshold=0.,shift=0.)]
  (out/'arms.json').write_text(json.dumps(arms,indent=2));start=time.perf_counter()
  with mesh,partitioning.axis_rules(cfg.logical_axis_rules):
+  if os.environ.get('BET_SMOKE')=='1':
+   i=32;b={k:jnp.asarray(v[i:i+1]) for k,v in cohort.items()};head=protocol['heads'][0];args=(state.params,b,jnp.asarray(head['layer']),jnp.asarray(head['head']),jnp.asarray(head['threshold']))
+   print('SMOKE_NATIVE',float(native(state.params,b)),flush=True)
+   for alpha in [0.,-1.,1.]:
+    loss,stats=jax.device_get(fn(*args,jnp.asarray(alpha)));print('SMOKE_FORWARD',alpha,float(loss),stats.tolist(),flush=True)
+   (loss,stats),derivative=jax.device_get(gradfn(*args,jnp.asarray(0.)));print('SMOKE_REVERSE',float(loss),float(derivative),flush=True)
+   loss,derivative=jax.device_get(jvpfn(*args));print('SMOKE_JVP',float(loss),float(derivative),flush=True)
+   return
   for i in range(32,128):
    dest=out/f'seq_{i:03d}.json'
    if dest.exists():continue

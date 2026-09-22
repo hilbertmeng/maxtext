@@ -90,7 +90,7 @@ def run(cfg):
    for j in order:
     a=arms[j];loss,(stats,tokens)=jax.device_get(fn(state.params,b,jnp.asarray(a['layer']),jnp.asarray(a['head']),jnp.asarray(a['threshold']),jnp.asarray(a['shift'])))
     token_rows[j]=tokens
-    rows.append(dict(arm=j,id=a['id'],loss=float(tokens.sum(dtype=np.float64)/count),delta=float((tokens.astype(np.float64)-native_tokens).sum()/count),selected=float(stats[0]),gate_before=float(stats[1]),gate_removed=float(stats[2]),clipped=float(stats[3]),step_sum=float(stats[4]),rounded_unchanged=float(stats[5])))
+    rows.append(dict(arm=int(j),id=a['id'],loss=float(tokens.sum(dtype=np.float64)/count),delta=float((tokens.astype(np.float64)-native_tokens).sum()/count),selected=float(stats[0]),gate_before=float(stats[1]),gate_removed=float(stats[2]),clipped=float(stats[3]),step_sum=float(stats[4]),rounded_unchanged=float(stats[5])))
    rows.sort(key=lambda x:x['arm']);assert abs(rows[0]['delta'])<1e-7,rows[0]
    assert abs(rows[-1]['delta'])<1e-7 and abs(rows[-2]['delta'])<1e-7,rows[-2:]
    np.savez_compressed(out/f'tokens_{i:03d}.npz',native=native_tokens,arms=np.stack([token_rows[j] for j in range(len(arms))]),valid=cohort['targets_segmentation'][i]!=0)

@@ -321,6 +321,9 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO` | v5p-16 | `us-east5-a` | 2026-09-22 04:53:58 | 2026-09-22 06:20:58 | review stop; checkpoint2937 committed; 0 preemptions | UC1a/EW4b backups, never active |
 
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3` | v5p-16 | `us-east5-a` | 2026-09-22 04:39:26 | 2026-09-22 07:27:14 | review stop; checkpoint5679 committed; 1 preemption | UC1a/EW4b backups, never active |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale` | v5p-16 | `us-east5-a` | 2026-09-22 05:56:13 | 2026-09-22 07:27:17 | review stop; checkpoint3044 committed; 0 preemptions | UC1a/EW4b backups, never active |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1001,3 +1004,6 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256 | 4 | `us-east5-a` | 2026-09-22 00:39:10 | 2026-09-22 03:34:26 | 2h55m16s | completed13500; TPU/queue absent |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer | 6 | `us-east5-a` | 2026-09-21 21:40:53 | 2026-09-22 03:47:51 | 6h06m58s | user stop; checkpoint34206 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3QKVO | 1 | `us-east5-a` | 2026-09-22 04:57:28 | 2026-09-22 06:20:58 | 1h23m30s | user-authorized review stop; checkpoint2937 committed; TPU/queue absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3 | 1 | `us-east5-a` | 2026-09-22 04:44:29 | 2026-09-22 07:21:28 | 2h36m59s | service preemption; checkpoint5679 committed |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3 | 2? | `us-east5-a` | 2026-09-22 07:25:05 | 2026-09-22 07:27:14 | 2m09s | registry-inferred lease only; READY not confirmed: closeout found queue PROVISIONING/node absent; recovery cancelled, TPU/queue absent07:38:19 |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale | 1 | `us-east5-a` | 2026-09-22 06:01:38 | 2026-09-22 07:27:17 | 1h25m39s | review stop; checkpoint3044 committed; TPU/queue absent |

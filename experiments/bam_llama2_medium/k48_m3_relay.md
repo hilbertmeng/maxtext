@@ -20,7 +20,7 @@ dual411928490(+43050,.04106W_Q,.01045%). KeepMLPwidths; differencesnegligible.
 Readhealth968retained; relay147/294additionalmetrics (21layers*7stats*1/2arms).
 Matchedrelay-onlyspeedcontrolnotplanned; reportmeasuredspeedwithhealthcounts.
 
-Active bet vsparent:single+.002[-.003,+.007].
+Single stopped at5679; early advantage vsparent vanished:4800-5600 mean-.000173,last+.001371.
 Speedbeforetelemetrysingle~-1%,dual-1..-2%. HistoryK32fullM3-.00673,partialM3+.02339@3200,
 K64Vonly-.00342terminal,threegates+.00394@5000; independentgatesarenotaguarantee.
 
@@ -38,7 +38,7 @@ Single launch verified 2026-09-22 UTC: runtime35d4878, UE5a v5p16, AOTloaded, st
 RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3LearnedScale`, same worktree/branch; fresh UE5a v5p16 `xd-v5p-16-k48-mrelay-m3-scale-maxtext`, UC1a/EW4b backups.
 Read `M + s_l*tanh(xW+b)*A`, one unrestricted scalar per destination layer initialized1; zero-init dynamic gate and parent initialization mapping retained. First LLF block unchanged. Scalar named `m_relay_amplitude_scale` follows existing no-weight-decay scale rule. Adds21 parameters versus single relay, no MLP adjustment.
 Health adds per-layer amplitude_scale, effective_scale_mean, effective_scale_abs_mean; delta_over_m and mixed_over_m use actual scaled contribution. Original scale_mean remains raw tanh gate, preserving comparisons. Total968read+210relay=1178 BAM scalars.
-Direct baselines single relay and originalK48. Bet terminal -.001 versus single (range-.004..+.002), speed approximately unchanged before additional63health metrics. Plan13500/ckpt200/report1000/review2800.
+Direct baselines single relay and originalK48. Stopped at3044:2200-3000 mean+.000837 versus single and-.002384 versus originalK48; early gain kept shrinking. Plan13500/ckpt200/report1000/review2800.
 
 Scale validation:57 BAMregressionsPASS380.393s;3relaytestsPASS143.834s (parentmapping,init1/zeroidentity,nonunitamplitude/readrouting/write-source). Actualparams411906986,shardingoverhead.16691%;fulltraintrace968+210healthPASS. Scalar storedshape(1,) for param_scan_axis1 compatibility. Artifacts `/data0/xd/relay-amplitude-{tests.log,regression.log,audit.json,trace.log}`.
 

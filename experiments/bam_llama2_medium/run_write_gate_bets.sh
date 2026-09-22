@@ -7,6 +7,10 @@ export BET_PROTOCOL=$BET_OUTPUT/protocol.json
 GCS=${BET_GCS:-gs://newproject-1-llm_projects_europe-west4/log/diagnostics/alllocal-write-gate-bets-0922}
 mkdir -p "$BET_OUTPUT/maxtext-output/write-bets"
 gsutil cp "$GCS/protocol.json" "$BET_PROTOCOL"
+if [[ -n "${BET_GRADIENT_CACHE_GCS:-}" ]]; then
+ export BET_GRADIENT_CACHE=$BET_OUTPUT/gradient_cache.npz
+ gsutil cp "$BET_GRADIENT_CACHE_GCS" "$BET_GRADIENT_CACHE"
+fi
 if [[ ! -f /tmp/pile_eval_cohort.npz ]]; then
  gsutil cp gs://newproject-1-llm_base_models_us-central1/log/diagnostics/cohorts/pile-eval-t2048-seed9876-n128-v1/pile_eval_cohort.npz /tmp/pile_eval_cohort.npz
 fi

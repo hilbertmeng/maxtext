@@ -51,3 +51,21 @@ reconstructed=float(jnp.sum(per_position[1,...,0]*h[...,0]))
 np.testing.assert_allclose(reconstructed,float(derivative),rtol=.01,atol=1e-8)
 assert np.count_nonzero(np.asarray(per_position[0]))==0
 print('PER_POSITION_GRADIENT_PASS reconstructs weighted scalar derivative',reconstructed)
+
+# Disjoint baseline-gate bins must partition the same eligible positions and
+# reconstruct the full directional derivative, without altering residual output.
+split=float(jnp.median(g[...,0]))
+def binned_scalar(alpha,lo,hi):
+ with intervene(1,0,-1.,alpha,gate_lower=lo,gate_upper=hi):
+  output,inter=m.apply({'params':p},*args,**kw,mutable=['intermediates'])
+ return jnp.mean(output[1].astype(jnp.float32)**2),(output,inter)
+parts=[];counts=[]
+for lo,hi in [(0.,split),(split,1.000001)]:
+ (_, (output,inter)),dv=jax.value_and_grad(binned_scalar,has_aux=True)(jnp.asarray(0.),lo,hi)
+ for a,b in zip(baseline,output):np.testing.assert_array_equal(a,b)
+ counts.append(float(inter['intermediates']['bet_stats'][0][0]));parts.append(float(dv))
+np.testing.assert_allclose(sum(parts),float(derivative),rtol=.01,atol=1e-8)
+assert sum(counts)==int(np.prod(g.shape[:-1]))
+(_, (miss,_))=binned_scalar(jnp.asarray(1.),1.1,2.)
+for a,b in zip(baseline,miss):np.testing.assert_array_equal(a,b)
+print('GATE_BIN_PASS disjoint bins partition eligible positions and reconstruct gradient',counts,parts)

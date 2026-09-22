@@ -100,7 +100,7 @@ def analyze(root, out, draws=20000):
                   shifts=shifts, bootstrap_draws=draws, heads=responses, groups=groups,
                   gradient_secant_head_sign_agreement=float(np.mean(np.sign(gradient.mean(0)) == np.sign(secant.mean(0)))),
                   gradient_secant_head_mean_absolute_error=float(np.mean(np.abs(gradient.mean(0) - secant.mean(0)))),
-                  uncertainty='95% sequence bootstrap; primary head tests: paired one-sample t with Holm over 29 heads; curve labels exploratory pointwise CIs')
+                  uncertainty=f'95% sequence bootstrap; primary head tests: paired one-sample t with Holm over {len(heads)} heads; curve labels exploratory pointwise CIs')
     out.mkdir(parents=True, exist_ok=True)
     # Convert NumPy scalar booleans/integers in summaries without losing floats.
     (out / 'summary.json').write_text(json.dumps(result, indent=2, default=lambda x: x.item()))
@@ -113,7 +113,8 @@ def plot(result, out):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(6, 5, figsize=(17, 17), sharex=True)
+    rows = max(1, (len(result['heads']) + 4) // 5)
+    fig, axes = plt.subplots(rows, 5, figsize=(17, 2.85 * rows), sharex=True, squeeze=False)
     shifts = result['shifts']
     order = np.argsort(shifts + [0.])
     for ax, h in zip(axes.flat, result['heads']):

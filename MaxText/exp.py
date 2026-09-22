@@ -8528,7 +8528,8 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # Direct baseline is the historical all-column, per-layer MHA-budget XL run.
     # 1420867456 params (-32768 vs ColOnly); M-cache +50% for K64->96.
-    # Prediction vs ColOnly: final gap -.008 (-.003..-.014), speed -5% with matched health.
+    # Stopped at 34359 after reaching historical K128 endpoint. vs ColOnly K64: gain shrank to last5 -.010743@28500.
+    # vs ColOnly K128: gain held near -.007 late; last5 -.006733@34000 (-.007397..-.005937), 25% less M-cache.
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer'
     bam_write_outer_implementation = 'dot'
     bam_read_implementation = 'dot_btn'

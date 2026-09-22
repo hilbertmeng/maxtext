@@ -14,9 +14,9 @@ fi
 "$PYTHON" -c 'import sklearn,scipy; print(sklearn.__version__,scipy.__version__)' 
 env HARDWARE=tpu "$PYTHON" experiments/bam_llama2_medium/write_geometry.py MaxText/configs/base.yml exp_class=GeometryProbe run_name=write-geometry only_eval=True enable_checkpointing=True async_checkpointing=False base_output_directory="$OUTPUT/maxtext-output/" tensorboard_dir="$OUTPUT/tb" > "$OUTPUT/probe.log" 2>&1
 "$PYTHON" experiments/bam_llama2_medium/benchmark_write_geometry.py "$OUTPUT" > "$OUTPUT/cpu_benchmark.log" 2>&1
-"$PYTHON" experiments/bam_llama2_medium/analyze_write_geometry.py "$OUTPUT" --n "${GEOMETRY_N:-64}" --workers "$(nproc | awk '{print ($1<24?$1:24)}')" > "$OUTPUT/analysis.log" 2>&1
+"$PYTHON" experiments/bam_llama2_medium/analyze_write_geometry.py "$OUTPUT" --n "${GEOMETRY_N:-64}" --workers "$("$PYTHON" -c 'import os; print(min(24,len(os.sched_getaffinity(0))))')" > "$OUTPUT/analysis.log" 2>&1
 for threshold in 0 .05 .2; do
- "$PYTHON" experiments/bam_llama2_medium/analyze_write_geometry.py "$OUTPUT" --n "${GEOMETRY_N:-64}" --workers "$(nproc | awk '{print ($1<24?$1:24)}')" --threshold "$threshold" --descriptive > "$OUTPUT/analysis_${threshold}.log" 2>&1
+ "$PYTHON" experiments/bam_llama2_medium/analyze_write_geometry.py "$OUTPUT" --n "${GEOMETRY_N:-64}" --workers "$("$PYTHON" -c 'import os; print(min(24,len(os.sched_getaffinity(0))))')" --threshold "$threshold" --descriptive > "$OUTPUT/analysis_${threshold}.log" 2>&1
 done
 echo GEOMETRY_ALL_DONE > "$OUTPUT/DONE") &
 job=$!

@@ -7906,8 +7906,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Joint GELU dynamic QK basis/mixes, exactly matched to the K48 parent budget."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # +65536 BAM params/layer (.0625 W_Q); MLP3029/3029/3023 preserves total411885440.
-    # Resumed from7245, original13500-step schedule. vs K48: early gain faded, small deficit at3k–6k, then approached zero;
-    # last5 through7200 +.000323 (-.000202..+.001070). Provisional; same params/M-cache, speed -1.51%.
+    # Completed 13500. vs K48: early gain vanished near2800; late deficit held ~+.001, last5 through13400 +.001062.
+    # Same total params/M-cache; speed -1.51%, no sustained benefit.
     # code_commit: 25b7eb2; UE5a .6282 steps/s, -1.51% vs K48 .6378; matched968 health.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256'
     bam_local_qk_joint_hidden_dim = 256

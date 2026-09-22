@@ -7962,7 +7962,8 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Replace every fetched layer with LocalVO; preserve the parent block/MLP budget."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # F head-mix1024x16+bias16 becomes LocalV gate1024x16+bias16: equal params.
-    # Bet vs K48: terminal gap +.015 (range +.005..+.030); speed +3%..+8%.
+    # Ablation: quantify fetchedO contribution; positive gap is expected, not an early-stop criterion.
+    # Bet vs K48: terminal gap +.060 (broad range +.030..+.120); speed +3%..+8%.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal'
     bam_layer_modes = ['local_qk+local_o'] * 24
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']

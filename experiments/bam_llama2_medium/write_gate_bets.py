@@ -25,7 +25,8 @@ def intervene(target_layer,target_head,threshold,shift):
   rg=m._read_gate_activation(m._project_read_gate_logits('W_R_gate',x,squeeze_fetch_axis=True))[...,0]
   selected=(stack[-1]==target_layer)&(jnp.arange(gate.shape[-1])==target_head)&(rg>=threshold)
   gf=gate.astype(jnp.float32)
-  shifted=jnp.clip(gf+shift,0.,1.)
+  step=jax.lax.stop_gradient(jnp.minimum(.01,jnp.minimum(.1*gf,.1*(1-gf))))
+  shifted=gf+shift*step
   # No shift!=0 branch: that would incorrectly erase the derivative at baseline.
   changed=jnp.where(selected,shifted.astype(gate.dtype),gate)
   un=m.write_data_norm(u) if m._write_data_rms else u;pn=m.write_address_norm(p)
@@ -35,7 +36,7 @@ def intervene(target_layer,target_head,threshold,shift):
   else:
    assert m._write_outer_implementation=='mul_reduce';dm=jnp.sum(gu[...,None]*pn[...,None,:],axis=-3)
   result=attentions._update_bam_matrix(M,dm,cfg.bam_lambda_decay)
-  m.sow('intermediates','bet_stats',jnp.stack([selected.sum().astype(jnp.float32),jnp.where(selected,gate,0).sum().astype(jnp.float32),jnp.where(selected,gate-changed,0).sum().astype(jnp.float32),(selected&((gf+shift<0)|(gf+shift>1))).sum().astype(jnp.float32)]))
+  m.sow('intermediates','bet_stats',jnp.stack([selected.sum().astype(jnp.float32),jnp.where(selected,gate,0).sum().astype(jnp.float32),jnp.where(selected,gate-changed,0).sum().astype(jnp.float32),(selected&((shifted<0)|(shifted>1))).sum().astype(jnp.float32),jnp.where(selected,step,0).sum(),(selected&(gate==changed)).sum().astype(jnp.float32)]))
   return result,changed
  with nn.intercept_methods(hook):yield
 
@@ -50,7 +51,7 @@ def run(cfg):
    result,inter=model.apply(p,b['inputs'],b['inputs_position'],decoder_segment_ids=b['inputs_segmentation'],decoder_target_mask=b['targets_segmentation'],decoder_target_tokens=b['targets'],enable_dropout=False,rngs={'params':rng,'dropout':rng},mutable=['intermediates'])
   mask=b['targets_segmentation']!=0;loss=(result[0]*mask).sum()/jnp.maximum(mask.sum(),1)
   if not enabled:return loss
-  flat=w.flatten_dict(inter);stats=sum(jnp.asarray(v[0]).reshape(-1,4).sum(0) for k,v in flat.items() if k[-1]=='bet_stats')
+  flat=w.flatten_dict(inter);stats=sum(jnp.asarray(v[0]).reshape(-1,6).sum(0) for k,v in flat.items() if k[-1]=='bet_stats')
   return loss,stats
  fn=jax.jit(forward);gradfn=jax.jit(jax.value_and_grad(forward,argnums=5,has_aux=True));native=jax.jit(lambda p,b:forward(p,b,-1,0,0.,0.,False))
  arms=[dict(id='baseline',layer=-1,head=0,threshold=0.,shift=0.)]
@@ -67,13 +68,13 @@ def run(cfg):
    for head in protocol['heads']:
     (gloss,gstats),derivative=jax.device_get(gradfn(state.params,b,jnp.asarray(head['layer']),jnp.asarray(head['head']),jnp.asarray(head['threshold']),jnp.asarray(0.)))
     assert abs(float(gloss)-ordinary)<1e-7,(head['id'],gloss,ordinary)
-    gradients.append(dict(id=head['id'],derivative=float(derivative),selected=float(gstats[0])))
+    gradients.append(dict(id=head['id'],derivative=float(derivative),selected=float(gstats[0]),step_sum=float(gstats[4])))
    if i==32:print('FIRST_STEP GRADIENTS_DONE',len(gradients),'elapsed',time.perf_counter()-start,flush=True)
    # Rotate execution order after baseline to prevent dose/time confounding.
    order=[0]+list(np.random.default_rng(i).permutation(np.arange(1,len(arms))))
    for j in order:
     a=arms[j];loss,stats=jax.device_get(fn(state.params,b,jnp.asarray(a['layer']),jnp.asarray(a['head']),jnp.asarray(a['threshold']),jnp.asarray(a['shift'])))
-    rows.append(dict(arm=j,id=a['id'],loss=float(loss),delta=float(loss)-ordinary,selected=float(stats[0]),gate_before=float(stats[1]),gate_removed=float(stats[2]),clipped=float(stats[3])))
+    rows.append(dict(arm=j,id=a['id'],loss=float(loss),delta=float(loss)-ordinary,selected=float(stats[0]),gate_before=float(stats[1]),gate_removed=float(stats[2]),clipped=float(stats[3]),step_sum=float(stats[4]),rounded_unchanged=float(stats[5])))
    rows.sort(key=lambda x:x['arm']);assert abs(rows[0]['delta'])<1e-7,rows[0]
    assert abs(rows[-1]['delta'])<1e-7 and abs(rows[-2]['delta'])<1e-7,rows[-2:]
    dest.write_text(json.dumps(dict(sequence=i,native_loss=ordinary,gradients=gradients,rows=rows),indent=2))

@@ -12,14 +12,14 @@ def f(delta,layer=1):
   return m.apply({'params':p},*args,**kw)
 zero=f(jnp.asarray(0.))
 for a,b in zip(baseline,zero):np.testing.assert_array_equal(a,b)
-miss=f(jnp.asarray(.02),layer=9)
+miss=f(jnp.asarray(1.),layer=9)
 for a,b in zip(baseline,miss):np.testing.assert_array_equal(a,b)
-up=f(jnp.asarray(.02));down=f(jnp.asarray(-.02))
+up=f(jnp.asarray(1.));down=f(jnp.asarray(-1.))
 np.testing.assert_array_equal(up[0],baseline[0]);np.testing.assert_array_equal(down[0],baseline[0])
 assert np.max(np.abs(np.asarray(up[1],np.float32)-np.asarray(down[1],np.float32)))>0
 def scalar(delta):return jnp.mean(f(delta)[1].astype(jnp.float32)**2)
 value,derivative=jax.value_and_grad(scalar)(jnp.asarray(0.))
-fd=float((scalar(jnp.asarray(.02))-scalar(jnp.asarray(-.02)))/.04)
+fd=float((scalar(jnp.asarray(1.))-scalar(jnp.asarray(-1.)))/2.)
 assert np.isfinite(derivative) and abs(float(derivative))>1e-7
-np.testing.assert_allclose(float(derivative),fd,rtol=.25,atol=.002)
+np.testing.assert_allclose(float(derivative),fd,rtol=.25,atol=.0002)
 print('BET_MODULE_PASS baseline/residual exact; derivative',float(derivative),'FD',fd)

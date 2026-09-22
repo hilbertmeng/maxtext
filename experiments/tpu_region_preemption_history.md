@@ -316,6 +316,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear` | v5p-16 | `us-east5-a` | 2026-09-21 23:30:28 | 2026-09-22 00:56:36 | 2800 review stop; checkpoint2913 committed | UC1a/EW4b backups (never active) |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear` | v5p-16 | `us-east5-a` | 2026-09-21 23:48:56 | 2026-09-22 01:15:00 | 2800 review stop; checkpoint2945 committed | UC1a/EW4b backups (never active) |
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128` | v5p-16 | `us-east5-a` | 2026-09-21 23:31:56 | 2026-09-22 03:17:08 | review stop; checkpoint8194 committed | UC1a/EW4b backups (never active) |
+| `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256` | v5p-16 | `us-east5-a` | 2026-09-22 00:33:41 | 2026-09-22 03:34:26 | completed13500; original schedule resumed from7245 | UC1a/EW4b backups (never active) |
 
 ## READY leases
 
@@ -991,3 +992,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice768Linear | 1 | `us-east5-a` | 2026-09-21 23:35:57 | 2026-09-22 00:56:36 | 1h20m39s | review stop; checkpoint2913 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerPLocSlice512Linear | 1 | `us-east5-a` | 2026-09-21 23:53:16 | 2026-09-22 01:15:00 | 1h21m44s | review stop; checkpoint2945 committed; TPU/queue absent |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu128 | 1 | `us-east5-a` | 2026-09-21 23:31:59 | 2026-09-22 03:17:08 | 3h45m09s | review stop; checkpoint8194 committed; TPU/queue absent |
+| BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256 | 4 | `us-east5-a` | 2026-09-22 00:39:10 | 2026-09-22 03:34:26 | 2h55m16s | completed13500; TPU/queue absent |

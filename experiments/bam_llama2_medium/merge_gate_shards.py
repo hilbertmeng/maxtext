@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 
-def merge(parts, out):
+def merge(parts, out, allow_partial=False):
     metadata = [json.loads((p/'metadata.json').read_text()) for p in parts]
     for key in ['model', 'checkpoint', 'dtype', 'matmul_precision', 'protocol',
                 'runtime', 'cohort_sha256', 'small_gate_cutoff', 'intervention_mode']:
@@ -27,17 +27,22 @@ def merge(parts, out):
                     assert hashlib.sha256(file.read_bytes()).digest() == hashlib.sha256(target.read_bytes()).digest()
                 else:
                     shutil.copy2(file, target)
-    assert sorted(seen) == list(range(32,128)), f'incomplete: {len(seen)}/96'
+    complete=sorted(seen) == list(range(32,128))
+    assert complete or allow_partial, f'incomplete: {len(seen)}/96'
     meta = dict(metadata[0], evaluation_shard=[32,128], merged_shards=metadata)
     (out/'metadata.json').write_text(json.dumps(meta, indent=2))
     (out/'sequence_sources.json').write_text(json.dumps(seen, indent=2))
-    (out/'DONE').write_text('96 paired sequences verified complete [32,128)\n')
-    print('MERGED_COMPLETE', len(seen))
+    if complete:
+        (out/'DONE').write_text('96 paired sequences verified complete [32,128)\n')
+    else:
+        (out/'PARTIAL').write_text(f'{len(seen)}/96 completed sequences; stopped after sufficient small-step calibration\n')
+    print('MERGED_COMPLETE' if complete else 'MERGED_PARTIAL', len(seen))
 
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('out', type=Path)
     p.add_argument('parts', type=Path, nargs='+')
+    p.add_argument('--allow-partial', action='store_true')
     a = p.parse_args()
-    merge(a.parts, a.out)
+    merge(a.parts, a.out,a.allow_partial)

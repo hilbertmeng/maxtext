@@ -8901,6 +8901,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     """Ledger only: Read-only first-block M anchor; one dynamic coefficient per destination layer."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # +21525 params (.02053 W_Q total, .00523%); retain MLP3050/3050/3045.
+    # code_commit: 35d4878; UE5a .6310 steps/s, -1.07% vs K48 .6378; health1115 vs968.
     # Bet vs K48: terminal +.002 (range -.003..+.007); speed ~-1% before relay-health overhead.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3'
     bam_m_relay_anchor = 3

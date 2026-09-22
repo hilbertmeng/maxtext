@@ -54,9 +54,11 @@ def run(cfg):
  out=Path(os.environ['BET_OUTPUT']);out.mkdir(parents=True,exist_ok=True);protocol=json.loads(Path(os.environ['BET_PROTOCOL']).read_text());cohortpath=Path('/tmp/pile_eval_cohort.npz')
  with np.load(cohortpath) as f:cohort={k:f[k] for k in w.KEYS}
  zero_cutoff=float(os.environ['BET_ZERO_CUTOFF']) if 'BET_ZERO_CUTOFF' in os.environ else None
+ start_sequence=int(os.environ.get('BET_START','32'));stop_sequence=int(os.environ.get('BET_STOP','128'))
+ assert 32<=start_sequence<stop_sequence<=128
  if zero_cutoff is not None:assert min(protocol['shifts'])>=-1. and (1.+max(protocol['shifts']))*zero_cutoff<=1. and 0.<zero_cutoff<1.
  meta=dict(model=w.BASE,checkpoint=cfg.load_parameters_path,dtype=str(cfg.dtype),matmul_precision=str(cfg.matmul_precision),protocol=protocol,runtime=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),cohort_sha256=hashlib.sha256(cohortpath.read_bytes()).hexdigest())
- meta.update(small_gate_cutoff=zero_cutoff,intervention_mode='small_gate_zero' if zero_cutoff is not None else 'adaptive_bidirectional')
+ meta.update(small_gate_cutoff=zero_cutoff,intervention_mode='small_gate_conditioned' if zero_cutoff is not None else 'adaptive_bidirectional',evaluation_shard=[start_sequence,stop_sequence])
  (out/'metadata.json').write_text(json.dumps(meta,indent=2))
  rng,writer,manager,mesh,model,_,tx=train.setup_mesh_and_model(cfg);state,_,_,_=max_utils.setup_training_state(model,SimpleNamespace(meta_dict={'checkpoint_step':None}),tx,cfg,rng,mesh,manager)
  def forward(p,b,l,h,t,f,enabled=True,target_probability=-1.):
@@ -89,7 +91,7 @@ def run(cfg):
     if 'custom_vjp' not in str(error):raise
     print('SMOKE_JVP_UNSUPPORTED',str(error),flush=True)
    return
-  for i in range(32,128):
+  for i in range(start_sequence,stop_sequence):
    dest=out/f'seq_{i:03d}.json'
    if dest.exists():continue
    b={k:jnp.asarray(v[i:i+1]) for k,v in cohort.items()};_,native_tokens=jax.device_get(native(state.params,b));count=int(np.count_nonzero(cohort['targets_segmentation'][i]));ordinary=float(native_tokens.sum(dtype=np.float64)/count);rows=[];gradients=[];token_rows={}
@@ -98,7 +100,7 @@ def run(cfg):
     # AD is an approximate predictor. Record its primal drift separately; all
     # causal deltas below come from paired ordinary forward calls and controls.
     gradients.append(dict(id=head['id'],derivative=float(derivative),primal_delta=float((gtokens.astype(np.float64)-native_tokens).sum()/count),selected=float(gstats[0]),step_sum=float(gstats[4])))
-   if i==32:print('FIRST_STEP GRADIENTS_DONE',len(gradients),'elapsed',time.perf_counter()-start,flush=True)
+   if i==start_sequence:print('FIRST_STEP GRADIENTS_DONE',len(gradients),'elapsed',time.perf_counter()-start,flush=True)
    # Rotate execution order after baseline to prevent dose/time confounding.
    order=[0]+list(np.random.default_rng(i).permutation(np.arange(1,len(arms))))
    for j in order:
@@ -111,5 +113,5 @@ def run(cfg):
    pending=dest.with_suffix('.json.tmp');pending.write_text(json.dumps(dict(sequence=i,native_loss=ordinary,valid_tokens=count,gradients=gradients,rows=rows),indent=2));pending.replace(dest)
    print('BET_SEQUENCE_DONE',i,'arms',len(arms),'elapsed',time.perf_counter()-start,flush=True)
  if writer:writer.flush()
- (out/'DONE').write_text('96 paired sequences complete\n');print('BETS_DONE',flush=True)
+ (out/'DONE').write_text(f'{stop_sequence-start_sequence} paired sequences complete [{start_sequence},{stop_sequence})\n');print('BETS_DONE',flush=True)
 if __name__=='__main__':w.app.run(lambda argv:run(w.pyconfig.initialize(argv)))

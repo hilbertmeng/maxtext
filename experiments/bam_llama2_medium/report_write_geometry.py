@@ -45,7 +45,7 @@ for l in main:
   if not ok[l,h]:continue
   x=d[l]['sample_features'][64:,:,h];y=d[l]['sample_gate'][64:,:,h]
   for j,name in enumerate(fn):
-   if j==12 or abs(cor[l,0,h,j])<.3 or not np.isfinite(cor[l,0,h,j]):continue
+   if j in [8,11,12] or abs(cor[l,0,h,j])<.3 or not np.isfinite(cor[l,0,h,j]):continue
    take=np.isfinite(x[...,j])&np.isfinite(y)
    val=float(spearmanr(x[...,j][take],y[take]).statistic) if take.sum()>50 else float('nan')
    candidates.append(dict(layer=l,head=h,feature=name,discovery=float(cor[l,0,h,j]),new64=val,replicated=bool(val*cor[l,0,h,j]>0 and abs(val)>.2)))

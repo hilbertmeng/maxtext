@@ -45,7 +45,7 @@ def run(task):
   for h in range(16):
    ids=np.flatnonzero(mask[i,:,h]);ids=rng.choice(ids,min(128,len(ids)),replace=False)
    if not len(ids):continue
-   z=f[i,ids,h].copy();z[:,12]=0
+   z=f[i,ids,h].copy();z[:,[8,11,12]]=0
    xx.append(np.column_stack([np.full(len(ids),h),np.log1p(pos[i,ids]),go[i,ids,h],gv[i,ids,h],z,np.log10(np.maximum(raw[i,ids,h,ix['sum_norm']],1e-20))]));yy.append(gw[i,ids,h]);split.extend([i<32]*len(ids));sp.extend([i]*len(ids))
  scores={};partial=np.full((2,16,len(FN)),np.nan)
  if xx:

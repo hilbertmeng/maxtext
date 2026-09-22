@@ -76,7 +76,7 @@ def analyze_layer(task):
  head=np.broadcast_to(np.arange(16)[None,None,:],yy.shape);pos=np.log1p(pp)
  control=np.stack([head,pos],-1).reshape(-1,2);X=np.concatenate([control,np.nan_to_num(xx.reshape(-1,len(FN)),nan=0)],-1);Y=yy.ravel();cut0=32*yy.shape[1]*16;finite=np.isfinite(Y);cut=int(finite[:cut0].sum());X=X[finite];Y=Y[finite]
  # Structural self-V / local-O collinearity: do not learn rounding-noise proxies.
- X[:,14]=0.
+ X[:,[10,13,14]]=0.  # Redundant self-V angles and fixed self-V/O angle.
  def fit(cols):
   m=HistGradientBoostingRegressor(max_iter=120,max_leaf_nodes=15,l2_regularization=10,min_samples_leaf=100,learning_rate=.08,early_stopping=False,random_state=9876)
   m.fit(X[:cut,cols],Y[:cut]);pred=m.predict(X[cut:,cols]);return m,mean_squared_error(Y[cut:],pred)

@@ -94,7 +94,7 @@ def run(cfg):
    rows.sort(key=lambda x:x['arm']);assert abs(rows[0]['delta'])<1e-7,rows[0]
    assert abs(rows[-1]['delta'])<1e-7 and abs(rows[-2]['delta'])<1e-7,rows[-2:]
    np.savez_compressed(out/f'tokens_{i:03d}.npz',native=native_tokens,arms=np.stack([token_rows[j] for j in range(len(arms))]),valid=cohort['targets_segmentation'][i]!=0)
-   dest.write_text(json.dumps(dict(sequence=i,native_loss=ordinary,valid_tokens=count,gradients=gradients,rows=rows),indent=2))
+   pending=dest.with_suffix('.json.tmp');pending.write_text(json.dumps(dict(sequence=i,native_loss=ordinary,valid_tokens=count,gradients=gradients,rows=rows),indent=2));pending.replace(dest)
    print('BET_SEQUENCE_DONE',i,'arms',len(arms),'elapsed',time.perf_counter()-start,flush=True)
  if writer:writer.flush()
  (out/'DONE').write_text('96 paired sequences complete\n');print('BETS_DONE',flush=True)

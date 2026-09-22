@@ -11,7 +11,7 @@ cd "$REPO"
 ("$PYTHON" -c 'import sklearn,scipy; print(sklearn.__version__,scipy.__version__)'
 env HARDWARE=tpu "$PYTHON" experiments/bam_llama2_medium/write_geometry.py MaxText/configs/base.yml exp_class=GeometryProbe run_name=write-geometry only_eval=True enable_checkpointing=True async_checkpointing=False base_output_directory="$OUTPUT/maxtext-output/" tensorboard_dir="$OUTPUT/tb" > "$OUTPUT/probe.log" 2>&1
 "$PYTHON" experiments/bam_llama2_medium/benchmark_write_geometry.py "$OUTPUT" > "$OUTPUT/cpu_benchmark.log" 2>&1
-"$PYTHON" experiments/bam_llama2_medium/analyze_write_geometry.py "$OUTPUT" --n "${GEOMETRY_N:-64}" --workers 8 > "$OUTPUT/analysis.log" 2>&1
+"$PYTHON" experiments/bam_llama2_medium/analyze_write_geometry.py "$OUTPUT" --n "${GEOMETRY_N:-64}" --workers "$(nproc | awk '{print ($1<24?$1:24)}')" > "$OUTPUT/analysis.log" 2>&1
 echo GEOMETRY_ALL_DONE > "$OUTPUT/DONE") &
 job=$!
 while kill -0 "$job" 2>/dev/null; do

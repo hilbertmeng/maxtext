@@ -1,5 +1,5 @@
 """Read-only AllLocal four-component / write-gate capture at the trained runtime."""
-import contextlib,hashlib,json,os,sys,time,subprocess
+import contextlib,hashlib,json,os,sys,time,subprocess,concurrent.futures
 from pathlib import Path
 from types import SimpleNamespace
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'MaxText'))
@@ -119,6 +119,13 @@ def run(config):
     fs.append(arr.reshape((-1,2048,16,len(FIELDS))));ids.append(ls.reshape(-1))
   fs=jnp.concatenate(fs);ids=jnp.concatenate(ids);return loss,fs[jnp.argsort(ids)],jnp.sort(ids)
  ordinary=jax.jit(lambda p,b:forward(p,b,False));collect=jax.jit(lambda p,b:forward(p,b,True));checks=[]
+ pool=concurrent.futures.ThreadPoolExecutor(max_workers=4);pending=[]
+ def save_sample(i,f,check):
+  temp=out/f'.pending_{i:03d}.npy';np.save(temp,f);temp.replace(out/f'sample_{i:03d}.npy')
+  qi=[FIELDS.index(k) for k in ['write_gate','reconstruction_relative','write_ratio','relative_parallel']]
+  stats=np.nanquantile(f[...,qi],[.01,.1,.5,.9,.99],axis=(1,2))
+  np.save(out/f'quick_{i:03d}.npy',stats)
+  (out/f'fidelity_{i:03d}.json').write_text(json.dumps(check))
  with mesh,partitioning.axis_rules(config.logical_axis_rules):
   for i in range(n):
    dest=out/f'sample_{i:03d}.npy'
@@ -130,10 +137,12 @@ def run(config):
    checks.append(dict(sequence=i,ordinary=native,capture=float(loss),difference=float(loss)-native))
    assert abs(float(loss)-native)<.01,checks[-1]
    assert np.isfinite(f[...,:12]).all()
-   temp=out/f'.pending_{i:03d}.npy';np.save(temp,f);temp.replace(dest)
-   with (out/'fidelity.jsonl').open('a') as log:log.write(json.dumps(checks[-1])+'\n')
+   pending.append(pool.submit(save_sample,i,f,checks[-1]))
+   if len(pending)>=4:pending.pop(0).result()
    if i==0:print('FIRST_STEP GEOMETRY_CAPTURE_OK',checks[-1],flush=True)
    print('GEOMETRY_DONE',i,'seconds',time.perf_counter()-t,flush=True)
+ for job in pending:job.result()
+ pool.shutdown()
  if writer:writer.flush()
  print('GEOMETRY_CAPTURE_DONE',n,flush=True)
 if __name__=='__main__':app.run(lambda argv:run(pyconfig.initialize(argv)))

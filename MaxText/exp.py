@@ -7897,9 +7897,9 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     """Joint GELU features for rank4 shared basis and independent Q/K head mixes."""
     # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
     # +65536 BAM params/layer; LLF MLP6255/6255/6256 exactly preserves parent total.
-    # Prediction vs shared rank4: final gap -.001 (-.004..+.003); speed approximately flat.
     # code_commit: 348fd5a; UE5a .5388 steps/s, -1.17% vs rank4 .5452; matched968 health.
-    # 10k review: last5 +.000899 vs rank4, +.004585 vs shared-P DirectC8; continue while narrowing.
+    # Stopped at 34170. vs rank4: early deficit shrank to parity, 32000-34000 mean +.000259.
+    # vs shared-P DirectC8: deficit narrowed to +.000898 over32000-34000; speed +.19% (.5378 baseline).
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerQKJointGelu256'
     bam_local_qk_joint_hidden_dim = 256
     mlp_dim_by_block = [6255, 6255, 6256]

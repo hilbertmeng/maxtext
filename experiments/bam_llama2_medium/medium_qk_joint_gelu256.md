@@ -2,7 +2,7 @@
 
 RUN `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerQKJointGelu256`; direct baseline `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer` (73f2e77).
 Implementation `/data0/xd/llf-parameter-matched`, branch `codex/llf-parameter-matched`.
-Owned TPU after user-directed handoff: `xd-v5p-16-k48-ploc-slice384-linear-maxtext`.
+Current owned TPU: `xd-v5p-16-k48-qk-joint256-resume-maxtext`; previous TPU transferred to GELU128.
 
 Reuse XL joint-QK path: x1024 ->256 ->GELU ->256, split shared basis128 and Q/K mixes64+64.
 Gate logits remain direct x projections; existing shared pre-RMS bias[4,32] unchanged.
@@ -39,3 +39,5 @@ User requested resume from2900 on2026-09-21. Keep runtime25b7eb2, original13500-
 Resume verified: restore/data cursor2900, FIRST2901, AOT loaded; LR27.246e-5 matches original schedule. Checkpoint3000 committed21:36:42UTC. Evidence `/data0/xd/medium-joint-resume2900-verified.txt`.
 
 Paused7245 for user-directed GELU128 hot replacement. Resumed trajectory approached zero at6400–7200;6800-.000202,7000+.000116,7200+.001070. Last5+.000323[-.000202,+.001070]. This remains provisional, not a demonstrated terminal failure. Checkpoint7245 retained; finalTB SYNC_OK.
+
+User requested continuation on2026-09-22. Restored committed7245 and matching data cursor on new UE5a v5p-16; original runtime25b7eb2, AOT and13500-step schedule retained. FIRST7251 verified; AOT loaded, step7250 LR15.130e-5. GELU128 continues independently. Evidence `/data0/xd/medium-joint256-resume7245-verified.txt`.

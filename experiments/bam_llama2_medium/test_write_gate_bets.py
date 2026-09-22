@@ -33,3 +33,21 @@ with intervene(jnp.asarray(1),jnp.asarray(0),jnp.asarray(-1.),jnp.asarray(-1.),z
  none=m.apply({'params':p},*args,**kw)
 for a,b in zip(baseline,none):np.testing.assert_array_equal(a,b)
 print('SMALL_ZERO_PASS removed gate mass equals original selected mass; residual unchanged')
+with intervene(jnp.asarray(1),jnp.asarray(0),jnp.asarray(-1.),jnp.asarray(0.),zero_cutoff=1.,target_probability=.05):
+ opened,capture=m.apply({'params':p},*args,**kw,mutable=['intermediates'])
+s=np.asarray(capture['intermediates']['bet_stats'][0]);effective_target=float(jnp.asarray(.05,m.dtype))
+np.testing.assert_allclose(s[1]-s[2],s[0]*effective_target,rtol=1e-6,atol=1e-6)
+np.testing.assert_array_equal(opened[0],baseline[0])
+print('SMALL_OPEN_PASS actual selected gate mass equals count times target probability')
+delta0=jnp.zeros((2,)+tuple(d['x'].shape[:2])+(2,),jnp.float32) if 'x' in d else jnp.zeros((2,1,8,2),jnp.float32)
+def probability_scalar(delta):
+ with intervene(-1,0,0.,0.,probability_delta=delta):
+  output,inter=m.apply({'params':p},*args,**kw,mutable=['intermediates'])
+ return jnp.mean(output[1].astype(jnp.float32)**2),inter
+(_,inter),per_position=jax.value_and_grad(probability_scalar,has_aux=True)(delta0)
+g=inter['intermediates']['gate_gradient_context'][0][...,0]
+h=jnp.minimum(.01,jnp.minimum(.1*g,.1*(1-g)))
+reconstructed=float(jnp.sum(per_position[1,...,0]*h[...,0]))
+np.testing.assert_allclose(reconstructed,float(derivative),rtol=.01,atol=1e-8)
+assert np.count_nonzero(np.asarray(per_position[0]))==0
+print('PER_POSITION_GRADIENT_PASS reconstructs weighted scalar derivative',reconstructed)

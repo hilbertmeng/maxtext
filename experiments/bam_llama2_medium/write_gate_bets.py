@@ -7,7 +7,7 @@ import write_geometry as w
 from write_geometry import jax,jnp,nn,partitioning,train,max_utils,attentions
 
 @contextlib.contextmanager
-def intervene(target_layer,target_head,threshold,shift,zero_cutoff=None):
+def intervene(target_layer,target_head,threshold,shift,zero_cutoff=None,target_probability=-1.,probability_delta=None):
  stack=[]
  def hook(next_fun,args,kw,ctx):
   m=ctx.module
@@ -31,6 +31,12 @@ def intervene(target_layer,target_head,threshold,shift,zero_cutoff=None):
    selected=selected&(gf<=zero_cutoff)
    step=jax.lax.stop_gradient(gf)
   shifted=gf+shift*step
+  if zero_cutoff is not None:
+   shifted=jnp.where(jnp.asarray(target_probability)>=0,jnp.asarray(target_probability),shifted)
+  if probability_delta is not None:
+   selected=jnp.ones_like(gate,dtype=bool)
+   shifted=gf+probability_delta[jnp.asarray(stack[-1],jnp.int32)]
+   m.sow('intermediates','gate_gradient_context',jnp.stack([gf,rg.astype(jnp.float32),jnp.broadcast_to(jnp.asarray(stack[-1],jnp.float32),gate.shape)],axis=-1))
   # No shift!=0 branch: that would incorrectly erase the derivative at baseline.
   changed=jnp.where(selected,shifted.astype(gate.dtype),gate)
   un=m.write_data_norm(u) if m._write_data_rms else u;pn=m.write_address_norm(p)
@@ -48,13 +54,13 @@ def run(cfg):
  out=Path(os.environ['BET_OUTPUT']);out.mkdir(parents=True,exist_ok=True);protocol=json.loads(Path(os.environ['BET_PROTOCOL']).read_text());cohortpath=Path('/tmp/pile_eval_cohort.npz')
  with np.load(cohortpath) as f:cohort={k:f[k] for k in w.KEYS}
  zero_cutoff=float(os.environ['BET_ZERO_CUTOFF']) if 'BET_ZERO_CUTOFF' in os.environ else None
- if zero_cutoff is not None:assert protocol['shifts']==[-1.] and 0.<zero_cutoff<1.
+ if zero_cutoff is not None:assert min(protocol['shifts'])>=-1. and (1.+max(protocol['shifts']))*zero_cutoff<=1. and 0.<zero_cutoff<1.
  meta=dict(model=w.BASE,checkpoint=cfg.load_parameters_path,dtype=str(cfg.dtype),matmul_precision=str(cfg.matmul_precision),protocol=protocol,runtime=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),cohort_sha256=hashlib.sha256(cohortpath.read_bytes()).hexdigest())
  meta.update(small_gate_cutoff=zero_cutoff,intervention_mode='small_gate_zero' if zero_cutoff is not None else 'adaptive_bidirectional')
  (out/'metadata.json').write_text(json.dumps(meta,indent=2))
  rng,writer,manager,mesh,model,_,tx=train.setup_mesh_and_model(cfg);state,_,_,_=max_utils.setup_training_state(model,SimpleNamespace(meta_dict={'checkpoint_step':None}),tx,cfg,rng,mesh,manager)
- def forward(p,b,l,h,t,f,enabled=True):
-  with intervene(l,h,t,f,zero_cutoff=zero_cutoff) if enabled else contextlib.nullcontext():
+ def forward(p,b,l,h,t,f,enabled=True,target_probability=-1.):
+  with intervene(l,h,t,f,zero_cutoff=zero_cutoff,target_probability=target_probability) if enabled else contextlib.nullcontext():
    result,inter=model.apply(p,b['inputs'],b['inputs_position'],decoder_segment_ids=b['inputs_segmentation'],decoder_target_mask=b['targets_segmentation'],decoder_target_tokens=b['targets'],enable_dropout=False,rngs={'params':rng,'dropout':rng},mutable=['intermediates'])
   mask=b['targets_segmentation']!=0;token_loss=jnp.where(mask,result[0],0.);loss=token_loss.sum()/jnp.maximum(mask.sum(),1)
   if not enabled:return loss,token_loss
@@ -65,6 +71,7 @@ def run(cfg):
  arms=[dict(id='baseline',layer=-1,head=0,threshold=0.,shift=0.)]
  for h in protocol['heads']:
   for shift in protocol['shifts']:arms.append({**h,'shift':shift,'id':h['id']+f'_shift{shift}'})
+  for extra in protocol.get('extra_arms',[]):arms.append({**h,**extra,'id':h['id']+'_'+extra['name']})
  # Terminal write must have no downstream effect; factor-one checks copied write path.
  arms += [dict(id='terminal_control',layer=23,head=0,threshold=0.,shift=-1.),dict(id='zero_shift_control',layer=12,head=0,threshold=0.,shift=0.)]
  (out/'arms.json').write_text(json.dumps(arms,indent=2));start=time.perf_counter()
@@ -95,7 +102,7 @@ def run(cfg):
    # Rotate execution order after baseline to prevent dose/time confounding.
    order=[0]+list(np.random.default_rng(i).permutation(np.arange(1,len(arms))))
    for j in order:
-    a=arms[j];loss,(stats,tokens)=jax.device_get(fn(state.params,b,jnp.asarray(a['layer']),jnp.asarray(a['head']),jnp.asarray(a['threshold']),jnp.asarray(a['shift'])))
+    a=arms[j];loss,(stats,tokens)=jax.device_get(fn(state.params,b,jnp.asarray(a['layer']),jnp.asarray(a['head']),jnp.asarray(a['threshold']),jnp.asarray(a['shift']),target_probability=jnp.asarray(a.get('target_probability',-1.))))
     token_rows[j]=tokens
     rows.append(dict(arm=int(j),id=a['id'],loss=float(tokens.sum(dtype=np.float64)/count),delta=float((tokens.astype(np.float64)-native_tokens).sum()/count),selected=float(stats[0]),gate_before=float(stats[1]),gate_removed=float(stats[2]),clipped=float(stats[3]),step_sum=float(stats[4]),rounded_unchanged=float(stats[5])))
    rows.sort(key=lambda x:x['arm']);assert abs(rows[0]['delta'])<1e-7,rows[0]

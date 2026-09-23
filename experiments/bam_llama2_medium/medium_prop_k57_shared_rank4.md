@@ -64,3 +64,13 @@ The latter can be shown explicitly as a backend-control sensitivity check.
 At200: new gap -.5415868, historical gap -.754411704, ratio .718;
 warmup transient only. Historical C256-control denominator instead gives .6453.
 Artifact: `/data0/xd/mediumprop-cross-scale200.json`.
+
+## Throughput follow-up
+
+The apparent recovery at step273 (.543) did not persist. Harmonic-mean BAM
+throughput:250–299 .5297;300–349 .4006;350–399 .3484;410–459 0.4557.
+Matched-step control410–459 0.7193; current formal throughput delta -36.64%.
+This replaces the startup window in the ledger but is explicitly NOT a confirmed
+steady-state measurement. Extra concat health remains enabled only for BAM.
+Raw logs `/data0/xd/mediumprop-steady-speed-logs.jsonl`; window summary
+`/data0/xd/mediumprop-speed-window410-459.json`.

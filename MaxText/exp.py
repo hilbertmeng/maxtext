@@ -282,6 +282,13 @@ class BamLlama2Medium(Llama2Medium):
     bam_record_fetched_read_health_metrics = False
     bam_local_q_pre_rms_bias = True
     bam_local_q_rank = 1  # number of dynamic basis keys per Q/K and read side
+    bam_prune_all_row_reads = False
+    bam_record_concat_health = False
+    bam_concat_qk = False
+    bam_concat_static_qk = False
+    bam_local_qk_direct_c8 = False
+    bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
+    bam_local_vo_independent_gates = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
     bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation
@@ -8454,9 +8461,9 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK4
 
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer):
-    """Ledger only: M48x32/C8; keep BAM QK48, standard QK16 and RoPE16."""
+    """M48x32/C8; keep BAM QK48, standard QK16 and RoPE16."""
     # code_commit: 73f2e77; UE5a .6378 steps/s (10-14), +.92% vs K64QK48 .6320; matched968 health scalars.
-    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Implementation merged into refactor-bam; code_commit above is the original runtime.
     # Completed13500. vs K64QK48: late plateau ~-.003; last5 -.002993, M-cache -25%.
     # vs K32 independent-gate C8: late ~-.011; last5 -.010943, speed -5.90%.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer'
@@ -8467,9 +8474,9 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
 
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48DirectC8MLPPerLayer(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK64QK48TruncateMLPPerLayer):
-    """Ledger only: Independent Q/K C8 dynamic keys; full-M static Q/K and VO reads unchanged."""
+    """Independent Q/K C8 dynamic keys; full-M static Q/K and VO reads unchanged."""
     # code_commit: 73f2e77; UE5a .6240 steps/s (10-14), -1.27% vs K64QK48 .6320; matched968 health scalars.
-    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Implementation merged into refactor-bam; code_commit above is the original runtime.
     # Initial dynamic Q/K key norms ~.51x parent: C8 RMS with unchanged .2 scale; amplitude unmatched.
     # Completed13500. vs K64QK48: early +.102 shrank and crossed below zero; late ~-.002.
     # Last5 mean -.001834; narrowed to -.001258@13400. Small loss gain at -1.27% speed.
@@ -8704,9 +8711,9 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Direct
 
 
 class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer(BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96DirectC8MLPPerLayer):
-    """Ledger only: Dynamic shared rank4 LocalQK on full M; retain full-M static Q/K reads."""
+    """Dynamic shared rank4 LocalQK on full M; retain full-M static Q/K reads."""
     # code_commit: 33244e0; UE5a .5452 steps/s (10-14), +1.38% vs XL24 .5378; matched968 health.
-    # Implementation: codex/llf-parameter-matched, /data0/xd/llf-parameter-matched.
+    # Implementation merged into refactor-bam; code_commit above is the original runtime.
     # MLP6266 unchanged; only LocalQK dynamic reading changes.
     # Stopped at 34206. vs C8: persistent deficit narrowed from ~+.004 to last5 +.000639 at34000 (+.000436..+.000934).
     # Near-parity loss with +1.38% speed; same M-cache, +3072 params.

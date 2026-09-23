@@ -100,6 +100,158 @@ def _factorized_read_joined(*args, **kwargs):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+  def test_shared_c8_independent_gates_initialization_and_separate_gradients(self):
+    self._check_shared_c8_independent_gates(32, 32)
+
+
+  def test_shared_c8_independent_gates_k64(self):
+    for qk_width in (32, 48):
+      with self.subTest(qk_width=qk_width):
+        self._check_shared_c8_independent_gates(64, qk_width)
+
+
+  def _check_shared_c8_independent_gates(self, k_dim, qk_width):
+    import copy
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'gates').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class='BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8MLPPerLayer',
+          run_name='gates', enable_checkpointing=False, base_output_directory=out+'/',
+          jax_cache_dir='', log_config=False, dataset_type='synthetic', base_emb_dim=128,
+          base_num_query_heads=2, base_num_kv_heads=2, head_dim=64,
+          max_target_length=8, max_prefill_predict_length=8, query_chunk_size=4,
+          per_device_batch_size=1.)
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      cfg.get_keys()['bam_k'] = k_dim
+      cfg.get_keys()['bam_local_qk_col_output_dim'] = qk_width
+      cfg.get_keys()['bam_partial_rope_nope_dim'] = qk_width
+      from types import SimpleNamespace
+      independent = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys())))
+      independent.get_keys()['bam_local_vo_independent_gates'] = True
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      parent = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2, head_dim=64, bam_k=k_dim,
+          max_target_length=8, max_prefill_predict_length=8, mesh=mesh,
+          attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_v+local_o', read_side='col', attention_type=cfg.attention_type)
+      child = parent.clone(config=independent)
+      x = jax.random.normal(jax.random.key(171), (1,8,128), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(172), (1,8,k_dim,32), dtype=cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=m, deterministic=True, layer_index=1)
+      init = lambda mod: unfreeze(mod.init({'params':jax.random.key(173)}, *args, **kw)['params'])
+      old, new = init(parent), init(child)
+      self.assertEqual(set(new)-set(old), {'W_lv_gate', 'W_lv_gate_b0'})
+      for key in old:
+        for a,b in zip(jax.tree.leaves(old[key]),jax.tree.leaves(new[key])):
+          np.testing.assert_array_equal(a,b)
+      self.assertEqual(sum(z.size for z in jax.tree.leaves(new))-sum(z.size for z in jax.tree.leaves(old)),258)
+      for a,b in zip(parent.apply({'params':old},*args,**kw),child.apply({'params':new},*args,**kw)):
+        np.testing.assert_array_equal(a,b)
+      leaf = new['W_R']['kernel']
+      direction = .1*jax.random.normal(jax.random.key(174),leaf.value.shape,leaf.value.dtype)
+      old['W_R']['kernel'] = leaf.replace(value=direction)
+      new['W_R']['kernel'] = leaf.replace(value=direction)
+      def capture(params):
+        result, collections = child.apply({'params':params}, *args, **kw,
+            capture_intermediates=lambda mod,method: method in ('_independent_local_vo','_read_fetched_m'),
+            mutable=['intermediates'])
+        c = collections['intermediates']
+        self.assertLen(c['_read_fetched_m'],1)
+        return result,c['_independent_local_vo'][0],c
+      result, (v,o), metrics = capture(new)
+      np.testing.assert_array_equal(v,o)
+      self.assertGreater(float(jnp.linalg.norm(v.astype(jnp.float32))),0.)
+      baseline = parent.apply({'params':old},*args,**kw)
+      for a,b in zip(baseline,result):
+        relative = jnp.linalg.norm((a.astype(jnp.float32)-b.astype(jnp.float32)))/jnp.linalg.norm(a.astype(jnp.float32))
+        self.assertLess(float(relative),.02)
+      for name,index in [('W_lv_gate_b0',0),('W_R_gate_b0',1)]:
+        changed = copy.deepcopy(new)
+        b = changed[name];changed[name] = b.replace(value=b.value+1.)
+        _,pair,c = capture(changed)
+        np.testing.assert_array_equal(pair[1-index],(v,o)[1-index])
+        self.assertGreater(float(jnp.linalg.norm((pair[index]-(v,o)[index]).astype(jnp.float32))),0.)
+        self.assertGreater(float(c['concat_vo_gate_pair'][0][0]),0.)
+      grad = jax.grad(lambda p: sum(jnp.mean(z.astype(jnp.float32)**2)
+          for z in child.apply({'params':p},*args,**kw)))(new)
+      for name in ('W_lv_gate','W_R_gate'):
+        g = grad[name]['kernel'].value
+        self.assertTrue(bool(jnp.all(jnp.isfinite(g))))
+        self.assertGreater(float(jnp.linalg.norm(g.astype(jnp.float32))),0.)
+      self.assertFalse(bool(jnp.allclose(grad['W_lv_gate']['kernel'].value.reshape(-1),
+                                        grad['W_R_gate']['kernel'].value.reshape(-1))))
+      fp = init(child.clone(layer_mode='local_qk+full'))
+      self.assertNotIn('W_lv_gate',fp)
+
+
+  def test_direct_c8_qk_independent_keys_static_and_gradients(self):
+    self._check_direct_c8_qk(64)
+
+
+  def _check_direct_c8_qk(self, k_dim, exp_name=None, head_dim=64):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'c8').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class=exp_name or f'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK{k_dim}QK48DirectC8MLPPerLayer',
+          run_name='c8', enable_checkpointing=False, base_output_directory=out+'/',
+          jax_cache_dir='', log_config=False, dataset_type='synthetic',
+          base_emb_dim=head_dim*2, base_num_query_heads=2, base_num_kv_heads=2,
+          head_dim=head_dim, max_target_length=8, max_prefill_predict_length=8,
+          query_chunk_size=4, per_device_batch_size=1.)
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+          head_dim=head_dim, bam_k=k_dim, bam_v=32, max_target_length=8,
+          max_prefill_predict_length=8, mesh=mesh, attention_kernel='dot_product_chunk',
+          dtype=cfg.dtype, layer_mode='local_qk+local_v+local_o', read_side='col',
+          attention_type=cfg.attention_type)
+      x = jax.random.normal(jax.random.key(301), (1,8,head_dim*2), dtype=cfg.dtype)
+      m = jax.random.normal(jax.random.key(302), (1,8,k_dim,32), dtype=cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=m, deterministic=True, layer_index=1)
+      params = unfreeze(module.init({'params':jax.random.key(303)}, *args, **kw)['params'])
+      self.assertNotIn('W_local_packed', params)
+      self.assertNotIn('W_lq_bias', params)
+      for arm in ('q','k'):
+        self.assertEqual(params['W_l'+arm+'_c8']['kernel'].value.shape, (head_dim*2,2,8))
+        self.assertNotIn('bias', params['W_l'+arm+'_c8'])
+        self.assertEqual(params['query' if arm=='q' else 'key']['kernel'].value.shape, (head_dim*2,2,head_dim-cfg.bam_local_qk_col_output_dim))
+      (_, mout), updates = module.apply({'params':params}, *args, **kw,
+          capture_intermediates=lambda mod,method: method == '_compress_m', mutable=['intermediates'])
+      health = updates['intermediates']
+      self.assertEqual(len(health['_compress_m']), 1)
+      self.assertEqual(mout.shape, m.shape)
+      for arm in ('local_q','local_k','local_v','local_o'):
+        self.assertAlmostEqual(float(health['concat_'+arm+'_gate'][0][0]), .05, delta=.001)
+      grad = jax.grad(lambda p: jnp.mean(module.apply({'params':p},*args,**kw)[0].astype('float32')**2))(params)
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(z))) for z in jax.tree.leaves(grad)))
+      for arm in ('q','k'):
+        for leaf in (grad['W_l'+arm+'_c8']['kernel'], grad['W_l'+arm+'_gate']['kernel'], grad['static_'+arm+'_key']):
+          self.assertGreater(float(jnp.linalg.norm(leaf.value.astype('float32'))), 0.)
+      # Static Q sees full-M coordinates outside C8; K remains independent.
+      def read(p, arm, full):
+        return module.apply({'params':p}, arm, full, m[...,:8], x, method=module._read_direct_qk_c8)
+      before = [read(params,a,m) for a in ('q','k')]
+      leaf = params['static_q_key']
+      params['static_q_key'] = leaf.replace(value=leaf.value.at[20,:].set(1.))
+      after = [read(params,a,m) for a in ('q','k')]
+      self.assertGreater(float(jnp.linalg.norm((after[0]-before[0]).astype('float32'))), 0.)
+      np.testing.assert_array_equal(after[1],before[1])
+      # Changing only Q's gate must leave K exactly unchanged.
+      leaf = params['W_lq_gate_b0']
+      params['W_lq_gate_b0'] = leaf.replace(value=leaf.value+2.)
+      self.assertGreater(float(jnp.linalg.norm((read(params,'q',m)-after[0]).astype('float32'))),0.)
+      np.testing.assert_array_equal(read(params,'k',m),after[1])
+
+
   def test_compress_m_preserves_full_state_and_matches_v_projection(self):
     from types import SimpleNamespace
     state = jnp.arange(120, dtype=jnp.float32).reshape(1, 2, 5, 12)

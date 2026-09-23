@@ -75,6 +75,9 @@ class LocalVModeTest(absltest.TestCase):
         params = module.init({'params': jax.random.key(3)}, *args, M_in=m)['params']
         self.assertEqual('W_R' in params, rank is None)
         self.assertEqual('W_local_packed' in params, rank is not None)
+        if rank is None:
+          self.assertEqual(params['abs_v_cache_projection'].value.shape, (32, 8))
+          self.assertEqual(params['W_R']['kernel'].value.shape[-1], 40)
         params = jax.tree.map(lambda a: a + .01 * jax.random.normal(
             jax.random.key(4), a.shape, a.dtype), params)
         def loss(p):

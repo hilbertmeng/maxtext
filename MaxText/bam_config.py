@@ -17,6 +17,7 @@ def validate_bam_config(config, *, layer_mode=None):
           f'{name} has been removed: enable local_v in bam_layer_modes and use '
           'bam_local_v_rank=None for a shared read or a positive rank for an independent read.')
   supported = {
+      'bam_local_qk_separate_c8_projection': False,
       'bam_batch_factorized_local_qk_read': False,
       'bam_local_qk_amplitude_init': None,
       'bam_local_qk_amplitude_depth_scale': False,

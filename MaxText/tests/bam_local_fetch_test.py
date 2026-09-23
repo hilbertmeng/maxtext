@@ -187,6 +187,7 @@ class LocalFetchTest(absltest.TestCase):
                                      jnp.einsum('btkv,btnk->btnv', m, r)), -1),
                      [(0, 0)] * 3 + [(0, 24)])
     cfg = SimpleNamespace(bam_k=32, bam_v=32, _abs_v_dim=8, _read_key_scale=2.,
+                          _fetched_arm=SimpleNamespace(prune_row=False),
                           _abs_v_row_output='direct',
                           num_query_heads=2, head_dim=64, _read_gate_activation=jax.nn.sigmoid)
     cfg._expand_full_read = lambda sides: BamAttention._expand_full_read.__wrapped__(cfg, sides)

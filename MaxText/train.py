@@ -362,6 +362,31 @@ def save_checkpoint(
 # lsp
 
 
+def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
+  """Decode compact read metrics from LLF block scan."""
+  decoder = intermediate_outputs['intermediates']['decoder']
+  size = config.bam_local_fetch_block_size
+  def emit(attention, layer, index=None):
+    for key, values in attention.items():
+      if not key.startswith('concat_'):
+        continue
+      value = values[0] if index is None else values[0][index]
+      if key == 'concat_vo_gate_pair':
+        names = ('mean_abs_diff', 'rms_diff', 'correlation')
+      elif key.endswith('_gate'):
+        names = ('mean', 'std', 'frac_lt_005', 'frac_gt_050', 'frac_gt_095')
+      else:
+        names = ('bam_rms', 'standard_rms', 'bam_over_standard')
+      for i, name in enumerate(names):
+        output_metrics['scalar'][f'bam/concat/{key[7:]}/layer_{layer:03d}/{name}'] = value[i]
+  blocks = config.num_decoder_layers // size
+  for offset in range(size):
+    name = f'local_{offset}' if offset < size - 1 else f'fetch_{offset}'
+    attention = decoder['layers'][name]['block']['self_attention']
+    for block in range(blocks):
+      emit(attention, block*size + offset, block)
+
+
 def record_bam_fetched_read_health_metrics(
     output_metrics, intermediate_outputs, config):
   """Adds compact per-layer fetched-read health summaries."""
@@ -885,6 +910,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
       "scalars": {},
   }
 
+  if getattr(config, 'bam_record_concat_health', False):
+    record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):

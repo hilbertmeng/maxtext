@@ -28,6 +28,7 @@ class BamConfigTest(unittest.TestCase):
 
   def test_retired_options_fail_with_reproduction_hint(self):
     for option, value in dict(
+        bam_local_qk_separate_c8_projection=True,
         bam_batch_factorized_local_qk_read=True,
         bam_local_qk_amplitude_init=.1,
         bam_fetched_read_amplitude_depth_scale=True,

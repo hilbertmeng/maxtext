@@ -407,10 +407,14 @@ Uses `auto_train_xd_maxtext.sh`, the RUN's registered commit, and `delete_tpu_xd
 - Storage is explicit RUN state; never let a replacement zone select an empty prefix. Prefer
   same-zone recovery. If the source TPU is terminal and recovery must change zones, use the
   one-command `migrate_zone.py` (authoritative source `/home/xd/projects/xd_tpu_scripts/migrate_zone.py`):
-  it reads the RUN registry, stops the auto-train launcher, deletes the old-zone TPU/queued-resource,
-  copies the latest committed checkpoint to the target zone's zone-local bucket (via
-  `run_registry.py migrate-storage`), and relaunches `run_exp_xd.sh` in the target zone with all
-  launch parameters sourced from the registry. Run on tpu-ag:
+  it reads the RUN registry, stops the old controller, and verifies every old worker has exited
+  with a committed checkpoint (or verifies the resource cannot run). It starts detached old-resource
+  cleanup **in parallel** with checkpoint copy and target launch; resource deletion must not block
+  resume. Cleanup uses an immutable source identity and retries independently. Check the printed
+  `CLEANUP_PENDING` journal under `logs/migration_cleanup/` until `status=released`; a successful
+  destination launch does not imply source release. Checkpoint copy uses
+  `run_registry.py migrate-storage`; target launch uses `run_exp_xd.sh` with the registered runtime.
+  Run on tpu-ag:
 
 ```bash
 python3 /home/lishengping/xd/projects/migrate_zone.py RUN1 [RUN2 ...] --to-zone us-east5-a

@@ -12,3 +12,10 @@
 - Bet: final gap -.003, plausible -.006..+.002; 65% chance of a lower loss.
   Speed -1..-4% vs UE5a .6378 steps/s. Benchmark judgment must distinguish a
   small incremental gain from a substantial improvement over the existing ~-.1 MHA gap.
+
+Launch verified: runtime `768fc805d98954ab30be42b6095560438d2fc768`, UE5a.
+AOT loaded and FIRST_STEP confirmed; step10–14 mean .6130 steps/s,
+-3.89% vs same-health K48 .6378. Parameter/shape audit and nonzero L/F forward
+and gradient checks passed; runtime attention source inherits the 46-test validated
+merge. Evidence: `/data0/xd/k48v48-launch-evidence.txt`,
+`/data0/xd/k48v48-traintrace.log`, `/data0/xd/k48v48-forward.log`.

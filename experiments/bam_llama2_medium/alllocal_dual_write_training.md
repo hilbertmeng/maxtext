@@ -424,3 +424,19 @@ RUN=BamMediumAllLocalDualWriteTanhFeedback zone=us-east5-a progress=111 checkpoi
 At200 standard +/-25 window gap=-.232775 vs linear sigmoid dual. All-step audit confirms: steps0/1 losses exactequal; gaps50–99 mean-.038058 (48/50negative),100–149 -.069163 (50/50negative),150–199 -.108893 (50/50negative),175–225 -.222538 (51/51negative, range-.352850..-.066722). Not a single-batch outlier. Tanh changes activation AND initialization, so cannot causally attribute all gain to negative feedback.
 
 Middle per-layer head-mean medians at20/100/200: abs gate .082013/.20277/.26681; negative fraction .450857/.68809/.72161; negative share of all-component norms .073480/.44846/.35008; energy shares .024757/.53450/.37847. Actual negative writing is substantial, but erasure requires content/address alignment. All health finite. `tanh_health_200.json`.
+
+### Tanh400 reversal audit
+
+Standard stride10 window400 gap+.004095 vs sigmoid, reversing early200-.232775. Raw all-step gaps200–249mean-.262008,250–299-.117693,300–349-.055377,350–399-.017071,400–449+.005062 (only14/50negative). Thus a progressive baseline catch-up/crossing, not a single outlier. Sparse standard375–425 window reports+.004095 while all51steps mean-.004615: near-crossing sampling sensitivity is material; report as approximately parity to slightly worse, not robust large harm. Middle per-layer medians at400: abs gate.31948,negativefraction.72178,negative-totalnormshare.29939, negative-saturatedfraction0. Actual feedbackrecordRMS5.4813 vs5.4548at200; mainrecordRMS7.1945 vs5.1950, so declining relative negative share is accompanied by growing main writes in this band. No evidence of exploding negative writes. Gate/content allocation differs strongly from sigmoid even near loss parity.
+
+### Tanh600
+
+Gap+.036071 vs sigmoid (200-.232775,400+.004095): sustained early gain is refuted so far. Middle layer-med abs gate.31883, negative fraction.74222, negative-totalnormshare.27546, energyshare.25215, negative saturation0. Feedback recordRMS4.89801 (400:5.4813), main8.06375 (400:7.19452). No increasing-negative-magnitude explosion evidence; causal attribution requires selective intervention. Continue to review; do not call signed feedback a win from startup alone.
+
+### Both GELU runs closed out
+
+RawGELU stopped at committed2903 (boundary05:20:50UTC), zero preemptions; READY03:59:16–05:20:50 (1h21m34s). GatedGELU stopped at committed2900 (05:22:56UTC), one preemption; READY03:50:58–04:55:44 (1h04m46s), then05:04:59–05:22:56 (17m57s), allUE5a. Both summaries failures=[], TPU/queued-resource verified absent, both localTB SYNC_OK. Summary paths tpu-ag logs/closeout-20260923T052331Z.json and closeout-20260923T052545Z.json. User correctly challenged stopping the better arm first while waiting for the worse arm to reach2800; acknowledged poor scheduling judgment. Both now stopped.
+
+At2800 gatedGELUvslinear+.027725 (last5+.032548, range+.027725..+.039042), rawGELUvsrawlinear+.012940 (last5+.015509, range+.012940..+.018613), rawGELUvsgatedGELU-.008759. No late sign crossing; rawGELU within-family advantage retained. Shared nonlinear gating itself is not disproved because init logit amplitude was poorly calibrated.
+
+Original dual7000 recent5gapvsAllLocal-.002395 (range-.002882..-.001331), essentially unchanged from6000-.002400. Tanh1000gap+.033688,600–1000 near+.034; middle layer medians negativefraction.76246, negative-totalnormshare.25059, energyshare.20958, actualfeedbackRMS4.56889/main9.76413.

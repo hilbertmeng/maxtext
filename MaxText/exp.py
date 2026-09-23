@@ -9338,3 +9338,38 @@ class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank
     model_name = 'BamLlama2XLPropK72SharedRank4MLPPerLayerTrain'
     compare_runs = ['Llama2XLPropTrain']
 
+
+
+class BamMHAXLPropC256BasicHealthProfile(TrainStepProfile, BamLlama2XLProp):
+    """XLProp MHA geometry through BAM's C256 attention; basic training health only."""
+    model_name = 'BamMHAXLPropC256BasicHealthProfile'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 28
+    bam_pair_scan = False
+    bam_extra_final_local_layer = False
+    bam_partial_rope = False
+    bam_concat_qk = False
+    bam_concat_static_qk = False
+    mlp_dim_by_block = None
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    wd_mults = Llama2XLPropTrain.wd_mults
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_concat_health = False
+    force_final_checkpoint = False
+    steps = 100
+    compare_runs = []
+
+
+class BamXLPropK72SharedRank4BasicHealthProfile(
+    TrainStepProfile, BamLlama2XLPropK72SharedRank4MLPPerLayerTrain
+):
+    """Exact formal XLProp BAM architecture with concat health disabled for paired timing."""
+    model_name = 'BamXLPropK72SharedRank4BasicHealthProfile'
+    record_training_health_metrics = True
+    record_internal_nn_metrics = False
+    bam_record_concat_health = False
+    force_final_checkpoint = False
+    steps = 100
+    compare_runs = ['BamMHAXLPropC256BasicHealthProfile']

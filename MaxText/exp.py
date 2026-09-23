@@ -9265,20 +9265,20 @@ class BamLlama2XLProp(Llama2XLProp, BamLlama2MediumProp):
     model_name = 'BamLlama2XLProp'
     bam_k = 48
     bam_v = 40
+    bam_write_v_bottleneck_dim = 400  # 256 * (20*40) / (16*32).
     bam_abs_v_compression_dim = 10
     bam_partial_rope_nope_dim = 72
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-xl-prop'
 
 
-class BamLlama2XLPropK96QK72SharedRank4MLPPerLayer(BamLlama2XLProp):
-    """Config only: XL shared-rank4 recipe on Prop; nine LLF blocks plus a final L."""
-    # Not launched. 27+1 scan/final-MLP support lives in codex/llf-parameter-matched;
-    # that scheduling implementation must be ported before running on refactor-bam.
-    # Prop large M96x40/C10; standard QK24 + static/dynamic BAM72; RoPE on QK24 only.
-    # MHA budget: 1,432,398,720; nearest equal-layer BAM budget: +14,000 (+.00098%).
-    # Shape audit: /data0/xd/xl-prop-final-audit.json.
-    model_name = 'BamLlama2XLPropK96QK72SharedRank4MLPPerLayer'
-    bam_k = 96
+class BamLlama2XLPropK72SharedRank4MLPPerLayer(BamLlama2XLProp):
+    """XL shared-rank4 recipe scaled to Prop; nine LLF blocks plus a final L."""
+    # Not launched. 27+1 block scan is supported on refactor-bam.
+    # Proportional M72x40/C10; standard QK24 + static/dynamic BAM72; RoPE on QK24 only.
+    # Nearest per-layer MHA budget: +14,000 total (+.00098%); MLP5684 vs MHA5120.
+    # Shape audit: /data0/xd/xl-prop-k72-r400-audit.json.
+    model_name = 'BamLlama2XLPropK72SharedRank4MLPPerLayer'
+    bam_k = 72
     bam_concat_qk = True
     bam_concat_static_qk = True
     bam_local_qk_col_output_dim = 72
@@ -9304,12 +9304,12 @@ class BamLlama2XLPropK96QK72SharedRank4MLPPerLayer(BamLlama2XLProp):
     bam_pair_scan = True
     bam_local_fetch_block_size = 3
     bam_extra_final_local_layer = True
-    bam_final_local_mlp_dim = 5752
-    mlp_dim_by_block = [5752, 5752, 5752]
+    bam_final_local_mlp_dim = 5684
+    mlp_dim_by_block = [5684, 5684, 5684]
     wd_mults = []  # Preserve the SOTA runtime's all-decay rule.
     bam_record_concat_health = True
     record_training_health_metrics = True
     steps = 50000
     force_final_checkpoint = True
     compare_runs = ['Llama2XLProp']
-    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-prop-k96-qk72-shared-rank4'
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-prop-k72-r400-shared-rank4'

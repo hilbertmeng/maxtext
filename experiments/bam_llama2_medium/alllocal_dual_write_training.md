@@ -59,3 +59,17 @@ Launch verified: `Loaded compiled function!`, FIRST_STEP observed at step11. Ste
 Initial TB audit: all3,768 dual-write tags present and finite at exact steps0 and20. At step0 all head mean absolute gate differences are zero and LocalO write norm shares are zero. At step20, median head mean absolute gate difference is .007651 (L1–2), .006881 (L3–16), .008511 (L17–22). These demonstrate functioning independent gates, not established usefulness. All44 feedback-kernel/bias gradient norms across L1–22 are positive and finite; only L0/23's four norms are zero, as expected. Artifacts: `health_initial.json` and `feedback_gradients_step20.json` under `/data0/xd/bam_diagnostics/dual_write_training/`.
 
 User reporting cadence: every 1,000 training steps (requested after launch); retain underlying 200-step loss windows and checkpoint interval200, and report exceptional health/resource events promptly. Routine progress commentary is suppressed between milestones.
+
+Full-run initial parity also verified from cached logs: dual/base losses are both10.844172 at step0 and10.846083 at step1. Divergence begins after updates (step2 gap+0.000033). This supports historical-runtime comparability beyond the single-layer fixture.
+
+Provisional internal step200 observation (awaiting the requested 1,000-step user report): windowed loss gap -0.089551; checkpoint200 committed. L3–16 head medians: main opening .0730, feedback opening .1139, read–main correlation -.2584, read–feedback correlation +.1270, LocalO cumulative write norm share .6029. Feedback opening exceeds main in167/224 middle heads; read–feedback correlation exceeds read–main in184/224. Early evidence therefore favors selective feedback amplification rather than uniformly suppressing feedback; reassess over later checkpoints before claiming a stable mechanism. Plot: `/data0/xd/bam_diagnostics/dual_write_training/health_200.png` (PDF alongside).
+
+Plotting uses `/home/xd/miniconda3/envs/tune/bin/python` (matplotlib available); scalar extraction uses the pinned maxtext-cpu Python.
+
+### User report at step1000
+
+Checkpoint1000 committed, no preemption. Cumulative windowed gaps vs AllLocal at200/400/600/800/1000: -.089551/-.072856/-.047778/-.030070/-.026387; r200: —/-.186/-.344/-.371/-.122. Last5 mean-.0533284, range[-.089551,-.026387]; early advantage is shrinking, not established as a final gain.
+
+L3–16 (all224 heads) median main–feedback correlation at200/400/600/800/1000: .4961/.2797/.1854/.0988/.0804. At1000, median read–main correlation -.1687 vs read–feedback +.1907;185/224 heads have a larger read–feedback correlation. Median main/feedback openings .1144/.0903; feedback>main in96/224 heads. Median cumulative LocalO norm share .2518 (vs .6029 at200). Independent gates therefore learn distinct conditional associations; mean feedback opening and conditional read/feedback association are different quantities. This is a within-new-model training observation, not a causal re-evaluation of the old final-checkpoint selected87 heads.
+
+All3,768 health tags finite at each exact snapshot200/400/600/800/1000. Artifacts: `health_1000.json`, `health_1000.png`, PDF alongside under `/data0/xd/bam_diagnostics/dual_write_training/`. Report cursor acknowledged1000; next user report2000.

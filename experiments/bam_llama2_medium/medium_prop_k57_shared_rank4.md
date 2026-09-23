@@ -1,7 +1,8 @@
 # MediumProp K57 shared rank4
 
-Configuration only; not launched. Main worktree `/home/xd/projects/maxtext`, branch
-`refactor-bam`. No RUN/TPU allocated.
+Submitted for training at runtime `e2946d70`. Main worktree `/home/xd/projects/maxtext`, branch
+`refactor-bam`. RUN names equal the two configuration classes below.
+TPUs: `xd-v5p-16-mediumprop-mha-maxtext` and `xd-v5p-16-mediumprop-k57-maxtext`.
 
 - BAM: `BamLlama2MediumPropK57SharedRank4MLPPerLayer`.
 - MHA: `BamMHAMediumPropC256`, BAM-MHA control with C256 attention and no matrix stream.
@@ -37,3 +38,15 @@ oppose that effect. These are testable predictions, not a linear gap-scaling law
 
 Launch plan: UE5a v5p-16, UC1a/EW4b backups; retained EW4a compiler
 `llm-jax-v6e-1-0` (borrow only, never recycle). Both checkpoint every200 steps.
+
+Pre-run throughput bet: BAM/control ~.75 (range .65–.85); formal BAM enables
+extra concat health, so this is an end-to-end prediction, not a matched-health
+architecture-only timing claim. All46 pinned CPU unit tests and both AOT compiles passed.
+
+## Startup
+
+Both loaded AOT and passed FIRST_STEP/step14 on UE5a, with the audited parameter
+counts. Initial steps10–14: MHA .7278, BAM .3532 steps/s (-51.5%), markedly below
+the .75 ratio bet. BAM subsequently varied .255–.385 while MHA stayed near .726;
+this is flagged for investigation, not explained away by unmatched concat health.
+Raw launch evidence: `/data0/xd/mediumprop-launch-logs.jsonl`.

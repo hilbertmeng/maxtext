@@ -9268,7 +9268,8 @@ class BamLlama2MediumProp(Llama2MediumProp, BamLlama2MediumV2C256ScanAotCleanCon
 
 class BamMHAMediumPropC256(BamLlama2MediumProp):
     """MediumProp MHA through BAM's C256 attention; no matrix stream."""
-    # Not launched. Odd head_dim75: rotate74 coordinates, leave the first one unrotated.
+    # code_commit: e2946d7; UE5a v5p-16 .7278 steps/s (10-14), basic health ON.
+    # Odd head_dim75: rotate74 coordinates, leave the first one unrotated.
     model_name = 'BamMHAMediumPropC256'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 18
@@ -9290,7 +9291,9 @@ class BamMHAMediumPropC256(BamLlama2MediumProp):
 
 class BamLlama2MediumPropK57SharedRank4MLPPerLayer(BamLlama2MediumProp):
     """Medium K48 shared-rank4 recipe scaled to Prop; six LLF blocks."""
-    # Not launched. 48/64*75=56.25 -> K57 to keep an even RoPE18 subspace.
+    # code_commit: e2946d7; !? UE5a v5p-16 .3532 steps/s (10-14), -51.5% vs control.
+    # Basic+concat health ON; control basic only. Variable BAM throughput under investigation.
+    # 48/64*75=56.25 -> K57 to keep an even RoPE18 subspace.
     # P_loc output stays16*32=512, so its GELU bottleneck stays256.
     # Bet: final gap vs BAM-MHA control ~-.080 (-.060..-.110).
     # Nearest equal per-layer budget: 432118896 params, -2304 vs MHA (-.000533%).

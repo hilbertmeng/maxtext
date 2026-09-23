@@ -73,3 +73,18 @@ Checkpoint1000 committed, no preemption. Cumulative windowed gaps vs AllLocal at
 L3–16 (all224 heads) median main–feedback correlation at200/400/600/800/1000: .4961/.2797/.1854/.0988/.0804. At1000, median read–main correlation -.1687 vs read–feedback +.1907;185/224 heads have a larger read–feedback correlation. Median main/feedback openings .1144/.0903; feedback>main in96/224 heads. Median cumulative LocalO norm share .2518 (vs .6029 at200). Independent gates therefore learn distinct conditional associations; mean feedback opening and conditional read/feedback association are different quantities. This is a within-new-model training observation, not a causal re-evaluation of the old final-checkpoint selected87 heads.
 
 All3,768 health tags finite at each exact snapshot200/400/600/800/1000. Artifacts: `health_1000.json`, `health_1000.png`, PDF alongside under `/data0/xd/bam_diagnostics/dual_write_training/`. Report cursor acknowledged1000; next user report2000.
+
+
+## Raw-read feedback comparison
+
+RUN/config `BamMediumAllLocalRawReadWriteGate`, same worktree/branch, independent from-scratch schedule13500/review2800. Owned training name `xd-v5p-16-alllocal-raw-write-maxtext`. Formal primary UE5a with UC1a/EW4b staged backups, following the completed AllLocal leases and the currently healthy dual-write lease. Compiler primary UC1a with EW4a/UE5a backups. Existing diagnostic machines remain retained.
+
+Let `R` be the ungated LocalO read and `o=r*R`. Write `(g*u + f_raw*R)/d ⊗ p`, preserving `d=RMS(u+r*R)`, the address and current residual output. The raw read is reused directly, never reconstructed by dividing by a small read gate. This removes the read gate from the feedback numerator; shared-denominator coupling remains. Parameters and M-cache match the dual-write parent exactly (zero additional W_Q).
+
+Initialization uses an ordinary sigmoid, without a fixed output multiplier or probability cap: `q0=r0*w0=.005`, bias `logit(q0)`, copied main kernel times `(1-w0)/(1-q0)=.9/.995`. At zero input projection it matches the old effective opening and first derivative. This is a local first-order calibration, not exact tokenwise equivalence over the entire initial distribution. The read key starts at zero, so actual feedback is initially zero in both models.
+
+Preregistered bet: final raw-minus-gated loss around -.002, with less than 1% architecture-only throughput change; no assured early loss gain. Removing multiplicative suppression may help low-read positions learn useful feedback, but can also introduce redundant writes. A nonnegative sustained final gap would refute the loss bet. Compare against both the gated dual-write RUN and historical AllLocal.
+
+Health keeps the 3768 dual-write metrics, but feedback magnitudes now use `f_raw*R/d`. Raw feedback probabilities and old probabilities multiply different operands and must not be directly interpreted as stronger/weaker effective feedback. Added48 scalars `bam/raw_write/layer_NNN/{main,feedback}_record_norm_rms` measure absolute RMS Frobenius norm of each individual head's component write record, including address and head scaling; these are not norms of the summed multihead update. Generic gate gradient/parameter health remains enabled. Total3816 BAM scalars versus3768 for the gated parent; mark speed as health-unmatched.
+
+Focused CPU test passed: nonzero raw read, read-gate closure with nonzero feedback and feedback gradients, unchanged current residual, explicit shared-denominator formula, initialization calibration and scan/remat tracing. Full pinned suite pending.

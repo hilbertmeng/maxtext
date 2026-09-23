@@ -22,6 +22,7 @@ def main():
   spec.loader.exec_module(reader)
   targets = sorted({int(s) for s in args.steps.split(',')})
   points, _ = reader._cached_local_points(args.tb_root / args.run, targets)
+  raw_points = {tag: data for tag, data in points.items() if tag.startswith('bam/raw_write/')}
   prefix = 'bam/dual_write/'
   points = {tag: data for tag, data in points.items() if tag.startswith(prefix)}
   if len(points) != 3768:
@@ -45,7 +46,10 @@ def main():
                 for layer in range(lo, hi+1) for head in range(16)]
         summaries[band][metric] = dict(zip(('min', 'q25', 'median', 'q75', 'max'),
                                                map(float, np.quantile(data, [0, .25, .5, .75, 1]))))
-    result['snapshots'].append({'target': target, 'step': step, 'head_distributions': summaries, 'values': values})
+    raw_norms = {tag: data[step] for tag, data in raw_points.items()}
+    if not all(np.isfinite(v) for v in raw_norms.values()):
+      raise ValueError(f'Nonfinite raw-write norm at step {step}')
+    result['snapshots'].append({'target': target, 'step': step, 'head_distributions': summaries, 'values': values, 'raw_write_norms': raw_norms})
     print(json.dumps({'step': step, 'head_distributions': summaries}, ensure_ascii=False))
   args.output.parent.mkdir(parents=True, exist_ok=True)
   args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')

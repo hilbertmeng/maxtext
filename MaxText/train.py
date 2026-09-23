@@ -408,6 +408,10 @@ def record_bam_dual_write_health_metrics(output_metrics, intermediate_outputs, c
         if metric in per_head:
           for head in range(config.num_query_heads):
             output_metrics['scalar'][f'{prefix}/head_{head:02d}/{metric}'] = value[head, i]
+      if getattr(config, 'bam_local_o_write_from_raw', False):
+        norms = decoder['layers'][name]['block']['self_attention']['raw_write_norms'][0][block]
+        for i, metric in enumerate(('main_record_norm_rms', 'feedback_record_norm_rms')):
+          output_metrics['scalar'][f'bam/raw_write/layer_{layer:03d}/{metric}'] = jnp.sqrt(jnp.mean(norms[:, i]**2))
 
 
 def record_bam_fetched_read_health_metrics(

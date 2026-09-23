@@ -290,6 +290,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
     bam_local_o_separate_write_gate = False
+    bam_local_o_write_from_raw = False
     bam_record_dual_write_health = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
     bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
@@ -8926,6 +8927,19 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
     checkpoint_period = 200
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-alllocal-dual-write'
+
+
+class BamMediumAllLocalRawReadWriteGate(BamMediumAllLocalDualWriteGates):
+    """Write raw LocalO read with an independent sigmoid; retain original shared RMS/address."""
+    # Same implementation worktree/branch as the dual-gate parent; separate from-scratch RUN.
+    # Same parameter count as dual gates. Init matches effective opening and first derivative
+    # at zero input projection: q0=.05*.1=.005, kernel multiplier .9/.995.
+    # Removes the live read gate from feedback numerator; denominator still depends on gated LocalO.
+    model_name = 'BamMediumAllLocalRawReadWriteGate'
+    bam_local_o_write_from_raw = True
+    compare_runs = ['BamMediumAllLocalDualWriteGates',
+        'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-alllocal-raw-read-write'
 
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):

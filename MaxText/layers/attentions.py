@@ -2481,6 +2481,10 @@ class BamAttention(Attention):
     assert self._vo_shared_read in ('none', 'local_o')
     self._vo_independent_gates = self._local_o and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
     self._dual_write = bool(getattr(cfg, 'bam_local_o_separate_write_gate', False))
+    self._raw_write = bool(getattr(cfg, 'bam_local_o_write_from_raw', False))
+    assert not self._raw_write or self._dual_write
+    if self._raw_write:
+      assert cfg.bam_read_gate_activation == 'sigmoid'
     if self._dual_write:
       assert self._local_o and self._vo_independent_gates, 'Dual write gates require independent LocalVO'
       assert cfg.bam_write_factor_norm == 'rms', 'Dual write gates preserve plain shared RMS'
@@ -2935,11 +2939,15 @@ class BamAttention(Attention):
     # Append new parameters after existing setup parameters: preserve the parent
     # initialization stream. Copy values only at initialization, not during apply.
     if self._dual_write:
+      write_init = float(cfg.bam_write_eps)
+      read_init = float(fetched_gate_init)
+      feedback_opening = read_init*write_init if self._raw_write else write_init
+      feedback_kernel_scale = (1-write_init)/(1-feedback_opening) if self._raw_write else 1.0
       def feedback_init(key, shape, dtype, *axes):
         del key, axes
         value = nn.unbox(self.W_gw.variables['params']['kernel'])
         assert value.shape == shape
-        return jnp.asarray(value, dtype)
+        return jnp.asarray(value*feedback_kernel_scale, dtype)
       self.W_gw_feedback = DenseGeneral(
           features=(self.num_query_heads,), axis=-1, kernel_init=feedback_init,
           kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
@@ -2947,7 +2955,7 @@ class BamAttention(Attention):
           matmul_precision=cfg.matmul_precision, use_bias=False)
       self.feedback_gw_b0 = self.param(
           'feedback_gw_b0', nn.with_logical_partitioning(
-              lambda key, shape, dtype: jnp.full(shape, math.log(float(cfg.bam_write_eps)/(1-float(cfg.bam_write_eps)))),
+              lambda key, shape, dtype: jnp.full(shape, math.log(feedback_opening/(1-feedback_opening)), dtype),
               ('q_heads',)), (self.num_query_heads,), self.weight_dtype)
 
   def _local_qk_post_read_v_projections(self):
@@ -3170,7 +3178,11 @@ class BamAttention(Attention):
       correlation = jnp.mean(vc * oc) / jnp.maximum(jnp.sqrt(jnp.mean(vc * vc) * jnp.mean(oc * oc)), 1e-12)
       self.sow('intermediates', 'concat_vo_gate_pair', jnp.stack((
           jnp.mean(jnp.abs(v-o)), jnp.sqrt(jnp.mean((v-o)**2)), correlation)))
-    return self._gate_local_output(read, v_logits), self._gate_local_output(read, o_logits)
+    gated = (self._gate_local_output(read, v_logits), self._gate_local_output(read, o_logits))
+    if self._raw_write:
+      # Reuse the ungated read directly; never reconstruct it by dividing by a small read gate.
+      return (*gated, self._expand_full_read(read) * self._read_key_scale)
+    return gated
 
   def _matrix_for_read(self, M_in):
     """Select the configured read-side view without changing the raw matrix stream."""
@@ -3201,7 +3213,7 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
-  def _write(self, o_head, x, M_in, local_o=None):
+  def _write(self, o_head, x, M_in, local_o=None, local_o_raw=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): the address
@@ -3249,9 +3261,15 @@ class BamAttention(Attention):
       local_o_norm = (local_o[..., :self.bam_k].astype(self._write_rms_statistics_dtype) * inv_rms).astype(self.dtype)
       # Algebraically g*(u-o)/d + feedback_g*o/d; the correction form preserves
       # the exact parent's write when the independently stored gates are equal.
-      gated_u1 = gated_u1 + (feedback_g-g)[..., None] * local_o_norm
+      feedback_content = local_o_norm
+      if self._raw_write:
+        assert local_o_raw is not None
+        feedback_content = (local_o_raw[..., :self.bam_k].astype(self._write_rms_statistics_dtype) * inv_rms).astype(self.dtype)
+        gated_u1 = gated_u1 - g[..., None]*local_o_norm + feedback_g[..., None]*feedback_content
+      else:
+        gated_u1 = gated_u1 + (feedback_g-g)[..., None] * local_o_norm
       if getattr(cfg, 'bam_record_dual_write_health', False) and not self.is_initializing():
-        self._record_dual_write_health(x, gate, feedback_gate, u1_norm, local_o_norm, u2_norm)
+        self._record_dual_write_health(x, gate, feedback_gate, u1_norm, local_o_norm, u2_norm, feedback_content)
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
         dM = jnp.einsum('btnk,btnv->btkv', gated_u1, u2_norm)
@@ -3266,7 +3284,7 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
-  def _record_dual_write_health(self, x, main, feedback, total, local_o, address):
+  def _record_dual_write_health(self, x, main, feedback, total, local_o, address, feedback_content):
     main, feedback = main.astype(jnp.float32), feedback.astype(jnp.float32)
     read = self._read_gate_activation(self._project_read_gate_logits(
         'W_R_gate', x, squeeze_fetch_axis=True))[..., 0].astype(jnp.float32)
@@ -3275,7 +3293,7 @@ class BamAttention(Attention):
       ac, bc = a-mean(a), b-mean(b)
       return mean(ac*bc)/jnp.maximum(jnp.sqrt(mean(ac*ac)*mean(bc*bc)), 1e-12)
     non_o = main[..., None]*(total.astype(jnp.float32)-local_o.astype(jnp.float32))
-    back = feedback[..., None]*local_o.astype(jnp.float32)
+    back = feedback[..., None]*feedback_content.astype(jnp.float32)
     norm = lambda z: jnp.sqrt(jnp.sum(z*z, axis=-1))
     address_norm = norm(address.astype(jnp.float32))
     n, b = norm(non_o)*address_norm, norm(back)*address_norm
@@ -3288,6 +3306,10 @@ class BamAttention(Attention):
       values.extend(mean((gate>=lo)&(gate<hi)) for lo,hi in zip(edges[:-1],edges[1:]))
     values.append(mean(read))
     self.sow('intermediates', 'dual_write_health', jnp.stack(values, axis=-1))
+    if self._raw_write:
+      scale = 1.0/jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
+      self.sow('intermediates', 'raw_write_norms',
+               scale*jnp.stack((jnp.sqrt(mean(n*n)), jnp.sqrt(mean(b*b))), axis=-1))
 
   def _compress_m(self, state):
     """Project one read-only M view on V while keeping cross-layer M full."""
@@ -3523,11 +3545,16 @@ class BamAttention(Attention):
     value = nn.with_logical_constraint(value, self.value_axis_names)
 
     local_output = None
+    local_o_raw = None
     if self._local_o and self._vo_shared_read != 'none':
       if Mh is None:
         Mh = self._matrix_for_read(M_in)
       if self._vo_independent_gates:
-        v_local, local_output = self._independent_local_vo(Mh, inputs_q, local_compressed_M)
+        local_vo = self._independent_local_vo(Mh, inputs_q, local_compressed_M)
+        if self._raw_write:
+          v_local, local_output, local_o_raw = local_vo
+        else:
+          v_local, local_output = local_vo
       else:
         local_output = self._shared_local_vo(Mh, inputs_q, local_inputs)
         v_local = local_output
@@ -3624,7 +3651,7 @@ class BamAttention(Attention):
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
         if self._dual_write:
-          M_out, _ = self._write(o_head, inputs_q, M_in, local_o=local_output)
+          M_out, _ = self._write(o_head, inputs_q, M_in, local_o=local_output, local_o_raw=local_o_raw)
         else:
           M_out, _ = self._write(o_head, inputs_q, M_in)
     else:

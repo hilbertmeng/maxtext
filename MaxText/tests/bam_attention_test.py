@@ -205,6 +205,90 @@ class BamReadKeyTransformTest(absltest.TestCase):
       self.assertIn('bam/dual_write/layer_002/head_01/feedback_mean',emitted['scalar'])
       self.assertIn('W_gw_feedback',str(gradients.keys())+str(gradients))
 
+  def test_raw_local_o_feedback_bypasses_read_gate_and_has_gradients(self):
+    import copy
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    from types import SimpleNamespace
+    from layers import models
+    from train import record_bam_dual_write_health_metrics
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'raw').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class='BamMediumAllLocalRawReadWriteGate', run_name='raw',
+          enable_checkpointing=False, base_output_directory=out+'/',
+          jax_cache_dir='', log_config=False, dataset_type='synthetic',
+          base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
+          head_dim=64, max_target_length=8, max_prefill_predict_length=8,
+          query_chunk_size=4, per_device_batch_size=1., dtype='float32')
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      post_cfg = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys())))
+      post_cfg.get_keys()['bam_local_o_write_from_raw'] = False
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      raw = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+          head_dim=64, bam_k=48, max_target_length=8, max_prefill_predict_length=8,
+          mesh=mesh, attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_v+local_o', read_side='col', attention_type=cfg.attention_type)
+      post = raw.clone(config=post_cfg)
+      x = jax.random.normal(jax.random.key(81), (1,8,128))
+      memory = jax.random.normal(jax.random.key(82), (1,8,48,32))
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=memory, deterministic=True, layer_index=1)
+      params = unfreeze(raw.init({'params':jax.random.key(83)}, *args, **kw)['params'])
+      w0,r0 = cfg.bam_write_eps,cfg.bam_read_gate_init
+      q0 = w0*r0
+      kernel = nn.unbox(params['W_gw_feedback']['kernel'])
+      np.testing.assert_allclose(kernel, nn.unbox(params['W_gw']['kernel'])*(1-w0)/(1-q0),rtol=1e-6)
+      np.testing.assert_allclose(jax.nn.sigmoid(nn.unbox(params['feedback_gw_b0'])),q0,rtol=1e-6)
+      # Match both the central effective opening and its input-projection derivative.
+      np.testing.assert_allclose(q0*(1-q0)*(1-w0)/(1-q0),r0*w0*(1-w0))
+      leaf=params['W_R']['kernel']
+      params['W_R']['kernel']=leaf.replace(value=.1*jax.random.normal(jax.random.key(84),leaf.value.shape))
+      v,o,ungated=raw.apply({'params':params},memory,x,method=raw._independent_local_vo)
+      np.testing.assert_allclose(o,r0*ungated,rtol=2e-6,atol=1e-6)
+      self.assertGreater(float(jnp.linalg.norm(ungated)),0)
+      # Close LocalO's read gate, leaving LocalV, ungated read, denominator and residual identical.
+      closed=copy.deepcopy(params);bias=closed['W_R_gate_b0']
+      closed['W_R_gate_b0']=bias.replace(value=jnp.full_like(bias.value,-100.))
+      raw_out,health=raw.apply({'params':closed},*args,**kw,mutable=['intermediates'])
+      post_out=post.apply({'params':closed},*args,**kw)
+      np.testing.assert_array_equal(raw_out[0],post_out[0])
+      self.assertGreater(float(jnp.linalg.norm(raw_out[1]-post_out[1])),0)
+      self.assertTrue(bool(jnp.all(jnp.isfinite(raw_out[1]))))
+      self.assertGreater(float(health['intermediates']['dual_write_health'][0][:,6].mean()),0)
+      raw_grad=jax.grad(lambda p:jnp.mean(raw.apply({'params':p},*args,**kw)[1]**2))(closed)
+      post_grad=jax.grad(lambda p:jnp.mean(post.apply({'params':p},*args,**kw)[1]**2))(closed)
+      self.assertGreater(float(jnp.linalg.norm(nn.unbox(raw_grad['W_gw_feedback']['kernel']))),0)
+      np.testing.assert_array_equal(nn.unbox(post_grad['W_gw_feedback']['kernel']),0)
+      # Full shared-denominator formula, including a nonzero gated LocalO component.
+      total=jax.random.normal(jax.random.key(85),(1,8,2,64))
+      actual=raw.apply({'params':params},total,x,memory,local_o=o,local_o_raw=ungated,method=raw._write)[0]
+      bound=raw.bind({'params':params});u=total[...,:48]
+      inv=jax.lax.rsqrt(jnp.mean(u*u,-1,keepdims=True)+cfg.normalization_layer_epsilon)
+      g=jax.nn.sigmoid(bound.W_gw(x)+bound.gw_b0)
+      f=jax.nn.sigmoid(bound.W_gw_feedback(x)+bound.feedback_gw_b0)
+      address=bound.write_address_norm(bound.P_loc_up(nn.gelu(bound.P_loc_down(x))))
+      expected=memory+jnp.einsum('btnk,btnv->btkv',(g[...,None]*(u-o[...,:48])+f[...,None]*ungated[...,:48])*inv,address)
+      np.testing.assert_allclose(actual,expected,rtol=1e-5,atol=1e-6)
+      for key,value in dict(num_decoder_layers=3,vocab_size=128,
+          bam_layer_modes=['local_qk+local_v+local_o']*3,mlp_dim_by_block=[128]*3).items():
+        cfg.get_keys()[key]=value
+      model=models.Transformer(config=cfg,mesh=mesh,quant=None)
+      tokens=jnp.ones((1,8),jnp.int32);positions=jnp.arange(8)[None]
+      def trace(key):
+        variables=model.init({'params':key,'aqt':key},tokens,positions,tokens,tokens,enable_dropout=False)
+        def loss(p):
+          result,outputs=model.apply({'params':p},tokens,positions,tokens,tokens,
+              enable_dropout=False,mutable=['intermediates'],rngs={'aqt':key})
+          emitted={'scalar':{}}
+          record_bam_dual_write_health_metrics(emitted,outputs,cfg)
+          return jnp.mean(result[0]),emitted
+        return jax.value_and_grad(loss,has_aux=True)(variables['params'])
+      (_,emitted),_=jax.eval_shape(trace,jax.random.key(86))
+      self.assertIn('bam/dual_write/layer_002/head_01/feedback_mean',emitted['scalar'])
+
   def test_shared_c8_independent_gates_initialization_and_separate_gradients(self):
     self._check_shared_c8_independent_gates(32, 32)
 

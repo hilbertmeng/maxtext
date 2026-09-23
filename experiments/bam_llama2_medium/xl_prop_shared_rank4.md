@@ -1,10 +1,10 @@
 # XLProp K72 shared-rank4 configuration
 
-Launch preparation; RUNs `Llama2XLProp` and `BamLlama2XLPropK72SharedRank4MLPPerLayer`. Main worktree `/home/xd/projects/maxtext`,
+Formal RUNs: `Llama2XLPropTrain` and `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain`. Main worktree `/home/xd/projects/maxtext`,
 branch `refactor-bam`; class `BamLlama2XLPropK72SharedRank4MLPPerLayer`.
 Parent `BamLlama2XLProp`; reference recipe
 `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer`.
-Direct loss baseline: `Llama2XLProp`.
+Architecture baseline: `Llama2XLProp`; direct training comparison: `Llama2XLPropTrain`.
 
 ## Proportional transfer
 
@@ -64,7 +64,7 @@ fetchedO retrieves earlier tokens' M states, not a token-accumulating single M.
 
 ## Launch
 
-Runtime `ab18eb22daf302c83ea6dfeceb138dbf963243cf` on refactor-bam; no experiment worktree.
+Runtime `859bd7ef506d9211ae581d4a502052e99a0c5825` on refactor-bam; no experiment worktree.
 Owned training TPUs: `xd-v5p-32-xlprop-mha-maxtext`, `xd-v5p-32-xlprop-k72-r400-maxtext`.
 UE5a primary; UC1a/EW4b passive backups. Both50000 steps, checkpoint250, T4096/batch8,
 logit precision bf16, generic healthON; BAM adds1133 concat-health scalars.
@@ -78,7 +78,11 @@ Corrected K72/R400 launch bet: final BAM−MHA gap approximately -.080
 raw training speed as a strictly matched architecture-only timing comparison.
 Full16-device CPU sharding audit overhead: MHA .1146%, BAM .2043%, both below2% tolerance.
 
-Both AOTs ready on borrowed compiler; both trainers submitted2026-09-23 10:42:53 UTC.
+Initial startup ab18eb2 used inherited batch32 because the working-tree Prop batch definitions
+were not committed. Paused MHA48/BAM29, retained both TPUs; those points are invalid and excluded.
+The corrected ...Train prefixes start from0 with separate checkpoints and loss caches.
 Borrowed machine environment is installed once and reused: this launch verified existing versions,
 ran no installer, and left it READY after both compiles. Subsequent compiles update isolated source only.
-AOT states: `ab18eb2-f1e165c4` (MHA), `ab18eb2-eb37ab6e` (BAM).
+AOT states: `859bd7e-dcc289af` (MHA), `859bd7e-b99d1ef8` (BAM).
+Sealed config guard: `python scripts/check_exp_runtime_config.py 859bd7ef Llama2XLPropTrain
+BamLlama2XLPropK72SharedRank4MLPPerLayerTrain`; all effective attributes match, including batch8.

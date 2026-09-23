@@ -53,6 +53,9 @@ not cover; it is not a routine prerequisite for training.
 2. Before a parameter-tree change, use a new run name/GCS prefix. Commit the prepared runtime
    code, push its worktree branch, and use its full hash. Commit/push first-step fixes and
    update the RUN hash before relaunch.
+   Before AOT, run `python scripts/check_exp_runtime_config.py FULL_COMMIT EXP...` from
+   that worktree. It must match all effective inherited attributes against the sealed Git source;
+   shape probes that override batch/sequence length cannot verify the launched configuration.
 
 ```bash
 git status --short --branch && git push origin HEAD
@@ -137,6 +140,13 @@ every recovery. The manifest keys commit, pinned environment/compiler, topology,
 shapes, and total schedule. Recompile when any key changes. For checkpoint resume, pass the
 original total schedule, never remaining steps; require the resumed step and LR to match it.
 After target launch, require `Loaded compiled function!` plus an actual first step.
+
+For an explicitly user-authorized retained compiler, use `prepare_train_aot_on_worker.py`
+with the actual worker index. This entrypoint borrows an idle host, uses an isolated source checkout,
+and performs no TPU creation, replacement, or deletion. Install its pinned environment once, then
+verify and reuse it across compiles; do not run the environment installer for every AOT job.
+`prepare_train_aot.py --existing-compiler` instead adopts lifecycle ownership and deletes its
+compiler on success/failure; never use that mode for a machine the user wants retained.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`

@@ -244,3 +244,145 @@ SIGN_CROSS: 400:+0.000938 -> 600:-0.008836
 Original gated5000 middle-head median: read .06640, main .18512, feedback .07491, LocalO norm share .11741 (4000: .13043). Modest loss advantage persists; share reduction is relative, not evidence of reduced absolute feedback. RawGELU versus gatedGELU has a persistent local advantage over600–1200 despite both lagging linear controls; initialization confound still applies.
 
 Runtime sealed/pushed `c3850c00e2ea71c83bcc14076167b251e8664746`. Exact AOT state `tpu-ag:/home/lishengping/xd/projects/aot_runs/c3850c0-83231384.json`; primaryUC1a and after300s retained backupsEW4a/UE5a. Superseded `cea27a0-b7fda4a5` is interrupted with cleanup_failures=[]; all three owned compiler candidates removed. No old tanh variant was trained. Existing diagnostic machines were not touched.
+
+### Raw linear3000 review and pending handoff
+
+BamMediumAllLocalDualWriteGates 1000 {"read_mean": 0.055998, "main_mean": 0.114441, "feedback_mean": 0.090293, "feedback_norm_share": 0.251824, "read_main_corr": -0.168738, "read_feedback_corr": 0.190728, "main_feedback_corr": 0.080378}
+BamMediumAllLocalDualWriteGates 2000 {"read_mean": 0.059286, "main_mean": 0.144112, "feedback_mean": 0.085928, "feedback_norm_share": 0.17099, "read_main_corr": -0.124838, "read_feedback_corr": 0.126933, "main_feedback_corr": -0.007306}
+BamMediumAllLocalDualWriteGates 3000 {"read_mean": 0.064511, "main_mean": 0.16033, "feedback_mean": 0.080034, "feedback_norm_share": 0.142335, "read_main_corr": -0.10518, "read_feedback_corr": 0.129751, "main_feedback_corr": -0.032397}
+BamMediumAllLocalRawReadWriteGate 1000 {"read_mean": 0.099746, "main_mean": 0.075532, "feedback_mean": 0.004613, "feedback_norm_share": 0.257559, "read_main_corr": -0.179571, "read_feedback_corr": 0.237211, "main_feedback_corr": -0.097566}
+BamMediumAllLocalRawReadWriteGate 2000 {"read_mean": 0.09982, "main_mean": 0.085533, "feedback_mean": 0.004789, "feedback_norm_share": 0.19851, "read_main_corr": -0.131919, "read_feedback_corr": 0.251243, "main_feedback_corr": -0.091908}
+BamMediumAllLocalRawReadWriteGate 3000 {"read_mean": 0.109552, "main_mean": 0.091049, "feedback_mean": 0.004887, "feedback_norm_share": 0.173429, "read_main_corr": -0.085586, "read_feedback_corr": 0.265892, "main_feedback_corr": -0.085371}
+
+
+```text
+RUN=BamMediumAllLocalDualWriteGates zone=us-east5-a progress=5711 checkpoint=5600 report=5600
+RUN=BamMediumAllLocalDualWriteGates BASE=BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600       2800       3000       3200       3400       3600       3800       4000
+ gap: -0.089551  -0.072856  -0.047778  -0.030070  -0.026387  -0.019499  -0.014381  -0.010470  -0.009856  -0.009242  -0.007330  -0.007953  -0.005539  -0.005792  -0.006135  -0.001504  -0.004288  -0.003571  -0.003007  -0.003851
+r200:        --     -0.186     -0.344     -0.371     -0.122     -0.261     -0.262     -0.272     -0.059     -0.062     -0.207     +0.085     -0.304     +0.046     +0.059     -0.755     +1.851     -0.167     -0.158     +0.281
+
+step:      4200       4400       4600       4800       5000       5200       5400       5600
+ gap: -0.003339  -0.002598  -0.001901  -0.002922  -0.002954  -0.003290  -0.002329  -0.002088
+r200:    -0.133     -0.222     -0.268     +0.537     +0.011     +0.114     -0.292     -0.104
+
+trend: last5_mean=-0.002716 prev5_mean=-0.002940 drift=+0.000223/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteGate zone=us-east5-a progress=3039 checkpoint=3000 report=3000
+RUN=BamMediumAllLocalRawReadWriteGate BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600       2800       3000
+ gap: +0.116930  +0.088927  +0.048430  +0.027785  +0.023171  +0.018668  +0.016333  +0.012822  +0.011681  +0.009053  +0.008048  +0.008465  +0.005327  +0.006025  +0.005251
+r200:        --     -0.239     -0.455     -0.426     -0.166     -0.194     -0.125     -0.215     -0.089     -0.225     -0.111     +0.052     -0.371     +0.131     -0.128
+
+trend: last5_mean=+0.006623 prev5_mean=+0.013711 drift=-0.007088/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteGate BASE=BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600       2800       3000
+ gap: +0.027379  +0.016071  +0.000651  -0.002285  -0.003216  -0.000831  +0.001952  +0.002352  +0.001826  -0.000189  +0.000717  +0.000511  -0.000212  +0.000233  -0.000883
+r200:        --     -0.413     -0.959     +2.507     +0.408     -0.742     +1.349     +0.205     -0.224     -0.896     +2.788     -0.287     -0.585     +0.099     +2.791
+
+trend: last5_mean=+0.000073 prev5_mean=+0.001022 drift=-0.000949/1000steps (toward 0)
+
+SIGN_CROSS: 2000:-0.000189 -> 2200:+0.000717
+SIGN_CROSS: 2400:+0.000511 -> 2600:-0.000212
+SIGN_CROSS: 2600:-0.000212 -> 2800:+0.000233
+SIGN_CROSS: 2800:+0.000233 -> 3000:-0.000883
+RUN=BamMediumAllLocalDualWriteSharedGelu3N zone=us-east5-a progress=1946 checkpoint=1800 report=1800
+RUN=BamMediumAllLocalDualWriteSharedGelu3N BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800
+ gap: +0.392038  +0.276495  +0.165416  +0.107976  +0.083275  +0.066721  +0.056248  +0.046463  +0.043358
+r200:        --     -0.295     -0.402     -0.347     -0.229     -0.199     -0.157     -0.174     -0.067
+
+trend: last4_mean=+0.053198 prev4_mean=+0.158290 drift=-0.105093/800steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N zone=us-east5-a progress=1607 checkpoint=1600 report=1400
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N BASE=BamMediumAllLocalRawReadWriteGate gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400
+ gap: +0.249642  +0.188505  +0.108150  +0.069061  +0.048863  +0.036634  +0.030840
+r200:        --     -0.245     -0.426     -0.361     -0.292     -0.250     -0.158
+
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N BASE=BamMediumAllLocalDualWriteSharedGelu3N gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400
+ gap: -0.025465  +0.000938  -0.008836  -0.011130  -0.011241  -0.011419  -0.009075
+r200:        --     -0.963     +8.424     +0.260     +0.010     +0.016     -0.205
+
+```
+
+Decision: once tanh exact AOT is ready, hot-switch raw linear into zero-initialized tanh. Raw linear has passed2800 review, still lags direct gated baseline (last5+.006623, range+.005251..+.008465), and is flat againstAllLocal (last5+.000073, range-.000883..+.000717), with no speed/parameter/cache gain. This is a resource-priority pause with retained checkpoint, not a claim the gap can never disappear.
+
+### Gated GELU2000
+
+Gapvslinear+.039042, recent5mean+.050367 (+.039042..+.066721), continued recovery slowing. Middle read-main rho200/1000/2000: -.98750/-.79076/-.57897; LocalO normshare .38837/.19095/.12592. Gate allocation is moving away from extreme startup correlations but no loss gain established.
+
+```text
+RUN=BamMediumAllLocalDualWriteGates zone=us-east5-a progress=5826 checkpoint=5800 report=5800
+RUN=BamMediumAllLocalDualWriteGates BASE=BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600       2800       3000       3200       3400       3600       3800       4000
+ gap: -0.089551  -0.072856  -0.047778  -0.030070  -0.026387  -0.019499  -0.014381  -0.010470  -0.009856  -0.009242  -0.007330  -0.007953  -0.005539  -0.005792  -0.006135  -0.001504  -0.004288  -0.003571  -0.003007  -0.003851
+r200:        --     -0.186     -0.344     -0.371     -0.122     -0.261     -0.262     -0.272     -0.059     -0.062     -0.207     +0.085     -0.304     +0.046     +0.059     -0.755     +1.851     -0.167     -0.158     +0.281
+
+step:      4200       4400       4600       4800       5000       5200       5400       5600       5800
+ gap: -0.003339  -0.002598  -0.001901  -0.002922  -0.002954  -0.003290  -0.002329  -0.002088  -0.002494
+r200:    -0.133     -0.222     -0.268     +0.537     +0.011     +0.114     -0.292     -0.104     +0.195
+
+trend: last5_mean=-0.002631 prev5_mean=-0.002922 drift=+0.000292/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteGate zone=us-east5-a progress=3125 checkpoint=3000 report=-
+RUN=BamMediumAllLocalDualWriteSharedGelu3N zone=us-east5-a progress=2030 checkpoint=2000 report=2000
+RUN=BamMediumAllLocalDualWriteSharedGelu3N BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000
+ gap: +0.392038  +0.276495  +0.165416  +0.107976  +0.083275  +0.066721  +0.056248  +0.046463  +0.043358  +0.039042
+r200:        --     -0.295     -0.402     -0.347     -0.229     -0.199     -0.157     -0.174     -0.067     -0.100
+
+trend: last5_mean=+0.050367 prev5_mean=+0.205040 drift=-0.154673/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N zone=us-east5-a progress=1702 checkpoint=1600 report=1600
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N BASE=BamMediumAllLocalRawReadWriteGate gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600
+ gap: +0.249642  +0.188505  +0.108150  +0.069061  +0.048863  +0.036634  +0.030840  +0.023215
+r200:        --     -0.245     -0.426     -0.361     -0.292     -0.250     -0.158     -0.247
+
+trend: last4_mean=+0.034888 prev4_mean=+0.153840 drift=-0.118951/800steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N BASE=BamMediumAllLocalDualWriteSharedGelu3N gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600
+ gap: -0.025465  +0.000938  -0.008836  -0.011130  -0.011241  -0.011419  -0.009075  -0.010427
+r200:        --     -0.963     +8.424     +0.260     +0.010     +0.016     -0.205     +0.149
+
+trend: last4_mean=-0.010540 prev4_mean=-0.011123 drift=+0.000583/800steps (toward 0)
+
+```
+
+### Tanh launch and raw pause
+
+Raw linear paused at committed3304, hot-switch boundary2026-09-23T04:53:11Z. v5p-16 UE5a sole READY lease03:20:11–04:53:11 UTC (1h33m00s), zero preemptions; assigned03:14:35, TPU retained. Tanh runtimec3850c0 registered04:54:16Z on same `xd-v5p-16-alllocal-raw-write-maxtext`; actual FIRST_STEP confirmed. Ownership transferred to tanh; do not closeout/delete the paused raw registry TPU. AOT_CLEANUP_DONE verified; diagnostic TPUs untouched.
+
+```text
+RUN=BamMediumAllLocalRawReadWriteGate BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000
+ gap: +0.116930  +0.088927  +0.048430  +0.027785  +0.023171  +0.018668  +0.016333  +0.012822  +0.011681  +0.009053
+r200:        --     -0.239     -0.455     -0.426     -0.166     -0.194     -0.125     -0.215     -0.089     -0.225
+
+step:      2200       2400       2600       2800       3000       3200
+ gap: +0.008048  +0.008465  +0.005327  +0.006025  +0.005251  +0.002142
+r200:    -0.111     +0.052     -0.371     +0.131     -0.128     -0.592
+
+trend: last5_mean=+0.005442 prev5_mean=+0.011587 drift=-0.006145/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteGate BASE=BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000
+ gap: +0.027379  +0.016071  +0.000651  -0.002285  -0.003216  -0.000831  +0.001952  +0.002352  +0.001826  -0.000189
+r200:        --     -0.413     -0.959     +2.507     +0.408     -0.742     +1.349     +0.205     -0.224     -0.896
+
+step:      2200       2400       2600       2800       3000       3200
+ gap: +0.000717  +0.000511  -0.000212  +0.000233  -0.000883  +0.000638
+r200:    +2.788     -0.287     -0.585     +0.099     +2.791     -0.278
+
+trend: last5_mean=+0.000057 prev5_mean=+0.001332 drift=-0.001274/1000steps (toward 0)
+
+SIGN_CROSS: 3000:-0.000883 -> 3200:+0.000638
+```
+
+Original gated6000 gapvsAllLocal-.001801, recent5mean-.002400 (-.003290..-.001801), middle feedbacknormshare .10900.
+
+Tanh launch verification: Loaded compiled function; step10–14 speeds .628/.628/.620/.625/.628, mean.6258, raw-2.31%vslinear gated. Health5736vs3768 unmatched (genericON); cannot attribute difference to architecture or solely to health overhead. All5736BAM tags finite at0/20. At0 feedback exactzero; at20 all22 L1–22 kernel gradients and22 biases nonzero/finite (median kernel.00186515, bias.0000616523). Middle per-layer head-mean medians: abs gate.082013, negative fraction.450857, abs<.02 fraction.137176, negative feedback share of all-component norms.073480/energies.024757. Headwise median signed gate.002272 hides substantial bidirectional writing. Artifacts tanh_health_initial.json, tanh_gradients_initial.json.

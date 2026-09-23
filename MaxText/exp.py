@@ -8919,7 +8919,7 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
     # code_commit: 521213b; UE5a .6406 steps/s; running to planned13500, review2800.
     # Raw speed -.84% vs AllLocal .6460; unmatched BAM3768 vs1056, generic ON.
     # All3768 health tags verified finite; step20 feedback gradients nonzero on L1-L22.
-    # At5000 vs AllLocal: gap-.002954, recent5 mean-.002743; modest remaining gain, health finite.
+    # At6000 vs AllLocal: gap-.001801, recent5 mean-.002400; modest gain slowly shrinking.
     model_name = 'BamMediumAllLocalDualWriteGates'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 24
     bam_local_o_separate_write_gate = True
@@ -8935,6 +8935,9 @@ class BamMediumAllLocalDualWriteTanhFeedback(BamMediumAllLocalDualWriteGates):
     """Signed tanh feedback of gated LocalO; sigmoid main write and original shared RMS."""
     # Same branch/worktree as dual-write parent. No parameter or M-cache delta.
     # Closed tanh init: kernel0 and bias0; learn signed feedback from zero.
+    # code_commit: c3850c0; UE5a .6258 steps/s (-2.31% raw vs dual, health5736/3768 unmatched).
+    # AOT load/FIRST_STEP verified; all5736 health finite; L1-22 feedback gradients nonzero at20.
+    # Training13500/review2800 on retained raw-linear TPU; zero start learns both signs by20.
     model_name = 'BamMediumAllLocalDualWriteTanhFeedback'
     bam_feedback_write_activation = 'tanh'
     compare_runs = ['BamMediumAllLocalDualWriteGates']
@@ -8950,6 +8953,7 @@ class BamMediumAllLocalRawReadWriteGate(BamMediumAllLocalDualWriteGates):
     # code_commit: e52e166; UE5a .6378 steps/s; running13500/review2800.
     # Raw -.44% vs dual .6406, -1.27% vs AllLocal .6460; health3816/3768/1056, generic ON.
     # FIRST_STEP/load verified; all3816 health tags finite at0/20, raw feedback init median .00504.
+    # Paused3304 for tanh; last5@3200 vs dual+.005442 (shrinking), vs AllLocal+.000057; checkpoint retained.
     model_name = 'BamMediumAllLocalRawReadWriteGate'
     bam_local_o_write_from_raw = True
     compare_runs = ['BamMediumAllLocalDualWriteGates',
@@ -8963,6 +8967,7 @@ class BamMediumAllLocalDualWriteSharedGelu3N(BamMediumAllLocalDualWriteGates):
     # Replaces three D->N kernels by D->3N->3N; biases retained. +2304/layer=.00219727 W_Q.
     # code_commit: e160481; UE5a .6462 steps/s (+.87% vs dual .6406), matched health3768.
     # FIRST_STEP/load verified, all3768 metrics finite at0/20; training13500/review2800.
+    # At2000 gap+.039042 vs dual; recent5+.050367, recovery slowing; init-amplitude confound documented.
     model_name = 'BamMediumAllLocalDualWriteSharedGelu3N'
     bam_local_o_shared_gelu_gates = True
     compare_runs = ['BamMediumAllLocalDualWriteGates']

@@ -540,7 +540,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         config=SimpleNamespace(bam_sqrt_n_scale=False, bam_lambda_decay=1.),
         _force_activation_dtype=False, bam_k=2, _write_v_bottleneck_dim=None,
         P_loc=projection, gw_b0=jnp.zeros((2,)), W_gw=lambda x: jnp.zeros((1, 2, 2)),
-        _dual_write=False, _write_data_rms=True, write_data_norm=norm, write_address_norm=norm)
+        _dual_write=False, _joint_write_gates=False, _write_data_rms=True, write_data_norm=norm, write_address_norm=norm)
     expected = state + .5 * jnp.einsum('btnk,btnv->btkv', norm(output[..., :2]), norm(projection(x)))
     for implementation in ('dot', 'mul_reduce'):
       receiver._write_outer_implementation = implementation

@@ -8936,6 +8936,9 @@ class BamMediumAllLocalRawReadWriteGate(BamMediumAllLocalDualWriteGates):
     # Same parameter count as dual gates. Init matches effective opening and first derivative
     # at zero input projection: q0=.05*.1=.005, kernel multiplier .9/.995.
     # Removes the live read gate from feedback numerator; denominator still depends on gated LocalO.
+    # code_commit: e52e166; UE5a .6378 steps/s; running13500/review2800.
+    # Raw -.44% vs dual .6406, -1.27% vs AllLocal .6460; health3816/3768/1056, generic ON.
+    # FIRST_STEP/load verified; all3816 health tags finite at0/20, raw feedback init median .00504.
     model_name = 'BamMediumAllLocalRawReadWriteGate'
     bam_local_o_write_from_raw = True
     compare_runs = ['BamMediumAllLocalDualWriteGates',

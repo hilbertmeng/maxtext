@@ -106,3 +106,13 @@ User requested both dual-write variants use one shared GELU bottleneck of width 
 Parameters versus corresponding linear dual-write: +9N²=2304/layer=.002197265625 W_Q, +55296 total; unchanged M-cache and schedule13500/review2800/checkpoint200. Health retains three gate means, correlations, histograms and actual write shares; raw version retains absolute record-norm metrics. Generic health captures both joint down/up kernel parameter and gradient norms. Read head statistics refer to the actual shared-network gate.
 
 Preregistered bets: shared-GELU gated feedback final gap about -.001 versus its linear parent; shared-GELU raw feedback about -.003 versus its linear parent. Expect the raw version to benefit more from jointly learned nonlinear decisions, not necessarily more negative read/write correlation. Architecture-only throughput within2% of respective parents; matched health counts3768/3816. These are bets, not findings; sustained nonnegative final same-step gaps refute the expected loss benefits.
+
+
+Raw-read linear RUN launch verified: AOT compiled in EW4a; all owned compiler candidates cleaned up (`AOT_CLEANUP_DONE`); old diagnostic TPUs untouched. Formal TPU UE5a, registered2026-09-23T03:14:35Z, train launched03:22:35Z. Compiled load and actual step19 observed. Steps10–14 .638/.639/.634/.638/.640, mean .6378 (raw -.44% versus gated .6406, -1.27% versus AllLocal .6460; health3816/3768/1056 unmatched). All3816 health tags finite at0/20, including all48 absolute norm tags. Initial middle-head median feedback opening .0050424; step20 feedback normshare .16006, no evidence yet of loss benefit. Artifact `raw_health_initial.json`.
+
+Gated linear review2800: gap-.005792 vsAllLocal, recent5 mean-.007171. Benefit remains plausible but still shrinking. Continue beyond review to establish whether it persists and provide the direct parent for the new shared-GELU comparison; no early-stop endpoint introduced.
+
+Shared-GELU runtime sealed `e1604816369ce2c244ee0f4cdf8eed3dc61fdc1b`. Focused both-variant gradient/shape/scan tests passed65.384s; full suite in progress. AOT controller states `e160481-c7693*.json` (gated) and `e160481-bb650*.json` (raw) on tpu-ag.
+
+
+Shared-GELU validation: pinned49-test suite completed337.262s with48 passes and one obsolete standalone SimpleNamespace fixture missing `_joint_write_gates=False`; no model failure. Updated only that test fixture, and its targeted rerun passed2.152s. Thus all49 cases passed across the suite and targeted repair; runtime source unchanged frome160481. Logs `/tmp/joint_gates_full_tests.log`, `/tmp/joint_gates_fixture_test.log`. No repeated broad suite needed for the fixture-only fix.

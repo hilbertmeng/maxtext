@@ -543,3 +543,5 @@ trend: last5_mean=-0.001529 prev5_mean=-0.001267 drift=-0.000262/1000steps (deep
 
 RUN=BamMediumAllLocalIndependentEdges zone=us-east5-a progress=179 checkpoint=200 report=-
 ```
+
+AddressMix sealed/pushed runtime c5be705abdb2883a8c9d1bd0a6a0c417be072064; AOT submitted. Independent200 gap-.163211 vsoriginaldual. Middle normshare20/100/200=.51399/.60477/.55304 versusdual.16877/.75187/.60291; initial excess is not persistent by100. Globalgrad20/100/200=7.1888/2.0594/1.7708 versusdual2.4442/2.2648/1.4303; initial elevation largely subsides. W_R median200=.081306 vsdual.053836. Do not conclude initial gradient risk predicts failure; actual early loss currently better.

@@ -5613,6 +5613,12 @@ class Llama2XLProp(Llama2XL):
     base_mlp_dim = 5120  # Exact SwiGLU expansion 8/3, shared with MediumProp.
     max_target_length = 4096
     scan_layers = True
+    record_training_health_metrics = True
+    float32_logits = False  # Match the BAM recipe's attention-logit precision.
+    steps = 50000
+    eval_interval = 50000
+    force_final_checkpoint = True
+    compare_runs = []
 
 
 class Llama2XLHead16x128(Llama2XL):

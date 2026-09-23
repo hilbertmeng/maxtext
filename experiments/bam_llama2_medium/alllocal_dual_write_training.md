@@ -462,3 +462,35 @@ Final independent-random initialization test passed70.325s (`/tmp/independent_ed
 Monitoring: original dual8000 recent5gapvsAllLocal-.002145 (-.002711..-.001036), middle normshare.10757 and main.18647 stable. Old tanh2000gap+.018195 (last5mean+.022985, range+.018195..+.028714), still recovering but no gain; middle negativefraction.75713, absopening.38333, negative-totalnormshare.22006.
 
 Sealed final runtime `177fd10b01d0f3bd46d1c7c97d8fced1f7ddabce`, pushed branch. Exact AOT state `tpu-ag:/home/lishengping/xd/projects/aot_runs/177fd10-cc0689e0.json`; new independent-edge training not yet launched.
+
+
+### 9000 / 3000 review while independent-edge AOT recovers
+
+Original dual9000 gap vsAllLocal -.000894; recent5 mean-.001267, range-.002318..-.000894, down from8000 recent5-.002145. Old tanh3000 gap vsoriginal dual +.013637; recent5 mean+.015313, range+.013637..+.017010. No demonstrated gain at review; retain READY trainer for independent-edge handoff once artifact ready. Compiler EW4a attempt0 preempted before artifact; automatic replacement EW4a-r1 provisioning, originalUC1a/UE5a queues retained. No diagnostic resources released. Health snapshots health_9000.json and tanh_health_3000.json validated finite.
+
+```text
+RUN=BamMediumAllLocalDualWriteGates zone=us-east5-a progress=9044 checkpoint=9000 report=9000
+RUN=BamMediumAllLocalDualWriteGates BASE=BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600       2800       3000       3200       3400       3600       3800       4000
+ gap: -0.089551  -0.072856  -0.047778  -0.030070  -0.026387  -0.019499  -0.014381  -0.010470  -0.009856  -0.009242  -0.007330  -0.007953  -0.005539  -0.005792  -0.006135  -0.001504  -0.004288  -0.003571  -0.003007  -0.003851
+r200:        --     -0.186     -0.344     -0.371     -0.122     -0.261     -0.262     -0.272     -0.059     -0.062     -0.207     +0.085     -0.304     +0.046     +0.059     -0.755     +1.851     -0.167     -0.158     +0.281
+
+step:      4200       4400       4600       4800       5000       5200       5400       5600       5800       6000       6200       6400       6600       6800       7000       7200       7400       7600       7800       8000
+ gap: -0.003339  -0.002598  -0.001901  -0.002922  -0.002954  -0.003290  -0.002329  -0.002088  -0.002494  -0.001801  -0.002543  -0.002418  -0.002882  -0.001331  -0.002800  -0.002711  -0.002565  -0.001943  -0.001036  -0.002472
+r200:    -0.133     -0.222     -0.268     +0.537     +0.011     +0.114     -0.292     -0.104     +0.195     -0.278     +0.412     -0.049     +0.192     -0.538     +1.104     -0.032     -0.054     -0.242     -0.467     +1.387
+
+step:      8200       8400       8600       8800       9000
+ gap: -0.000926  -0.002318  -0.001182  -0.001014  -0.000894
+r200:    -0.625     +1.502     -0.490     -0.142     -0.118
+
+trend: last5_mean=-0.001267 prev5_mean=-0.002145 drift=+0.000878/1000steps (toward 0)
+
+RUN=BamMediumAllLocalDualWriteTanhFeedback zone=us-east5-a progress=3097 checkpoint=3000 report=3000
+RUN=BamMediumAllLocalDualWriteTanhFeedback BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600       2800       3000
+ gap: -0.232775  +0.004095  +0.036071  +0.032905  +0.033688  +0.028714  +0.025820  +0.021189  +0.021004  +0.018195  +0.017010  +0.017009  +0.014647  +0.014263  +0.013637
+r200:        --     -0.982     +7.808     -0.088     +0.024     -0.148     -0.101     -0.179     -0.009     -0.134     -0.065     -0.000     -0.139     -0.026     -0.044
+
+trend: last5_mean=+0.015313 prev5_mean=+0.022985 drift=-0.007671/1000steps (toward 0)
+
+```

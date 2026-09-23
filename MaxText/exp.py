@@ -9268,7 +9268,7 @@ class BamLlama2MediumProp(Llama2MediumProp, BamLlama2MediumV2C256ScanAotCleanCon
 
 class BamMHAMediumPropC256(BamLlama2MediumProp):
     """MediumProp MHA through BAM's C256 attention; no matrix stream."""
-    # code_commit: e2946d7; UE5a v5p-16 0.7193 steps/s (410-459), basic health ON.
+    # code_commit: e2946d7; UE5a v5p-16 .7271 steps/s (same-VM repeat20-99), basic health ON.
     # Odd head_dim75: rotate74 coordinates, leave the first one unrotated.
     model_name = 'BamMHAMediumPropC256'
     bam_mha_control = True
@@ -9291,8 +9291,8 @@ class BamMHAMediumPropC256(BamLlama2MediumProp):
 
 class BamLlama2MediumPropK57SharedRank4MLPPerLayer(BamLlama2MediumProp):
     """Medium K48 shared-rank4 recipe scaled to Prop; six LLF blocks."""
-    # code_commit: e2946d7; !? UE5a v5p-16 0.4557 steps/s (410-459), -36.6% vs control.
-    # Window throughput, not yet steady. Basic+concat health ON; control basic only.
+    # code_commit: e2946d7; UE5a v5p-16 .5637 steps/s, -22.5% vs same-VM control .7271 (20-99).
+    # Basic+concat health ON; control basic only. Same-AOT replacement also sustained ~.564.
     # 48/64*75=56.25 -> K57 to keep an even RoPE18 subspace.
     # P_loc output stays16*32=512, so its GELU bottleneck stays256.
     # Bet: final gap vs BAM-MHA control ~-.080 (-.060..-.110).

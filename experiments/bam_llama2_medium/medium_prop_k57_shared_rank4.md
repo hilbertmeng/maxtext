@@ -2,7 +2,7 @@
 
 Submitted for training at runtime `e2946d70`. Main worktree `/home/xd/projects/maxtext`, branch
 `refactor-bam`. RUN names equal the two configuration classes below.
-TPUs: `xd-v5p-16-mediumprop-mha-maxtext` and `xd-v5p-16-mediumprop-k57-maxtext`.
+TPUs: `xd-v5p-16-mediumprop-mha-maxtext` and `xd-v5p-16-mediumprop-k57-maxtext` (original; replaced by `xd-v5p-16-mediumprop-repeat`).
 
 - BAM: `BamLlama2MediumPropK57SharedRank4MLPPerLayer`.
 - MHA: `BamMHAMediumPropC256`, BAM-MHA control with C256 attention and no matrix stream.
@@ -74,3 +74,8 @@ This replaces the startup window in the ledger but is explicitly NOT a confirmed
 steady-state measurement. Extra concat health remains enabled only for BAM.
 Raw logs `/data0/xd/mediumprop-steady-speed-logs.jsonl`; window summary
 `/data0/xd/mediumprop-speed-window410-459.json`.
+
+Throughput issue resolved operationally by same-AOT resource replacement. Paired
+normal-resource throughput is .5637 vs .7271 steps/s (-22.5%); formal resume also
+showed ~.564. This supersedes the unstable startup/window numbers above. See
+[repeat profile and resource repair](medium_prop_repeat_profile.md) for evidence.

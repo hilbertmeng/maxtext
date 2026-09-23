@@ -2960,9 +2960,8 @@ class BamAttention(Attention):
       feedback_kernel_scale = (1-write_init)/(1-feedback_opening) if self._raw_write else 1.0
       feedback_bias_init = math.log(feedback_opening/(1-feedback_opening))
       if self._feedback_activation == 'tanh':
-        # Match the corresponding sigmoid's value and input-logit derivative at z=0.
-        feedback_kernel_scale *= feedback_opening/(1+feedback_opening)
-        feedback_bias_init = math.atanh(feedback_opening)
+        # Neutral signed start, retaining the parent's random gate kernel scale.
+        feedback_bias_init = 0.0
       def feedback_init(key, shape, dtype, *axes):
         del key, axes
         value = nn.unbox(self.W_gw.variables['params']['kernel'])

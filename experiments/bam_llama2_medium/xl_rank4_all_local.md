@@ -15,7 +15,6 @@ Ordinary MHA KV cache unchanged; fetched historical M-cache no longer needed.
 
 This measures F->L substitution including compensation by LocalVO, not pure fetchedO deletion.
 Compare to Medium AllLocal final gap+.014629 as a cross-scale result, not a same-step baseline.
-Bet: gap+.010 vsXL sharedrank4, range+.004..+.025; speed+1%..+3%.
 Hypothesis: at fixed sequence length, wider vector states can compensate more for fetchedO.
 Positive gap is expected and is not an early-stop criterion. Observe stable retrained gap,
 with a useful matched endpoint around34000 where the historical baseline ends.
@@ -27,3 +26,21 @@ Validation artifacts `/data0/xd/xl-all-local-{tests.log,audit.json,audit.log,hea
 
 Runtime f7bcc0dda1c898ee59d9f1de9e6afee9d45eb51b. Actual tree1420870528 equalsparent, all slot totals identical, only F head-mix leaves replaced by LocalV gate. Sharding overhead.0731% PASS;57 pinned tests PASS383.538s; full train trace1056scalarhealth PASS.
 Exactv5p32/s50000 AOT ready, all compiler candidates released. UE5a trainer startedfrom0 withAOTloaded; step24verified. Steps10-14 .5502/s (+.92%vsrank4.5452),20-24 .5516. Evidence `/data0/xd/xl-all-local-start.log`; registry/runtime/AOT hash aligned.
+
+## Result
+
+Stopped at31583; final checkpoint committed, TPU/queue absent, TensorBoard synced.
+Against XL shared rank4, gap +.038896@2000 -> +.016741@10000 -> +.012101@31500.
+Latest five 29500–31500 mean +.012566 (range +.012101..+.013117): the F->L penalty
+continues shrinking slowly, but remains material. Launch throughput +.92%; health1056 vs968
+prevents treating this as a strictly matched speed result. Parameters unchanged; fetched M-cache removed.
+
+Estimated gap at50000 is about +.010. Fits use the 20000–30000 raw ±25-step-window means
+(21 points): linear +.008159, log +.009809, inverse +.010869. Varying the fit start across
+10000/15000/20000/25000 gives +.008159..+.012341 (model/window spread, not a confidence interval).
+The 500-step transient is excluded from the plot and fits. Baseline stops34206, so this is an
+extrapolation, not a measured final gap. The subsequent31000/31500 points do not change that conclusion.
+Artifacts: `/data0/xd/bam_diagnostics/xl-alllocal-extrapolation/`
+(`gap.csv`, `fits.json`, `plot.py`, `gap_to_50000.png`/`.svg`/`.pdf`).
+Final cumulative loss: `/data0/xd/xl-alllocal-final-loss.txt`.
+Closeout: `/data0/xd/xl-alllocal-closeout.log`.

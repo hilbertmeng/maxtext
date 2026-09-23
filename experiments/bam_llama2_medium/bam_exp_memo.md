@@ -666,13 +666,52 @@ These are observational same-head diagnostics, not full-M or causal ablations.
 Diagnostic implementation: `codex/alllocal-write-geometry`, `/data0/xd/alllocal-write-geometry`.
 The user requested retaining `xd-v6e-alllocal-geom-3-0922` in EW4a after completion.
 
-### XLProp C256 matched-basic-health profile
+### XLProp C256 matched-basic-health main profile
 
 Runtime `1517cce`, same UE5a v5p-32, full28xD1920/head96,T4096,batch8/device.
 `BamMHAXLPropC256BasicHealthProfile` vs `BamXLPropK72SharedRank4BasicHealthProfile`:
 trace-free20–24 .5610/.3890 steps/s (**BAM -30.66%**), device-step1771.36/2546.17ms.
 Both use C256, basic training health ON, BAM sow OFF. The formal Splash MHA is
 ~.548–.550; formal BAM with concat health~.384. Extra health explains little.
+
+Forward theory uses `1 W_Q = 2BTD²`, averaged over28 layers; F-only work is
+weighted9/28. Both arms use the actual C256 pair count `T(T+256)/2`.
+Theory excludes LM-head/optimizer and lower-order elementwise work; the first row's
+theory therefore covers only Transformer blocks. LM head adds.93810 W_Q to each
+per-layer average. Nominal theory counts28 writes; the unused final write can be
+removed, subtracting.01147 W_Q from BAM.
+XPlane columns include backward/remat, LM head and optimizer. They average the primary
+profiler host's eight TPU-core traces over complete kernel-covered device steps;
+partial next-step markers and nested while wrappers are excluded. Top-level rows
+partition attributed kernel work; `↳` rows are subsets, not extra work. Fused-op source
+attribution is not an isolated causal measurement. Complete-step ms includes the
+small gaps between kernels, so it differs slightly from their duration sum.
+
+| Part | Forward theory W_Q (MHA / BAM) | MHA ms | BAM ms | Δ ms | MHA / BAM TF | MHA / BAM GB |
+|---|---:|---:|---:|---:|---:|---:|
+| Transformer / LM head / optimizer / unscoped | 14.26667 / 13.64792 | 1771.12 | 2082.86 | +311.73 | 194.3186 / 184.9380 | 1728.21 / 1860.53 |
+| LocalQK basis / gate / head-mix projection | 0.00000 / 0.18750 | 0.00 | 23.14 | +23.14 | 0.0000 / 2.5405 | 0.00 / 43.88 |
+| Write M | 0.00000 / 0.32118 | 0.00 | 131.87 | +131.87 | 0.0000 / 4.1859 | 0.00 / 151.86 |
+| ↳ P_loc down (subset) | 0.00000 / 0.20833 | 0.00 | 22.78 | +22.78 | 0.0000 / 2.7240 | 0.00 / 45.09 |
+| ↳ P_loc up (subset) | 0.00000 / 0.08681 | 0.00 | 26.75 | +26.75 | 0.0000 / 1.1459 | 0.00 / 26.78 |
+| ↳ write-gate projection (subset) | 0.00000 / 0.01042 | 0.00 | 12.80 | +12.80 | 0.0000 / 0.1377 | 0.00 / 31.05 |
+| ↳ outer product (subset) | 0.00000 / 0.01562 | 0.00 | 35.11 | +35.11 | 0.0000 / 0.1559 | 0.00 / 20.14 |
+| C10 compression | 0.00000 / 0.00781 | 0.00 | 18.21 | +18.21 | 0.0000 / 0.1070 | 0.00 / 17.55 |
+| LocalQK dynamic + static read / expansion / Gram | 0.00000 / 0.03789 | 0.00 | 141.93 | +141.93 | 0.0000 / 0.5232 | 0.00 / 131.68 |
+| ↳ rank-to-head expansion (subset) | 0.00000 / 0.00313 | 0.00 | 31.21 | +31.21 | 0.0000 / 0.0399 | 0.00 / 27.07 |
+| Shared LocalVO / FetchedO key + O gate + read | 0.00000 / 0.11849 | 0.00 | 76.36 | +76.36 | 0.0000 / 1.6112 | 0.00 / 82.98 |
+| ↳ read-M contraction (subset) | 0.00000 / 0.00391 | 0.00 | 33.91 | +33.91 | 0.0000 / 0.0537 | 0.00 / 14.34 |
+| Independent LocalV gate projection | 0.00000 / 0.00707 | 0.00 | 8.28 | +8.28 | 0.0000 / 0.0975 | 0.00 / 21.80 |
+| LocalVO output gating | ≈0 / ≈0 | 0.00 | 8.34 | +8.34 | 0.0000 / 0.0041 | 0.00 / 8.24 |
+| F route projection + attention-head mixing | 0.00000 / 0.00714 | 0.00 | 38.79 | +38.79 | 0.0000 / 0.1224 | 0.00 / 50.35 |
+| F temporal fetch | 0.00000 / 0.13661 | 0.00 | 15.62 | +15.62 | 0.0000 / 1.8511 | 0.00 / 12.39 |
+| **Complete step** | **14.26667 / 14.47161** | **1771.36** | **2546.17** | **+774.81** | **194.3186 / 195.9808** | **1728.21 / 2381.27** |
+| ↳ Q/K projections (overlapping subset) | 2.00000 / 0.50000 | 181.70 | 75.50 | -106.21 | 27.0911 / 6.7839 | 157.49 / 94.95 |
+| ↳ V/O projections (overlapping subset) | 2.00000 / 2.00000 | 176.89 | 184.56 | +7.67 | 27.0753 / 27.0767 | 135.94 / 143.88 |
+| ↳ MHA QK logits (overlapping subset) | 1.13333 / 1.13333 | 202.46 | 308.10 | +105.64 | 15.4484 / 15.4129 | 278.24 / 258.64 |
+| ↳ MHA AV (overlapping subset) | 1.13333 / 1.13333 | 233.94 | 270.18 | +36.24 | 15.5459 / 15.5587 | 263.05 / 268.39 |
+| ↳ MLP (overlapping subset) | 8.00000 / 8.88125 | 637.01 | 744.61 | +107.61 | 99.3523 / 110.2954 | 548.96 / 571.44 |
+| ↳ copy kernels (cross-cutting subset) | — | 17.22 | 174.35 | +157.13 | 0.0000 / 0.0001 | 35.60 / 199.26 |
 
 Matched-C256 forward theory14.26667/14.47161 W_Q per-layer average (+1.44%,
 excluding LM head/elementwise); XPlane model FLOPs+0.855%, bytes+37.79%, time+43.74%.

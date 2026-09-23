@@ -289,6 +289,8 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_qk_direct_c8 = False
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
+    bam_local_o_separate_write_gate = False
+    bam_record_dual_write_health = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
     bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
     bam_local_gram_statistics_dtype = 'float32'  # float32 | activation
@@ -8904,6 +8906,22 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     bam_layer_modes = ['local_qk+local_o'] * 24
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/k48-qk48-all-local'
+
+
+class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal):
+    """Independent non-LocalO/LocalO write gates; shared original RMS and address."""
+    # Implementation: codex/medium-alllocal-dual-write, /data0/xd/medium-alllocal-dual-write.
+    # +16400 params/layer = .0156403 W_Q; +393600 total; M-cache unchanged.
+    # Both gate kernels/biases start equal, then train independently; no checkpoint warm start.
+    model_name = 'BamMediumAllLocalDualWriteGates'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 24
+    bam_local_o_separate_write_gate = True
+    bam_record_dual_write_health = True
+    bam_record_concat_health = False
+    record_training_health_metrics = True
+    checkpoint_period = 200
+    compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-alllocal-dual-write'
 
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):

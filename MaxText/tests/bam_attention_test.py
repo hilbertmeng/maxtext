@@ -100,6 +100,111 @@ def _factorized_read_joined(*args, **kwargs):
 
 
 class BamReadKeyTransformTest(absltest.TestCase):
+  def test_dual_write_gates_equal_initialization_isolation_and_health(self):
+    import copy
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    from types import SimpleNamespace
+    from layers.attentions import DUAL_WRITE_HEALTH_NAMES
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'dual').mkdir()
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class='BamMediumAllLocalDualWriteGates', run_name='dual',
+          enable_checkpointing=False, base_output_directory=out+'/',
+          jax_cache_dir='', log_config=False, dataset_type='synthetic',
+          base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
+          head_dim=64, max_target_length=8, max_prefill_predict_length=8,
+          query_chunk_size=4, per_device_batch_size=1., dtype='float32')
+      cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+      base = pyconfig.HyperParameters(SimpleNamespace(keys=dict(cfg.get_keys())))
+      base.get_keys()['bam_local_o_separate_write_gate'] = False
+      base.get_keys()['bam_record_dual_write_health'] = False
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      parent = BamAttention(config=base, num_query_heads=2, num_kv_heads=2,
+          head_dim=64, bam_k=48, max_target_length=8, max_prefill_predict_length=8,
+          mesh=mesh, attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+          layer_mode='local_qk+local_v+local_o', read_side='col', attention_type=cfg.attention_type)
+      child = parent.clone(config=cfg)
+      x = jax.random.normal(jax.random.key(71), (1,8,128), dtype=cfg.dtype)
+      memory = jax.random.normal(jax.random.key(72), (1,8,48,32), dtype=cfg.dtype)
+      args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw = dict(M_in=memory, deterministic=True, layer_index=1)
+      init = lambda mod: unfreeze(mod.init({'params':jax.random.key(73)}, *args, **kw)['params'])
+      old, new = init(parent), init(child)
+      self.assertEqual(set(new)-set(old), {'W_gw_feedback', 'feedback_gw_b0'})
+      for key in old:
+        for a,b in zip(jax.tree.leaves(old[key]),jax.tree.leaves(new[key])):
+          np.testing.assert_array_equal(a,b)
+      np.testing.assert_array_equal(nn.unbox(new['W_gw']['kernel']), nn.unbox(new['W_gw_feedback']['kernel']))
+      self.assertEqual(sum(z.size for z in jax.tree.leaves(new))-sum(z.size for z in jax.tree.leaves(old)),258)
+      # Make LocalO nonzero, so identity is not merely a zero-read artifact.
+      leaf = new['W_R']['kernel'];value=.1*jax.random.normal(jax.random.key(74),leaf.value.shape,leaf.value.dtype)
+      new['W_R']['kernel']=leaf.replace(value=value);old['W_R']['kernel']=leaf.replace(value=value)
+      ref=parent.apply({'params':old},*args,**kw)
+      result,inter=child.apply({'params':new},*args,**kw,mutable=['intermediates'])
+      for a,b in zip(ref,result):np.testing.assert_array_equal(a,b)
+      health=inter['intermediates']['dual_write_health'][0]
+      self.assertEqual(health.shape,(2,len(DUAL_WRITE_HEALTH_NAMES)))
+      self.assertTrue(bool(jnp.all(jnp.isfinite(health))))
+      np.testing.assert_array_equal(health[:,2],0)
+      np.testing.assert_allclose(health[:,12:20].sum(-1),1)
+      np.testing.assert_allclose(health[:,20:28].sum(-1),1)
+      changed=copy.deepcopy(new);bias=changed['feedback_gw_b0'];changed['feedback_gw_b0']=bias.replace(value=bias.value+1.)
+      altered,inter=child.apply({'params':changed},*args,**kw,mutable=['intermediates'])
+      np.testing.assert_array_equal(altered[0],ref[0])
+      self.assertGreater(float(jnp.linalg.norm(altered[1]-ref[1])),0)
+      self.assertGreater(float(inter['intermediates']['dual_write_health'][0][:,2].mean()),0)
+      grad=jax.grad(lambda p:jnp.mean(child.apply({'params':p},*args,**kw)[1]**2))(new)
+      a,b=[nn.unbox(grad[k]['kernel']) for k in ('W_gw','W_gw_feedback')]
+      self.assertGreater(float(jnp.linalg.norm(a)),0);self.assertGreater(float(jnp.linalg.norm(b)),0)
+      self.assertFalse(bool(jnp.allclose(a,b)))
+      # Check the exact common-denominator formula directly on _write.
+      total=jax.random.normal(jax.random.key(75),(1,8,2,64));local=jax.random.normal(jax.random.key(76),total.shape)
+      actual=child.apply({'params':changed},total,x,memory,local_o=local,method=child._write)[0]
+      bound=child.bind({'params':changed});u=total[...,:48]
+      g=jax.nn.sigmoid(bound.W_gw(x)+bound.gw_b0);f=jax.nn.sigmoid(bound.W_gw_feedback(x)+bound.feedback_gw_b0)
+      o=local[...,:48]*jax.lax.rsqrt(jnp.mean(u*u,-1,keepdims=True)+cfg.normalization_layer_epsilon)
+      address=bound.write_address_norm(bound.P_loc_up(nn.gelu(bound.P_loc_down(x))))
+      expected=memory+jnp.einsum('btnk,btnv->btkv',g[...,None]*bound.write_data_norm(u)+(f-g)[...,None]*o,address)
+      np.testing.assert_allclose(actual,expected,rtol=1e-5,atol=1e-6)
+      # Export a synthetic two-block scan and verify layer/head indexing.
+      from train import record_bam_dual_write_health_metrics
+      layers = {}
+      for offset, name in enumerate(('local_0', 'local_1', 'fetch_2')):
+        values = jnp.stack((health + offset, health + offset + 3))
+        layers[name] = {'block': {'self_attention': {'dual_write_health': (values,)}}}
+      metrics = {'scalar': {}}
+      record_bam_dual_write_health_metrics(metrics,
+          {'intermediates': {'decoder': {'layers': layers}}},
+          SimpleNamespace(bam_local_fetch_block_size=3, num_decoder_layers=6, num_query_heads=2))
+      for layer in range(6):
+        np.testing.assert_allclose(metrics['scalar'][f'bam/dual_write/layer_{layer:03d}/head_01/main_mean'], health[1,0]+layer)
+
+
+
+      # Trace the actual AllLocal block scan, remat, backward and metric export.
+      from layers import models
+      for key, value in dict(num_decoder_layers=3, vocab_size=128,
+          bam_layer_modes=['local_qk+local_v+local_o']*3,
+          mlp_dim_by_block=[128]*3).items():
+        cfg.get_keys()[key] = value
+      model = models.Transformer(config=cfg, mesh=mesh, quant=None)
+      tokens=jnp.ones((1,8),jnp.int32); positions=jnp.arange(8)[None]
+      def traced(key):
+        variables=model.init({'params':key,'aqt':key},tokens,positions,tokens,tokens,enable_dropout=False)
+        def loss(p):
+          logits, outputs=model.apply({'params':p},tokens,positions,tokens,tokens,
+              enable_dropout=False,mutable=['intermediates'],rngs={'aqt':key})
+          emitted={'scalar':{}}
+          record_bam_dual_write_health_metrics(emitted,outputs,cfg)
+          return jnp.mean(logits[0]),emitted
+        return jax.value_and_grad(loss,has_aux=True)(variables['params'])
+      (_, emitted), gradients=jax.eval_shape(traced,jax.random.key(77))
+      self.assertIn('bam/dual_write/layer_002/head_01/feedback_mean',emitted['scalar'])
+      self.assertIn('W_gw_feedback',str(gradients.keys())+str(gradients))
+
   def test_shared_c8_independent_gates_initialization_and_separate_gradients(self):
     self._check_shared_c8_independent_gates(32, 32)
 
@@ -276,7 +381,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         config=SimpleNamespace(bam_sqrt_n_scale=False, bam_lambda_decay=1.),
         _force_activation_dtype=False, bam_k=2, _write_v_bottleneck_dim=None,
         P_loc=projection, gw_b0=jnp.zeros((2,)), W_gw=lambda x: jnp.zeros((1, 2, 2)),
-        _write_data_rms=True, write_data_norm=norm, write_address_norm=norm)
+        _dual_write=False, _write_data_rms=True, write_data_norm=norm, write_address_norm=norm)
     expected = state + .5 * jnp.einsum('btnk,btnv->btkv', norm(output[..., :2]), norm(projection(x)))
     for implementation in ('dot', 'mul_reduce'):
       receiver._write_outer_implementation = implementation

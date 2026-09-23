@@ -387,6 +387,29 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
       emit(attention, block*size + offset, block)
 
 
+def record_bam_dual_write_health_metrics(output_metrics, intermediate_outputs, config):
+  """Per-head separation and per-layer head-averaged gate distributions."""
+  from layers.attentions import DUAL_WRITE_HEALTH_NAMES
+  decoder = intermediate_outputs['intermediates']['decoder']
+  size = config.bam_local_fetch_block_size
+  per_head = {'main_mean', 'feedback_mean', 'mean_abs_gate_diff',
+              'read_main_corr', 'read_feedback_corr', 'feedback_norm_share',
+              'read_mean', 'main_feedback_corr'}
+  for offset in range(size):
+    name = f'local_{offset}' if offset < size-1 else f'fetch_{offset}'
+    values = decoder['layers'][name]['block']['self_attention']['dual_write_health'][0]
+    for block in range(config.num_decoder_layers // size):
+      value = values[block]
+      assert value.shape == (config.num_query_heads, len(DUAL_WRITE_HEALTH_NAMES))
+      layer = block*size+offset
+      for i, metric in enumerate(DUAL_WRITE_HEALTH_NAMES):
+        prefix = f'bam/dual_write/layer_{layer:03d}'
+        output_metrics['scalar'][f'{prefix}/head_mean/{metric}'] = jnp.mean(value[:, i])
+        if metric in per_head:
+          for head in range(config.num_query_heads):
+            output_metrics['scalar'][f'{prefix}/head_{head:02d}/{metric}'] = value[head, i]
+
+
 def record_bam_fetched_read_health_metrics(
     output_metrics, intermediate_outputs, config):
   """Adds compact per-layer fetched-read health summaries."""
@@ -912,6 +935,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   if getattr(config, 'bam_record_concat_health', False):
     record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'bam_record_dual_write_health', False):
+    record_bam_dual_write_health_metrics(metrics, intermediate_outputs, config)
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):

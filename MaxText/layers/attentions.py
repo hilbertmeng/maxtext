@@ -2481,6 +2481,8 @@ class BamAttention(Attention):
     assert self._vo_shared_read in ('none', 'local_o')
     self._vo_independent_gates = self._local_o and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
     self._dual_write = bool(getattr(cfg, 'bam_local_o_separate_write_gate', False))
+    self._joint_write_gates = bool(getattr(cfg, 'bam_local_o_shared_gelu_gates', False))
+    assert not self._joint_write_gates or self._dual_write
     self._raw_write = bool(getattr(cfg, 'bam_local_o_write_from_raw', False))
     assert not self._raw_write or self._dual_write
     if self._raw_write:
@@ -2703,10 +2705,11 @@ class BamAttention(Attention):
     def add_read_gate(name, features, kernel_axes, bias_axes, initial_gate):
       """Create a zero-kernel semantic gate with an explicitly calibrated bias."""
       assert 0.0 < initial_gate < 1.0
-      setattr(self, name, DenseGeneral(
-          features=features, axis=-1, kernel_init=zeros_init, kernel_axes=kernel_axes,
-          dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
-          quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
+      if not (self._joint_write_gates and name == 'W_R_gate'):
+        setattr(self, name, DenseGeneral(
+            features=features, axis=-1, kernel_init=zeros_init, kernel_axes=kernel_axes,
+            dtype=self.dtype, weight_dtype=self.weight_dtype, name=name,
+            quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False))
       bias_value = read_gate_bias(initial_gate)
       setattr(self, f'{name}_b0', self.param(
           f'{name}_b0',
@@ -2861,9 +2864,10 @@ class BamAttention(Attention):
             quant=self.quant, matmul_precision=cfg.matmul_precision,
             use_bias=True)
       # Write gate g_write: regular kernel, bias = logit(eps) explicitly slightly open
-      self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
-          kernel_axes=("embed", "q_heads"), dtype=self.dtype, weight_dtype=self.weight_dtype,
-          name="W_gw", quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      if not self._joint_write_gates:
+        self.W_gw = DenseGeneral(features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+            kernel_axes=("embed", "q_heads"), dtype=self.dtype, weight_dtype=self.weight_dtype,
+            name="W_gw", quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
       eps = float(cfg.bam_write_eps)
       self.gw_b0 = self.param('gw_b0',
           nn.with_logical_partitioning(
@@ -2948,15 +2952,42 @@ class BamAttention(Attention):
         value = nn.unbox(self.W_gw.variables['params']['kernel'])
         assert value.shape == shape
         return jnp.asarray(value*feedback_kernel_scale, dtype)
-      self.W_gw_feedback = DenseGeneral(
-          features=(self.num_query_heads,), axis=-1, kernel_init=feedback_init,
-          kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
-          weight_dtype=self.weight_dtype, name='W_gw_feedback', quant=self.quant,
-          matmul_precision=cfg.matmul_precision, use_bias=False)
+      if not self._joint_write_gates:
+        self.W_gw_feedback = DenseGeneral(
+            features=(self.num_query_heads,), axis=-1, kernel_init=feedback_init,
+            kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
+            weight_dtype=self.weight_dtype, name='W_gw_feedback', quant=self.quant,
+            matmul_precision=cfg.matmul_precision, use_bias=False)
       self.feedback_gw_b0 = self.param(
           'feedback_gw_b0', nn.with_logical_partitioning(
               lambda key, shape, dtype: jnp.full(shape, math.log(feedback_opening/(1-feedback_opening)), dtype),
               ('q_heads',)), (self.num_query_heads,), self.weight_dtype)
+
+    if self._joint_write_gates:
+      assert self._fetched_arm.prune_row and cfg.bam_n_f == 1
+      assert self._fetched_read_num_heads == self.num_query_heads
+      # One common nonlinear feature space, three independently trainable output groups.
+      width = 3*self.num_query_heads
+      self.joint_gate_down = DenseGeneral(
+          features=(width,), axis=-1, kernel_init=reg_init,
+          kernel_axes=('embed', None), dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name='joint_gate_down', quant=self.quant, matmul_precision=cfg.matmul_precision,
+          use_bias=False)
+      def joint_up_init(key, shape, dtype, *axes):
+        assert shape == (width, width)
+        value = reg_init(key, shape, dtype, *axes)
+        main = value[:, self.num_query_heads:2*self.num_query_heads]
+        return jnp.concatenate((jnp.zeros_like(main), main, main*feedback_kernel_scale), axis=-1)
+      self.joint_gate_up = DenseGeneral(
+          features=(width,), axis=-1, kernel_init=joint_up_init,
+          kernel_axes=(None, None), dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name='joint_gate_up', quant=self.quant, matmul_precision=cfg.matmul_precision,
+          use_bias=False)
+
+  def _joint_gate_projections(self, x):
+    """LocalO read, main write, feedback write logits, before their existing biases."""
+    with jax.named_scope('bam/joint_read_write_gates'):
+      return jnp.split(self.joint_gate_up(nn.gelu(self.joint_gate_down(x))), 3, axis=-1)
 
   def _local_qk_post_read_v_projections(self):
     paired = getattr(self, 'local_qk_post_read_v_paired_projection', None)
@@ -3065,7 +3096,11 @@ class BamAttention(Attention):
       gate_bias = getattr(self, f'{gate_name}_b0')
       if self._force_activation_dtype:
         gate_bias = jnp.asarray(gate_bias, self.dtype)
-      candidate_logits = getattr(self, gate_name)(x) + gate_bias
+      if self._joint_write_gates and gate_name == 'W_R_gate':
+        projected = self._joint_gate_projections(x)[0][..., None, None]
+      else:
+        projected = getattr(self, gate_name)(x)
+      candidate_logits = projected + gate_bias
     if squeeze_fetch_axis:
       candidate_logits = jnp.squeeze(candidate_logits, axis=-2)
     if (self._record_fetched_read_health_metrics
@@ -3236,7 +3271,9 @@ class BamAttention(Attention):
     write_gate_bias = self.gw_b0
     if self._force_activation_dtype:
       write_gate_bias = jnp.asarray(write_gate_bias, self.dtype)
-    gate = jax.nn.sigmoid(self.W_gw(x) + write_gate_bias)  # [b,t,n]
+    joint_logits = self._joint_gate_projections(x) if self._joint_write_gates else None
+    main_logits = joint_logits[1] if joint_logits is not None else self.W_gw(x)
+    gate = jax.nn.sigmoid(main_logits + write_gate_bias)  # [b,t,n]
     g = gate
     if cfg.bam_sqrt_n_scale:
       # With per-record rms, each head's record is unit energy, so |M| ~ n * Σg. Scaling the
@@ -3251,7 +3288,8 @@ class BamAttention(Attention):
       feedback_bias = self.feedback_gw_b0
       if self._force_activation_dtype:
         feedback_bias = jnp.asarray(feedback_bias, self.dtype)
-      feedback_gate = jax.nn.sigmoid(self.W_gw_feedback(x) + feedback_bias)
+      feedback_logits = joint_logits[2] if joint_logits is not None else self.W_gw_feedback(x)
+      feedback_gate = jax.nn.sigmoid(feedback_logits + feedback_bias)
       feedback_g = feedback_gate
       if cfg.bam_sqrt_n_scale:
         feedback_g = feedback_g * (1.0 / jnp.sqrt(self.num_query_heads))

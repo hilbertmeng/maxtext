@@ -205,6 +205,81 @@ class BamReadKeyTransformTest(absltest.TestCase):
       self.assertIn('bam/dual_write/layer_002/head_01/feedback_mean',emitted['scalar'])
       self.assertIn('W_gw_feedback',str(gradients.keys())+str(gradients))
 
+  def test_shared_gelu_three_gate_variants(self):
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    from layers import models
+    from train import record_bam_dual_write_health_metrics
+    for raw_feedback in (False, True):
+      with self.subTest(raw_feedback=raw_feedback), tempfile.TemporaryDirectory() as out:
+        Path(out, 'joint').mkdir()
+        cfg = pyconfig.initialize(
+            [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+            exp_class=('BamMediumAllLocalRawReadWriteSharedGelu3N' if raw_feedback
+                       else 'BamMediumAllLocalDualWriteSharedGelu3N'), run_name='joint',
+            enable_checkpointing=False, base_output_directory=out+'/',
+            jax_cache_dir='', log_config=False, dataset_type='synthetic',
+            base_emb_dim=128, base_num_query_heads=2, base_num_kv_heads=2,
+            head_dim=64, max_target_length=8, max_prefill_predict_length=8,
+            query_chunk_size=4, per_device_batch_size=1., dtype='float32')
+        cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        module = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+            head_dim=64, bam_k=48, max_target_length=8, max_prefill_predict_length=8,
+            mesh=mesh, attention_kernel='dot_product_chunk', dtype=cfg.dtype,
+            layer_mode='local_qk+local_v+local_o', read_side='col', attention_type=cfg.attention_type)
+        x = jax.random.normal(jax.random.key(90), (1,8,128))
+        memory = jax.random.normal(jax.random.key(91), (1,8,48,32))
+        args = (x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+        kw = dict(M_in=memory, deterministic=True, layer_index=1)
+        params = unfreeze(module.init({'params':jax.random.key(92)}, *args, **kw)['params'])
+        self.assertNotIn('W_R_gate',params)
+        self.assertNotIn('W_gw',params)
+        self.assertNotIn('W_gw_feedback',params)
+        down,up = (nn.unbox(params[n]['kernel']) for n in ('joint_gate_down','joint_gate_up'))
+        self.assertEqual(down.shape,(128,6));self.assertEqual(up.shape,(6,6))
+        np.testing.assert_array_equal(up[:,:2],0)
+        scale=(1-cfg.bam_write_eps)/(1-cfg.bam_write_eps*cfg.bam_read_gate_init) if raw_feedback else 1.
+        np.testing.assert_allclose(up[:,4:],up[:,2:4]*scale,rtol=1e-6)
+        # Activate memory reads so every output group participates in the loss.
+        leaf=params['W_R']['kernel']
+        params['W_R']['kernel']=leaf.replace(value=.1*jax.random.normal(jax.random.key(93),leaf.value.shape))
+        def objective(p):
+          result=module.apply({'params':p},*args,**kw)
+          return jnp.mean(result[0]**2)+jnp.mean(result[1]**2)
+        grads=jax.grad(objective)(params)
+        gu=nn.unbox(grads['joint_gate_up']['kernel'])
+        for group in jnp.split(gu,3,axis=-1):
+          self.assertGreater(float(jnp.linalg.norm(group)),0)
+          self.assertTrue(bool(jnp.all(jnp.isfinite(group))))
+        self.assertGreater(float(jnp.linalg.norm(nn.unbox(grads['joint_gate_down']['kernel']))),0)
+        bound=module.bind({'params':params})
+        projections=bound._joint_gate_projections(x)
+        expected=nn.gelu(x@down)@up
+        np.testing.assert_allclose(jnp.concatenate(projections,-1),expected,rtol=1e-6,atol=1e-6)
+        read_logits=bound._project_read_gate_logits('W_R_gate',x,squeeze_fetch_axis=True)
+        np.testing.assert_allclose(jax.nn.sigmoid(read_logits),cfg.bam_read_gate_init,rtol=1e-6)
+        # Real scan/remat and metric exporter must resolve all three shared groups.
+        for key,value in dict(num_decoder_layers=3,vocab_size=128,
+            bam_layer_modes=['local_qk+local_v+local_o']*3,mlp_dim_by_block=[128]*3).items():
+          cfg.get_keys()[key]=value
+        model=models.Transformer(config=cfg,mesh=mesh,quant=None)
+        tokens=jnp.ones((1,8),jnp.int32);positions=jnp.arange(8)[None]
+        def trace(key):
+          variables=model.init({'params':key,'aqt':key},tokens,positions,tokens,tokens,enable_dropout=False)
+          def loss(p):
+            result,outputs=model.apply({'params':p},tokens,positions,tokens,tokens,
+                enable_dropout=False,mutable=['intermediates'],rngs={'aqt':key})
+            emitted={'scalar':{}}
+            record_bam_dual_write_health_metrics(emitted,outputs,cfg)
+            return jnp.mean(result[0]),emitted
+          return jax.value_and_grad(loss,has_aux=True)(variables['params'])
+        (_,emitted),_=jax.eval_shape(trace,jax.random.key(94))
+        self.assertIn('bam/dual_write/layer_002/head_01/feedback_mean',emitted['scalar'])
+        if raw_feedback:
+          self.assertIn('bam/raw_write/layer_002/feedback_record_norm_rms',emitted['scalar'])
+
   def test_raw_local_o_feedback_bypasses_read_gate_and_has_gradients(self):
     import copy
     import max_utils

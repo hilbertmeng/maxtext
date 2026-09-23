@@ -291,6 +291,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_vo_independent_gates = False
     bam_local_o_separate_write_gate = False
     bam_local_o_write_from_raw = False
+    bam_local_o_shared_gelu_gates = False
     bam_record_dual_write_health = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
     bam_local_gram_implementation = 'mul_reduce'  # effective_key Gram: dot | mul_reduce
@@ -8940,6 +8941,25 @@ class BamMediumAllLocalRawReadWriteGate(BamMediumAllLocalDualWriteGates):
     compare_runs = ['BamMediumAllLocalDualWriteGates',
         'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-alllocal-raw-read-write'
+
+
+class BamMediumAllLocalDualWriteSharedGelu3N(BamMediumAllLocalDualWriteGates):
+    """Shared GELU hidden width3N jointly produces LocalO read/main/feedback gates."""
+    # Implementation: codex/medium-alllocal-dual-write, /data0/xd/medium-alllocal-dual-write.
+    # Replaces three D->N kernels by D->3N->3N; biases retained. +2304/layer=.00219727 W_Q.
+    model_name = 'BamMediumAllLocalDualWriteSharedGelu3N'
+    bam_local_o_shared_gelu_gates = True
+    compare_runs = ['BamMediumAllLocalDualWriteGates']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-dual-write-gelu3n'
+
+
+class BamMediumAllLocalRawReadWriteSharedGelu3N(BamMediumAllLocalRawReadWriteGate):
+    """Shared GELU width3N gates with feedback applied directly to the ungated read."""
+    # Same worktree/branch; same parameter delta as DualWriteSharedGelu3N, M-cache unchanged.
+    model_name = 'BamMediumAllLocalRawReadWriteSharedGelu3N'
+    bam_local_o_shared_gelu_gates = True
+    compare_runs = ['BamMediumAllLocalRawReadWriteGate', 'BamMediumAllLocalDualWriteSharedGelu3N']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-raw-write-gelu3n'
 
 
 class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerMRelayM3(BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer):

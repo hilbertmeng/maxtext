@@ -23,5 +23,40 @@ Target: independent `xd-v5p-32-xlprop-matched-health` in UE5a after both AOTs re
 Orchestration: `run_profile_matrix.sh`; no auto-train controller on profile TPU.
 Release the diagnostic TPU after verified artifact collection.
 
-Prediction before timing: MHA control .50–.55 steps/s; BAM basic-health .40–.43,
-BAM roughly18–25% slower. These are hypotheses, not calibrated measurements.
+## Result
+
+Runtime `1517cce01b1899e7c8287e1f637775e97d8a8d28`; same UE5a v5p-32
+`xd-v5p-32-xlprop-matched-health`, 2026-09-23. Both arms loaded AOT.
+
+| Configuration | Trace-free step/s (20–24) | vs MHA control | Device-step ms |
+|---|---:|---:|---:|
+| BamMHAXLPropC256BasicHealthProfile | .5610 | — | 1771.361 |
+| BamXLPropK72SharedRank4BasicHealthProfile | .3890 | -30.66% | 2546.169 |
+
+BAM step time +43.74%; XPlane model FLOPs194.31856->195.98080TF (+.855%),
+bytes1728.211->2381.272GB (+37.79%). Copy kernels17.224->174.354ms.
+BAM read/write scopes total462.534ms; LocalQK141.930ms, write131.872ms,
+VO/FetchedO read76.356ms. These source scopes can overlap through fusion;
+copy time is a separate classification and must not be added again.
+QK-logits scope202.460->308.101ms despite essentially unchanged model FLOPs;
+MLP637.007->744.614ms with the widened MLP. These are attribution clues, not
+isolated causal measurements of operators.
+
+Formal same-zone speeds: Splash MHA~.548–.550, BAM with concat health~.384.
+Thus control MHA is ~2% faster than Splash, while BAM basic-health is only~1.3%
+faster than the formal health-enabled run. Neither comparison is a same-VM
+single-factor ablation; the decisive .561/.389 pair is same-VM/matched-health.
+Extra health and a faster Splash baseline do not explain BAM's large overhead.
+
+Theory script `/data0/xd/bam_diagnostics/xlprop-theory/flops.py`:
+ideal causal forward contractions14.13385/14.33057 W_Q per-layer average;
+both C25614.26667/14.47161 (+1.4365%). Counts nominal28 writes; removing the
+unused final write lowers BAM by.01147 W_Q. LM head adds.93810 to both.
+
+Raw logs `mha.log`, `bam.log`; exact points `speeds.json`; per-device profiles
+`mha-profile.json`, `bam-profile.json`, aggregate `profile-summary.json` under
+the artifact directory above. Both XPlanes and both JSON traces verified locally.
+GCS prefix `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/1517cce/xlprop-matched-health/`.
+
+Cleanup verified: diagnostic TPU and queued resource absent after artifact collection;
+no diagnostic preemptions. Borrowed EW4a non-preemptible compiler remained READY.

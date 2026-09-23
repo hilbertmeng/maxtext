@@ -665,3 +665,19 @@ These are observational same-head diagnostics, not full-M or causal ablations.
 [Complete distributions, held-out checks and reproduction](alllocal_write_geometry.md).
 Diagnostic implementation: `codex/alllocal-write-geometry`, `/data0/xd/alllocal-write-geometry`.
 The user requested retaining `xd-v6e-alllocal-geom-3-0922` in EW4a after completion.
+
+### XLProp C256 matched-basic-health profile
+
+Runtime `1517cce`, same UE5a v5p-32, full28xD1920/head96,T4096,batch8/device.
+`BamMHAXLPropC256BasicHealthProfile` vs `BamXLPropK72SharedRank4BasicHealthProfile`:
+trace-free20–24 .5610/.3890 steps/s (**BAM -30.66%**), device-step1771.36/2546.17ms.
+Both use C256, basic training health ON, BAM sow OFF. The formal Splash MHA is
+~.548–.550; formal BAM with concat health~.384. Extra health explains little.
+
+Matched-C256 forward theory14.26667/14.47161 W_Q per-layer average (+1.44%,
+excluding LM head/elementwise); XPlane model FLOPs+0.855%, bytes+37.79%, time+43.74%.
+Copy kernels17.2->174.4ms. LocalQK141.9ms/write131.9ms outweigh temporal fetch15.6ms,
+although temporal fetch dominates the added theoretical arithmetic. Prioritize layout/copies
+and small read/write contractions; do not infer the bottleneck from FLOPs alone.
+Source scopes and copy classification overlap and must not be summed.
+[Reproduction, precise configuration differences and artifacts](xl_prop_matched_health_profile.md).

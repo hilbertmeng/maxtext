@@ -9342,6 +9342,8 @@ class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank
 
 class BamMHAXLPropC256BasicHealthProfile(TrainStepProfile, BamLlama2XLProp):
     """XLProp MHA geometry through BAM's C256 attention; basic training health only."""
+    # code_commit: 1517cce
+    # UE5a v5p-32 .5610 steps/s (20–24); paired basic-health timing control.
     model_name = 'BamMHAXLPropC256BasicHealthProfile'
     bam_mha_control = True
     bam_layer_modes = ['none'] * 28
@@ -9366,6 +9368,8 @@ class BamXLPropK72SharedRank4BasicHealthProfile(
     TrainStepProfile, BamLlama2XLPropK72SharedRank4MLPPerLayerTrain
 ):
     """Exact formal XLProp BAM architecture with concat health disabled for paired timing."""
+    # code_commit: 1517cce
+    # UE5a v5p-32 .3890 steps/s, -30.66% vs BamMHAXLPropC256BasicHealthProfile; matched basic health.
     model_name = 'BamXLPropK72SharedRank4BasicHealthProfile'
     record_training_health_metrics = True
     record_internal_nn_metrics = False

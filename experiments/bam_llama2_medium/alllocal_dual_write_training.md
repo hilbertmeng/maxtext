@@ -40,4 +40,12 @@ Watch for saturation, failure of gate divergence, changed read/write correlation
 
 ## Validation and results
 
-Passed: equal-gate exact forward parity, nonzero LocalO isolation, independent gradients, shared-denominator formula, metric indexing, actual AllLocal scan/remat forward/backward tracing. Full BAM suite is being rerun after updating its fixed-write test fixture for the new disabled-by-default flag. Pending: exact-commit AOT, FIRST_STEP and TensorBoard verification. Runtime hash, throughput and same-step loss results are recorded in the experiment ledger after launch.
+Passed: equal-gate exact forward parity, nonzero LocalO isolation, independent gradients, shared-denominator formula, metric indexing, actual AllLocal scan/remat forward/backward tracing. All 47 pinned CPU BAM tests passed (320 seconds). Runtime commit: `521213bb9f0253c5a8d019b061461b36c40d20d2`. AOT controller state: `tpu-ag:/home/lishengping/xd/projects/aot_runs/521213b-d7d26bea.json`. Pending: exact-commit AOT, FIRST_STEP and TensorBoard verification. Runtime hash, throughput and same-step loss results are recorded in the experiment ledger after launch.
+
+Health summaries after incremental TB sync:
+
+```bash
+/data0/xd/conda/envs/maxtext-cpu/bin/python experiments/bam_llama2_medium/report_dual_write_health.py --steps 0,200 --output /data0/xd/bam_diagnostics/dual_write_training/health.json
+```
+
+The summary checks all 3,768 tags at a common recorded step and saves all values alongside head distributions for early L1–2, middle L3–16 and late L17–22. Generic TB also records both gate kernels/biases' parameter and raw-gradient norms.

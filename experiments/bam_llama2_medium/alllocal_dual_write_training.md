@@ -386,3 +386,41 @@ SIGN_CROSS: 3000:-0.000883 -> 3200:+0.000638
 Original gated6000 gapvsAllLocal-.001801, recent5mean-.002400 (-.003290..-.001801), middle feedbacknormshare .10900.
 
 Tanh launch verification: Loaded compiled function; step10–14 speeds .628/.628/.620/.625/.628, mean.6258, raw-2.31%vslinear gated. Health5736vs3768 unmatched (genericON); cannot attribute difference to architecture or solely to health overhead. All5736BAM tags finite at0/20. At0 feedback exactzero; at20 all22 L1–22 kernel gradients and22 biases nonzero/finite (median kernel.00186515, bias.0000616523). Middle per-layer head-mean medians: abs gate.082013, negative fraction.450857, abs<.02 fraction.137176, negative feedback share of all-component norms.073480/energies.024757. Headwise median signed gate.002272 hides substantial bidirectional writing. Artifacts tanh_health_initial.json, tanh_gradients_initial.json.
+
+### Raw GELU2000 and gated-GELU stop recommendation
+
+RawGELU at2000 vs rawlinear+.018613 (recent5mean+.026176, range+.018613..+.036634); vs gatedGELU-.011377 (recent5mean-.010480, range-.011419..-.009075); algebraic vs linear gated+.027666. Middle rho read/main-.56349; feedback normshare.15479 vs gatedGELU.12592. Neither beats linear controls; rawGELU retains consistent within-GELU advantage. GatedGELU suffered firstpreemption, committed2334, now recovering. User asked whether either can stop; recommend stop gatedGELU now and keep rawGELU to2800. Stop dryrun confirmscheckpoint2334/noestimatedloststeps. Early-stop user question pending; no stop executed yet.
+
+```text
+RUN=BamMediumAllLocalDualWriteGates zone=us-east5-a progress=6196 checkpoint=6200 report=-
+RUN=BamMediumAllLocalDualWriteSharedGelu3N zone=us-east5-a progress=2267 checkpoint=2334 report=2200
+RUN=BamMediumAllLocalDualWriteSharedGelu3N BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200
+ gap: +0.392038  +0.276495  +0.165416  +0.107976  +0.083275  +0.066721  +0.056248  +0.046463  +0.043358  +0.039042  +0.034095
+r200:        --     -0.295     -0.402     -0.347     -0.229     -0.199     -0.157     -0.174     -0.067     -0.100     -0.127
+
+trend: last5_mean=+0.043841 prev5_mean=+0.139976 drift=-0.096135/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N zone=us-east5-a progress=2119 checkpoint=2000 report=2000
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N BASE=BamMediumAllLocalRawReadWriteGate gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000
+ gap: +0.249642  +0.188505  +0.108150  +0.069061  +0.048863  +0.036634  +0.030840  +0.023215  +0.021576  +0.018613
+r200:        --     -0.245     -0.426     -0.361     -0.292     -0.250     -0.158     -0.247     -0.071     -0.137
+
+trend: last5_mean=+0.026176 prev5_mean=+0.132844 drift=-0.106669/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N BASE=BamMediumAllLocalDualWriteSharedGelu3N gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000
+ gap: -0.025465  +0.000938  -0.008836  -0.011130  -0.011241  -0.011419  -0.009075  -0.010427  -0.010101  -0.011377
+r200:        --     -0.963     +8.424     +0.260     +0.010     +0.016     -0.205     +0.149     -0.031     +0.126
+
+trend: last5_mean=-0.010480 prev5_mean=-0.011147 drift=+0.000667/1000steps (toward 0)
+
+RUN=BamMediumAllLocalDualWriteTanhFeedback zone=us-east5-a progress=111 checkpoint=- report=-
+```
+
+### Tanh200: clear early advantage, not yet a late-training conclusion
+
+At200 standard +/-25 window gap=-.232775 vs linear sigmoid dual. All-step audit confirms: steps0/1 losses exactequal; gaps50–99 mean-.038058 (48/50negative),100–149 -.069163 (50/50negative),150–199 -.108893 (50/50negative),175–225 -.222538 (51/51negative, range-.352850..-.066722). Not a single-batch outlier. Tanh changes activation AND initialization, so cannot causally attribute all gain to negative feedback.
+
+Middle per-layer head-mean medians at20/100/200: abs gate .082013/.20277/.26681; negative fraction .450857/.68809/.72161; negative share of all-component norms .073480/.44846/.35008; energy shares .024757/.53450/.37847. Actual negative writing is substantial, but erasure requires content/address alignment. All health finite. `tanh_health_200.json`.

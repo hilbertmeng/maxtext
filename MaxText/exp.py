@@ -8938,6 +8938,7 @@ class BamMediumAllLocalDualWriteTanhFeedback(BamMediumAllLocalDualWriteGates):
     # code_commit: c3850c0; UE5a .6258 steps/s (-2.31% raw vs dual, health5736/3768 unmatched).
     # AOT load/FIRST_STEP verified; all5736 health finite; L1-22 feedback gradients nonzero at20.
     # Training13500/review2800 on retained raw-linear TPU; zero start learns both signs by20.
+    # At200 vs sigmoid dual gap-.232775; all51 paired steps175-225 favor tanh; early only.
     model_name = 'BamMediumAllLocalDualWriteTanhFeedback'
     bam_feedback_write_activation = 'tanh'
     compare_runs = ['BamMediumAllLocalDualWriteGates']

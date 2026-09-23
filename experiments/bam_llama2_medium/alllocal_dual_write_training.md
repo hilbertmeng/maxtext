@@ -187,3 +187,60 @@ Gated GELU step1000: cumulative gaps200/400/600/800/1000 +.392038/+.276495/+.165
 User requested reconsidering kernel scale; final decision is kernel=0 and bias=0, so feedback starts identically closed. The prior zero-bias/random-kernel AOT is cancelled before launch. This intentionally prioritizes learning signed feedback from no feedback over matching the sigmoid baseline. A single linear zero-initialized gate has no symmetry blockage: once LocalO reads become nonzero, its kernel/bias can receive gradients. At initial W_R=0 the feedback operand itself is zero; therefore validation checks gate gradients with nonzero reads, not an impossible step-zero gradient. Existing read/residual paths remain active.
 
 Zero-kernel/bias focused test passed56.830s: exact zero opening, finite nonzero kernel and bias gradients with nonzero LocalO, signed-write isolation, and scan/remat health export. Log `/tmp/tanh_zero_kernel_test.log`.
+
+### Monitoring through gated5200 / raw2600 / GELU1400 / rawGELU1200
+
+```text
+RUN=BamMediumAllLocalDualWriteGates zone=us-east5-a progress=5387 checkpoint=5200 report=5200
+RUN=BamMediumAllLocalDualWriteGates BASE=BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600       2800       3000       3200       3400       3600       3800       4000
+ gap: -0.089551  -0.072856  -0.047778  -0.030070  -0.026387  -0.019499  -0.014381  -0.010470  -0.009856  -0.009242  -0.007330  -0.007953  -0.005539  -0.005792  -0.006135  -0.001504  -0.004288  -0.003571  -0.003007  -0.003851
+r200:        --     -0.186     -0.344     -0.371     -0.122     -0.261     -0.262     -0.272     -0.059     -0.062     -0.207     +0.085     -0.304     +0.046     +0.059     -0.755     +1.851     -0.167     -0.158     +0.281
+
+step:      4200       4400       4600       4800       5000       5200
+ gap: -0.003339  -0.002598  -0.001901  -0.002922  -0.002954  -0.003290
+r200:    -0.133     -0.222     -0.268     +0.537     +0.011     +0.114
+
+trend: last5_mean=-0.002733 prev5_mean=-0.003612 drift=+0.000879/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteGate zone=us-east5-a progress=2677 checkpoint=2600 report=2600
+RUN=BamMediumAllLocalRawReadWriteGate BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600
+ gap: +0.116930  +0.088927  +0.048430  +0.027785  +0.023171  +0.018668  +0.016333  +0.012822  +0.011681  +0.009053  +0.008048  +0.008465  +0.005327
+r200:        --     -0.239     -0.455     -0.426     -0.166     -0.194     -0.125     -0.215     -0.089     -0.225     -0.111     +0.052     -0.371
+
+trend: last5_mean=+0.008515 prev5_mean=+0.019756 drift=-0.011241/1000steps (toward 0)
+
+RUN=BamMediumAllLocalRawReadWriteGate BASE=BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600
+ gap: +0.027379  +0.016071  +0.000651  -0.002285  -0.003216  -0.000831  +0.001952  +0.002352  +0.001826  -0.000189  +0.000717  +0.000511  -0.000212
+r200:        --     -0.413     -0.959     +2.507     +0.408     -0.742     +1.349     +0.205     -0.224     -0.896     +2.788     -0.287     -0.585
+
+trend: last5_mean=+0.000531 prev5_mean=-0.000406 drift=+0.000936/1000steps (deepening)
+
+SIGN_CROSS: 2000:-0.000189 -> 2200:+0.000717
+SIGN_CROSS: 2400:+0.000511 -> 2600:-0.000212
+RUN=BamMediumAllLocalDualWriteSharedGelu3N zone=us-east5-a progress=1570 checkpoint=1400 report=1400
+RUN=BamMediumAllLocalDualWriteSharedGelu3N BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400
+ gap: +0.392038  +0.276495  +0.165416  +0.107976  +0.083275  +0.066721  +0.056248
+r200:        --     -0.295     -0.402     -0.347     -0.229     -0.199     -0.157
+
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N zone=us-east5-a progress=1259 checkpoint=1200 report=1200
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N BASE=BamMediumAllLocalRawReadWriteGate gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200
+ gap: +0.249642  +0.188505  +0.108150  +0.069061  +0.048863  +0.036634
+r200:        --     -0.245     -0.426     -0.361     -0.292     -0.250
+
+RUN=BamMediumAllLocalRawReadWriteSharedGelu3N BASE=BamMediumAllLocalDualWriteSharedGelu3N gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200
+ gap: -0.025465  +0.000938  -0.008836  -0.011130  -0.011241  -0.011419
+r200:        --     -0.963     +8.424     +0.260     +0.010     +0.016
+
+SIGN_CROSS: 200:-0.025465 -> 400:+0.000938
+SIGN_CROSS: 400:+0.000938 -> 600:-0.008836
+```
+
+Original gated5000 middle-head median: read .06640, main .18512, feedback .07491, LocalO norm share .11741 (4000: .13043). Modest loss advantage persists; share reduction is relative, not evidence of reduced absolute feedback. RawGELU versus gatedGELU has a persistent local advantage over600–1200 despite both lagging linear controls; initialization confound still applies.
+
+Runtime sealed/pushed `c3850c00e2ea71c83bcc14076167b251e8664746`. Exact AOT state `tpu-ag:/home/lishengping/xd/projects/aot_runs/c3850c0-83231384.json`; primaryUC1a and after300s retained backupsEW4a/UE5a. Superseded `cea27a0-b7fda4a5` is interrupted with cleanup_failures=[]; all three owned compiler candidates removed. No old tanh variant was trained. Existing diagnostic machines were not touched.

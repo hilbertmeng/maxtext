@@ -8919,7 +8919,7 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
     # code_commit: 521213b; UE5a .6406 steps/s; running to planned13500, review2800.
     # Raw speed -.84% vs AllLocal .6460; unmatched BAM3768 vs1056, generic ON.
     # All3768 health tags verified finite; step20 feedback gradients nonzero on L1-L22.
-    # At4000 vs AllLocal: gap-.003851, recent5 mean-.003244; shrinking early gain, health finite.
+    # At5000 vs AllLocal: gap-.002954, recent5 mean-.002743; modest remaining gain, health finite.
     model_name = 'BamMediumAllLocalDualWriteGates'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 24
     bam_local_o_separate_write_gate = True
@@ -8974,6 +8974,7 @@ class BamMediumAllLocalRawReadWriteSharedGelu3N(BamMediumAllLocalRawReadWriteGat
     # Same worktree/branch; same parameter delta as DualWriteSharedGelu3N, M-cache unchanged.
     # code_commit: e160481; UE5a .6380 steps/s (+.03% vs raw .6378), matched health3816.
     # FIRST_STEP/load verified; health3816 finite at0/20; training13500/review2800.
+    # At1200: +.036634 vs raw linear (shrinking); -.011419 vs gated GELU (600-1200 advantage).
     model_name = 'BamMediumAllLocalRawReadWriteSharedGelu3N'
     bam_local_o_shared_gelu_gates = True
     compare_runs = ['BamMediumAllLocalRawReadWriteGate', 'BamMediumAllLocalDualWriteSharedGelu3N']

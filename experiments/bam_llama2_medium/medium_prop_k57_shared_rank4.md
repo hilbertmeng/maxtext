@@ -79,3 +79,22 @@ Throughput issue resolved operationally by same-AOT resource replacement. Paired
 normal-resource throughput is .5637 vs .7271 steps/s (-22.5%); formal resume also
 showed ~.564. This supersedes the unstable startup/window numbers above. See
 [repeat profile and resource repair](medium_prop_repeat_profile.md) for evidence.
+
+## Completed 13,500
+
+Both final checkpoint13500 commits verified; all three assigned TPU names and queued resources absent. Automatic local TB sync recorded both completion markers.
+
+Final five windows12600–13400: Prop gap mean -.09743684 (range -.098733..-.096778); historical Medium mean -.1009301192; benefit ratio .965388. Early advantage shrank and settled near -.10 late. The predicted .80 benefit ratio underestimated retention; aspect-ratio reduction alone did not predict its size. Full cumulative paired gaps: [report](prop_paired_loss_20260923.md).
+
+MHA: no preemptions. BAM: three preemptions, plus one manual resource replacement. All READY intervals (UTC):
+
+```text
+BamMHAMediumPropC256: preemptions=0 ready_leases=1
+01    5h22m36s  us-east5-a  xd-v5p-16-mediumprop-mha-maxtext  2026-09-23T13:05:10Z -> 2026-09-23T18:27:46Z  run_stop
+BamLlama2MediumPropK57SharedRank4MLPPerLayer: preemptions=3 ready_leases=5
+01    1h08m39s  us-east5-a  xd-v5p-16-mediumprop-k57-maxtext  2026-09-23T13:05:13Z -> 2026-09-23T14:13:52Z  hot_switch_run_boundary
+02       3m07s  us-east5-a  xd-v5p-16-mediumprop-repeat  2026-09-23T14:13:58Z -> 2026-09-23T14:17:05Z  preempted
+03    1h05m40s  us-east5-a  xd-v5p-16-mediumprop-repeat  2026-09-23T14:24:21Z -> 2026-09-23T15:30:01Z  preempted
+04      12m25s  us-east5-a  xd-v5p-16-mediumprop-repeat  2026-09-23T15:39:07Z -> 2026-09-23T15:51:32Z  preempted
+05    5h12m08s  us-east5-a  xd-v5p-16-mediumprop-repeat  2026-09-23T15:59:31Z -> 2026-09-23T21:11:39Z  run_stop
+```

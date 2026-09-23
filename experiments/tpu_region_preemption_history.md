@@ -333,6 +333,10 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerV48` | v5p-16 | `us-east5-a` | 2026-09-23 01:59:36 | 2026-09-23 03:28:11 | review stop; checkpoint2891 committed; 0 preemptions | UC1a/EW4b backups, never active |
 | `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal` | `xd-v5p-32-xl-k96-rank4-all-local-maxtext` (v5p-32) | `us-east5-a` | 2026-09-22 14:19:51 | 2026-09-23 08:00:44 | user stop; checkpoint31583 committed; 2 preemptions; TPU/queue verified absent | UC1a/EW4b configured, never active |
 
+| `BamMHAMediumPropC256` | v5p-16 | `us-east5-a` | 2026-09-23 13:01:04 | 2026-09-23 18:27:46 | completed13500; TPU/queue absent | none activated |
+| `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-23 13:01:04 | 2026-09-23 14:13:52 | same-RUN resource replacement at checkpoint942 | none activated |
+| `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-23 14:13:55 | 2026-09-23 21:11:39 | completed13500; TPU/queue absent | none activated |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1025,3 +1029,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal | 2 | `us-east5-a` | 2026-09-22 14:45:55 | 2026-09-22 16:33:15 | 1h47m20s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerV48 | 1 | `us-east5-a` | 2026-09-23 02:04:46 | 2026-09-23 03:28:11 | 1h23m25s | review stop; checkpoint2891 committed; TPU/queue absent |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal | 3 | `us-east5-a` | 2026-09-22 16:41:42 | 2026-09-23 08:00:44 | 15h19m02s | user stop; checkpoint31583 committed; TPU/queue absent |
+| `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 1 | `us-east5-a` | 2026-09-23 13:05:13 | 2026-09-23 14:13:52 | 1h08m39s | manual resource replacement |
+| `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 2 | `us-east5-a` | 2026-09-23 14:13:58 | 2026-09-23 14:17:05 | 3m07s | preempted; RUN-owned interval; VM previously used for diagnostic |
+| `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 3 | `us-east5-a` | 2026-09-23 14:24:21 | 2026-09-23 15:30:01 | 1h05m40s | preempted |
+| `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 4 | `us-east5-a` | 2026-09-23 15:39:07 | 2026-09-23 15:51:32 | 12m25s | preempted |
+| `BamMHAMediumPropC256` | 1 | `us-east5-a` | 2026-09-23 13:05:10 | 2026-09-23 18:27:46 | 5h22m36s | completed13500 |
+| `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 5 | `us-east5-a` | 2026-09-23 15:59:31 | 2026-09-23 21:11:39 | 5h12m08s | completed13500 |

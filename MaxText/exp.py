@@ -9268,3 +9268,48 @@ class BamLlama2XLProp(Llama2XLProp, BamLlama2MediumProp):
     bam_abs_v_compression_dim = 10
     bam_partial_rope_nope_dim = 72
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-xl-prop'
+
+
+class BamLlama2XLPropK96QK72SharedRank4MLPPerLayer(BamLlama2XLProp):
+    """Config only: XL shared-rank4 recipe on Prop; nine LLF blocks plus a final L."""
+    # Not launched. 27+1 scan/final-MLP support lives in codex/llf-parameter-matched;
+    # that scheduling implementation must be ported before running on refactor-bam.
+    # Prop large M96x40/C10; standard QK24 + static/dynamic BAM72; RoPE on QK24 only.
+    # MHA budget: 1,432,398,720; nearest equal-layer BAM budget: +14,000 (+.00098%).
+    # Shape audit: /data0/xd/xl-prop-final-audit.json.
+    model_name = 'BamLlama2XLPropK96QK72SharedRank4MLPPerLayer'
+    bam_k = 96
+    bam_concat_qk = True
+    bam_concat_static_qk = True
+    bam_local_qk_col_output_dim = 72
+    bam_local_qk_col_only = True
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_direct_c8 = False
+    bam_local_qk_separate_c8_projection = False
+    bam_local_qk_share_basis = True
+    bam_local_q_rank = 4
+    bam_local_k_rank = None
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None
+    bam_local_gram_scale_placement = 'mix'
+    bam_local_o_compress_v = True
+    bam_local_vo_shared_read = 'local_o'
+    bam_local_vo_independent_gates = True
+    bam_read_gate_init = .05
+    bam_read_key_scale = .2
+    bam_local_v_key_scale = .1
+    bam_write_outer_implementation = 'dot'
+    bam_read_implementation = 'dot_btn'
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 9 + ['local_qk+local_v+local_o']
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    bam_extra_final_local_layer = True
+    bam_final_local_mlp_dim = 5752
+    mlp_dim_by_block = [5752, 5752, 5752]
+    wd_mults = []  # Preserve the SOTA runtime's all-decay rule.
+    bam_record_concat_health = True
+    record_training_health_metrics = True
+    steps = 50000
+    force_final_checkpoint = True
+    compare_runs = ['Llama2XLProp']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-prop-k96-qk72-shared-rank4'

@@ -9266,6 +9266,70 @@ class BamLlama2MediumProp(Llama2MediumProp, BamLlama2MediumV2C256ScanAotCleanCon
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/bam-medium-prop'
 
 
+class BamMHAMediumPropC256(BamLlama2MediumProp):
+    """MediumProp MHA through BAM's C256 attention; no matrix stream."""
+    # Not launched. Odd head_dim75: rotate74 coordinates, leave the first one unrotated.
+    model_name = 'BamMHAMediumPropC256'
+    bam_mha_control = True
+    bam_layer_modes = ['none'] * 18
+    bam_pair_scan = False
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 1
+    bam_concat_qk = False
+    bam_concat_static_qk = False
+    mlp_dim_by_block = None
+    attention = 'dot_product_chunk'
+    query_chunk_size = 256
+    wd_mults = Llama2MediumProp.wd_mults
+    bam_record_concat_health = False
+    checkpoint_period = 200
+    steps = 13500
+    force_final_checkpoint = True
+    compare_runs = []
+
+
+class BamLlama2MediumPropK57SharedRank4MLPPerLayer(BamLlama2MediumProp):
+    """Medium K48 shared-rank4 recipe scaled to Prop; six LLF blocks."""
+    # Not launched. 48/64*75=56.25 -> K57 to keep an even RoPE18 subspace.
+    # P_loc output stays16*32=512, so its GELU bottleneck stays256.
+    # Bet: final gap vs BAM-MHA control ~-.080 (-.060..-.110).
+    # Nearest equal per-layer budget: 432118896 params, -2304 vs MHA (-.000533%).
+    model_name = 'BamLlama2MediumPropK57SharedRank4MLPPerLayer'
+    bam_k = 57
+    bam_write_v_bottleneck_dim = 256
+    bam_concat_qk = True
+    bam_concat_static_qk = True
+    bam_local_qk_col_output_dim = 57
+    bam_local_qk_col_direct_compressed = False
+    bam_local_qk_direct_c8 = False
+    bam_local_qk_separate_c8_projection = False
+    bam_local_qk_share_basis = True
+    bam_local_q_rank = 4
+    bam_local_k_rank = None
+    bam_local_q_rank_routing = 'effective_key'
+    bam_local_k_rank_routing = None
+    bam_local_gram_scale_placement = 'mix'
+    bam_local_o_compress_v = True
+    bam_local_vo_shared_read = 'local_o'
+    bam_local_vo_independent_gates = True
+    bam_local_v_rank_routing = 'head_gate_r'
+    bam_read_gate_init = .05
+    bam_read_key_scale = .2
+    bam_local_v_key_scale = .1
+    bam_layer_modes = ['local_qk+local_v+local_o', 'local_qk+local_v+local_o', 'local_qk+full'] * 6
+    bam_pair_scan = True
+    bam_local_fetch_block_size = 3
+    mlp_dim_by_block = [3531, 3531, 3531]
+    bam_record_concat_health = True
+    bam_record_fetched_read_amplitude_metrics = False
+    bam_record_local_qk_amplitude_metrics = False
+    checkpoint_period = 200
+    steps = 13500
+    force_final_checkpoint = True
+    compare_runs = ['BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-prop-k57-shared-rank4'
+
+
 class BamLlama2XLProp(Llama2XLProp, BamLlama2MediumProp):
     """Same BAM recipe at XL scale: M48x40/C10, NoPE72/RoPE24."""
     # Large M: override bam_k=96 AND bam_local_qk_col_output_dim=72.

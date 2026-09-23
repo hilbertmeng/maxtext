@@ -221,6 +221,7 @@ class Llama2MediumProp(Llama2Medium):
     head_dim = 75
     base_mlp_dim = 3200  # Exact SwiGLU expansion 8/3, shared with XLProp.
     max_target_length = 4096
+    per_device_batch_size = 16.0
     scan_layers = True
 
 
@@ -5612,6 +5613,7 @@ class Llama2XLProp(Llama2XL):
     head_dim = 96
     base_mlp_dim = 5120  # Exact SwiGLU expansion 8/3, shared with MediumProp.
     max_target_length = 4096
+    per_device_batch_size = 8.0
     scan_layers = True
     record_training_health_metrics = True
     float32_logits = False  # Match the BAM recipe's attention-logit precision.
@@ -9319,3 +9321,15 @@ class BamLlama2XLPropK72SharedRank4MLPPerLayer(BamLlama2XLProp):
     force_final_checkpoint = True
     compare_runs = ['Llama2XLProp']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/xl-prop-k72-r400-shared-rank4'
+
+class Llama2XLPropTrain(Llama2XLProp):
+    """Formal batch8 RUN; replaces the invalid batch32 startup prefix."""
+    model_name = 'Llama2XLPropTrain'
+    compare_runs = []
+
+
+class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
+    """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
+    model_name = 'BamLlama2XLPropK72SharedRank4MLPPerLayerTrain'
+    compare_runs = ['Llama2XLPropTrain']
+

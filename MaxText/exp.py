@@ -8934,7 +8934,7 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
 class BamMediumAllLocalDualWriteTanhFeedback(BamMediumAllLocalDualWriteGates):
     """Signed tanh feedback of gated LocalO; sigmoid main write and original shared RMS."""
     # Same branch/worktree as dual-write parent. No parameter or M-cache delta.
-    # Neutral tanh init: bias0, kernel copied from main unchanged; permits either sign from start.
+    # Closed tanh init: kernel0 and bias0; learn signed feedback from zero.
     model_name = 'BamMediumAllLocalDualWriteTanhFeedback'
     bam_feedback_write_activation = 'tanh'
     compare_runs = ['BamMediumAllLocalDualWriteGates']

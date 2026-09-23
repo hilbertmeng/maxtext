@@ -180,3 +180,10 @@ User questioned the positive tanh bias; accepted zero bias as the natural signed
 Final tanh zero-bias/original-kernel focused test passed55.232s, including both initial signs, reverse-write isolation, finite nonzero feedback gradients and scan/signed-health export. Structural50-test suite passed343.139s on the immediately preceding nonzero-bias implementation; only tanh initialization constants changed afterward and were explicitly rechecked by the focused test. Logs `/tmp/tanh_feedback_full_tests.log` and `/tmp/tanh_natural_test.log`. Obsolete47fc105 AOT cancelled before artifact/training; state `interrupted`, `cleanup_failures=[]`, only owned UC1a candidate removed.
 
 Gated GELU step1000: cumulative gaps200/400/600/800/1000 +.392038/+.276495/+.165416/+.107976/+.083275; r200—/-.295/-.402/-.347/-.229. Last5mean+.205040, range[+.083275,+.392038]. Read-main middle rho sequence-.98750/-.95240/-.89976/-.87335/-.79076, compared with linear-.16874 at1000. Normshare .19095 versus linear.25182. Strong early coupling weakens but deficit remains. Checkpoint1000 committed, finite health, artifact `gelu_health_1000.json`; cursor1000.
+
+
+### Superseding tanh initialization: closed feedback gate
+
+User requested reconsidering kernel scale; final decision is kernel=0 and bias=0, so feedback starts identically closed. The prior zero-bias/random-kernel AOT is cancelled before launch. This intentionally prioritizes learning signed feedback from no feedback over matching the sigmoid baseline. A single linear zero-initialized gate has no symmetry blockage: once LocalO reads become nonzero, its kernel/bias can receive gradients. At initial W_R=0 the feedback operand itself is zero; therefore validation checks gate gradients with nonzero reads, not an impossible step-zero gradient. Existing read/residual paths remain active.
+
+Zero-kernel/bias focused test passed56.830s: exact zero opening, finite nonzero kernel and bias gradients with nonzero LocalO, signed-write isolation, and scan/remat health export. Log `/tmp/tanh_zero_kernel_test.log`.

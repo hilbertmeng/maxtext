@@ -232,12 +232,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
       args=(x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
       kw=dict(M_in=memory,deterministic=True,layer_index=1)
       params=unfreeze(module.init({'params':jax.random.key(103)},*args,**kw)['params'])
-      np.testing.assert_allclose(nn.unbox(params['W_gw_feedback']['kernel']),nn.unbox(params['W_gw']['kernel']),rtol=1e-6)
+      np.testing.assert_array_equal(nn.unbox(params['W_gw_feedback']['kernel']),0.)
       np.testing.assert_array_equal(nn.unbox(params['feedback_gw_b0']),0.)
       np.testing.assert_allclose(jax.grad(lambda z:jnp.tanh(z))(0.),1.,rtol=1e-6)
       initial=module.bind({'params':params})
       signs=jnp.tanh(initial.W_gw_feedback(jax.random.normal(jax.random.key(106),(1,256,128))))
-      self.assertTrue(bool(jnp.any(signs>0)));self.assertTrue(bool(jnp.any(signs<0)))
+      np.testing.assert_array_equal(signs,0.)
       leaf=params['W_R']['kernel'];params['W_R']['kernel']=leaf.replace(value=.1*jax.random.normal(jax.random.key(104),leaf.value.shape))
       leaf=params['W_gw_feedback']['kernel'];params['W_gw_feedback']['kernel']=leaf.replace(value=jnp.zeros_like(leaf.value))
       outputs=[]
@@ -247,6 +247,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
         result,health=module.apply({'params':p},*args,**kw,mutable=['intermediates'])
         outputs.append(result)
         signed=health['intermediates']['signed_write_health'][0]
+        if opening == 0.:
+          grad=jax.grad(lambda q:jnp.mean(module.apply({'params':q},*args,**kw)[1]**2))(p)
+          for name in ('W_gw_feedback', 'feedback_gw_b0'):
+            value=nn.unbox(grad[name]['kernel'] if name == 'W_gw_feedback' else grad[name])
+            self.assertTrue(bool(jnp.all(jnp.isfinite(value))))
+            self.assertGreater(float(jnp.linalg.norm(value)),0.)
         if opening<0:
           for name in ('negative_fraction','negative_norm_share','negative_energy_share'):
             np.testing.assert_allclose(signed[:,SIGNED_WRITE_HEALTH_NAMES.index(name)],1.,rtol=1e-6)

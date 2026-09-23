@@ -87,4 +87,11 @@ Preregistered bet: final raw-minus-gated loss around -.002, with less than 1% ar
 
 Health keeps the 3768 dual-write metrics, but feedback magnitudes now use `f_raw*R/d`. Raw feedback probabilities and old probabilities multiply different operands and must not be directly interpreted as stronger/weaker effective feedback. Added48 scalars `bam/raw_write/layer_NNN/{main,feedback}_record_norm_rms` measure absolute RMS Frobenius norm of each individual head's component write record, including address and head scaling; these are not norms of the summed multihead update. Generic gate gradient/parameter health remains enabled. Total3816 BAM scalars versus3768 for the gated parent; mark speed as health-unmatched.
 
-Focused CPU test passed: nonzero raw read, read-gate closure with nonzero feedback and feedback gradients, unchanged current residual, explicit shared-denominator formula, initialization calibration and scan/remat tracing. Full pinned suite pending.
+Focused CPU test passed: nonzero raw read, read-gate closure with nonzero feedback and feedback gradients, unchanged current residual, explicit shared-denominator formula, initialization calibration and scan/remat tracing. All48 pinned CPU BAM tests passed in324.459 seconds. Runtime `e52e1663672f898406e39b553d4a76e5352b13c9`; full-suite log `/tmp/raw_write_full_tests.log`. Exact-runtime AOT acquisition in progress, state `tpu-ag:/home/lishengping/xd/projects/aot_runs/e52e166-2222e9f9.json`.
+
+
+### User report at step2000
+
+Checkpoint2000 committed, no preemption. Additional gaps at1200/1400/1600/1800/2000: -.019499/-.014381/-.010470/-.009856/-.009242; r200 -.261/-.262/-.272/-.059/-.062. Last5 mean-.0126896, range[-.019499,-.009242]. Advantage continues to shrink; no final benefit established.
+
+Middle L3–16 median main–feedback rho drops from .08038 at1000 to -.00731 at2000. Read–main/read–feedback rho at2000: -.12484/+.12693 (168/224 heads have the latter higher); main/feedback openings .14411/.08593. Median cumulative LocalO write normshare .17099 versus .25182 at1000. Gates specialize, with less relative LocalO write, but specialization alone does not establish loss benefit. All3768 tags finite at1000/1200/1400/1600/1800/2000. Artifacts `health_2000.json/png/pdf`. Next user report3000; review2800.

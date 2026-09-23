@@ -9,9 +9,6 @@
   Total 411883904, -1536 vs parent; compressed fetched cache remains 48x8.
 - Full13500 schedule, checkpoint200; review2800, report batches~1000 steps (200-step windows).
 - Generic training health and 968 BAM read-health scalars retained to match baseline.
-- Bet: final gap -.003, plausible -.006..+.002; 65% chance of a lower loss.
-  Speed -1..-4% vs UE5a .6378 steps/s. Benchmark judgment must distinguish a
-  small incremental gain from a substantial improvement over the existing ~-.1 MHA gap.
 
 Launch verified: runtime `768fc805d98954ab30be42b6095560438d2fc768`, UE5a.
 AOT loaded and FIRST_STEP confirmed; step10–14 mean .6130 steps/s,
@@ -19,3 +16,7 @@ AOT loaded and FIRST_STEP confirmed; step10–14 mean .6130 steps/s,
 and gradient checks passed; runtime attention source inherits the 46-test validated
 merge. Evidence: `/data0/xd/k48v48-launch-evidence.txt`,
 `/data0/xd/k48v48-traintrace.log`, `/data0/xd/k48v48-forward.log`.
+
+Stopped at2891: early loss advantage eroded to near zero; last5 through2800
+mean -.001117, last3 -.000399 vs K48. Speed -3.89%, fetched cache unchanged.
+Checkpoint2891 committed, TPU/queue absent, TensorBoard synced.

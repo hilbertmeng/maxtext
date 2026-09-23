@@ -290,6 +290,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
     bam_local_o_separate_write_gate = False
+    bam_feedback_write_activation = 'sigmoid'
     bam_local_o_write_from_raw = False
     bam_local_o_shared_gelu_gates = False
     bam_record_dual_write_health = False
@@ -8928,6 +8929,16 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
     checkpoint_period = 200
     compare_runs = ['BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-alllocal-dual-write'
+
+
+class BamMediumAllLocalDualWriteTanhFeedback(BamMediumAllLocalDualWriteGates):
+    """Signed tanh feedback of gated LocalO; sigmoid main write and original shared RMS."""
+    # Same branch/worktree as dual-write parent. No parameter or M-cache delta.
+    # At z=0 match sigmoid(.1) value/slope: bias=atanh(.1), kernel=main/11.
+    model_name = 'BamMediumAllLocalDualWriteTanhFeedback'
+    bam_feedback_write_activation = 'tanh'
+    compare_runs = ['BamMediumAllLocalDualWriteGates']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-dual-write-tanh-feedback'
 
 
 class BamMediumAllLocalRawReadWriteGate(BamMediumAllLocalDualWriteGates):

@@ -205,6 +205,71 @@ class BamReadKeyTransformTest(absltest.TestCase):
       self.assertIn('bam/dual_write/layer_002/head_01/feedback_mean',emitted['scalar'])
       self.assertIn('W_gw_feedback',str(gradients.keys())+str(gradients))
 
+  def test_tanh_feedback_signed_write_and_health(self):
+    import copy
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    from layers import models
+    from layers.attentions import SIGNED_WRITE_HEALTH_NAMES
+    from train import record_bam_dual_write_health_metrics
+    with tempfile.TemporaryDirectory() as out:
+      Path(out,'signed').mkdir()
+      cfg=pyconfig.initialize([None,str(Path(__file__).parents[1]/'configs/base.yml')],
+          exp_class='BamMediumAllLocalDualWriteTanhFeedback',run_name='signed',
+          enable_checkpointing=False,base_output_directory=out+'/',jax_cache_dir='',
+          log_config=False,dataset_type='synthetic',base_emb_dim=128,
+          base_num_query_heads=2,base_num_kv_heads=2,head_dim=64,max_target_length=8,
+          max_prefill_predict_length=8,query_chunk_size=4,per_device_batch_size=1.,dtype='float32')
+      cfg.get_keys()['bam_write_v_bottleneck_dim']=32
+      mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
+      module=BamAttention(config=cfg,num_query_heads=2,num_kv_heads=2,head_dim=64,
+          bam_k=48,max_target_length=8,max_prefill_predict_length=8,mesh=mesh,
+          attention_kernel='dot_product_chunk',dtype=cfg.dtype,
+          layer_mode='local_qk+local_v+local_o',read_side='col',attention_type=cfg.attention_type)
+      x=jax.random.normal(jax.random.key(101),(1,8,128))
+      memory=jax.random.normal(jax.random.key(102),(1,8,48,32))
+      args=(x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+      kw=dict(M_in=memory,deterministic=True,layer_index=1)
+      params=unfreeze(module.init({'params':jax.random.key(103)},*args,**kw)['params'])
+      np.testing.assert_allclose(nn.unbox(params['W_gw_feedback']['kernel']),nn.unbox(params['W_gw']['kernel'])/11,rtol=1e-6)
+      np.testing.assert_allclose(jnp.tanh(nn.unbox(params['feedback_gw_b0'])),.1,rtol=1e-6)
+      np.testing.assert_allclose(jax.grad(lambda z:jnp.tanh(z/11+jnp.arctanh(.1)))(0.),.09,rtol=1e-6)
+      leaf=params['W_R']['kernel'];params['W_R']['kernel']=leaf.replace(value=.1*jax.random.normal(jax.random.key(104),leaf.value.shape))
+      leaf=params['W_gw_feedback']['kernel'];params['W_gw_feedback']['kernel']=leaf.replace(value=jnp.zeros_like(leaf.value))
+      outputs=[]
+      for opening in (0.,.3,-.3):
+        p=copy.deepcopy(params);bias=p['feedback_gw_b0']
+        p['feedback_gw_b0']=bias.replace(value=jnp.full_like(bias.value,jnp.arctanh(opening)))
+        result,health=module.apply({'params':p},*args,**kw,mutable=['intermediates'])
+        outputs.append(result)
+        signed=health['intermediates']['signed_write_health'][0]
+        if opening<0:
+          for name in ('negative_fraction','negative_norm_share','negative_energy_share'):
+            np.testing.assert_allclose(signed[:,SIGNED_WRITE_HEALTH_NAMES.index(name)],1.,rtol=1e-6)
+          np.testing.assert_allclose(signed[:,-8:].sum(-1),1.)
+          np.testing.assert_array_equal(signed[:,SIGNED_WRITE_HEALTH_NAMES.index('abs_lt002')],0)
+          grad=jax.grad(lambda q:jnp.mean(module.apply({'params':q},*args,**kw)[1]**2))(p)
+          self.assertGreater(float(jnp.linalg.norm(nn.unbox(grad['W_gw_feedback']['kernel']))),0)
+      np.testing.assert_array_equal(outputs[0][0],outputs[1][0]);np.testing.assert_array_equal(outputs[0][0],outputs[2][0])
+      np.testing.assert_allclose(outputs[1][1]-outputs[0][1],-(outputs[2][1]-outputs[0][1]),rtol=2e-5,atol=2e-6)
+      self.assertGreater(float(jnp.linalg.norm(outputs[1][1]-outputs[0][1])),0)
+      for key,value in dict(num_decoder_layers=3,vocab_size=128,
+          bam_layer_modes=['local_qk+local_v+local_o']*3,mlp_dim_by_block=[128]*3).items():cfg.get_keys()[key]=value
+      model=models.Transformer(config=cfg,mesh=mesh,quant=None)
+      tokens=jnp.ones((1,8),jnp.int32);positions=jnp.arange(8)[None]
+      def trace(key):
+        variables=model.init({'params':key,'aqt':key},tokens,positions,tokens,tokens,enable_dropout=False)
+        def loss(p):
+          result,outputs=model.apply({'params':p},tokens,positions,tokens,tokens,
+              enable_dropout=False,mutable=['intermediates'],rngs={'aqt':key})
+          emitted={'scalar':{}};record_bam_dual_write_health_metrics(emitted,outputs,cfg)
+          return jnp.mean(result[0]),emitted
+        return jax.value_and_grad(loss,has_aux=True)(variables['params'])
+      (_,emitted),_=jax.eval_shape(trace,jax.random.key(105))
+      self.assertIn('bam/signed_write/layer_002/head_01/negative_fraction',emitted['scalar'])
+      self.assertIn('bam/signed_write/layer_002/head_mean/negative_total_norm_share',emitted['scalar'])
+
   def test_shared_gelu_three_gate_variants(self):
     import max_utils
     import pyconfig

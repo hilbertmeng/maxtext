@@ -1676,6 +1676,14 @@ class MLA(Attention):
 # BAM train path: matrix write, factorized LocalQK, and dynamic full read; n == n_kv.
 # ============================================================================
 
+SIGNED_WRITE_HEALTH_NAMES = (
+    'abs_mean', 'negative_fraction', 'abs_lt002', 'negative_saturated_fraction',
+    'negative_norm_share', 'negative_energy_share',
+    'negative_total_norm_share', 'negative_total_energy_share',
+    'feedback_record_norm_rms', 'main_record_norm_rms',
+) + tuple(f'negative_bin_{i}' for i in range(8))
+
+
 DUAL_WRITE_HEALTH_NAMES = (
     'main_mean', 'feedback_mean', 'mean_abs_gate_diff',
     'read_main_corr', 'read_feedback_corr', 'main_feedback_corr',
@@ -2481,6 +2489,9 @@ class BamAttention(Attention):
     assert self._vo_shared_read in ('none', 'local_o')
     self._vo_independent_gates = self._local_o and bool(getattr(cfg, 'bam_local_vo_independent_gates', False))
     self._dual_write = bool(getattr(cfg, 'bam_local_o_separate_write_gate', False))
+    self._feedback_activation = getattr(cfg, 'bam_feedback_write_activation', 'sigmoid')
+    assert self._feedback_activation in ('sigmoid', 'tanh')
+    assert self._feedback_activation == 'sigmoid' or self._dual_write
     self._joint_write_gates = bool(getattr(cfg, 'bam_local_o_shared_gelu_gates', False))
     assert not self._joint_write_gates or self._dual_write
     self._raw_write = bool(getattr(cfg, 'bam_local_o_write_from_raw', False))
@@ -2947,6 +2958,11 @@ class BamAttention(Attention):
       read_init = float(fetched_gate_init)
       feedback_opening = read_init*write_init if self._raw_write else write_init
       feedback_kernel_scale = (1-write_init)/(1-feedback_opening) if self._raw_write else 1.0
+      feedback_bias_init = math.log(feedback_opening/(1-feedback_opening))
+      if self._feedback_activation == 'tanh':
+        # Match the corresponding sigmoid's value and input-logit derivative at z=0.
+        feedback_kernel_scale *= feedback_opening/(1+feedback_opening)
+        feedback_bias_init = math.atanh(feedback_opening)
       def feedback_init(key, shape, dtype, *axes):
         del key, axes
         value = nn.unbox(self.W_gw.variables['params']['kernel'])
@@ -2960,7 +2976,7 @@ class BamAttention(Attention):
             matmul_precision=cfg.matmul_precision, use_bias=False)
       self.feedback_gw_b0 = self.param(
           'feedback_gw_b0', nn.with_logical_partitioning(
-              lambda key, shape, dtype: jnp.full(shape, math.log(feedback_opening/(1-feedback_opening)), dtype),
+              lambda key, shape, dtype: jnp.full(shape, feedback_bias_init, dtype),
               ('q_heads',)), (self.num_query_heads,), self.weight_dtype)
 
     if self._joint_write_gates:
@@ -3289,7 +3305,8 @@ class BamAttention(Attention):
       if self._force_activation_dtype:
         feedback_bias = jnp.asarray(feedback_bias, self.dtype)
       feedback_logits = joint_logits[2] if joint_logits is not None else self.W_gw_feedback(x)
-      feedback_gate = jax.nn.sigmoid(feedback_logits + feedback_bias)
+      feedback_fn = jnp.tanh if self._feedback_activation == 'tanh' else jax.nn.sigmoid
+      feedback_gate = feedback_fn(feedback_logits + feedback_bias)
       feedback_g = feedback_gate
       if cfg.bam_sqrt_n_scale:
         feedback_g = feedback_g * (1.0 / jnp.sqrt(self.num_query_heads))
@@ -3344,6 +3361,19 @@ class BamAttention(Attention):
       values.extend(mean((gate>=lo)&(gate<hi)) for lo,hi in zip(edges[:-1],edges[1:]))
     values.append(mean(read))
     self.sow('intermediates', 'dual_write_health', jnp.stack(values, axis=-1))
+    if self._feedback_activation == 'tanh':
+      negative = feedback < 0
+      scale = 1.0/jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
+      signed = [mean(jnp.abs(feedback)), mean(negative), mean(jnp.abs(feedback)<.02),
+                mean(feedback<-.98),
+                mean(b*negative)/jnp.maximum(mean(b), 1e-12),
+                mean(b*b*negative)/jnp.maximum(mean(b*b), 1e-12),
+                mean(b*negative)/jnp.maximum(mean(n+b), 1e-12),
+                mean(b*b*negative)/jnp.maximum(mean(n*n+b*b), 1e-12),
+                scale*jnp.sqrt(mean(b*b)), scale*jnp.sqrt(mean(n*n))]
+      neg_edges = (-1.000001, -.8, -.6, -.4, -.2, -.1, -.05, -.02, 0.)
+      signed.extend(mean((feedback>=lo)&(feedback<hi)) for lo,hi in zip(neg_edges[:-1],neg_edges[1:]))
+      self.sow('intermediates', 'signed_write_health', jnp.stack(signed, axis=-1))
     if self._raw_write:
       scale = 1.0/jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
       self.sow('intermediates', 'raw_write_norms',

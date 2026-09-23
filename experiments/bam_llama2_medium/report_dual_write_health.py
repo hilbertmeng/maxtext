@@ -23,6 +23,9 @@ def main():
   targets = sorted({int(s) for s in args.steps.split(',')})
   points, _ = reader._cached_local_points(args.tb_root / args.run, targets)
   raw_points = {tag: data for tag, data in points.items() if tag.startswith('bam/raw_write/')}
+  signed_points = {tag: data for tag, data in points.items() if tag.startswith('bam/signed_write/')}
+  if signed_points and len(signed_points) != 1968:
+    raise ValueError(f'Expected1968 signed-write tags, found {len(signed_points)}')
   prefix = 'bam/dual_write/'
   points = {tag: data for tag, data in points.items() if tag.startswith(prefix)}
   if len(points) != 3768:
@@ -47,9 +50,12 @@ def main():
         summaries[band][metric] = dict(zip(('min', 'q25', 'median', 'q75', 'max'),
                                                map(float, np.quantile(data, [0, .25, .5, .75, 1]))))
     raw_norms = {tag: data[step] for tag, data in raw_points.items()}
+    signed_values = {tag: data[step] for tag, data in signed_points.items()}
+    if not all(np.isfinite(v) for v in signed_values.values()):
+      raise ValueError(f'Nonfinite signed-write health at step {step}')
     if not all(np.isfinite(v) for v in raw_norms.values()):
       raise ValueError(f'Nonfinite raw-write norm at step {step}')
-    result['snapshots'].append({'target': target, 'step': step, 'head_distributions': summaries, 'values': values, 'raw_write_norms': raw_norms})
+    result['snapshots'].append({'target': target, 'step': step, 'head_distributions': summaries, 'values': values, 'raw_write_norms': raw_norms, 'signed_write': signed_values})
     print(json.dumps({'step': step, 'head_distributions': summaries}, ensure_ascii=False))
   args.output.parent.mkdir(parents=True, exist_ok=True)
   args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')

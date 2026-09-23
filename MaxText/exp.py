@@ -8918,7 +8918,7 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
     # code_commit: 521213b; UE5a .6406 steps/s; running to planned13500, review2800.
     # Raw speed -.84% vs AllLocal .6460; unmatched BAM3768 vs1056, generic ON.
     # All3768 health tags verified finite; step20 feedback gradients nonzero on L1-L22.
-    # At3000 vs AllLocal: gap-.006135, recent5 mean-.006550; shrinking early gain, health finite.
+    # At4000 vs AllLocal: gap-.003851, recent5 mean-.003244; shrinking early gain, health finite.
     model_name = 'BamMediumAllLocalDualWriteGates'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 24
     bam_local_o_separate_write_gate = True
@@ -8950,6 +8950,8 @@ class BamMediumAllLocalDualWriteSharedGelu3N(BamMediumAllLocalDualWriteGates):
     """Shared GELU hidden width3N jointly produces LocalO read/main/feedback gates."""
     # Implementation: codex/medium-alllocal-dual-write, /data0/xd/medium-alllocal-dual-write.
     # Replaces three D->N kernels by D->3N->3N; biases retained. +2304/layer=.00219727 W_Q.
+    # code_commit: e160481; UE5a .6462 steps/s (+.87% vs dual .6406), matched health3768.
+    # FIRST_STEP/load verified, all3768 metrics finite at0/20; training13500/review2800.
     model_name = 'BamMediumAllLocalDualWriteSharedGelu3N'
     bam_local_o_shared_gelu_gates = True
     compare_runs = ['BamMediumAllLocalDualWriteGates']
@@ -8959,6 +8961,8 @@ class BamMediumAllLocalDualWriteSharedGelu3N(BamMediumAllLocalDualWriteGates):
 class BamMediumAllLocalRawReadWriteSharedGelu3N(BamMediumAllLocalRawReadWriteGate):
     """Shared GELU width3N gates with feedback applied directly to the ungated read."""
     # Same worktree/branch; same parameter delta as DualWriteSharedGelu3N, M-cache unchanged.
+    # code_commit: e160481; UE5a .6380 steps/s (+.03% vs raw .6378), matched health3816.
+    # FIRST_STEP/load verified; health3816 finite at0/20; training13500/review2800.
     model_name = 'BamMediumAllLocalRawReadWriteSharedGelu3N'
     bam_local_o_shared_gelu_gates = True
     compare_runs = ['BamMediumAllLocalRawReadWriteGate', 'BamMediumAllLocalDualWriteSharedGelu3N']

@@ -11,6 +11,7 @@ import numpy as np
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--steps',default='0,20,100,200,400,500')
 p.add_argument('--output',type=Path,required=True)
+p.add_argument('--runs',nargs='+',default=['BamMediumAllLocalDualWriteGates','BamMediumAllLocalRawReadWriteGate'])
 a=p.parse_args()
 steps=[int(s) for s in a.steps.split(',')]
 source=Path(__file__).resolve().parents[2]/'.agents/skills/tpu-training/scripts/report_bam_read_health.py'
@@ -21,7 +22,7 @@ r.CACHE_ROOT=Path('/data0/xd/bam_diagnostics/dual_write_training/early_health_ca
 r._retain_tag=lambda tag: tag.startswith(('bam/','raw_grads/decoder/','total_params/decoder/')) or tag=='learning/raw_grad_norm'
 metrics=['read_mean','main_mean','feedback_mean','feedback_norm_share','read_main_corr','read_feedback_corr','main_feedback_corr']
 result={}
-for run in ['BamMediumAllLocalDualWriteGates','BamMediumAllLocalRawReadWriteGate']:
+for run in a.runs:
  points,_=r._cached_local_points(Path('/data0/xd/tensorboard_logs')/run,steps)
  snapshots=[]
  for step in steps:

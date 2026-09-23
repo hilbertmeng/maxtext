@@ -295,6 +295,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_o_write_from_raw = False
     bam_local_o_split_write_norm = False
     bam_feedback_address_mix = False
+    bam_local_o_independent_erase = False
     bam_local_o_shared_gelu_gates = False
     bam_record_dual_write_health = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
@@ -8973,6 +8974,17 @@ class BamMediumAllLocalIndependentEdgesAddressMix(BamMediumAllLocalIndependentEd
     bam_feedback_address_mix = True
     compare_runs = ['BamMediumAllLocalIndependentEdges']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-independent-edges-address-mix'
+
+
+class BamMediumAllLocalIndependentErase(BamMediumAllLocalIndependentEdges):
+    """Independent positive feedback and negative-read erasure, no shared write budget."""
+    # Same parameter/M-cache cost as AddressMix: one extra .0156403 W_Q/layer gate vs IndependentEdges.
+    # Erase sigmoid kernel uses main initializer with independent RNG; same constant bias.
+    # Positive main/feedback share normal address; erasure uses lifted normalized read address.
+    model_name = 'BamMediumAllLocalIndependentErase'
+    bam_local_o_independent_erase = True
+    compare_runs = ['BamMediumAllLocalIndependentEdgesAddressMix', 'BamMediumAllLocalDualWriteGates']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-independent-erase'
 
 
 class BamMediumAllLocalRawReadWriteGate(BamMediumAllLocalDualWriteGates):

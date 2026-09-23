@@ -25,6 +25,9 @@ def main():
   raw_points = {tag: data for tag, data in points.items() if tag.startswith('bam/raw_write/')}
   signed_points = {tag: data for tag, data in points.items() if tag.startswith('bam/signed_write/')}
   address_points = {tag: data for tag, data in points.items() if tag.startswith('bam/feedback_address/')}
+  erase_points = {tag: data for tag, data in points.items() if tag.startswith('bam/erase/')}
+  if erase_points and len(erase_points) != 5304:
+    raise ValueError(f'Expected5304 erase tags, found {len(erase_points)}')
   if address_points and len(address_points) != 3264:
     raise ValueError(f'Expected3264 address-mix tags, found {len(address_points)}')
   if signed_points and len(signed_points) != 1968:
@@ -55,13 +58,16 @@ def main():
     raw_norms = {tag: data[step] for tag, data in raw_points.items()}
     signed_values = {tag: data[step] for tag, data in signed_points.items()}
     address_values = {tag: data[step] for tag, data in address_points.items()}
+    erase_values = {tag: data[step] for tag, data in erase_points.items()}
+    if not all(np.isfinite(v) for v in erase_values.values()):
+      raise ValueError(f'Nonfinite erase health at step {step}')
     if not all(np.isfinite(v) for v in address_values.values()):
       raise ValueError(f'Nonfinite address-mix health at step {step}')
     if not all(np.isfinite(v) for v in signed_values.values()):
       raise ValueError(f'Nonfinite signed-write health at step {step}')
     if not all(np.isfinite(v) for v in raw_norms.values()):
       raise ValueError(f'Nonfinite raw-write norm at step {step}')
-    result['snapshots'].append({'target': target, 'step': step, 'head_distributions': summaries, 'values': values, 'raw_write_norms': raw_norms, 'signed_write': signed_values, 'feedback_address': address_values})
+    result['snapshots'].append({'target': target, 'step': step, 'head_distributions': summaries, 'values': values, 'raw_write_norms': raw_norms, 'signed_write': signed_values, 'feedback_address': address_values, 'erase': erase_values})
     print(json.dumps({'step': step, 'head_distributions': summaries}, ensure_ascii=False))
   args.output.parent.mkdir(parents=True, exist_ok=True)
   args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')

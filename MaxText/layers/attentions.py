@@ -1676,6 +1676,13 @@ class MLA(Attention):
 # BAM train path: matrix write, factorized LocalQK, and dynamic full read; n == n_kv.
 # ============================================================================
 
+ERASE_HEALTH_NAMES = (
+    'erase_mean', 'erase_std', 'erase_lt002', 'erase_gt098',
+    'positive_norm_share', 'erase_norm_share', 'erase_energy_share', 'net_localo_norm_share',
+    'positive_record_norm_rms', 'erase_record_norm_rms', 'net_localo_record_norm_rms',
+    'read_new_cos', 'erase_feedback_corr',
+)
+
 ADDRESS_MIX_HEALTH_NAMES = (
     'mix_mean', 'mix_std', 'mix_lt01', 'mix_gt09',
     'read_new_cos', 'feedback_read_cos', 'address_norm_ratio', 'read_address_zero_fraction',
@@ -2506,6 +2513,9 @@ class BamAttention(Attention):
         'Independent edges require raw feedback and independent gate projections')
     self._feedback_address_mix = bool(getattr(cfg, 'bam_feedback_address_mix', False))
     assert not self._feedback_address_mix or self._split_write_norm
+    self._independent_erase = bool(getattr(cfg, 'bam_local_o_independent_erase', False))
+    assert not self._independent_erase or (self._split_write_norm and not self._feedback_address_mix)
+    self._needs_read_address = self._feedback_address_mix or self._independent_erase
     if self._raw_write:
       assert cfg.bam_read_gate_activation == 'sigmoid'
     if self._dual_write:
@@ -3008,6 +3018,17 @@ class BamAttention(Attention):
           'feedback_address_mix_gate_b0', nn.with_logical_partitioning(
               nn.initializers.zeros, ('q_heads',)), (self.num_query_heads,), self.weight_dtype)
 
+    if self._independent_erase:
+      assert self._fetched_arm.prune_row and self._abs_v_dim is not None
+      self.W_erase = DenseGeneral(
+          features=(self.num_query_heads,), axis=-1, kernel_init=reg_init,
+          kernel_axes=('embed', 'q_heads'), dtype=self.dtype, weight_dtype=self.weight_dtype,
+          name='W_erase', quant=self.quant, matmul_precision=cfg.matmul_precision, use_bias=False)
+      self.erase_gate_b0 = self.param(
+          'erase_gate_b0', nn.with_logical_partitioning(
+              lambda key,shape,dtype: jnp.full(shape, math.log(cfg.bam_write_eps/(1-cfg.bam_write_eps)), dtype),
+              ('q_heads',)), (self.num_query_heads,), self.weight_dtype)
+
     if self._joint_write_gates:
       assert self._fetched_arm.prune_row and cfg.bam_n_f == 1
       assert self._fetched_read_num_heads == self.num_query_heads
@@ -3263,7 +3284,7 @@ class BamAttention(Attention):
     if self._raw_write:
       # Reuse the ungated read directly; never reconstruct it by dividing by a small read gate.
       result = (*gated, self._expand_full_read(read) * self._read_key_scale)
-      return (*result, read_result[2]) if self._feedback_address_mix else result
+      return (*result, read_result[2]) if self._needs_read_address else result
     return gated
 
   def _matrix_for_read(self, M_in):
@@ -3331,6 +3352,7 @@ class BamAttention(Attention):
     u2_norm = self.write_address_norm(u2)
     gated_u1 = g[..., None] * u1_norm
     feedback_address = None
+    erase_data = None
     if self._dual_write:
       assert local_o is not None and self._write_data_rms
       feedback_bias = self.feedback_gw_b0
@@ -3361,6 +3383,16 @@ class BamAttention(Attention):
           gated_u1 = g[..., None]*main_content
           if getattr(cfg, 'bam_record_dual_write_health', False) and not self.is_initializing():
             self._record_feedback_address_health(mix, read_address, u2_norm, feedback_address)
+        if self._independent_erase:
+          assert local_read_address is not None
+          read_address = self.write_address_norm(local_read_address)
+          erase_gate = jax.nn.sigmoid(self.W_erase(x)+jnp.asarray(self.erase_gate_b0,self.dtype))
+          erase_g = erase_gate
+          if cfg.bam_sqrt_n_scale:
+            erase_g = erase_g*(1.0/jnp.sqrt(self.num_query_heads))
+          erase_data = -erase_g[...,None]*feedback_content
+          if getattr(cfg, 'bam_record_dual_write_health', False) and not self.is_initializing():
+            self._record_erase_health(gate,feedback_gate,erase_gate,main_content,feedback_content,u2_norm,read_address)
       else:
         # One original denominator for both components, with normal gradients.
         stat_u = u1.astype(self._write_rms_statistics_dtype)
@@ -3392,12 +3424,35 @@ class BamAttention(Attention):
         dM = dM + jnp.einsum('btnk,btnv->btkv', feedback_data, feedback_address)
       else:
         dM = dM + jnp.sum(feedback_data[..., None]*feedback_address[..., None, :], axis=-3)
+    if erase_data is not None:
+      if self._write_outer_implementation == 'dot':
+        dM = dM + jnp.einsum('btnk,btnv->btkv',erase_data,read_address)
+      else:
+        dM = dM + jnp.sum(erase_data[...,None]*read_address[...,None,:],axis=-3)
     if self._force_activation_dtype:
       assert dM.dtype == self.dtype, (dM.dtype, self.dtype)
     M_out = _update_bam_matrix(M_in, dM, cfg.bam_lambda_decay)
     if self._force_activation_dtype:
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
+
+  def _record_erase_health(self, main, feedback, erase, u, raw, new, read):
+    main,feedback,erase,u,raw,new,read=(z.astype(jnp.float32) for z in (main,feedback,erase,u,raw,new,read))
+    mean=lambda z:jnp.mean(z,axis=(0,1))
+    norm=lambda z:jnp.sqrt(jnp.sum(z*z,axis=-1))
+    pn,rn=norm(new),norm(read)
+    n,b,e=main*norm(u)*pn,feedback*norm(raw)*pn,erase*norm(raw)*rn
+    net=norm(raw)*norm(feedback[...,None]*new-erase[...,None]*read)
+    denom=jnp.maximum(mean(n+b+e),1e-12)
+    ec,fc=erase-mean(erase),feedback-mean(feedback)
+    corr=mean(ec*fc)/jnp.maximum(jnp.sqrt(mean(ec*ec)*mean(fc*fc)),1e-12)
+    scale=1.0/jnp.sqrt(self.num_query_heads) if self.config.bam_sqrt_n_scale else 1.0
+    values=[mean(erase),jnp.sqrt(mean(ec*ec)),mean(erase<.02),mean(erase>.98),
+            mean(b)/denom,mean(e)/denom,mean(e*e)/jnp.maximum(mean(n*n+b*b+e*e),1e-12),
+            mean(net)/jnp.maximum(mean(n+net),1e-12),
+            scale*jnp.sqrt(mean(b*b)),scale*jnp.sqrt(mean(e*e)),scale*jnp.sqrt(mean(net*net)),
+            mean(jnp.sum(new*read,axis=-1)/jnp.maximum(pn*rn,1e-12)),corr]
+    self.sow('intermediates','erase_health',jnp.stack(values,axis=-1))
 
   def _record_feedback_address_health(self, mix, read, new, actual):
     mix, read, new, actual = (z.astype(jnp.float32) for z in (mix, read, new, actual))
@@ -3515,7 +3570,7 @@ class BamAttention(Attention):
                 jnp.sqrt(jnp.mean(jnp.square(y_col.astype(jnp.float32)))),
             )))
       if ungated:
-        if self._feedback_address_mix:
+        if self._needs_read_address:
           # Mc=M C; Mc q=M(C q). Use the exact transformed ungated read key.
           _, read_key = _split_read_keys(key, self._fetched_arm_ungated)
           address = jnp.einsum('btnc,vc->btnv', read_key, self.abs_v_cache_projection.astype(read_key.dtype))
@@ -3701,7 +3756,7 @@ class BamAttention(Attention):
         local_vo = self._independent_local_vo(Mh, inputs_q, local_compressed_M)
         if self._raw_write:
           v_local, local_output, local_o_raw = local_vo[:3]
-          if self._feedback_address_mix:
+          if self._needs_read_address:
             local_read_address = local_vo[3]
         else:
           v_local, local_output = local_vo

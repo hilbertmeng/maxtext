@@ -545,3 +545,7 @@ RUN=BamMediumAllLocalIndependentEdges zone=us-east5-a progress=179 checkpoint=20
 ```
 
 AddressMix sealed/pushed runtime c5be705abdb2883a8c9d1bd0a6a0c417be072064; AOT submitted. Independent200 gap-.163211 vsoriginaldual. Middle normshare20/100/200=.51399/.60477/.55304 versusdual.16877/.75187/.60291; initial excess is not persistent by100. Globalgrad20/100/200=7.1888/2.0594/1.7708 versusdual2.4442/2.2648/1.4303; initial elevation largely subsides. W_R median200=.081306 vsdual.053836. Do not conclude initial gradient risk predicts failure; actual early loss currently better.
+
+Independent400 gap-.031777 vsoriginaldual (200-.163211, magnitude shrink80.5%). Middle read.03560 vsdual.07376, main.09452 vs.07639, feedback.07482 vs.10484, actualfeedbacknormshare.47373 vs.47654. Nearly equal normshare despite different gates: normalized contents change how gate values map to actual writes. No400 sign crossing unlike old tanh. AddressMix AOT state `tpu-ag:/home/lishengping/xd/projects/aot_runs/c5be705-5a063ea4.json`, not yet training.
+
+Independent600 gap-.001489 vsoriginaldual: near parity after200-.163211 and400-.031777, no durable gain established. Middle feedbacknormshare.41816 vsdual.33739 despite feedbackgate.06240 vs.09971; readgate.02941 vs.06267. Again smaller gate does not mean smaller actual feedback.

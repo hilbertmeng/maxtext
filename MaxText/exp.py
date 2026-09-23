@@ -8918,7 +8918,7 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
     # code_commit: 521213b; UE5a .6406 steps/s; running to planned13500, review2800.
     # Raw speed -.84% vs AllLocal .6460; unmatched BAM3768 vs1056, generic ON.
     # All3768 health tags verified finite; step20 feedback gradients nonzero on L1-L22.
-    # At2000 vs AllLocal: gap-.009242, early advantage shrinking from-.089551 at200; health finite.
+    # At3000 vs AllLocal: gap-.006135, recent5 mean-.006550; shrinking early gain, health finite.
     model_name = 'BamMediumAllLocalDualWriteGates'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 24
     bam_local_o_separate_write_gate = True

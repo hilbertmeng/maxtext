@@ -116,3 +116,10 @@ Shared-GELU runtime sealed `e1604816369ce2c244ee0f4cdf8eed3dc61fdc1b`. Focused b
 
 
 Shared-GELU validation: pinned49-test suite completed337.262s with48 passes and one obsolete standalone SimpleNamespace fixture missing `_joint_write_gates=False`; no model failure. Updated only that test fixture, and its targeted rerun passed2.152s. Thus all49 cases passed across the suite and targeted repair; runtime source unchanged frome160481. Logs `/tmp/joint_gates_full_tests.log`, `/tmp/joint_gates_fixture_test.log`. No repeated broad suite needed for the fixture-only fix.
+
+
+### User report at step3000
+
+Gated linear checkpoint3000 committed. Additional gaps2200/2400/2600/2800/3000: -.007330/-.007953/-.005539/-.005792/-.006135; r200 -.207/+.085/-.304/+.046/+.059. Last5 mean-.0065498, range[-.007953,-.005539]. Shrinkage slower, not yet stable final gain. L3–16 median LocalO normshare .14233, read-main/feedback rho -.10518/+.12975, main-feedback rho -.0324. All health finite. `health_3000.json` captures2000–3000.
+
+Raw linear first200 window gaps +.116930 vs gated, +.027379 vs AllLocal; health finite. Middle medians: read .19816, main .04415, raw feedback .00569, LocalO normshare .42536; read-main rho-.51861, read-feedback-.12871. Greater architectural freedom has not produced early benefit. No causal attribution of the gap to these correlations; monitor subsequent windows. `raw_health_200.json`.

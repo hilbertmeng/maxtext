@@ -9324,12 +9324,17 @@ class BamLlama2XLPropK72SharedRank4MLPPerLayer(BamLlama2XLProp):
 
 class Llama2XLPropTrain(Llama2XLProp):
     """Formal batch8 RUN; replaces the invalid batch32 startup prefix."""
+    # code_commit: 859bd7e
+    # UE5a v5p-32 ~.550 steps/s; generic health ON.
     model_name = 'Llama2XLPropTrain'
     compare_runs = []
 
 
 class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank4MLPPerLayer):
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
+    # code_commit: 859bd7e
+    # UE5a v5p-32 ~.385 steps/s, -30.0% vs Llama2XLPropTrain; generic+concat health ON.
+    # Bet: final gap vs Llama2XLPropTrain ~-.080 (-.060..-.110).
     model_name = 'BamLlama2XLPropK72SharedRank4MLPPerLayerTrain'
     compare_runs = ['Llama2XLPropTrain']
 

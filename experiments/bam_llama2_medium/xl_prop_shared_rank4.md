@@ -86,3 +86,9 @@ ran no installer, and left it READY after both compiles. Subsequent compiles upd
 AOT states: `859bd7e-dcc289af` (MHA), `859bd7e-b99d1ef8` (BAM).
 Sealed config guard: `python scripts/check_exp_runtime_config.py 859bd7ef Llama2XLPropTrain
 BamLlama2XLPropK72SharedRank4MLPPerLayerTrain`; all effective attributes match, including batch8.
+
+Both formal RUNs passed AOT-loaded/FIRST_STEP and step14 on 2026-09-23.
+Worker logs verify per-device batch8, global batch128, and fresh step0 data cursors.
+UE5a early steady speed: MHA .550 steps/s; BAM .385 (-30.0%).
+Generic health is ON for both; BAM additionally records concat health.
+Borrowed EW4a compiler remains READY after both AOT jobs.

@@ -460,3 +460,5 @@ INITIALIZATION CLARIFICATION (supersedes copy-main proposal): user means same in
 Final independent-random initialization test passed70.325s (`/tmp/independent_edges_independent_rng_test.log`): same callable/hyperparameters, distinct kernel samples, identical fixed bias, independent edge effects, exact FP32/bf16 read-gate invariance and scan/backward/health checks. Legacy init paths unchanged. Final runtime will supersede74013b8.
 
 Monitoring: original dual8000 recent5gapvsAllLocal-.002145 (-.002711..-.001036), middle normshare.10757 and main.18647 stable. Old tanh2000gap+.018195 (last5mean+.022985, range+.018195..+.028714), still recovering but no gain; middle negativefraction.75713, absopening.38333, negative-totalnormshare.22006.
+
+Sealed final runtime `177fd10b01d0f3bd46d1c7c97d8fced1f7ddabce`, pushed branch. Exact AOT state `tpu-ag:/home/lishengping/xd/projects/aot_runs/177fd10-cc0689e0.json`; new independent-edge training not yet launched.

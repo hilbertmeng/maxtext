@@ -8921,7 +8921,7 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
     # code_commit: 521213b; UE5a .6406 steps/s; running to planned13500, review2800.
     # Raw speed -.84% vs AllLocal .6460; unmatched BAM3768 vs1056, generic ON.
     # All3768 health tags verified finite; step20 feedback gradients nonzero on L1-L22.
-    # At7000 vs AllLocal: recent5 mean-.002395, almost unchanged vs6000; modest gain persists.
+    # At8000 vs AllLocal: recent5 mean-.002145; modest gain persists with slow shrinkage.
     model_name = 'BamMediumAllLocalDualWriteGates'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 24
     bam_local_o_separate_write_gate = True
@@ -8940,7 +8940,7 @@ class BamMediumAllLocalDualWriteTanhFeedback(BamMediumAllLocalDualWriteGates):
     # code_commit: c3850c0; UE5a .6258 steps/s (-2.31% raw vs dual, health5736/3768 unmatched).
     # AOT load/FIRST_STEP verified; all5736 health finite; L1-22 feedback gradients nonzero at20.
     # Training13500/review2800 on retained raw-linear TPU; zero start learns both signs by20.
-    # Vs sigmoid dual: -.232775@200 reversed to+.033688@1000; 600-1000 ~+.034, no sustained gain yet.
+    # Vs sigmoid dual: -.232775@200 reversed to+.034 at600-1000; +.018195@2000, still no gain.
     model_name = 'BamMediumAllLocalDualWriteTanhFeedback'
     bam_feedback_write_activation = 'tanh'
     compare_runs = ['BamMediumAllLocalDualWriteGates']

@@ -1,6 +1,6 @@
 # XLProp K72 shared-rank4 configuration
 
-Not launched; no RUN or TPU allocated. Main worktree `/home/xd/projects/maxtext`,
+Launch preparation; RUNs `Llama2XLProp` and `BamLlama2XLPropK72SharedRank4MLPPerLayer`. Main worktree `/home/xd/projects/maxtext`,
 branch `refactor-bam`; class `BamLlama2XLPropK72SharedRank4MLPPerLayer`.
 Parent `BamLlama2XLProp`; reference recipe
 `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer`.
@@ -61,3 +61,24 @@ T/D rises1.0 ->2.133; depth/D rises24/2048 ->28/1920 (+24.4%).
 QK and LocalVO coordinate coverage both stay75%; M aspect ratio becomes1.8, compression1/4.
 Per-device tokens/step stay32768 at identical device count. Longer context benefits MHA too;
 fetchedO retrieves earlier tokens' M states, not a token-accumulating single M.
+
+## Launch
+
+Runtime `ab18eb22daf302c83ea6dfeceb138dbf963243cf` on refactor-bam; no experiment worktree.
+Owned training TPUs: `xd-v5p-32-xlprop-mha-maxtext`, `xd-v5p-32-xlprop-k72-r400-maxtext`.
+UE5a primary; UC1a/EW4b passive backups. Both50000 steps, checkpoint250, T4096/batch8,
+logit precision bf16, generic healthON; BAM adds1133 concat-health scalars.
+User-authorized compiler `llm-jax-v6e-1-0` in EW4a is non-preemptible and borrowed;
+never delete it. `prepare_train_aot_on_worker.py` has no lifecycle calls and uses a temporary
+checkout. Both AOT jobs run serially under one borrowed-host lock; no fixed CPU affinity.
+Compiler has CPUs0–43 and the pinned JAX0.8.1/Flax0.12.1 environment.
+
+Corrected K72/R400 launch bet: final BAM−MHA gap approximately -.080
+(plausible -.060..-.110), throughput20–30% below MHA. BAM health overhead prevents interpreting
+raw training speed as a strictly matched architecture-only timing comparison.
+Full16-device CPU sharding audit overhead: MHA .1146%, BAM .2043%, both below2% tolerance.
+
+Both AOTs ready on borrowed compiler; both trainers submitted2026-09-23 10:42:53 UTC.
+Borrowed machine environment is installed once and reused: this launch verified existing versions,
+ran no installer, and left it READY after both compiles. Subsequent compiles update isolated source only.
+AOT states: `ab18eb2-f1e165c4` (MHA), `ab18eb2-eb37ab6e` (BAM).

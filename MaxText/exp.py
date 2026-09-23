@@ -8031,7 +8031,10 @@ class BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96Shared
     # F head mix and LocalV gate have identical shapes; retain MLP6266 in all24 layers.
     # Ablation: quantify F->L cost; positive loss gap alone is not an early-stop criterion.
     # code_commit: f7bcc0d; UE5a .5502 steps/s, +.92% vs rank4 .5452; health1056 vs968.
-    # Bet vs shared rank4: gap +.010 (range +.004..+.025), speed +1%..+3%.
+    # Stopped at31583. vs shared rank4: +.038896@2000 -> +.016741@10000 -> +.012101@31500;
+    # last5 mean +.012566: F->L penalty keeps shrinking slowly, remains material.
+    # Extrapolated gap@50000 ~+.010 (window/model spread +.0082..+.0123; not measured).
+    # Fits/data: /data0/xd/bam_diagnostics/xl-alllocal-extrapolation (500-step point excluded).
     model_name = 'BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal'
     bam_layer_modes = ['local_qk+local_o'] * 24
     compare_runs = ['BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer']

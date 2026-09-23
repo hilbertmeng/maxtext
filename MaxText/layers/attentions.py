@@ -2496,11 +2496,14 @@ class BamAttention(Attention):
     assert not self._joint_write_gates or self._dual_write
     self._raw_write = bool(getattr(cfg, 'bam_local_o_write_from_raw', False))
     assert not self._raw_write or self._dual_write
+    self._split_write_norm = bool(getattr(cfg, 'bam_local_o_split_write_norm', False))
+    assert not self._split_write_norm or (self._raw_write and not self._joint_write_gates), (
+        'Independent edges require raw feedback and independent gate projections')
     if self._raw_write:
       assert cfg.bam_read_gate_activation == 'sigmoid'
     if self._dual_write:
       assert self._local_o and self._vo_independent_gates, 'Dual write gates require independent LocalVO'
-      assert cfg.bam_write_factor_norm == 'rms', 'Dual write gates preserve plain shared RMS'
+      assert cfg.bam_write_factor_norm == 'rms', 'Dual write gates require non-affine RMS'
     if self._vo_independent_gates:
       assert self._vo_shared_read == 'local_o'
     if self._vo_shared_read != 'none':
@@ -2956,6 +2959,9 @@ class BamAttention(Attention):
     if self._dual_write:
       write_init = float(cfg.bam_write_eps)
       read_init = float(fetched_gate_init)
+      feedback_init_mode = getattr(cfg, 'bam_feedback_write_init', 'legacy')
+      assert feedback_init_mode in ('legacy', 'copy_main')
+      assert feedback_init_mode != 'copy_main' or self._feedback_activation == 'sigmoid'
       feedback_opening = read_init*write_init if self._raw_write else write_init
       feedback_kernel_scale = (1-write_init)/(1-feedback_opening) if self._raw_write else 1.0
       feedback_bias_init = math.log(feedback_opening/(1-feedback_opening))
@@ -2963,6 +2969,8 @@ class BamAttention(Attention):
         # Learn signed feedback from an initially closed linear gate.
         feedback_bias_init = 0.0
         feedback_kernel_scale = 0.0
+      if feedback_init_mode == 'copy_main':
+        feedback_kernel_scale = 1.0
       def feedback_init(key, shape, dtype, *axes):
         del key, axes
         value = nn.unbox(self.W_gw.variables['params']['kernel'])
@@ -2976,7 +2984,8 @@ class BamAttention(Attention):
             matmul_precision=cfg.matmul_precision, use_bias=False)
       self.feedback_gw_b0 = self.param(
           'feedback_gw_b0', nn.with_logical_partitioning(
-              lambda key, shape, dtype: jnp.full(shape, feedback_bias_init, dtype),
+              lambda key, shape, dtype: (jnp.asarray(nn.unbox(self.gw_b0), dtype)
+                  if feedback_init_mode == 'copy_main' else jnp.full(shape, feedback_bias_init, dtype)),
               ('q_heads',)), (self.num_query_heads,), self.weight_dtype)
 
     if self._joint_write_gates:
@@ -3264,7 +3273,7 @@ class BamAttention(Attention):
         rope, positions, name=name, embedding_dims=rope.shape[-1])
     return jnp.concatenate((nope, rope), axis=-1)
 
-  def _write(self, o_head, x, M_in, local_o=None, local_o_raw=None):
+  def _write(self, o_head, x, M_in, local_o=None, local_o_raw=None, non_local_o=None):
     """Write primitive (§4.2 safe write: aggregated U (outer) local V). o_head: [b,t,n,d] head output (pre W_O).
 
     Per-record factor normalization (§4.6.5 write-side per-record factor norm): the address
@@ -3310,21 +3319,33 @@ class BamAttention(Attention):
       feedback_g = feedback_gate
       if cfg.bam_sqrt_n_scale:
         feedback_g = feedback_g * (1.0 / jnp.sqrt(self.num_query_heads))
-      # One original denominator for both components, with normal gradients.
-      stat_u = u1.astype(self._write_rms_statistics_dtype)
-      inv_rms = jax.lax.rsqrt(jnp.mean(jnp.square(stat_u), axis=-1, keepdims=True) + self._rms_epsilon)
-      local_o_norm = (local_o[..., :self.bam_k].astype(self._write_rms_statistics_dtype) * inv_rms).astype(self.dtype)
-      # Algebraically g*(u-o)/d + feedback_g*o/d; the correction form preserves
-      # the exact parent's write when the independently stored gates are equal.
-      feedback_content = local_o_norm
-      if self._raw_write:
-        assert local_o_raw is not None
-        feedback_content = (local_o_raw[..., :self.bam_k].astype(self._write_rms_statistics_dtype) * inv_rms).astype(self.dtype)
-        gated_u1 = gated_u1 - g[..., None]*local_o_norm + feedback_g[..., None]*feedback_content
+      main_content = None
+      if getattr(self, '_split_write_norm', False):
+        # Pass the pre-LocalO attention result directly: subtracting gated LocalO
+        # from the rounded total would reintroduce read-gate dependence in bf16.
+        assert non_local_o is not None and local_o_raw is not None
+        main_content = self.write_data_norm(non_local_o[..., :self.bam_k])
+        feedback_content = self.write_data_norm(local_o_raw[..., :self.bam_k])
+        gated_u1 = g[..., None]*main_content + feedback_g[..., None]*feedback_content
+        local_o_norm = jnp.zeros_like(main_content)  # unused by split-path health
       else:
-        gated_u1 = gated_u1 + (feedback_g-g)[..., None] * local_o_norm
+        # One original denominator for both components, with normal gradients.
+        stat_u = u1.astype(self._write_rms_statistics_dtype)
+        inv_rms = jax.lax.rsqrt(jnp.mean(jnp.square(stat_u), axis=-1, keepdims=True) + self._rms_epsilon)
+        local_o_norm = (local_o[..., :self.bam_k].astype(self._write_rms_statistics_dtype) * inv_rms).astype(self.dtype)
+        # Algebraically g*(u-o)/d + feedback_g*o/d; the correction form preserves
+        # the exact parent's write when the independently stored gates are equal.
+        feedback_content = local_o_norm
+        if self._raw_write:
+          assert local_o_raw is not None
+          feedback_content = (local_o_raw[..., :self.bam_k].astype(self._write_rms_statistics_dtype) * inv_rms).astype(self.dtype)
+          gated_u1 = gated_u1 - g[..., None]*local_o_norm + feedback_g[..., None]*feedback_content
+        else:
+          gated_u1 = gated_u1 + (feedback_g-g)[..., None] * local_o_norm
       if getattr(cfg, 'bam_record_dual_write_health', False) and not self.is_initializing():
-        self._record_dual_write_health(x, gate, feedback_gate, u1_norm, local_o_norm, u2_norm, feedback_content)
+        self._record_dual_write_health(
+            x, gate, feedback_gate, u1_norm, local_o_norm, u2_norm, feedback_content,
+            main_content=main_content)
     with jax.named_scope("bam/write_outer"):
       if self._write_outer_implementation == 'dot':
         dM = jnp.einsum('btnk,btnv->btkv', gated_u1, u2_norm)
@@ -3339,7 +3360,7 @@ class BamAttention(Attention):
       assert M_out.dtype == self.dtype, (M_out.dtype, self.dtype)
     return M_out, gate
 
-  def _record_dual_write_health(self, x, main, feedback, total, local_o, address, feedback_content):
+  def _record_dual_write_health(self, x, main, feedback, total, local_o, address, feedback_content, main_content=None):
     main, feedback = main.astype(jnp.float32), feedback.astype(jnp.float32)
     read = self._read_gate_activation(self._project_read_gate_logits(
         'W_R_gate', x, squeeze_fetch_axis=True))[..., 0].astype(jnp.float32)
@@ -3347,7 +3368,9 @@ class BamAttention(Attention):
     def corr(a, b):
       ac, bc = a-mean(a), b-mean(b)
       return mean(ac*bc)/jnp.maximum(jnp.sqrt(mean(ac*ac)*mean(bc*bc)), 1e-12)
-    non_o = main[..., None]*(total.astype(jnp.float32)-local_o.astype(jnp.float32))
+    if main_content is None:
+      main_content = total.astype(jnp.float32)-local_o.astype(jnp.float32)
+    non_o = main[..., None]*main_content.astype(jnp.float32)
     back = feedback[..., None]*feedback_content.astype(jnp.float32)
     norm = lambda z: jnp.sqrt(jnp.sum(z*z, axis=-1))
     address_norm = norm(address.astype(jnp.float32))
@@ -3719,7 +3742,7 @@ class BamAttention(Attention):
       assert M_in is not None, "write primitive requires M_in"
       with jax.named_scope("bam/write_m"):
         if self._dual_write:
-          M_out, _ = self._write(o_head, inputs_q, M_in, local_o=local_output, local_o_raw=local_o_raw)
+          M_out, _ = self._write(o_head, inputs_q, M_in, local_o=local_output, local_o_raw=local_o_raw, non_local_o=y_std)
         else:
           M_out, _ = self._write(o_head, inputs_q, M_in)
     else:

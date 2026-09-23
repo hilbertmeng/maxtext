@@ -205,6 +205,99 @@ class BamReadKeyTransformTest(absltest.TestCase):
       self.assertIn('bam/dual_write/layer_002/head_01/feedback_mean',emitted['scalar'])
       self.assertIn('W_gw_feedback',str(gradients.keys())+str(gradients))
 
+  def test_independent_edges_read_gate_invariance_and_separate_norms(self):
+    import copy
+    import max_utils
+    import pyconfig
+    from flax.core import unfreeze
+    from layers import models
+    from train import record_bam_dual_write_health_metrics
+    with tempfile.TemporaryDirectory() as out:
+      Path(out, 'edges').mkdir()
+      cfg=pyconfig.initialize([None,str(Path(__file__).parents[1]/'configs/base.yml')],
+          exp_class='BamMediumAllLocalIndependentEdges',run_name='edges',
+          enable_checkpointing=False,base_output_directory=out+'/',jax_cache_dir='',
+          log_config=False,dataset_type='synthetic',base_emb_dim=128,
+          base_num_query_heads=2,base_num_kv_heads=2,head_dim=64,max_target_length=8,
+          max_prefill_predict_length=8,query_chunk_size=4,per_device_batch_size=1.,dtype='float32')
+      cfg.get_keys()['bam_write_v_bottleneck_dim']=32
+      mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
+      for dtype in (jnp.float32,jnp.bfloat16):
+        module=BamAttention(config=cfg,num_query_heads=2,num_kv_heads=2,head_dim=64,
+            bam_k=48,max_target_length=8,max_prefill_predict_length=8,mesh=mesh,
+            attention_kernel='dot_product_chunk',dtype=dtype,
+            layer_mode='local_qk+local_v+local_o',read_side='col',attention_type=cfg.attention_type)
+        x=jax.random.normal(jax.random.key(121),(1,8,128)).astype(dtype)
+        memory=jax.random.normal(jax.random.key(122),(1,8,48,32)).astype(dtype)
+        args=(x,x,jnp.arange(8)[None],jnp.ones((1,8),jnp.int32))
+        kw=dict(M_in=memory,deterministic=True,layer_index=1)
+        params=unfreeze(module.init({'params':jax.random.key(123)},*args,**kw)['params'])
+        self.assertNotIn('W_local_write_joint_down',params)
+        for name in ('W_R_gate','W_gw','W_gw_feedback'):
+          self.assertIn(name,params)
+        np.testing.assert_array_equal(nn.unbox(params['W_gw_feedback']['kernel']),nn.unbox(params['W_gw']['kernel']))
+        np.testing.assert_array_equal(nn.unbox(params['feedback_gw_b0']),nn.unbox(params['gw_b0']))
+        leaf=params['W_R']['kernel']
+        params['W_R']['kernel']=leaf.replace(value=.1*jax.random.normal(jax.random.key(124),leaf.value.shape))
+        bias=params['feedback_gw_b0']
+        params['feedback_gw_b0']=bias.replace(value=jnp.full_like(bias.value,jnp.log(.3/.7)))
+        outputs=[]
+        for opening in (.001,.2,.9):
+          p=copy.deepcopy(params);bias=p['W_R_gate_b0']
+          p['W_R_gate_b0']=bias.replace(value=jnp.full_like(bias.value,jnp.log(opening/(1-opening))))
+          outputs.append(module.apply({'params':p},*args,**kw))
+        for result in outputs[1:]:
+          # Exact equality in bf16 too: no gate-dependent subtraction on the write path.
+          np.testing.assert_array_equal(result[1],outputs[0][1])
+          self.assertGreater(float(jnp.linalg.norm((result[0]-outputs[0][0]).astype(jnp.float32))),0)
+        # Each write gate affects memory, but neither changes this layer's residual output.
+        base=module.apply({'params':params},*args,**kw)
+        for name in ('gw_b0','feedback_gw_b0'):
+          p=copy.deepcopy(params);bias=p[name];p[name]=bias.replace(value=bias.value+.5)
+          changed=module.apply({'params':p},*args,**kw)
+          np.testing.assert_array_equal(changed[0],base[0])
+          self.assertGreater(float(jnp.linalg.norm((changed[1]-base[1]).astype(jnp.float32))),0)
+        if dtype == jnp.float32:
+          grad=jax.grad(lambda p:jnp.mean(module.apply({'params':p},*args,**kw)[1]**2))(params)
+          np.testing.assert_array_equal(nn.unbox(grad['W_R_gate']['kernel']),0.)
+          np.testing.assert_array_equal(nn.unbox(grad['W_R_gate_b0']),0.)
+          for name in ('W_gw','W_gw_feedback'):
+            value=nn.unbox(grad[name]['kernel'])
+            self.assertTrue(bool(jnp.all(jnp.isfinite(value))))
+            self.assertGreater(float(jnp.linalg.norm(value)),0)
+          # Independent RMS formula and health must refer to the actual two writes.
+          u=jax.random.normal(jax.random.key(125),(1,8,2,64))
+          r=jax.random.normal(jax.random.key(126),(1,8,2,64))
+          local=.4*r
+          actual,health=module.apply({'params':params},u+local,x,memory,
+              local_o=local,local_o_raw=r,non_local_o=u,method=module._write,mutable=['intermediates'])
+          bound=module.bind({'params':params})
+          un=bound.write_data_norm(u[...,:48]);rn=bound.write_data_norm(r[...,:48])
+          g=jax.nn.sigmoid(bound.W_gw(x)+bound.gw_b0)
+          f=jax.nn.sigmoid(bound.W_gw_feedback(x)+bound.feedback_gw_b0)
+          address=bound.write_address_norm(bound.P_loc_up(nn.gelu(bound.P_loc_down(x))))
+          expected=memory+jnp.einsum('btnk,btnv->btkv',g[...,None]*un+f[...,None]*rn,address)
+          np.testing.assert_allclose(actual[0],expected,rtol=1e-5,atol=1e-6)
+          n=jnp.linalg.norm(g[...,None]*un,axis=-1)*jnp.linalg.norm(address,axis=-1)
+          b=jnp.linalg.norm(f[...,None]*rn,axis=-1)*jnp.linalg.norm(address,axis=-1)
+          expected_share=jnp.mean(b,axis=(0,1))/jnp.mean(n+b,axis=(0,1))
+          np.testing.assert_allclose(health['intermediates']['dual_write_health'][0][:,6],expected_share,rtol=1e-5)
+      for key,value in dict(num_decoder_layers=3,vocab_size=128,
+          bam_layer_modes=['local_qk+local_v+local_o']*3,mlp_dim_by_block=[128]*3).items():cfg.get_keys()[key]=value
+      model=models.Transformer(config=cfg,mesh=mesh,quant=None)
+      tokens=jnp.ones((1,8),jnp.int32);positions=jnp.arange(8)[None]
+      def trace(key):
+        variables=model.init({'params':key,'aqt':key},tokens,positions,tokens,tokens,enable_dropout=False)
+        def loss(p):
+          result,outputs=model.apply({'params':p},tokens,positions,tokens,tokens,
+              enable_dropout=False,mutable=['intermediates'],rngs={'aqt':key})
+          emitted={'scalar':{}};record_bam_dual_write_health_metrics(emitted,outputs,cfg)
+          return jnp.mean(result[0]),emitted
+        return jax.value_and_grad(loss,has_aux=True)(variables['params'])
+      (_,emitted),_=jax.eval_shape(trace,jax.random.key(127))
+      self.assertIn('bam/dual_write/layer_002/head_01/feedback_mean',emitted['scalar'])
+      self.assertIn('bam/raw_write/layer_002/feedback_record_norm_rms',emitted['scalar'])
+
   def test_tanh_feedback_signed_write_and_health(self):
     import copy
     import max_utils

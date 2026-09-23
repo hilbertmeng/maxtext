@@ -40,7 +40,7 @@ Watch for saturation, failure of gate divergence, changed read/write correlation
 
 ## Validation and results
 
-Passed: equal-gate exact forward parity, nonzero LocalO isolation, independent gradients, shared-denominator formula, metric indexing, actual AllLocal scan/remat forward/backward tracing. All 47 pinned CPU BAM tests passed (320 seconds). Runtime commit: `521213bb9f0253c5a8d019b061461b36c40d20d2`. AOT controller state: `tpu-ag:/home/lishengping/xd/projects/aot_runs/521213b-d7d26bea.json`. Pending: exact-commit AOT, FIRST_STEP and TensorBoard verification. Runtime hash, throughput and same-step loss results are recorded in the experiment ledger after launch.
+Passed: equal-gate exact forward parity, nonzero LocalO isolation, independent gradients, shared-denominator formula, metric indexing, actual AllLocal scan/remat forward/backward tracing. All 47 pinned CPU BAM tests passed (320 seconds). Runtime commit: `521213bb9f0253c5a8d019b061461b36c40d20d2`. AOT controller state: `tpu-ag:/home/lishengping/xd/projects/aot_runs/521213b-d7d26bea.json`. Passed: exact-commit AOT, compiled-function load, FIRST_STEP and step14, and actual TensorBoard verification. Runtime hash, throughput and same-step loss results are recorded in the experiment ledger after launch.
 
 Health summaries after incremental TB sync:
 
@@ -49,3 +49,11 @@ Health summaries after incremental TB sync:
 ```
 
 The summary checks all 3,768 tags at a common recorded step and saves all values alongside head distributions for early L1–2, middle L3–16 and late L17–22. Generic TB also records both gate kernels/biases' parameter and raw-gradient norms.
+
+Historical-runtime compatibility: compared exact `ba29940` (detached audit worktree `/data0/xd/dual-write-parent-compat`) against the current implementation with the second gate disabled. A D128/2-head/K48/V32, 8-token FP32 fixture matched all 21 parameter leaves bitwise (69,450 parameters). After identical nonzero W_R substitution, both residual output and M update also matched bitwise. Fixture script, arrays and logs: `/data0/xd/bam_diagnostics/dual_write_training/parent_compat/`. This is a small single-layer compatibility check, not a full-training replay.
+
+AOT compiled on `xd-v6e-aot-521213b-d7d26-ewa4a` in EW4a after staged UC1a/EW4a/UE5a acquisition; manifest verified and all three compiler resources cleaned up. Formal RUN registered 2026-09-23 01:59:07 UTC, UE5a primary, UC1a/EW4b fallback queues. Existing diagnostic resources remain outside this cleanup.
+
+Launch verified: `Loaded compiled function!`, FIRST_STEP observed at step11. Steps10–14 throughput: .644, .644, .638, .634, .643; mean .6406 steps/s (raw -.84% vs historical .6460, health settings unmatched).
+
+Initial TB audit: all3,768 dual-write tags present and finite at exact steps0 and20. At step0 all head mean absolute gate differences are zero and LocalO write norm shares are zero. At step20, median head mean absolute gate difference is .007651 (L1–2), .006881 (L3–16), .008511 (L17–22). These demonstrate functioning independent gates, not established usefulness. All44 feedback-kernel/bias gradient norms across L1–22 are positive and finite; only L0/23's four norms are zero, as expected. Artifacts: `health_initial.json` and `feedback_gradients_step20.json` under `/data0/xd/bam_diagnostics/dual_write_training/`.

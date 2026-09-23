@@ -8913,6 +8913,9 @@ class BamMediumAllLocalDualWriteGates(BamMediumIndependentLLFQKConcatStaticLocal
     # Implementation: codex/medium-alllocal-dual-write, /data0/xd/medium-alllocal-dual-write.
     # +16400 params/layer = .0156403 W_Q; +393600 total; M-cache unchanged.
     # Both gate kernels/biases start equal, then train independently; no checkpoint warm start.
+    # code_commit: 521213b; UE5a .6406 steps/s; running to planned13500, review2800.
+    # Raw speed -.84% vs AllLocal .6460; unmatched BAM3768 vs1056, generic ON.
+    # All3768 health tags verified finite; step20 feedback gradients nonzero on L1-L22.
     model_name = 'BamMediumAllLocalDualWriteGates'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 24
     bam_local_o_separate_write_gate = True

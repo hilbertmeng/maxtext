@@ -494,3 +494,52 @@ r200:        --     -0.982     +7.808     -0.088     +0.024     -0.148     -0.10
 trend: last5_mean=+0.015313 prev5_mean=+0.022985 drift=-0.007671/1000steps (toward 0)
 
 ```
+
+
+### Address-mix follow-up authorized
+
+User clarified that the new write address serves normal new-information writing, not LocalO. Only the LocalO feedback term now gets address `(1-lambda)*(-normalize(C q)) + lambda*normalize(p)`; normal write retains p. Compression is M C and q is the exact transformed ungated C8 key, so C q is the full-memory read address, no inverse/learned adapter. Normalize endpoints with original write-address RMS; do not renormalize the mixture. Sigmoid dynamic per-head lambda has zero kernel/bias, initial .5. Independent trainable gate adds .0156403 W_Q/layer; unchanged M cache. Bias name ends `_gate_b0` for existing WD exemption. Health reports per-head mix distribution, read/new and feedback/read cosines, address norm ratio and zero-read fraction. Existing write norm/energy shares use the actual distinct feedback address.
+
+RUN `BamMediumAllLocalIndependentEdgesAddressMix`, same worktree/branch, direct baseline `BamMediumAllLocalIndependentEdges`. Bet before training: parity/slight deficit by1000, small gain by2800 (target -.003); speed expected 1-3% slower due two outer products, timing must match additional health. Plan13500/review2800; compilerUC1a thenEW4a/UE5a, formalUE5a withUC1a/EW4b backups, per existing task policy.
+
+Independent-edge runtime177fd10 AOT_READY and AOT_CLEANUP_DONE verified. Tanh paused3941 at06:46:09UTC; new independent-edge launch submitted on retained UE5a xd-v5p-16-alllocal-raw-write-maxtext, FIRST_STEP pending.
+
+```text
+BamMediumAllLocalDualWriteTanhFeedback: preemptions=0 ready_leases=1
+01    1h51m46s  us-east5-a  xd-v5p-16-alllocal-raw-write-maxtext  2026-09-23T04:54:23Z -> 2026-09-23T06:46:09Z  hot_switch_run_boundary
+RUN=BamMediumAllLocalDualWriteTanhFeedback BASE=BamMediumAllLocalDualWriteGates gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000
+ gap: -0.232775  +0.004095  +0.036071  +0.032905  +0.033688  +0.028714  +0.025820  +0.021189  +0.021004  +0.018195
+r200:        --     -0.982     +7.808     -0.088     +0.024     -0.148     -0.101     -0.179     -0.009     -0.134
+
+step:      2200       2400       2600       2800       3000       3200       3400       3600       3800
+ gap: +0.017010  +0.017009  +0.014647  +0.014263  +0.013637  +0.009450  +0.011162  +0.010583  +0.009340
+r200:    -0.065     -0.000     -0.139     -0.026     -0.044     -0.307     +0.181     -0.052     -0.117
+
+trend: last5_mean=+0.010834 prev5_mean=+0.016225 drift=-0.005390/1000steps (toward 0)
+
+```
+
+IndependentEdges FIRST_STEP/load confirmed, steps10–14 .635/.635/.632/.634/.635, mean .6342 (-.56% vs matched3816 raw-linear .6378). Original dual health3768 not matched. Initial health at20 middle feedback normshare .51399 vs dual .16877, rawlinear .16005. Global raw grad norm at0 5.4470 vsdual4.6966; at20 7.1888 vsdual2.4442. Middle W_R gradient median20 .142776 vsdual.0143766 (9.93x), feedback gate gradient .006708 vs.0002050. This confirms stronger initial feedback/gradients; loss consequences await200. No numerical failure inferred. New address-mix focused test passes, including FP32/bf16 gate invariance, C8->32 address lifting, separate-address write/health formula, negative-read erasure inner product, zero case and scan/remat/backward export; full suite running.
+
+Address-mix full pinned CPU suite: 52 tests passed367.638s, /tmp/address_mix_full_tests.log; focused test also passed. No runtime changes after test. Health7080BAM versus independent3816 (additional24*17*8=3264), genericON: formal speed comparison initially health-unmatched. Independent200 first window gap-.163211 vsoriginaldual despite stronger startup gradients; do not extrapolate given prior tanh reversal. Originaldual10000 recent5 gap-.001529 vsAllLocal, range-.001702..-.001418.
+
+```text
+RUN=BamMediumAllLocalDualWriteGates zone=us-east5-a progress=10125 checkpoint=10000 report=10000
+RUN=BamMediumAllLocalDualWriteGates BASE=BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerAllLocal gap=RUN-BASE window=+/-25 sample_period=10
+step:       200        400        600        800       1000       1200       1400       1600       1800       2000       2200       2400       2600       2800       3000       3200       3400       3600       3800       4000
+ gap: -0.089551  -0.072856  -0.047778  -0.030070  -0.026387  -0.019499  -0.014381  -0.010470  -0.009856  -0.009242  -0.007330  -0.007953  -0.005539  -0.005792  -0.006135  -0.001504  -0.004288  -0.003571  -0.003007  -0.003851
+r200:        --     -0.186     -0.344     -0.371     -0.122     -0.261     -0.262     -0.272     -0.059     -0.062     -0.207     +0.085     -0.304     +0.046     +0.059     -0.755     +1.851     -0.167     -0.158     +0.281
+
+step:      4200       4400       4600       4800       5000       5200       5400       5600       5800       6000       6200       6400       6600       6800       7000       7200       7400       7600       7800       8000
+ gap: -0.003339  -0.002598  -0.001901  -0.002922  -0.002954  -0.003290  -0.002329  -0.002088  -0.002494  -0.001801  -0.002543  -0.002418  -0.002882  -0.001331  -0.002800  -0.002711  -0.002565  -0.001943  -0.001036  -0.002472
+r200:    -0.133     -0.222     -0.268     +0.537     +0.011     +0.114     -0.292     -0.104     +0.195     -0.278     +0.412     -0.049     +0.192     -0.538     +1.104     -0.032     -0.054     -0.242     -0.467     +1.387
+
+step:      8200       8400       8600       8800       9000       9200       9400       9600       9800      10000
+ gap: -0.000926  -0.002318  -0.001182  -0.001014  -0.000894  -0.001568  -0.001520  -0.001440  -0.001418  -0.001702
+r200:    -0.625     +1.502     -0.490     -0.142     -0.118     +0.753     -0.030     -0.053     -0.015     +0.201
+
+trend: last5_mean=-0.001529 prev5_mean=-0.001267 drift=-0.000262/1000steps (deepening)
+
+RUN=BamMediumAllLocalIndependentEdges zone=us-east5-a progress=179 checkpoint=200 report=-
+```

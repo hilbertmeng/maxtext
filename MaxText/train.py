@@ -389,7 +389,7 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
 
 def record_bam_dual_write_health_metrics(output_metrics, intermediate_outputs, config):
   """Per-head separation and per-layer head-averaged gate distributions."""
-  from layers.attentions import DUAL_WRITE_HEALTH_NAMES, SIGNED_WRITE_HEALTH_NAMES
+  from layers.attentions import DUAL_WRITE_HEALTH_NAMES, SIGNED_WRITE_HEALTH_NAMES, ADDRESS_MIX_HEALTH_NAMES
   decoder = intermediate_outputs['intermediates']['decoder']
   size = config.bam_local_fetch_block_size
   per_head = {'main_mean', 'feedback_mean', 'mean_abs_gate_diff',
@@ -417,6 +417,14 @@ def record_bam_dual_write_health_metrics(output_metrics, intermediate_outputs, c
           if metric in ('negative_fraction', 'abs_lt002', 'negative_norm_share', 'negative_total_norm_share'):
             for head in range(config.num_query_heads):
               output_metrics['scalar'][f'{prefix}/head_{head:02d}/{metric}'] = signed[head, i]
+      if getattr(config, 'bam_feedback_address_mix', False):
+        address = decoder['layers'][name]['block']['self_attention']['feedback_address_health'][0][block]
+        assert address.shape == (config.num_query_heads, len(ADDRESS_MIX_HEALTH_NAMES))
+        for i, metric in enumerate(ADDRESS_MIX_HEALTH_NAMES):
+          prefix = f'bam/feedback_address/layer_{layer:03d}'
+          output_metrics['scalar'][f'{prefix}/head_mean/{metric}'] = jnp.mean(address[:, i])
+          for head in range(config.num_query_heads):
+            output_metrics['scalar'][f'{prefix}/head_{head:02d}/{metric}'] = address[head, i]
       if getattr(config, 'bam_local_o_write_from_raw', False):
         norms = decoder['layers'][name]['block']['self_attention']['raw_write_norms'][0][block]
         for i, metric in enumerate(('main_record_norm_rms', 'feedback_record_norm_rms')):

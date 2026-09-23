@@ -294,6 +294,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_feedback_write_init = 'legacy'
     bam_local_o_write_from_raw = False
     bam_local_o_split_write_norm = False
+    bam_feedback_address_mix = False
     bam_local_o_shared_gelu_gates = False
     bam_record_dual_write_health = False
     bam_local_qk_share_basis = False  # effective_key Q/K share bases; gates and mixing remain independent.
@@ -8939,8 +8940,8 @@ class BamMediumAllLocalDualWriteTanhFeedback(BamMediumAllLocalDualWriteGates):
     # Closed tanh init: kernel0 and bias0; learn signed feedback from zero.
     # code_commit: c3850c0; UE5a .6258 steps/s (-2.31% raw vs dual, health5736/3768 unmatched).
     # AOT load/FIRST_STEP verified; all5736 health finite; L1-22 feedback gradients nonzero at20.
-    # Training13500/review2800 on retained raw-linear TPU; zero start learns both signs by20.
-    # Vs sigmoid dual: -.232775@200 reversed to+.034 at600-1000; +.018195@2000, still no gain.
+    # Paused at 3941; checkpoint committed, TPU retained for independent edges; 0 preemptions.
+    # Vs sigmoid dual: -.232775@200 reversed to+.034 at600-1000; last5@3800 +.010834, no gain.
     model_name = 'BamMediumAllLocalDualWriteTanhFeedback'
     bam_feedback_write_activation = 'tanh'
     compare_runs = ['BamMediumAllLocalDualWriteGates']
@@ -8953,12 +8954,25 @@ class BamMediumAllLocalIndependentEdges(BamMediumAllLocalDualWriteGates):
     # User choice: sigmoid; same kernel initializer as main with independent RNG, same constant bias.
     # Separate RMS(u), RMS(raw LocalO), original address.
     # Pass u directly before LocalO addition, avoiding bf16 subtraction-induced coupling.
+    # code_commit: 177fd10; UE5a .6342 steps/s; running13500/review2800, AOT load/FIRST_STEP verified.
+    # Speed -.56% vs raw-linear .6378 with matched3816 health; original dual3768 unmatched.
     model_name = 'BamMediumAllLocalIndependentEdges'
     bam_local_o_write_from_raw = True
     bam_local_o_split_write_norm = True
     bam_feedback_write_init = 'like_main'
     compare_runs = ['BamMediumAllLocalDualWriteGates']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-independent-edges'
+
+
+class BamMediumAllLocalIndependentEdgesAddressMix(BamMediumAllLocalIndependentEdges):
+    """LocalO feedback address interpolates negative lifted read and normal write addresses."""
+    # Only feedback changes address; main write and residual retain the independent-edge paths.
+    # Sigmoid mix starts at .5 (zero kernel/bias); normalize endpoints, not their mixture.
+    # Additional gate: (1024*16+16)/1024**2 = .0156403 W_Q/layer; unchanged M cache.
+    model_name = 'BamMediumAllLocalIndependentEdgesAddressMix'
+    bam_feedback_address_mix = True
+    compare_runs = ['BamMediumAllLocalIndependentEdges']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-independent-edges-address-mix'
 
 
 class BamMediumAllLocalRawReadWriteGate(BamMediumAllLocalDualWriteGates):

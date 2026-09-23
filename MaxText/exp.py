@@ -8950,13 +8950,13 @@ class BamMediumAllLocalDualWriteTanhFeedback(BamMediumAllLocalDualWriteGates):
 class BamMediumAllLocalIndependentEdges(BamMediumAllLocalDualWriteGates):
     """Independent read/main-write/raw-feedback gates with separate pre-gate RMS."""
     # Same implementation worktree/branch as dual-write parent; no parameter/cache delta.
-    # User choice: sigmoid feedback; kernel and bias copy main gate at initialization only.
+    # User choice: sigmoid; same kernel initializer as main with independent RNG, same constant bias.
     # Separate RMS(u), RMS(raw LocalO), original address.
     # Pass u directly before LocalO addition, avoiding bf16 subtraction-induced coupling.
     model_name = 'BamMediumAllLocalIndependentEdges'
     bam_local_o_write_from_raw = True
     bam_local_o_split_write_norm = True
-    bam_feedback_write_init = 'copy_main'
+    bam_feedback_write_init = 'like_main'
     compare_runs = ['BamMediumAllLocalDualWriteGates']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-independent-edges'
 

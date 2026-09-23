@@ -2960,8 +2960,8 @@ class BamAttention(Attention):
       write_init = float(cfg.bam_write_eps)
       read_init = float(fetched_gate_init)
       feedback_init_mode = getattr(cfg, 'bam_feedback_write_init', 'legacy')
-      assert feedback_init_mode in ('legacy', 'copy_main')
-      assert feedback_init_mode != 'copy_main' or self._feedback_activation == 'sigmoid'
+      assert feedback_init_mode in ('legacy', 'like_main')
+      assert feedback_init_mode != 'like_main' or self._feedback_activation == 'sigmoid'
       feedback_opening = read_init*write_init if self._raw_write else write_init
       feedback_kernel_scale = (1-write_init)/(1-feedback_opening) if self._raw_write else 1.0
       feedback_bias_init = math.log(feedback_opening/(1-feedback_opening))
@@ -2969,8 +2969,9 @@ class BamAttention(Attention):
         # Learn signed feedback from an initially closed linear gate.
         feedback_bias_init = 0.0
         feedback_kernel_scale = 0.0
-      if feedback_init_mode == 'copy_main':
-        feedback_kernel_scale = 1.0
+      if feedback_init_mode == 'like_main':
+        # Same initialization rule, separate module RNG: no copying of samples.
+        feedback_bias_init = math.log(write_init/(1-write_init))
       def feedback_init(key, shape, dtype, *axes):
         del key, axes
         value = nn.unbox(self.W_gw.variables['params']['kernel'])
@@ -2978,14 +2979,14 @@ class BamAttention(Attention):
         return jnp.asarray(value*feedback_kernel_scale, dtype)
       if not self._joint_write_gates:
         self.W_gw_feedback = DenseGeneral(
-            features=(self.num_query_heads,), axis=-1, kernel_init=feedback_init,
+            features=(self.num_query_heads,), axis=-1,
+            kernel_init=reg_init if feedback_init_mode == 'like_main' else feedback_init,
             kernel_axes=('embed', 'q_heads'), dtype=self.dtype,
             weight_dtype=self.weight_dtype, name='W_gw_feedback', quant=self.quant,
             matmul_precision=cfg.matmul_precision, use_bias=False)
       self.feedback_gw_b0 = self.param(
           'feedback_gw_b0', nn.with_logical_partitioning(
-              lambda key, shape, dtype: (jnp.asarray(nn.unbox(self.gw_b0), dtype)
-                  if feedback_init_mode == 'copy_main' else jnp.full(shape, feedback_bias_init, dtype)),
+              lambda key, shape, dtype: jnp.full(shape, feedback_bias_init, dtype),
               ('q_heads',)), (self.num_query_heads,), self.weight_dtype)
 
     if self._joint_write_gates:

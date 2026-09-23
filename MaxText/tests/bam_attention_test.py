@@ -235,7 +235,9 @@ class BamReadKeyTransformTest(absltest.TestCase):
         self.assertNotIn('W_local_write_joint_down',params)
         for name in ('W_R_gate','W_gw','W_gw_feedback'):
           self.assertIn(name,params)
-        np.testing.assert_array_equal(nn.unbox(params['W_gw_feedback']['kernel']),nn.unbox(params['W_gw']['kernel']))
+        self.assertFalse(np.array_equal(nn.unbox(params['W_gw_feedback']['kernel']),nn.unbox(params['W_gw']['kernel'])))
+        bound=module.bind({'params':params})
+        self.assertIs(bound.W_gw_feedback.kernel_init,bound.W_gw.kernel_init)
         np.testing.assert_array_equal(nn.unbox(params['feedback_gw_b0']),nn.unbox(params['gw_b0']))
         leaf=params['W_R']['kernel']
         params['W_R']['kernel']=leaf.replace(value=.1*jax.random.normal(jax.random.key(124),leaf.value.shape))

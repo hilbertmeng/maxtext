@@ -57,3 +57,5 @@ AOT compiled on `xd-v6e-aot-521213b-d7d26-ewa4a` in EW4a after staged UC1a/EW4a/
 Launch verified: `Loaded compiled function!`, FIRST_STEP observed at step11. Steps10–14 throughput: .644, .644, .638, .634, .643; mean .6406 steps/s (raw -.84% vs historical .6460, health settings unmatched).
 
 Initial TB audit: all3,768 dual-write tags present and finite at exact steps0 and20. At step0 all head mean absolute gate differences are zero and LocalO write norm shares are zero. At step20, median head mean absolute gate difference is .007651 (L1–2), .006881 (L3–16), .008511 (L17–22). These demonstrate functioning independent gates, not established usefulness. All44 feedback-kernel/bias gradient norms across L1–22 are positive and finite; only L0/23's four norms are zero, as expected. Artifacts: `health_initial.json` and `feedback_gradients_step20.json` under `/data0/xd/bam_diagnostics/dual_write_training/`.
+
+User reporting cadence: every 1,000 training steps (requested after launch); retain underlying 200-step loss windows and checkpoint interval200, and report exceptional health/resource events promptly. Routine progress commentary is suppressed between milestones.

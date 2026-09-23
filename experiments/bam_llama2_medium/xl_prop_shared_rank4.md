@@ -99,7 +99,13 @@ Report Prop BAM minus `Llama2XLPropTrain` beside historical
 `BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayer`
 minus `BamMHALlama2XLHead16x128C256`, at every shared500-step milestone.
 Use registry `loss_gap_series` with radius25/sample_period10 and each series' r500;
-compare the gap difference as well as each gap. Both schedules are50000 steps and
+compare the magnitude ratio abs(Prop gap)/abs(old gap), alongside both gaps. Both schedules are50000 steps and
 both use32768 tokens/device/step (old B16*T2048; Prop B8*T4096).
 Keep new matched-basic-health timing distinct from historical unmatched-health speed.
 Initial paired series `/data0/xd/bam_diagnostics/xlprop-cross-scale/gaps-through2000.json`.
+
+Reporting clarification: both Prop sizes must pair each new gap with the historical
+same-scale BAM-minus-MHA gap, including r200/r500. Focus on the magnitude ratio,
+not the difference of gaps. XLProp/oldXL ratios through2500:
+1.563,1.493,1.468,1.350,1.393 (steps500,1000,1500,2000,2500).
+Artifact: `/data0/xd/bam_diagnostics/xlprop-cross-scale/gaps-through2500.json`.

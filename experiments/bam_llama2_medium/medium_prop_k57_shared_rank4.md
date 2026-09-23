@@ -50,3 +50,17 @@ counts. Initial steps10–14: MHA .7278, BAM .3532 steps/s (-51.5%), markedly be
 the .75 ratio bet. BAM subsequently varied .255–.385 while MHA stayed near .726;
 this is flagged for investigation, not explained away by unmatched concat health.
 Raw launch evidence: `/data0/xd/mediumprop-launch-logs.jsonl`.
+
+## Reporting contract
+
+For BOTH MediumProp and XLProp, every loss report pairs the new BAM-minus-MHA gap
+with the corresponding historical BAM-minus-MHA gap at the same step. Include
+r200 (Medium) / r500 (XL) and benefit ratio abs(new gap)/abs(old gap), rather than
+focusing on subtraction of gaps. Medium's historical pair is
+`BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayer`
+minus `Llama2Medium`; do not silently substitute the historical C256 clean control.
+The latter can be shown explicitly as a backend-control sensitivity check.
+
+At200: new gap -.5415868, historical gap -.754411704, ratio .718;
+warmup transient only. Historical C256-control denominator instead gives .6453.
+Artifact: `/data0/xd/mediumprop-cross-scale200.json`.

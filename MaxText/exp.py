@@ -8478,7 +8478,7 @@ class BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK4
     # code_commit: 768fc80; UE5a .6130 steps/s (10-14), -3.89% vs K48 .6378; matched968 health.
     # Runtime: codex/k48v48-rank4, /data0/xd/k48v48-rank4.
     # MLP3007/3007/3002; -1536 total params vs K48 parent; fetched M-cache unchanged.
-    # Bet vs K48: terminal gap -.003 (plausible -.006..+.002); speed -1..-4%.
+    # Stopped2891. vs K48: early gain eroded to parity; last5 through2800 -.001117, last3 -.000399.
     model_name = 'BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerV48'
     bam_v = 48
     mlp_dim_by_block = [3007, 3007, 3002]

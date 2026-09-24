@@ -54,8 +54,17 @@ BamMediumPropK75EmbedQKVOnlyRoPE18: preemptions=3 ready_leases=4
 
 RUN `BamMediumPropK75EmbedQKVOnlyStaticRoPE18`, same worktree/branch. Q/K each use independent normal(std=1/sqrt32) static32x16 keys; shared rank4 dynamic basis and pre-RMS bias start at zero, head-mix remains regular initialized, read gates/scales unchanged. Dynamic read tail57:75 is identically zero before static addition; the existing RoPE on the sum thus rotates only static content. Static remains ungated and unnormalized. Both L/F use this rule. Seed and LocalVO unchanged; MLP4093/4093/3694,432106784 parameters exactly equal to prior pure-M QK. No standard Q/K/V restored.
 
-Direct baselines: prior pure-M QK, QK57, QK75. Bet: terminal gap vs prior pure-M QK -.015..-.025; versus QK57 center+.003 (-.003..+.008). Speed expected within2% of prior .5369 step/s; compare at same basic+concat health. Plan13500/cp200, UE5a only, TPU `xd-v5p-16-mediumprop-k75-staticrope-maxtext`. Borrow retained `llm-jax-v6e-1-1` EW4a worker0 for AOT using installed environment; never adopt/delete.
+Direct baselines: prior pure-M QK, QK57, QK75. Plan13500/cp200, UE5a only, TPU `xd-v5p-16-mediumprop-k75-staticrope-maxtext`. Borrow retained `llm-jax-v6e-1-1` EW4a worker0 for AOT using installed environment; never adopt/delete.
 
 Audit `/data0/xd/k75-static-rope-audit.json`:432106784 params; full train-step trace1583 scalar metrics. Tests extend production L/F paths to verify nonzero static Q/K, zero but trainable shared dynamic basis, zero tail values/gradients, unchanged positional Q/K after dynamic-basis perturbation, and identical parameter count. Data/logs `/data0/xd/k75-static-rope-tests.log`.
 
 Runtime `cf10ef9`; 47 tests passed. Borrowed-compiler AOT verified; UE5a FIRST_STEP3 with compiled function loaded and training from0. Steady steps20-99: .5388125 step/s (+.35% vs prior pure-M QK .536909, same basic+concat health). Startup evidence `/data0/xd/k75-static-rope-startup.log`; initialization probe `/data0/xd/k75-static-rope-init-probe.json`.
+
+Stopped2,912 after the2800 review. At2800, gaps vs prior pure-M/QK57/QK75 +.033083/+.060809/+.068321; last5 means +.036142/+.065358/+.073424. Early catch-up slowed substantially; same parameter count and .35% speed difference do not offset the degradation. Initialization and dynamic-tail masking changed together, so this result does not isolate their individual effects. Cumulative evidence `/data0/xd/k75-static-rope-report2800.txt`, health `/data0/xd/k75-static-rope-health2800.json`, closeout `/data0/xd/k75-static-rope-closeout.json`. Final checkpoint2912 committed; TPU/queue absent; TB SYNC_OK.
+
+v5p-16, UE5a only; one preemption, two READY leases (UTC):
+
+```text
+01 46m56s 2026-09-24T09:59:11Z -> 2026-09-24T10:46:06Z preempted
+02 49m38s 2026-09-24T10:53:02Z -> 2026-09-24T11:42:40Z run_stop
+```

@@ -16,7 +16,7 @@ Budget: seed1898000; remove12x1440000 and add12x1024 static VO. MLP[3901,3901,35
 
 Direct baselines: K57 Prop sharedrank4 and Prop BAM-MHA control; QK75 additionally compares QK57. Prior embedding writes: Medium final13400 gap-.00054, XL5000 gap-.00125; these retained W_V so do not establish replacement efficacy.
 
-Pre-run bets: QK57-K57 final-.010; QK75-K57-.015; QK75-QK57-.005. Main uncertainty is loss of per-layer fresh value content. Speed expected within10% of K57 .5637; total dense FLOPs saved by deleting W_V mostly return in MLP. QK75 increases QK score FLOPs24% versus QK57, not whole attention24%.
+Remaining QK75 bets: QK75-K57-.015; QK75-QK57-.005. Main uncertainty is loss of per-layer fresh value content. Speed expected within10% of K57 .5637; total dense FLOPs saved by deleting W_V mostly return in MLP. QK75 increases QK score FLOPs24% versus QK57, not whole attention24%.
 
 Validation artifacts: `/data0/xd/k75-embed-audit.json`, `k75-embed-audit-final.log`, `k75-embed-tests.log`, `k75-target-tests.log`. Full parameter-tree and train-step shape audit both variants. Targeted tests check causal nonzero embedding seed, absent L value projection, retained F value projection, widths75/93 with equal parameters, nonzero output/static V/O/seed gradients. Basic+concat health retained, adding seed gate, static VO amplitudes, total L V RMS, and extra18 QK score contribution. Avoid invalid BAM/standard-V ratio when standard V is absent.
 
@@ -67,4 +67,21 @@ v5p-16, UE5a only; one preemption, two READY leases (UTC):
 ```text
 01 46m56s 2026-09-24T09:59:11Z -> 2026-09-24T10:46:06Z preempted
 02 49m38s 2026-09-24T10:53:02Z -> 2026-09-24T11:42:40Z run_stop
+```
+
+## QK57 completion
+
+Completed13500, runtime1db092a. Last five windows12600-13400: versus original K57 mean-.0238428 (range-.024609..-.022781); versus Prop MHA mean-.1212796 (range-.123342..-.119763). Early gain shrank substantially, then slowly narrowed through completion; persistent useful loss improvement. Historical Medium BAM-MHA last5 mean-.1009301192, giving1.20162x advantage. M-cache+31.58% versus K57. UE5a .527832 step/s: -6.36% vs K57, -27.40% vs MHA; extra health differs. Checkpoint13500 committed, TPU/queue absent, automatic TB sync recorded2026-09-24T11:52:30Z. Full report `/data0/xd/k75-qk57-final-report.txt`; closeout evidence `/data0/xd/k75-qk57-closeout-evidence.txt`.
+
+v5p-16, UE5a only; seven preemptions. All READY leases (UTC; final run_stop is normal completion):
+
+```text
+01 3h13m55s us-east5-a 2026-09-24T03:17:44Z 2026-09-24T06:31:39Z preempted
+02 2m12s us-east5-a 2026-09-24T06:41:30Z 2026-09-24T06:43:42Z preempted
+03 12m30s us-east5-a 2026-09-24T06:52:18Z 2026-09-24T07:04:48Z preempted
+04 10m03s us-east5-a 2026-09-24T07:10:29Z 2026-09-24T07:20:32Z preempted
+05 5m41s us-east5-a 2026-09-24T07:26:23Z 2026-09-24T07:32:04Z preempted
+06 22m47s us-east5-a 2026-09-24T07:41:46Z 2026-09-24T08:04:33Z preempted
+07 2m52s us-east5-a 2026-09-24T08:10:20Z 2026-09-24T08:13:12Z preempted
+08 3h26m04s us-east5-a 2026-09-24T08:26:24Z 2026-09-24T11:52:28Z run_stop
 ```

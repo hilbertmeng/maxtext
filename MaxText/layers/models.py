@@ -900,8 +900,9 @@ class Decoder(nn.Module):
           modes = cfg.bam_layer_modes[:scan_length]
           assert modes == modes[:block_size] * (scan_length // block_size)
           without_v = [mode.replace('+local_v', '').replace('local_v+', '') for mode in modes]
-          assert without_v == (
+          llf_modes = (
               ['local_qk+local_o'] * (block_size - 1) + ['local_qk+full']) * (scan_length // block_size)
+          assert without_v == llf_modes or without_v == ['local_qk+local_o'] * scan_length
           # The block is compiled once; every per-layer read setting must repeat.
           for arm in ('q', 'k', 'v'):
             for key in ('rank', 'rank_routing', 'pre_rms_bias'):

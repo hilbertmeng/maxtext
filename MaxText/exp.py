@@ -9533,3 +9533,26 @@ class BamMediumPropK75EmbedQKVOnlyStaticRoPE18(BamMediumPropK75EmbedQKVOnlyRoPE1
     bam_qk_static_rope_only = True
     compare_runs = ['BamMediumPropK75EmbedQKVOnlyRoPE18', 'BamMediumPropK75EmbedVOnlyQK57', 'BamMediumPropK75EmbedVOnlyQK75']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-static-rope18'
+
+
+class BamMediumPropK75EmbedVOnlyQK57MLP3200(BamMediumPropK75EmbedVOnlyQK57):
+    """Hold the K75 QK57 attention fixed; restore every MLP to the MHA width."""
+    # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # MLP3200: -8.52% total parameters vs MHA; attention and M-cache unchanged vs QK57.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57MLP3200'
+    base_mlp_dim = 3200
+    mlp_dim_by_block = None
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57', 'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-qk57-mlp3200'
+
+
+class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
+    """Replace all six F layers by L; refund their parameter savings to the MLP."""
+    # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # All18 L, MLP3901; no standard W_V or fetchedO; near-parent parameter budget.
+    # Ablation: a positive gap alone is not an early-stop criterion.
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocal'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    mlp_dim_by_block = [3901, 3901, 3901]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57', 'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-qk57-all-local'

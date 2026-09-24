@@ -2397,6 +2397,9 @@ class BamAttention(Attention):
     cfg = self.config
     validate_bam_config(cfg, layer_mode=self.layer_mode)
     self._qk_from_m_only = bool(getattr(cfg, 'bam_qk_from_m_only', False))
+    self._qk_static_rope_only = bool(getattr(cfg, 'bam_qk_static_rope_only', False))
+    if self._qk_static_rope_only:
+      assert self._qk_from_m_only and cfg.bam_concat_static_qk
     self._local_v_replace = False
     self._static_vo = False
     self._standard_qk_width = getattr(cfg, 'bam_standard_qk_dim', None)
@@ -2783,7 +2786,9 @@ class BamAttention(Attention):
       assert cfg.bam_concat_qk and cfg.bam_prune_all_row_reads
       for arm in ('q', 'k'):
         setattr(self, 'static_' + arm + '_key', self.param(
-            'static_' + arm + '_key', nn.with_logical_partitioning(zeros_init, ('v_factor', 'q_heads')),
+            'static_' + arm + '_key', nn.with_logical_partitioning(
+                nn.initializers.normal(self.bam_v ** -0.5) if self._qk_static_rope_only else zeros_init,
+                ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 
     self._local_v_replace = self._local_o and bool(getattr(cfg, 'bam_local_v_replace', False))
@@ -2798,6 +2803,8 @@ class BamAttention(Attention):
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 
+    if self._qk_static_rope_only:
+      assert self._share_qk_basis and not self._direct_qk_c8
     if self._qk_from_m_only:
       assert self._concat_static_qk and 'local_qk' in self._mode
       assert self._qk_col_width == self.head_dim and self._standard_qk_width is None
@@ -2812,7 +2819,7 @@ class BamAttention(Attention):
           kernel_init=_packed_local_arms_init(
               reg_init, arms, self.bam_k if self._seed_paired_local_row_key else 0,
               self._share_qk_basis,
-              seed_qk_basis=bool(getattr(cfg, 'bam_concat_qk', False))),
+              seed_qk_basis=bool(getattr(cfg, 'bam_concat_qk', False)) and not self._qk_static_rope_only),
           kernel_axes=("embed", None), dtype=self.dtype,
           weight_dtype=self.weight_dtype,
           name=getattr(cfg, 'bam_local_packed_parameter_name', 'W_local_packed'),
@@ -3128,13 +3135,20 @@ class BamAttention(Attention):
           result, self.bam_k, self.head_dim,
           getattr(self, f'local_{name}_v_adapter', None))
     if self._concat_static_qk and name in ('q', 'k'):
+      if self._qk_static_rope_only:
+        result = self._mask_dynamic_qk(result)
       static = self._static_column(M[..., :self._qk_col_width, :], name)
       self._record_concat_amplitude('static_' + name, static, result[..., :self._qk_col_width])
       result = result + _pack_fetched_bam_heads(static, self.num_query_heads, self.head_dim)
     return result
 
+  def _mask_dynamic_qk(self, dynamic):
+    """Only the static M read supplies the positional tail of matrix-only Q/K."""
+    split = self._partial_rope_nope_dim
+    return jnp.concatenate((dynamic[..., :split], jnp.zeros_like(dynamic[..., split:])), axis=-1)
+
   def _static_column(self, M, arm):
-    # Full-M linear read: zero-init key, no key RMS, no scale, no gate.
+    # Full-M linear read: no key RMS, no scale, no gate. Initialization is arm-specific.
     return jnp.einsum('btkv,vn->btnk', M, getattr(self, 'static_' + arm + '_key').astype(M.dtype))
 
   def _read_direct_qk_c8(self, name, M, compressed_M, x):

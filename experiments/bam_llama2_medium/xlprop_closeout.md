@@ -1,6 +1,6 @@
-# XLProp closeout and 50k extrapolation
+# XLProp BAM closeout and 50k extrapolation
 
-BAM stopped23,022; MHA stopped34,598. Both final checkpoints committed, TPU/queued resources verified absent; local TB SYNC_OK.
+BAM stopped23,022. MHA was stopped34,598, then user requested resuming it to the original50,000 endpoint in EW4b (runtime859bd7e). The closeout evidence below describes the earlier stop; the MHA run is active again. Both stop checkpoints committed, prior TPU/queued resources verified absent; local TB SYNC_OK.
 
 BAM−MHA latest five valid windows mean -.088470; range -.090452..-.086771. Matched-basic-health speed -.3066 relative to MHA control.
 

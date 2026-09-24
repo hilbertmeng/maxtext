@@ -9411,7 +9411,7 @@ class Llama2XLPropTrain(Llama2XLProp):
     """Formal batch8 RUN; replaces the invalid batch32 startup prefix."""
     # code_commit: 859bd7e
     # UE5a ~.550 / EW4b resumed ~.547 steps/s, v5p-32; generic health ON.
-    # Stopped 34,598; paired MHA reference for XLProp BAM through 23k.
+    # Resuming from 34,598 to original 50,000-step endpoint in EW4b; paired BAM stopped at23k.
     model_name = 'Llama2XLPropTrain'
     compare_runs = []
 

@@ -103,3 +103,12 @@ v5p-16, UE5a only; eight preemptions. All READY leases (UTC; final run_stop is n
 08 2h17m44s us-east5-a 2026-09-24T08:28:29Z 2026-09-24T10:46:13Z preempted
 09 1h30m37s us-east5-a 2026-09-24T10:52:56Z 2026-09-24T12:23:33Z run_stop
 ```
+
+## QK57 MLP-width and AllLocal follow-ups
+
+Independent children of `BamMediumPropK75EmbedVOnlyQK57`, both compare it and `BamMHAMediumPropC256`. Same worktree/branch, initialize from scratch, UE5a v5p-16 only,13500 steps/cp200, same basic+concat health flags. Retain three-layer block scan in both.
+
+- `BamMediumPropK75EmbedVOnlyQK57MLP3200`: every MLP3200,395300384 params; -36806400 vs QK57, -8.52095% vs MHA. Attention/M-cache unchanged. Bet: final loss gap vs QK57 +.018 (+.010..+.025), implying about-.103 vs MHA; expect throughput+5-8%. Judge late MLP effects through full training.
+- `BamMediumPropK75EmbedVOnlyQK57AllLocal`: all18 local_qk+local_v+local_o; allMLP3901. Each F->L deletes W_V1440000, adds staticVO1024, exchanges equal-sized head-mix for LocalV gate; net saving1438976 refunded as399 MLP channels per former F (residue2576 each). Total432091328, -15456(-.00358%) vs QK57, -29872(-.00691%) vs MHA. Uniform3901 is the nearest uniform integer budget. Bet: final gap vs QK57 +.008 (-.005..+.020), throughput+1-3%. Pure-M V makes ordinary attention aggregate source-token M readouts, potentially substituting for fetchedO. This removes the last six standard W_V as well as fetchedO; it is an architecture ablation, not a pure fetchedO-only intervention. Positive gap alone is not an early stop criterion.
+
+Full model parameter/train-step trace `/data0/xd/k75-mlp-alllocal-audit.json`:1763/1865 scalar metrics. AllLocal has no value projection or fetch_head_mix parameters; MLP3200 retains F values/head-mix. The existing block runner already dispatches by mode; its model-level schedule validation was extended to accept all-local periodic blocks. Runtime tests `/data0/xd/k75-mlp-alllocal-tests.log`. Planned owned TPUs `xd-v5p-16-mediumprop-k75-mlp3200-maxtext` and `xd-v5p-16-mediumprop-k75-alllocal-maxtext`. AOT borrows retained EW4a `llm-jax-v6e-1-1`, no lifecycle ownership/deletion.

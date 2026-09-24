@@ -291,7 +291,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_local_v_replace = False
     bam_local_vo_static = False
     bam_embedding_write = False
-    bam_embedding_write_eps = .005
+    bam_embedding_write_eps = .1
     emb_bam_num_head = 16
     emb_bam_v_bottleneck_dim = 256
     bam_local_qk_direct_c8 = False
@@ -9476,7 +9476,7 @@ class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLaye
     model_name = 'BamMediumPropK75EmbedVOnlyQK57'
     bam_k = 75
     bam_embedding_write = True
-    bam_embedding_write_eps = .05
+    bam_embedding_write_eps = .1
     emb_bam_num_head = 16
     emb_bam_v_bottleneck_dim = 256
     bam_local_v_replace = True

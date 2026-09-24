@@ -109,3 +109,11 @@ same-scale BAM-minus-MHA gap, including r200/r500. Focus on the magnitude ratio,
 not the difference of gaps. XLProp/oldXL ratios through2500:
 1.563,1.493,1.468,1.350,1.393 (steps500,1000,1500,2000,2500).
 Artifact: `/data0/xd/bam_diagnostics/xlprop-cross-scale/gaps-through2500.json`.
+
+## MHA recovery at checkpoint21198
+
+MHA moved UE5a → EW4b with the same runtime859bd7e and total50000-step schedule. Source storage `gs://newproject-1-llm_projects_us-east5/log/`; destination `gs://newproject-1-llm_projects_europe-west4/log/`. FIRST_STEP21204 at .547 steps/s; checkpoint21250 committed. Old UE5a node/queue and UC1a passive candidate released. BAM remains UE5a.
+
+Manual passive allocation initially used the wrong v5p image (`tpu-ubuntu2204-base`), causing global TPU topology initialization failures before any training. Recreated with the formal `v2-alpha-tpuv5` image and verified recovery. No model/runtime change. Resource journals: tpu-ag `logs/xlprop-mha-parallel-resume.log`, `logs/xlprop-mha-old-cleanup.log`, `logs/rebuild-xlprop-mha-image.log`.
+
+Migration now freezes writers before copying, but source resource cleanup runs independently of destination launch. Authoritative scripts commit e874519; empty comparison-list fix c59c94b.

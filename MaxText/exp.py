@@ -9394,7 +9394,7 @@ class BamLlama2XLPropK72SharedRank4MLPPerLayer(BamLlama2XLProp):
 class Llama2XLPropTrain(Llama2XLProp):
     """Formal batch8 RUN; replaces the invalid batch32 startup prefix."""
     # code_commit: 859bd7e
-    # UE5a v5p-32 ~.550 steps/s; generic health ON.
+    # UE5a ~.550 / EW4b resumed ~.547 steps/s, v5p-32; generic health ON.
     model_name = 'Llama2XLPropTrain'
     compare_runs = []
 

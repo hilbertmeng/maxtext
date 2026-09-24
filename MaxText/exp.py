@@ -9338,10 +9338,10 @@ class BamLlama2MediumPropK57SharedRank4MLPPerLayer(BamLlama2MediumProp):
 class BamLlama2MediumPropK57SharedRank4H18MLPPerLayer(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
     """18 heads at fixed D1200/head75/M57x32; redistribute the attention budget."""
     # code_commit: 9580fa0; UE5a v5p-16 .5083 steps/s (20-99), -9.8% vs H16 .5637.
-    # Matched generic+concat health; !? speed penalty exceeds -3%..-7% bet; cause unresolved.
+    # Matched generic+concat health. Stopped1972. vs H16: early gain vanished;1200-1800 mean-.000111.
+    # vs MHA: advantage shrank; last5 through1800 mean-.296062, latest-.234442.
     # Keep P_loc GELU bottleneck R256 while output grows16*32 ->18*32.
     # MLP3388 is nearest MHA budget: -27,756 total (-.006423%); M-cache unchanged.
-    # Bet vs H16 Prop: final gap -.004 (-.009..+.003); speed -3%..-7%, matched health.
     model_name = 'BamLlama2MediumPropK57SharedRank4H18MLPPerLayer'
     base_num_query_heads = 18
     base_num_kv_heads = 18

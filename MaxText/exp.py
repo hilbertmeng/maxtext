@@ -9335,6 +9335,20 @@ class BamLlama2MediumPropK57SharedRank4MLPPerLayer(BamLlama2MediumProp):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-prop-k57-shared-rank4'
 
 
+class BamLlama2MediumPropK57SharedRank4H18MLPPerLayer(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
+    """18 heads at fixed D1200/head75/M57x32; redistribute the attention budget."""
+    # P_loc output16*32 ->18*32: preserve R/output=.5 with R288.
+    # MLP3373 is nearest MHA budget: +23,220 total (+.005374%); M-cache unchanged.
+    # Bet vs H16 Prop: final gap -.004 (-.009..+.003); speed -3%..-7%, matched health.
+    model_name = 'BamLlama2MediumPropK57SharedRank4H18MLPPerLayer'
+    base_num_query_heads = 18
+    base_num_kv_heads = 18
+    bam_write_v_bottleneck_dim = 288
+    mlp_dim_by_block = [3373, 3373, 3373]
+    compare_runs = ['BamLlama2MediumPropK57SharedRank4MLPPerLayer', 'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-prop-k57-h18'
+
+
 class BamLlama2XLProp(Llama2XLProp, BamLlama2MediumProp):
     """Same BAM recipe at XL scale: M48x40/C10, NoPE72/RoPE24."""
     # Large M: override bam_k=96 AND bam_local_qk_col_output_dim=72.

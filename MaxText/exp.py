@@ -9467,11 +9467,11 @@ class BamXLPropK72SharedRank4BasicHealthProfile(
 class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
     """All L values from M; embedding write seeds K75, QK retains57."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # Prepared runtime: 8dea4d1; AOT pending; UE5a v5p-16.
+    # Prepared runtime: 1db092a; AOT pending; UE5a v5p-16.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57'
     bam_k = 75
     bam_embedding_write = True
-    bam_embedding_write_eps = .05
+    bam_embedding_write_eps = .1
     emb_bam_num_head = 16
     emb_bam_v_bottleneck_dim = 256
     bam_local_v_replace = True
@@ -9485,7 +9485,7 @@ class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLaye
 class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
     """Same parameters; full75 BAM QK plus18 standard RoPE coordinates."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # Prepared runtime: 8dea4d1; AOT pending; UE5a v5p-16.
+    # Prepared runtime: 1db092a; AOT pending; UE5a v5p-16.
     model_name = 'BamMediumPropK75EmbedVOnlyQK75'
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75

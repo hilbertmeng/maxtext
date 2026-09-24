@@ -9472,7 +9472,9 @@ class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLaye
     """All L values from M; embedding write seeds K75, QK retains57."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: 1db092a; UE5a v5p-16 .5278 steps/s (20-99), -6.36% vs K57 .5637.
-    # Basic+concat health ON; extra seed/static-VO metrics versus K57. Running.
+    # Basic+concat health ON; extra seed/static-VO metrics versus K57; speed not strictly matched.
+    # Completed 13,500: early advantage shrank, then slowly narrowed; last5 mean -.02384 vs K57,
+    # -.12128 vs Prop MHA (1.202x historical Medium advantage); -27.40% speed vs MHA.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57'
     bam_k = 75
     bam_embedding_write = True

@@ -347,6 +347,8 @@ active leases are censored, and manual migration releases are not preemptions.
 
 | `BamMediumPropK75EmbedVOnlyQK57` | v5p-16 | `us-east5-a` | 2026-09-24 03:13:43 | 2026-09-24 11:52:28 | completed13,500 | none |
 
+| `BamMediumPropK75EmbedVOnlyQK75` | v5p-16 | `us-east5-a` | 2026-09-24 03:16:29 | 2026-09-24 12:23:33 | completed13,500 | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1071,19 +1073,28 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 12 | `us-east5-a` | 2026-09-24 02:50:47 | 2026-09-24 06:31:23 | 3h40m36s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57` | 1 | `us-east5-a` | 2026-09-24 03:17:44 | 2026-09-24 06:31:39 | 3h13m55s | preempted |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | 1 | `us-east5-a` | 2026-09-24 06:16:18 | 2026-09-24 06:31:43 | 15m25s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75` | 1 | `us-east5-a` | 2026-09-24 03:20:58 | 2026-09-24 06:31:46 | 3h10m48s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57` | 2 | `us-east5-a` | 2026-09-24 06:41:30 | 2026-09-24 06:43:42 | 2m12s | preempted |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 13 | `us-east5-a` | 2026-09-24 06:41:15 | 2026-09-24 06:44:06 | 2m51s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75` | 2 | `us-east5-a` | 2026-09-24 06:41:15 | 2026-09-24 06:44:06 | 2m51s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57` | 3 | `us-east5-a` | 2026-09-24 06:52:18 | 2026-09-24 07:04:48 | 12m30s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75` | 3 | `us-east5-a` | 2026-09-24 06:52:37 | 2026-09-24 07:20:26 | 27m49s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57` | 4 | `us-east5-a` | 2026-09-24 07:10:29 | 2026-09-24 07:20:32 | 10m03s | preempted |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 14 | `us-east5-a` | 2026-09-24 06:52:13 | 2026-09-24 07:29:54 | 37m41s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75` | 4 | `us-east5-a` | 2026-09-24 07:26:36 | 2026-09-24 07:31:54 | 5m18s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57` | 5 | `us-east5-a` | 2026-09-24 07:26:23 | 2026-09-24 07:32:04 | 5m41s | preempted |
 | `Llama2XLPropTrain` | 11 | `europe-west4-b` | 2026-09-24 02:11:23 | 2026-09-24 07:36:04 | 5h24m41s | run_stop |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 15 | `us-east5-a` | 2026-09-24 07:33:49 | 2026-09-24 07:36:08 | 2m19s | run_stop |
+| `BamMediumPropK75EmbedVOnlyQK75` | 5 | `us-east5-a` | 2026-09-24 07:41:30 | 2026-09-24 07:44:35 | 3m05s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75` | 6 | `us-east5-a` | 2026-09-24 07:59:14 | 2026-09-24 08:04:08 | 4m54s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57` | 6 | `us-east5-a` | 2026-09-24 07:41:46 | 2026-09-24 08:04:33 | 22m47s | preempted |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | 2 | `us-east5-a` | 2026-09-24 06:41:20 | 2026-09-24 08:12:53 | 1h31m33s | preempted |
 | `BamMediumPropK75EmbedVOnlyQK57` | 7 | `us-east5-a` | 2026-09-24 08:10:20 | 2026-09-24 08:13:12 | 2m52s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75` | 7 | `us-east5-a` | 2026-09-24 08:12:27 | 2026-09-24 08:15:15 | 2m48s | preempted |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | 3 | `us-east5-a` | 2026-09-24 08:19:10 | 2026-09-24 08:22:16 | 3m06s | preempted |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | 4 | `us-east5-a` | 2026-09-24 08:33:25 | 2026-09-24 08:57:36 | 24m11s | run_stop |
 | `BamMediumPropK75EmbedQKVOnlyStaticRoPE18` | 1 | `us-east5-a` | 2026-09-24 09:59:11 | 2026-09-24 10:46:06 | 46m56s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK75` | 8 | `us-east5-a` | 2026-09-24 08:28:29 | 2026-09-24 10:46:13 | 2h17m44s | preempted |
 | `BamMediumPropK75EmbedQKVOnlyStaticRoPE18` | 2 | `us-east5-a` | 2026-09-24 10:53:02 | 2026-09-24 11:42:40 | 49m38s | run_stop |
 | `BamMediumPropK75EmbedVOnlyQK57` | 8 | `us-east5-a` | 2026-09-24 08:26:24 | 2026-09-24 11:52:28 | 3h26m04s | completed13500 |
+| `BamMediumPropK75EmbedVOnlyQK75` | 9 | `us-east5-a` | 2026-09-24 10:52:56 | 2026-09-24 12:23:33 | 1h30m37s | completed13500 |

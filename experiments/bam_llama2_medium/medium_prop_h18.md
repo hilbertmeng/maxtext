@@ -16,3 +16,5 @@ Pre-run bet: H18−H16 terminal gap−.004 (−.009..+.003), favoring added atte
 Runtime `9580fa0118459841afbf86427e4aa8b981cb75b1`; sealed effective configuration check, actual parameter-tree audit, full training-graph trace (726 concat-health scalars), and46 pinned CPU tests passed. AOT ready via retained compiler; manifest in `aot_runs/9580fa0-8bf53a64.json`. Formal UE5a queue submitted2026-09-24T00:40:01Z; FIRST_STEP9 verified after AOT load.
 
 Startup:10–14 mean .5106 steps/s, -9.42% vs H16 normal-resource .5636858, matched generic+concat health. Steps20–37 mostly .510–.511, one .467 transient. Slower than pre-run3–7% forecast; longer window and cause remain to be verified. Raw log `/data0/xd/mediumprop-h18-startup.txt`.
+
+Steady startup window20–99 (80 samples): harmonic .5082982170 steps/s, median .510; -9.82597% vs H16 .5636858329 from the same window length and matched health. Raw `/data0/xd/mediumprop-h18-steady.txt`. The loss of throughput persists beyond startup; cause not established. The generic training TFLOPs estimator is not valid for this BAM decomposition.

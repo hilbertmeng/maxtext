@@ -9498,7 +9498,8 @@ class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
 class BamMediumPropK75EmbedQKVOnlyRoPE18(BamMediumPropK75EmbedVOnlyQK75):
     """No standard Q/K; rotate final18 of full75 M reads, refund to each MLP."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # Prepared runtime: 1f0b357; AOT pending, UE5a v5p-16.
+    # code_commit: 1f0b357; UE5a v5p-16 .5369 steps/s (20-99), +1.72% vs QK57, +4.24% vs QK75.
+    # Basic+concat health ON; 668 BAM scalars vs776/830 in QK57/QK75. Running.
     model_name = 'BamMediumPropK75EmbedQKVOnlyRoPE18'
     bam_qk_from_m_only = True
     bam_standard_qk_dim = None

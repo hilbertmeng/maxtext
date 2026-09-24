@@ -30,10 +30,22 @@ Both FIRST_STEP and Loaded compiled function verified. QK57 steps10–14 harmoni
 
 RUN `BamMediumPropK75EmbedQKVOnlyRoPE18`, same worktree/branch. All L/F Q/K omit standard1200->16x18 projections. Full75 dynamic+static M reads become Q/K, first57 NoPE and final18 RoPE; no additional read normalization, scale sqrt75. F keeps W_V; all L values remain matrix-only. MLP[4093,4093,3694] returns exactly691200=.48W_Q per layer, +192MLP dimensions; audited total432106784 identical to both prior arms. Direct compares: QK57, QK75, original PropK57, PropMHA. Plan13500/cp200, UE5a only; TPU `xd-v5p-16-mediumprop-k75-mqk-maxtext`.
 
-Bet: terminal loss vs QK57 -.005, vs QK75 +.002; speed near QK57, faster than93-dimensional QK75. This tests whether current residual's direct positional Q/K content is worth more than the returned MLP budget. Seed write .1, staticV normal(1/sqrt32), staticO zero, other reader initialization unchanged. New health records NoPE versus rotated-M score RMS; omits misleading standard-QK ratios after removing standard QK.
+This tests whether current residual's direct positional Q/K content is worth more than the returned MLP budget. Seed write .1, staticV normal(1/sqrt32), staticO zero, other reader initialization unchanged. New health records NoPE versus rotated-M score RMS; omits misleading standard-QK ratios after removing standard QK.
 
 Validation `/data0/xd/k75-mqk-audit.json`, `k75-mqk-audit.log` full train trace1583 metrics; `/data0/xd/k75-mqk-tests.log`. Tests extend both parent layouts with absent Q/K parameters in L/F, exact attention parameter reduction, unchanged NoPE57, changed norm-preserving RoPE18, finite/nonzero seed and static Q/K/V/O gradients. Borrow retained user compiler `llm-jax-v6e-1-1` EW4a worker0 with existing installed environment and shared host lock; never adopt/delete its lifecycle.
 
 Third-arm runtime `1f0b35703159dbbcbc94e4e1538162a887d1ac68`; sealed config and AOT verified. Suite46 other tests passed; extended test's direct helper invocation was invalid outside Flax compact context, corrected to inspect captured production forward (test-only commit02c584e3), targeted PASS74.765s. Runtime/model unchanged. UE5a queued2026-09-24 06:10:14UTC, AOT loaded/FIRST60 verified, training from0. Steps10–14 .538795; steady20–99 n80 .536909 (+1.72%vsQK57 .527832,+4.24%vsQK75 .515091,-4.75%vsoriginalK57 .563686,-26.15%vsMHA .727073). Health668 BAM scalars vs776/830, so timings not telemetry-matched. `/data0/xd/k75-mqk-steady.log`.
 
 At5000 revised first-pair terminal bets vs originalK57 to-.020/-.025 (initial-.010/-.015); slowing decay supports more retained benefit. QK75-QK57 bet stays-.005.
+
+## Matrix-only QK closeout
+
+Stopped4,042. Equal-parameter matrix-only QK initially caught up but retained +.02606/+.03327 last-five-window loss gaps versus QK57/QK75 at4k; speed +1.72%/+4.24% with fewer health scalars. OriginalK57 advantage peaked near1.2k and shrank to-.01130 at4k. Keeping18 standard Q/K dimensions was more effective than moving that parameter budget into MLP. Checkpoint committed, resources absent, TB SYNC_OK. Data: `/data0/xd/k75-mqk-final-gaps.json`.
+
+```text
+BamMediumPropK75EmbedQKVOnlyRoPE18: preemptions=3 ready_leases=4
+01      15m25s  us-east5-a  xd-v5p-16-mediumprop-k75-mqk-maxtext  2026-09-24T06:16:18Z -> 2026-09-24T06:31:43Z  preempted
+02    1h31m33s  us-east5-a  xd-v5p-16-mediumprop-k75-mqk-maxtext  2026-09-24T06:41:20Z -> 2026-09-24T08:12:53Z  preempted
+03       3m06s  us-east5-a  xd-v5p-16-mediumprop-k75-mqk-maxtext  2026-09-24T08:19:10Z -> 2026-09-24T08:22:16Z  preempted
+04      24m11s  us-east5-a  xd-v5p-16-mediumprop-k75-mqk-maxtext  2026-09-24T08:33:25Z -> 2026-09-24T08:57:36Z  run_stop
+```

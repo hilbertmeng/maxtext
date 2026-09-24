@@ -341,6 +341,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `Llama2XLPropTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:49 | 2026-09-23 23:05:12 | preempted; migrated checkpoint21198 to EW4b | UC1a never active |
 | `Llama2XLPropTrain` | v5p-32 | `europe-west4-b` | 2026-09-23 23:52:18 | 2026-09-24 07:36:04 | user stop; checkpoint34598; TPU/queue absent | none |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:54 | 2026-09-24 07:36:08 | user stop; checkpoint23022; TPU/queue absent | EW4b/UC1a never active |
+| `BamMediumPropK75EmbedQKVOnlyRoPE18` | v5p-16 | `us-east5-a` | 2026-09-24 06:10:14 | 2026-09-24 08:57:36 | user stop4042; TPU/queue absent | none |
 
 ## READY leases
 
@@ -1064,7 +1065,11 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamLlama2MediumPropK57SharedRank4H18MLPPerLayer` | 2 | `us-east5-a` | 2026-09-24 02:12:19 | 2026-09-24 02:13:22 | 1m03s | manual stop before resumed training; released02:20:26 |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 11 | `us-east5-a` | 2026-09-24 02:19:40 | 2026-09-24 02:42:00 | 22m20s | preempted |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 12 | `us-east5-a` | 2026-09-24 02:50:47 | 2026-09-24 06:31:23 | 3h40m36s | preempted |
+| `BamMediumPropK75EmbedQKVOnlyRoPE18` | 1 | `us-east5-a` | 2026-09-24 06:16:18 | 2026-09-24 06:31:43 | 15m25s | preempted |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 13 | `us-east5-a` | 2026-09-24 06:41:15 | 2026-09-24 06:44:06 | 2m51s | preempted |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 14 | `us-east5-a` | 2026-09-24 06:52:13 | 2026-09-24 07:29:54 | 37m41s | preempted |
 | `Llama2XLPropTrain` | 11 | `europe-west4-b` | 2026-09-24 02:11:23 | 2026-09-24 07:36:04 | 5h24m41s | run_stop |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 15 | `us-east5-a` | 2026-09-24 07:33:49 | 2026-09-24 07:36:08 | 2m19s | run_stop |
+| `BamMediumPropK75EmbedQKVOnlyRoPE18` | 2 | `us-east5-a` | 2026-09-24 06:41:20 | 2026-09-24 08:12:53 | 1h31m33s | preempted |
+| `BamMediumPropK75EmbedQKVOnlyRoPE18` | 3 | `us-east5-a` | 2026-09-24 08:19:10 | 2026-09-24 08:22:16 | 3m06s | preempted |
+| `BamMediumPropK75EmbedQKVOnlyRoPE18` | 4 | `us-east5-a` | 2026-09-24 08:33:25 | 2026-09-24 08:57:36 | 24m11s | run_stop |

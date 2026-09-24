@@ -9337,14 +9337,14 @@ class BamLlama2MediumPropK57SharedRank4MLPPerLayer(BamLlama2MediumProp):
 
 class BamLlama2MediumPropK57SharedRank4H18MLPPerLayer(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
     """18 heads at fixed D1200/head75/M57x32; redistribute the attention budget."""
-    # P_loc output16*32 ->18*32: preserve R/output=.5 with R288.
-    # MLP3373 is nearest MHA budget: +23,220 total (+.005374%); M-cache unchanged.
+    # Keep P_loc GELU bottleneck R256 while output grows16*32 ->18*32.
+    # MLP3388 is nearest MHA budget: -27,756 total (-.006423%); M-cache unchanged.
     # Bet vs H16 Prop: final gap -.004 (-.009..+.003); speed -3%..-7%, matched health.
     model_name = 'BamLlama2MediumPropK57SharedRank4H18MLPPerLayer'
     base_num_query_heads = 18
     base_num_kv_heads = 18
-    bam_write_v_bottleneck_dim = 288
-    mlp_dim_by_block = [3373, 3373, 3373]
+    bam_write_v_bottleneck_dim = 256
+    mlp_dim_by_block = [3388, 3388, 3388]
     compare_runs = ['BamLlama2MediumPropK57SharedRank4MLPPerLayer', 'BamMHAMediumPropC256']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/medium-prop-k57-h18'
 

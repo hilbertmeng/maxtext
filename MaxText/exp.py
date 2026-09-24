@@ -9521,6 +9521,8 @@ class BamMediumPropK75EmbedQKVOnlyStaticRoPE18(BamMediumPropK75EmbedQKVOnlyRoPE1
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # code_commit: cf10ef9
     # UE5a .5388 step/s (20-99): +0.35% vs prior pure-M QK, same basic+concat health.
+    # Stopped 2,912: early catch-up slowed; last5 mean +.03614 vs prior pure-M QK,
+    # +.06536/+.07342 vs QK57/QK75. Same parameters; no meaningful speed gain.
     model_name = 'BamMediumPropK75EmbedQKVOnlyStaticRoPE18'
     bam_qk_static_rope_only = True
     compare_runs = ['BamMediumPropK75EmbedQKVOnlyRoPE18', 'BamMediumPropK75EmbedVOnlyQK57', 'BamMediumPropK75EmbedVOnlyQK75']

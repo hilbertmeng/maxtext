@@ -343,6 +343,8 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:54 | 2026-09-24 07:36:08 | user stop; checkpoint23022; TPU/queue absent | EW4b/UC1a never active |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | v5p-16 | `us-east5-a` | 2026-09-24 06:10:14 | 2026-09-24 08:57:36 | user stop4042; TPU/queue absent | none |
 
+| `BamMediumPropK75EmbedQKVOnlyStaticRoPE18` | v5p-16 | `us-east5-a` | 2026-09-24 09:50:56 | 2026-09-24 11:42:40 | review stop2,912; no benefit | none |
+
 ## READY leases
 
 | RUN | # | Zone | Start UTC | End UTC | Duration | Exit |
@@ -1073,3 +1075,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | 2 | `us-east5-a` | 2026-09-24 06:41:20 | 2026-09-24 08:12:53 | 1h31m33s | preempted |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | 3 | `us-east5-a` | 2026-09-24 08:19:10 | 2026-09-24 08:22:16 | 3m06s | preempted |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | 4 | `us-east5-a` | 2026-09-24 08:33:25 | 2026-09-24 08:57:36 | 24m11s | run_stop |
+| `BamMediumPropK75EmbedQKVOnlyStaticRoPE18` | 1 | `us-east5-a` | 2026-09-24 09:59:11 | 2026-09-24 10:46:06 | 46m56s | preempted |
+| `BamMediumPropK75EmbedQKVOnlyStaticRoPE18` | 2 | `us-east5-a` | 2026-09-24 10:53:02 | 2026-09-24 11:42:40 | 49m38s | run_stop |

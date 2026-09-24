@@ -13,4 +13,6 @@ Direct loss baselines: H16 Prop and MediumProp MHA control. Both13500 steps, che
 
 Pre-run bet: H18−H16 terminal gap−.004 (−.009..+.003), favoring added attention capacity modestly; throughput3–7% lower with matched health. The test reallocates parameters from MLP to heads; P_loc hidden width remains fixed. Exact equality is limited by integer MLP width.
 
-Runtime `9580fa0118459841afbf86427e4aa8b981cb75b1`; sealed effective configuration check, actual parameter-tree audit, full training-graph trace (726 concat-health scalars), and46 pinned CPU tests passed. AOT ready via retained compiler; manifest in `aot_runs/9580fa0-8bf53a64.json`. Formal UE5a queue submitted2026-09-24T00:40:01Z; FIRST_STEP pending.
+Runtime `9580fa0118459841afbf86427e4aa8b981cb75b1`; sealed effective configuration check, actual parameter-tree audit, full training-graph trace (726 concat-health scalars), and46 pinned CPU tests passed. AOT ready via retained compiler; manifest in `aot_runs/9580fa0-8bf53a64.json`. Formal UE5a queue submitted2026-09-24T00:40:01Z; FIRST_STEP9 verified after AOT load.
+
+Startup:10–14 mean .5106 steps/s, -9.42% vs H16 normal-resource .5636858, matched generic+concat health. Steps20–37 mostly .510–.511, one .467 transient. Slower than pre-run3–7% forecast; longer window and cause remain to be verified. Raw log `/data0/xd/mediumprop-h18-startup.txt`.

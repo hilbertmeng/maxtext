@@ -25,3 +25,11 @@ Sealed runtime `1db092aac89ece6b4143abb37334f40b8fe37b4b`; runtime config guard 
 Final AOT both ready on borrowed EW4a worker0, runtime1db092a. Artifact root `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/1db092a/jax081-i0ae3f58-c17f538a/v5p-16/s13500/`. Trainer requests UE5a only; QK57 requested2026-09-24 03:13:43UTC, QK75 requested03:16UTC. No borrowed compiler lifecycle operations.
 
 Both FIRST_STEP and Loaded compiled function verified. QK57 steps10–14 harmonic.530600,20–99 n80 .527832 (-6.36% vs K57 .563686; -27.40% vs MHA .727073). QK75 steps10–14 .517200,20–99 n80 .515091 (-8.62% vs K57; -29.16% vs MHA; -2.41% vs QK57). Health: generic+concat; BAM scalars776/830 versus parent726, timing not strictly matched. Logs `/data0/xd/k75-qk{57,75}-steady.log`. Both train from0 on exact1db092a; no preemptions at startup.
+
+## Third arm: matrix-only QK with RoPE18
+
+RUN `BamMediumPropK75EmbedQKVOnlyRoPE18`, same worktree/branch. All L/F Q/K omit standard1200->16x18 projections. Full75 dynamic+static M reads become Q/K, first57 NoPE and final18 RoPE; no additional read normalization, scale sqrt75. F keeps W_V; all L values remain matrix-only. MLP[4093,4093,3694] returns exactly691200=.48W_Q per layer, +192MLP dimensions; audited total432106784 identical to both prior arms. Direct compares: QK57, QK75, original PropK57, PropMHA. Plan13500/cp200, UE5a only; TPU `xd-v5p-16-mediumprop-k75-mqk-maxtext`.
+
+Bet: terminal loss vs QK57 -.005, vs QK75 +.002; speed near QK57, faster than93-dimensional QK75. This tests whether current residual's direct positional Q/K content is worth more than the returned MLP budget. Seed write .1, staticV normal(1/sqrt32), staticO zero, other reader initialization unchanged. New health records NoPE versus rotated-M score RMS; omits misleading standard-QK ratios after removing standard QK.
+
+Validation `/data0/xd/k75-mqk-audit.json`, `k75-mqk-audit.log` full train trace1583 metrics; `/data0/xd/k75-mqk-tests.log`. Tests extend both parent layouts with absent Q/K parameters in L/F, exact attention parameter reduction, unchanged NoPE57, changed norm-preserving RoPE18, finite/nonzero seed and static Q/K/V/O gradients. Borrow retained user compiler `llm-jax-v6e-1-1` EW4a worker0 with existing installed environment and shared host lock; never adopt/delete its lifecycle.

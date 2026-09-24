@@ -287,6 +287,7 @@ class BamLlama2Medium(Llama2Medium):
     bam_record_concat_health = False
     bam_concat_qk = False
     bam_concat_static_qk = False
+    bam_qk_from_m_only = False
     bam_standard_qk_dim = None
     bam_local_v_replace = False
     bam_local_vo_static = False
@@ -9498,3 +9499,14 @@ class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
     bam_partial_rope_nope_dim = 75
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57', 'BamLlama2MediumPropK57SharedRank4MLPPerLayer', 'BamMHAMediumPropC256']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qk75'
+
+
+class BamMediumPropK75EmbedQKVOnlyRoPE18(BamMediumPropK75EmbedVOnlyQK75):
+    """No standard Q/K; rotate final18 of full75 M reads, refund to each MLP."""
+    model_name = 'BamMediumPropK75EmbedQKVOnlyRoPE18'
+    bam_qk_from_m_only = True
+    bam_standard_qk_dim = None
+    bam_partial_rope_nope_dim = 57
+    mlp_dim_by_block = [4093, 4093, 3694]
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57', 'BamMediumPropK75EmbedVOnlyQK75', 'BamLlama2MediumPropK57SharedRank4MLPPerLayer', 'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qkv-only-rope18'

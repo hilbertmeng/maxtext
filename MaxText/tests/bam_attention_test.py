@@ -194,12 +194,12 @@ class BamReadKeyTransformTest(absltest.TestCase):
     from layers.models import EmbeddingBamWrite
     from flax.core import unfreeze
     counts = []
-    for width in (57, 75):
+    for width in (57, 75, 0):
       with tempfile.TemporaryDirectory() as out:
         Path(out, 'seed').mkdir()
         cfg = pyconfig.initialize(
             [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
-            exp_class=f'BamMediumPropK75EmbedVOnlyQK{width}', run_name='seed',
+            exp_class=(f'BamMediumPropK75EmbedVOnlyQK{width}' if width else 'BamMediumPropK75EmbedQKVOnlyRoPE18'), run_name='seed',
             enable_checkpointing=False, base_output_directory=out+'/', jax_cache_dir='',
             log_config=False, dataset_type='synthetic', base_emb_dim=150,
             base_num_query_heads=2, base_num_kv_heads=2, max_target_length=4,
@@ -225,16 +225,20 @@ class BamReadKeyTransformTest(absltest.TestCase):
         kw = dict(M_in=m, deterministic=True, layer_index=0)
         p = unfreeze(mod.init(jax.random.key(92),*args,**kw)['params'])
         self.assertNotIn('value', p)
-        self.assertEqual(p['query']['kernel'].value.shape, (150,2,18))
+        if width:
+          self.assertEqual(p['query']['kernel'].value.shape, (150,2,18))
+        else:
+          self.assertNotIn('query',p)
+          self.assertNotIn('key',p)
         np.testing.assert_array_equal(p['static_o_key'].value, 0.)
         np.testing.assert_array_equal(p['W_R']['kernel'].value, 0.)
         self.assertGreater(float(jnp.linalg.norm(p['static_v_key'].value)),0.)
         counts.append(sum(z.size for z in jax.tree.leaves(p)))
         (y, mout), capture = mod.apply({'params':p},*args,**kw,
-            capture_intermediates=lambda obj,method: method == '_add_local_qk',mutable=['intermediates'])
-        q,k = capture['intermediates']['_add_local_qk'][0]
-        self.assertEqual(q.shape[-1],width+18)
-        self.assertEqual(k.shape[-1],width+18)
+            capture_intermediates=lambda obj,method: method == ('_add_local_qk' if width else '_matrix_only_qk'),mutable=['intermediates'])
+        q,k = capture['intermediates']['_add_local_qk' if width else '_matrix_only_qk'][0]
+        self.assertEqual(q.shape[-1],width+18 if width else 75)
+        self.assertEqual(k.shape[-1],width+18 if width else 75)
         self.assertGreater(float(jnp.linalg.norm(y.astype('float32'))),0.)
         vv = mod.apply({'params':p}, m, 'v', method=mod._static_column)
         print('SEED_INIT_RMS', width, 'M', float(jnp.sqrt(jnp.mean(m.astype('float32')**2))),
@@ -251,7 +255,18 @@ class BamReadKeyTransformTest(absltest.TestCase):
         fp = mod.clone(layer_mode='local_qk+full').init(jax.random.key(93),*args,**kw)['params']
         self.assertIn('value',fp)
         self.assertNotIn('static_v_key',fp)
+        if not width:
+          self.assertNotIn('query',fp)
+          self.assertNotIn('key',fp)
+          z = jax.random.normal(jax.random.key(94), (1,4,2,75), dtype=jnp.float32)
+          qr, kr = mod.apply({'params':p}, z, z, args[2], args[3], method=mod._matrix_only_qk)
+          np.testing.assert_array_equal(qr[...,:57], z[...,:57])
+          np.testing.assert_allclose(jnp.sum(qr[...,57:]**2,axis=-1),jnp.sum(z[...,57:]**2,axis=-1),rtol=.02)
+          self.assertGreater(float(jnp.linalg.norm(qr[:,1:,...,57:]-z[:,1:,...,57:])),0.)
+          for arm in ('q','k'):
+            self.assertGreater(float(jnp.linalg.norm(gp[f'static_{arm}_key'].value.astype('float32'))),0.)
     self.assertEqual(counts[0],counts[1])
+    self.assertEqual(counts[1]-counts[2],2*150*2*18)
 
   def test_direct_c8_qk_independent_keys_static_and_gradients(self):
     self._check_direct_c8_qk(64)

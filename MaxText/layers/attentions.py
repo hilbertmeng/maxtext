@@ -2396,6 +2396,7 @@ class BamAttention(Attention):
     super().setup()             # reuse attention_op / projections / rope / out_projection
     cfg = self.config
     validate_bam_config(cfg, layer_mode=self.layer_mode)
+    self._qk_from_m_only = bool(getattr(cfg, 'bam_qk_from_m_only', False))
     self._local_v_replace = False
     self._static_vo = False
     self._standard_qk_width = getattr(cfg, 'bam_standard_qk_dim', None)
@@ -2797,6 +2798,10 @@ class BamAttention(Attention):
                 ('v_factor', 'q_heads')),
             (self.bam_v, self.num_query_heads), self.weight_dtype))
 
+    if self._qk_from_m_only:
+      assert self._concat_static_qk and 'local_qk' in self._mode
+      assert self._qk_col_width == self.head_dim and self._standard_qk_width is None
+
     # ---- Local read parameters: one packed projection over every arm, then
     # the same per-arm bias / gate bias / norms / adapter. ----
     if self._local_arms:
@@ -2964,7 +2969,7 @@ class BamAttention(Attention):
     self.sow('intermediates', 'concat_' + name + '_amplitude',
              jnp.stack((b, s, b / jnp.maximum(s, 1e-12))))
 
-  def _record_concat_qk_scores(self, query, key, q_bam, k_bam, segment_ids=None):
+  def _record_concat_qk_scores(self, query, key, q_bam, k_bam, segment_ids=None, metric_name="concat_qk_scores"):
     if not self._concat_health or not getattr(self.config, 'bam_concat_qk', False):
       return
     # One sequence, 16 evenly-spaced tokens, all heads; no full quadratic probe.
@@ -2987,7 +2992,7 @@ class BamAttention(Attention):
       self.sow('intermediates', 'concat_qk_extra_scores',
                jnp.stack((tail, prefix, tail / jnp.maximum(prefix, 1e-12))))
     std, bam = score_rms(query, key), score_rms(q_bam, k_bam)
-    self.sow('intermediates', 'concat_qk_scores',
+    self.sow('intermediates', metric_name,
              jnp.stack((bam, std, bam / jnp.maximum(std, 1e-12))))
 
   def _record_fetched_gate_stats(self, gate_logits):
@@ -3184,6 +3189,16 @@ class BamAttention(Attention):
               jnp.concatenate((k_local[..., :self._qk_col_width], key), axis=-1))
     return query + q_local, key + k_local
 
+
+  def _matrix_only_qk(self, q, k, positions, segment_ids=None):
+    # Preserve the BAM read amplitude: no additional QKNorm on either subspace.
+    q = self._apply_partial_rope(q, positions, name='query_rotary')
+    k = self._apply_partial_rope(k, positions, name='key_rotary')
+    split = self._partial_rope_nope_dim
+    self._record_concat_qk_scores(q[..., split:], k[..., split:],
+                                 q[..., :split], k[..., :split], segment_ids,
+                                 metric_name='concat_matrix_qk_scores')
+    return q, k
 
   def _apply_partial_rope(self, x, positions, name):
     """Keep the LocalQK footprint position-free; rotate its unused head tail."""
@@ -3424,34 +3439,39 @@ class BamAttention(Attention):
       assert not cfg.fused_qkv and cfg.bam_prune_all_row_reads
     if concat_qk:
       assert 0 < self._qk_col_width <= self.head_dim
-      assert self._partial_rope and self._partial_rope_nope_dim == self._qk_col_width
+      assert self._partial_rope
+      assert self._qk_from_m_only or self._partial_rope_nope_dim == self._qk_col_width
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
     # ---- QKV projection + QKNorm + RoPE ----
     if cfg.fused_qkv:
       query, key, value = self.qkv_projection(inputs_q, proj_name="qkv_proj")
     else:
-      query = self.query_projection(inputs_q, standard_qk_width if concat_qk else None)
-      key = self.kv_projection(inputs_kv, proj_name="key",
-                               projection_dim=standard_qk_width if concat_qk else None)
+      if self._qk_from_m_only:
+        query = key = None
+      else:
+        query = self.query_projection(inputs_q, standard_qk_width if concat_qk else None)
+        key = self.kv_projection(inputs_kv, proj_name="key",
+                                 projection_dim=standard_qk_width if concat_qk else None)
       value = (jnp.zeros(inputs_kv.shape[:-1] + (self.num_kv_heads, self.head_dim), self.dtype)
                if self._local_v_replace else self.kv_projection(inputs_kv, proj_name='value'))
 
     Mh = None
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
-    query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-    if concat_qk:
-      # Only the standard arm rotates; the retained BAM column is concatenated afterwards.
-      query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
+    if not self._qk_from_m_only:
+      query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
+      if concat_qk:
+        # Only the standard arm rotates; the retained BAM column is concatenated afterwards.
+        query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
+                                            embedding_dims=standard_qk_width)
+        key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
                                           embedding_dims=standard_qk_width)
-      key = self.apply_rotary_embedding(key, inputs_positions, name='key_rotary',
-                                        embedding_dims=standard_qk_width)
-    elif self._partial_rope:
-      query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
-      key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
-    else:
-      query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
-      key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
+      elif self._partial_rope:
+        query = self._apply_partial_rope(query, inputs_positions, name='query_rotary')
+        key = self._apply_partial_rope(key, inputs_positions, name='key_rotary')
+      else:
+        query = self.apply_rotary_embedding(query, inputs_positions, name="query_rotary")
+        key = self.apply_rotary_embedding(key, inputs_positions, name="key_rotary")
 
     # Inject LocalQK after RoPE.
     local_compressed_M = None
@@ -3470,7 +3490,10 @@ class BamAttention(Attention):
           basis_cache = self._shared_qk_basis(Mh, local_inputs) if self._share_qk_basis else None
           q_local = self._read_local('q', Mh, inputs_q, local_inputs, basis_cache)
           k_local = self._read_local('k', Mh, inputs_q, local_inputs, basis_cache)
-        query, key = self._add_local_qk(query, key, q_local, k_local, decoder_segment_ids)
+        if self._qk_from_m_only:
+          query, key = self._matrix_only_qk(q_local, k_local, inputs_positions, decoder_segment_ids)
+        else:
+          query, key = self._add_local_qk(query, key, q_local, k_local, decoder_segment_ids)
 
     query = nn.with_logical_constraint(query, self.query_axis_names)
     key = nn.with_logical_constraint(key, self.key_axis_names)

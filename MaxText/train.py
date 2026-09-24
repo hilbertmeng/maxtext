@@ -377,6 +377,8 @@ def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, confi
       value = values[0] if index is None else values[0][index]
       if key == 'concat_vo_gate_pair':
         names = ('mean_abs_diff', 'rms_diff', 'correlation')
+      elif key == 'concat_matrix_qk_scores':
+        names = ('nope_rms', 'rope_rms', 'nope_over_rope')
       elif key == 'concat_local_v_content':
         names = ('rms',)
       elif key.endswith('_gate'):

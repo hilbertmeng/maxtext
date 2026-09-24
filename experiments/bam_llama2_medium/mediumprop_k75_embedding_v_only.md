@@ -49,3 +49,11 @@ BamMediumPropK75EmbedQKVOnlyRoPE18: preemptions=3 ready_leases=4
 03       3m06s  us-east5-a  xd-v5p-16-mediumprop-k75-mqk-maxtext  2026-09-24T08:19:10Z -> 2026-09-24T08:22:16Z  preempted
 04      24m11s  us-east5-a  xd-v5p-16-mediumprop-k75-mqk-maxtext  2026-09-24T08:33:25Z -> 2026-09-24T08:57:36Z  run_stop
 ```
+
+## Static-only RoPE18 matrix QK
+
+RUN `BamMediumPropK75EmbedQKVOnlyStaticRoPE18`, same worktree/branch. Q/K each use independent normal(std=1/sqrt32) static32x16 keys; shared rank4 dynamic basis and pre-RMS bias start at zero, head-mix remains regular initialized, read gates/scales unchanged. Dynamic read tail57:75 is identically zero before static addition; the existing RoPE on the sum thus rotates only static content. Static remains ungated and unnormalized. Both L/F use this rule. Seed and LocalVO unchanged; MLP4093/4093/3694,432106784 parameters exactly equal to prior pure-M QK. No standard Q/K/V restored.
+
+Direct baselines: prior pure-M QK, QK57, QK75. Bet: terminal gap vs prior pure-M QK -.015..-.025; versus QK57 center+.003 (-.003..+.008). Speed expected within2% of prior .5369 step/s; compare at same basic+concat health. Plan13500/cp200, UE5a only, TPU `xd-v5p-16-mediumprop-k75-staticrope-maxtext`. Borrow retained `llm-jax-v6e-1-1` EW4a worker0 for AOT using installed environment; never adopt/delete.
+
+Audit `/data0/xd/k75-static-rope-audit.json`:432106784 params; full train-step trace1583 scalar metrics. Tests extend production L/F paths to verify nonzero static Q/K, zero but trainable shared dynamic basis, zero tail values/gradients, unchanged positional Q/K after dynamic-basis perturbation, and identical parameter count. Data/logs `/data0/xd/k75-static-rope-tests.log`.

@@ -9514,3 +9514,13 @@ class BamMediumPropK75EmbedQKVOnlyRoPE18(BamMediumPropK75EmbedVOnlyQK75):
     mlp_dim_by_block = [4093, 4093, 3694]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57', 'BamMediumPropK75EmbedVOnlyQK75', 'BamLlama2MediumPropK57SharedRank4MLPPerLayer', 'BamMHAMediumPropC256']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qkv-only-rope18'
+
+
+class BamMediumPropK75EmbedQKVOnlyStaticRoPE18(BamMediumPropK75EmbedQKVOnlyRoPE18):
+    """Pure M QK: static read alone supplies RoPE18; zero-init dynamic content on57."""
+    # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
+    # Prepared runtime cf10ef94; AOT pending.
+    model_name = 'BamMediumPropK75EmbedQKVOnlyStaticRoPE18'
+    bam_qk_static_rope_only = True
+    compare_runs = ['BamMediumPropK75EmbedQKVOnlyRoPE18', 'BamMediumPropK75EmbedVOnlyQK57', 'BamMediumPropK75EmbedVOnlyQK75']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-static-rope18'

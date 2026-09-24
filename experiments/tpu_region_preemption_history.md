@@ -338,6 +338,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-23 14:13:55 | 2026-09-23 21:11:39 | completed13500; TPU/queue absent | none activated |
 
 | `BamLlama2MediumPropK57SharedRank4H18MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-24 00:40:01 | 2026-09-24 02:13:22 | user stop1972; TPU/queue verified absent | none |
+| `Llama2XLPropTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:49 | 2026-09-23 23:05:12 | preempted; migrated checkpoint21198 to EW4b | UC1a never active |
+| `Llama2XLPropTrain` | v5p-32 | `europe-west4-b` | 2026-09-23 23:52:18 | 2026-09-24 07:36:04 | user stop; checkpoint34598; TPU/queue absent | none |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:54 | 2026-09-24 07:36:08 | user stop; checkpoint23022; TPU/queue absent | EW4b/UC1a never active |
 
 ## READY leases
 
@@ -1031,11 +1034,37 @@ active leases are censored, and manual migration releases are not preemptions.
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal | 2 | `us-east5-a` | 2026-09-22 14:45:55 | 2026-09-22 16:33:15 | 1h47m20s | service preemption; same-zone recovery |
 | BamMediumIndependentLLFQKConcatStaticLocalVOSharedC8IndependentGatesK48QK48MLPPerLayerV48 | 1 | `us-east5-a` | 2026-09-23 02:04:46 | 2026-09-23 03:28:11 | 1h23m25s | review stop; checkpoint2891 committed; TPU/queue absent |
 | BamXLSharedBasisQKConcatStaticLocalVOSharedC8IndependentGatesK96QK96SharedRank4MLPPerLayerAllLocal | 3 | `us-east5-a` | 2026-09-22 16:41:42 | 2026-09-23 08:00:44 | 15h19m02s | user stop; checkpoint31583 committed; TPU/queue absent |
+| `Llama2XLPropTrain` | 1 | `us-east5-a` | 2026-09-23 11:02:49 | 2026-09-23 12:10:06 | 1h07m17s | preempted |
+| `Llama2XLPropTrain` | 2 | `us-east5-a` | 2026-09-23 12:17:23 | 2026-09-23 12:27:08 | 9m45s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 1 | `us-east5-a` | 2026-09-23 11:02:54 | 2026-09-23 13:03:40 | 2h00m46s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 2 | `us-east5-a` | 2026-09-23 13:14:47 | 2026-09-23 13:28:13 | 13m26s | preempted |
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 1 | `us-east5-a` | 2026-09-23 13:05:13 | 2026-09-23 14:13:52 | 1h08m39s | manual resource replacement |
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 2 | `us-east5-a` | 2026-09-23 14:13:58 | 2026-09-23 14:17:05 | 3m07s | preempted; RUN-owned interval; VM previously used for diagnostic |
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 3 | `us-east5-a` | 2026-09-23 14:24:21 | 2026-09-23 15:30:01 | 1h05m40s | preempted |
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 4 | `us-east5-a` | 2026-09-23 15:39:07 | 2026-09-23 15:51:32 | 12m25s | preempted |
 | `BamMHAMediumPropC256` | 1 | `us-east5-a` | 2026-09-23 13:05:10 | 2026-09-23 18:27:46 | 5h22m36s | completed13500 |
 | `BamLlama2MediumPropK57SharedRank4MLPPerLayer` | 5 | `us-east5-a` | 2026-09-23 15:59:31 | 2026-09-23 21:11:39 | 5h12m08s | completed13500 |
+| `Llama2XLPropTrain` | 3 | `us-east5-a` | 2026-09-23 12:35:07 | 2026-09-23 21:49:41 | 9h14m34s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 3 | `us-east5-a` | 2026-09-23 13:33:54 | 2026-09-23 21:49:51 | 8h15m57s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 4 | `us-east5-a` | 2026-09-23 22:03:44 | 2026-09-23 22:30:10 | 26m26s | preempted |
+| `Llama2XLPropTrain` | 4 | `us-east5-a` | 2026-09-23 22:03:48 | 2026-09-23 22:30:22 | 26m34s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 5 | `us-east5-a` | 2026-09-23 22:37:36 | 2026-09-23 22:41:08 | 3m32s | preempted |
+| `Llama2XLPropTrain` | 5 | `us-east5-a` | 2026-09-23 22:37:29 | 2026-09-23 22:41:27 | 3m58s | preempted |
+| `Llama2XLPropTrain` | 6 | `us-east5-a` | 2026-09-23 23:01:10 | 2026-09-23 23:05:12 | 4m02s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 6 | `us-east5-a` | 2026-09-23 23:01:27 | 2026-09-23 23:05:18 | 3m51s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 7 | `us-east5-a` | 2026-09-23 23:16:16 | 2026-09-24 00:02:12 | 45m56s | preempted |
+| `Llama2XLPropTrain` | 7 | `europe-west4-b` | 2026-09-23 23:52:18 | 2026-09-24 00:07:25 | 15m07s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 8 | `us-east5-a` | 2026-09-24 00:09:24 | 2026-09-24 00:12:32 | 3m08s | preempted |
+| `Llama2XLPropTrain` | 8 | `europe-west4-b` | 2026-09-24 00:13:02 | 2026-09-24 00:16:05 | 3m03s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 9 | `us-east5-a` | 2026-09-24 00:25:22 | 2026-09-24 01:11:01 | 45m39s | preempted |
+| `Llama2XLPropTrain` | 9 | `europe-west4-b` | 2026-09-24 00:20:50 | 2026-09-24 01:46:54 | 1h26m04s | preempted |
 | `BamLlama2MediumPropK57SharedRank4H18MLPPerLayer` | 1 | `us-east5-a` | 2026-09-24 00:56:47 | 2026-09-24 02:04:54 | 1h08m07s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 10 | `us-east5-a` | 2026-09-24 01:48:54 | 2026-09-24 02:04:59 | 16m05s | preempted |
+| `Llama2XLPropTrain` | 10 | `europe-west4-b` | 2026-09-24 01:52:22 | 2026-09-24 02:06:56 | 14m34s | preempted |
 | `BamLlama2MediumPropK57SharedRank4H18MLPPerLayer` | 2 | `us-east5-a` | 2026-09-24 02:12:19 | 2026-09-24 02:13:22 | 1m03s | manual stop before resumed training; released02:20:26 |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 11 | `us-east5-a` | 2026-09-24 02:19:40 | 2026-09-24 02:42:00 | 22m20s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 12 | `us-east5-a` | 2026-09-24 02:50:47 | 2026-09-24 06:31:23 | 3h40m36s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 13 | `us-east5-a` | 2026-09-24 06:41:15 | 2026-09-24 06:44:06 | 2m51s | preempted |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 14 | `us-east5-a` | 2026-09-24 06:52:13 | 2026-09-24 07:29:54 | 37m41s | preempted |
+| `Llama2XLPropTrain` | 11 | `europe-west4-b` | 2026-09-24 02:11:23 | 2026-09-24 07:36:04 | 5h24m41s | run_stop |
+| `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | 15 | `us-east5-a` | 2026-09-24 07:33:49 | 2026-09-24 07:36:08 | 2m19s | run_stop |

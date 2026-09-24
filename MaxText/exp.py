@@ -9411,6 +9411,7 @@ class Llama2XLPropTrain(Llama2XLProp):
     """Formal batch8 RUN; replaces the invalid batch32 startup prefix."""
     # code_commit: 859bd7e
     # UE5a ~.550 / EW4b resumed ~.547 steps/s, v5p-32; generic health ON.
+    # Stopped 34,598; paired MHA reference for XLProp BAM through 23k.
     model_name = 'Llama2XLPropTrain'
     compare_runs = []
 
@@ -9419,7 +9420,10 @@ class BamLlama2XLPropK72SharedRank4MLPPerLayerTrain(BamLlama2XLPropK72SharedRank
     """Formal batch8 RUN; independent data/checkpoint prefix, starts from zero."""
     # code_commit: 859bd7e
     # UE5a v5p-32 ~.385 steps/s, -30.0% vs Llama2XLPropTrain; generic+concat health ON.
-    # Bet: final gap vs Llama2XLPropTrain ~-.080 (-.060..-.110).
+    # Stopped 23,022. vs MHA: gap narrowed, then -0.08847 mean over latest five windows through23k.
+    # At23k gap -.08677 (~1.31x historical XL advantage); matched-basic-health speed -30.66%.
+    # 50k extrapolation ~-.073 (-.065..-.080); not an observed endpoint.
+    # Fits/data: /data0/xd/bam_diagnostics/xlprop-final-extrapolation/
     model_name = 'BamLlama2XLPropK72SharedRank4MLPPerLayerTrain'
     compare_runs = ['Llama2XLPropTrain']
 

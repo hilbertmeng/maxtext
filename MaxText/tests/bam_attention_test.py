@@ -188,6 +188,71 @@ class BamReadKeyTransformTest(absltest.TestCase):
       self.assertNotIn('W_lv_gate',fp)
 
 
+  def test_embedding_seeded_value_only_k75_both_qk_layouts(self):
+    import max_utils
+    import pyconfig
+    from layers.models import EmbeddingBamWrite
+    from flax.core import unfreeze
+    counts = []
+    for width in (57, 75):
+      with tempfile.TemporaryDirectory() as out:
+        Path(out, 'seed').mkdir()
+        cfg = pyconfig.initialize(
+            [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+            exp_class=f'BamMediumPropK75EmbedVOnlyQK{width}', run_name='seed',
+            enable_checkpointing=False, base_output_directory=out+'/', jax_cache_dir='',
+            log_config=False, dataset_type='synthetic', base_emb_dim=150,
+            base_num_query_heads=2, base_num_kv_heads=2, max_target_length=4,
+            max_prefill_predict_length=4, query_chunk_size=2, per_device_batch_size=1.)
+        cfg.get_keys()['bam_write_v_bottleneck_dim'] = 32
+        mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+        seed = EmbeddingBamWrite(cfg, 2, cfg.dtype, cfg.weight_dtype, None,
+                                initializers.get_init_method(cfg.init_method))
+        x = jax.random.normal(jax.random.key(90), (1,4,150), dtype=cfg.dtype)
+        sp = seed.init(jax.random.key(91), x)
+        m = seed.apply(sp, x)
+        self.assertEqual(m.shape, (1,4,75,32))
+        self.assertGreater(float(jnp.linalg.norm(m.astype('float32'))), 0.)
+        # Each token's seed depends only on that token.
+        other = seed.apply(sp, x.at[:,3].set(0))
+        np.testing.assert_array_equal(m[:,:3], other[:,:3])
+        mod = BamAttention(config=cfg, num_query_heads=2, num_kv_heads=2,
+            head_dim=75, bam_k=75, bam_v=32, max_target_length=4,
+            max_prefill_predict_length=4, mesh=mesh, attention_kernel='dot_product_chunk',
+            dtype=cfg.dtype, layer_mode='local_qk+local_v+local_o', read_side='col',
+            attention_type=cfg.attention_type)
+        args = (x,x,jnp.arange(4)[None],jnp.ones((1,4),jnp.int32))
+        kw = dict(M_in=m, deterministic=True, layer_index=0)
+        p = unfreeze(mod.init(jax.random.key(92),*args,**kw)['params'])
+        self.assertNotIn('value', p)
+        self.assertEqual(p['query']['kernel'].value.shape, (150,2,18))
+        np.testing.assert_array_equal(p['static_o_key'].value, 0.)
+        np.testing.assert_array_equal(p['W_R']['kernel'].value, 0.)
+        self.assertGreater(float(jnp.linalg.norm(p['static_v_key'].value)),0.)
+        counts.append(sum(z.size for z in jax.tree.leaves(p)))
+        (y, mout), capture = mod.apply({'params':p},*args,**kw,
+            capture_intermediates=lambda obj,method: method == '_add_local_qk',mutable=['intermediates'])
+        q,k = capture['intermediates']['_add_local_qk'][0]
+        self.assertEqual(q.shape[-1],width+18)
+        self.assertEqual(k.shape[-1],width+18)
+        self.assertGreater(float(jnp.linalg.norm(y.astype('float32'))),0.)
+        vv = mod.apply({'params':p}, m, 'v', method=mod._static_column)
+        print('SEED_INIT_RMS', width, 'M', float(jnp.sqrt(jnp.mean(m.astype('float32')**2))),
+              'V', float(jnp.sqrt(jnp.mean(vv.astype('float32')**2))), flush=True)
+        def loss(ap, ep):
+          mm=seed.apply(ep,x)
+          yy,_=mod.apply({'params':ap},*args,**(kw|{'M_in':mm}))
+          return jnp.mean(yy.astype('float32')**2)
+        gp, ge = jax.grad(loss,argnums=(0,1))(p,sp)
+        self.assertTrue(all(bool(jnp.all(jnp.isfinite(z))) for z in jax.tree.leaves((gp,ge))))
+        for arm in ('v','o'):
+          self.assertGreater(float(jnp.linalg.norm(gp[f'static_{arm}_key'].value.astype('float32'))),0.)
+        self.assertGreater(float(jnp.linalg.norm(ge['params']['W_emb_u']['kernel'].value.astype('float32'))),0.)
+        fp = mod.clone(layer_mode='local_qk+full').init(jax.random.key(93),*args,**kw)['params']
+        self.assertIn('value',fp)
+        self.assertNotIn('static_v_key',fp)
+    self.assertEqual(counts[0],counts[1])
+
   def test_direct_c8_qk_independent_keys_static_and_gradients(self):
     self._check_direct_c8_qk(64)
 

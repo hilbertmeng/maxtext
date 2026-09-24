@@ -287,6 +287,13 @@ class BamLlama2Medium(Llama2Medium):
     bam_record_concat_health = False
     bam_concat_qk = False
     bam_concat_static_qk = False
+    bam_standard_qk_dim = None
+    bam_local_v_replace = False
+    bam_local_vo_static = False
+    bam_embedding_write = False
+    bam_embedding_write_eps = .005
+    emb_bam_num_head = 16
+    emb_bam_v_bottleneck_dim = 256
     bam_local_qk_direct_c8 = False
     bam_local_vo_shared_read = 'none'  # none | local_o (C8 column donor)
     bam_local_vo_independent_gates = False
@@ -9462,3 +9469,28 @@ class BamXLPropK72SharedRank4BasicHealthProfile(
     force_final_checkpoint = False
     steps = 100
     compare_runs = ['BamMHAXLPropC256BasicHealthProfile']
+
+
+class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
+    """All L values from M; embedding write seeds K75, QK retains57."""
+    model_name = 'BamMediumPropK75EmbedVOnlyQK57'
+    bam_k = 75
+    bam_embedding_write = True
+    bam_embedding_write_eps = .05
+    emb_bam_num_head = 16
+    emb_bam_v_bottleneck_dim = 256
+    bam_local_v_replace = True
+    bam_local_vo_static = True
+    bam_standard_qk_dim = 18
+    mlp_dim_by_block = [3901, 3901, 3502]
+    compare_runs = ['BamLlama2MediumPropK57SharedRank4MLPPerLayer', 'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qk57'
+
+
+class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
+    """Same parameters; full75 BAM QK plus18 standard RoPE coordinates."""
+    model_name = 'BamMediumPropK75EmbedVOnlyQK75'
+    bam_local_qk_col_output_dim = 75
+    bam_partial_rope_nope_dim = 75
+    compare_runs = ['BamMediumPropK75EmbedVOnlyQK57', 'BamLlama2MediumPropK57SharedRank4MLPPerLayer', 'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-embed-qk75'

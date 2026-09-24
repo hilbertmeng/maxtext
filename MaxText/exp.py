@@ -9467,7 +9467,8 @@ class BamXLPropK72SharedRank4BasicHealthProfile(
 class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLayer):
     """All L values from M; embedding write seeds K75, QK retains57."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # Prepared runtime: 1db092a; AOT pending; UE5a v5p-16.
+    # code_commit: 1db092a; UE5a v5p-16 .5278 steps/s (20-99), -6.36% vs K57 .5637.
+    # Basic+concat health ON; extra seed/static-VO metrics versus K57. Running.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57'
     bam_k = 75
     bam_embedding_write = True
@@ -9485,7 +9486,8 @@ class BamMediumPropK75EmbedVOnlyQK57(BamLlama2MediumPropK57SharedRank4MLPPerLaye
 class BamMediumPropK75EmbedVOnlyQK75(BamMediumPropK75EmbedVOnlyQK57):
     """Same parameters; full75 BAM QK plus18 standard RoPE coordinates."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
-    # Prepared runtime: 1db092a; AOT pending; UE5a v5p-16.
+    # code_commit: 1db092a; UE5a v5p-16 .5151 steps/s (20-99), -8.62% vs K57 .5637; -2.41% vs QK57 .5278.
+    # Basic+concat health ON, including extra18 QK score metric. Running.
     model_name = 'BamMediumPropK75EmbedVOnlyQK75'
     bam_local_qk_col_output_dim = 75
     bam_partial_rope_nope_dim = 75

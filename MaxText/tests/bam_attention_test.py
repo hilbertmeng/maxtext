@@ -235,7 +235,7 @@ class BamReadKeyTransformTest(absltest.TestCase):
         self.assertGreater(float(jnp.linalg.norm(p['static_v_key'].value)),0.)
         counts.append(sum(z.size for z in jax.tree.leaves(p)))
         (y, mout), capture = mod.apply({'params':p},*args,**kw,
-            capture_intermediates=lambda obj,method: method == ('_add_local_qk' if width else '_matrix_only_qk'),mutable=['intermediates'])
+            capture_intermediates=lambda obj,method: method in (('_add_local_qk',) if width else ('_matrix_only_qk', '_read_local')),mutable=['intermediates'])
         q,k = capture['intermediates']['_add_local_qk' if width else '_matrix_only_qk'][0]
         self.assertEqual(q.shape[-1],width+18 if width else 75)
         self.assertEqual(k.shape[-1],width+18 if width else 75)
@@ -258,8 +258,8 @@ class BamReadKeyTransformTest(absltest.TestCase):
         if not width:
           self.assertNotIn('query',fp)
           self.assertNotIn('key',fp)
-          z = jax.random.normal(jax.random.key(94), (1,4,2,75), dtype=jnp.float32)
-          qr, kr = mod.apply({'params':p}, z, z, args[2], args[3], method=mod._matrix_only_qk)
+          z = capture['intermediates']['_read_local'][0].astype(jnp.float32)
+          qr, kr = q.astype(jnp.float32), k.astype(jnp.float32)
           np.testing.assert_array_equal(qr[...,:57], z[...,:57])
           np.testing.assert_allclose(jnp.sum(qr[...,57:]**2,axis=-1),jnp.sum(z[...,57:]**2,axis=-1),rtol=.02)
           self.assertGreater(float(jnp.linalg.norm(qr[:,1:,...,57:]-z[:,1:,...,57:])),0.)

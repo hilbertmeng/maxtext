@@ -122,7 +122,23 @@ the comment after the successful relaunch. The registry remains authoritative fo
 the later metadata commit is not the RUN's runtime hash.
 
 For every sealed full-layer RUN, prepare the exact target-topology executable before requesting
-its target TPU. Run on tpu-ag:
+its target TPU. **First check for user-owned non-preemptible or FLEX_START v6e-1 compilers** in
+READY state with an idle worker. Verify the pinned environment, installing it once if missing;
+prefer those hosts for AOTs. Use separate idle hosts for independent AOTs when available. Borrow
+each through `prepare_train_aot_on_worker.py` on tpu-ag with its actual worker index (v6e-1:
+`--worker 0`):
+
+```bash
+/home/lishengping/xd/projects/prepare_train_aot_on_worker.py \
+  EXP FULL_COMMIT RETAINED_TPU ZONE --worker 0 \
+  --topology TARGET_TOPOLOGY --steps TOTAL_STEPS
+```
+
+This entrypoint uses an isolated source checkout and owns no TPU lifecycle. Install the pinned
+environment once if needed, then reuse it across compiles. Never enroll a retained compiler in
+automatic cleanup, and never use `prepare_train_aot.py --existing-compiler` for it: that mode
+adopts lifecycle ownership and deletes the compiler. If no retained host is READY and idle, use
+the auto-managed preemptible compiler queue:
 
 ```bash
 /home/lishengping/xd/projects/prepare_train_aot.py \
@@ -135,18 +151,11 @@ The idempotent command submits the primary compiler first and adds backup zones 
 `--primary-wait-seconds` (default 300) without an installed compiler. It prefers the primary
 when multiple candidates are ready, keeps submitted backups until the artifact and manifest
 verify, retries after preemption/failure, and releases every compiler TPU.
-Use its `AOT_READY artifact=...` value as `COMPILED_TRAINSTEP_GCS`; `run_exp_xd.sh` stages it on
-every recovery. The manifest keys commit, pinned environment/compiler, topology, experiment
+Use the verified `AOT_READY artifact=...` from either path as `COMPILED_TRAINSTEP_GCS`;
+`run_exp_xd.sh` stages it on every recovery. The manifest keys commit, pinned environment/compiler, topology, experiment
 shapes, and total schedule. Recompile when any key changes. For checkpoint resume, pass the
 original total schedule, never remaining steps; require the resumed step and LR to match it.
 After target launch, require `Loaded compiled function!` plus an actual first step.
-
-For an explicitly user-authorized retained compiler, use `prepare_train_aot_on_worker.py`
-with the actual worker index. This entrypoint borrows an idle host, uses an isolated source checkout,
-and performs no TPU creation, replacement, or deletion. Install its pinned environment once, then
-verify and reuse it across compiles; do not run the environment installer for every AOT job.
-`prepare_train_aot.py --existing-compiler` instead adopts lifecycle ownership and deletes its
-compiler on success/failure; never use that mode for a machine the user wants retained.
 
 6. Use the same one-shot gate for the step 10–14 speed check. Compare `~steps/s` with direct
    `compare_runs` and the expected architectural delta, then record it tersely in the `exp.py`

@@ -120,5 +120,21 @@ versus 8,912,896 for the prefix implementation, a factor of 1.882 in QK/AV
 pair work. This is an implementation confound in the initial speed readings,
 not an inherent cost of static matrix streams. The prefix fix is numerically
 equivalent under the causal and segment masks (covered by a targeted test).
-Record both pre-fix and same-prefix post-fix throughput after hot-switching
-RMT K48/K64 and static BAM at a checkpoint boundary.
+All three runs hot-switched to `a520e4a` at their own checkpoint boundary,
+retaining optimizer state, TPU, and the 13,500-step schedule. The new AOT
+loaded and training advanced beyond each checkpoint (K48 915, K64 851,
+static BAM 891). Steady v5p-16 throughput is:
+
+| Arm | Full-source, step/s | Prefix-source, step/s | Relative to same-area MHA .678 |
+|---|---:|---:|---:|
+| RMT K48 | .425 | .644 | -5.0% |
+| RMT K64 | .419 | .627 | -7.5% |
+| Static BAM | .417 | .645 | -4.9% |
+
+Dynamic BAM was already prefix-source: .5464 step/s, or -19.4% against
+the same MHA control. The static BAM recipe is therefore about 18.0% faster
+than dynamic BAM under these settings, despite its wider MLP. The pre-fix
+speed ranking was an attention implementation artifact and should not be
+used to judge RMT or static BAM architecture throughput. The MHA and
+dynamic BAM controls retain their original runtimes; generic health was on
+and extra BAM concat-health was off across the comparison.

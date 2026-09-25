@@ -9634,6 +9634,7 @@ class RMTMediumPropAlibiK48DynamicFull48NoO(RMTMediumPropAlibiK48DynamicFull48):
     rmt_dynamic_o_enabled = False
     compare_runs = ['RMTMediumPropAlibiK48DynamicFull48',
                     'RMTMediumPropAlibiK48',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
                     'BamMHAMediumPropAlibiC256']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-no-o'
 

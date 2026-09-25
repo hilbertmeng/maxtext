@@ -9610,7 +9610,8 @@ class BamMediumPropK75AllLocalStaticAlibiRMTBudget(
     # MLP2773, 328,635,680 parameters; static Q/K/V/O and write address.
     model_name = 'BamMediumPropK75AllLocalStaticAlibiRMTBudget'
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
-                    'RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64']
+                    'RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64',
+                    'BamMHAMediumPropAlibiC256']
 
 
 class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(

@@ -9591,6 +9591,50 @@ class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
     compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropAlibiC256']
 
 
+class RMTMediumPropAlibiK48DynamicTail32(RMTMediumPropAlibiK48):
+    """Ledger only: static RMT plus dynamic attention/MLP reads and tail-32 writes."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 70422c0.
+    # 328,613,040 params (-1,440 vs RMT K48); health records reads, writes and gates.
+    # !? UE5a initial ~.390 step/s vs static K48 .644; extra health ON, unmatched speed.
+    model_name = 'RMTMediumPropAlibiK48DynamicTail32'
+    rmt_dynamic_enabled = True
+    rmt_dynamic_write_rows = 32
+    rmt_record_dynamic_health = True
+    base_mlp_dim = 2748
+    compare_runs = ['RMTMediumPropAlibiK48',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+
+
+class RMTMediumPropAlibiK48DynamicFull48(RMTMediumPropAlibiK48):
+    """Ledger only: matched-budget dynamic RMT with full-matrix writes."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit 70422c0.
+    # 328,583,952 params (-30,528 vs RMT K48); same health configuration as Tail32.
+    # !? UE5a initial ~.383 step/s vs Tail32 .390, static K48 .644; health unmatched to K48.
+    model_name = 'RMTMediumPropAlibiK48DynamicFull48'
+    rmt_dynamic_enabled = True
+    rmt_dynamic_o_enabled = True
+    rmt_dynamic_write_rows = 48
+    rmt_record_dynamic_health = True
+    base_mlp_dim = 2711
+    compare_runs = ['RMTMediumPropAlibiK48',
+                    'RMTMediumPropAlibiK48DynamicTail32',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+
+
+class RMTMediumPropAlibiK48DynamicFull48NoO(RMTMediumPropAlibiK48DynamicFull48):
+    """Ledger only: full-row dynamic RMT without an extra O read."""
+    # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit c2dcd60.
+    # 328,238,064 params (-345,888 vs Full48); MLP width2711 unchanged.
+    model_name = 'RMTMediumPropAlibiK48DynamicFull48NoO'
+    rmt_dynamic_o_enabled = False
+    compare_runs = ['RMTMediumPropAlibiK48DynamicFull48',
+                    'RMTMediumPropAlibiK48',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-no-o'
+
+
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Ledger only: all-local dynamic BAM, ALiBi, matrix-only QKV."""
     # Same runtime/worktree; code_commit 25265bb; UE5a .5464 step/s (-19.4% vs MHA).

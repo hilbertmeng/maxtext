@@ -138,3 +138,24 @@ speed ranking was an attention implementation artifact and should not be
 used to judge RMT or static BAM architecture throughput. The MHA and
 dynamic BAM controls retain their original runtimes; generic health was on
 and extra BAM concat-health was off across the comparison.
+
+This corrected RMT K64 throughput is itself anomalous relative to the paper.
+For its largest A100, T=512 pair, the paper reports 7.17 s/step for RMT and
+4.06 s/step for MHA: RMT throughput is 43.4% lower, compared with only 7.5%
+lower here. The paper's “4% slower” statement concerns total time to reach
+the MHA's loss, not per-step speed. Its same-token table labels 3.30e5 s vs
+1.86e5 s as “+43%”, although those numbers imply +77.4% elapsed time;
+the reported per-step times imply +76.6%. The RMT/MHA parameter ratios are
+similar across studies (305/405M there; 328.7/432.1M here), so the different
+parameter reduction does not explain the throughput discrepancy.
+
+The largest uncontrolled differences are sequence length (512 vs 4096),
+A100/Haliax versus v5p/MaxText-XLA operator lowering, chunked prefix
+attention here, and the common-backbone differences listed above. At fixed
+width, the common attention work per token grows with sequence length while
+static matrix contraction work does not; T=4096 can dilute a contraction
+penalty seen at T=512. This is a hypothesis, not an attribution from the
+current data. A paired T=512 RMT K64/MHA timing on the same TPU and XPlane
+operator breakdown at both lengths would separate context-length effects
+from backend differences. The train log's identical `Total TFLOPs` estimate
+for MHA and RMT is configuration-derived and cannot serve as that breakdown.

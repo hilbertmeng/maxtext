@@ -9639,6 +9639,21 @@ class RMTMediumPropAlibiK48DynamicFull48NoO(RMTMediumPropAlibiK48DynamicFull48):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-no-o'
 
 
+class RMTMediumPropAlibiK48DynamicReadWriteFull48(RMTMediumPropAlibiK48DynamicFull48):
+    """Ledger only: QK/VO/MLP dynamic reads and both dynamic writes use all 48 RMT rows."""
+    # Implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # Independent VO/MLP compression 48->8; MLP2690; 328,611,312 params.
+    model_name = 'RMTMediumPropAlibiK48DynamicReadWriteFull48'
+    rmt_dynamic_read_full_matrix = True
+    base_mlp_dim = 2690
+    compare_runs = ['RMTMediumPropAlibiK48DynamicFull48',
+                    'RMTMediumPropAlibiK48DynamicTail32',
+                    'RMTMediumPropAlibiK48',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-read-write-full48'
+
+
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Ledger only: all-local dynamic BAM, ALiBi, matrix-only QKV."""
     # Same runtime/worktree; code_commit 25265bb; UE5a .5464 step/s (-19.4% vs MHA).

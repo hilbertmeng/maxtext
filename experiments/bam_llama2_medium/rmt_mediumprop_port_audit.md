@@ -118,7 +118,9 @@ the RoPE bridge to lose to dynamic ALiBi BAM by 0.039590; instead it wins by
 0.019703. The 0.059293 discrepancy rules out a single architecture-independent
 position/numerics offset. It does **not** isolate a BAM × RoPE interaction:
 the bridge also adds separate 18-dimensional Q/K projections, narrows its
-matrix Q/K read from 75 to 57, and reduces MLP width by 192. Both runs have
+matrix Q/K read from 75 to 57, QKNorms the new standard Q/K arm, and reduces
+MLP width by 192. Matrix-only Q/K in the dynamic ALiBi arm has no QKNorm.
+Both runs have
 the same parameter count, and the Q/K versus MLP leading dense FLOPs cancel.
 The MHA comparison additionally changes bf16/fp32 logits and runtime commit.
 A matched-runtime MHA RoPE/ALiBi × bf16/fp32 factorial, followed by a BAM

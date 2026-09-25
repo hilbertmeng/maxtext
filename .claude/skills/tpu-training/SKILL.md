@@ -35,6 +35,8 @@ and runtime commit in that location as well as its configuration class.
 Default validation is the pinned local BAM test suite followed by the target RUN's
 `FIRST_STEP`. Add a standalone v6e check only for TPU-specific uncertainty those two gates do
 not cover; it is not a routine prerequisite for training.
+Finish the pinned CPU suite and any experiment-specific unit tests before AOT compilation;
+do not run them in parallel with AOT, since they must also gate compiler spending.
 
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
    For formal spot `v5p`, set `PRIMARY_ZONE` and the user-directed `BACKUP_ZONES`; `ZONE` defaults

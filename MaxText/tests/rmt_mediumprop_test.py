@@ -33,6 +33,27 @@ class RMTMediumPropTest(absltest.TestCase):
     np.testing.assert_allclose(np.asarray(y), 10.)
     np.testing.assert_allclose(np.asarray(alpha[..., 1]), 1.)
 
+  def test_causal_prefix_matches_full_masked_attention(self):
+    q = jax.random.normal(jax.random.key(1), (1, 4, 2, 3))
+    k = jax.random.normal(jax.random.key(2), (1, 4, 2, 3))
+    v = jax.random.normal(jax.random.key(3), (1, 4, 2, 3))
+    segments = jnp.array([[1, 1, 2, 2]])
+    for q0 in (0, 2):
+      q1 = q0 + 2
+      target = jnp.arange(q0, q1)[:, None]
+      full_valid = ((jnp.arange(4)[None, :] <= target)[None]
+                    & (segments[:, q0:q1, None] == segments[:, None, :]))
+      prefix_valid = full_valid[..., :q1]
+      full, _ = attentions._attention_op(
+          q[:, q0:q1], k, v, full_valid, float32_logits=True,
+          additive_bias=attentions._alibi_bias(2, q0, q1, 0, 4))
+      prefix, _ = attentions._attention_op(
+          q[:, q0:q1], k[:, :q1], v[:, :q1], prefix_valid,
+          float32_logits=True,
+          additive_bias=attentions._alibi_bias(2, q0, q1, 0, q1))
+      np.testing.assert_allclose(np.asarray(prefix), np.asarray(full),
+                                 rtol=1e-6, atol=1e-6)
+
   def _config(self, name):
     output = tempfile.TemporaryDirectory()
     self.addCleanup(output.cleanup)

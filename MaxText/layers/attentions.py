@@ -3701,15 +3701,15 @@ class StaticBamAttention(Attention):
     outputs = []
     for q0 in range(0, t, chunk):
       q1 = q0 + chunk
-      source = jnp.arange(t)[None, :]
+      source = jnp.arange(q1)[None, :]
       target = jnp.arange(q0, q1)[:, None]
       valid = (source <= target)[None]
       if decoder_segment_ids is not None:
         valid &= (decoder_segment_ids[:, q0:q1, None]
-                  == decoder_segment_ids[:, None, :])
-      y, _ = _attention_op(q[:, q0:q1], k, v, valid,
+                  == decoder_segment_ids[:, None, :q1])
+      y, _ = _attention_op(q[:, q0:q1], k[:, :q1], v[:, :q1], valid,
                            float32_logits=True,
-                           additive_bias=_alibi_bias(heads, q0, q1, 0, t))
+                           additive_bias=_alibi_bias(heads, q0, q1, 0, q1))
       outputs.append(y)
     o_head = jnp.concatenate(outputs, axis=1).astype(self.dtype) + local_o
 

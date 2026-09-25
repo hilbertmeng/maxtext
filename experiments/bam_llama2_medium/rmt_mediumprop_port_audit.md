@@ -111,3 +111,14 @@ its dynamic read projections and P_loc matter, while its matrix contractions
 are much smaller than attention but may be throughput-limiting. These are
 forward arithmetic counts, not predictions of realized TPU throughput;
 contraction layout, transpose, softmax, and memory traffic require profiling.
+
+Initial runtime `ca02508`/`25265bb` used a full 4096-token source for every
+256-token query chunk in RMT and pure-static BAM, then causally masked future
+tokens. Dynamic BAM used only the source prefix ending at each chunk. The
+full-source implementation computes 16,777,216 query-source pairs per sequence
+versus 8,912,896 for the prefix implementation, a factor of 1.882 in QK/AV
+pair work. This is an implementation confound in the initial speed readings,
+not an inherent cost of static matrix streams. The prefix fix is numerically
+equivalent under the causal and segment masks (covered by a targeted test).
+Record both pre-fix and same-prefix post-fix throughput after hot-switching
+RMT K48/K64 and static BAM at a checkpoint boundary.

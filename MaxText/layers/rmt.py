@@ -59,14 +59,15 @@ class RMTLayer(nn.Module):
     outputs = []
     for q0 in range(0, t, chunk):
       q1 = q0 + chunk
-      source = jnp.arange(t)[None, :]
+      source = jnp.arange(q1)[None, :]
       target = jnp.arange(q0, q1)[:, None]
       valid = (source <= target)[None]
       if segment_ids is not None:
-        valid &= (segment_ids[:, q0:q1, None] == segment_ids[:, None, :])
+        valid &= (segment_ids[:, q0:q1, None] == segment_ids[:, None, :q1])
       y, _ = attentions._attention_op(
-          query[:, q0:q1], key, value, valid, float32_logits=True,
-          additive_bias=attentions._alibi_bias(heads, q0, q1, 0, t))
+          query[:, q0:q1], key[:, :q1], value[:, :q1], valid,
+          float32_logits=True,
+          additive_bias=attentions._alibi_bias(heads, q0, q1, 0, q1))
       outputs.append(y)
     head_output = jnp.concatenate(outputs, axis=1).astype(cfg.dtype)
     attn_write = self.param('attn_write_key', write_init,

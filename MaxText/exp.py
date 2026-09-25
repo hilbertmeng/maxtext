@@ -9653,6 +9653,18 @@ class RMTMediumPropK48DynamicFull48RoPE18(RMTMediumPropAlibiK48DynamicFull48):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNorm(
+    RMTMediumPropK48DynamicFull48RoPE18):
+    """Normalize the flattened first-16-row vector, not the full matrix, in each layer."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNorm'
+    rmt_vector_pre_norm = True
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18',
+                    'RMTMediumPropAlibiK48DynamicFull48',
+                    'BamMediumPropK75AllLocalQK57RoPE18RMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm'
+
+
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(
     BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Dynamic+static M reads, dynamic write, all L, ALiBi and matrix-only QKV."""

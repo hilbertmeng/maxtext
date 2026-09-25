@@ -208,6 +208,9 @@ class RMTLayer(nn.Module):
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
     dynamic_full_read = bool(cfg.get_keys().get('rmt_dynamic_read_full_matrix', False))
     rope_qk_dim = int(cfg.get_keys().get('rmt_rope_qk_dim', 0))
+    vector_pre_norm = bool(cfg.get_keys().get('rmt_vector_pre_norm', False))
+    if vector_pre_norm and not dynamic:
+      raise ValueError('RMT vector pre-norm requires the dynamic arm')
     if rope_qk_dim and (not dynamic or rope_qk_dim % 2 or rope_qk_dim >= value_dim):
       raise ValueError('RMT RoPE Q/K requires a dynamic arm and an even proper subspace')
     write_rows = int(getattr(cfg, 'rmt_dynamic_write_rows', 32)) if dynamic else 0
@@ -216,12 +219,15 @@ class RMTLayer(nn.Module):
     key_init = nn.initializers.normal(key_dim ** -0.5)
     write_init = nn.initializers.normal(heads ** -0.5 / math.sqrt(2 * cfg.num_decoder_layers))
 
-    attn_in = MatrixRMSNorm(cfg, name='attn_norm')(matrix)
+    attn_in = (matrix if vector_pre_norm else
+               MatrixRMSNorm(cfg, name='attn_norm')(matrix))
     qkv_key = self.param('qkv_key', key_init, (3, heads, key_dim), cfg.weight_dtype)
     qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
     query, key, value = qkv[0], qkv[1], qkv[2]
     if dynamic:
       attn_x = attn_in[..., :heads, :].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
+      if vector_pre_norm:
+        attn_x = normalizations.get_rmsnorm('attn_vector_norm', cfg)(attn_x)
       read_start = 0 if dynamic_full_read else heads
       attn_M = jnp.swapaxes(attn_in[..., read_start:, :], -2, -1)
       dynamic_q, dynamic_k, q_gate, k_gate = RMTDynamicQK(
@@ -292,13 +298,16 @@ class RMTLayer(nn.Module):
     else:
       matrix = matrix + static_attn_write
 
-    mlp_in = MatrixRMSNorm(cfg, name='mlp_norm')(matrix)
+    mlp_in = (matrix if vector_pre_norm else
+              MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
     mlp_read = self.param('mlp_read_key', key_init,
                           (key_dim, heads), cfg.weight_dtype)
     vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
     if dynamic:
       static_mlp_read = vector
       mlp_x = mlp_in[..., :heads, :].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
+      if vector_pre_norm:
+        mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
       mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
       (dynamic_mlp_read,), mlp_read_gate = RMTDynamicC8Read(
           cfg, destinations=1, name='dynamic_mlp_read')(mlp_x, mlp_M)

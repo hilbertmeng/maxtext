@@ -61,7 +61,7 @@ class RMTMediumPropTest(absltest.TestCase):
     dynamic_rmt = name.startswith(('RMTMediumPropAlibiK48Dynamic',
                                    'RMTMediumPropK48Dynamic'))
     heads = 16 if dynamic_rmt else 2
-    head_dim = (20 if name.endswith('RoPE18') else 3) if dynamic_rmt else 75
+    head_dim = (20 if 'RoPE18' in name else 3) if dynamic_rmt else 75
     with contextlib.redirect_stdout(io.StringIO()):
       cfg = pyconfig.initialize(
           [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
@@ -208,6 +208,16 @@ class RMTMediumPropTest(absltest.TestCase):
     layer = params['decoder']['layers']
     for arm in ('q', 'k'):
       self.assertEqual(layer[f'{arm}_rope_kernel'].value.shape, (320, 3, 16 * 18))
+
+  def test_vector_norm_replaces_only_layer_matrix_norms(self):
+    _, _, params = self._run('RMTMediumPropK48DynamicFull48RoPE18VectorNorm')
+    decoder = params['decoder']
+    layer = decoder['layers']
+    self.assertNotIn('attn_norm', layer)
+    self.assertNotIn('mlp_norm', layer)
+    self.assertEqual(layer['attn_vector_norm']['scale'].value.shape, (320, 3))
+    self.assertEqual(layer['mlp_vector_norm']['scale'].value.shape, (320, 3))
+    self.assertEqual(decoder['final_matrix_norm']['scale'].shape, (48, 20))
 
 
 if __name__ == '__main__':

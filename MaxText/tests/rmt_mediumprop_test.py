@@ -125,11 +125,23 @@ class RMTMediumPropTest(absltest.TestCase):
         _, intermediates = model.apply(
             {'params': params}, **args, mutable=['intermediates'])
       layers = params['decoder']['layers']
-      self.assertEqual(layers['dynamic_qk']['basis_bias'].shape, (4, 3, 32))
-      self.assertEqual(layers['dynamic_attn_write']['address_up_bias'].shape,
+      self.assertEqual(layers['dynamic_qk']['basis_bias'].value.shape, (4, 3, 32))
+      self.assertEqual(layers['dynamic_attn_write']['address_up_bias'].value.shape,
                        (16, 3, address_dim))
-      self.assertEqual(layers['dynamic_mlp_write']['address_up_bias'].shape,
+      self.assertEqual(layers['dynamic_mlp_write']['address_up_bias'].value.shape,
                        (16, 3, address_dim))
+      for module, parameter in (
+          ('dynamic_qk', 'basis_kernel'),
+          ('dynamic_qk', 'q_mix_kernel'),
+          ('dynamic_vo', 'key_kernel'),
+          ('dynamic_mlp_read', 'key_kernel'),
+          ('dynamic_attn_write', 'address_down'),
+          ('dynamic_attn_write', 'address_up'),
+          ('dynamic_mlp_write', 'address_down'),
+          ('dynamic_mlp_write', 'address_up'),
+      ):
+        self.assertEqual(layers[module][parameter].names[0], 'embed',
+                         f'{module}/{parameter} must shard its input axis')
       health = intermediates['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
       self.assertEqual(health.shape, (3, len(rmt.RMT_DYNAMIC_HEALTH_NAMES)))
       self.assertTrue(bool(jnp.all(jnp.isfinite(health))))
@@ -153,7 +165,7 @@ class RMTMediumPropTest(absltest.TestCase):
         ('dynamic_attn_write', 'address_up'),
         ('dynamic_mlp_write', 'address_up'),
     ):
-      value = layer[module][parameter]
+      value = layer[module][parameter].value
       self.assertTrue(bool(jnp.all(jnp.isfinite(value))), f'{module}/{parameter}')
       self.assertGreater(float(jnp.linalg.norm(value)), 0., f'{module}/{parameter}')
 

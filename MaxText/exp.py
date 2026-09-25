@@ -9653,19 +9653,6 @@ class RMTMediumPropK48DynamicFull48RoPE18(RMTMediumPropAlibiK48DynamicFull48):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18'
 
 
-class RMTMediumPropK48DynamicReadWriteFull48RoPE18(
-    RMTMediumPropAlibiK48DynamicReadWriteFull48):
-    """Full-row dynamic reads/writes with matrix QK57 and separate RoPE18."""
-    model_name = 'RMTMediumPropK48DynamicReadWriteFull48RoPE18'
-    rmt_rope_qk_dim = 18
-    base_mlp_dim = 2498  # Refund exactly 2*1200*16*18 per layer from width2690.
-    compare_runs = ['RMTMediumPropAlibiK48DynamicReadWriteFull48',
-                    'RMTMediumPropAlibiK48DynamicFull48',
-                    'BamMediumPropK75AllLocalQK57RoPE18RMTBudget',
-                    'BamMHAMediumPropAlibiC256']
-    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-read-write-full48-rope18'
-
-
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(
     BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Dynamic+static M reads, dynamic write, all L, ALiBi and matrix-only QKV."""

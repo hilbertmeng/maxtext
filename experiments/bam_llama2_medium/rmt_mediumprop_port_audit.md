@@ -93,6 +93,12 @@ MLP reduction costs as training progresses.
 
 ## Decision criteria
 
+All five experimental arms and the MHA control continue through the planned
+13,500 steps regardless of the 2,800-step result. This cohort measures the
+long-run architecture and position-encoding comparison, including whether
+early BAM/RMT rankings reverse and the final loss-versus-time tradeoff; 2,800
+is an observation point, not an early-stop gate.
+
 Compare same-step 200-token loss reports, terminal last-five means,
 throughput at matched generic/BAM-specific health settings on v5p-16,
 theoretical FLOPs, operator profile, and wall-clock time to a target loss.

@@ -104,6 +104,26 @@ MLP. The ALiBi arms force fp32 attention logits and add a per-pair bias,
 whereas this RoPE bridge uses bf16 logits; it also reads 57 rather than 75
 LocalQK coordinates. These differences confound both its speed and loss gap.
 
+The MHA and BAM gaps move in opposite directions at equal training steps:
+
+| Step | ALiBi MHA − old RoPE MHA | RoPE18 bridge − dynamic ALiBi BAM | Difference of differences |
+|---:|---:|---:|---:|
+| 2,000 | −0.062695 | −0.026096 | −0.088791 |
+| 3,000 | −0.039590 | −0.019703 | −0.059293 |
+| 3,200 | −0.035824 | −0.020434 | −0.056258 |
+
+The final column is `(bridge − old RoPE MHA) − (dynamic BAM − ALiBi MHA)`.
+At 3,000 steps, naively transferring the MHA's ALiBi advantage would predict
+the RoPE bridge to lose to dynamic ALiBi BAM by 0.039590; instead it wins by
+0.019703. The 0.059293 discrepancy rules out a single architecture-independent
+position/numerics offset. It does **not** isolate a BAM × RoPE interaction:
+the bridge also adds separate 18-dimensional Q/K projections, narrows its
+matrix Q/K read from 75 to 57, and reduces MLP width by 192. Both runs have
+the same parameter count, and the Q/K versus MLP leading dense FLOPs cancel.
+The MHA comparison additionally changes bf16/fp32 logits and runtime commit.
+A matched-runtime MHA RoPE/ALiBi × bf16/fp32 factorial, followed by a BAM
+comparison holding the Q/K decomposition fixed, would separate these effects.
+
 ## Decision criteria
 
 All five experimental arms and the MHA control continue through the planned

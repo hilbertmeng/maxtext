@@ -9643,6 +9643,7 @@ class RMTMediumPropAlibiK48DynamicReadWriteFull48(RMTMediumPropAlibiK48DynamicFu
     """Ledger only: QK/VO/MLP dynamic reads and both dynamic writes use all 48 RMT rows."""
     # Implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
     # Independent VO/MLP compression 48->8; MLP2690; 328,611,312 params.
+    # code_commit: 4bf86b2; UE5a ~.381 step/s vs Full48 .383, matched 738 health metrics.
     model_name = 'RMTMediumPropAlibiK48DynamicReadWriteFull48'
     rmt_dynamic_read_full_matrix = True
     base_mlp_dim = 2690

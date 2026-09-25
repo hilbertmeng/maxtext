@@ -1736,7 +1736,7 @@ def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon, scal
 
 def _attention_op(
     query, key, value, valid, *, attn_logits_soft_cap=0.0,
-    float32_logits=False):
+    float32_logits=False, additive_bias=None):
   """Apply masked QK/softmax/AV to one dense or query-chunk block."""
   with jax.named_scope("attention/qk_logits"):
     logits = jnp.einsum('bqnd,bsnd->bnqs', query, key)
@@ -1747,11 +1747,21 @@ def _attention_op(
     logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
   if float32_logits:
     logits = logits.astype(jnp.float32)
+  if additive_bias is not None:
+    # The positional bias is added after QK scaling, never divided by sqrt(d).
+    logits = logits + jnp.asarray(additive_bias, logits.dtype)
   with jax.named_scope("attention/softmax"):
     alpha = jax.nn.softmax(logits, axis=-1)
   with jax.named_scope("attention/av"):
     y_std = jnp.einsum('bnqs,bsnd->bqnd', alpha, value)
   return y_std, alpha
+
+
+def _alibi_bias(num_heads, q0, q1, s0, s1, dtype=jnp.float32):
+  """RMT source slopes: geomspace(2**(-8/H), 2**(-8), H)."""
+  slopes = jnp.geomspace(2.0 ** (-8.0 / num_heads), 2.0 ** -8, num_heads)
+  distance = jnp.arange(q0, q1)[:, None] - jnp.arange(s0, s1)[None, :]
+  return (-slopes[:, None, None] * distance[None]).astype(dtype)
 
 
 def _bam_fetch_op(
@@ -2397,6 +2407,7 @@ class BamAttention(Attention):
     cfg = self.config
     validate_bam_config(cfg, layer_mode=self.layer_mode)
     self._qk_from_m_only = bool(getattr(cfg, 'bam_qk_from_m_only', False))
+    self._alibi = bool(getattr(cfg, 'bam_alibi', False))
     self._qk_static_rope_only = bool(getattr(cfg, 'bam_qk_static_rope_only', False))
     if self._qk_static_rope_only:
       assert self._qk_from_m_only and cfg.bam_concat_static_qk
@@ -2431,6 +2442,8 @@ class BamAttention(Attention):
             if self._local_qk_post_read_v_dim is not None
             else self.bam_v))
     self._partial_rope = bool(cfg.bam_partial_rope)
+    if self._alibi and self._partial_rope:
+      raise ValueError('ALiBi and partial RoPE are mutually exclusive')
     self._partial_rope_nope_dim = None
     if self._partial_rope:
       assert not cfg.rope_half, 'BAM partial RoPE is independent of rope_half'
@@ -3206,6 +3219,8 @@ class BamAttention(Attention):
 
   def _matrix_only_qk(self, q, k, positions, segment_ids=None):
     # Preserve the BAM read amplitude: no additional QKNorm on either subspace.
+    if self._alibi:
+      return q, k
     q = self._apply_partial_rope(q, positions, name='query_rotary')
     k = self._apply_partial_rope(k, positions, name='key_rotary')
     split = self._partial_rope_nope_dim
@@ -3363,7 +3378,11 @@ class BamAttention(Attention):
     y_std, alpha = _attention_op(
         query, key, value, valid,
         attn_logits_soft_cap=cfg.attn_logits_soft_cap,
-        float32_logits=cfg.float32_logits)
+        float32_logits=cfg.float32_logits or self._alibi,
+        additive_bias=(_alibi_bias(self.num_query_heads, q0, q1, s0, s1)
+                       if self._alibi else None))
+    if self._alibi:
+      y_std = y_std.astype(value.dtype)
     Mbar = None
     if fetch_state is not None:
       assert mix_weights is not None
@@ -3453,7 +3472,7 @@ class BamAttention(Attention):
       assert not cfg.fused_qkv and cfg.bam_prune_all_row_reads
     if concat_qk:
       assert 0 < self._qk_col_width <= self.head_dim
-      assert self._partial_rope
+      assert self._partial_rope or self._alibi
       assert self._qk_from_m_only or self._partial_rope_nope_dim == self._qk_col_width
       assert self._share_qk_basis or self._direct_qk_c8
     standard_qk_width = self._standard_qk_width or (self.head_dim - self._qk_col_width)
@@ -3474,7 +3493,9 @@ class BamAttention(Attention):
     local_inputs = self._local_inputs(inputs_q) if self._local_arms else None
     if not self._qk_from_m_only:
       query, key = dc.QKNorm(cfg, name='qk_norm')(query, key)
-      if concat_qk:
+      if self._alibi:
+        pass
+      elif concat_qk:
         # Only the standard arm rotates; the retained BAM column is concatenated afterwards.
         query = self.apply_rotary_embedding(query, inputs_positions, name='query_rotary',
                                             embedding_dims=standard_qk_width)
@@ -3630,3 +3651,82 @@ class BamAttention(Attention):
 
     out = nn.with_logical_constraint(o_head, self.out_axis_names)
     return self.out_projection(inputs_q.shape[-1], out), M_out
+
+
+class StaticBamAttention(Attention):
+  """All-local BAM with input-independent Q/K/V/O reads and write address.
+
+  This is the static endpoint of the MediumProp RMT comparison: BAM retains
+  its vector stream, full-M normalization, attention write data, and write
+  gate magnitude, but removes all token-dependent matrix read/write keys.
+  """
+
+  layer_mode: str = 'local_qk+local_v+local_o'
+  read_side: str = 'col'
+  layer_inx: int = 0
+  bam_k: int = 75
+  bam_v: int = 32
+
+  @nn.compact
+  def __call__(
+      self, inputs_q, inputs_kv, inputs_positions, decoder_segment_ids=None,
+      decoder_input_tokens=None, *, model_mode=common_types.MODEL_MODE_TRAIN,
+      deterministic=False, eos_sum=None, deep_embedding=None, M_in=None,
+      is_global=None, layer_index=None):
+    del inputs_kv, inputs_positions, decoder_input_tokens, deterministic
+    del eos_sum, deep_embedding, is_global, layer_index
+    cfg = self.config
+    if model_mode != common_types.MODEL_MODE_TRAIN:
+      raise ValueError('Static BAM comparison supports training only')
+    assert self.layer_mode == 'local_qk+local_v+local_o'
+    assert self.bam_k == self.head_dim and M_in is not None
+    assert getattr(cfg, 'bam_alibi', False)
+    heads = self.num_query_heads
+    key_init = nn.initializers.normal(self.bam_v ** -0.5)
+    keys = [self.param(f'static_{arm}_key', key_init,
+                       (self.bam_v, heads), self.weight_dtype)
+            for arm in ('q', 'k', 'v', 'o')]
+    m = M_in
+    if cfg.bam_m_read_norm == 'rms':
+      m32 = m.astype(jnp.float32)
+      m = (m32 * jax.lax.rsqrt(
+          jnp.mean(jnp.square(m32), axis=(-2, -1), keepdims=True)
+          + cfg.normalization_layer_epsilon)).astype(self.dtype)
+    q, k, v, local_o = [jnp.einsum('btkv,vn->btnk', m, w.astype(self.dtype))
+                        for w in keys]
+    q = q / math.sqrt(self.head_dim)
+    t = q.shape[1]
+    chunk = int(cfg.query_chunk_size)
+    assert t % chunk == 0
+    outputs = []
+    for q0 in range(0, t, chunk):
+      q1 = q0 + chunk
+      source = jnp.arange(t)[None, :]
+      target = jnp.arange(q0, q1)[:, None]
+      valid = (source <= target)[None]
+      if decoder_segment_ids is not None:
+        valid &= (decoder_segment_ids[:, q0:q1, None]
+                  == decoder_segment_ids[:, None, :])
+      y, _ = _attention_op(q[:, q0:q1], k, v, valid,
+                           float32_logits=True,
+                           additive_bias=_alibi_bias(heads, q0, q1, 0, t))
+      outputs.append(y)
+    o_head = jnp.concatenate(outputs, axis=1).astype(self.dtype) + local_o
+
+    address = self.param('P_loc_static_bias', key_init,
+                         (heads, self.bam_v), self.weight_dtype)
+    address = address.astype(jnp.float32)
+    address = address * jax.lax.rsqrt(
+        jnp.mean(jnp.square(address), axis=-1, keepdims=True)
+        + cfg.normalization_layer_epsilon)
+    write_data = o_head
+    if cfg.bam_write_data_rms:
+      write_data = write_data * jax.lax.rsqrt(
+          jnp.mean(jnp.square(write_data.astype(jnp.float32)), axis=-1,
+                   keepdims=True) + cfg.normalization_layer_epsilon)
+    write_data = write_data * float(cfg.bam_write_eps)
+    if cfg.bam_sqrt_n_scale:
+      write_data = write_data / math.sqrt(heads)
+    delta = jnp.einsum('btnk,nv->btkv', write_data, address.astype(self.dtype))
+    M_out = cfg.bam_lambda_decay * M_in + delta.astype(self.dtype)
+    return self.out_projection(inputs_q.shape[-1], o_head), M_out

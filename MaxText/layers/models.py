@@ -336,7 +336,8 @@ class OutputHead(nn.Module):
 
   def setup(self):
     cfg = self.config
-    self.norm = normalizations.get_rmsnorm("decoder_norm", cfg)
+    self.norm = (None if getattr(cfg, 'rmt_enabled', False)
+                 else normalizations.get_rmsnorm("decoder_norm", cfg))
     dense_kernel = self.param(
       "logits_dense",
       nn.with_logical_partitioning(initializers.get_init_method(cfg.init_method), ("embed", "vocab")),
@@ -368,7 +369,8 @@ class OutputHead(nn.Module):
   ) -> Array:
     inputs = hidden_states
     if not mtp_layer:
-      inputs = self.norm(inputs)
+      if self.norm is not None:
+        inputs = self.norm(inputs)
       inputs = self.dropout(inputs, deterministic=deterministic)
     return self.project_logits(inputs)
   
@@ -390,7 +392,8 @@ class OutputHead(nn.Module):
     preds = []
     # chunk_size = cfg.loss_chunk_size  # manual shard to speed up, about 1%
     if not mtp_layer:
-      inputs = self.norm(inputs)
+      if self.norm is not None:
+        inputs = self.norm(inputs)
       inputs = self.dropout(inputs, deterministic=deterministic)
 
     for start_idx in range(0, seq_len, chunk_size):
@@ -1251,7 +1254,12 @@ class Transformer(nn.Module):
     else:
       self.deep_embedding = None
       
-    self.decoder = Decoder(
+    if getattr(cfg, 'rmt_enabled', False):
+      from layers.rmt import RMTDecoder
+      DecoderClass = RMTDecoder
+    else:
+      DecoderClass = Decoder
+    self.decoder = DecoderClass(
         config=cfg, 
         shared_embedding=self.shared_embedding,
         deep_embedding=self.deep_embedding,

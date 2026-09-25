@@ -1,0 +1,94 @@
+"""Checks for the matrix-stream RMT/ALiBi port and static BAM endpoint."""
+
+import contextlib
+import io
+from pathlib import Path
+import tempfile
+
+from absl.testing import absltest
+import jax
+import jax.numpy as jnp
+import numpy as np
+
+import max_utils
+import pyconfig
+from layers import attentions, models
+
+
+class RMTMediumPropTest(absltest.TestCase):
+
+  def test_alibi_source_slopes_and_causal_segment_mask(self):
+    bias = attentions._alibi_bias(2, 1, 2, 0, 3)
+    slopes = np.geomspace(2 ** -4, 2 ** -8, 2)
+    np.testing.assert_allclose(np.asarray(bias[:, 0, :]),
+                               -slopes[:, None] * np.array([[1, 0, -1]]),
+                               rtol=1e-6, atol=1e-8)
+    q = jnp.zeros((1, 1, 2, 1))
+    k = jnp.zeros((1, 3, 2, 1))
+    v = jnp.array([0., 10., 100.])[None, :, None, None]
+    v = jnp.broadcast_to(v, (1, 3, 2, 1))
+    valid = jnp.array([[[False, True, False]]])
+    y, alpha = attentions._attention_op(
+        q, k, v, valid, float32_logits=True, additive_bias=bias)
+    np.testing.assert_allclose(np.asarray(y), 10.)
+    np.testing.assert_allclose(np.asarray(alpha[..., 1]), 1.)
+
+  def _config(self, name):
+    output = tempfile.TemporaryDirectory()
+    self.addCleanup(output.cleanup)
+    Path(output.name, 'test').mkdir()
+    with contextlib.redirect_stdout(io.StringIO()):
+      cfg = pyconfig.initialize(
+          [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
+          exp_class=name, run_name='test', enable_checkpointing=False,
+          base_output_directory=output.name + '/', jax_cache_dir='',
+          log_config=False, dataset_type='synthetic', base_emb_dim=150,
+          base_num_query_heads=2, base_num_kv_heads=2, base_num_decoder_layers=3,
+          base_mlp_dim=128, head_dim=75, max_target_length=4,
+          max_prefill_predict_length=4, query_chunk_size=2,
+          per_device_batch_size=1.)
+    cfg.get_keys().update(emb_bam_num_head=2,
+                          bam_write_v_bottleneck_dim=32,
+                          mlp_dim_by_block=[128, 128, 128])
+    if name.startswith('BamMediumPropK75AllLocal'):
+      cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_v+local_o'] * 3
+    return cfg
+
+  def _run(self, name):
+    cfg = self._config(name)
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    model = models.Transformer(config=cfg, mesh=mesh, quant=None)
+    args = dict(decoder_input_tokens=jnp.ones((1, 4), jnp.int32),
+                decoder_positions=jnp.arange(4)[None],
+                decoder_target_tokens=jnp.ones((1, 4), jnp.int32),
+                decoder_target_mask=jnp.ones((1, 4), jnp.float32),
+                decoder_segment_ids=jnp.ones((1, 4), jnp.int32),
+                enable_dropout=False)
+    with contextlib.redirect_stdout(io.StringIO()):
+      params = model.init(jax.random.key(1), **args)['params']
+      output = model.apply({'params': params}, **args)
+    self.assertEqual(output[0].shape, (1, 4))
+    self.assertTrue(all(bool(jnp.all(jnp.isfinite(x))) for x in output))
+    return model, args, params
+
+  def test_rmt_matrix_path_and_gradients(self):
+    model, args, params = self._run('RMTMediumPropAlibiK48')
+    self.assertEqual(params['decoder']['seed_key'].shape, (2, 48))
+    layer = params['decoder']['layers']
+    self.assertEqual(layer['qkv_key'].shape, (3, 3, 2, 48))
+    with contextlib.redirect_stdout(io.StringIO()):
+      grads = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
+    for key in ('qkv_key', 'attn_write_key', 'mlp_read_key', 'mlp_write_key'):
+      self.assertGreater(float(jnp.linalg.norm(grads['decoder']['layers'][key])), 0.)
+
+  def test_static_bam_has_no_dynamic_matrix_read_or_write_keys(self):
+    _, _, params = self._run('BamMediumPropK75AllLocalStaticAlibiRMTBudget')
+    from flax.traverse_util import flatten_dict
+    paths = ['/'.join(p) for p in flatten_dict(params)]
+    for name in ('P_loc_down', 'P_loc_up', 'W_local_packed', 'W_R', 'W_gw'):
+      self.assertFalse(any(name in path for path in paths), name)
+    self.assertTrue(any('P_loc_static_bias' in path for path in paths))
+
+
+if __name__ == '__main__':
+  absltest.main()

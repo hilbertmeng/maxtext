@@ -9558,3 +9558,58 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
     mlp_dim_by_block = [3901, 3901, 3901]
     compare_runs = ['BamMediumPropK75EmbedVOnlyQK57', 'BamMHAMediumPropC256']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/mediumprop-k75-qk57-all-local'
+
+
+class BamMHAMediumPropAlibiC256(BamMHAMediumPropC256):
+    """Matched MediumProp MHA control: ALiBi, no rotary Q/K coordinates."""
+    model_name = 'BamMHAMediumPropAlibiC256'
+    bam_alibi = True
+    bam_partial_rope = False
+    bam_partial_rope_nope_dim = None
+    compare_runs = []
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-mha-alibi'
+
+
+class RMTMediumPropAlibiK48(BamMHAMediumPropAlibiC256):
+    """Native RMT residual [48,75], rank16, shared ALiBi/SwiGLU training base."""
+    model_name = 'RMTMediumPropAlibiK48'
+    rmt_enabled = True
+    rmt_reskey_dim = 48
+    bam_enabled = False
+    compare_runs = ['BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48'
+
+
+class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
+    """RMT paper's 4x-residual-width state: [64,75] with rank16."""
+    model_name = 'RMTMediumPropAlibiK64'
+    rmt_reskey_dim = 64
+    compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k64'
+
+
+class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(
+    BamMediumPropK75EmbedQKVOnlyRoPE18):
+    """Dynamic+static M reads, dynamic write, all L, ALiBi and matrix-only QKV."""
+    model_name = 'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget'
+    bam_layer_modes = ['local_qk+local_v+local_o'] * 18
+    bam_alibi = True
+    bam_partial_rope = False
+    bam_partial_rope_nope_dim = None
+    # Param tree: 328,605,728, only 8,752 below RMT K48's 328,614,480.
+    mlp_dim_by_block = [2496, 2496, 2496]
+    compare_runs = ['RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-bam-dynamic'
+
+
+class BamMediumPropK75AllLocalStaticAlibiRMTBudget(
+    BamMediumPropK75AllLocalMOnlyAlibiRMTBudget):
+    """Same BAM state/attention, all matrix read keys and write address static."""
+    model_name = 'BamMediumPropK75AllLocalStaticAlibiRMTBudget'
+    bam_static_matrix_only = True
+    # Param tree: 328,635,680, only 21,200 above RMT K48.
+    mlp_dim_by_block = [2773, 2773, 2773]
+    compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-bam-static'

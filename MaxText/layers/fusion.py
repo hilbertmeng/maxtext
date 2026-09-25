@@ -164,7 +164,9 @@ class SubDecoderLayer(nn.Module):
         use_kv_shift=cfg.use_kv_shift,
     )
     if cfg.bam_enabled:
-        AttnCls = attentions.BamAttention
+        AttnCls = (attentions.StaticBamAttention
+                   if getattr(cfg, 'bam_static_matrix_only', False)
+                   else attentions.BamAttention)
         modes = cfg.bam_layer_modes
         layer_mode = modes[self.layer_inx] if isinstance(modes, list) else modes
         read_sides = cfg.bam_read_sides

@@ -9618,6 +9618,7 @@ class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(
     """Ledger only: QK57/standard-RoPE18 bridge to the historical K75 ablations."""
     # Same runtime/worktree; code_commit eba495e; UE5a .603 step/s (-11.1% vs MHA).
     # ALiBi OFF, MLP2304, 328,605,728 parameters: exactly dynamic ALiBi BAM's budget.
+    # RoPE/bf16 logits vs ALiBi/fp32 logits; 192-unit MLP cut exactly pays for Q/K18.
     model_name = 'BamMediumPropK75AllLocalQK57RoPE18RMTBudget'
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
                     'BamMediumPropK75EmbedVOnlyQK57AllLocal',

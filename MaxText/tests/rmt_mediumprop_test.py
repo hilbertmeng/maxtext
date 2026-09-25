@@ -89,6 +89,15 @@ class RMTMediumPropTest(absltest.TestCase):
       self.assertFalse(any(name in path for path in paths), name)
     self.assertTrue(any('P_loc_static_bias' in path for path in paths))
 
+  def test_rope_bridge_runs_with_eighteen_dimensional_standard_qk(self):
+    _, _, params = self._run('BamMediumPropK75AllLocalQK57RoPE18RMTBudget')
+    from flax.traverse_util import flatten_dict
+    projection_shapes = [getattr(v, 'value', v).shape for p, v in
+                         flatten_dict(params).items()
+                         if p[-2:] in (('query', 'kernel'), ('key', 'kernel'))]
+    self.assertLen(projection_shapes, 6)
+    self.assertTrue(all(shape[-1] == 18 for shape in projection_shapes))
+
 
 if __name__ == '__main__':
   absltest.main()

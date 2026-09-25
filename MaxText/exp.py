@@ -9614,3 +9614,21 @@ class BamMediumPropK75AllLocalStaticAlibiRMTBudget(
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
                     'RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-bam-static'
+
+
+class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(
+    BamMediumPropK75AllLocalMOnlyAlibiRMTBudget):
+    """RoPE bridge: full-M QK57 plus standard Q/K18, all L, RMT-matched budget."""
+    model_name = 'BamMediumPropK75AllLocalQK57RoPE18RMTBudget'
+    bam_alibi = False
+    bam_partial_rope = True
+    bam_partial_rope_nope_dim = 57
+    bam_local_qk_col_output_dim = 57
+    bam_qk_from_m_only = False
+    bam_standard_qk_dim = 18
+    mlp_dim_by_block = [2304, 2304, 2304]
+    compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMediumPropK75EmbedVOnlyQK57AllLocal',
+                    'BamMediumPropK75EmbedVOnlyQK57MLP3200',
+                    'RMTMediumPropAlibiK48']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-bam-qk57-rope18-bridge'

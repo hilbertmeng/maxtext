@@ -65,11 +65,21 @@ temporarily set to 4, which does not change parameter shapes) count:
 | RMT K64, MLP3200 | 328,687,040 | +72,560 |
 | BAM dynamic, MLP2496 | 328,605,728 | -8,752 |
 | BAM static, MLP2773 | 328,635,680 | +21,200 |
+| BAM RoPE18 bridge, MLP2304 | 328,605,728 | -8,752 |
 
 One unit of per-layer SwiGLU width changes total parameters by 18×3×1200
 =64,800; finer matching cannot use an integer uniform width. This budget
 matches BAM to RMT, **not** to the MHA control. RMT K64 differs by only 0.022%
 from K48 and does not need a separate BAM-width match.
+
+The fifth, historical bridge arm keeps dynamic BAM and the all-L/no-fetchedO
+skeleton, but changes Q/K to the previous K75 design: a 57-dimensional
+matrix-column read plus an independent 18-dimensional Q/K projection with
+RoPE only on those 18 coordinates. It **turns ALiBi off**. Its MLP width
+falls from 2496 to 2304, and its measured parameter tree exactly matches
+the dynamic ALiBi BAM arm. This links to the prior QK57 AllLocal and
+MLP3200 ablations; the comparison with the four ALiBi arms is not an
+isolated test of the Q/K projection because position encoding also changes.
 
 ## Decision criteria
 

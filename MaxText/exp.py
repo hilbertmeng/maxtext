@@ -9588,6 +9588,35 @@ class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k64'
 
 
+class RMTMediumPropAlibiK48DynamicTail32(RMTMediumPropAlibiK48):
+    """Static RMT plus BAM-style dynamic attention/MLP reads and tail-32 writes."""
+    # 328,613,040 params (-1,440 vs static K48); C8 reads, rank4 QK, GELU-R256 writes.
+    model_name = 'RMTMediumPropAlibiK48DynamicTail32'
+    rmt_dynamic_enabled = True
+    rmt_dynamic_write_rows = 32
+    rmt_record_dynamic_health = True
+    base_mlp_dim = 2748
+    compare_runs = ['RMTMediumPropAlibiK48',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-tail32'
+
+
+class RMTMediumPropAlibiK48DynamicFull48(RMTMediumPropAlibiK48):
+    """Matched-budget dynamic RMT with additional writes to every matrix row."""
+    # 328,583,952 params (-30,528 vs static K48); 37 fewer MLP units than Tail32.
+    model_name = 'RMTMediumPropAlibiK48DynamicFull48'
+    rmt_dynamic_enabled = True
+    rmt_dynamic_write_rows = 48
+    rmt_record_dynamic_health = True
+    base_mlp_dim = 2711
+    compare_runs = ['RMTMediumPropAlibiK48',
+                    'RMTMediumPropAlibiK48DynamicTail32',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48'
+
+
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(
     BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Dynamic+static M reads, dynamic write, all L, ALiBi and matrix-only QKV."""

@@ -54,7 +54,7 @@ from vertex_tensorboard import VertexTensorboardManager
 # Placeholder: internal
 
 from input_pipeline.input_pipeline_interface import create_data_iterator
-from layers import models
+from layers import models, rmt
 
 from gcp_workload_monitor import GCPWorkloadMonitor
 
@@ -360,6 +360,14 @@ def save_checkpoint(
 # Top-level Functions
 # -----------------------------------------------------------------------------
 # lsp
+
+
+def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, config):
+  """Export per-layer dynamic RMT read/write amplitudes and gate openings."""
+  health = intermediate_outputs['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
+  for layer in range(config.num_decoder_layers):
+    for index, name in enumerate(rmt.RMT_DYNAMIC_HEALTH_NAMES):
+      output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
 
 
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
@@ -922,6 +930,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   if getattr(config, 'bam_record_concat_health', False):
     record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'rmt_record_dynamic_health', False):
+    record_rmt_dynamic_health_metrics(metrics, intermediate_outputs, config)
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):

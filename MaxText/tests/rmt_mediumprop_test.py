@@ -58,17 +58,20 @@ class RMTMediumPropTest(absltest.TestCase):
     output = tempfile.TemporaryDirectory()
     self.addCleanup(output.cleanup)
     Path(output.name, 'test').mkdir()
+    dynamic_rmt = name.startswith('RMTMediumPropAlibiK48Dynamic')
+    heads = 16 if dynamic_rmt else 2
+    head_dim = 3 if dynamic_rmt else 75
     with contextlib.redirect_stdout(io.StringIO()):
       cfg = pyconfig.initialize(
           [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
           exp_class=name, run_name='test', enable_checkpointing=False,
           base_output_directory=output.name + '/', jax_cache_dir='',
-          log_config=False, dataset_type='synthetic', base_emb_dim=150,
-          base_num_query_heads=2, base_num_kv_heads=2, base_num_decoder_layers=3,
-          base_mlp_dim=128, head_dim=75, max_target_length=4,
+          log_config=False, dataset_type='synthetic', base_emb_dim=heads * head_dim,
+          base_num_query_heads=heads, base_num_kv_heads=heads, base_num_decoder_layers=3,
+          base_mlp_dim=128, head_dim=head_dim, max_target_length=4,
           max_prefill_predict_length=4, query_chunk_size=2,
           per_device_batch_size=1.)
-    cfg.get_keys().update(emb_bam_num_head=2,
+    cfg.get_keys().update(emb_bam_num_head=heads,
                           bam_write_v_bottleneck_dim=32,
                           mlp_dim_by_block=[128, 128, 128])
     if name.startswith('BamMediumPropK75AllLocal'):
@@ -101,6 +104,58 @@ class RMTMediumPropTest(absltest.TestCase):
       grads = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
     for key in ('qkv_key', 'attn_write_key', 'mlp_read_key', 'mlp_write_key'):
       self.assertGreater(float(jnp.linalg.norm(grads['decoder']['layers'][key])), 0.)
+
+  def test_dynamic_rmt_write_scope_and_health(self):
+    from layers import rmt
+    for name, address_dim in (
+        ('RMTMediumPropAlibiK48DynamicTail32', 32),
+        ('RMTMediumPropAlibiK48DynamicFull48', 48),
+    ):
+      cfg = self._config(name)
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      model = models.Transformer(config=cfg, mesh=mesh, quant=None)
+      args = dict(decoder_input_tokens=jnp.ones((1, 4), jnp.int32),
+                  decoder_positions=jnp.arange(4)[None],
+                  decoder_target_tokens=jnp.ones((1, 4), jnp.int32),
+                  decoder_target_mask=jnp.ones((1, 4), jnp.float32),
+                  decoder_segment_ids=jnp.ones((1, 4), jnp.int32),
+                  enable_dropout=False)
+      with contextlib.redirect_stdout(io.StringIO()):
+        params = model.init(jax.random.key(1), **args)['params']
+        _, intermediates = model.apply(
+            {'params': params}, **args, mutable=['intermediates'])
+      layers = params['decoder']['layers']
+      self.assertEqual(layers['dynamic_qk']['basis_bias'].shape, (4, 3, 32))
+      self.assertEqual(layers['dynamic_attn_write']['address_up_bias'].shape,
+                       (16, 3, address_dim))
+      self.assertEqual(layers['dynamic_mlp_write']['address_up_bias'].shape,
+                       (16, 3, address_dim))
+      health = intermediates['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
+      self.assertEqual(health.shape, (3, len(rmt.RMT_DYNAMIC_HEALTH_NAMES)))
+      self.assertTrue(bool(jnp.all(jnp.isfinite(health))))
+      index = rmt.RMT_DYNAMIC_HEALTH_NAMES.index('attn_write_first16_ratio')
+      first16_ratio = np.asarray(health[:, index])
+      if address_dim == 32:
+        np.testing.assert_array_equal(first16_ratio, 0.)
+      else:
+        self.assertTrue(np.all(first16_ratio > 0.))
+
+  def test_dynamic_rmt_branches_receive_gradients_at_initialization(self):
+    model, args, params = self._run('RMTMediumPropAlibiK48DynamicTail32')
+    with contextlib.redirect_stdout(io.StringIO()):
+      grads = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
+    layer = grads['decoder']['layers']
+    for module, parameter in (
+        ('dynamic_qk', 'basis_kernel'),
+        ('dynamic_qk', 'q_mix_kernel'),
+        ('dynamic_vo', 'key_kernel'),
+        ('dynamic_mlp_read', 'key_kernel'),
+        ('dynamic_attn_write', 'address_up'),
+        ('dynamic_mlp_write', 'address_up'),
+    ):
+      value = layer[module][parameter]
+      self.assertTrue(bool(jnp.all(jnp.isfinite(value))), f'{module}/{parameter}')
+      self.assertGreater(float(jnp.linalg.norm(value)), 0., f'{module}/{parameter}')
 
   def test_static_bam_has_no_dynamic_matrix_read_or_write_keys(self):
     _, _, params = self._run('BamMediumPropK75AllLocalStaticAlibiRMTBudget')

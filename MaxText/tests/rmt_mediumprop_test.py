@@ -107,10 +107,11 @@ class RMTMediumPropTest(absltest.TestCase):
 
   def test_dynamic_rmt_write_scope_and_health(self):
     from layers import rmt
-    for name, address_dim in (
-        ('RMTMediumPropAlibiK48DynamicTail32', 32),
-        ('RMTMediumPropAlibiK48DynamicFull48', 48),
-        ('RMTMediumPropAlibiK48DynamicFull48NoO', 48),
+    for name, address_dim, read_dim in (
+        ('RMTMediumPropAlibiK48DynamicTail32', 32, 32),
+        ('RMTMediumPropAlibiK48DynamicFull48', 48, 32),
+        ('RMTMediumPropAlibiK48DynamicFull48NoO', 48, 32),
+        ('RMTMediumPropAlibiK48DynamicReadWriteFull48', 48, 48),
     ):
       cfg = self._config(name)
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -126,7 +127,12 @@ class RMTMediumPropTest(absltest.TestCase):
         _, intermediates = model.apply(
             {'params': params}, **args, mutable=['intermediates'])
       layers = params['decoder']['layers']
-      self.assertEqual(layers['dynamic_qk']['basis_bias'].value.shape, (4, 3, 32))
+      self.assertEqual(layers['dynamic_qk']['basis_bias'].value.shape,
+                       (4, 3, read_dim))
+      self.assertEqual(layers['dynamic_vo']['compression'].value.shape,
+                       (read_dim, 3, 8))
+      self.assertEqual(layers['dynamic_mlp_read']['compression'].value.shape,
+                       (read_dim, 3, 8))
       self.assertEqual(layers['dynamic_attn_write']['address_up_bias'].value.shape,
                        (16, 3, address_dim))
       self.assertEqual(layers['dynamic_mlp_write']['address_up_bias'].value.shape,

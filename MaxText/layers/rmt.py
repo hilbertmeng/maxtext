@@ -206,6 +206,7 @@ class RMTLayer(nn.Module):
     assert cfg.emb_dim == heads * value_dim
     dynamic = bool(getattr(cfg, 'rmt_dynamic_enabled', False))
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
+    dynamic_full_read = bool(cfg.get_keys().get('rmt_dynamic_read_full_matrix', False))
     write_rows = int(getattr(cfg, 'rmt_dynamic_write_rows', 32)) if dynamic else 0
     if dynamic and (key_dim != 48 or write_rows not in (32, 48)):
       raise ValueError('RMT K48 dynamic branch requires 32 or 48 write rows')
@@ -218,7 +219,8 @@ class RMTLayer(nn.Module):
     query, key, value = qkv[0], qkv[1], qkv[2]
     if dynamic:
       attn_x = attn_in[..., :heads, :].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
-      attn_M = jnp.swapaxes(attn_in[..., heads:, :], -2, -1)
+      read_start = 0 if dynamic_full_read else heads
+      attn_M = jnp.swapaxes(attn_in[..., read_start:, :], -2, -1)
       dynamic_q, dynamic_k, q_gate, k_gate = RMTDynamicQK(
           cfg, name='dynamic_qk')(attn_x, attn_M)
       vo_reads, vo_gates = RMTDynamicC8Read(
@@ -274,7 +276,7 @@ class RMTLayer(nn.Module):
     if dynamic:
       static_mlp_read = vector
       mlp_x = mlp_in[..., :heads, :].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
-      mlp_M = jnp.swapaxes(mlp_in[..., heads:, :], -2, -1)
+      mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
       (dynamic_mlp_read,), mlp_read_gate = RMTDynamicC8Read(
           cfg, destinations=1, name='dynamic_mlp_read')(mlp_x, mlp_M)
       vector = vector + dynamic_mlp_read

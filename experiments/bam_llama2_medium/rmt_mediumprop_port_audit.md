@@ -96,6 +96,13 @@ The effective training attributes of this bridge and the historical
 MLP width 2304 versus 3901 (plus health-only recording and the runtime).
 It therefore supplies a particularly direct check of how much the severe
 MLP reduction costs as training progresses.
+Against the dynamic ALiBi arm, the bridge's 192-unit SwiGLU MLP reduction
+saves exactly 3×1200×192 = 691,200 weights per layer, equal to the two added
+1200→(16×18) Q/K projections; their leading dense forward FLOPs cancel too.
+The bridge's faster observed speed is therefore not explained by its smaller
+MLP. The ALiBi arms force fp32 attention logits and add a per-pair bias,
+whereas this RoPE bridge uses bf16 logits; it also reads 57 rather than 75
+LocalQK coordinates. These differences confound both its speed and loss gap.
 
 ## Decision criteria
 

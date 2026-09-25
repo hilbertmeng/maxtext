@@ -113,6 +113,7 @@ The MHA and BAM gaps move in opposite directions at equal training steps:
 | 2,000 | −0.062695 | −0.026096 | −0.088791 |
 | 3,000 | −0.039590 | −0.019703 | −0.059293 |
 | 3,200 | −0.035824 | −0.020434 | −0.056258 |
+| 4,400 | −0.024697 | −0.016066 | −0.040763 |
 
 The final column is `(bridge − old RoPE MHA) − (dynamic BAM − ALiBi MHA)`.
 At 3,000 steps, naively transferring the MHA's ALiBi advantage would predict
@@ -123,8 +124,8 @@ the bridge also adds separate 18-dimensional Q/K projections, narrows its
 matrix Q/K read from 75 to 57, and reduces MLP width by 192. Neither BAM arm
 has QKNorm: the bridge calls `dc.QKNorm` on its standard arm, but the inherited
 `qk_norm=False` makes that call a no-op.
-Both runs have
-the same parameter count, and the Q/K versus MLP leading dense FLOPs cancel.
+Both runs have the same parameter count, and the Q/K versus MLP leading
+dense FLOPs cancel.
 The MHA comparison additionally changes bf16/fp32 logits and runtime commit.
 A matched-runtime MHA RoPE/ALiBi × bf16/fp32 factorial, followed by a BAM
 comparison holding the Q/K decomposition fixed, would separate these effects.
@@ -140,6 +141,15 @@ cohort's BAM-over-RMT advantage depends on the complete dynamic BAM
 configuration. Static versus dynamic BAM also changes read/write mechanisms,
 gating, and static-key initialization, so the −0.215349 cannot be assigned
 to one dynamic component.
+The static-BAM-minus-MHA gap crosses zero between 1,000 (−0.016052) and
+1,200 (+0.013370), then widens to +0.075183 at 2,000, +0.101593 at 3,000,
++0.125498 at 4,000, and +0.126347 at 4,600. RMT K48 remains ahead of the
+same MHA control (−0.044656 at 4,600), while dynamic BAM stays ahead of
+RMT K48 (−0.039500 at 4,400). The current static BAM endpoint is therefore
+not a strong stand-in for static RMT. RMT's matrix-only residual, learned
+full-matrix RMSNorm, and matrix-reading/writing MLP path are absent from
+static BAM; transplanting a dynamic correction onto RMT is more diagnostic
+than treating these two static configurations as equivalent.
 
 ## Decision criteria
 

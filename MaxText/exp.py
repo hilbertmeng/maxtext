@@ -9612,7 +9612,8 @@ class BamMediumPropK75AllLocalStaticAlibiRMTBudget(
     # Param tree: 328,635,680, only 21,200 above RMT K48.
     mlp_dim_by_block = [2773, 2773, 2773]
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
-                    'RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64']
+                    'RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64',
+                    'BamMHAMediumPropAlibiC256']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-bam-static'
 
 

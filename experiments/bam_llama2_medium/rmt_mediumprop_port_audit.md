@@ -129,6 +129,18 @@ The MHA comparison additionally changes bf16/fp32 logits and runtime commit.
 A matched-runtime MHA RoPE/ALiBi × bf16/fp32 factorial, followed by a BAM
 comparison holding the Q/K decomposition fixed, would separate these effects.
 
+Static BAM is also behind the ALiBi MHA control from roughly step 1,200
+onward, whereas static RMT K48 remains ahead. At step 3,600, relative to
+ALiBi MHA, static BAM is +0.115393, RMT K48 is −0.060111, and dynamic BAM
+is −0.099956. Equivalently, static BAM trails RMT K48 by +0.175504; the
+dynamic BAM configuration gains −0.215349 over static BAM, yielding a net
+−0.039845 advantage over RMT K48. The static BAM arm has a *wider* MLP
+(2773 versus 2496) at essentially equal total parameters. Thus this
+cohort's BAM-over-RMT advantage depends on the complete dynamic BAM
+configuration. Static versus dynamic BAM also changes read/write mechanisms,
+gating, and static-key initialization, so the −0.215349 cannot be assigned
+to one dynamic component.
+
 ## Decision criteria
 
 All five experimental arms and the MHA control continue through the planned

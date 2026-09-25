@@ -204,10 +204,16 @@ class RMTMediumPropTest(absltest.TestCase):
     self.assertTrue(all(shape[-1] == 18 for shape in projection_shapes))
 
   def test_dynamic_rmt_rope_bridge_has_independent_qk(self):
-    _, _, params = self._run('RMTMediumPropK48DynamicFull48RoPE18')
-    layer = params['decoder']['layers']
-    for arm in ('q', 'k'):
-      self.assertEqual(layer[f'{arm}_rope_kernel'].value.shape, (320, 3, 16 * 18))
+    for name, read_dim in (
+        ('RMTMediumPropK48DynamicFull48RoPE18', 32),
+        ('RMTMediumPropK48DynamicReadWriteFull48RoPE18', 48)):
+      _, _, params = self._run(name)
+      layer = params['decoder']['layers']
+      for arm in ('q', 'k'):
+        self.assertEqual(layer[f'{arm}_rope_kernel'].value.shape,
+                         (320, 3, 16 * 18))
+      self.assertEqual(layer['dynamic_qk']['basis_bias'].value.shape,
+                       (4, 3, read_dim))
 
 
 if __name__ == '__main__':

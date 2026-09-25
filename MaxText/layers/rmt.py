@@ -70,7 +70,7 @@ class RMTDynamicQK(nn.Module):
     heads = int(cfg.num_query_heads)
     address_dim = M.shape[-1]
     rank = 4
-    init = nn.initializers.normal(cfg.emb_dim ** -0.5)
+    init = initializers.get_init_method(cfg.init_method)
     basis_kernel = self.param('basis_kernel', init,
                               (cfg.emb_dim, rank * address_dim), cfg.weight_dtype)
     basis_bias = self.param('basis_bias', nn.initializers.zeros,
@@ -146,9 +146,10 @@ class RMTDynamicWrite(nn.Module):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = 256
-    down = self.param('address_down', nn.initializers.normal(cfg.emb_dim ** -0.5),
+    init = initializers.get_init_method(cfg.init_method)
+    down = self.param('address_down', init,
                       (cfg.emb_dim, bottleneck), cfg.weight_dtype)
-    up = self.param('address_up', nn.initializers.normal(bottleneck ** -0.5),
+    up = self.param('address_up', init,
                     (bottleneck, heads * self.address_dim), cfg.weight_dtype)
     up_bias = self.param('address_up_bias', nn.initializers.zeros,
                          (heads, self.address_dim), cfg.weight_dtype)
@@ -156,7 +157,7 @@ class RMTDynamicWrite(nn.Module):
     address = jnp.einsum('btr,rd->btd', hidden, up.astype(x.dtype))
     address = address.reshape(x.shape[:2] + (heads, self.address_dim))
     address = address + up_bias.astype(x.dtype)
-    gate_kernel = self.param('gate_kernel', nn.initializers.normal(cfg.emb_dim ** -0.5),
+    gate_kernel = self.param('gate_kernel', init,
                              (cfg.emb_dim, heads), cfg.weight_dtype)
     gate_bias = self.param('gate_bias', _init_gate_bias(.1),
                            (heads,), cfg.weight_dtype)

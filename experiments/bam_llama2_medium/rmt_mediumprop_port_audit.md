@@ -114,6 +114,7 @@ The MHA and BAM gaps move in opposite directions at equal training steps:
 | 3,000 | −0.039590 | −0.019703 | −0.059293 |
 | 3,200 | −0.035824 | −0.020434 | −0.056258 |
 | 4,400 | −0.024697 | −0.016066 | −0.040763 |
+| 5,400 | −0.019600 | −0.015498 | −0.035098 |
 
 The final column is `(bridge − old RoPE MHA) − (dynamic BAM − ALiBi MHA)`.
 At 3,000 steps, naively transferring the MHA's ALiBi advantage would predict
@@ -150,6 +151,12 @@ not a strong stand-in for static RMT. RMT's matrix-only residual, learned
 full-matrix RMSNorm, and matrix-reading/writing MLP path are absent from
 static BAM; transplanting a dynamic correction onto RMT is more diagnostic
 than treating these two static configurations as equivalent.
+At 5,400, dynamic BAM remains −0.039723 versus RMT K48 (last-five mean
+−0.040088, range −0.041632 to −0.039092), while static BAM is +0.213799
+versus dynamic BAM (last-five mean +0.211279). Static BAM is +0.140226
+versus ALiBi MHA at 5,400. The dynamic-versus-RMT and static-versus-dynamic
+gaps are near plateaus; the static-versus-MHA deficit keeps widening as the
+RMT/MHA gap contracts.
 
 ## Decision criteria
 

@@ -9567,8 +9567,9 @@ class BamMHAMediumPropAlibiC256(BamMHAMediumPropC256):
     """Ledger only: ALiBi MHA control for the MediumProp RMT comparison."""
     # Runtime: codex/rmt-mediumprop-compare, /data0/xd/rmt-mediumprop-compare;
     # code_commit ca02508; UE5a v5p-16 .678 step/s (10-14); T4096/SwiGLU/basic health ON.
+    # Vs old RoPE MHA: ALiBi runtime also forces fp32 logits; gap is not a pure position ablation.
     model_name = 'BamMHAMediumPropAlibiC256'
-    compare_runs = []
+    compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropC256']
 
 
 class RMTMediumPropAlibiK48(BamMHAMediumPropAlibiC256):

@@ -80,6 +80,11 @@ falls from 2496 to 2304, and its measured parameter tree exactly matches
 the dynamic ALiBi BAM arm. This links to the prior QK57 AllLocal and
 MLP3200 ablations; the comparison with the four ALiBi arms is not an
 isolated test of the Q/K projection because position encoding also changes.
+The effective training attributes of this bridge and the historical
+`BamMediumPropK75EmbedVOnlyQK57AllLocal` are otherwise identical apart from
+MLP width 2304 versus 3901 (plus health-only recording and the runtime).
+It therefore supplies a particularly direct check of how much the severe
+MLP reduction costs as training progresses.
 
 ## Decision criteria
 

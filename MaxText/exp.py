@@ -9573,7 +9573,8 @@ class BamMHAMediumPropAlibiC256(BamMHAMediumPropC256):
 
 class RMTMediumPropAlibiK48(BamMHAMediumPropAlibiC256):
     """Ledger only: native rank16, [48,75] RMT with ALiBi."""
-    # Same runtime/worktree; code_commit ca02508; UE5a .425 step/s (~-37.3% vs MHA).
+    # Same runtime/worktree; prefix-source fix a520e4a from step916;
+    # UE5a .644 step/s (~-5.0% vs MHA .678); pre-fix .425 was confounded.
     # 328,614,480 parameters; source audit: experiments/bam_llama2_medium/rmt_mediumprop_port_audit.md.
     model_name = 'RMTMediumPropAlibiK48'
     compare_runs = ['BamMHAMediumPropAlibiC256']
@@ -9581,7 +9582,8 @@ class RMTMediumPropAlibiK48(BamMHAMediumPropAlibiC256):
 
 class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
     """Ledger only: rank16, [64,75] RMT; paper's main residual-width ratio."""
-    # Same runtime/worktree; code_commit 25265bb; UE5a .419 step/s (-38.2% vs MHA).
+    # Same runtime/worktree; prefix-source fix a520e4a from step852;
+    # UE5a .627 step/s (~-7.5% vs MHA .678); pre-fix .419 was confounded.
     # 328,687,040 parameters (+72,560 vs K48).
     model_name = 'RMTMediumPropAlibiK64'
     compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropAlibiC256']
@@ -9600,7 +9602,9 @@ class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(BamMediumPropK75EmbedQKVOnlyRo
 class BamMediumPropK75AllLocalStaticAlibiRMTBudget(
     BamMediumPropK75AllLocalMOnlyAlibiRMTBudget):
     """Ledger only: static-read/write BAM endpoint on the same backbone."""
-    # Same runtime/worktree; code_commit 25265bb; UE5a .417 step/s (-38.5% vs MHA).
+    # Same runtime/worktree; prefix-source fix a520e4a from step892;
+    # UE5a .645 step/s (~-4.9% vs MHA .678; +18.0% vs dynamic .5464).
+    # Pre-fix .417 was confounded by full-source attention per query chunk.
     # MLP2773, 328,635,680 parameters; static Q/K/V/O and write address.
     model_name = 'BamMediumPropK75AllLocalStaticAlibiRMTBudget'
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',

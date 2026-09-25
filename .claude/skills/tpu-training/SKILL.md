@@ -123,7 +123,12 @@ the later metadata commit is not the RUN's runtime hash.
 
 For every sealed full-layer RUN, prepare the exact target-topology executable before requesting
 its target TPU. **First check for user-owned non-preemptible or FLEX_START v6e-1 compilers** in
-READY state with an idle worker. Verify the pinned environment, installing it once if missing;
+READY state with an idle worker. Verify the actual queued-resource type with
+`gcloud alpha compute tpus queued-resources describe TPU --zone=ZONE --format=json`. Accept
+`provisioningModel=FLEX_START` or `provisioningModel=STANDARD` with `guaranteed` rather than
+`bestEffort`. A READY node or a
+"retained" name alone does not qualify; never borrow a best-effort/spot TPU through this path.
+Verify the pinned environment, installing it once if missing;
 prefer those hosts for AOTs. Use separate idle hosts for independent AOTs when available. Borrow
 each through `prepare_train_aot_on_worker.py` on tpu-ag with its actual worker index (v6e-1:
 `--worker 0`):

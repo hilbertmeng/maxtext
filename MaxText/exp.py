@@ -9539,8 +9539,8 @@ class BamMediumPropK75EmbedVOnlyQK57MLP3200(BamMediumPropK75EmbedVOnlyQK57):
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # MLP3200: -8.52% total parameters vs MHA; attention and M-cache unchanged vs QK57.
     # code_commit: 1c628da; UE5a .5456 step/s (20-99), +3.37% vs QK57, matched776 BAM health.
-    # Completed 13,500. Vs QK57 gap near zero@1000, then rose to last5 +.010432;
-    # vs MediumProp MHA last5 -.110848. -8.52% total parameters vs MHA, same M-cache.
+    # Completed 13,500. Vs QK57 +.0075@5000 rose slowly to last5 +.010432;
+    # stabilized after ~10k, no late divergence. Vs MHA last5 -.110848; same M-cache.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57MLP3200'
     base_mlp_dim = 3200
     mlp_dim_by_block = None
@@ -9553,8 +9553,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # All18 L, MLP3901; no standard W_V or fetchedO; near-parent parameter budget.
     # code_commit: 1c628da; UE5a .5365 step/s (20-99), +1.64% vs QK57; BAM health866 vs776.
-    # Completed 13,500. Vs QK57 crossed positive@1200, then stabilized: last5 +.024564;
-    # vs MediumProp MHA last5 -.096716. Removes fetchedO and six F-layer W_V together.
+    # Completed 13,500. Vs QK57 +.020@5000 rose slowly to last5 +.024564;
+    # stabilized after ~10k, no late divergence. Vs MHA last5 -.096716.
+    # Removes fetchedO and six F-layer W_V together.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocal'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 18
     mlp_dim_by_block = [3901, 3901, 3901]

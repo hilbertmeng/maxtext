@@ -9566,8 +9566,10 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
 class BamMHAMediumPropAlibiC256(BamMHAMediumPropC256):
     """Ledger only: ALiBi MHA control for the MediumProp RMT comparison."""
     # Runtime: codex/rmt-mediumprop-compare, /data0/xd/rmt-mediumprop-compare;
-    # code_commit ca02508; UE5a v5p-16 .678 step/s (10-14); T4096/SwiGLU/basic health ON.
-    # Vs old RoPE MHA: ALiBi runtime also forces fp32 logits; gap is not a pure position ablation.
+    # code_commit ca02508; UE5a v5p-16 .678 step/s (-6.75% raw vs RoPE .7271); completed 13,500.
+    # Vs old RoPE MHA: -0.436680@200 shrank to -0.021693@5000, then stabilized;
+    # final5 mean -0.013450 (range -0.013867..-0.012863), -0.012863@13400.
+    # ALiBi also forces fp32 logits: this is not a pure position-encoding ablation.
     model_name = 'BamMHAMediumPropAlibiC256'
     compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropC256']
 

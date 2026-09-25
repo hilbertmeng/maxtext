@@ -9596,6 +9596,7 @@ class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(
     bam_alibi = True
     bam_partial_rope = False
     bam_partial_rope_nope_dim = None
+    bam_record_concat_health = False
     # Param tree: 328,605,728, only 8,752 below RMT K48's 328,614,480.
     mlp_dim_by_block = [2496, 2496, 2496]
     compare_runs = ['RMTMediumPropAlibiK48', 'RMTMediumPropAlibiK64',

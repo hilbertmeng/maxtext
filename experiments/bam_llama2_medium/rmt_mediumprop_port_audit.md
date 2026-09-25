@@ -10,6 +10,9 @@ not reproduction of the paper's OpenWebText/GPT-2-tokenizer numbers. The common
 backbone is 18 layers, D=1200, 16 heads ×75, T=4096, Pile tokenizer/data,
 SwiGLU MLP, MaxText AdamW schedule and loss, untied output embedding, ALiBi,
 and no RoPE. The MHA control uses BAM's chunked attention implementation.
+The MHA control retains MediumProp's `qk_norm=True`; matrix-only BAM Q/K and
+RMT Q/K have no separate per-head QKNorm. Thus the control is a strong
+modern MHA reference, not a source-faithful RMT-paper Transformer replica.
 
 | Feature | Paper | Open-source code | First-batch MaxText choice |
 |---|---|---|---|
@@ -77,3 +80,14 @@ The dynamic-minus-static BAM gap estimates the value of content-dependent
 read/write on the BAM skeleton. BAM-versus-RMT is a complete-architecture
 comparison; it includes different residual topology and MLP-to-matrix routing.
 Do not label the former gap a pure static-vs-dynamic *RMT* effect.
+
+For throughput, the first-order forward arithmetic per token at T=4096 is
+approximately 1.10G FLOPs for MHA (18×[4D²+3D×3200 dense projections and
+4DT attention] with multiply-add counted twice, plus D×Vocab logits), and
+0.90G for RMT K48 (18×[3D×3200 MLP + six `R×D_k×D_v` static contractions
+and 4DT attention], plus logits). The RMT K48→K64 change adds only ~4M
+FLOPs/token to the 0.90G total. BAM needs a separate exact operator census:
+its dynamic read projections and P_loc matter, while its matrix contractions
+are much smaller than attention but may be throughput-limiting. These are
+forward arithmetic counts, not predictions of realized TPU throughput;
+contraction layout, transpose, softmax, and memory traffic require profiling.

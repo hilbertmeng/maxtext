@@ -9627,6 +9627,7 @@ class RMTMediumPropAlibiK48DynamicFull48NoO(RMTMediumPropAlibiK48DynamicFull48):
     """Ledger only: full-row dynamic RMT without an extra O read."""
     # Runtime: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic; code_commit c2dcd60.
     # 328,238,064 params (-345,888 vs Full48); MLP width2711 unchanged.
+    # UE5a .384 step/s vs Full48 .383, matched 738 dynamic health tags; AOT/first step verified.
     model_name = 'RMTMediumPropAlibiK48DynamicFull48NoO'
     rmt_dynamic_o_enabled = False
     compare_runs = ['RMTMediumPropAlibiK48DynamicFull48',

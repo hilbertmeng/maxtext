@@ -9566,14 +9566,14 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
 class BamMHAMediumPropAlibiC256(BamMHAMediumPropC256):
     """Ledger only: ALiBi MHA control for the MediumProp RMT comparison."""
     # Runtime: codex/rmt-mediumprop-compare, /data0/xd/rmt-mediumprop-compare;
-    # code_commit ca02508; UE5a v5p-16. Common T4096/SwiGLU/generic health ON.
+    # code_commit ca02508; UE5a v5p-16 .678 step/s (10-14); T4096/SwiGLU/basic health ON.
     model_name = 'BamMHAMediumPropAlibiC256'
     compare_runs = []
 
 
 class RMTMediumPropAlibiK48(BamMHAMediumPropAlibiC256):
     """Ledger only: native rank16, [48,75] RMT with ALiBi."""
-    # Same runtime/worktree; code_commit ca02508; UE5a v5p-16.
+    # Same runtime/worktree; code_commit ca02508; UE5a .425 step/s (~-37.3% vs MHA).
     # 328,614,480 parameters; source audit: experiments/bam_llama2_medium/rmt_mediumprop_port_audit.md.
     model_name = 'RMTMediumPropAlibiK48'
     compare_runs = ['BamMHAMediumPropAlibiC256']
@@ -9581,7 +9581,7 @@ class RMTMediumPropAlibiK48(BamMHAMediumPropAlibiC256):
 
 class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
     """Ledger only: rank16, [64,75] RMT; paper's main residual-width ratio."""
-    # Same runtime/worktree; code_commit 25265bb; UE5a v5p-16.
+    # Same runtime/worktree; code_commit 25265bb; UE5a .419 step/s (-38.2% vs MHA).
     # 328,687,040 parameters (+72,560 vs K48).
     model_name = 'RMTMediumPropAlibiK64'
     compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropAlibiC256']
@@ -9589,7 +9589,7 @@ class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
 
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Ledger only: all-local dynamic BAM, ALiBi, matrix-only QKV."""
-    # Same runtime/worktree; code_commit 25265bb; UE5a v5p-16.
+    # Same runtime/worktree; code_commit 25265bb; UE5a .5464 step/s (-19.4% vs MHA).
     # MLP2496, 328,605,728 parameters; no fetchedO or standard Q/K/V projection.
     # Full-M static reads augment dynamic Q/K/V/O; generic health ON, BAM extra OFF.
     model_name = 'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget'
@@ -9600,7 +9600,7 @@ class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(BamMediumPropK75EmbedQKVOnlyRo
 class BamMediumPropK75AllLocalStaticAlibiRMTBudget(
     BamMediumPropK75AllLocalMOnlyAlibiRMTBudget):
     """Ledger only: static-read/write BAM endpoint on the same backbone."""
-    # Same runtime/worktree; code_commit 25265bb; UE5a v5p-16.
+    # Same runtime/worktree; code_commit 25265bb; UE5a .417 step/s (-38.5% vs MHA).
     # MLP2773, 328,635,680 parameters; static Q/K/V/O and write address.
     model_name = 'BamMediumPropK75AllLocalStaticAlibiRMTBudget'
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
@@ -9610,7 +9610,7 @@ class BamMediumPropK75AllLocalStaticAlibiRMTBudget(
 class BamMediumPropK75AllLocalQK57RoPE18RMTBudget(
     BamMediumPropK75AllLocalMOnlyAlibiRMTBudget):
     """Ledger only: QK57/standard-RoPE18 bridge to the historical K75 ablations."""
-    # Same runtime/worktree; code_commit eba495e; UE5a v5p-16.
+    # Same runtime/worktree; code_commit eba495e; UE5a .603 step/s (-11.1% vs MHA).
     # ALiBi OFF, MLP2304, 328,605,728 parameters: exactly dynamic ALiBi BAM's budget.
     model_name = 'BamMediumPropK75AllLocalQK57RoPE18RMTBudget'
     compare_runs = ['BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',

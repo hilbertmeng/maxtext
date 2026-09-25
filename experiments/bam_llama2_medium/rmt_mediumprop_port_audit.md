@@ -10,8 +10,10 @@ not reproduction of the paper's OpenWebText/GPT-2-tokenizer numbers. The common
 backbone is 18 layers, D=1200, 16 heads ×75, T=4096, Pile tokenizer/data,
 SwiGLU MLP, MaxText AdamW schedule and loss, untied output embedding, ALiBi,
 and no RoPE. The MHA control uses BAM's chunked attention implementation.
-The MHA control retains MediumProp's `qk_norm=True`; matrix-only BAM Q/K and
-RMT Q/K have no separate per-head QKNorm. Thus the control is a strong
+The MHA control retains MediumProp's `qk_norm=False`; matrix-only BAM Q/K,
+the bridge's separate Q/K arm, and RMT Q/K likewise have no per-head QKNorm.
+The BAM attention code calls `dc.QKNorm`, but this is a no-op when the flag is
+false. Thus the control is a strong
 modern MHA reference, not a source-faithful RMT-paper Transformer replica.
 Monitor it against the completed RoPE control `BamMHAMediumPropC256` as well
 as RMT K48. The new ALiBi path also forces fp32 attention logits whereas
@@ -118,8 +120,9 @@ the RoPE bridge to lose to dynamic ALiBi BAM by 0.039590; instead it wins by
 0.019703. The 0.059293 discrepancy rules out a single architecture-independent
 position/numerics offset. It does **not** isolate a BAM × RoPE interaction:
 the bridge also adds separate 18-dimensional Q/K projections, narrows its
-matrix Q/K read from 75 to 57, QKNorms the new standard Q/K arm, and reduces
-MLP width by 192. Matrix-only Q/K in the dynamic ALiBi arm has no QKNorm.
+matrix Q/K read from 75 to 57, and reduces MLP width by 192. Neither BAM arm
+has QKNorm: the bridge calls `dc.QKNorm` on its standard arm, but the inherited
+`qk_norm=False` makes that call a no-op.
 Both runs have
 the same parameter count, and the Q/K versus MLP leading dense FLOPs cancel.
 The MHA comparison additionally changes bf16/fp32 logits and runtime commit.

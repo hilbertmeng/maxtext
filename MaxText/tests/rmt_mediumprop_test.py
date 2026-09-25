@@ -58,9 +58,10 @@ class RMTMediumPropTest(absltest.TestCase):
     output = tempfile.TemporaryDirectory()
     self.addCleanup(output.cleanup)
     Path(output.name, 'test').mkdir()
-    dynamic_rmt = name.startswith('RMTMediumPropAlibiK48Dynamic')
+    dynamic_rmt = name.startswith(('RMTMediumPropAlibiK48Dynamic',
+                                   'RMTMediumPropK48Dynamic'))
     heads = 16 if dynamic_rmt else 2
-    head_dim = 3 if dynamic_rmt else 75
+    head_dim = (20 if name.endswith('RoPE18') else 3) if dynamic_rmt else 75
     with contextlib.redirect_stdout(io.StringIO()):
       cfg = pyconfig.initialize(
           [None, str(Path(__file__).parents[1] / 'configs/base.yml')],
@@ -201,6 +202,12 @@ class RMTMediumPropTest(absltest.TestCase):
                          if p[-2:] in (('query', 'kernel'), ('key', 'kernel'))]
     self.assertLen(projection_shapes, 6)
     self.assertTrue(all(shape[-1] == 18 for shape in projection_shapes))
+
+  def test_dynamic_rmt_rope_bridge_has_independent_qk(self):
+    _, _, params = self._run('RMTMediumPropK48DynamicFull48RoPE18')
+    layer = params['decoder']['layers']
+    for arm in ('q', 'k'):
+      self.assertEqual(layer[f'{arm}_rope_kernel'].value.shape, (320, 3, 16 * 18))
 
 
 if __name__ == '__main__':

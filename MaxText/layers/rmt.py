@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 
 import common_types
-from layers import attentions, initializers, linears, normalizations
+from layers import attentions, embeddings, initializers, linears, normalizations
 
 
 RMT_DYNAMIC_HEALTH_NAMES = (
@@ -198,7 +198,7 @@ class RMTLayer(nn.Module):
   quant: object = None
 
   @nn.compact
-  def __call__(self, matrix, segment_ids, deterministic, layer_index):
+  def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     value_dim = int(cfg.head_dim)
@@ -207,6 +207,9 @@ class RMTLayer(nn.Module):
     dynamic = bool(getattr(cfg, 'rmt_dynamic_enabled', False))
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
     dynamic_full_read = bool(cfg.get_keys().get('rmt_dynamic_read_full_matrix', False))
+    rope_qk_dim = int(cfg.get_keys().get('rmt_rope_qk_dim', 0))
+    if rope_qk_dim and (not dynamic or rope_qk_dim % 2 or rope_qk_dim >= value_dim):
+      raise ValueError('RMT RoPE Q/K requires a dynamic arm and an even proper subspace')
     write_rows = int(getattr(cfg, 'rmt_dynamic_write_rows', 32)) if dynamic else 0
     if dynamic and (key_dim != 48 or write_rows not in (32, 48)):
       raise ValueError('RMT K48 dynamic branch requires 32 or 48 write rows')
@@ -233,6 +236,25 @@ class RMTLayer(nn.Module):
       query = query + dynamic_q
       key = key + dynamic_k
       value = value + dynamic_v
+      if rope_qk_dim:
+        rope_qk = []
+        for arm in ('q', 'k'):
+          kernel = self.param(
+              f'{arm}_rope_kernel',
+              nn.with_logical_partitioning(initializers.get_init_method(cfg.init_method),
+                                           ('embed', None)),
+              (cfg.emb_dim, heads * rope_qk_dim), cfg.weight_dtype)
+          projected = jnp.einsum('btd,dr->btr', attn_x, kernel.astype(attn_x.dtype))
+          projected = projected.reshape(attn_x.shape[:2] + (heads, rope_qk_dim))
+          rope_qk.append(embeddings.RotaryEmbedding(
+              min_timescale=cfg.rope_min_timescale,
+              max_timescale=cfg.rope_max_timescale,
+              embedding_dims=rope_qk_dim,
+              fprop_dtype=cfg.dtype,
+              rope_half=False,
+              name=f'{arm}_rope')(projected, positions))
+        query = jnp.concatenate((query[..., :-rope_qk_dim], rope_qk[0]), axis=-1)
+        key = jnp.concatenate((key[..., :-rope_qk_dim], rope_qk[1]), axis=-1)
     query = query / math.sqrt(value_dim)
     t = matrix.shape[1]
     chunk = int(cfg.query_chunk_size)
@@ -247,8 +269,9 @@ class RMTLayer(nn.Module):
         valid &= (segment_ids[:, q0:q1, None] == segment_ids[:, None, :q1])
       y, _ = attentions._attention_op(
           query[:, q0:q1], key[:, :q1], value[:, :q1], valid,
-          float32_logits=True,
-          additive_bias=attentions._alibi_bias(heads, q0, q1, 0, q1))
+          float32_logits=cfg.float32_logits if rope_qk_dim else True,
+          additive_bias=(None if rope_qk_dim else
+                         attentions._alibi_bias(heads, q0, q1, 0, q1)))
       outputs.append(y)
     head_output = jnp.concatenate(outputs, axis=1).astype(cfg.dtype)
     if dynamic:
@@ -345,7 +368,6 @@ class RMTDecoder(nn.Module):
       raise ValueError('RMT comparison does not support deep embedding or MTP')
     if model_mode != common_types.MODEL_MODE_TRAIN:
       raise ValueError('RMT comparison currently supports training only')
-    del decoder_positions
     heads = int(cfg.num_query_heads)
     value_dim = int(cfg.head_dim)
     key_dim = int(cfg.rmt_reskey_dim)
@@ -356,17 +378,17 @@ class RMTDecoder(nn.Module):
     seed_key = self.param('seed_key', nn.initializers.normal(heads ** -0.5),
                           (heads, key_dim), cfg.weight_dtype)
     matrix = jnp.einsum('btnv,nk->btkv', embedded_heads, seed_key.astype(cfg.dtype))
-    Layer = nn.remat(RMTLayer, prevent_cse=True, static_argnums=(3,))
+    Layer = nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,))
     ScanLayer = nn.scan(
         Layer,
         variable_axes={'params': cfg.param_scan_axis, 'intermediates': 0},
         split_rngs={'params': True, 'dropout': cfg.enable_dropout},
-        in_axes=(nn.broadcast, nn.broadcast, 0),
+        in_axes=(nn.broadcast, nn.broadcast, nn.broadcast, 0),
         length=cfg.num_decoder_layers,
         unroll=int(cfg.scan_layers_unroll),
         metadata_params={nn.PARTITION_NAME: 'layers'})
     matrix, _ = ScanLayer(cfg, quant=self.quant, name='layers')(
-        matrix, decoder_segment_ids, deterministic,
+        matrix, decoder_segment_ids, decoder_positions, deterministic,
         jnp.arange(cfg.num_decoder_layers))
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),

@@ -13,6 +13,12 @@ and no RoPE. The MHA control uses BAM's chunked attention implementation.
 The MHA control retains MediumProp's `qk_norm=True`; matrix-only BAM Q/K and
 RMT Q/K have no separate per-head QKNorm. Thus the control is a strong
 modern MHA reference, not a source-faithful RMT-paper Transformer replica.
+Monitor it against the completed RoPE control `BamMHAMediumPropC256` as well
+as RMT K48. The new ALiBi path also forces fp32 attention logits whereas
+the historical RoPE runtime used bf16 logits, and their source commits differ;
+this baseline gap measures the whole runtime/position-encoding shift, not a
+pure ALiBi-versus-RoPE intervention. It is still necessary to interpret
+cross-generation BAM/MHA gaps and the RoPE bridge arm.
 
 | Feature | Paper | Open-source code | First-batch MaxText choice |
 |---|---|---|---|

@@ -54,6 +54,11 @@ The dynamic arm retains local Q/K rank4 and local V/O shared C8 read plus
 full-M static Q/K/V/O reads. The static arm has only four full-M static reads,
 a static write address, and fixed 0.1 write gate. Both use the same embedding
 matrix seed. BAM MLP widths are independently reduced to match RMT K48.
+The dynamic arm starts its static Q/K/O keys at zero and its static V key
+random, whereas the pure-static arm starts all four static keys random so it
+has a usable Q/K/O path from step zero. Thus their loss gap compares complete
+initialization and parameterization choices, not an isolated on/off switch
+for token-conditioned keys.
 
 The real initialized parameter trees (same classes with sequence length
 temporarily set to 4, which does not change parameter shapes) count:
@@ -91,8 +96,8 @@ MLP reduction costs as training progresses.
 Compare same-step 200-token loss reports, terminal last-five means,
 throughput at matched generic/BAM-specific health settings on v5p-16,
 theoretical FLOPs, operator profile, and wall-clock time to a target loss.
-The dynamic-minus-static BAM gap estimates the value of content-dependent
-read/write on the BAM skeleton. BAM-versus-RMT is a complete-architecture
+The dynamic-minus-static BAM gap measures the full dynamic versus static
+BAM recipe on the same skeleton. BAM-versus-RMT is a complete-architecture
 comparison; it includes different residual topology and MLP-to-matrix routing.
 Do not label the former gap a pure static-vs-dynamic *RMT* effect.
 

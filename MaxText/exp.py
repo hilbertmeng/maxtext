@@ -9584,6 +9584,7 @@ class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
     """Ledger only: rank16, [64,75] RMT; paper's main residual-width ratio."""
     # Same runtime/worktree; prefix-source fix a520e4a from step852;
     # UE5a .627 step/s (~-7.5% vs MHA .678); pre-fix .419 was confounded.
+    # Paper's T512/A100 K64 pair was -43.4% step/s; source of difference unresolved.
     # 328,687,040 parameters (+72,560 vs K48).
     model_name = 'RMTMediumPropAlibiK64'
     compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropAlibiC256']

@@ -205,6 +205,7 @@ class RMTLayer(nn.Module):
     key_dim = int(cfg.rmt_reskey_dim)
     assert cfg.emb_dim == heads * value_dim
     dynamic = bool(getattr(cfg, 'rmt_dynamic_enabled', False))
+    dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
     write_rows = int(getattr(cfg, 'rmt_dynamic_write_rows', 32)) if dynamic else 0
     if dynamic and (key_dim != 48 or write_rows not in (32, 48)):
       raise ValueError('RMT K48 dynamic branch requires 32 or 48 write rows')
@@ -220,8 +221,12 @@ class RMTLayer(nn.Module):
       attn_M = jnp.swapaxes(attn_in[..., heads:, :], -2, -1)
       dynamic_q, dynamic_k, q_gate, k_gate = RMTDynamicQK(
           cfg, name='dynamic_qk')(attn_x, attn_M)
-      (dynamic_v, dynamic_o), vo_gates = RMTDynamicC8Read(
-          cfg, destinations=2, name='dynamic_vo')(attn_x, attn_M)
+      vo_reads, vo_gates = RMTDynamicC8Read(
+          cfg, destinations=2 if dynamic_o_enabled else 1,
+          name='dynamic_vo')(attn_x, attn_M)
+      dynamic_v = vo_reads[0]
+      if dynamic_o_enabled:
+        dynamic_o = vo_reads[1]
       static_q, static_k, static_v = query, key, value
       query = query + dynamic_q
       key = key + dynamic_k
@@ -246,7 +251,8 @@ class RMTLayer(nn.Module):
     head_output = jnp.concatenate(outputs, axis=1).astype(cfg.dtype)
     if dynamic:
       static_head_output = head_output
-      head_output = head_output + dynamic_o
+      if dynamic_o_enabled:
+        head_output = head_output + dynamic_o
     attn_write = self.param('attn_write_key', write_init,
                             (heads, key_dim), cfg.weight_dtype)
     static_attn_write = jnp.einsum(
@@ -293,10 +299,14 @@ class RMTLayer(nn.Module):
                                     ((0, 0), (0, 0), (16, 0), (0, 0)))
       matrix = matrix + static_mlp_write + dynamic_mlp_write
       if getattr(cfg, 'rmt_record_dynamic_health', False):
+        # Keep the health schema identical for matched Full48/NoO comparisons.
+        measured_o = dynamic_o if dynamic_o_enabled else jnp.zeros_like(static_head_output)
+        measured_o_gate = (vo_gates[..., 1] if dynamic_o_enabled
+                           else jnp.zeros_like(vo_gates[..., 0]))
         reads = ((dynamic_q, static_q), (dynamic_k, static_k),
-                 (dynamic_v, static_v), (dynamic_o, static_head_output),
+                 (dynamic_v, static_v), (measured_o, static_head_output),
                  (dynamic_mlp_read, static_mlp_read))
-        gates = (q_gate, k_gate, vo_gates[..., 0], vo_gates[..., 1],
+        gates = (q_gate, k_gate, vo_gates[..., 0], measured_o_gate,
                  mlp_read_gate[..., 0], attn_write_gate, mlp_write_gate)
         writes = ((dynamic_attn_write, static_attn_write),
                   (dynamic_mlp_write, static_mlp_write))

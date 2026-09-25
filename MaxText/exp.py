@@ -9607,6 +9607,7 @@ class RMTMediumPropAlibiK48DynamicFull48(RMTMediumPropAlibiK48):
     # 328,583,952 params (-30,528 vs static K48); 37 fewer MLP units than Tail32.
     model_name = 'RMTMediumPropAlibiK48DynamicFull48'
     rmt_dynamic_enabled = True
+    rmt_dynamic_o_enabled = True
     rmt_dynamic_write_rows = 48
     rmt_record_dynamic_health = True
     base_mlp_dim = 2711
@@ -9615,6 +9616,16 @@ class RMTMediumPropAlibiK48DynamicFull48(RMTMediumPropAlibiK48):
                     'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
                     'BamMHAMediumPropAlibiC256']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48'
+
+
+class RMTMediumPropAlibiK48DynamicFull48NoO(RMTMediumPropAlibiK48DynamicFull48):
+    """Full48 dynamic RMT without its extra O read; native attention write stays."""
+    model_name = 'RMTMediumPropAlibiK48DynamicFull48NoO'
+    rmt_dynamic_o_enabled = False
+    compare_runs = ['RMTMediumPropAlibiK48DynamicFull48',
+                    'RMTMediumPropAlibiK48',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-no-o'
 
 
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(

@@ -110,6 +110,7 @@ class RMTMediumPropTest(absltest.TestCase):
     for name, address_dim in (
         ('RMTMediumPropAlibiK48DynamicTail32', 32),
         ('RMTMediumPropAlibiK48DynamicFull48', 48),
+        ('RMTMediumPropAlibiK48DynamicFull48NoO', 48),
     ):
       cfg = self._config(name)
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -145,6 +146,15 @@ class RMTMediumPropTest(absltest.TestCase):
       health = intermediates['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
       self.assertEqual(health.shape, (3, len(rmt.RMT_DYNAMIC_HEALTH_NAMES)))
       self.assertTrue(bool(jnp.all(jnp.isfinite(health))))
+      if name.endswith('NoO'):
+        self.assertEqual(layers['dynamic_vo']['gate_kernel'].value.shape[-1],
+                         cfg.num_query_heads)
+        for metric in ('o_dynamic_rms', 'o_ratio', 'o_gate_mean'):
+          index = rmt.RMT_DYNAMIC_HEALTH_NAMES.index(metric)
+          np.testing.assert_array_equal(np.asarray(health[:, index]), 0.)
+      else:
+        self.assertEqual(layers['dynamic_vo']['gate_kernel'].value.shape[-1],
+                         2 * cfg.num_query_heads)
       index = rmt.RMT_DYNAMIC_HEALTH_NAMES.index('attn_write_first16_ratio')
       first16_ratio = np.asarray(health[:, index])
       if address_dim == 32:

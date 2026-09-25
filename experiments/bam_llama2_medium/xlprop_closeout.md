@@ -1,6 +1,6 @@
 # XLProp BAM closeout and 50k extrapolation
 
-BAM stopped23,022. MHA was stopped34,598, then user requested resuming it to the original50,000 endpoint in EW4b (runtime859bd7e). The closeout evidence below describes the earlier stop; the MHA run is active again. Both stop checkpoints committed, prior TPU/queued resources verified absent; local TB SYNC_OK.
+BAM stopped23,022. MHA was stopped34,598, then resumed in EW4b (runtime859bd7e) and completed50,000 on 2026-09-24T16:35:47Z. Final checkpoint commit, TPU/queue teardown and local TB sync verified. The BAM−MHA gap below ends at23,000 because BAM was stopped; completing MHA alone adds no paired loss points beyond that step.
 
 BAM−MHA latest five valid windows mean -.088470; range -.090452..-.086771. Matched-basic-health speed -.3066 relative to MHA control.
 
@@ -26,7 +26,7 @@ BAM−MHA latest five valid windows mean -.088470; range -.090452..-.086771. Mat
 MHA: UE5a→EW4b after checkpoint21,198,10 preemptions. BAM: UE5a throughout,14 preemptions. Final manual stops are separate from preemptions. Both v5p-32.
 
 ```text
-Llama2XLPropTrain: preemptions=10 ready_leases=11
+Llama2XLPropTrain: preemptions=10 ready_leases=12
 01    1h07m17s  us-east5-a  xd-v5p-32-xlprop-mha-maxtext  2026-09-23T11:02:49Z -> 2026-09-23T12:10:06Z  preempted
 02       9m45s  us-east5-a  xd-v5p-32-xlprop-mha-maxtext  2026-09-23T12:17:23Z -> 2026-09-23T12:27:08Z  preempted
 03    9h14m34s  us-east5-a  xd-v5p-32-xlprop-mha-maxtext  2026-09-23T12:35:07Z -> 2026-09-23T21:49:41Z  preempted
@@ -38,6 +38,7 @@ Llama2XLPropTrain: preemptions=10 ready_leases=11
 09    1h26m04s  europe-west4-b  xd-v5p-32-xlprop-mha-maxtext  2026-09-24T00:20:50Z -> 2026-09-24T01:46:54Z  preempted
 10      14m34s  europe-west4-b  xd-v5p-32-xlprop-mha-maxtext  2026-09-24T01:52:22Z -> 2026-09-24T02:06:56Z  preempted
 11    5h24m41s  europe-west4-b  xd-v5p-32-xlprop-mha-maxtext  2026-09-24T02:11:23Z -> 2026-09-24T07:36:04Z  run_stop
+12    8h33m02s  europe-west4-b  xd-v5p-32-xlprop-mha-maxtext  2026-09-24T08:02:45Z -> 2026-09-24T16:35:47Z  run_stop
 ```
 
 ```text

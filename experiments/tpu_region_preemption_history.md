@@ -340,6 +340,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamLlama2MediumPropK57SharedRank4H18MLPPerLayer` | v5p-16 | `us-east5-a` | 2026-09-24 00:40:01 | 2026-09-24 02:13:22 | user stop1972; TPU/queue verified absent | none |
 | `Llama2XLPropTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:49 | 2026-09-23 23:05:12 | preempted; migrated checkpoint21198 to EW4b | UC1a never active |
 | `Llama2XLPropTrain` | v5p-32 | `europe-west4-b` | 2026-09-23 23:52:18 | 2026-09-24 07:36:04 | user stop; checkpoint34598; TPU/queue absent | none |
+| `Llama2XLPropTrain` | v5p-32 | `europe-west4-b` | 2026-09-24 08:02:45 | 2026-09-24 16:35:47 | completed50,000; TPU/queue absent | none |
 | `BamLlama2XLPropK72SharedRank4MLPPerLayerTrain` | v5p-32 | `us-east5-a` | 2026-09-23 11:02:54 | 2026-09-24 07:36:08 | user stop; checkpoint23022; TPU/queue absent | EW4b/UC1a never active |
 | `BamMediumPropK75EmbedQKVOnlyRoPE18` | v5p-16 | `us-east5-a` | 2026-09-24 06:10:14 | 2026-09-24 08:57:36 | user stop4042; TPU/queue absent | none |
 
@@ -348,6 +349,9 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedVOnlyQK57` | v5p-16 | `us-east5-a` | 2026-09-24 03:13:43 | 2026-09-24 11:52:28 | completed13,500 | none |
 
 | `BamMediumPropK75EmbedVOnlyQK75` | v5p-16 | `us-east5-a` | 2026-09-24 03:16:29 | 2026-09-24 12:23:33 | completed13,500 | none |
+
+| `BamMediumPropK75EmbedVOnlyQK57MLP3200` | v5p-16 | `us-east5-a` | 2026-09-24 13:10:21 | 2026-09-24 20:43:33 | completed13,500; TPU/queue absent | none |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocal` | v5p-16 | `us-east5-a` | 2026-09-24 13:13:01 | 2026-09-24 21:05:41 | completed13,500; TPU/queue absent | none |
 
 ## READY leases
 
@@ -1098,3 +1102,11 @@ active leases are censored, and manual migration releases are not preemptions.
 | `BamMediumPropK75EmbedQKVOnlyStaticRoPE18` | 2 | `us-east5-a` | 2026-09-24 10:53:02 | 2026-09-24 11:42:40 | 49m38s | run_stop |
 | `BamMediumPropK75EmbedVOnlyQK57` | 8 | `us-east5-a` | 2026-09-24 08:26:24 | 2026-09-24 11:52:28 | 3h26m04s | completed13500 |
 | `BamMediumPropK75EmbedVOnlyQK75` | 9 | `us-east5-a` | 2026-09-24 10:52:56 | 2026-09-24 12:23:33 | 1h30m37s | completed13500 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocal` | 1 | `us-east5-a` | 2026-09-24 13:17:32 | 2026-09-24 14:59:54 | 1h42m22s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57MLP3200` | 1 | `us-east5-a` | 2026-09-24 13:14:51 | 2026-09-24 15:16:25 | 2h01m34s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57MLP3200` | 2 | `us-east5-a` | 2026-09-24 15:22:55 | 2026-09-24 15:39:46 | 16m51s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocal` | 2 | `us-east5-a` | 2026-09-24 15:09:23 | 2026-09-24 15:39:47 | 30m24s | preempted |
+| `Llama2XLPropTrain` | 12 | `europe-west4-b` | 2026-09-24 08:02:45 | 2026-09-24 16:35:47 | 8h33m02s | completed50000 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocal` | 3 | `us-east5-a` | 2026-09-24 15:49:21 | 2026-09-24 17:43:00 | 1h53m39s | preempted |
+| `BamMediumPropK75EmbedVOnlyQK57MLP3200` | 3 | `us-east5-a` | 2026-09-24 15:49:17 | 2026-09-24 20:43:33 | 4h54m16s | completed13500 |
+| `BamMediumPropK75EmbedVOnlyQK57AllLocal` | 4 | `us-east5-a` | 2026-09-24 17:48:52 | 2026-09-24 21:05:41 | 3h16m49s | completed13500 |

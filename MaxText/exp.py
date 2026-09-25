@@ -9411,7 +9411,8 @@ class Llama2XLPropTrain(Llama2XLProp):
     """Formal batch8 RUN; replaces the invalid batch32 startup prefix."""
     # code_commit: 859bd7e
     # UE5a ~.550 / EW4b resumed ~.547 steps/s, v5p-32; generic health ON.
-    # Resuming from 34,598 to original 50,000-step endpoint in EW4b; paired BAM stopped at23k.
+    # Completed 50,000 in EW4b after resume from34,598; paired BAM ended23k.
+    # Paired BAM vs MHA last5@23k gap -.088470; no paired loss beyond23k.
     model_name = 'Llama2XLPropTrain'
     compare_runs = []
 
@@ -9538,6 +9539,8 @@ class BamMediumPropK75EmbedVOnlyQK57MLP3200(BamMediumPropK75EmbedVOnlyQK57):
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # MLP3200: -8.52% total parameters vs MHA; attention and M-cache unchanged vs QK57.
     # code_commit: 1c628da; UE5a .5456 step/s (20-99), +3.37% vs QK57, matched776 BAM health.
+    # Completed 13,500. Vs QK57 gap near zero@1000, then rose to last5 +.010432;
+    # vs MediumProp MHA last5 -.110848. -8.52% total parameters vs MHA, same M-cache.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57MLP3200'
     base_mlp_dim = 3200
     mlp_dim_by_block = None
@@ -9549,8 +9552,9 @@ class BamMediumPropK75EmbedVOnlyQK57AllLocal(BamMediumPropK75EmbedVOnlyQK57):
     """Replace all six F layers by L; refund their parameter savings to the MLP."""
     # Ledger only: codex/mediumprop-k75-embed; /data0/xd/mediumprop-k75-embed.
     # All18 L, MLP3901; no standard W_V or fetchedO; near-parent parameter budget.
-    # Ablation: a positive gap alone is not an early-stop criterion.
     # code_commit: 1c628da; UE5a .5365 step/s (20-99), +1.64% vs QK57; BAM health866 vs776.
+    # Completed 13,500. Vs QK57 crossed positive@1200, then stabilized: last5 +.024564;
+    # vs MediumProp MHA last5 -.096716. Removes fetchedO and six F-layer W_V together.
     model_name = 'BamMediumPropK75EmbedVOnlyQK57AllLocal'
     bam_layer_modes = ['local_qk+local_v+local_o'] * 18
     mlp_dim_by_block = [3901, 3901, 3901]

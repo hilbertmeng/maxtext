@@ -18,21 +18,24 @@ def main():
   parser.add_argument('--samples', type=int, default=20)
   parser.add_argument('--warmup', type=int, default=5)
   parser.add_argument('--no-profile', action='store_true')
-  parser.add_argument('--gram-method', choices=('dot', 'mul_reduce'), default='dot')
+  parser.add_argument('--gram-method', choices=('native', 'dot', 'mul_reduce'), default='native')
   args = parser.parse_args()
   args.output.mkdir(parents=True, exist_ok=True)
-  if args.gram_method == 'mul_reduce':
+  if args.gram_method != 'native':
     def factorized_health(dynamic_address, static_address, data):
       data = data.astype(jnp.float32)
-      data_gram = jnp.sum(data[..., :, None, :]*data[..., None, :, :], axis=-1)
+      data_gram = (jnp.sum(data[..., :, None, :]*data[..., None, :, :], axis=-1)
+                   if args.gram_method == 'mul_reduce' else jnp.einsum('btnv,btmv->btnm', data, data))
       values = []
       for part in (slice(None,16), slice(16,None)):
         dyn = dynamic_address[...,part].astype(jnp.float32)
         stat = static_address[...,part].astype(jnp.float32)
         size = dyn.shape[-1]*data.shape[-1]
-        dynamic_gram = jnp.sum(dyn[..., :, None, :]*dyn[..., None, :, :], axis=-1)
+        dynamic_gram = (jnp.sum(dyn[..., :, None, :]*dyn[..., None, :, :], axis=-1)
+                        if args.gram_method == 'mul_reduce' else jnp.einsum('btnk,btmk->btnm', dyn, dyn))
         static_gram = jnp.einsum('nk,mk->nm',stat,stat)
-        cross_gram = jnp.sum(stat[:,None,:]*dyn[...,None,:,:],axis=-1)
+        cross_gram = (jnp.sum(stat[:,None,:]*dyn[...,None,:,:],axis=-1)
+                      if args.gram_method == 'mul_reduce' else jnp.einsum('nk,btmk->btnm', stat, dyn))
         dms = jnp.maximum(jnp.mean(jnp.sum(dynamic_gram*data_gram,axis=(-2,-1)))/size,0.)
         sms = jnp.maximum(jnp.mean(jnp.sum(static_gram*data_gram,axis=(-2,-1)))/size,0.)
         cross = jnp.mean(jnp.sum(cross_gram*data_gram,axis=(-2,-1)))/size

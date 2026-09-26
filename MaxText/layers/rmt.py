@@ -46,18 +46,18 @@ def _write_health(dynamic, static):
 
 def _factorized_write_health(dynamic_address, static_address, data):
   """Measure two outer writes without materializing either component matrix."""
-  # BF16 operands are exact here; accumulate their Grams in FP32 without
-  # converting operands into expensive FP32 TPU matrix contractions.
-  data_gram = jnp.einsum('btnv,btmv->btnm', data, data,
-                         preferred_element_type=jnp.float32)
+  # Small per-token head Grams lower poorly as padded batched TPU dots.
+  # Fused multiply/reduce keeps FP32 statistics without materialized writes.
+  data = data.astype(jnp.float32)
+  data_gram = jnp.sum(data[..., :, None, :] * data[..., None, :, :], axis=-1)
   values = []
   for part in (slice(None, 16), slice(16, None)):
-    dyn = dynamic_address[..., part]
-    stat = static_address[..., part]
+    dyn = dynamic_address[..., part].astype(jnp.float32)
+    stat = static_address[..., part].astype(jnp.float32)
     size = dyn.shape[-1] * data.shape[-1]
-    dynamic_gram = jnp.einsum('btnk,btmk->btnm', dyn, dyn, preferred_element_type=jnp.float32)
-    static_gram = jnp.einsum('nk,mk->nm', stat, stat, preferred_element_type=jnp.float32)
-    cross_gram = jnp.einsum('nk,btmk->btnm', stat, dyn, preferred_element_type=jnp.float32)
+    dynamic_gram = jnp.sum(dyn[..., :, None, :] * dyn[..., None, :, :], axis=-1)
+    static_gram = jnp.einsum('nk,mk->nm', stat, stat)
+    cross_gram = jnp.sum(stat[:, None, :] * dyn[..., None, :, :], axis=-1)
     dynamic_ms = jnp.maximum(jnp.mean(jnp.sum(dynamic_gram * data_gram, axis=(-2, -1))) / size, 0.)
     static_ms = jnp.maximum(jnp.mean(jnp.sum(static_gram * data_gram, axis=(-2, -1))) / size, 0.)
     cross = jnp.mean(jnp.sum(cross_gram * data_gram, axis=(-2, -1))) / size

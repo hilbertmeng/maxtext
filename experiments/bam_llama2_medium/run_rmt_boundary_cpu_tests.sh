@@ -7,4 +7,5 @@ CPU_PYTHON=/data0/xd/conda/envs/maxtext-cpu/bin/python
 exec "$CPU_PYTHON" MaxText/tests/rmt_mediumprop_test.py \
   RMTMediumPropTest.test_dynamic_embedding_matches_original_bam_write \
   RMTMediumPropTest.test_dynamic_boundaries_health_initialization_and_gradients \
+  RMTMediumPropTest.test_direct32_unembedding_matches_full_tail_read_and_gradients \
   RMTMediumPropTest.test_mha_budget_block_scan_health

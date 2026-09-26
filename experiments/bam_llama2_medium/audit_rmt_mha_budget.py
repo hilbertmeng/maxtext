@@ -16,6 +16,7 @@ from layers import models
 
 
 EXPECTED = {
+    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32': 432121168,
     'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding': 432110944,
     'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding': 432114224,
     'RMTVectorNormMHABudgetHeadwiseMLPProfile': 432112752,

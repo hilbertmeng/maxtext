@@ -99,3 +99,23 @@ layer and basic health, plus9 boundary metrics in each new arm. No separate
 health-disabled timing control. The embedding speed bet (-1%) had the wrong
 sign; both measured costs are small. Startup speed evidence:
 `/data0/xd/rmt-vectornorm-mha-budget-startup/boundary-speeds.json`.
+
+
+## Uncompressed dynamic unembedding arm
+
+`RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32`
+keeps the same static full48 final read and dynamic proxy/gates as the C8 arm.
+It removes only the boundary32x8 compression and replaces the zero-initialized
+D->16x8 key with D->16x32; RMSNorm now spans32 key coordinates. Direct dynamic
+read consumes the entire tail32x75 state. Middle-layer C8 reads stay unchanged.
+
+Boundary parameters634816 =1200 proxy RMSNorm +614400 key +19200 gate +16 bias,
+.440844 W_Q; vs C8 +460544 (.319822 W_Q). MLP widths4108/4108/4109 give
+432121168 total parameters,32 below MHA budget. Only compare to MHABudget.
+Pre-run13500-step bet: gap-.006; steady speed-1% vs MHABudget. A larger
+output-address space can remove the C8 read bottleneck, at the cost of MLP width.
+
+CPU checks extend full-tree parameter audit and full-model zero-read/finite-gradient
+checks to this arm, plus nonzero-key direct32 read/value/gradient equivalence.
+Launch uses the verified idle FLEX_START llm-jax-v6e-1-1 in EW4a only for AOT;
+new UE5a training TPU xd-v5p-16-2609266-maxtext is separately owned.

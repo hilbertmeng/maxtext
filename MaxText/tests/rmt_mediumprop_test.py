@@ -53,7 +53,7 @@ class RMTMediumPropTest(absltest.TestCase):
     from flax import linen as nn
     from layers import rmt
     base = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'
-    for arm in ('Embedding', 'Unembedding'):
+    for arm in ('Embedding', 'Unembedding', 'UnembeddingDirect32'):
       cfg = self._config(base + 'Dynamic' + arm)
       cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
       mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
@@ -67,15 +67,20 @@ class RMTMediumPropTest(absltest.TestCase):
         output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
       self.assertTrue(all(bool(jnp.all(jnp.isfinite(v))) for v in output))
       decoder = params['decoder']
-      name = arm.lower()
+      name = 'embedding' if arm == 'Embedding' else 'unembedding'
       self.assertIn('seed_key', decoder)
       self.assertIn('final_read_key', decoder)
       self.assertIn('dynamic_' + name + ('_write' if arm == 'Embedding' else '_read'), decoder)
       health = aux['intermediates']['decoder']['rmt_' + name + '_health'][0]
       self.assertEqual(health.shape, (len(rmt.RMT_BOUNDARY_HEALTH_NAMES),))
-      if arm == 'Unembedding':
+      if arm.startswith('Unembedding'):
         read = decoder['dynamic_unembedding_read']
-        self.assertEqual(read['compression'].shape, (32, 8))
+        if arm == 'Unembedding':
+          self.assertEqual(read['compression'].shape, (32, 8))
+          self.assertEqual(read['key_kernel'].shape, (cfg.emb_dim, 16 * 8))
+        else:
+          self.assertNotIn('compression', read)
+          self.assertEqual(read['key_kernel'].shape, (cfg.emb_dim, 16 * 32))
         np.testing.assert_array_equal(read['key_kernel'], 0.)
         self.assertEqual(float(health[2]), 0.)
         self.assertAlmostEqual(float(health[4]), .05, places=6)
@@ -97,6 +102,33 @@ class RMTMediumPropTest(absltest.TestCase):
       else:
         self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_unembedding_read']['key_kernel'])), 0.)
 
+
+  def test_direct32_unembedding_matches_full_tail_read_and_gradients(self):
+    from flax import linen as nn
+    from layers import rmt
+    cfg = self._config('RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32')
+    cfg.get_keys()['dtype'] = jnp.float32
+    module = rmt.RMTDynamicC8Read(cfg, destinations=1, compress_state=False)
+    x = jax.random.normal(jax.random.key(105), (1, 4, cfg.emb_dim))
+    matrix = jax.random.normal(jax.random.key(106), (1, 4, cfg.head_dim, 32))
+    params = nn.unbox(module.init(jax.random.key(107), x, matrix)['params'])
+    self.assertNotIn('compression', params)
+    params['key_kernel'] = jax.random.normal(jax.random.key(108), params['key_kernel'].shape)
+    params['gate_kernel'] = .01 * jax.random.normal(jax.random.key(109), params['gate_kernel'].shape)
+    def actual(p, z, M):
+      return module.apply({'params': p}, z, M)[0][0]
+    def expected(p, z, M):
+      raw = jnp.einsum('btd,dr->btr', z, p['key_kernel']).reshape((1, 4, 16, 32))
+      key = rmt.normalizations.rms_norm(
+          raw, dtype=z.dtype, epsilon=rmt._read_epsilon(cfg), statistics_dtype=jnp.float32)
+      logits = jnp.einsum('btd,dr->btr', z, p['gate_kernel']).reshape((1, 4, 16, 1))
+      gate = jax.nn.sigmoid(logits + p['gate_bias'])
+      return .2 * gate[..., 0, None] * jnp.einsum('btvc,btnc->btnv', M, key)
+    np.testing.assert_allclose(actual(params, x, matrix), expected(params, x, matrix), rtol=1e-5, atol=1e-5)
+    old = jax.grad(lambda p, z, M: jnp.sum(expected(p, z, M)**2), (0, 1, 2))(params, x, matrix)
+    new = jax.grad(lambda p, z, M: jnp.sum(actual(p, z, M)**2), (0, 1, 2))(params, x, matrix)
+    for a, b in zip(jax.tree.leaves(old), jax.tree.leaves(new)):
+      np.testing.assert_allclose(a, b, rtol=1e-5, atol=1e-5)
 
   def test_headwise_mlp_preserves_initialization_values_and_gradients(self):
     from flax import linen as nn

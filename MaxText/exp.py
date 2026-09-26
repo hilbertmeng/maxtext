@@ -9737,6 +9737,17 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-unembedding'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding):
+    """Uncompressed tail32 dynamic final read; repay its larger key from MLP."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32'
+    rmt_dynamic_unembedding_direct_read = True
+    base_mlp_dim = 4108
+    rmt_mlp_dim_by_block = [4108, 4108, 4109]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-unembedding-direct32'
+
+
 class RMTVectorNormMHABudgetHeadwiseMLPProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     """Diagnostic: rank3 MLP kernels preserve the head/value activation axes."""

@@ -185,24 +185,29 @@ class RMTDynamicQK(nn.Module):
 
 
 class RMTDynamicC8Read(nn.Module):
-  """One C8 key/read shared by destinations, with separate per-head gates."""
+  """One dynamic key/read shared by destinations, with separate head gates."""
 
   config: common_types.Config
   destinations: int
   fetch_output: bool = False
   independent_output_key: bool = False
+  compress_state: bool = True
 
   @nn.compact
   def __call__(self, x, M):
     cfg = self.config
     heads = int(cfg.num_query_heads)
-    compression = self.param('compression', nn.with_logical_partitioning(nn.initializers.orthogonal(), ('v_factor', 'kv')),
-                             (M.shape[-1], 8), cfg.weight_dtype)
-    compressed = jnp.einsum('btvc,cr->btvr', M, compression.astype(M.dtype))
+    key_dim = 8 if self.compress_state else M.shape[-1]
+    if self.compress_state:
+      compression = self.param('compression', nn.with_logical_partitioning(nn.initializers.orthogonal(), ('v_factor', 'kv')),
+                               (M.shape[-1], key_dim), cfg.weight_dtype)
+      compressed = jnp.einsum('btvc,cr->btvr', M, compression.astype(M.dtype))
+    else:
+      compressed = M
     key_kernel = self.param('key_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
-                            (cfg.emb_dim, heads * 8), cfg.weight_dtype)
+                            (cfg.emb_dim, heads * key_dim), cfg.weight_dtype)
     raw_key = jnp.einsum('btd,dr->btr', x, key_kernel.astype(x.dtype))
-    raw_key = raw_key.reshape(x.shape[:2] + (heads, 8))
+    raw_key = raw_key.reshape(x.shape[:2] + (heads, key_dim))
     key = normalizations.rms_norm(
         raw_key, dtype=x.dtype, epsilon=_read_epsilon(cfg),
         statistics_dtype=jnp.float32)
@@ -221,10 +226,10 @@ class RMTDynamicC8Read(nn.Module):
       if self.independent_output_key:
         output_kernel = self.param(
             'o_key_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
-            (cfg.emb_dim, heads * 8), cfg.weight_dtype)
+            (cfg.emb_dim, heads * key_dim), cfg.weight_dtype)
         output_key = jnp.einsum('btd,dr->btr', x, output_kernel.astype(x.dtype))
         output_key = normalizations.rms_norm(
-            output_key.reshape(x.shape[:2] + (heads, 8)), dtype=x.dtype,
+            output_key.reshape(x.shape[:2] + (heads, key_dim)), dtype=x.dtype,
             epsilon=_read_epsilon(cfg), statistics_dtype=jnp.float32)
       # O reads the fetched state later. Do not compute an unused local O read.
       return (.2 * gates[..., 0, None] * read, gates, compressed, output_key)
@@ -699,7 +704,9 @@ class RMTDecoder(nn.Module):
       x = normalizations.get_rmsnorm('unembedding_vector_norm', cfg)(x)
       dynamic_state = jnp.swapaxes(matrix[..., heads:, :], -2, -1)
       (dynamic_read,), read_gates = RMTDynamicC8Read(
-          cfg, destinations=1, name='dynamic_unembedding_read')(x, dynamic_state)
+          cfg, destinations=1,
+          compress_state=not cfg.get_keys().get('rmt_dynamic_unembedding_direct_read', False),
+          name='dynamic_unembedding_read')(x, dynamic_state)
       if cfg.get_keys().get('rmt_record_dynamic_health', False):
         self.sow('intermediates', 'rmt_unembedding_health',
                  _boundary_health(dynamic_read, hidden, read_gates[..., 0]))

@@ -157,3 +157,21 @@ prioritize whether it dominates C8 in loss and matched-health speed; stop
 and close out C8 if supported. Keep C8 running until that paired decision,
 rather than stopping it independently at its own2800. After this decision
 and any required closeout, end active monitoring as requested.
+
+Conditional combined arm2026-09-26:
+`RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32`.
+Prepared on the same worktree; launch only after Direct32 ~2800 if both
+embedding and dynamic unembedding show credible gains vs MHABudget.
+Full48 embedding write and direct tail32 final read retain their individual
+initializations/health, plus all parent static paths. Extra2598608 params
+(1.804589 W_Q); widths4078/4078/4078, full432119360,1840 below MHA.
+Compare MHABudget, DynamicEmbedding, DynamicUnembeddingDirect32.
+Pre-run13500 bet vs MHABudget -.020; speed0% (within~1%).
+Focused CPU gates: exact full-size budget, combined forward/finite gradients,
+zero output-read equivalence to embedding-only at equal widths, both boundary
+health and nonzero key/content/address gradients; original embedding and
+nonzero direct32 read/gradient equivalence. Checks passed. Initial combined
+test helper needed two assertion fixes (branch name and nonzero gate-kernel
+mean vs bias opening); runtime layers needed no changes.
+User endpoint: after the paired review, launch this arm if supported; verify
+compiled-load/first step and initial speed, then finish without monitoring it.

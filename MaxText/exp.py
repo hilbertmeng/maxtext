@@ -9753,6 +9753,20 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDi
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-unembedding-direct32'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32):
+    """Combine dynamic full48 seed writing and direct tail32 final reading."""
+    # Prepared; launch only after the paired2800-step boundary review.
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32'
+    rmt_dynamic_embedding_write = True
+    base_mlp_dim = 4078
+    rmt_mlp_dim_by_block = [4078, 4078, 4078]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-embedding-unembedding-direct32'
+
+
 class RMTVectorNormMHABudgetHeadwiseMLPProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     """Diagnostic: rank3 MLP kernels preserve the head/value activation axes."""

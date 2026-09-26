@@ -59,6 +59,9 @@ class RMTMediumPropTest(absltest.TestCase):
   def test_direct32_boundary_health_initialization_and_gradients(self):
     self._check_dynamic_boundary('UnembeddingDirect32')
 
+  def test_combined_boundaries_health_initialization_and_gradients(self):
+    self._check_dynamic_boundary('EmbeddingUnembeddingDirect32')
+
   def _check_dynamic_boundary(self, arm):
     from flax import linen as nn
     from layers import rmt
@@ -76,13 +79,15 @@ class RMTMediumPropTest(absltest.TestCase):
       output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
     self.assertTrue(all(bool(jnp.all(jnp.isfinite(v))) for v in output))
     decoder = params['decoder']
-    name = 'embedding' if arm == 'Embedding' else 'unembedding'
+    has_embedding = arm in ('Embedding', 'EmbeddingUnembeddingDirect32')
+    has_unembedding = arm != 'Embedding'
+    name = 'embedding' if has_embedding else 'unembedding'
     self.assertIn('seed_key', decoder)
     self.assertIn('final_read_key', decoder)
-    self.assertIn('dynamic_' + name + ('_write' if arm == 'Embedding' else '_read'), decoder)
+    self.assertIn('dynamic_' + name + ('_write' if has_embedding else '_read'), decoder)
     health = aux['intermediates']['decoder']['rmt_' + name + '_health'][0]
     self.assertEqual(health.shape, (len(rmt.RMT_BOUNDARY_HEALTH_NAMES),))
-    if arm.startswith('Unembedding'):
+    if has_unembedding:
       read = decoder['dynamic_unembedding_read']
       if arm == 'Unembedding':
         self.assertEqual(read['compression'].shape, (32, 8))
@@ -91,9 +96,11 @@ class RMTMediumPropTest(absltest.TestCase):
         self.assertNotIn('compression', read)
         self.assertEqual(read['key_kernel'].shape, (cfg.emb_dim, 16 * 32))
       np.testing.assert_array_equal(read['key_kernel'], 0.)
-      self.assertEqual(float(health[2]), 0.)
-      self.assertAlmostEqual(float(health[4]), .05, places=6)
-      parent_cfg = self._config(base)
+      read_health = aux['intermediates']['decoder']['rmt_unembedding_health'][0]
+      self.assertEqual(read_health.shape, (len(rmt.RMT_BOUNDARY_HEALTH_NAMES),))
+      self.assertEqual(float(read_health[2]), 0.)
+      self.assertAlmostEqual(float(read_health[4]), .05, places=6)
+      parent_cfg = self._config(base + 'DynamicEmbedding' if has_embedding else base)
       parent_cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
       parent = models.Transformer(config=parent_cfg, mesh=mesh, quant=None)
       with contextlib.redirect_stdout(io.StringIO()):
@@ -104,11 +111,14 @@ class RMTMediumPropTest(absltest.TestCase):
     with contextlib.redirect_stdout(io.StringIO()):
       gradient = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
     self.assertTrue(all(bool(jnp.all(jnp.isfinite(g))) for g in jax.tree.leaves(gradient)))
-    if arm == 'Embedding':
+    if has_embedding:
+      np.testing.assert_allclose(jax.nn.sigmoid(decoder['dynamic_embedding_write']['gate_bias']), .1, rtol=1e-6)
+      self.assertGreater(float(health[4]), .09)
+      self.assertLess(float(health[4]), .11)
       for key in ('address_down', 'address_up', 'gate_kernel'):
         self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_embedding_write'][key])), 0.)
       self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['embedding_write_content']['kernel'])), 0.)
-    else:
+    if has_unembedding:
       self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_unembedding_read']['key_kernel'])), 0.)
 
   def test_direct32_unembedding_matches_full_tail_read_and_gradients(self):

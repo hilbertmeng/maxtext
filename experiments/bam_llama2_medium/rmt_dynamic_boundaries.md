@@ -150,3 +150,10 @@ Direct32 baseline correction2026-09-26: also compare to DynamicUnembedding
 larger key from MLP; MHABudget remains the overall-gain baseline. Runtime is
 unchanged; live registry comparisons were updated. The earlier no-peer rule
 continues to exclude embedding-vs-unembedding comparisons.
+
+Review update2026-09-26: Direct32 now uses normal ~1000-step agent reports
+(next1800, then2800; raw loss windows remain200). At Direct32 ~2800,
+prioritize whether it dominates C8 in loss and matched-health speed; stop
+and close out C8 if supported. Keep C8 running until that paired decision,
+rather than stopping it independently at its own2800. After this decision
+and any required closeout, end active monitoring as requested.

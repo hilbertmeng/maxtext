@@ -137,3 +137,9 @@ and existing C8 V/O/fetch key regression. These checks passed in~1 minute
 with3 bounded CPU groups. Full BAM regression also passed in141s with4 groups
 (vs359s serial). Training runtime remains a536442; these workflow/tests-only
 updates do not hot-switch running models.
+
+Monitoring scope update2026-09-26: user removed recurring loss reports for
+MHABudget and LLFSharedVO (both continue training). Agent reports only
+DynamicEmbedding, DynamicUnembedding and DynamicUnembeddingDirect32, each vs
+MHABudget; no peer or MHA comparison. Old RUNs remain owned until completion
+for cleanup/ledger bookkeeping.

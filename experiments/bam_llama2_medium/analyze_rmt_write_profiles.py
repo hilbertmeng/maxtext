@@ -4,6 +4,7 @@ import argparse
 import collections
 import gzip
 import json
+import re
 from pathlib import Path
 import statistics
 
@@ -25,6 +26,7 @@ def read_trace(path):
   sources = collections.defaultdict(float)
   ops = collections.defaultdict(float)
   examples = {}
+  copies = {}
   for event in events:
     if event.get('pid') != step['pid'] or event.get('ph') != 'X':
       continue
@@ -42,6 +44,18 @@ def read_trace(path):
     categories[category] += ms
     sources[source] += ms
     ops[op] += ms
+    if category == 'data formatting' and name.startswith('copy.'):
+      shape = args.get('shape_with_layout', '')
+      match = re.search(r'copy\(([^%]+) %', args.get('long_name', ''))
+      input_shape = match.group(1).strip() if match else 'unknown'
+      copy_key = f'{input_shape} -> {shape}'
+      item = copies.setdefault(copy_key, dict(ms=0., count=0, kernels={},
+                                             input=input_shape, output=shape))
+      item['ms'] += ms
+      item['count'] += 1
+      kernel = item['kernels'].setdefault(name, dict(ms=0., count=0, op=op))
+      kernel['ms'] += ms
+      kernel['count'] += 1
     examples.setdefault(op, dict(name=name, shape=args.get('shape_with_layout'),
                                 source=source, category=category))
   wall_ms = step['dur'] / 1000
@@ -52,7 +66,7 @@ def read_trace(path):
               mean_device_step_ms=statistics.mean(e['dur']/1000 for e in spans),
               first_core_step_ms=wall_ms, first_core_leaf_ms=leaf_ms,
               categories_ms=dict(categories), sources_ms=dict(sources),
-              ops_ms=dict(ops), examples=examples)
+              ops_ms=dict(ops), examples=examples, copies_by_layout=copies)
 
 
 def main():

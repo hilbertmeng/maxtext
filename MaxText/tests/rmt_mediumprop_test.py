@@ -252,6 +252,20 @@ class RMTMediumPropTest(absltest.TestCase):
       np.testing.assert_array_equal(
           health[:, rmt.RMT_DYNAMIC_HEALTH_NAMES.index(name)], 0.)
 
+  def test_static_mlp_read_pre_norm_is_after_matrix_read(self):
+    model, args, params = self._run(
+        'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPPreNorm')
+    layer = params['decoder']['layers']
+    self.assertEqual(layer['mlp_read_vector_norm']['scale'].value.shape, (320, 3))
+    self.assertIn('mlp_read_key', layer)
+    self.assertNotIn('dynamic_mlp_read', layer)
+    self.assertNotIn('mlp_norm', layer)
+    with contextlib.redirect_stdout(io.StringIO()):
+      grads = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
+    scale_grad = grads['decoder']['layers']['mlp_read_vector_norm']['scale'].value
+    self.assertTrue(bool(jnp.all(jnp.isfinite(scale_grad))))
+    self.assertGreater(float(jnp.linalg.norm(scale_grad)), 0.)
+
 
 if __name__ == '__main__':
   absltest.main()

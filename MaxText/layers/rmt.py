@@ -314,6 +314,10 @@ class RMTLayer(nn.Module):
           cfg, destinations=1, name='dynamic_mlp_read')(mlp_x, mlp_M)
       vector = vector + dynamic_mlp_read
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
+    if cfg.get_keys().get('rmt_static_mlp_read_pre_norm', False):
+      if dynamic_mlp:
+        raise ValueError('Static MLP read pre-norm requires the static MLP route')
+      vector = normalizations.get_rmsnorm('mlp_read_vector_norm', cfg)(vector)
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim,
         activations=cfg.mlp_activations,

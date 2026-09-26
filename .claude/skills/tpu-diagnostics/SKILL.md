@@ -16,6 +16,12 @@ Source uses Git/HTTPS at the exact pushed commit; environment packages and AOT u
 - Run local BAM unit tests with `.claude/skills/tpu-diagnostics/scripts/run_bam_unit_tests.sh`;
   it uses the pinned CPU
   environment instead of whichever conda environment happens to be active.
+  The full runner defaults to4 groups with8 disjoint physical cores each;
+  `MAXTEXT_CPU_TEST_JOBS=1` selects serial execution. For local changes on a verified
+  parent, choose relevant named checks with the pinned
+  `/home/xd/projects/xd_tpu_scripts/run_cpu_tests_parallel.py`; do not require the entire
+  BAM suite for unrelated experimental paths. Training startup selection/gating is in
+  the training skill.
 - Use a spot non-pod `v6e-1` for inference probes; choose a larger TPU when memory requires it.
 - Use only Codex-owned diagnostic resources whose names start with `xd-`; never borrow an idle
   TPU owned by another workflow.

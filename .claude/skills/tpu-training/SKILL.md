@@ -32,12 +32,18 @@ worktree; keep an inheritance-related experiment family in the same branch/workt
 `exp.py` remains the shared ledger. Before deriving a RUN, verify its parent's implementation
 and runtime commit in that location as well as its configuration class.
 
-Default validation is the pinned local BAM test suite followed by the target RUN's
-`FIRST_STEP`. Add a standalone v6e check only for TPU-specific uncertainty those two gates do
-not cover; it is not a routine prerequisite for training.
+Choose CPU checks from the code change and its dependencies. For a local experimental
+change on a verified parent, use focused parameter/initialization, forward/gradient and
+affected-path regression checks in the pinned CPU environment; do not repeat unrelated
+BAM tests merely because it is a new RUN. Run the full BAM suite for changes to shared
+BAM/MHA paths, normalization, scan, optimizer or other broadly used code, and before
+merging such changes. The full runner uses four processes with eight disjoint physical
+cores each; `MAXTEXT_CPU_TEST_JOBS=1` restores serial execution. Keep the sealed runtime
+config check and actual `FIRST_STEP` for either scope. Add a standalone v6e check only
+for TPU-specific uncertainty those gates do not cover.
 For a new formal v5p-16 RUN with a verified idle user-owned non-preemptible/FLEX_START compiler,
 prefer the local `/home/xd/projects/xd_tpu_scripts/launch_train_parallel.py`: it runs the pinned
-CPU suite locally, AOT on the retained compiler, and a **training-only** TPU prequeue on tpu-ag
+CPU checks locally, AOT on the retained compiler, and a **training-only** TPU prequeue on tpu-ag
 concurrently. All three must succeed before it calls `run_exp_xd.sh`; it then waits for
 `FIRST_STEP`. On preparation failure it releases only the training TPU it submitted, never the
 retained compiler. Use `--dry-run` to review the three commands, pass a clean pushed worktree,
@@ -51,6 +57,15 @@ python3 /home/xd/projects/xd_tpu_scripts/launch_train_parallel.py EXP \
   --compiler-tpu llm-jax-v6e-1-1 --compiler-zone europe-west4-a \
   --compare-runs BASE1,BASE2 --steps 13500 --loss-interval 200
 ```
+
+The launcher defaults to `--cpu-test-scope full` (supplied scripts plus full BAM
+regression). For a local change, pass `--cpu-test-scope targeted` with one or more
+`--extra-test-script` entries; this runs only those checks and rejects an empty list.
+Choose coverage by the actual edited paths, not an allowlist of historically failing
+tests. The local `run_cpu_tests_parallel.py` can run named checks in pinned, bounded CPU
+groups; group failure fails the whole CPU gate and terminates unfinished groups.
+The launcher records scope and commands in `preparation.json` and `cpu.log`; preparation
+failures retain the same no-training/owned-training-TPU cleanup behavior in both modes.
 
 `--loss-interval` is the gap-window stride, not the agent's wake/report cadence.
 Keep it at 200 even when the agent reports about every 1000 or 2000 steps.

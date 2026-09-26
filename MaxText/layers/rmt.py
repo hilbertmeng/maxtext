@@ -205,6 +205,7 @@ class RMTLayer(nn.Module):
     key_dim = int(cfg.rmt_reskey_dim)
     assert cfg.emb_dim == heads * value_dim
     dynamic = bool(getattr(cfg, 'rmt_dynamic_enabled', False))
+    dynamic_mlp = dynamic and bool(cfg.get_keys().get('rmt_dynamic_mlp_enabled', True))
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
     dynamic_full_read = bool(cfg.get_keys().get('rmt_dynamic_read_full_matrix', False))
     rope_qk_dim = int(cfg.get_keys().get('rmt_rope_qk_dim', 0))
@@ -303,8 +304,8 @@ class RMTLayer(nn.Module):
     mlp_read = self.param('mlp_read_key', key_init,
                           (key_dim, heads), cfg.weight_dtype)
     vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
-    if dynamic:
-      static_mlp_read = vector
+    static_mlp_read = vector
+    if dynamic_mlp:
       mlp_x = mlp_in[..., :heads, :].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
       if vector_pre_norm:
         mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
@@ -325,36 +326,41 @@ class RMTLayer(nn.Module):
                            (heads, key_dim), cfg.weight_dtype)
     static_mlp_write = jnp.einsum(
         'btnv,nk->btkv', vector, mlp_write.astype(cfg.dtype))
-    if dynamic:
+    if dynamic_mlp:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_mlp_write')(mlp_x, vector)
       if write_rows == 32:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
                                     ((0, 0), (0, 0), (16, 0), (0, 0)))
       matrix = matrix + static_mlp_write + dynamic_mlp_write
-      if getattr(cfg, 'rmt_record_dynamic_health', False):
-        # Keep the health schema identical for matched Full48/NoO comparisons.
-        measured_o = dynamic_o if dynamic_o_enabled else jnp.zeros_like(static_head_output)
-        measured_o_gate = (vo_gates[..., 1] if dynamic_o_enabled
-                           else jnp.zeros_like(vo_gates[..., 0]))
-        reads = ((dynamic_q, static_q), (dynamic_k, static_k),
-                 (dynamic_v, static_v), (measured_o, static_head_output),
-                 (dynamic_mlp_read, static_mlp_read))
-        gates = (q_gate, k_gate, vo_gates[..., 0], measured_o_gate,
-                 mlp_read_gate[..., 0], attn_write_gate, mlp_write_gate)
-        writes = ((dynamic_attn_write, static_attn_write),
-                  (dynamic_mlp_write, static_mlp_write))
-        values = [v for pair in reads for v in _read_health(*pair)]
-        values.extend(v for gate in gates for v in _gate_health(gate))
-        values.extend(v for dyn, stat in writes for part in
-                      (slice(None, 16), slice(16, None))
-                      for v in _write_health(dyn[..., part, :], stat[..., part, :]))
-        values.extend((_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
-                       _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
-        assert len(values) == len(RMT_DYNAMIC_HEALTH_NAMES)
-        self.sow('intermediates', 'rmt_dynamic_health', jnp.stack(values))
     else:
       matrix = matrix + static_mlp_write
+    if dynamic and getattr(cfg, 'rmt_record_dynamic_health', False):
+      # Keep the health schema identical for matched Full48/NoO comparisons.
+      measured_o = dynamic_o if dynamic_o_enabled else jnp.zeros_like(static_head_output)
+      measured_o_gate = (vo_gates[..., 1] if dynamic_o_enabled
+                         else jnp.zeros_like(vo_gates[..., 0]))
+      if not dynamic_mlp:
+        dynamic_mlp_read = jnp.zeros_like(static_mlp_read)
+        mlp_read_gate = jnp.zeros_like(vo_gates[..., :1])
+        dynamic_mlp_write = jnp.zeros_like(static_mlp_write)
+        mlp_write_gate = jnp.zeros_like(attn_write_gate)
+      reads = ((dynamic_q, static_q), (dynamic_k, static_k),
+               (dynamic_v, static_v), (measured_o, static_head_output),
+               (dynamic_mlp_read, static_mlp_read))
+      gates = (q_gate, k_gate, vo_gates[..., 0], measured_o_gate,
+               mlp_read_gate[..., 0], attn_write_gate, mlp_write_gate)
+      writes = ((dynamic_attn_write, static_attn_write),
+                (dynamic_mlp_write, static_mlp_write))
+      values = [v for pair in reads for v in _read_health(*pair)]
+      values.extend(v for gate in gates for v in _gate_health(gate))
+      values.extend(v for dyn, stat in writes for part in
+                    (slice(None, 16), slice(16, None))
+                    for v in _write_health(dyn[..., part, :], stat[..., part, :]))
+      values.extend((_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
+                     _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
+      assert len(values) == len(RMT_DYNAMIC_HEALTH_NAMES)
+      self.sow('intermediates', 'rmt_dynamic_health', jnp.stack(values))
     return matrix, None
 
 

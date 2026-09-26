@@ -9665,6 +9665,19 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNorm(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Retain dynamic attention, but use only native RMT MLP reads and writes."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP'
+    rmt_dynamic_mlp_enabled = False
+    base_mlp_dim = 2713  # +194*3600 offsets all but 8 of 698408 removed params/layer.
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNorm',
+                    'RMTMediumPropK48DynamicFull48RoPE18',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm-static-mlp'
+
+
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(
     BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Dynamic+static M reads, dynamic write, all L, ALiBi and matrix-only QKV."""

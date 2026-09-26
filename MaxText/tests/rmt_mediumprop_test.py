@@ -219,6 +219,39 @@ class RMTMediumPropTest(absltest.TestCase):
     self.assertEqual(layer['mlp_vector_norm']['scale'].value.shape, (320, 3))
     self.assertEqual(decoder['final_matrix_norm']['scale'].shape, (48, 20))
 
+  def test_static_mlp_ablation_keeps_dynamic_attention(self):
+    from layers import rmt
+    name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP'
+    cfg = self._config(name)
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    model = models.Transformer(config=cfg, mesh=mesh, quant=None)
+    args = dict(decoder_input_tokens=jnp.ones((1, 4), jnp.int32),
+                decoder_positions=jnp.arange(4)[None],
+                decoder_target_tokens=jnp.ones((1, 4), jnp.int32),
+                decoder_target_mask=jnp.ones((1, 4), jnp.float32),
+                decoder_segment_ids=jnp.ones((1, 4), jnp.int32),
+                enable_dropout=False)
+    with contextlib.redirect_stdout(io.StringIO()):
+      params = model.init(jax.random.key(1), **args)['params']
+      _, intermediates = model.apply(
+          {'params': params}, **args, mutable=['intermediates'])
+    layer = params['decoder']['layers']
+    for name in ('dynamic_qk', 'dynamic_vo', 'dynamic_attn_write'):
+      self.assertIn(name, layer)
+    self.assertEqual(layer['dynamic_vo']['gate_kernel'].value.shape[-1],
+                     2 * cfg.num_query_heads)
+    for name in ('dynamic_mlp_read', 'dynamic_mlp_write', 'mlp_vector_norm'):
+      self.assertNotIn(name, layer)
+    for name in ('mlp_read_key', 'mlp_write_key', 'attn_vector_norm'):
+      self.assertIn(name, layer)
+    health = np.asarray(
+        intermediates['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
+    for name in ('mlp_dynamic_rms', 'mlp_ratio', 'mlp_gate_mean',
+                 'mlp_write_gate_mean', 'mlp_write_first16_ratio',
+                 'mlp_write_tail32_ratio'):
+      np.testing.assert_array_equal(
+          health[:, rmt.RMT_DYNAMIC_HEALTH_NAMES.index(name)], 0.)
+
 
 if __name__ == '__main__':
   absltest.main()

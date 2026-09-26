@@ -9702,6 +9702,33 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-vectornorm-mha-budget-llf-independent-vo'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    """Static seed plus token-conditioned full48 embedding write; repay MLP."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding'
+    rmt_dynamic_embedding_write = True
+    rmt_dynamic_unembedding_read = False
+    base_mlp_dim = 4088
+    rmt_mlp_dim_by_block = [4088, 4088, 4087]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-embedding'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    """Static final read plus independent tail32 C8 dynamic read; repay MLP."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding'
+    rmt_dynamic_embedding_write = False
+    rmt_dynamic_unembedding_read = True
+    base_mlp_dim = 4115
+    rmt_mlp_dim_by_block = [4115, 4115, 4116]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding',
+                    'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-unembedding'
+
+
 class RMTVectorNormMHABudgetHeadwiseMLPProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     """Diagnostic: rank3 MLP kernels preserve the head/value activation axes."""

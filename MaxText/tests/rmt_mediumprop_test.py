@@ -17,6 +17,87 @@ from layers import attentions, models
 
 class RMTMediumPropTest(absltest.TestCase):
 
+  def test_dynamic_embedding_matches_original_bam_write(self):
+    from flax import linen as nn
+    from layers import initializers, rmt
+    cfg = self._config('RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding')
+    cfg.get_keys().update(dtype=jnp.float32, bam_k=cfg.head_dim, bam_v=48,
+                          emb_bam_v_bottleneck_dim=256, bam_sqrt_n_scale=False)
+    x = jax.random.normal(jax.random.key(101), (1, 4, cfg.emb_dim))
+    original = models.EmbeddingBamWrite(
+        cfg, num_write_heads=16, dtype=jnp.float32, weight_dtype=jnp.float32,
+        quant=None, kernel_init=initializers.get_init_method(cfg.init_method))
+    params = nn.unbox(original.init(jax.random.key(102), x)['params'])
+    dynamic = rmt.RMTDynamicWrite(cfg, address_dim=48)
+    converted = dict(
+        address_down=params['W_emb_v_down']['kernel'],
+        address_up=params['W_emb_v_up']['kernel'].reshape((256, 16 * 48)),
+        address_up_bias=params['W_emb_v_up']['bias'],
+        gate_kernel=params['W_emb_g']['kernel'], gate_bias=params['emb_gw_b0'])
+    def new_write(p, z):
+      data = jnp.einsum('btd,dnv->btnv', z, p['W_emb_u']['kernel'])
+      mapped = dict(converted)
+      mapped.update(address_down=p['W_emb_v_down']['kernel'],
+                    address_up=p['W_emb_v_up']['kernel'].reshape((256, 16 * 48)),
+                    address_up_bias=p['W_emb_v_up']['bias'],
+                    gate_kernel=p['W_emb_g']['kernel'], gate_bias=p['emb_gw_b0'])
+      return dynamic.apply({'params': mapped}, z, data)[0]
+    expected = jnp.swapaxes(original.apply({'params': params}, x), -2, -1)
+    np.testing.assert_allclose(new_write(params, x), expected, rtol=2e-5, atol=2e-5)
+    old_grad = jax.grad(lambda p, z: jnp.mean(original.apply({'params': p}, z)**2), (0, 1))(params, x)
+    new_grad = jax.grad(lambda p, z: jnp.mean(new_write(p, z)**2), (0, 1))(params, x)
+    for a, b in zip(jax.tree.leaves(old_grad), jax.tree.leaves(new_grad)):
+      np.testing.assert_allclose(a, b, rtol=5e-4, atol=2e-5)
+
+  def test_dynamic_boundaries_health_initialization_and_gradients(self):
+    from flax import linen as nn
+    from layers import rmt
+    base = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'
+    for arm in ('Embedding', 'Unembedding'):
+      cfg = self._config(base + 'Dynamic' + arm)
+      cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      model = models.Transformer(config=cfg, mesh=mesh, quant=None)
+      args = dict(decoder_input_tokens=jnp.array([[1, 2, 3, 4]], jnp.int32),
+                  decoder_positions=jnp.arange(4)[None], decoder_target_tokens=jnp.ones((1, 4), jnp.int32),
+                  decoder_target_mask=jnp.ones((1, 4), jnp.float32),
+                  decoder_segment_ids=jnp.ones((1, 4), jnp.int32), enable_dropout=False)
+      with contextlib.redirect_stdout(io.StringIO()):
+        params = nn.unbox(model.init(jax.random.key(103), **args)['params'])
+        output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(v))) for v in output))
+      decoder = params['decoder']
+      name = arm.lower()
+      self.assertIn('seed_key', decoder)
+      self.assertIn('final_read_key', decoder)
+      self.assertIn('dynamic_' + name + ('_write' if arm == 'Embedding' else '_read'), decoder)
+      health = aux['intermediates']['decoder']['rmt_' + name + '_health'][0]
+      self.assertEqual(health.shape, (len(rmt.RMT_BOUNDARY_HEALTH_NAMES),))
+      if arm == 'Unembedding':
+        read = decoder['dynamic_unembedding_read']
+        self.assertEqual(read['compression'].shape, (32, 8))
+        np.testing.assert_array_equal(read['key_kernel'], 0.)
+        self.assertEqual(float(health[2]), 0.)
+        self.assertAlmostEqual(float(health[4]), .05, places=6)
+        parent_cfg = self._config(base)
+        parent_cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
+        parent = models.Transformer(config=parent_cfg, mesh=mesh, quant=None)
+        with contextlib.redirect_stdout(io.StringIO()):
+          parent_params = nn.unbox(parent.init(jax.random.key(103), **args)['params'])
+          parent_output = parent.apply({'params': parent_params}, **args)
+        for a, b in zip(jax.tree.leaves(output), jax.tree.leaves(parent_output)):
+          np.testing.assert_array_equal(a, b)
+      with contextlib.redirect_stdout(io.StringIO()):
+        gradient = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(g))) for g in jax.tree.leaves(gradient)))
+      if arm == 'Embedding':
+        for key in ('address_down', 'address_up', 'gate_kernel'):
+          self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_embedding_write'][key])), 0.)
+        self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['embedding_write_content']['kernel'])), 0.)
+      else:
+        self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_unembedding_read']['key_kernel'])), 0.)
+
+
   def test_headwise_mlp_preserves_initialization_values_and_gradients(self):
     from flax import linen as nn
     from layers import initializers, linears

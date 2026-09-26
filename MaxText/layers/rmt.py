@@ -27,6 +27,21 @@ RMT_DYNAMIC_HEALTH_NAMES = (
     'mlp_input_first16_rms', 'mlp_input_tail32_rms',
 )
 
+RMT_BOUNDARY_HEALTH_NAMES = (
+    'dynamic_rms', 'static_rms', 'ratio', 'cosine',
+    'gate_mean', 'gate_std', 'gate_frac_lt_005',
+    'gate_frac_gt_050', 'gate_frac_gt_095',
+)
+
+
+def _boundary_health(dynamic, static, gate):
+  dynamic, static, gate = (x.astype(jnp.float32) for x in (dynamic, static, gate))
+  dynamic_rms, static_rms, ratio = _read_health(dynamic, static)
+  cosine = jnp.mean(dynamic * static) / jnp.maximum(dynamic_rms * static_rms, 1e-12)
+  return jnp.stack((dynamic_rms, static_rms, ratio, cosine,
+                    jnp.mean(gate), jnp.std(gate), jnp.mean(gate < .05),
+                    jnp.mean(gate > .5), jnp.mean(gate > .95)))
+
 
 def dynamic_health_names(record_write_health=True):
   """Keep read/gate/state metrics when diagnostic write statistics are disabled."""
@@ -636,6 +651,22 @@ class RMTDecoder(nn.Module):
     seed_key = self.param('seed_key', nn.initializers.normal(heads ** -0.5),
                           (heads, key_dim), cfg.weight_dtype)
     matrix = jnp.einsum('btnv,nk->btkv', embedded_heads, seed_key.astype(cfg.dtype))
+    if cfg.get_keys().get('rmt_dynamic_embedding_write', False):
+      # Same learned content and R256 GELU address as EmbeddingBamWrite,
+      # with the native RMT address/content axes (48, 75).
+      data = linears.DenseGeneral(
+          features=(heads, value_dim), axis=-1,
+          kernel_init=initializers.get_init_method(cfg.init_method),
+          kernel_axes=('embed', 'q_heads', 'v_factor'), dtype=cfg.dtype,
+          weight_dtype=cfg.weight_dtype, name='embedding_write_content',
+          quant=self.quant, matmul_precision=cfg.matmul_precision,
+          use_bias=False)(embedding)
+      dynamic_seed, seed_gate = RMTDynamicWrite(
+          cfg, address_dim=key_dim, name='dynamic_embedding_write')(embedding, data)
+      if cfg.get_keys().get('rmt_record_dynamic_health', False):
+        self.sow('intermediates', 'rmt_embedding_health',
+                 _boundary_health(dynamic_seed, matrix, seed_gate))
+      matrix = matrix + dynamic_seed
     transposed_carry = cfg.get_keys().get('rmt_transposed_matrix_carry', False)
     if transposed_carry:
       matrix = jnp.swapaxes(matrix, -2, -1)
@@ -661,6 +692,18 @@ class RMTDecoder(nn.Module):
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),
                             (key_dim, heads), cfg.weight_dtype)
     hidden = jnp.einsum('btkv,kn->btnv', matrix, final_read.astype(cfg.dtype))
+    if cfg.get_keys().get('rmt_dynamic_unembedding_read', False):
+      # Final full-matrix norm stays; the first16 proxy additionally has the
+      # same learned vector pre-norm as the middle-layer dynamic routes.
+      x = matrix[..., :heads, :].reshape(matrix.shape[:2] + (cfg.emb_dim,))
+      x = normalizations.get_rmsnorm('unembedding_vector_norm', cfg)(x)
+      dynamic_state = jnp.swapaxes(matrix[..., heads:, :], -2, -1)
+      (dynamic_read,), read_gates = RMTDynamicC8Read(
+          cfg, destinations=1, name='dynamic_unembedding_read')(x, dynamic_state)
+      if cfg.get_keys().get('rmt_record_dynamic_health', False):
+        self.sow('intermediates', 'rmt_unembedding_health',
+                 _boundary_health(dynamic_read, hidden, read_gates[..., 0]))
+      hidden = hidden + dynamic_read
     hidden = hidden.reshape(hidden.shape[:2] + (cfg.emb_dim,))
     head = models.OutputHead(config=cfg, shared_embedding=self.shared_embedding,
                              mesh=self.mesh, quant=self.quant, name='lm_head')

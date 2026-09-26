@@ -9668,6 +9668,8 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNorm(
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Repay the attention savings to MLP; match MediumProp MHA total budget."""
+    # Completed13500: vs original VectorNorm gain grew through ~10k, then
+    # held near -.033; final5 -.033295. vs MHA early lead shrank, final5 -.139960.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'
     base_mlp_dim = 4118
     rmt_block_scan = True
@@ -9682,6 +9684,8 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget(
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     """Six LLF blocks: shared C8 V/O keys, independent gates, fetched O in F."""
+    # Completed13500: vs MHABudget early gain shrank, late ~-.004; final5 -.004153.
+    # vs MHA early lead shrank, final5 -.144114.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO'
     rmt_llf_enabled = True
     rmt_mlp_dim_by_block = [4118, 4118, 4113]
@@ -9712,7 +9716,7 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding(
     # code_commit: d7cb6c1; rmt_dynamic_boundaries.md.
     # UE5a v5p-16 .3793 step/s; +.50% vs MHABudget (.3774), steps20-99.
     # Same layer health; extra boundary RMS/gate health ON.
-    # Interim through4200: early gain shrank; latest5 vs MHABudget -.013829.
+    # Interim through11600: early gain shrank; near -.012 from ~6k, latest5 -.011664 vs MHABudget.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding'
     rmt_dynamic_embedding_write = True
     rmt_dynamic_unembedding_read = False
@@ -9748,8 +9752,8 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDi
     # code_commit: a536442; rmt_dynamic_boundaries.md.
     # UE5a v5p-16 .3757 step/s; -.45% vs MHABudget (.3774), steps20-99.
     # Same layer health; extra boundary RMS/gate health ON.
-    # Review2800: vs MHABudget latest5 -.015066, roughly flat from1400;
-    # vs C8 -.013763, persistent lead from400. Continue training.
+    # Interim through10200: vs MHABudget early gain peaked near -.015,
+    # then eased to ~-.0115; latest5 -.011459. vs C8 through5000 -.011951.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32'
     rmt_dynamic_unembedding_direct_read = True
     base_mlp_dim = 4108
@@ -9765,6 +9769,8 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnem
     # code_commit: be5491f; rmt_dynamic_boundaries.md.
     # UE5a v5p-16 .3777 step/s; +.08% vs MHABudget, steps20-99.
     # Same layer health; both boundary RMS/gate health ON.
+    # Interim through7200: early lead shrank, then held near -.022;
+    # latest5 vs MHABudget -.022163, vs Embedding -.010130, vs Direct32 -.010079.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32'
     rmt_dynamic_embedding_write = True
     base_mlp_dim = 4078

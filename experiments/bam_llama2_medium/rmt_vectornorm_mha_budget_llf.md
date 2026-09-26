@@ -66,12 +66,8 @@ Primary comparisons: MHABudget-parent; SharedVO-MHABudget;
 IndependentVO-SharedVO. All three also compare against the historical RoPE
 MHA control. Report loss and steady speed with their explicit baselines.
 
-Pre-run bets at13500 steps: MHABudget-parent -.018; SharedVO-MHABudget -.012;
-Predicted steady-speed ratios: MHABudget/parent .82,
-SharedVO/MHABudget .94. Extra MLP should improve
-late loss; fetched O restores a target-conditioned temporal read of matrix
-state. Separate O keys may help specialization, but must beat the MLP capacity
-they displace. These are bets, not measured results.
+Both MHABudget and LLFSharedVO completed13500; finished-run bets removed.
+At matched total budget, these isolate MLP repayment and fetched O respectively.
 
 ## Launch ownership
 
@@ -97,8 +93,7 @@ preemption occurred. The retained compilers were not modified or reclaimed.
 Matched UE5a v5p-16 steps20-99, inverse mean step latency from rounded
 log step/s: MHABudget .377417; LLFSharedVO .364729; LLFIndependentVO .363176.
 Control is -7.04% versus historical original VectorNorm .406; Shared is
--3.36% versus control; Independent is -0.43% versus Shared. The first two
-costs are much smaller than the -18%/-6% pre-run bets. These timings retain the formal health metrics.
+-3.36% versus control; Independent is -0.43% versus Shared. These timings retain the formal health metrics.
 
 ## IndependentVO closeout
 
@@ -116,3 +111,21 @@ verified absent, local TensorBoard sync succeeded. No preemption; one READY
 lease11:41:48–14:03:54 UTC on2026-09-26 (2h22m06s). Evidence:
 `/data0/xd/rmt-llf-independent-closeout.log`,
 `/data0/xd/rmt-llf-independent-final-and-boundary-leases.txt`.
+
+## MHABudget and SharedVO final closeout
+
+Both completed13500; committed final checkpoints verified; trainer nodes and
+queues independently verified absent. Idempotent local closeout and TB sync
+confirmed both SYNC_OK. MHABudget vs original VectorNorm: gain grows from
+~-.018 around1k to ~-.033 around10k, then holds; final5 (12600–13400)
+-.033295, range-.034255..-.032691. vs RoPE MHA: early lead shrinks toward
+final5-.139960, range-.142370..-.138092. Steady speed-.0704 vs VectorNorm.
+LLFSharedVO vs MHABudget: large early gain declines; late ~-.004, final5
+-.004153, range-.005177..-.003380; speed-.0336. vs RoPE MHA final5-.144114,
+range-.146700..-.142672. MHA timing is not health-matched (basic only).
+MLP repayment is clearly productive; fetched O adds a much smaller gain at
+3.36% throughput cost here. Do not transfer BAM's larger fetched-O value
+without a matched RMT ablation.
+Artifacts: /data0/xd/rmt-budget-completed-final.txt,
+/data0/xd/rmt-budget-completed-closeout.log,
+/data0/xd/rmt-budget-completed-resource-verification.txt.

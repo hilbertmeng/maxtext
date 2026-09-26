@@ -211,3 +211,18 @@ Requested task endpoint reached: C8 closeout complete; dynamic embedding and
 Direct32 continue training; combined arm successfully launched. Agent ends
 active monitoring; auto-train retains mechanical recovery/clean-exit ownership.
 MHABudget and LLFSharedVO also continue, without recurring agent reports.
+
+Snapshot2026-09-26~23:09UTC: Embedding through11600 latest5 vs MHABudget
+-.011664, range-.012108..-.011435; early gain has settled near-.012 since
+~6k. Direct32 through10200 latest5-.011459, range-.012000..-.011078;
+its earlier~-.015 gain eased to~-.0115. vs stopped C8 common through5000
+latest5-.011951. Combined through7200 latest5 vs MHABudget-.022163,
+range-.023441..-.021314; vs Embedding-.010130; vs Direct32-.010079.
+On the same6400–7200 points, Embedding-.012033 and Direct32-.012084,
+combined retains91.9% of their summed gain. Boundary improvements mostly
+add; near-equal speed and equal total budgets favor the combined model.
+Continue individual arms to planned13500 to preserve full-length direct
+baselines for the combined arm. CPU/source/runtime are unchanged.
+Full cumulative step/gap/r200 report:
+/data0/xd/rmt-reports/20260926-2309-full.md.
+Health evidence: /data0/xd/rmt-all-current-boundary-health.json.

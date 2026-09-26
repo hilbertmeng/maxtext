@@ -35,8 +35,26 @@ and runtime commit in that location as well as its configuration class.
 Default validation is the pinned local BAM test suite followed by the target RUN's
 `FIRST_STEP`. Add a standalone v6e check only for TPU-specific uncertainty those two gates do
 not cover; it is not a routine prerequisite for training.
-Finish the pinned CPU suite and any experiment-specific unit tests before AOT compilation;
-do not run them in parallel with AOT, since they must also gate compiler spending.
+For a new formal v5p-16 RUN with a verified idle user-owned non-preemptible/FLEX_START compiler,
+prefer the local `/home/xd/projects/xd_tpu_scripts/launch_train_parallel.py`: it runs the pinned
+CPU suite locally, AOT on the retained compiler, and a **training-only** TPU prequeue on tpu-ag
+concurrently. All three must succeed before it calls `run_exp_xd.sh`; it then waits for
+`FIRST_STEP`. On preparation failure it releases only the training TPU it submitted, never the
+retained compiler. Use `--dry-run` to review the three commands, pass a clean pushed worktree,
+unique EXP/TPU ID, direct `--compare-runs`, and the chosen zone. Add each experiment-specific
+CPU check with `--extra-test-script /absolute/path/to/test.sh`; a failure in any check blocks
+training and releases the owned prequeue. Example:
+
+```bash
+python3 /home/xd/projects/xd_tpu_scripts/launch_train_parallel.py EXP \
+  --worktree /absolute/runtime/worktree --id ID --zone us-east5-a \
+  --compiler-tpu llm-jax-v6e-1-1 --compiler-zone europe-west4-a \
+  --compare-runs BASE1,BASE2 --steps 13500 --report-interval 1000
+```
+
+Keep the sequential path below for a running-TPU hot switch, no retained compiler, or an
+unsupported topology. The parallel launcher owns only preparation and first-step gating;
+auto-train still owns subsequent preemption recovery and training closeout.
 
 1. Choose `EXP`, TPU `ID`, `MODE`, and direct experimental baselines in `COMPARE_RUNS`.
    For formal spot `v5p`, set `PRIMARY_ZONE` and the user-directed `BACKUP_ZONES`; `ZONE` defaults

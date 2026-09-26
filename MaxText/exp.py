@@ -9725,6 +9725,13 @@ class RMTVectorNormSingleOuterNoWriteHealthProfile(
     rmt_record_write_health = False
 
 
+class RMTVectorNormDynamicOnlyNoWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: drop eight write/residual statistics, retain reads/gates/M."""
+    model_name = 'RMTVectorNormDynamicOnlyNoWriteHealthProfile'
+    rmt_record_write_health = False
+
+
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Retain dynamic attention, but use only native RMT MLP reads and writes."""

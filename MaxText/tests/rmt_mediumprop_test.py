@@ -25,7 +25,8 @@ class RMTMediumPropTest(absltest.TestCase):
     self.assertLen(expected_names, 33)
     for suffix, parent in (
         ('NoWriteHealthProfile', 'RMTMediumPropK48DynamicFull48RoPE18VectorNorm'),
-        ('SingleOuterNoWriteHealthProfile', 'RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite')):
+        ('SingleOuterNoWriteHealthProfile', 'RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite'),
+        ('DynamicOnlyNoWriteHealthProfile', 'RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite')):
       _, _, old_params = self._run(parent)
       model, args, params = self._run('RMTVectorNorm' + suffix)
       self.assertEqual(jax.tree.structure(params), jax.tree.structure(old_params))

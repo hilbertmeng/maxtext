@@ -51,25 +51,36 @@ class RMTMediumPropTest(absltest.TestCase):
       self.assertTrue(np.all(np.isfinite(health)))
 
   def test_row_reduced_health_preserves_model_and_all_metrics(self):
-    for optimized, parent in (
+    pairs = (
         ('RMTVectorNormRowReducedWriteHealthProfile',
          'RMTMediumPropK48DynamicFull48RoPE18VectorNorm'),
         ('RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile',
-         'RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite')):
-      old_model, old_args, old_params = self._run(parent)
-      model, args, params = self._run(optimized)
-      self.assertEqual(jax.tree.structure(params), jax.tree.structure(old_params))
-      for a, b in zip(jax.tree.leaves(params), jax.tree.leaves(old_params)):
-        np.testing.assert_array_equal(a, b)
-      with contextlib.redirect_stdout(io.StringIO()):
-        old_output, old_aux = old_model.apply({'params': old_params}, **old_args,
-                                              mutable=['intermediates'])
-        output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
-      np.testing.assert_array_equal(output[0], old_output[0])
-      old_health = old_aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
-      health = aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
-      self.assertEqual(health.shape, (3, 41))
-      np.testing.assert_allclose(health, old_health, rtol=2e-5, atol=2e-6)
+         'RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite'))
+    from layers import rmt
+    write_slots = [i for i, name in enumerate(rmt.RMT_DYNAMIC_HEALTH_NAMES)
+                   if '_write_' in name and name.endswith(('_ratio', '_cosine'))]
+    other_slots = [i for i in range(41) if i not in write_slots]
+    for dtype in (jnp.float32, jnp.bfloat16):
+      for optimized, parent in pairs:
+        old_model, old_args, old_params = self._run(parent, dtype=dtype)
+        model, args, params = self._run(optimized, dtype=dtype)
+        self.assertEqual(jax.tree.structure(params), jax.tree.structure(old_params))
+        for a, b in zip(jax.tree.leaves(params), jax.tree.leaves(old_params)):
+          np.testing.assert_array_equal(a, b)
+        with contextlib.redirect_stdout(io.StringIO()):
+          old_output, old_aux = old_model.apply({'params': old_params}, **old_args,
+                                                mutable=['intermediates'])
+          output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
+        np.testing.assert_array_equal(output[0], old_output[0])
+        old_health = np.asarray(old_aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
+        health = np.asarray(aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
+        self.assertEqual(health.shape, (3, 41))
+        np.testing.assert_array_equal(health[:, other_slots], old_health[:, other_slots])
+        # First prove the reordered formulas at FP32 model precision; BF16
+        # scan fusion can change auxiliary statistics at the carry boundary.
+        atol = 2e-6 if dtype == jnp.float32 else 1e-4
+        np.testing.assert_allclose(health[:, write_slots], old_health[:, write_slots],
+                                   rtol=2e-5, atol=atol)
 
   def test_write_contractions_preserve_values_and_gradients(self):
     from layers import rmt
@@ -251,8 +262,10 @@ class RMTMediumPropTest(absltest.TestCase):
       cfg.get_keys()['bam_layer_modes'] = ['local_qk+local_v+local_o'] * 3
     return cfg
 
-  def _run(self, name):
+  def _run(self, name, dtype=None):
     cfg = self._config(name)
+    if dtype is not None:
+      cfg.get_keys()['dtype'] = dtype
     mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
     model = models.Transformer(config=cfg, mesh=mesh, quant=None)
     args = dict(decoder_input_tokens=jnp.ones((1, 4), jnp.int32),

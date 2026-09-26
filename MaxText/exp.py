@@ -9693,6 +9693,9 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO(
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO):
     """Separate F-layer V/O dynamic keys; repay the added O kernel from F MLP."""
+    # Stopped3013: vs SharedVO every200-step point through2800 is positive;
+    # latest5 +.002511, no sustained closing. vs MHABudget early gain shrank to -.004374;
+    # vs MHA lead shrank to -.269553 (latest5 through2800). Dominated by SharedVO.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO'
     rmt_fetch_independent_o_key = True
     rmt_mlp_dim_by_block = [4118, 4118, 4070]

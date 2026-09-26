@@ -9746,6 +9746,20 @@ class RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile(
     rmt_write_health_row_reduce = True
 
 
+class RMTVectorNormRowHealthTransposedCarryProfile(
+    RMTVectorNormRowReducedWriteHealthProfile):
+    """Diagnostic only: transpose matrix axes at scan carry boundaries."""
+    model_name = 'RMTVectorNormRowHealthTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
+class RMTVectorNormDynamicOnlyRowHealthTransposedCarryProfile(
+    RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile):
+    """Diagnostic only: same pure model/health, transpose scan carry axes."""
+    model_name = 'RMTVectorNormDynamicOnlyRowHealthTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
 class RMTVectorNormNoWriteHealthProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Diagnostic only: remove eight write statistics, retain reads/gates/M health."""

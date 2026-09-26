@@ -29,6 +29,32 @@ class RMTMediumPropTest(absltest.TestCase):
         np.testing.assert_allclose(rmt._row_reduced_write_health(a, b),
                                    expected, rtol=2e-5, atol=2e-6)
 
+  def test_transposed_carry_preserves_parameters_values_and_gradients(self):
+    for optimized, parent in (
+        ('RMTVectorNormRowHealthTransposedCarryProfile',
+         'RMTVectorNormRowReducedWriteHealthProfile'),
+        ('RMTVectorNormDynamicOnlyRowHealthTransposedCarryProfile',
+         'RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile')):
+      old_model, args, old_params = self._run(parent, dtype=jnp.float32)
+      model, _, params = self._run(optimized, dtype=jnp.float32)
+      self.assertEqual(jax.tree.structure(params), jax.tree.structure(old_params))
+      for a, b in zip(jax.tree.leaves(params), jax.tree.leaves(old_params)):
+        np.testing.assert_array_equal(a, b)
+      args.update(decoder_input_tokens=jnp.array([[1, 2, 3, 4]], jnp.int32),
+                  decoder_target_tokens=jnp.array([[2, 3, 4, 5]], jnp.int32))
+      with contextlib.redirect_stdout(io.StringIO()):
+        old_value, old_grad = jax.value_and_grad(
+            lambda p: jnp.mean(old_model.apply({'params': p}, **args)[0]))(old_params)
+        value, grad = jax.value_and_grad(
+            lambda p: jnp.mean(model.apply({'params': p}, **args)[0]))(params)
+      np.testing.assert_allclose(value, old_value, rtol=1e-6, atol=1e-6)
+      squared_error = squared_norm = 0.
+      for a, b in zip(jax.tree.leaves(grad), jax.tree.leaves(old_grad)):
+        np.testing.assert_allclose(a, b, rtol=3e-5, atol=3e-6)
+        squared_error += float(jnp.sum(jnp.square(a-b)))
+        squared_norm += float(jnp.sum(jnp.square(b)))
+      self.assertLess((squared_error / squared_norm) ** .5, 3e-6)
+
   def test_write_health_toggle_preserves_other_metrics_and_parameters(self):
     from layers import rmt
     expected_names = tuple(n for n in rmt.RMT_DYNAMIC_HEALTH_NAMES

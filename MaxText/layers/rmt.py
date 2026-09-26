@@ -279,6 +279,9 @@ class RMTLayer(nn.Module):
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
     cfg = self.config
+    transposed_carry = cfg.get_keys().get('rmt_transposed_matrix_carry', False)
+    if transposed_carry:
+      matrix = jnp.swapaxes(matrix, -2, -1)
     heads = int(cfg.num_query_heads)
     value_dim = int(cfg.head_dim)
     key_dim = int(cfg.rmt_reskey_dim)
@@ -491,7 +494,7 @@ class RMTLayer(nn.Module):
                      _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
       assert len(values) == len(dynamic_health_names(record_write_health))
       self.sow('intermediates', 'rmt_dynamic_health', jnp.stack(values))
-    return matrix, None
+    return (jnp.swapaxes(matrix, -2, -1) if transposed_carry else matrix), None
 
 
 class RMTDecoder(nn.Module):
@@ -523,6 +526,9 @@ class RMTDecoder(nn.Module):
     seed_key = self.param('seed_key', nn.initializers.normal(heads ** -0.5),
                           (heads, key_dim), cfg.weight_dtype)
     matrix = jnp.einsum('btnv,nk->btkv', embedded_heads, seed_key.astype(cfg.dtype))
+    transposed_carry = cfg.get_keys().get('rmt_transposed_matrix_carry', False)
+    if transposed_carry:
+      matrix = jnp.swapaxes(matrix, -2, -1)
     Layer = nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,))
     ScanLayer = nn.scan(
         Layer,
@@ -535,6 +541,8 @@ class RMTDecoder(nn.Module):
     matrix, _ = ScanLayer(cfg, quant=self.quant, name='layers')(
         matrix, decoder_segment_ids, decoder_positions, deterministic,
         jnp.arange(cfg.num_decoder_layers))
+    if transposed_carry:
+      matrix = jnp.swapaxes(matrix, -2, -1)
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),
                             (key_dim, heads), cfg.weight_dtype)

@@ -9711,6 +9711,13 @@ class RMTVectorNormNoExtraHealthProfile(
     rmt_record_dynamic_health = False
 
 
+class RMTVectorNormDynamicOnlyMulReduceNoExtraHealthProfile(
+    RMTVectorNormDynamicOnlyWriteNoExtraHealthProfile):
+    """Diagnostic only: multiply/reduce writes with generic training health only."""
+    model_name = 'RMTVectorNormDynamicOnlyMulReduceNoExtraHealthProfile'
+    rmt_write_contraction = 'mul_reduce'
+
+
 class RMTVectorNormNoWriteHealthProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Diagnostic only: remove eight write statistics, retain reads/gates/M health."""

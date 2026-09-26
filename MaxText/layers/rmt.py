@@ -44,6 +44,27 @@ def _write_health(dynamic, static):
   return ratio, cosine
 
 
+def _factorized_write_health(dynamic_address, static_address, data):
+  """Measure two outer writes without materializing either component matrix."""
+  data = data.astype(jnp.float32)
+  data_gram = jnp.einsum('btnv,btmv->btnm', data, data)
+  values = []
+  for part in (slice(None, 16), slice(16, None)):
+    dyn = dynamic_address[..., part].astype(jnp.float32)
+    stat = static_address[..., part].astype(jnp.float32)
+    size = dyn.shape[-1] * data.shape[-1]
+    dynamic_gram = jnp.einsum('btnk,btmk->btnm', dyn, dyn)
+    static_gram = jnp.einsum('nk,mk->nm', stat, stat)
+    cross_gram = jnp.einsum('nk,btmk->btnm', stat, dyn)
+    dynamic_ms = jnp.maximum(jnp.mean(jnp.sum(dynamic_gram * data_gram, axis=(-2, -1))) / size, 0.)
+    static_ms = jnp.maximum(jnp.mean(jnp.sum(static_gram * data_gram, axis=(-2, -1))) / size, 0.)
+    cross = jnp.mean(jnp.sum(cross_gram * data_gram, axis=(-2, -1))) / size
+    dynamic_rms, static_rms = jnp.sqrt(dynamic_ms), jnp.sqrt(static_ms)
+    values.extend((dynamic_rms / jnp.maximum(static_rms, 1e-12),
+                   cross / jnp.maximum(dynamic_rms * static_rms, 1e-12)))
+  return tuple(values)
+
+
 def _gate_health(gate):
   gate = gate.astype(jnp.float32)
   return jnp.mean(gate), jnp.mean(gate > 0.5)
@@ -142,7 +163,7 @@ class RMTDynamicWrite(nn.Module):
   address_dim: int
 
   @nn.compact
-  def __call__(self, x, data):
+  def __call__(self, x, data, static_address=None):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = 256
@@ -164,11 +185,24 @@ class RMTDynamicWrite(nn.Module):
     gate = jax.nn.sigmoid(
         jnp.einsum('btd,dn->btn', x, gate_kernel.astype(x.dtype))
         + gate_bias.astype(x.dtype))
-    data = normalizations.rms_norm(
-        data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
-        statistics_dtype=jnp.float32)
     address = normalizations.rms_norm(
         address, dtype=address.dtype, epsilon=cfg.normalization_layer_epsilon,
+        statistics_dtype=jnp.float32)
+    if static_address is not None:
+      inverse_rms = jax.lax.rsqrt(jnp.mean(jnp.square(data.astype(jnp.float32)),
+                                         axis=-1, keepdims=True)
+                                 + cfg.normalization_layer_epsilon)
+      dynamic_address = ((gate[..., None] * address).astype(jnp.float32)
+                         * inverse_rms).astype(data.dtype)
+      if dynamic_address.shape[-1] != static_address.shape[-1]:
+        dynamic_address = jnp.pad(dynamic_address, ((0, 0), (0, 0), (0, 0), (16, 0)))
+      combined_address = static_address.astype(data.dtype) + dynamic_address
+      write = jnp.einsum('btnk,btnv->btkv', combined_address, data)
+      health = (_factorized_write_health(dynamic_address, static_address.astype(data.dtype), data)
+                if cfg.get_keys().get('rmt_record_dynamic_health', False) else ())
+      return write, gate, health
+    data = normalizations.rms_norm(
+        data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
     write = jnp.einsum('btnk,btnv->btkv', gate[..., None] * address, data)
     return write, gate
@@ -210,6 +244,9 @@ class RMTLayer(nn.Module):
         cfg.get_keys().get('rmt_dynamic_mlp_read_enabled', dynamic_mlp))
     dynamic_mlp_write_enabled = dynamic and bool(
         cfg.get_keys().get('rmt_dynamic_mlp_write_enabled', dynamic_mlp))
+    single_outer_write = bool(cfg.get_keys().get('rmt_single_outer_write', False))
+    if single_outer_write and not (dynamic and dynamic_mlp_write_enabled):
+      raise ValueError('Single-outer write requires dynamic attention and MLP writes')
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
     dynamic_full_read = bool(cfg.get_keys().get('rmt_dynamic_read_full_matrix', False))
     rope_qk_dim = int(cfg.get_keys().get('rmt_rope_qk_dim', 0))
@@ -291,16 +328,21 @@ class RMTLayer(nn.Module):
         head_output = head_output + dynamic_o
     attn_write = self.param('attn_write_key', write_init,
                             (heads, key_dim), cfg.weight_dtype)
-    static_attn_write = jnp.einsum(
-        'btnv,nk->btkv', head_output, attn_write.astype(cfg.dtype))
-    if dynamic:
+    if single_outer_write:
+      combined_attn_write, attn_write_gate, attn_write_health = RMTDynamicWrite(
+          cfg, write_rows, name='dynamic_attn_write')(attn_x, head_output, attn_write)
+      matrix = matrix + combined_attn_write
+    else:
+      static_attn_write = jnp.einsum(
+          'btnv,nk->btkv', head_output, attn_write.astype(cfg.dtype))
+    if dynamic and not single_outer_write:
       dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_attn_write')(attn_x, head_output)
       if write_rows == 32:
         dynamic_attn_write = jnp.pad(dynamic_attn_write,
                                      ((0, 0), (0, 0), (16, 0), (0, 0)))
       matrix = matrix + static_attn_write + dynamic_attn_write
-    else:
+    elif not dynamic:
       matrix = matrix + static_attn_write
 
     mlp_in = (matrix if vector_pre_norm else
@@ -333,16 +375,21 @@ class RMTLayer(nn.Module):
     vector = vector.reshape(vector.shape[:2] + (heads, value_dim))
     mlp_write = self.param('mlp_write_key', write_init,
                            (heads, key_dim), cfg.weight_dtype)
-    static_mlp_write = jnp.einsum(
-        'btnv,nk->btkv', vector, mlp_write.astype(cfg.dtype))
-    if dynamic_mlp_write_enabled:
+    if single_outer_write:
+      combined_mlp_write, mlp_write_gate, mlp_write_health = RMTDynamicWrite(
+          cfg, write_rows, name='dynamic_mlp_write')(mlp_x, vector, mlp_write)
+      matrix = matrix + combined_mlp_write
+    else:
+      static_mlp_write = jnp.einsum(
+          'btnv,nk->btkv', vector, mlp_write.astype(cfg.dtype))
+    if dynamic_mlp_write_enabled and not single_outer_write:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_mlp_write')(mlp_x, vector)
       if write_rows == 32:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
                                     ((0, 0), (0, 0), (16, 0), (0, 0)))
       matrix = matrix + static_mlp_write + dynamic_mlp_write
-    else:
+    elif not dynamic_mlp_write_enabled:
       matrix = matrix + static_mlp_write
     if dynamic and getattr(cfg, 'rmt_record_dynamic_health', False):
       # Keep the health schema identical for matched Full48/NoO comparisons.
@@ -360,13 +407,16 @@ class RMTLayer(nn.Module):
                (dynamic_mlp_read, static_mlp_read))
       gates = (q_gate, k_gate, vo_gates[..., 0], measured_o_gate,
                mlp_read_gate[..., 0], attn_write_gate, mlp_write_gate)
-      writes = ((dynamic_attn_write, static_attn_write),
-                (dynamic_mlp_write, static_mlp_write))
       values = [v for pair in reads for v in _read_health(*pair)]
       values.extend(v for gate in gates for v in _gate_health(gate))
-      values.extend(v for dyn, stat in writes for part in
-                    (slice(None, 16), slice(16, None))
-                    for v in _write_health(dyn[..., part, :], stat[..., part, :]))
+      if single_outer_write:
+        values.extend(attn_write_health + mlp_write_health)
+      else:
+        writes = ((dynamic_attn_write, static_attn_write),
+                  (dynamic_mlp_write, static_mlp_write))
+        values.extend(v for dyn, stat in writes for part in
+                      (slice(None, 16), slice(16, None))
+                      for v in _write_health(dyn[..., part, :], stat[..., part, :]))
       values.extend((_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
                      _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
       assert len(values) == len(RMT_DYNAMIC_HEALTH_NAMES)

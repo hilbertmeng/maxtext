@@ -17,6 +17,59 @@ from layers import attentions, models
 
 class RMTMediumPropTest(absltest.TestCase):
 
+  def test_single_outer_write_matches_values_gradients_and_health(self):
+    from layers import rmt
+    cfg = self._config('RMTMediumPropK48DynamicFull48RoPE18VectorNorm')
+    cfg.get_keys().update(dtype=jnp.float32, weight_dtype=jnp.float32)
+    x = jax.random.normal(jax.random.key(2), (1, 2, cfg.emb_dim))
+    data = jax.random.normal(jax.random.key(3), (1, 2, 16, 75))
+    data *= jnp.linspace(.2, 2., 16)[None, None, :, None]
+    address = .1 * jax.random.normal(jax.random.key(4), (16, 48))
+    module = rmt.RMTDynamicWrite(cfg, 48)
+    variables = module.init(jax.random.key(5), x, data)
+
+    def original(p, x, y, a):
+      dynamic, _ = module.apply(p, x, y)
+      return dynamic + jnp.einsum('btnv,nk->btkv', y, a)
+
+    def fused(p, x, y, a):
+      return module.apply(p, x, y, a)[0]
+
+    expected = original(variables, x, data, address)
+    actual, gate, health = module.apply(variables, x, data, address)
+    np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-6)
+    probe = jax.random.normal(jax.random.key(6), actual.shape)
+    objective = lambda fn: lambda p, x, y, a: jnp.sum(fn(p, x, y, a) * probe)
+    grad_old = jax.grad(objective(original), argnums=(0, 1, 2, 3))(variables, x, data, address)
+    grad_new = jax.grad(objective(fused), argnums=(0, 1, 2, 3))(variables, x, data, address)
+    for a, b in zip(jax.tree.leaves(grad_old), jax.tree.leaves(grad_new)):
+      np.testing.assert_allclose(a, b, rtol=3e-4, atol=2e-5)
+    dynamic, _ = module.apply(variables, x, data)
+    static = jnp.einsum('btnv,nk->btkv', data, address)
+    expected_health = tuple(v for part in (slice(None, 16), slice(16, None))
+                            for v in rmt._write_health(dynamic[..., part, :], static[..., part, :]))
+    np.testing.assert_allclose(health, expected_health, rtol=2e-5, atol=2e-6)
+
+    cfg.get_keys()['dtype'] = jnp.bfloat16
+    x, data, address = x.astype(jnp.bfloat16), data.astype(jnp.bfloat16), address.astype(jnp.bfloat16)
+    old_bf16 = original(variables, x, data, address).astype(jnp.float32)
+    new_bf16 = fused(variables, x, data, address).astype(jnp.float32)
+    relative_error = jnp.linalg.norm(new_bf16-old_bf16)/jnp.linalg.norm(old_bf16)
+    self.assertLess(float(relative_error), .01)
+
+  def test_single_outer_model_preserves_parameters_and_health_schema(self):
+    from layers import rmt
+    old_model, args, old_params = self._run('RMTMediumPropK48DynamicFull48RoPE18VectorNorm')
+    model, _, params = self._run('RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite')
+    self.assertEqual(jax.tree.structure(params), jax.tree.structure(old_params))
+    for a, b in zip(jax.tree.leaves(params), jax.tree.leaves(old_params)):
+      np.testing.assert_array_equal(a, b)
+    with contextlib.redirect_stdout(io.StringIO()):
+      _, intermediate = model.apply({'params': params}, **args, mutable=['intermediates'])
+    health = np.asarray(intermediate['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
+    self.assertEqual(health.shape, (3, len(rmt.RMT_DYNAMIC_HEALTH_NAMES)))
+    self.assertTrue(np.all(np.isfinite(health)))
+
   def test_alibi_source_slopes_and_causal_segment_mask(self):
     bias = attentions._alibi_bias(2, 1, 2, 0, 3)
     slopes = np.geomspace(2 ** -4, 2 ** -8, 2)

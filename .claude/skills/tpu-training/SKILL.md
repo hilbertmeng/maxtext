@@ -49,8 +49,11 @@ training and releases the owned prequeue. Example:
 python3 /home/xd/projects/xd_tpu_scripts/launch_train_parallel.py EXP \
   --worktree /absolute/runtime/worktree --id ID --zone us-east5-a \
   --compiler-tpu llm-jax-v6e-1-1 --compiler-zone europe-west4-a \
-  --compare-runs BASE1,BASE2 --steps 13500 --report-interval 1000
+  --compare-runs BASE1,BASE2 --steps 13500 --loss-interval 200
 ```
+
+`--loss-interval` is the gap-window stride, not the agent's wake/report cadence.
+Keep it at 200 even when the agent reports about every 1000 or 2000 steps.
 
 Keep the sequential path below for a running-TPU hot switch, no retained compiler, or an
 unsupported topology. The parallel launcher owns only preparation and first-step gating;

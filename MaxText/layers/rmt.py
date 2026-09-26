@@ -206,6 +206,10 @@ class RMTLayer(nn.Module):
     assert cfg.emb_dim == heads * value_dim
     dynamic = bool(getattr(cfg, 'rmt_dynamic_enabled', False))
     dynamic_mlp = dynamic and bool(cfg.get_keys().get('rmt_dynamic_mlp_enabled', True))
+    dynamic_mlp_read_enabled = dynamic and bool(
+        cfg.get_keys().get('rmt_dynamic_mlp_read_enabled', dynamic_mlp))
+    dynamic_mlp_write_enabled = dynamic and bool(
+        cfg.get_keys().get('rmt_dynamic_mlp_write_enabled', dynamic_mlp))
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
     dynamic_full_read = bool(cfg.get_keys().get('rmt_dynamic_read_full_matrix', False))
     rope_qk_dim = int(cfg.get_keys().get('rmt_rope_qk_dim', 0))
@@ -305,17 +309,18 @@ class RMTLayer(nn.Module):
                           (key_dim, heads), cfg.weight_dtype)
     vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
     static_mlp_read = vector
-    if dynamic_mlp:
+    if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
       mlp_x = mlp_in[..., :heads, :].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
       if vector_pre_norm:
         mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
+    if dynamic_mlp_read_enabled:
       mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
       (dynamic_mlp_read,), mlp_read_gate = RMTDynamicC8Read(
           cfg, destinations=1, name='dynamic_mlp_read')(mlp_x, mlp_M)
       vector = vector + dynamic_mlp_read
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
     if cfg.get_keys().get('rmt_static_mlp_read_pre_norm', False):
-      if dynamic_mlp:
+      if dynamic_mlp_read_enabled:
         raise ValueError('Static MLP read pre-norm requires the static MLP route')
       vector = normalizations.get_rmsnorm('mlp_read_vector_norm', cfg)(vector)
     vector = linears.MlpBlock(
@@ -330,7 +335,7 @@ class RMTLayer(nn.Module):
                            (heads, key_dim), cfg.weight_dtype)
     static_mlp_write = jnp.einsum(
         'btnv,nk->btkv', vector, mlp_write.astype(cfg.dtype))
-    if dynamic_mlp:
+    if dynamic_mlp_write_enabled:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_mlp_write')(mlp_x, vector)
       if write_rows == 32:
@@ -344,9 +349,10 @@ class RMTLayer(nn.Module):
       measured_o = dynamic_o if dynamic_o_enabled else jnp.zeros_like(static_head_output)
       measured_o_gate = (vo_gates[..., 1] if dynamic_o_enabled
                          else jnp.zeros_like(vo_gates[..., 0]))
-      if not dynamic_mlp:
+      if not dynamic_mlp_read_enabled:
         dynamic_mlp_read = jnp.zeros_like(static_mlp_read)
         mlp_read_gate = jnp.zeros_like(vo_gates[..., :1])
+      if not dynamic_mlp_write_enabled:
         dynamic_mlp_write = jnp.zeros_like(static_mlp_write)
         mlp_write_gate = jnp.zeros_like(attn_write_gate)
       reads = ((dynamic_q, static_q), (dynamic_k, static_k),

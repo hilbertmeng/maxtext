@@ -9691,6 +9691,23 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPPreNorm(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm-static-mlp-pre-norm'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPDynamicRead(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP):
+    """Restore dynamic MLP reads while retaining native static MLP writes."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPDynamicRead'
+    rmt_dynamic_mlp_read_enabled = True
+    rmt_dynamic_mlp_write_enabled = False
+    rmt_static_mlp_read_pre_norm = False
+    base_mlp_dim = 2664  # Refund only 523792 dynamic-write params/layer; nearest width.
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPPreNorm',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNorm',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP',
+                    'RMTMediumPropK48DynamicFull48RoPE18',
+                    'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',
+                    'BamMHAMediumPropAlibiC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm-static-mlp-dynamic-read'
+
+
 class BamMediumPropK75AllLocalMOnlyAlibiRMTBudget(
     BamMediumPropK75EmbedQKVOnlyRoPE18):
     """Dynamic+static M reads, dynamic write, all L, ALiBi and matrix-only QKV."""

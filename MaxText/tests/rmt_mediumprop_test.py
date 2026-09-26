@@ -266,6 +266,26 @@ class RMTMediumPropTest(absltest.TestCase):
     self.assertTrue(bool(jnp.all(jnp.isfinite(scale_grad))))
     self.assertGreater(float(jnp.linalg.norm(scale_grad)), 0.)
 
+  def test_dynamic_mlp_read_with_static_write_is_trainable(self):
+    from layers import rmt
+    model, args, params = self._run(
+        'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLPDynamicRead')
+    layer = params['decoder']['layers']
+    for name in ('dynamic_mlp_read', 'mlp_vector_norm', 'mlp_read_key', 'mlp_write_key'):
+      self.assertIn(name, layer)
+    for name in ('dynamic_mlp_write', 'mlp_read_vector_norm', 'mlp_norm'):
+      self.assertNotIn(name, layer)
+    with contextlib.redirect_stdout(io.StringIO()):
+      grads = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
+      _, intermediate = model.apply({'params': params}, **args, mutable=['intermediates'])
+    key_grad = grads['decoder']['layers']['dynamic_mlp_read']['key_kernel'].value
+    self.assertTrue(bool(jnp.all(jnp.isfinite(key_grad))))
+    self.assertGreater(float(jnp.linalg.norm(key_grad)), 0.)
+    health = np.asarray(
+        intermediate['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
+    for name in ('mlp_write_gate_mean', 'mlp_write_first16_ratio', 'mlp_write_tail32_ratio'):
+      np.testing.assert_array_equal(health[:, rmt.RMT_DYNAMIC_HEALTH_NAMES.index(name)], 0.)
+
 
 if __name__ == '__main__':
   absltest.main()

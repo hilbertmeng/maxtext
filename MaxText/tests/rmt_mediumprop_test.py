@@ -42,8 +42,13 @@ class RMTMediumPropTest(absltest.TestCase):
     objective = lambda fn: lambda p, x, y, a: jnp.sum(fn(p, x, y, a) * probe)
     grad_old = jax.grad(objective(original), argnums=(0, 1, 2, 3))(variables, x, data, address)
     grad_new = jax.grad(objective(fused), argnums=(0, 1, 2, 3))(variables, x, data, address)
+    largest_relative_error = 0.
     for a, b in zip(jax.tree.leaves(grad_old), jax.tree.leaves(grad_new)):
-      np.testing.assert_allclose(a, b, rtol=3e-4, atol=2e-5)
+      relative_error = float(jnp.linalg.norm(a-b) / jnp.maximum(jnp.linalg.norm(a), 1e-12))
+      largest_relative_error = max(largest_relative_error, relative_error)
+      self.assertLess(relative_error, 3e-6)
+      np.testing.assert_allclose(a, b, rtol=3e-4, atol=5e-5)
+    print('SINGLE_WRITE_FP32_GRAD_MAX_REL', largest_relative_error)
     dynamic, _ = module.apply(variables, x, data)
     static = jnp.einsum('btnv,nk->btkv', data, address)
     expected_health = tuple(v for part in (slice(None, 16), slice(16, None))
@@ -55,6 +60,7 @@ class RMTMediumPropTest(absltest.TestCase):
     old_bf16 = original(variables, x, data, address).astype(jnp.float32)
     new_bf16 = fused(variables, x, data, address).astype(jnp.float32)
     relative_error = jnp.linalg.norm(new_bf16-old_bf16)/jnp.linalg.norm(old_bf16)
+    print('SINGLE_WRITE_BF16_FORWARD_REL', float(relative_error))
     self.assertLess(float(relative_error), .01)
 
   def test_single_outer_model_preserves_parameters_and_health_schema(self):

@@ -174,6 +174,8 @@ class RMTDynamicC8Read(nn.Module):
 
   config: common_types.Config
   destinations: int
+  fetch_output: bool = False
+  independent_output_key: bool = False
 
   @nn.compact
   def __call__(self, x, M):
@@ -197,6 +199,20 @@ class RMTDynamicC8Read(nn.Module):
     logits = jnp.einsum('btd,dr->btr', x, gate_kernel.astype(x.dtype))
     logits = logits.reshape(x.shape[:2] + (heads, self.destinations))
     gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
+    if self.fetch_output:
+      if self.destinations != 2:
+        raise ValueError('Fetched O requires separate V/O gates')
+      output_key = key
+      if self.independent_output_key:
+        output_kernel = self.param(
+            'o_key_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
+            (cfg.emb_dim, heads * 8), cfg.weight_dtype)
+        output_key = jnp.einsum('btd,dr->btr', x, output_kernel.astype(x.dtype))
+        output_key = normalizations.rms_norm(
+            output_key.reshape(x.shape[:2] + (heads, 8)), dtype=x.dtype,
+            epsilon=_read_epsilon(cfg), statistics_dtype=jnp.float32)
+      # O reads the fetched state later. Do not compute an unused local O read.
+      return (.2 * gates[..., 0, None] * read, gates, compressed, output_key)
     return tuple(.2 * gates[..., i, None] * read for i in range(self.destinations)), gates
 
 
@@ -277,6 +293,8 @@ class RMTLayer(nn.Module):
 
   config: common_types.Config
   quant: object = None
+  is_fetch: bool = False
+  mlp_dim: int | None = None
 
   @nn.compact
   def __call__(self, matrix, segment_ids, positions, deterministic, layer_index):
@@ -327,12 +345,30 @@ class RMTLayer(nn.Module):
       attn_M = jnp.swapaxes(attn_in[..., read_start:, :], -2, -1)
       dynamic_q, dynamic_k, q_gate, k_gate = RMTDynamicQK(
           cfg, name='dynamic_qk')(attn_x, attn_M)
-      vo_reads, vo_gates = RMTDynamicC8Read(
-          cfg, destinations=2 if dynamic_o_enabled else 1,
-          name='dynamic_vo')(attn_x, attn_M)
-      dynamic_v = vo_reads[0]
-      if dynamic_o_enabled:
-        dynamic_o = vo_reads[1]
+      if self.is_fetch:
+        if not dynamic_o_enabled:
+          raise ValueError('LLF fetch requires dynamic O')
+        dynamic_v, vo_gates, fetch_state, output_key = RMTDynamicC8Read(
+            cfg, destinations=2, fetch_output=True,
+            independent_output_key=cfg.get_keys().get('rmt_fetch_independent_o_key', False),
+            name='dynamic_vo')(attn_x, attn_M)
+        mix_kernel = self.param(
+            'fetch_head_mix_kernel', nn.with_logical_partitioning(
+                initializers.get_init_method(cfg.init_method), ('embed', 'q_heads')),
+            (cfg.emb_dim, heads), cfg.weight_dtype)
+        mix_bias = self.param('fetch_head_mix_bias', nn.with_logical_partitioning(
+            nn.initializers.zeros, ('q_heads',)), (heads,), cfg.weight_dtype)
+        mix_logits = jnp.einsum('btd,dn->btn', attn_x, mix_kernel.astype(attn_x.dtype))
+        mix_logits = mix_logits + mix_bias.astype(attn_x.dtype)
+        mix_weights = attentions._dynamic_bam_fetch_mix_weights(
+            mix_logits, cfg.dtype, rms_epsilon=_read_epsilon(cfg))
+      else:
+        vo_reads, vo_gates = RMTDynamicC8Read(
+            cfg, destinations=2 if dynamic_o_enabled else 1,
+            name='dynamic_vo')(attn_x, attn_M)
+        dynamic_v = vo_reads[0]
+        if dynamic_o_enabled:
+          dynamic_o = vo_reads[1]
       static_q, static_k, static_v = query, key, value
       query = query + dynamic_q
       key = key + dynamic_k
@@ -361,6 +397,9 @@ class RMTLayer(nn.Module):
     chunk = int(cfg.query_chunk_size)
     assert t % chunk == 0
     outputs = []
+    fetched_outputs = []
+    fetch_route_sums = []
+    record_health = dynamic and bool(getattr(cfg, 'rmt_record_dynamic_health', False))
     for q0 in range(0, t, chunk):
       q1 = q0 + chunk
       source = jnp.arange(q1)[None, :]
@@ -368,12 +407,31 @@ class RMTLayer(nn.Module):
       valid = (source <= target)[None]
       if segment_ids is not None:
         valid &= (segment_ids[:, q0:q1, None] == segment_ids[:, None, :q1])
-      y, _ = attentions._attention_op(
+      y, alpha = attentions._attention_op(
           query[:, q0:q1], key[:, :q1], value[:, :q1], valid,
           float32_logits=cfg.float32_logits if rope_qk_dim else True,
           additive_bias=(None if rope_qk_dim else
                          attentions._alibi_bias(heads, q0, q1, 0, q1)))
       outputs.append(y)
+      if self.is_fetch:
+        fetched = attentions._bam_fetch_op(
+            alpha, fetch_state[:, :q1], mix_weights[:, q0:q1], source == target,
+            diagonal_one=True, return_route=record_health)
+        if record_health:
+          fetched, raw_route, route = fetched
+          health_valid = jnp.broadcast_to(valid, route.shape)
+          if segment_ids is not None:
+            health_valid &= segment_ids[:, q0:q1, None] != 0
+          fetch_route_sums.append(attentions._bam_fetch_route_sums(
+              raw_route, route, health_valid, source == target))
+        fetched_read = jnp.einsum(
+            'btvc,btnc->btnv', fetched, output_key[:, q0:q1])
+        fetched_outputs.append(.2 * vo_gates[:, q0:q1, :, 1, None] * fetched_read)
+    if self.is_fetch:
+      dynamic_o = jnp.concatenate(fetched_outputs, axis=1).astype(cfg.dtype)
+      if record_health:
+        self.sow('intermediates', 'rmt_fetch_route_sums',
+                 jnp.sum(jnp.stack(fetch_route_sums), axis=0))
     head_output = jnp.concatenate(outputs, axis=1).astype(cfg.dtype)
     if dynamic:
       static_head_output = head_output
@@ -427,7 +485,7 @@ class RMTLayer(nn.Module):
         raise ValueError('Static MLP read pre-norm requires the static MLP route')
       vector = normalizations.get_rmsnorm('mlp_read_vector_norm', cfg)(vector)
     vector = linears.MlpBlock(
-        config=cfg, intermediate_dim=cfg.mlp_dim,
+        config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,
         activations=cfg.mlp_activations,
         intermediate_dropout_rate=cfg.dropout_rate,
         dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
@@ -459,6 +517,7 @@ class RMTLayer(nn.Module):
         matrix = matrix + dynamic_mlp_write
     elif not dynamic_mlp_write_enabled:
       matrix = matrix + static_mlp_write
+    health = None
     if dynamic and getattr(cfg, 'rmt_record_dynamic_health', False):
       # Keep the health schema identical for matched Full48/NoO comparisons.
       measured_o = dynamic_o if dynamic_o_enabled else jnp.zeros_like(static_head_output)
@@ -513,8 +572,36 @@ class RMTLayer(nn.Module):
                     (_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
                      _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
       assert len(values) == len(dynamic_health_names(record_write_health))
-      self.sow('intermediates', 'rmt_dynamic_health', jnp.stack(values))
-    return (jnp.swapaxes(matrix, -2, -1) if transposed_carry else matrix), None
+      health = jnp.stack(values)
+      if not cfg.get_keys().get('rmt_block_scan', False):
+        self.sow('intermediates', 'rmt_dynamic_health', health)
+    return (jnp.swapaxes(matrix, -2, -1) if transposed_carry else matrix), (
+        health if cfg.get_keys().get('rmt_block_scan', False) else None)
+
+
+class RMTBlock(nn.Module):
+  """Three matrix-residual layers, optionally ending with a fetched-O layer."""
+
+  config: common_types.Config
+  quant: object = None
+
+  @nn.compact
+  def __call__(self, matrix, segment_ids, positions, deterministic, block_index):
+    cfg = self.config
+    widths = cfg.rmt_mlp_dim_by_block
+    health = []
+    Layer = nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,))
+    for offset in range(3):
+      fetch = offset == 2 and cfg.get_keys().get('rmt_llf_enabled', False)
+      matrix, stats = Layer(
+          cfg, quant=self.quant, is_fetch=fetch, mlp_dim=int(widths[offset]),
+          name=f'layer_{offset}')(
+              matrix, segment_ids, positions, deterministic, 3 * block_index + offset)
+      if stats is not None:
+        health.append(stats)
+    if health:
+      self.sow('intermediates', 'rmt_dynamic_health', jnp.stack(health))
+    return matrix, None
 
 
 class RMTDecoder(nn.Module):
@@ -549,18 +636,22 @@ class RMTDecoder(nn.Module):
     transposed_carry = cfg.get_keys().get('rmt_transposed_matrix_carry', False)
     if transposed_carry:
       matrix = jnp.swapaxes(matrix, -2, -1)
-    Layer = nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,))
+    block_scan = cfg.get_keys().get('rmt_block_scan', False)
+    if block_scan and cfg.num_decoder_layers % 3:
+      raise ValueError('RMT block scan requires a multiple of three layers')
+    Layer = RMTBlock if block_scan else nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,))
+    scan_length = cfg.num_decoder_layers // 3 if block_scan else cfg.num_decoder_layers
     ScanLayer = nn.scan(
         Layer,
         variable_axes={'params': cfg.param_scan_axis, 'intermediates': 0},
         split_rngs={'params': True, 'dropout': cfg.enable_dropout},
         in_axes=(nn.broadcast, nn.broadcast, nn.broadcast, 0),
-        length=cfg.num_decoder_layers,
+        length=scan_length,
         unroll=int(cfg.scan_layers_unroll),
         metadata_params={nn.PARTITION_NAME: 'layers'})
     matrix, _ = ScanLayer(cfg, quant=self.quant, name='layers')(
         matrix, decoder_segment_ids, decoder_positions, deterministic,
-        jnp.arange(cfg.num_decoder_layers))
+        jnp.arange(scan_length))
     if transposed_carry:
       matrix = jnp.swapaxes(matrix, -2, -1)
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)

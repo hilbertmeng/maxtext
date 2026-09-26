@@ -365,12 +365,27 @@ def save_checkpoint(
 def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, config):
   """Export per-layer dynamic RMT read/write amplitudes and gate openings."""
   health = intermediate_outputs['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
+  if config.get_keys().get('rmt_block_scan', False):
+    health = health.reshape((config.num_decoder_layers, health.shape[-1]))
   for layer in range(config.num_decoder_layers):
     for index, name in enumerate(rmt.dynamic_health_names(
         config.get_keys().get('rmt_record_write_health', True))):
       if not config.get_keys().get('rmt_static_write_enabled', True) and '_write_' in name:
         name = name.replace('_ratio', '_to_residual_ratio').replace('_cosine', '_residual_cosine')
       output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
+  if config.get_keys().get('rmt_llf_enabled', False):
+    fetch_metrics = intermediate_outputs['intermediates']['decoder']['layers']['layer_2']
+    sums = fetch_metrics['rmt_fetch_route_sums'][0]
+    for block in range(config.num_decoder_layers // 3):
+      negative, zero, total, squared, edges, _ = sums[block]
+      denominator = jnp.maximum(edges, 1)
+      prefix = f'rmt/fetch/layer_{3 * block + 2:03d}/'
+      for name, value in (
+          ('cross_route_mean', total / denominator),
+          ('cross_route_rms', jnp.sqrt(squared / denominator)),
+          ('cross_route_negative_fraction', negative / denominator),
+          ('cross_route_zero_fraction', zero / denominator)):
+        output_metrics['scalar'][prefix + name] = value
 
 
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):

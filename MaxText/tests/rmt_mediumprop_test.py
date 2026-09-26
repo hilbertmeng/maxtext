@@ -17,6 +17,88 @@ from layers import attentions, models
 
 class RMTMediumPropTest(absltest.TestCase):
 
+  def test_fetch_c8_shared_and_independent_keys(self):
+    from layers import rmt
+    from flax import linen as nn
+    cfg = self._config('RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget')
+    x = jax.random.normal(jax.random.key(80), (1, 4, cfg.emb_dim))
+    matrix = jax.random.normal(jax.random.key(81), (1, 4, cfg.head_dim, 32))
+    for independent in (False, True):
+      module = rmt.RMTDynamicC8Read(
+          cfg, destinations=2, fetch_output=True, independent_output_key=independent)
+      params = nn.unbox(module.init(jax.random.key(82), x, matrix)['params'])
+      params['key_kernel'] = jax.random.normal(jax.random.key(83), params['key_kernel'].shape)
+      if independent:
+        params['o_key_kernel'] = jax.random.normal(jax.random.key(84), params['o_key_kernel'].shape)
+      v, gates, compressed, output_key = module.apply({'params': params}, x, matrix)
+      expected_compressed = jnp.einsum('btvc,cr->btvr', matrix, params['compression'])
+      np.testing.assert_allclose(compressed, expected_compressed, rtol=1e-5, atol=1e-5)
+      raw_v = jnp.einsum('btd,dr->btr', x, params['key_kernel']).reshape((1, 4, 16, 8))
+      v_key = rmt.normalizations.rms_norm(
+          raw_v, dtype=x.dtype, epsilon=rmt._read_epsilon(cfg), statistics_dtype=jnp.float32)
+      np.testing.assert_allclose(v, .2 * gates[..., 0, None] * jnp.einsum(
+          'btvc,btnc->btnv', compressed, v_key), rtol=1e-5, atol=1e-5)
+      if independent:
+        self.assertGreater(float(jnp.max(jnp.abs(output_key-v_key))), .1)
+      else:
+        np.testing.assert_array_equal(output_key, v_key)
+      np.testing.assert_allclose(gates, .05, rtol=1e-5)
+      self.assertEqual('o_key_kernel' in params, independent)
+
+  def test_llf_fetch_causality_segments_health_and_gradients(self):
+    from flax import linen as nn
+    from layers import rmt
+    for suffix in ('SharedVO', 'IndependentVO'):
+      cfg = self._config('RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLF' + suffix)
+      cfg.get_keys()['rmt_mlp_dim_by_block'] = [128, 128, 128]
+      cfg.get_keys()['dtype'] = jnp.float32
+      module = rmt.RMTLayer(cfg, is_fetch=True, mlp_dim=128)
+      matrix = jax.random.normal(jax.random.key(85), (1, 4, 48, cfg.head_dim))
+      segments = jnp.array([[1, 1, 2, 2]])
+      positions = jnp.arange(4)[None]
+      params = nn.unbox(module.init(jax.random.key(86), matrix, segments, positions, True, 2)['params'])
+      vo = params['dynamic_vo']
+      vo['key_kernel'] = .03 * jax.random.normal(jax.random.key(87), vo['key_kernel'].shape)
+      if suffix == 'IndependentVO':
+        vo['o_key_kernel'] = .03 * jax.random.normal(jax.random.key(88), vo['o_key_kernel'].shape)
+      apply = lambda p, m: module.apply({'params': p}, m, segments, positions, True, 2)[0]
+      value = apply(params, matrix)
+      future_changed = matrix.at[:, 3].add(3.)
+      np.testing.assert_allclose(apply(params, future_changed)[:, :3], value[:, :3], rtol=1e-5, atol=1e-5)
+      other_segment_changed = matrix.at[:, :2].add(3.)
+      np.testing.assert_allclose(apply(params, other_segment_changed)[:, 2:], value[:, 2:], rtol=1e-5, atol=1e-5)
+      _, gradient = jax.value_and_grad(lambda p: jnp.mean(apply(p, matrix)**2))(params)
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(g))) for g in jax.tree.leaves(gradient)))
+      self.assertGreater(float(jnp.linalg.norm(gradient['fetch_head_mix_kernel'])), 0.)
+      self.assertGreater(float(jnp.linalg.norm(gradient['dynamic_vo']['gate_kernel'])), 0.)
+      (_, health), aux = module.apply(
+          {'params': params}, matrix, segments, positions, True, 2, mutable=['intermediates'])
+      self.assertEqual(health.shape, (41,))
+      self.assertEqual(aux['intermediates']['rmt_fetch_route_sums'][0].shape, (6,))
+
+  def test_mha_budget_block_scan_health(self):
+    from layers import rmt
+    for suffix in ('', 'LLFSharedVO', 'LLFIndependentVO'):
+      name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget' + suffix
+      cfg = self._config(name)
+      cfg.get_keys()['rmt_mlp_dim_by_block'] = [128, 128, 128]
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      model = models.Transformer(config=cfg, mesh=mesh, quant=None)
+      args = dict(decoder_input_tokens=jnp.ones((1, 4), jnp.int32),
+                  decoder_positions=jnp.arange(4)[None],
+                  decoder_target_tokens=jnp.ones((1, 4), jnp.int32),
+                  decoder_target_mask=jnp.ones((1, 4), jnp.float32),
+                  decoder_segment_ids=jnp.ones((1, 4), jnp.int32), enable_dropout=False)
+      with contextlib.redirect_stdout(io.StringIO()):
+        params = model.init(jax.random.key(89), **args)['params']
+        output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
+      self.assertTrue(all(bool(jnp.all(jnp.isfinite(v))) for v in output))
+      decoder = aux['intermediates']['decoder']['layers']
+      self.assertEqual(decoder['rmt_dynamic_health'][0].shape, (1, 3, 41))
+      self.assertEqual('layer_2' in decoder, bool(suffix))
+      if suffix:
+        self.assertEqual(decoder['layer_2']['rmt_fetch_route_sums'][0].shape, (1, 6))
+
   def test_row_reduced_write_health_matches_partition_statistics(self):
     from layers import rmt
     for dtype in (jnp.float32, jnp.bfloat16):

@@ -9665,6 +9665,43 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNorm(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Repay the attention savings to MLP; match MediumProp MHA total budget."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'
+    base_mlp_dim = 4118
+    rmt_block_scan = True
+    rmt_llf_enabled = False
+    rmt_fetch_independent_o_key = False
+    rmt_mlp_dim_by_block = [4118, 4118, 4118]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNorm',
+                    'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-vectornorm-mha-budget'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    """Six LLF blocks: shared C8 V/O keys, independent gates, fetched O in F."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO'
+    rmt_llf_enabled = True
+    rmt_mlp_dim_by_block = [4118, 4118, 4113]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-vectornorm-mha-budget-llf-shared-vo'
+
+
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO):
+    """Separate F-layer V/O dynamic keys; repay the added O kernel from F MLP."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO'
+    rmt_fetch_independent_o_key = True
+    rmt_mlp_dim_by_block = [4118, 4118, 4070]
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'BamMHAMediumPropC256']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-vectornorm-mha-budget-llf-independent-vo'
+
+
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Fold content RMS into the dynamic address; one combined write per sublayer."""

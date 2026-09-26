@@ -9705,6 +9705,10 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO(
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     """Static seed plus token-conditioned full48 embedding write; repay MLP."""
+    # Ledger only: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: d7cb6c1; rmt_dynamic_boundaries.md.
+    # UE5a v5p-16 .3793 step/s; +.50% vs MHABudget (.3774), steps20-99.
+    # Same layer health; extra boundary RMS/gate health ON.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding'
     rmt_dynamic_embedding_write = True
     rmt_dynamic_unembedding_read = False
@@ -9718,6 +9722,10 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding(
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
     """Static final read plus independent tail32 C8 dynamic read; repay MLP."""
+    # Ledger only: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: d7cb6c1; rmt_dynamic_boundaries.md.
+    # UE5a v5p-16 .3766 step/s; -.23% vs MHABudget (.3774), steps20-99.
+    # Same layer health; extra boundary RMS/gate health ON.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding'
     rmt_dynamic_embedding_write = False
     rmt_dynamic_unembedding_read = True

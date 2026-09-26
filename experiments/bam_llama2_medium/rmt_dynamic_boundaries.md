@@ -66,3 +66,35 @@ DynamicEmbedding < MHABudget. Steady-speed predictions: -.01 and0.00,
 respectively. Dynamic output addresses may release a fixed-read bottleneck;
 embedding dynamism costs a larger amount of MLP capacity and is less certain.
 Direct comparisons: both vs MHABudget and MHA; Unembedding also vs Embedding.
+
+## Startup
+
+Runtime `d7cb6c12b91337f10fc5fcc3721fe6dd5f672f7c`, pushed. Both isolated
+launches passed3 RMT checks and47 pinned BAM checks, verified AOT loaded and
+FIRST_STEP. CPU tests ran on the local workstation; AOT and trainer prequeues
+ran concurrently.
+
+| RUN suffix | UE5a training TPU | EW4a borrowed compiler | Launcher UTC |
+|---|---|---|---|
+| DynamicEmbedding | xd-v5p-16-2609264-maxtext | llm-jax-v6e-1-0 (STANDARD guaranteed) | 2026-09-26T13:35:17Z |
+| DynamicUnembedding | xd-v5p-16-2609265-maxtext | llm-jax-v6e-1-1 (FLEX_START) | 2026-09-26T13:35:05Z |
+
+Neither retained compiler is owned by training cleanup. Launcher evidence:
+`/data0/xd/rmt-dynamic-embedding-launch.log` and
+`/data0/xd/rmt-dynamic-unembedding-launch.log`; startup logs and health cache
+in `/data0/xd/rmt-vectornorm-mha-budget-startup/`.
+
+Boundary health atsteps0/10/20/40: embedding dynamic/static ratio
+3.087/3.556/5.920/12.962, gate mean~.0995 throughout. The native seed RMS is
+~.00594, while normalized dynamic write RMS grows. This boundary is quickly
+dominated by the dynamic route, rather than remaining a small perturbation.
+Unembedding dynamic/static ratio0/.00369/.01241/.07805; gate mean
+.05029/.05029/.05055/.10296. No gates exceed.5 at these early points.
+
+Steady20-99 throughput (inverse mean duration from rounded step/s logs):
+DynamicEmbedding .3792954 (+.4978% vs parent .3774168);
+DynamicUnembedding .3765610 (-.2268%). Same UE5a v5p-16, same inherited
+layer and basic health, plus9 boundary metrics in each new arm. No separate
+health-disabled timing control. The embedding speed bet (-1%) had the wrong
+sign; both measured costs are small. Startup speed evidence:
+`/data0/xd/rmt-vectornorm-mha-budget-startup/boundary-speeds.json`.

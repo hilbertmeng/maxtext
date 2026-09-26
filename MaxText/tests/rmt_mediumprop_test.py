@@ -54,54 +54,62 @@ class RMTMediumPropTest(absltest.TestCase):
     from layers import rmt
     base = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'
     for arm in ('Embedding', 'Unembedding', 'UnembeddingDirect32'):
-      cfg = self._config(base + 'Dynamic' + arm)
-      cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
-      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
-      model = models.Transformer(config=cfg, mesh=mesh, quant=None)
-      args = dict(decoder_input_tokens=jnp.array([[1, 2, 3, 4]], jnp.int32),
-                  decoder_positions=jnp.arange(4)[None], decoder_target_tokens=jnp.ones((1, 4), jnp.int32),
-                  decoder_target_mask=jnp.ones((1, 4), jnp.float32),
-                  decoder_segment_ids=jnp.ones((1, 4), jnp.int32), enable_dropout=False)
-      with contextlib.redirect_stdout(io.StringIO()):
-        params = nn.unbox(model.init(jax.random.key(103), **args)['params'])
-        output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
-      self.assertTrue(all(bool(jnp.all(jnp.isfinite(v))) for v in output))
-      decoder = params['decoder']
-      name = 'embedding' if arm == 'Embedding' else 'unembedding'
-      self.assertIn('seed_key', decoder)
-      self.assertIn('final_read_key', decoder)
-      self.assertIn('dynamic_' + name + ('_write' if arm == 'Embedding' else '_read'), decoder)
-      health = aux['intermediates']['decoder']['rmt_' + name + '_health'][0]
-      self.assertEqual(health.shape, (len(rmt.RMT_BOUNDARY_HEALTH_NAMES),))
-      if arm.startswith('Unembedding'):
-        read = decoder['dynamic_unembedding_read']
-        if arm == 'Unembedding':
-          self.assertEqual(read['compression'].shape, (32, 8))
-          self.assertEqual(read['key_kernel'].shape, (cfg.emb_dim, 16 * 8))
-        else:
-          self.assertNotIn('compression', read)
-          self.assertEqual(read['key_kernel'].shape, (cfg.emb_dim, 16 * 32))
-        np.testing.assert_array_equal(read['key_kernel'], 0.)
-        self.assertEqual(float(health[2]), 0.)
-        self.assertAlmostEqual(float(health[4]), .05, places=6)
-        parent_cfg = self._config(base)
-        parent_cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
-        parent = models.Transformer(config=parent_cfg, mesh=mesh, quant=None)
-        with contextlib.redirect_stdout(io.StringIO()):
-          parent_params = nn.unbox(parent.init(jax.random.key(103), **args)['params'])
-          parent_output = parent.apply({'params': parent_params}, **args)
-        for a, b in zip(jax.tree.leaves(output), jax.tree.leaves(parent_output)):
-          np.testing.assert_array_equal(a, b)
-      with contextlib.redirect_stdout(io.StringIO()):
-        gradient = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
-      self.assertTrue(all(bool(jnp.all(jnp.isfinite(g))) for g in jax.tree.leaves(gradient)))
-      if arm == 'Embedding':
-        for key in ('address_down', 'address_up', 'gate_kernel'):
-          self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_embedding_write'][key])), 0.)
-        self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['embedding_write_content']['kernel'])), 0.)
-      else:
-        self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_unembedding_read']['key_kernel'])), 0.)
+      self._check_dynamic_boundary(arm)
 
+  def test_direct32_boundary_health_initialization_and_gradients(self):
+    self._check_dynamic_boundary('UnembeddingDirect32')
+
+  def _check_dynamic_boundary(self, arm):
+    from flax import linen as nn
+    from layers import rmt
+    base = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'
+    cfg = self._config(base + 'Dynamic' + arm)
+    cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
+    mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+    model = models.Transformer(config=cfg, mesh=mesh, quant=None)
+    args = dict(decoder_input_tokens=jnp.array([[1, 2, 3, 4]], jnp.int32),
+                decoder_positions=jnp.arange(4)[None], decoder_target_tokens=jnp.ones((1, 4), jnp.int32),
+                decoder_target_mask=jnp.ones((1, 4), jnp.float32),
+                decoder_segment_ids=jnp.ones((1, 4), jnp.int32), enable_dropout=False)
+    with contextlib.redirect_stdout(io.StringIO()):
+      params = nn.unbox(model.init(jax.random.key(103), **args)['params'])
+      output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
+    self.assertTrue(all(bool(jnp.all(jnp.isfinite(v))) for v in output))
+    decoder = params['decoder']
+    name = 'embedding' if arm == 'Embedding' else 'unembedding'
+    self.assertIn('seed_key', decoder)
+    self.assertIn('final_read_key', decoder)
+    self.assertIn('dynamic_' + name + ('_write' if arm == 'Embedding' else '_read'), decoder)
+    health = aux['intermediates']['decoder']['rmt_' + name + '_health'][0]
+    self.assertEqual(health.shape, (len(rmt.RMT_BOUNDARY_HEALTH_NAMES),))
+    if arm.startswith('Unembedding'):
+      read = decoder['dynamic_unembedding_read']
+      if arm == 'Unembedding':
+        self.assertEqual(read['compression'].shape, (32, 8))
+        self.assertEqual(read['key_kernel'].shape, (cfg.emb_dim, 16 * 8))
+      else:
+        self.assertNotIn('compression', read)
+        self.assertEqual(read['key_kernel'].shape, (cfg.emb_dim, 16 * 32))
+      np.testing.assert_array_equal(read['key_kernel'], 0.)
+      self.assertEqual(float(health[2]), 0.)
+      self.assertAlmostEqual(float(health[4]), .05, places=6)
+      parent_cfg = self._config(base)
+      parent_cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
+      parent = models.Transformer(config=parent_cfg, mesh=mesh, quant=None)
+      with contextlib.redirect_stdout(io.StringIO()):
+        parent_params = nn.unbox(parent.init(jax.random.key(103), **args)['params'])
+        parent_output = parent.apply({'params': parent_params}, **args)
+      for a, b in zip(jax.tree.leaves(output), jax.tree.leaves(parent_output)):
+        np.testing.assert_array_equal(a, b)
+    with contextlib.redirect_stdout(io.StringIO()):
+      gradient = jax.grad(lambda p: jnp.sum(model.apply({'params': p}, **args)[0]))(params)
+    self.assertTrue(all(bool(jnp.all(jnp.isfinite(g))) for g in jax.tree.leaves(gradient)))
+    if arm == 'Embedding':
+      for key in ('address_down', 'address_up', 'gate_kernel'):
+        self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_embedding_write'][key])), 0.)
+      self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['embedding_write_content']['kernel'])), 0.)
+    else:
+      self.assertGreater(float(jnp.linalg.norm(gradient['decoder']['dynamic_unembedding_read']['key_kernel'])), 0.)
 
   def test_direct32_unembedding_matches_full_tail_read_and_gradients(self):
     from flax import linen as nn

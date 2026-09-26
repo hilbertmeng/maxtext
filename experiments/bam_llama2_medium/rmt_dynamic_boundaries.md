@@ -119,3 +119,21 @@ CPU checks extend full-tree parameter audit and full-model zero-read/finite-grad
 checks to this arm, plus nonzero-key direct32 read/value/gradient equivalence.
 Launch uses the verified idle FLEX_START llm-jax-v6e-1-1 in EW4a only for AOT;
 new UE5a training TPU xd-v5p-16-2609266-maxtext is separately owned.
+
+Runtime `a5364424af6e2e03f16a83754d5263016c681551`, pushed. Launched
+2026-09-26T15:01:08Z on UE5a xd-v5p-16-2609266-maxtext after4 RMT and47 BAM
+checks passed. Verified compiled artifact loaded, actual step20 and onward.
+Steady20-99 .3757134 step/s (-.4513% vs MHABudget .3774168), same inherited
+health plus9 boundary fields. Prequeue first observed READY14:55:59Z; registry
+controller observation15:01:12Z. Evidence: /data0/xd/rmt-dynamic-unembedding-direct32-launch.log,
+/data0/xd/rmt-unembedding-direct32-step14.log, /data0/xd/rmt-unembedding-direct32-speed.json.
+Only MHABudget is registered as baseline. First800 report every200, then~1000-step
+batches; review2800.
+
+Future local boundary changes use `run_rmt_unembedding_direct32_cpu_tests.sh`
+with `--cpu-test-scope targeted`, retaining full-size parameter audit, target
+full-model initialization/gradients/health, nonzero direct-read equivalence,
+and existing C8 V/O/fetch key regression. These checks passed in~1 minute
+with3 bounded CPU groups. Full BAM regression also passed in141s with4 groups
+(vs359s serial). Training runtime remains a536442; these workflow/tests-only
+updates do not hot-switch running models.

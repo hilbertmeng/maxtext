@@ -1,5 +1,6 @@
 """Count actual full-size parameter trees without allocating parameter arrays."""
 
+import argparse
 import contextlib
 import io
 import json
@@ -32,9 +33,14 @@ EXPECTED = {
 
 
 def main():
+  parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument('--exp-class', action='append', choices=sorted(EXPECTED))
+  args = parser.parse_args()
+  selected = args.exp_class or list(EXPECTED)
   root = Path(__file__).resolve().parents[2]
   results = {}
-  for name, expected in EXPECTED.items():
+  for name in selected:
+    expected = EXPECTED[name]
     with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
       Path(directory, 'audit').mkdir()
       cfg = pyconfig.initialize(

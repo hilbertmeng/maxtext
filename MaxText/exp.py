@@ -9740,6 +9740,10 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding(
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding):
     """Uncompressed tail32 dynamic final read; repay its larger key from MLP."""
+    # Ledger only: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: a536442; rmt_dynamic_boundaries.md.
+    # UE5a v5p-16 .3757 step/s; -.45% vs MHABudget (.3774), steps20-99.
+    # Same layer health; extra boundary RMS/gate health ON.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32'
     rmt_dynamic_unembedding_direct_read = True
     base_mlp_dim = 4108

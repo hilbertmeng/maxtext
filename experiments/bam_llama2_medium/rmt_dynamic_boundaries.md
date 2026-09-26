@@ -111,7 +111,8 @@ read consumes the entire tail32x75 state. Middle-layer C8 reads stay unchanged.
 
 Boundary parameters634816 =1200 proxy RMSNorm +614400 key +19200 gate +16 bias,
 .440844 W_Q; vs C8 +460544 (.319822 W_Q). MLP widths4108/4108/4109 give
-432121168 total parameters,32 below MHA budget. Only compare to MHABudget.
+432121168 total parameters,32 below MHA budget. Compare to MHABudget and
+C8 DynamicUnembedding.
 Pre-run13500-step bet: gap-.006; steady speed-1% vs MHABudget. A larger
 output-address space can remove the C8 read bottleneck, at the cost of MLP width.
 
@@ -127,7 +128,7 @@ Steady20-99 .3757134 step/s (-.4513% vs MHABudget .3774168), same inherited
 health plus9 boundary fields. Prequeue first observed READY14:55:59Z; registry
 controller observation15:01:12Z. Evidence: /data0/xd/rmt-dynamic-unembedding-direct32-launch.log,
 /data0/xd/rmt-unembedding-direct32-step14.log, /data0/xd/rmt-unembedding-direct32-speed.json.
-Only MHABudget is registered as baseline. First800 report every200, then~1000-step
+Current baselines: MHABudget and C8 DynamicUnembedding. First800 report every200, then~1000-step
 batches; review2800.
 
 Future local boundary changes use `run_rmt_unembedding_direct32_cpu_tests.sh`
@@ -140,6 +141,12 @@ updates do not hot-switch running models.
 
 Monitoring scope update2026-09-26: user removed recurring loss reports for
 MHABudget and LLFSharedVO (both continue training). Agent reports only
-DynamicEmbedding, DynamicUnembedding and DynamicUnembeddingDirect32, each vs
-MHABudget; no peer or MHA comparison. Old RUNs remain owned until completion
+DynamicEmbedding, DynamicUnembedding and DynamicUnembeddingDirect32, all vs
+MHABudget; Direct32 also vs C8 DynamicUnembedding. No embedding-vs-output or MHA comparison. Old RUNs remain owned until completion
 for cleanup/ledger bookkeeping.
+
+Direct32 baseline correction2026-09-26: also compare to DynamicUnembedding
+(C8). This directly evaluates removing output compression and repaying the
+larger key from MLP; MHABudget remains the overall-gain baseline. Runtime is
+unchanged; live registry comparisons were updated. The earlier no-peer rule
+continues to exclude embedding-vs-unembedding comparisons.

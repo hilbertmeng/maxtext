@@ -9748,7 +9748,8 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDi
     rmt_dynamic_unembedding_direct_read = True
     base_mlp_dim = 4108
     rmt_mlp_dim_by_block = [4108, 4108, 4109]
-    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget']
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
+                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-unembedding-direct32'
 
 

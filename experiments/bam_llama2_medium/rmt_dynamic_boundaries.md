@@ -65,7 +65,8 @@ DynamicUnembedding -.008. Loss ordering: DynamicUnembedding <
 DynamicEmbedding < MHABudget. Steady-speed predictions: -.01 and0.00,
 respectively. Dynamic output addresses may release a fixed-read bottleneck;
 embedding dynamism costs a larger amount of MLP capacity and is less certain.
-Direct comparisons: both vs MHABudget and MHA; Unembedding also vs Embedding.
+Direct comparisons: each arm vs MHABudget only. No peer or MHA loss reports.
+First800 steps: report every200 steps; thereafter about1000 steps per batch.
 
 ## Startup
 

@@ -9714,8 +9714,7 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding(
     rmt_dynamic_unembedding_read = False
     base_mlp_dim = 4088
     rmt_mlp_dim_by_block = [4088, 4088, 4087]
-    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
-                    'BamMHAMediumPropC256']
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-embedding'
 
 
@@ -9731,9 +9730,7 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding(
     rmt_dynamic_unembedding_read = True
     base_mlp_dim = 4115
     rmt_mlp_dim_by_block = [4115, 4115, 4116]
-    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
-                    'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding',
-                    'BamMHAMediumPropC256']
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget']
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mha-budget-dynamic-unembedding'
 
 

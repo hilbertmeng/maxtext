@@ -9670,7 +9670,7 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP(
     """Retain dynamic attention, but use only native RMT MLP reads and writes."""
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP'
     rmt_dynamic_mlp_enabled = False
-    base_mlp_dim = 2713  # +194*3600 offsets all but 8 of 698408 removed params/layer.
+    base_mlp_dim = 2713  # +194*3600 exceeds 698064 removed params/layer by 336.
     compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNorm',
                     'RMTMediumPropK48DynamicFull48RoPE18',
                     'BamMediumPropK75AllLocalMOnlyAlibiRMTBudget',

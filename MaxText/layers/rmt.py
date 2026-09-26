@@ -51,6 +51,25 @@ def _write_health(dynamic, static):
   return ratio, cosine
 
 
+def _row_reduced_write_health(dynamic, reference):
+  """Compute identical partition statistics without slicing full matrix tensors."""
+  dynamic, reference = dynamic.astype(jnp.float32), reference.astype(jnp.float32)
+  # Leave only K rows before splitting first16/tail32. All large-array
+  # products/reductions can fuse; no full B*T*K*V partition copies are needed.
+  axes = (0, 1, 3)
+  dynamic_ms = jnp.mean(jnp.square(dynamic), axis=axes)
+  reference_ms = jnp.mean(jnp.square(reference), axis=axes)
+  cross = jnp.mean(dynamic * reference, axis=axes)
+  values = []
+  for part in (slice(None, 16), slice(16, None)):
+    dynamic_rms = jnp.sqrt(jnp.mean(dynamic_ms[part]))
+    reference_rms = jnp.sqrt(jnp.mean(reference_ms[part]))
+    values.extend((dynamic_rms / jnp.maximum(reference_rms, 1e-12),
+                   jnp.mean(cross[part]) /
+                   jnp.maximum(dynamic_rms * reference_rms, 1e-12)))
+  return tuple(values)
+
+
 def _dynamic_outer_write(address, data, method):
   """Equivalent write contractions for matched full-step lowering diagnostics."""
   if method == 'dot':
@@ -461,9 +480,13 @@ class RMTLayer(nn.Module):
           # Without static writes, report amplitude/alignment against the residual.
           writes = ((dynamic_attn_write, static_attn_write if static_write_enabled else attn_residual),
                     (dynamic_mlp_write, static_mlp_write if static_write_enabled else mlp_residual))
-          values.extend(v for dyn, stat in writes for part in
-                        (slice(None, 16), slice(16, None))
-                        for v in _write_health(dyn[..., part, :], stat[..., part, :]))
+          if cfg.get_keys().get('rmt_write_health_row_reduce', False):
+            values.extend(v for dyn, stat in writes
+                          for v in _row_reduced_write_health(dyn, stat))
+          else:
+            values.extend(v for dyn, stat in writes for part in
+                          (slice(None, 16), slice(16, None))
+                          for v in _write_health(dyn[..., part, :], stat[..., part, :]))
       values.extend((_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
                      _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
       assert len(values) == len(dynamic_health_names(record_write_health))

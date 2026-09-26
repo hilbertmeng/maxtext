@@ -17,6 +17,18 @@ from layers import attentions, models
 
 class RMTMediumPropTest(absltest.TestCase):
 
+  def test_row_reduced_write_health_matches_partition_statistics(self):
+    from layers import rmt
+    for dtype in (jnp.float32, jnp.bfloat16):
+      dynamic = jax.random.normal(jax.random.key(71), (2, 7, 48, 75)).astype(dtype)
+      reference = jax.random.normal(jax.random.key(72), dynamic.shape).astype(dtype)
+      for a, b in ((dynamic, reference), (dynamic, dynamic),
+                   (jnp.zeros_like(dynamic), reference)):
+        expected = tuple(v for part in (slice(None, 16), slice(16, None))
+                         for v in rmt._write_health(a[..., part, :], b[..., part, :]))
+        np.testing.assert_allclose(rmt._row_reduced_write_health(a, b),
+                                   expected, rtol=2e-5, atol=2e-6)
+
   def test_write_health_toggle_preserves_other_metrics_and_parameters(self):
     from layers import rmt
     expected_names = tuple(n for n in rmt.RMT_DYNAMIC_HEALTH_NAMES
@@ -37,6 +49,27 @@ class RMTMediumPropTest(absltest.TestCase):
       health = np.asarray(intermediate['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
       self.assertEqual(health.shape, (3, 33))
       self.assertTrue(np.all(np.isfinite(health)))
+
+  def test_row_reduced_health_preserves_model_and_all_metrics(self):
+    for optimized, parent in (
+        ('RMTVectorNormRowReducedWriteHealthProfile',
+         'RMTMediumPropK48DynamicFull48RoPE18VectorNorm'),
+        ('RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile',
+         'RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite')):
+      old_model, old_args, old_params = self._run(parent)
+      model, args, params = self._run(optimized)
+      self.assertEqual(jax.tree.structure(params), jax.tree.structure(old_params))
+      for a, b in zip(jax.tree.leaves(params), jax.tree.leaves(old_params)):
+        np.testing.assert_array_equal(a, b)
+      with contextlib.redirect_stdout(io.StringIO()):
+        old_output, old_aux = old_model.apply({'params': old_params}, **old_args,
+                                              mutable=['intermediates'])
+        output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
+      np.testing.assert_array_equal(output[0], old_output[0])
+      old_health = old_aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
+      health = aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
+      self.assertEqual(health.shape, (3, 41))
+      np.testing.assert_allclose(health, old_health, rtol=2e-5, atol=2e-6)
 
   def test_write_contractions_preserve_values_and_gradients(self):
     from layers import rmt

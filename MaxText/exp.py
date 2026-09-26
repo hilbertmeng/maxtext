@@ -9732,6 +9732,20 @@ class RMTVectorNormSingleOuterMulReduceNoExtraHealthProfile(
     rmt_write_contraction = 'mul_reduce'
 
 
+class RMTVectorNormRowReducedWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Diagnostic only: retain all health, reduce write moments by row first."""
+    model_name = 'RMTVectorNormRowReducedWriteHealthProfile'
+    rmt_write_health_row_reduce = True
+
+
+class RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: preserve all pure-write health without full-M slices."""
+    model_name = 'RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile'
+    rmt_write_health_row_reduce = True
+
+
 class RMTVectorNormNoWriteHealthProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Diagnostic only: remove eight write statistics, retain reads/gates/M health."""

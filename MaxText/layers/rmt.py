@@ -479,9 +479,11 @@ class RMTLayer(nn.Module):
       (dynamic_mlp_read,), mlp_read_gate = RMTDynamicC8Read(
           cfg, destinations=1, name='dynamic_mlp_read')(mlp_x, mlp_M)
       vector = vector + dynamic_mlp_read
-    vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
+    headwise_mlp = cfg.get_keys().get('rmt_headwise_mlp', False)
+    if not headwise_mlp:
+      vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
     if cfg.get_keys().get('rmt_static_mlp_read_pre_norm', False):
-      if dynamic_mlp_read_enabled:
+      if dynamic_mlp_read_enabled or headwise_mlp:
         raise ValueError('Static MLP read pre-norm requires the static MLP route')
       vector = normalizations.get_rmsnorm('mlp_read_vector_norm', cfg)(vector)
     vector = linears.MlpBlock(
@@ -490,8 +492,9 @@ class RMTLayer(nn.Module):
         intermediate_dropout_rate=cfg.dropout_rate,
         dtype=cfg.dtype, weight_dtype=cfg.weight_dtype,
         kernel_init=initializers.get_init_method(cfg.init_method),
-        quant=self.quant, name='mlp')(vector, deterministic=deterministic)
-    vector = vector.reshape(vector.shape[:2] + (heads, value_dim))
+        quant=self.quant, headwise=headwise_mlp, name='mlp')(vector, deterministic=deterministic)
+    if not headwise_mlp:
+      vector = vector.reshape(vector.shape[:2] + (heads, value_dim))
     mlp_residual = matrix
     if static_write_enabled:
       mlp_write = self.param('mlp_write_key', write_init,

@@ -282,6 +282,7 @@ class MlpBlock(nn.Module):
   use_bias: bool = False
   use_pre_norm: bool = False
   quant: Optional[Quant] = None
+  headwise: bool = False
 
   def setup(self):
     cfg = self.config
@@ -313,6 +314,13 @@ class MlpBlock(nn.Module):
     """Applies Transformer MlpBlock module."""
     cfg = self.config
 
+    if self.headwise and (inputs.ndim != 4 or self.use_pre_norm or cfg.fused_mlp
+                          or cfg.mgate_dim >= 2 or cfg.deep_embed_type != 'none'):
+      raise ValueError('Headwise MLP requires a rank4 input, unfused projections, and no vector-only extensions')
+    input_axes = (-2, -1) if self.headwise else (-1,)
+    wi_axes = ('embed', None, 'mlp') if self.headwise else ('embed', 'mlp')
+    wo_axes = ('mlp', 'embed', None) if self.headwise else ('mlp', 'embed')
+
     if self.use_pre_norm:
       inputs = normalizations.get_rmsnorm("mlp_layer_norm", cfg)(inputs)
 
@@ -340,10 +348,11 @@ class MlpBlock(nn.Module):
         dense_name = "wi" if len(self.activations) == 1 else f"wi_{idx}"
         x = DenseGeneral(
             self.intermediate_dim,
+            axis=input_axes,
             dtype=self.dtype,
             weight_dtype=self.weight_dtype,
             kernel_init=self.kernel_init,
-            kernel_axes=("embed", "mlp"),
+            kernel_axes=wi_axes,
             name=dense_name,
             quant=self.quant,
             use_bias=self.use_bias,
@@ -377,11 +386,11 @@ class MlpBlock(nn.Module):
       x = self.deep_embed_block(inputs, x, decoder_input_tokens, deep_embedding)
 
     output = DenseGeneral(
-        inputs.shape[-1],
+        inputs.shape[-2:] if self.headwise else inputs.shape[-1],
         dtype=self.dtype,
         weight_dtype=self.weight_dtype,
         kernel_init=self.kernel_init,
-        kernel_axes=("mlp", "embed"),
+        kernel_axes=wo_axes,
         name="wo",
         quant=self.quant,
         use_bias=self.use_bias,

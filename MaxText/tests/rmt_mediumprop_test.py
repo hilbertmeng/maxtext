@@ -17,6 +17,73 @@ from layers import attentions, models
 
 class RMTMediumPropTest(absltest.TestCase):
 
+  def test_headwise_mlp_preserves_initialization_values_and_gradients(self):
+    from flax import linen as nn
+    from layers import initializers, linears
+    cfg = self._config('RMTVectorNormMHABudgetHeadwiseMLPProfile')
+    heads, width = 16, cfg.head_dim
+    x = jax.random.normal(jax.random.key(95), (1, 4, heads, width))
+    for dtype, tolerance in ((jnp.float32, 2e-5), (jnp.bfloat16, .025)):
+      kwargs = dict(config=cfg, intermediate_dim=128, activations=cfg.mlp_activations,
+                    intermediate_dropout_rate=0., dtype=dtype, weight_dtype=jnp.float32,
+                    kernel_init=initializers.get_init_method(cfg.init_method))
+      old, new = linears.MlpBlock(**kwargs), linears.MlpBlock(**kwargs, headwise=True)
+      old_params = nn.unbox(old.init(jax.random.key(96), x.reshape((1, 4, -1)), deterministic=True)['params'])
+      new_params = nn.unbox(new.init(jax.random.key(96), x, deterministic=True)['params'])
+      for a, b in zip(jax.tree.leaves(old_params), jax.tree.leaves(new_params)):
+        np.testing.assert_array_equal(a.reshape(-1), b.reshape(-1))
+      old_fn = lambda p, z: old.apply({'params': p}, z.reshape((1, 4, -1)), deterministic=True).reshape(x.shape)
+      new_fn = lambda p, z: new.apply({'params': p}, z, deterministic=True)
+      np.testing.assert_allclose(new_fn(new_params, x), old_fn(old_params, x),
+                                 rtol=tolerance, atol=tolerance)
+      _, old_grad = jax.value_and_grad(lambda p, z: jnp.sum(old_fn(p, z).astype(jnp.float32)**2), (0, 1))(old_params, x)
+      _, new_grad = jax.value_and_grad(lambda p, z: jnp.sum(new_fn(p, z).astype(jnp.float32)**2), (0, 1))(new_params, x)
+      for a, b in zip(jax.tree.leaves(old_grad), jax.tree.leaves(new_grad)):
+        np.testing.assert_allclose(a.reshape(-1), b.reshape(-1), rtol=tolerance, atol=tolerance)
+
+  def test_headwise_rmt_block_kernel_conversion_preserves_forward(self):
+    from flax import linen as nn
+    for profile, parent in (
+        ('RMTVectorNormMHABudgetHeadwiseMLPProfile',
+         'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'),
+        ('RMTVectorNormMHABudgetHeadwiseMLPTransposedCarryProfile',
+         'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget'),
+        ('RMTVectorNormMHABudgetLLFSharedVOHeadwiseMLPProfile',
+         'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO')):
+      cfg = self._config(profile)
+      cfg.get_keys()['rmt_mlp_dim_by_block'] = [128, 128, 128]
+      cfg.get_keys()['dtype'] = jnp.float32
+      mesh = jax.sharding.Mesh(max_utils.create_device_mesh(cfg), cfg.mesh_axes)
+      model = models.Transformer(config=cfg, mesh=mesh, quant=None)
+      args = dict(decoder_input_tokens=jnp.array([[1, 2, 3, 4]], jnp.int32),
+                  decoder_positions=jnp.arange(4)[None], decoder_target_tokens=jnp.ones((1, 4), jnp.int32),
+                  decoder_target_mask=jnp.ones((1, 4), jnp.float32),
+                  decoder_segment_ids=jnp.ones((1, 4), jnp.int32), enable_dropout=False)
+      with contextlib.redirect_stdout(io.StringIO()):
+        params = nn.unbox(model.init(jax.random.key(97), **args)['params'])
+      old_cfg = self._config(parent)
+      old_cfg.get_keys().update(dtype=jnp.float32, rmt_mlp_dim_by_block=[128, 128, 128])
+      old_model = models.Transformer(config=old_cfg, mesh=mesh, quant=None)
+      def flatten_mlp(path, value):
+        keys = [getattr(key, 'key', None) for key in path]
+        if 'mlp' not in keys or keys[-1] != 'kernel':
+          return value
+        axis = cfg.param_scan_axis
+        v = jnp.moveaxis(value, axis, 0)
+        if keys[-2].startswith('wi'):
+          v = v.reshape((v.shape[0], cfg.emb_dim, v.shape[-1]))
+        elif keys[-2] == 'wo':
+          v = v.reshape((v.shape[0], v.shape[1], cfg.emb_dim))
+        else:
+          raise AssertionError(keys)
+        return jnp.moveaxis(v, 0, axis)
+      old_params = jax.tree.map_with_path(flatten_mlp, params)
+      with contextlib.redirect_stdout(io.StringIO()):
+        expected = old_model.apply({'params': old_params}, **args)
+        actual = model.apply({'params': params}, **args)
+      for a, b in zip(jax.tree.leaves(expected), jax.tree.leaves(actual)):
+        np.testing.assert_allclose(a, b, rtol=2e-5, atol=2e-5)
+
   def test_fetch_c8_shared_and_independent_keys(self):
     from layers import rmt
     from flax import linen as nn

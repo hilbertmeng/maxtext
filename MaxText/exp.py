@@ -9702,6 +9702,34 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFIndependentVO(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-vectornorm-mha-budget-llf-independent-vo'
 
 
+class RMTVectorNormMHABudgetHeadwiseMLPProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    """Diagnostic: rank3 MLP kernels preserve the head/value activation axes."""
+    model_name = 'RMTVectorNormMHABudgetHeadwiseMLPProfile'
+    rmt_headwise_mlp = True
+
+
+class RMTVectorNormMHABudgetLLFSharedVOHeadwiseMLPProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO):
+    """Diagnostic: rank3 MLP kernels in the matched-budget LLF model."""
+    model_name = 'RMTVectorNormMHABudgetLLFSharedVOHeadwiseMLPProfile'
+    rmt_headwise_mlp = True
+
+
+class RMTVectorNormMHABudgetTransposedCarryProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget):
+    """Diagnostic: transpose the block-scan carry, preserve vector MLP kernels."""
+    model_name = 'RMTVectorNormMHABudgetTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
+class RMTVectorNormMHABudgetHeadwiseMLPTransposedCarryProfile(
+    RMTVectorNormMHABudgetHeadwiseMLPProfile):
+    """Diagnostic: combine headwise MLP kernels with transposed matrix carry."""
+    model_name = 'RMTVectorNormMHABudgetHeadwiseMLPTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Fold content RMS into the dynamic address; one combined write per sublayer."""

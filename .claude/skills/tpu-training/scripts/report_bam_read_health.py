@@ -195,7 +195,8 @@ def _cached_local_points(event_dir: Path, target_steps: list[int]):
       )
       points: dict[str, dict[int, float]] = {}
       for _, tag, step, value in connection.execute(query, parameters):
-        points.setdefault(tag, {})[int(step)] = float(value)
+        # SQLite stores IEEE NaN as NULL; preserve it as an unhealthy scalar.
+        points.setdefault(tag, {})[int(step)] = math.nan if value is None else float(value)
       tags = {
           row[0] for row in connection.execute("SELECT DISTINCT tag FROM scalars")
       }

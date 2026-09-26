@@ -195,10 +195,11 @@ class RMTMediumPropTest(absltest.TestCase):
     output = tempfile.TemporaryDirectory()
     self.addCleanup(output.cleanup)
     Path(output.name, 'test').mkdir()
-    dynamic_rmt = name.startswith(('RMTMediumPropAlibiK48Dynamic',
-                                   'RMTMediumPropK48Dynamic'))
+    import exp
+    experiment = getattr(exp, name)
+    dynamic_rmt = bool(getattr(experiment, 'rmt_dynamic_enabled', False))
     heads = 16 if dynamic_rmt else 2
-    head_dim = (20 if 'RoPE18' in name else 3) if dynamic_rmt else 75
+    head_dim = (20 if getattr(experiment, 'rmt_rope_qk_dim', 0) else 3) if dynamic_rmt else 75
     with contextlib.redirect_stdout(io.StringIO()):
       cfg = pyconfig.initialize(
           [None, str(Path(__file__).parents[1] / 'configs/base.yml')],

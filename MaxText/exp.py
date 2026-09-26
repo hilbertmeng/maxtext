@@ -9711,6 +9711,20 @@ class RMTVectorNormNoExtraHealthProfile(
     rmt_record_dynamic_health = False
 
 
+class RMTVectorNormNoWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Diagnostic only: remove eight write statistics, retain reads/gates/M health."""
+    model_name = 'RMTVectorNormNoWriteHealthProfile'
+    rmt_record_write_health = False
+
+
+class RMTVectorNormSingleOuterNoWriteHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite):
+    """Diagnostic only: remove write-health Gram, keep all other requested health."""
+    model_name = 'RMTVectorNormSingleOuterNoWriteHealthProfile'
+    rmt_record_write_health = False
+
+
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Retain dynamic attention, but use only native RMT MLP reads and writes."""

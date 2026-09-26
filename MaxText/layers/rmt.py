@@ -28,6 +28,13 @@ RMT_DYNAMIC_HEALTH_NAMES = (
 )
 
 
+def dynamic_health_names(record_write_health=True):
+  """Keep read/gate/state metrics when diagnostic write statistics are disabled."""
+  return tuple(name for name in RMT_DYNAMIC_HEALTH_NAMES
+               if record_write_health or not
+               ('_write_' in name and name.endswith(('_ratio', '_cosine'))))
+
+
 def _rms(x):
   return jnp.sqrt(jnp.mean(jnp.square(x.astype(jnp.float32))))
 
@@ -216,7 +223,8 @@ class RMTDynamicWrite(nn.Module):
       write = _dynamic_outer_write(combined_address, data,
                                    cfg.get_keys().get('rmt_write_contraction', 'dot'))
       health = (_factorized_write_health(dynamic_address, static_address.astype(data.dtype), data)
-                if cfg.get_keys().get('rmt_record_dynamic_health', False) else ())
+                if (cfg.get_keys().get('rmt_record_dynamic_health', False)
+                    and cfg.get_keys().get('rmt_record_write_health', True)) else ())
       return write, gate, health
     data = normalizations.rms_norm(
         data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
@@ -445,18 +453,20 @@ class RMTLayer(nn.Module):
                mlp_read_gate[..., 0], attn_write_gate, mlp_write_gate)
       values = [v for pair in reads for v in _read_health(*pair)]
       values.extend(v for gate in gates for v in _gate_health(gate))
-      if single_outer_write:
-        values.extend(attn_write_health + mlp_write_health)
-      else:
-        # Without static writes, report amplitude/alignment against the residual.
-        writes = ((dynamic_attn_write, static_attn_write if static_write_enabled else attn_residual),
-                  (dynamic_mlp_write, static_mlp_write if static_write_enabled else mlp_residual))
-        values.extend(v for dyn, stat in writes for part in
-                      (slice(None, 16), slice(16, None))
-                      for v in _write_health(dyn[..., part, :], stat[..., part, :]))
+      record_write_health = cfg.get_keys().get('rmt_record_write_health', True)
+      if record_write_health:
+        if single_outer_write:
+          values.extend(attn_write_health + mlp_write_health)
+        else:
+          # Without static writes, report amplitude/alignment against the residual.
+          writes = ((dynamic_attn_write, static_attn_write if static_write_enabled else attn_residual),
+                    (dynamic_mlp_write, static_mlp_write if static_write_enabled else mlp_residual))
+          values.extend(v for dyn, stat in writes for part in
+                        (slice(None, 16), slice(16, None))
+                        for v in _write_health(dyn[..., part, :], stat[..., part, :]))
       values.extend((_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
                      _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
-      assert len(values) == len(RMT_DYNAMIC_HEALTH_NAMES)
+      assert len(values) == len(dynamic_health_names(record_write_health))
       self.sow('intermediates', 'rmt_dynamic_health', jnp.stack(values))
     return matrix, None
 

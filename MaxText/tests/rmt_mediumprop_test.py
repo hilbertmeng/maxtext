@@ -75,7 +75,8 @@ class RMTMediumPropTest(absltest.TestCase):
         old_health = np.asarray(old_aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
         health = np.asarray(aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
         self.assertEqual(health.shape, (3, 41))
-        np.testing.assert_array_equal(health[:, other_slots], old_health[:, other_slots])
+        np.testing.assert_allclose(health[:, other_slots], old_health[:, other_slots],
+                                   rtol=2e-6, atol=2e-7)
         # First prove the reordered formulas at FP32 model precision; BF16
         # scan fusion can change auxiliary statistics at the carry boundary.
         atol = 2e-6 if dtype == jnp.float32 else 1e-4

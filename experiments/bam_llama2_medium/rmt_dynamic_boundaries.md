@@ -61,9 +61,8 @@ CPU tests, AOT on the two retained EW4a compilers, and UE5a trainer prequeues
 run concurrently. Retained compilers are borrowed only and never cleaned up.
 
 Pre-run13500-step bets vs MHABudget: DynamicEmbedding -.004;
-DynamicUnembedding -.008. Loss ordering: DynamicUnembedding <
-DynamicEmbedding < MHABudget. Steady-speed predictions: -.01 and0.00,
-respectively. Dynamic output addresses may release a fixed-read bottleneck;
+C8 DynamicUnembedding is now closed; its bet removed.
+DynamicEmbedding steady-speed prediction: -.01. Dynamic output addresses may release a fixed-read bottleneck;
 embedding dynamism costs a larger amount of MLP capacity and is less certain.
 Direct comparisons: each arm vs MHABudget only. No peer or MHA loss reports.
 First800 steps: report every200 steps; thereafter about1000 steps per batch.
@@ -175,3 +174,40 @@ test helper needed two assertion fixes (branch name and nonzero gate-kernel
 mean vs bias opening); runtime layers needed no changes.
 User endpoint: after the paired review, launch this arm if supported; verify
 compiled-load/first step and initial speed, then finish without monitoring it.
+
+Direct32 paired review: latest5 through2800 vs MHABudget -.015066
+(range -.015746..-.014211); vs C8 -.013763 (range -.014838..-.011868).
+Lead vs C8 persists from400, near-flat ~-.015 vs MHABudget from1400;
+matched-health steady speed only-.225% vs C8. C8 stopped5088, latest5
+through5000 vs MHABudget -.001512; after1400 remained nearzero.
+Resources verified absent, local closeout TB SYNC_OK, no lost steps.
+C8 had one UE5a v5p-16 READY lease13:35:08->17:25:20UTC,3h50m12s,
+zero preemptions. Evidence: /data0/xd/rmt-c8-unembedding-closeout.log.
+Embedding through4200 still gains -.013829 latest5 vs MHABudget.
+Both individual gains justify the combined arm's launch. Dynamic outlet
+benefit is real here, but C8 captured little of it; do not generalize this
+to intermediate C8 reads or pure dynamic-address causality at embedding.
+
+Combined arm startup2026-09-26: runtimebe5491f2e19dbc33d2b9407b8afbf7329f13df56;
+UE5a xd-v5p-16-2609267-maxtext. Parallel preparation began17:25:25UTC;
+CPU checks passed72.05s (plus parameter audit), AOT verified on borrowed
+EW4a FLEX_START llm-jax-v6e-1-1, prequeueREADY17:30:46UTC, controller
+launch17:30:51UTC. Loaded compiled function verified, actual FIRST_STEP2,
+REACHED_STEP16, initial~.379 steps/s. Artifacts:
+/data0/xd/rmt-combined-boundaries-launch.log,
+/data0/xd/rmt-combined-boundaries-step14.log,
+/data0/xd/rmt-combined-boundaries-compiled-loaded.log.
+No training-loss monitoring of this combined arm is requested. Retained
+compiler ownership was never adopted, and it was not deleted.
+
+Startup speed verified over80 samples, steps20-99: inverse mean step time
+.3777115 steps/s; +.0781% vs MHABudget .3774168, -.42% vs DynamicEmbedding
+~.3793, +.5318% vs DynamicUnembeddingDirect32 .3757134. Parent layer-health
+settings retained, both9-field boundary-health sets enabled. No unexplained
+startup-speed penalty. Actual step104 observed. Speed evidence:
+/data0/xd/rmt-combined-boundaries-startup-speed.log,
+/data0/xd/rmt-combined-boundaries-speed.json.
+Requested task endpoint reached: C8 closeout complete; dynamic embedding and
+Direct32 continue training; combined arm successfully launched. Agent ends
+active monitoring; auto-train retains mechanical recovery/clean-exit ownership.
+MHABudget and LLFSharedVO also continue, without recurring agent reports.

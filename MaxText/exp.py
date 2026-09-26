@@ -9712,6 +9712,7 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding(
     # code_commit: d7cb6c1; rmt_dynamic_boundaries.md.
     # UE5a v5p-16 .3793 step/s; +.50% vs MHABudget (.3774), steps20-99.
     # Same layer health; extra boundary RMS/gate health ON.
+    # Interim through4200: early gain shrank; latest5 vs MHABudget -.013829.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding'
     rmt_dynamic_embedding_write = True
     rmt_dynamic_unembedding_read = False
@@ -9728,6 +9729,9 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding(
     # code_commit: d7cb6c1; rmt_dynamic_boundaries.md.
     # UE5a v5p-16 .3766 step/s; -.23% vs MHABudget (.3774), steps20-99.
     # Same layer health; extra boundary RMS/gate health ON.
+    # Stopped5088: early gap reversed, then stayed near zero from1400.
+    # vs MHABudget latest5 through5000 -.001512; Direct32 dominates loss
+    # (Direct32-C8 latest5 through2800 -.013763), speed nearly equal (-.23%).
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding'
     rmt_dynamic_embedding_write = False
     rmt_dynamic_unembedding_read = True
@@ -9744,6 +9748,8 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDi
     # code_commit: a536442; rmt_dynamic_boundaries.md.
     # UE5a v5p-16 .3757 step/s; -.45% vs MHABudget (.3774), steps20-99.
     # Same layer health; extra boundary RMS/gate health ON.
+    # Review2800: vs MHABudget latest5 -.015066, roughly flat from1400;
+    # vs C8 -.013763, persistent lead from400. Continue training.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32'
     rmt_dynamic_unembedding_direct_read = True
     base_mlp_dim = 4108
@@ -9756,7 +9762,9 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDi
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32):
     """Combine dynamic full48 seed writing and direct tail32 final reading."""
-    # Prepared; launch only after the paired2800-step boundary review.
+    # code_commit: be5491f; rmt_dynamic_boundaries.md.
+    # UE5a v5p-16 .3777 step/s; +.08% vs MHABudget, steps20-99.
+    # Same layer health; both boundary RMS/gate health ON.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32'
     rmt_dynamic_embedding_write = True
     base_mlp_dim = 4078

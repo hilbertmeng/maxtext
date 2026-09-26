@@ -9683,6 +9683,34 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-vector-norm-dynamic-only-write'
 
 
+class RMTVectorNormDynamicOnlyWriteMulReduceProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: FP32 multiply/reduce write, all formal health retained."""
+    model_name = 'RMTVectorNormDynamicOnlyWriteMulReduceProfile'
+    rmt_write_contraction = 'mul_reduce'
+
+
+class RMTVectorNormDynamicOnlyWriteTransposedDotProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: swap write dot operands/output axes, retain formal health."""
+    model_name = 'RMTVectorNormDynamicOnlyWriteTransposedDotProfile'
+    rmt_write_contraction = 'dot_transposed'
+
+
+class RMTVectorNormDynamicOnlyWriteNoExtraHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite):
+    """Diagnostic only: remove RMT health, retain generic training health."""
+    model_name = 'RMTVectorNormDynamicOnlyWriteNoExtraHealthProfile'
+    rmt_record_dynamic_health = False
+
+
+class RMTVectorNormNoExtraHealthProfile(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Diagnostic only: original double write, generic training health only."""
+    model_name = 'RMTVectorNormNoExtraHealthProfile'
+    rmt_record_dynamic_health = False
+
+
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Retain dynamic attention, but use only native RMT MLP reads and writes."""

@@ -17,6 +17,24 @@ from layers import attentions, models
 
 class RMTMediumPropTest(absltest.TestCase):
 
+  def test_write_contractions_preserve_values_and_gradients(self):
+    from layers import rmt
+    address = jax.random.normal(jax.random.key(51), (2, 3, 16, 48))
+    data = jax.random.normal(jax.random.key(52), (2, 3, 16, 75))
+    probe = jax.random.normal(jax.random.key(53), (2, 3, 48, 75))
+    objective = lambda method: lambda a, y: jnp.sum(rmt._dynamic_outer_write(a, y, method) * probe)
+    base = rmt._dynamic_outer_write(address, data, 'dot')
+    gradients = jax.grad(objective('dot'), argnums=(0, 1))(address, data)
+    for method in ('dot_transposed', 'mul_reduce'):
+      actual = rmt._dynamic_outer_write(address, data, method)
+      np.testing.assert_allclose(actual, base, atol=3e-6, rtol=2e-5)
+      for a, b in zip(gradients, jax.grad(objective(method), argnums=(0, 1))(address, data)):
+        self.assertLess(float(jnp.linalg.norm(a-b)/jnp.linalg.norm(a)), 2e-6)
+      a, y = address.astype(jnp.bfloat16), data.astype(jnp.bfloat16)
+      expected = rmt._dynamic_outer_write(a, y, 'dot').astype(jnp.float32)
+      actual = rmt._dynamic_outer_write(a, y, method).astype(jnp.float32)
+      self.assertLess(float(jnp.linalg.norm(actual-expected)/jnp.linalg.norm(expected)), .005)
+
   def test_factorized_health_uses_fp32_accumulation_for_bf16_operands(self):
     from layers import rmt
     dynamic = jax.random.normal(jax.random.key(31), (2, 3, 16, 48), dtype=jnp.bfloat16)

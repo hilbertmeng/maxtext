@@ -44,6 +44,20 @@ def _write_health(dynamic, static):
   return ratio, cosine
 
 
+def _dynamic_outer_write(address, data, method):
+  """Equivalent write contractions for matched full-step lowering diagnostics."""
+  if method == 'dot':
+    return jnp.einsum('btnk,btnv->btkv', address, data)
+  if method == 'dot_transposed':
+    return jnp.swapaxes(jnp.einsum('btnv,btnk->btvk', data, address), -2, -1)
+  if method == 'mul_reduce':
+    # Match the dot's FP32 accumulator rather than reducing products in BF16.
+    product = (address.astype(jnp.float32)[..., :, :, None]
+               * data.astype(jnp.float32)[..., :, None, :])
+    return jnp.sum(product, axis=-3).astype(data.dtype)
+  raise ValueError(f'Unsupported RMT write contraction: {method}')
+
+
 def _factorized_write_health(dynamic_address, static_address, data):
   """Measure two outer writes without materializing either component matrix."""
   # Small per-token head Grams lower poorly as padded batched TPU dots.
@@ -199,14 +213,16 @@ class RMTDynamicWrite(nn.Module):
       if dynamic_address.shape[-1] != static_address.shape[-1]:
         dynamic_address = jnp.pad(dynamic_address, ((0, 0), (0, 0), (0, 0), (16, 0)))
       combined_address = static_address.astype(data.dtype) + dynamic_address
-      write = jnp.einsum('btnk,btnv->btkv', combined_address, data)
+      write = _dynamic_outer_write(combined_address, data,
+                                   cfg.get_keys().get('rmt_write_contraction', 'dot'))
       health = (_factorized_write_health(dynamic_address, static_address.astype(data.dtype), data)
                 if cfg.get_keys().get('rmt_record_dynamic_health', False) else ())
       return write, gate, health
     data = normalizations.rms_norm(
         data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
-    write = jnp.einsum('btnk,btnv->btkv', gate[..., None] * address, data)
+    write = _dynamic_outer_write(gate[..., None] * address, data,
+                                 cfg.get_keys().get('rmt_write_contraction', 'dot'))
     return write, gate
 
 

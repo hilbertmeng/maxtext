@@ -46,16 +46,18 @@ def _write_health(dynamic, static):
 
 def _factorized_write_health(dynamic_address, static_address, data):
   """Measure two outer writes without materializing either component matrix."""
-  data = data.astype(jnp.float32)
-  data_gram = jnp.einsum('btnv,btmv->btnm', data, data)
+  # BF16 operands are exact here; accumulate their Grams in FP32 without
+  # converting operands into expensive FP32 TPU matrix contractions.
+  data_gram = jnp.einsum('btnv,btmv->btnm', data, data,
+                         preferred_element_type=jnp.float32)
   values = []
   for part in (slice(None, 16), slice(16, None)):
-    dyn = dynamic_address[..., part].astype(jnp.float32)
-    stat = static_address[..., part].astype(jnp.float32)
+    dyn = dynamic_address[..., part]
+    stat = static_address[..., part]
     size = dyn.shape[-1] * data.shape[-1]
-    dynamic_gram = jnp.einsum('btnk,btmk->btnm', dyn, dyn)
-    static_gram = jnp.einsum('nk,mk->nm', stat, stat)
-    cross_gram = jnp.einsum('nk,btmk->btnm', stat, dyn)
+    dynamic_gram = jnp.einsum('btnk,btmk->btnm', dyn, dyn, preferred_element_type=jnp.float32)
+    static_gram = jnp.einsum('nk,mk->nm', stat, stat, preferred_element_type=jnp.float32)
+    cross_gram = jnp.einsum('nk,btmk->btnm', stat, dyn, preferred_element_type=jnp.float32)
     dynamic_ms = jnp.maximum(jnp.mean(jnp.sum(dynamic_gram * data_gram, axis=(-2, -1))) / size, 0.)
     static_ms = jnp.maximum(jnp.mean(jnp.sum(static_gram * data_gram, axis=(-2, -1))) / size, 0.)
     cross = jnp.mean(jnp.sum(cross_gram * data_gram, axis=(-2, -1))) / size
@@ -245,8 +247,11 @@ class RMTLayer(nn.Module):
     dynamic_mlp_write_enabled = dynamic and bool(
         cfg.get_keys().get('rmt_dynamic_mlp_write_enabled', dynamic_mlp))
     single_outer_write = bool(cfg.get_keys().get('rmt_single_outer_write', False))
+    static_write_enabled = bool(cfg.get_keys().get('rmt_static_write_enabled', True))
     if single_outer_write and not (dynamic and dynamic_mlp_write_enabled):
       raise ValueError('Single-outer write requires dynamic attention and MLP writes')
+    if not static_write_enabled and (single_outer_write or not dynamic or not dynamic_mlp_write_enabled):
+      raise ValueError('Dynamic-only writes require dynamic attention/MLP and no combined static write')
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
     dynamic_full_read = bool(cfg.get_keys().get('rmt_dynamic_read_full_matrix', False))
     rope_qk_dim = int(cfg.get_keys().get('rmt_rope_qk_dim', 0))
@@ -326,13 +331,18 @@ class RMTLayer(nn.Module):
       static_head_output = head_output
       if dynamic_o_enabled:
         head_output = head_output + dynamic_o
-    attn_write = self.param('attn_write_key', write_init,
-                            (heads, key_dim), cfg.weight_dtype)
+    attn_residual = matrix
+    if static_write_enabled:
+      attn_write = self.param('attn_write_key', write_init,
+                              (heads, key_dim), cfg.weight_dtype)
+    elif self.is_initializing():
+      # Preserve the parent's later parameter seeds without retaining this key.
+      self.make_rng('params')
     if single_outer_write:
       combined_attn_write, attn_write_gate, attn_write_health = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_attn_write')(attn_x, head_output, attn_write)
       matrix = matrix + combined_attn_write
-    else:
+    elif static_write_enabled:
       static_attn_write = jnp.einsum(
           'btnv,nk->btkv', head_output, attn_write.astype(cfg.dtype))
     if dynamic and not single_outer_write:
@@ -341,7 +351,10 @@ class RMTLayer(nn.Module):
       if write_rows == 32:
         dynamic_attn_write = jnp.pad(dynamic_attn_write,
                                      ((0, 0), (0, 0), (16, 0), (0, 0)))
-      matrix = matrix + static_attn_write + dynamic_attn_write
+      if static_write_enabled:
+        matrix = matrix + static_attn_write + dynamic_attn_write
+      else:
+        matrix = matrix + dynamic_attn_write
     elif not dynamic:
       matrix = matrix + static_attn_write
 
@@ -373,13 +386,17 @@ class RMTLayer(nn.Module):
         kernel_init=initializers.get_init_method(cfg.init_method),
         quant=self.quant, name='mlp')(vector, deterministic=deterministic)
     vector = vector.reshape(vector.shape[:2] + (heads, value_dim))
-    mlp_write = self.param('mlp_write_key', write_init,
-                           (heads, key_dim), cfg.weight_dtype)
+    mlp_residual = matrix
+    if static_write_enabled:
+      mlp_write = self.param('mlp_write_key', write_init,
+                             (heads, key_dim), cfg.weight_dtype)
+    elif self.is_initializing():
+      self.make_rng('params')
     if single_outer_write:
       combined_mlp_write, mlp_write_gate, mlp_write_health = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_mlp_write')(mlp_x, vector, mlp_write)
       matrix = matrix + combined_mlp_write
-    else:
+    elif static_write_enabled:
       static_mlp_write = jnp.einsum(
           'btnv,nk->btkv', vector, mlp_write.astype(cfg.dtype))
     if dynamic_mlp_write_enabled and not single_outer_write:
@@ -388,7 +405,10 @@ class RMTLayer(nn.Module):
       if write_rows == 32:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
                                     ((0, 0), (0, 0), (16, 0), (0, 0)))
-      matrix = matrix + static_mlp_write + dynamic_mlp_write
+      if static_write_enabled:
+        matrix = matrix + static_mlp_write + dynamic_mlp_write
+      else:
+        matrix = matrix + dynamic_mlp_write
     elif not dynamic_mlp_write_enabled:
       matrix = matrix + static_mlp_write
     if dynamic and getattr(cfg, 'rmt_record_dynamic_health', False):
@@ -412,8 +432,9 @@ class RMTLayer(nn.Module):
       if single_outer_write:
         values.extend(attn_write_health + mlp_write_health)
       else:
-        writes = ((dynamic_attn_write, static_attn_write),
-                  (dynamic_mlp_write, static_mlp_write))
+        # Without static writes, report amplitude/alignment against the residual.
+        writes = ((dynamic_attn_write, static_attn_write if static_write_enabled else attn_residual),
+                  (dynamic_mlp_write, static_mlp_write if static_write_enabled else mlp_residual))
         values.extend(v for dyn, stat in writes for part in
                       (slice(None, 16), slice(16, None))
                       for v in _write_health(dyn[..., part, :], stat[..., part, :]))

@@ -367,6 +367,8 @@ def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, conf
   health = intermediate_outputs['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
   for layer in range(config.num_decoder_layers):
     for index, name in enumerate(rmt.RMT_DYNAMIC_HEALTH_NAMES):
+      if not config.get_keys().get('rmt_static_write_enabled', True) and '_write_' in name:
+        name = name.replace('_ratio', '_to_residual_ratio').replace('_cosine', '_residual_cosine')
       output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
 
 

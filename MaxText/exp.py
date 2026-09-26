@@ -9674,6 +9674,15 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormSingleOuterWrite(
     jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-dynamic-full48-rope18-vector-norm-single-outer-write'
 
 
+class RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite(
+    RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
+    """Attention and MLP write only via biased dynamic addresses and normalized content."""
+    model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite'
+    rmt_static_write_enabled = False
+    compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNorm']
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48-vector-norm-dynamic-only-write'
+
+
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormStaticMLP(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Retain dynamic attention, but use only native RMT MLP reads and writes."""

@@ -17,6 +17,43 @@ from layers import attentions, models
 
 class RMTMediumPropTest(absltest.TestCase):
 
+  def test_factorized_health_uses_fp32_accumulation_for_bf16_operands(self):
+    from layers import rmt
+    dynamic = jax.random.normal(jax.random.key(31), (2, 3, 16, 48), dtype=jnp.bfloat16)
+    static = jax.random.normal(jax.random.key(32), (16, 48), dtype=jnp.bfloat16)
+    data = jax.random.normal(jax.random.key(33), (2, 3, 16, 75), dtype=jnp.bfloat16)
+    expected = rmt._factorized_write_health(dynamic.astype(jnp.float32),
+                                            static.astype(jnp.float32), data.astype(jnp.float32))
+    actual = rmt._factorized_write_health(dynamic, static, data)
+    self.assertTrue(all(value.dtype == jnp.float32 for value in actual))
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-7)
+
+  def test_dynamic_only_writes_remove_static_keys_and_preserve_other_initialization(self):
+    from layers import rmt
+    _, _, old_params = self._run('RMTMediumPropK48DynamicFull48RoPE18VectorNorm')
+    model, args, params = self._run('RMTMediumPropK48DynamicFull48RoPE18VectorNormDynamicOnlyWrite')
+    layer = params['decoder']['layers']
+    self.assertNotIn('attn_write_key', layer)
+    self.assertNotIn('mlp_write_key', layer)
+    def leaves(tree):
+      return {jax.tree_util.keystr(path): np.asarray(value)
+              for path, value in jax.tree_util.tree_leaves_with_path(tree)}
+    old, new = leaves(old_params), leaves(params)
+    removed = old.keys() - new.keys()
+    self.assertLen(removed, 2)
+    self.assertEqual(sum(old[key].size for key in removed), 3 * 2 * 16 * 48)
+    for key in new:
+      np.testing.assert_array_equal(new[key], old[key], err_msg=key)
+    with contextlib.redirect_stdout(io.StringIO()):
+      _, intermediate = model.apply({'params': params}, **args, mutable=['intermediates'])
+      grads = jax.grad(lambda p: jnp.mean(model.apply({'params': p}, **args)[0]))(params)
+    health = np.asarray(intermediate['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
+    self.assertEqual(health.shape, (3, len(rmt.RMT_DYNAMIC_HEALTH_NAMES)))
+    self.assertTrue(np.all(np.isfinite(health)))
+    self.assertTrue(all(bool(jnp.all(jnp.isfinite(v))) for v in jax.tree.leaves(grads)))
+    for arm in ('dynamic_attn_write', 'dynamic_mlp_write'):
+      self.assertGreater(float(jnp.linalg.norm(grads['decoder']['layers'][arm]['address_up'].value)), 0.)
+
   def test_single_outer_write_matches_values_gradients_and_health(self):
     from layers import rmt
     cfg = self._config('RMTMediumPropK48DynamicFull48RoPE18VectorNorm')

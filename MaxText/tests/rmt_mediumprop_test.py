@@ -109,6 +109,27 @@ class RMTMediumPropTest(absltest.TestCase):
         np.testing.assert_allclose(health[:, write_slots], old_health[:, write_slots],
                                    rtol=2e-5, atol=atol)
 
+  def test_reused_reference_rms_preserves_model_and_all_metrics(self):
+    for dtype in (jnp.float32, jnp.bfloat16):
+      old_model, args, old_params = self._run(
+          'RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile', dtype=dtype)
+      for name in ('RMTVectorNormDynamicOnlyReusedInputHealthProfile',
+                   'RMTVectorNormDynamicOnlyReusedInputHealthTransposedCarryProfile'):
+        model, _, params = self._run(name, dtype=dtype)
+        self.assertEqual(jax.tree.structure(params), jax.tree.structure(old_params))
+        for a, b in zip(jax.tree.leaves(params), jax.tree.leaves(old_params)):
+          np.testing.assert_array_equal(a, b)
+        with contextlib.redirect_stdout(io.StringIO()):
+          old_output, old_aux = old_model.apply({'params': old_params}, **args,
+                                                mutable=['intermediates'])
+          output, aux = model.apply({'params': params}, **args, mutable=['intermediates'])
+        np.testing.assert_array_equal(output[0], old_output[0])
+        old_health = np.asarray(old_aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
+        health = np.asarray(aux['intermediates']['decoder']['layers']['rmt_dynamic_health'][0])
+        self.assertEqual(health.shape, (3, 41))
+        np.testing.assert_allclose(health, old_health, rtol=2e-5,
+                                   atol=2e-6 if dtype == jnp.float32 else 1e-4)
+
   def test_write_contractions_preserve_values_and_gradients(self):
     from layers import rmt
     address = jax.random.normal(jax.random.key(51), (2, 3, 16, 48))

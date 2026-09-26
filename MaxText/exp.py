@@ -9760,6 +9760,20 @@ class RMTVectorNormDynamicOnlyRowHealthTransposedCarryProfile(
     rmt_transposed_matrix_carry = True
 
 
+class RMTVectorNormDynamicOnlyReusedInputHealthProfile(
+    RMTVectorNormDynamicOnlyRowReducedWriteHealthProfile):
+    """Diagnostic only: reuse residual RMSs for matching input-M health."""
+    model_name = 'RMTVectorNormDynamicOnlyReusedInputHealthProfile'
+    rmt_write_health_reuse_input_rms = True
+
+
+class RMTVectorNormDynamicOnlyReusedInputHealthTransposedCarryProfile(
+    RMTVectorNormDynamicOnlyReusedInputHealthProfile):
+    """Diagnostic only: input-health reuse plus transposed scan carry."""
+    model_name = 'RMTVectorNormDynamicOnlyReusedInputHealthTransposedCarryProfile'
+    rmt_transposed_matrix_carry = True
+
+
 class RMTVectorNormNoWriteHealthProfile(
     RMTMediumPropK48DynamicFull48RoPE18VectorNorm):
     """Diagnostic only: remove eight write statistics, retain reads/gates/M health."""

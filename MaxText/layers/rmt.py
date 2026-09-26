@@ -51,7 +51,7 @@ def _write_health(dynamic, static):
   return ratio, cosine
 
 
-def _row_reduced_write_health(dynamic, reference):
+def _row_reduced_write_health(dynamic, reference, *, return_reference_rms=False):
   """Compute identical partition statistics without slicing full matrix tensors."""
   dynamic, reference = dynamic.astype(jnp.float32), reference.astype(jnp.float32)
   # Leave only K rows before splitting first16/tail32. All large-array
@@ -60,14 +60,16 @@ def _row_reduced_write_health(dynamic, reference):
   dynamic_ms = jnp.mean(jnp.square(dynamic), axis=axes)
   reference_ms = jnp.mean(jnp.square(reference), axis=axes)
   cross = jnp.mean(dynamic * reference, axis=axes)
-  values = []
+  values, reference_rmss = [], []
   for part in (slice(None, 16), slice(16, None)):
     dynamic_rms = jnp.sqrt(jnp.mean(dynamic_ms[part]))
     reference_rms = jnp.sqrt(jnp.mean(reference_ms[part]))
+    reference_rmss.append(reference_rms)
     values.extend((dynamic_rms / jnp.maximum(reference_rms, 1e-12),
                    jnp.mean(cross[part]) /
                    jnp.maximum(dynamic_rms * reference_rms, 1e-12)))
-  return tuple(values)
+  return ((tuple(values), tuple(reference_rmss)) if return_reference_rms
+          else tuple(values))
 
 
 def _dynamic_outer_write(address, data, method):
@@ -476,6 +478,12 @@ class RMTLayer(nn.Module):
       values = [v for pair in reads for v in _read_health(*pair)]
       values.extend(v for gate in gates for v in _gate_health(gate))
       record_write_health = cfg.get_keys().get('rmt_record_write_health', True)
+      input_health = None
+      reuse_input_rms = cfg.get_keys().get('rmt_write_health_reuse_input_rms', False)
+      if reuse_input_rms and not (record_write_health and vector_pre_norm
+                                  and not static_write_enabled and not single_outer_write
+                                  and cfg.get_keys().get('rmt_write_health_row_reduce', False)):
+        raise ValueError('Write/reference RMS reuse requires pure VectorNorm row health')
       if record_write_health:
         if single_outer_write:
           values.extend(attn_write_health + mlp_write_health)
@@ -484,13 +492,25 @@ class RMTLayer(nn.Module):
           writes = ((dynamic_attn_write, static_attn_write if static_write_enabled else attn_residual),
                     (dynamic_mlp_write, static_mlp_write if static_write_enabled else mlp_residual))
           if cfg.get_keys().get('rmt_write_health_row_reduce', False):
-            values.extend(v for dyn, stat in writes
-                          for v in _row_reduced_write_health(dyn, stat))
+            if reuse_input_rms:
+              # Under VectorNorm with pure dynamic writes the references are
+              # exactly attn_in/mlp_in. Reuse their two partition RMSs rather
+              # than slicing/reducing the same large matrices a second time.
+              input_health = []
+              for dyn, stat in writes:
+                stats, reference_rmss = _row_reduced_write_health(
+                    dyn, stat, return_reference_rms=True)
+                values.extend(stats)
+                input_health.extend(reference_rmss)
+            else:
+              values.extend(v for dyn, stat in writes
+                            for v in _row_reduced_write_health(dyn, stat))
           else:
             values.extend(v for dyn, stat in writes for part in
                           (slice(None, 16), slice(16, None))
                           for v in _write_health(dyn[..., part, :], stat[..., part, :]))
-      values.extend((_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
+      values.extend(input_health if input_health is not None else
+                    (_rms(attn_in[..., :16, :]), _rms(attn_in[..., 16:, :]),
                      _rms(mlp_in[..., :16, :]), _rms(mlp_in[..., 16:, :])))
       assert len(values) == len(dynamic_health_names(record_write_health))
       self.sow('intermediates', 'rmt_dynamic_health', jnp.stack(values))

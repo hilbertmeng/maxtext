@@ -27,6 +27,7 @@ def main():
   p.add_argument('--tile',type=int,default=128)
   p.add_argument('--backward-tile',type=int,default=0)
   p.add_argument('--compute-tile',type=int,default=0)
+  p.add_argument('--reverse-mode',default='baseline')
   p.add_argument('--output',required=True)
   p.add_argument('--save-hlo',action='store_true',help='Save compiled HLO for scoped-memory accounting')
   args=p.parse_args()
@@ -64,7 +65,7 @@ def main():
         if mode=='forward':return fn(*z[:7])
         return jax.vjp(fn,*z[:7])[1](tuple(z[8:]))
       if args.kernel=='full':
-        fn=lambda *v:full_write_read(*v,forward_tile=args.tile,reverse_tile=args.backward_tile or 32)
+        fn=lambda *v:full_write_read(*v,forward_tile=args.tile,reverse_tile=args.backward_tile or 32,reverse_mode=args.reverse_mode)
         if mode=='forward':return fn(*z[:15])
         return jax.vjp(fn,*z[:15])[1](tuple(z[15:]))
       if args.kernel=='projected':

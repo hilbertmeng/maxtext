@@ -8,7 +8,8 @@ from layers.rmt_pallas import _map_batch
 from layers.rmt_pallas_minor import _spec
 from layers.rmt_pallas_projected_write import project_minor, project_major, project_reverse
 from layers.rmt_pallas_write_read import forward as read_forward
-from layers.rmt_pallas_write_read_major import reverse as read_reverse
+from layers.rmt_pallas_write_read_major import reverse as read_reverse, read_pullback
+from layers.rmt_pallas_write_reverse import joint
 
 
 def forward_call(args,epsilon,read_epsilon,interpret,tile):
@@ -29,18 +30,18 @@ def forward_call(args,epsilon,read_epsilon,interpret,tile):
       name='rmt_full_attention_write_mlp_read')(*args)
 
 
-@partial(jax.custom_vjp,nondiff_argnums=(15,16,17,18,19))
-def fused(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt):
+@partial(jax.custom_vjp,nondiff_argnums=(15,16,17,18,19,20))
+def fused(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt,mode):
   return forward_call((m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb),epsilon,read_epsilon,interpret,ft)
 
 
-def fwd(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt):
+def fwd(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt,mode):
   args=(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb)
   out=forward_call(args,epsilon,read_epsilon,interpret,ft)
   return out,(out[0],*args[1:])
 
 
-def bwd(epsilon,read_epsilon,interpret,ft,rt,args,cotangents):
+def bwd(epsilon,read_epsilon,interpret,ft,rt,mode,args,cotangents):
   args=tuple(z.transpose(0,3,1,2) if i in (0,2) else z.transpose(0,2,1) if i==1 else z
              for i,z in enumerate(args))
   cotangents=tuple(z.transpose(0,3,1,2) if i<2 else z.transpose(0,2,1)
@@ -57,6 +58,27 @@ def bwd(epsilon,read_epsilon,interpret,ft,rt,args,cotangents):
           jax.ShapeDtypeStruct((b,)+shared_shapes[i-3],jnp.float32) for i,z in enumerate(args)]
   def kernel(*refs):
     m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,dm,dy,dx=(z[...] for z in refs[:18])
+    if mode!='baseline':
+      @pl.when(pl.program_id(1)==0)
+      def init_shared():
+        for ref in refs[21:]:ref[...]=jnp.zeros(ref.shape,ref.dtype)
+      def store(index,value):
+        if value.ndim==1:value=value[None,:]
+        elif transpose[index-3]:value=value.T
+        ref=refs[18+index]
+        ref[...]=ref[...]+value
+      # Finish read gradients before bringing write-address intermediates live.
+      gm,*_=read_pullback(m,r,c,scale,wk,rg,rb,dm,dy,dx,epsilon,read_epsilon,
+          shared_sink=lambda index,value:store(index+4,value),merge_linear=mode=='joined')
+      refs[18][...]=gm
+      pre,hidden,a,g=project_major(x,down,up,ub,wg,gb)
+      ga,gd,gg,gs=joint(a,d,g,s,gm,epsilon,gate_layout='major')
+      refs[20][...]=gd
+      store(3,gs)
+      gx,*_=project_reverse(x,down,up,ub,wg,gb,pre,hidden,g,ga,gg,
+          shared_sink=lambda index,value:store(index+3,value))
+      refs[19][...]=gx
+      return
     pre,hidden,a,g=project_major(x,down,up,ub,wg,gb)
     gm,ga,gd,gg,gs,gr,gc,gscale,gk,grg,grb=read_reverse(m,a,d,g,s,r,c,scale,wk,rg,rb,dm,dy,dx,epsilon,read_epsilon)
     gx,gdown,gup,gub,gwg,ggb=project_reverse(x,down,up,ub,wg,gb,pre,hidden,g,ga,gg)
@@ -71,6 +93,7 @@ def bwd(epsilon,read_epsilon,interpret,ft,rt,args,cotangents):
         ref[...]=ref[...]+value
   grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=outs,
       out_shape=tuple(shapes),interpret=interpret,
+      input_output_aliases={15:0} if mode!='baseline' else {},
       compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','arbitrary')),
       name='rmt_full_attention_write_mlp_read_backward')(*args,*cotangents)
   result=[]
@@ -89,13 +112,15 @@ fused.defvjp(fwd,bwd)
 
 
 def full_write_read(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,
-                    epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,forward_tile=128,reverse_tile=32):
+                    epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,forward_tile=128,reverse_tile=32,
+                    reverse_mode='baseline'):
+  if reverse_mode not in ('baseline','stream','joined'):raise ValueError(reverse_mode)
   def local(m,x,d,*weights):
     ft=min(forward_tile,m.shape[1]);rt=min(reverse_tile,m.shape[1])
     if m.shape[1]%ft or m.shape[1]%rt:raise ValueError('Stage chunks must divide sequence length')
     weights=(*weights[:10],weights[10].T,weights[11])
     out=fused(m.transpose(0,2,3,1),x.transpose(0,2,1),d.transpose(0,2,3,1),*weights,
-              epsilon,read_epsilon,interpret,ft,rt)
+              epsilon,read_epsilon,interpret,ft,rt,reverse_mode)
     return out[0].transpose(0,3,1,2),out[1].transpose(0,3,1,2),out[2].transpose(0,2,1)
   return _map_batch(local,(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb),
                     (True,)*3+(False,)*12,output_tuple=3)

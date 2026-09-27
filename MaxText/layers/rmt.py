@@ -546,7 +546,8 @@ class RMTLayer(nn.Module):
             matrix,attn_x,head_output,attn_write.astype(cfg.dtype),*write_parameters,*read_parameters,
             cfg.normalization_layer_epsilon,_read_epsilon(cfg),
             forward_tile=cfg.get_keys().get('rmt_fused_write_read_tile',128),
-            reverse_tile=cfg.get_keys().get('rmt_fused_write_read_backward_tile',32))
+            reverse_tile=cfg.get_keys().get('rmt_fused_write_read_backward_tile',32),
+            reverse_mode=cfg.get_keys().get('rmt_full_middle_reverse_mode','baseline'))
       else:
         from layers.rmt_pallas_write_read import write_mlp_read
         address,attn_write_gate=write_parameters

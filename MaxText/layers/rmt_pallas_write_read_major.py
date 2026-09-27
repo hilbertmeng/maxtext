@@ -65,7 +65,8 @@ def unpack_proxy(x,h,v):
   return jnp.stack(heads,axis=1)[...,:v].astype(x.dtype)
 
 
-def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,shared_sink=None):
+def read_pullback(m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,
+                  shared_sink=None,merge_linear=False):
   # Flush completed shared gradients before entering the much larger write
   # pullback. Returning every partial together unnecessarily extends their
   # live ranges across the joint MXU contraction.
@@ -73,7 +74,7 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,shared_
     if shared_sink is None:return value
     shared_sink(index,value)
     return None
-  q,k,v=m.shape;h=d.shape[1];rank=c.shape[1]
+  q,k,v=m.shape;h=dy.shape[1];rank=c.shape[1]
   vp=((v+127)//128)*128
   raw=pack_proxy(m[:,:h,:])
   f=raw.astype(jnp.float32)
@@ -94,8 +95,9 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,shared_
     ci=jax.lax.slice_in_dim(compressed,i,i+1,axis=1).reshape(q,v).astype(jnp.float32)
     read=read+ki[:,:,None]*ci[:,None,:]
   read=read.astype(m.dtype)
-  dr=finish(5,weight_grad(m,dy))
-  dm=(dm+contract(r,dy)).astype(m.dtype)
+  if not merge_linear:
+    dr=finish(5,weight_grad(m,dy))
+    dm=(dm+contract(r,dy)).astype(m.dtype)
   dgate=(.2*jax.lax.reduce_sum((dy*read).astype(m.dtype),axes=(2,))).astype(m.dtype)
   dread=(dy*(.2*gate).astype(jnp.float32)[:,:,None].astype(m.dtype)).astype(m.dtype)
   dc=[];dkn=[]
@@ -106,8 +108,16 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,shared_
     dkn.append(jnp.sum(dread.astype(jnp.float32)*ci[:,None,:],axis=2).T.astype(m.dtype))
   dc=jnp.stack([x.astype(jnp.float32) for x in dc],axis=1).astype(m.dtype)
   dkn=jnp.stack([x.astype(jnp.float32) for x in dkn],axis=1).astype(m.dtype)
-  dcompression=finish(6,weight_grad(m[:,h:,:],dc))
-  dmtail=contract(c,dc)
+  if merge_linear:
+    packed_dy=jnp.concatenate((dy,dc),axis=1)
+    linear_grad=weight_grad(m,packed_dy)
+    dr=finish(5,linear_grad[:,:h])
+    dcompression=finish(6,linear_grad[h:,h:])
+    linear=jnp.concatenate((r,jnp.pad(c,((h,0),(0,0)))),axis=1)
+    dm=(dm+contract(linear,packed_dy)).astype(m.dtype)
+  else:
+    dcompression=finish(6,weight_grad(m[:,h:,:],dc))
+    dmtail=contract(c,dc)
   dk=_norm_backward(key,dkn,read_epsilon).reshape(h*rank,q).T
   dg=(dgate*(gate*(1-gate))).astype(m.dtype)
   dp=jnp.concatenate((dk,dg),axis=1)
@@ -119,9 +129,20 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,shared_
   u=(dx*scale[None,:]).astype(m.dtype).astype(jnp.float32)
   draw=((u-f*jnp.sum(u*f,axis=-1,keepdims=True)/(h*v)*inv*inv)*inv).astype(m.dtype)
   draw=unpack_proxy(draw,h,v)
-  dm=(dm+jnp.concatenate((draw,dmtail),axis=1)).astype(m.dtype)
+  if merge_linear:
+    dm=(dm+jnp.pad(draw,((0,0),(0,k-h),(0,0)))).astype(m.dtype)
+  else:
+    dm=(dm+jnp.concatenate((draw,dmtail),axis=1)).astype(m.dtype)
+  return dm,dr,dcompression,dscale,dwk,dwg,db
+
+
+def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,shared_sink=None):
+  dm,dr,dcompression,dscale,dwk,dwg,db=read_pullback(
+      m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,shared_sink)
   da,dd,dg_write,ds=joint(a,d,g,s,dm,epsilon,gate_layout='major')
-  ds=finish(4,ds)
+  if shared_sink is not None:
+    shared_sink(4,ds)
+    ds=None
   return dm,da,dd,dg_write,ds,dr,dcompression,dscale,dwk,dwg,db
 
 

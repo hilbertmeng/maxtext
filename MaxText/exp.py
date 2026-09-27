@@ -10951,3 +10951,23 @@ class RMTThreeStageNoOTunedV6eB4Profile(RMTThreeStageNoOV6eB4Profile):
     rmt_attention_read_reverse_tile = 256
     rmt_fused_write_read_backward_tile = 128
     rmt_projected_write_reverse_tile = 256
+
+
+class RMTThreeStageMiddleStreamProfile(RMTThreeStageNoOReverse128Profile):
+    model_name = 'RMTThreeStageMiddleStreamProfile'
+    rmt_full_middle_reverse_mode = 'stream'
+
+
+class RMTThreeStageMiddleStreamV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleStreamV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'stream'
+
+
+class RMTThreeStageMiddleJoinedProfile(RMTThreeStageNoOReverse128Profile):
+    model_name = 'RMTThreeStageMiddleJoinedProfile'
+    rmt_full_middle_reverse_mode = 'joined'
+
+
+class RMTThreeStageMiddleJoinedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleJoinedV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'joined'

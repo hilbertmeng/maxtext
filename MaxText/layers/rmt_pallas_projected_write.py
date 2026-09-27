@@ -49,18 +49,24 @@ def project_major(x,down,up,ub,wg,gb):
   return raw_hidden,hidden,address,gate
 
 
-def project_reverse(x,down,up,ub,wg,gb,raw_hidden,hidden,gate,da,dg):
+def project_reverse(x,down,up,ub,wg,gb,raw_hidden,hidden,gate,da,dg,shared_sink=None):
+  def finish(index,value):
+    if shared_sink is None:return value
+    shared_sink(index,value)
+    return None
   ga=pack_proxy(da)
-  du=jnp.dot(hidden.T,ga,preferred_element_type=jnp.float32)
-  dub=jnp.sum(da.astype(jnp.float32),axis=0)
+  du=finish(2,jnp.dot(hidden.T,ga,preferred_element_type=jnp.float32))
+  dub=finish(3,jnp.sum(da.astype(jnp.float32),axis=0))
   dh=jnp.dot(ga,up.T,preferred_element_type=jnp.float32).astype(x.dtype)
   dh=gelu_reverse(raw_hidden,dh)
   dg=(dg*(gate*(1-gate))).astype(x.dtype)
-  db=jnp.sum(dg.astype(jnp.float32).T,axis=1)[None,:]
+  db=finish(5,jnp.sum(dg.astype(jnp.float32).T,axis=1)[None,:])
   dp=jnp.concatenate((dh,dg),axis=1)
   dw=jnp.dot(x.T,dp,preferred_element_type=jnp.float32)
+  ddown=finish(1,dw[:,:down.shape[1]])
+  dgate=finish(4,dw[:,down.shape[1]:])
   dx=jnp.dot(dp,jnp.concatenate((down,wg),axis=1).T,preferred_element_type=jnp.float32).astype(x.dtype)
-  return dx,dw[:,:down.shape[1]],du,dub,dw[:,down.shape[1]:],db
+  return dx,ddown,du,dub,dgate,db
 
 
 def forward_call(args,epsilon,interpret,tile):

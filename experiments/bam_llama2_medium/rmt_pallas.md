@@ -160,3 +160,21 @@ Full18-layer v5p-16 AOTs prepared via retained hosts,100-step schedule:
 The next policy saves dense dots plus explicitly named attention-head and
 post-attention matrix results, recomputing cheap normalization intermediates.
 No successful v5p-16 measurement or significant overall speedup is claimed.
+
+Target profiling acquisition: `xd-v5p-16-rmtpallas-0927-uc1a`, us-central1-a,
+requested after all threefbcffdf full18 AOTs were READY (control, packed,
+save-dense),100-step schedule. This is a disposable task-owned target profile
+TPU, separate from both retained diagnostics and the other session's
+`xd-v5p-16-rmt-wr-chunks-ew4b`. Prefer UC1a; add EW4b only if acquisition stalls.
+AOT root:
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/fbcffdf/jax081-i0ae3f58-c17f538a/v5p-16/s100`.
+Named-state policyf4fadcd is being compiled separately, not yet in that matrix.
+
+Raw-XPlane audit: use `experiments/bam_llama2_medium/analyze_rmt_pallas_profiles.py`
+with the downloaded `.xplane.pb` files. First-step leaf-time coverage is
+99.9838%(joined),99.9816%(control7a9374a),99.9800%(controlb57b787),
+99.9774%(packedb57b787). Full raw protobufs corroborate the trace-JSON timings.
+
+Named-statef4fadcd and its same-commit full18 control both have READY v5p-16
+AOTs; state+packed compilation remains in progress. UC1a target queue progressed
+WAITING05:50:49→PROVISIONING05:51:58→CREATING05:52:20UTC.

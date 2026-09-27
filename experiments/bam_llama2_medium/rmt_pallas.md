@@ -59,3 +59,60 @@ Remote isolated checkouts/logs: `/home/lishengping/xd/rmt-pallas/` on both hosts
 Pallas JAX0.8.1 lessons: explicitly use FP32 matmul accumulators; avoid negative
 pad transpose in custom VJP; use 2D concatenations instead of unsupported rank4
 mask reshapes; align merged token/value rows before C8 compression.
+
+## Expanded screening, 2026-09-27
+
+All measurements below are on retained v6e-1 diagnostics, not v5p acceptance.
+Matched six-layer control/Joined-XLA at7a9374a on host-0 completed50 steps:
+control ~0.749 step/s; joined-XLA ~0.680 (about9.2% slower).
+Joined-XLA temp buffers29,792,535,904 bytes versus25,504,533,152 control.
+The five detailed device steps average about1327ms(control) versus1466ms(joined).
+Copy kernels in the middle detailed step total213.89ms versus258.09ms.
+Primary artifacts verified in GCS and downloaded to
+`/data0/xd/bam_diagnostics/rmt-pallas-paired-l6-7a9374a`.
+GCS root `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/rmt-pallas/`.
+RUNs `RmtPallasNoHealthL6_7a9374a`, `RmtPallasJoinedReadL6_7a9374a`.
+
+Further complete50-step arms on the same host-0:
+- `RMTCombinedLayerScanJoinedPallasReadL6Profile`,116a337,
+  RUN`RmtPallasJoinedPallasL6_116a337`: ~0.659 step/s, slower.
+  Temp25,249,178,752 bytes: memory improves versus joined-XLA, speed does not.
+- `RMTCombinedLayerScanPallasQKL6Profile`,2bb8959,
+  RUN`RmtPallasQKL6_2bb8959`: ~0.740 step/s, ~1.2% slower.
+  QK-only fusion preserves model parameters; FP32 full-layer/all-grad checks pass.
+
+Isolated8192-token BF16 reference/Pallas milliseconds, forward / forward+backward:
+
+| Kernel / runtime / tile | Reference | Pallas | Notes |
+|---|---|---|---|
+| C8,4348c49,64 | .335 /2.992 | .738 /2.463 | Fix output order to token,destination,head,value |
+| Joined static+C8,f39c34f,64 | .503 /3.676 |1.045 /3.297 | Full-step regression above |
+| Joined native batch-dot,116a337,64 | .515 /3.699 | .893 /3.259 | Removes block-diagonal zeros |
+| Joined saved C8,596fd3b,64 | .498 /3.694 | .885 /3.121 | Small compression retained for backward |
+| QK,51c3b37,32 | .387 /2.402 | .603 /1.989 | Full-step regression above |
+| QK,2bb8959,128 | .392 /2.405 | .528 /1.851 | Tile256 FP32 backward exceeds32MB VMEM |
+
+**Caution:** isolated checkpointed forward+backward changes XLA optimization;
+for joined saved-C8 it is1.827ms(reference) versus3.539ms(Pallas), and for QK128
+1.607 versus2.010. Do not use ordinary isolated VJP speedups as training claims.
+The full layer scan's real training step remains the deciding measurement.
+
+Native batched dot is supported by the installed Pallas TPU lowering; the
+initial block-diagonal packing is no longer the only contraction option.
+The cross-write/static-read/vector-norm stage prototype still fails TPU
+layout compilation; it is not integrated or promoted.
+
+Next independent branches, all opt-in and preserving parameter trees:
+- `RMTCombinedLayerScanPaddedCarryL6Profile`,758028e: zero-pad only scan carry's
+  value axis to128, retain75-coordinate RMS/attention, crop before final norm.
+  Exact initialized params and FP32 values/all gradients checked; test in progress.
+- `RMTCombinedLayerScanPackedProjectionL6Profile`,b57b787: group same-input
+  dynamic projections, retaining separate parameter leaves and initialization.
+  Paired host-1 control/arm50-step jobs launched; not yet a speed claim.
+- `RMTCombinedLayerScanPallasWriteBackwardL6Profile`,428c62b: ordinary XLA
+  forward plus Pallas backward; full-layer CPU gradient check passes.
+  Intended to avoid known forward regressions from forcing both passes into Pallas.
+
+Two-device CPU sharding test verifies batch partitioning and shared parameter
+all-reduction. No topology or full-step v5p-16 result exists yet. Retain both
+user-authorized diagnostic TPUs regardless of individual probe outcome.

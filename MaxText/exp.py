@@ -10742,3 +10742,13 @@ class RMTCombinedLayerScanMajorReverseWriteProfile(RMTCombinedLayerScanJointWrit
 class RMTCombinedLayerScanMajorReverseWriteV6eB4Profile(RMTCombinedLayerScanMajorReverseWriteProfile):
     model_name = 'RMTCombinedLayerScanMajorReverseWriteV6eB4Profile'
     per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanMajorReverse128WriteProfile(RMTCombinedLayerScanMajorReverseWriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorReverse128WriteProfile'
+    rmt_pallas_write_backward = 'joint_major128'
+
+
+class RMTCombinedLayerScanMajorReverse128WriteV6eB4Profile(RMTCombinedLayerScanMajorReverse128WriteProfile):
+    model_name = 'RMTCombinedLayerScanMajorReverse128WriteV6eB4Profile'
+    per_device_batch_size = 4.0

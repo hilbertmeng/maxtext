@@ -26,11 +26,12 @@ def _stage_tile(matrix,address,data,gate,static_key,read_key,gain,epsilon):
   read=jnp.dot(read_key.T,padded.transpose(1,0,2).reshape(k,t*vp),
                preferred_element_type=jnp.float32).astype(matrix.dtype)
   read=read.reshape(h,t,vp).transpose(1,0,2)[...,:v]
-  # V=75 is not a TPU vector tile: explicitly pack each row, not an illegal
-  # reshape of the padded physical layout. Keep the trained 1200-vector RMS.
-  pieces=[jax.lax.slice_in_dim(updated,i,i+1,axis=1).reshape(t,v) for i in range(h)]
-  proxy=jnp.concatenate(pieces,axis=-1)
-  proxy=_rms(proxy,epsilon)*(1+gain)
+  # Preserve the 1200-coordinate norm while keeping the native matrix layout.
+  # Packing V=75 into a vector is delegated to XLA outside the opaque call.
+  proxy=jax.lax.slice_in_dim(updated,0,h,axis=1)
+  fp32=proxy.astype(jnp.float32)
+  inverse=jax.lax.rsqrt(jnp.mean(fp32*fp32,axis=(1,2),keepdims=True)+epsilon)
+  proxy=(fp32*inverse).astype(matrix.dtype)*(1+gain)
   return updated,read,proxy
 
 
@@ -48,7 +49,7 @@ def _call(args,epsilon,interpret):
     values=[r[...] for r in refs[:7]]
     out=_stage_tile(*values,epsilon)
     for ref,x in zip(refs[7:],out):ref[...]=x
-  shapes=((n,k,v),(n,h,v),(n,h*v))
+  shapes=((n,k,v),(n,h,v),(n,h,v))
   specs=[_spec(x.shape[1:] if i<4 else x.shape,tile,shared=i>=4) for i,x in enumerate(args)]
   return pl.pallas_call(kernel,grid=(n//tile,),in_specs=specs,
       out_specs=tuple(_spec(s[1:],tile) for s in shapes),
@@ -94,6 +95,7 @@ def write_mlp_stage(matrix,address,data,gate,static_key,read_key,gain,epsilon=1e
   leading=matrix.shape[:-2]
   n=math.prod(leading)
   args=[x.reshape((n,)+x.shape[-2:]) for x in (matrix,address,data)]
-  args.extend((gate.reshape(n,data.shape[-2]),static_key,read_key,gain))
+  args.extend((gate.reshape(n,data.shape[-2]),static_key,read_key,gain.reshape(data.shape[-2:])))
   out=_stage(*args,epsilon,interpret)
-  return tuple(x.reshape(leading+x.shape[1:]) for x in out)
+  return (out[0].reshape(matrix.shape),out[1].reshape(data.shape),
+          out[2].reshape(leading+(data.shape[-2]*data.shape[-1],)))

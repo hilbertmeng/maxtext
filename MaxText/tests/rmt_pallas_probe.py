@@ -50,6 +50,7 @@ def main():
     return jax.jit(f)
   if args.arm in ('pallas','both'):
     for dtype in ((jnp.float32,) if args.interpret else (jnp.float32,jnp.bfloat16)):
+      jax.config.update('jax_default_matmul_precision','highest' if dtype==jnp.float32 else 'default')
       x=inputs(max(16,int(os.environ.get('RMT_PALLAS_TILE','8'))),dtype)
       actual=forward_backward(fused)(*x)
       expected=forward_backward(reference)(*x)
@@ -60,6 +61,7 @@ def main():
         assert np.isfinite(a).all() and err < (4e-5 if dtype==jnp.float32 else .035),result['checks'][-1]
     print(json.dumps({'checks':result['checks']}),flush=True)
   if not args.interpret:
+    jax.config.update('jax_default_matmul_precision','default')
     x=inputs(args.tokens,jnp.bfloat16)
     for name,fn in [('reference',reference),('pallas',fused)]:
       if args.arm not in ('both',name):

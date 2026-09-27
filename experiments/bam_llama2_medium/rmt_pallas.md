@@ -116,3 +116,47 @@ Next independent branches, all opt-in and preserving parameter trees:
 Two-device CPU sharding test verifies batch partitioning and shared parameter
 all-reduction. No topology or full-step v5p-16 result exists yet. Retain both
 user-authorized diagnostic TPUs regardless of individual probe outcome.
+
+
+## Complete screening windows and rematerialization pivot
+
+Inverse mean latency from the same30 logged steps20–49:
+
+| Host | Configuration | Runtime | step/s | vs same-host control |
+|---|---|---|---:|---:|
+| -0 | RMTCombinedLayerScanNoHealthL6Profile |7a9374a| .749399 |0|
+| -0 | RMTCombinedLayerScanJoinedReadL6Profile |7a9374a| .679566 |−9.32%|
+| -0 | RMTCombinedLayerScanJoinedPallasReadL6Profile |116a337| .658633 |−12.11%|
+| -0 | RMTCombinedLayerScanPallasQKL6Profile |2bb8959| .739899 |−1.27%|
+| -0 | RMTCombinedLayerScanPaddedCarryL6Profile |758028e| .663833 |−11.42%|
+| -0 | RMTCombinedLayerScanPallasWriteBackwardL6Profile |428c62b| .725633 |−3.17%|
+| -1 | RMTCombinedLayerScanNoHealthL6Profile |b57b787| .764965 |0|
+| -1 | RMTCombinedLayerScanPackedProjectionL6Profile |b57b787| .779497 |+1.90%|
+
+Only packing is a same-commit positive complete-step result. Its device trace
+means1298.206→1274.773ms corroborate the gain. QK scopes103.06→89.80ms and
+attention-write scopes90.53→82.45ms explain most of it. It is still small.
+Different revisions in host-0 negative rows are screening comparisons, not a
+sealed final performance claim. All traces/logs now verified/downloaded under
+`/data0/xd/bam_diagnostics/rmt-pallas-screening`; GCS root as above.
+
+Grouped write839605c separates DMA tile64 from block-diagonal group8.
+8192-token BF16 forward/VJP reference .528/3.002ms versus Pallas .870/2.753;
+checkpointed VJP reference2.165 versus2.900. Retain as an experimental kernel,
+not a training winner.
+
+RMTCombinedLayerScanSaveDenseL6Profile839605c cannot fit v6e:33.79GiB needed
+versus31.25GiB available. It saves only non-batched dense dots and recomputes
+attention. CPU complete3-layer scan values/parameter gradients pass.
+
+Full18-layer v5p-16 AOTs prepared via retained hosts,100-step schedule:
+- Control839605c andfbcffdf READY; no target resource acquired yet.
+- RMTCombinedLayerScanAttentionRematProfilefbcffdf failed target HBM allocation:
+  265.35GiB >95.74GiB. Disabling outer layer remat retains many redundant
+  scan-wide BF16 MLP and FP32 norm residual arrays. The +15–25% throughput
+  pre-run bet was conditional on fitting; that prerequisite failed.
+- SaveDensefbcffdf and PackedProjectionfbcffdf target AOTs in progress.
+
+The next policy saves dense dots plus explicitly named attention-head and
+post-attention matrix results, recomputing cheap normalization intermediates.
+No successful v5p-16 measurement or significant overall speedup is claimed.

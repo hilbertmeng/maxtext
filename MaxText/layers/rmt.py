@@ -9,6 +9,7 @@ import math
 
 from flax import linen as nn
 import jax
+from jax import ad_checkpoint
 import jax.numpy as jnp
 
 import common_types
@@ -394,12 +395,18 @@ class RMTLayer(nn.Module):
       if cfg.get_keys().get('rmt_remat_policy','full')=='attention_only':
         # Same attention equations and chunks. Limit recomputation to the
         # large quadratic intermediates; retain linear-size matrix-flow work.
-        def attention_chunk(q,k,v,mask):
-          return attentions._attention_op(q,k,v,mask,
+        def attention_chunk(q,k,v,segments):
+          # Store the shared full Q/K/V once, not every overlapping prefix
+          # or quadratic boolean mask as separate checkpoint arguments.
+          source=jnp.arange(q1)[None,:]
+          target=jnp.arange(q0,q1)[:,None]
+          mask=(source<=target)[None]
+          if segments is not None:
+            mask &= (segments[:,q0:q1,None]==segments[:,None,:q1])
+          return attentions._attention_op(q[:,q0:q1],k[:,:q1],v[:,:q1],mask,
               float32_logits=cfg.float32_logits if rope_qk_dim else True,
               additive_bias=(None if rope_qk_dim else _alibi_bias(heads,q0,q1,0,q1)))[0]
-        y=jax.checkpoint(attention_chunk,prevent_cse=True)(
-            query[:,q0:q1],key[:,:q1],value[:,:q1],valid)
+        y=jax.checkpoint(attention_chunk,prevent_cse=True)(query,key,value,segment_ids)
       else:
         y, alpha = attentions._attention_op(
             query[:, q0:q1], key[:, :q1], value[:, :q1], valid,
@@ -412,6 +419,8 @@ class RMTLayer(nn.Module):
       static_head_output = head_output
       if dynamic_o_enabled:
         head_output = head_output + dynamic_o
+    if cfg.get_keys().get('rmt_remat_policy','full')=='save_dense_state':
+      head_output=ad_checkpoint.checkpoint_name(head_output,'rmt_attention_head')
     attn_write = self.param('attn_write_key', write_init,
                             (heads, key_dim), cfg.weight_dtype)
     write_data = (jnp.pad(head_output, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
@@ -431,6 +440,8 @@ class RMTLayer(nn.Module):
     elif not dynamic:
       matrix = matrix + static_attn_write
 
+    if cfg.get_keys().get('rmt_remat_policy','full')=='save_dense_state':
+      matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
     mlp_in = (matrix if vector_pre_norm else
               MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
     mlp_read = self.param('mlp_read_key', key_init,
@@ -593,8 +604,11 @@ class RMTDecoder(nn.Module):
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
     policy_name=cfg.get_keys().get('rmt_remat_policy','full')
-    if policy_name not in ('full','save_dense','attention_only'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
-    policy=(jax.checkpoint_policies.dots_with_no_batch_dims_saveable if policy_name=='save_dense' else None)
+    if policy_name not in ('full','save_dense','save_dense_state','attention_only'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
+    policy=(jax.checkpoint_policies.dots_with_no_batch_dims_saveable if policy_name in ('save_dense','save_dense_state') else None)
+    if policy_name=='save_dense_state':
+      policy=jax.checkpoint_policies.save_from_both_policies(policy,
+          jax.checkpoint_policies.save_only_these_names('rmt_attention_head','rmt_mlp_matrix'))
     if block_scan and policy_name!='full':raise ValueError('Selective remat requires direct layer scan')
     Layer = (RMTBlock if block_scan else RMTLayer if policy_name=='attention_only' else
              nn.remat(RMTLayer,prevent_cse=True,static_argnums=(4,),policy=policy))

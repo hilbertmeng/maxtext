@@ -20,7 +20,7 @@ class RMTDepthTest(absltest.TestCase):
   def test_selective_remat_matches_full_scan(self):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,
-                          dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3)
+                          dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3,query_chunk_size=2)
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
     model=models.Transformer(config=cfg,mesh=mesh,quant=None)
     args=dict(decoder_input_tokens=jnp.array([[1,2,3,4]],jnp.int32),
@@ -33,7 +33,7 @@ class RMTDepthTest(absltest.TestCase):
       params=tree.unflatten([x+.01*jax.random.normal(jax.random.key(812+i),x.shape) for i,x in enumerate(leaves)])
       def loss(p):return jnp.mean(model.apply({'params':p},**args)[0])
       baseline=jax.jit(jax.value_and_grad(loss))(params)
-      for policy in ('save_dense','attention_only'):
+      for policy in ('save_dense','save_dense_state','attention_only'):
         cfg.get_keys()['rmt_remat_policy']=policy
         actual=jax.jit(jax.value_and_grad(loss))(params)
         for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):

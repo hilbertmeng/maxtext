@@ -18,14 +18,20 @@ same-runtime .384366 control). Original formal configuration on the same VM
 is .378066step/s; its health/block-scan difference is reported separately.
 The original +25–40% throughput bet has not yet been achieved.
 
-Final four-arm repeat: `5d5a2c0`, pending replacement UC1a v5p-16 acquisition.
+Final four-arm repeat: `5d5a2c0`, replacement UC1a v5p-16 installed.
+Additional full18 v6e-1 matrix at `b91b850`: control and all three candidate
+variants at per-device/global batch4, sequence4096; preparing exact v6e-1 AOTs.
+This matches architecture/depth but not v5p batch/topology. Report within-device
+speedup and disclose the difference; it cannot establish multi-chip v6e throughput.
 Do not use six-layer or isolated-kernel timings as final training gains.
 
 Target architecture:
 `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32`.
 18 layers, MLP4078, 432,112,752 parameters. All mathematical model equations
-and parameter shapes preserved; extra parameter cost **0 W_Q**. Direct layer
-scan replaces block scan. Attention operator is unchanged; Splash is separate.
+and per-layer parameter dimensions preserved; extra parameter cost **0 W_Q**.
+Direct layer scan replaces block scan and regroups the checkpoint parameter tree.
+An old block-scan checkpoint needs an explicit parameter/optimizer-state mapping;
+no production checkpoint-conversion utility is delivered here. Attention operator is unchanged; Splash is separate.
 Kernel and rematerialization flags are opt-in. BF16 operation/reduction order
 changes, so numerical equivalence is tolerance-based, not bit identity.
 These are short train-step benchmarks, not long convergence experiments.
@@ -136,6 +142,11 @@ only≈1% extra over the no-QK fused combination, not the earlier3–6% bet.
 
 ## Correctness and limits
 
+- Three-layer block-scan versus direct-scan test explicitly maps identical
+  parameters and verifies loss/all parameter gradients (FP32, passed47.23s).
+  Same random seed alone does not give identical initialization across the two
+  different scan trees. Initialization identity claims below concern packing
+  within a fixed tree, not original block scan versus direct scan.
 - Pinned CPU full-layer forward/input/all-parameter gradients on nonzero
   perturbed parameters; exact initialization checks for projection packing.
 - Full three-layer scan and all fused routes match original loss/gradients
@@ -150,6 +161,23 @@ only≈1% extra over the no-QK fused combination, not the earlier3–6% bet.
   disagreement. Production BF16 multi-tile runs pass.
 - Small BF16 loss-trajectory differences exist; short runs do not establish
   convergence equivalence. No parameters were removed and attention unchanged.
+
+## Required MHA comparison (in progress)
+
+The architectural reference is `BamMHAMediumPropC256` (RoPE MHA,
+432,121,200 parameters), not an ALiBi or differently sized MHA. Runtime
+`39c7e0f` adds `RMTMatchedMHARoPENoHealthProfile` and its `V6eB4` variant.
+`RMTOriginalBlockScanNoHealthProfile` and its `V6eB4` variant retain the original
+RMT scan implementation while disabling health. Pair these with the winning
+optimized route on each target VM. This separates kernel speedup from health
+and scan bookkeeping and reports the remaining architectural cost versus MHA.
+Do not infer the matched MHA speed from its historical UE5a .7271 result.
+
+Report absolute step/s (and batch/sequence), optimized/original throughput,
+optimized/MHA throughput, and the fraction of RMT's excess step latency removed:
+`(t_original - t_optimized) / (t_original - t_MHA)`.
+Initial bet: v5p optimized throughput remains roughly60–65% of MHA; v6e may show
+larger relative RMT gains. This is a prediction, pending measurements.
 
 ## Reproduction and artifacts
 
@@ -185,6 +213,8 @@ Each RUN is `Profile<hash7>_<label>_<matrix-id>_<index>_<full-config-name>`.
 |396339d|rmt_write_combo_v5p|write-combo-0927|rmt-pallas-v5p-write-combo|
 |c031d76|rmt_rw_state_v5p|rw-state-0927|rmt-pallas-v5p-rw-state|
 |71f46b3|rmt_all_v5p|all-best-0927 / all-controls-0927 (partial)|rmt-pallas-v5p-all|
+|5d5a2c0|rmt_final_v5p|final-0927|rmt-pallas-v5p-final|
+|b91b850|rmt_final_v6e|final-v6e-0927|rmt-pallas-v6e-final|
 
 Aggregate log summary `/data0/xd/bam_diagnostics/rmt-pallas-target-results.json`.
 Original configuration log is in `rmt-pallas-v5p`; separate original XPlane

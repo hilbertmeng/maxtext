@@ -19,6 +19,36 @@ class RMTDepthTest(absltest.TestCase):
 
   _config = rmt_mediumprop_test.RMTMediumPropTest._config
 
+  def test_block_scan_matches_direct_scan_with_mapped_parameters(self):
+    cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
+    cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,
+                          dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3,query_chunk_size=2)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
+    model=models.Transformer(config=cfg,mesh=mesh,quant=None)
+    args=dict(decoder_input_tokens=jnp.array([[1,2,3,4]],jnp.int32),
+              decoder_positions=jnp.arange(4)[None],decoder_target_tokens=jnp.array([[2,3,4,5]],jnp.int32),
+              decoder_target_mask=jnp.ones((1,4),jnp.float32),decoder_segment_ids=jnp.ones((1,4),jnp.int32),
+              enable_dropout=False)
+    axis=cfg.param_scan_axis
+    with contextlib.redirect_stdout(io.StringIO()):
+      params=nn.unbox(model.init(jax.random.key(839),**args)['params'])
+      leaves,tree=jax.tree.flatten(params)
+      params=tree.unflatten([x+.01*jax.random.normal(jax.random.key(840+i),x.shape) for i,x in enumerate(leaves)])
+      def loss(p):return jnp.mean(model.apply({'params':p},**args)[0])
+      direct=jax.jit(jax.value_and_grad(loss))(params)
+      blocked=jax.tree.map(lambda x:x,params)
+      blocked['decoder']['layers']={
+          f'layer_{i}':jax.tree.map(lambda x:jnp.take(x,jnp.array([i]),axis=axis),params['decoder']['layers'])
+          for i in range(3)}
+      cfg.get_keys()['rmt_block_scan']=True
+      actual=jax.jit(jax.value_and_grad(loss))(blocked)
+      grad=actual[1]
+      layers=grad['decoder']['layers']
+      grad['decoder']['layers']=jax.tree.map(lambda *xs:jnp.concatenate(xs,axis=axis),
+                                             *(layers[f'layer_{i}'] for i in range(3)))
+      for a,b in zip(jax.tree.leaves((actual[0],grad)),jax.tree.leaves(direct)):
+        np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=4e-4,atol=3e-6)
+
   def test_fused_scan_remat_matches_original(self):
     from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')

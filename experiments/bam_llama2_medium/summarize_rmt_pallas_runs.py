@@ -18,7 +18,9 @@ def summarize(path, start=20, stop=49):
   values=[records[step] for step in range(start,stop+1)]
   keys=('base_num_decoder_layers','rmt_mlp_dim_by_block','per_device_batch_size',
         'global_batch_size_to_train_on','max_target_length','learning_rate_schedule_steps',
-        'opt_type','dtype','rmt_record_dynamic_health','record_training_health_metrics')
+        'opt_type','dtype','rmt_record_dynamic_health','record_training_health_metrics',
+        'record_internal_nn_metrics','rmt_block_scan','rmt_remat_policy','attention',
+        'query_chunk_size','scan_layers','base_emb_dim','base_mlp_dim','head_dim')
   resolved={key:re.findall(r'^Config param '+key+r': (.+)$',text,re.M)[-1]
             for key in keys if re.search(r'^Config param '+key+r': ',text,re.M)}
   return dict(configuration=name[1] if name else path.stem,

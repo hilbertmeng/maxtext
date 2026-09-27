@@ -61,8 +61,9 @@ def read_state(m,c,scale,wk,wg,bias,epsilon,read_epsilon):
   raw=m[:h].reshape(h*v,t)
   normalized=_norm(raw,epsilon)
   x=(normalized.astype(jnp.float32)*scale.astype(jnp.float32)[:,None]).astype(m.dtype)
-  key=jnp.dot(wk.T,x,preferred_element_type=jnp.float32).astype(m.dtype).reshape(h,rank,t)
-  logits=jnp.dot(wg,x,preferred_element_type=jnp.float32).astype(m.dtype)
+  projection=jnp.dot(jnp.concatenate((wk.T,wg),axis=0),x,preferred_element_type=jnp.float32).astype(m.dtype)
+  key=projection[:h*rank].reshape(h,rank,t)
+  logits=projection[h*rank:]
   # Mosaic's BF16 logistic lowering broadcasts an F32 constant as BF16.
   # Keep the original BF16 addition, evaluate sigmoid in F32, then round once.
   logits=(logits.astype(jnp.float32)+bias.astype(jnp.float32)[:,None]).astype(m.dtype)
@@ -116,11 +117,12 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,write_r
   dmtail=contract(c,dc)
   dk=_norm_backward(key,dkn,read_epsilon).reshape(h*rank,t)
   dg=(dgate*(gate*(1-gate))).astype(m.dtype)
-  store_partial(out_refs[8],jnp.dot(x,dk.T,preferred_element_type=jnp.float32))
-  store_partial(out_refs[9],jnp.dot(dg,x.T,preferred_element_type=jnp.float32))
+  dp=jnp.concatenate((dk,dg),axis=0)
+  dw=jnp.dot(x,dp.T,preferred_element_type=jnp.float32)
+  store_partial(out_refs[8],dw[:,:h*rank])
+  store_partial(out_refs[9],dw[:,h*rank:].T)
   store_partial(out_refs[10],jnp.sum(dg.astype(jnp.float32),axis=1))
-  dx=(dx+jnp.dot(wk,dk,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
-  dx=(dx+jnp.dot(wg.T,dg,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
+  dx=(dx+jnp.dot(jnp.concatenate((wk,wg.T),axis=1),dp,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
   store_partial(out_refs[7],jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32),axis=1))
   draw=_norm_backward(raw,(dx.astype(jnp.float32)*scale.astype(jnp.float32)[:,None]).astype(m.dtype),epsilon).reshape(h,v,t)
   dm=(dm+jnp.concatenate((draw,dmtail),axis=0)).astype(m.dtype)
@@ -150,17 +152,20 @@ def call(args,epsilon,read_epsilon,interpret,tile):
       name='rmt_fused_write_mlp_read')(*args)
 
 
-@partial(jax.custom_vjp,nondiff_argnums=(11,12,13,14,15))
-def fused(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers):
+@partial(jax.custom_vjp,nondiff_argnums=(11,12,13,14,15,16))
+def fused(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers,backward_tile):
   return call((m,a,d,g,s,r,c,scale,wk,wg,bias),epsilon,read_epsilon,interpret,tile)
 
 
-def fwd(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers):
+def fwd(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile,buffers,backward_tile):
   out=call((m,a,d,g,s,r,c,scale,wk,wg,bias),epsilon,read_epsilon,interpret,tile)
   return out,(out[0],a,d,g,s,r,c,scale,wk,wg,bias)
 
 
-def bwd(epsilon,read_epsilon,interpret,tile,buffers,args,cotangents):
+def bwd(epsilon,read_epsilon,interpret,tile,buffers,backward_tile,args,cotangents):
+  if backward_tile:
+    from layers.rmt_pallas_write_read_major import backward
+    return backward(args,cotangents,epsilon,read_epsilon,interpret,backward_tile)
   b,_,_,t=args[0].shape
   def kernel(*refs):
     reverse(*(x[...] for x in refs[:14]),epsilon,read_epsilon,refs[1:4],refs[14:])
@@ -189,13 +194,13 @@ def bwd(epsilon,read_epsilon,interpret,tile,buffers,args,cotangents):
 fused.defvjp(fwd,bwd)
 
 
-def write_mlp_read(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,tile=128,buffers=1):
+def write_mlp_read(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,tile=128,buffers=1,backward_tile=0):
   """Public M[B,T,K,V], head[B,T,H,V], vector[B,T,H*V] interface."""
   def local(m,a,d,g,*weights):
     block=min(tile,m.shape[1])
     if m.shape[1]%block:raise ValueError('Sequence length must divide the fused token tile')
     weights=(*weights[:5],weights[5].T,weights[6])
     out=fused(m.transpose(0,2,3,1),a.transpose(0,2,3,1),d.transpose(0,2,3,1),g.transpose(0,2,1),
-              *weights,epsilon,read_epsilon,interpret,block,buffers)
+              *weights,epsilon,read_epsilon,interpret,block,buffers,backward_tile)
     return out[0].transpose(0,3,1,2),out[1].transpose(0,3,1,2),out[2].transpose(0,2,1)
   return _map_batch(local,(m,a,d,g,s,r,c,scale,wk,wg,bias),(True,)*4+(False,)*7,output_tuple=3)

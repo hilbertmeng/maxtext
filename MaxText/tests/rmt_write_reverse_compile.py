@@ -21,6 +21,7 @@ def main():
   p.add_argument('--modes',default='autodiff,joint_major')
   p.add_argument('--kernel',choices=['write','read','chain'],default='write')
   p.add_argument('--tile',type=int,default=128)
+  p.add_argument('--backward-tile',type=int,default=0)
   p.add_argument('--output',required=True)
   args=p.parse_args()
   hw=accelerator_to_spec_map.get_system_characteristics(args.topology)
@@ -41,7 +42,7 @@ def main():
   for mode in args.modes.split(','):
     def reverse(*z):
       if args.kernel=='chain':
-        fn=lambda *v:write_mlp_read(*v,tile=args.tile)
+        fn=lambda *v:write_mlp_read(*v,tile=args.tile,backward_tile=args.backward_tile)
         if mode=='forward':return fn(*z[:11])
         return jax.vjp(fn,*z[:11])[1](tuple(z[11:]))
       if args.kernel=='read':

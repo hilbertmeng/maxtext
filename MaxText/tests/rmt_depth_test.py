@@ -73,7 +73,10 @@ class RMTDepthTest(absltest.TestCase):
   def test_fused_write_read_scan_remat_matches_original(self):
     self._check_fused_scan_remat('autodiff', whole_stage=True)
 
-  def _check_fused_scan_remat(self, backward, no_o=False, whole_stage=False):
+  def test_chunked_fused_write_read_scan_remat_matches_original(self):
+    self._check_fused_scan_remat('autodiff', whole_stage=True, stage_chunk=64)
+
+  def _check_fused_scan_remat(self, backward, no_o=False, whole_stage=False, stage_chunk=0):
     from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk, rmt_pallas_v_read, rmt_pallas_write_read
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,
@@ -94,7 +97,8 @@ class RMTDepthTest(absltest.TestCase):
       cfg.get_keys().update(rmt_pallas_write=True,rmt_pallas_write_layout='token_minor',
                             rmt_pallas_c8=True,rmt_pallas_qk_post=True,rmt_pack_dynamic_projections=True,
                             rmt_pallas_write_backward=backward,rmt_pallas_v_only=no_o,
-                            rmt_fused_write_mlp_read=whole_stage)
+                            rmt_fused_write_mlp_read=whole_stage,
+                            rmt_fused_write_read_backward_tile=stage_chunk)
       with mock.patch.object(rmt_pallas_minor,'write_residual',
                              wraps=partial(rmt_pallas_minor.write_residual,interpret=True)), \
            mock.patch.object(rmt_pallas_minor_read,'c8_read',

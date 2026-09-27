@@ -10815,3 +10815,24 @@ class RMTCombinedLayerScanFusedWriteReadV6eB4Profile(RMTCombinedLayerScanTokenAl
     rmt_fused_write_mlp_read = True
     rmt_fused_write_read_tile = 128
     rmt_fused_write_read_buffers = 2
+
+
+class RMTCombinedLayerScanFusedWriteReadChunk32Profile(RMTCombinedLayerScanFusedWriteReadProfile):
+    """Whole fused reverse with native 32-token storage and joint MXU write pullback."""
+    model_name = 'RMTCombinedLayerScanFusedWriteReadChunk32Profile'
+    rmt_fused_write_read_backward_tile = 32
+
+
+class RMTCombinedLayerScanFusedWriteReadChunk32V6eB4Profile(RMTCombinedLayerScanFusedWriteReadV6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadChunk32V6eB4Profile'
+    rmt_fused_write_read_backward_tile = 32
+
+
+class RMTCombinedLayerScanFusedWriteReadChunk64V6eB4Profile(RMTCombinedLayerScanFusedWriteReadV6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadChunk64V6eB4Profile'
+    rmt_fused_write_read_backward_tile = 64
+
+
+class RMTCombinedLayerScanFusedWriteReadChunk128V6eB4Profile(RMTCombinedLayerScanFusedWriteReadV6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadChunk128V6eB4Profile'
+    rmt_fused_write_read_backward_tile = 128

@@ -27,6 +27,13 @@ def write_reference(matrix, address, data, gate, static_key, epsilon=1e-6):
   return matrix + static + dynamic
 
 
+def _block_diagonal(x):
+  t,rows,cols=x.shape
+  same=jnp.arange(t)[:,None,None,None]==jnp.arange(t)[None,None,:,None]
+  values=jnp.where(same,x.astype(jnp.float32)[:,:,None,:],0)
+  return values.reshape(t*rows,t*cols).astype(x.dtype)
+
+
 def _write_tile(matrix, address, data, gate, static_key, epsilon):
   t,h,k=address.shape
   v=data.shape[-1]
@@ -39,9 +46,8 @@ def _write_tile(matrix, address, data, gate, static_key, epsilon):
   static=jnp.dot(static_key.T,dp.transpose(1,0,2).reshape(h,t*vp),
                  preferred_element_type=jnp.float32).astype(data.dtype)
   static=static.reshape(k,t,vp).transpose(1,0,2)[...,:v]
-  same=jnp.arange(t)[:,None]==jnp.arange(t)[None,:]
-  blocked=jnp.where(same[:,None,:,None],(gate*a).transpose(0,2,1)[:,:,None,:],0)
-  dynamic=jnp.dot(blocked.reshape(t*k,t*h),dn.reshape(t*h,vp),
+  blocked=_block_diagonal((gate*a).transpose(0,2,1))
+  dynamic=jnp.dot(blocked,dn.reshape(t*h,vp),
                   preferred_element_type=jnp.float32).astype(data.dtype)
   dynamic=dynamic.reshape(t,k,vp)[...,:v]
   return matrix+static+dynamic
@@ -129,9 +135,8 @@ def _c8_tile(matrix,key,compression,gates,epsilon):
                      preferred_element_type=jnp.float32).astype(matrix.dtype)
   compressed=compressed.reshape(t,v,r).transpose(0,2,1)
   compressed=jnp.concatenate((compressed,jnp.zeros(compressed.shape[:-1]+(vp-v,),compressed.dtype)),axis=-1)
-  same=jnp.arange(t)[:,None]==jnp.arange(t)[None,:]
-  blocked=jnp.where(same[:,None,:,None],_rms(key,epsilon)[:,:,None,:],0)
-  read=jnp.dot(blocked.reshape(t*h,t*r),compressed.reshape(t*r,vp),
+  blocked=_block_diagonal(_rms(key,epsilon))
+  read=jnp.dot(blocked,compressed.reshape(t*r,vp),
                preferred_element_type=jnp.float32).astype(matrix.dtype)
   read=read.reshape(t,h,vp)[...,:v]
   return (.2*gates)[...,None]*read[:,:,None,:]

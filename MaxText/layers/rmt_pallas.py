@@ -39,6 +39,21 @@ def _block_diagonal(x):
   return jnp.concatenate(blocks,axis=0).astype(x.dtype)
 
 
+def _grouped_dot(left,right,group):
+  """Pack a few token contractions per MXU dot, independently of DMA tile size."""
+  t,m,k=left.shape
+  n=right.shape[-1]
+  group=min(group,t)
+  if t%group:raise ValueError('Grouped dot must divide the token tile')
+  results=[]
+  for begin in range(0,t,group):
+    block=_block_diagonal(left[begin:begin+group])
+    product=jnp.dot(block,right[begin:begin+group].reshape(group*k,n),
+                     preferred_element_type=jnp.float32).astype(left.dtype)
+    results.append(product.reshape(group,m,n))
+  return jnp.concatenate(results,axis=0)
+
+
 def _write_tile(matrix, address, data, gate, static_key, epsilon):
   gate=gate.astype(jnp.float32)[...,None].astype(gate.dtype)
   if os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu') == 'vpu':
@@ -54,7 +69,10 @@ def _write_tile(matrix, address, data, gate, static_key, epsilon):
   static=jnp.dot(static_key.T,dp.transpose(1,0,2).reshape(h,t*vp),
                  preferred_element_type=jnp.float32).astype(data.dtype)
   static=static.reshape(k,t,vp).transpose(1,0,2)[...,:v]
-  if os.environ.get('RMT_PALLAS_BATCHED_DOT')=='1':
+  group=int(os.environ.get('RMT_PALLAS_GROUPED_DOT','0'))
+  if group:
+    dynamic=_grouped_dot((gate*a).transpose(0,2,1),dn,group)[...,:v]
+  elif os.environ.get('RMT_PALLAS_BATCHED_DOT')=='1':
     dynamic=jnp.einsum('thk,thv->tkv',gate*a,dn,
                        preferred_element_type=jnp.float32).astype(data.dtype)[...,:v]
   else:

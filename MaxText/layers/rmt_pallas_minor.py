@@ -1,5 +1,6 @@
 """Vectorize token lanes without forcing matrix-flow tensors to value-minor."""
 from functools import partial
+import os
 import jax
 import jax.numpy as jnp
 from jax.experimental import pallas as pl
@@ -42,7 +43,8 @@ def _call(m,a,d,g,s,epsilon,interpret,tile):
       in_specs=[_spec((k,v),tile),_spec((h,k),tile),_spec((h,v),tile),_spec((h,),tile),
                 pl.BlockSpec(s.shape,lambda b,i:(0,0))],out_specs=_spec((k,v),tile),
       out_shape=jax.ShapeDtypeStruct(m.shape,m.dtype),interpret=interpret,
-      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel')),
+      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel'),
+          allow_input_fusion=((True,)*5 if os.environ.get('RMT_PALLAS_INPUT_FUSION')=='1' else None)),
       name='rmt_token_minor_write')(m,a,d,g,s)
 
 
@@ -66,7 +68,8 @@ def _bwd(epsilon,interpret,tile,args,dy):
   da,dd,dg,ds=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=specs,
       out_specs=[*specs[:3],pl.BlockSpec((None,None)+s.shape,lambda b,i:(b,i,0,0))],
       out_shape=[jax.ShapeDtypeStruct(shape,a.dtype) for shape in shapes],interpret=interpret,
-      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel')),
+      compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel'),
+          allow_input_fusion=((True,)*5 if os.environ.get('RMT_PALLAS_INPUT_FUSION')=='1' else None)),
       name='rmt_token_minor_write_backward')(a,d,g,s,dy)
   return dy,da,dd,dg,jnp.sum(ds.astype(jnp.float32),axis=(0,1)).astype(s.dtype)
 

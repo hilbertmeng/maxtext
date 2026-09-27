@@ -193,3 +193,30 @@ Main log`/home/lishengping/xd/projects/logs/rmt-pallas-v5p-f4fadcd-matrix.log`.
 The full formal configuration at the same runtime is being precompiled for
 an additional original block-scan/health comparison; do not attribute that
 broader difference solely to fused kernels or rematerialization policy.
+
+
+## Token-contiguous write ABI and target results (ongoing)
+
+`rmt_pallas_minor.py` keeps batch separate from token tiles, with kernel inputs
+`M[B,K,V,T]`, address[B,H,K,T], data[B,H,V,T]. Shared static write uses MXU;
+dynamic writes vectorize across tokens. Runtime0a3d12f passes TPU FP32/BF16
+forward and every input-gradient comparison. For8192 tokens, tile128:
+reference/Pallas forward .53359/.62943ms, ordinary VJP2.99091/2.35137ms,
+checkpointed VJP2.14016/2.02052ms (5.6% faster). Tile256 backward exceeds
+VMEM54.23MB>32MB. Complete-training comparison is still pending; this is
+not yet a throughput claim. Full layer CPU gradients also checked.
+
+Full18 v5p-16 f4fadcd matrix completed all5 arms with verified XPlanes.
+Preliminary stable speeds: control~.385, save-dense~.351, save-dense-state~.367,
+QK~.375step/s; exact30-step summaries pending artifact analysis. Raw XPlane
+control2579.896ms versus save-dense2829.794ms: dense compute saves135.09ms,
+but dynamic-update-slice adds201.85ms, loop fusion135.65ms, formatting34.11ms.
+Saving more intermediates changes memory/layout costs; compute savings alone
+do not predict speed. New `save_state` saves only named attention output and
+post-attention M, plus packed dynamic projections, to distinguish the costs.
+
+The first canonical v6e token-minor matrix failed before training because
+`run_profile_matrix.sh` did not propagate overridden MAXTEXT_REPO into the
+worker smoke wrapper. The wrapper used a different checkout/config. Fixed
+the authoritative orchestration script to pass it explicitly; rerun matrix
+`minor-0927b` at exact0a3d12f. No failed-run timing is used.

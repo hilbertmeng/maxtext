@@ -10441,3 +10441,14 @@ class RMTCombinedLayerScanTokenMinorWriteProfile(RMTCombinedLayerScanPallasWrite
 class RMTCombinedLayerScanTokenMinorWriteL6Profile(RMTCombinedLayerScanTokenMinorWriteProfile):
     model_name = 'RMTCombinedLayerScanTokenMinorWriteL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanSaveStateProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanSaveStateProfile'
+    rmt_remat_policy = 'save_state'
+    rmt_pack_dynamic_projections = True
+
+
+class RMTCombinedLayerScanSaveStateL6Profile(RMTCombinedLayerScanSaveStateProfile):
+    model_name = 'RMTCombinedLayerScanSaveStateL6Profile'
+    base_num_decoder_layers = 6

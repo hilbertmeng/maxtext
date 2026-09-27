@@ -33,7 +33,7 @@ class RMTDepthTest(absltest.TestCase):
       params=tree.unflatten([x+.01*jax.random.normal(jax.random.key(812+i),x.shape) for i,x in enumerate(leaves)])
       def loss(p):return jnp.mean(model.apply({'params':p},**args)[0])
       baseline=jax.jit(jax.value_and_grad(loss))(params)
-      for policy in ('save_dense','save_dense_state','attention_only'):
+      for policy in ('save_dense','save_dense_state','save_state','attention_only'):
         cfg.get_keys()['rmt_remat_policy']=policy
         actual=jax.jit(jax.value_and_grad(loss))(params)
         for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):

@@ -17,28 +17,37 @@ def joined_reference(matrix,key,projection,gates,epsilon=1e-6):
   return all_reads[:split],(.2*gates)[...,None]*read[:,None,:]
 
 
-def _joined_tile(matrix,key,projection,gates,epsilon):
+def _projection_tile(matrix,projection):
   t,k,v=matrix.shape
-  h,r=key.shape[-2:]
-  width=projection.shape[-1]
-  split=width-r
   vp=((v+127)//128)*128
   padded=jnp.concatenate((matrix,jnp.zeros((t,k,vp-v),matrix.dtype)),axis=-1)
   projected=jnp.dot(padded.transpose(0,2,1).reshape(t*vp,k),projection,
                     preferred_element_type=jnp.float32).astype(matrix.dtype)
-  projected=projected.reshape(t,vp,width).transpose(0,2,1)
-  compressed=projected[:,split:,:]
+  return projected.reshape(t,vp,projection.shape[-1]).transpose(0,2,1)
+
+
+def _dynamic_tile(compressed,key,gates,epsilon,v):
+  t,r,vp=compressed.shape
+  h=key.shape[-2]
   if os.environ.get('RMT_PALLAS_BATCHED_DOT')=='1':
     read=jnp.einsum('thr,trv->thv',_rms(key,epsilon),compressed,
-                    preferred_element_type=jnp.float32).astype(matrix.dtype)[...,:v]
+                    preferred_element_type=jnp.float32).astype(compressed.dtype)[...,:v]
   else:
     blocked=_block_diagonal(_rms(key,epsilon))
     read=jnp.dot(blocked,compressed.reshape(t*r,vp),
-                 preferred_element_type=jnp.float32).astype(matrix.dtype)
+                 preferred_element_type=jnp.float32).astype(compressed.dtype)
     read=read.reshape(t,h,vp)[...,:v]
-  dynamic=((.2*gates).astype(jnp.float32).transpose(0,2,1)[...,None]*
-           read.astype(jnp.float32)[:,None,:,:]).astype(matrix.dtype)
-  return projected[:,:split,:v],dynamic
+  return ((.2*gates).astype(jnp.float32).transpose(0,2,1)[...,None]*
+          read.astype(jnp.float32)[:,None,:,:]).astype(compressed.dtype)
+
+
+def _joined_tile(matrix,key,projection,gates,epsilon,save=False):
+  projected=_projection_tile(matrix,projection)
+  split=projection.shape[-1]-key.shape[-1]
+  compressed=projected[:,split:,:]
+  dynamic=_dynamic_tile(compressed,key,gates,epsilon,matrix.shape[-1])
+  outputs=(projected[:,:split,:matrix.shape[-1]],dynamic)
+  return outputs+(compressed,) if save else outputs
 
 
 def _spec(shape,tile,shared=False,partial_grad=False):
@@ -47,14 +56,16 @@ def _spec(shape,tile,shared=False,partial_grad=False):
   return pl.BlockSpec((None if partial_grad else tile,)+shape,lambda i:(i,)+zeros)
 
 
-def _call(matrix,key,projection,gates,epsilon,interpret,tile):
+def _call(matrix,key,projection,gates,epsilon,interpret,tile,save=False):
   n,k,v=matrix.shape
   h,r=key.shape[-2:]
   dest=gates.shape[-1]
   static_heads=projection.shape[-1]-r
-  def kernel(m,q,p,g,s,d):
-    s[...],d[...]=_joined_tile(m[...],q[...],p[...],g[...],epsilon)
+  def kernel(m,q,p,g,*outs):
+    values=_joined_tile(m[...],q[...],p[...],g[...],epsilon,save)
+    for ref,value in zip(outs,values):ref[...]=value
   shapes=((n,static_heads,v),(n,dest,h,v))
+  if save:shapes+=((n,r,((v+127)//128)*128),)
   return pl.pallas_call(kernel,grid=(n//tile,),
       in_specs=[_spec((k,v),tile),_spec((h,r),tile),_spec(projection.shape,tile,shared=True),_spec((h,dest),tile)],
       out_specs=tuple(_spec(s[1:],tile) for s in shapes),
@@ -69,20 +80,30 @@ def _joined(matrix,key,projection,gates,epsilon,interpret,tile):
 
 
 def _fwd(matrix,key,projection,gates,epsilon,interpret,tile):
-  return _call(matrix,key,projection,gates,epsilon,interpret,tile),(matrix,key,projection,gates)
+  s,d,compressed=_call(matrix,key,projection,gates,epsilon,interpret,tile,save=True)
+  return (s,d),(matrix,key,projection,gates,compressed)
 
 
 def _bwd(epsilon,interpret,tile,args,cotangents):
   n=args[0].shape[0]
-  def kernel(m,q,p,g,ds,dd,dm,dq,dp,dg):
-    _,pb=jax.vjp(lambda mm,qq,pp,gg:_joined_tile(mm,qq,pp,gg,epsilon),m[...],q[...],p[...],g[...])
-    dm[...],dq[...],dp[...],dg[...]=pb((ds[...],dd[...]))
-  shapes=[x.shape if i!=2 else (n//tile,)+x.shape for i,x in enumerate(args)]
+  original=args[:4]
+  def kernel(m,q,p,g,c,ds,dd,dm,dq,dp,dg):
+    # Retain only the small C8 projection from forward. Recomputing the
+    # full-M projection here repeats work already done by the layer remat.
+    v=m.shape[-1]
+    _,read_pullback=jax.vjp(lambda cc,qq,gg:_dynamic_tile(cc,qq,gg,epsilon,v),c[...],q[...],g[...])
+    dc,qgrad,ggrad=read_pullback(dd[...])
+    padded_ds=jnp.concatenate((ds[...],jnp.zeros(ds.shape[:-1]+(c.shape[-1]-v,),ds.dtype)),axis=-1)
+    dprojected=jnp.concatenate((padded_ds,dc),axis=1)
+    _,project_pullback=jax.vjp(_projection_tile,m[...],p[...])
+    mgrad,pgrad=project_pullback(dprojected)
+    dm[...],dq[...],dp[...],dg[...]=mgrad,qgrad,pgrad,ggrad
+  shapes=[x.shape if i!=2 else (n//tile,)+x.shape for i,x in enumerate(original)]
   grads=pl.pallas_call(kernel,grid=(n//tile,),
       in_specs=[_spec(x.shape if i==2 else x.shape[1:],tile,shared=i==2) for i,x in enumerate(args)]+
                [_spec(x.shape[1:],tile) for x in cotangents],
       out_specs=[_spec(s[1:],tile,partial_grad=i==2) for i,s in enumerate(shapes)],
-      out_shape=[jax.ShapeDtypeStruct(s,x.dtype) for s,x in zip(shapes,args)],
+      out_shape=[jax.ShapeDtypeStruct(s,x.dtype) for s,x in zip(shapes,original)],
       interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel',)),
       name='rmt_joined_static_c8_backward')(*args,*cotangents)
   return grads[0],grads[1],jnp.sum(grads[2].astype(jnp.float32),axis=0).astype(args[2].dtype),grads[3]

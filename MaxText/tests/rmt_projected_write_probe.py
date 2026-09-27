@@ -21,6 +21,7 @@ def main():
   p=argparse.ArgumentParser();p.add_argument('--interpret',action='store_true')
   p.add_argument('--dtype',choices=['float32','bfloat16'],default='float32')
   p.add_argument('--tokens',type=int,default=256);p.add_argument('--output',required=True)
+  p.add_argument('--reverse-tile',type=int,default=32)
   args=p.parse_args();t=args.tokens;dt=getattr(jnp,args.dtype)
   shapes=[(1,t,48,75),(1,t,1200),(1,t,16,75),(16,48),(1200,256),(256,768),(16,48),(1200,16),(16,)]
   x=[jax.random.normal(jax.random.key(1600+i),s,dtype=dt) for i,s in enumerate(shapes)]
@@ -28,7 +29,7 @@ def main():
   x[6]*=.1;x[8]=x[8]*.1-2
   dy=jax.random.normal(jax.random.key(1610),shapes[0],dtype=dt)
   baseline=reference(*x);bg=jax.vjp(reference,*x)[1](dy)
-  fn=lambda *z:projected_write(*z,interpret=args.interpret)
+  fn=lambda *z:projected_write(*z,interpret=args.interpret,reverse_tile=args.reverse_tile)
   actual=jax.jit(fn)(*x);ag=jax.jit(lambda *z:jax.vjp(fn,*z)[1](dy))(*x)
   errors=[float(jnp.linalg.norm(a.astype(jnp.float32)-b.astype(jnp.float32))/jnp.linalg.norm(b.astype(jnp.float32)))
           for a,b in zip((actual,*ag),(baseline,*bg))]

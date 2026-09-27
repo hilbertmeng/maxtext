@@ -10907,3 +10907,19 @@ class RMTThreeStageMHAControlV6eB4Profile(RMTThreeStageMHAControlProfile):
     model_name = 'RMTThreeStageMHAControlV6eB4Profile'
     per_device_batch_size = 4.0
     rmt_scoped_vmem_limit_kib = 98304
+
+
+class RMTThreeStageNoOReverse128Profile(RMTThreeStageNoOProfile):
+    """Independent reverse tiles; full fusion and forward128 preserved."""
+    model_name = 'RMTThreeStageNoOReverse128Profile'
+    rmt_fused_write_read_backward_tile = 128
+    rmt_projected_write_reverse_tile = 128
+
+
+class RMTThreeStageNoOTunedV6eB4Profile(RMTThreeStageNoOV6eB4Profile):
+    """v6e micro-selected reverse256/128/256; verify in full training."""
+    model_name = 'RMTThreeStageNoOTunedV6eB4Profile'
+    rmt_projected_write_forward_tile = 256
+    rmt_attention_read_reverse_tile = 256
+    rmt_fused_write_read_backward_tile = 128
+    rmt_projected_write_reverse_tile = 256

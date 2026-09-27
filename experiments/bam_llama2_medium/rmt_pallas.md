@@ -34,10 +34,32 @@ previous optimized, matching NoO control, to be checked separately on each TPU.
 
 Ownership: retained `llm-jax-v6e-1-0` compiles v5p; retained `llm-jax-v6e-1-1`
 checks actual TPU kernels and compiles v6e. Both are EW4a and must remain allocated.
-No new v5p target lease yet. Local actual-TPU artifacts:
+All eight candidate/control AOTs are ready. Paired v6e matrix `three-v6/three0927` runs
+on retained host1; host0 runs independent forward/reverse tile probes. New owned
+v5p target `xd-v5p-16-rmtthree-0927-uc1a` was queued in UC1a at14:15UTC
+(after all AOTs were ready). It is temporary and must be released after artifacts
+are verified; retained v6e machines must remain. Local actual-TPU artifacts:
 `/data0/xd/bam_diagnostics/rmt-three-stage-ebd5ba0/`; GCS:
 `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/rmt-three-stage-ebd5ba0/`.
 AOT root: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/ebd5ba0/jax081-i0ae3f58-c17f538a/`.
+
+## Forward/backward reporting contract
+
+Every new baseline comparison reports forward, backward including remat, visible
+external recomputation, other/unattributed time, and stable complete-step throughput.
+Each of the three fused stages has the same phase breakdown. These come from one
+complete training XPlane, with leaf coverage and overlap verified. Communication
+and identifiable optimizer operations are cross-cuts, not extra additive buckets;
+optimizer work fused into a gradient kernel cannot be split reliably from scope
+names. Recompute internal to an analytic reverse is already in its reverse time.
+`analyze_rmt_pallas_phases.py` implements this accounting;
+`rmt_three_stage_benchmark.py` independently sweeps forward/reverse blocks without
+including the saved-state forward execution in reverse micro timing.
+
+Historical selected traces put backward plus remat at about70% of v5p device time
+and71% of v6e time. This is motivation, not a result for the new three-stage model.
+Both complete middle and MLP-write reverse128 pass v5p B16,T4096 target compilation
+at the48MiB scoped budget. Actual speed decides whether they replace reverse32.
 
 ## VMEM audit: physical capacity, scoped budget and live allocation
 

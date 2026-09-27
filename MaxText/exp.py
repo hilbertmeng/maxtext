@@ -10626,3 +10626,31 @@ class RMTCombinedLayerScanTokenAllSaveDynamicV6eB4Profile(RMTCombinedLayerScanTo
     # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
     model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicV6eB4Profile'
     per_device_batch_size = 4.0
+
+
+class RMTOriginalBlockScanNoHealthProfile(
+    TrainStepProfile,
+    RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
+    """Original RMT implementation with health disabled for fair speed comparison."""
+    model_name = 'RMTOriginalBlockScanNoHealthProfile'
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    rmt_record_dynamic_health = False
+
+
+class RMTOriginalBlockScanNoHealthV6eB4Profile(RMTOriginalBlockScanNoHealthProfile):
+    model_name = 'RMTOriginalBlockScanNoHealthV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTMatchedMHARoPENoHealthProfile(TrainStepProfile, BamMHAMediumPropC256):
+    """Original MediumProp RoPE MHA, same budget, batch and all-health-off timing."""
+    model_name = 'RMTMatchedMHARoPENoHealthProfile'
+    record_training_health_metrics = False
+    record_internal_nn_metrics = False
+    rmt_record_dynamic_health = False
+
+
+class RMTMatchedMHARoPENoHealthV6eB4Profile(RMTMatchedMHARoPENoHealthProfile):
+    model_name = 'RMTMatchedMHARoPENoHealthV6eB4Profile'
+    per_device_batch_size = 4.0

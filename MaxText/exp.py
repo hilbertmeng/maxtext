@@ -11053,6 +11053,7 @@ class RMTThreeStageMiddleChunk6456Profile(RMTThreeStageMiddleChunk64Profile):
 class RMTThreeStageMiddleRecomputeSavedProfile(RMTThreeStageMiddleMinorSaved56Profile):
     model_name = 'RMTThreeStageMiddleRecomputeSavedProfile'
     rmt_full_middle_reverse_mode = 'minor_recompute'
+    rmt_scoped_vmem_limit_kib = 61440
 
 
 class RMTThreeStageMiddleRecomputeSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):

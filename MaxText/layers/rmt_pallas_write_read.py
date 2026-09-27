@@ -5,12 +5,13 @@ The reverse program joins every matrix cotangent before the analytic write
 pullback. Only final outputs and shared-parameter gradient partials reach HBM.
 """
 from functools import partial
+from dataclasses import replace
 import jax
 import jax.numpy as jnp
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 from layers.rmt_pallas import _map_batch
-from layers.rmt_pallas_minor import _tile, _norm, _norm_backward, _analytic_backward, _spec
+from layers.rmt_pallas_minor import _tile, _norm, _norm_backward, _spec
 
 
 def contract(w,x):
@@ -28,13 +29,13 @@ def weight_grad(left,right):
   return jnp.dot(l,r.T,preferred_element_type=jnp.float32)
 
 
-def write_reverse(a,d,g,s,dy,epsilon,write_refs):
+def write_reverse(a,d,g,s,dy,epsilon,write_refs,out_refs):
   """Keep one head's VPU contraction live, rather than unrolling all heads."""
   h,k,t=a.shape;v=d.shape[1]
   static_dd=contract(s,dy)
   ds=weight_grad(d,dy).astype(s.dtype)
   yf=dy.astype(jnp.float32)
-  def scoped(ga_ref,gd_ref,gg_ref,static_ref,gate_ref):
+  def scoped(gg_ref,static_ref,gate_ref):
     static_ref[...]=static_dd
     gate_ref[...]=jnp.broadcast_to(g.astype(jnp.float32)[:,None,:],(h,8,t)).astype(g.dtype)
     def head(i,_):
@@ -43,24 +44,25 @@ def write_reverse(a,d,g,s,dy,epsilon,write_refs):
       gated=(an*gg[None,:]).astype(a.dtype)
       ua=jnp.sum(yf*dn.astype(jnp.float32)[None,:,:],axis=1).astype(a.dtype)
       ud=jnp.sum(yf*gated.astype(jnp.float32)[:,None,:],axis=0).astype(d.dtype)
-      ga_ref[i,:,:]=_norm_backward(aa,(ua*gg[None,:]).astype(a.dtype),epsilon)
-      gd_ref[i,:,:]=(_norm_backward(dd,ud,epsilon)+static_ref[i,:,:]).astype(d.dtype)
+      out_refs[1][i,:,:]=_norm_backward(aa,(ua*gg[None,:]).astype(a.dtype),epsilon)
+      out_refs[2][i,:,:]=(_norm_backward(dd,ud,epsilon)+static_ref[i,:,:]).astype(d.dtype)
       gate=jax.lax.reduce_sum((ua*an).astype(g.dtype),axes=(0,))
       gg_ref[i,:,:]=jnp.broadcast_to(gate[None,:],(8,t))
     jax.lax.fori_loop(0,h,head,None)
-    return ga_ref[...],gd_ref[...],gg_ref[:,0,:]
-  ga,gd,gg=pl.run_scoped(scoped,pltpu.VMEM(a.shape,a.dtype),pltpu.VMEM(d.shape,d.dtype),
-                         pltpu.VMEM((h,8,t),g.dtype),pltpu.VMEM(d.shape,d.dtype),pltpu.VMEM((h,8,t),g.dtype))
-  return ga,gd,gg,ds
+    return gg_ref[:,0,:]
+  gg=pl.run_scoped(scoped,pltpu.VMEM((h,8,t),g.dtype),pltpu.VMEM(d.shape,d.dtype),
+                    pltpu.VMEM((h,8,t),g.dtype))
+  out_refs[3][...]=gg
+  store_partial(out_refs[4],ds.astype(jnp.float32))
 
 
 def read_state(m,c,scale,wk,wg,bias,epsilon,read_epsilon):
-  h=wg.shape[1];v=m.shape[1];t=m.shape[-1];rank=c.shape[1]
+  h=wg.shape[0];v=m.shape[1];t=m.shape[-1];rank=c.shape[1]
   raw=m[:h].reshape(h*v,t)
   normalized=_norm(raw,epsilon)
   x=(normalized.astype(jnp.float32)*scale.astype(jnp.float32)[:,None]).astype(m.dtype)
   key=jnp.dot(wk.T,x,preferred_element_type=jnp.float32).astype(m.dtype).reshape(h,rank,t)
-  logits=jnp.dot(wg.T,x,preferred_element_type=jnp.float32).astype(m.dtype)
+  logits=jnp.dot(wg,x,preferred_element_type=jnp.float32).astype(m.dtype)
   # Mosaic's BF16 logistic lowering broadcasts an F32 constant as BF16.
   # Keep the original BF16 addition, evaluate sigmoid in F32, then round once.
   logits=(logits.astype(jnp.float32)+bias.astype(jnp.float32)[:,None]).astype(m.dtype)
@@ -115,19 +117,19 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,write_r
   dk=_norm_backward(key,dkn,read_epsilon).reshape(h*rank,t)
   dg=(dgate*(gate*(1-gate))).astype(m.dtype)
   store_partial(out_refs[8],jnp.dot(x,dk.T,preferred_element_type=jnp.float32))
-  store_partial(out_refs[9],jnp.dot(x,dg.T,preferred_element_type=jnp.float32))
+  store_partial(out_refs[9],jnp.dot(dg,x.T,preferred_element_type=jnp.float32))
   store_partial(out_refs[10],jnp.sum(dg.astype(jnp.float32),axis=1))
   dx=(dx+jnp.dot(wk,dk,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
-  dx=(dx+jnp.dot(wg,dg,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
+  dx=(dx+jnp.dot(wg.T,dg,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
   store_partial(out_refs[7],jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32),axis=1))
   draw=_norm_backward(raw,(dx.astype(jnp.float32)*scale.astype(jnp.float32)[:,None]).astype(m.dtype),epsilon).reshape(h,v,t)
   dm=(dm+jnp.concatenate((draw,dmtail),axis=0)).astype(m.dtype)
-  da,dd,dg_write,ds=write_reverse(a,d,g,s,dm,epsilon,write_refs)
-  return dm,da,dd,dg_write,ds.astype(jnp.float32)
+  write_reverse(a,d,g,s,dm,epsilon,write_refs,out_refs)
+  out_refs[0][...]=dm
 
 
 def shared_spec(x):
-  return pl.BlockSpec(x.shape,lambda b,i:(0,)*x.ndim)
+  return pl.BlockSpec(x.shape,lambda b,i:(0,)*x.ndim,pipeline_mode=pl.Buffered(1))
 
 
 def specs(args,tile):
@@ -161,15 +163,16 @@ def fwd(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon,read_epsilon,interpret,tile):
 def bwd(epsilon,read_epsilon,interpret,tile,args,cotangents):
   b,_,_,t=args[0].shape
   def kernel(*refs):
-    gradients=reverse(*(x[...] for x in refs[:14]),epsilon,read_epsilon,refs[1:4],refs[14:])
-    for ref,value in zip(refs[14:18],gradients[:4]):ref[...]=value
-    store_partial(refs[18],gradients[4])
+    reverse(*(x[...] for x in refs[:14]),epsilon,read_epsilon,refs[1:4],refs[14:])
   inp=specs(args,tile)+[_spec(x.shape[1:-1],tile) for x in cotangents]
+  # Keep DMA overlap for the small streams; the two full matrix streams alone
+  # would consume almost 4 MiB with double buffering on a 16 MiB v5p core.
+  for i in (0,1,2,11):inp[i]=replace(inp[i],pipeline_mode=pl.Buffered(1))
   transposed=[x.ndim==2 and x.shape[0]>128 and x.shape[1]<128 for x in args[4:]]
   partial_shapes=[(1,)+x.shape if x.ndim==1 else x.shape[::-1] if tr else x.shape
                   for x,tr in zip(args[4:],transposed)]
   outspec=inp[:4]+[pl.BlockSpec((None,)+shape,
-      lambda b,i,ndim=len(shape):(b,)+(0,)*ndim) for shape in partial_shapes]
+      lambda b,i,ndim=len(shape):(b,)+(0,)*ndim,pipeline_mode=pl.Buffered(1)) for shape in partial_shapes]
   outshape=[jax.ShapeDtypeStruct(x.shape,x.dtype) if i<4 else
             jax.ShapeDtypeStruct((b,)+partial_shapes[i-4],jnp.float32) for i,x in enumerate(args)]
   grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=outspec,
@@ -191,6 +194,7 @@ def write_mlp_read(m,a,d,g,s,r,c,scale,wk,wg,bias,epsilon=1e-6,read_epsilon=1e-6
   def local(m,a,d,g,*weights):
     block=min(tile,m.shape[1])
     if m.shape[1]%block:raise ValueError('Sequence length must divide the fused token tile')
+    weights=(*weights[:5],weights[5].T,weights[6])
     out=fused(m.transpose(0,2,3,1),a.transpose(0,2,3,1),d.transpose(0,2,3,1),g.transpose(0,2,1),
               *weights,epsilon,read_epsilon,interpret,block)
     return out[0].transpose(0,3,1,2),out[1].transpose(0,3,1,2),out[2].transpose(0,2,1)

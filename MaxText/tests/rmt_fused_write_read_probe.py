@@ -64,15 +64,21 @@ def main():
   for mode in args.modes.split(','):
     if mode=='fused':fn=lambda *z:write_mlp_read(*z,interpret=args.interpret,tile=args.tile)
     else:fn=lambda *z,mode=mode:reference(*z,separate=mode=='separate',interpret=args.interpret,tile=args.tile)
-    def reverse(*z):return jax.vjp(fn,*z[:11])[1](tuple(z[11:]))
-    start=time.monotonic();f=jax.jit(fn).lower(*x).compile();b=jax.jit(reverse).lower(*x,*dy).compile()
-    actual=jax.block_until_ready(f(*x));grads=jax.block_until_ready(b(*x,*dy))
+    # Extract residuals as explicit runtime inputs: do not include forward
+    # recomputation in a measurement labelled backward, or embed constants.
+    pullback=jax.vjp(fn,*x)[1]
+    closed=jax.make_jaxpr(pullback)(dy)
+    nconst=len(closed.consts)
+    def reverse(*z):return tuple(jax.core.eval_jaxpr(closed.jaxpr,z[:nconst],*z[nconst:]))
+    backward_inputs=(*closed.consts,*jax.tree.leaves(dy))
+    start=time.monotonic();f=jax.jit(fn).lower(*x).compile();b=jax.jit(reverse).lower(*backward_inputs).compile()
+    actual=jax.block_until_ready(f(*x));grads=jax.block_until_ready(b(*backward_inputs))
     errors=[float(jnp.linalg.norm(a.astype(jnp.float32)-e.astype(jnp.float32))/jnp.maximum(jnp.linalg.norm(e.astype(jnp.float32)),1e-10)) for a,e in zip(actual+grads,expected+expected_grad)]
     results[mode]={'compile_s':time.monotonic()-start,'relative_l2':errors}
     print(mode,results[mode],flush=True)
     assert np.isfinite(errors).all() and max(errors)<(5e-5 if dtype==jnp.float32 else .04),errors
     if not args.interpret:
-      for stage,fun,z in [('forward',f,x),('backward',b,(*x,*dy))]:
+      for stage,fun,z in [('forward',f,x),('backward',b,backward_inputs)]:
         for _ in range(5):jax.block_until_ready(fun(*z))
         times=[]
         for _ in range(40):

@@ -40,6 +40,7 @@ def _block_diagonal(x):
 
 
 def _write_tile(matrix, address, data, gate, static_key, epsilon):
+  gate=gate.astype(jnp.float32)[...,None].astype(gate.dtype)
   if os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu') == 'vpu':
     return _write_tile_vpu(matrix,address,data,gate,static_key,epsilon)
   t,h,k=address.shape
@@ -95,9 +96,9 @@ def _write_call(matrix, address, data, gate, static_key, epsilon, interpret):
   tile=_tile_size(n)
   def kernel(m,a,d,g,s,out):
     out[...]=_write_tile(m[...],a[...],d[...],g[...],s[...],epsilon)
-  token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,0,0))
+  token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,)+(0,)*len(shape))
   return pl.pallas_call(kernel,out_shape=jax.ShapeDtypeStruct(matrix.shape,matrix.dtype),
-      grid=(n//tile,),in_specs=[token((k,v)),token((h,k)),token((h,v)),token((h,1)),
+      grid=(n//tile,),in_specs=[token((k,v)),token((h,k)),token((h,v)),token((h,)),
                                pl.BlockSpec((h,k),lambda i:(0,0))],
       out_specs=token((k,v)),interpret=interpret,
       compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel',)),
@@ -123,12 +124,12 @@ def _write_bwd(epsilon,interpret,res,cotangent):
     _,pullback=jax.vjp(lambda aa,dd,gg,ss:_write_tile(
         jnp.zeros((tile,k,v),data.dtype),aa,dd,gg,ss,epsilon),a[...],d[...],g[...],s[...])
     da[...],dd[...],dg[...],ds[...]=pullback(dy[...])
-  token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,0,0))
-  specs=[token((h,k)),token((h,v)),token((h,1)),pl.BlockSpec((h,k),lambda i:(0,0)),token((k,v))]
+  token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,)+(0,)*len(shape))
+  specs=[token((h,k)),token((h,v)),token((h,)),pl.BlockSpec((h,k),lambda i:(0,0)),token((k,v))]
   shapes=[jax.ShapeDtypeStruct(x.shape,x.dtype) for x in (address,data,gate)]
   shapes.append(jax.ShapeDtypeStruct((n//tile,h,k),static_key.dtype))
   da,dd,dg,ds=pl.pallas_call(kernel,out_shape=shapes,grid=(n//tile,),in_specs=specs,
-      out_specs=[token((h,k)),token((h,v)),token((h,1)),
+      out_specs=[token((h,k)),token((h,v)),token((h,)),
                  pl.BlockSpec((None,h,k),lambda i:(i,0,0))],
       interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel',)),
       name='rmt_write_residual_backward')(address,data,gate,static_key,cotangent)
@@ -147,7 +148,7 @@ def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=
   return _write(matrix.reshape((n,)+matrix.shape[-2:]),
                 address.reshape((n,)+address.shape[-2:]),
                 data.reshape((n,)+data.shape[-2:]),
-                gate.reshape((n,data.shape[-2],1)),static_key,epsilon,interpret).reshape(matrix.shape)
+                gate.reshape((n,data.shape[-2])),static_key,epsilon,interpret).reshape(matrix.shape)
 
 
 def c8_reference(matrix,key,compression,gates,epsilon=1e-6):
@@ -178,8 +179,8 @@ def _c8_tile(matrix,key,compression,gates,epsilon):
     read=jnp.dot(blocked,compressed.reshape(t*r,vp),
                  preferred_element_type=jnp.float32).astype(matrix.dtype)
     read=read.reshape(t,h,vp)[...,:v]
-  return ((.2*gates).astype(jnp.float32)[...,None]*
-          read.astype(jnp.float32)[:,:,None,:]).astype(matrix.dtype)
+  return ((.2*gates).astype(jnp.float32).transpose(0,2,1)[...,None]*
+          read.astype(jnp.float32)[:,None,:,:]).astype(matrix.dtype)
 
 
 def _c8_call(matrix,key,compression,gates,epsilon,interpret):
@@ -189,11 +190,11 @@ def _c8_call(matrix,key,compression,gates,epsilon,interpret):
   tile=_tile_size(n)
   def kernel(m,k,p,g,y):
     y[...]=_c8_tile(m[...],k[...],p[...],g[...],epsilon)
-  token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,0,0))
+  token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,)+(0,)*len(shape))
   return pl.pallas_call(kernel,grid=(n//tile,),
       in_specs=[token((v,c)),token((h,r)),pl.BlockSpec((c,r),lambda i:(0,0)),token((h,destinations))],
-      out_specs=pl.BlockSpec((tile,h,destinations,v),lambda i:(i,0,0,0)),
-      out_shape=jax.ShapeDtypeStruct((n,h,destinations,v),matrix.dtype),
+      out_specs=pl.BlockSpec((tile,destinations,h,v),lambda i:(i,0,0,0)),
+      out_shape=jax.ShapeDtypeStruct((n,destinations,h,v),matrix.dtype),
       interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel',)),
       name='rmt_c8_read')(matrix,key,compression,gates)
 
@@ -216,12 +217,12 @@ def _c8_bwd(epsilon,interpret,res,dy):
   def kernel(m,k,p,g,y,dm,dk,dp,dg):
     _,pb=jax.vjp(lambda mm,kk,pp,gg:_c8_tile(mm,kk,pp,gg,epsilon),m[...],k[...],p[...],g[...])
     dm[...],dk[...],dp[...],dg[...]=pb(y[...])
-  token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,0,0))
+  token=lambda shape:pl.BlockSpec((tile,)+shape,lambda i:(i,)+(0,)*len(shape))
   shapes=[jax.ShapeDtypeStruct(x.shape,x.dtype) for x in (matrix,key)]
   shapes.extend([jax.ShapeDtypeStruct((n//tile,c,r),compression.dtype),jax.ShapeDtypeStruct(gates.shape,gates.dtype)])
   dm,dk,dp,dg=pl.pallas_call(kernel,grid=(n//tile,),out_shape=shapes,
       in_specs=[token((v,c)),token((h,r)),pl.BlockSpec((c,r),lambda i:(0,0)),token((h,dest)),
-                pl.BlockSpec((tile,h,dest,v),lambda i:(i,0,0,0))],
+                pl.BlockSpec((tile,dest,h,v),lambda i:(i,0,0,0))],
       out_specs=[token((v,c)),token((h,r)),pl.BlockSpec((None,c,r),lambda i:(i,0,0)),token((h,dest))],
       interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel',)),
       name='rmt_c8_read_backward')(matrix,key,compression,gates,dy)
@@ -235,4 +236,5 @@ def c8_read(matrix,key,compression,gates,epsilon=1e-6,*,interpret=False):
   n=math.prod(matrix.shape[:-2])
   y=_c8(matrix.reshape((n,)+matrix.shape[-2:]),key.reshape((n,)+key.shape[-2:]),
         compression,gates.reshape((n,)+gates.shape[-2:]),epsilon,interpret)
+  y=y.transpose(0,2,1,3)
   return y.reshape(matrix.shape[:-2]+y.shape[1:])

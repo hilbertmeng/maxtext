@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from layers.rmt_pallas import write_reference, write_residual, c8_read, c8_reference
+from layers.rmt_pallas_stage import stage_reference, write_mlp_stage
 
 
 def main():
@@ -17,7 +18,7 @@ def main():
   jax.config.update('jax_default_matmul_precision','highest')
   parser=argparse.ArgumentParser()
   parser.add_argument('--arm',choices=['reference','pallas','both'],default='both')
-  parser.add_argument('--kernel',choices=['write','c8'],default='write')
+  parser.add_argument('--kernel',choices=['write','c8','stage'],default='write')
   parser.add_argument('--tokens',type=int,default=8192)
   parser.add_argument('--interpret',action='store_true')
   parser.add_argument('--output',required=True)
@@ -26,6 +27,7 @@ def main():
   def inputs(n,dtype):
     shapes=[(n,48,75),(n,16,48),(n,16,75),(n,16),(16,48)]
     if args.kernel=='c8':shapes=[(n,75,32),(n,16,8),(32,8),(n,16,2)]
+    if args.kernel=='stage':shapes.extend([(48,16),(1200,)])
     values=[jax.random.normal(jax.random.key(410+i),s,dtype=dtype) for i,s in enumerate(shapes)]
     values[3]=jax.nn.sigmoid(values[3]*3-2)
     return values
@@ -36,10 +38,14 @@ def main():
     reference=lambda m,k,c,g:jax.vmap(c8_reference,in_axes=(0,0,None,0))(m,k,c,g)
     fused=lambda *x:c8_read(*x,interpret=args.interpret)
     labels=('output','d_matrix','d_key','d_compression','d_gates')
+  if args.kernel=='stage':
+    reference=lambda m,a,d,g,s,r,n:jax.vmap(stage_reference,in_axes=(0,0,0,0,None,None,None))(m,a,d,g[...,None],s,r,n)
+    fused=lambda *x:write_mlp_stage(*x,interpret=args.interpret)
+    labels=('matrix','read','proxy','d_matrix','d_address','d_data','d_gate','d_static','d_read_key','d_gain')
   def forward_backward(fn):
     def f(*x):
       y,pb=jax.vjp(fn,*x)
-      dy=jnp.sin(jnp.arange(y.size,dtype=jnp.float32)).reshape(y.shape).astype(y.dtype)
+      dy=jax.tree.map(lambda z:jnp.sin(jnp.arange(z.size,dtype=jnp.float32)).reshape(z.shape).astype(z.dtype),y)
       return y,pb(dy)
     return jax.jit(f)
   if args.arm in ('pallas','both'):

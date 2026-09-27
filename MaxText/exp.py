@@ -10692,3 +10692,23 @@ class RMTCombinedLayerScanAnalyticWriteProfile(RMTCombinedLayerScanTokenAllSaveS
 class RMTCombinedLayerScanAnalyticWriteV6eB4Profile(RMTCombinedLayerScanAnalyticWriteProfile):
     model_name = 'RMTCombinedLayerScanAnalyticWriteV6eB4Profile'
     per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanBatchedWriteProfile(RMTCombinedLayerScanAnalyticWriteProfile):
+    model_name = 'RMTCombinedLayerScanBatchedWriteProfile'
+    rmt_pallas_write_backward = 'batched'
+
+
+class RMTCombinedLayerScanBatchedWriteV6eB4Profile(RMTCombinedLayerScanBatchedWriteProfile):
+    model_name = 'RMTCombinedLayerScanBatchedWriteV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanJointWriteProfile(RMTCombinedLayerScanAnalyticWriteProfile):
+    model_name = 'RMTCombinedLayerScanJointWriteProfile'
+    rmt_pallas_write_backward = 'joint'
+
+
+class RMTCombinedLayerScanJointWriteV6eB4Profile(RMTCombinedLayerScanJointWriteProfile):
+    model_name = 'RMTCombinedLayerScanJointWriteV6eB4Profile'
+    per_device_batch_size = 4.0

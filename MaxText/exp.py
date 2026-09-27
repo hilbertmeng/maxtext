@@ -10320,3 +10320,16 @@ class RMTCombinedLayerScanPallasWriteProfile(RMTCombinedLayerScanNoHealthProfile
     # Prototype, no speed conclusion yet. Attention unchanged.
     model_name = 'RMTCombinedLayerScanPallasWriteProfile'
     rmt_pallas_write = True
+
+
+class RMTCombinedLayerScanNoHealthL6Profile(RMTCombinedLayerScanNoHealthProfile):
+    """Six-layer screening control; final acceptance uses full 18 layers."""
+    model_name = 'RMTCombinedLayerScanNoHealthL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPallasWriteL6Profile(RMTCombinedLayerScanPallasWriteProfile):
+    """Six-layer screening for fused matrix writes."""
+    # Ledger only: codex/rmt-pallas.
+    model_name = 'RMTCombinedLayerScanPallasWriteL6Profile'
+    base_num_decoder_layers = 6

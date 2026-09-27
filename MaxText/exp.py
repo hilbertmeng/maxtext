@@ -10598,3 +10598,31 @@ class RMTCombinedLayerScanTokenAllSaveStateTile512Profile(RMTCombinedLayerScanTo
 class RMTCombinedLayerScanTokenAllSaveDynamicProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
     model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicProfile'
     rmt_remat_policy = 'save_state_dynamic'
+
+
+class RMTCombinedLayerScanNoHealthV6eB4Profile(RMTCombinedLayerScanNoHealthProfile):
+    """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
+    # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    model_name = 'RMTCombinedLayerScanNoHealthV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
+    # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveStateTile256V6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateTile256Profile):
+    """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
+    # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile256V6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveDynamicV6eB4Profile(RMTCombinedLayerScanTokenAllSaveDynamicProfile):
+    """Full18 v6e-1 paired profile; B4 for single-chip HBM capacity."""
+    # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; all health OFF.
+    model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicV6eB4Profile'
+    per_device_batch_size = 4.0

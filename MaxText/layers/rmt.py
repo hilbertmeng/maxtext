@@ -141,14 +141,22 @@ class RMTDynamicC8Read(nn.Module):
   compress_state: bool = True
 
   @nn.compact
-  def __call__(self, x, M):
+  def __call__(self, x, M, static_matrix=None, static_key=None):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     key_dim = 8 if self.compress_state else M.shape[-1]
     if self.compress_state:
       compression = self.param('compression', nn.with_logical_partitioning(nn.initializers.orthogonal(), ('v_factor', 'kv')),
                                (M.shape[-1], key_dim), cfg.weight_dtype)
-      compressed = jnp.einsum('btvc,cr->btvr', M, compression.astype(M.dtype))
+      if static_matrix is not None:
+        leading = static_matrix.shape[-2] - M.shape[-1]
+        padded = jnp.pad(compression.astype(M.dtype), ((leading, 0), (0, 0)))
+        projection = jnp.concatenate((static_key, padded), axis=-1)
+        joined = jnp.einsum('btkv,kn->btnv', static_matrix, projection)
+        static_read = joined[..., :static_key.shape[-1], :]
+        compressed = jnp.swapaxes(joined[..., static_key.shape[-1]:, :], -2, -1)
+      else:
+        compressed = jnp.einsum('btvc,cr->btvr', M, compression.astype(M.dtype))
     else:
       compressed = M
     key_kernel = self.param('key_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
@@ -166,7 +174,10 @@ class RMTDynamicC8Read(nn.Module):
     logits = jnp.einsum('btd,dr->btr', x, gate_kernel.astype(x.dtype))
     logits = logits.reshape(x.shape[:2] + (heads, self.destinations))
     gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
-    return tuple(.2 * gates[..., i, None] * read for i in range(self.destinations)), gates
+    reads = tuple(.2 * gates[..., i, None] * read for i in range(self.destinations))
+    if static_matrix is not None:
+      return reads, gates, static_read
+    return reads, gates
 
 
 class RMTDynamicWrite(nn.Module):
@@ -257,6 +268,9 @@ class RMTLayer(nn.Module):
     key_dim = int(cfg.rmt_reskey_dim)
     assert cfg.emb_dim == heads * value_dim
     dynamic = bool(getattr(cfg, 'rmt_dynamic_enabled', False))
+    joined_read = bool(cfg.get_keys().get('rmt_join_static_compression', False))
+    if joined_read and not dynamic:
+      raise ValueError('Joined static/compression reads require dynamic RMT')
     pallas_write = bool(cfg.get_keys().get('rmt_pallas_write', False))
     if pallas_write and (not dynamic or cfg.rmt_dynamic_write_rows != 48
                          or cfg.rmt_record_dynamic_health):
@@ -279,8 +293,9 @@ class RMTLayer(nn.Module):
     attn_in = (matrix if vector_pre_norm else
                MatrixRMSNorm(cfg, name='attn_norm')(matrix))
     qkv_key = self.param('qkv_key', key_init, (3, heads, key_dim), cfg.weight_dtype)
-    qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
-    query, key, value = qkv[0], qkv[1], qkv[2]
+    if not joined_read:
+      qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
+      query, key, value = qkv[0], qkv[1], qkv[2]
     if dynamic:
       attn_x = attn_in[..., :heads, :].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
       if vector_pre_norm:
@@ -289,9 +304,15 @@ class RMTLayer(nn.Module):
       attn_M = jnp.swapaxes(attn_in[..., read_start:, :], -2, -1)
       dynamic_q, dynamic_k, q_gate, k_gate = RMTDynamicQK(
           cfg, name='dynamic_qk')(attn_x, attn_M)
-      vo_reads, vo_gates = RMTDynamicC8Read(
-          cfg, destinations=2 if dynamic_o_enabled else 1,
-          name='dynamic_vo')(attn_x, attn_M)
+      vo_module = RMTDynamicC8Read(cfg, destinations=2 if dynamic_o_enabled else 1,
+                                  name='dynamic_vo')
+      if joined_read:
+        vo_reads, vo_gates, qkv = vo_module(
+            attn_x, attn_M, attn_in, qkv_key.astype(cfg.dtype).reshape(3 * heads, key_dim).T)
+        qkv = qkv.reshape(attn_in.shape[:2] + (3, heads, value_dim))
+        query, key, value = (qkv[:, :, i] for i in range(3))
+      else:
+        vo_reads, vo_gates = vo_module(attn_x, attn_M)
       dynamic_v = vo_reads[0]
       if dynamic_o_enabled:
         dynamic_o = vo_reads[1]
@@ -362,16 +383,22 @@ class RMTLayer(nn.Module):
               MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
     mlp_read = self.param('mlp_read_key', key_init,
                           (key_dim, heads), cfg.weight_dtype)
-    vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
-    static_mlp_read = vector
+    if not joined_read:
+      vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
+      static_mlp_read = vector
     if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
       mlp_x = mlp_in[..., :heads, :].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
       if vector_pre_norm:
         mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
     if dynamic_mlp_read_enabled:
       mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
-      (dynamic_mlp_read,), mlp_read_gate = RMTDynamicC8Read(
-          cfg, destinations=1, name='dynamic_mlp_read')(mlp_x, mlp_M)
+      mlp_read_module = RMTDynamicC8Read(cfg, destinations=1, name='dynamic_mlp_read')
+      if joined_read:
+        (dynamic_mlp_read,), mlp_read_gate, vector = mlp_read_module(
+            mlp_x, mlp_M, mlp_in, mlp_read.astype(cfg.dtype))
+        static_mlp_read = vector
+      else:
+        (dynamic_mlp_read,), mlp_read_gate = mlp_read_module(mlp_x, mlp_M)
       vector = vector + dynamic_mlp_read
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
     vector = linears.MlpBlock(

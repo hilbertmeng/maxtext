@@ -10333,3 +10333,16 @@ class RMTCombinedLayerScanPallasWriteL6Profile(RMTCombinedLayerScanPallasWritePr
     # Ledger only: codex/rmt-pallas.
     model_name = 'RMTCombinedLayerScanPallasWriteL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanJoinedReadProfile(RMTCombinedLayerScanNoHealthProfile):
+    """Join static read with zero-extended C8 compression: MLP24, QKV/VO56."""
+    # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas. Same parameters.
+    model_name = 'RMTCombinedLayerScanJoinedReadProfile'
+    rmt_join_static_compression = True
+
+
+class RMTCombinedLayerScanJoinedReadL6Profile(RMTCombinedLayerScanJoinedReadProfile):
+    """Six-layer screening; v5p-16/full18 remains the acceptance target."""
+    model_name = 'RMTCombinedLayerScanJoinedReadL6Profile'
+    base_num_decoder_layers = 6

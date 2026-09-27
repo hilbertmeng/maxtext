@@ -44,7 +44,7 @@ def _norm_backward(x, cotangent, epsilon):
   return ((u-f*correction)*inv).astype(x.dtype)
 
 
-def _analytic_backward(address,data,gate,static_key,dy,epsilon):
+def _analytic_backward(address,data,gate,static_key,dy,epsilon,method="analytic"):
   """Shared contractions plus explicit RMS/gate derivatives; no AD of _tile."""
   h,k,t=address.shape
   v=data.shape[1]
@@ -55,25 +55,31 @@ def _analytic_backward(address,data,gate,static_key,dy,epsilon):
                    preferred_element_type=jnp.float32).reshape(h,vp,t)[:,:v,:].astype(data.dtype)
   ds=jnp.dot(dp.reshape(h,vp*t),yp.reshape(k,vp*t).T,
              preferred_element_type=jnp.float32).astype(static_key.dtype)
-  ga,gd,gg=_dynamic_backward(address,data,gate,dy,epsilon)
+  ga,gd,gg=_dynamic_backward(address,data,gate,dy,epsilon,method)
   return ga,(gd+static_dd).astype(data.dtype),gg,ds
 
 
-def _dynamic_backward(address,data,gate,dy,epsilon):
+def _dynamic_backward(address,data,gate,dy,epsilon,method="analytic"):
   h=address.shape[0]
   an=_norm(address,epsilon)
   dn=_norm(data,epsilon)
   gated=(an*gate[:,None,:]).astype(address.dtype)
   yf=dy.astype(jnp.float32)
-  ga=[];gd=[];gg=[]
-  for head in range(h):
-    a=an[head];d=dn[head];ag=gated[head]
-    ua=jnp.sum(yf*d.astype(jnp.float32)[None,:,:],axis=1).astype(address.dtype)
-    ud=jnp.sum(yf*ag.astype(jnp.float32)[:,None,:],axis=0).astype(data.dtype)
-    gg.append(jnp.sum((ua*a).astype(gate.dtype),axis=0).astype(gate.dtype))
-    ga.append(_norm_backward(address[head],(ua*gate[head][None,:]).astype(address.dtype),epsilon))
-    gd.append(_norm_backward(data[head],ud,epsilon))
-  return jnp.stack(ga),jnp.stack(gd),jnp.stack(gg)
+  ua=[];ud=[]
+  if method=='batched':
+    # Use independent token contractions on MXU; normalize/gate in token lanes.
+    ua=jnp.einsum('kvt,hvt->hkt',dy,dn,preferred_element_type=jnp.float32).astype(address.dtype)
+    ud=jnp.einsum('kvt,hkt->hvt',dy,gated,preferred_element_type=jnp.float32).astype(data.dtype)
+  else:
+    for head in range(h):
+      d=dn[head];ag=gated[head]
+      ua.append(jnp.sum(yf*d.astype(jnp.float32)[None,:,:],axis=1).astype(address.dtype))
+      ud.append(jnp.sum(yf*ag.astype(jnp.float32)[:,None,:],axis=0).astype(data.dtype))
+    ua,ud=jnp.stack(ua),jnp.stack(ud)
+  gg=jnp.sum((ua*an).astype(gate.dtype),axis=1).astype(gate.dtype)
+  ga=_norm_backward(address,(ua*gate[:,None,:]).astype(address.dtype),epsilon)
+  gd=_norm_backward(data,ud,epsilon)
+  return ga,gd,gg
 
 
 def _call(m,a,d,g,s,epsilon,interpret,tile,key_contiguous):
@@ -124,9 +130,9 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
         name='rmt_token_minor_dynamic_write_backward')(a,d,g,dy,static_dd)
     return dy,da,dd,dg,ds
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
-    if backward=='analytic':
+    if backward in ('analytic','batched'):
       ga,gd,gg,gs=_analytic_backward(a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],
-                                   g[...],s[...],dy[...].swapaxes(0,1) if key_contiguous else dy[...],epsilon)
+                                   g[...],s[...],dy[...].swapaxes(0,1) if key_contiguous else dy[...],epsilon,backward)
     else:
       _,pb=jax.vjp(lambda aa,dd,gg,ss:_tile(jnp.zeros((k,v,tile),dy.dtype),aa,dd,gg,ss,epsilon),
                    a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],g[...],s[...])
@@ -147,7 +153,7 @@ _write.defvjp(_fwd,_bwd)
 
 
 def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=128,key_contiguous=False,backward="autodiff"):
-  if backward not in ("autodiff","analytic","hybrid"):raise ValueError(f"Unknown write backward: {backward}")
+  if backward not in ("autodiff","analytic","hybrid","batched"):raise ValueError(f"Unknown write backward: {backward}")
   unbatched=matrix.ndim==3
   if unbatched:
     matrix,address,data,gate=(x[None] for x in (matrix,address,data,gate))

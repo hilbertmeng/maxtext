@@ -6,12 +6,17 @@ parent `ffb40f2d`. Latest implementation runtime
 Main `MaxText/exp.py` contains ledger classes; implementation is not merged.
 [Earlier chronological notes](rmt_pallas_history.md) retain unsuccessful prototypes.
 
-## Middle reverse follow-up (in progress)
+## Middle reverse follow-up (2026-09-27; v5p confirmation in progress)
 
-Runtime b9194ea; same worktree/branch and both retained EW4a v6e hosts.
-No target v5p lease requested yet. CPU standalone FP32 and three-layer
-scan/remat gradients passed for stream/joined/minor, and selective saved
-middle outputs. Actual TPU BF16 minor probe max relative-L2 is0.01131.
+Implementation remains `/data0/xd/rmt-pallas`, `codex/rmt-pallas`. Full v6e
+profiles use retained EW4a `llm-jax-v6e-1-0`; isolated probes/offline AOTs use
+retained `llm-jax-v6e-1-1`. Neither retained host is to be released. Temporary
+v5p confirmation is owned by this task: `xd-v5p-16-rmt-midv2-0927-uc1a`,
+UC1a, requested15:51UTC after exact target AOTs completed. All health is OFF.
+
+CPU full-dimension FP32 gradients and nonzero three-layer scan/remat gradients
+passed; BF16 minor probe max relative-L2 is0.01131 (previous baseline0.01159).
+These are math/gradient checks, not long-run convergence validation.
 
 B4/T4096 v6e isolated middle pullback,20 repeats,96MiB scoped budget:
 
@@ -22,23 +27,121 @@ B4/T4096 v6e isolated middle pullback,20 repeats,96MiB scoped budget:
 |sink + joined linear adjoints|6.06347|6.59660|
 |native token-minor read, local write transpose|4.66343|4.81484|
 |above + static write adjoints as shared dots|4.67578|4.91435|
+|internal write qchunk64|4.83615|VMEM99.55MiB >96MiB|
+|internal write qchunk32|4.98860|4.68420|
+|write-only internal recomputation|5.11029|not tested|
 
-The useful change is layout; scheduling and joined adjoints alone did not help.
-These are isolated timings, not claimed whole-step gains. Native layout reduces
-standalone HBM temporaries867413184→335969856bytes. This is NOT VMEM usage.
-V5p minor128 initially needs54.39MiB scoped allocation versus48MiB configured;
-physical capacity remains64MiB. A56MiB budget and internal write qchunk are
-being checked rather than abandoning fusion. Mosaic ABI accounting:8.969MiB
-one padded copy,16.325MiB if every unspecified streamed window is double
-buffered; final allocator spills/scratch must be added before comparing54.39.
+The useful change is layout; scheduling/joined adjoints alone did not help.
+Native layout reduces standalone HBM temporaries867413184→335969856bytes;
+these are NOT VMEM statistics. The original bet of30–50% lower middle reverse
+body time has not been met: actual full-model body reduction is20.0% for minor.
 
-Saved-output ablation names both middle vectors and the custom pullback's
-matrix residual to test removal of redundant whole-stage remat. Saving the
-vectors costs up to5.273GiB/device on v5p B16 and1.318GiB on v6e B4 across18
-layers, before compiler reuse. Actual full-step memory/speed pending.
+Same-host full v6e measurements, harmonic step/s over steps20–49. Forward and
+backward (including remat) are primary-core additive scope attribution from
+complete raw XPlanes, steps10–14. Optimizer/communication cross-cuts are not
+additional additive buckets.
 
-Raw artifacts: `/data0/xd/bam_diagnostics/rmt-middle-v2` and
-`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/rmt-middle-v2/`.
+|Configuration|Runtime|step/s|Forward ms|Backward incl. remat ms|
+|---|---|---:|---:|---:|
+|`RMTThreeStageNoOTunedV6eB4Profile`|b9194ea|1.661431|122.157|453.533|
+|`RMTThreeStageMiddleMinorV6eB4Profile`|b9194ea|1.750065|122.128|423.066|
+|`RMTThreeStageMiddleMinorSavedV6eB4Profile`|b9194ea|1.742664|132.582|415.520|
+|`RMTThreeStageMiddleSavedV6eB4Profile`|b9194ea|1.670016|132.777|439.807|
+|`RMTOriginalBlockScanNoHealthV6eB4Profile`|9ef9053|1.202299|204.442|599.530|
+|`RMTMatchedMHARoPENoHealthV6eB4Profile`|9ef9053|2.474329|80.346|302.059|
+|`RMTThreeStageMiddleRecomputeSavedV6eB4Profile`|e30ec00|1.761599|127.144|414.174|
+
+At this point recompute-saved is+6.03% over the previous three-stage selection,
++46.52% over original RMT, and71.20% of matched RoPE MHA throughput. It is only
++0.66% over native-minor without caching. Minor middle body81.760→65.404ms;
+recompute-saved body73.028ms but no external middle remat. Its faster whole step
+does not mean its pullback body is faster.
+
+V5p capacity analysis: minor128 standalone needs54.39MiB versus48MiB budget;
+physical capacity is64MiB per TensorCore. ABI one-copy padded buffers8.969MiB,
+16.325MiB if unspecified streams are all double-buffered. Post-register-allocation
+spill declarations total40.766MiB, nonspill declarations15.117MiB; declaration
+sum is NOT live peak. Internal qchunk64 lowers standalone peak to51.23MiB,
+but full-model allocation differs: minor-saved56 needs56.26MiB and chunk6456
+needs56.77MiB, so both fail. The verified target executables are minor56(e9b001c),
+recompute-saved60(e30ec00), and chunk64-saved58(4dd7038), all below physical64.
+They will be measured against be0d8d3 selected fusion and ebd5ba0 original/MHA
+on the same v5p lease. The v5p bet favors minor without extra write recomputation.
+
+Raw artifacts: `/data0/xd/bam_diagnostics/rmt-middle-v2`; full raw profiles under
+`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/`.
+The aggregate `comparison.json` retains samples, paths and phase accounting.
+
+## Compute versus IO model (2026-09-27)
+
+Official per-chip limits: [v5p](https://docs.cloud.google.com/tpu/docs/v5p)
+459BF16 TFLOP/s,2765GB/s HBM; [v6e](https://docs.cloud.google.com/tpu/docs/v6e)
+918BF16 TFLOP/s,1638GB/s HBM. Their peak MXU compute/bandwidth ratios are
+166.0 and560.4FLOP/byte. These are screening thresholds for MXU work, not
+execution-time predictions for VPU normalization/outer products. v5p-16 here
+is8 chips/JAX megacore devices, with16 examples/chip; v6e-1 has4 examples/chip.
+VMEM limits remain per TensorCore, not summed over the two v5p TensorCores.
+
+Compare dependent phases using a calibrated lower-bound model:
+`max(MXU FLOPs/Pmxu, VPU operations/Pvpu, HBM bytes/BWhbm,
+VMEM traffic/BWvmem, reduction/SFU latency)` within overlapping phases;
+sum serial phases and include measured layout, synchronization and spill costs.
+For an isolated exchange, extra compute time versus avoided IO time is a useful
+first screen. Count actual padded operations/transfers and distinguish useful
+FLOPs from executed FLOPs. Do not replace Pvpu by the headline BF16 MXU rate.
+
+The published [JAX Scaling Book VPU description](https://jax-ml.github.io/scaling-book/tpus/#appendix-a-more-on-tpu-internals)
+provides a v5p ordinary FP32 add/multiply ceiling:8x128x4 operations/cycle
+at about1.75GHz, or7.168TFLOP/s/core and14.336TFLOP/s/chip. Thus its VPU/HBM
+balance is about5.185operations/byte using Cloud's2765GB/s bandwidth, far below
+the166MXU FLOP/byte ratio. This ceiling does not describe rsqrt or reductions:
+count their lowered instructions, dependency depth and cross-lane traffic.
+Sublane and cross-lane reductions have different costs. The public v6e Cloud
+spec and JAX TpuInfo do not give a verified v6e VPU issue-rate/clock pair;
+do not copy v5p's rate or infer it from918MXU TFLOP/s. Calibrate missing rates
+with instruction-specific microbenchmarks. This is a missing parameter, not
+an excuse to omit the theoretical cost model.
+
+Concrete middle-write recomputation: each token's BF16 matrix is48x75,
+7200logical bytes. Saving and reading it costs at least14400bytes/token.
+The address network is needed in the analytic write pullback anyway, so its
+1,046,016FLOPs/token are shared, NOT extra recomputation work. Recomputing the
+matrix update adds115200logical MXU FLOPs for static write and115200VPU
+operations for dynamic outer products, plus RMS/gates/matrix additions.
+Current static-write padding toV128 raises its executed dot FLOPs above the
+logical count. BF16 layout padding/copies likewise raise memory traffic.
+
+|Across18 layers|v5p B16/chip|v6e B4/chip|
+|---|---:|---:|
+|Avoided logical M cache capacity|7.910GiB|1.978GiB|
+|Avoided logical M round trip at peak HBM, lower bound|6.144ms|2.593ms|
+|Extra static-write logical MXU work at peak, lower bound|0.296ms|0.037ms|
+|Extra dynamic-write VPU work|135.895G operations|33.974G operations|
+
+The v5p dynamic-write work alone has an ideal VPU time of9.479ms, before
+padding, normalization and dependencies, versus6.144ms for the avoided logical
+HBM round trip. On these ideal limits a pure VPU-compute-for-HBM exchange is
+unfavorable; saved copies, overlap or removal of other recomputation must explain
+any actual win. The extra VPU work, spills and lost overlap must fit the actual
+critical-path budget. Saving the two vectors alone costs
+5.273/1.318GiB before reuse; saving internal M adds the capacity above.
+Raw calculation: `/data0/xd/bam_diagnostics/rmt-middle-v2/roofline-estimate.json`.
+
+The v6e full-model ablation confirms why a full cost model is necessary:
+minor layout1.750065step/s; adding full middle-state caching1.742664step/s.
+It removes14.488ms of external middle remat, but forward rises122.128→132.582ms.
+The principal forward deltas are5.930ms in a layout-copy under `reduce_precision`
+and5.485ms in scan `dynamic_update_slice`, partly offset elsewhere. Internal
+write-only recomputation (e30ec00) measured1.761599step/s,127.144ms forward
+and414.174ms backward including remat; middle reverse73.028ms with no external
+middle remat. It is0.66% faster overall than minor without saved outputs,
+although its middle pullback body is slower. This is a measured full-model
+tradeoff, not evidence that individual VPU operations are cheap.
+
+Throughput aggregation uses total steps / total implied elapsed time (harmonic
+mean of logged step/s), not arithmetic mean. One saved-state run had adjacent
+0.921/8.816 rates: arithmetic averaging spuriously reports1.8834; total-time
+aggregation gives1.670016 and agrees with the trace. All raw samples are retained.
 
 ## Selected complete-step results with forward/backward attribution
 

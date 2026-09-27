@@ -10984,7 +10984,9 @@ class RMTThreeStageMiddleMinorProfile(RMTThreeStageNoOReverse128Profile):
 
 
 class RMTThreeStageMiddleMinorV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Runtime b9194ea, EW4a v6e-1 host0; 1.750065 step/s (20-49), health OFF.
+    # Forward 122.128 ms; backward incl. remat 423.066 ms.
+    # Implementation codex/rmt-pallas; full BF16 convergence unvalidated; see rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleMinorV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor'
 
@@ -10996,7 +10998,9 @@ class RMTThreeStageMiddleSavedProfile(RMTThreeStageNoOReverse128Profile):
 
 
 class RMTThreeStageMiddleSavedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Runtime b9194ea, EW4a v6e-1 host0; 1.670016 step/s (20-49), health OFF.
+    # Forward 132.777 ms; backward incl. remat 439.807 ms.
+    # Implementation codex/rmt-pallas; full BF16 convergence unvalidated; see rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleSavedV6eB4Profile'
     rmt_save_middle_outputs = True
 
@@ -11008,7 +11012,9 @@ class RMTThreeStageMiddleMinorSavedProfile(RMTThreeStageMiddleMinorProfile):
 
 
 class RMTThreeStageMiddleMinorSavedV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Runtime b9194ea, EW4a v6e-1 host0; 1.742664 step/s (20-49), health OFF.
+    # Forward 132.582 ms; backward incl. remat 415.520 ms.
+    # Implementation codex/rmt-pallas; full BF16 convergence unvalidated; see rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleMinorSavedV6eB4Profile'
     rmt_save_middle_outputs = True
 
@@ -11057,6 +11063,9 @@ class RMTThreeStageMiddleRecomputeSavedProfile(RMTThreeStageMiddleMinorSaved56Pr
 
 
 class RMTThreeStageMiddleRecomputeSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
+    # Runtime e30ec00, EW4a v6e-1 host0; 1.761599 step/s (20-49), health OFF.
+    # Forward 127.144 ms; backward incl. remat 414.174 ms.
+    # Implementation codex/rmt-pallas; full BF16 convergence unvalidated; see rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleRecomputeSavedV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_recompute'
 
@@ -11064,3 +11073,9 @@ class RMTThreeStageMiddleRecomputeSavedV6eB4Profile(RMTThreeStageMiddleMinorSave
 class RMTThreeStageMiddleChunk6458Profile(RMTThreeStageMiddleChunk6456Profile):
     model_name = 'RMTThreeStageMiddleChunk6458Profile'
     rmt_scoped_vmem_limit_kib = 59392
+
+
+class RMTThreeStageMiddleNativeSavedV6eB4Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
+    """Save middle vectors before the native-layout output transposes."""
+    model_name = 'RMTThreeStageMiddleNativeSavedV6eB4Profile'
+    rmt_save_middle_native_outputs = True

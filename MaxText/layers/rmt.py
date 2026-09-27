@@ -547,7 +547,8 @@ class RMTLayer(nn.Module):
             cfg.normalization_layer_epsilon,_read_epsilon(cfg),
             forward_tile=cfg.get_keys().get('rmt_fused_write_read_tile',128),
             reverse_tile=cfg.get_keys().get('rmt_fused_write_read_backward_tile',32),
-            reverse_mode=cfg.get_keys().get('rmt_full_middle_reverse_mode','baseline'))
+            reverse_mode=cfg.get_keys().get('rmt_full_middle_reverse_mode','baseline'),
+            save_native_outputs=cfg.get_keys().get('rmt_save_middle_native_outputs',False))
       else:
         from layers.rmt_pallas_write_read import write_mlp_read
         address,attn_write_gate=write_parameters
@@ -600,7 +601,7 @@ class RMTLayer(nn.Module):
         else:
           (dynamic_mlp_read,), mlp_read_gate = mlp_read_module(mlp_x, mlp_M)
         vector = vector + dynamic_mlp_read[..., :value_dim]
-    if cfg.get_keys().get('rmt_save_middle_outputs',False):
+    if cfg.get_keys().get('rmt_save_middle_outputs',False) and not cfg.get_keys().get('rmt_save_middle_native_outputs',False):
       vector=ad_checkpoint.checkpoint_name(vector,'rmt_middle_vector')
       mlp_x=ad_checkpoint.checkpoint_name(mlp_x,'rmt_middle_proxy')
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))

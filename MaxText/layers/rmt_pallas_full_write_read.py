@@ -120,7 +120,7 @@ fused.defvjp(fwd,bwd)
 
 def full_write_read(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,
                     epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,forward_tile=128,reverse_tile=32,
-                    reverse_mode='baseline'):
+                    reverse_mode='baseline',save_native_outputs=False):
   if reverse_mode not in ('baseline','stream','joined','minor','minor_dynamic','minor_chunk64','minor_chunk32','minor_recompute'):raise ValueError(reverse_mode)
   def local(m,x,d,*weights):
     ft=min(forward_tile,m.shape[1]);rt=min(reverse_tile,m.shape[1])
@@ -128,6 +128,9 @@ def full_write_read(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,
     weights=(*weights[:10],weights[10].T,weights[11])
     out=fused(m.transpose(0,2,3,1),x.transpose(0,2,1),d.transpose(0,2,3,1),*weights,
               epsilon,read_epsilon,interpret,ft,rt,reverse_mode)
+    if save_native_outputs:
+      out=(out[0],checkpoint_name(out[1],'rmt_middle_vector'),
+           checkpoint_name(out[2],'rmt_middle_proxy'))
     return out[0].transpose(0,3,1,2),out[1].transpose(0,3,1,2),out[2].transpose(0,2,1)
   return _map_batch(local,(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb),
                     (True,)*3+(False,)*12,output_tuple=3)

@@ -10430,3 +10430,14 @@ class RMTCombinedLayerScanSaveDenseStateProfile(RMTCombinedLayerScanNoHealthProf
 class RMTCombinedLayerScanSaveDenseStatePackedProfile(RMTCombinedLayerScanSaveDenseStateProfile):
     model_name = 'RMTCombinedLayerScanSaveDenseStatePackedProfile'
     rmt_pack_dynamic_projections = True
+
+
+class RMTCombinedLayerScanTokenMinorWriteProfile(RMTCombinedLayerScanPallasWriteProfile):
+    model_name = 'RMTCombinedLayerScanTokenMinorWriteProfile'
+    rmt_pallas_write_layout = 'token_minor'
+    rmt_pallas_tile = 128
+
+
+class RMTCombinedLayerScanTokenMinorWriteL6Profile(RMTCombinedLayerScanTokenMinorWriteProfile):
+    model_name = 'RMTCombinedLayerScanTokenMinorWriteL6Profile'
+    base_num_decoder_layers = 6

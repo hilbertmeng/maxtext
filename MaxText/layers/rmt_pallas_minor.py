@@ -18,15 +18,14 @@ def _tile(matrix,address,data,gate,static_key,epsilon):
   v=data.shape[1]
   a=(_norm(address,epsilon)*gate.astype(jnp.float32)[:,None,:].astype(gate.dtype)).astype(jnp.float32)
   d=_norm(data,epsilon).astype(jnp.float32)
-  raw=data.astype(jnp.float32)
-  static=jnp.zeros((k,v,t),jnp.float32)
+  vp=((v+127)//128)*128
+  padded=jnp.concatenate((data,jnp.zeros((h,vp-v,t),data.dtype)),axis=1)
+  static=jnp.dot(static_key.T,padded.reshape(h,vp*t),
+                 preferred_element_type=jnp.float32).reshape(k,vp,t)[:,:v,:]
   dynamic=jnp.zeros_like(static)
   for head in range(h):
-    key=jax.lax.slice_in_dim(static_key,head,head+1,axis=0).astype(jnp.float32).reshape(k,1)
     av=jax.lax.slice_in_dim(a,head,head+1,axis=0).reshape(k,t)
     dv=jax.lax.slice_in_dim(d,head,head+1,axis=0).reshape(v,t)
-    rv=jax.lax.slice_in_dim(raw,head,head+1,axis=0).reshape(v,t)
-    static=static+key[:,None,:]*rv[None,:,:]
     dynamic=dynamic+av[:,None,:]*dv[None,:,:]
   return matrix+static.astype(matrix.dtype)+dynamic.astype(matrix.dtype)
 

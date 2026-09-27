@@ -10663,6 +10663,8 @@ class RMTOriginalBlockScanNoHealthProfile(
 
 class RMTOriginalBlockScanNoHealthV6eB4Profile(RMTOriginalBlockScanNoHealthProfile):
     # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 1.205498; all health OFF.
+    # Three-stage profile: runtime 9ef9053, europe-west4-a v6e-1; 1.206433 step/s (20-49), all health OFF.
+    # Forward 204.422 ms; reverse incl. remat 596.668 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTOriginalBlockScanNoHealthV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10678,6 +10680,8 @@ class RMTMatchedMHARoPENoHealthProfile(TrainStepProfile, BamMHAMediumPropC256):
 
 class RMTMatchedMHARoPENoHealthV6eB4Profile(RMTMatchedMHARoPENoHealthProfile):
     # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 2.516287; all health OFF.
+    # Three-stage profile: runtime 9ef9053, europe-west4-a v6e-1; 2.521000 step/s (20-49), all health OFF.
+    # Forward 80.055 ms; reverse incl. remat 297.910 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTMatchedMHARoPENoHealthV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10787,6 +10791,8 @@ class RMTCombinedLayerScanTokenAllSaveStateNoOProfile(RMTCombinedLayerScanTokenA
 
 class RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOProfile):
     # 8ebb3e9:1.445265 vs paired O-enabled1.424598 (+1.45%); params431773472.
+    # Three-stage profile: runtime 8ebb3e9, europe-west4-a v6e-1; 1.445767 step/s (20-49), all health OFF.
+    # Forward 182.312 ms; reverse incl. remat 484.257 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10859,6 +10865,8 @@ class RMTCombinedLayerScanMajorDirectWriteNoOProfile(RMTCombinedLayerScanMajorDi
 
 class RMTThreeStageNoOProfile(RMTCombinedLayerScanFusedWriteReadNoOProfile):
     """Complete three-stage Pallas trunk; NoO, analytic reverse, health OFF."""
+    # Three-stage profile: runtime ebd5ba0, us-central1-a v5p-16; 0.517833 step/s (20-49), all health OFF.
+    # Forward 448.091 ms; reverse incl. remat 1457.992 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTThreeStageNoOProfile'
     rmt_fused_attention_read = True
     rmt_fused_write_read_projection = True
@@ -10871,6 +10879,8 @@ class RMTThreeStageNoOProfile(RMTCombinedLayerScanFusedWriteReadNoOProfile):
 
 
 class RMTThreeStageNoOV6eB4Profile(RMTThreeStageNoOProfile):
+    # Three-stage profile: runtime ebd5ba0, europe-west4-a v6e-1; 1.580000 step/s (20-49), all health OFF.
+    # Forward 122.894 ms; reverse incl. remat 483.445 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTThreeStageNoOV6eB4Profile'
     per_device_batch_size = 4.0
     rmt_scoped_vmem_limit_kib = 98304
@@ -10878,32 +10888,44 @@ class RMTThreeStageNoOV6eB4Profile(RMTThreeStageNoOProfile):
 
 class RMTThreeStageNoOControlProfile(RMTCombinedLayerScanMajorDirectWriteNoOProfile):
     """Prior optimized NoO, matching the new v5p compiler budget."""
+    # Three-stage profile: runtime ebd5ba0, us-central1-a v5p-16; 0.482733 step/s (20-49), all health OFF.
+    # Forward 605.036 ms; reverse incl. remat 1438.095 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTThreeStageNoOControlProfile'
     rmt_scoped_vmem_limit_kib = 49152
 
 
 class RMTThreeStageNoOControlV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile):
+    # Three-stage profile: runtime ebd5ba0, europe-west4-a v6e-1; 1.399433 step/s (20-49), all health OFF.
+    # Forward 192.049 ms; reverse incl. remat 497.181 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTThreeStageNoOControlV6eB4Profile'
     rmt_scoped_vmem_limit_kib = 98304
 
 
 class RMTThreeStageOriginalControlProfile(RMTOriginalBlockScanNoHealthProfile):
+    # Three-stage profile: runtime ebd5ba0, us-central1-a v5p-16; 0.389900 step/s (20-49), all health OFF.
+    # Forward 652.852 ms; reverse incl. remat 1860.928 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTThreeStageOriginalControlProfile'
     rmt_scoped_vmem_limit_kib = 49152
 
 
 class RMTThreeStageOriginalControlV6eB4Profile(RMTThreeStageOriginalControlProfile):
+    # Three-stage profile: runtime ebd5ba0, europe-west4-a v6e-1; 1.126367 step/s (20-49), all health OFF.
+    # Forward 210.608 ms; reverse incl. remat 646.578 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTThreeStageOriginalControlV6eB4Profile'
     per_device_batch_size = 4.0
     rmt_scoped_vmem_limit_kib = 98304
 
 
 class RMTThreeStageMHAControlProfile(RMTMatchedMHARoPENoHealthProfile):
+    # Three-stage profile: runtime ebd5ba0, us-central1-a v5p-16; 0.754033 step/s (20-49), all health OFF.
+    # Forward 401.680 ms; reverse incl. remat 913.100 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTThreeStageMHAControlProfile'
     rmt_scoped_vmem_limit_kib = 49152
 
 
 class RMTThreeStageMHAControlV6eB4Profile(RMTThreeStageMHAControlProfile):
+    # Three-stage profile: runtime ebd5ba0, europe-west4-a v6e-1; 2.343467 step/s (20-49), all health OFF.
+    # Forward 91.467 ms; reverse incl. remat 315.265 ms. Diagnostic complete; rmt_pallas.md.
     model_name = 'RMTThreeStageMHAControlV6eB4Profile'
     per_device_batch_size = 4.0
     rmt_scoped_vmem_limit_kib = 98304
@@ -10911,6 +10933,9 @@ class RMTThreeStageMHAControlV6eB4Profile(RMTThreeStageMHAControlProfile):
 
 class RMTThreeStageNoOReverse128Profile(RMTThreeStageNoOProfile):
     """Independent reverse tiles; full fusion and forward128 preserved."""
+    # Three-stage profile: runtime be0d8d3, us-central1-a v5p-16; 0.534267 step/s (20-49), all health OFF.
+    # Forward 447.905 ms; reverse incl. remat 1399.914 ms. Diagnostic complete; rmt_pallas.md.
+    # Best tested three-stage tiles; implementation codex/rmt-pallas. BF16 convergence unvalidated.
     model_name = 'RMTThreeStageNoOReverse128Profile'
     rmt_fused_write_read_backward_tile = 128
     rmt_projected_write_reverse_tile = 128
@@ -10918,6 +10943,9 @@ class RMTThreeStageNoOReverse128Profile(RMTThreeStageNoOProfile):
 
 class RMTThreeStageNoOTunedV6eB4Profile(RMTThreeStageNoOV6eB4Profile):
     """v6e micro-selected reverse256/128/256; verify in full training."""
+    # Three-stage profile: runtime be0d8d3, europe-west4-a v6e-1; 1.672400 step/s (20-49), all health OFF.
+    # Forward 122.151 ms; reverse incl. remat 451.255 ms. Diagnostic complete; rmt_pallas.md.
+    # Best tested three-stage tiles; implementation codex/rmt-pallas. BF16 convergence unvalidated.
     model_name = 'RMTThreeStageNoOTunedV6eB4Profile'
     rmt_projected_write_forward_tile = 256
     rmt_attention_read_reverse_tile = 256

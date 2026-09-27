@@ -1,12 +1,79 @@
 # Dynamic RMT Pallas training optimization
 
 2026-09-27. Implementation: `/data0/xd/rmt-pallas`, branch `codex/rmt-pallas`,
-parent `ffb40f2d`. Latest matched comparison runtime
-`9ef9053c0e2525e18ae7f44fa50757eb95579f55`; earlier39c7e0f results remain below.
+parent `ffb40f2d`. Latest implementation runtime
+`be0d8d352f438ace6050a08da22d1a0abaea2c55`; prior FullO results remain below.
 Main `MaxText/exp.py` contains ledger classes; implementation is not merged.
 [Earlier chronological notes](rmt_pallas_history.md) retain unsuccessful prototypes.
 
-## Three-stage NoO implementation (sealed; full-step measurement pending)
+## Selected complete-step results with forward/backward attribution
+
+Final implementation runtime `be0d8d352f438ace6050a08da22d1a0abaea2c55`; worktree and branch above.
+All18 layers, MLP4078, T4096, all health OFF. Same VM within each hardware:
+UC1a v5p-16 globalB128/per-deviceB16; EW4a retained host1 v6e-1 globalB4.
+Each baseline uses its faster verified executable in this comparison. The v6e
+original/NoO/MHA controls use their original default-budget executables; their
+96MiB control executables were slower. The matched96MiB ablation remains below and is
+not used to inflate the headline gain. V5p controls use48MiB and are faster than
+the older recorded original/MHA controls.
+
+| Hardware | Exact configuration | Runtime | Forward ms | Backward incl. remat ms | Visible remat ms | Stable step/s |
+|---|---|---|---:|---:|---:|---:|
+|v5p-16|RMTThreeStageOriginalControlProfile|ebd5ba0|652.852|1860.928|539.687|0.389900|
+|v5p-16|RMTThreeStageNoOControlProfile|ebd5ba0|605.036|1438.095|363.387|0.482733|
+|v5p-16|RMTThreeStageNoOReverse128Profile|be0d8d3|447.905|1399.914|287.316|0.534267|
+|v5p-16|RMTThreeStageMHAControlProfile|ebd5ba0|401.680|913.100|247.173|0.754033|
+|v6e-1|RMTOriginalBlockScanNoHealthV6eB4Profile|9ef9053|204.422|596.668|175.778|1.206433|
+|v6e-1|RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile|8ebb3e9|182.312|484.257|109.798|1.445767|
+|v6e-1|RMTThreeStageNoOTunedV6eB4Profile|be0d8d3|122.151|451.255|86.019|1.672400|
+|v6e-1|RMTMatchedMHARoPENoHealthV6eB4Profile|9ef9053|80.055|297.910|75.965|2.521000|
+
+Best tested v5p throughput is+37.03% versus original FullO RMT,+10.68% versus
+previous optimized NoO, and70.85% of matched MHA. V6e is+38.62%,+15.68%, and
+66.34%, respectively. FullO comparisons include removing O; NoO comparisons
+are the cleaner implementation comparison. The initial +5–15% NoO bet is met
+on v5p and slightly exceeded on v6e.
+
+Compared with the previous NoO controls, v5p forward605.036→447.905ms while
+backward1438.095→1399.914ms; v6e forward182.312→122.151ms while
+backward484.257→451.255ms. Backward still occupies75.58%/76.50% of device time.
+The bottleneck inside the fused trunk remains the middle reverse:290.043ms
+on v5p and81.815ms on v6e. Attention operator optimization remains outside this
+work and is reserved for Splash.
+
+| Selected stage | v5p forward / external remat / reverse ms | v6e forward / external remat / reverse ms |
+|---|---:|---:|
+|stage1_attention_read|32.981 / 35.506 / 94.629|9.919 / 11.155 / 29.345|
+|stage2_attention_write_mlp_read|43.246 / 57.080 / 290.043|13.256 / 20.192 / 81.815|
+|stage3_mlp_write|33.174 / 0.000 / 67.386|10.062 / 0.000 / 26.788|
+
+Forward tiles (attention/middle/write): v5p128/128/128, v6e128/128/256.
+Reverse tiles: v5p128/128/128, v6e256/128/256. Scoped budgets48/96MiB.
+Both retain the complete three-kernel trunk; no fused stage was split to fit.
+Tuning changes reverse1457.992→1399.914ms on v5p and483.445→451.255ms on v6e.
+
+Timing convention: phase times are additive compiler-scope attribution of one
+complete primary-core XPlane step. Throughput is the mean of log steps20–49;
+logs round each sample to.001 step/s. Optimizer fusion, communication cross-cuts,
+other time and untraced gaps are retained in the JSON; phase totals need not equal
+the inverse of host throughput. Reverse includes remat, including recomputation
+internal to the analytic kernels. The JSON also retains every tested control.
+
+Numerical validation is separate from throughput: FP32 equations/gradients pass,
+but BF16 short-run trajectories differ; long-run convergence equivalence has not
+been established. The speed experiments do not authorize a claim of unchanged loss.
+
+Reproduction summary: `/data0/xd/bam_diagnostics/rmt-three-stage-comparison.json`
+contains all13 runs, raw XPlane paths, phase components,30 stable samples per run,
+runtime hashes and budgets. Matrix labels: `three-v5`, `three-v6` at ebd5ba0;
+`tuned-v5`, `tuned-v6` at be0d8d3; `budget-v6` at9ef9053;
+`budget-noo-v6` at8ebb3e9. AOT roots follow the sealed prefix documented below.
+
+Resources: `xd-v5p-16-rmtthree-0927-uc1a` first observed READY14:20:16UTC;
+all5 target profiles and logs verified locally, node and queue verified absent
+by14:42:39UTC (no preemption). Both retained EW4a v6e hosts remain READY.
+
+## Three-stage NoO implementation
 
 Runtime `ebd5ba07fa18d31dd1fc974c1e9a1a0ff04483a9`, same worktree/branch.
 The main trunk now has three Pallas forward programs and three explicit analytic
@@ -29,19 +96,61 @@ four remat policies; two-device attention shared-gradient test passes. Actual
 v6e BF16 all-gradient maximum relative L2: attention0.00840, middle0.01159,
 MLP-write0.00615. CPU FP32 maxima are below7.3e-7. Standalone checks do not
 establish long-run BF16 training equivalence. Full18 v5p candidate AOT is ready;
-paired full-step throughput is pending. Premeasurement bet: +5–15% versus the
+paired full-step results are in the selected table above. Premeasurement bet: +5–15% versus the
 previous optimized, matching NoO control, to be checked separately on each TPU.
 
-Ownership: retained `llm-jax-v6e-1-0` compiles v5p; retained `llm-jax-v6e-1-1`
-checks actual TPU kernels and compiles v6e. Both are EW4a and must remain allocated.
-All eight candidate/control AOTs are ready. Paired v6e matrix `three-v6/three0927` runs
-on retained host1; host0 runs independent forward/reverse tile probes. New owned
-v5p target `xd-v5p-16-rmtthree-0927-uc1a` was queued in UC1a at14:15UTC
-(after all AOTs were ready). It is temporary and must be released after artifacts
-are verified; retained v6e machines must remain. Local actual-TPU artifacts:
+Ownership: retained `llm-jax-v6e-1-0` compiled v5p and ran independent tile probes;
+retained `llm-jax-v6e-1-1` measured v6e complete steps. Both EW4a machines remain
+allocated and idle. All candidate/control AOTs and13 paired profile arms completed.
+Temporary `xd-v5p-16-rmtthree-0927-uc1a` was queued after all initial AOTs were ready;
+its verified cleanup is recorded in the selected-results section above. Local actual-TPU artifacts:
 `/data0/xd/bam_diagnostics/rmt-three-stage-ebd5ba0/`; GCS:
 `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/rmt-three-stage-ebd5ba0/`.
 AOT root: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/ebd5ba0/jax081-i0ae3f58-c17f538a/`.
+
+## Matched-budget ablation before reverse tuning
+
+Matched v6e host1, EW4a, runtimeebd5ba0, globalB4,T4096, all health OFF,
+48/96MiB scoped budgets per target. Stable log steps20–49; phases are additive
+source attributions from the first complete primary-core trace step. Remaining
+wall time is other/unattributed work. Full training AOT is loaded for every arm.
+
+| Exact configuration | Forward ms | Backward incl. remat ms | Visible remat ms | Stable step/s |
+|---|---:|---:|---:|---:|
+| RMTThreeStageOriginalControlV6eB4Profile |210.608|646.578|198.051|1.126367|
+| RMTThreeStageNoOControlV6eB4Profile |192.049|497.181|113.650|1.399433|
+| RMTThreeStageNoOV6eB4Profile |122.894|483.445|86.069|1.580000|
+| RMTThreeStageMHAControlV6eB4Profile |91.467|315.265|84.652|2.343467|
+
+Three-stage improves throughput12.90% versus the optimized NoO control and40.27%
+versus original FullO; it reaches67.42% of MHA throughput. The FullO comparison
+includes removing O; only the matching NoO comparison isolates these implementation
+changes. Forward improves36.01%, backward incl. remat only2.76%. The middle
+stage's reverse alone costs106.634ms per step (v5p initial320.953ms): this is the
+next fusion-internal priority. Do not compare these controls to historical
+measurements as if compiler budgets/executables were unchanged.
+
+Independent v6e B4,T4096 micro sweep, analytic pullback only, milliseconds:
+
+| Stage | Forward128 | Forward256 | Reverse32 | Reverse64 | Reverse128 | Reverse256 |
+|---|---:|---:|---:|---:|---:|---:|
+| Attention read |1.118|1.125|ABI requires128-aligned tokens|ABI requires128-aligned tokens|2.470|2.405|
+| Attention write + MLP read |1.428|1.447|7.328|6.436|5.929|6.369|
+| MLP write |1.171|1.129|2.997|2.736|2.592|2.508|
+
+Tuned runtimebe0d8d3 retains complete fusion. V5p tries middle/write
+reverse128; v6e tries reverse256/128/256 and MLP-write forward256. All three
+new reverse blocks pass CPU FP32 gradients (max relative L2 below7e-7) and actual
+TPU BF16 gradients (maximum0.011594); final full-step results are above.
+
+Numerical scope: all52 logged parameter sums match exactly between new/previous
+NoO controls, and CPU FP32 full-model scan checks pass. BF16 trajectories are
+not bitwise equal: v6e new-minus-NoO loss is+.413790 at49 and+.058658 at60;
+these short speed probes do not establish long-run training equivalence.
+
+Artifacts: `/data0/xd/bam_diagnostics/rmt-three-v6/`, `rmt-three-v5/`,
+`rmt-three-stage-ebd5ba0/tiles/`; raw/phase summaries have the corresponding
+`rmt-three-v*-initial-{profile,phases}.json` names. Matrix IDs `three0927`.
 
 ## Forward/backward reporting contract
 
@@ -101,13 +210,16 @@ one kernel, accumulates completed shared gradients immediately, and aliases the
 HBM matrix-cotangent input/output. (HBM aliasing alone does not prove VMEM DMA
 buffers share storage.) It passes the same v5p target compile with48MiB configured
 scoped budget. FP32 all-output/all-gradient maximum relative L2 is6.22e-7;
-CPU BF16 maximum0.01492. Actual TPU correctness/timing is being measured.
+CPU BF16 maximum0.01492. Actual v6e inner64 timings for DMA128/256/512 are
+forward1.376/1.375/1.376ms and reverse5.563/5.555/5.570ms. This fixes capacity
+but does not establish a speed win; it is not selected for the new full trunk.
 
 Preliminary cb549706 v6e B4,T4096,96MiB scoped-budget actual micro timings:
 separate forward/backward2.146/3.684ms; token-minor fused1.386/4.159ms;
 whole-compute major1281.382/5.273ms; major2561.381/5.711ms. Larger capacity alone
 has not fixed reverse speed. These are standalone-stage results, not full-step
-training gains. The new inner-chunk implementation is not selected until timed.
+training gains. The inner-chunk memory fix above remains a capacity tool, not a
+measured throughput winner.
 
 Reproduction: `MaxText/tests/rmt_write_reverse_compile.py --kernel chain
 --modes backward --batch 16 --topology v5p-16 --backward-tile 256 --compute-tile 64`;
@@ -121,7 +233,7 @@ The budget16 failure in the last comparison reports30.84MiB **early stack**
 allocation; it is not the new kernel's total VMEM peak. Both retained v6e hosts
 remain allocated; no resource release is authorized by this audit.
 
-## Complete attention-write → MLP-read fusion (in progress)
+## Earlier middle-stage prototype (superseded by the complete three-stage trunk)
 
 Runtime `832a20e9`, worktree/branch as above. This is the originally proposed
 large fusion, not another isolated read/write kernel. One forward program performs
@@ -149,8 +261,8 @@ measurement included necessary forward recomputation and is **not pure reverse
 time**;832a20e fixes the probe by passing pullback residuals as runtime inputs.
 These local results do not establish full-training speed.
 
-Full18 AOT/matched train-step comparison is pending, against both previous selected
-implementation and original RMT/MHA. Retained EW4a hosts `llm-jax-v6e-1-0` and
+This prototype was superseded by the complete three-stage implementation; its
+full18 comparisons against previous NoO and original RMT/MHA are reported above. Retained EW4a hosts `llm-jax-v6e-1-0` and
 `llm-jax-v6e-1-1` remain user-owned and must not be deleted. New classes:
 `RMTCombinedLayerScanFusedWriteReadProfile` and
 `RMTCombinedLayerScanFusedWriteReadV6eB4Profile`; main exp.py records them as ledger

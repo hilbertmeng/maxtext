@@ -179,7 +179,7 @@ def _map_batch(fn,args,batch_args,*,output_tuple=False):
   if not names or any(size>1 and name not in names for name,size in mesh.shape.items()):
     raise ValueError('RMT Pallas currently supports batch/FSDP mesh axes only')
   spec=P(axes)
-  outputs=(spec,spec) if output_tuple else spec
+  outputs=(spec,)*(2 if output_tuple is True else output_tuple) if output_tuple else spec
   return shard_map(fn,mesh=mesh,in_specs=tuple(spec if b else P() for b in batch_args),
                    out_specs=outputs,check_rep=False)(*args)
 

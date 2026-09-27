@@ -10801,3 +10801,16 @@ class RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile(RMTCombinedLayer
     # 8ebb3e9:1.444064 vs plain NoO1.445265; no extra full-step gain, do not select.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile'
     per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanFusedWriteReadProfile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    """Full attention write through dynamic MLP input, fused forward and analytic reverse."""
+    model_name = 'RMTCombinedLayerScanFusedWriteReadProfile'
+    rmt_fused_write_mlp_read = True
+    rmt_fused_write_read_tile = 128
+
+
+class RMTCombinedLayerScanFusedWriteReadV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateV6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadV6eB4Profile'
+    rmt_fused_write_mlp_read = True
+    rmt_fused_write_read_tile = 128

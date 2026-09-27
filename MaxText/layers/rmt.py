@@ -167,12 +167,24 @@ class RMTDynamicC8Read(nn.Module):
   compress_state: bool = True
 
   @nn.compact
-  def __call__(self, x, M, static_matrix=None, static_key=None):
+  def __call__(self, x, M, static_matrix=None, static_key=None, *, parameters_only=False):
     cfg = self.config
     pallas_joined = (static_matrix is not None and not self.is_initializing()
                      and cfg.get_keys().get('rmt_pallas_joined_read', False))
     heads = int(cfg.num_query_heads)
     key_dim = 8 if self.compress_state else M.shape[-1]
+    if parameters_only:
+      if not self.compress_state or self.destinations != 1:
+        raise ValueError('Fused MLP stage requires one compressed read destination')
+      compression = self.param('compression', nn.with_logical_partitioning(nn.initializers.orthogonal(), ('v_factor', 'kv')),
+                               (M.shape[-1], key_dim), cfg.weight_dtype)
+      key_kernel = self.param('key_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
+                              (cfg.emb_dim, heads * key_dim), cfg.weight_dtype)
+      gate_kernel = self.param('gate_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
+                               (cfg.emb_dim, heads), cfg.weight_dtype)
+      gate_bias = self.param('gate_bias', nn.with_logical_partitioning(_init_gate_bias(.05), ('q_heads', None)),
+                            (heads, 1), cfg.weight_dtype)
+      return compression,key_kernel,gate_kernel,gate_bias
     if self.compress_state:
       compression = self.param('compression', nn.with_logical_partitioning(nn.initializers.orthogonal(), ('v_factor', 'kv')),
                                (M.shape[-1], key_dim), cfg.weight_dtype)
@@ -238,7 +250,7 @@ class RMTDynamicWrite(nn.Module):
   address_dim: int
 
   @nn.compact
-  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None):
+  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None, *, address_only=False):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = 256
@@ -259,6 +271,8 @@ class RMTDynamicWrite(nn.Module):
     address = address.reshape(x.shape[:2] + (heads, self.address_dim))
     address = ad_checkpoint.checkpoint_name(address + up_bias.astype(x.dtype),'rmt_dynamic_address')
     gate = jax.nn.sigmoid(gate_logits + gate_bias.astype(x.dtype))
+    if address_only:
+      return address,gate
     if matrix is not None and not self.is_initializing():
       if cfg.get_keys().get('rmt_pallas_write_layout','value_minor')=='token_minor':
         from layers.rmt_pallas_minor import write_residual
@@ -285,6 +299,19 @@ class RMTDynamicWrite(nn.Module):
       # Initialization must also run on the CPU without a TPU-only custom call.
       return matrix + jnp.einsum('btnv,nk->btkv', raw_data, static_key) + write, gate
     return write, gate
+
+
+class RMTVectorNormParameters(nn.Module):
+  """Retrieve the existing RMSNorm scale under its unchanged parameter scope."""
+  config: common_types.Config
+
+  @nn.compact
+  def __call__(self):
+    cfg=self.config
+    initializer=nn.initializers.ones if cfg.direct_scale else nn.initializers.zeros
+    scale=self.param('scale',nn.with_logical_partitioning(initializer,('norm',)),
+                     (cfg.emb_dim,),cfg.weight_dtype).astype(cfg.dtype)
+    return scale if cfg.direct_scale else scale+1
 
 
 class MatrixRMSNorm(nn.Module):
@@ -454,45 +481,66 @@ class RMTLayer(nn.Module):
                             (heads, key_dim), cfg.weight_dtype)
     write_data = (jnp.pad(head_output, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
                   if padded_value_dim else head_output)
-    static_attn_write = jnp.einsum(
-        'btnv,nk->btkv', write_data, attn_write.astype(cfg.dtype))
-    if dynamic:
-      dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
-          cfg, write_rows, name='dynamic_attn_write')(
-              attn_x, head_output, matrix if pallas_write else None,
-              attn_write.astype(cfg.dtype) if pallas_write else None,
-              padded_value_dim or None)
-      if write_rows == 32:
-        dynamic_attn_write = jnp.pad(dynamic_attn_write,
-                                     ((0, 0), (0, 0), (16, 0), (0, 0)))
-      matrix = dynamic_attn_write if pallas_write else matrix + static_attn_write + dynamic_attn_write
-    elif not dynamic:
-      matrix = matrix + static_attn_write
+    fused_stage = bool(cfg.get_keys().get('rmt_fused_write_mlp_read', False))
+    if fused_stage and (not dynamic or not vector_pre_norm or write_rows != 48
+                        or joined_read or padded_value_dim or cfg.rmt_record_dynamic_health):
+      raise ValueError('Fused write/read requires Full48 vector norm, unpadded state, health OFF')
+    if fused_stage and not self.is_initializing():
+      address,attn_write_gate=RMTDynamicWrite(cfg,write_rows,name='dynamic_attn_write')(
+          attn_x,head_output,address_only=True)
+      mlp_read=self.param('mlp_read_key',key_init,(key_dim,heads),cfg.weight_dtype)
+      scale=RMTVectorNormParameters(cfg,name='mlp_vector_norm')()
+      compression,wk,wg,bias=RMTDynamicC8Read(cfg,destinations=1,name='dynamic_mlp_read')(
+          attn_x,jnp.swapaxes(matrix[...,heads:,:],-2,-1),parameters_only=True)
+      from layers.rmt_pallas_write_read import write_mlp_read
+      matrix,vector,mlp_x=write_mlp_read(
+          matrix,address,head_output,attn_write_gate,attn_write.astype(cfg.dtype),
+          mlp_read.astype(cfg.dtype),compression.astype(cfg.dtype),scale,
+          wk.astype(cfg.dtype),wg.astype(cfg.dtype),bias[...,0].astype(cfg.dtype),
+          cfg.normalization_layer_epsilon,_read_epsilon(cfg),
+          tile=cfg.get_keys().get('rmt_fused_write_read_tile',128))
+      if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
+        matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
+    else:
+      static_attn_write = jnp.einsum(
+          'btnv,nk->btkv', write_data, attn_write.astype(cfg.dtype))
+      if dynamic:
+        dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
+            cfg, write_rows, name='dynamic_attn_write')(
+                attn_x, head_output, matrix if pallas_write else None,
+                attn_write.astype(cfg.dtype) if pallas_write else None,
+                padded_value_dim or None)
+        if write_rows == 32:
+          dynamic_attn_write = jnp.pad(dynamic_attn_write,
+                                       ((0, 0), (0, 0), (16, 0), (0, 0)))
+        matrix = dynamic_attn_write if pallas_write else matrix + static_attn_write + dynamic_attn_write
+      elif not dynamic:
+        matrix = matrix + static_attn_write
 
-    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
-      matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
-    mlp_in = (matrix if vector_pre_norm else
-              MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
-    mlp_read = self.param('mlp_read_key', key_init,
-                          (key_dim, heads), cfg.weight_dtype)
-    if not joined_read:
-      vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
-      vector = vector[..., :value_dim]
-      static_mlp_read = vector
-    if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
-      mlp_x = mlp_in[..., :heads, :value_dim].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
-      if vector_pre_norm:
-        mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
-    if dynamic_mlp_read_enabled:
-      mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
-      mlp_read_module = RMTDynamicC8Read(cfg, destinations=1, name='dynamic_mlp_read')
-      if joined_read:
-        (dynamic_mlp_read,), mlp_read_gate, vector = mlp_read_module(
-            mlp_x, mlp_M, mlp_in, mlp_read.astype(cfg.dtype))
+      if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
+        matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
+      mlp_in = (matrix if vector_pre_norm else
+                MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
+      mlp_read = self.param('mlp_read_key', key_init,
+                            (key_dim, heads), cfg.weight_dtype)
+      if not joined_read:
+        vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
+        vector = vector[..., :value_dim]
         static_mlp_read = vector
-      else:
-        (dynamic_mlp_read,), mlp_read_gate = mlp_read_module(mlp_x, mlp_M)
-      vector = vector + dynamic_mlp_read[..., :value_dim]
+      if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
+        mlp_x = mlp_in[..., :heads, :value_dim].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
+        if vector_pre_norm:
+          mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
+      if dynamic_mlp_read_enabled:
+        mlp_M = jnp.swapaxes(mlp_in[..., read_start:, :], -2, -1)
+        mlp_read_module = RMTDynamicC8Read(cfg, destinations=1, name='dynamic_mlp_read')
+        if joined_read:
+          (dynamic_mlp_read,), mlp_read_gate, vector = mlp_read_module(
+              mlp_x, mlp_M, mlp_in, mlp_read.astype(cfg.dtype))
+          static_mlp_read = vector
+        else:
+          (dynamic_mlp_read,), mlp_read_gate = mlp_read_module(mlp_x, mlp_M)
+        vector = vector + dynamic_mlp_read[..., :value_dim]
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,

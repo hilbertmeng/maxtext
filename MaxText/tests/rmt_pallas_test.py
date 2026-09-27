@@ -42,6 +42,9 @@ class RmtPallasTest(absltest.TestCase):
   def test_key_token_minor_write_layer_forward_and_gradients(self):
     self._check_layer('rmt_pallas_key_contiguous')
 
+  def test_token_read_write_packed_forward_and_gradients(self):
+    self._check_layer('rmt_pallas_read_write')
+
   def _check_layer(self, flag):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3)
@@ -71,6 +74,7 @@ class RmtPallasTest(absltest.TestCase):
     cfg.get_keys()[flag]=True
     if flag in ('rmt_pallas_write_forward_jax','rmt_pallas_write_layout'):cfg.get_keys()['rmt_pallas_write']=True
     if flag=='rmt_pallas_write_layout':cfg.get_keys()[flag]='token_minor'
+    if flag=='rmt_pallas_read_write':cfg.get_keys().update(rmt_pallas_c8=True,rmt_pallas_write=True,rmt_pallas_write_layout='token_minor',rmt_pack_dynamic_projections=True)
     if flag=='rmt_pallas_key_contiguous':cfg.get_keys().update(rmt_pallas_write=True,rmt_pallas_write_layout='token_minor')
     if flag=='rmt_pallas_joined_read':cfg.get_keys()['rmt_join_static_compression']=True
     with mock.patch.object(rmt_pallas,'write_residual',
@@ -85,7 +89,8 @@ class RmtPallasTest(absltest.TestCase):
                            wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)) as minor_read:
       actual=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
       if flag in ('rmt_pallas_write_layout','rmt_pallas_key_contiguous'):self.assertGreater(minor.call_count,0)
-      if flag=='rmt_pallas_c8':self.assertGreater(minor_read.call_count,0)
+      if flag in ('rmt_pallas_c8','rmt_pallas_read_write'):self.assertGreater(minor_read.call_count,0)
+      if flag=='rmt_pallas_read_write':self.assertGreater(minor.call_count,0)
       if flag=='rmt_pallas_qk':self.assertGreater(qk.call_count,0)
       if flag in ('rmt_pallas_write','rmt_pallas_write_forward_jax'):self.assertGreater(fused.call_count,0)
       if flag=='rmt_pallas_joined_read':self.assertGreater(read.call_count,0)

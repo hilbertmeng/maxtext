@@ -345,3 +345,185 @@ Original configuration log is in `rmt-pallas-v5p`; separate original XPlane
 is in `rmt-pallas-v5p-original`. All bytes flow worker→GCS→local, never through
 tpu-ag. The71f46b3 partial matrix has only the two complete saved XPlanes;
 interrupted TokenAll and unstarted TokenQKPost arms have no accepted timing.
+
+
+## Explicit write reverse follow-up (in progress)
+
+Runtime `63fc789b0db390a6603348eddc7aa028684f8c80`, branch/worktree unchanged.
+Retained host-0 screens kernels and compiles v6e; host-1 compiles v5p.
+No additional TPU allocated yet. Both retained hosts must remain allocated.
+The accepted previous training timings above are unchanged until full-step validation.
+
+`rmt_pallas_minor.py` exposes an explicit static `backward` choice in its custom VJP;
+training selects it through `rmt_pallas_write_backward`, never an environment override.
+Forward, parameter tree, optimizer, attention and remat policy are unchanged.
+All normalization and gate derivatives in new candidates are explicit, without `jax.vjp`.
+The original AD implementation remains a numerical/performance control.
+
+Paired v6e-1 host-0 isolated backward, 8192 BF16 tokens, real upstream gradient input,
+60 timings after warmup (`MaxText/tests/rmt_write_backward_probe.py`):
+
+| Reverse implementation | Median ms | Reduction versus AD |
+|---|---:|---:|
+| Original AD inside Pallas |1.167235|—|
+| Explicit batched MXU contractions |1.069910|8.34%|
+| Joint symmetric MXU, all four contractions |1.099060|5.84%|
+
+The joint method packs `[A_gate,D_norm]`, `[S,0]` and `[0,D_raw]` against
+`[[0,dM],[dM.T,0]]`; K+V=123 fits the 128-wide tile. The extra packing/layout work is a plausible cause of the smaller win;
+full-step operator attribution is still required. Direct analytic VPU, full-token static GEMMs, and head-group8
+were slower. Head-group4 fails the TPU DMA shape requirement; batched tile256 exceeds
+VMEM (39.51MiB vs32MiB). These are rejected, not training-speed claims.
+
+CPU FP32 two-tile forward/all-gradient checks passed; joint max relative L2 3.182e-7.
+Both batched and joint passed complete three-layer loss/all-parameter-gradient checks
+under four remat policies (perturbed nonzero parameters). BF16 gradient deviations
+from the original fused AD are <=0.003101, mostly gate-reduction rounding;
+joint shared-static gradient deviation 0.000181. Full-step convergence is not tested.
+
+Full18 profile candidates (all health OFF, LR schedule13500, run limit100):
+- `RMTCombinedLayerScanBatchedWriteProfile` / `...BatchedWriteV6eB4Profile`;
+- `RMTCombinedLayerScanJointWriteProfile` / `...JointWriteV6eB4Profile`.
+
+Both topologies use the previous best, original RMT, and RoPE MHA controls at the
+same sealed runtime. Offline AOT preparation is running on retained hosts.
+Local CPU artifacts: `/data0/xd/bam_diagnostics/rmt-analytic-write-cpu-depth`,
+`rmt-mxu-write-cpu-depth`, `rmt-joint-write-cpu.json`.
+
+
+### Reverse ABI follow-up, sealed 9ef9053c (in progress)
+
+The first complete v6e paired matrix at63fc789 finished all five arms. Its first
+accepted30-step results: previous best1.414732 versus batched reverse1.420096 step/s
+(+0.379%). Raw XPlane mean697.658 versus695.213ms. Write-reverse kernels51.521→45.313ms
+(−12.05%), but other backward scopes increased about3.42ms; total benefit is smaller.
+Full matrix artifacts: `/data0/xd/bam_diagnostics/rmt-write-reverse-v6e`;
+GCS `diagnostics/profile_matrix/63fc789/rmt_reverse_v6e`, matrix ID`reverse-v6-0927`.
+
+V5p target compilation rejected batched (20.33MiB), joint32 (19.03MiB), and
+hybrid-batched (19.89MiB), all above16MiB. Unrolled32-token slices did not reduce the
+peak. A dynamic array-slice loop is unsupported by this Pallas TPU lowering.
+These failures were found offline; no v5p lease was acquired for them.
+
+`rmt_pallas_write_reverse.py` now gives backward its own token-major ABI, leaving
+forward token-minor. Both static and dynamic pullbacks share a single symmetric MXU
+product. This removes costly kernel-internal changes between the two layouts and
+allows32/64/128-token reverse blocks independently of the128-token forward DMA block.
+The64-token version passes full3-layer/all-parameter FP32 gradient checks under all
+four remat policies; TPU BF16 all-input-gradient checks pass for32/64/128/256.
+
+Paired host-1,8192-token runtime-gradient reverse at051e016:
+AD1.152150ms; major32 1.025970; major64 .968320; major128 .941895; major256 .933675.
+Major128 saves18.25%; major256's further0.87% gain has a31.39MiB kernel requirement
+and fails the v5p16MiB limit. Major64/128 are the full-step candidates.
+BF16 max relative gradient difference vsAD .003101 (gate rounding); shared-static
+parameter gradient difference at128 is .000181.
+
+Reusable offline kernel compiler `MaxText/tests/rmt_write_reverse_compile.py`
+reproduces the v5p AD-pass/batched-fail. A B1 probe allowed major128, but actual B16
+requires16.38MiB and fails the16MiB limit; major64 is the v5p candidate.
+The reusable probe now defaults to actual B16, not B1.
+Local pinnedCPU libtpu0.0.23 differs from workers0.0.30; use an isolated0.0.30 overlay,
+never change the pinned test environment. Matched command prefix:
+`PYTHONPATH=/data0/xd/bam_diagnostics/rmt-tpu-compiler/libtpu030:MaxText JAX_PLATFORMS=cpu TPU_ACCELERATOR_TYPE=v5p-16 TPU_WORKER_HOSTNAMES=localhost`.
+Local output `rmt-major-reverse-offline-lib030.json` and `rmt-major-reverse-tiles-v5p.json`.
+This cheap compile probe does not replace actual target training measurements.
+
+C8 explicit native-MXU reverse (`0216b58`) passed FP32/BF16 checks but was slower:
+.474040→.833745ms; rejected, not wired into a training candidate.
+
+Final full-step runtime `9ef9053c0e2525e18ae7f44fa50757eb95579f55`:
+`RMTCombinedLayerScanMajorDirectWriteProfile` (64; v5p candidate),
+`RMTCombinedLayerScanMajorDirectWriteV6eB4Profile` (64), and
+`RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile` (128), with previous-best,
+original-RMT and RoPE-MHA controls at the same runtime. AOT queues
+`rmt_direct_v5_9ef.sh` on host-1 and `rmt_direct_v6_9ef.sh` on host-0 are running.
+The superseded6ea queues were stopped before any training target was acquired.
+Both user-retained v6e machines remain allocated. Target
+`xd-v5p-16-rmtreverse-0927-uc1a` was submitted after all four v5p AOTs became ready;
+UC1a was selected from the recent successful matched profile leases.
+Full-step v6e matrix `direct-v6-0927` is running on host-0; target v5p matrix
+`direct-v5-0927` waits for installation, then runs all four arms on that same VM.
+
+The BF16 numerical reference is the original unfused equation, not the previous
+fused AD implementation. Reproducing the old AD gate reduction layout costs a
+small transpose and slowed the isolated64-token reverse from~.98 to~1.13ms.
+A three-way comparison showed native token-major gate reduction is actually
+closer to the original equation. The selected `joint_major_direct` modes keep
+native gate reduction and explicit analytic RMS/outer-product derivatives.
+For64-token tiles, shared-static FP32 partial gradients are grouped into the
+original128-token BF16 partial boundaries before the final global reduction.
+
+Paired host-1 pure reverse at9ef9053c,8192 BF16 tokens, runtime upstream gradient:
+
+| Mode | Median ms | Reduction vs old fused AD | Gate-gradient relative L2 vs original JAX |
+|---|---:|---:|---:|
+| Original unfused JAX |1.413880|—|0|
+| Previous fused AD |1.153470|—|.00395676|
+| Native major64 |.971765|15.753%|.00317175|
+| Native major128 |.943075|18.240%|.00317175|
+
+The128-token shared-static gradient matches original JAX exactly in this probe;
+64-token relative L2 is .00244126 (old AD .00244794). Other gradient differences
+are~.00284/.00312. These are BF16 reassociation effects, not FP32 equation changes.
+Full3-layer/all-parameter FP32 gradient checks under four remat policies passed
+for the selected64-token variant (60.44s). Full-step speed is pending; microbench
+wins must not be presented as complete-training wins.
+
+### Removing localO: performance hypothesis
+
+Current V/O share the C8 compression, dynamic key, key normalization and read.
+NoO removes only the O gate, its output/injection and associated reverse branch;
+it retains V and both attention writes. Hence NoO does not directly shrink the
+independent write-reverse kernel's VMEM footprint. In the previous-best v6e trace
+at63fc789, the entire dynamic-VO scope (including shared V work, all phases) takes
+26.766ms of697.658ms (3.84%); only a subset is directly removable.
+The premeasurement bet is <2% full-step throughput gain from merely switching
+O off. Larger gains would require changed scheduling, rematerialization or a
+specialized single-destination read kernel, measured separately on v5p/v6e.
+
+Historical `RMTMediumPropAlibiK48DynamicFull48NoO` finished13500 steps with
+final-five mean loss delta−.000325 vs Full48, supporting the low-loss-cost premise
+for that ALiBi configuration. It does not establish equivalence for the current
+RoPE/vector-norm/dynamic-boundary model. At fixed18-layer width the gate removal
+saves345,888 parameters (.2402 W_Q); no automatic MLP reinvestment is proposed.
+No new formal NoO training has been launched by this optimization task.
+
+
+V-only kernel prototype `rmt_pallas_v_read.py`, runtime73028998, uses
+`g*(M@RMS(k)) = M@(g*RMS(k))` to move the gate from75 content coordinates to8
+read-key coordinates. Its explicit reverse computes `u=M.T@dy`, then derives
+the gate/key gradients from `u`; it does not recompute the full read just for
+the gate gradient. This prototype is not wired into any training configuration.
+FP32 forward/all-three-input-gradient checks at tiles128/256 have maximum
+relative L2 2.11e-7. BF16 reassociation changes the output/gradients (CPU maximum
+.00853; TPU gradient maximum .00521 versus original single-destination AD), so
+short speed evidence does not establish long-run training equivalence.
+
+Same-process randomized interleaving at e1944cb7, host-1 v6e-1,8192 BF16 tokens,
+60 timings per arm after warmup, same M/key/V-gate/V-upstream-gradient:
+
+| Route | Tile | Forward median ms | Reverse median ms |
+|---|---:|---:|---:|
+| Shared V/O original |128|.377175|.485860|
+| V-only original |128|.257055|.449065|
+| V-only gated key, explicit reverse |128|.247755|.377530|
+| Shared V/O original |256|.371285|.479260|
+| V-only original |256|.250060|.452925|
+| V-only gated key, explicit reverse |256|.246065|.376890|
+
+At128, deleting O alone reduces forward31.85%/reverse7.57%; specialization adds
+3.62%/15.93% reductions versus plain NoO. Versus the original shared read the
+specialized kernel reduces forward34.31%/reverse22.30%. These are operator
+reductions, not full-step speedups.256 provides almost no extra gain for the
+specialized route, so128 remains the initial candidate. The specialized256
+reverse also passes actual B16/4096 v5p-16 offline compilation using matched
+libtpu0.0.30; no training-target VMEM capacity is assumed from v6e success.
+
+Artifacts: `/data0/xd/bam_diagnostics/rmt-v-only-read/read-interleaved-e194.json`
+contains all samples/p10/p90, and GCS
+`diagnostics/rmt-pallas/write_reverse_0927/host1/` contains earlier pairs.
+CPU check `/data0/xd/bam_diagnostics/rmt-v-only-fold-gate-cpu.log`, target compile
+`/data0/xd/bam_diagnostics/rmt-v-fold-v5p-b16-t256.json`.
+Reproduce `PYTHONPATH=MaxText python MaxText/tests/rmt_v_read_benchmark.py --output FILE`;
+unit check `MaxText/tests/rmt_v_read_test.py` in the pinned CPU environment.

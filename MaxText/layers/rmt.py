@@ -209,7 +209,7 @@ class RMTDynamicWrite(nn.Module):
   address_dim: int
 
   @nn.compact
-  def __call__(self, x, data, matrix=None, static_key=None):
+  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = 256
@@ -243,6 +243,8 @@ class RMTDynamicWrite(nn.Module):
     data = normalizations.rms_norm(
         data, dtype=data.dtype, epsilon=cfg.normalization_layer_epsilon,
         statistics_dtype=jnp.float32)
+    if padded_value_dim is not None:
+      data = jnp.pad(data, ((0,0),(0,0),(0,0),(0,padded_value_dim-data.shape[-1])))
     write = jnp.einsum('btnk,btnv->btkv', gate[..., None] * address, data)
     if matrix is not None:
       # Initialization must also run on the CPU without a TPU-only custom call.
@@ -302,6 +304,10 @@ class RMTLayer(nn.Module):
     if pallas_write and (not dynamic or cfg.rmt_dynamic_write_rows != 48
                          or cfg.rmt_record_dynamic_health):
       raise ValueError('Pallas write prototype requires dynamic Full48 and health OFF')
+    padded_value_dim = cfg.get_keys().get('rmt_pad_value_dim', 0)
+    if padded_value_dim and (pallas_write or joined_read or cfg.rmt_record_dynamic_health
+                             or not cfg.rmt_vector_pre_norm):
+      raise ValueError('Padded carry prototype requires standalone vector-norm health-OFF path')
     dynamic_mlp_read_enabled = dynamic
     dynamic_mlp_write_enabled = dynamic
     dynamic_o_enabled = bool(cfg.get_keys().get('rmt_dynamic_o_enabled', True))
@@ -322,9 +328,9 @@ class RMTLayer(nn.Module):
     qkv_key = self.param('qkv_key', key_init, (3, heads, key_dim), cfg.weight_dtype)
     if not joined_read:
       qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
-      query, key, value = qkv[0], qkv[1], qkv[2]
+      query, key, value = (qkv[i][..., :value_dim] for i in range(3))
     if dynamic:
-      attn_x = attn_in[..., :heads, :].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
+      attn_x = attn_in[..., :heads, :value_dim].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
       if vector_pre_norm:
         attn_x = normalizations.get_rmsnorm('attn_vector_norm', cfg)(attn_x)
       read_start = heads
@@ -340,9 +346,10 @@ class RMTLayer(nn.Module):
         query, key, value = (qkv[:, :, i] for i in range(3))
       else:
         vo_reads, vo_gates = vo_module(attn_x, attn_M)
-      dynamic_v = vo_reads[0]
+      dynamic_q, dynamic_k = dynamic_q[..., :value_dim], dynamic_k[..., :value_dim]
+      dynamic_v = vo_reads[0][..., :value_dim]
       if dynamic_o_enabled:
-        dynamic_o = vo_reads[1]
+        dynamic_o = vo_reads[1][..., :value_dim]
       static_q, static_k, static_v = query, key, value
       query = query + dynamic_q
       key = key + dynamic_k
@@ -392,13 +399,16 @@ class RMTLayer(nn.Module):
         head_output = head_output + dynamic_o
     attn_write = self.param('attn_write_key', write_init,
                             (heads, key_dim), cfg.weight_dtype)
+    write_data = (jnp.pad(head_output, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
+                  if padded_value_dim else head_output)
     static_attn_write = jnp.einsum(
-        'btnv,nk->btkv', head_output, attn_write.astype(cfg.dtype))
+        'btnv,nk->btkv', write_data, attn_write.astype(cfg.dtype))
     if dynamic:
       dynamic_attn_write, attn_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_attn_write')(
               attn_x, head_output, matrix if pallas_write else None,
-              attn_write.astype(cfg.dtype) if pallas_write else None)
+              attn_write.astype(cfg.dtype) if pallas_write else None,
+              padded_value_dim or None)
       if write_rows == 32:
         dynamic_attn_write = jnp.pad(dynamic_attn_write,
                                      ((0, 0), (0, 0), (16, 0), (0, 0)))
@@ -412,9 +422,10 @@ class RMTLayer(nn.Module):
                           (key_dim, heads), cfg.weight_dtype)
     if not joined_read:
       vector = jnp.einsum('btkv,kn->btnv', mlp_in, mlp_read.astype(cfg.dtype))
+      vector = vector[..., :value_dim]
       static_mlp_read = vector
     if dynamic_mlp_read_enabled or dynamic_mlp_write_enabled:
-      mlp_x = mlp_in[..., :heads, :].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
+      mlp_x = mlp_in[..., :heads, :value_dim].reshape(mlp_in.shape[:2] + (cfg.emb_dim,))
       if vector_pre_norm:
         mlp_x = normalizations.get_rmsnorm('mlp_vector_norm', cfg)(mlp_x)
     if dynamic_mlp_read_enabled:
@@ -426,7 +437,7 @@ class RMTLayer(nn.Module):
         static_mlp_read = vector
       else:
         (dynamic_mlp_read,), mlp_read_gate = mlp_read_module(mlp_x, mlp_M)
-      vector = vector + dynamic_mlp_read
+      vector = vector + dynamic_mlp_read[..., :value_dim]
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,
@@ -438,13 +449,16 @@ class RMTLayer(nn.Module):
     vector = vector.reshape(vector.shape[:2] + (heads, value_dim))
     mlp_write = self.param('mlp_write_key', write_init,
                            (heads, key_dim), cfg.weight_dtype)
+    write_data = (jnp.pad(vector, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
+                  if padded_value_dim else vector)
     static_mlp_write = jnp.einsum(
-        'btnv,nk->btkv', vector, mlp_write.astype(cfg.dtype))
+        'btnv,nk->btkv', write_data, mlp_write.astype(cfg.dtype))
     if dynamic_mlp_write_enabled:
       dynamic_mlp_write, mlp_write_gate = RMTDynamicWrite(
           cfg, write_rows, name='dynamic_mlp_write')(
               mlp_x, vector, matrix if pallas_write else None,
-              mlp_write.astype(cfg.dtype) if pallas_write else None)
+              mlp_write.astype(cfg.dtype) if pallas_write else None,
+              padded_value_dim or None)
       if write_rows == 32:
         dynamic_mlp_write = jnp.pad(dynamic_mlp_write,
                                     ((0, 0), (0, 0), (16, 0), (0, 0)))
@@ -556,6 +570,10 @@ class RMTDecoder(nn.Module):
         self.sow('intermediates', 'rmt_embedding_health',
                  _boundary_health(dynamic_seed, matrix, seed_gate))
       matrix = matrix + dynamic_seed
+    padded_value_dim = cfg.get_keys().get('rmt_pad_value_dim', 0)
+    if padded_value_dim:
+      if padded_value_dim < value_dim:raise ValueError('Padded value dimension must cover all values')
+      matrix = jnp.pad(matrix, ((0,0),(0,0),(0,0),(0,padded_value_dim-value_dim)))
     block_scan = cfg.get_keys().get('rmt_block_scan', False)
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
@@ -572,6 +590,7 @@ class RMTDecoder(nn.Module):
     matrix, _ = ScanLayer(cfg, quant=self.quant, name='layers')(
         matrix, decoder_segment_ids, decoder_positions, deterministic,
         jnp.arange(scan_length))
+    if padded_value_dim:matrix = matrix[..., :value_dim]
     matrix = MatrixRMSNorm(cfg, name='final_matrix_norm')(matrix)
     final_read = self.param('final_read_key', nn.initializers.normal(key_dim ** -0.5),
                             (key_dim, heads), cfg.weight_dtype)

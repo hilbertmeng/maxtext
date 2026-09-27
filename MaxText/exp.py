@@ -10362,9 +10362,21 @@ class RMTCombinedLayerScanJoinedPallasReadL6Profile(RMTCombinedLayerScanJoinedPa
 
 
 class RMTCombinedLayerScanPallasQKProfile(RMTCombinedLayerScanNoHealthProfile):
+  model_name = 'RMTCombinedLayerScanPallasQKProfile'
   rmt_pallas_qk = True
   rmt_pallas_qk_tile = 32
 
 
 class RMTCombinedLayerScanPallasQKL6Profile(RMTCombinedLayerScanPallasQKProfile):
+  model_name = 'RMTCombinedLayerScanPallasQKL6Profile'
   base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPaddedCarryProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanPaddedCarryProfile'
+    rmt_pad_value_dim = 128
+
+
+class RMTCombinedLayerScanPaddedCarryL6Profile(RMTCombinedLayerScanPaddedCarryProfile):
+    model_name = 'RMTCombinedLayerScanPaddedCarryL6Profile'
+    base_num_decoder_layers = 6

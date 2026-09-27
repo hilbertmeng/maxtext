@@ -70,6 +70,31 @@ class RmtPallasTest(absltest.TestCase):
       self.assertTrue(np.isfinite(a).all())
       np.testing.assert_allclose(a,b,rtol=3e-4,atol=2e-6)
 
+  def test_padded_carry_initialization_and_gradients(self):
+    cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
+    cfg.get_keys().update(dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3)
+    layer=rmt.RMTLayer(cfg)
+    m=jax.random.normal(jax.random.key(911),(1,4,48,cfg.head_dim))
+    seg=jnp.ones((1,4),jnp.int32); pos=jnp.arange(4)[None]
+    params=nn.unbox(layer.init(jax.random.key(912),m,seg,pos,True,0)['params'])
+    cfg.get_keys()['rmt_pad_value_dim']=128
+    pad=lambda x:jnp.pad(x,((0,0),(0,0),(0,0),(0,128-cfg.head_dim)))
+    other=nn.unbox(layer.init(jax.random.key(912),pad(m),seg,pos,True,0)['params'])
+    for a,b in zip(jax.tree.leaves(params),jax.tree.leaves(other)):np.testing.assert_array_equal(a,b)
+    leaves,tree=jax.tree.flatten(params)
+    params=tree.unflatten([x+.01*jax.random.normal(jax.random.key(914+i),x.shape) for i,x in enumerate(leaves)])
+    def run(p,m):
+      padded=cfg.get_keys()['rmt_pad_value_dim']
+      out=layer.apply({'params':p},pad(m) if padded else m,seg,pos,True,0)[0]
+      return jnp.mean(out[...,:cfg.head_dim]**2),out
+    actual=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,m)
+    np.testing.assert_array_equal(np.asarray(actual[0][1][...,cfg.head_dim:]),0)
+    actual=((actual[0][0],actual[0][1][...,:cfg.head_dim]),actual[1])
+    cfg.get_keys()['rmt_pad_value_dim']=0
+    baseline=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,m)
+    for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
+      np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=3e-4,atol=2e-6)
+
   def test_two_device_batch_sharding_and_shared_gradients(self):
     if jax.device_count()!=2:self.skipTest('Requires --xla_force_host_platform_device_count=2')
     mesh=jax.sharding.Mesh(np.asarray(jax.devices()),('data',))

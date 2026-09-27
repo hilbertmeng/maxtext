@@ -27,6 +27,9 @@ class RmtPallasTest(absltest.TestCase):
   def test_qk_layer_forward_and_gradients(self):
     self._check_layer('rmt_pallas_qk')
 
+  def test_packed_projection_initialization_and_gradients(self):
+    self._check_layer('rmt_pack_dynamic_projections')
+
   def _check_layer(self, flag):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3)
@@ -35,9 +38,9 @@ class RmtPallasTest(absltest.TestCase):
     seg=jnp.ones((1,4),jnp.int32)
     pos=jnp.arange(4)[None]
     params=nn.unbox(layer.init(jax.random.key(303),matrix,seg,pos,True,0)['params'])
-    if flag in ('rmt_join_static_compression','rmt_pallas_joined_read'):
+    if flag in ('rmt_join_static_compression','rmt_pallas_joined_read','rmt_pack_dynamic_projections'):
       cfg.get_keys()[flag]=True
-      cfg.get_keys()['rmt_join_static_compression']=True
+      if flag!='rmt_pack_dynamic_projections':cfg.get_keys()['rmt_join_static_compression']=True
       other=nn.unbox(layer.init(jax.random.key(303),matrix,seg,pos,True,0)['params'])
       self.assertEqual(jax.tree.structure(params),jax.tree.structure(other))
       for a,b in zip(jax.tree.leaves(params),jax.tree.leaves(other)):

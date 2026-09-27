@@ -10380,3 +10380,13 @@ class RMTCombinedLayerScanPaddedCarryProfile(RMTCombinedLayerScanNoHealthProfile
 class RMTCombinedLayerScanPaddedCarryL6Profile(RMTCombinedLayerScanPaddedCarryProfile):
     model_name = 'RMTCombinedLayerScanPaddedCarryL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanPackedProjectionProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanPackedProjectionProfile'
+    rmt_pack_dynamic_projections = True
+
+
+class RMTCombinedLayerScanPackedProjectionL6Profile(RMTCombinedLayerScanPackedProjectionProfile):
+    model_name = 'RMTCombinedLayerScanPackedProjectionL6Profile'
+    base_num_decoder_layers = 6

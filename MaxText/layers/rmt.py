@@ -88,60 +88,66 @@ def _read_epsilon(cfg):
           else cfg.bam_read_key_epsilon)
 
 
+def _project_many(x,kernels,packed):
+  if not packed:
+    return tuple(jnp.einsum('btd,dr->btr',x,k.astype(x.dtype)) for k in kernels)
+  widths=[k.shape[-1] for k in kernels]
+  projected=jnp.einsum('btd,dr->btr',x,jnp.concatenate([k.astype(x.dtype) for k in kernels],axis=-1))
+  cuts=[]
+  offset=0
+  for width in widths:
+    cuts.append(projected[...,offset:offset+width])
+    offset+=width
+  return tuple(cuts)
+
+
 class RMTDynamicQK(nn.Module):
   """BAM column-only shared rank-4 basis with independently gated Q/K routing."""
-
   config: common_types.Config
 
   @nn.compact
   def __call__(self, x, M):
-    cfg = self.config
-    heads = int(cfg.num_query_heads)
-    address_dim = M.shape[-1]
-    rank = 4
-    init = initializers.get_init_method(cfg.init_method)
-    basis_kernel = self.param('basis_kernel', nn.with_logical_partitioning(init, ('embed', None)),
-                              (cfg.emb_dim, rank * address_dim), cfg.weight_dtype)
-    basis_bias = self.param('basis_bias', nn.with_logical_partitioning(nn.initializers.zeros, (None, 'kv')),
-                            (rank, address_dim), cfg.weight_dtype)
-    basis = jnp.einsum('btd,dr->btr', x, basis_kernel.astype(x.dtype))
-    basis = basis.reshape(x.shape[:2] + (rank, address_dim))
-    basis = basis + basis_bias.astype(x.dtype)
-    basis_read = jnp.einsum('btvc,btrc->btrv', M, basis)
-    basis_fp32 = basis.astype(jnp.float32)
-    gram = jnp.einsum('btrc,btsc->btrs', basis_fp32, basis_fp32)
-    fused_qk = cfg.get_keys().get('rmt_pallas_qk', False) and not self.is_initializing()
-    results, gates, mixes = [], [], []
-    for arm in ('q', 'k'):
-      mix_kernel = self.param(f'{arm}_mix_kernel', nn.with_logical_partitioning(init, ('embed', None)),
-                              (cfg.emb_dim, heads * rank), cfg.weight_dtype)
-      mix = jnp.einsum('btd,dr->btr', x, mix_kernel.astype(x.dtype))
-      mix = mix.reshape(x.shape[:2] + (heads, rank))
-      gate_kernel = self.param(f'{arm}_gate_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
-                               (cfg.emb_dim, heads), cfg.weight_dtype)
-      gate_bias = self.param(f'{arm}_gate_bias', nn.with_logical_partitioning(_init_gate_bias(.05), ('q_heads',)),
-                             (heads,), cfg.weight_dtype)
-      gate = jax.nn.sigmoid(
-          jnp.einsum('btd,dn->btn', x, gate_kernel.astype(x.dtype))
-          + gate_bias.astype(x.dtype))
-      if fused_qk:
-        mixes.append(mix)
-        gates.append(gate)
-        continue
-      # Same effective-key RMS as BAM's rank-4 Gram route, after pre-RMS bias.
-      mix_fp32 = mix.astype(jnp.float32)
-      norm2 = jnp.einsum('btnr,btrs,btns->btn', mix_fp32, gram, mix_fp32)
-      inverse_rms = jax.lax.rsqrt(norm2 / address_dim + _read_epsilon(cfg))
-      read = jnp.einsum('btrv,btnr->btnv', basis_read, mix)
-      results.append(read * (inverse_rms.astype(read.dtype) * (.2 * gate))[..., None])
-      gates.append(gate)
-    if fused_qk:
+    cfg=self.config
+    heads=int(cfg.num_query_heads)
+    address_dim=M.shape[-1]
+    rank=4
+    init=initializers.get_init_method(cfg.init_method)
+    basis_kernel=self.param('basis_kernel',nn.with_logical_partitioning(init,('embed',None)),
+                            (cfg.emb_dim,rank*address_dim),cfg.weight_dtype)
+    basis_bias=self.param('basis_bias',nn.with_logical_partitioning(nn.initializers.zeros,(None,'kv')),
+                          (rank,address_dim),cfg.weight_dtype)
+    kernels=[basis_kernel]
+    biases=[]
+    for arm in ('q','k'):
+      mix_kernel=self.param(f'{arm}_mix_kernel',nn.with_logical_partitioning(init,('embed',None)),
+                            (cfg.emb_dim,heads*rank),cfg.weight_dtype)
+      gate_kernel=self.param(f'{arm}_gate_kernel',nn.with_logical_partitioning(nn.initializers.zeros,('embed',None)),
+                             (cfg.emb_dim,heads),cfg.weight_dtype)
+      gate_bias=self.param(f'{arm}_gate_bias',nn.with_logical_partitioning(_init_gate_bias(.05),('q_heads',)),
+                           (heads,),cfg.weight_dtype)
+      kernels.extend((mix_kernel,gate_kernel));biases.append(gate_bias)
+    projected=_project_many(x,kernels,cfg.get_keys().get('rmt_pack_dynamic_projections',False))
+    basis=projected[0].reshape(x.shape[:2]+(rank,address_dim))+basis_bias.astype(x.dtype)
+    mixes=[projected[1+2*i].reshape(x.shape[:2]+(heads,rank)) for i in range(2)]
+    gates=[jax.nn.sigmoid(projected[2+2*i]+biases[i].astype(x.dtype)) for i in range(2)]
+    if cfg.get_keys().get('rmt_pallas_qk',False) and not self.is_initializing():
       from layers.rmt_pallas_qk import qk_read
-      output = qk_read(jnp.swapaxes(M,-2,-1), basis,
-                       jnp.concatenate(mixes,axis=-2),jnp.concatenate(gates,axis=-1),
-                       _read_epsilon(cfg),tile=cfg.get_keys().get('rmt_pallas_qk_tile',32))
-      results = (output[..., :heads, :],output[..., heads:, :])
-    return results[0], results[1], gates[0], gates[1]
+      output=qk_read(jnp.swapaxes(M,-2,-1),basis,jnp.concatenate(mixes,axis=-2),
+                     jnp.concatenate(gates,axis=-1),_read_epsilon(cfg),
+                     tile=cfg.get_keys().get('rmt_pallas_qk_tile',32))
+      results=(output[...,:heads,:],output[...,heads:,:])
+    else:
+      basis_read=jnp.einsum('btvc,btrc->btrv',M,basis)
+      basis_fp32=basis.astype(jnp.float32)
+      gram=jnp.einsum('btrc,btsc->btrs',basis_fp32,basis_fp32)
+      results=[]
+      for mix,gate in zip(mixes,gates):
+        mix_fp32=mix.astype(jnp.float32)
+        norm2=jnp.einsum('btnr,btrs,btns->btn',mix_fp32,gram,mix_fp32)
+        inverse_rms=jax.lax.rsqrt(norm2/address_dim+_read_epsilon(cfg))
+        read=jnp.einsum('btrv,btnr->btnv',basis_read,mix)
+        results.append(read*(inverse_rms.astype(read.dtype)*(.2*gate))[...,None])
+    return results[0],results[1],gates[0],gates[1]
 
 
 class RMTDynamicC8Read(nn.Module):
@@ -175,18 +181,17 @@ class RMTDynamicC8Read(nn.Module):
       compressed = M
     key_kernel = self.param('key_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
                             (cfg.emb_dim, heads * key_dim), cfg.weight_dtype)
-    raw_key = jnp.einsum('btd,dr->btr', x, key_kernel.astype(x.dtype))
+    gate_kernel = self.param('gate_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
+                             (cfg.emb_dim, heads * self.destinations), cfg.weight_dtype)
+    gate_bias = self.param('gate_bias', nn.with_logical_partitioning(_init_gate_bias(.05), ('q_heads', None)),
+                           (heads, self.destinations), cfg.weight_dtype)
+    raw_key,logits = _project_many(x,(key_kernel,gate_kernel),cfg.get_keys().get('rmt_pack_dynamic_projections',False))
     raw_key = raw_key.reshape(x.shape[:2] + (heads, key_dim))
     if not pallas_joined:
       key = normalizations.rms_norm(
           raw_key, dtype=x.dtype, epsilon=_read_epsilon(cfg),
           statistics_dtype=jnp.float32)
       read = jnp.einsum('btvc,btnc->btnv', compressed, key)
-    gate_kernel = self.param('gate_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
-                             (cfg.emb_dim, heads * self.destinations), cfg.weight_dtype)
-    gate_bias = self.param('gate_bias', nn.with_logical_partitioning(_init_gate_bias(.05), ('q_heads', None)),
-                           (heads, self.destinations), cfg.weight_dtype)
-    logits = jnp.einsum('btd,dr->btr', x, gate_kernel.astype(x.dtype))
     logits = logits.reshape(x.shape[:2] + (heads, self.destinations))
     gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
     if pallas_joined:
@@ -220,17 +225,16 @@ class RMTDynamicWrite(nn.Module):
                     (bottleneck, heads * self.address_dim), cfg.weight_dtype)
     up_bias = self.param('address_up_bias', nn.with_logical_partitioning(nn.initializers.zeros, ('q_heads', None)),
                          (heads, self.address_dim), cfg.weight_dtype)
-    hidden = nn.gelu(jnp.einsum('btd,dr->btr', x, down.astype(x.dtype)))
-    address = jnp.einsum('btr,rd->btd', hidden, up.astype(x.dtype))
-    address = address.reshape(x.shape[:2] + (heads, self.address_dim))
-    address = address + up_bias.astype(x.dtype)
     gate_kernel = self.param('gate_kernel', nn.with_logical_partitioning(init, ('embed', None)),
                              (cfg.emb_dim, heads), cfg.weight_dtype)
     gate_bias = self.param('gate_bias', nn.with_logical_partitioning(_init_gate_bias(.1), ('q_heads',)),
                            (heads,), cfg.weight_dtype)
-    gate = jax.nn.sigmoid(
-        jnp.einsum('btd,dn->btn', x, gate_kernel.astype(x.dtype))
-        + gate_bias.astype(x.dtype))
+    hidden,gate_logits = _project_many(x,(down,gate_kernel),cfg.get_keys().get('rmt_pack_dynamic_projections',False))
+    hidden = nn.gelu(hidden)
+    address = jnp.einsum('btr,rd->btd', hidden, up.astype(x.dtype))
+    address = address.reshape(x.shape[:2] + (heads, self.address_dim))
+    address = address + up_bias.astype(x.dtype)
+    gate = jax.nn.sigmoid(gate_logits + gate_bias.astype(x.dtype))
     if matrix is not None and not self.is_initializing():
       from layers.rmt_pallas import write_residual
       return write_residual(matrix, address, data, gate, static_key,

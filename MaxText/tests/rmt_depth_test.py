@@ -61,6 +61,9 @@ class RMTDepthTest(absltest.TestCase):
   def test_batched_write_scan_remat_matches_original(self):
     self._check_fused_scan_remat("batched")
 
+  def test_major_reverse_scan_remat_matches_original(self):
+    self._check_fused_scan_remat("joint_major")
+
   def _check_fused_scan_remat(self, backward):
     from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')

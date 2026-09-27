@@ -9,6 +9,7 @@ import numpy as np
 from layers.rmt_pallas_minor import write_residual
 from layers.rmt_pallas import write_reference
 from layers.rmt_pallas_minor_read import c8_read
+from layers.rmt_pallas_v_read import v_read
 
 
 def main():
@@ -35,6 +36,9 @@ def main():
   for mode in args.modes.split(','):
     def backward(*z):
       impl=(lambda m,a,d,g,s:jax.vmap(write_reference,in_axes=(0,0,0,0,None))(m,a,d,g[...,None],s)) if mode=="reference" else (lambda *p:fn(*p,backward=mode,tile=args.tile))
+      if mode=='fold_gate':
+        assert args.kernel=='read' and args.destinations==1
+        impl=lambda *p:v_read(*p,tile=args.tile)
       _,pb=jax.vjp(impl,*z[:-1])
       return pb(z[-1])
     start=time.monotonic()

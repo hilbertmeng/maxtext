@@ -11043,3 +11043,8 @@ class RMTThreeStageMiddleChunk64Profile(RMTThreeStageMiddleMinorSavedProfile):
 class RMTThreeStageMiddleChunk64V6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
     model_name = 'RMTThreeStageMiddleChunk64V6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_chunk64'
+
+
+class RMTThreeStageMiddleChunk6456Profile(RMTThreeStageMiddleChunk64Profile):
+    model_name = 'RMTThreeStageMiddleChunk6456Profile'
+    rmt_scoped_vmem_limit_kib = 57344

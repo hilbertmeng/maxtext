@@ -10981,3 +10981,33 @@ class RMTThreeStageMiddleMinorProfile(RMTThreeStageNoOReverse128Profile):
 class RMTThreeStageMiddleMinorV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
     model_name = 'RMTThreeStageMiddleMinorV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor'
+
+
+class RMTThreeStageMiddleSavedProfile(RMTThreeStageNoOReverse128Profile):
+    model_name = 'RMTThreeStageMiddleSavedProfile'
+    rmt_save_middle_outputs = True
+
+
+class RMTThreeStageMiddleSavedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleSavedV6eB4Profile'
+    rmt_save_middle_outputs = True
+
+
+class RMTThreeStageMiddleMinorSavedProfile(RMTThreeStageMiddleMinorProfile):
+    model_name = 'RMTThreeStageMiddleMinorSavedProfile'
+    rmt_save_middle_outputs = True
+
+
+class RMTThreeStageMiddleMinorSavedV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleMinorSavedV6eB4Profile'
+    rmt_save_middle_outputs = True
+
+
+class RMTThreeStageMiddleDynamicSavedProfile(RMTThreeStageMiddleMinorSavedProfile):
+    model_name = 'RMTThreeStageMiddleDynamicSavedProfile'
+    rmt_full_middle_reverse_mode = 'minor_dynamic'
+
+
+class RMTThreeStageMiddleDynamicSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleDynamicSavedV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_dynamic'

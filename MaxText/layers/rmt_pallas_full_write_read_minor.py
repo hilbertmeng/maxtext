@@ -4,12 +4,12 @@ import jax.numpy as jnp
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 from layers.rmt_pallas_minor import _spec
-from layers.rmt_pallas_write_read import read_pullback
+from layers.rmt_pallas_write_read import read_pullback, contract, weight_grad
 from layers.rmt_pallas_projected_write import project_minor_state, project_reverse_minor
-from layers.rmt_pallas_write_reverse import joint
+from layers.rmt_pallas_write_reverse import joint, dynamic_joint
 
 
-def backward(args,cotangents,epsilon,read_epsilon,interpret,tile):
+def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False):
   b,k,v,t=args[0].shape
   inp=[_spec(z.shape[1:-1],tile) if i<3 else
        pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
@@ -34,11 +34,19 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile):
     refs[18][...]=gm
     pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
     # Only the ephemeral write contraction changes layout, not HBM M streams.
-    ga,gd,gg,gs=joint(a.transpose(2,0,1),d.transpose(2,0,1),g.T,s,
-                       gm.transpose(2,0,1),epsilon,gate_layout='minor')
+    if dynamic_only:
+      store(3,weight_grad(d,gm))
+      static_dd=contract(s,gm)
+      ga,gd,gg=dynamic_joint(a.transpose(2,0,1),d.transpose(2,0,1),g.T,
+                            gm.transpose(2,0,1),epsilon)
+      gd=(gd.transpose(1,2,0)+static_dd).astype(d.dtype)
+    else:
+      ga,gd,gg,gs=joint(a.transpose(2,0,1),d.transpose(2,0,1),g.T,s,
+                         gm.transpose(2,0,1),epsilon,gate_layout='minor')
+      gd=gd.transpose(1,2,0)
+      store(3,gs)
     ga=ga.transpose(1,2,0);gg=gg.T
-    refs[20][...]=gd.transpose(1,2,0)
-    store(3,gs)
+    refs[20][...]=gd
     refs[19][...]=project_reverse_minor(x,down,up,wg,pre,hidden,g,ga,gg,
                                        lambda index,value:store(index+3,value))
   grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=outs,

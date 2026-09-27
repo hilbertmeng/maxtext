@@ -44,6 +44,23 @@ def joint(address,data,gate,static_key,dy,epsilon,gate_layout="minor"):
   return ga,gd,gg,ds
 
 
+def dynamic_joint(address,data,gate,dy,epsilon):
+  """Only token-dependent contractions; shared-key adjoints use large MXU dots."""
+  t,h,k=address.shape;v=data.shape[-1]
+  an,ai=norm(address,epsilon);dn,di=norm(data,epsilon)
+  gated=(an.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype)
+  top=jnp.concatenate((jnp.zeros((t,k,k),dy.dtype),dy),axis=2)
+  bottom=jnp.concatenate((dy.swapaxes(1,2),jnp.zeros((t,v,v),dy.dtype)),axis=2)
+  square=jnp.concatenate((top,bottom),axis=1)
+  product=jnp.einsum('thd,tdc->thc',jnp.concatenate((gated,dn),axis=2),square,
+                     preferred_element_type=jnp.float32)
+  ua=product[:,:,:k].astype(address.dtype);ud=product[:,:,k:].astype(data.dtype)
+  terms=(ua*an).astype(gate.dtype)
+  gg=jax.lax.reduce_sum(terms.transpose(1,2,0),axes=(1,)).T.astype(gate.dtype)
+  ga=norm_backward(address,(ua.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype),ai)
+  return ga,norm_backward(data,ud,di),gg
+
+
 def backward(a,d,g,s,dy,epsilon,interpret=False,tile=64,gate_layout="minor"):
   b,t,h,k=a.shape;v=d.shape[-1]
   tile=min(tile,t)

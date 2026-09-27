@@ -600,6 +600,9 @@ class RMTLayer(nn.Module):
         else:
           (dynamic_mlp_read,), mlp_read_gate = mlp_read_module(mlp_x, mlp_M)
         vector = vector + dynamic_mlp_read[..., :value_dim]
+    if cfg.get_keys().get('rmt_save_middle_outputs',False):
+      vector=ad_checkpoint.checkpoint_name(vector,'rmt_middle_vector')
+      mlp_x=ad_checkpoint.checkpoint_name(mlp_x,'rmt_middle_proxy')
     vector = vector.reshape(vector.shape[:2] + (cfg.emb_dim,))
     vector = linears.MlpBlock(
         config=cfg, intermediate_dim=cfg.mlp_dim if self.mlp_dim is None else self.mlp_dim,
@@ -744,6 +747,8 @@ class RMTDecoder(nn.Module):
     policy=(jax.checkpoint_policies.dots_with_no_batch_dims_saveable if policy_name in ('save_dense','save_dense_state') else None)
     if policy_name in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
       names=('rmt_attention_head','rmt_mlp_matrix')
+      if cfg.get_keys().get('rmt_save_middle_outputs',False):
+        names+=('rmt_middle_vector','rmt_middle_proxy','rmt_middle_residual_matrix')
       if policy_name=='save_state_mlp':names+=('mlpwi_0','mlpwi_1','mlpwo')
       if policy_name=='save_state_dynamic':names+=('rmt_dynamic_projection','rmt_basis_read','rmt_compressed_read','rmt_dynamic_address')
       named=jax.checkpoint_policies.save_only_these_names(*names)

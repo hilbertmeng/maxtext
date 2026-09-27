@@ -19,7 +19,7 @@ def main():
   parser.add_argument('--interpret',action='store_true')
   parser.add_argument('--output',required=True)
   args=parser.parse_args()
-  result={'jax':jax.__version__,'devices':str(jax.devices()),'tokens':args.tokens,'arm':args.arm,'tile':os.environ.get('RMT_PALLAS_TILE','8'),'kernel':args.kernel,'checks':[],'timings':{}}
+  result={'jax':jax.__version__,'devices':str(jax.devices()),'tokens':args.tokens,'arm':args.arm,'write_impl':os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu'),'tile':os.environ.get('RMT_PALLAS_TILE','8'),'kernel':args.kernel,'checks':[],'timings':{}}
   def inputs(n,dtype):
     shapes=[(n,48,75),(n,16,48),(n,16,75),(n,16),(16,48)]
     if args.kernel=='c8':shapes=[(n,75,32),(n,16,8),(32,8),(n,16,2)]
@@ -41,7 +41,7 @@ def main():
     return jax.jit(f)
   if args.arm in ('pallas','both'):
     for dtype in ((jnp.float32,) if args.interpret else (jnp.float32,jnp.bfloat16)):
-      x=inputs(16,dtype)
+      x=inputs(max(16,int(os.environ.get('RMT_PALLAS_TILE','8'))),dtype)
       actual=forward_backward(fused)(*x)
       expected=forward_backward(reference)(*x)
       for label,a,b in zip(labels,jax.tree.leaves(actual),jax.tree.leaves(expected)):

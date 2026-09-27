@@ -71,10 +71,10 @@ def _write_tile_vpu(matrix,address,data,gate,static_key,epsilon):
   static=jnp.zeros((k,v,t),jnp.float32)
   dynamic=jnp.zeros_like(static)
   for head in range(h):
-    sk=jnp.broadcast_to(keys[head,:,None],(k,t))
-    ak=a[:,head,:].T
-    rv=raw[:,head,:].T
-    dv=d[:,head,:].T
+    sk=jnp.broadcast_to(jax.lax.slice_in_dim(keys,head,head+1,axis=0).reshape(k,1),(k,t))
+    ak=jax.lax.slice_in_dim(a,head,head+1,axis=1).reshape(t,k).T
+    rv=jax.lax.slice_in_dim(raw,head,head+1,axis=1).reshape(t,v).T
+    dv=jax.lax.slice_in_dim(d,head,head+1,axis=1).reshape(t,v).T
     static=static+sk[:,None,:]*rv[None,:,:]
     dynamic=dynamic+ak[:,None,:]*dv[None,:,:]
   static=static.transpose(2,0,1).astype(matrix.dtype)

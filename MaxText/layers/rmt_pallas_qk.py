@@ -1,6 +1,7 @@
 """Fuse the rank-four Q/K matrix read, Gram RMS and head expansion."""
 from functools import partial
 import math
+import os
 import jax
 import jax.numpy as jnp
 from jax.experimental import pallas as pl
@@ -23,10 +24,14 @@ def _tile(matrix,basis,mix,gates,epsilon):
   basis_read=jnp.einsum('tcv,trc->trv',matrix,basis,
                          preferred_element_type=jnp.float32).astype(matrix.dtype)
   b=basis.astype(jnp.float32)
-  gram=jnp.einsum('trc,tsc->trs',b,b,preferred_element_type=jnp.float32)
   f=mix.astype(jnp.float32)
-  temp=jnp.einsum('thr,trs->ths',f,gram,preferred_element_type=jnp.float32)
-  norm2=jnp.sum(temp*f,axis=-1)
+  if os.environ.get('RMT_PALLAS_QK_NORM','gram')=='effective':
+    effective=jnp.einsum('thr,trc->thc',f,b,preferred_element_type=jnp.float32)
+    norm2=jnp.sum(effective*effective,axis=-1)
+  else:
+    gram=jnp.einsum('trc,tsc->trs',b,b,preferred_element_type=jnp.float32)
+    temp=jnp.einsum('thr,trs->ths',f,gram,preferred_element_type=jnp.float32)
+    norm2=jnp.sum(temp*f,axis=-1)
   inverse=jax.lax.rsqrt(norm2/matrix.shape[-2]+epsilon)
   read=jnp.einsum('trv,thr->thv',basis_read,mix,
                   preferred_element_type=jnp.float32).astype(matrix.dtype)

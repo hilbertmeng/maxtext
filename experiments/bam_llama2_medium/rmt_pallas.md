@@ -178,3 +178,18 @@ with the downloaded `.xplane.pb` files. First-step leaf-time coverage is
 Named-statef4fadcd and its same-commit full18 control both have READY v5p-16
 AOTs; state+packed compilation remains in progress. UC1a target queue progressed
 WAITING05:50:49→PROVISIONING05:51:58→CREATING05:52:20UTC.
+
+Final target matrix launched on the installed UC1a resource, at the newer
+sealed runtimef4fadcd after all five100-step v5p-16 AOTs were READY:
+`RMTCombinedLayerScanNoHealthProfile`, `RMTCombinedLayerScanSaveDenseProfile`,
+`RMTCombinedLayerScanSaveDenseStateProfile`,
+`RMTCombinedLayerScanSaveDenseStatePackedProfile`,
+`RMTCombinedLayerScanPallasQKProfile`.
+Matrix ID`rmtpallas-0927-0558`, label`rmt_pallas_v5p`; run50 completed steps/arm
+(stop at49), trace10–14, stable window20–49. Authoritative runner
+`/home/lishengping/xd/projects/run_profile_matrix.sh` (SHAe66422df), AOT root
+`gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/f4fadcd/jax081-i0ae3f58-c17f538a/v5p-16/s100`.
+Main log`/home/lishengping/xd/projects/logs/rmt-pallas-v5p-f4fadcd-matrix.log`.
+The full formal configuration at the same runtime is being precompiled for
+an additional original block-scan/health comparison; do not attribute that
+broader difference solely to fused kernels or rematerialization policy.

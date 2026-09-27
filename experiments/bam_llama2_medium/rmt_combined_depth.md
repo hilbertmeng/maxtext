@@ -31,3 +31,19 @@ run concurrently; any CPU failure blocks formal training.
 Training TPU: `xd-v5p-16-2609268-maxtext`, UE5a; no backup-zone migration.
 Borrowed AOT host: EW4a `llm-jax-v6e-1-1`, verified FLEX_START+idle; never
 adopted into cleanup. AOT/CPU/queue are managed by launch_train_parallel.py.
+
+Startup: runtime `a8d5bcdb93f2b78031f6d00f86c4d08718a9ae60`, pushed.
+CPU full-shape audit passed; two targeted checks passed in71.25s in parallel
+(groups52.23/71.25s), before AOT completion. Formal runtime check passed.
+AOT verified on the borrowed FLEX_START compiler; UE5a prequeue READY
+2026-09-27T00:29:56Z (registry first observed00:30:07Z), FIRST_STEP0 at
+~00:33:12Z, finite loss10.852458. Retained compiler ownership unchanged.
+Artifacts: `/data0/xd/rmt-combined-l22-launch.log`; preparation/cpu/aot/queue
+logs under `/home/xd/.local/state/maxtext-parallel-launch/` (L22 prefix).
+
+Actual AOT load and step100 verified. Steady steps20-99 (80 samples,
+inverse mean rounded log latency): 0.3190472 step/s vs parent 0.3777115,
+-15.53%. Same inherited generic/layer-health and both boundary-health
+flags; layer count increases18->22. Speed prediction(-15%) matches closely.
+Evidence: `/data0/xd/rmt-combined-l22-compiled-loaded.log`,
+`/data0/xd/rmt-combined-l22-speed.json`, `/data0/xd/rmt-combined-l22-step100.log`.

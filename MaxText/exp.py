@@ -9785,6 +9785,8 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnem
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
     """22 dynamic matrix layers, uniform MLP3212, at the MHA parameter budget."""
     # Implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # code_commit: a8d5bcd; UE5a v5p-16 .3190 step/s; -15.53% vs18-layer parent.
+    # Matched steps20-99, same inherited layer/basic and both boundary health flags.
     # Layer scan; same dynamic embedding/Direct32 output.
     # MLP3212; 432083008 params, 38192 below MHA. Parent: 18 layers/MLP4078.
     # Pre-run13500 bet vs parent: loss -.008; steady speed -15%.

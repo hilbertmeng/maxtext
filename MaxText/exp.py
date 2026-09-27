@@ -10680,3 +10680,15 @@ class RMTMatchedMHARoPENoHealthV6eB4Profile(RMTMatchedMHARoPENoHealthProfile):
     # code_commit: 39c7e0f; EW4a v6e-1 host-1 full18/B4 2.516287; all health OFF.
     model_name = 'RMTMatchedMHARoPENoHealthV6eB4Profile'
     per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanAnalyticWriteProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    """Explicit write VJP: contraction, RMS and gate derivatives in one Pallas call."""
+    # Ledger only: codex/rmt-pallas, /data0/xd/rmt-pallas; profile, not training.
+    model_name = 'RMTCombinedLayerScanAnalyticWriteProfile'
+    rmt_pallas_write_backward = 'analytic'
+
+
+class RMTCombinedLayerScanAnalyticWriteV6eB4Profile(RMTCombinedLayerScanAnalyticWriteProfile):
+    model_name = 'RMTCombinedLayerScanAnalyticWriteV6eB4Profile'
+    per_device_batch_size = 4.0

@@ -46,7 +46,7 @@ def main():
   reference=lambda m,a,d,g,s:jax.vmap(write_reference,in_axes=(0,0,0,0,None))(m,a,d,g[...,None],s)
   fused=lambda *x:write_residual(*x,interpret=args.interpret)
   labels=('output','d_matrix','d_address','d_data','d_gate','d_static')
-  if args.kernel=='minor_write':fused=lambda *x:minor_write(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','128')),key_contiguous=os.environ.get('RMT_PALLAS_KEY_CONTIGUOUS')=='1')
+  if args.kernel=='minor_write':fused=lambda *x:minor_write(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','128')),key_contiguous=os.environ.get('RMT_PALLAS_KEY_CONTIGUOUS')=='1',backward=os.environ.get('RMT_PALLAS_WRITE_BACKWARD','autodiff'))
   if args.kernel=='minor_read':
     reference=jax.vmap(minor_read_reference)
     fused=lambda *x:minor_read(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','128')))

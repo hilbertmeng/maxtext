@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 from layers.rmt_pallas import write_reference, write_residual, c8_read, c8_reference
 from layers.rmt_pallas_stage import stage_reference, write_mlp_stage
+from layers.rmt_pallas_minor import write_residual as minor_write
 from layers.rmt_pallas_qk import qk_reference, qk_read
 from layers.rmt_pallas_joined import joined_reference, joined_read
 
@@ -20,7 +21,7 @@ def main():
   jax.config.update('jax_default_matmul_precision','highest')
   parser=argparse.ArgumentParser()
   parser.add_argument('--arm',choices=['reference','pallas','both'],default='both')
-  parser.add_argument('--kernel',choices=['write','c8','stage','joined','qk'],default='write')
+  parser.add_argument('--kernel',choices=['write','c8','stage','joined','qk','minor_write'],default='write')
   parser.add_argument('--tokens',type=int,default=8192)
   parser.add_argument('--interpret',action='store_true')
   parser.add_argument('--output',required=True)
@@ -38,6 +39,7 @@ def main():
   reference=lambda m,a,d,g,s:jax.vmap(write_reference,in_axes=(0,0,0,0,None))(m,a,d,g[...,None],s)
   fused=lambda *x:write_residual(*x,interpret=args.interpret)
   labels=('output','d_matrix','d_address','d_data','d_gate','d_static')
+  if args.kernel=='minor_write':fused=lambda *x:minor_write(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','128')))
   if args.kernel=='c8':
     reference=lambda m,k,c,g:jax.vmap(c8_reference,in_axes=(0,0,None,0))(m,k,c,g)
     fused=lambda *x:c8_read(*x,interpret=args.interpret)

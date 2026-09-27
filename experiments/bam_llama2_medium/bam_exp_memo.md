@@ -849,3 +849,63 @@ TPU output/all-input gradients checked. No long-run convergence or production
 checkpoint conversion claimed. Both retained diagnostic v6es stay allocated.
 [Full configuration tables, failed paths, validation and reproduction](rmt_pallas.md).
 Artifacts: `/data0/xd/bam_diagnostics/rmt-pallas-*`.
+
+### Middle-stage analytic backward follow-up (2026-09-27)
+
+Same-host controls were rerun: UC1a `xd-v5p-16-rmt-midv2-0927-uc1a` globalB128,
+EW4a retained `llm-jax-v6e-1-0` globalB4. T4096, full18 layers, all health OFF.
+Throughput is steps20–49 divided by their total implied elapsed time (harmonic
+mean of logged rates); trace phases10–14 use complete raw XPlanes. Backward
+includes remat; phase figures below are primary-core additive attribution.
+
+|Hardware|Configuration|Runtime|step/s|Forward ms|Backward ms|
+|---|---|---|---:|---:|---:|
+|v5p-16|Original RMT control|ebd5ba0|0.390299|652.263|1857.685|
+|v5p-16|Previous three-stage selection|be0d8d3|0.537099|444.172|1391.479|
+|v5p-16|`RMTThreeStageMiddleChunk6458Profile`|4dd7038|0.565299|460.818|1281.913|
+|v5p-16|RoPE MHA control|ebd5ba0|0.755166|400.657|911.860|
+|v6e-1|Original RMT control|9ef9053|1.202299|204.442|599.530|
+|v6e-1|Previous three-stage selection|b9194ea|1.661431|122.157|453.533|
+|v6e-1|`RMTThreeStageMiddleRecomputeSavedV6eB4Profile`|e30ec00|1.761599|127.144|414.174|
+|v6e-1|RoPE MHA control|9ef9053|2.474329|80.346|302.059|
+
+Selected NoO throughput increases5.25%/6.03% over the previous fused selection,
+44.84%/46.52% over original RMT, and reaches74.86%/71.20% of MHA throughput
+(v5p/v6e respectively). The original-RMT comparison includes the authorized
+NoO change; incremental comparisons use NoO on both sides. Parameter count
+remains431,773,472. Branch/worktree `codex/rmt-pallas`, `/data0/xd/rmt-pallas`;
+implementation is not merged into main. Full BF16 convergence remains untested.
+
+V5p needs a different local choice from v6e: write qchunk64 inside the complete
+middle backward plus cached middle outputs reduces body289.912→246.194ms and
+external middle remat57.263→0ms. Forward caching costs16.646ms globally. V6e
+favors native token-minor reads and write-only recomputation; middle body is
+73.028ms with zero external middle remat. Native-minor without recomputation
+has the fastest body65.404ms, but total training is slower1.750065step/s.
+The30–50% middle-body speed bet was not met: v5p body improves15.08%, v6e's best
+body20.00%; these must not be inflated by silently adding eliminated remat.
+
+Rejected probes: scheduling/merged adjoints alone do not help; native checkpoint
+placement gains only0.03%; tiled shared-gradient accumulation slows v6e and
+only lowers v5p peak54.39→54.18MiB. Single DMA buffers remove7.35MiB of buffer
+windows, but actual peak is48.53MiB, not the naive47.04MiB prediction, because
+about1.49MiB of previous allocation reuse disappears. Register-spill declarations
+remain40.77MiB. The50MiB-budget v5p final confirmation is0.528133step/s (F443.883ms/B1426.873ms),
+slower than minor56 and qchunk64; v6e single-buffer reverse is also slower
+5.2585ms versus4.6634ms with default buffering. Capacity savings alone do not
+imply a speed gain.
+
+Compute/IO estimates must separate MXU and VPU: published v5p ordinary VPU
+throughput is about14.34TFLOP/s/chip, about5.2operations/byte against2765GB/s HBM,
+versus166MXU FLOP/byte. v6e's918MXU TFLOP/s cannot be used for normalization,
+rank-wise VPU products, reductions or rsqrt. Count padded work, actual buffering,
+layout conversions and register spills, and verify peak allocation against the
+per-TensorCore physical64/128MiB limits. Compiled allocation declarations are
+not automatically the live peak. Detailed derivation and links: [report](rmt_pallas.md).
+
+Artifacts: `/data0/xd/bam_diagnostics/rmt-middle-v2/comparison.json`,
+`selected-comparison.json`, allocator dumps and all raw profiles in that directory.
+
+Resource closeout: temporary UC1a v5p node/queue verified absent2026-09-27
+16:31:40UTC after all7 profiles; no preemption. Both retained EW4a v6e hosts
+remain READY and are not enrolled in cleanup.

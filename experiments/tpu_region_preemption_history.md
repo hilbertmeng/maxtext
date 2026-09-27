@@ -399,6 +399,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | v5p-16 (`xd-v5p-16-2609268-maxtext`) | `us-east5-a` | 2026-09-27 00:30:03 | — | active; no preemptions; through3400 | none |
 | `RMT Pallas profile sweep` | v5p-16 (`xd-v5p-16-rmtpallas-0927-uc1a`) | `us-central1-a` | 2026-09-27 05:50:49 | 2026-09-27 07:16:51–07:24:58 | preempted in this interval; completed traces retained; node/queue absent | none |
 | `RMT Pallas final + MHA profile` | v5p-16 (`xd-v5p-16-rmtpallas-final-0927-uc1a`) | `us-central1-a` | 2026-09-27 07:26:00 | 2026-09-27 08:00:31 (verified absent) | completed matrices; manual release; no preemption | none |
+| `RMT middle-reverse follow-up profiles` | v5p-16 (`xd-v5p-16-rmt-midv2-0927-uc1a`) | `us-central1-a` | 2026-09-27 15:51:34 (submitted) | 2026-09-27 16:31:40 (verified absent) | all7 profiles complete; manual release; no preemption | none |
 
 ## READY leases
 
@@ -1219,3 +1220,4 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |
 | `RMT Pallas profile sweep` | 1 | `us-central1-a` | 2026-09-27 05:54:13 | 2026-09-27 07:16:51–07:24:58 | 1h22m38s–1h30m45s | preempted; end bounded by last observed step/terminal-state check |
 | `RMT Pallas final + MHA profile` | 1 | `us-central1-a` | 2026-09-27 07:30:30 | 2026-09-27 08:00:31 (verified absent) | ≤30m01s | completed profiles, manual release; upper bound uses absence verification |
+| `RMT middle-reverse follow-up profiles` | 1 | `us-central1-a` | 2026-09-27 15:55:42 (first observed READY) | 2026-09-27 16:31:40 (verified absent) | ≤35m58s observed window | all7 profiles complete; no preemption; exact xd-v5p-16-rmt-midv2-0927-uc1a node/queue absent; both retained v6e hosts remain READY |

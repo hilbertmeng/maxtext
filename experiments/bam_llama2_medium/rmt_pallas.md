@@ -1,18 +1,21 @@
 # Dynamic RMT Pallas training optimization
 
 2026-09-27. Implementation: `/data0/xd/rmt-pallas`, branch `codex/rmt-pallas`,
-parent `ffb40f2d`. Latest implementation runtime
-`be0d8d352f438ace6050a08da22d1a0abaea2c55`; prior FullO results remain below.
+parent `ffb40f2d`. Current selected runtime: v5p `4dd7038`, v6e `e30ec00`;
+implementation branch also retains later rejected ablations. Prior FullO results remain below.
 Main `MaxText/exp.py` contains ledger classes; implementation is not merged.
 [Earlier chronological notes](rmt_pallas_history.md) retain unsuccessful prototypes.
 
-## Middle reverse follow-up (2026-09-27; v5p confirmation in progress)
+## Middle reverse follow-up (2026-09-27; complete)
 
 Implementation remains `/data0/xd/rmt-pallas`, `codex/rmt-pallas`. Full v6e
 profiles use retained EW4a `llm-jax-v6e-1-0`; isolated probes/offline AOTs use
 retained `llm-jax-v6e-1-1`. Neither retained host is to be released. Temporary
-v5p confirmation is owned by this task: `xd-v5p-16-rmt-midv2-0927-uc1a`,
-UC1a, requested15:51UTC after exact target AOTs completed. All health is OFF.
+v5p confirmation used `xd-v5p-16-rmt-midv2-0927-uc1a`, UC1a. It was requested
+15:51UTC after exact target AOTs completed; READY was first observed15:55:42UTC.
+All7 profiles and local raw traces completed; node/queue were verified absent
+16:31:40UTC after manual release, with no preemption (≤35m58s observed READY
+window). Both retained v6e nodes remain READY. All health is OFF.
 
 CPU full-dimension FP32 gradients and nonzero three-layer scan/remat gradients
 passed; BF16 minor probe max relative-L2 is0.01131 (previous baseline0.01159).
@@ -51,7 +54,7 @@ additional additive buckets.
 |`RMTMatchedMHARoPENoHealthV6eB4Profile`|9ef9053|2.474329|80.346|302.059|
 |`RMTThreeStageMiddleRecomputeSavedV6eB4Profile`|e30ec00|1.761599|127.144|414.174|
 
-At this point recompute-saved is+6.03% over the previous three-stage selection,
+On v6e, recompute-saved is+6.03% over the previous three-stage selection,
 +46.52% over original RMT, and71.20% of matched RoPE MHA throughput. It is only
 +0.66% over native-minor without caching. Minor middle body81.760→65.404ms;
 recompute-saved body73.028ms but no external middle remat. Its faster whole step
@@ -63,14 +66,83 @@ physical capacity is64MiB per TensorCore. ABI one-copy padded buffers8.969MiB,
 spill declarations total40.766MiB, nonspill declarations15.117MiB; declaration
 sum is NOT live peak. Internal qchunk64 lowers standalone peak to51.23MiB,
 but full-model allocation differs: minor-saved56 needs56.26MiB and chunk6456
-needs56.77MiB, so both fail. The verified target executables are minor56(e9b001c),
-recompute-saved60(e30ec00), and chunk64-saved58(4dd7038), all below physical64.
-They will be measured against be0d8d3 selected fusion and ebd5ba0 original/MHA
-on the same v5p lease. The v5p bet favors minor without extra write recomputation.
+needs56.77MiB, so both fail. The target executables are minor56(e9b001c), recompute-saved60(e30ec00), and
+chunk64-saved58(4dd7038), all below physical64. They were measured against
+be0d8d3 selected fusion and ebd5ba0 original/MHA on the same v5p lease. The initial v5p bet favored minor without extra write recomputation; the full test below disproves it.
 
 Raw artifacts: `/data0/xd/bam_diagnostics/rmt-middle-v2`; full raw profiles under
 `gs://newproject-1-llm_base_models_us-central1/log/diagnostics/profile_matrix/`.
 The aggregate `comparison.json` retains samples, paths and phase accounting.
+
+### Additional follow-up ablations
+
+- Native-layout checkpoint placement (`17b5e20`) passed three-layer FP32
+  scan/remat checks, but1.762132step/s versus1.761599 is only+0.03%; forward
+ 127.135ms and backward413.968ms are effectively unchanged. The1–2% gain bet
+  was wrong; moving the name alone did not remove the cache/layout overhead.
+- Tiled parameter-gradient accumulation (`276f639`) keeps the entire backward
+  fused and writes128x128 partials directly to shared-gradient VMEM refs. Full
+  FP32 probe max relative-L2 6.55e-7, three-layer scan/remat PASS; TPU BF16 max
+  .011313. v6e reverse128/256 is6.0473/5.6418ms, slower than4.6634/4.8148.
+  V5p standalone and full AOT both need54.18MiB, barely below minor54.39MiB;
+  48MiB AOT fails. Large parameter-gradient temporaries were not the principal
+  peak-allocation problem. This ablation is not selected.
+- Explicit single DMA buffers (`b4c9191`) preserve all math and fusion. Published
+  allocator declarations for the default minor variant show6.172MiB input
+  windows,3.086MiB main output windows,5.449MiB shared-gradient output windows;
+  removing their second buffer predicts a7.354MiB reduction, from54.39 to about
+  47.04MiB if remaining allocation stays fixed. This is a live-peak hypothesis,
+  not an allocator guarantee. CPU FP32 and TPU BF16 probes pass. V6e reverse
+  128/256 is5.2585/5.2946ms, so it sacrifices speed there. V5p50MiB full-step
+  confirmation is0.528133step/s, with middle body351.692ms: no throughput gain.
+
+Current same-host v5p full-step follow-up (all health OFF, globalB128; backwards
+include remat):
+
+|Configuration|Runtime|step/s|Forward ms|Backward ms|
+|---|---|---:|---:|---:|
+|`RMTThreeStageNoOReverse128Profile`|be0d8d3|0.537099|444.172|1391.479|
+|`RMTThreeStageMiddleMinor56Profile`|e9b001c|0.529999|443.909|1418.574|
+|`RMTThreeStageMiddleRecomputeSavedProfile`|e30ec00|0.536499|451.903|1385.958|
+|`RMTThreeStageMiddleChunk6458Profile`|4dd7038|0.565299|460.818|1281.913|
+|`RMTThreeStageOriginalControlProfile`|ebd5ba0|0.390299|652.263|1857.685|
+|`RMTThreeStageMHAControlProfile`|ebd5ba0|0.755166|400.657|911.860|
+|`RMTThreeStageMiddleSingleBuffer50Profile`|0a2420c|0.528133|443.883|1426.873|
+
+The selected v5p configuration is qchunk64 with saved outputs:0.565299step/s, +5.25%
+against0.537099. Middle reverse body289.912→246.194ms (-15.08%), plus external
+middle remat57.263→0ms. Forward cache overhead costs16.646ms globally. Native
+layout alone instead regresses the middle body to342.997ms and overall to
+0.529999step/s; write-only recompute is0.536499, effectively tied with the old
+selection. Thus the bet that plain minor would win on v5p was wrong. The useful
+v5p choice keeps the DMA/read/projection tile128 and write compute qchunk64;
+v6e currently favors unchunked write-only recomputation. Neither reduces the
+three-stage fusion scope. All controls and the final single-buffer arm completed; the latter does not improve throughput.
+
+Single-buffer allocator audit: actual v5p standalone/full allocation48.53MiB
+still fails48MiB. Window declarations fall14.707→7.354MiB exactly as predicted;
+spill declarations remain40.766MiB. The default declaration total55.883MiB had
+about1.49MiB allocation reuse/overlap below its54.39MiB peak, whereas the new
+48.530MiB declaration total equals the reported peak. Losing that allocation
+reuse explains the gap versus the47.04MiB first estimate. `0a2420c` reserves50MiB
+and completed full training-step profiling at0.528133step/s; physical capacity
+remains64MiB. This is slower than minor56(0.529999) and qchunk64(0.565299),
+so single buffering is a capacity option rather than the selected speed option. Evidence:
+`buffering-allocator-comparison.json`, both post-register-allocation dumps,
+and `single-v5-compile.json` in the local artifact root.
+
+Reproduction: tpu-ag `/home/lishengping/xd/projects/rmt-middle-v2-v5-suite.sh`
+calls the sealed `run_profile_matrix.sh` at be0d8d3/e9b001c/e30ec00/4dd7038/ebd5ba0,
+with `PROFILE_STEPS=100`, `PROFILE_DONE_STEP=49`, `PROFILE_MATRIX_ID=middle-v2-v5`
+and the per-runtime JAX081 AOT root at `v5p-16/s100`. Matrix labels are
+`middle-v5-baseline`, `middle-v5-minor`, `middle-v5-recompute`, `middle-v5-chunk`,
+`middle-v5-controls`. Final single-buffer arm uses0a2420c, `middle-v5-single`,
+`PROFILE_MATRIX_ID=middle-v2-single`. RUNs follow
+`Profile{sha7}_{label}_{matrix_id}_{index}_{configuration}`. Full RUN names,
+individual logs and raw paths are in `comparison.json`. V6e matrices use the
+same100/49 schedule, labels `middle-v6`, `middle-v6-controls`,
+`middle-v6-recompute`, `middle-v6-native`, and the v6e-1/s100 AOT root. All retained
+host0 v6e comparisons use the same VM; offline compilers own no TPU lifecycle.
 
 ## Compute versus IO model (2026-09-27)
 
@@ -143,9 +215,9 @@ mean of logged step/s), not arithmetic mean. One saved-state run had adjacent
 0.921/8.816 rates: arithmetic averaging spuriously reports1.8834; total-time
 aggregation gives1.670016 and agrees with the trace. All raw samples are retained.
 
-## Selected complete-step results with forward/backward attribution
+## Previous three-stage milestone (be0d8d3)
 
-Final implementation runtime `be0d8d352f438ace6050a08da22d1a0abaea2c55`; worktree and branch above.
+Earlier selected runtime `be0d8d352f438ace6050a08da22d1a0abaea2c55`; superseded by the follow-up above.
 All18 layers, MLP4078, T4096, all health OFF. Same VM within each hardware:
 UC1a v5p-16 globalB128/per-deviceB16; EW4a retained host1 v6e-1 globalB4.
 Each baseline uses its faster verified executable in this comparison. The v6e

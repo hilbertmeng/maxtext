@@ -10954,85 +10954,83 @@ class RMTThreeStageNoOTunedV6eB4Profile(RMTThreeStageNoOV6eB4Profile):
 
 
 class RMTThreeStageMiddleStreamProfile(RMTThreeStageNoOReverse128Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Microbenchmark only; not selected; native token-minor outperformed this major-layout schedule.
     model_name = 'RMTThreeStageMiddleStreamProfile'
     rmt_full_middle_reverse_mode = 'stream'
 
 
 class RMTThreeStageMiddleStreamV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Micro db7ce26: v6e B4 reverse128=6.11548ms, slower than baseline5.96372ms; not selected.
     model_name = 'RMTThreeStageMiddleStreamV6eB4Profile'
     rmt_full_middle_reverse_mode = 'stream'
 
 
 class RMTThreeStageMiddleJoinedProfile(RMTThreeStageNoOReverse128Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Microbenchmark only; not selected; v6e joined linear adjoints did not improve the major-layout schedule.
     model_name = 'RMTThreeStageMiddleJoinedProfile'
     rmt_full_middle_reverse_mode = 'joined'
 
 
 class RMTThreeStageMiddleJoinedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Micro db7ce26: v6e B4 reverse128=6.06347ms, slower than baseline5.96372ms; not selected.
     model_name = 'RMTThreeStageMiddleJoinedV6eB4Profile'
     rmt_full_middle_reverse_mode = 'joined'
 
 
 class RMTThreeStageMiddleMinorProfile(RMTThreeStageNoOReverse128Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Native minor reverse; v5p standalone needs54.39MiB, above inherited48MiB; measured via Minor56 child.
     model_name = 'RMTThreeStageMiddleMinorProfile'
     rmt_full_middle_reverse_mode = 'minor'
 
 
 class RMTThreeStageMiddleMinorV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
-    # Runtime b9194ea, EW4a v6e-1 host0; 1.750065 step/s (20-49), health OFF.
-    # Forward 122.128 ms; backward incl. remat 423.066 ms.
-    # Implementation codex/rmt-pallas; full BF16 convergence unvalidated; see rmt_pallas.md.
+    # Runtime b9194ea; EW4a v6e-1 host0; profile complete, health OFF: 1.750065 step/s (20-49).
+    # Forward 122.128ms; backward incl. remat 423.066ms; codex/rmt-pallas, rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleMinorV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor'
 
 
 class RMTThreeStageMiddleSavedProfile(RMTThreeStageNoOReverse128Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Saved middle-output ablation; full v6e result in its V6eB4 child; not selected.
     model_name = 'RMTThreeStageMiddleSavedProfile'
     rmt_save_middle_outputs = True
 
 
 class RMTThreeStageMiddleSavedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
-    # Runtime b9194ea, EW4a v6e-1 host0; 1.670016 step/s (20-49), health OFF.
-    # Forward 132.777 ms; backward incl. remat 439.807 ms.
-    # Implementation codex/rmt-pallas; full BF16 convergence unvalidated; see rmt_pallas.md.
+    # Runtime b9194ea; EW4a v6e-1 host0; profile complete, health OFF: 1.670016 step/s (20-49).
+    # Forward 132.777ms; backward incl. remat 439.807ms; codex/rmt-pallas, rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleSavedV6eB4Profile'
     rmt_save_middle_outputs = True
 
 
 class RMTThreeStageMiddleMinorSavedProfile(RMTThreeStageMiddleMinorProfile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Native minor plus saved output family; v5p56MiB child fails56.26MiB allocation, qchunk58 child selected.
     model_name = 'RMTThreeStageMiddleMinorSavedProfile'
     rmt_save_middle_outputs = True
 
 
 class RMTThreeStageMiddleMinorSavedV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
-    # Runtime b9194ea, EW4a v6e-1 host0; 1.742664 step/s (20-49), health OFF.
-    # Forward 132.582 ms; backward incl. remat 415.520 ms.
-    # Implementation codex/rmt-pallas; full BF16 convergence unvalidated; see rmt_pallas.md.
+    # Runtime b9194ea; EW4a v6e-1 host0; profile complete, health OFF: 1.742664 step/s (20-49).
+    # Forward 132.582ms; backward incl. remat 415.520ms; codex/rmt-pallas, rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleMinorSavedV6eB4Profile'
     rmt_save_middle_outputs = True
 
 
 class RMTThreeStageMiddleDynamicSavedProfile(RMTThreeStageMiddleMinorSavedProfile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Static write gradients split from dynamic MXU contraction; micro only, not selected.
     model_name = 'RMTThreeStageMiddleDynamicSavedProfile'
     rmt_full_middle_reverse_mode = 'minor_dynamic'
 
 
 class RMTThreeStageMiddleDynamicSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
-    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
+    # Micro b9194ea: v6e reverse128=4.67578ms vs minor4.66343ms; not selected.
     model_name = 'RMTThreeStageMiddleDynamicSavedV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_dynamic'
 
 
 class RMTThreeStageMiddleMinor56Profile(RMTThreeStageMiddleMinorProfile):
-    # Runtime e9b001c; v5p-16 AOT READY, UC1a full-step profile running; 56MiB scoped budget.
+    # Runtime e9b001c; UC1a v5p-16; profile complete, health OFF: 0.529999 step/s (20-49).
+    # Forward 443.909ms; backward incl. remat 1418.574ms; codex/rmt-pallas, rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleMinor56Profile'
     rmt_scoped_vmem_limit_kib = 57344
 
@@ -11049,6 +11047,7 @@ class RMTThreeStageMiddleChunk64Profile(RMTThreeStageMiddleMinorSavedProfile):
 
 
 class RMTThreeStageMiddleChunk64V6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
+    # Micro e9b001c: v6e reverse128=4.83615ms; reverse256 needs99.55MiB >96MiB, not selected.
     model_name = 'RMTThreeStageMiddleChunk64V6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_chunk64'
 
@@ -11060,56 +11059,64 @@ class RMTThreeStageMiddleChunk6456Profile(RMTThreeStageMiddleChunk64Profile):
 
 
 class RMTThreeStageMiddleRecomputeSavedProfile(RMTThreeStageMiddleMinorSaved56Profile):
-    # Runtime e30ec00; v5p-16 AOT READY at60MiB; UC1a full-step profile queued.
+    # Runtime e30ec00; UC1a v5p-16; profile complete, health OFF: 0.536499 step/s (20-49).
+    # Forward 451.903ms; backward incl. remat 1385.958ms; codex/rmt-pallas, rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleRecomputeSavedProfile'
     rmt_full_middle_reverse_mode = 'minor_recompute'
     rmt_scoped_vmem_limit_kib = 61440
 
 
 class RMTThreeStageMiddleRecomputeSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
-    # Runtime e30ec00, EW4a v6e-1 host0; 1.761599 step/s (20-49), health OFF.
-    # Forward 127.144 ms; backward incl. remat 414.174 ms.
-    # Implementation codex/rmt-pallas; full BF16 convergence unvalidated; see rmt_pallas.md.
+    # Runtime e30ec00; EW4a v6e-1 host0; profile complete, health OFF: 1.761599 step/s (20-49).
+    # Forward 127.144ms; backward incl. remat 414.174ms; codex/rmt-pallas, rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleRecomputeSavedV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_recompute'
 
 
 class RMTThreeStageMiddleChunk6458Profile(RMTThreeStageMiddleChunk6456Profile):
-    # Runtime 4dd7038; v5p-16 AOT READY at58MiB; UC1a full-step profile queued.
+    # Runtime 4dd7038; UC1a v5p-16; profile complete, health OFF: 0.565299 step/s (20-49).
+    # Forward 460.818ms; backward incl. remat 1281.913ms; codex/rmt-pallas, rmt_pallas.md.
     model_name = 'RMTThreeStageMiddleChunk6458Profile'
     rmt_scoped_vmem_limit_kib = 59392
 
 
 class RMTThreeStageMiddleNativeSavedV6eB4Profile(RMTThreeStageMiddleRecomputeSavedV6eB4Profile):
-    # Runtime 17b5e20; EW4a host0:1.762132step/s, F127.135ms/B413.968ms. +0.03% vs e30ec00; no material gain.
+    # Runtime 17b5e20; EW4a v6e-1 host0; profile complete, health OFF: 1.762132 step/s (20-49).
+    # Forward 127.135ms; backward incl. remat 413.968ms; codex/rmt-pallas, rmt_pallas.md.
     """Save middle vectors before the native-layout output transposes."""
     model_name = 'RMTThreeStageMiddleNativeSavedV6eB4Profile'
     rmt_save_middle_native_outputs = True
 
 
 class RMTThreeStageMiddleTiledGradsProfile(RMTThreeStageMiddleMinorProfile):
+    # Runtime276f639: full v5p AOT fails54.18MiB >48MiB; peak savings0.21MiB, not selected.
     """Accumulate parameter-gradient tiles inside the complete middle kernel."""
     model_name = 'RMTThreeStageMiddleTiledGradsProfile'
     rmt_full_middle_reverse_mode = 'minor_tiled_grads'
 
 
 class RMTThreeStageMiddleTiledGradsV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    # Runtime276f639: v6e reverse128/256=6.0473/5.6418ms; slower than minor, not selected.
     model_name = 'RMTThreeStageMiddleTiledGradsV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_tiled_grads'
 
 
 class RMTThreeStageMiddleSingleBufferProfile(RMTThreeStageMiddleMinorProfile):
+    # Runtimeb4c9191: standalone/full v5p AOT fails48.53MiB >48MiB; measured via50MiB child.
     """Bound DMA windows explicitly while retaining the whole middle kernel."""
     model_name = 'RMTThreeStageMiddleSingleBufferProfile'
     rmt_full_middle_reverse_mode = 'minor_single_buffer'
 
 
 class RMTThreeStageMiddleSingleBufferV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    # Runtimeb4c9191: v6e reverse128/256=5.2585/5.2946ms; correct but slower, not selected.
     model_name = 'RMTThreeStageMiddleSingleBufferV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_single_buffer'
 
 
 class RMTThreeStageMiddleSingleBuffer50Profile(RMTThreeStageMiddleSingleBufferProfile):
+    # Runtime 0a2420c; UC1a v5p-16, profile complete:0.528133step/s; F443.883ms/B1426.873ms.
+    # Needs48.53MiB;50MiB budget. Slower than qchunk64; capacity ablation, not selected.
     """Measured48.53MiB allocation plus bounded headroom, below physical64MiB."""
     model_name = 'RMTThreeStageMiddleSingleBuffer50Profile'
     rmt_scoped_vmem_limit_kib = 51200

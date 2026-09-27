@@ -149,3 +149,7 @@ An unguarded120-second preflight was corrected in `xd_tpu_scripts` commit
 `e5947dd`: SSH preflight and compiler upload now have lifecycle guards and use
 internal IP. Mocked preemption tests verify that neither failure proceeds to
 compilation. Raw XPlane parsing fixes the misleading partial JSON attribution.
+
+All 36 profile objects were downloaded and checked against GCS object sizes.
+Both temporary compilers and the target TPU/queued resource are verified absent;
+see `run_manifest.json` and `target-delete.log`. Retained compilers were untouched.

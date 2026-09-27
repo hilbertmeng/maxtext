@@ -67,11 +67,15 @@ class RMTDepthTest(absltest.TestCase):
   def test_major_direct_reverse_scan_remat_matches_original(self):
     self._check_fused_scan_remat("joint_major_direct")
 
-  def _check_fused_scan_remat(self, backward):
-    from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk
+  def test_v_only_read_scan_remat_matches_noo_reference(self):
+    self._check_fused_scan_remat('autodiff', no_o=True)
+
+  def _check_fused_scan_remat(self, backward, no_o=False):
+    from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk, rmt_pallas_v_read
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,
                           dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3,query_chunk_size=2)
+    if no_o:cfg.get_keys()['rmt_dynamic_o_enabled']=False
     mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
     model=models.Transformer(config=cfg,mesh=mesh,quant=None)
     args=dict(decoder_input_tokens=jnp.array([[1,2,3,4]],jnp.int32),
@@ -86,13 +90,15 @@ class RMTDepthTest(absltest.TestCase):
       baseline=jax.jit(jax.value_and_grad(loss))(params)
       cfg.get_keys().update(rmt_pallas_write=True,rmt_pallas_write_layout='token_minor',
                             rmt_pallas_c8=True,rmt_pallas_qk_post=True,rmt_pack_dynamic_projections=True,
-                            rmt_pallas_write_backward=backward)
+                            rmt_pallas_write_backward=backward,rmt_pallas_v_only=no_o)
       with mock.patch.object(rmt_pallas_minor,'write_residual',
                              wraps=partial(rmt_pallas_minor.write_residual,interpret=True)), \
            mock.patch.object(rmt_pallas_minor_read,'c8_read',
                              wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)), \
            mock.patch.object(rmt_pallas_minor_qk,'qk_post',
-                             wraps=partial(rmt_pallas_minor_qk.qk_post,interpret=True)):
+                             wraps=partial(rmt_pallas_minor_qk.qk_post,interpret=True)), \
+           mock.patch.object(rmt_pallas_v_read,'v_read',
+                             wraps=partial(rmt_pallas_v_read.v_read,interpret=True)):
         for policy in ('full','save_state','save_state_mlp','save_state_dynamic'):
           cfg.get_keys()['rmt_remat_policy']=policy
           actual=jax.jit(jax.value_and_grad(loss))(params)

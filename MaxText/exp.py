@@ -10773,3 +10773,25 @@ class RMTCombinedLayerScanMajorDirect128WriteProfile(RMTCombinedLayerScanMajorDi
 class RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile(RMTCombinedLayerScanMajorDirect128WriteProfile):
     model_name = 'RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile'
     per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveStateNoOProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    """Speed ablation: remove only dynamic O, retain width and all other routes."""
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOProfile'
+    rmt_dynamic_o_enabled = False
+
+
+class RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOProfile):
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile'
+    per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanTokenAllSaveStateNoOFoldVProfile(RMTCombinedLayerScanTokenAllSaveStateNoOProfile):
+    """Only dynamic V uses a gate-on-key kernel; MLP's C8 read is unchanged."""
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOFoldVProfile'
+    rmt_pallas_v_only = True
+
+
+class RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOFoldVProfile):
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile'
+    per_device_batch_size = 4.0

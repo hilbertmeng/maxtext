@@ -48,7 +48,7 @@ def summarize(arm):
     p=phase(op)
     phases[p]+=ms
     components[component(op)][p]+=ms
-    if 'rmt_token_minor_write' in op and 'pallas_call' in op:
+    if ('rmt_token_minor_write' in op or 'rmt_write_reverse_major' in op) and 'pallas_call' in op:
       write_kernels[p]+=ms
   assert math.isclose(sum(phases.values()),arm['first_core_leaf_ms'],abs_tol=1e-6)
   wall=arm['first_core_step_ms']

@@ -207,7 +207,11 @@ class RMTDynamicC8Read(nn.Module):
     logits = logits.reshape(x.shape[:2] + (heads, self.destinations))
     gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
     if pallas_c8:
-      from layers.rmt_pallas_minor_read import c8_read
+      if (self.destinations == 1 and self.name == 'dynamic_vo'
+          and cfg.get_keys().get('rmt_pallas_v_only', False)):
+        from layers.rmt_pallas_v_read import v_read as c8_read
+      else:
+        from layers.rmt_pallas_minor_read import c8_read
       values=c8_read(jnp.swapaxes(compressed,-2,-1),raw_key,gates,_read_epsilon(cfg),
                      tile=cfg.get_keys().get('rmt_pallas_c8_tile',128))
       reads=tuple(values[...,i,:] for i in range(self.destinations))

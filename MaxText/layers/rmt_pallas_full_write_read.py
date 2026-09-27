@@ -2,6 +2,7 @@
 from functools import partial
 import jax
 import jax.numpy as jnp
+from jax.ad_checkpoint import checkpoint_name
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 from layers.rmt_pallas import _map_batch
@@ -38,7 +39,7 @@ def fused(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,inter
 def fwd(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpret,ft,rt,mode):
   args=(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb)
   out=forward_call(args,epsilon,read_epsilon,interpret,ft)
-  matrix=jax.ad_checkpoint.checkpoint_name(out[0],'rmt_middle_residual_matrix')
+  matrix=checkpoint_name(out[0],'rmt_middle_residual_matrix')
   return (matrix,*out[1:]),(matrix,*args[1:])
 
 

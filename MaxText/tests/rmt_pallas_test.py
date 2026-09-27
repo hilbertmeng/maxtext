@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from layers import rmt, rmt_pallas, rmt_pallas_joined, rmt_pallas_qk, rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_joined
+from layers import rmt, rmt_pallas, rmt_pallas_joined, rmt_pallas_qk, rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_joined, rmt_pallas_minor_qk
 import rmt_mediumprop_test
 
 
@@ -47,6 +47,9 @@ class RmtPallasTest(absltest.TestCase):
 
   def test_token_joined_read_forward_and_gradients(self):
     self._check_layer('rmt_pallas_joined_layout')
+
+  def test_qk_post_forward_and_gradients(self):
+    self._check_layer('rmt_pallas_qk_post')
 
   def _check_layer(self, flag):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
@@ -92,12 +95,15 @@ class RmtPallasTest(absltest.TestCase):
          mock.patch.object(rmt_pallas_minor_read,'c8_read',
                            wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)) as minor_read, \
          mock.patch.object(rmt_pallas_minor_joined,'joined_read',
-                           wraps=partial(rmt_pallas_minor_joined.joined_read,interpret=True)) as minor_joined:
+                           wraps=partial(rmt_pallas_minor_joined.joined_read,interpret=True)) as minor_joined, \
+         mock.patch.object(rmt_pallas_minor_qk,'qk_post',
+                           wraps=partial(rmt_pallas_minor_qk.qk_post,interpret=True)) as qk_post:
       actual=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
       if flag in ('rmt_pallas_write_layout','rmt_pallas_key_contiguous'):self.assertGreater(minor.call_count,0)
       if flag in ('rmt_pallas_c8','rmt_pallas_read_write'):self.assertGreater(minor_read.call_count,0)
       if flag=='rmt_pallas_read_write':self.assertGreater(minor.call_count,0)
       if flag=='rmt_pallas_joined_layout':self.assertGreater(minor_joined.call_count,0)
+      if flag=='rmt_pallas_qk_post':self.assertGreater(qk_post.call_count,0)
       if flag=='rmt_pallas_qk':self.assertGreater(qk.call_count,0)
       if flag in ('rmt_pallas_write','rmt_pallas_write_forward_jax'):self.assertGreater(fused.call_count,0)
       if flag=='rmt_pallas_joined_read':self.assertGreater(read.call_count,0)

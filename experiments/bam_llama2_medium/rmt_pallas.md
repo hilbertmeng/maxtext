@@ -268,3 +268,34 @@ TPU compilation. These variants are not promoted into combined training.
 Formal original configurationf4fadcd, same target VM: .378066step/s,
 versus direct-layer-scan/no-health control .384497 (+1.70%). This includes
 health/scan changes; separate it from fused-kernel gains.
+
+
+### Precision and composition gates
+
+Multi-tile BF16 TPU checks at production tile128 pass for write and C8 read;
+maximum relative L2 over output/all input gradients .00421/.00441. Write's
+FP32 multi-tile TPU backward exceeds32MiB scoped VMEM by656KiB; tile64 is
+not legal for token-contiguous DMA when the whole sequence is longer than64.
+Do not classify either resource/layout error as a numerical disagreement.
+FP32 multi-tile write in CPU Pallas interpreter passes, maximum relative
+L2 3.585e-7. Earlier single-tile FP32 TPU checks also passed.
+Full3-layer scan, packed projections, both fused kernels and policies
+full/save_state/save_state_mlp match original parameter gradients and loss
+on nonzero perturbed parameters; focused test `rmt-fused-scan-tests` passes.
+
+Minimal save-state30d4c70 target: control .384433, write-only .397866,
+save-state+packed .427000step/s (+11.07%). Matched raw device
+2579.869→2318.716ms; dynamic-update-slice−122.995ms, convolution−119.234ms.
+The formal original configuration .378066 includes extra health/block scan.
+
+Token-joined-read91902dd improves ordinary isolated VJP3.672→1.821ms, but
+checkpointed VJP1.821→2.149ms regresses; full6-layer screening in progress.
+Leading-parameter-axisce9dabe full6-layer is~.764step/s, indistinguishable
+from control; no initialization/gradient mismatch, no promotion.
+
+396339d target write+packed+save-state completed~.440step/s; write+packed
+~.436. Full stable means and raw traces pending download. c031d76 target
+matrix `rw-state-0927`, label`rmt_rw_state_v5p`, is running four matched arms:
+TokenReadWriteSaveState, TokenReadWriteSaveStateMLP, TokenReadWrite, NoHealth
+(all full class names have prefix RMTCombinedLayerScan and suffix Profile).
+All four AOTs READY, same100-step schedule; stop49, window20–49.

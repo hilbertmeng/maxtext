@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 from layers.rmt_pallas import write_reference, write_residual, c8_read, c8_reference
 from layers.rmt_pallas_stage import stage_reference, write_mlp_stage
+from layers.rmt_pallas_minor_qk import qk_post, reference as qk_post_reference
 from layers.rmt_pallas_minor_joined import joined_read as minor_joined
 from layers.rmt_pallas_minor_read import c8_read as minor_read, reference as minor_read_reference
 from layers.rmt_pallas_minor import write_residual as minor_write
@@ -23,7 +24,7 @@ def main():
   jax.config.update('jax_default_matmul_precision','highest')
   parser=argparse.ArgumentParser()
   parser.add_argument('--arm',choices=['reference','pallas','both'],default='both')
-  parser.add_argument('--kernel',choices=['write','c8','stage','joined','qk','minor_write','minor_read','minor_joined'],default='write')
+  parser.add_argument('--kernel',choices=['write','c8','stage','joined','qk','minor_write','minor_read','minor_joined','qk_post'],default='write')
   parser.add_argument('--tokens',type=int,default=8192)
   parser.add_argument('--interpret',action='store_true')
   parser.add_argument('--check-dtype',choices=['both','float32','bfloat16'],default='both')
@@ -34,6 +35,7 @@ def main():
     shapes=[(n,48,75),(n,16,48),(n,16,75),(n,16),(16,48)]
     if args.kernel=='c8':shapes=[(n,75,32),(n,16,8),(32,8),(n,16,2)]
     if args.kernel=='stage':shapes.extend([(48,16),(1200,)])
+    if args.kernel=='qk_post':shapes=[(n,4,75),(n,4,32),(n,32,4),(n,32)]
     if args.kernel=='qk':shapes=[(n,32,75),(n,4,32),(n,32,4),(n,32)]
     if args.kernel in ('joined','minor_joined'):shapes=[(n,48,75),(n,16,8),(48,56),(n,16,2)]
     if args.kernel=='minor_read':shapes=[(n,8,75),(n,16,8),(n,16,2)]
@@ -66,6 +68,10 @@ def main():
     reference=jax.vmap(qk_reference)
     fused=lambda *x:qk_read(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','32')))
     labels=('output','d_matrix','d_basis','d_mix','d_gates')
+  if args.kernel=='qk_post':
+    reference=jax.vmap(qk_post_reference)
+    fused=lambda *x:qk_post(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','128')))
+    labels=('output','d_read','d_basis','d_mix','d_gate')
   def forward_backward(fn):
     def f(*x):
       y,pb=jax.vjp(fn,*x)

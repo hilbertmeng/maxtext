@@ -10548,3 +10548,23 @@ class RMTCombinedLayerScanPaddedCarry80Profile(RMTCombinedLayerScanPaddedCarryPr
 class RMTCombinedLayerScanPaddedCarry80L6Profile(RMTCombinedLayerScanPaddedCarry80Profile):
     model_name = 'RMTCombinedLayerScanPaddedCarry80L6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenQKPostProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanTokenQKPostProfile'
+    rmt_pallas_qk_post = True
+
+
+class RMTCombinedLayerScanTokenQKPostL6Profile(RMTCombinedLayerScanTokenQKPostProfile):
+    model_name = 'RMTCombinedLayerScanTokenQKPostL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenAllProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    model_name = 'RMTCombinedLayerScanTokenAllProfile'
+    rmt_pallas_qk_post = True
+
+
+class RMTCombinedLayerScanTokenAllSaveStateProfile(RMTCombinedLayerScanTokenAllProfile):
+    model_name = 'RMTCombinedLayerScanTokenAllSaveStateProfile'
+    rmt_remat_policy = 'save_state'

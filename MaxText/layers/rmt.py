@@ -137,6 +137,12 @@ class RMTDynamicQK(nn.Module):
                      jnp.concatenate(gates,axis=-1),_read_epsilon(cfg),
                      tile=cfg.get_keys().get('rmt_pallas_qk_tile',32))
       results=(output[...,:heads,:],output[...,heads:,:])
+    elif cfg.get_keys().get('rmt_pallas_qk_post',False) and not self.is_initializing():
+      from layers.rmt_pallas_minor_qk import qk_post
+      basis_read=jnp.einsum('btvc,btrc->btrv',M,basis)
+      output=qk_post(basis_read,basis,jnp.concatenate(mixes,axis=-2),
+                     jnp.concatenate(gates,axis=-1),_read_epsilon(cfg))
+      results=(output[...,:heads,:],output[...,heads:,:])
     else:
       basis_read=jnp.einsum('btvc,btrc->btrv',M,basis)
       basis_fp32=basis.astype(jnp.float32)

@@ -10756,11 +10756,14 @@ class RMTCombinedLayerScanMajorReverse128WriteV6eB4Profile(RMTCombinedLayerScanM
 
 class RMTCombinedLayerScanMajorDirectWriteProfile(RMTCombinedLayerScanMajorReverseWriteProfile):
     """64-token reverse with native reduction; closer to the unfused BF16 reference."""
+    # Runtime9ef9053: UC1a v5p-16 .468967 vs paired old-best .457066 (+2.60%).
+    # Write reverse185.522->76.553ms; whole device2165.413->2110.980ms.
     model_name = 'RMTCombinedLayerScanMajorDirectWriteProfile'
     rmt_pallas_write_backward = 'joint_major_direct'
 
 
 class RMTCombinedLayerScanMajorDirectWriteV6eB4Profile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    # Runtime9ef9053: EW4a v6e1.385299 vs old-best1.413598; reject (layout overhead).
     model_name = 'RMTCombinedLayerScanMajorDirectWriteV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10771,6 +10774,7 @@ class RMTCombinedLayerScanMajorDirect128WriteProfile(RMTCombinedLayerScanMajorDi
 
 
 class RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile(RMTCombinedLayerScanMajorDirect128WriteProfile):
+    # Runtime9ef9053:1.390132 vs old-best1.413598; reject; write reverse31.336ms.
     model_name = 'RMTCombinedLayerScanMajorDirect128WriteV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10782,6 +10786,7 @@ class RMTCombinedLayerScanTokenAllSaveStateNoOProfile(RMTCombinedLayerScanTokenA
 
 
 class RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOProfile):
+    # 8ebb3e9:1.445265 vs paired O-enabled1.424598 (+1.45%); params431773472.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOV6eB4Profile'
     per_device_batch_size = 4.0
 
@@ -10793,5 +10798,6 @@ class RMTCombinedLayerScanTokenAllSaveStateNoOFoldVProfile(RMTCombinedLayerScanT
 
 
 class RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOFoldVProfile):
+    # 8ebb3e9:1.444064 vs plain NoO1.445265; no extra full-step gain, do not select.
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile'
     per_device_batch_size = 4.0

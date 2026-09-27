@@ -10580,3 +10580,8 @@ class RMTCombinedLayerScanTokenAllSaveStateTile512Profile(RMTCombinedLayerScanTo
     model_name = 'RMTCombinedLayerScanTokenAllSaveStateTile512Profile'
     rmt_pallas_qk_post_tile = 512
     rmt_pallas_c8_tile = 512
+
+
+class RMTCombinedLayerScanTokenAllSaveDynamicProfile(RMTCombinedLayerScanTokenAllSaveStateProfile):
+    model_name = 'RMTCombinedLayerScanTokenAllSaveDynamicProfile'
+    rmt_remat_policy = 'save_state_dynamic'

@@ -94,6 +94,7 @@ def _project_many(x,kernels,packed):
     return tuple(jnp.einsum('btd,dr->btr',x,k.astype(x.dtype)) for k in kernels)
   widths=[k.shape[-1] for k in kernels]
   projected=jnp.einsum('btd,dr->btr',x,jnp.concatenate([k.astype(x.dtype) for k in kernels],axis=-1))
+  projected=ad_checkpoint.checkpoint_name(projected,'rmt_dynamic_projection')
   cuts=[]
   offset=0
   for width in widths:
@@ -139,13 +140,13 @@ class RMTDynamicQK(nn.Module):
       results=(output[...,:heads,:],output[...,heads:,:])
     elif cfg.get_keys().get('rmt_pallas_qk_post',False) and not self.is_initializing():
       from layers.rmt_pallas_minor_qk import qk_post
-      basis_read=jnp.einsum('btvc,btrc->btrv',M,basis)
+      basis_read=ad_checkpoint.checkpoint_name(jnp.einsum('btvc,btrc->btrv',M,basis),'rmt_basis_read')
       output=qk_post(basis_read,basis,jnp.concatenate(mixes,axis=-2),
                      jnp.concatenate(gates,axis=-1),_read_epsilon(cfg),
                      tile=cfg.get_keys().get('rmt_pallas_qk_post_tile',128))
       results=(output[...,:heads,:],output[...,heads:,:])
     else:
-      basis_read=jnp.einsum('btvc,btrc->btrv',M,basis)
+      basis_read=ad_checkpoint.checkpoint_name(jnp.einsum('btvc,btrc->btrv',M,basis),'rmt_basis_read')
       basis_fp32=basis.astype(jnp.float32)
       gram=jnp.einsum('btrc,btsc->btrs',basis_fp32,basis_fp32)
       results=[]
@@ -187,6 +188,8 @@ class RMTDynamicC8Read(nn.Module):
         compressed = jnp.einsum('btvc,cr->btvr', M, compression.astype(M.dtype))
     else:
       compressed = M
+    if self.compress_state and not pallas_joined:
+      compressed=ad_checkpoint.checkpoint_name(compressed,'rmt_compressed_read')
     key_kernel = self.param('key_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
                             (cfg.emb_dim, heads * key_dim), cfg.weight_dtype)
     gate_kernel = self.param('gate_kernel', nn.with_logical_partitioning(nn.initializers.zeros, ('embed', None)),
@@ -250,7 +253,7 @@ class RMTDynamicWrite(nn.Module):
     hidden = nn.gelu(hidden)
     address = jnp.einsum('btr,rd->btd', hidden, up.astype(x.dtype))
     address = address.reshape(x.shape[:2] + (heads, self.address_dim))
-    address = address + up_bias.astype(x.dtype)
+    address = ad_checkpoint.checkpoint_name(address + up_bias.astype(x.dtype),'rmt_dynamic_address')
     gate = jax.nn.sigmoid(gate_logits + gate_bias.astype(x.dtype))
     if matrix is not None and not self.is_initializing():
       if cfg.get_keys().get('rmt_pallas_write_layout','value_minor')=='token_minor':
@@ -440,7 +443,7 @@ class RMTLayer(nn.Module):
       static_head_output = head_output
       if dynamic_o_enabled:
         head_output = head_output + dynamic_o
-    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp'):
+    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
       head_output=ad_checkpoint.checkpoint_name(head_output,'rmt_attention_head')
     attn_write = self.param('attn_write_key', write_init,
                             (heads, key_dim), cfg.weight_dtype)
@@ -461,7 +464,7 @@ class RMTLayer(nn.Module):
     elif not dynamic:
       matrix = matrix + static_attn_write
 
-    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp'):
+    if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
       matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
     mlp_in = (matrix if vector_pre_norm else
               MatrixRMSNorm(cfg, name='mlp_norm')(matrix))
@@ -625,11 +628,12 @@ class RMTDecoder(nn.Module):
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
     policy_name=cfg.get_keys().get('rmt_remat_policy','full')
-    if policy_name not in ('full','save_dense','save_dense_state','save_state','save_state_mlp','attention_only'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
+    if policy_name not in ('full','save_dense','save_dense_state','save_state','save_state_mlp','save_state_dynamic','attention_only'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
     policy=(jax.checkpoint_policies.dots_with_no_batch_dims_saveable if policy_name in ('save_dense','save_dense_state') else None)
-    if policy_name in ('save_dense_state','save_state','save_state_mlp'):
+    if policy_name in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
       names=('rmt_attention_head','rmt_mlp_matrix')
       if policy_name=='save_state_mlp':names+=('mlpwi_0','mlpwi_1','mlpwo')
+      if policy_name=='save_state_dynamic':names+=('rmt_dynamic_projection','rmt_basis_read','rmt_compressed_read','rmt_dynamic_address')
       named=jax.checkpoint_policies.save_only_these_names(*names)
       policy=(jax.checkpoint_policies.save_from_both_policies(policy,named)
               if policy_name=='save_dense_state' else named)

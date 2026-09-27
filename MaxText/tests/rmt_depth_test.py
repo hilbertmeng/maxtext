@@ -44,7 +44,7 @@ class RMTDepthTest(absltest.TestCase):
                              wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)), \
            mock.patch.object(rmt_pallas_minor_qk,'qk_post',
                              wraps=partial(rmt_pallas_minor_qk.qk_post,interpret=True)):
-        for policy in ('full','save_state','save_state_mlp'):
+        for policy in ('full','save_state','save_state_mlp','save_state_dynamic'):
           cfg.get_keys()['rmt_remat_policy']=policy
           actual=jax.jit(jax.value_and_grad(loss))(params)
           for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):

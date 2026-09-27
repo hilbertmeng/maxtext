@@ -395,7 +395,7 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | v5p-16 (`xd-v5p-16-2609264-maxtext`) | `us-east5-a` | 2026-09-26 13:35:17 | 2026-09-27 00:33:13 | completed13500; 5 preemptions; TPU/queue absent, TB synced | none |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembedding` | v5p-16 (`xd-v5p-16-2609265-maxtext`) | `us-east5-a` | 2026-09-26 13:35:05 | 2026-09-26 17:25:20 | stopped5088; TPU/queue absent, TB synced | none |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609266-maxtext`) | `us-east5-a` | 2026-09-26 15:01:08 | 2026-09-27 01:31:10 | completed13500; 2 preemptions; TPU/queue absent, TB synced | none |
-| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609267-maxtext`) | `us-east5-a` | 2026-09-26 17:30:51 | — | active; 1 preemption, same-zone recovery; through13000 | none |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | v5p-16 (`xd-v5p-16-2609267-maxtext`) | `us-east5-a` | 2026-09-26 17:30:51 | 2026-09-27 03:51:11 | completed13500; 1 preemption, same-zone recovery; TPU/queue absent, TB synced | none |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | v5p-16 (`xd-v5p-16-2609268-maxtext`) | `us-east5-a` | 2026-09-27 00:30:03 | — | active; no preemptions; through3400 | none |
 
 ## READY leases
@@ -1213,5 +1213,5 @@ active leases are censored, and manual migration releases are not preemptions.
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetLLFSharedVO` | 4 | `us-east5-a` | 2026-09-26 20:43:55 | 2026-09-26 22:39:08 | 1h55m13s | completed13500; TPU/queue absent |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbedding` | 6 | `us-east5-a` | 2026-09-26 20:43:57 | 2026-09-27 00:33:13 | 3h49m16s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32` | 3 | `us-east5-a` | 2026-09-26 19:10:38 | 2026-09-27 01:31:10 | 6h20m32s | completed13500; TPU/queue absent, TB synced |
-| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 20:43:59 | — | censored | active |
+| `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32` | 2 | `us-east5-a` | 2026-09-26 20:43:59 | 2026-09-27 03:51:11 | 7h7m12s | completed13500; TPU/queue absent, TB synced |
 | `RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22` | 1 | `us-east5-a` | 2026-09-27 00:29:56 | — | censored | active; prequeue READY precedes registry00:30:07 |

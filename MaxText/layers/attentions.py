@@ -1736,7 +1736,7 @@ def _dynamic_bam_fetch_mix_weights(mix_logits, alpha_dtype, *, rms_epsilon, scal
 
 def _attention_op(
     query, key, value, valid, *, attn_logits_soft_cap=0.0,
-    float32_logits=False):
+    float32_logits=False, additive_bias=None):
   """Apply masked QK/softmax/AV to one dense or query-chunk block."""
   with jax.named_scope("attention/qk_logits"):
     logits = jnp.einsum('bqnd,bsnd->bnqs', query, key)
@@ -1747,6 +1747,8 @@ def _attention_op(
     logits = jnp.where(valid[:, None], logits, DEFAULT_MASK_VALUE)
   if float32_logits:
     logits = logits.astype(jnp.float32)
+  if additive_bias is not None:
+    logits = logits + jnp.asarray(additive_bias, logits.dtype)
   with jax.named_scope("attention/softmax"):
     alpha = jax.nn.softmax(logits, axis=-1)
   with jax.named_scope("attention/av"):

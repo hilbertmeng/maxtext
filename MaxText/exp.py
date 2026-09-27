@@ -9709,6 +9709,10 @@ class RMTMediumPropAlibiK48(BamMHAMediumPropAlibiC256):
     # Completed 13,500; vs ALiBi MHA -.105491@2000 -> -.008450@10000,
     # final5 -.001736: early lead nearly vanished. Vs dynamic BAM final5 +.034722.
     model_name = 'RMTMediumPropAlibiK48'
+    rmt_enabled = True
+    rmt_reskey_dim = 48
+    bam_enabled = False
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k48'
     compare_runs = ['BamMHAMediumPropAlibiC256']
 
 
@@ -9721,6 +9725,8 @@ class RMTMediumPropAlibiK64(RMTMediumPropAlibiK48):
     # Completed 13,500; vs K48 final5 -.019136 (roughly stable since2000),
     # vs ALiBi MHA final5 -.020872. Speed -2.64% vs K48, +0.022% parameters.
     model_name = 'RMTMediumPropAlibiK64'
+    rmt_reskey_dim = 64
+    jax_cache_dir = 'gs://newproject-1-llm_projects_us-east5/jax_caches/rmt-mediumprop-k64'
     compare_runs = ['RMTMediumPropAlibiK48', 'BamMHAMediumPropAlibiC256']
 
 
@@ -9947,14 +9953,16 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDi
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicUnembeddingDirect32):
     """Combine dynamic full48 seed writing and direct tail32 final reading."""
-    # Ledger only: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # Implementation merged into refactor-bam; historical runtime retained below.
     # code_commit: be5491f; rmt_dynamic_boundaries.md.
     # UE5a v5p-16 .3777 step/s; +.08% vs MHABudget, steps20-99.
     # Same layer health; both boundary RMS/gate health ON.
-    # Interim through13000: early lead shrank; near -.019 over10k-13k.
-    # Latest5 vs MHABudget -.019107, vs Embedding -.007601, vs Direct32 -.008560.
+    # Completed13500: early lead shrank, then held near -.019 over10k-13.4k.
+    # Final5 vs MHABudget -.018963, vs Embedding -.008052, vs Direct32 -.008743.
     model_name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32'
     rmt_dynamic_embedding_write = True
+    # False disables only the extra dynamic O read; V and attention writes remain.
+    rmt_dynamic_o_enabled = True
     base_mlp_dim = 4078
     rmt_mlp_dim_by_block = [4078, 4078, 4078]
     compare_runs = ['RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudget',
@@ -9966,7 +9974,7 @@ class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnem
 class RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22(
     RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32):
     """22 dynamic matrix layers, uniform MLP3212, at the MHA parameter budget."""
-    # Implementation: codex/rmt-k48-dynamic, /data0/xd/rmt-k48-dynamic.
+    # Implementation merged into refactor-bam; historical runtime retained below.
     # code_commit: a8d5bcd; UE5a v5p-16 .3190 step/s; -15.53% vs18-layer parent.
     # Matched steps20-99, same inherited layer/basic and both boundary health flags.
     # Layer scan; same dynamic embedding/Direct32 output.

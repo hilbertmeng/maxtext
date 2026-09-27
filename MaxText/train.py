@@ -362,6 +362,24 @@ def save_checkpoint(
 # lsp
 
 
+def record_rmt_dynamic_health_metrics(output_metrics, intermediate_outputs, config):
+  """Export per-layer dynamic RMT read/write amplitudes and gate openings."""
+  from layers import rmt
+  decoder = intermediate_outputs['intermediates']['decoder']
+  for arm in ('embedding', 'unembedding'):
+    key = f'rmt_{arm}_health'
+    if key in decoder:
+      for index, name in enumerate(rmt.RMT_BOUNDARY_HEALTH_NAMES):
+        output_metrics['scalar'][f'rmt/{arm}/{name}'] = decoder[key][0][index]
+  health = intermediate_outputs['intermediates']['decoder']['layers']['rmt_dynamic_health'][0]
+  if config.get_keys().get('rmt_block_scan', False):
+    health = health.reshape((config.num_decoder_layers, health.shape[-1]))
+  for layer in range(config.num_decoder_layers):
+    for index, name in enumerate(rmt.dynamic_health_names(
+        config.get_keys().get('rmt_record_write_health', True))):
+      output_metrics['scalar'][f'rmt/dynamic/layer_{layer:03d}/{name}'] = health[layer, index]
+
+
 def record_bam_concat_health_metrics(output_metrics, intermediate_outputs, config):
   """Decode compact read metrics from LLF block scan and an optional final L."""
   decoder = intermediate_outputs['intermediates']['decoder']
@@ -914,6 +932,8 @@ def train_step(model, config, state_mesh_shardings, state, data, dropout_rng):
 
   if getattr(config, 'bam_record_concat_health', False):
     record_bam_concat_health_metrics(metrics, intermediate_outputs, config)
+  if getattr(config, 'rmt_record_dynamic_health', False):
+    record_rmt_dynamic_health_metrics(metrics, intermediate_outputs, config)
   if config.record_internal_nn_metrics:
     record_activation_metrics(metrics, intermediate_outputs, config)
   if getattr(config, 'bam_record_fetched_read_health_metrics', False):

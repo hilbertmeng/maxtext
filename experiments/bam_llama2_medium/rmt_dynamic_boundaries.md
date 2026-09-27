@@ -161,7 +161,6 @@ Full48 embedding write and direct tail32 final read retain their individual
 initializations/health, plus all parent static paths. Extra2598608 params
 (1.804589 W_Q); widths4078/4078/4078, full432119360,1840 below MHA.
 Compare MHABudget, DynamicEmbedding, DynamicUnembeddingDirect32.
-Pre-run13500 bet vs MHABudget -.020; speed0% (within~1%).
 Focused CPU gates: exact full-size budget, combined forward/finite gradients,
 zero output-read equivalence to embedding-only at equal widths, both boundary
 health and nonzero key/content/address gradients; original embedding and
@@ -244,3 +243,18 @@ Benefits mostly add, with modest overlap; do not compare unequal-step means.
 Full READY leases and resource evidence are recorded in the main regional history.
 Closeout summary: tpu-ag logs/closeout-20260927T032837Z.json; local sync:
 /home/xd/.local/state/maxtext-tensorboard-sync/closeout-20260927T032828170952Z.log.
+
+
+Combined arm closeout2026-09-27: completed13500, final checkpoint13500.
+Early MHABudget advantage narrowed, then held near-.019 over10k-13.4k.
+Final five windows12600-13400: MHABudget-.018963, Embedding-.008052,
+Direct32-.008743. Matched-health speed+.0781%/-.42%/+.5318%, respectively.
+Both boundary improvements remain useful together; the marginal improvements
+over either standalone arm persist late. Completed-run bet removed.
+
+Closed via scripts/closeout_runs_local.py; local TB SYNC_OK, exact UE5a TPU
+and queued resource absent. One preemption, two UE5a v5p-16 leases:
+2026-09-26 17:30:46->20:37:39 (3h6m53s; known READY precedes registry17:30:53),
+2026-09-26 20:43:59->2026-09-27 03:51:11 (7h7m12s; completed13500).
+Remote closeout proof: logs/closeout-20260927T035147Z.json on tpu-ag.
+Local sync proof: /home/xd/.local/state/maxtext-tensorboard-sync/closeout-20260927T035141165524Z.log.

@@ -12,6 +12,9 @@ from layers.rmt_pallas import write_reference, write_residual, c8_read, c8_refer
 
 
 def main():
+  # TPU's default FP32 dot may truncate operands; compare the VPU path to a
+  # full-precision MXU reference. BF16 operands keep their original precision.
+  jax.config.update('jax_default_matmul_precision','highest')
   parser=argparse.ArgumentParser()
   parser.add_argument('--arm',choices=['reference','pallas','both'],default='both')
   parser.add_argument('--kernel',choices=['write','c8'],default='write')

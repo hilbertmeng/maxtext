@@ -42,6 +42,9 @@ def fwd(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,epsilon,read_epsilon,interpr
 
 
 def bwd(epsilon,read_epsilon,interpret,ft,rt,mode,args,cotangents):
+  if mode=='minor':
+    from layers.rmt_pallas_full_write_read_minor import backward
+    return backward(args,cotangents,epsilon,read_epsilon,interpret,min(rt,args[0].shape[-1]))
   args=tuple(z.transpose(0,3,1,2) if i in (0,2) else z.transpose(0,2,1) if i==1 else z
              for i,z in enumerate(args))
   cotangents=tuple(z.transpose(0,3,1,2) if i<2 else z.transpose(0,2,1)
@@ -114,7 +117,7 @@ fused.defvjp(fwd,bwd)
 def full_write_read(m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,
                     epsilon=1e-6,read_epsilon=1e-6,*,interpret=False,forward_tile=128,reverse_tile=32,
                     reverse_mode='baseline'):
-  if reverse_mode not in ('baseline','stream','joined'):raise ValueError(reverse_mode)
+  if reverse_mode not in ('baseline','stream','joined','minor'):raise ValueError(reverse_mode)
   def local(m,x,d,*weights):
     ft=min(forward_tile,m.shape[1]);rt=min(reverse_tile,m.shape[1])
     if m.shape[1]%ft or m.shape[1]%rt:raise ValueError('Stage chunks must divide sequence length')

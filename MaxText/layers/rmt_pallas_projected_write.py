@@ -28,6 +28,10 @@ def gelu_reverse(x,u):
 
 
 def project_minor(x,down,up,ub,wg,gb):
+  return project_minor_state(x,down,up,ub,wg,gb)[2:]
+
+
+def project_minor_state(x,down,up,ub,wg,gb):
   r=down.shape[1];h,k=ub.shape
   p=jnp.dot(jnp.concatenate((down,wg),axis=1).T,x,preferred_element_type=jnp.float32).astype(x.dtype)
   hidden=gelu(p[:r])
@@ -35,7 +39,22 @@ def project_minor(x,down,up,ub,wg,gb):
   raw=(raw+ub.astype(jnp.float32)[:,:,None]).astype(x.dtype)
   logits=(p[r:].astype(jnp.float32)+gb.astype(jnp.float32)[:,None]).astype(x.dtype)
   gates=jax.nn.sigmoid(logits.astype(jnp.float32)).astype(x.dtype)
-  return raw,gates
+  return p[:r],hidden,raw,gates
+
+
+def project_reverse_minor(x,down,up,wg,raw_hidden,hidden,gate,da,dg,store):
+  ga=da.reshape(up.shape[1],x.shape[1])
+  store(2,jnp.dot(hidden,ga.T,preferred_element_type=jnp.float32))
+  store(3,jnp.sum(da.astype(jnp.float32),axis=2))
+  dh=jnp.dot(up,ga,preferred_element_type=jnp.float32).astype(x.dtype)
+  dh=gelu_reverse(raw_hidden,dh)
+  dg=(dg*(gate*(1-gate))).astype(x.dtype)
+  store(5,jnp.sum(dg.astype(jnp.float32),axis=1))
+  dp=jnp.concatenate((dh,dg),axis=0)
+  dw=jnp.dot(x,dp.T,preferred_element_type=jnp.float32)
+  store(1,dw[:,:down.shape[1]])
+  store(4,dw[:,down.shape[1]:])
+  return jnp.dot(jnp.concatenate((down,wg),axis=1),dp,preferred_element_type=jnp.float32).astype(x.dtype)
 
 
 def project_major(x,down,up,ub,wg,gb):

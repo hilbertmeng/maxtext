@@ -94,12 +94,13 @@ def store_partial(ref,value):
   ref[...]=ref[...]+value
 
 
-def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,write_refs,out_refs):
+def read_pullback(m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,store,merge_linear=False):
   # m is the forward's updated matrix, so backward does not repeat the write.
   raw,normalized,x,key,gate,compressed,kn,read=read_state(m,c,scale,wk,wg,bias,epsilon,read_epsilon)
   h,v,t=read.shape;rank=c.shape[1]
-  store_partial(out_refs[5],weight_grad(m,dy))
-  dm=(dm+contract(r,dy)).astype(m.dtype)
+  if not merge_linear:
+    store(5,weight_grad(m,dy))
+    dm=(dm+contract(r,dy)).astype(m.dtype)
   dgate=(.2*jax.lax.reduce_sum((dy*read).astype(dy.dtype),axes=(1,))).astype(dy.dtype)
   dread=(dy*(.2*gate)[:,None,:]).astype(dy.dtype)
   def read_reverse(kr,cr,dcr,dkr):
@@ -113,19 +114,36 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,write_r
   dc,dkn=pl.run_scoped(read_reverse,pltpu.VMEM((rank,h,t),m.dtype),
                        pltpu.VMEM((rank,v,t),m.dtype),pltpu.VMEM((rank,v,t),m.dtype),
                        pltpu.VMEM((rank,h,t),m.dtype))
-  store_partial(out_refs[6],weight_grad(m[h:],dc))
-  dmtail=contract(c,dc)
+  if merge_linear:
+    packed=jnp.concatenate((dy,dc),axis=0)
+    dw_linear=weight_grad(m,packed)
+    store(5,dw_linear[:,:h])
+    store(6,dw_linear[h:,h:])
+    linear=jnp.concatenate((r,jnp.pad(c,((h,0),(0,0)))),axis=1)
+    dm=(dm+contract(linear,packed)).astype(m.dtype)
+  else:
+    store(6,weight_grad(m[h:],dc))
+    dmtail=contract(c,dc)
   dk=_norm_backward(key,dkn,read_epsilon).reshape(h*rank,t)
   dg=(dgate*(gate*(1-gate))).astype(m.dtype)
   dp=jnp.concatenate((dk,dg),axis=0)
   dw=jnp.dot(x,dp.T,preferred_element_type=jnp.float32)
-  store_partial(out_refs[8],dw[:,:h*rank])
-  store_partial(out_refs[9],dw[:,h*rank:].T)
-  store_partial(out_refs[10],jnp.sum(dg.astype(jnp.float32),axis=1))
+  store(8,dw[:,:h*rank])
+  store(9,dw[:,h*rank:].T)
+  store(10,jnp.sum(dg.astype(jnp.float32),axis=1))
   dx=(dx+jnp.dot(jnp.concatenate((wk,wg.T),axis=1),dp,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
-  store_partial(out_refs[7],jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32),axis=1))
+  store(7,jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32),axis=1))
   draw=_norm_backward(raw,(dx.astype(jnp.float32)*scale.astype(jnp.float32)[:,None]).astype(m.dtype),epsilon).reshape(h,v,t)
-  dm=(dm+jnp.concatenate((draw,dmtail),axis=0)).astype(m.dtype)
+  if merge_linear:
+    dm=(dm+jnp.pad(draw,((0,m.shape[0]-h),(0,0),(0,0)))).astype(m.dtype)
+  else:
+    dm=(dm+jnp.concatenate((draw,dmtail),axis=0)).astype(m.dtype)
+  return dm
+
+
+def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,write_refs,out_refs):
+  dm=read_pullback(m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,
+                  lambda index,value:store_partial(out_refs[index],value))
   write_reverse(a,d,g,s,dm,epsilon,write_refs,out_refs)
   out_refs[0][...]=dm
 

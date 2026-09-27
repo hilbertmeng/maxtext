@@ -10971,3 +10971,13 @@ class RMTThreeStageMiddleJoinedProfile(RMTThreeStageNoOReverse128Profile):
 class RMTThreeStageMiddleJoinedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
     model_name = 'RMTThreeStageMiddleJoinedV6eB4Profile'
     rmt_full_middle_reverse_mode = 'joined'
+
+
+class RMTThreeStageMiddleMinorProfile(RMTThreeStageNoOReverse128Profile):
+    model_name = 'RMTThreeStageMiddleMinorProfile'
+    rmt_full_middle_reverse_mode = 'minor'
+
+
+class RMTThreeStageMiddleMinorV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleMinorV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor'

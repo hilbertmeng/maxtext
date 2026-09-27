@@ -114,7 +114,7 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
   a,d,g,s=args
   b,_,_,t=dy.shape;h=a.shape[1]
   k,v=(dy.shape[2],dy.shape[1]) if key_contiguous else dy.shape[1:3]
-  if backward=='hybrid':
+  if backward in ('hybrid','split4','split8'):
     if key_contiguous:raise ValueError('Hybrid backward requires token-minor layout')
     # Shared static contractions use full-token GEMMs, avoiding one poorly
     # utilized H-by-K parameter-gradient dot (and V padding) per token tile.
@@ -123,10 +123,20 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
     def dynamic_kernel(a,d,g,dy,sd,da,dd,dg):
       ga,gd,gg=_dynamic_backward(a[...],d[...],g[...],dy[...],epsilon)
       da[...],dd[...],dg[...]=ga,(gd+sd[...]).astype(d.dtype),gg
-    specs=[_spec((h,k),tile),_spec((h,v),tile),_spec((h,),tile),_spec((k,v),tile),_spec((h,v),tile)]
-    da,dd,dg=pl.pallas_call(dynamic_kernel,grid=(b,t//tile),in_specs=specs,
+    if backward.startswith('split'):
+      hg=int(backward[5:])
+      tile=min(t,256)
+      head_spec=lambda n:pl.BlockSpec((None,hg,n,tile),lambda b,i,j:(b,j,0,i))
+      gate_spec=pl.BlockSpec((None,hg,tile),lambda b,i,j:(b,j,i))
+      matrix_spec=pl.BlockSpec((None,k,v,tile),lambda b,i,j:(b,0,0,i))
+      specs=[head_spec(k),head_spec(v),gate_spec,matrix_spec,head_spec(v)]
+      grid=(b,t//tile,h//hg)
+    else:
+      specs=[_spec((h,k),tile),_spec((h,v),tile),_spec((h,),tile),_spec((k,v),tile),_spec((h,v),tile)]
+      grid=(b,t//tile)
+    da,dd,dg=pl.pallas_call(dynamic_kernel,grid=grid,in_specs=specs,
         out_specs=specs[:3],out_shape=[jax.ShapeDtypeStruct(x.shape,x.dtype) for x in (a,d,g)],
-        interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','parallel')),
+        interpret=interpret,compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel',)*len(grid)),
         name='rmt_token_minor_dynamic_write_backward')(a,d,g,dy,static_dd)
     return dy,da,dd,dg,ds
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
@@ -153,7 +163,7 @@ _write.defvjp(_fwd,_bwd)
 
 
 def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=128,key_contiguous=False,backward="autodiff"):
-  if backward not in ("autodiff","analytic","hybrid","batched"):raise ValueError(f"Unknown write backward: {backward}")
+  if backward not in ("autodiff","analytic","hybrid","batched","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
   unbatched=matrix.ndim==3
   if unbatched:
     matrix,address,data,gate=(x[None] for x in (matrix,address,data,gate))

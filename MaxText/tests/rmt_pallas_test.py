@@ -137,6 +137,23 @@ class RmtPallasTest(absltest.TestCase):
     for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
       np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=3e-4,atol=2e-6)
 
+  def test_two_device_fused_chain_and_shared_gradients(self):
+    if jax.device_count()!=2:self.skipTest('Requires --xla_force_host_platform_device_count=2')
+    from tests.rmt_fused_write_read_probe import inputs, reference
+    from layers.rmt_pallas_write_read import write_mlp_read
+    mesh=jax.sharding.Mesh(np.asarray(jax.devices()),('data',))
+    xs=inputs(4,4,jnp.float32)
+    def evaluate(fn):
+      def loss(*x):
+        out=fn(*x)
+        return sum(jnp.mean(z*z) for z in out),out
+      return jax.jit(jax.value_and_grad(loss,argnums=tuple(range(11)),has_aux=True))(*xs)
+    baseline=evaluate(reference)
+    with mesh,nn.logical_axis_rules((('activation_batch','data'),)):
+      actual=evaluate(partial(write_mlp_read,interpret=True,tile=4))
+    for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
+      np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=4e-4,atol=2e-6)
+
   def test_two_device_batch_sharding_and_shared_gradients(self):
     if jax.device_count()!=2:self.skipTest('Requires --xla_force_host_platform_device_count=2')
     mesh=jax.sharding.Mesh(np.asarray(jax.devices()),('data',))

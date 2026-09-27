@@ -11,6 +11,7 @@ import accelerator_to_spec_map
 from layers.rmt_pallas_minor import write_residual
 from layers.rmt_pallas_minor_read import c8_read
 from layers.rmt_pallas_v_read import v_read
+from layers.rmt_pallas_write_read import write_mlp_read
 
 
 def main():
@@ -18,7 +19,7 @@ def main():
   p.add_argument('--topology',default='v5p-16')
   p.add_argument('--batch',type=int,default=16)
   p.add_argument('--modes',default='autodiff,joint_major')
-  p.add_argument('--kernel',choices=['write','read'],default='write')
+  p.add_argument('--kernel',choices=['write','read','chain'],default='write')
   p.add_argument('--tile',type=int,default=128)
   p.add_argument('--output',required=True)
   args=p.parse_args()
@@ -31,10 +32,18 @@ def main():
   shapes=[(b,4096,48,75),(b,4096,16,48),(b,4096,16,75),(b,4096,16),(16,48),(b,4096,48,75)]
   if args.kernel=='read':
     shapes=[(b,4096,8,75),(b,4096,16,8),(b,4096,16,1),(b,4096,16,1,75)]
+  if args.kernel=='chain':
+    shapes=[(b,4096,48,75),(b,4096,16,48),(b,4096,16,75),(b,4096,16),
+            (16,48),(48,16),(32,8),(1200,),(1200,128),(1200,16),(16,),
+            (b,4096,48,75),(b,4096,16,75),(b,4096,1200)]
   x=[jax.ShapeDtypeStruct(s,jnp.bfloat16) for s in shapes]
   results={}
   for mode in args.modes.split(','):
     def reverse(*z):
+      if args.kernel=='chain':
+        fn=lambda *v:write_mlp_read(*v,tile=args.tile)
+        if mode=='forward':return fn(*z[:11])
+        return jax.vjp(fn,*z[:11])[1](tuple(z[11:]))
       if args.kernel=='read':
         fn=(lambda *v:v_read(*v,tile=args.tile)) if mode=='fold_gate' else (lambda *v:c8_read(*v,tile=args.tile,backward=mode))
       else:

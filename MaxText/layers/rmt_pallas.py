@@ -29,9 +29,14 @@ def write_reference(matrix, address, data, gate, static_key, epsilon=1e-6):
 
 def _block_diagonal(x):
   t,rows,cols=x.shape
-  same=jnp.arange(t)[:,None,None,None]==jnp.arange(t)[None,None,:,None]
-  values=jnp.where(same,x.astype(jnp.float32)[:,:,None,:],0)
-  return values.reshape(t*rows,t*cols).astype(x.dtype)
+  blocks=[]
+  for i in range(t):
+    pieces=[]
+    if i:pieces.append(jnp.zeros((rows,i*cols),jnp.float32))
+    pieces.append(x[i].astype(jnp.float32))
+    if i+1<t:pieces.append(jnp.zeros((rows,(t-i-1)*cols),jnp.float32))
+    blocks.append(jnp.concatenate(pieces,axis=1))
+  return jnp.concatenate(blocks,axis=0).astype(x.dtype)
 
 
 def _write_tile(matrix, address, data, gate, static_key, epsilon):

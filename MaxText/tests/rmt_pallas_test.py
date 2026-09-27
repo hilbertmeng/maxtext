@@ -33,8 +33,10 @@ class RmtPallasTest(absltest.TestCase):
       return jnp.mean(out**2),out
     baseline=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
     cfg.get_keys()['rmt_pallas_write']=True
-    with mock.patch.object(rmt_pallas,'write_residual',partial(rmt_pallas.write_residual,interpret=True)):
+    with mock.patch.object(rmt_pallas,'write_residual',
+                           wraps=partial(rmt_pallas.write_residual,interpret=True)) as fused:
       actual=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
+      self.assertGreater(fused.call_count,0)
     for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
       a,b=np.asarray(a),np.asarray(b)
       self.assertTrue(np.isfinite(a).all())

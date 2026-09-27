@@ -252,3 +252,19 @@ Pre-run bet +7–12% versus matched no-health control. Input-fusion microprobe
 does not show an additional remat benefit, so it remains OFF in target runs.
 Token-minor C8 read6cdf790 has passed complete-layer CPU values/all-gradients;
 TPU screening remains pending. Retain the two user-owned v6e diagnostics.
+
+
+Confirmed matched0a3d12f v6e-1 host-1 full6-layer write speed:
+.765331→.844099step/s (+10.29%). Raw device1299.494→1177.431ms;
+formatting−64.71ms, convolution−64.12ms, loop fusion−63.89ms, slice−29.90ms,
+new Pallas custom calls+103.09ms. C8-read6cdf790 alone .815830step/s
+(+6.60% screening versus the0a3d12f control, not same-runtime final comparison).
+
+Key-contiguous external ABI396339d is rejected at micro screening:
+checkpointed reference2.171ms versus Pallas3.150ms; local transposes outweigh
+the hoped-for global-layout benefit. Removing value paddingda0f95a also fails
+TPU compilation. These variants are not promoted into combined training.
+
+Formal original configurationf4fadcd, same target VM: .378066step/s,
+versus direct-layer-scan/no-health control .384497 (+1.70%). This includes
+health/scan changes; separate it from fused-kernel gains.

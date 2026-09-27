@@ -10507,3 +10507,18 @@ class RMTCombinedLayerScanTokenReadWriteSaveStateProfile(RMTCombinedLayerScanTok
 class RMTCombinedLayerScanTokenReadWriteSaveDenseStateProfile(RMTCombinedLayerScanTokenReadWriteProfile):
     model_name = 'RMTCombinedLayerScanTokenReadWriteSaveDenseStateProfile'
     rmt_remat_policy = 'save_dense_state'
+
+
+class RMTCombinedLayerScanLeadingParamsProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanLeadingParamsProfile'
+    param_scan_axis = 0
+
+
+class RMTCombinedLayerScanLeadingParamsL6Profile(RMTCombinedLayerScanLeadingParamsProfile):
+    model_name = 'RMTCombinedLayerScanLeadingParamsL6Profile'
+    base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile(RMTCombinedLayerScanTokenReadWriteProfile):
+    model_name = 'RMTCombinedLayerScanTokenReadWriteLeadingParamsProfile'
+    param_scan_axis = 0

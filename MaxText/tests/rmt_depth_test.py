@@ -17,6 +17,36 @@ class RMTDepthTest(absltest.TestCase):
 
   _config = rmt_mediumprop_test.RMTMediumPropTest._config
 
+  def test_leading_parameter_scan_axis_matches(self):
+    cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
+    cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,
+                          dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3,query_chunk_size=2)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
+    model=models.Transformer(config=cfg,mesh=mesh,quant=None)
+    args=dict(decoder_input_tokens=jnp.array([[1,2,3,4]],jnp.int32),
+              decoder_positions=jnp.arange(4)[None],decoder_target_tokens=jnp.array([[2,3,4,5]],jnp.int32),
+              decoder_target_mask=jnp.ones((1,4),jnp.float32),decoder_segment_ids=jnp.ones((1,4),jnp.int32),
+              enable_dropout=False)
+    def move(p,src,dst):
+      p=jax.tree.map(lambda x:x,p)
+      p['decoder']['layers']=jax.tree.map(lambda x:jnp.moveaxis(x,src,dst),p['decoder']['layers'])
+      return p
+    with contextlib.redirect_stdout(io.StringIO()):
+      params=nn.unbox(model.init(jax.random.key(819),**args)['params'])
+      cfg.get_keys()['param_scan_axis']=0
+      other=nn.unbox(model.init(jax.random.key(819),**args)['params'])
+      for a,b in zip(jax.tree.leaves(move(params,1,0)),jax.tree.leaves(other)):
+        np.testing.assert_array_equal(a,b)
+      leaves,tree=jax.tree.flatten(params)
+      params=tree.unflatten([x+.01*jax.random.normal(jax.random.key(820+i),x.shape) for i,x in enumerate(leaves)])
+      def loss(p):return jnp.mean(model.apply({'params':p},**args)[0])
+      actual=jax.jit(jax.value_and_grad(loss))(move(params,1,0))
+      actual=(actual[0],move(actual[1],0,1))
+      cfg.get_keys()['param_scan_axis']=1
+      baseline=jax.jit(jax.value_and_grad(loss))(params)
+      for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
+        np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=3e-4,atol=2e-6)
+
   def test_selective_remat_matches_full_scan(self):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,

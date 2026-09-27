@@ -6,6 +6,39 @@ parent `ffb40f2d`. Latest matched comparison runtime
 Main `MaxText/exp.py` contains ledger classes; implementation is not merged.
 [Earlier chronological notes](rmt_pallas_history.md) retain unsuccessful prototypes.
 
+## Three-stage NoO implementation (sealed; full-step measurement pending)
+
+Runtime `ebd5ba07fa18d31dd1fc974c1e9a1a0ff04483a9`, same worktree/branch.
+The main trunk now has three Pallas forward programs and three explicit analytic
+pullbacks: attention read (including packed projections, merged static/C8 read,
+QK/V routing and RoPE), attention write plus MLP read (including write-address
+GELU network), and MLP write (including its address/gate network). MHA and MLP
+large GEMMs remain outside. No dynamic O read/gate/injection is instantiated.
+Shared gradients accumulate on chip; existing local arithmetic is reused.
+
+`RMTThreeStageNoOProfile` uses forward128, attention reverse128, middle/write
+reverse32 and48MiB configured scoped VMEM budget. Its v6e B4 sibling uses96MiB.
+`compiler_flags.py` applies the experiment's budget before JAX initialization in
+both train.py and train_compile.py and rejects conflicting environment flags.
+Budget-matched NoO, original FullO RMT and MHA control classes are also sealed.
+These are candidate settings, not claimed optimal block sizes.
+
+Validation: all three forward/reverse kernels compile for v5p B16,T4096;
+three-layer FP32 nonzero-parameter scan gradients match the reference across
+four remat policies; two-device attention shared-gradient test passes. Actual
+v6e BF16 all-gradient maximum relative L2: attention0.00840, middle0.01159,
+MLP-write0.00615. CPU FP32 maxima are below7.3e-7. Standalone checks do not
+establish long-run BF16 training equivalence. Full18 v5p candidate AOT is ready;
+paired full-step throughput is pending. Premeasurement bet: +5–15% versus the
+previous optimized, matching NoO control, to be checked separately on each TPU.
+
+Ownership: retained `llm-jax-v6e-1-0` compiles v5p; retained `llm-jax-v6e-1-1`
+checks actual TPU kernels and compiles v6e. Both are EW4a and must remain allocated.
+No new v5p target lease yet. Local actual-TPU artifacts:
+`/data0/xd/bam_diagnostics/rmt-three-stage-ebd5ba0/`; GCS:
+`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/rmt-three-stage-ebd5ba0/`.
+AOT root: `gs://newproject-1-llm_base_models_us-central1/log/compiled_trainsteps/ebd5ba0/jax081-i0ae3f58-c17f538a/`.
+
 ## VMEM audit: physical capacity, scoped budget and live allocation
 
 2026-09-27 correction: **v5p has64MiB and v6e128MiB per TensorCore**;

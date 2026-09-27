@@ -155,6 +155,27 @@ class RmtPallasTest(absltest.TestCase):
       for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
         np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=4e-4,atol=2e-6)
 
+  def test_two_device_complete_attention_shared_gradients(self):
+    if jax.device_count()!=2:self.skipTest('Requires --xla_force_host_platform_device_count=2')
+    from tests.rmt_attention_read_probe import reference
+    from layers.rmt_pallas_attention_read import attention_read
+    mesh=jax.sharding.Mesh(np.asarray(jax.devices()),('data',))
+    shapes=[(4,4,48,75),(48,48),(32,8),(1200,),(1200,1008),(4,32),(48,)]
+    xs=[jax.random.normal(jax.random.key(2300+i),s) for i,s in enumerate(shapes)]
+    for i in (1,2,4):xs[i]*=.03
+    xs[3]=1+xs[3]*.02;xs[6]=xs[6]*.1-3
+    pos=jnp.broadcast_to(jnp.arange(4)[None,:],(4,4))
+    def evaluate(fn):
+      def loss(*x):
+        out=fn(*x,pos)
+        return sum(jnp.mean(z*z) for z in out),out
+      return jax.jit(jax.value_and_grad(loss,argnums=tuple(range(7)),has_aux=True))(*xs)
+    baseline=evaluate(reference)
+    with mesh,nn.logical_axis_rules((('activation_batch','data'),)):
+      actual=evaluate(partial(attention_read,interpret=True))
+    for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
+      np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=4e-4,atol=2e-6)
+
   def test_two_device_batch_sharding_and_shared_gradients(self):
     if jax.device_count()!=2:self.skipTest('Requires --xla_force_host_platform_device_count=2')
     mesh=jax.sharding.Mesh(np.asarray(jax.devices()),('data',))

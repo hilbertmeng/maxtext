@@ -68,8 +68,8 @@ def _dynamic_backward(address,data,gate,dy,epsilon,method="analytic"):
   ua=[];ud=[]
   if method=='batched':
     # Use independent token contractions on MXU; normalize/gate in token lanes.
-    ua=jnp.einsum('kvt,hvt->hkt',dy,dn,preferred_element_type=jnp.float32).astype(address.dtype)
-    ud=jnp.einsum('kvt,hkt->hvt',dy,gated,preferred_element_type=jnp.float32).astype(data.dtype)
+    ua=jnp.einsum('tkv,thv->thk',dy.transpose(2,0,1),dn.transpose(2,0,1),preferred_element_type=jnp.float32).transpose(1,2,0).astype(address.dtype)
+    ud=jnp.einsum('tkv,thk->thv',dy.transpose(2,0,1),gated.transpose(2,0,1),preferred_element_type=jnp.float32).transpose(1,2,0).astype(data.dtype)
   else:
     for head in range(h):
       d=dn[head];ag=gated[head]

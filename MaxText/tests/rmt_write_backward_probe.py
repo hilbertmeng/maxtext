@@ -12,6 +12,7 @@ from layers.rmt_pallas_minor import write_residual
 def main():
   p=argparse.ArgumentParser()
   p.add_argument('--tokens',type=int,default=8192)
+  p.add_argument('--tile',type=int,default=128)
   p.add_argument('--modes',default='autodiff,analytic,hybrid')
   p.add_argument('--output',required=True)
   args=p.parse_args()
@@ -22,7 +23,7 @@ def main():
   expected=None
   for mode in args.modes.split(','):
     def backward(m,a,d,g,s,dy):
-      _,pb=jax.vjp(lambda *z:write_residual(*z,backward=mode),m,a,d,g,s)
+      _,pb=jax.vjp(lambda *z:write_residual(*z,backward=mode,tile=args.tile),m,a,d,g,s)
       return pb(dy)
     start=time.monotonic()
     compiled=jax.jit(backward).lower(*x).compile()

@@ -6,7 +6,102 @@ parent `ffb40f2d`. Latest matched comparison runtime
 Main `MaxText/exp.py` contains ledger classes; implementation is not merged.
 [Earlier chronological notes](rmt_pallas_history.md) retain unsuccessful prototypes.
 
-## Result and scope
+## VMEM audit: physical capacity, scoped budget and live allocation
+
+2026-09-27 correction: **v5p has64MiB and v6e128MiB per TensorCore**;
+16MiB/32MiB in earlier errors were default scoped compiler budgets, not hardware
+capacities. Both installed JAX `mosaic/tpu_info.py` and the
+[JAX hardware reference](https://docs.jax.dev/en/latest/pallas/tpu/hardware.html)
+confirm the physical capacities. Treating the defaults as hard limits was an
+incorrect constraint on previous tuning. Raised budgets are recorded through
+`LIBTPU_INIT_ARGS=--xla_tpu_scoped_vmem_limit_kib=N`; full-step performance and
+other XLA allocations must still be checked.
+
+Concrete audit of cb549706 complete write/read reverse, v5p B16,T4096,
+DMA/compute tile256, BF16:
+
+| Allocation | Shape/lifetime estimate MiB | Compiler report MiB |
+|---|---:|---:|
+| Three M/cotangent input/output streams, two buffers each |18.000|18.000|
+| Five address/data/head-gradient streams, two buffers each |10.000|10.000|
+| Proxy cotangent + two gate streams |1.500|1.500|
+| FP32 shared-gradient output windows |1.433|1.433|
+| Internal scratch |0.035|0.035|
+| Register allocator spill slots |Must measure after register allocation|34.71|
+| Total scoped allocation |30.968 plus spill storage|65.68|
+
+M's logical token-major `[256,48,75]` window becomes `[256,48,128]` in
+VMEM:3MiB per BF16 copy,6MiB with double buffering. Logical tensor bytes alone
+underestimate it by71%. The separately resident invariant parameters add about
+0.360MiB to ABI accounting, but are not included in that scoped-allocation sum;
+XLA can hoist them. `CompiledMemoryStats.temp_size_in_bytes` is NOT a VMEM-peak
+measurement. Likewise the early scoped-stack check excludes later register
+spills and must not be compared as if it were the final allocated peak.
+
+The original256-token reverse exceeds actual available63.94MiB after register
+allocation. This is not evidence that the fusion itself is impossible: over half
+its final allocation is spill storage. New runtime4b81513c keeps the same
+256-token DMA window and complete fusion, but processes64-token subchunks inside
+one kernel, accumulates completed shared gradients immediately, and aliases the
+HBM matrix-cotangent input/output. (HBM aliasing alone does not prove VMEM DMA
+buffers share storage.) It passes the same v5p target compile with48MiB configured
+scoped budget. FP32 all-output/all-gradient maximum relative L2 is6.22e-7;
+CPU BF16 maximum0.01492. Actual TPU correctness/timing is being measured.
+
+Preliminary cb549706 v6e B4,T4096,96MiB scoped-budget actual micro timings:
+separate forward/backward2.146/3.684ms; token-minor fused1.386/4.159ms;
+whole-compute major1281.382/5.273ms; major2561.381/5.711ms. Larger capacity alone
+has not fixed reverse speed. These are standalone-stage results, not full-step
+training gains. The new inner-chunk implementation is not selected until timed.
+
+Reproduction: `MaxText/tests/rmt_write_reverse_compile.py --kernel chain
+--modes backward --batch 16 --topology v5p-16 --backward-tile 256 --compute-tile 64`;
+`--save-hlo` records HLO and the helper records topology, blocks and compiler
+flags in JSON. `MaxText/tests/rmt_vmem_audit.py` reads post-infer-memref-layout
+Mosaic dumps and reports logical/padded ABI residency separately from spills.
+Local artifacts: `/data0/xd/bam_diagnostics/rmt-vmem-audit/`,
+`rmt-vmem-audit-q256.json`, `rmt-vmem-q256-inner64.json`,
+`rmt-vmem-q256-inner64-budget16.json`, and `rmt-vmem-inner64-{f32,bf16}.json`.
+The budget16 failure in the last comparison reports30.84MiB **early stack**
+allocation; it is not the new kernel's total VMEM peak. Both retained v6e hosts
+remain allocated; no resource release is authorized by this audit.
+
+## Complete attention-write → MLP-read fusion (in progress)
+
+Runtime `832a20e9`, worktree/branch as above. This is the originally proposed
+large fusion, not another isolated read/write kernel. One forward program performs
+attention static/dynamic write plus residual, MLP static read, C8 compression,
+proxy vector RMS/scale, key/gate projections, key RMS, and gated dynamic read.
+One explicit analytic reverse joins all matrix cotangents before differentiating
+the write; no `jax.vjp` is used inside that reverse. Shared projection gradients
+accumulate in FP32 on chip across sequence tiles before their final HBM write.
+The final updated M is still an output/carry and a saved reverse residual.
+
+The first TPU compiler blockers were a BF16 sigmoid lowering bug and a 24.40 MiB
+reverse VMEM allocation exceeding the default v5p scoped budget of 16 MiB (not its physical capacity). These were fixed in this same
+fusion path: explicit FP32 sigmoid evaluation after the original BF16 addition,
+head/rank loops with scoped storage, direct gradient stores, compact gate-weight
+layout, and selective single-buffer DMA. Both forward and reverse now compile
+for actual v5p per-device B16,T4096; v6e B4,T4096 is also a required target.
+No model dimensions or formulas were removed to fit VMEM.
+
+Validation: CPU nonzero FP32 three-layer scan with four remat policies, two-device
+batch sharding/shared gradients, and isolated BF16/FP32 all-output/all-gradient
+checks pass. Latest isolated FP32 maximum relative L2 is 7.14e-7. Earlier retained
+v6e actual-device probe (`efd38b2`, B1,T8192) passed BF16 all gradients (max0.00567).
+Its forward was0.869ms vs1.388ms with separate Pallas/XLA stages. Its old backward
+measurement included necessary forward recomputation and is **not pure reverse
+time**;832a20e fixes the probe by passing pullback residuals as runtime inputs.
+These local results do not establish full-training speed.
+
+Full18 AOT/matched train-step comparison is pending, against both previous selected
+implementation and original RMT/MHA. Retained EW4a hosts `llm-jax-v6e-1-0` and
+`llm-jax-v6e-1-1` remain user-owned and must not be deleted. New classes:
+`RMTCombinedLayerScanFusedWriteReadProfile` and
+`RMTCombinedLayerScanFusedWriteReadV6eB4Profile`; main exp.py records them as ledger
+only. Local artifacts use `/data0/xd/bam_diagnostics/rmt-fused-chain-*`.
+
+## Previously selected result and scope
 
 The selected implementations accelerate complete18-layer training by **22.15%
 on v5p-16** and **17.56% on v6e-1**, against same-VM original RMT controls.
@@ -178,7 +273,7 @@ only≈1% extra over the no-QK fused combination, not the earlier3–6% bet.
 - TPU BF16 multi-tile checks cover every input gradient at production shapes:
   write max relative L2 .00421, C8 .00441; QK post wide-tile checks≤.0063.
 - FP32 multi-tile write passes CPU Pallas interpreter (maxrelative L2 3.585e-7)
-  and earlier single-tile TPU. Multi-tile FP32 TPU backward exceeds32MiB VMEM;
+  and earlier single-tile TPU. Multi-tile FP32 TPU backward exceeded the default32MiB scoped budget;
   tile64 fails DMA alignment. These are resource/layout limits, not a numerical
   disagreement. Production BF16 multi-tile runs pass.
 - Small BF16 loss-trajectory differences exist; short runs do not establish
@@ -372,7 +467,7 @@ and packs all four contraction gradients into a symmetric MXU operation. There
 is no `jax.vjp` inside this new backward. Shared static-key gradients are reduced
 in FP32 partials, with the128-token BF16 rounding boundary retained.
 
-Actual VMEM budgets differ: v5p16MiB, v6e32MiB. Major128 passed an insufficient
+The observed default scoped VMEM budgets were v5p16MiB/v6e32MiB; these are configurable compiler budgets, NOT physical capacities. Physical VMEM is64MiB/128MiB per TensorCore respectively (see the VMEM audit below). Major128 passed an insufficient
 B1 probe but fails at actual B16 (16.38MiB);64 passes full-model v5p AOT and training.
 Major256 requires31.39MiB and has negligible isolated gain over128. All target
 compiles now use actual batch shapes. Local offline probes use isolated

@@ -28,6 +28,9 @@ import time
 import queue
 import re
 
+import compiler_flags
+compiler_flags.configure_from_argv()
+
 from typing import Sequence
 from absl import app
 from flax import linen as nn

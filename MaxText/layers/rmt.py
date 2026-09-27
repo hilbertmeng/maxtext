@@ -108,7 +108,7 @@ class RMTDynamicQK(nn.Module):
   config: common_types.Config
 
   @nn.compact
-  def __call__(self, x, M):
+  def __call__(self, x, M, *, parameters_only=False):
     cfg=self.config
     heads=int(cfg.num_query_heads)
     address_dim=M.shape[-1]
@@ -128,6 +128,9 @@ class RMTDynamicQK(nn.Module):
       gate_bias=self.param(f'{arm}_gate_bias',nn.with_logical_partitioning(_init_gate_bias(.05),('q_heads',)),
                            (heads,),cfg.weight_dtype)
       kernels.extend((mix_kernel,gate_kernel));biases.append(gate_bias)
+    if parameters_only:
+      return tuple(z.astype(x.dtype) for z in
+          (basis_kernel,basis_bias,kernels[1],kernels[2],biases[0],kernels[3],kernels[4],biases[1]))
     projected=_project_many(x,kernels,cfg.get_keys().get('rmt_pack_dynamic_projections',False))
     basis=projected[0].reshape(x.shape[:2]+(rank,address_dim))+basis_bias.astype(x.dtype)
     mixes=[projected[1+2*i].reshape(x.shape[:2]+(heads,rank)) for i in range(2)]
@@ -250,7 +253,7 @@ class RMTDynamicWrite(nn.Module):
   address_dim: int
 
   @nn.compact
-  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None, *, address_only=False):
+  def __call__(self, x, data, matrix=None, static_key=None, padded_value_dim=None, *, address_only=False, parameters_only=False):
     cfg = self.config
     heads = int(cfg.num_query_heads)
     bottleneck = 256
@@ -265,6 +268,19 @@ class RMTDynamicWrite(nn.Module):
                              (cfg.emb_dim, heads), cfg.weight_dtype)
     gate_bias = self.param('gate_bias', nn.with_logical_partitioning(_init_gate_bias(.1), ('q_heads',)),
                            (heads,), cfg.weight_dtype)
+    if parameters_only:
+      return tuple(w.astype(x.dtype) for w in (down,up,up_bias,gate_kernel,gate_bias))
+    if (self.name=='dynamic_mlp_write' and cfg.get_keys().get('rmt_fused_projected_mlp_write',False)
+        and matrix is not None and not self.is_initializing()):
+      if cfg.rmt_record_dynamic_health or self.address_dim!=48 or padded_value_dim:
+        raise ValueError('Projected write fusion requires unpadded Full48 and health OFF')
+      from layers.rmt_pallas_projected_write import projected_write
+      output=projected_write(matrix,x,data,static_key,down.astype(x.dtype),up.astype(x.dtype),
+          up_bias.astype(x.dtype),gate_kernel.astype(x.dtype),gate_bias.astype(x.dtype),
+          cfg.normalization_layer_epsilon,
+          forward_tile=cfg.get_keys().get('rmt_projected_write_forward_tile',128),
+          reverse_tile=cfg.get_keys().get('rmt_projected_write_reverse_tile',32))
+      return output,None
     hidden,gate_logits = _project_many(x,(down,gate_kernel),cfg.get_keys().get('rmt_pack_dynamic_projections',False))
     hidden = nn.gelu(hidden)
     address = jnp.einsum('btr,rd->btd', hidden, up.astype(x.dtype))
@@ -388,10 +404,39 @@ class RMTLayer(nn.Module):
     attn_in = (matrix if vector_pre_norm else
                MatrixRMSNorm(cfg, name='attn_norm')(matrix))
     qkv_key = self.param('qkv_key', key_init, (3, heads, key_dim), cfg.weight_dtype)
-    if not joined_read:
+    fused_attention=bool(cfg.get_keys().get('rmt_fused_attention_read',False))
+    if fused_attention and (not dynamic or not vector_pre_norm or dynamic_o_enabled
+                            or joined_read or padded_value_dim or rope_qk_dim!=18
+                            or cfg.rmt_record_dynamic_health):
+      raise ValueError('Complete attention fusion requires NoO vector norm, RoPE18 and health OFF')
+    fused_attention=fused_attention and not self.is_initializing()
+    read_start=heads
+    if fused_attention:
+      proxy=attn_in[...,:heads,:].reshape(attn_in.shape[:2]+(cfg.emb_dim,))
+      scale=RMTVectorNormParameters(cfg,name='attn_vector_norm')()
+      tail=jnp.swapaxes(attn_in[...,heads:,:],-2,-1)
+      bw,bb,qm,qg,qb,km,kg,kb=RMTDynamicQK(cfg,name='dynamic_qk')(proxy,tail,parameters_only=True)
+      compression,vk,vg,vb=RMTDynamicC8Read(cfg,destinations=1,name='dynamic_vo')(
+          proxy,tail,parameters_only=True)
+      rope_kernels=[]
+      for arm in ('q','k'):
+        rope_kernels.append(self.param(f'{arm}_rope_kernel',
+            nn.with_logical_partitioning(initializers.get_init_method(cfg.init_method),('embed',None)),
+            (cfg.emb_dim,heads*rope_qk_dim),cfg.weight_dtype).astype(cfg.dtype))
+      packed=jnp.concatenate((bw,qm,km,qg,kg,vk.astype(cfg.dtype),vg.astype(cfg.dtype),*rope_kernels),axis=1)
+      gate_bias=jnp.concatenate((qb,kb,vb[:,0].astype(cfg.dtype)))
+      from layers.rmt_pallas_attention_read import attention_read
+      qkv,attn_x=attention_read(attn_in,qkv_key.reshape(3*heads,key_dim).astype(cfg.dtype),
+          compression.astype(cfg.dtype),scale,packed,bb,gate_bias,positions,
+          cfg.normalization_layer_epsilon,_read_epsilon(cfg),rope_qk_dim,
+          cfg.rope_min_timescale,cfg.rope_max_timescale,
+          forward_tile=cfg.get_keys().get('rmt_attention_read_forward_tile',128),
+          reverse_tile=cfg.get_keys().get('rmt_attention_read_reverse_tile',128))
+      query,key,value=qkv[...,:heads,:],qkv[...,heads:2*heads,:],qkv[...,2*heads:,:]
+    if not joined_read and not fused_attention:
       qkv = jnp.einsum('btkv,ank->abtnv', attn_in, qkv_key.astype(cfg.dtype))
       query, key, value = (qkv[i][..., :value_dim] for i in range(3))
-    if dynamic:
+    if dynamic and not fused_attention:
       attn_x = attn_in[..., :heads, :value_dim].reshape(attn_in.shape[:2] + (cfg.emb_dim,))
       if vector_pre_norm:
         attn_x = normalizations.get_rmsnorm('attn_vector_norm', cfg)(attn_x)
@@ -435,7 +480,7 @@ class RMTLayer(nn.Module):
               name=f'{arm}_rope')(projected, positions))
         query = jnp.concatenate((query[..., :-rope_qk_dim], rope_qk[0]), axis=-1)
         key = jnp.concatenate((key[..., :-rope_qk_dim], rope_qk[1]), axis=-1)
-    query = query / math.sqrt(value_dim)
+    if not fused_attention:query = query / math.sqrt(value_dim)
     t = matrix.shape[1]
     chunk = int(cfg.query_chunk_size)
     assert t % chunk == 0
@@ -486,21 +531,32 @@ class RMTLayer(nn.Module):
                         or joined_read or padded_value_dim or cfg.rmt_record_dynamic_health):
       raise ValueError('Fused write/read requires Full48 vector norm, unpadded state, health OFF')
     if fused_stage and not self.is_initializing():
-      address,attn_write_gate=RMTDynamicWrite(cfg,write_rows,name='dynamic_attn_write')(
-          attn_x,head_output,address_only=True)
+      full_projection=bool(cfg.get_keys().get('rmt_fused_write_read_projection',False))
+      write_parameters=RMTDynamicWrite(cfg,write_rows,name='dynamic_attn_write')(
+          attn_x,head_output,address_only=not full_projection,parameters_only=full_projection)
       mlp_read=self.param('mlp_read_key',key_init,(key_dim,heads),cfg.weight_dtype)
       scale=RMTVectorNormParameters(cfg,name='mlp_vector_norm')()
       compression,wk,wg,bias=RMTDynamicC8Read(cfg,destinations=1,name='dynamic_mlp_read')(
           attn_x,jnp.swapaxes(matrix[...,heads:,:],-2,-1),parameters_only=True)
-      from layers.rmt_pallas_write_read import write_mlp_read
-      matrix,vector,mlp_x=write_mlp_read(
-          matrix,address,head_output,attn_write_gate,attn_write.astype(cfg.dtype),
-          mlp_read.astype(cfg.dtype),compression.astype(cfg.dtype),scale,
-          wk.astype(cfg.dtype),wg.astype(cfg.dtype),bias[...,0].astype(cfg.dtype),
-          cfg.normalization_layer_epsilon,_read_epsilon(cfg),
-          tile=cfg.get_keys().get('rmt_fused_write_read_tile',128),
-          buffers=cfg.get_keys().get('rmt_fused_write_read_buffers',1),
-          backward_tile=cfg.get_keys().get('rmt_fused_write_read_backward_tile',0))
+      read_parameters=(mlp_read.astype(cfg.dtype),compression.astype(cfg.dtype),scale,
+                       wk.astype(cfg.dtype),wg.astype(cfg.dtype),bias[...,0].astype(cfg.dtype))
+      if full_projection:
+        from layers.rmt_pallas_full_write_read import full_write_read
+        matrix,vector,mlp_x=full_write_read(
+            matrix,attn_x,head_output,attn_write.astype(cfg.dtype),*write_parameters,*read_parameters,
+            cfg.normalization_layer_epsilon,_read_epsilon(cfg),
+            forward_tile=cfg.get_keys().get('rmt_fused_write_read_tile',128),
+            reverse_tile=cfg.get_keys().get('rmt_fused_write_read_backward_tile',32))
+      else:
+        from layers.rmt_pallas_write_read import write_mlp_read
+        address,attn_write_gate=write_parameters
+        matrix,vector,mlp_x=write_mlp_read(
+            matrix,address,head_output,attn_write_gate,attn_write.astype(cfg.dtype),*read_parameters,
+            cfg.normalization_layer_epsilon,_read_epsilon(cfg),
+            tile=cfg.get_keys().get('rmt_fused_write_read_tile',128),
+            buffers=cfg.get_keys().get('rmt_fused_write_read_buffers',1),
+            backward_tile=cfg.get_keys().get('rmt_fused_write_read_backward_tile',0),
+            backward_compute_tile=cfg.get_keys().get('rmt_fused_write_read_compute_tile',0))
       if cfg.get_keys().get('rmt_remat_policy','full') in ('save_dense_state','save_state','save_state_mlp','save_state_dynamic'):
         matrix=ad_checkpoint.checkpoint_name(matrix,'rmt_mlp_matrix')
     else:

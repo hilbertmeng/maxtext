@@ -10855,3 +10855,55 @@ class RMTCombinedLayerScanMajorDirectWriteNoOProfile(RMTCombinedLayerScanMajorDi
     """Matched NoO control with the prior selected v5p local kernels."""
     model_name = 'RMTCombinedLayerScanMajorDirectWriteNoOProfile'
     rmt_dynamic_o_enabled = False
+
+
+class RMTThreeStageNoOProfile(RMTCombinedLayerScanFusedWriteReadNoOProfile):
+    """Complete three-stage Pallas trunk; NoO, analytic reverse, health OFF."""
+    model_name = 'RMTThreeStageNoOProfile'
+    rmt_fused_attention_read = True
+    rmt_fused_write_read_projection = True
+    rmt_fused_projected_mlp_write = True
+    rmt_attention_read_forward_tile = 128
+    rmt_attention_read_reverse_tile = 128
+    rmt_projected_write_forward_tile = 128
+    rmt_projected_write_reverse_tile = 32
+    rmt_scoped_vmem_limit_kib = 49152
+
+
+class RMTThreeStageNoOV6eB4Profile(RMTThreeStageNoOProfile):
+    model_name = 'RMTThreeStageNoOV6eB4Profile'
+    per_device_batch_size = 4.0
+    rmt_scoped_vmem_limit_kib = 98304
+
+
+class RMTThreeStageNoOControlProfile(RMTCombinedLayerScanMajorDirectWriteNoOProfile):
+    """Prior optimized NoO, matching the new v5p compiler budget."""
+    model_name = 'RMTThreeStageNoOControlProfile'
+    rmt_scoped_vmem_limit_kib = 49152
+
+
+class RMTThreeStageNoOControlV6eB4Profile(RMTCombinedLayerScanTokenAllSaveStateNoOFoldVV6eB4Profile):
+    model_name = 'RMTThreeStageNoOControlV6eB4Profile'
+    rmt_scoped_vmem_limit_kib = 98304
+
+
+class RMTThreeStageOriginalControlProfile(RMTOriginalBlockScanNoHealthProfile):
+    model_name = 'RMTThreeStageOriginalControlProfile'
+    rmt_scoped_vmem_limit_kib = 49152
+
+
+class RMTThreeStageOriginalControlV6eB4Profile(RMTThreeStageOriginalControlProfile):
+    model_name = 'RMTThreeStageOriginalControlV6eB4Profile'
+    per_device_batch_size = 4.0
+    rmt_scoped_vmem_limit_kib = 98304
+
+
+class RMTThreeStageMHAControlProfile(RMTMatchedMHARoPENoHealthProfile):
+    model_name = 'RMTThreeStageMHAControlProfile'
+    rmt_scoped_vmem_limit_kib = 49152
+
+
+class RMTThreeStageMHAControlV6eB4Profile(RMTThreeStageMHAControlProfile):
+    model_name = 'RMTThreeStageMHAControlV6eB4Profile'
+    per_device_batch_size = 4.0
+    rmt_scoped_vmem_limit_kib = 98304

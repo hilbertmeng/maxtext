@@ -14,6 +14,8 @@ from layers.rmt_pallas_minor_read import c8_read
 from layers.rmt_pallas_v_read import v_read
 from layers.rmt_pallas_write_read import write_mlp_read
 from layers.rmt_pallas_projected_write import projected_write
+from layers.rmt_pallas_full_write_read import full_write_read
+from layers.rmt_pallas_attention_read import attention_read
 
 
 def main():
@@ -21,7 +23,7 @@ def main():
   p.add_argument('--topology',default='v5p-16')
   p.add_argument('--batch',type=int,default=16)
   p.add_argument('--modes',default='autodiff,joint_major')
-  p.add_argument('--kernel',choices=['write','read','chain','projected'],default='write')
+  p.add_argument('--kernel',choices=['write','read','chain','projected','full','attention'],default='write')
   p.add_argument('--tile',type=int,default=128)
   p.add_argument('--backward-tile',type=int,default=0)
   p.add_argument('--compute-tile',type=int,default=0)
@@ -44,10 +46,27 @@ def main():
   if args.kernel=='projected':
     shapes=[(b,4096,48,75),(b,4096,1200),(b,4096,16,75),(16,48),
             (1200,256),(256,768),(16,48),(1200,16),(16,),(b,4096,48,75)]
+  if args.kernel=='full':
+    shapes=[(b,4096,48,75),(b,4096,1200),(b,4096,16,75),(16,48),
+            (1200,256),(256,768),(16,48),(1200,16),(16,),(48,16),(32,8),
+            (1200,),(1200,128),(1200,16),(16,),
+            (b,4096,48,75),(b,4096,16,75),(b,4096,1200)]
+  if args.kernel=='attention':
+    shapes=[(b,4096,48,75),(48,48),(32,8),(1200,),(1200,1008),(4,32),(48,),
+            (b,4096),(b,4096,48,75),(b,4096,1200)]
   x=[jax.ShapeDtypeStruct(s,jnp.bfloat16) for s in shapes]
+  if args.kernel=='attention':x[7]=jax.ShapeDtypeStruct(shapes[7],jnp.int32)
   results={}
   for mode in args.modes.split(','):
     def reverse(*z):
+      if args.kernel=='attention':
+        fn=lambda *v:attention_read(*v,z[7],forward_tile=args.tile,reverse_tile=args.backward_tile or 128)
+        if mode=='forward':return fn(*z[:7])
+        return jax.vjp(fn,*z[:7])[1](tuple(z[8:]))
+      if args.kernel=='full':
+        fn=lambda *v:full_write_read(*v,forward_tile=args.tile,reverse_tile=args.backward_tile or 32)
+        if mode=='forward':return fn(*z[:15])
+        return jax.vjp(fn,*z[:15])[1](tuple(z[15:]))
       if args.kernel=='projected':
         fn=lambda *v:projected_write(*v,forward_tile=args.tile,reverse_tile=args.backward_tile or 32)
         if mode=='forward':return fn(*z[:-1])

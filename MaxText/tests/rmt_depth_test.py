@@ -76,8 +76,12 @@ class RMTDepthTest(absltest.TestCase):
   def test_chunked_fused_write_read_scan_remat_matches_original(self):
     self._check_fused_scan_remat('autodiff', whole_stage=True, stage_chunk=64)
 
-  def _check_fused_scan_remat(self, backward, no_o=False, whole_stage=False, stage_chunk=0):
+  def test_three_stage_noo_scan_remat_matches_reference(self):
+    self._check_fused_scan_remat('autodiff',no_o=True,whole_stage=True,stage_chunk=32,three_stage=True)
+
+  def _check_fused_scan_remat(self, backward, no_o=False, whole_stage=False, stage_chunk=0,three_stage=False):
     from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk, rmt_pallas_v_read, rmt_pallas_write_read
+    from layers import rmt_pallas_attention_read, rmt_pallas_full_write_read, rmt_pallas_projected_write
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
     cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,
                           dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3,query_chunk_size=2)
@@ -98,6 +102,9 @@ class RMTDepthTest(absltest.TestCase):
                             rmt_pallas_c8=True,rmt_pallas_qk_post=True,rmt_pack_dynamic_projections=True,
                             rmt_pallas_write_backward=backward,rmt_pallas_v_only=no_o,
                             rmt_fused_write_mlp_read=whole_stage,
+                            rmt_fused_attention_read=three_stage,
+                            rmt_fused_write_read_projection=three_stage,
+                            rmt_fused_projected_mlp_write=three_stage,
                             rmt_fused_write_read_backward_tile=stage_chunk)
       with mock.patch.object(rmt_pallas_minor,'write_residual',
                              wraps=partial(rmt_pallas_minor.write_residual,interpret=True)), \
@@ -107,6 +114,12 @@ class RMTDepthTest(absltest.TestCase):
                              wraps=partial(rmt_pallas_minor_qk.qk_post,interpret=True)), \
            mock.patch.object(rmt_pallas_v_read,'v_read',
                              wraps=partial(rmt_pallas_v_read.v_read,interpret=True)), \
+           mock.patch.object(rmt_pallas_attention_read,'attention_read',
+                             wraps=partial(rmt_pallas_attention_read.attention_read,interpret=True)) as attention_mock, \
+           mock.patch.object(rmt_pallas_full_write_read,'full_write_read',
+                             wraps=partial(rmt_pallas_full_write_read.full_write_read,interpret=True)) as full_mock, \
+           mock.patch.object(rmt_pallas_projected_write,'projected_write',
+                             wraps=partial(rmt_pallas_projected_write.projected_write,interpret=True)) as write_mock, \
            mock.patch.object(rmt_pallas_write_read,'write_mlp_read',
                              wraps=partial(rmt_pallas_write_read.write_mlp_read,interpret=True)) as stage_mock:
         for policy in ('full','save_state','save_state_mlp','save_state_dynamic'):
@@ -115,7 +128,9 @@ class RMTDepthTest(absltest.TestCase):
           for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
             self.assertTrue(np.isfinite(np.asarray(a)).all())
             np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=4e-4,atol=3e-6)
-        if whole_stage:self.assertTrue(stage_mock.called)
+        if three_stage:
+          self.assertTrue(attention_mock.called and full_mock.called and write_mock.called)
+        elif whole_stage:self.assertTrue(stage_mock.called)
 
   def test_leading_parameter_scan_axis_matches(self):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')

@@ -29,10 +29,46 @@ def matmul(a,b):
   return jnp.matmul(a,b,preferred_element_type=jnp.float32).astype(a.dtype)
 
 
+def pack_proxy(x):
+  q,h,v=x.shape;vp=((v+127)//128)*128
+  if vp!=128:raise ValueError('Compact proxy currently requires V <= 128')
+  padded=jnp.pad(x,((0,0),(0,0),(0,128-v))).astype(jnp.float32)
+  lane=jnp.arange(128);blocks=[]
+  for start in range(0,h*v,128):
+    index=start+lane
+    out=jnp.zeros((q,128),jnp.float32)
+    for head in range(start//v,min(h,(start+127)//v+1)):
+      source=jax.lax.slice_in_dim(padded,head,head+1,axis=1).reshape(q,128)
+      valid=(index>=head*v)&(index<(head+1)*v)
+      take=jnp.where(valid,index-head*v,0)
+      part=jnp.take_along_axis(source,jnp.broadcast_to(take[None,:],source.shape),axis=1)
+      out=out+jnp.where(valid[None,:],part,0)
+    blocks.append(out.astype(x.dtype))
+  return jnp.concatenate(blocks,axis=1)[:,:h*v]
+
+
+def unpack_proxy(x,h,v):
+  q=x.shape[0];vp=((v+127)//128)*128
+  if vp!=128:raise ValueError('Compact proxy currently requires V <= 128')
+  padded=jnp.pad(x,((0,0),(0,((h*v+127)//128)*128-h*v)))
+  lane=jnp.arange(128);heads=[]
+  for head in range(h):
+    index=head*v+lane
+    out=jnp.zeros((q,128),jnp.float32)
+    for block in range((head*v)//128,((head+1)*v-1)//128+1):
+      source=jax.lax.slice_in_dim(padded,block*128,(block+1)*128,axis=1).astype(jnp.float32)
+      valid=(lane<v)&(index>=block*128)&(index<(block+1)*128)
+      take=jnp.where(valid,index-block*128,0)
+      part=jnp.take_along_axis(source,jnp.broadcast_to(take[None,:],source.shape),axis=1)
+      out=out+jnp.where(valid[None,:],part,0)
+    heads.append(out)
+  return jnp.stack(heads,axis=1)[...,:v].astype(x.dtype)
+
+
 def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon):
   q,k,v=m.shape;h=d.shape[1];rank=c.shape[1]
   vp=((v+127)//128)*128
-  raw=jnp.pad(m[:,:h,:],((0,0),(0,0),(0,vp-v))).reshape(q,h*vp)
+  raw=pack_proxy(m[:,:h,:])
   f=raw.astype(jnp.float32)
   inv=jax.lax.rsqrt(jnp.sum(f*f,axis=-1,keepdims=True)/(h*v)+epsilon)
   normalized=(f*inv).astype(m.dtype)
@@ -75,7 +111,7 @@ def reverse(m,a,d,g,s,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon):
   dscale=jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32).T,axis=1)[None,:]
   u=(dx*scale[None,:]).astype(m.dtype).astype(jnp.float32)
   draw=((u-f*jnp.sum(u*f,axis=-1,keepdims=True)/(h*v)*inv*inv)*inv).astype(m.dtype)
-  draw=draw.reshape(q,h,vp)[...,:v]
+  draw=unpack_proxy(draw,h,v)
   dm=(dm+jnp.concatenate((draw,dmtail),axis=1)).astype(m.dtype)
   da,dd,dg_write,ds=joint(a,d,g,s,dm,epsilon,gate_layout='major')
   return dm,da,dd,dg_write,ds,dr,dcompression,dscale,dwk,dwg,db
@@ -87,17 +123,6 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile):
   cotangents=tuple(x.transpose(0,3,1,2) if i<2 else x.transpose(0,2,1)
                    for i,x in enumerate(cotangents))
   b,t=args[0].shape[:2];tile=min(tile,t)
-  h,v=args[2].shape[2:];vp=((v+127)//128)*128
-  def pad_features(x,axis):
-    shape=x.shape[:axis]+(h,v)+x.shape[axis+1:]
-    pads=[(0,0)]*len(shape);pads[axis+1]=(0,vp-v)
-    return jnp.pad(x.reshape(shape),pads).reshape(x.shape[:axis]+(h*vp,)+x.shape[axis+1:])
-  def crop_features(x,axis):
-    shape=x.shape[:axis]+(h,vp)+x.shape[axis+1:]
-    return jax.lax.slice_in_dim(x.reshape(shape),0,v,axis=axis+1).reshape(x.shape[:axis]+(h*v,)+x.shape[axis+1:])
-  args=list(args)
-  for i,axis in ((7,0),(8,0),(9,1)):args[i]=pad_features(args[i],axis)
-  cotangents=(*cotangents[:2],pad_features(cotangents[2],2))
   if t%tile:raise ValueError('Reverse token chunk must divide sequence length')
   def spec(x):return pl.BlockSpec((None,tile)+x.shape[2:],lambda b,i:(b,i)+(0,)*(x.ndim-2))
   inp=[spec(x) if i<4 else pl.BlockSpec(x.shape,lambda b,i,ndim=x.ndim:(0,)*ndim)
@@ -122,5 +147,4 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile):
   gradients=[x.transpose(0,2,3,1) if i<3 else x.transpose(0,2,1) if i==3 else
              jnp.sum(x,axis=0).reshape(args[i].shape).astype(args[i].dtype)
              for i,x in enumerate(gradients)]
-  for i,axis in ((7,0),(8,0),(9,1)):gradients[i]=crop_features(gradients[i],axis)
   return tuple(gradients)

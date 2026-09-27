@@ -10836,3 +10836,22 @@ class RMTCombinedLayerScanFusedWriteReadChunk64V6eB4Profile(RMTCombinedLayerScan
 class RMTCombinedLayerScanFusedWriteReadChunk128V6eB4Profile(RMTCombinedLayerScanFusedWriteReadV6eB4Profile):
     model_name = 'RMTCombinedLayerScanFusedWriteReadChunk128V6eB4Profile'
     rmt_fused_write_read_backward_tile = 128
+
+
+class RMTCombinedLayerScanFusedWriteReadNoOProfile(RMTCombinedLayerScanFusedWriteReadChunk32Profile):
+    """Default architecture for the three-stage fusion work: no dynamic LocalO."""
+    model_name = 'RMTCombinedLayerScanFusedWriteReadNoOProfile'
+    rmt_dynamic_o_enabled = False
+    rmt_pallas_v_only = True
+
+
+class RMTCombinedLayerScanFusedWriteReadNoOV6eB4Profile(RMTCombinedLayerScanFusedWriteReadChunk32V6eB4Profile):
+    model_name = 'RMTCombinedLayerScanFusedWriteReadNoOV6eB4Profile'
+    rmt_dynamic_o_enabled = False
+    rmt_pallas_v_only = True
+
+
+class RMTCombinedLayerScanMajorDirectWriteNoOProfile(RMTCombinedLayerScanMajorDirectWriteProfile):
+    """Matched NoO control with the prior selected v5p local kernels."""
+    model_name = 'RMTCombinedLayerScanMajorDirectWriteNoOProfile'
+    rmt_dynamic_o_enabled = False

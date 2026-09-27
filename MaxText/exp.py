@@ -10712,3 +10712,13 @@ class RMTCombinedLayerScanJointWriteProfile(RMTCombinedLayerScanAnalyticWritePro
 class RMTCombinedLayerScanJointWriteV6eB4Profile(RMTCombinedLayerScanJointWriteProfile):
     model_name = 'RMTCombinedLayerScanJointWriteV6eB4Profile'
     per_device_batch_size = 4.0
+
+
+class RMTCombinedLayerScanBatched32WriteProfile(RMTCombinedLayerScanBatchedWriteProfile):
+    model_name = 'RMTCombinedLayerScanBatched32WriteProfile'
+    rmt_pallas_write_backward = 'batched32'
+
+
+class RMTCombinedLayerScanJoint32WriteProfile(RMTCombinedLayerScanJointWriteProfile):
+    model_name = 'RMTCombinedLayerScanJoint32WriteProfile'
+    rmt_pallas_write_backward = 'joint32'

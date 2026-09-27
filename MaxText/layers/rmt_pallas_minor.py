@@ -59,7 +59,13 @@ def _analytic_backward(address,data,gate,static_key,dy,epsilon,method="analytic"
   return ga,(gd+static_dd).astype(data.dtype),gg,ds
 
 
-def _joint_backward(address,data,gate,static_key,dy,epsilon):
+def _batch_dot_chunks(lhs,rhs,equation,chunk):
+  """Bound temporary MXU packing storage while retaining 128-token DMA tiles."""
+  return jnp.concatenate([jnp.einsum(equation,lhs[i:i+chunk],rhs[i:i+chunk],
+      preferred_element_type=jnp.float32) for i in range(0,lhs.shape[0],chunk)],axis=0)
+
+
+def _joint_backward(address,data,gate,static_key,dy,epsilon,chunk=128):
   """Four write contractions in one per-token 128-wide MXU operation."""
   h,k,t=address.shape;v=data.shape[1]
   an=_norm(address,epsilon);dn=_norm(data,epsilon)
@@ -72,7 +78,7 @@ def _joint_backward(address,data,gate,static_key,dy,epsilon):
   static_data=jnp.concatenate((jnp.broadcast_to(static_key[None,:,:],(t,h,k)),jnp.zeros((t,h,v),data.dtype)),axis=2)
   static_key_input=jnp.concatenate((jnp.zeros((t,h,k),data.dtype),data.transpose(2,0,1)),axis=2)
   left=jnp.concatenate((dynamic,static_data,static_key_input),axis=1)
-  product=jnp.einsum('thd,tdc->thc',left,square,preferred_element_type=jnp.float32).transpose(1,2,0)
+  product=_batch_dot_chunks(left,square,'thd,tdc->thc',chunk).transpose(1,2,0)
   ua=product[:h,:k,:].astype(address.dtype)
   ud=product[:h,k:,:].astype(data.dtype)
   sd=product[h:2*h,k:,:].astype(data.dtype)
@@ -102,10 +108,11 @@ def _dynamic_backward(address,data,gate,dy,epsilon,method="analytic"):
     both=jnp.einsum('thd,tdc->thc',left,square,preferred_element_type=jnp.float32).transpose(1,2,0)
     ua=both[:,:k,:].astype(address.dtype)
     ud=both[:,k:,:].astype(data.dtype)
-  elif method=='batched':
+  elif method in ('batched','batched32'):
     # Use independent token contractions on MXU; normalize/gate in token lanes.
-    ua=jnp.einsum('tkv,thv->thk',dy.transpose(2,0,1),dn.transpose(2,0,1),preferred_element_type=jnp.float32).transpose(1,2,0).astype(address.dtype)
-    ud=jnp.einsum('tkv,thk->thv',dy.transpose(2,0,1),gated.transpose(2,0,1),preferred_element_type=jnp.float32).transpose(1,2,0).astype(data.dtype)
+    chunk=32 if method=='batched32' else dy.shape[-1]
+    ua=_batch_dot_chunks(dy.transpose(2,0,1),dn.transpose(2,0,1),'tkv,thv->thk',chunk).transpose(1,2,0).astype(address.dtype)
+    ud=_batch_dot_chunks(dy.transpose(2,0,1),gated.transpose(2,0,1),'tkv,thk->thv',chunk).transpose(1,2,0).astype(data.dtype)
   else:
     for head in range(h):
       d=dn[head];ag=gated[head]
@@ -176,9 +183,9 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
         name='rmt_token_minor_dynamic_write_backward')(a,d,g,dy,static_dd)
     return dy,da,dd,dg,ds
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
-    if backward=='joint':
-      ga,gd,gg,gs=_joint_backward(a[...],d[...],g[...],s[...],dy[...],epsilon)
-    elif backward in ('analytic','batched','symmetric'):
+    if backward in ('joint','joint32'):
+      ga,gd,gg,gs=_joint_backward(a[...],d[...],g[...],s[...],dy[...],epsilon,32 if backward=='joint32' else tile)
+    elif backward in ('analytic','batched','batched32','symmetric'):
       ga,gd,gg,gs=_analytic_backward(a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],
                                    g[...],s[...],dy[...].swapaxes(0,1) if key_contiguous else dy[...],epsilon,backward)
     else:
@@ -201,7 +208,7 @@ _write.defvjp(_fwd,_bwd)
 
 
 def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=128,key_contiguous=False,backward="autodiff"):
-  if backward not in ("autodiff","analytic","hybrid","batched","symmetric","joint","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
+  if backward not in ("autodiff","analytic","hybrid","batched","batched32","symmetric","joint","joint32","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
   unbatched=matrix.ndim==3
   if unbatched:
     matrix,address,data,gate=(x[None] for x in (matrix,address,data,gate))

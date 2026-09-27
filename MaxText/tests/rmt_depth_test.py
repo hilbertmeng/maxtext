@@ -1,6 +1,8 @@
 """Focused checks for uniform-width RMT layer scan and its health export."""
 import contextlib
 import io
+from functools import partial
+from unittest import mock
 
 from absl.testing import absltest
 from flax import linen as nn
@@ -16,6 +18,36 @@ import rmt_mediumprop_test
 class RMTDepthTest(absltest.TestCase):
 
   _config = rmt_mediumprop_test.RMTMediumPropTest._config
+
+  def test_fused_scan_remat_matches_original(self):
+    from layers import rmt_pallas_minor, rmt_pallas_minor_read
+    cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
+    cfg.get_keys().update(num_decoder_layers=3,base_num_decoder_layers=3,
+                          dtype=jnp.float32,rmt_mlp_dim_by_block=[128]*3,query_chunk_size=2)
+    mesh=jax.sharding.Mesh(max_utils.create_device_mesh(cfg),cfg.mesh_axes)
+    model=models.Transformer(config=cfg,mesh=mesh,quant=None)
+    args=dict(decoder_input_tokens=jnp.array([[1,2,3,4]],jnp.int32),
+              decoder_positions=jnp.arange(4)[None],decoder_target_tokens=jnp.array([[2,3,4,5]],jnp.int32),
+              decoder_target_mask=jnp.ones((1,4),jnp.float32),decoder_segment_ids=jnp.ones((1,4),jnp.int32),
+              enable_dropout=False)
+    with contextlib.redirect_stdout(io.StringIO()):
+      params=nn.unbox(model.init(jax.random.key(829),**args)['params'])
+      leaves,tree=jax.tree.flatten(params)
+      params=tree.unflatten([x+.01*jax.random.normal(jax.random.key(830+i),x.shape) for i,x in enumerate(leaves)])
+      def loss(p):return jnp.mean(model.apply({'params':p},**args)[0])
+      baseline=jax.jit(jax.value_and_grad(loss))(params)
+      cfg.get_keys().update(rmt_pallas_write=True,rmt_pallas_write_layout='token_minor',
+                            rmt_pallas_c8=True,rmt_pack_dynamic_projections=True)
+      with mock.patch.object(rmt_pallas_minor,'write_residual',
+                             wraps=partial(rmt_pallas_minor.write_residual,interpret=True)), \
+           mock.patch.object(rmt_pallas_minor_read,'c8_read',
+                             wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)):
+        for policy in ('full','save_state','save_state_mlp'):
+          cfg.get_keys()['rmt_remat_policy']=policy
+          actual=jax.jit(jax.value_and_grad(loss))(params)
+          for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
+            self.assertTrue(np.isfinite(np.asarray(a)).all())
+            np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=4e-4,atol=3e-6)
 
   def test_leading_parameter_scan_axis_matches(self):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')

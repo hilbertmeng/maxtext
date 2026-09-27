@@ -164,10 +164,20 @@ def _c8_tile(matrix,key,compression,gates,epsilon):
   compressed=jnp.dot(padded.reshape(t*vp,c),compression,
                      preferred_element_type=jnp.float32).astype(matrix.dtype)
   compressed=compressed.reshape(t,vp,r).transpose(0,2,1)
-  blocked=_block_diagonal(_rms(key,epsilon))
-  read=jnp.dot(blocked,compressed.reshape(t*r,vp),
-               preferred_element_type=jnp.float32).astype(matrix.dtype)
-  read=read.reshape(t,h,vp)[...,:v]
+  if os.environ.get('RMT_PALLAS_C8_IMPL','mxu')=='vpu':
+    normkey=_rms(key,epsilon).astype(jnp.float32)
+    compressed=compressed.astype(jnp.float32)
+    accum=jnp.zeros((h,vp,t),jnp.float32)
+    for channel in range(r):
+      a=jax.lax.slice_in_dim(normkey,channel,channel+1,axis=2).reshape(t,h).T
+      b=jax.lax.slice_in_dim(compressed,channel,channel+1,axis=1).reshape(t,vp).T
+      accum=accum+a[:,None,:]*b[None,:,:]
+    read=accum.transpose(2,0,1).astype(matrix.dtype)[...,:v]
+  else:
+    blocked=_block_diagonal(_rms(key,epsilon))
+    read=jnp.dot(blocked,compressed.reshape(t*r,vp),
+                 preferred_element_type=jnp.float32).astype(matrix.dtype)
+    read=read.reshape(t,h,vp)[...,:v]
   return ((.2*gates).astype(jnp.float32)[...,None]*
           read.astype(jnp.float32)[:,:,None,:]).astype(matrix.dtype)
 

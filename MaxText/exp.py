@@ -11079,3 +11079,14 @@ class RMTThreeStageMiddleNativeSavedV6eB4Profile(RMTThreeStageMiddleRecomputeSav
     """Save middle vectors before the native-layout output transposes."""
     model_name = 'RMTThreeStageMiddleNativeSavedV6eB4Profile'
     rmt_save_middle_native_outputs = True
+
+
+class RMTThreeStageMiddleTiledGradsProfile(RMTThreeStageMiddleMinorProfile):
+    """Accumulate parameter-gradient tiles inside the complete middle kernel."""
+    model_name = 'RMTThreeStageMiddleTiledGradsProfile'
+    rmt_full_middle_reverse_mode = 'minor_tiled_grads'
+
+
+class RMTThreeStageMiddleTiledGradsV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleTiledGradsV6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_tiled_grads'

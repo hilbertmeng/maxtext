@@ -94,6 +94,9 @@ class RMTDepthTest(absltest.TestCase):
   def test_three_stage_native_saved_outputs_scan_remat_matches_reference(self):
     self._check_fused_scan_remat('autodiff',no_o=True,whole_stage=True,stage_chunk=32,three_stage=True,middle_mode='minor_recompute',save_middle=True,save_native=True)
 
+  def test_three_stage_tiled_parameter_gradients_match_reference(self):
+    self._check_fused_scan_remat('autodiff',no_o=True,whole_stage=True,stage_chunk=32,three_stage=True,middle_mode='minor_tiled_grads')
+
   def _check_fused_scan_remat(self, backward, no_o=False, whole_stage=False, stage_chunk=0,three_stage=False,middle_mode='baseline',save_middle=False,save_native=False):
     from layers import rmt_pallas_minor, rmt_pallas_minor_read, rmt_pallas_minor_qk, rmt_pallas_v_read, rmt_pallas_write_read
     from layers import rmt_pallas_attention_read, rmt_pallas_full_write_read, rmt_pallas_projected_write

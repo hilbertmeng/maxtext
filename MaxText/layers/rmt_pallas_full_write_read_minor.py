@@ -9,7 +9,7 @@ from layers.rmt_pallas_projected_write import project_minor_state, project_rever
 from layers.rmt_pallas_write_reverse import joint, dynamic_joint, chunked_joint
 
 
-def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0,recompute_write=False):
+def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0,recompute_write=False,tiled_grads=False):
   b,k,v,t=args[0].shape
   inp=[_spec(z.shape[1:-1],tile) if i<3 else
        pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
@@ -28,12 +28,32 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
       if value.ndim==1:value=value[None,:]
       elif transpose[index-3]:value=value.T
       ref=refs[18+index];ref[...]=ref[...]+value
+    def dot_store(index,left,right):
+      # Keep only one FP32 128x128 parameter-gradient tile in registers.
+      # The partial-gradient Ref remains on chip across the token loop.
+      out=refs[18+index];tr=transpose[index-3]
+      rows,cols=left.shape[0],right.shape[0]
+      def scoped(lref,rref):
+        lref[...]=left;rref[...]=right
+        def row_block(i,row_size):
+          rs=pl.ds(i*128,row_size)
+          def col_block(j,col_size):
+            cs=pl.ds(j*128,col_size)
+            value=jnp.dot(lref[rs,:],rref[cs,:].T,preferred_element_type=jnp.float32)
+            if tr:out[cs,rs]=out[cs,rs]+value.T
+            else:out[rs,cs]=out[rs,cs]+value
+          if cols>=128:jax.lax.fori_loop(0,cols//128,lambda j,_:col_block(j,128),None)
+          if cols%128:col_block(cols//128,cols%128)
+        if rows>=128:jax.lax.fori_loop(0,rows//128,lambda i,_:row_block(i,128),None)
+        if rows%128:row_block(rows//128,rows%128)
+      pl.run_scoped(scoped,pltpu.VMEM(left.shape,left.dtype),pltpu.VMEM(right.shape,right.dtype))
     m,x,d,s,down,up,ub,wg,gb,r,c,scale,wk,rg,rb,dm,dy,dx=(z[...] for z in refs[:18])
     if recompute_write:
       pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
       m=_tile(m,a,d,g,s,epsilon)
     gm=read_pullback(m,r,c,scale,wk,rg,rb,dm,dy,dx,epsilon,read_epsilon,
-                     lambda index,value:store(index+4,value),merge_linear=True)
+                     lambda index,value:store(index+4,value),merge_linear=True,
+                     dot_store=(lambda index,left,right:dot_store(index+4,left,right)) if tiled_grads else None)
     refs[18][...]=gm
     if not recompute_write:pre,hidden,a,g=project_minor_state(x,down,up,ub,wg,gb)
     # Only the ephemeral write contraction changes layout, not HBM M streams.
@@ -52,7 +72,8 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
     ga=ga.transpose(1,2,0);gg=gg.T
     refs[20][...]=gd
     refs[19][...]=project_reverse_minor(x,down,up,wg,pre,hidden,g,ga,gg,
-                                       lambda index,value:store(index+3,value))
+                                       lambda index,value:store(index+3,value),
+                                       dot_store=(lambda index,left,right:dot_store(index+3,left,right)) if tiled_grads else None)
   grads=pl.pallas_call(kernel,grid=(b,t//tile),in_specs=inp,out_specs=outs,
       out_shape=tuple(shapes),interpret=interpret,input_output_aliases={15:0},
       compiler_params=pltpu.CompilerParams(dimension_semantics=('parallel','arbitrary')),

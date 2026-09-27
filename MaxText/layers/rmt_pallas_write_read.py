@@ -94,7 +94,7 @@ def store_partial(ref,value):
   ref[...]=ref[...]+value
 
 
-def read_pullback(m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,store,merge_linear=False):
+def read_pullback(m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,store,merge_linear=False,dot_store=None):
   # m is the forward's updated matrix, so backward does not repeat the write.
   raw,normalized,x,key,gate,compressed,kn,read=read_state(m,c,scale,wk,wg,bias,epsilon,read_epsilon)
   h,v,t=read.shape;rank=c.shape[1]
@@ -127,9 +127,13 @@ def read_pullback(m,r,c,scale,wk,wg,bias,dm,dy,dx,epsilon,read_epsilon,store,mer
   dk=_norm_backward(key,dkn,read_epsilon).reshape(h*rank,t)
   dg=(dgate*(gate*(1-gate))).astype(m.dtype)
   dp=jnp.concatenate((dk,dg),axis=0)
-  dw=jnp.dot(x,dp.T,preferred_element_type=jnp.float32)
-  store(8,dw[:,:h*rank])
-  store(9,dw[:,h*rank:].T)
+  if dot_store is None:
+    dw=jnp.dot(x,dp.T,preferred_element_type=jnp.float32)
+    store(8,dw[:,:h*rank])
+    store(9,dw[:,h*rank:].T)
+  else:
+    dot_store(8,x,dk)
+    dot_store(9,dg,x)
   store(10,jnp.sum(dg.astype(jnp.float32),axis=1))
   dx=(dx+jnp.dot(jnp.concatenate((wk,wg.T),axis=1),dp,preferred_element_type=jnp.float32).astype(m.dtype)).astype(m.dtype)
   store(7,jnp.sum((dx*normalized).astype(m.dtype).astype(jnp.float32),axis=1))

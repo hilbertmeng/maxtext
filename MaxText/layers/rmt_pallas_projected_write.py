@@ -42,18 +42,23 @@ def project_minor_state(x,down,up,ub,wg,gb):
   return p[:r],hidden,raw,gates
 
 
-def project_reverse_minor(x,down,up,wg,raw_hidden,hidden,gate,da,dg,store):
+def project_reverse_minor(x,down,up,wg,raw_hidden,hidden,gate,da,dg,store,dot_store=None):
   ga=da.reshape(up.shape[1],x.shape[1])
-  store(2,jnp.dot(hidden,ga.T,preferred_element_type=jnp.float32))
+  if dot_store is None:store(2,jnp.dot(hidden,ga.T,preferred_element_type=jnp.float32))
+  else:dot_store(2,hidden,ga)
   store(3,jnp.sum(da.astype(jnp.float32),axis=2))
   dh=jnp.dot(up,ga,preferred_element_type=jnp.float32).astype(x.dtype)
   dh=gelu_reverse(raw_hidden,dh)
   dg=(dg*(gate*(1-gate))).astype(x.dtype)
   store(5,jnp.sum(dg.astype(jnp.float32),axis=1))
   dp=jnp.concatenate((dh,dg),axis=0)
-  dw=jnp.dot(x,dp.T,preferred_element_type=jnp.float32)
-  store(1,dw[:,:down.shape[1]])
-  store(4,dw[:,down.shape[1]:])
+  if dot_store is None:
+    dw=jnp.dot(x,dp.T,preferred_element_type=jnp.float32)
+    store(1,dw[:,:down.shape[1]])
+    store(4,dw[:,down.shape[1]:])
+  else:
+    dot_store(1,x,dh)
+    dot_store(4,x,dg)
   return jnp.dot(jnp.concatenate((down,wg),axis=1),dp,preferred_element_type=jnp.float32).astype(x.dtype)
 
 

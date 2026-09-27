@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from layers import rmt, rmt_pallas, rmt_pallas_joined, rmt_pallas_qk, rmt_pallas_minor
+from layers import rmt, rmt_pallas, rmt_pallas_joined, rmt_pallas_qk, rmt_pallas_minor, rmt_pallas_minor_read
 import rmt_mediumprop_test
 
 
@@ -35,6 +35,9 @@ class RmtPallasTest(absltest.TestCase):
 
   def test_token_minor_write_layer_forward_and_gradients(self):
     self._check_layer('rmt_pallas_write_layout')
+
+  def test_token_minor_read_layer_forward_and_gradients(self):
+    self._check_layer('rmt_pallas_c8')
 
   def _check_layer(self, flag):
     cfg=self._config('RMTCombinedLayerScanNoHealthProfile')
@@ -73,9 +76,12 @@ class RmtPallasTest(absltest.TestCase):
          mock.patch.object(rmt_pallas_qk,'qk_read',
                            wraps=partial(rmt_pallas_qk.qk_read,interpret=True)) as qk, \
          mock.patch.object(rmt_pallas_minor,'write_residual',
-                           wraps=partial(rmt_pallas_minor.write_residual,interpret=True)) as minor:
+                           wraps=partial(rmt_pallas_minor.write_residual,interpret=True)) as minor, \
+         mock.patch.object(rmt_pallas_minor_read,'c8_read',
+                           wraps=partial(rmt_pallas_minor_read.c8_read,interpret=True)) as minor_read:
       actual=jax.jit(jax.value_and_grad(run,argnums=(0,1),has_aux=True))(params,matrix)
       if flag=='rmt_pallas_write_layout':self.assertGreater(minor.call_count,0)
+      if flag=='rmt_pallas_c8':self.assertGreater(minor_read.call_count,0)
       if flag=='rmt_pallas_qk':self.assertGreater(qk.call_count,0)
       if flag in ('rmt_pallas_write','rmt_pallas_write_forward_jax'):self.assertGreater(fused.call_count,0)
       if flag=='rmt_pallas_joined_read':self.assertGreater(read.call_count,0)

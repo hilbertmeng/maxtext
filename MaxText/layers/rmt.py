@@ -188,14 +188,19 @@ class RMTDynamicC8Read(nn.Module):
                            (heads, self.destinations), cfg.weight_dtype)
     raw_key,logits = _project_many(x,(key_kernel,gate_kernel),cfg.get_keys().get('rmt_pack_dynamic_projections',False))
     raw_key = raw_key.reshape(x.shape[:2] + (heads, key_dim))
-    if not pallas_joined:
+    pallas_c8=(cfg.get_keys().get('rmt_pallas_c8',False) and self.compress_state and not self.is_initializing())
+    if not pallas_joined and not pallas_c8:
       key = normalizations.rms_norm(
           raw_key, dtype=x.dtype, epsilon=_read_epsilon(cfg),
           statistics_dtype=jnp.float32)
       read = jnp.einsum('btvc,btnc->btnv', compressed, key)
     logits = logits.reshape(x.shape[:2] + (heads, self.destinations))
     gates = jax.nn.sigmoid(logits + gate_bias.astype(x.dtype))
-    if pallas_joined:
+    if pallas_c8:
+      from layers.rmt_pallas_minor_read import c8_read
+      values=c8_read(jnp.swapaxes(compressed,-2,-1),raw_key,gates,_read_epsilon(cfg))
+      reads=tuple(values[...,i,:] for i in range(self.destinations))
+    elif pallas_joined:
       from layers.rmt_pallas_joined import joined_read
       static_read, dynamic_reads = joined_read(
           static_matrix, raw_key, projection, gates, _read_epsilon(cfg),

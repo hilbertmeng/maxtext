@@ -10452,3 +10452,13 @@ class RMTCombinedLayerScanSaveStateProfile(RMTCombinedLayerScanNoHealthProfile):
 class RMTCombinedLayerScanSaveStateL6Profile(RMTCombinedLayerScanSaveStateProfile):
     model_name = 'RMTCombinedLayerScanSaveStateL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanTokenMinorReadProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanTokenMinorReadProfile'
+    rmt_pallas_c8 = True
+
+
+class RMTCombinedLayerScanTokenMinorReadL6Profile(RMTCombinedLayerScanTokenMinorReadProfile):
+    model_name = 'RMTCombinedLayerScanTokenMinorReadL6Profile'
+    base_num_decoder_layers = 6

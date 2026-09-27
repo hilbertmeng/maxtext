@@ -65,6 +65,20 @@ def _batch_dot_chunks(lhs,rhs,equation,chunk):
       preferred_element_type=jnp.float32) for i in range(0,lhs.shape[0],chunk)],axis=0)
 
 
+def _batch_dot_loop(lhs,rhs,equation,chunk):
+  if equation=='tkv,thv->thk':shape=(lhs.shape[0],rhs.shape[1],lhs.shape[1])
+  elif equation=='tkv,thk->thv':shape=(lhs.shape[0],rhs.shape[1],lhs.shape[2])
+  else:shape=(lhs.shape[0],lhs.shape[1],rhs.shape[2])
+  count=(lhs.shape[0]+chunk-1)//chunk
+  chunk=min(chunk,lhs.shape[0])
+  def body(i,result):
+    l=jax.lax.dynamic_slice_in_dim(lhs,i*chunk,chunk,axis=0)
+    r=jax.lax.dynamic_slice_in_dim(rhs,i*chunk,chunk,axis=0)
+    out=jnp.einsum(equation,l,r,preferred_element_type=jnp.float32)
+    return jax.lax.dynamic_update_slice_in_dim(result,out,i*chunk,axis=0)
+  return jax.lax.fori_loop(0,count,body,jnp.zeros(shape,jnp.float32),unroll=False)
+
+
 def _joint_backward(address,data,gate,static_key,dy,epsilon,chunk=128):
   """Four write contractions in one per-token 128-wide MXU operation."""
   h,k,t=address.shape;v=data.shape[1]
@@ -108,11 +122,12 @@ def _dynamic_backward(address,data,gate,dy,epsilon,method="analytic"):
     both=jnp.einsum('thd,tdc->thc',left,square,preferred_element_type=jnp.float32).transpose(1,2,0)
     ua=both[:,:k,:].astype(address.dtype)
     ud=both[:,k:,:].astype(data.dtype)
-  elif method in ('batched','batched32'):
+  elif method in ('batched','batched32','batched_loop'):
     # Use independent token contractions on MXU; normalize/gate in token lanes.
-    chunk=32 if method=='batched32' else dy.shape[-1]
-    ua=_batch_dot_chunks(dy.transpose(2,0,1),dn.transpose(2,0,1),'tkv,thv->thk',chunk).transpose(1,2,0).astype(address.dtype)
-    ud=_batch_dot_chunks(dy.transpose(2,0,1),gated.transpose(2,0,1),'tkv,thk->thv',chunk).transpose(1,2,0).astype(data.dtype)
+    chunk=32 if method in ('batched32','batched_loop') else dy.shape[-1]
+    contract=_batch_dot_loop if method=='batched_loop' else _batch_dot_chunks
+    ua=contract(dy.transpose(2,0,1),dn.transpose(2,0,1),'tkv,thv->thk',chunk).transpose(1,2,0).astype(address.dtype)
+    ud=contract(dy.transpose(2,0,1),gated.transpose(2,0,1),'tkv,thk->thv',chunk).transpose(1,2,0).astype(data.dtype)
   else:
     for head in range(h):
       d=dn[head];ag=gated[head]
@@ -185,7 +200,7 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
     if backward in ('joint','joint32'):
       ga,gd,gg,gs=_joint_backward(a[...],d[...],g[...],s[...],dy[...],epsilon,32 if backward=='joint32' else tile)
-    elif backward in ('analytic','batched','batched32','symmetric'):
+    elif backward in ('analytic','batched','batched32','batched_loop','symmetric'):
       ga,gd,gg,gs=_analytic_backward(a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],
                                    g[...],s[...],dy[...].swapaxes(0,1) if key_contiguous else dy[...],epsilon,backward)
     else:
@@ -208,7 +223,7 @@ _write.defvjp(_fwd,_bwd)
 
 
 def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=128,key_contiguous=False,backward="autodiff"):
-  if backward not in ("autodiff","analytic","hybrid","hybrid_batched","batched","batched32","symmetric","joint","joint32","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
+  if backward not in ("autodiff","analytic","hybrid","hybrid_batched","batched","batched32","batched_loop","symmetric","joint","joint32","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
   unbatched=matrix.ndim==3
   if unbatched:
     matrix,address,data,gate=(x[None] for x in (matrix,address,data,gate))

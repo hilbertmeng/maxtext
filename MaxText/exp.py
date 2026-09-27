@@ -10727,3 +10727,8 @@ class RMTCombinedLayerScanJoint32WriteProfile(RMTCombinedLayerScanJointWriteProf
 class RMTCombinedLayerScanHybridBatchedWriteProfile(RMTCombinedLayerScanBatchedWriteProfile):
     model_name = 'RMTCombinedLayerScanHybridBatchedWriteProfile'
     rmt_pallas_write_backward = 'hybrid_batched'
+
+
+class RMTCombinedLayerScanLoopWriteProfile(RMTCombinedLayerScanBatchedWriteProfile):
+    model_name = 'RMTCombinedLayerScanLoopWriteProfile'
+    rmt_pallas_write_backward = 'batched_loop'

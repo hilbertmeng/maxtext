@@ -59,6 +59,30 @@ def _analytic_backward(address,data,gate,static_key,dy,epsilon,method="analytic"
   return ga,(gd+static_dd).astype(data.dtype),gg,ds
 
 
+def _joint_backward(address,data,gate,static_key,dy,epsilon):
+  """Four write contractions in one per-token 128-wide MXU operation."""
+  h,k,t=address.shape;v=data.shape[1]
+  an=_norm(address,epsilon);dn=_norm(data,epsilon)
+  gated=(an*gate[:,None,:]).astype(address.dtype)
+  y=dy.transpose(2,0,1)
+  top=jnp.concatenate((jnp.zeros((t,k,k),dy.dtype),y),axis=2)
+  bottom=jnp.concatenate((y.swapaxes(1,2),jnp.zeros((t,v,v),dy.dtype)),axis=2)
+  square=jnp.concatenate((top,bottom),axis=1)
+  dynamic=jnp.concatenate((gated,dn),axis=1)
+  static_data=jnp.concatenate((jnp.broadcast_to(static_key[:,:,None],(h,k,t)),jnp.zeros((h,v,t),data.dtype)),axis=1)
+  static_key_input=jnp.concatenate((jnp.zeros((h,k,t),data.dtype),data),axis=1)
+  left=jnp.concatenate((dynamic,static_data,static_key_input),axis=0).transpose(2,0,1)
+  product=jnp.einsum('thd,tdc->thc',left,square,preferred_element_type=jnp.float32).transpose(1,2,0)
+  ua=product[:h,:k,:].astype(address.dtype)
+  ud=product[:h,k:,:].astype(data.dtype)
+  sd=product[h:2*h,k:,:].astype(data.dtype)
+  ds=jnp.sum(product[2*h:,:k,:],axis=2).astype(static_key.dtype)
+  gg=jnp.sum((ua*an).astype(gate.dtype),axis=1).astype(gate.dtype)
+  ga=_norm_backward(address,(ua*gate[:,None,:]).astype(address.dtype),epsilon)
+  gd=(_norm_backward(data,ud,epsilon)+sd).astype(data.dtype)
+  return ga,gd,gg,ds
+
+
 def _dynamic_backward(address,data,gate,dy,epsilon,method="analytic"):
   h=address.shape[0]
   an=_norm(address,epsilon)
@@ -152,7 +176,9 @@ def _bwd(epsilon,interpret,tile,key_contiguous,backward,args,dy):
         name='rmt_token_minor_dynamic_write_backward')(a,d,g,dy,static_dd)
     return dy,da,dd,dg,ds
   def kernel(a,d,g,s,dy,da,dd,dg,ds):
-    if backward in ('analytic','batched','symmetric'):
+    if backward=='joint':
+      ga,gd,gg,gs=_joint_backward(a[...],d[...],g[...],s[...],dy[...],epsilon)
+    elif backward in ('analytic','batched','symmetric'):
       ga,gd,gg,gs=_analytic_backward(a[...],d[...].swapaxes(0,1) if key_contiguous else d[...],
                                    g[...],s[...],dy[...].swapaxes(0,1) if key_contiguous else dy[...],epsilon,backward)
     else:
@@ -175,7 +201,7 @@ _write.defvjp(_fwd,_bwd)
 
 
 def write_residual(matrix,address,data,gate,static_key,epsilon=1e-6,*,interpret=False,tile=128,key_contiguous=False,backward="autodiff"):
-  if backward not in ("autodiff","analytic","hybrid","batched","symmetric","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
+  if backward not in ("autodiff","analytic","hybrid","batched","symmetric","joint","split4","split8"):raise ValueError(f"Unknown write backward: {backward}")
   unbatched=matrix.ndim==3
   if unbatched:
     matrix,address,data,gate=(x[None] for x in (matrix,address,data,gate))

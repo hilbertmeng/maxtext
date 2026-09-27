@@ -40,6 +40,8 @@ def _block_diagonal(x):
 
 
 def _write_tile(matrix, address, data, gate, static_key, epsilon):
+  if os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu') == 'vpu':
+    return _write_tile_vpu(matrix,address,data,gate,static_key,epsilon)
   t,h,k=address.shape
   v=data.shape[-1]
   a,d=_rms(address,epsilon),_rms(data,epsilon)
@@ -55,6 +57,28 @@ def _write_tile(matrix, address, data, gate, static_key, epsilon):
   dynamic=jnp.dot(blocked,dn.reshape(t*h,vp),
                   preferred_element_type=jnp.float32).astype(data.dtype)
   dynamic=dynamic.reshape(t,k,vp)[...,:v]
+  return matrix+static+dynamic
+
+
+def _write_tile_vpu(matrix,address,data,gate,static_key,epsilon):
+  """Use token lanes for short head reductions; avoid block-diagonal zeros."""
+  t,h,k=address.shape
+  v=data.shape[-1]
+  a=(gate*_rms(address,epsilon)).astype(jnp.float32)
+  d=_rms(data,epsilon).astype(jnp.float32)
+  raw=data.astype(jnp.float32)
+  keys=static_key.astype(jnp.float32)
+  static=jnp.zeros((k,v,t),jnp.float32)
+  dynamic=jnp.zeros_like(static)
+  for head in range(h):
+    sk=jnp.broadcast_to(keys[head,:,None],(k,t))
+    ak=a[:,head,:].T
+    rv=raw[:,head,:].T
+    dv=d[:,head,:].T
+    static=static+sk[:,None,:]*rv[None,:,:]
+    dynamic=dynamic+ak[:,None,:]*dv[None,:,:]
+  static=static.transpose(2,0,1).astype(matrix.dtype)
+  dynamic=dynamic.transpose(2,0,1).astype(matrix.dtype)
   return matrix+static+dynamic
 
 

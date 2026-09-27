@@ -26,3 +26,36 @@ Reproduce the isolated operator probe:
 `PYTHONPATH=MaxText python MaxText/tests/rmt_pallas_probe.py --arm both --tokens 8192 --output result.json`.
 Use `--interpret` for CPU checks. Random nonzero inputs exercise dynamic branches;
 checks cover forward and all five input gradients in FP32 and BF16.
+
+
+## Measured screening results (2026-09-27)
+
+`RMTCombinedLayerScanNoHealthL6Profile`, runtime `a02877e`, host -0:
+50 complete training steps; late steady log speed about 0.749 step/s.
+RUN `RmtPallasBaselineL6a02877e`. This is six layers on v6e, not acceptance.
+Full-layer tests still must use v5p-16.
+
+8192-token BF16 isolated write, forward plus all input gradients, ms:
+
+| Runtime | Tile | Host | JAX reference | Pallas | Interpretation |
+|---|---:|---|---:|---:|---|
+| fc14c15 | 1 | -1 | 2.980 | 10.055 | Reject per-token dispatch |
+| 6659150 | 8 | -1 | 2.992 | 3.611 | Still slower |
+| 6659150 | 16 | -0 | 2.993 | 3.012 | Essentially tied, no win |
+
+Forward alone at tile16: 0.988 vs0.542ms, still slower. The backward improvement
+must not conceal this regression or be advertised as full-step acceleration.
+The tiled block-diagonal implementation increases arithmetic to improve MXU
+utilization; its cost and layout overhead must be measured, not assumed free.
+
+TPU FP32 output/gradient relative L2 errors <=8e-8 in the write probe;
+BF16 <=0.0035. Shared parameter gradients use a different reduction tree.
+CPU complete RMT layer forward/all gradients pass (nonzero perturbation of all
+parameters), as does the inherited layer-scan test. CPU C8 FP32 probe passes;
+TPU C8 currently under development, not wired into the model.
+
+Pinned local validation artifacts: `/data0/xd/bam_diagnostics/rmt-pallas-*`.
+Remote isolated checkouts/logs: `/home/lishengping/xd/rmt-pallas/` on both hosts.
+Pallas JAX0.8.1 lessons: explicitly use FP32 matmul accumulators; avoid negative
+pad transpose in custom VJP; use 2D concatenations instead of unsupported rank4
+mask reshapes; align merged token/value rows before C8 compression.

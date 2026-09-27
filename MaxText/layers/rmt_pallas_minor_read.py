@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 from layers.rmt_pallas import _map_batch
-from layers.rmt_pallas_minor import _norm, _spec
+from layers.rmt_pallas_minor import _norm, _norm_backward, _spec
 
 
 def reference(m,k,g,epsilon=1e-6):
@@ -28,6 +28,20 @@ def _tile(m,k,g,epsilon):
   return ((.2*g).transpose(1,0,2)[:,:,None,:]*read[None,:,:,:]).astype(m.dtype)
 
 
+def _analytic_backward(m,k,g,dy,epsilon):
+  """Contract destination gradients first, then use explicit batched pullbacks."""
+  key=_norm(k,epsilon)
+  scaled=(.2*g).transpose(1,0,2)
+  # Match the BF16 multiply and reduction boundaries of the forward graph.
+  u=jnp.sum((dy*scaled[:,:,None,:]).astype(m.dtype),axis=0).astype(m.dtype)
+  mt=m.transpose(2,0,1);kt=key.transpose(2,0,1);ut=u.transpose(2,0,1)
+  read=jnp.einsum('thr,trv->thv',kt,mt,preferred_element_type=jnp.float32).transpose(1,2,0).astype(m.dtype)
+  dm=jnp.einsum('thr,thv->trv',kt,ut,preferred_element_type=jnp.float32).transpose(1,2,0).astype(m.dtype)
+  dk_norm=jnp.einsum('thv,trv->thr',ut,mt,preferred_element_type=jnp.float32).transpose(1,2,0).astype(k.dtype)
+  dg=(.2*jnp.sum((dy*read[None,:,:,:]).astype(g.dtype),axis=2).astype(g.dtype)).transpose(1,0,2).astype(g.dtype)
+  return dm,_norm_backward(k,dk_norm,epsilon),dg
+
+
 def _call(m,k,g,epsilon,interpret,tile):
   b,r,v,t=m.shape;h,d=k.shape[1],g.shape[2]
   def kernel(m,k,g,y):y[...]=_tile(m[...],k[...],g[...],epsilon)
@@ -38,19 +52,22 @@ def _call(m,k,g,epsilon,interpret,tile):
       name='rmt_token_minor_c8')(m,k,g)
 
 
-@partial(jax.custom_vjp,nondiff_argnums=(3,4,5))
-def _read(m,k,g,epsilon,interpret,tile):return _call(m,k,g,epsilon,interpret,tile)
+@partial(jax.custom_vjp,nondiff_argnums=(3,4,5,6))
+def _read(m,k,g,epsilon,interpret,tile,backward):return _call(m,k,g,epsilon,interpret,tile)
 
 
-def _fwd(m,k,g,epsilon,interpret,tile):
+def _fwd(m,k,g,epsilon,interpret,tile,backward):
   return _call(m,k,g,epsilon,interpret,tile),(m,k,g)
 
 
-def _bwd(epsilon,interpret,tile,args,dy):
+def _bwd(epsilon,interpret,tile,backward,args,dy):
   m,k,g=args;b,r,v,t=m.shape;h,d=k.shape[1],g.shape[2]
   def kernel(m,k,g,dy,dm,dk,dg):
-    _,pb=jax.vjp(lambda mm,kk,gg:_tile(mm,kk,gg,epsilon),m[...],k[...],g[...])
-    dm[...],dk[...],dg[...]=pb(dy[...])
+    if backward=="analytic":
+      dm[...],dk[...],dg[...]=_analytic_backward(m[...],k[...],g[...],dy[...],epsilon)
+    else:
+      _,pb=jax.vjp(lambda mm,kk,gg:_tile(mm,kk,gg,epsilon),m[...],k[...],g[...])
+      dm[...],dk[...],dg[...]=pb(dy[...])
   specs=[_spec((r,v),tile),_spec((h,r),tile),_spec((h,d),tile)]
   return tuple(pl.pallas_call(kernel,grid=(b,t//tile),in_specs=specs+[_spec((d,h,v),tile)],
       out_specs=specs,out_shape=[jax.ShapeDtypeStruct(x.shape,x.dtype) for x in args],
@@ -61,14 +78,15 @@ def _bwd(epsilon,interpret,tile,args,dy):
 _read.defvjp(_fwd,_bwd)
 
 
-def c8_read(matrix,key,gates,epsilon=1e-6,*,interpret=False,tile=128):
+def c8_read(matrix,key,gates,epsilon=1e-6,*,interpret=False,tile=128,backward="autodiff"):
   # Public M[B,T,R,V], key[B,T,H,R], gates[B,T,H,D] -> [B,T,H,D,V].
+  if backward not in ("autodiff","analytic"):raise ValueError(backward)
   unbatched=matrix.ndim==3
   if unbatched:matrix,key,gates=(x[None] for x in (matrix,key,gates))
   def local(m,k,g):
     n=min(tile,m.shape[1])
     if m.shape[1]%n:raise ValueError('Token tile must divide sequence length')
-    y=_read(m.transpose(0,2,3,1),k.transpose(0,2,3,1),g.transpose(0,2,3,1),epsilon,interpret,n)
+    y=_read(m.transpose(0,2,3,1),k.transpose(0,2,3,1),g.transpose(0,2,3,1),epsilon,interpret,n,backward)
     return y.transpose(0,4,2,1,3)
   y=_map_batch(local,(matrix,key,gates),(True,True,True))
   return y[0] if unbatched else y

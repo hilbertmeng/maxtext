@@ -30,7 +30,7 @@ def main():
   parser.add_argument('--check-dtype',choices=['both','float32','bfloat16'],default='both')
   parser.add_argument('--output',required=True)
   args=parser.parse_args()
-  result={'jax':jax.__version__,'devices':str(jax.devices()),'tokens':args.tokens,'arm':args.arm,'write_impl':os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu'),'write_backward':os.environ.get('RMT_PALLAS_WRITE_BACKWARD','autodiff'),'tile':os.environ.get('RMT_PALLAS_TILE','8'),'minor_pad_v':os.environ.get('RMT_PALLAS_MINOR_PAD_V','128'),'key_contiguous':os.environ.get('RMT_PALLAS_KEY_CONTIGUOUS','0'),'input_fusion':os.environ.get('RMT_PALLAS_INPUT_FUSION','0'),'qk_norm':os.environ.get('RMT_PALLAS_QK_NORM','gram'),'grouped_dot':os.environ.get('RMT_PALLAS_GROUPED_DOT','0'),'batched_dot':os.environ.get('RMT_PALLAS_BATCHED_DOT','0'),'kernel':args.kernel,'checks':[],'timings':{}}
+  result={'jax':jax.__version__,'devices':str(jax.devices()),'tokens':args.tokens,'arm':args.arm,'write_impl':os.environ.get('RMT_PALLAS_WRITE_IMPL','mxu'),'write_backward':os.environ.get('RMT_PALLAS_WRITE_BACKWARD','autodiff'),'read_backward':os.environ.get('RMT_PALLAS_READ_BACKWARD','autodiff'),'tile':os.environ.get('RMT_PALLAS_TILE','8'),'minor_pad_v':os.environ.get('RMT_PALLAS_MINOR_PAD_V','128'),'key_contiguous':os.environ.get('RMT_PALLAS_KEY_CONTIGUOUS','0'),'input_fusion':os.environ.get('RMT_PALLAS_INPUT_FUSION','0'),'qk_norm':os.environ.get('RMT_PALLAS_QK_NORM','gram'),'grouped_dot':os.environ.get('RMT_PALLAS_GROUPED_DOT','0'),'batched_dot':os.environ.get('RMT_PALLAS_BATCHED_DOT','0'),'kernel':args.kernel,'checks':[],'timings':{}}
   def inputs(n,dtype):
     shapes=[(n,48,75),(n,16,48),(n,16,75),(n,16),(16,48)]
     if args.kernel=='c8':shapes=[(n,75,32),(n,16,8),(32,8),(n,16,2)]
@@ -49,7 +49,7 @@ def main():
   if args.kernel=='minor_write':fused=lambda *x:minor_write(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','128')),key_contiguous=os.environ.get('RMT_PALLAS_KEY_CONTIGUOUS')=='1',backward=os.environ.get('RMT_PALLAS_WRITE_BACKWARD','autodiff'))
   if args.kernel=='minor_read':
     reference=jax.vmap(minor_read_reference)
-    fused=lambda *x:minor_read(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','128')))
+    fused=lambda *x:minor_read(*x,interpret=args.interpret,tile=int(os.environ.get('RMT_PALLAS_TILE','128')),backward=os.environ.get('RMT_PALLAS_READ_BACKWARD','autodiff'))
     labels=('output','d_matrix','d_key','d_gate')
   if args.kernel=='c8':
     reference=lambda m,k,c,g:jax.vmap(c8_reference,in_axes=(0,0,None,0))(m,k,c,g)

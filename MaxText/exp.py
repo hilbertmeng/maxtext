@@ -10954,60 +10954,92 @@ class RMTThreeStageNoOTunedV6eB4Profile(RMTThreeStageNoOV6eB4Profile):
 
 
 class RMTThreeStageMiddleStreamProfile(RMTThreeStageNoOReverse128Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleStreamProfile'
     rmt_full_middle_reverse_mode = 'stream'
 
 
 class RMTThreeStageMiddleStreamV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleStreamV6eB4Profile'
     rmt_full_middle_reverse_mode = 'stream'
 
 
 class RMTThreeStageMiddleJoinedProfile(RMTThreeStageNoOReverse128Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleJoinedProfile'
     rmt_full_middle_reverse_mode = 'joined'
 
 
 class RMTThreeStageMiddleJoinedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleJoinedV6eB4Profile'
     rmt_full_middle_reverse_mode = 'joined'
 
 
 class RMTThreeStageMiddleMinorProfile(RMTThreeStageNoOReverse128Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleMinorProfile'
     rmt_full_middle_reverse_mode = 'minor'
 
 
 class RMTThreeStageMiddleMinorV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleMinorV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor'
 
 
 class RMTThreeStageMiddleSavedProfile(RMTThreeStageNoOReverse128Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleSavedProfile'
     rmt_save_middle_outputs = True
 
 
 class RMTThreeStageMiddleSavedV6eB4Profile(RMTThreeStageNoOTunedV6eB4Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleSavedV6eB4Profile'
     rmt_save_middle_outputs = True
 
 
 class RMTThreeStageMiddleMinorSavedProfile(RMTThreeStageMiddleMinorProfile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleMinorSavedProfile'
     rmt_save_middle_outputs = True
 
 
 class RMTThreeStageMiddleMinorSavedV6eB4Profile(RMTThreeStageMiddleMinorV6eB4Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleMinorSavedV6eB4Profile'
     rmt_save_middle_outputs = True
 
 
 class RMTThreeStageMiddleDynamicSavedProfile(RMTThreeStageMiddleMinorSavedProfile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleDynamicSavedProfile'
     rmt_full_middle_reverse_mode = 'minor_dynamic'
 
 
 class RMTThreeStageMiddleDynamicSavedV6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
+    # Experimental middle reverse; runtime b9194ea, codex/rmt-pallas; measurement in progress.
     model_name = 'RMTThreeStageMiddleDynamicSavedV6eB4Profile'
     rmt_full_middle_reverse_mode = 'minor_dynamic'
+
+
+class RMTThreeStageMiddleMinor56Profile(RMTThreeStageMiddleMinorProfile):
+    model_name = 'RMTThreeStageMiddleMinor56Profile'
+    rmt_scoped_vmem_limit_kib = 57344
+
+
+class RMTThreeStageMiddleMinorSaved56Profile(RMTThreeStageMiddleMinorSavedProfile):
+    model_name = 'RMTThreeStageMiddleMinorSaved56Profile'
+    rmt_scoped_vmem_limit_kib = 57344
+
+
+class RMTThreeStageMiddleChunk64Profile(RMTThreeStageMiddleMinorSavedProfile):
+    model_name = 'RMTThreeStageMiddleChunk64Profile'
+    rmt_full_middle_reverse_mode = 'minor_chunk64'
+
+
+class RMTThreeStageMiddleChunk64V6eB4Profile(RMTThreeStageMiddleMinorSavedV6eB4Profile):
+    model_name = 'RMTThreeStageMiddleChunk64V6eB4Profile'
+    rmt_full_middle_reverse_mode = 'minor_chunk64'

@@ -61,6 +61,25 @@ def dynamic_joint(address,data,gate,dy,epsilon):
   return ga,norm_backward(data,ud,di),gg
 
 
+def chunked_joint(a,d,g,s,dm,epsilon,chunk=64):
+  """Stage native token-major scratch and bound the live contraction to qchunk."""
+  t,h,k=a.shape
+  chunk=min(chunk,t)
+  if t%chunk:raise ValueError('Write compute chunk must divide DMA tile')
+  def scoped(ar,dr,gr,mr,gar,gdr,ggr,sr):
+    ar[...]=a;dr[...]=d;gr[...]=g;mr[...]=dm
+    sr[...]=jnp.zeros(s.shape,jnp.float32)
+    def step(i,_):
+      sl=pl.ds(i*chunk,chunk)
+      ga,gd,gg,gs=joint(ar[sl,...],dr[sl,...],gr[sl,...],s,mr[sl,...],epsilon)
+      gar[sl,...]=ga;gdr[sl,...]=gd;ggr[sl,...]=gg
+      sr[...]=sr[...]+gs
+    jax.lax.fori_loop(0,t//chunk,step,None)
+    return gar[...],gdr[...],ggr[...],sr[...]
+  return pl.run_scoped(scoped,*[pltpu.VMEM(z.shape,z.dtype) for z in (a,d,g,dm,a,d,g)],
+                       pltpu.VMEM(s.shape,jnp.float32))
+
+
 def backward(a,d,g,s,dy,epsilon,interpret=False,tile=64,gate_layout="minor"):
   b,t,h,k=a.shape;v=d.shape[-1]
   tile=min(tile,t)

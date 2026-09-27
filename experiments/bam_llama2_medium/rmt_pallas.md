@@ -6,6 +6,40 @@ parent `ffb40f2d`. Latest implementation runtime
 Main `MaxText/exp.py` contains ledger classes; implementation is not merged.
 [Earlier chronological notes](rmt_pallas_history.md) retain unsuccessful prototypes.
 
+## Middle reverse follow-up (in progress)
+
+Runtime b9194ea; same worktree/branch and both retained EW4a v6e hosts.
+No target v5p lease requested yet. CPU standalone FP32 and three-layer
+scan/remat gradients passed for stream/joined/minor, and selective saved
+middle outputs. Actual TPU BF16 minor probe max relative-L2 is0.01131.
+
+B4/T4096 v6e isolated middle pullback,20 repeats,96MiB scoped budget:
+
+|Mode|reverse128 ms|reverse256 ms|
+|---|---:|---:|
+|previous baseline|5.96372|6.40293|
+|early shared-gradient sink|6.11548|6.68119|
+|sink + joined linear adjoints|6.06347|6.59660|
+|native token-minor read, local write transpose|4.66343|4.81484|
+|above + static write adjoints as shared dots|4.67578|4.91435|
+
+The useful change is layout; scheduling and joined adjoints alone did not help.
+These are isolated timings, not claimed whole-step gains. Native layout reduces
+standalone HBM temporaries867413184→335969856bytes. This is NOT VMEM usage.
+V5p minor128 initially needs54.39MiB scoped allocation versus48MiB configured;
+physical capacity remains64MiB. A56MiB budget and internal write qchunk are
+being checked rather than abandoning fusion. Mosaic ABI accounting:8.969MiB
+one padded copy,16.325MiB if every unspecified streamed window is double
+buffered; final allocator spills/scratch must be added before comparing54.39.
+
+Saved-output ablation names both middle vectors and the custom pullback's
+matrix residual to test removal of redundant whole-stage remat. Saving the
+vectors costs up to5.273GiB/device on v5p B16 and1.318GiB on v6e B4 across18
+layers, before compiler reuse. Actual full-step memory/speed pending.
+
+Raw artifacts: `/data0/xd/bam_diagnostics/rmt-middle-v2` and
+`gs://newproject-1-llm_base_models_us-central1/log/diagnostics/rmt-middle-v2/`.
+
 ## Selected complete-step results with forward/backward attribution
 
 Final implementation runtime `be0d8d352f438ace6050a08da22d1a0abaea2c55`; worktree and branch above.

@@ -6,10 +6,10 @@ from jax.experimental.pallas import tpu as pltpu
 from layers.rmt_pallas_minor import _spec
 from layers.rmt_pallas_write_read import read_pullback, contract, weight_grad
 from layers.rmt_pallas_projected_write import project_minor_state, project_reverse_minor
-from layers.rmt_pallas_write_reverse import joint, dynamic_joint
+from layers.rmt_pallas_write_reverse import joint, dynamic_joint, chunked_joint
 
 
-def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False):
+def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=False,compute_chunk=0):
   b,k,v,t=args[0].shape
   inp=[_spec(z.shape[1:-1],tile) if i<3 else
        pl.BlockSpec(z.shape,lambda b,j,n=z.ndim:(0,)*n) for i,z in enumerate(args)]
@@ -41,8 +41,9 @@ def backward(args,cotangents,epsilon,read_epsilon,interpret,tile,dynamic_only=Fa
                             gm.transpose(2,0,1),epsilon)
       gd=(gd.transpose(1,2,0)+static_dd).astype(d.dtype)
     else:
-      ga,gd,gg,gs=joint(a.transpose(2,0,1),d.transpose(2,0,1),g.T,s,
-                         gm.transpose(2,0,1),epsilon,gate_layout='minor')
+      write_fn=joint if not compute_chunk else lambda *args,**kw:chunked_joint(*args,chunk=compute_chunk)
+      ga,gd,gg,gs=write_fn(a.transpose(2,0,1),d.transpose(2,0,1),g.T,s,
+                            gm.transpose(2,0,1),epsilon,gate_layout='minor')
       gd=gd.transpose(1,2,0)
       store(3,gs)
     ga=ga.transpose(1,2,0);gg=gg.T

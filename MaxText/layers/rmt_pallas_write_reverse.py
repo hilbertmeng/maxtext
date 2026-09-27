@@ -32,7 +32,10 @@ def joint(address,data,gate,static_key,dy,epsilon):
   ud=product[:,:h,k:].astype(data.dtype)
   sd=product[:,h:2*h,k:].astype(data.dtype)
   ds=jnp.sum(product[:,2*h:,:k],axis=0)
-  gg=jax.lax.reduce_sum((ua*an).astype(gate.dtype),axes=(2,)).astype(gate.dtype)
+  # Match the token-minor BF16 gate-reduction tree; only this small tensor
+  # changes layout, while all matrix contractions remain token-major.
+  gate_terms=(ua*an).astype(gate.dtype).transpose(1,2,0)
+  gg=jax.lax.reduce_sum(gate_terms,axes=(1,)).T.astype(gate.dtype)
   ga=norm_backward(address,(ua.astype(jnp.float32)*gate.astype(jnp.float32)[:,:,None]).astype(address.dtype),ai)
   gd=(norm_backward(data,ud,di)+sd).astype(data.dtype)
   return ga,gd,gg,ds

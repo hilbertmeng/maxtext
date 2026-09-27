@@ -10410,3 +10410,13 @@ class RMTCombinedLayerScanSaveDenseProfile(RMTCombinedLayerScanNoHealthProfile):
 class RMTCombinedLayerScanSaveDenseL6Profile(RMTCombinedLayerScanSaveDenseProfile):
     model_name = 'RMTCombinedLayerScanSaveDenseL6Profile'
     base_num_decoder_layers = 6
+
+
+class RMTCombinedLayerScanAttentionRematProfile(RMTCombinedLayerScanNoHealthProfile):
+    model_name = 'RMTCombinedLayerScanAttentionRematProfile'
+    rmt_remat_policy = 'attention_only'
+
+
+class RMTCombinedLayerScanAttentionRematL6Profile(RMTCombinedLayerScanAttentionRematProfile):
+    model_name = 'RMTCombinedLayerScanAttentionRematL6Profile'
+    base_num_decoder_layers = 6

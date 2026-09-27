@@ -33,10 +33,11 @@ class RMTDepthTest(absltest.TestCase):
       params=tree.unflatten([x+.01*jax.random.normal(jax.random.key(812+i),x.shape) for i,x in enumerate(leaves)])
       def loss(p):return jnp.mean(model.apply({'params':p},**args)[0])
       baseline=jax.jit(jax.value_and_grad(loss))(params)
-      cfg.get_keys()['rmt_remat_policy']='save_dense'
-      actual=jax.jit(jax.value_and_grad(loss))(params)
-    for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
-      np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=3e-4,atol=2e-6)
+      for policy in ('save_dense','attention_only'):
+        cfg.get_keys()['rmt_remat_policy']=policy
+        actual=jax.jit(jax.value_and_grad(loss))(params)
+        for a,b in zip(jax.tree.leaves(actual),jax.tree.leaves(baseline)):
+          np.testing.assert_allclose(np.asarray(a),np.asarray(b),rtol=3e-4,atol=2e-6)
 
   def test_layer_scan_forward_gradients_and_health(self):
     name = 'RMTMediumPropK48DynamicFull48RoPE18VectorNormMHABudgetDynamicEmbeddingUnembeddingDirect32L22'

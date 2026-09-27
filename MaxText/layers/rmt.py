@@ -391,11 +391,21 @@ class RMTLayer(nn.Module):
       valid = (source <= target)[None]
       if segment_ids is not None:
         valid &= (segment_ids[:, q0:q1, None] == segment_ids[:, None, :q1])
-      y, alpha = attentions._attention_op(
-          query[:, q0:q1], key[:, :q1], value[:, :q1], valid,
-          float32_logits=cfg.float32_logits if rope_qk_dim else True,
-          additive_bias=(None if rope_qk_dim else
-                         _alibi_bias(heads, q0, q1, 0, q1)))
+      if cfg.get_keys().get('rmt_remat_policy','full')=='attention_only':
+        # Same attention equations and chunks. Limit recomputation to the
+        # large quadratic intermediates; retain linear-size matrix-flow work.
+        def attention_chunk(q,k,v,mask):
+          return attentions._attention_op(q,k,v,mask,
+              float32_logits=cfg.float32_logits if rope_qk_dim else True,
+              additive_bias=(None if rope_qk_dim else _alibi_bias(heads,q0,q1,0,q1)))[0]
+        y=jax.checkpoint(attention_chunk,prevent_cse=True)(
+            query[:,q0:q1],key[:,:q1],value[:,:q1],valid)
+      else:
+        y, alpha = attentions._attention_op(
+            query[:, q0:q1], key[:, :q1], value[:, :q1], valid,
+            float32_logits=cfg.float32_logits if rope_qk_dim else True,
+            additive_bias=(None if rope_qk_dim else
+                           _alibi_bias(heads, q0, q1, 0, q1)))
       outputs.append(y)
     head_output = jnp.concatenate(outputs, axis=1).astype(cfg.dtype)
     if dynamic:
@@ -583,9 +593,11 @@ class RMTDecoder(nn.Module):
     if block_scan and cfg.num_decoder_layers % 3:
       raise ValueError('RMT block scan requires a multiple of three layers')
     policy_name=cfg.get_keys().get('rmt_remat_policy','full')
-    if policy_name not in ('full','save_dense'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
+    if policy_name not in ('full','save_dense','attention_only'):raise ValueError(f'Unknown RMT remat policy: {policy_name}')
     policy=(jax.checkpoint_policies.dots_with_no_batch_dims_saveable if policy_name=='save_dense' else None)
-    Layer = RMTBlock if block_scan else nn.remat(RMTLayer, prevent_cse=True, static_argnums=(4,),policy=policy)
+    if block_scan and policy_name!='full':raise ValueError('Selective remat requires direct layer scan')
+    Layer = (RMTBlock if block_scan else RMTLayer if policy_name=='attention_only' else
+             nn.remat(RMTLayer,prevent_cse=True,static_argnums=(4,),policy=policy))
     scan_length = cfg.num_decoder_layers // 3 if block_scan else cfg.num_decoder_layers
     ScanLayer = nn.scan(
         Layer,
